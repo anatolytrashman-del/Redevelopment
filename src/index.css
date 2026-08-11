@@ -1,16 +1,46 @@
-@import url('https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800;900&display=swap');
 @import 'tailwindcss';
 
+@font-face {
+  font-family: 'Yandex Sans Text';
+  src: url('/fonts/YandexSansText-Thin.ttf') format('truetype');
+  font-weight: 100 199;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Yandex Sans Text';
+  src: url('/fonts/YandexSansText-Light.ttf') format('truetype');
+  font-weight: 200 349;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Yandex Sans Text';
+  src: url('/fonts/YandexSansText-Regular.ttf') format('truetype');
+  font-weight: 350 549;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Yandex Sans Text';
+  src: url('/fonts/YandexSansText-Bold.ttf') format('truetype');
+  font-weight: 550 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
-  --font-sans: 'Golos Text', 'Manrope', system-ui, sans-serif;
+  --font-sans: 'Yandex Sans Text', system-ui, sans-serif;
 
   --color-bg: #f0efed;
   --color-surface: #ffffff;
   --color-surface-muted: #f5f4f2;
 
-  --color-primary: #ef3d4e;
-  --color-primary-hover: #d92f40;
-  --color-primary-soft: #fde8ea;
+  --color-primary: #e4152b;
+  --color-primary-hover: #c81124;
+  --color-primary-soft: #fde3e5;
+
+  --color-mascot: #ff7a76;
 
   --color-ink: #14151a;
   --color-ink-muted: #6b6d76;

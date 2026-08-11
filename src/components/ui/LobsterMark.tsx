@@ -3,46 +3,41 @@ import { cn } from '../../lib/cn';
 export function LobsterMark({ className }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 140 140"
+      viewBox="0 0 500 640"
       fill="none"
-      className={cn('text-primary', className)}
+      className={cn('text-mascot', className)}
       aria-hidden="true"
     >
-      {/* tail */}
-      <path
-        d="M70 132c-10-6-16-15-16-26 0-9 5-15 5-23"
+      <g
         stroke="currentColor"
-        strokeWidth="3.5"
-        strokeLinecap="round"
-      />
-      <path d="M62 118c3 3 8 4 12 2" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
-      <path d="M60 106c3 3 8 4 12 2" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
-      {/* body */}
-      <ellipse cx="63" cy="72" rx="16" ry="20" stroke="currentColor" strokeWidth="3.5" />
-      {/* head + antennae */}
-      <path d="M55 54c-10-14-8-28 2-36" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
-      <path d="M63 52c-4-16 2-30 14-36" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
-      {/* left claw */}
-      <path
-        d="M49 66c-16-4-28 2-34 14-3 6-1 12 5 14 7 3 14-2 16-9"
-        stroke="currentColor"
-        strokeWidth="3.5"
+        strokeWidth="20"
         strokeLinecap="round"
         strokeLinejoin="round"
-      />
-      <path d="M15 80c-5 4-7 10-4 16" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
-      {/* right claw */}
-      <path
-        d="M78 62c16 0 27 9 30 22 1 7-3 12-9 13-7 2-13-4-14-11"
-        stroke="currentColor"
-        strokeWidth="3.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M108 84c6 3 9 9 7 15" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
-      {/* legs */}
-      <path d="M52 90c-8 4-13 10-14 18" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-      <path d="M74 90c8 4 13 10 14 18" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+        style={{ filter: 'drop-shadow(2px 10px 10px rgb(255 122 118 / 0.35))' }}
+      >
+        {/* large antenna curl */}
+        <path d="M215 55c-34-18-70-6-82 26-11 30 4 58 30 66 22 7 42-5 46-24" />
+        {/* small antenna curl */}
+        <path d="M290 95c17-9 36-2 40 15 4 15-6 28-20 27" />
+        {/* flowing line from antennae down to claw */}
+        <path d="M300 130c34 20 55 40 60 72" />
+        {/* claw */}
+        <path d="M360 202c22-4 42 8 44 30 2 20-14 34-32 30-14-3-20-15-16-27" />
+        {/* body diagonal from claw down to head */}
+        <path d="M348 235c-46 46-104 96-160 138" />
+        {/* head / shell capsule */}
+        <path
+          d="M188 373c-28 20-30 60-4 78 24 17 56 6 64-22 8-27-9-54-32-58-8-2-18 0-28 2z"
+          strokeWidth="18"
+        />
+        {/* legs */}
+        <path d="M150 420l-46 34" />
+        <path d="M138 452l-48 30" />
+        <path d="M128 484l-50 26" />
+        <path d="M120 516l-52 22" />
+        {/* foot curl */}
+        <path d="M64 540c-24 8-34 30-24 50 10 19 34 24 50 12" />
+      </g>
     </svg>
   );
 }
