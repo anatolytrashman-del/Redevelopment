@@ -13,7 +13,10 @@ import { cn } from '../../lib/cn';
 import { LobsterMark } from '../ui/LobsterMark';
 import { LobstersLogo } from '../ui/LobstersLogo';
 
-const navItems = [
+// Полная навигация проекта — держим здесь как референс с готовыми иконками.
+// Пока в разработке только Дашборд, поэтому рендерим один пункт (см. navItems ниже).
+// Когда добавляете следующую страницу — раскомментируйте соответствующую запись.
+const allNavItems = [
   { to: '/', label: 'Дашборд', icon: LayoutGrid, end: true },
   { to: '/objects', label: 'Объекты', icon: Building2 },
   { to: '/statistics', label: 'Статистика', icon: PieChart },
@@ -21,7 +24,10 @@ const navItems = [
   { to: '/account', label: 'Аккаунт', icon: User },
   { to: '/support', label: 'Поддержка', icon: MessageCircle },
   { to: '/faq', label: 'FAQ', icon: HelpCircle },
+  { to: '/invite', label: 'Пригласить партнёра', icon: UserPlus },
 ];
+
+const navItems = allNavItems.filter((item) => item.label === 'Дашборд');
 
 export function Sidebar() {
   return (
@@ -45,18 +51,6 @@ export function Sidebar() {
               {label}
             </NavLink>
           ))}
-          <NavLink
-            to="/invite"
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium transition-colors',
-                isActive ? 'text-primary' : 'text-ink hover:text-primary',
-              )
-            }
-          >
-            <UserPlus className="h-5 w-5" />
-            Пригласить партнёра
-          </NavLink>
         </nav>
       </div>
       <LobsterMark className="w-24 opacity-90" />

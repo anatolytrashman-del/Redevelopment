@@ -1,36 +1,43 @@
 @import 'tailwindcss';
 
 @font-face {
-  font-family: 'Yandex Sans Text';
-  src: url('/fonts/YandexSansText-Thin.ttf') format('truetype');
+  font-family: 'Montserrat';
+  src: url('/fonts/Montserrat-Thin.ttf') format('truetype');
   font-weight: 100 199;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: 'Yandex Sans Text';
-  src: url('/fonts/YandexSansText-Light.ttf') format('truetype');
+  font-family: 'Montserrat';
+  src: url('/fonts/Montserrat-Light.ttf') format('truetype');
   font-weight: 200 349;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: 'Yandex Sans Text';
-  src: url('/fonts/YandexSansText-Regular.ttf') format('truetype');
-  font-weight: 350 549;
+  font-family: 'Montserrat';
+  src: url('/fonts/Montserrat-Regular.ttf') format('truetype');
+  font-weight: 350 449;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: 'Yandex Sans Text';
-  src: url('/fonts/YandexSansText-Bold.ttf') format('truetype');
+  font-family: 'Montserrat';
+  src: url('/fonts/Montserrat-Medium.ttf') format('truetype');
+  font-weight: 450 549;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Montserrat';
+  src: url('/fonts/Montserrat-SemiBold.ttf') format('truetype');
   font-weight: 550 900;
   font-style: normal;
   font-display: swap;
 }
 
 @theme {
-  --font-sans: 'Yandex Sans Text', system-ui, sans-serif;
+  --font-sans: 'Montserrat', system-ui, sans-serif;
 
   --color-bg: #f0efed;
   --color-surface: #ffffff;
