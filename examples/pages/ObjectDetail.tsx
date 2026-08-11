@@ -1,9 +1,9 @@
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Building2, Star } from 'lucide-react';
-import { PageHeader } from '../components/layout/PageHeader';
-import { InfoBanner } from '../components/layout/InfoBanner';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
+import { PageHeader } from '../../src/components/layout/PageHeader';
+import { InfoBanner } from '../../src/components/layout/InfoBanner';
+import { Card } from '../../src/components/ui/Card';
+import { Button } from '../../src/components/ui/Button';
 import { deals } from '../data/deals';
 
 export function ObjectDetail() {

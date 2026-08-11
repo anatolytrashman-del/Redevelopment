@@ -1,5 +1,5 @@
-import { PageHeader } from '../components/layout/PageHeader';
-import { Card } from '../components/ui/Card';
+import { PageHeader } from '../../src/components/layout/PageHeader';
+import { Card } from '../../src/components/ui/Card';
 
 interface PlaceholderProps {
   title: string;

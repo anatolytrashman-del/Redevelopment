@@ -1,9 +1,9 @@
 import { CalendarDays, Download } from 'lucide-react';
-import { PageHeader } from '../components/layout/PageHeader';
-import { InfoBanner } from '../components/layout/InfoBanner';
-import { Card } from '../components/ui/Card';
-import { Badge } from '../components/ui/Badge';
-import { LobsterMark } from '../components/ui/LobsterMark';
+import { PageHeader } from '../../src/components/layout/PageHeader';
+import { InfoBanner } from '../../src/components/layout/InfoBanner';
+import { Card } from '../../src/components/ui/Card';
+import { Badge } from '../../src/components/ui/Badge';
+import { LobsterMark } from '../../src/components/ui/LobsterMark';
 import { dashboardMetrics } from '../data/dashboard';
 import { deals } from '../data/deals';
 import { Link } from 'react-router-dom';

@@ -1,11 +1,11 @@
 import { Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { PageHeader } from '../components/layout/PageHeader';
-import { InfoBanner } from '../components/layout/InfoBanner';
-import { SearchInput } from '../components/ui/SearchInput';
-import { Select } from '../components/ui/Select';
-import { Badge } from '../components/ui/Badge';
-import { Card } from '../components/ui/Card';
+import { PageHeader } from '../../src/components/layout/PageHeader';
+import { InfoBanner } from '../../src/components/layout/InfoBanner';
+import { SearchInput } from '../../src/components/ui/SearchInput';
+import { Select } from '../../src/components/ui/Select';
+import { Badge } from '../../src/components/ui/Badge';
+import { Card } from '../../src/components/ui/Card';
 import { deals } from '../data/deals';
 
 export function Objects() {

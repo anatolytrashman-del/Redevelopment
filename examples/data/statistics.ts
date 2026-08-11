@@ -1,4 +1,4 @@
-import type { TreeRow } from '../components/ui/TreeTable';
+import type { TreeRow } from '../../src/components/ui/TreeTable';
 
 export const statisticsColumns = ['Дата / объект', 'В работе', 'Подтверждено', 'Отклонено', 'Заработано'];
 

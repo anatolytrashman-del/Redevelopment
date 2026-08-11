@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { CalendarDays, X } from 'lucide-react';
-import { PageHeader } from '../components/layout/PageHeader';
-import { InfoBanner } from '../components/layout/InfoBanner';
-import { TreeTable } from '../components/ui/TreeTable';
-import { Select } from '../components/ui/Select';
-import { cn } from '../lib/cn';
+import { PageHeader } from '../../src/components/layout/PageHeader';
+import { InfoBanner } from '../../src/components/layout/InfoBanner';
+import { TreeTable } from '../../src/components/ui/TreeTable';
+import { Select } from '../../src/components/ui/Select';
+import { cn } from '../../src/lib/cn';
 import { statisticsColumns, statisticsRows, statisticsTotal } from '../data/statistics';
 
 const viewModes = ['Стандартная', 'Древовидная'] as const;
