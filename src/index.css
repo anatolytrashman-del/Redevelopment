@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800;900&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Golos Text', 'Manrope', system-ui, sans-serif;
+
+  --color-bg: #f0efed;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f5f4f2;
+
+  --color-primary: #ef3d4e;
+  --color-primary-hover: #d92f40;
+  --color-primary-soft: #fde8ea;
+
+  --color-ink: #14151a;
+  --color-ink-muted: #6b6d76;
+  --color-ink-faint: #9a9ba3;
+
+  --color-border: #e7e5e2;
+  --color-border-strong: #d8d6d2;
+
+  --color-info-bg: #dfeafd;
+  --color-info-text: #1f4c8f;
+
+  --color-success: #1aa053;
+  --color-success-bg: #e6f6ed;
+  --color-danger: #e0293f;
+  --color-danger-bg: #fce9eb;
+  --color-warning: #b8842a;
+  --color-warning-bg: #fbf1de;
+
+  --radius-card: 1.25rem;
+  --radius-control: 0.85rem;
+
+  --shadow-card: 0 1px 2px rgba(20, 21, 26, 0.04), 0 1px 1px rgba(20, 21, 26, 0.03);
+}
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100svh;
+}
