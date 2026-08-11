@@ -51,20 +51,20 @@ export function Dashboard() {
         </Card>
 
         <Card className="relative flex flex-col gap-5 overflow-hidden">
-          <span className="text-base font-bold">Доход</span>
-          <div>
+          <LobsterMark className="pointer-events-none absolute -right-3 -top-3 h-14 w-14 opacity-20" />
+          <span className="relative text-base font-bold">Доход</span>
+          <div className="relative">
             <div className="text-sm text-ink-muted">За месяц</div>
             <div className="text-2xl font-extrabold">{dashboardMetrics.incomeMonth}</div>
           </div>
-          <div>
+          <div className="relative">
             <div className="text-sm text-ink-muted">За год</div>
             <div className="text-2xl font-extrabold">{dashboardMetrics.incomeYear}</div>
           </div>
-          <div>
+          <div className="relative">
             <div className="text-sm text-ink-muted">За всё время</div>
             <div className="text-2xl font-extrabold">{dashboardMetrics.incomeAllTime}</div>
           </div>
-          <LobsterMark className="pointer-events-none absolute -right-4 -top-4 h-24 w-24" />
         </Card>
       </div>
 

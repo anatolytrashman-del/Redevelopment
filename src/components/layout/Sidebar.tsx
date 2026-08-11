@@ -59,7 +59,7 @@ export function Sidebar() {
           </NavLink>
         </nav>
       </div>
-      <LobsterMark className="-ml-4 h-28 w-28 opacity-90" />
+      <LobsterMark className="w-24 opacity-90" />
     </aside>
   );
 }
