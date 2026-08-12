@@ -4,6 +4,6 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/Lobsters-Real-Estate/',
+  base: '/redevelopment/',
   plugins: [react(), tailwindcss()],
 })
