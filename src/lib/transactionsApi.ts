@@ -9,7 +9,7 @@ function fromRow(row: TransactionRow): Transaction {
     currency: row.currency,
     purpose: row.purpose,
     category: row.category as Transaction['category'],
-    paidBy: row.paid_by,
+    paidBy: row.paid_by as Transaction['paidBy'],
     paidFrom: row.paid_from,
     compensated: row.compensated,
   };

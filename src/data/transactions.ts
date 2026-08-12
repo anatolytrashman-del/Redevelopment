@@ -12,6 +12,11 @@ export const currencySymbols: Record<Currency, string> = {
 export const categories = ['Маркетинг', 'IT-инфраструктура'] as const;
 export type Category = (typeof categories)[number];
 
+// Партнёры, между которыми считается баланс "кто кому должен" (см. Transactions.tsx).
+// Замените на реальные имена — используются как в форме, так и в расчёте баланса.
+export const payers = ['Анатолий', 'Партнёр'] as const;
+export type Payer = (typeof payers)[number];
+
 // Пастельная палитра для бейджей категорий. Цвет подбирается по хэшу названия,
 // поэтому новые категории (даже ещё не добавленные в список выше) автоматически
 // получают свой стабильный цвет без правки кода.
@@ -39,7 +44,7 @@ export interface Transaction {
   currency: Currency;
   purpose: string;
   category: Category;
-  paidBy: string;
+  paidBy: Payer;
   paidFrom: string;
   compensated: boolean;
 }

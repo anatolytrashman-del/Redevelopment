@@ -13,9 +13,11 @@ import {
   currencySymbols,
   categories,
   categoryColor,
+  payers,
   type Transaction,
   type Currency,
   type Category,
+  type Payer,
 } from '../data/transactions';
 import { fetchTransactions, insertTransaction, updateTransaction } from '../lib/transactionsApi';
 
@@ -43,10 +45,37 @@ const emptyForm = {
   currency: 'RUB' as Currency,
   purpose: '',
   category: 'Маркетинг' as Category,
-  paidBy: '',
+  paidBy: payers[0] as Payer,
   paidFrom: '',
   compensated: 'Нет',
 };
+
+// Баланс считается только по невзаимозачтённым тратам ("В расчете" = Нет),
+// отдельно по каждой валюте, поровну между двумя партнёрами из payers.
+function calculateBalances(transactions: Transaction[]) {
+  const byCurrency = new Map<Currency, Map<Payer, number>>();
+  for (const t of transactions) {
+    if (t.compensated) continue;
+    if (!byCurrency.has(t.currency)) byCurrency.set(t.currency, new Map());
+    const totals = byCurrency.get(t.currency)!;
+    totals.set(t.paidBy, (totals.get(t.paidBy) ?? 0) + t.amount);
+  }
+
+  const [p1, p2] = payers;
+  return [...byCurrency.entries()].map(([currency, totals]) => {
+    const t1 = totals.get(p1) ?? 0;
+    const t2 = totals.get(p2) ?? 0;
+    const diff = t1 - t2;
+    const owed = Math.round(Math.abs(diff) / 2 * 100) / 100;
+    return {
+      currency,
+      totals: { [p1]: t1, [p2]: t2 } as Record<Payer, number>,
+      debtor: diff > 0 ? p2 : p1,
+      creditor: diff > 0 ? p1 : p2,
+      owed,
+    };
+  });
+}
 
 function transactionToForm(t: Transaction) {
   return {
@@ -194,6 +223,42 @@ export function Transactions() {
         </div>
       </Card>
 
+      {!loading && !loadError && (
+        <Card className="flex flex-col gap-4">
+          <span className="text-lg font-bold text-ink">Баланс между партнёрами</span>
+          <p className="text-sm text-ink-muted">
+            Считается только по тратам со статусом «В расчете: Нет», отдельно по каждой валюте, исходя из
+            того, что расходы делятся поровну между {payers[0]} и {payers[1]}.
+          </p>
+          <div className="flex flex-col gap-3">
+            {calculateBalances(transactions).map(({ currency, totals, debtor, creditor, owed }) => (
+              <div
+                key={currency}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-control bg-surface-muted px-4 py-3"
+              >
+                <div className="flex gap-6 text-sm text-ink-muted">
+                  {payers.map((p) => (
+                    <span key={p}>
+                      {p}: <span className="font-semibold text-ink">{formatAmount(totals[p] ?? 0, currency)}</span>
+                    </span>
+                  ))}
+                </div>
+                {owed === 0 ? (
+                  <Badge tone="success">Баланс сведён</Badge>
+                ) : (
+                  <Badge tone="primary">
+                    {debtor} должен {creditor}: {formatAmount(owed, currency)}
+                  </Badge>
+                )}
+              </div>
+            ))}
+            {calculateBalances(transactions).length === 0 && (
+              <p className="text-sm text-ink-muted">Нет невзаимозачтённых трат — баланс сведён по всем валютам.</p>
+            )}
+          </div>
+        </Card>
+      )}
+
       <Modal open={open} onClose={() => setOpen(false)} title={editingId ? 'Редактировать транзакцию' : 'Новая транзакция'}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
@@ -239,12 +304,11 @@ export function Transactions() {
           />
 
           <div className="grid grid-cols-2 gap-4">
-            <Input
+            <Select
               label="Кто платил"
-              placeholder="Имя сотрудника"
+              options={[...payers]}
               value={form.paidBy}
-              onChange={(e) => setForm((f) => ({ ...f, paidBy: e.target.value }))}
-              required
+              onChange={(v) => setForm((f) => ({ ...f, paidBy: v as Payer }))}
             />
             <Input
               label="Откуда платил"
