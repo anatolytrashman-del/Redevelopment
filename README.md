@@ -24,7 +24,7 @@ npm run dev
 
 При каждом пуше в `claude/redevelopment-platform-prototype-oodobu` или `main` GitHub Actions
 (`.github/workflows/deploy-pages.yml`) собирает проект и публикует на GitHub Pages:
-https://anatolytrashman-del.github.io/redevelopment/
+https://anatolytrashman-del.github.io/Redevelopment/
 
 ## Структура
 
