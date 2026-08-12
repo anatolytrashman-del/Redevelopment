@@ -6,6 +6,7 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
+import { AddableSelect } from '../components/ui/AddableSelect';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Modal } from '../components/ui/Modal';
 import {
@@ -14,6 +15,7 @@ import {
   categories,
   categoryColor,
   payers,
+  sources,
   type Transaction,
   type Currency,
   type Category,
@@ -37,6 +39,11 @@ function formatDate(iso: string) {
 
 function formatAmount(amount: number, currency: Currency) {
   return `${amount.toLocaleString('ru-RU')} ${currencySymbols[currency]}`;
+}
+
+function formatTotalsMap(map: Map<Currency, number>) {
+  if (map.size === 0) return formatAmount(0, 'RUB');
+  return [...map.entries()].map(([currency, amount]) => formatAmount(amount, currency)).join(' · ');
 }
 
 const emptyForm = {
@@ -68,7 +75,7 @@ function calculateBalances(transactions: Transaction[]) {
     const t1 = totals.get(p1) ?? 0;
     const t2 = totals.get(p2) ?? 0;
     const diff = t1 - t2;
-    const owed = Math.round(Math.abs(diff) / 2 * 100) / 100;
+    const owed = Math.round((Math.abs(diff) / 2) * 100) / 100;
     return {
       currency,
       totals: { [p1]: t1, [p2]: t2 } as Record<Payer, number>,
@@ -79,7 +86,26 @@ function calculateBalances(transactions: Transaction[]) {
   });
 }
 
-const NEW_CATEGORY_OPTION = '+ Добавить категорию';
+// Расходы (отрицательная сумма) и доходы (положительная) за текущий календарный
+// месяц, отдельно по каждой валюте. Компенсация тут ни при чём — это просто
+// движение денег за месяц, а не про то, что ещё не взаимозачтено.
+function calculateMonthTotals(transactions: Transaction[]) {
+  const now = new Date();
+  const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const expenses = new Map<Currency, number>();
+  const income = new Map<Currency, number>();
+
+  for (const t of transactions) {
+    if (!t.date.startsWith(monthPrefix)) continue;
+    if (t.amount < 0) {
+      expenses.set(t.currency, (expenses.get(t.currency) ?? 0) + Math.abs(t.amount));
+    } else if (t.amount > 0) {
+      income.set(t.currency, (income.get(t.currency) ?? 0) + t.amount);
+    }
+  }
+
+  return { expenses, income };
+}
 
 function transactionToForm(t: Transaction) {
   return {
@@ -103,13 +129,20 @@ export function Transactions() {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [addingCategory, setAddingCategory] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [toggleError, setToggleError] = useState<string | null>(null);
 
-  // Список категорий открытый: стартовый набор + всё, что уже встречалось
-  // в загруженных транзакциях (в т.ч. добавленное через форму ранее).
+  // Списки категорий и источников открытые: стартовый набор + всё, что уже
+  // встречалось в загруженных транзакциях (в т.ч. добавленное через форму ранее).
   const knownCategories = useMemo(() => {
     const set = new Set<string>(categories);
     transactions.forEach((t) => set.add(t.category));
+    return [...set];
+  }, [transactions]);
+
+  const knownSources = useMemo(() => {
+    const set = new Set<string>(sources);
+    transactions.forEach((t) => set.add(t.paidFrom));
     return [...set];
   }, [transactions]);
 
@@ -126,7 +159,6 @@ export function Transactions() {
     setEditingId(null);
     setForm(emptyForm);
     setSubmitError(null);
-    setAddingCategory(false);
     setOpen(true);
   }
 
@@ -134,7 +166,6 @@ export function Transactions() {
     setEditingId(t.id);
     setForm(transactionToForm(t));
     setSubmitError(null);
-    setAddingCategory(false);
     setOpen(true);
   }
 
@@ -171,6 +202,26 @@ export function Transactions() {
       setSubmitting(false);
     }
   }
+
+  async function toggleCompensated(t: Transaction) {
+    if (togglingId) return;
+    setTogglingId(t.id);
+    setToggleError(null);
+    const next = { ...t, compensated: !t.compensated };
+    setTransactions((prev) => prev.map((x) => (x.id === t.id ? next : x)));
+    try {
+      const { id, ...payload } = next;
+      const updated = await updateTransaction(id, payload);
+      setTransactions((prev) => prev.map((x) => (x.id === t.id ? updated : x)));
+    } catch (err) {
+      setTransactions((prev) => prev.map((x) => (x.id === t.id ? t : x)));
+      setToggleError(errorMessage(err, 'Не удалось изменить статус'));
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
+  const monthTotals = calculateMonthTotals(transactions);
 
   return (
     <>
@@ -211,7 +262,15 @@ export function Transactions() {
               <span className="text-ink-muted">{t.paidBy}</span>
               <span className="text-ink-muted">{t.paidFrom}</span>
               <span>
-                <Badge tone={t.compensated ? 'success' : 'warning'}>{t.compensated ? 'Да' : 'Нет'}</Badge>
+                <button
+                  type="button"
+                  onClick={() => toggleCompensated(t)}
+                  disabled={togglingId === t.id}
+                  className="disabled:opacity-50"
+                  aria-label="Переключить статус «В расчете»"
+                >
+                  <Badge tone={t.compensated ? 'success' : 'warning'}>{t.compensated ? 'Да' : 'Нет'}</Badge>
+                </button>
               </span>
               <button
                 type="button"
@@ -235,11 +294,26 @@ export function Transactions() {
           {!loading && !loadError && transactions.length === 0 && (
             <div className="px-6 py-10 text-center text-sm text-ink-muted">Транзакций пока нет</div>
           )}
+          {!loading && !loadError && (
+            <>
+              <div className="flex items-center justify-between border-t border-border bg-surface-muted px-6 py-3 text-sm">
+                <span className="font-medium text-ink-muted">Итого расходы за месяц</span>
+                <span className="font-bold text-danger">{formatTotalsMap(monthTotals.expenses)}</span>
+              </div>
+              <div className="flex items-center justify-between border-t border-border bg-surface-muted px-6 py-3 text-sm">
+                <span className="font-medium text-ink-muted">Итого доходы за месяц</span>
+                <span className="font-bold text-success">{formatTotalsMap(monthTotals.income)}</span>
+              </div>
+            </>
+          )}
         </div>
       </Card>
 
+      {toggleError && <p className="text-sm text-danger">{toggleError}</p>}
+
       {!loading && !loadError && calculateBalances(transactions).length > 0 && (
         <Card className="flex flex-col gap-3">
+          <span className="text-lg font-bold text-ink">Непогашенный остаток</span>
           {calculateBalances(transactions).map(({ currency, totals, debtor, creditor, owed }) => (
             <div
               key={currency}
@@ -301,42 +375,14 @@ export function Transactions() {
             required
           />
 
-          {addingCategory ? (
-            <div className="flex flex-col gap-1.5">
-              <Input
-                label="Новая категория"
-                placeholder="Название категории"
-                value={form.category}
-                onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                autoFocus
-                required
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setAddingCategory(false);
-                  setForm((f) => ({ ...f, category: categories[0] }));
-                }}
-                className="w-fit text-xs text-ink-muted underline underline-offset-2 hover:text-primary"
-              >
-                Выбрать из списка
-              </button>
-            </div>
-          ) : (
-            <Select
-              label="Категория"
-              options={[...knownCategories, NEW_CATEGORY_OPTION]}
-              value={form.category}
-              onChange={(v) => {
-                if (v === NEW_CATEGORY_OPTION) {
-                  setAddingCategory(true);
-                  setForm((f) => ({ ...f, category: '' }));
-                } else {
-                  setForm((f) => ({ ...f, category: v as Category }));
-                }
-              }}
-            />
-          )}
+          <AddableSelect
+            label="Категория"
+            options={knownCategories}
+            value={form.category}
+            onChange={(v) => setForm((f) => ({ ...f, category: v }))}
+            addLabel="+ Добавить категорию"
+            newPlaceholder="Название категории"
+          />
 
           <div className="grid grid-cols-2 gap-4">
             <Select
@@ -345,12 +391,13 @@ export function Transactions() {
               value={form.paidBy}
               onChange={(v) => setForm((f) => ({ ...f, paidBy: v as Payer }))}
             />
-            <Input
+            <AddableSelect
               label="Откуда платил"
-              placeholder="Карта, счёт, наличные..."
+              options={knownSources}
               value={form.paidFrom}
-              onChange={(e) => setForm((f) => ({ ...f, paidFrom: e.target.value }))}
-              required
+              onChange={(v) => setForm((f) => ({ ...f, paidFrom: v }))}
+              addLabel="+ Добавить источник"
+              newPlaceholder="Карта, счёт, наличные..."
             />
           </div>
 
