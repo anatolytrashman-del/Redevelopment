@@ -11,8 +11,6 @@ import {
   Receipt,
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
-import { LobsterMark } from '../ui/LobsterMark';
-import { LobstersLogo } from '../ui/LobstersLogo';
 
 // Полная навигация проекта — держим здесь как референс с готовыми иконками.
 // В меню показываем только готовые страницы (см. visibleLabels ниже) —
@@ -34,9 +32,9 @@ const navItems = allNavItems.filter((item) => visibleLabels.includes(item.label)
 
 export function Sidebar() {
   return (
-    <aside className="flex h-svh w-64 shrink-0 flex-col justify-between overflow-hidden border-r border-border bg-bg px-5 py-6">
+    <aside className="flex h-svh w-64 shrink-0 flex-col overflow-hidden border-r border-border bg-bg px-5 py-6">
       <div className="flex flex-col gap-8">
-        <LobstersLogo className="w-40" />
+        <span className="text-lg font-extrabold tracking-wide text-ink">REDEVELOPMENT</span>
         <nav className="flex flex-col gap-1">
           {navItems.map(({ to, label, icon: Icon, end }) => (
             <NavLink
@@ -56,7 +54,6 @@ export function Sidebar() {
           ))}
         </nav>
       </div>
-      <LobsterMark className="w-24 opacity-90" />
     </aside>
   );
 }
