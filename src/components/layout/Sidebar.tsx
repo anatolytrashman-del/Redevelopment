@@ -8,16 +8,18 @@ import {
   MessageCircle,
   HelpCircle,
   UserPlus,
+  Receipt,
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { LobsterMark } from '../ui/LobsterMark';
 import { LobstersLogo } from '../ui/LobstersLogo';
 
 // Полная навигация проекта — держим здесь как референс с готовыми иконками.
-// Пока в разработке только Дашборд, поэтому рендерим один пункт (см. navItems ниже).
-// Когда добавляете следующую страницу — раскомментируйте соответствующую запись.
+// В меню показываем только готовые страницы (см. visibleLabels ниже) —
+// остальные пункты добавляйте в этот список по мере готовности страниц.
 const allNavItems = [
   { to: '/', label: 'Дашборд', icon: LayoutGrid, end: true },
+  { to: '/transactions', label: 'Транзакции', icon: Receipt },
   { to: '/objects', label: 'Объекты', icon: Building2 },
   { to: '/statistics', label: 'Статистика', icon: PieChart },
   { to: '/payouts', label: 'Выплаты', icon: Wallet },
@@ -27,7 +29,8 @@ const allNavItems = [
   { to: '/invite', label: 'Пригласить партнёра', icon: UserPlus },
 ];
 
-const navItems = allNavItems.filter((item) => item.label === 'Дашборд');
+const visibleLabels = ['Дашборд', 'Транзакции'];
+const navItems = allNavItems.filter((item) => visibleLabels.includes(item.label));
 
 export function Sidebar() {
   return (
