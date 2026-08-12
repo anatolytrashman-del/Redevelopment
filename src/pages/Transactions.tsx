@@ -52,13 +52,15 @@ const emptyForm = {
 
 // Баланс считается только по невзаимозачтённым тратам ("В расчете" = Нет),
 // отдельно по каждой валюте, поровну между двумя партнёрами из payers.
+// Знак суммы на направление долга не влияет — минус тоже означает
+// "потратил столько-то", просто так завели транзакцию.
 function calculateBalances(transactions: Transaction[]) {
   const byCurrency = new Map<Currency, Map<Payer, number>>();
   for (const t of transactions) {
     if (t.compensated) continue;
     if (!byCurrency.has(t.currency)) byCurrency.set(t.currency, new Map());
     const totals = byCurrency.get(t.currency)!;
-    totals.set(t.paidBy, (totals.get(t.paidBy) ?? 0) + t.amount);
+    totals.set(t.paidBy, (totals.get(t.paidBy) ?? 0) + Math.abs(t.amount));
   }
 
   const [p1, p2] = payers;
@@ -223,39 +225,29 @@ export function Transactions() {
         </div>
       </Card>
 
-      {!loading && !loadError && (
-        <Card className="flex flex-col gap-4">
-          <span className="text-lg font-bold text-ink">Баланс между партнёрами</span>
-          <p className="text-sm text-ink-muted">
-            Считается только по тратам со статусом «В расчете: Нет», отдельно по каждой валюте, исходя из
-            того, что расходы делятся поровну между {payers[0]} и {payers[1]}.
-          </p>
-          <div className="flex flex-col gap-3">
-            {calculateBalances(transactions).map(({ currency, totals, debtor, creditor, owed }) => (
-              <div
-                key={currency}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-control bg-surface-muted px-4 py-3"
-              >
-                <div className="flex gap-6 text-sm text-ink-muted">
-                  {payers.map((p) => (
-                    <span key={p}>
-                      {p}: <span className="font-semibold text-ink">{formatAmount(totals[p] ?? 0, currency)}</span>
-                    </span>
-                  ))}
-                </div>
-                {owed === 0 ? (
-                  <Badge tone="success">Баланс сведён</Badge>
-                ) : (
-                  <Badge tone="primary">
-                    {debtor} должен {creditor}: {formatAmount(owed, currency)}
-                  </Badge>
-                )}
+      {!loading && !loadError && calculateBalances(transactions).length > 0 && (
+        <Card className="flex flex-col gap-3">
+          {calculateBalances(transactions).map(({ currency, totals, debtor, creditor, owed }) => (
+            <div
+              key={currency}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-control bg-surface-muted px-4 py-3"
+            >
+              <div className="flex gap-6 text-sm text-ink-muted">
+                {payers.map((p) => (
+                  <span key={p}>
+                    {p}: <span className="font-semibold text-ink">{formatAmount(totals[p] ?? 0, currency)}</span>
+                  </span>
+                ))}
               </div>
-            ))}
-            {calculateBalances(transactions).length === 0 && (
-              <p className="text-sm text-ink-muted">Нет невзаимозачтённых трат — баланс сведён по всем валютам.</p>
-            )}
-          </div>
+              {owed === 0 ? (
+                <Badge tone="success">Баланс сведён</Badge>
+              ) : (
+                <Badge tone="primary">
+                  {debtor} должен {creditor}: {formatAmount(owed, currency)}
+                </Badge>
+              )}
+            </div>
+          ))}
         </Card>
       )}
 
