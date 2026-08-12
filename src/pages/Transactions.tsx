@@ -8,7 +8,15 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Modal } from '../components/ui/Modal';
-import { currencies, currencySymbols, categories, type Transaction, type Currency, type Category } from '../data/transactions';
+import {
+  currencies,
+  currencySymbols,
+  categories,
+  categoryColor,
+  type Transaction,
+  type Currency,
+  type Category,
+} from '../data/transactions';
 import { fetchTransactions, insertTransaction, updateTransaction } from '../lib/transactionsApi';
 
 // Ошибки Supabase (PostgrestError) — обычные объекты с полем message,
@@ -152,7 +160,9 @@ export function Transactions() {
               <span className="font-semibold text-ink">{formatAmount(t.amount, t.currency)}</span>
               <span className="text-ink">{t.purpose}</span>
               <span>
-                <Badge tone="neutral">{t.category}</Badge>
+                <Badge style={{ backgroundColor: categoryColor(t.category).bg, color: categoryColor(t.category).text }}>
+                  {t.category}
+                </Badge>
               </span>
               <span className="text-ink-muted">{t.paidBy}</span>
               <span className="text-ink-muted">{t.paidFrom}</span>
