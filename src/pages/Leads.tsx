@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Pencil } from 'lucide-react';
+import { Plus, Loader2, Pencil, Flame } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -7,9 +7,11 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { AddableSelect } from '../components/ui/AddableSelect';
+import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Modal } from '../components/ui/Modal';
 import { leadSources, leadRequirements, type Lead, type LeadSource } from '../data/leads';
 import { badgeColor } from '../lib/badgeColor';
+import { cn } from '../lib/cn';
 import { fetchLeads, insertLead, updateLead } from '../lib/leadsApi';
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -27,6 +29,7 @@ const emptyForm = {
   requirement: leadRequirements[0] as string,
   contact: '',
   status: '',
+  isWarm: false,
 };
 
 function leadToForm(l: Lead) {
@@ -38,6 +41,7 @@ function leadToForm(l: Lead) {
     requirement: l.requirement,
     contact: l.contact,
     status: l.status,
+    isWarm: l.isWarm,
   };
 }
 
@@ -50,12 +54,17 @@ export function Leads() {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [toggleError, setToggleError] = useState<string | null>(null);
 
   const knownRequirements = useMemo(() => {
     const set = new Set<string>(leadRequirements);
     leads.forEach((l) => set.add(l.requirement));
     return [...set];
   }, [leads]);
+
+  // Тёплые лиды всегда наверху, порядок внутри группы (по дате создания) сохраняется.
+  const sortedLeads = useMemo(() => [...leads].sort((a, b) => Number(b.isWarm) - Number(a.isWarm)), [leads]);
 
   useEffect(() => {
     fetchLeads()
@@ -95,6 +104,7 @@ export function Leads() {
       requirement: form.requirement,
       contact: form.contact,
       status: form.status,
+      isWarm: form.isWarm,
     };
     try {
       if (editingId) {
@@ -114,6 +124,24 @@ export function Leads() {
     }
   }
 
+  async function toggleWarm(l: Lead) {
+    if (togglingId) return;
+    setTogglingId(l.id);
+    setToggleError(null);
+    const next = { ...l, isWarm: !l.isWarm };
+    setLeads((prev) => prev.map((x) => (x.id === l.id ? next : x)));
+    try {
+      const { id, ...payload } = next;
+      const updated = await updateLead(id, payload);
+      setLeads((prev) => prev.map((x) => (x.id === l.id ? updated : x)));
+    } catch (err) {
+      setLeads((prev) => prev.map((x) => (x.id === l.id ? l : x)));
+      setToggleError(errorMessage(err, 'Не удалось изменить статус'));
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -127,7 +155,8 @@ export function Leads() {
 
       <Card className="flex flex-col gap-4 p-0">
         <div className="overflow-x-auto">
-          <div className="grid min-w-[1150px] grid-cols-[140px_90px_1fr_120px_140px_1fr_140px_44px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
+          <div className="grid min-w-[1180px] grid-cols-[36px_140px_90px_1fr_120px_140px_1fr_140px_44px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
+            <span />
             <span>Имя</span>
             <span>Источник</span>
             <span>Сфера деятельности</span>
@@ -137,11 +166,20 @@ export function Leads() {
             <span>Статус</span>
             <span />
           </div>
-          {leads.map((l) => (
+          {sortedLeads.map((l) => (
             <div
               key={l.id}
-              className="grid min-w-[1150px] grid-cols-[140px_90px_1fr_120px_140px_1fr_140px_44px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
+              className="grid min-w-[1180px] grid-cols-[36px_140px_90px_1fr_120px_140px_1fr_140px_44px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
             >
+              <button
+                type="button"
+                onClick={() => toggleWarm(l)}
+                disabled={togglingId === l.id}
+                className="flex h-6 w-6 items-center justify-center disabled:opacity-50"
+                aria-label="Отметить тёплым лидом"
+              >
+                <Flame className={cn('h-4 w-4', l.isWarm ? 'fill-warning text-warning' : 'text-ink-faint')} />
+              </button>
               <span className="font-semibold text-ink">{l.name}</span>
               <span className="text-ink-muted">{l.source}</span>
               <span className="text-ink">{l.businessType}</span>
@@ -175,6 +213,8 @@ export function Leads() {
           )}
         </div>
       </Card>
+
+      {toggleError && <p className="text-sm text-danger">{toggleError}</p>}
 
       <Modal open={open} onClose={() => setOpen(false)} title={editingId ? 'Редактировать лид' : 'Новый лид'}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -233,6 +273,13 @@ export function Leads() {
             value={form.status}
             onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
             required
+          />
+
+          <ToggleGroup
+            label="Тёплый лид"
+            options={['Да', 'Нет']}
+            value={form.isWarm ? 'Да' : 'Нет'}
+            onChange={(v) => setForm((f) => ({ ...f, isWarm: v === 'Да' }))}
           />
 
           {submitError && <p className="text-sm text-danger">{submitError}</p>}

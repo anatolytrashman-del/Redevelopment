@@ -12,6 +12,7 @@ function fromRow(row: LeadRow): Lead {
     requirement: row.requirement,
     contact: row.contact,
     status: row.status,
+    isWarm: row.is_warm,
   };
 }
 
@@ -35,6 +36,7 @@ export function insertLead(input: Omit<Lead, 'id'>): Promise<Lead> {
         requirement: input.requirement,
         contact: input.contact,
         status: input.status,
+        is_warm: input.isWarm,
       })
       .select()
       .single();
@@ -56,6 +58,7 @@ export function updateLead(id: string, input: Omit<Lead, 'id'>): Promise<Lead> {
         requirement: input.requirement,
         contact: input.contact,
         status: input.status,
+        is_warm: input.isWarm,
       })
       .eq('id', id)
       .select()

@@ -14,6 +14,7 @@ export interface Lead {
   requirement: string;
   contact: string;
   status: string;
+  isWarm: boolean;
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/leadsApi.ts
@@ -26,4 +27,5 @@ export interface LeadRow {
   requirement: string;
   contact: string;
   status: string;
+  is_warm: boolean;
 }
