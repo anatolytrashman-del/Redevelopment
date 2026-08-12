@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Plus, Loader2, Pencil } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -79,6 +79,8 @@ function calculateBalances(transactions: Transaction[]) {
   });
 }
 
+const NEW_CATEGORY_OPTION = '+ Добавить категорию';
+
 function transactionToForm(t: Transaction) {
   return {
     date: t.date,
@@ -101,6 +103,15 @@ export function Transactions() {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [addingCategory, setAddingCategory] = useState(false);
+
+  // Список категорий открытый: стартовый набор + всё, что уже встречалось
+  // в загруженных транзакциях (в т.ч. добавленное через форму ранее).
+  const knownCategories = useMemo(() => {
+    const set = new Set<string>(categories);
+    transactions.forEach((t) => set.add(t.category));
+    return [...set];
+  }, [transactions]);
 
   useEffect(() => {
     fetchTransactions()
@@ -109,12 +120,13 @@ export function Transactions() {
       .finally(() => setLoading(false));
   }, []);
 
-  const canSubmit = form.date && form.amount && form.purpose && form.paidBy && form.paidFrom;
+  const canSubmit = form.date && form.amount && form.purpose && form.category && form.paidBy && form.paidFrom;
 
   function openAddModal() {
     setEditingId(null);
     setForm(emptyForm);
     setSubmitError(null);
+    setAddingCategory(false);
     setOpen(true);
   }
 
@@ -122,6 +134,7 @@ export function Transactions() {
     setEditingId(t.id);
     setForm(transactionToForm(t));
     setSubmitError(null);
+    setAddingCategory(false);
     setOpen(true);
   }
 
@@ -288,12 +301,42 @@ export function Transactions() {
             required
           />
 
-          <Select
-            label="Категория"
-            options={[...categories]}
-            value={form.category}
-            onChange={(v) => setForm((f) => ({ ...f, category: v as Category }))}
-          />
+          {addingCategory ? (
+            <div className="flex flex-col gap-1.5">
+              <Input
+                label="Новая категория"
+                placeholder="Название категории"
+                value={form.category}
+                onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                autoFocus
+                required
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setAddingCategory(false);
+                  setForm((f) => ({ ...f, category: categories[0] }));
+                }}
+                className="w-fit text-xs text-ink-muted underline underline-offset-2 hover:text-primary"
+              >
+                Выбрать из списка
+              </button>
+            </div>
+          ) : (
+            <Select
+              label="Категория"
+              options={[...knownCategories, NEW_CATEGORY_OPTION]}
+              value={form.category}
+              onChange={(v) => {
+                if (v === NEW_CATEGORY_OPTION) {
+                  setAddingCategory(true);
+                  setForm((f) => ({ ...f, category: '' }));
+                } else {
+                  setForm((f) => ({ ...f, category: v as Category }));
+                }
+              }}
+            />
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <Select

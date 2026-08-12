@@ -8,9 +8,11 @@ export const currencySymbols: Record<Currency, string> = {
   BYN: 'Br',
 };
 
-// Список категорий пока короткий — добавляйте новые значения сюда по мере необходимости.
-export const categories = ['Маркетинг', 'IT-инфраструктура'] as const;
-export type Category = (typeof categories)[number];
+// Стартовый набор категорий. Список открытый — новые категории можно
+// добавлять прямо из формы транзакции (см. Transactions.tsx), поэтому
+// тип Category ниже — обычный string, а не фиксированный union.
+export const categories = ['Маркетинг', 'IT-инфраструктура', 'Поездки в Минск', 'Консультации'] as const;
+export type Category = string;
 
 // Партнёры, между которыми считается баланс "кто кому должен" (см. Transactions.tsx).
 // Замените на реальные имена — используются как в форме, так и в расчёте баланса.
