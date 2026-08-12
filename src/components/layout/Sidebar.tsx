@@ -34,7 +34,9 @@ export function Sidebar() {
   return (
     <aside className="flex h-svh w-64 shrink-0 flex-col overflow-hidden border-r border-border bg-bg px-5 py-6">
       <div className="flex flex-col gap-8">
-        <span className="text-lg font-extrabold tracking-wide text-ink">REDEVELOPMENT</span>
+        <span className="text-lg font-extrabold tracking-wide text-ink">
+          <span className="text-primary">RED</span>EVELOPMENT
+        </span>
         <nav className="flex flex-col gap-1">
           {navItems.map(({ to, label, icon: Icon, end }) => (
             <NavLink
