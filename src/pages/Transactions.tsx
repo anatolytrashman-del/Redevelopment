@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2, Pencil } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -9,7 +9,7 @@ import { Select } from '../components/ui/Select';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Modal } from '../components/ui/Modal';
 import { currencies, currencySymbols, categories, type Transaction, type Currency, type Category } from '../data/transactions';
-import { fetchTransactions, insertTransaction } from '../lib/transactionsApi';
+import { fetchTransactions, insertTransaction, updateTransaction } from '../lib/transactionsApi';
 
 // Ошибки Supabase (PostgrestError) — обычные объекты с полем message,
 // а не экземпляры Error, поэтому `instanceof Error` их не ловит.
@@ -40,11 +40,25 @@ const emptyForm = {
   compensated: 'Нет',
 };
 
+function transactionToForm(t: Transaction) {
+  return {
+    date: t.date,
+    amount: String(t.amount),
+    currency: t.currency,
+    purpose: t.purpose,
+    category: t.category,
+    paidBy: t.paidBy,
+    paidFrom: t.paidFrom,
+    compensated: t.compensated ? 'Да' : 'Нет',
+  };
+}
+
 export function Transactions() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -58,25 +72,46 @@ export function Transactions() {
 
   const canSubmit = form.date && form.amount && form.purpose && form.paidBy && form.paidFrom;
 
+  function openAddModal() {
+    setEditingId(null);
+    setForm(emptyForm);
+    setSubmitError(null);
+    setOpen(true);
+  }
+
+  function openEditModal(t: Transaction) {
+    setEditingId(t.id);
+    setForm(transactionToForm(t));
+    setSubmitError(null);
+    setOpen(true);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit || submitting) return;
 
     setSubmitting(true);
     setSubmitError(null);
+    const payload = {
+      date: form.date,
+      amount: Number(form.amount),
+      currency: form.currency,
+      purpose: form.purpose,
+      category: form.category,
+      paidBy: form.paidBy,
+      paidFrom: form.paidFrom,
+      compensated: form.compensated === 'Да',
+    };
     try {
-      const created = await insertTransaction({
-        date: form.date,
-        amount: Number(form.amount),
-        currency: form.currency,
-        purpose: form.purpose,
-        category: form.category,
-        paidBy: form.paidBy,
-        paidFrom: form.paidFrom,
-        compensated: form.compensated === 'Да',
-      });
-      setTransactions((prev) => [created, ...prev]);
+      if (editingId) {
+        const updated = await updateTransaction(editingId, payload);
+        setTransactions((prev) => prev.map((t) => (t.id === editingId ? updated : t)));
+      } else {
+        const created = await insertTransaction(payload);
+        setTransactions((prev) => [created, ...prev]);
+      }
       setForm(emptyForm);
+      setEditingId(null);
       setOpen(false);
     } catch (err) {
       setSubmitError(errorMessage(err, 'Не удалось сохранить транзакцию'));
@@ -90,7 +125,7 @@ export function Transactions() {
       <PageHeader
         title="Транзакции"
         action={
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setOpen(true)}>
+          <Button icon={<Plus className="h-4 w-4" />} onClick={openAddModal}>
             Добавить транзакцию
           </Button>
         }
@@ -98,7 +133,7 @@ export function Transactions() {
 
       <Card className="flex flex-col gap-4 p-0">
         <div className="overflow-x-auto">
-          <div className="grid min-w-[1000px] grid-cols-[100px_120px_1.6fr_1fr_1fr_1fr_110px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
+          <div className="grid min-w-[1050px] grid-cols-[100px_120px_1.6fr_1fr_1fr_1fr_110px_44px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
             <span>Дата</span>
             <span>Сумма</span>
             <span>Назначение</span>
@@ -106,11 +141,12 @@ export function Transactions() {
             <span>Кто платил</span>
             <span>Откуда платил</span>
             <span>В расчете</span>
+            <span />
           </div>
           {transactions.map((t) => (
             <div
               key={t.id}
-              className="grid min-w-[1000px] grid-cols-[100px_120px_1.6fr_1fr_1fr_1fr_110px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
+              className="grid min-w-[1050px] grid-cols-[100px_120px_1.6fr_1fr_1fr_1fr_110px_44px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
             >
               <span className="text-ink-muted">{formatDate(t.date)}</span>
               <span className="font-semibold text-ink">{formatAmount(t.amount, t.currency)}</span>
@@ -123,6 +159,14 @@ export function Transactions() {
               <span>
                 <Badge tone={t.compensated ? 'success' : 'warning'}>{t.compensated ? 'Да' : 'Нет'}</Badge>
               </span>
+              <button
+                type="button"
+                onClick={() => openEditModal(t)}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                aria-label="Редактировать транзакцию"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
             </div>
           ))}
           {loading && (
@@ -140,7 +184,7 @@ export function Transactions() {
         </div>
       </Card>
 
-      <Modal open={open} onClose={() => setOpen(false)} title="Новая транзакция">
+      <Modal open={open} onClose={() => setOpen(false)} title={editingId ? 'Редактировать транзакцию' : 'Новая транзакция'}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
             <Input
@@ -154,7 +198,6 @@ export function Transactions() {
               <Input
                 label="Сумма"
                 type="number"
-                min="0"
                 step="0.01"
                 placeholder="0"
                 value={form.amount}
@@ -216,7 +259,7 @@ export function Transactions() {
               Отмена
             </Button>
             <Button type="submit" disabled={!canSubmit || submitting}>
-              {submitting ? 'Сохраняем...' : 'Добавить'}
+              {submitting ? 'Сохраняем...' : editingId ? 'Сохранить' : 'Добавить'}
             </Button>
           </div>
         </form>

@@ -45,3 +45,24 @@ export async function insertTransaction(input: Omit<Transaction, 'id'>): Promise
   if (error) throw error;
   return fromRow(data as TransactionRow);
 }
+
+export async function updateTransaction(id: string, input: Omit<Transaction, 'id'>): Promise<Transaction> {
+  const { data, error } = await supabase
+    .from('transactions')
+    .update({
+      date: input.date,
+      amount: input.amount,
+      currency: input.currency,
+      purpose: input.purpose,
+      category: input.category,
+      paid_by: input.paidBy,
+      paid_from: input.paidFrom,
+      compensated: input.compensated,
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return fromRow(data as TransactionRow);
+}
