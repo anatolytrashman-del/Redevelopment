@@ -105,7 +105,7 @@ export function Transactions() {
             <span>Категория</span>
             <span>Кто платил</span>
             <span>Откуда платил</span>
-            <span>Компенсация</span>
+            <span>В расчете</span>
           </div>
           {transactions.map((t) => (
             <div
@@ -203,7 +203,7 @@ export function Transactions() {
           </div>
 
           <ToggleGroup
-            label="Статус компенсации"
+            label="В расчете"
             options={['Да', 'Нет']}
             value={form.compensated}
             onChange={(v) => setForm((f) => ({ ...f, compensated: v }))}
