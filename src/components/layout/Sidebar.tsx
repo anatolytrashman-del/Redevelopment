@@ -29,7 +29,7 @@ const allNavItems = [
   { to: '/invite', label: 'Пригласить партнёра', icon: UserPlus },
 ];
 
-const visibleLabels = ['Дашборд', 'Транзакции', 'Лиды'];
+const visibleLabels = ['Дашборд', 'Транзакции', 'Лиды', 'Объекты'];
 const navItems = allNavItems.filter((item) => visibleLabels.includes(item.label));
 
 export function Sidebar() {
