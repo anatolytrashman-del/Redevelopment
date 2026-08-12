@@ -9,6 +9,7 @@ interface AddableSelectProps {
   onChange: (value: string) => void;
   addLabel?: string;
   newPlaceholder?: string;
+  placeholder?: string;
 }
 
 // Выпадающий список с пунктом "+ Добавить..." в конце: выбор переключает
@@ -21,6 +22,7 @@ export function AddableSelect({
   onChange,
   addLabel = '+ Добавить',
   newPlaceholder = 'Введите значение',
+  placeholder,
 }: AddableSelectProps) {
   const [adding, setAdding] = useState(false);
 
@@ -32,7 +34,7 @@ export function AddableSelect({
           type="button"
           onClick={() => {
             setAdding(false);
-            onChange(options[0] ?? '');
+            onChange('');
           }}
           className="w-fit text-xs text-ink-muted underline underline-offset-2 hover:text-primary"
         >
@@ -45,6 +47,7 @@ export function AddableSelect({
   return (
     <Select
       label={label}
+      placeholder={placeholder}
       options={[...options, addLabel]}
       value={value}
       onChange={(v) => {

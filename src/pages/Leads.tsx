@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Pencil, Flame } from 'lucide-react';
+import { Plus, Loader2, Pencil, Flame, Droplet } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -26,11 +26,30 @@ const emptyForm = {
   source: leadSources[0] as LeadSource,
   businessType: '',
   area: '',
-  requirement: leadRequirements[0] as string,
+  requirement: '',
   contact: '',
   status: '',
   isWarm: false,
 };
+
+function RequirementBadge({ requirement }: { requirement: string }) {
+  if (!requirement) return <span className="text-ink-faint">—</span>;
+  if (requirement === 'Мокрая точка') {
+    return (
+      <span
+        title="Мокрая точка"
+        className="flex h-7 w-7 items-center justify-center rounded-full bg-info-bg text-info-text"
+      >
+        <Droplet className="h-4 w-4" />
+      </span>
+    );
+  }
+  return (
+    <Badge style={{ backgroundColor: badgeColor(requirement).bg, color: badgeColor(requirement).text }}>
+      {requirement}
+    </Badge>
+  );
+}
 
 function leadToForm(l: Lead) {
   return {
@@ -73,8 +92,7 @@ export function Leads() {
       .finally(() => setLoading(false));
   }, []);
 
-  const canSubmit =
-    form.name && form.businessType && form.area && form.requirement && form.contact && form.status;
+  const canSubmit = form.name && form.businessType && form.area && form.contact && form.status;
 
   function openAddModal() {
     setEditingId(null);
@@ -155,13 +173,13 @@ export function Leads() {
 
       <Card className="flex flex-col gap-4 p-0">
         <div className="overflow-x-auto">
-          <div className="grid min-w-[1180px] grid-cols-[36px_140px_90px_1fr_120px_140px_1fr_140px_44px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
+          <div className="grid min-w-[900px] grid-cols-[36px_130px_90px_1fr_100px_56px_1fr_130px_44px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
             <span />
             <span>Имя</span>
             <span>Источник</span>
             <span>Сфера деятельности</span>
             <span>Площадь</span>
-            <span>Требования</span>
+            <span title="Требования">Треб.</span>
             <span>Контакт</span>
             <span>Статус</span>
             <span />
@@ -169,7 +187,7 @@ export function Leads() {
           {sortedLeads.map((l) => (
             <div
               key={l.id}
-              className="grid min-w-[1180px] grid-cols-[36px_140px_90px_1fr_120px_140px_1fr_140px_44px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
+              className="grid min-w-[900px] grid-cols-[36px_130px_90px_1fr_100px_56px_1fr_130px_44px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
             >
               <button
                 type="button"
@@ -185,9 +203,7 @@ export function Leads() {
               <span className="text-ink">{l.businessType}</span>
               <span className="text-ink-muted">{l.area}</span>
               <span>
-                <Badge style={{ backgroundColor: badgeColor(l.requirement).bg, color: badgeColor(l.requirement).text }}>
-                  {l.requirement}
-                </Badge>
+                <RequirementBadge requirement={l.requirement} />
               </span>
               <span className="truncate text-ink-muted">{l.contact}</span>
               <span className="text-ink-muted">{l.status}</span>
@@ -252,6 +268,7 @@ export function Leads() {
 
           <AddableSelect
             label="Требования"
+            placeholder="Не выбрано"
             options={knownRequirements}
             value={form.requirement}
             onChange={(v) => setForm((f) => ({ ...f, requirement: v }))}
