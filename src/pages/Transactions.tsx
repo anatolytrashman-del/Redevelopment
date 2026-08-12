@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Plus, Loader2 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -8,15 +8,8 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Modal } from '../components/ui/Modal';
-import {
-  transactions as initialTransactions,
-  currencies,
-  currencySymbols,
-  categories,
-  type Transaction,
-  type Currency,
-  type Category,
-} from '../data/transactions';
+import { currencies, currencySymbols, categories, type Transaction, type Currency, type Category } from '../data/transactions';
+import { fetchTransactions, insertTransaction } from '../lib/transactionsApi';
 
 function formatDate(iso: string) {
   const [year, month, day] = iso.split('-');
@@ -39,19 +32,31 @@ const emptyForm = {
 };
 
 export function Transactions() {
-  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchTransactions()
+      .then(setTransactions)
+      .catch((err) => setLoadError(err.message ?? 'Не удалось загрузить транзакции'))
+      .finally(() => setLoading(false));
+  }, []);
 
   const canSubmit = form.date && form.amount && form.purpose && form.paidBy && form.paidFrom;
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || submitting) return;
 
-    setTransactions((prev) => [
-      {
-        id: `t${Date.now()}`,
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const created = await insertTransaction({
         date: form.date,
         amount: Number(form.amount),
         currency: form.currency,
@@ -60,11 +65,15 @@ export function Transactions() {
         paidBy: form.paidBy,
         paidFrom: form.paidFrom,
         compensated: form.compensated === 'Да',
-      },
-      ...prev,
-    ]);
-    setForm(emptyForm);
-    setOpen(false);
+      });
+      setTransactions((prev) => [created, ...prev]);
+      setForm(emptyForm);
+      setOpen(false);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Не удалось сохранить транзакцию');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -107,7 +116,16 @@ export function Transactions() {
               </span>
             </div>
           ))}
-          {transactions.length === 0 && (
+          {loading && (
+            <div className="flex items-center justify-center gap-2 px-6 py-10 text-sm text-ink-muted">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Загружаем транзакции...
+            </div>
+          )}
+          {!loading && loadError && (
+            <div className="px-6 py-10 text-center text-sm text-danger">{loadError}</div>
+          )}
+          {!loading && !loadError && transactions.length === 0 && (
             <div className="px-6 py-10 text-center text-sm text-ink-muted">Транзакций пока нет</div>
           )}
         </div>
@@ -182,12 +200,14 @@ export function Transactions() {
             onChange={(v) => setForm((f) => ({ ...f, compensated: v }))}
           />
 
+          {submitError && <p className="text-sm text-danger">{submitError}</p>}
+
           <div className="mt-2 flex justify-end gap-3">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
               Отмена
             </Button>
-            <Button type="submit" disabled={!canSubmit}>
-              Добавить
+            <Button type="submit" disabled={!canSubmit || submitting}>
+              {submitting ? 'Сохраняем...' : 'Добавить'}
             </Button>
           </div>
         </form>

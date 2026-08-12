@@ -24,4 +24,15 @@ export interface Transaction {
   compensated: boolean;
 }
 
-export const transactions: Transaction[] = [];
+// Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/transactionsApi.ts
+export interface TransactionRow {
+  id: string;
+  date: string;
+  amount: number;
+  currency: Currency;
+  purpose: string;
+  category: string;
+  paid_by: string;
+  paid_from: string;
+  compensated: boolean;
+}
