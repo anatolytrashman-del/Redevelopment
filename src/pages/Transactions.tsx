@@ -11,6 +11,15 @@ import { Modal } from '../components/ui/Modal';
 import { currencies, currencySymbols, categories, type Transaction, type Currency, type Category } from '../data/transactions';
 import { fetchTransactions, insertTransaction } from '../lib/transactionsApi';
 
+// Ошибки Supabase (PostgrestError) — обычные объекты с полем message,
+// а не экземпляры Error, поэтому `instanceof Error` их не ловит.
+function errorMessage(err: unknown, fallback: string): string {
+  if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
+    return (err as { message: string }).message;
+  }
+  return fallback;
+}
+
 function formatDate(iso: string) {
   const [year, month, day] = iso.split('-');
   return `${day}.${month}.${year}`;
@@ -43,7 +52,7 @@ export function Transactions() {
   useEffect(() => {
     fetchTransactions()
       .then(setTransactions)
-      .catch((err) => setLoadError(err.message ?? 'Не удалось загрузить транзакции'))
+      .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить транзакции')))
       .finally(() => setLoading(false));
   }, []);
 
@@ -70,7 +79,7 @@ export function Transactions() {
       setForm(emptyForm);
       setOpen(false);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Не удалось сохранить транзакцию');
+      setSubmitError(errorMessage(err, 'Не удалось сохранить транзакцию'));
     } finally {
       setSubmitting(false);
     }
