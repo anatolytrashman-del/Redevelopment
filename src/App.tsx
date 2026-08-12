@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { Home } from './pages/Home';
 import { Transactions } from './pages/Transactions';
+import { Leads } from './pages/Leads';
 
 export default function App() {
   return (
@@ -9,6 +10,7 @@ export default function App() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/transactions" element={<Transactions />} />
+        <Route path="/leads" element={<Leads />} />
         <Route path="*" element={<Home />} />
       </Route>
     </Routes>

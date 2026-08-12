@@ -9,6 +9,7 @@ import {
   HelpCircle,
   UserPlus,
   Receipt,
+  Users,
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
 
@@ -18,6 +19,7 @@ import { cn } from '../../lib/cn';
 const allNavItems = [
   { to: '/', label: 'Дашборд', icon: LayoutGrid, end: true },
   { to: '/transactions', label: 'Транзакции', icon: Receipt },
+  { to: '/leads', label: 'Лиды', icon: Users },
   { to: '/objects', label: 'Объекты', icon: Building2 },
   { to: '/statistics', label: 'Статистика', icon: PieChart },
   { to: '/payouts', label: 'Выплаты', icon: Wallet },
@@ -27,7 +29,7 @@ const allNavItems = [
   { to: '/invite', label: 'Пригласить партнёра', icon: UserPlus },
 ];
 
-const visibleLabels = ['Дашборд', 'Транзакции'];
+const visibleLabels = ['Дашборд', 'Транзакции', 'Лиды'];
 const navItems = allNavItems.filter((item) => visibleLabels.includes(item.label));
 
 export function Sidebar() {
