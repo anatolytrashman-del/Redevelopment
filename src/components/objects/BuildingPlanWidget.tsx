@@ -1,20 +1,25 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Loader2, Pencil, Check, X, Link2Off } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { AttachBuildingPlanModal } from './AttachBuildingPlanModal';
-import { zoneTypes, zoneTypeLabels, type BuildingPlan, type BuildingPlanZone, type ZonePoint, type ZoneType } from '../../data/buildingPlans';
-import type { RealtyObject } from '../../data/objects';
+import { ZoneDetailModal } from './ZoneDetailModal';
 import {
-  fetchBuildingPlans,
-  fetchZonesForPlan,
-  insertZone,
-  deleteZone as deleteZoneApi,
-} from '../../lib/buildingPlansApi';
-import { fetchObjects } from '../../lib/objectsApi';
+  zoneTypes,
+  zoneTypeLabels,
+  type BuildingPlan,
+  type BuildingPlanZone,
+  type ZonePoint,
+  type ZoneType,
+} from '../../data/buildingPlans';
+import type { RealtyObject } from '../../data/objects';
+import type { Lead } from '../../data/leads';
+import type { GeneratedDocument } from '../../data/generatedDocuments';
+import { fetchBuildingPlans, fetchZonesForPlan, insertZone } from '../../lib/buildingPlansApi';
+import { fetchLeads } from '../../lib/leadsApi';
+import { fetchGeneratedDocuments } from '../../lib/generatedDocumentsApi';
 import { cn } from '../../lib/cn';
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -24,11 +29,10 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-function zoneFillClass(zone: BuildingPlanZone, objects: RealtyObject[]): string {
+function zoneFillClass(zone: BuildingPlanZone): string {
   if (zone.zoneType === 'room') {
-    const status = objects.find((o) => o.id === zone.objectId)?.bookingStatus ?? 'Свободно';
-    if (status === 'Продано') return 'fill-danger/35 stroke-danger';
-    if (status === 'Забронировано') return 'fill-warning/35 stroke-warning';
+    if (zone.status === 'Продано') return 'fill-danger/35 stroke-danger';
+    if (zone.status === 'Забронировано') return 'fill-warning/35 stroke-warning';
     return 'fill-success/25 stroke-success';
   }
   if (zone.zoneType === 'bathroom') return 'fill-info-bg stroke-info-text';
@@ -41,19 +45,18 @@ function pointsToAttr(points: ZonePoint[]): string {
 }
 
 interface NewZoneFormProps {
-  objects: RealtyObject[];
   onCancel: () => void;
-  onSave: (input: { zoneType: ZoneType; label: string; objectId: string }) => void;
+  onSave: (input: { zoneType: ZoneType; label: string; area: number | null }) => void;
   saving: boolean;
 }
 
-function NewZoneForm({ objects, onCancel, onSave, saving }: NewZoneFormProps) {
+function NewZoneForm({ onCancel, onSave, saving }: NewZoneFormProps) {
   const [zoneType, setZoneType] = useState<ZoneType>('room');
   const [label, setLabel] = useState('');
-  const [objectId, setObjectId] = useState('');
+  const [area, setArea] = useState('');
 
-  const objectLabel = (o: RealtyObject) => `${o.address} — ${o.area} м²`;
-  const canSave = zoneType === 'room' ? !!objectId : label.trim();
+  const isRoom = zoneType === 'room';
+  const canSave = isRoom ? label.trim() : label.trim();
 
   return (
     <div className="flex flex-col gap-3 rounded-control border border-border bg-surface-muted p-4">
@@ -66,15 +69,14 @@ function NewZoneForm({ objects, onCancel, onSave, saving }: NewZoneFormProps) {
           setZoneType(type);
         }}
       />
-      {zoneType === 'room' ? (
-        <Select
-          label="Объект"
-          options={objects.map(objectLabel)}
-          value={objects.find((o) => o.id === objectId) ? objectLabel(objects.find((o) => o.id === objectId)!) : ''}
-          onChange={(v) => setObjectId(objects.find((o) => objectLabel(o) === v)?.id ?? '')}
-        />
-      ) : (
-        <Input label="Подпись" placeholder="Например, Санузел" value={label} onChange={(e) => setLabel(e.target.value)} />
+      <Input
+        label={isRoom ? 'Номер кабинета' : 'Подпись'}
+        placeholder={isRoom ? 'Например, 11' : 'Например, Санузел'}
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+      />
+      {isRoom && (
+        <Input label="Площадь, м²" type="number" step="0.1" placeholder="0" value={area} onChange={(e) => setArea(e.target.value)} />
       )}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="secondary" onClick={onCancel}>
@@ -82,13 +84,7 @@ function NewZoneForm({ objects, onCancel, onSave, saving }: NewZoneFormProps) {
         </Button>
         <Button
           type="button"
-          onClick={() =>
-            onSave({
-              zoneType,
-              label: zoneType === 'room' ? objects.find((o) => o.id === objectId)?.address ?? '' : label.trim(),
-              objectId,
-            })
-          }
+          onClick={() => onSave({ zoneType, label: label.trim(), area: isRoom && area.trim() ? Number(area) : null })}
           disabled={!canSave || saving}
         >
           {saving ? 'Сохраняем...' : 'Сохранить зону'}
@@ -105,10 +101,10 @@ interface BuildingPlanWidgetProps {
 }
 
 export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: BuildingPlanWidgetProps) {
-  const navigate = useNavigate();
   const [plans, setPlans] = useState<BuildingPlan[]>([]);
   const [zones, setZones] = useState<BuildingPlanZone[]>([]);
-  const [objects, setObjects] = useState<RealtyObject[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [documents, setDocuments] = useState<GeneratedDocument[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attachOpen, setAttachOpen] = useState(false);
@@ -118,6 +114,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
   const [showZoneForm, setShowZoneForm] = useState(false);
   const [savingZone, setSavingZone] = useState(false);
   const [zoneError, setZoneError] = useState<string | null>(null);
+  const [selectedZone, setSelectedZone] = useState<BuildingPlanZone | null>(null);
 
   const plan = plans.find((p) => p.id === object.buildingPlanId) ?? null;
 
@@ -128,11 +125,12 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
     }
     setLoading(true);
     setLoadError(null);
-    Promise.all([fetchBuildingPlans(), fetchZonesForPlan(object.buildingPlanId), fetchObjects()])
-      .then(([planList, zoneList, objectList]) => {
+    Promise.all([fetchBuildingPlans(), fetchZonesForPlan(object.buildingPlanId), fetchLeads(), fetchGeneratedDocuments()])
+      .then(([planList, zoneList, leadList, docList]) => {
         setPlans(planList);
         setZones(zoneList);
-        setObjects(objectList);
+        setLeads(leadList);
+        setDocuments(docList);
       })
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить планировку')))
       .finally(() => setLoading(false));
@@ -165,7 +163,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
     setShowZoneForm(false);
   }
 
-  async function saveZone(input: { zoneType: ZoneType; label: string; objectId: string }) {
+  async function saveZone(input: { zoneType: ZoneType; label: string; area: number | null }) {
     if (!plan || !drawingPoints || drawingPoints.length < 3) return;
     setSavingZone(true);
     setZoneError(null);
@@ -174,7 +172,9 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
         buildingPlanId: plan.id,
         zoneType: input.zoneType,
         label: input.label,
-        objectId: input.zoneType === 'room' ? input.objectId : '',
+        area: input.zoneType === 'room' ? input.area : null,
+        status: 'Свободно',
+        leadId: '',
         points: drawingPoints,
       });
       setZones((prev) => [...prev, created]);
@@ -187,20 +187,9 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
     }
   }
 
-  async function handleZoneClick(zone: BuildingPlanZone) {
-    if (editMode) {
-      if (!window.confirm('Удалить зону?')) return;
-      try {
-        await deleteZoneApi(zone.id);
-        setZones((prev) => prev.filter((z) => z.id !== zone.id));
-      } catch (err) {
-        setZoneError(errorMessage(err, 'Не удалось удалить зону'));
-      }
-      return;
-    }
-    if (zone.zoneType !== 'room' || !zone.objectId) return;
-    if (zone.objectId === object.id) return;
-    navigate(`/objects/${zone.objectId}`);
+  function handleZoneClick(zone: BuildingPlanZone) {
+    if (drawingPoints !== null) return;
+    setSelectedZone(zone);
   }
 
   if (!object.buildingPlanId) {
@@ -223,7 +212,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
 
   return (
     <Card className="flex flex-col gap-3 p-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="font-bold text-ink">Планировка{plan ? ` — ${plan.name}` : ''}</div>
         <div className="flex items-center gap-2">
           {editMode && !drawingPoints && (
@@ -237,7 +226,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
               setEditMode((v) => !v);
               cancelDrawing();
             }}
-            aria-label="Редактировать зоны"
+            aria-label="Режим добавления зон"
             className={cn(
               'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border',
               editMode ? 'border-primary text-primary' : 'border-border text-ink-muted hover:border-primary hover:text-primary',
@@ -267,7 +256,10 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
       {!loading && !loadError && plan && (
         <>
           <div
-            className={cn('relative w-full select-none overflow-hidden rounded-control border border-border', editMode && drawingPoints !== null && 'cursor-crosshair')}
+            className={cn(
+              'relative w-full select-none overflow-hidden rounded-control border border-border',
+              editMode && drawingPoints !== null && 'cursor-crosshair',
+            )}
             onClick={handleContainerClick}
           >
             <img src={plan.imageUrl} alt={plan.name} className="w-full" draggable={false} />
@@ -276,18 +268,14 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
                 <polygon
                   key={zone.id}
                   points={pointsToAttr(zone.points)}
-                  className={cn(
-                    zoneFillClass(zone, objects),
-                    editMode ? 'cursor-pointer' : zone.zoneType === 'room' && zone.objectId ? 'cursor-pointer' : '',
-                    zone.objectId === object.id && 'stroke-[0.6]',
-                  )}
-                  strokeWidth={zone.objectId === object.id ? 0.6 : 0.3}
+                  className={cn('cursor-pointer transition-opacity hover:opacity-80', zoneFillClass(zone))}
+                  strokeWidth={0.3}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleZoneClick(zone);
                   }}
                 >
-                  <title>{zone.label}</title>
+                  <title>{zone.label || zoneTypeLabels[zone.zoneType]}</title>
                 </polygon>
               ))}
               {drawingPoints && drawingPoints.length > 0 && (
@@ -319,13 +307,11 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
             </div>
           )}
 
-          {showZoneForm && (
-            <NewZoneForm objects={objects} onCancel={cancelDrawing} onSave={saveZone} saving={savingZone} />
-          )}
+          {showZoneForm && <NewZoneForm onCancel={cancelDrawing} onSave={saveZone} saving={savingZone} />}
 
           {zoneError && <p className="text-sm text-danger">{zoneError}</p>}
 
-          <div className="flex flex-wrap gap-4 text-xs text-ink-muted">
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-ink-muted">
             <span className="flex items-center gap-1.5">
               <span className="h-3 w-3 rounded-sm bg-success/40" /> Свободно
             </span>
@@ -347,6 +333,15 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
           </div>
         </>
       )}
+
+      <ZoneDetailModal
+        zone={selectedZone}
+        leads={leads}
+        documents={documents}
+        onClose={() => setSelectedZone(null)}
+        onUpdated={(updated) => setZones((prev) => prev.map((z) => (z.id === updated.id ? updated : z)))}
+        onDeleted={(zoneId) => setZones((prev) => prev.filter((z) => z.id !== zoneId))}
+      />
     </Card>
   );
 }

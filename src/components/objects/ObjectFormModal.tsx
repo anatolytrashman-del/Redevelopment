@@ -139,7 +139,6 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
       concept: editing?.concept ?? '',
       demandLinks: editing?.demandLinks ?? [],
       inspectionMediaUrl: editing?.inspectionMediaUrl ?? '',
-      bookingStatus: editing?.bookingStatus ?? 'Свободно',
       buildingPlanId: editing?.buildingPlanId ?? '',
     };
     try {

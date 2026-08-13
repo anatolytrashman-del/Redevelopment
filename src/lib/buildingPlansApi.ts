@@ -1,6 +1,13 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import type { BuildingPlan, BuildingPlanRow, BuildingPlanZone, BuildingPlanZoneRow, ZoneType } from '../data/buildingPlans';
+import type {
+  BuildingPlan,
+  BuildingPlanRow,
+  BuildingPlanZone,
+  BuildingPlanZoneRow,
+  ZoneStatus,
+  ZoneType,
+} from '../data/buildingPlans';
 
 function planFromRow(row: BuildingPlanRow): BuildingPlan {
   return { id: row.id, name: row.name, imageUrl: row.image_url };
@@ -12,7 +19,9 @@ function zoneFromRow(row: BuildingPlanZoneRow): BuildingPlanZone {
     buildingPlanId: row.building_plan_id,
     zoneType: row.zone_type as ZoneType,
     label: row.label,
-    objectId: row.object_id ?? '',
+    area: row.area,
+    status: (row.status as ZoneStatus | null) ?? 'Свободно',
+    leadId: row.lead_id ?? '',
     points: row.points,
   };
 }
@@ -67,11 +76,30 @@ export function insertZone(input: Omit<BuildingPlanZone, 'id'>): Promise<Buildin
         building_plan_id: input.buildingPlanId,
         zone_type: input.zoneType,
         label: input.label,
-        object_id: input.objectId || null,
+        area: input.area,
+        status: input.status,
+        lead_id: input.leadId || null,
         points: input.points,
       })
       .select()
       .single();
+    if (error) throw error;
+    return zoneFromRow(data as BuildingPlanZoneRow);
+  });
+}
+
+export function updateZone(
+  id: string,
+  patch: Partial<Pick<BuildingPlanZone, 'label' | 'area' | 'status' | 'leadId'>>,
+): Promise<BuildingPlanZone> {
+  return withRetry(async () => {
+    const payload: Record<string, unknown> = {};
+    if (patch.label !== undefined) payload.label = patch.label;
+    if (patch.area !== undefined) payload.area = patch.area;
+    if (patch.status !== undefined) payload.status = patch.status;
+    if (patch.leadId !== undefined) payload.lead_id = patch.leadId || null;
+
+    const { data, error } = await supabase.from('building_plan_zones').update(payload).eq('id', id).select().single();
     if (error) throw error;
     return zoneFromRow(data as BuildingPlanZoneRow);
   });

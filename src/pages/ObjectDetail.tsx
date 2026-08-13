@@ -7,7 +7,6 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Textarea } from '../components/ui/Textarea';
-import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { ObjectFormModal } from '../components/objects/ObjectFormModal';
 import { ImageLightbox, type LightboxState } from '../components/objects/ImageLightbox';
 import { BuildingPlanWidget } from '../components/objects/BuildingPlanWidget';
@@ -16,11 +15,9 @@ import {
   objectImages,
   demandSources,
   extractAdId,
-  bookingStatuses,
   type RealtyObject,
   type DemandSource,
   type DemandLink,
-  type BookingStatus,
 } from '../data/objects';
 import type { Lead } from '../data/leads';
 import { fetchObject, updateObject } from '../lib/objectsApi';
@@ -76,9 +73,6 @@ export function ObjectDetail() {
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(true);
-
-  const [savingBookingStatus, setSavingBookingStatus] = useState(false);
-  const [bookingStatusError, setBookingStatusError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -207,18 +201,6 @@ export function ObjectDetail() {
     }
   }
 
-  async function changeBookingStatus(status: BookingStatus) {
-    setSavingBookingStatus(true);
-    setBookingStatusError(null);
-    try {
-      await saveObjectPatch({ bookingStatus: status });
-    } catch (err) {
-      setBookingStatusError(errorMessage(err, 'Не удалось изменить статус'));
-    } finally {
-      setSavingBookingStatus(false);
-    }
-  }
-
   async function attachBuildingPlan(planId: string) {
     await saveObjectPatch({ buildingPlanId: planId });
   }
@@ -305,14 +287,6 @@ export function ObjectDetail() {
                 <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Цена</div>
                 <div className="text-2xl font-extrabold text-ink">{formatMoney(object.startPrice)}</div>
               </div>
-              <div className={savingBookingStatus ? 'pointer-events-none opacity-60' : ''}>
-                <ToggleGroup
-                  options={[...bookingStatuses]}
-                  value={object.bookingStatus}
-                  onChange={(v) => changeBookingStatus(v as BookingStatus)}
-                />
-              </div>
-              {bookingStatusError && <p className="text-sm text-danger">{bookingStatusError}</p>}
               <div className="flex justify-between">
                 <div>
                   <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Цена/м²</div>
@@ -364,6 +338,8 @@ export function ObjectDetail() {
                 </div>
               )}
             </Card>
+
+            <BuildingPlanWidget object={object} onAttachPlan={attachBuildingPlan} onDetachPlan={detachBuildingPlan} />
           </div>
 
           <div className="flex min-w-0 flex-col gap-5">
@@ -607,10 +583,6 @@ export function ObjectDetail() {
             </Card>
           </div>
         </div>
-      )}
-
-      {!loading && !loadError && object && (
-        <BuildingPlanWidget object={object} onAttachPlan={attachBuildingPlan} onDetachPlan={detachBuildingPlan} />
       )}
 
       <ObjectFormModal open={editOpen} onClose={() => setEditOpen(false)} editing={object} onSaved={setObject} />

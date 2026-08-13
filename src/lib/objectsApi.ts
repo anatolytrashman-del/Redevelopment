@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import type { BookingStatus, ContactChannel, RealtyObject, RealtyObjectRow } from '../data/objects';
+import type { ContactChannel, RealtyObject, RealtyObjectRow } from '../data/objects';
 
 function fromRow(row: RealtyObjectRow): RealtyObject {
   return {
@@ -20,7 +20,6 @@ function fromRow(row: RealtyObjectRow): RealtyObject {
     concept: row.concept ?? '',
     demandLinks: row.demand_links ?? [],
     inspectionMediaUrl: row.inspection_media_url ?? '',
-    bookingStatus: (row.booking_status as BookingStatus | null) ?? 'Свободно',
     buildingPlanId: row.building_plan_id ?? '',
   };
 }
@@ -61,7 +60,6 @@ export function insertObject(input: Omit<RealtyObject, 'id'>): Promise<RealtyObj
         concept: input.concept,
         demand_links: input.demandLinks,
         inspection_media_url: input.inspectionMediaUrl || null,
-        booking_status: input.bookingStatus,
         building_plan_id: input.buildingPlanId || null,
       })
       .select()
@@ -92,7 +90,6 @@ export function updateObject(id: string, input: Omit<RealtyObject, 'id'>): Promi
         concept: input.concept,
         demand_links: input.demandLinks,
         inspection_media_url: input.inspectionMediaUrl || null,
-        booking_status: input.bookingStatus,
         building_plan_id: input.buildingPlanId || null,
       })
       .eq('id', id)
