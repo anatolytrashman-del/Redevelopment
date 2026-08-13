@@ -10,6 +10,7 @@ import {
   UserPlus,
   Receipt,
   Users,
+  FileText,
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
 
@@ -21,6 +22,7 @@ const allNavItems = [
   { to: '/transactions', label: 'Транзакции', icon: Receipt },
   { to: '/leads', label: 'Лиды', icon: Users },
   { to: '/objects', label: 'Объекты', icon: Building2 },
+  { to: '/document-templates', label: 'Шаблоны документов', icon: FileText },
   { to: '/statistics', label: 'Статистика', icon: PieChart },
   { to: '/payouts', label: 'Выплаты', icon: Wallet },
   { to: '/account', label: 'Аккаунт', icon: User },
@@ -30,7 +32,7 @@ const allNavItems = [
 ];
 
 // Порядок пунктов в этом списке — это порядок пунктов в меню.
-const visibleLabels = ['Объекты', 'Лиды', 'Транзакции'];
+const visibleLabels = ['Объекты', 'Лиды', 'Транзакции', 'Шаблоны документов'];
 const navItems = visibleLabels.map((label) => allNavItems.find((item) => item.label === label)!);
 
 export function Sidebar() {
