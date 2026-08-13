@@ -417,7 +417,6 @@ export function ObjectDetail() {
               {linkError && <p className="text-sm text-danger">{linkError}</p>}
 
               <div className="flex flex-col gap-3 border-t border-border pt-4">
-                <div className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Лиды по объекту</div>
                 {leadsLoading ? (
                   <div className="flex items-center gap-2 text-sm text-ink-muted">
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -425,16 +424,14 @@ export function ObjectDetail() {
                   </div>
                 ) : (
                   <div className="flex gap-8">
-                    <div>
-                      <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-ink-faint">
-                        <Flame className="h-3.5 w-3.5 fill-warning text-warning" />
-                        Горячие лиды
-                      </div>
-                      <div className="text-2xl font-extrabold text-ink">{warmLeads.length}</div>
+                    <div className="flex items-center gap-2">
+                      <Flame className="h-4 w-4 fill-warning text-warning" />
+                      <span className="text-sm text-ink-muted">Горячие лиды</span>
+                      <span className="text-xl font-extrabold text-ink">{warmLeads.length}</span>
                     </div>
-                    <div>
-                      <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Обычные лиды</div>
-                      <div className="text-2xl font-extrabold text-ink">{regularLeads.length}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-ink-muted">Обычные лиды</span>
+                      <span className="text-xl font-extrabold text-ink">{regularLeads.length}</span>
                     </div>
                   </div>
                 )}
