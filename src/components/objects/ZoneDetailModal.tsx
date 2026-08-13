@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ExternalLink, Pencil, Trash2 } from 'lucide-react';
+import { ExternalLink, Pencil, Spline, Trash2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
@@ -50,9 +50,10 @@ interface ZoneDetailModalProps {
   onClose: () => void;
   onUpdated: (zone: BuildingPlanZone) => void;
   onDeleted: (zoneId: string) => void;
+  onRedraw: (zone: BuildingPlanZone) => void;
 }
 
-export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, onDeleted }: ZoneDetailModalProps) {
+export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, onDeleted, onRedraw }: ZoneDetailModalProps) {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [label, setLabel] = useState('');
   const [area, setArea] = useState('');
@@ -231,6 +232,15 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
               value={label}
               onChange={(e) => setLabel(e.target.value)}
             />
+
+            <button
+              type="button"
+              onClick={() => onRedraw(zone)}
+              className="flex w-fit items-center gap-2 text-sm font-medium text-ink-muted hover:text-primary"
+            >
+              <Spline className="h-4 w-4" />
+              Перерисовать контур на плане
+            </button>
 
             {isRoom && (
               <>

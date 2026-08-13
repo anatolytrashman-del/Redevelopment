@@ -104,7 +104,7 @@ export function insertZone(input: Omit<BuildingPlanZone, 'id'>): Promise<Buildin
 
 export function updateZone(
   id: string,
-  patch: Partial<Pick<BuildingPlanZone, 'label' | 'area' | 'status' | 'leadId' | 'features'>>,
+  patch: Partial<Pick<BuildingPlanZone, 'label' | 'area' | 'status' | 'leadId' | 'features' | 'points'>>,
 ): Promise<BuildingPlanZone> {
   return withRetry(async () => {
     const payload: Record<string, unknown> = {};
@@ -113,6 +113,7 @@ export function updateZone(
     if (patch.status !== undefined) payload.status = patch.status;
     if (patch.leadId !== undefined) payload.lead_id = patch.leadId || null;
     if (patch.features !== undefined) payload.features = patch.features;
+    if (patch.points !== undefined) payload.points = patch.points;
 
     const { data, error } = await supabase.from('building_plan_zones').update(payload).eq('id', id).select().single();
     if (error) throw error;

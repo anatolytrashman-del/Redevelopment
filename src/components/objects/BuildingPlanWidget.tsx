@@ -17,7 +17,14 @@ import {
 import type { RealtyObject } from '../../data/objects';
 import type { Lead } from '../../data/leads';
 import type { GeneratedDocument } from '../../data/generatedDocuments';
-import { fetchBuildingPlans, fetchZonesForPlan, insertZone, updateBuildingPlan, uploadBuildingPlanImage } from '../../lib/buildingPlansApi';
+import {
+  fetchBuildingPlans,
+  fetchZonesForPlan,
+  insertZone,
+  updateBuildingPlan,
+  updateZone,
+  uploadBuildingPlanImage,
+} from '../../lib/buildingPlansApi';
 import { fetchLeads } from '../../lib/leadsApi';
 import { fetchGeneratedDocuments } from '../../lib/generatedDocumentsApi';
 import { cn } from '../../lib/cn';
@@ -115,6 +122,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
   const [savingZone, setSavingZone] = useState(false);
   const [zoneError, setZoneError] = useState<string | null>(null);
   const [selectedZone, setSelectedZone] = useState<BuildingPlanZone | null>(null);
+  const [redrawZoneId, setRedrawZoneId] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [replacingImage, setReplacingImage] = useState(false);
   const [replaceImageError, setReplaceImageError] = useState<string | null>(null);
@@ -165,6 +173,16 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
   function cancelDrawing() {
     setDrawingPoints(null);
     setShowZoneForm(false);
+    setRedrawZoneId(null);
+  }
+
+  function startRedraw(zone: BuildingPlanZone) {
+    setSelectedZone(null);
+    setEditMode(true);
+    setDrawingPoints([]);
+    setShowZoneForm(false);
+    setZoneError(null);
+    setRedrawZoneId(zone.id);
   }
 
   async function saveZone(input: { zoneType: ZoneType; label: string; area: number | null }) {
@@ -195,6 +213,22 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
   function handleZoneClick(zone: BuildingPlanZone) {
     if (drawingPoints !== null) return;
     setSelectedZone(zone);
+  }
+
+  async function saveRedrawnPoints() {
+    if (!redrawZoneId || !drawingPoints || drawingPoints.length < 3) return;
+    setSavingZone(true);
+    setZoneError(null);
+    try {
+      const updated = await updateZone(redrawZoneId, { points: drawingPoints });
+      setZones((prev) => prev.map((z) => (z.id === updated.id ? updated : z)));
+      setDrawingPoints(null);
+      setRedrawZoneId(null);
+    } catch (err) {
+      setZoneError(errorMessage(err, 'Не удалось сохранить контур'));
+    } finally {
+      setSavingZone(false);
+    }
   }
 
   async function handleReplaceImage(e: React.ChangeEvent<HTMLInputElement>) {
@@ -337,15 +371,18 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
 
           {editMode && drawingPoints !== null && !showZoneForm && (
             <div className="flex items-center justify-between gap-3 rounded-control bg-surface-muted px-4 py-3 text-sm text-ink-muted">
-              <span>Кликайте по плану, чтобы отметить точки контура ({drawingPoints.length})</span>
+              <span>
+                {redrawZoneId ? 'Отметьте новые точки контура' : 'Кликайте по плану, чтобы отметить точки контура'} (
+                {drawingPoints.length})
+              </span>
               <div className="flex gap-2">
                 <button type="button" onClick={cancelDrawing} aria-label="Отменить" className="text-ink-muted hover:text-danger">
                   <X className="h-4 w-4" />
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowZoneForm(true)}
-                  disabled={drawingPoints.length < 3}
+                  onClick={() => (redrawZoneId ? saveRedrawnPoints() : setShowZoneForm(true))}
+                  disabled={drawingPoints.length < 3 || savingZone}
                   aria-label="Готово"
                   className="text-ink-muted hover:text-primary disabled:opacity-40"
                 >
@@ -409,6 +446,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
         onClose={() => setSelectedZone(null)}
         onUpdated={(updated) => setZones((prev) => prev.map((z) => (z.id === updated.id ? updated : z)))}
         onDeleted={(zoneId) => setZones((prev) => prev.filter((z) => z.id !== zoneId))}
+        onRedraw={startRedraw}
       />
     </>
   );
