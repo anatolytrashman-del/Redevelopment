@@ -7,6 +7,7 @@ import { Objects } from './pages/Objects';
 import { ObjectDetail } from './pages/ObjectDetail';
 import { DocumentTemplates } from './pages/DocumentTemplates';
 import { Tasks } from './pages/Tasks';
+import { Backlog } from './pages/Backlog';
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="/objects" element={<Objects />} />
         <Route path="/objects/:id" element={<ObjectDetail />} />
         <Route path="/document-templates" element={<DocumentTemplates />} />
+        <Route path="/backlog" element={<Backlog />} />
         <Route path="*" element={<Home />} />
       </Route>
     </Routes>
