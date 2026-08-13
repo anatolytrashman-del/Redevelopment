@@ -2,8 +2,8 @@ name: Sync demand stats (Kufar + Realt)
 
 on:
   schedule:
-    # 06:00 UTC = 09:00 в Минске
-    - cron: '0 6 * * *'
+    # Каждые 3 часа
+    - cron: '0 */3 * * *'
   workflow_dispatch:
 
 jobs:
