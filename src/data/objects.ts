@@ -4,6 +4,9 @@ export type DemandSource = (typeof demandSources)[number];
 export const contactChannels = ['Телефон', 'Telegram', 'WhatsApp', 'Email'] as const;
 export type ContactChannel = (typeof contactChannels)[number];
 
+export const bookingStatuses = ['Свободно', 'Забронировано', 'Продано'] as const;
+export type BookingStatus = (typeof bookingStatuses)[number];
+
 export interface DemandLink {
   source: DemandSource;
   url: string;
@@ -26,6 +29,8 @@ export interface RealtyObject {
   concept: string;
   demandLinks: DemandLink[];
   inspectionMediaUrl: string;
+  bookingStatus: BookingStatus;
+  buildingPlanId: string;
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/objectsApi.ts
@@ -46,6 +51,8 @@ export interface RealtyObjectRow {
   concept: string | null;
   demand_links: DemandLink[] | null;
   inspection_media_url: string | null;
+  booking_status: string | null;
+  building_plan_id: string | null;
 }
 
 export function pricePerMeter(area: number, startPrice: number): number | null {
