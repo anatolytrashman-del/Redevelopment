@@ -11,12 +11,20 @@ export const zoneTypeLabels: Record<ZoneType, string> = {
 export const zoneStatuses = ['Свободно', 'Забронировано', 'Продано'] as const;
 export type ZoneStatus = (typeof zoneStatuses)[number];
 
+export const zoneFeatures = [
+  'Свой санузел',
+  'Есть мокрая точка',
+  'Можно сделать мокрую точку',
+  'Отдельный вход',
+] as const;
+export type ZoneFeature = (typeof zoneFeatures)[number];
+
 export interface ZonePoint {
   x: number; // проценты от ширины картинки, 0–100
   y: number; // проценты от высоты картинки, 0–100
 }
 
-// Статус/клиент/площадь имеют смысл только для zoneType === 'room' —
+// Статус/клиент/площадь/особенности имеют смысл только для zoneType === 'room' —
 // у общих зон (МОП, санузел, техническое) это просто подписанный контур.
 export interface BuildingPlanZone {
   id: string;
@@ -26,6 +34,7 @@ export interface BuildingPlanZone {
   area: number | null;
   status: ZoneStatus;
   leadId: string;
+  features: string[];
   points: ZonePoint[];
 }
 
@@ -38,6 +47,7 @@ export interface BuildingPlanZoneRow {
   area: number | null;
   status: string;
   lead_id: string | null;
+  features: string[] | null;
   points: ZonePoint[];
 }
 

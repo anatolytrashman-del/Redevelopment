@@ -176,6 +176,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
         area: input.zoneType === 'room' ? input.area : null,
         status: 'Свободно',
         leadId: '',
+        features: [],
         points: drawingPoints,
       });
       setZones((prev) => [...prev, created]);
