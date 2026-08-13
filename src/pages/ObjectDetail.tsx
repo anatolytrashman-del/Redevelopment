@@ -207,6 +207,10 @@ export function ObjectDetail() {
     : [...demandSources];
   const warmLeads = leads.filter((l) => l.isWarm);
   const regularLeads = leads.filter((l) => !l.isWarm);
+  const lastStatsUpdate = demandStats.reduce<string | null>(
+    (latest, s) => (!latest || s.checkedAt > latest ? s.checkedAt : latest),
+    null,
+  );
 
   return (
     <>
@@ -369,7 +373,12 @@ export function ObjectDetail() {
             </Card>
 
             <Card className="flex flex-col gap-4 p-5">
-              <div className="font-bold text-ink">Проверка спроса</div>
+              <div className="flex items-baseline justify-between gap-3">
+                <div className="font-bold text-ink">Проверка спроса</div>
+                {lastStatsUpdate && (
+                  <span className="text-xs text-ink-faint">Обновлено: {formatDate(lastStatsUpdate)}</span>
+                )}
+              </div>
 
               {object.demandLinks.length === 0 ? (
                 <p className="text-sm text-ink-muted">Ссылок пока нет</p>
