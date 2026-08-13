@@ -69,11 +69,13 @@ export function updateObject(id: string, input: Omit<RealtyObject, 'id'>): Promi
   });
 }
 
-export async function uploadObjectPhoto(file: File): Promise<string> {
-  const ext = file.name.split('.').pop() ?? 'jpg';
-  const path = `${crypto.randomUUID()}.${ext}`;
-  const { error } = await supabase.storage.from('object-photos').upload(path, file);
-  if (error) throw error;
-  const { data } = supabase.storage.from('object-photos').getPublicUrl(path);
-  return data.publicUrl;
+export function uploadObjectPhoto(file: File): Promise<string> {
+  return withRetry(async () => {
+    const ext = file.name.split('.').pop() ?? 'jpg';
+    const path = `${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from('object-photos').upload(path, file);
+    if (error) throw error;
+    const { data } = supabase.storage.from('object-photos').getPublicUrl(path);
+    return data.publicUrl;
+  });
 }
