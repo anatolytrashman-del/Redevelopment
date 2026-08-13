@@ -34,11 +34,16 @@ const GRAPHQL_URL = 'https://realt.by/bff/graphql';
 const COMMON_HEADERS = {
   'Content-Type': 'application/json',
   Accept: '*/*',
+  'Accept-Language': 'ru,en;q=0.9',
   Origin: 'https://realt.by',
   Referer: 'https://realt.by/account/my-objects/',
   Cookie: REALT_COOKIE,
   'User-Agent':
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0.1 Safari/605.1.15',
+  'Sec-Fetch-Site': 'same-origin',
+  'Sec-Fetch-Mode': 'cors',
+  'Sec-Fetch-Dest': 'empty',
+  'x-realt-client': 'www@6.19.1',
 };
 
 const MY_OBJECTS_QUERY = `
