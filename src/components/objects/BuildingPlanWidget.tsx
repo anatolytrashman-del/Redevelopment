@@ -274,7 +274,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
   if (object.buildingPlanIds.length === 0) {
     return (
       <Card className="flex flex-col gap-3 p-5">
-        <div className="font-bold text-ink">Планировка</div>
+        <div className="font-bold text-ink">Планировка и нарезка кабинетов</div>
         <p className="text-sm text-ink-muted">План здания ещё не привязан к этому объекту.</p>
         <Button type="button" variant="secondary" className="w-fit" onClick={() => setAttachOpen(true)}>
           Привязать план
@@ -291,36 +291,8 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
 
   const content = (
     <>
-      <div className="flex items-end gap-1 overflow-x-auto">
-        {objectPlans.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => setActivePlanId(p.id)}
-            className={cn(
-              'shrink-0 whitespace-nowrap rounded-t-control border border-b-0 px-4 py-2 text-sm font-medium transition-colors',
-              p.id === activePlanId
-                ? 'border-border bg-surface text-ink'
-                : 'border-transparent bg-surface-muted text-ink-muted hover:text-ink',
-            )}
-          >
-            {p.name}
-          </button>
-        ))}
-        {editMode && (
-          <button
-            type="button"
-            onClick={() => setAttachOpen(true)}
-            aria-label="Добавить этаж"
-            className="flex shrink-0 items-center justify-center rounded-t-control border border-b-0 border-transparent px-3 py-2 text-ink-muted hover:text-primary"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
-        <div className="font-bold text-ink">Планировка</div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="font-bold text-ink">Планировка и нарезка кабинетов</div>
         <div className="flex items-center gap-2">
           {editMode && !drawingPoints && (
             <Button type="button" variant="secondary" onClick={startDrawing}>
@@ -369,15 +341,43 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
           >
             <Pencil className="h-4 w-4" />
           </button>
+          <Button
+            type="button"
+            variant="secondary"
+            icon={fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            onClick={() => setFullscreen((v) => !v)}
+          >
+            {fullscreen ? 'Свернуть' : 'На весь экран'}
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex items-end gap-1 overflow-x-auto border-b border-border">
+        {objectPlans.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => setActivePlanId(p.id)}
+            className={cn(
+              'shrink-0 whitespace-nowrap rounded-t-control border border-b-0 px-4 py-2 text-sm font-medium transition-colors',
+              p.id === activePlanId
+                ? 'border-border bg-surface text-ink'
+                : 'border-transparent bg-surface-muted text-ink-muted hover:text-ink',
+            )}
+          >
+            {p.name}
+          </button>
+        ))}
+        {editMode && (
           <button
             type="button"
-            onClick={() => setFullscreen((v) => !v)}
-            aria-label={fullscreen ? 'Свернуть' : 'Развернуть во весь экран'}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+            onClick={() => setAttachOpen(true)}
+            aria-label="Добавить этаж"
+            className="flex shrink-0 items-center justify-center rounded-t-control border border-b-0 border-transparent px-3 py-2 text-ink-muted hover:text-primary"
           >
-            {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            <Plus className="h-4 w-4" />
           </button>
-        </div>
+        )}
       </div>
 
       {replaceImageError && <p className="text-sm text-danger">{replaceImageError}</p>}
