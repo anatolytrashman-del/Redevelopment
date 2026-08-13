@@ -202,11 +202,13 @@ export function ObjectDetail() {
   }
 
   async function attachBuildingPlan(planId: string) {
-    await saveObjectPatch({ buildingPlanId: planId });
+    if (!object || object.buildingPlanIds.includes(planId)) return;
+    await saveObjectPatch({ buildingPlanIds: [...object.buildingPlanIds, planId] });
   }
 
-  async function detachBuildingPlan() {
-    await saveObjectPatch({ buildingPlanId: '' });
+  async function detachBuildingPlan(planId: string) {
+    if (!object) return;
+    await saveObjectPatch({ buildingPlanIds: object.buildingPlanIds.filter((id) => id !== planId) });
   }
 
   const perMeter = object ? pricePerMeter(object.area, object.startPrice) : null;

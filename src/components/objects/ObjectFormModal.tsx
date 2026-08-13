@@ -139,7 +139,7 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
       concept: editing?.concept ?? '',
       demandLinks: editing?.demandLinks ?? [],
       inspectionMediaUrl: editing?.inspectionMediaUrl ?? '',
-      buildingPlanId: editing?.buildingPlanId ?? '',
+      buildingPlanIds: editing?.buildingPlanIds ?? [],
     };
     try {
       const saved = editing ? await updateObject(editing.id, payload) : await insertObject(payload);

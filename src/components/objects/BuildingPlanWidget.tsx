@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Pencil, Check, X, Link2Off, Maximize2, Minimize2, ImageUp } from 'lucide-react';
+import { Loader2, Pencil, Check, X, Link2Off, Maximize2, Minimize2, ImageUp, Plus } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -104,7 +104,7 @@ function NewZoneForm({ onCancel, onSave, saving }: NewZoneFormProps) {
 interface BuildingPlanWidgetProps {
   object: RealtyObject;
   onAttachPlan: (planId: string) => Promise<void>;
-  onDetachPlan: () => Promise<void>;
+  onDetachPlan: (planId: string) => Promise<void>;
 }
 
 export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: BuildingPlanWidgetProps) {
@@ -127,26 +127,38 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
   const [replacingImage, setReplacingImage] = useState(false);
   const [replaceImageError, setReplaceImageError] = useState<string | null>(null);
   const replaceImageInputRef = useRef<HTMLInputElement>(null);
+  const [activePlanId, setActivePlanId] = useState<string | null>(null);
 
-  const plan = plans.find((p) => p.id === object.buildingPlanId) ?? null;
+  const objectPlans = object.buildingPlanIds
+    .map((id) => plans.find((p) => p.id === id))
+    .filter((p): p is BuildingPlan => !!p);
+  const plan = objectPlans.find((p) => p.id === activePlanId) ?? null;
 
   useEffect(() => {
-    if (!object.buildingPlanId) {
+    if (object.buildingPlanIds.length === 0) {
       setZones([]);
+      setActivePlanId(null);
       return;
     }
     setLoading(true);
     setLoadError(null);
-    Promise.all([fetchBuildingPlans(), fetchZonesForPlan(object.buildingPlanId), fetchLeads(), fetchGeneratedDocuments()])
-      .then(([planList, zoneList, leadList, docList]) => {
+    Promise.all([
+      fetchBuildingPlans(),
+      Promise.all(object.buildingPlanIds.map((id) => fetchZonesForPlan(id))),
+      fetchLeads(),
+      fetchGeneratedDocuments(),
+    ])
+      .then(([planList, zoneLists, leadList, docList]) => {
         setPlans(planList);
-        setZones(zoneList);
+        setZones(zoneLists.flat());
         setLeads(leadList);
         setDocuments(docList);
+        setActivePlanId((prev) => (prev && object.buildingPlanIds.includes(prev) ? prev : object.buildingPlanIds[0]));
       })
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить планировку')))
       .finally(() => setLoading(false));
-  }, [object.buildingPlanId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [object.buildingPlanIds.join(',')]);
 
   useEffect(() => {
     if (attachOpen && plans.length === 0) {
@@ -248,7 +260,18 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
     }
   }
 
-  if (!object.buildingPlanId) {
+  async function addFloor(planId: string) {
+    await onAttachPlan(planId);
+    setActivePlanId(planId);
+  }
+
+  async function handleDetachFloor() {
+    if (!plan || !window.confirm(`Отвязать «${plan.name}» от этого объекта?`)) return;
+    await onDetachPlan(plan.id);
+    setActivePlanId(null);
+  }
+
+  if (object.buildingPlanIds.length === 0) {
     return (
       <Card className="flex flex-col gap-3 p-5">
         <div className="font-bold text-ink">Планировка</div>
@@ -260,7 +283,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
           open={attachOpen}
           onClose={() => setAttachOpen(false)}
           plans={plans}
-          onAttached={onAttachPlan}
+          onAttached={addFloor}
         />
       </Card>
     );
@@ -268,13 +291,69 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
 
   const content = (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="font-bold text-ink">Планировка{plan ? ` — ${plan.name}` : ''}</div>
+      <div className="flex items-end gap-1 overflow-x-auto">
+        {objectPlans.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => setActivePlanId(p.id)}
+            className={cn(
+              'shrink-0 whitespace-nowrap rounded-t-control border border-b-0 px-4 py-2 text-sm font-medium transition-colors',
+              p.id === activePlanId
+                ? 'border-border bg-surface text-ink'
+                : 'border-transparent bg-surface-muted text-ink-muted hover:text-ink',
+            )}
+          >
+            {p.name}
+          </button>
+        ))}
+        {editMode && (
+          <button
+            type="button"
+            onClick={() => setAttachOpen(true)}
+            aria-label="Добавить этаж"
+            className="flex shrink-0 items-center justify-center rounded-t-control border border-b-0 border-transparent px-3 py-2 text-ink-muted hover:text-primary"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+        <div className="font-bold text-ink">Планировка</div>
         <div className="flex items-center gap-2">
           {editMode && !drawingPoints && (
             <Button type="button" variant="secondary" onClick={startDrawing}>
               Добавить зону
             </Button>
+          )}
+          {editMode && (
+            <>
+              <input
+                ref={replaceImageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleReplaceImage}
+              />
+              <button
+                type="button"
+                onClick={() => replaceImageInputRef.current?.click()}
+                disabled={replacingImage}
+                aria-label="Заменить картинку плана"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary disabled:opacity-50"
+              >
+                {replacingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageUp className="h-4 w-4" />}
+              </button>
+              <button
+                type="button"
+                onClick={handleDetachFloor}
+                aria-label="Отвязать план"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-danger hover:text-danger"
+              >
+                <Link2Off className="h-4 w-4" />
+              </button>
+            </>
           )}
           <button
             type="button"
@@ -289,30 +368,6 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
             )}
           >
             <Pencil className="h-4 w-4" />
-          </button>
-          <input
-            ref={replaceImageInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleReplaceImage}
-          />
-          <button
-            type="button"
-            onClick={() => replaceImageInputRef.current?.click()}
-            disabled={replacingImage}
-            aria-label="Заменить картинку плана"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary disabled:opacity-50"
-          >
-            {replacingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageUp className="h-4 w-4" />}
-          </button>
-          <button
-            type="button"
-            onClick={() => window.confirm('Отвязать план от этого объекта?') && onDetachPlan()}
-            aria-label="Отвязать план"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-danger hover:text-danger"
-          >
-            <Link2Off className="h-4 w-4" />
           </button>
           <button
             type="button"
@@ -346,7 +401,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
           >
             <img src={plan.imageUrl} alt={plan.name} className="w-full" draggable={false} />
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
-              {zones.map((zone) => (
+              {zones.filter((zone) => zone.buildingPlanId === plan.id).map((zone) => (
                 <polygon
                   key={zone.id}
                   points={pointsToAttr(zone.points)}
@@ -447,6 +502,13 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
         onUpdated={(updated) => setZones((prev) => prev.map((z) => (z.id === updated.id ? updated : z)))}
         onDeleted={(zoneId) => setZones((prev) => prev.filter((z) => z.id !== zoneId))}
         onRedraw={startRedraw}
+      />
+
+      <AttachBuildingPlanModal
+        open={attachOpen}
+        onClose={() => setAttachOpen(false)}
+        plans={plans}
+        onAttached={addFloor}
       />
     </>
   );
