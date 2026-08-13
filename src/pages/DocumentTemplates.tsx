@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Plus, Loader2, Pencil, FileText, ExternalLink } from 'lucide-react';
+import { Plus, Loader2, Pencil, FileText, ExternalLink, WandSparkles, X } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
 import { Modal } from '../components/ui/Modal';
-import type { DocumentTemplate } from '../data/documentTemplates';
+import { GenerateDocumentModal } from '../components/documentTemplates/GenerateDocumentModal';
+import type { DocumentTemplate, TemplateField, TemplateFieldType } from '../data/documentTemplates';
 import { fetchDocumentTemplates, insertDocumentTemplate, updateDocumentTemplate } from '../lib/documentTemplatesApi';
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -15,10 +17,13 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-const emptyForm = { name: '', url: '' };
+const fieldTypes: TemplateFieldType[] = ['text', 'date'];
+const fieldTypeLabels: Record<TemplateFieldType, string> = { text: 'Текст', date: 'Дата' };
+
+const emptyForm = { name: '', url: '', fields: [] as TemplateField[] };
 
 function templateToForm(t: DocumentTemplate) {
-  return { name: t.name, url: t.url };
+  return { name: t.name, url: t.url, fields: t.fields };
 }
 
 export function DocumentTemplates() {
@@ -30,6 +35,7 @@ export function DocumentTemplates() {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [generatingTemplate, setGeneratingTemplate] = useState<DocumentTemplate | null>(null);
 
   useEffect(() => {
     fetchDocumentTemplates()
@@ -38,7 +44,7 @@ export function DocumentTemplates() {
       .finally(() => setLoading(false));
   }, []);
 
-  const canSubmit = form.name.trim() && form.url.trim();
+  const canSubmit = form.name.trim() && form.url.trim() && form.fields.every((f) => f.key.trim() && f.label.trim());
 
   function openAddModal() {
     setEditingId(null);
@@ -54,13 +60,28 @@ export function DocumentTemplates() {
     setOpen(true);
   }
 
+  function addField() {
+    setForm((f) => ({ ...f, fields: [...f.fields, { key: '', label: '', type: 'text' }] }));
+  }
+
+  function updateField(index: number, patch: Partial<TemplateField>) {
+    setForm((f) => ({
+      ...f,
+      fields: f.fields.map((field, i) => (i === index ? { ...field, ...patch } : field)),
+    }));
+  }
+
+  function removeField(index: number) {
+    setForm((f) => ({ ...f, fields: f.fields.filter((_, i) => i !== index) }));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit || submitting) return;
 
     setSubmitting(true);
     setSubmitError(null);
-    const payload = { name: form.name.trim(), url: form.url.trim() };
+    const payload = { name: form.name.trim(), url: form.url.trim(), fields: form.fields };
     try {
       if (editingId) {
         const updated = await updateDocumentTemplate(editingId, payload);
@@ -108,6 +129,14 @@ export function DocumentTemplates() {
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
             </div>
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<WandSparkles className="h-4 w-4" />}
+              onClick={() => setGeneratingTemplate(t)}
+            >
+              Заполнить
+            </Button>
             <button
               type="button"
               onClick={() => openEditModal(t)}
@@ -148,6 +177,54 @@ export function DocumentTemplates() {
             required
           />
 
+          <div className="flex flex-col gap-2">
+            <span className="text-sm text-ink-muted">
+              Поля для заполнения — ключ должен совпадать с меткой {'{{ключ}}'} внутри документа
+            </span>
+            {form.fields.map((field, i) => (
+              <div key={i} className="flex items-end gap-2">
+                <div className="min-w-0 flex-1">
+                  <Input
+                    label="Название поля"
+                    placeholder="Например, ФИО покупателя"
+                    value={field.label}
+                    onChange={(e) => updateField(i, { label: e.target.value })}
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <Input
+                    label="Ключ {{...}}"
+                    placeholder="buyer_name"
+                    value={field.key}
+                    onChange={(e) => updateField(i, { key: e.target.value })}
+                  />
+                </div>
+                <div className="w-28 shrink-0">
+                  <Select
+                    label="Тип"
+                    options={fieldTypes.map((t) => fieldTypeLabels[t])}
+                    value={fieldTypeLabels[field.type]}
+                    onChange={(v) => {
+                      const type = fieldTypes.find((t) => fieldTypeLabels[t] === v) ?? 'text';
+                      updateField(i, { type });
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeField(i)}
+                  aria-label="Удалить поле"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-danger"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+            <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} onClick={addField} className="w-fit">
+              Добавить поле
+            </Button>
+          </div>
+
           {submitError && <p className="text-sm text-danger">{submitError}</p>}
 
           <div className="mt-2 flex justify-end gap-3">
@@ -160,6 +237,8 @@ export function DocumentTemplates() {
           </div>
         </form>
       </Modal>
+
+      <GenerateDocumentModal template={generatingTemplate} onClose={() => setGeneratingTemplate(null)} />
     </>
   );
 }

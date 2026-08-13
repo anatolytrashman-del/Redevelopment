@@ -7,6 +7,7 @@ function fromRow(row: DocumentTemplateRow): DocumentTemplate {
     id: row.id,
     name: row.name,
     url: row.url,
+    fields: row.fields ?? [],
   };
 }
 
@@ -25,7 +26,7 @@ export function insertDocumentTemplate(input: Omit<DocumentTemplate, 'id'>): Pro
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('document_templates')
-      .insert({ name: input.name, url: input.url })
+      .insert({ name: input.name, url: input.url, fields: input.fields })
       .select()
       .single();
     if (error) throw error;
@@ -37,7 +38,7 @@ export function updateDocumentTemplate(id: string, input: Omit<DocumentTemplate,
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('document_templates')
-      .update({ name: input.name, url: input.url })
+      .update({ name: input.name, url: input.url, fields: input.fields })
       .eq('id', id)
       .select()
       .single();
