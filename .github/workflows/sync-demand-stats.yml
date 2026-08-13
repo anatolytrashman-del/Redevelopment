@@ -1,4 +1,4 @@
-name: Sync demand stats (Kufar + Realt)
+name: Sync demand stats (Kufar + Realt + Avito)
 
 on:
   schedule:
@@ -20,9 +20,14 @@ jobs:
         env:
           KUFAR_BEARER_TOKEN: ${{ secrets.KUFAR_BEARER_TOKEN }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      # if: always() — чтобы сбой Kufar не мешал синхронизации Realt
+      # if: always() — чтобы сбой одного источника не мешал остальным
       - run: node scripts/sync-realt-stats.mjs
         if: always()
         env:
           REALT_COOKIE: ${{ secrets.REALT_COOKIE }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - run: node scripts/sync-avito-stats.mjs
+        if: always()
+        env:
+          AVITO_COOKIE: ${{ secrets.AVITO_COOKIE }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
