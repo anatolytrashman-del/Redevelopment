@@ -45,3 +45,18 @@ export function pricePerMeter(area: number, startPrice: number): number | null {
 export function objectImages(o: Pick<RealtyObject, 'photoUrl' | 'floorPlanUrls'>): string[] {
   return [o.photoUrl, ...o.floorPlanUrls].filter(Boolean);
 }
+
+// ID объявления — последний числовой сегмент пути в ссылке на Kufar/Realt.
+// Используется, чтобы сопоставить ссылку из "Проверки спроса" со строкой
+// статистики в demand_stats (см. scripts/sync-kufar-stats.mjs).
+export function extractAdId(url: string): string | null {
+  try {
+    const segments = new URL(url).pathname.split('/').filter(Boolean);
+    for (let i = segments.length - 1; i >= 0; i--) {
+      if (/^\d{5,}$/.test(segments[i])) return segments[i];
+    }
+  } catch {
+    // не похоже на валидный URL
+  }
+  return null;
+}

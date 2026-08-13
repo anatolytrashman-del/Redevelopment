@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Pencil, Loader2, X, ImageOff, Link as LinkIcon } from 'lucide-react';
+import { ArrowLeft, Pencil, Loader2, X, ImageOff, Link as LinkIcon, Eye, Phone, Heart } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -9,10 +9,19 @@ import { Select } from '../components/ui/Select';
 import { Textarea } from '../components/ui/Textarea';
 import { ObjectFormModal } from '../components/objects/ObjectFormModal';
 import { ImageLightbox, type LightboxState } from '../components/objects/ImageLightbox';
-import { pricePerMeter, objectImages, demandSources, type RealtyObject, type DemandSource } from '../data/objects';
+import {
+  pricePerMeter,
+  objectImages,
+  demandSources,
+  extractAdId,
+  type RealtyObject,
+  type DemandSource,
+  type DemandLink,
+} from '../data/objects';
 import type { ObjectComment } from '../data/objectComments';
 import { fetchObject, updateObject } from '../lib/objectsApi';
 import { fetchComments, addComment } from '../lib/objectCommentsApi';
+import { fetchDemandStats, type DemandStat } from '../lib/demandStatsApi';
 import { badgeColor } from '../lib/badgeColor';
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -55,6 +64,8 @@ export function ObjectDetail() {
   const [linkError, setLinkError] = useState<string | null>(null);
   const [removingLinkIndex, setRemovingLinkIndex] = useState<number | null>(null);
 
+  const [demandStats, setDemandStats] = useState<DemandStat[]>([]);
+
   useEffect(() => {
     if (!id) return;
     setLoading(true);
@@ -69,6 +80,26 @@ export function ObjectDetail() {
       .catch(() => setComments([]))
       .finally(() => setCommentsLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!object) return;
+    const adIds = object.demandLinks
+      .map((link) => extractAdId(link.url))
+      .filter((adId): adId is string => adId !== null);
+    if (adIds.length === 0) {
+      setDemandStats([]);
+      return;
+    }
+    fetchDemandStats(adIds)
+      .then(setDemandStats)
+      .catch(() => setDemandStats([]));
+  }, [object]);
+
+  function statFor(link: DemandLink): DemandStat | undefined {
+    const adId = extractAdId(link.url);
+    if (!adId) return undefined;
+    return demandStats.find((s) => s.adId === adId && s.source === link.source);
+  }
 
   async function saveObjectPatch(patch: Partial<Omit<RealtyObject, 'id'>>) {
     if (!object) throw new Error('Объект не загружен');
@@ -293,6 +324,7 @@ export function ObjectDetail() {
                 <div className="flex flex-col gap-2">
                   {object.demandLinks.map((link, i) => {
                     const colors = badgeColor(link.source);
+                    const stat = statFor(link);
                     return (
                       <div key={`${link.url}-${i}`} className="flex items-center gap-3 rounded-control border border-border px-4 py-3">
                         <span
@@ -309,6 +341,25 @@ export function ObjectDetail() {
                         >
                           {link.url}
                         </a>
+                        {stat && (
+                          <span
+                            className="flex shrink-0 items-center gap-3 text-xs text-ink-muted"
+                            title={`Обновлено: ${formatDate(stat.checkedAt)}`}
+                          >
+                            <span className="flex items-center gap-1" title="Просмотры">
+                              <Eye className="h-3.5 w-3.5" />
+                              {stat.views}
+                            </span>
+                            <span className="flex items-center gap-1" title="Звонки">
+                              <Phone className="h-3.5 w-3.5" />
+                              {stat.calls}
+                            </span>
+                            <span className="flex items-center gap-1" title="В избранном">
+                              <Heart className="h-3.5 w-3.5" />
+                              {stat.favorites}
+                            </span>
+                          </span>
+                        )}
                         <button
                           type="button"
                           onClick={() => removeDemandLink(i)}

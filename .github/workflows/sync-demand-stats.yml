@@ -1,0 +1,22 @@
+name: Sync demand stats (Kufar)
+
+on:
+  schedule:
+    # 06:00 UTC = 09:00 в Минске
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: node scripts/sync-kufar-stats.mjs
+        env:
+          KUFAR_BEARER_TOKEN: ${{ secrets.KUFAR_BEARER_TOKEN }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
