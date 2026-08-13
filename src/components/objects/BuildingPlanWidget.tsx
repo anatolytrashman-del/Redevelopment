@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Pencil, Check, X, Link2Off } from 'lucide-react';
+import { Loader2, Pencil, Check, X, Link2Off, Maximize2, Minimize2 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -115,6 +115,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
   const [savingZone, setSavingZone] = useState(false);
   const [zoneError, setZoneError] = useState<string | null>(null);
   const [selectedZone, setSelectedZone] = useState<BuildingPlanZone | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
 
   const plan = plans.find((p) => p.id === object.buildingPlanId) ?? null;
 
@@ -210,8 +211,8 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
     );
   }
 
-  return (
-    <Card className="flex flex-col gap-3 p-5">
+  const content = (
+    <>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="font-bold text-ink">Планировка{plan ? ` — ${plan.name}` : ''}</div>
         <div className="flex items-center gap-2">
@@ -241,6 +242,14 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-danger hover:text-danger"
           >
             <Link2Off className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setFullscreen((v) => !v)}
+            aria-label={fullscreen ? 'Свернуть' : 'Развернуть во весь экран'}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+          >
+            {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
         </div>
       </div>
@@ -333,6 +342,26 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
           </div>
         </>
       )}
+    </>
+  );
+
+  return (
+    <>
+      {fullscreen ? (
+        <div
+          className="fixed inset-0 z-40 overflow-y-auto bg-ink/60 p-6"
+          onClick={() => setFullscreen(false)}
+        >
+          <div
+            className="mx-auto flex max-w-6xl flex-col gap-3 rounded-card bg-surface p-5 shadow-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {content}
+          </div>
+        </div>
+      ) : (
+        <Card className="flex flex-col gap-3 p-5">{content}</Card>
+      )}
 
       <ZoneDetailModal
         zone={selectedZone}
@@ -342,6 +371,6 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
         onUpdated={(updated) => setZones((prev) => prev.map((z) => (z.id === updated.id ? updated : z)))}
         onDeleted={(zoneId) => setZones((prev) => prev.filter((z) => z.id !== zoneId))}
       />
-    </Card>
+    </>
   );
 }

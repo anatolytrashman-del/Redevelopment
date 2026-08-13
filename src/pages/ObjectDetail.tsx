@@ -338,8 +338,6 @@ export function ObjectDetail() {
                 </div>
               )}
             </Card>
-
-            <BuildingPlanWidget object={object} onAttachPlan={attachBuildingPlan} onDetachPlan={detachBuildingPlan} />
           </div>
 
           <div className="flex min-w-0 flex-col gap-5">
@@ -382,6 +380,8 @@ export function ObjectDetail() {
                 </p>
               )}
             </Card>
+
+            <BuildingPlanWidget object={object} onAttachPlan={attachBuildingPlan} onDetachPlan={detachBuildingPlan} />
 
             <Card className="flex flex-col gap-4 p-5">
               <div className="flex items-baseline justify-between gap-3">
