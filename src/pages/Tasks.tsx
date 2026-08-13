@@ -4,11 +4,11 @@ import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Select } from '../components/ui/Select';
 import { Textarea } from '../components/ui/Textarea';
 import { Modal } from '../components/ui/Modal';
 import { taskAssignees, type Task, type TaskAssignee } from '../data/tasks';
 import { badgeColor } from '../lib/badgeColor';
+import { cn } from '../lib/cn';
 import { fetchTasks, insertTask, updateTask, deleteTask } from '../lib/tasksApi';
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -27,8 +27,27 @@ const emptyForm = {
   title: '',
   description: '',
   date: '',
-  assignee: taskAssignees[0] as TaskAssignee,
+  assignees: [] as TaskAssignee[],
 };
+
+function AssigneeBadges({ assignees }: { assignees: TaskAssignee[] }) {
+  return (
+    <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+      {assignees.map((a) => {
+        const colors = badgeColor(a);
+        return (
+          <span
+            key={a}
+            className="rounded-full px-3 py-1 text-xs font-semibold"
+            style={{ backgroundColor: colors.bg, color: colors.text }}
+          >
+            {a}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 
 export function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -61,7 +80,7 @@ export function Tasks() {
     [tasks],
   );
 
-  const canSubmit = form.title.trim() && form.date;
+  const canSubmit = form.title.trim() && form.date && form.assignees.length > 0;
 
   function openAddModal() {
     setForm(emptyForm);
@@ -80,7 +99,7 @@ export function Tasks() {
         title: form.title.trim(),
         description: form.description.trim(),
         date: form.date,
-        assignee: form.assignee,
+        assignees: form.assignees,
         isDone: false,
         result: '',
       });
@@ -143,7 +162,6 @@ export function Tasks() {
 
       <div className="flex flex-col gap-4">
         {activeTasks.map((task) => {
-          const colors = badgeColor(task.assignee);
           return (
             <Card key={task.id} className="flex flex-col gap-3 p-5">
               <div className="flex items-start justify-between gap-4">
@@ -153,12 +171,7 @@ export function Tasks() {
                     <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{task.description}</p>
                   )}
                 </div>
-                <span
-                  className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold"
-                  style={{ backgroundColor: colors.bg, color: colors.text }}
-                >
-                  {task.assignee}
-                </span>
+                <AssigneeBadges assignees={task.assignees} />
               </div>
 
               <div className="flex items-center justify-between gap-4">
@@ -204,7 +217,6 @@ export function Tasks() {
         <div className="flex flex-col gap-4">
           <div className="text-lg font-bold text-ink">Архив</div>
           {archivedTasks.map((task) => {
-            const colors = badgeColor(task.assignee);
             return (
               <Card key={task.id} className="flex flex-col gap-3 p-5 opacity-80">
                 <div className="flex items-start justify-between gap-4">
@@ -214,12 +226,7 @@ export function Tasks() {
                       <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{task.description}</p>
                     )}
                   </div>
-                  <span
-                    className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold"
-                    style={{ backgroundColor: colors.bg, color: colors.text }}
-                  >
-                    {task.assignee}
-                  </span>
+                  <AssigneeBadges assignees={task.assignees} />
                 </div>
                 <div className="text-sm text-ink-muted">{formatDate(task.date)}</div>
                 <div className="rounded-control bg-surface-muted px-4 py-3">
@@ -256,20 +263,39 @@ export function Tasks() {
             value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
           />
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Дата"
-              type="date"
-              value={form.date}
-              onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-              required
-            />
-            <Select
-              label="Ответственный"
-              options={[...taskAssignees]}
-              value={form.assignee}
-              onChange={(v) => setForm((f) => ({ ...f, assignee: v as TaskAssignee }))}
-            />
+          <Input
+            label="Дата"
+            type="date"
+            value={form.date}
+            onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+            required
+          />
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm text-ink-muted">Ответственные</span>
+            <div className="flex flex-wrap gap-2">
+              {taskAssignees.map((a) => {
+                const selected = form.assignees.includes(a);
+                return (
+                  <button
+                    key={a}
+                    type="button"
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        assignees: selected ? f.assignees.filter((x) => x !== a) : [...f.assignees, a],
+                      }))
+                    }
+                    className={cn(
+                      'rounded-full border px-4 py-2 text-sm font-medium transition-colors',
+                      selected ? 'border-primary bg-primary-soft text-primary' : 'border-border bg-surface-muted text-ink-muted',
+                    )}
+                  >
+                    {a}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {submitError && <p className="text-sm text-danger">{submitError}</p>}

@@ -6,7 +6,7 @@ export interface Task {
   title: string;
   description: string;
   date: string;
-  assignee: TaskAssignee;
+  assignees: TaskAssignee[];
   isDone: boolean;
   result: string;
 }
@@ -17,7 +17,7 @@ export interface TaskRow {
   title: string;
   description: string;
   date: string;
-  assignee: string;
+  assignees: string[];
   is_done: boolean;
   result: string;
 }
