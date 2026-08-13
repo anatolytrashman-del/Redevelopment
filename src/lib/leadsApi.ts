@@ -13,12 +13,25 @@ function fromRow(row: LeadRow): Lead {
     contact: row.contact,
     status: row.status,
     isWarm: row.is_warm,
+    objectId: row.object_id ?? '',
   };
 }
 
 export function fetchLeads(): Promise<Lead[]> {
   return withRetry(async () => {
     const { data, error } = await supabase.from('leads').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data as LeadRow[]).map(fromRow);
+  });
+}
+
+export function fetchLeadsForObject(objectId: string): Promise<Lead[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('leads')
+      .select('*')
+      .eq('object_id', objectId)
+      .order('created_at', { ascending: false });
     if (error) throw error;
     return (data as LeadRow[]).map(fromRow);
   });
@@ -37,6 +50,7 @@ export function insertLead(input: Omit<Lead, 'id'>): Promise<Lead> {
         contact: input.contact,
         status: input.status,
         is_warm: input.isWarm,
+        object_id: input.objectId || null,
       })
       .select()
       .single();
@@ -59,6 +73,7 @@ export function updateLead(id: string, input: Omit<Lead, 'id'>): Promise<Lead> {
         contact: input.contact,
         status: input.status,
         is_warm: input.isWarm,
+        object_id: input.objectId || null,
       })
       .eq('id', id)
       .select()

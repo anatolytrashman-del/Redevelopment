@@ -10,9 +10,13 @@ import { AddableSelect } from '../components/ui/AddableSelect';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Modal } from '../components/ui/Modal';
 import { leadSources, leadRequirements, type Lead, type LeadSource } from '../data/leads';
+import type { RealtyObject } from '../data/objects';
 import { badgeColor } from '../lib/badgeColor';
 import { cn } from '../lib/cn';
 import { fetchLeads, insertLead, updateLead } from '../lib/leadsApi';
+import { fetchObjects } from '../lib/objectsApi';
+
+const NO_OBJECT = 'Не привязан';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -30,6 +34,7 @@ const emptyForm = {
   contact: '',
   status: '',
   isWarm: false,
+  objectId: '',
 };
 
 function RequirementBadge({ requirement }: { requirement: string }) {
@@ -61,6 +66,7 @@ function leadToForm(l: Lead) {
     contact: l.contact,
     status: l.status,
     isWarm: l.isWarm,
+    objectId: l.objectId,
   };
 }
 
@@ -68,6 +74,7 @@ export function Leads() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [objects, setObjects] = useState<RealtyObject[]>([]);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -90,7 +97,16 @@ export function Leads() {
       .then(setLeads)
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить лиды')))
       .finally(() => setLoading(false));
+    fetchObjects()
+      .then(setObjects)
+      .catch(() => setObjects([]));
   }, []);
+
+  const objectOptions = [NO_OBJECT, ...objects.map((o) => o.address)];
+
+  function objectLabel(objectId: string) {
+    return objects.find((o) => o.id === objectId)?.address ?? NO_OBJECT;
+  }
 
   const canSubmit = form.name && form.businessType && form.area && form.contact && form.status;
 
@@ -123,6 +139,7 @@ export function Leads() {
       contact: form.contact,
       status: form.status,
       isWarm: form.isWarm,
+      objectId: form.objectId,
     };
     try {
       if (editingId) {
@@ -290,6 +307,20 @@ export function Leads() {
             value={form.status}
             onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
             required
+          />
+
+          <Select
+            label="Объект недвижимости"
+            options={objectOptions}
+            value={objectLabel(form.objectId)}
+            onChange={(v) => {
+              if (v === NO_OBJECT) {
+                setForm((f) => ({ ...f, objectId: '' }));
+                return;
+              }
+              const obj = objects.find((o) => o.address === v);
+              setForm((f) => ({ ...f, objectId: obj?.id ?? '' }));
+            }}
           />
 
           <ToggleGroup

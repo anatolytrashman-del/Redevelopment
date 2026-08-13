@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Pencil, Loader2, X, ImageOff, Link as LinkIcon, Eye, Phone, Heart } from 'lucide-react';
+import { ArrowLeft, Pencil, Loader2, X, ImageOff, Link as LinkIcon, Eye, Phone, Heart, Flame } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -19,9 +19,11 @@ import {
   type DemandLink,
 } from '../data/objects';
 import type { ObjectComment } from '../data/objectComments';
+import type { Lead } from '../data/leads';
 import { fetchObject, updateObject } from '../lib/objectsApi';
 import { fetchComments, addComment } from '../lib/objectCommentsApi';
 import { fetchDemandStats, type DemandStat } from '../lib/demandStatsApi';
+import { fetchLeadsForObject } from '../lib/leadsApi';
 import { badgeColor } from '../lib/badgeColor';
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -66,6 +68,9 @@ export function ObjectDetail() {
 
   const [demandStats, setDemandStats] = useState<DemandStat[]>([]);
 
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [leadsLoading, setLeadsLoading] = useState(true);
+
   useEffect(() => {
     if (!id) return;
     setLoading(true);
@@ -79,6 +84,12 @@ export function ObjectDetail() {
       .then(setComments)
       .catch(() => setComments([]))
       .finally(() => setCommentsLoading(false));
+
+    setLeadsLoading(true);
+    fetchLeadsForObject(id)
+      .then(setLeads)
+      .catch(() => setLeads([]))
+      .finally(() => setLeadsLoading(false));
   }, [id]);
 
   useEffect(() => {
@@ -172,6 +183,11 @@ export function ObjectDetail() {
 
   const perMeter = object ? pricePerMeter(object.area, object.startPrice) : null;
   const images = object ? objectImages(object) : [];
+  const missingSources = object
+    ? demandSources.filter((s) => !object.demandLinks.some((l) => l.source === s))
+    : [...demandSources];
+  const warmLeads = leads.filter((l) => l.isWarm);
+  const regularLeads = leads.filter((l) => !l.isWarm);
 
   return (
     <>
@@ -200,8 +216,8 @@ export function ObjectDetail() {
       {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
 
       {!loading && !loadError && object && (
-        <div className="grid grid-cols-[380px_1fr] items-start gap-6">
-          <div className="flex flex-col gap-5">
+        <div className="grid grid-cols-[380px_minmax(0,1fr)] items-start gap-6">
+          <div className="flex min-w-0 flex-col gap-5">
             <Card className="flex flex-col gap-3 p-5">
               <button
                 type="button"
@@ -274,7 +290,7 @@ export function ObjectDetail() {
             </Card>
           </div>
 
-          <div className="flex flex-col gap-5">
+          <div className="flex min-w-0 flex-col gap-5">
             <Card className="flex flex-col gap-3 p-5">
               <div className="flex items-center justify-between">
                 <div className="font-bold text-ink">Концепция</div>
@@ -337,9 +353,9 @@ export function ObjectDetail() {
                           href={link.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="min-w-0 flex-1 truncate text-sm text-ink hover:text-primary"
+                          className="flex-1 text-sm font-medium text-primary hover:underline"
                         >
-                          {link.url}
+                          Открыть объявление
                         </a>
                         {stat && (
                           <span
@@ -375,28 +391,79 @@ export function ObjectDetail() {
                 </div>
               )}
 
-              <div className="flex items-end gap-3">
-                <div className="w-32 shrink-0">
-                  <Select
-                    label="Источник"
-                    options={[...demandSources]}
-                    value={newLinkSource}
-                    onChange={(v) => setNewLinkSource(v as DemandSource)}
-                  />
+              {missingSources.length > 0 && (
+                <div className="flex items-end gap-3">
+                  <div className="w-32 shrink-0">
+                    <Select
+                      label="Источник"
+                      options={missingSources}
+                      value={missingSources.includes(newLinkSource) ? newLinkSource : missingSources[0]}
+                      onChange={(v) => setNewLinkSource(v as DemandSource)}
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <Input
+                      label="Ссылка на объявление"
+                      placeholder="https://..."
+                      value={newLinkUrl}
+                      onChange={(e) => setNewLinkUrl(e.target.value)}
+                    />
+                  </div>
+                  <Button type="button" onClick={addDemandLink} disabled={!newLinkUrl.trim() || savingLink}>
+                    {savingLink ? 'Добавляем...' : 'Добавить'}
+                  </Button>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <Input
-                    label="Ссылка на объявление"
-                    placeholder="https://..."
-                    value={newLinkUrl}
-                    onChange={(e) => setNewLinkUrl(e.target.value)}
-                  />
-                </div>
-                <Button type="button" onClick={addDemandLink} disabled={!newLinkUrl.trim() || savingLink}>
-                  {savingLink ? 'Добавляем...' : 'Добавить'}
-                </Button>
-              </div>
+              )}
               {linkError && <p className="text-sm text-danger">{linkError}</p>}
+            </Card>
+
+            <Card className="flex flex-col gap-4 p-5">
+              <div className="font-bold text-ink">Лиды по объекту</div>
+
+              {leadsLoading && (
+                <div className="flex items-center gap-2 text-sm text-ink-muted">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Загружаем лиды...
+                </div>
+              )}
+              {!leadsLoading && leads.length === 0 && <p className="text-sm text-ink-muted">Лидов пока нет</p>}
+
+              {!leadsLoading && warmLeads.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                    <Flame className="h-3.5 w-3.5 fill-warning text-warning" />
+                    Горячие лиды
+                  </div>
+                  {warmLeads.map((lead) => (
+                    <div key={lead.id} className="rounded-control bg-surface-muted px-4 py-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-ink">{lead.name}</span>
+                        <span className="text-xs text-ink-muted">{lead.status}</span>
+                      </div>
+                      <div className="text-xs text-ink-muted">
+                        {lead.businessType} · {lead.contact}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!leadsLoading && regularLeads.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Обычные лиды</div>
+                  {regularLeads.map((lead) => (
+                    <div key={lead.id} className="rounded-control bg-surface-muted px-4 py-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-ink">{lead.name}</span>
+                        <span className="text-xs text-ink-muted">{lead.status}</span>
+                      </div>
+                      <div className="text-xs text-ink-muted">
+                        {lead.businessType} · {lead.contact}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
 
             <Card className="flex flex-col gap-4 p-5">
