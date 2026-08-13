@@ -18,7 +18,7 @@ export type Category = string;
 
 // Партнёры, между которыми считается баланс "кто кому должен" (см. Transactions.tsx).
 // Замените на реальные имена — используются как в форме, так и в расчёте баланса.
-export const payers = ['Толя', 'Степа'] as const;
+export const payers = ['Трэшмен', 'Степа'] as const;
 export type Payer = (typeof payers)[number];
 
 // Готовые варианты "Откуда платил". Список открытый, как и категории —

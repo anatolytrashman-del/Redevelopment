@@ -1,4 +1,4 @@
-export const taskAssignees = ['Толя', 'Степа', 'Татьяна Давыдчик', 'Светлана'] as const;
+export const taskAssignees = ['Трэшмен', 'Степа', 'Татьяна Давыдчик', 'Светлана'] as const;
 export type TaskAssignee = (typeof taskAssignees)[number];
 
 export interface Task {
