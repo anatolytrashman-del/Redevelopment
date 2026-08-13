@@ -35,9 +35,9 @@ function zoneFillClass(zone: BuildingPlanZone): string {
     if (zone.status === 'Забронировано') return 'fill-warning/35 stroke-warning';
     return 'fill-success/25 stroke-success';
   }
-  if (zone.zoneType === 'bathroom') return 'fill-info-bg stroke-info-text';
+  if (zone.zoneType === 'bathroom') return 'fill-info-bg/60 stroke-info-text';
   if (zone.zoneType === 'technical') return 'fill-ink-faint/40 stroke-ink-faint';
-  return 'fill-surface-muted stroke-ink-faint';
+  return 'fill-ink-faint/25 stroke-ink-faint';
 }
 
 function pointsToAttr(points: ZonePoint[]): string {
@@ -332,7 +332,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
               <span className="h-3 w-3 rounded-sm bg-danger/40" /> Продано
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm bg-surface-muted" /> МОП
+              <span className="h-3 w-3 rounded-sm bg-ink-faint/40" /> МОП
             </span>
             <span className="flex items-center gap-1.5">
               <span className="h-3 w-3 rounded-sm bg-info-bg" /> Санузел
