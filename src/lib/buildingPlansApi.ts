@@ -123,7 +123,10 @@ export function updateZone(
 
 export function deleteZone(id: string): Promise<void> {
   return withRetry(async () => {
-    const { error } = await supabase.from('building_plan_zones').delete().eq('id', id);
+    const { data, error } = await supabase.from('building_plan_zones').delete().eq('id', id).select();
     if (error) throw error;
+    if (!data || data.length === 0) {
+      throw new Error('Зона не удалена: не хватает прав доступа (RLS) или запись уже удалена');
+    }
   });
 }
