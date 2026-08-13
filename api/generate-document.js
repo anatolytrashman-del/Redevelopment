@@ -140,7 +140,7 @@ export default async function handler(req, res) {
 
     await batchUpdateDoc(copy.id, requests, accessToken);
 
-    res.status(200).json({ url: `https://docs.google.com/document/d/${copy.id}/edit` });
+    res.status(200).json({ url: `https://docs.google.com/document/d/${copy.id}/edit`, title });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err instanceof Error ? err.message : 'Не удалось сгенерировать документ' });

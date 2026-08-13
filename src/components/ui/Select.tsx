@@ -9,9 +9,18 @@ interface SelectProps {
   value?: string;
   onChange?: (value: string) => void;
   pill?: boolean;
+  triggerClassName?: string;
 }
 
-export function Select({ label, placeholder = 'Выберите значение', options, value, onChange, pill }: SelectProps) {
+export function Select({
+  label,
+  placeholder = 'Выберите значение',
+  options,
+  value,
+  onChange,
+  pill,
+  triggerClassName,
+}: SelectProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -24,6 +33,7 @@ export function Select({ label, placeholder = 'Выберите значение
           'flex items-center justify-between gap-3 border bg-surface-muted px-4 py-2.5 text-sm outline-none',
           pill ? 'rounded-full border-border' : 'rounded-control border-transparent',
           value ? 'text-ink' : 'text-ink-faint',
+          triggerClassName,
         )}
       >
         {value || placeholder}

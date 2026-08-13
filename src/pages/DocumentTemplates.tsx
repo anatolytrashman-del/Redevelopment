@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Plus, Loader2, Pencil, FileText, ExternalLink, WandSparkles, X } from 'lucide-react';
+import { Plus, Loader2, Pencil, FileText, ExternalLink, X } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Modal } from '../components/ui/Modal';
-import { GenerateDocumentModal } from '../components/documentTemplates/GenerateDocumentModal';
 import type { DocumentTemplate, TemplateField, TemplateFieldType } from '../data/documentTemplates';
 import { fetchDocumentTemplates, insertDocumentTemplate, updateDocumentTemplate } from '../lib/documentTemplatesApi';
 
@@ -35,7 +34,6 @@ export function DocumentTemplates() {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [generatingTemplate, setGeneratingTemplate] = useState<DocumentTemplate | null>(null);
 
   useEffect(() => {
     fetchDocumentTemplates()
@@ -129,14 +127,6 @@ export function DocumentTemplates() {
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
             </div>
-            <Button
-              type="button"
-              variant="secondary"
-              icon={<WandSparkles className="h-4 w-4" />}
-              onClick={() => setGeneratingTemplate(t)}
-            >
-              Заполнить
-            </Button>
             <button
               type="button"
               onClick={() => openEditModal(t)}
@@ -237,8 +227,6 @@ export function DocumentTemplates() {
           </div>
         </form>
       </Modal>
-
-      <GenerateDocumentModal template={generatingTemplate} onClose={() => setGeneratingTemplate(null)} />
     </>
   );
 }

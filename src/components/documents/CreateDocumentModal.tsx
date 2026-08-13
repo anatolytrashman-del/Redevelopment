@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
 import { Modal } from '../ui/Modal';
 import { ToggleGroup } from '../ui/ToggleGroup';
 import type { DocumentTemplate } from '../../data/documentTemplates';
+import type { Lead } from '../../data/leads';
+import type { GeneratedDocument } from '../../data/generatedDocuments';
 import { generateDocument } from '../../lib/generateDocumentApi';
+import { insertGeneratedDocument } from '../../lib/generatedDocumentsApi';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -14,35 +18,54 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-interface GenerateDocumentModalProps {
-  template: DocumentTemplate | null;
-  onClose: () => void;
+function leadLabel(l: Lead) {
+  return `${l.name} — ${l.contact}`;
 }
 
-export function GenerateDocumentModal({ template, onClose }: GenerateDocumentModalProps) {
+interface CreateDocumentModalProps {
+  open: boolean;
+  onClose: () => void;
+  templates: DocumentTemplate[];
+  leads: Lead[];
+  onCreated: (doc: GeneratedDocument) => void;
+}
+
+export function CreateDocumentModal({ open, onClose, templates, leads, onCreated }: CreateDocumentModalProps) {
+  const [templateId, setTemplateId] = useState('');
+  const [leadId, setLeadId] = useState('');
   const [values, setValues] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!open) return;
+    setTemplateId('');
+    setLeadId('');
     setValues({});
     setSubmitError(null);
     setResultUrl(null);
-  }, [template]);
+  }, [open]);
 
-  if (!template) return null;
+  const template = templates.find((t) => t.id === templateId) ?? null;
+  const selectedLead = leads.find((l) => l.id === leadId) ?? null;
 
-  const canSubmit = template.fields.every((f) => (values[f.key] ?? '').trim());
+  useEffect(() => {
+    setValues({});
+  }, [templateId]);
+
+  const canSubmit = !!template && !!leadId && template.fields.every((f) => (values[f.key] ?? '').trim());
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!template || !canSubmit || submitting) return;
+    if (!template || !leadId || !canSubmit || submitting) return;
 
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const { url } = await generateDocument(template.id, values);
+      const { url, title } = await generateDocument(template.id, values);
+      const doc = await insertGeneratedDocument({ templateId: template.id, leadId, title, url });
+      onCreated(doc);
       setResultUrl(url);
     } catch (err) {
       setSubmitError(errorMessage(err, 'Не удалось сгенерировать документ'));
@@ -52,10 +75,10 @@ export function GenerateDocumentModal({ template, onClose }: GenerateDocumentMod
   }
 
   return (
-    <Modal open={!!template} onClose={onClose} title={`Заполнить: ${template.name}`}>
+    <Modal open={open} onClose={onClose} title="Новый документ">
       {resultUrl ? (
         <div className="flex flex-col gap-4">
-          <p className="text-sm text-ink-muted">Документ готов — открылась копия шаблона с подставленными данными.</p>
+          <p className="text-sm text-ink-muted">Документ готов и добавлен в список со статусом «Готов к отправке».</p>
           <a
             href={resultUrl}
             target="_blank"
@@ -71,20 +94,28 @@ export function GenerateDocumentModal({ template, onClose }: GenerateDocumentMod
             </Button>
           </div>
         </div>
-      ) : template.fields.length === 0 ? (
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-ink-muted">
-            У этого шаблона не настроены поля для заполнения. Добавьте их через редактирование шаблона.
-          </p>
-          <div className="flex justify-end">
-            <Button type="button" variant="secondary" onClick={onClose}>
-              Закрыть
-            </Button>
-          </div>
-        </div>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {template.fields.map((field) =>
+          <Select
+            label="Шаблон"
+            options={templates.map((t) => t.name)}
+            value={template?.name ?? ''}
+            onChange={(v) => setTemplateId(templates.find((t) => t.name === v)?.id ?? '')}
+          />
+          <Select
+            label="Лид"
+            options={leads.map(leadLabel)}
+            value={selectedLead ? leadLabel(selectedLead) : ''}
+            onChange={(v) => setLeadId(leads.find((l) => leadLabel(l) === v)?.id ?? '')}
+          />
+
+          {template && template.fields.length === 0 && (
+            <p className="text-sm text-ink-muted">
+              У этого шаблона нет полей для заполнения — настройте их в «Шаблонах документов».
+            </p>
+          )}
+
+          {template?.fields.map((field) =>
             field.type === 'gender' ? (
               <ToggleGroup
                 key={field.key}

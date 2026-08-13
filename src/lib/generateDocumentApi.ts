@@ -1,4 +1,7 @@
-export async function generateDocument(templateId: string, values: Record<string, string>): Promise<{ url: string }> {
+export async function generateDocument(
+  templateId: string,
+  values: Record<string, string>,
+): Promise<{ url: string; title: string }> {
   const resp = await fetch('/api/generate-document', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
