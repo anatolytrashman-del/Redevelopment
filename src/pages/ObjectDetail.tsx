@@ -293,7 +293,7 @@ export function ObjectDetail() {
                       title="Планировка"
                       className="aspect-square flex-1 overflow-hidden rounded-control border border-border bg-surface-muted"
                     >
-                      <img src={url} alt={`Планировка ${i + 1}`} className="h-full w-full object-cover" />
+                      <img src={url} alt={`Планировка ${i + 1}`} className="h-full w-full object-contain" />
                     </button>
                   ))}
                 </div>
