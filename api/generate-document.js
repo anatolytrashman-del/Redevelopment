@@ -112,7 +112,9 @@ export default async function handler(req, res) {
     if (!docId) throw new Error('Не удалось определить ID документа из ссылки шаблона');
 
     const accessToken = await getGoogleAccessToken();
-    const title = `${template.name} — ${new Date().toLocaleDateString('ru-RU')}`;
+    const surname = typeof values.buyer_name === 'string' ? values.buyer_name.trim().split(/\s+/)[0] : '';
+    const dateStr = new Date().toLocaleDateString('ru-RU');
+    const title = surname ? `${template.name} — ${surname} — ${dateStr}` : `${template.name} — ${dateStr}`;
     const copy = await copyDoc(docId, title, accessToken);
 
     const fields = template.fields ?? [];
