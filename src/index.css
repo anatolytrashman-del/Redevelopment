@@ -31,7 +31,14 @@
 @font-face {
   font-family: 'Montserrat';
   src: url('/fonts/Montserrat-SemiBold.ttf') format('truetype');
-  font-weight: 550 900;
+  font-weight: 550 649;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Montserrat';
+  src: url('/fonts/Montserrat-ExtraBold.ttf') format('truetype');
+  font-weight: 650 900;
   font-style: normal;
   font-display: swap;
 }
