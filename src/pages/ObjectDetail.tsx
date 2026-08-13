@@ -1,0 +1,405 @@
+import { useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { ArrowLeft, Pencil, Loader2, X, ImageOff, Link as LinkIcon } from 'lucide-react';
+import { PageHeader } from '../components/layout/PageHeader';
+import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
+import { Textarea } from '../components/ui/Textarea';
+import { ObjectFormModal } from '../components/objects/ObjectFormModal';
+import { ImageLightbox, type LightboxState } from '../components/objects/ImageLightbox';
+import { pricePerMeter, objectImages, demandSources, type RealtyObject, type DemandSource } from '../data/objects';
+import type { ObjectComment } from '../data/objectComments';
+import { fetchObject, updateObject } from '../lib/objectsApi';
+import { fetchComments, addComment } from '../lib/objectCommentsApi';
+import { badgeColor } from '../lib/badgeColor';
+
+function errorMessage(err: unknown, fallback: string): string {
+  if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
+    return (err as { message: string }).message;
+  }
+  return fallback;
+}
+
+function formatMoney(value: number) {
+  return `${Math.round(value).toLocaleString('ru-RU')} $`;
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+export function ObjectDetail() {
+  const { id } = useParams();
+  const [object, setObject] = useState<RealtyObject | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [lightbox, setLightbox] = useState<LightboxState | null>(null);
+
+  const [comments, setComments] = useState<ObjectComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(true);
+  const [commentDraft, setCommentDraft] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
+
+  const [editingConcept, setEditingConcept] = useState(false);
+  const [conceptDraft, setConceptDraft] = useState('');
+  const [savingConcept, setSavingConcept] = useState(false);
+  const [conceptError, setConceptError] = useState<string | null>(null);
+
+  const [newLinkSource, setNewLinkSource] = useState<DemandSource>(demandSources[0]);
+  const [newLinkUrl, setNewLinkUrl] = useState('');
+  const [savingLink, setSavingLink] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [removingLinkIndex, setRemovingLinkIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    setLoading(true);
+    fetchObject(id)
+      .then(setObject)
+      .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить объект')))
+      .finally(() => setLoading(false));
+
+    setCommentsLoading(true);
+    fetchComments(id)
+      .then(setComments)
+      .catch(() => setComments([]))
+      .finally(() => setCommentsLoading(false));
+  }, [id]);
+
+  async function saveObjectPatch(patch: Partial<Omit<RealtyObject, 'id'>>) {
+    if (!object) throw new Error('Объект не загружен');
+    const { id: objectId, ...rest } = object;
+    const updated = await updateObject(objectId, { ...rest, ...patch });
+    setObject(updated);
+    return updated;
+  }
+
+  function startEditConcept() {
+    setConceptDraft(object?.concept ?? '');
+    setConceptError(null);
+    setEditingConcept(true);
+  }
+
+  async function saveConcept() {
+    setSavingConcept(true);
+    setConceptError(null);
+    try {
+      await saveObjectPatch({ concept: conceptDraft });
+      setEditingConcept(false);
+    } catch (err) {
+      setConceptError(errorMessage(err, 'Не удалось сохранить концепцию'));
+    } finally {
+      setSavingConcept(false);
+    }
+  }
+
+  async function addDemandLink() {
+    if (!object || !newLinkUrl.trim()) return;
+    setSavingLink(true);
+    setLinkError(null);
+    try {
+      await saveObjectPatch({ demandLinks: [...object.demandLinks, { source: newLinkSource, url: newLinkUrl.trim() }] });
+      setNewLinkUrl('');
+    } catch (err) {
+      setLinkError(errorMessage(err, 'Не удалось добавить ссылку'));
+    } finally {
+      setSavingLink(false);
+    }
+  }
+
+  async function removeDemandLink(index: number) {
+    if (!object) return;
+    setRemovingLinkIndex(index);
+    setLinkError(null);
+    try {
+      await saveObjectPatch({ demandLinks: object.demandLinks.filter((_, i) => i !== index) });
+    } catch (err) {
+      setLinkError(errorMessage(err, 'Не удалось удалить ссылку'));
+    } finally {
+      setRemovingLinkIndex(null);
+    }
+  }
+
+  async function submitComment() {
+    if (!id || !commentDraft.trim()) return;
+    setSubmittingComment(true);
+    setCommentError(null);
+    try {
+      const created = await addComment(id, commentDraft.trim());
+      setComments((prev) => [...prev, created]);
+      setCommentDraft('');
+    } catch (err) {
+      setCommentError(errorMessage(err, 'Не удалось добавить комментарий'));
+    } finally {
+      setSubmittingComment(false);
+    }
+  }
+
+  const perMeter = object ? pricePerMeter(object.area, object.startPrice) : null;
+  const images = object ? objectImages(object) : [];
+
+  return (
+    <>
+      <PageHeader
+        title={object?.address ?? 'Объект'}
+        action={
+          object && (
+            <Button variant="secondary" icon={<Pencil className="h-4 w-4" />} onClick={() => setEditOpen(true)}>
+              Редактировать
+            </Button>
+          )
+        }
+      />
+
+      <Link to="/objects" className="inline-flex w-fit items-center gap-2 text-sm font-medium text-ink hover:text-primary">
+        <ArrowLeft className="h-4 w-4" />
+        Все объекты
+      </Link>
+
+      {loading && (
+        <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Загружаем объект...
+        </Card>
+      )}
+      {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
+
+      {!loading && !loadError && object && (
+        <div className="grid grid-cols-[380px_1fr] items-start gap-6">
+          <div className="flex flex-col gap-5">
+            <Card className="flex flex-col gap-3 p-5">
+              <button
+                type="button"
+                onClick={() => object.photoUrl && setLightbox({ urls: images, index: 0 })}
+                className="aspect-[4/3] w-full overflow-hidden rounded-control bg-surface-muted"
+                disabled={!object.photoUrl}
+              >
+                {object.photoUrl ? (
+                  <img src={object.photoUrl} alt={object.address} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <ImageOff className="h-6 w-6 text-ink-faint" />
+                  </div>
+                )}
+              </button>
+              {object.floorPlanUrls.length > 0 && (
+                <div className="flex gap-2">
+                  {object.floorPlanUrls.map((url, i) => (
+                    <button
+                      key={url}
+                      type="button"
+                      onClick={() => setLightbox({ urls: images, index: images.indexOf(url) })}
+                      title="Планировка"
+                      className="aspect-square flex-1 overflow-hidden rounded-control border border-border bg-surface-muted"
+                    >
+                      <img src={url} alt={`Планировка ${i + 1}`} className="h-full w-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card className="flex flex-col gap-4 p-5">
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Цена</div>
+                <div className="text-2xl font-extrabold text-ink">{formatMoney(object.startPrice)}</div>
+              </div>
+              <div className="flex justify-between">
+                <div>
+                  <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Цена/м²</div>
+                  <div className="text-lg font-bold text-ink">{perMeter ? formatMoney(perMeter) : '—'}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Площадь</div>
+                  <div className="text-lg font-bold text-ink">{object.area} м²</div>
+                </div>
+              </div>
+              {object.listingUrl && (
+                <a
+                  href={object.listingUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex w-fit items-center gap-2 text-sm font-medium text-primary hover:underline"
+                >
+                  <LinkIcon className="h-4 w-4" />
+                  Открыть объявление
+                </a>
+              )}
+            </Card>
+
+            <Card className="flex flex-col gap-3 p-5">
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Собственник</div>
+                <div className="font-semibold text-ink">{object.owner}</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Контакт</div>
+                <div className="font-semibold text-ink">{object.ownerContact}</div>
+              </div>
+            </Card>
+          </div>
+
+          <div className="flex flex-col gap-5">
+            <Card className="flex flex-col gap-3 p-5">
+              <div className="flex items-center justify-between">
+                <div className="font-bold text-ink">Концепция</div>
+                {!editingConcept && (
+                  <button
+                    type="button"
+                    onClick={startEditConcept}
+                    aria-label="Редактировать концепцию"
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              {editingConcept ? (
+                <div className="flex flex-col gap-3">
+                  <Textarea
+                    value={conceptDraft}
+                    onChange={(e) => setConceptDraft(e.target.value)}
+                    placeholder="2–3 предложения о концепции объекта..."
+                    rows={4}
+                    autoFocus
+                  />
+                  {conceptError && <p className="text-sm text-danger">{conceptError}</p>}
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="secondary" onClick={() => setEditingConcept(false)}>
+                      Отмена
+                    </Button>
+                    <Button type="button" onClick={saveConcept} disabled={savingConcept}>
+                      {savingConcept ? 'Сохраняем...' : 'Сохранить'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">
+                  {object.concept || 'Концепция ещё не добавлена'}
+                </p>
+              )}
+            </Card>
+
+            <Card className="flex flex-col gap-4 p-5">
+              <div className="font-bold text-ink">Проверка спроса</div>
+
+              {object.demandLinks.length === 0 ? (
+                <p className="text-sm text-ink-muted">Ссылок пока нет</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {object.demandLinks.map((link, i) => {
+                    const colors = badgeColor(link.source);
+                    return (
+                      <div key={`${link.url}-${i}`} className="flex items-center gap-3 rounded-control border border-border px-4 py-3">
+                        <span
+                          className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold"
+                          style={{ backgroundColor: colors.bg, color: colors.text }}
+                        >
+                          {link.source}
+                        </span>
+                        <a
+                          href={link.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="min-w-0 flex-1 truncate text-sm text-ink hover:text-primary"
+                        >
+                          {link.url}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => removeDemandLink(i)}
+                          disabled={removingLinkIndex === i}
+                          aria-label="Удалить ссылку"
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-danger disabled:opacity-50"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="flex items-end gap-3">
+                <div className="w-32 shrink-0">
+                  <Select
+                    label="Источник"
+                    options={[...demandSources]}
+                    value={newLinkSource}
+                    onChange={(v) => setNewLinkSource(v as DemandSource)}
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <Input
+                    label="Ссылка на объявление"
+                    placeholder="https://..."
+                    value={newLinkUrl}
+                    onChange={(e) => setNewLinkUrl(e.target.value)}
+                  />
+                </div>
+                <Button type="button" onClick={addDemandLink} disabled={!newLinkUrl.trim() || savingLink}>
+                  {savingLink ? 'Добавляем...' : 'Добавить'}
+                </Button>
+              </div>
+              {linkError && <p className="text-sm text-danger">{linkError}</p>}
+            </Card>
+
+            <Card className="flex flex-col gap-4 p-5">
+              <div className="font-bold text-ink">Комментарии</div>
+
+              {commentsLoading && (
+                <div className="flex items-center gap-2 text-sm text-ink-muted">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Загружаем комментарии...
+                </div>
+              )}
+              {!commentsLoading && comments.length === 0 && <p className="text-sm text-ink-muted">Комментариев пока нет</p>}
+              {!commentsLoading && comments.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  {comments.map((c) => (
+                    <div key={c.id} className="rounded-control bg-surface-muted px-4 py-3">
+                      <div className="text-xs text-ink-faint">{formatDate(c.createdAt)}</div>
+                      <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{c.text}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2">
+                <Textarea
+                  placeholder="Добавить комментарий..."
+                  value={commentDraft}
+                  onChange={(e) => setCommentDraft(e.target.value)}
+                  rows={3}
+                />
+                {commentError && <p className="text-sm text-danger">{commentError}</p>}
+                <Button
+                  type="button"
+                  className="self-end"
+                  onClick={submitComment}
+                  disabled={!commentDraft.trim() || submittingComment}
+                >
+                  {submittingComment ? 'Добавляем...' : 'Добавить комментарий'}
+                </Button>
+              </div>
+            </Card>
+
+            {object.notes && (
+              <Card className="p-5">
+                <div className="mb-2 font-bold text-ink">Заметки по объекту</div>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{object.notes}</p>
+              </Card>
+            )}
+          </div>
+        </div>
+      )}
+
+      <ObjectFormModal open={editOpen} onClose={() => setEditOpen(false)} editing={object} onSaved={setObject} />
+      <ImageLightbox state={lightbox} onChange={setLightbox} />
+    </>
+  );
+}

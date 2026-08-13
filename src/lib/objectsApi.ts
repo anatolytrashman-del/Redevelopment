@@ -14,6 +14,8 @@ function fromRow(row: RealtyObjectRow): RealtyObject {
     owner: row.owner,
     ownerContact: row.owner_contact,
     notes: row.notes,
+    concept: row.concept ?? '',
+    demandLinks: row.demand_links ?? [],
   };
 }
 
@@ -22,6 +24,14 @@ export function fetchObjects(): Promise<RealtyObject[]> {
     const { data, error } = await supabase.from('objects').select('*').order('created_at', { ascending: false });
     if (error) throw error;
     return (data as RealtyObjectRow[]).map(fromRow);
+  });
+}
+
+export function fetchObject(id: string): Promise<RealtyObject> {
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('objects').select('*').eq('id', id).single();
+    if (error) throw error;
+    return fromRow(data as RealtyObjectRow);
   });
 }
 
@@ -39,6 +49,8 @@ export function insertObject(input: Omit<RealtyObject, 'id'>): Promise<RealtyObj
         owner: input.owner,
         owner_contact: input.ownerContact,
         notes: input.notes,
+        concept: input.concept,
+        demand_links: input.demandLinks,
       })
       .select()
       .single();
@@ -62,6 +74,8 @@ export function updateObject(id: string, input: Omit<RealtyObject, 'id'>): Promi
         owner: input.owner,
         owner_contact: input.ownerContact,
         notes: input.notes,
+        concept: input.concept,
+        demand_links: input.demandLinks,
       })
       .eq('id', id)
       .select()

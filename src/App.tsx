@@ -4,6 +4,7 @@ import { Home } from './pages/Home';
 import { Transactions } from './pages/Transactions';
 import { Leads } from './pages/Leads';
 import { Objects } from './pages/Objects';
+import { ObjectDetail } from './pages/ObjectDetail';
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
         <Route path="/transactions" element={<Transactions />} />
         <Route path="/leads" element={<Leads />} />
         <Route path="/objects" element={<Objects />} />
+        <Route path="/objects/:id" element={<ObjectDetail />} />
         <Route path="*" element={<Home />} />
       </Route>
     </Routes>
