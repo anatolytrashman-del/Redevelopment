@@ -353,7 +353,7 @@ export function ObjectDetail() {
                           href={link.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="flex-1 text-sm font-medium text-primary hover:underline"
+                          className="flex-1 text-sm font-medium text-info-text hover:underline"
                         >
                           Открыть объявление
                         </a>
@@ -415,55 +415,30 @@ export function ObjectDetail() {
                 </div>
               )}
               {linkError && <p className="text-sm text-danger">{linkError}</p>}
-            </Card>
 
-            <Card className="flex flex-col gap-4 p-5">
-              <div className="font-bold text-ink">Лиды по объекту</div>
-
-              {leadsLoading && (
-                <div className="flex items-center gap-2 text-sm text-ink-muted">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Загружаем лиды...
-                </div>
-              )}
-              {!leadsLoading && leads.length === 0 && <p className="text-sm text-ink-muted">Лидов пока нет</p>}
-
-              {!leadsLoading && warmLeads.length > 0 && (
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-faint">
-                    <Flame className="h-3.5 w-3.5 fill-warning text-warning" />
-                    Горячие лиды
+              <div className="flex flex-col gap-3 border-t border-border pt-4">
+                <div className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Лиды по объекту</div>
+                {leadsLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-ink-muted">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Загружаем лиды...
                   </div>
-                  {warmLeads.map((lead) => (
-                    <div key={lead.id} className="rounded-control bg-surface-muted px-4 py-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-ink">{lead.name}</span>
-                        <span className="text-xs text-ink-muted">{lead.status}</span>
+                ) : (
+                  <div className="flex gap-8">
+                    <div>
+                      <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-ink-faint">
+                        <Flame className="h-3.5 w-3.5 fill-warning text-warning" />
+                        Горячие лиды
                       </div>
-                      <div className="text-xs text-ink-muted">
-                        {lead.businessType} · {lead.contact}
-                      </div>
+                      <div className="text-2xl font-extrabold text-ink">{warmLeads.length}</div>
                     </div>
-                  ))}
-                </div>
-              )}
-
-              {!leadsLoading && regularLeads.length > 0 && (
-                <div className="flex flex-col gap-2">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Обычные лиды</div>
-                  {regularLeads.map((lead) => (
-                    <div key={lead.id} className="rounded-control bg-surface-muted px-4 py-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-ink">{lead.name}</span>
-                        <span className="text-xs text-ink-muted">{lead.status}</span>
-                      </div>
-                      <div className="text-xs text-ink-muted">
-                        {lead.businessType} · {lead.contact}
-                      </div>
+                    <div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Обычные лиды</div>
+                      <div className="text-2xl font-extrabold text-ink">{regularLeads.length}</div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
             </Card>
 
             <Card className="flex flex-col gap-4 p-5">
