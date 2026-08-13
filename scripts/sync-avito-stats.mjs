@@ -21,7 +21,15 @@ import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const AVITO_COOKIE_SEED = process.env.AVITO_COOKIE;
+
+// AVITO_COOKIE хранится в base64, а не как обычная cookie-строка: реальная
+// cookie весит ~5000 символов и легко ловит невидимую порчу при копировании
+// длинного текста (перенос строк в чате/редакторе может подсунуть лишний
+// символ). Base64 — один "токен" без пробелов, скопировать который сломать
+// намного сложнее, а сама порча сразу видна по ошибке декодирования.
+const AVITO_COOKIE_SEED = process.env.AVITO_COOKIE
+  ? Buffer.from(process.env.AVITO_COOKIE.replace(/\s+/g, ''), 'base64').toString('utf8')
+  : '';
 
 if (!SUPABASE_SERVICE_ROLE_KEY || !AVITO_COOKIE_SEED) {
   console.error('Не заданы переменные окружения SUPABASE_SERVICE_ROLE_KEY / AVITO_COOKIE');
