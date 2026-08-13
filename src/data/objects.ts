@@ -1,6 +1,9 @@
 export const demandSources = ['Kufar', 'Realt'] as const;
 export type DemandSource = (typeof demandSources)[number];
 
+export const contactChannels = ['Телефон', 'Telegram', 'WhatsApp', 'Email'] as const;
+export type ContactChannel = (typeof contactChannels)[number];
+
 export interface DemandLink {
   source: DemandSource;
   url: string;
@@ -16,6 +19,9 @@ export interface RealtyObject {
   listingUrl: string;
   owner: string;
   ownerContact: string;
+  contactName: string;
+  contactPosition: string;
+  contactChannel: ContactChannel | '';
   notes: string;
   concept: string;
   demandLinks: DemandLink[];
@@ -33,6 +39,9 @@ export interface RealtyObjectRow {
   listing_url: string;
   owner: string;
   owner_contact: string;
+  contact_name: string | null;
+  contact_position: string | null;
+  contact_channel: string | null;
   notes: string;
   concept: string | null;
   demand_links: DemandLink[] | null;

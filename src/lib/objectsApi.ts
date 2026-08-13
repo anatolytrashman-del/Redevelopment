@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import type { RealtyObject, RealtyObjectRow } from '../data/objects';
+import type { ContactChannel, RealtyObject, RealtyObjectRow } from '../data/objects';
 
 function fromRow(row: RealtyObjectRow): RealtyObject {
   return {
@@ -13,6 +13,9 @@ function fromRow(row: RealtyObjectRow): RealtyObject {
     listingUrl: row.listing_url,
     owner: row.owner,
     ownerContact: row.owner_contact,
+    contactName: row.contact_name ?? '',
+    contactPosition: row.contact_position ?? '',
+    contactChannel: (row.contact_channel as ContactChannel | null) ?? '',
     notes: row.notes,
     concept: row.concept ?? '',
     demandLinks: row.demand_links ?? [],
@@ -49,6 +52,9 @@ export function insertObject(input: Omit<RealtyObject, 'id'>): Promise<RealtyObj
         listing_url: input.listingUrl,
         owner: input.owner,
         owner_contact: input.ownerContact,
+        contact_name: input.contactName || null,
+        contact_position: input.contactPosition || null,
+        contact_channel: input.contactChannel || null,
         notes: input.notes,
         concept: input.concept,
         demand_links: input.demandLinks,
@@ -75,6 +81,9 @@ export function updateObject(id: string, input: Omit<RealtyObject, 'id'>): Promi
         listing_url: input.listingUrl,
         owner: input.owner,
         owner_contact: input.ownerContact,
+        contact_name: input.contactName || null,
+        contact_position: input.contactPosition || null,
+        contact_channel: input.contactChannel || null,
         notes: input.notes,
         concept: input.concept,
         demand_links: input.demandLinks,

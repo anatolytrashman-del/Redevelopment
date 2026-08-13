@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Loader2, ImageOff, Upload, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
 import { Textarea } from '../ui/Textarea';
 import { Modal } from '../ui/Modal';
-import { pricePerMeter, type RealtyObject } from '../../data/objects';
+import { contactChannels, pricePerMeter, type ContactChannel, type RealtyObject } from '../../data/objects';
 import { insertObject, updateObject, uploadObjectImage } from '../../lib/objectsApi';
 
 const MAX_FLOOR_PLANS = 3;
@@ -29,6 +30,9 @@ const emptyForm = {
   listingUrl: '',
   owner: '',
   ownerContact: '',
+  contactName: '',
+  contactPosition: '',
+  contactChannel: '' as ContactChannel | '',
   notes: '',
 };
 
@@ -42,6 +46,9 @@ function objectToForm(o: RealtyObject) {
     listingUrl: o.listingUrl,
     owner: o.owner,
     ownerContact: o.ownerContact,
+    contactName: o.contactName,
+    contactPosition: o.contactPosition,
+    contactChannel: o.contactChannel,
     notes: o.notes,
   };
 }
@@ -125,6 +132,9 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
       listingUrl: form.listingUrl,
       owner: form.owner,
       ownerContact: form.ownerContact,
+      contactName: form.contactName,
+      contactPosition: form.contactPosition,
+      contactChannel: form.contactChannel,
       notes: form.notes,
       concept: editing?.concept ?? '',
       demandLinks: editing?.demandLinks ?? [],
@@ -271,6 +281,28 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
             required
           />
         </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Input
+            label="Имя"
+            placeholder="Имя контактного лица"
+            value={form.contactName}
+            onChange={(e) => setForm((f) => ({ ...f, contactName: e.target.value }))}
+          />
+          <Input
+            label="Должность"
+            placeholder="Например, Директор"
+            value={form.contactPosition}
+            onChange={(e) => setForm((f) => ({ ...f, contactPosition: e.target.value }))}
+          />
+        </div>
+
+        <Select
+          label="Где общаемся"
+          options={[...contactChannels]}
+          value={form.contactChannel}
+          onChange={(v) => setForm((f) => ({ ...f, contactChannel: v as ContactChannel }))}
+        />
 
         <Textarea
           label="Заметки по объекту"

@@ -306,6 +306,24 @@ export function ObjectDetail() {
                 <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Контакт</div>
                 <div className="font-semibold text-ink">{object.ownerContact}</div>
               </div>
+              {object.contactName && (
+                <div>
+                  <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Имя</div>
+                  <div className="font-semibold text-ink">{object.contactName}</div>
+                </div>
+              )}
+              {object.contactPosition && (
+                <div>
+                  <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Должность</div>
+                  <div className="font-semibold text-ink">{object.contactPosition}</div>
+                </div>
+              )}
+              {object.contactChannel && (
+                <div>
+                  <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Где общаемся</div>
+                  <div className="font-semibold text-ink">{object.contactChannel}</div>
+                </div>
+              )}
             </Card>
           </div>
 
