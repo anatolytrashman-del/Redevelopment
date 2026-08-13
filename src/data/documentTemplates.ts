@@ -1,4 +1,4 @@
-export type TemplateFieldType = 'text' | 'date';
+export type TemplateFieldType = 'text' | 'date' | 'gender';
 
 // Поле для заполнения — key должен совпадать с меткой {{key}} внутри
 // гугл-документа шаблона (см. src/lib/generateDocumentApi.ts).

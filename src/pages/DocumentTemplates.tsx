@@ -17,8 +17,8 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-const fieldTypes: TemplateFieldType[] = ['text', 'date'];
-const fieldTypeLabels: Record<TemplateFieldType, string> = { text: 'Текст', date: 'Дата' };
+const fieldTypes: TemplateFieldType[] = ['text', 'date', 'gender'];
+const fieldTypeLabels: Record<TemplateFieldType, string> = { text: 'Текст', date: 'Дата', gender: 'Пол' };
 
 const emptyForm = { name: '', url: '', fields: [] as TemplateField[] };
 

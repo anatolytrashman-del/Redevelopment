@@ -7,15 +7,32 @@ function extractDocId(url) {
   return match ? match[1] : null;
 }
 
+// Родительный падеж месяцев ("13 августа", а не "13 август") — Intl с одним
+// только { month: 'long' } отдаёт именительный, поэтому склоняем вручную.
+const MONTHS_GENITIVE = [
+  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+];
+
 function formatValue(field, rawValue) {
   if (field.type === 'date' && rawValue) {
     const d = new Date(rawValue);
     if (!Number.isNaN(d.getTime())) {
-      const month = d.toLocaleDateString('ru-RU', { month: 'long' });
-      return `«${d.getDate()}» ${month} ${d.getFullYear()} г.`;
+      return `«${d.getDate()}» ${MONTHS_GENITIVE[d.getMonth()]} ${d.getFullYear()} г.`;
     }
   }
   return String(rawValue ?? '');
+}
+
+// Для поля типа "gender" по значению "Мужчина"/"Женщина" дополнительно
+// генерируем производные метки {{key_title}} и {{key_suffix}} —
+// "Гражданин"/"Гражданка", "проживающий"/"проживающая".
+function genderReplacements(field, rawValue) {
+  const isMale = rawValue === 'Мужчина';
+  return [
+    { key: `${field.key}_title`, text: isMale ? 'Гражданин' : 'Гражданка' },
+    { key: `${field.key}_suffix`, text: isMale ? 'проживающий' : 'проживающая' },
+  ];
 }
 
 async function fetchTemplate(templateId) {
@@ -99,14 +116,26 @@ export default async function handler(req, res) {
     const copy = await copyDoc(docId, title, accessToken);
 
     const fields = template.fields ?? [];
-    const requests = fields
-      .filter((f) => values[f.key] !== undefined && values[f.key] !== '')
-      .map((f) => ({
-        replaceAllText: {
-          containsText: { text: `{{${f.key}}}`, matchCase: true },
-          replaceText: formatValue(f, values[f.key]),
-        },
-      }));
+    const filled = fields.filter((f) => values[f.key] !== undefined && values[f.key] !== '');
+
+    const requests = filled.map((f) => ({
+      replaceAllText: {
+        containsText: { text: `{{${f.key}}}`, matchCase: true },
+        replaceText: formatValue(f, values[f.key]),
+      },
+    }));
+
+    for (const f of filled.filter((f) => f.type === 'gender')) {
+      for (const { key, text } of genderReplacements(f, values[f.key])) {
+        requests.push({
+          replaceAllText: {
+            containsText: { text: `{{${key}}}`, matchCase: true },
+            replaceText: text,
+          },
+        });
+      }
+    }
+
     await batchUpdateDoc(copy.id, requests, accessToken);
 
     res.status(200).json({ url: `https://docs.google.com/document/d/${copy.id}/edit` });

@@ -3,6 +3,7 @@ import { ExternalLink } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
+import { ToggleGroup } from '../ui/ToggleGroup';
 import type { DocumentTemplate } from '../../data/documentTemplates';
 import { generateDocument } from '../../lib/generateDocumentApi';
 
@@ -83,16 +84,26 @@ export function GenerateDocumentModal({ template, onClose }: GenerateDocumentMod
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {template.fields.map((field) => (
-            <Input
-              key={field.key}
-              label={field.label}
-              type={field.type === 'date' ? 'date' : 'text'}
-              value={values[field.key] ?? ''}
-              onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
-              required
-            />
-          ))}
+          {template.fields.map((field) =>
+            field.type === 'gender' ? (
+              <ToggleGroup
+                key={field.key}
+                label={field.label}
+                options={['Мужчина', 'Женщина']}
+                value={values[field.key] ?? ''}
+                onChange={(v) => setValues((val) => ({ ...val, [field.key]: v }))}
+              />
+            ) : (
+              <Input
+                key={field.key}
+                label={field.label}
+                type={field.type === 'date' ? 'date' : 'text'}
+                value={values[field.key] ?? ''}
+                onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
+                required
+              />
+            ),
+          )}
 
           {submitError && <p className="text-sm text-danger">{submitError}</p>}
 
