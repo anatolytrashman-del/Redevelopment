@@ -9,6 +9,7 @@ function fromRow(row: RealtyObjectRow): RealtyObject {
     area: row.area,
     startPrice: row.start_price,
     photoUrl: row.photo_url ?? '',
+    floorPlanUrls: row.floor_plan_urls ?? [],
     listingUrl: row.listing_url,
     owner: row.owner,
     ownerContact: row.owner_contact,
@@ -33,6 +34,7 @@ export function insertObject(input: Omit<RealtyObject, 'id'>): Promise<RealtyObj
         area: input.area,
         start_price: input.startPrice,
         photo_url: input.photoUrl || null,
+        floor_plan_urls: input.floorPlanUrls,
         listing_url: input.listingUrl,
         owner: input.owner,
         owner_contact: input.ownerContact,
@@ -55,6 +57,7 @@ export function updateObject(id: string, input: Omit<RealtyObject, 'id'>): Promi
         area: input.area,
         start_price: input.startPrice,
         photo_url: input.photoUrl || null,
+        floor_plan_urls: input.floorPlanUrls,
         listing_url: input.listingUrl,
         owner: input.owner,
         owner_contact: input.ownerContact,
@@ -69,7 +72,7 @@ export function updateObject(id: string, input: Omit<RealtyObject, 'id'>): Promi
   });
 }
 
-export function uploadObjectPhoto(file: File): Promise<string> {
+export function uploadObjectImage(file: File): Promise<string> {
   return withRetry(async () => {
     const ext = file.name.split('.').pop() ?? 'jpg';
     const path = `${crypto.randomUUID()}.${ext}`;

@@ -4,6 +4,7 @@ export interface RealtyObject {
   area: number;
   startPrice: number;
   photoUrl: string;
+  floorPlanUrls: string[];
   listingUrl: string;
   owner: string;
   ownerContact: string;
@@ -17,6 +18,7 @@ export interface RealtyObjectRow {
   area: number;
   start_price: number;
   photo_url: string | null;
+  floor_plan_urls: string[] | null;
   listing_url: string;
   owner: string;
   owner_contact: string;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Loader2, Pencil, Link as LinkIcon, ImageOff, Upload } from 'lucide-react';
+import { Plus, Loader2, Pencil, Link as LinkIcon, ImageOff, Upload, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -7,7 +7,9 @@ import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
 import { Modal } from '../components/ui/Modal';
 import { pricePerMeter, type RealtyObject } from '../data/objects';
-import { fetchObjects, insertObject, updateObject, uploadObjectPhoto } from '../lib/objectsApi';
+import { fetchObjects, insertObject, updateObject, uploadObjectImage } from '../lib/objectsApi';
+
+const MAX_FLOOR_PLANS = 3;
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -25,6 +27,7 @@ const emptyForm = {
   area: '',
   startPrice: '',
   photoUrl: '',
+  floorPlanUrls: [] as string[],
   listingUrl: '',
   owner: '',
   ownerContact: '',
@@ -37,6 +40,7 @@ function objectToForm(o: RealtyObject) {
     area: String(o.area),
     startPrice: String(o.startPrice),
     photoUrl: o.photoUrl,
+    floorPlanUrls: o.floorPlanUrls,
     listingUrl: o.listingUrl,
     owner: o.owner,
     ownerContact: o.ownerContact,
@@ -55,7 +59,11 @@ export function Objects() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadingFloorPlan, setUploadingFloorPlan] = useState(false);
+  const [floorPlanUploadError, setFloorPlanUploadError] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const floorPlanInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchObjects()
@@ -64,6 +72,21 @@ export function Objects() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (!lightbox) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setLightbox(null);
+      if (e.key === 'ArrowLeft') setLightbox((lb) => (lb ? { ...lb, index: (lb.index - 1 + lb.urls.length) % lb.urls.length } : lb));
+      if (e.key === 'ArrowRight') setLightbox((lb) => (lb ? { ...lb, index: (lb.index + 1) % lb.urls.length } : lb));
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [lightbox]);
+
+  function openLightbox(urls: string[], index: number) {
+    setLightbox({ urls, index });
+  }
+
   const canSubmit = form.address && form.area && form.startPrice && form.owner && form.ownerContact;
 
   function openAddModal() {
@@ -71,6 +94,7 @@ export function Objects() {
     setForm(emptyForm);
     setSubmitError(null);
     setUploadError(null);
+    setFloorPlanUploadError(null);
     setOpen(true);
   }
 
@@ -79,6 +103,7 @@ export function Objects() {
     setForm(objectToForm(o));
     setSubmitError(null);
     setUploadError(null);
+    setFloorPlanUploadError(null);
     setOpen(true);
   }
 
@@ -88,7 +113,7 @@ export function Objects() {
     setUploading(true);
     setUploadError(null);
     try {
-      const url = await uploadObjectPhoto(file);
+      const url = await uploadObjectImage(file);
       setForm((f) => ({ ...f, photoUrl: url }));
     } catch (err) {
       setUploadError(errorMessage(err, 'Не удалось загрузить фото'));
@@ -96,6 +121,26 @@ export function Objects() {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  }
+
+  async function handleFloorPlanSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingFloorPlan(true);
+    setFloorPlanUploadError(null);
+    try {
+      const url = await uploadObjectImage(file);
+      setForm((f) => ({ ...f, floorPlanUrls: [...f.floorPlanUrls, url].slice(0, MAX_FLOOR_PLANS) }));
+    } catch (err) {
+      setFloorPlanUploadError(errorMessage(err, 'Не удалось загрузить планировку'));
+    } finally {
+      setUploadingFloorPlan(false);
+      if (floorPlanInputRef.current) floorPlanInputRef.current.value = '';
+    }
+  }
+
+  function removeFloorPlan(index: number) {
+    setForm((f) => ({ ...f, floorPlanUrls: f.floorPlanUrls.filter((_, i) => i !== index) }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -109,6 +154,7 @@ export function Objects() {
       area: Number(form.area),
       startPrice: Number(form.startPrice),
       photoUrl: form.photoUrl,
+      floorPlanUrls: form.floorPlanUrls,
       listingUrl: form.listingUrl,
       owner: form.owner,
       ownerContact: form.ownerContact,
@@ -154,12 +200,29 @@ export function Objects() {
           const perMeter = pricePerMeter(o.area, o.startPrice);
           return (
             <Card key={o.id} className="flex gap-6 p-5">
-              <div className="aspect-[4/3] w-1/5 min-w-[140px] shrink-0 overflow-hidden rounded-control bg-surface-muted">
-                {o.photoUrl ? (
-                  <img src={o.photoUrl} alt={o.address} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center">
-                    <ImageOff className="h-6 w-6 text-ink-faint" />
+              <div className="flex w-1/5 min-w-[140px] shrink-0 flex-col gap-2">
+                <div className="aspect-[4/3] overflow-hidden rounded-control bg-surface-muted">
+                  {o.photoUrl ? (
+                    <img src={o.photoUrl} alt={o.address} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center">
+                      <ImageOff className="h-6 w-6 text-ink-faint" />
+                    </div>
+                  )}
+                </div>
+                {o.floorPlanUrls.length > 0 && (
+                  <div className="flex gap-2">
+                    {o.floorPlanUrls.map((url, i) => (
+                      <button
+                        key={url}
+                        type="button"
+                        onClick={() => openLightbox(o.floorPlanUrls, i)}
+                        title="Планировка"
+                        className="aspect-square flex-1 overflow-hidden rounded-control border border-border bg-surface-muted"
+                      >
+                        <img src={url} alt={`Планировка ${i + 1}`} className="h-full w-full object-cover" />
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
@@ -262,6 +325,46 @@ export function Objects() {
             {uploadError && <p className="text-sm text-danger">{uploadError}</p>}
           </div>
 
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm text-ink-muted">Планировки (до {MAX_FLOOR_PLANS})</span>
+            <div className="flex flex-wrap items-center gap-3">
+              {form.floorPlanUrls.map((url, i) => (
+                <div key={url} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-control bg-surface-muted">
+                  <img src={url} alt="" className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeFloorPlan(i)}
+                    aria-label="Удалить планировку"
+                    className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink/70 text-white"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {form.floorPlanUrls.length < MAX_FLOOR_PLANS && (
+                <>
+                  <input
+                    ref={floorPlanInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFloorPlanSelect}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon={uploadingFloorPlan ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                    onClick={() => floorPlanInputRef.current?.click()}
+                    disabled={uploadingFloorPlan}
+                  >
+                    {uploadingFloorPlan ? 'Загружаем...' : 'Добавить'}
+                  </Button>
+                </>
+              )}
+            </div>
+            {floorPlanUploadError && <p className="text-sm text-danger">{floorPlanUploadError}</p>}
+          </div>
+
           <Input
             label="Адрес"
             placeholder="Город, улица, дом"
@@ -341,6 +444,55 @@ export function Objects() {
           </div>
         </form>
       </Modal>
+
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-6"
+          onClick={() => setLightbox(null)}
+        >
+          <div className="absolute inset-0 bg-ink/70" />
+          <img
+            src={lightbox.urls[lightbox.index]}
+            alt=""
+            className="relative max-h-full max-w-full rounded-card object-contain shadow-card"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            type="button"
+            onClick={() => setLightbox(null)}
+            aria-label="Закрыть"
+            className="absolute right-6 top-6 flex h-10 w-10 items-center justify-center rounded-full bg-surface text-ink shadow-card"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          {lightbox.urls.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightbox((lb) => (lb ? { ...lb, index: (lb.index - 1 + lb.urls.length) % lb.urls.length } : lb));
+                }}
+                aria-label="Предыдущая планировка"
+                className="absolute left-6 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-surface text-ink shadow-card"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightbox((lb) => (lb ? { ...lb, index: (lb.index + 1) % lb.urls.length } : lb));
+                }}
+                aria-label="Следующая планировка"
+                className="absolute right-6 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-surface text-ink shadow-card"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </>
   );
 }
