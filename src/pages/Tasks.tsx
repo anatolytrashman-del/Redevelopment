@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, CheckCircle2, Trash2 } from 'lucide-react';
+import { Plus, Loader2, CheckCircle2, Trash2, Flame } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
+import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Modal } from '../components/ui/Modal';
 import { taskAssignees, type Task, type TaskAssignee } from '../data/tasks';
 import { badgeColor } from '../lib/badgeColor';
@@ -28,6 +29,7 @@ const emptyForm = {
   description: '',
   date: '',
   assignees: [] as TaskAssignee[],
+  isPriority: false,
 };
 
 function AssigneeBadges({ assignees }: { assignees: TaskAssignee[] }) {
@@ -100,6 +102,7 @@ export function Tasks() {
         description: form.description.trim(),
         date: form.date,
         assignees: form.assignees,
+        isPriority: form.isPriority,
         isDone: false,
         result: '',
       });
@@ -166,7 +169,14 @@ export function Tasks() {
             <Card key={task.id} className="flex flex-col gap-3 p-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <div className="font-bold text-ink">{task.title}</div>
+                  <div className="flex items-center gap-2">
+                    {task.isPriority && (
+                      <span title="Приоритет">
+                        <Flame className="h-4 w-4 shrink-0 fill-warning text-warning" />
+                      </span>
+                    )}
+                    <div className="font-bold text-ink">{task.title}</div>
+                  </div>
                   {task.description && (
                     <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{task.description}</p>
                   )}
@@ -221,7 +231,14 @@ export function Tasks() {
               <Card key={task.id} className="flex flex-col gap-3 p-5 opacity-80">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <div className="font-bold text-ink line-through decoration-ink-faint">{task.title}</div>
+                    <div className="flex items-center gap-2">
+                      {task.isPriority && (
+                      <span title="Приоритет">
+                        <Flame className="h-4 w-4 shrink-0 fill-warning text-warning" />
+                      </span>
+                    )}
+                      <div className="font-bold text-ink line-through decoration-ink-faint">{task.title}</div>
+                    </div>
                     {task.description && (
                       <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{task.description}</p>
                     )}
@@ -297,6 +314,13 @@ export function Tasks() {
               })}
             </div>
           </div>
+
+          <ToggleGroup
+            label="Приоритет"
+            options={['Да', 'Нет']}
+            value={form.isPriority ? 'Да' : 'Нет'}
+            onChange={(v) => setForm((f) => ({ ...f, isPriority: v === 'Да' }))}
+          />
 
           {submitError && <p className="text-sm text-danger">{submitError}</p>}
 

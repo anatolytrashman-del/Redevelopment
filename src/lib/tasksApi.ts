@@ -9,6 +9,7 @@ function fromRow(row: TaskRow): Task {
     description: row.description,
     date: row.date,
     assignees: (row.assignees ?? []) as Task['assignees'],
+    isPriority: row.is_priority,
     isDone: row.is_done,
     result: row.result,
   };
@@ -31,6 +32,7 @@ export function insertTask(input: Omit<Task, 'id'>): Promise<Task> {
         description: input.description,
         date: input.date,
         assignees: input.assignees,
+        is_priority: input.isPriority,
         is_done: input.isDone,
         result: input.result,
       })
@@ -51,6 +53,7 @@ export function updateTask(id: string, input: Omit<Task, 'id'>): Promise<Task> {
         description: input.description,
         date: input.date,
         assignees: input.assignees,
+        is_priority: input.isPriority,
         is_done: input.isDone,
         result: input.result,
       })

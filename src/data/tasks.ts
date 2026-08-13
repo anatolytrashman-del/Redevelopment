@@ -7,6 +7,7 @@ export interface Task {
   description: string;
   date: string;
   assignees: TaskAssignee[];
+  isPriority: boolean;
   isDone: boolean;
   result: string;
 }
@@ -18,6 +19,7 @@ export interface TaskRow {
   description: string;
   date: string;
   assignees: string[];
+  is_priority: boolean;
   is_done: boolean;
   result: string;
 }
