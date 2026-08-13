@@ -16,7 +16,7 @@ function errorMessage(err: unknown, fallback: string): string {
 }
 
 function formatMoney(value: number) {
-  return `${Math.round(value).toLocaleString('ru-RU')} $`;
+  return `$${Math.round(value).toLocaleString('ru-RU')}`;
 }
 
 export function Objects() {

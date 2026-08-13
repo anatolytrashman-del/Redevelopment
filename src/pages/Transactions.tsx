@@ -38,7 +38,9 @@ function formatDate(iso: string) {
 }
 
 function formatAmount(amount: number, currency: Currency) {
-  return `${amount.toLocaleString('ru-RU')} ${currencySymbols[currency]}`;
+  const formatted = amount.toLocaleString('ru-RU');
+  const symbol = currencySymbols[currency];
+  return currency === 'USD' ? `${symbol}${formatted}` : `${formatted} ${symbol}`;
 }
 
 function formatTotalsMap(map: Map<Currency, number>) {
