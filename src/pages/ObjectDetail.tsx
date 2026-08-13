@@ -18,10 +18,8 @@ import {
   type DemandSource,
   type DemandLink,
 } from '../data/objects';
-import type { ObjectComment } from '../data/objectComments';
 import type { Lead } from '../data/leads';
 import { fetchObject, updateObject } from '../lib/objectsApi';
-import { fetchComments, addComment } from '../lib/objectCommentsApi';
 import { fetchDemandStats, type DemandStat } from '../lib/demandStatsApi';
 import { fetchLeadsForObject } from '../lib/leadsApi';
 import { badgeColor } from '../lib/badgeColor';
@@ -49,16 +47,15 @@ export function ObjectDetail() {
   const [editOpen, setEditOpen] = useState(false);
   const [lightbox, setLightbox] = useState<LightboxState | null>(null);
 
-  const [comments, setComments] = useState<ObjectComment[]>([]);
-  const [commentsLoading, setCommentsLoading] = useState(true);
-  const [commentDraft, setCommentDraft] = useState('');
-  const [submittingComment, setSubmittingComment] = useState(false);
-  const [commentError, setCommentError] = useState<string | null>(null);
-
   const [editingConcept, setEditingConcept] = useState(false);
   const [conceptDraft, setConceptDraft] = useState('');
   const [savingConcept, setSavingConcept] = useState(false);
   const [conceptError, setConceptError] = useState<string | null>(null);
+
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesDraft, setNotesDraft] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [notesError, setNotesError] = useState<string | null>(null);
 
   const [newLinkSource, setNewLinkSource] = useState<DemandSource>(demandSources[0]);
   const [newLinkUrl, setNewLinkUrl] = useState('');
@@ -78,12 +75,6 @@ export function ObjectDetail() {
       .then(setObject)
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить объект')))
       .finally(() => setLoading(false));
-
-    setCommentsLoading(true);
-    fetchComments(id)
-      .then(setComments)
-      .catch(() => setComments([]))
-      .finally(() => setCommentsLoading(false));
 
     setLeadsLoading(true);
     fetchLeadsForObject(id)
@@ -166,18 +157,22 @@ export function ObjectDetail() {
     }
   }
 
-  async function submitComment() {
-    if (!id || !commentDraft.trim()) return;
-    setSubmittingComment(true);
-    setCommentError(null);
+  function startEditNotes() {
+    setNotesDraft(object?.notes ?? '');
+    setNotesError(null);
+    setEditingNotes(true);
+  }
+
+  async function saveNotes() {
+    setSavingNotes(true);
+    setNotesError(null);
     try {
-      const created = await addComment(id, commentDraft.trim());
-      setComments((prev) => [...prev, created]);
-      setCommentDraft('');
+      await saveObjectPatch({ notes: notesDraft });
+      setEditingNotes(false);
     } catch (err) {
-      setCommentError(errorMessage(err, 'Не удалось добавить комментарий'));
+      setNotesError(errorMessage(err, 'Не удалось сохранить заметки'));
     } finally {
-      setSubmittingComment(false);
+      setSavingNotes(false);
     }
   }
 
@@ -438,52 +433,45 @@ export function ObjectDetail() {
               </div>
             </Card>
 
-            <Card className="flex flex-col gap-4 p-5">
-              <div className="font-bold text-ink">Комментарии</div>
-
-              {commentsLoading && (
-                <div className="flex items-center gap-2 text-sm text-ink-muted">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Загружаем комментарии...
-                </div>
-              )}
-              {!commentsLoading && comments.length === 0 && <p className="text-sm text-ink-muted">Комментариев пока нет</p>}
-              {!commentsLoading && comments.length > 0 && (
-                <div className="flex flex-col gap-3">
-                  {comments.map((c) => (
-                    <div key={c.id} className="rounded-control bg-surface-muted px-4 py-3">
-                      <div className="text-xs text-ink-faint">{formatDate(c.createdAt)}</div>
-                      <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{c.text}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex flex-col gap-2">
-                <Textarea
-                  placeholder="Добавить комментарий..."
-                  value={commentDraft}
-                  onChange={(e) => setCommentDraft(e.target.value)}
-                  rows={3}
-                />
-                {commentError && <p className="text-sm text-danger">{commentError}</p>}
-                <Button
-                  type="button"
-                  className="self-end"
-                  onClick={submitComment}
-                  disabled={!commentDraft.trim() || submittingComment}
-                >
-                  {submittingComment ? 'Добавляем...' : 'Добавить комментарий'}
-                </Button>
+            <Card className="flex flex-col gap-3 p-5">
+              <div className="flex items-center justify-between">
+                <div className="font-bold text-ink">Заметки по объекту</div>
+                {!editingNotes && (
+                  <button
+                    type="button"
+                    onClick={startEditNotes}
+                    aria-label="Редактировать заметки"
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
+              {editingNotes ? (
+                <div className="flex flex-col gap-3">
+                  <Textarea
+                    value={notesDraft}
+                    onChange={(e) => setNotesDraft(e.target.value)}
+                    placeholder="Свободные заметки по объекту..."
+                    rows={4}
+                    autoFocus
+                  />
+                  {notesError && <p className="text-sm text-danger">{notesError}</p>}
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="secondary" onClick={() => setEditingNotes(false)}>
+                      Отмена
+                    </Button>
+                    <Button type="button" onClick={saveNotes} disabled={savingNotes}>
+                      {savingNotes ? 'Сохраняем...' : 'Сохранить'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">
+                  {object.notes || 'Заметок пока нет'}
+                </p>
+              )}
             </Card>
-
-            {object.notes && (
-              <Card className="p-5">
-                <div className="mb-2 font-bold text-ink">Заметки по объекту</div>
-                <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{object.notes}</p>
-              </Card>
-            )}
           </div>
         </div>
       )}
