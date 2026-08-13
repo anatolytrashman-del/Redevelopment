@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, CheckCircle2, Trash2, Flame } from 'lucide-react';
+import { Plus, Loader2, CheckCircle2, Trash2, Flame, Pencil } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -59,11 +59,13 @@ function todayIsoDate() {
 function ActiveTaskCard({
   task,
   onComplete,
+  onEdit,
   onDelete,
   deleting,
 }: {
   task: Task;
   onComplete: (task: Task) => void;
+  onEdit: (task: Task) => void;
   onDelete: (task: Task) => void;
   deleting: boolean;
 }) {
@@ -99,6 +101,14 @@ function ActiveTaskCard({
           </Button>
           <button
             type="button"
+            onClick={() => onEdit(task)}
+            aria-label="Редактировать задачу"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
             onClick={() => onDelete(task)}
             disabled={deleting}
             aria-label="Удалить задачу"
@@ -118,6 +128,7 @@ export function Tasks() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [open, setOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -154,7 +165,21 @@ export function Tasks() {
   const canSubmit = form.title.trim() && form.date && form.assignees.length > 0;
 
   function openAddModal() {
+    setEditingTask(null);
     setForm(emptyForm);
+    setSubmitError(null);
+    setOpen(true);
+  }
+
+  function openEditModal(task: Task) {
+    setEditingTask(task);
+    setForm({
+      title: task.title,
+      description: task.description,
+      date: task.date,
+      assignees: task.assignees,
+      isPriority: task.isPriority,
+    });
     setSubmitError(null);
     setOpen(true);
   }
@@ -166,17 +191,31 @@ export function Tasks() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const created = await insertTask({
-        title: form.title.trim(),
-        description: form.description.trim(),
-        date: form.date,
-        assignees: form.assignees,
-        isPriority: form.isPriority,
-        isDone: false,
-        result: '',
-      });
-      setTasks((prev) => [...prev, created]);
+      if (editingTask) {
+        const updated = await updateTask(editingTask.id, {
+          title: form.title.trim(),
+          description: form.description.trim(),
+          date: form.date,
+          assignees: form.assignees,
+          isPriority: form.isPriority,
+          isDone: editingTask.isDone,
+          result: editingTask.result,
+        });
+        setTasks((prev) => prev.map((t) => (t.id === editingTask.id ? updated : t)));
+      } else {
+        const created = await insertTask({
+          title: form.title.trim(),
+          description: form.description.trim(),
+          date: form.date,
+          assignees: form.assignees,
+          isPriority: form.isPriority,
+          isDone: false,
+          result: '',
+        });
+        setTasks((prev) => [...prev, created]);
+      }
       setForm(emptyForm);
+      setEditingTask(null);
       setOpen(false);
     } catch (err) {
       setSubmitError(errorMessage(err, 'Не удалось сохранить задачу'));
@@ -249,6 +288,7 @@ export function Tasks() {
                 key={task.id}
                 task={task}
                 onComplete={openCompleteModal}
+                onEdit={openEditModal}
                 onDelete={handleDelete}
                 deleting={deletingId === task.id}
               />
@@ -265,6 +305,7 @@ export function Tasks() {
                 key={task.id}
                 task={task}
                 onComplete={openCompleteModal}
+                onEdit={openEditModal}
                 onDelete={handleDelete}
                 deleting={deletingId === task.id}
               />
@@ -304,22 +345,32 @@ export function Tasks() {
                   <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Результат</div>
                   <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{task.result}</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(task)}
-                  disabled={deletingId === task.id}
-                  className="flex w-fit items-center gap-2 text-sm font-medium text-ink-muted hover:text-danger disabled:opacity-50"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Удалить
-                </button>
+                <div className="flex items-center gap-4">
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(task)}
+                    className="flex w-fit items-center gap-2 text-sm font-medium text-ink-muted hover:text-primary"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Редактировать
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(task)}
+                    disabled={deletingId === task.id}
+                    className="flex w-fit items-center gap-2 text-sm font-medium text-ink-muted hover:text-danger disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Удалить
+                  </button>
+                </div>
               </Card>
             );
           })}
         </div>
       )}
 
-      <Modal open={open} onClose={() => setOpen(false)} title="Новая задача">
+      <Modal open={open} onClose={() => setOpen(false)} title={editingTask ? 'Редактировать задачу' : 'Новая задача'}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <Input
             label="Заголовок"
@@ -383,7 +434,7 @@ export function Tasks() {
               Отмена
             </Button>
             <Button type="submit" disabled={!canSubmit || submitting}>
-              {submitting ? 'Сохраняем...' : 'Добавить'}
+              {submitting ? 'Сохраняем...' : editingTask ? 'Сохранить' : 'Добавить'}
             </Button>
           </div>
         </form>
