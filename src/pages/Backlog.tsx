@@ -72,10 +72,10 @@ export function Backlog() {
   return (
     <>
       <PageHeader
-        title="Бэклог"
+        title="Предложить идею"
         action={
           <Button icon={<Plus className="h-4 w-4" />} onClick={openAddModal}>
-            Предложить идею
+            Добавить идею
           </Button>
         }
       />

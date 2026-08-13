@@ -96,7 +96,7 @@ export function Sidebar() {
           }
         >
           <Lightbulb className="h-5 w-5" />
-          Бэклог
+          Предложить идею
           {backlogUnread > 0 && (
             <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">
               {backlogUnread}
