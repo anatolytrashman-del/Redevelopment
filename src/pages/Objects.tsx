@@ -17,7 +17,7 @@ function errorMessage(err: unknown, fallback: string): string {
 }
 
 function formatMoney(value: number) {
-  return `${Math.round(value).toLocaleString('ru-RU')} ₽`;
+  return `${Math.round(value).toLocaleString('ru-RU')} $`;
 }
 
 const emptyForm = {
@@ -269,7 +269,7 @@ export function Objects() {
               required
             />
             <Input
-              label="Стартовая цена"
+              label="Стартовая цена, $"
               type="number"
               step="0.01"
               placeholder="0"
