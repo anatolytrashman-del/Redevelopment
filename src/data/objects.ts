@@ -1,4 +1,4 @@
-export const demandSources = ['Kufar', 'Realt'] as const;
+export const demandSources = ['Kufar', 'Realt', 'Avito'] as const;
 export type DemandSource = (typeof demandSources)[number];
 
 export const contactChannels = ['Телефон', 'Telegram', 'WhatsApp', 'Email'] as const;
@@ -59,15 +59,19 @@ export function objectImages(o: Pick<RealtyObject, 'photoUrl' | 'floorPlanUrls'>
   return [o.photoUrl, ...o.floorPlanUrls].filter(Boolean);
 }
 
-// ID объявления — последний числовой сегмент пути в ссылке на Kufar/Realt.
-// Используется, чтобы сопоставить ссылку из "Проверки спроса" со строкой
-// статистики в demand_stats (см. scripts/sync-kufar-stats.mjs).
+// ID объявления — используется, чтобы сопоставить ссылку из "Проверки спроса"
+// со строкой статистики в demand_stats (см. scripts/sync-*-stats.mjs).
+// У Kufar/Realt id — отдельный числовой сегмент пути. У Avito id приклеен
+// к слагу через подчёркивание в последнем сегменте (.../kvartira_2701234567),
+// поэтому вторым шагом ищем числовой хвост последнего сегмента.
 export function extractAdId(url: string): string | null {
   try {
     const segments = new URL(url).pathname.split('/').filter(Boolean);
     for (let i = segments.length - 1; i >= 0; i--) {
       if (/^\d{5,}$/.test(segments[i])) return segments[i];
     }
+    const trailing = segments[segments.length - 1]?.match(/(\d{6,})$/);
+    if (trailing) return trailing[1];
   } catch {
     // не похоже на валидный URL
   }
