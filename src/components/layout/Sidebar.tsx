@@ -29,8 +29,9 @@ const allNavItems = [
   { to: '/invite', label: 'Пригласить партнёра', icon: UserPlus },
 ];
 
-const visibleLabels = ['Дашборд', 'Транзакции', 'Лиды', 'Объекты'];
-const navItems = allNavItems.filter((item) => visibleLabels.includes(item.label));
+// Порядок пунктов в этом списке — это порядок пунктов в меню.
+const visibleLabels = ['Объекты', 'Лиды', 'Транзакции'];
+const navItems = visibleLabels.map((label) => allNavItems.find((item) => item.label === label)!);
 
 export function Sidebar() {
   return (
