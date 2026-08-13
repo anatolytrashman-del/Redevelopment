@@ -16,6 +16,7 @@ function fromRow(row: RealtyObjectRow): RealtyObject {
     notes: row.notes,
     concept: row.concept ?? '',
     demandLinks: row.demand_links ?? [],
+    inspectionMediaUrl: row.inspection_media_url ?? '',
   };
 }
 
@@ -51,6 +52,7 @@ export function insertObject(input: Omit<RealtyObject, 'id'>): Promise<RealtyObj
         notes: input.notes,
         concept: input.concept,
         demand_links: input.demandLinks,
+        inspection_media_url: input.inspectionMediaUrl || null,
       })
       .select()
       .single();
@@ -76,6 +78,7 @@ export function updateObject(id: string, input: Omit<RealtyObject, 'id'>): Promi
         notes: input.notes,
         concept: input.concept,
         demand_links: input.demandLinks,
+        inspection_media_url: input.inspectionMediaUrl || null,
       })
       .eq('id', id)
       .select()

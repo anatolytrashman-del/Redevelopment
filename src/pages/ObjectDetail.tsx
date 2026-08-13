@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Pencil, Loader2, X, ImageOff, Link as LinkIcon, Eye, Phone, Heart, Flame } from 'lucide-react';
+import { ArrowLeft, Pencil, Loader2, X, ImageOff, Link as LinkIcon, Eye, Phone, Heart, Flame, Film } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -56,6 +56,11 @@ export function ObjectDetail() {
   const [notesDraft, setNotesDraft] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
   const [notesError, setNotesError] = useState<string | null>(null);
+
+  const [editingInspectionMedia, setEditingInspectionMedia] = useState(false);
+  const [inspectionMediaDraft, setInspectionMediaDraft] = useState('');
+  const [savingInspectionMedia, setSavingInspectionMedia] = useState(false);
+  const [inspectionMediaError, setInspectionMediaError] = useState<string | null>(null);
 
   const [newLinkSource, setNewLinkSource] = useState<DemandSource>(demandSources[0]);
   const [newLinkUrl, setNewLinkUrl] = useState('');
@@ -173,6 +178,25 @@ export function ObjectDetail() {
       setNotesError(errorMessage(err, 'Не удалось сохранить заметки'));
     } finally {
       setSavingNotes(false);
+    }
+  }
+
+  function startEditInspectionMedia() {
+    setInspectionMediaDraft(object?.inspectionMediaUrl ?? '');
+    setInspectionMediaError(null);
+    setEditingInspectionMedia(true);
+  }
+
+  async function saveInspectionMedia() {
+    setSavingInspectionMedia(true);
+    setInspectionMediaError(null);
+    try {
+      await saveObjectPatch({ inspectionMediaUrl: inspectionMediaDraft.trim() });
+      setEditingInspectionMedia(false);
+    } catch (err) {
+      setInspectionMediaError(errorMessage(err, 'Не удалось сохранить ссылку'));
+    } finally {
+      setSavingInspectionMedia(false);
     }
   }
 
@@ -431,6 +455,53 @@ export function ObjectDetail() {
                   </div>
                 )}
               </div>
+            </Card>
+
+            <Card className="flex flex-col gap-3 p-5">
+              <div className="flex items-center justify-between">
+                <div className="font-bold text-ink">Фото и видео с осмотра</div>
+                {!editingInspectionMedia && (
+                  <button
+                    type="button"
+                    onClick={startEditInspectionMedia}
+                    aria-label="Редактировать ссылку"
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              {editingInspectionMedia ? (
+                <div className="flex flex-col gap-3">
+                  <Input
+                    placeholder="Ссылка на папку Google Диска..."
+                    value={inspectionMediaDraft}
+                    onChange={(e) => setInspectionMediaDraft(e.target.value)}
+                    autoFocus
+                  />
+                  {inspectionMediaError && <p className="text-sm text-danger">{inspectionMediaError}</p>}
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="secondary" onClick={() => setEditingInspectionMedia(false)}>
+                      Отмена
+                    </Button>
+                    <Button type="button" onClick={saveInspectionMedia} disabled={savingInspectionMedia}>
+                      {savingInspectionMedia ? 'Сохраняем...' : 'Сохранить'}
+                    </Button>
+                  </div>
+                </div>
+              ) : object.inspectionMediaUrl ? (
+                <a
+                  href={object.inspectionMediaUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex w-fit items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
+                >
+                  <Film className="h-4 w-4" />
+                  Посмотреть
+                </a>
+              ) : (
+                <p className="text-sm text-ink-muted">Ссылка ещё не добавлена</p>
+              )}
             </Card>
 
             <Card className="flex flex-col gap-3 p-5">

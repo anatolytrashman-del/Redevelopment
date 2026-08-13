@@ -128,6 +128,7 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
       notes: form.notes,
       concept: editing?.concept ?? '',
       demandLinks: editing?.demandLinks ?? [],
+      inspectionMediaUrl: editing?.inspectionMediaUrl ?? '',
     };
     try {
       const saved = editing ? await updateObject(editing.id, payload) : await insertObject(payload);

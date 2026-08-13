@@ -19,6 +19,7 @@ export interface RealtyObject {
   notes: string;
   concept: string;
   demandLinks: DemandLink[];
+  inspectionMediaUrl: string;
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/objectsApi.ts
@@ -35,6 +36,7 @@ export interface RealtyObjectRow {
   notes: string;
   concept: string | null;
   demand_links: DemandLink[] | null;
+  inspection_media_url: string | null;
 }
 
 export function pricePerMeter(area: number, startPrice: number): number | null {
