@@ -34,9 +34,18 @@ const STATS_URL = 'https://www.avito.ru/web/1/vas/stats';
 const USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36';
 
+// Cookie-заголовок обязан быть ByteString (коды 0–255) — если секрет был
+// скопирован через приложение с "умной" автозаменой текста, в строку мог
+// попасть непечатаемый символ (например, буллет вместо дефиса) и сломать
+// весь запрос. Значения cookie у Avito сами по себе — обычный ASCII, так
+// что просто вырезаем всё, что в этот диапазон не укладывается.
+function sanitizeAscii(value) {
+  return value.replace(/[^\x20-\x7e]/g, '');
+}
+
 function parseCookieString(cookieString) {
   const jar = new Map();
-  for (const pair of cookieString.split(';')) {
+  for (const pair of sanitizeAscii(cookieString).split(';')) {
     const idx = pair.indexOf('=');
     if (idx === -1) continue;
     jar.set(pair.slice(0, idx).trim(), pair.slice(idx + 1).trim());
