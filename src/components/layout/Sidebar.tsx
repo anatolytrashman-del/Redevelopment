@@ -11,6 +11,7 @@ import {
   Receipt,
   Users,
   FileText,
+  ListChecks,
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
 
@@ -19,6 +20,7 @@ import { cn } from '../../lib/cn';
 // остальные пункты добавляйте в этот список по мере готовности страниц.
 const allNavItems = [
   { to: '/', label: 'Дашборд', icon: LayoutGrid, end: true },
+  { to: '/tasks', label: 'Задачи', icon: ListChecks },
   { to: '/transactions', label: 'Транзакции', icon: Receipt },
   { to: '/leads', label: 'Лиды', icon: Users },
   { to: '/objects', label: 'Объекты', icon: Building2 },
@@ -32,7 +34,7 @@ const allNavItems = [
 ];
 
 // Порядок пунктов в этом списке — это порядок пунктов в меню.
-const visibleLabels = ['Объекты', 'Лиды', 'Транзакции', 'Шаблоны документов'];
+const visibleLabels = ['Задачи', 'Объекты', 'Лиды', 'Транзакции', 'Шаблоны документов'];
 const navItems = visibleLabels.map((label) => allNavItems.find((item) => item.label === label)!);
 
 export function Sidebar() {
