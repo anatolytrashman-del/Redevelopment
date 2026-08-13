@@ -31,14 +31,17 @@
 @font-face {
   font-family: 'Montserrat';
   src: url('/fonts/Montserrat-SemiBold.ttf') format('truetype');
-  font-weight: 550 649;
+  font-weight: 550 899;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
+  /* Только для веса 900 (font-black) — весь остальной интерфейс
+     (font-bold/font-extrabold) по-прежнему рендерится SemiBold,
+     как и раньше. Используется точечно для "RED" в логотипе. */
   font-family: 'Montserrat';
   src: url('/fonts/Montserrat-ExtraBold.ttf') format('truetype');
-  font-weight: 650 900;
+  font-weight: 900 900;
   font-style: normal;
   font-display: swap;
 }
