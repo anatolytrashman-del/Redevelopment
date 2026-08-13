@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Loader2, Pencil, Check, X, Link2Off, Maximize2, Minimize2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Loader2, Pencil, Check, X, Link2Off, Maximize2, Minimize2, ImageUp } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -17,7 +17,7 @@ import {
 import type { RealtyObject } from '../../data/objects';
 import type { Lead } from '../../data/leads';
 import type { GeneratedDocument } from '../../data/generatedDocuments';
-import { fetchBuildingPlans, fetchZonesForPlan, insertZone } from '../../lib/buildingPlansApi';
+import { fetchBuildingPlans, fetchZonesForPlan, insertZone, updateBuildingPlan, uploadBuildingPlanImage } from '../../lib/buildingPlansApi';
 import { fetchLeads } from '../../lib/leadsApi';
 import { fetchGeneratedDocuments } from '../../lib/generatedDocumentsApi';
 import { cn } from '../../lib/cn';
@@ -116,6 +116,9 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
   const [zoneError, setZoneError] = useState<string | null>(null);
   const [selectedZone, setSelectedZone] = useState<BuildingPlanZone | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [replacingImage, setReplacingImage] = useState(false);
+  const [replaceImageError, setReplaceImageError] = useState<string | null>(null);
+  const replaceImageInputRef = useRef<HTMLInputElement>(null);
 
   const plan = plans.find((p) => p.id === object.buildingPlanId) ?? null;
 
@@ -194,6 +197,23 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
     setSelectedZone(zone);
   }
 
+  async function handleReplaceImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !plan) return;
+    setReplacingImage(true);
+    setReplaceImageError(null);
+    try {
+      const url = await uploadBuildingPlanImage(file);
+      const updated = await updateBuildingPlan(plan.id, { imageUrl: url });
+      setPlans((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    } catch (err) {
+      setReplaceImageError(errorMessage(err, 'Не удалось заменить картинку'));
+    } finally {
+      setReplacingImage(false);
+      if (replaceImageInputRef.current) replaceImageInputRef.current.value = '';
+    }
+  }
+
   if (!object.buildingPlanId) {
     return (
       <Card className="flex flex-col gap-3 p-5">
@@ -236,6 +256,22 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
           >
             <Pencil className="h-4 w-4" />
           </button>
+          <input
+            ref={replaceImageInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleReplaceImage}
+          />
+          <button
+            type="button"
+            onClick={() => replaceImageInputRef.current?.click()}
+            disabled={replacingImage}
+            aria-label="Заменить картинку плана"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary disabled:opacity-50"
+          >
+            {replacingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageUp className="h-4 w-4" />}
+          </button>
           <button
             type="button"
             onClick={() => window.confirm('Отвязать план от этого объекта?') && onDetachPlan()}
@@ -254,6 +290,8 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
           </button>
         </div>
       </div>
+
+      {replaceImageError && <p className="text-sm text-danger">{replaceImageError}</p>}
 
       {loading && (
         <div className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">

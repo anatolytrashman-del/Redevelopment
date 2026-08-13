@@ -47,6 +47,18 @@ export function insertBuildingPlan(input: { name: string; imageUrl: string }): P
   });
 }
 
+export function updateBuildingPlan(id: string, patch: { name?: string; imageUrl?: string }): Promise<BuildingPlan> {
+  return withRetry(async () => {
+    const payload: Record<string, unknown> = {};
+    if (patch.name !== undefined) payload.name = patch.name;
+    if (patch.imageUrl !== undefined) payload.image_url = patch.imageUrl;
+
+    const { data, error } = await supabase.from('building_plans').update(payload).eq('id', id).select().single();
+    if (error) throw error;
+    return planFromRow(data as BuildingPlanRow);
+  });
+}
+
 export function uploadBuildingPlanImage(file: File): Promise<string> {
   return withRetry(async () => {
     const ext = file.name.split('.').pop() ?? 'png';
