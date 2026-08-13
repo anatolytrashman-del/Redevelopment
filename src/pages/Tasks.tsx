@@ -51,6 +51,67 @@ function AssigneeBadges({ assignees }: { assignees: TaskAssignee[] }) {
   );
 }
 
+function todayIsoDate() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function ActiveTaskCard({
+  task,
+  onComplete,
+  onDelete,
+  deleting,
+}: {
+  task: Task;
+  onComplete: (task: Task) => void;
+  onDelete: (task: Task) => void;
+  deleting: boolean;
+}) {
+  return (
+    <Card className="flex flex-col gap-3 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            {task.isPriority && (
+              <span title="Приоритет">
+                <Flame className="h-4 w-4 shrink-0 fill-warning text-warning" />
+              </span>
+            )}
+            <div className="font-bold text-ink">{task.title}</div>
+          </div>
+          {task.description && (
+            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{task.description}</p>
+          )}
+        </div>
+        <AssigneeBadges assignees={task.assignees} />
+      </div>
+
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-sm text-ink-muted">{formatDate(task.date)}</span>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            icon={<CheckCircle2 className="h-4 w-4" />}
+            onClick={() => onComplete(task)}
+          >
+            Пометить выполненной
+          </Button>
+          <button
+            type="button"
+            onClick={() => onDelete(task)}
+            disabled={deleting}
+            aria-label="Удалить задачу"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-danger hover:text-danger disabled:opacity-50"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,6 +138,14 @@ export function Tasks() {
   }, []);
 
   const activeTasks = useMemo(() => tasks.filter((t) => !t.isDone), [tasks]);
+  const todayTasks = useMemo(() => {
+    const today = todayIsoDate();
+    return activeTasks.filter((t) => t.date <= today);
+  }, [activeTasks]);
+  const otherTasks = useMemo(() => {
+    const today = todayIsoDate();
+    return activeTasks.filter((t) => t.date > today);
+  }, [activeTasks]);
   const archivedTasks = useMemo(
     () => [...tasks.filter((t) => t.isDone)].sort((a, b) => b.date.localeCompare(a.date)),
     [tasks],
@@ -163,65 +232,50 @@ export function Tasks() {
         }
       />
 
-      <div className="flex flex-col gap-4">
-        {activeTasks.map((task) => {
-          return (
-            <Card key={task.id} className="flex flex-col gap-3 p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    {task.isPriority && (
-                      <span title="Приоритет">
-                        <Flame className="h-4 w-4 shrink-0 fill-warning text-warning" />
-                      </span>
-                    )}
-                    <div className="font-bold text-ink">{task.title}</div>
-                  </div>
-                  {task.description && (
-                    <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{task.description}</p>
-                  )}
-                </div>
-                <AssigneeBadges assignees={task.assignees} />
-              </div>
+      {loading && (
+        <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Загружаем задачи...
+        </Card>
+      )}
+      {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
 
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-sm text-ink-muted">{formatDate(task.date)}</span>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    icon={<CheckCircle2 className="h-4 w-4" />}
-                    onClick={() => openCompleteModal(task)}
-                  >
-                    Пометить выполненной
-                  </Button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(task)}
-                    disabled={deletingId === task.id}
-                    aria-label="Удалить задачу"
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-danger hover:text-danger disabled:opacity-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            </Card>
-          );
-        })}
+      {!loading && !loadError && (
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
+            <div className="text-lg font-bold text-ink">Задачи на сегодня</div>
+            {todayTasks.map((task) => (
+              <ActiveTaskCard
+                key={task.id}
+                task={task}
+                onComplete={openCompleteModal}
+                onDelete={handleDelete}
+                deleting={deletingId === task.id}
+              />
+            ))}
+            {todayTasks.length === 0 && (
+              <Card className="py-10 text-center text-sm text-ink-muted">На сегодня задач нет</Card>
+            )}
+          </div>
 
-        {loading && (
-          <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Загружаем задачи...
-          </Card>
-        )}
-        {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
-        {!loading && !loadError && activeTasks.length === 0 && (
-          <Card className="py-10 text-center text-sm text-ink-muted">Активных задач пока нет</Card>
-        )}
-        {deleteError && <p className="text-sm text-danger">{deleteError}</p>}
-      </div>
+          <div className="flex flex-col gap-4">
+            <div className="text-lg font-bold text-ink">Задачи на другой день</div>
+            {otherTasks.map((task) => (
+              <ActiveTaskCard
+                key={task.id}
+                task={task}
+                onComplete={openCompleteModal}
+                onDelete={handleDelete}
+                deleting={deletingId === task.id}
+              />
+            ))}
+            {otherTasks.length === 0 && (
+              <Card className="py-10 text-center text-sm text-ink-muted">Задач на другие дни нет</Card>
+            )}
+          </div>
+        </div>
+      )}
+      {deleteError && <p className="text-sm text-danger">{deleteError}</p>}
 
       {!loading && archivedTasks.length > 0 && (
         <div className="flex flex-col gap-4">
