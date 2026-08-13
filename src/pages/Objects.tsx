@@ -147,76 +147,88 @@ export function Objects() {
         }
       />
 
-      <Card className="flex flex-col gap-4 p-0">
-        <div className="px-6 pt-6 text-lg font-bold text-ink">Объекты в проработке</div>
-        <div className="overflow-x-auto">
-          <div className="grid min-w-[980px] grid-cols-[56px_1fr_100px_140px_140px_130px_140px_36px_44px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
-            <span />
-            <span>Адрес</span>
-            <span>Площадь</span>
-            <span>Цена</span>
-            <span>Цена/м²</span>
-            <span>Собственник</span>
-            <span>Контакт</span>
-            <span />
-            <span />
-          </div>
-          {objects.map((o) => {
-            const perMeter = pricePerMeter(o.area, o.startPrice);
-            return (
-              <div
-                key={o.id}
-                className="grid min-w-[980px] grid-cols-[56px_1fr_100px_140px_140px_130px_140px_36px_44px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
-              >
-                <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-control bg-surface-muted">
-                  {o.photoUrl ? (
-                    <img src={o.photoUrl} alt={o.address} className="h-full w-full object-cover" />
-                  ) : (
-                    <ImageOff className="h-4 w-4 text-ink-faint" />
-                  )}
-                </span>
-                <span className="font-semibold text-ink">{o.address}</span>
-                <span className="text-ink-muted">{o.area} м²</span>
-                <span className="text-ink">{formatMoney(o.startPrice)}</span>
-                <span className="text-ink-muted">{perMeter ? formatMoney(perMeter) : '—'}</span>
-                <span className="text-ink-muted">{o.owner}</span>
-                <span className="truncate text-ink-muted">{o.ownerContact}</span>
-                <span>
-                  {o.listingUrl ? (
-                    <a
-                      href={o.listingUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      title="Открыть объявление"
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                    >
-                      <LinkIcon className="h-4 w-4" />
-                    </a>
-                  ) : null}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => openEditModal(o)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                  aria-label="Редактировать объект"
-                >
-                  <Pencil className="h-4 w-4" />
-                </button>
+      <div className="flex flex-col gap-4">
+        <div className="text-lg font-bold text-ink">Объекты в проработке</div>
+
+        {objects.map((o) => {
+          const perMeter = pricePerMeter(o.area, o.startPrice);
+          return (
+            <Card key={o.id} className="flex gap-6 p-5">
+              <div className="aspect-[4/3] w-1/5 min-w-[140px] shrink-0 overflow-hidden rounded-control bg-surface-muted">
+                {o.photoUrl ? (
+                  <img src={o.photoUrl} alt={o.address} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <ImageOff className="h-6 w-6 text-ink-faint" />
+                  </div>
+                )}
               </div>
-            );
-          })}
-          {loading && (
-            <div className="flex items-center justify-center gap-2 px-6 py-10 text-sm text-ink-muted">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Загружаем объекты...
-            </div>
-          )}
-          {!loading && loadError && <div className="px-6 py-10 text-center text-sm text-danger">{loadError}</div>}
-          {!loading && !loadError && objects.length === 0 && (
-            <div className="px-6 py-10 text-center text-sm text-ink-muted">Объектов пока нет</div>
-          )}
-        </div>
-      </Card>
+
+              <div className="flex min-w-0 flex-1 flex-col gap-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="truncate text-lg font-bold text-ink">{o.address}</div>
+                    <div className="text-sm text-ink-muted">{o.area} м²</div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {o.listingUrl && (
+                      <a
+                        href={o.listingUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Открыть объявление"
+                        className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                      >
+                        <LinkIcon className="h-4 w-4" />
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(o)}
+                      className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                      aria-label="Редактировать объект"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-x-10 gap-y-3">
+                  <div>
+                    <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Цена</div>
+                    <div className="text-xl font-bold text-ink">{formatMoney(o.startPrice)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Цена/м²</div>
+                    <div className="text-xl font-bold text-ink">{perMeter ? formatMoney(perMeter) : '—'}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Собственник</div>
+                    <div className="text-sm text-ink">{o.owner}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Контакт</div>
+                    <div className="text-sm text-ink">{o.ownerContact}</div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+
+        {loading && (
+          <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Загружаем объекты...
+          </Card>
+        )}
+        {!loading && loadError && (
+          <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>
+        )}
+        {!loading && !loadError && objects.length === 0 && (
+          <Card className="py-10 text-center text-sm text-ink-muted">Объектов пока нет</Card>
+        )}
+      </div>
 
       <Modal open={open} onClose={() => setOpen(false)} title={editingId ? 'Редактировать объект' : 'Новый объект'}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
