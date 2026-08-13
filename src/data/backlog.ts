@@ -2,6 +2,7 @@ export interface BacklogIdea {
   id: string;
   idea: string;
   benefit: string;
+  implemented: boolean;
   createdAt: string;
 }
 
@@ -10,5 +11,6 @@ export interface BacklogIdeaRow {
   id: string;
   idea: string;
   benefit: string;
+  implemented: boolean | null;
   created_at: string;
 }

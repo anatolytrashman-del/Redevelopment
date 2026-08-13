@@ -7,6 +7,7 @@ function fromRow(row: BacklogIdeaRow): BacklogIdea {
     id: row.id,
     idea: row.idea,
     benefit: row.benefit,
+    implemented: row.implemented ?? false,
     createdAt: row.created_at,
   };
 }
@@ -26,6 +27,14 @@ export function insertBacklogIdea(input: { idea: string; benefit: string }): Pro
       .insert({ idea: input.idea, benefit: input.benefit })
       .select()
       .single();
+    if (error) throw error;
+    return fromRow(data as BacklogIdeaRow);
+  });
+}
+
+export function updateBacklogIdea(id: string, implemented: boolean): Promise<BacklogIdea> {
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('backlog_ideas').update({ implemented }).eq('id', id).select().single();
     if (error) throw error;
     return fromRow(data as BacklogIdeaRow);
   });
