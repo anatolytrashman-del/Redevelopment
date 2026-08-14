@@ -18,33 +18,37 @@ export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
 
   return (
-    <Card className="flex flex-col gap-3 p-5">
-      <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-muted text-ink">
-          <ShieldCheck className="h-4 w-4" />
-        </span>
-        <div className="flex flex-col gap-1">
-          <div className="font-bold text-ink">Бронирование без предоплаты</div>
-          <p className="text-sm text-ink-muted">
-            Бронь оформляется соглашением о намерениях — всего 2 страницы, простым языком, без юридического жаргона.
-            Юрист не понадобится, и оно не накладывает никаких финансовых обязательств.
-          </p>
+    <Card className="flex flex-col items-start gap-5 p-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2">
+        <div className="text-xl font-extrabold text-ink">Бронирование без предоплаты</div>
+        <div className="flex flex-col gap-1.5 text-sm text-ink-muted">
+          <p>Бронь оформляется соглашением о намерениях</p>
+          <ul className="flex list-disc flex-col gap-1 pl-5">
+            <li>Всего 2 страницы</li>
+            <li>Без сложных терминов</li>
+            <li>Без финансовых обязательств</li>
+          </ul>
         </div>
       </div>
 
-      {agreement ? (
-        <Button
-          type="button"
-          variant="secondary"
-          icon={<FileText className="h-4 w-4" />}
-          onClick={() => setPreviewOpen(true)}
-          className="w-fit"
-        >
-          Посмотреть шаблон соглашения
-        </Button>
-      ) : (
-        <p className="text-xs text-ink-faint">Шаблон соглашения скоро появится здесь.</p>
-      )}
+      <div className="flex shrink-0 flex-col items-center gap-2">
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-muted text-ink">
+          <ShieldCheck className="h-5 w-5" />
+        </span>
+        {agreement ? (
+          <Button
+            type="button"
+            variant="secondary"
+            icon={<FileText className="h-4 w-4" />}
+            onClick={() => setPreviewOpen(true)}
+            className="whitespace-nowrap"
+          >
+            Посмотреть шаблон
+          </Button>
+        ) : (
+          <p className="max-w-[10rem] text-center text-xs text-ink-faint">Шаблон соглашения скоро появится здесь.</p>
+        )}
+      </div>
 
       {previewOpen && agreement && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
