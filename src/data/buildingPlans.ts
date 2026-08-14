@@ -30,6 +30,20 @@ export interface ZonePoint {
   y: number; // проценты от высоты картинки, 0–100
 }
 
+// Ставка и доля первого взноса — общие для всех кабинетов на всех объектах.
+// Вынесены сюда, а не в конкретный компонент, чтобы внутренняя карточка
+// объекта и публичная страница для клиента считали цену одинаково.
+export const PRICE_PER_METER = 2100;
+export const DOWN_PAYMENT_RATE = 0.25;
+
+export function zonePrice(area: number): number {
+  return area * PRICE_PER_METER;
+}
+
+export function zoneDownPayment(area: number): number {
+  return zonePrice(area) * DOWN_PAYMENT_RATE;
+}
+
 // Статус/клиент/площадь/особенности имеют смысл только для zoneType === 'room' —
 // у общих зон (МОП, санузел, техническое) это просто подписанный контур.
 export interface BuildingPlanZone {

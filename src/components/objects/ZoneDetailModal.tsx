@@ -10,6 +10,8 @@ import {
   zoneStatuses,
   zoneStatusBadgeClass,
   zoneTypeLabels,
+  zoneDownPayment,
+  zonePrice,
   type BuildingPlanZone,
   type ZoneStatus,
 } from '../../data/buildingPlans';
@@ -29,6 +31,10 @@ const NO_LEAD = 'Не выбран';
 
 function leadLabel(l: Lead) {
   return `${l.name} — ${l.contact}`;
+}
+
+function formatMoney(value: number) {
+  return `$${Math.round(value).toLocaleString('ru-RU')}`;
 }
 
 const statusTextClass: Record<string, string> = {
@@ -151,6 +157,18 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
                     <span className="text-ink-muted">Площадь</span>
                     <span className="font-medium text-ink">{zone.area != null ? `${zone.area} м²` : '—'}</span>
                   </div>
+                  {zone.area != null && (
+                    <>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-ink-muted">Стоимость</span>
+                        <span className="font-medium text-ink">{formatMoney(zonePrice(zone.area))}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-ink-muted">Первый взнос</span>
+                        <span className="font-medium text-ink">{formatMoney(zoneDownPayment(zone.area))}</span>
+                      </div>
+                    </>
+                  )}
                   <div className="flex items-center gap-1.5">
                     <span className="text-ink-muted">Клиент</span>
                     <span className="font-medium text-ink">{selectedLead ? leadLabel(selectedLead) : NO_LEAD}</span>

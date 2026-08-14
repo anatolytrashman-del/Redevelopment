@@ -4,7 +4,14 @@ import { Loader2 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
 import { BuildingPlanCanvas, BuildingPlanLegend, BuildingPlanTabs } from '../components/objects/BuildingPlanCanvas';
-import { zoneStatusBadgeClass, zoneTypeLabels, type BuildingPlan, type BuildingPlanZone } from '../data/buildingPlans';
+import {
+  zoneStatusBadgeClass,
+  zoneTypeLabels,
+  zoneDownPayment,
+  zonePrice,
+  type BuildingPlan,
+  type BuildingPlanZone,
+} from '../data/buildingPlans';
 import type { RealtyObject } from '../data/objects';
 import { fetchObjectByShareToken } from '../lib/objectsApi';
 import { fetchBuildingPlans, fetchZonesForPlan } from '../lib/buildingPlansApi';
@@ -15,6 +22,10 @@ function errorMessage(err: unknown, fallback: string): string {
     return (err as { message: string }).message;
   }
   return fallback;
+}
+
+function formatMoney(value: number) {
+  return `$${Math.round(value).toLocaleString('ru-RU')}`;
 }
 
 // Публичная страница-ссылка для клиента: только просмотр планировки и
@@ -125,9 +136,23 @@ export function PublicBuildingPlan() {
 
             {isRoom && (
               <>
-                <div>
-                  <span className="text-sm text-ink-muted">Площадь</span>
-                  <div className="font-medium text-ink">{selectedZone.area != null ? `${selectedZone.area} м²` : '—'}</div>
+                <div className="flex flex-wrap gap-x-5 gap-y-1.5 rounded-control bg-surface-muted px-3 py-2 text-sm">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-ink-muted">Площадь</span>
+                    <span className="font-medium text-ink">{selectedZone.area != null ? `${selectedZone.area} м²` : '—'}</span>
+                  </div>
+                  {selectedZone.area != null && (
+                    <>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-ink-muted">Стоимость</span>
+                        <span className="font-medium text-ink">{formatMoney(zonePrice(selectedZone.area))}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-ink-muted">Первый взнос</span>
+                        <span className="font-medium text-ink">{formatMoney(zoneDownPayment(selectedZone.area))}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {selectedZone.features.length > 0 && (
