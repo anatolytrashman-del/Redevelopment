@@ -22,6 +22,7 @@ function fromRow(row: RealtyObjectRow): RealtyObject {
     inspectionMediaUrl: row.inspection_media_url ?? '',
     buildingPlanIds: row.building_plan_ids ?? [],
     buildingSpecs: row.building_specs ?? null,
+    documents: row.documents ?? {},
     shareToken: row.share_token,
   };
 }
@@ -74,6 +75,7 @@ export function insertObject(input: Omit<RealtyObject, 'id' | 'shareToken'>): Pr
         inspection_media_url: input.inspectionMediaUrl || null,
         building_plan_ids: input.buildingPlanIds,
         building_specs: input.buildingSpecs,
+        documents: input.documents,
       })
       .select()
       .single();
@@ -105,6 +107,7 @@ export function updateObject(id: string, input: Omit<RealtyObject, 'id' | 'share
         inspection_media_url: input.inspectionMediaUrl || null,
         building_plan_ids: input.buildingPlanIds,
         building_specs: input.buildingSpecs,
+        documents: input.documents,
       })
       .eq('id', id)
       .select()
@@ -123,5 +126,16 @@ export function uploadObjectImage(file: File): Promise<string> {
     if (error) throw error;
     const { data } = supabase.storage.from('object-photos').getPublicUrl(path);
     return data.publicUrl;
+  });
+}
+
+export function uploadObjectDocument(file: File): Promise<{ url: string; fileName: string }> {
+  return withRetry(async () => {
+    const ext = file.name.split('.').pop() ?? 'pdf';
+    const path = `${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from('object-documents').upload(path, file);
+    if (error) throw error;
+    const { data } = supabase.storage.from('object-documents').getPublicUrl(path);
+    return { url: data.publicUrl, fileName: file.name };
   });
 }

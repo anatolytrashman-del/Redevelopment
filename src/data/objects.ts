@@ -69,6 +69,28 @@ export const emptyBuildingSpecs: BuildingSpecs = {
   landPurpose: '',
 };
 
+// Базовые документы объекта (выписка из реестра, техпаспорт, документы на
+// землю) — показываются прямо в карточке объекта, а не во вкладке
+// "Документы" (та — про сгенерированные договоры по шаблонам для лидов).
+// Файлы лежат в Supabase Storage (бакет object-documents), здесь хранится
+// только их метаданные.
+export const objectDocumentCategories = ['registryExtract', 'techPassport', 'landDocs'] as const;
+export type ObjectDocumentCategory = (typeof objectDocumentCategories)[number];
+
+export const objectDocumentLabels: Record<ObjectDocumentCategory, string> = {
+  registryExtract: 'Выписка из реестра',
+  techPassport: 'Технический паспорт',
+  landDocs: 'Документы на землю',
+};
+
+export interface ObjectDocumentFile {
+  url: string;
+  fileName: string;
+  uploadedAt: string;
+}
+
+export type ObjectDocuments = Partial<Record<ObjectDocumentCategory, ObjectDocumentFile>>;
+
 export interface RealtyObject {
   id: string;
   address: string;
@@ -88,6 +110,7 @@ export interface RealtyObject {
   inspectionMediaUrl: string;
   buildingPlanIds: string[];
   buildingSpecs: BuildingSpecs | null;
+  documents: ObjectDocuments;
   // Отдельный непредсказуемый идентификатор для публичной ссылки на
   // планировку (/plan/:token) — специально не сам id объекта, чтобы клиент
   // не мог просто отредактировать URL и попасть на внутреннюю страницу
@@ -115,6 +138,7 @@ export interface RealtyObjectRow {
   inspection_media_url: string | null;
   building_plan_ids: string[] | null;
   building_specs: BuildingSpecs | null;
+  documents: ObjectDocuments | null;
   share_token: string;
 }
 

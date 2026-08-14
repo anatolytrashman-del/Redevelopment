@@ -9,6 +9,7 @@ import { Select } from '../components/ui/Select';
 import { Textarea } from '../components/ui/Textarea';
 import { ObjectFormModal } from '../components/objects/ObjectFormModal';
 import { BuildingSpecsModal } from '../components/objects/BuildingSpecsModal';
+import { ObjectDocumentsCard } from '../components/objects/ObjectDocuments';
 import { ImageLightbox, type LightboxState } from '../components/objects/ImageLightbox';
 import { BuildingPlanWidget } from '../components/objects/BuildingPlanWidget';
 import {
@@ -20,6 +21,7 @@ import {
   type DemandSource,
   type DemandLink,
   type BuildingSpecs,
+  type ObjectDocuments,
 } from '../data/objects';
 import type { Lead } from '../data/leads';
 import type { BuildingPlanZone } from '../data/buildingPlans';
@@ -314,6 +316,10 @@ export function ObjectDetail() {
     await saveObjectPatch({ buildingSpecs: nextSpecs });
   }
 
+  async function saveDocuments(nextDocuments: ObjectDocuments) {
+    await saveObjectPatch({ documents: nextDocuments });
+  }
+
   return (
     <>
       <PageHeader
@@ -404,6 +410,8 @@ export function ObjectDetail() {
                 </a>
               )}
             </Card>
+
+            <ObjectDocumentsCard documents={object.documents} onChange={saveDocuments} />
 
             {specBlocks.length > 0 ? (
               <Card className="flex flex-col gap-4 p-5">
