@@ -8,6 +8,7 @@ import { Select } from '../ui/Select';
 import { AttachBuildingPlanModal } from './AttachBuildingPlanModal';
 import { ZoneDetailModal } from './ZoneDetailModal';
 import { BuildingPlanCanvas, BuildingPlanLegend, BuildingPlanTabs } from './BuildingPlanCanvas';
+import { AvailableUnitsTable } from './AvailableUnitsTable';
 import {
   zoneTypes,
   zoneTypeLabels,
@@ -437,6 +438,8 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
       ) : (
         <Card className="flex flex-col gap-3 p-5">{content}</Card>
       )}
+
+      {!fullscreen && <AvailableUnitsTable plans={objectPlans} zones={zones} onRowClick={handleZoneClick} />}
 
       <ZoneDetailModal
         zone={selectedZone}

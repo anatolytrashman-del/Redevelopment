@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
 import { BuildingPlanCanvas, BuildingPlanLegend, BuildingPlanTabs } from '../components/objects/BuildingPlanCanvas';
+import { AvailableUnitsTable } from '../components/objects/AvailableUnitsTable';
 import {
   zoneStatusBadgeClass,
   zoneTypeLabels,
@@ -109,6 +110,8 @@ export function PublicBuildingPlan() {
                 </>
               )}
             </Card>
+
+            {objectPlans.length > 0 && <AvailableUnitsTable plans={objectPlans} zones={zones} onRowClick={setSelectedZone} />}
           </>
         )}
       </div>
