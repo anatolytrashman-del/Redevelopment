@@ -11,6 +11,12 @@ export const zoneTypeLabels: Record<ZoneType, string> = {
 export const zoneStatuses = ['Свободно', 'Забронировано', 'Продано'] as const;
 export type ZoneStatus = (typeof zoneStatuses)[number];
 
+export const zoneStatusBadgeClass: Record<ZoneStatus, string> = {
+  Свободно: 'bg-success-bg text-success',
+  Забронировано: 'bg-warning/15 text-warning',
+  Продано: 'bg-danger/15 text-danger',
+};
+
 export const zoneFeatures = [
   'Свой санузел',
   'Есть мокрая точка',

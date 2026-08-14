@@ -8,6 +8,7 @@ import { ToggleGroup } from '../ui/ToggleGroup';
 import {
   zoneFeatures,
   zoneStatuses,
+  zoneStatusBadgeClass,
   zoneTypeLabels,
   type BuildingPlanZone,
   type ZoneStatus,
@@ -35,12 +36,6 @@ const statusTextClass: Record<string, string> = {
   'Отправлен клиенту': 'text-info-text',
   'Ждём от клиента': 'text-warning',
   'Документ в архиве': 'text-ink-faint',
-};
-
-const statusBadgeClass: Record<ZoneStatus, string> = {
-  Свободно: 'bg-success-bg text-success',
-  Забронировано: 'bg-warning/15 text-warning',
-  Продано: 'bg-danger/15 text-danger',
 };
 
 interface ZoneDetailModalProps {
@@ -152,7 +147,7 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
                   <span
                     className={cn(
                       'w-fit rounded-full px-3 py-1 text-sm font-semibold',
-                      statusBadgeClass[zone.status],
+                      zoneStatusBadgeClass[zone.status],
                     )}
                   >
                     {zone.status}

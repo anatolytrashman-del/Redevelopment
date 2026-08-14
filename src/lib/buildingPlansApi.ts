@@ -81,6 +81,21 @@ export function fetchZonesForPlan(buildingPlanId: string): Promise<BuildingPlanZ
   });
 }
 
+// Зоны, у которых есть привязанный клиент и статус отличается от "Свободно" —
+// то есть кабинет либо забронирован, либо продан конкретному лиду.
+// Используется на странице "Лиды", чтобы показывать брони отдельным блоком.
+export function fetchBookedZones(): Promise<BuildingPlanZone[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('building_plan_zones')
+      .select('*')
+      .neq('status', 'Свободно')
+      .not('lead_id', 'is', null);
+    if (error) throw error;
+    return (data as BuildingPlanZoneRow[]).map(zoneFromRow);
+  });
+}
+
 export function insertZone(input: Omit<BuildingPlanZone, 'id'>): Promise<BuildingPlanZone> {
   return withRetry(async () => {
     const { data, error } = await supabase

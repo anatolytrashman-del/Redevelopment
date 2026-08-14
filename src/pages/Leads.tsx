@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Pencil, Flame, Droplet } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Plus, Loader2, Pencil, Flame, Droplet, ArrowRight } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -11,10 +12,12 @@ import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Modal } from '../components/ui/Modal';
 import { leadSources, leadRequirements, type Lead, type LeadSource } from '../data/leads';
 import type { RealtyObject } from '../data/objects';
+import { zoneStatusBadgeClass, zoneTypeLabels, type BuildingPlan, type BuildingPlanZone } from '../data/buildingPlans';
 import { badgeColor } from '../lib/badgeColor';
 import { cn } from '../lib/cn';
 import { fetchLeads, insertLead, updateLead } from '../lib/leadsApi';
 import { fetchObjects } from '../lib/objectsApi';
+import { fetchBookedZones, fetchBuildingPlans } from '../lib/buildingPlansApi';
 
 const NO_OBJECT = 'Не привязан';
 
@@ -75,6 +78,8 @@ export function Leads() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [objects, setObjects] = useState<RealtyObject[]>([]);
+  const [plans, setPlans] = useState<BuildingPlan[]>([]);
+  const [bookedZones, setBookedZones] = useState<BuildingPlanZone[]>([]);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -89,8 +94,29 @@ export function Leads() {
     return [...set];
   }, [leads]);
 
+  const bookedLeadIds = useMemo(() => new Set(bookedZones.map((z) => z.leadId).filter(Boolean)), [bookedZones]);
+
   // Тёплые лиды всегда наверху, порядок внутри группы (по дате создания) сохраняется.
-  const sortedLeads = useMemo(() => [...leads].sort((a, b) => Number(b.isWarm) - Number(a.isWarm)), [leads]);
+  // Лиды с бронью кабинета показываются отдельным блоком ниже, а не в общем списке.
+  const sortedLeads = useMemo(
+    () => [...leads].filter((l) => !bookedLeadIds.has(l.id)).sort((a, b) => Number(b.isWarm) - Number(a.isWarm)),
+    [leads, bookedLeadIds],
+  );
+
+  const leadById = useMemo(() => new Map(leads.map((l) => [l.id, l])), [leads]);
+  const planById = useMemo(() => new Map(plans.map((p) => [p.id, p])), [plans]);
+
+  // Для каждого плана — объект недвижимости, к которому он привязан (план могут
+  // привязать только к одному объекту, но привязку хранит объект, а не план).
+  const objectByPlanId = useMemo(() => {
+    const map = new Map<string, RealtyObject>();
+    for (const obj of objects) {
+      for (const planId of obj.buildingPlanIds) {
+        if (!map.has(planId)) map.set(planId, obj);
+      }
+    }
+    return map;
+  }, [objects]);
 
   useEffect(() => {
     fetchLeads()
@@ -100,6 +126,12 @@ export function Leads() {
     fetchObjects()
       .then(setObjects)
       .catch(() => setObjects([]));
+    fetchBuildingPlans()
+      .then(setPlans)
+      .catch(() => setPlans([]));
+    fetchBookedZones()
+      .then(setBookedZones)
+      .catch(() => setBookedZones([]));
   }, []);
 
   const objectOptions = [NO_OBJECT, ...objects.map((o) => o.address)];
@@ -248,6 +280,79 @@ export function Leads() {
       </Card>
 
       {toggleError && <p className="text-sm text-danger">{toggleError}</p>}
+
+      {bookedZones.length > 0 && (
+        <div className="flex flex-col gap-4">
+          <div className="text-lg font-bold text-ink">Брони кабинетов</div>
+          <Card className="flex flex-col gap-4 p-0">
+            <div className="overflow-x-auto">
+              <div className="grid min-w-[900px] grid-cols-[1fr_150px_1fr_130px_140px_44px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
+                <span>Лид</span>
+                <span>Кабинет</span>
+                <span>Объект</span>
+                <span>Статус</span>
+                <span />
+                <span />
+              </div>
+              {bookedZones.map((zone) => {
+                const lead = leadById.get(zone.leadId);
+                const plan = planById.get(zone.buildingPlanId);
+                const object = objectByPlanId.get(zone.buildingPlanId);
+                return (
+                  <div
+                    key={zone.id}
+                    className="grid min-w-[900px] grid-cols-[1fr_150px_1fr_130px_140px_44px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold text-ink">{lead?.name ?? '—'}</div>
+                      <div className="truncate text-xs text-ink-muted">{lead?.contact}</div>
+                    </div>
+                    <span className="text-ink">
+                      {zone.label || zoneTypeLabels[zone.zoneType]}
+                      {zone.area != null && <span className="text-ink-muted"> · {zone.area} м²</span>}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="truncate text-ink">{object?.address ?? '—'}</div>
+                      {plan && <div className="truncate text-xs text-ink-muted">{plan.name}</div>}
+                    </div>
+                    <span
+                      className={cn(
+                        'w-fit rounded-full px-3 py-1 text-xs font-semibold',
+                        zoneStatusBadgeClass[zone.status],
+                      )}
+                    >
+                      {zone.status}
+                    </span>
+                    {object ? (
+                      <Link
+                        to={`/objects/${object.id}`}
+                        className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                      >
+                        На план
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
+                    ) : (
+                      <span />
+                    )}
+                    {lead ? (
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(lead)}
+                        className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                        aria-label="Редактировать лид"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    ) : (
+                      <span />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
+      )}
 
       <Modal open={open} onClose={() => setOpen(false)} title={editingId ? 'Редактировать лид' : 'Новый лид'}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
