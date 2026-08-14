@@ -219,7 +219,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated }: Publ
                   </div>
                 )}
 
-                {selectedZone.status === 'Свободно' && (
+                {(selectedZone.status === 'Свободно' || bookingDone) && (
                   <div className="flex flex-col gap-3 border-t border-border pt-3">
                     {bookingDone && bookedLeadId ? (
                       <div className="flex flex-col gap-3">
