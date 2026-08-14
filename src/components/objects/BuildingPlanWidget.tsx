@@ -116,11 +116,13 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
   const [replaceImageError, setReplaceImageError] = useState<string | null>(null);
   const replaceImageInputRef = useRef<HTMLInputElement>(null);
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
+  const [hoveredZoneId, setHoveredZoneId] = useState<string | null>(null);
 
   const objectPlans = object.buildingPlanIds
     .map((id) => plans.find((p) => p.id === id))
     .filter((p): p is BuildingPlan => !!p);
   const plan = objectPlans.find((p) => p.id === activePlanId) ?? null;
+  const highlightZoneId = selectedZone?.id ?? hoveredZoneId;
 
   useEffect(() => {
     if (object.buildingPlanIds.length === 0) {
@@ -212,6 +214,9 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
 
   function handleZoneClick(zone: BuildingPlanZone) {
     if (drawingPoints !== null) return;
+    // Клик по строке таблицы доступных кабинетов может указывать на зону с
+    // другого этажа — переключаем вкладку, чтобы план сразу показал нужный.
+    if (zone.buildingPlanId !== activePlanId) setActivePlanId(zone.buildingPlanId);
     setSelectedZone(zone);
   }
 
@@ -386,6 +391,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
             onContainerClick={handleContainerClick}
             cursorCrosshair={editMode && drawingPoints !== null}
             drawingPoints={drawingPoints}
+            highlightZoneId={highlightZoneId}
           />
 
           {editMode && drawingPoints !== null && !showZoneForm && (
@@ -439,7 +445,15 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
         <Card className="flex flex-col gap-3 p-5">{content}</Card>
       )}
 
-      {!fullscreen && <AvailableUnitsTable plans={objectPlans} zones={zones} onRowClick={handleZoneClick} />}
+      {!fullscreen && (
+        <AvailableUnitsTable
+          plans={objectPlans}
+          zones={zones}
+          highlightedZoneId={highlightZoneId}
+          onRowClick={handleZoneClick}
+          onRowHover={(zone) => setHoveredZoneId(zone?.id ?? null)}
+        />
+      )}
 
       <ZoneDetailModal
         zone={selectedZone}

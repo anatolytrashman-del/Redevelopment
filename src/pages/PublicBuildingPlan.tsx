@@ -44,6 +44,7 @@ export function PublicBuildingPlan() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
   const [selectedZone, setSelectedZone] = useState<BuildingPlanZone | null>(null);
+  const [hoveredZoneId, setHoveredZoneId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -70,6 +71,14 @@ export function PublicBuildingPlan() {
     : [];
   const plan = objectPlans.find((p) => p.id === activePlanId) ?? null;
   const isRoom = selectedZone?.zoneType === 'room';
+  const highlightZoneId = selectedZone?.id ?? hoveredZoneId;
+
+  function handleZoneSelect(zone: BuildingPlanZone) {
+    // Клик по строке таблицы доступных кабинетов может указывать на зону с
+    // другого этажа — переключаем вкладку, чтобы план сразу показал нужный.
+    if (zone.buildingPlanId !== activePlanId) setActivePlanId(zone.buildingPlanId);
+    setSelectedZone(zone);
+  }
 
   return (
     <div className="min-h-svh bg-bg px-4 py-8 sm:px-8">
@@ -103,7 +112,12 @@ export function PublicBuildingPlan() {
 
                   {plan && (
                     <>
-                      <BuildingPlanCanvas plan={plan} zones={zones} onZoneClick={setSelectedZone} />
+                      <BuildingPlanCanvas
+                        plan={plan}
+                        zones={zones}
+                        onZoneClick={handleZoneSelect}
+                        highlightZoneId={highlightZoneId}
+                      />
                       <BuildingPlanLegend />
                     </>
                   )}
@@ -111,7 +125,15 @@ export function PublicBuildingPlan() {
               )}
             </Card>
 
-            {objectPlans.length > 0 && <AvailableUnitsTable plans={objectPlans} zones={zones} onRowClick={setSelectedZone} />}
+            {objectPlans.length > 0 && (
+              <AvailableUnitsTable
+                plans={objectPlans}
+                zones={zones}
+                highlightedZoneId={highlightZoneId}
+                onRowClick={handleZoneSelect}
+                onRowHover={(zone) => setHoveredZoneId(zone?.id ?? null)}
+              />
+            )}
           </>
         )}
       </div>

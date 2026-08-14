@@ -42,6 +42,11 @@ interface BuildingPlanCanvasProps {
   onContainerClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
   cursorCrosshair?: boolean;
   drawingPoints?: ZonePoint[] | null;
+  // Подсвечивает зону поверх обычной заливки — используется, чтобы связать
+  // таблицу доступных кабинетов (AvailableUnitsTable) с планом: наведение
+  // или клик по строке таблицы должны показать, где кабинет физически
+  // находится на плане.
+  highlightZoneId?: string | null;
 }
 
 export function BuildingPlanCanvas({
@@ -51,6 +56,7 @@ export function BuildingPlanCanvas({
   onContainerClick,
   cursorCrosshair,
   drawingPoints,
+  highlightZoneId,
 }: BuildingPlanCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoverZone, setHoverZone] = useState<{ zone: BuildingPlanZone; x: number; y: number } | null>(null);
@@ -96,6 +102,17 @@ export function BuildingPlanCanvas({
         {drawingPoints?.map((p, i) => (
           <circle key={i} cx={p.x} cy={p.y} r={0.7} className="fill-primary" />
         ))}
+        {highlightZoneId &&
+          zones
+            .filter((zone) => zone.buildingPlanId === plan.id && zone.id === highlightZoneId)
+            .map((zone) => (
+              <polygon
+                key={`highlight-${zone.id}`}
+                points={pointsToAttr(zone.points)}
+                className="pointer-events-none animate-pulse fill-none stroke-primary"
+                strokeWidth={0.9}
+              />
+            ))}
       </svg>
 
       {hoverZone && (
