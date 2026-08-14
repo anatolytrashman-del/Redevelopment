@@ -154,10 +154,15 @@ export function ObjectDetail() {
 
   async function addDemandLink() {
     if (!object || !newLinkUrl.trim()) return;
+    // Селект ниже сам подставляет missingSources[0], если newLinkSource
+    // больше не входит в список доступных источников (например, единственный
+    // оставшийся вариант выбрался автоматически, без клика пользователя) —
+    // повторяем ту же логику здесь, иначе на сервер уйдёт устаревший source.
+    const source = missingSources.includes(newLinkSource) ? newLinkSource : missingSources[0];
     setSavingLink(true);
     setLinkError(null);
     try {
-      await saveObjectPatch({ demandLinks: [...object.demandLinks, { source: newLinkSource, url: newLinkUrl.trim() }] });
+      await saveObjectPatch({ demandLinks: [...object.demandLinks, { source, url: newLinkUrl.trim() }] });
       setNewLinkUrl('');
     } catch (err) {
       setLinkError(errorMessage(err, 'Не удалось добавить ссылку'));
