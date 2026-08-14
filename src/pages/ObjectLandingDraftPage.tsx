@@ -6,7 +6,6 @@ import {
   Cctv,
   Clock,
   Loader2,
-  MapPin,
   Ruler,
   ShieldCheck,
   Sparkles,
@@ -27,6 +26,13 @@ import { fetchBuildingPlans, fetchZonesForPlan } from '../lib/buildingPlansApi';
 function formatMoney(value: number) {
   return `$${Math.round(value).toLocaleString('ru-RU')}`;
 }
+
+// Лого партнёра (ТЦ "Минск Мир") для геометки над слайдером — прислано
+// заказчиком по прямой ссылке. Стоит перезалить в собственное хранилище
+// (например, через загрузку рендеров в форме объекта), если ibb.co когда-то
+// станет недоступен.
+const MINSK_MIR_LOGO_URL =
+  'https://i.ibb.co/HTk92YQk/MINSKWORLD-LOGO-ARH-2-Picsart-Ai-Image-Enhancer-Picsart-Background-Remover.png';
 
 // Пока продающая страница только у одного объекта, оффер и буллеты на
 // главном экране — фиксированный текст под него, а не поле в базе.
@@ -138,10 +144,8 @@ export function ObjectLandingDraftPage() {
 
         <div className="relative">
           <HeroImageSlider images={object.renderImageUrls} />
-          {/* Заглушка геометки "рядом с Минск Мир" — заменить MapPin на лого
-              Минск Мира, как только пришлют файл (см. переписку с заказчиком). */}
           <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 shadow-card backdrop-blur">
-            <MapPin className="h-4 w-4 text-ink" />
+            <img src={MINSK_MIR_LOGO_URL} alt="Минск Мир" className="h-4 w-auto" />
             <span className="text-xs font-semibold text-ink">Рядом с Минск Мир</span>
           </div>
         </div>
