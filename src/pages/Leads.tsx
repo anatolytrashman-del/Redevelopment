@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Loader2, Pencil, Flame, Droplet, ArrowRight, Download } from 'lucide-react';
+import { Plus, Loader2, Pencil, Flame, Droplet, ArrowRight, Download, Trash2, Sparkles } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -15,13 +15,17 @@ import type { RealtyObject } from '../data/objects';
 import { zoneStatusBadgeClass, zoneTypeLabels, type BuildingPlan, type BuildingPlanZone } from '../data/buildingPlans';
 import { badgeColor } from '../lib/badgeColor';
 import { cn } from '../lib/cn';
-import { fetchLeads, insertLead, updateLead } from '../lib/leadsApi';
+import { fetchLeads, insertLead, updateLead, deleteLead } from '../lib/leadsApi';
 import { markLeadsViewed } from '../lib/leadsSeen';
 import { fetchObjects } from '../lib/objectsApi';
-import { fetchBookedZones, fetchBuildingPlans } from '../lib/buildingPlansApi';
+import { fetchBookedZones, fetchBuildingPlans, updateZone } from '../lib/buildingPlansApi';
 import { fetchSignedAgreementsForZones, type SignedAgreementSummary } from '../lib/agreementSigningApi';
 
 const NO_OBJECT = 'Не привязан';
+// Статус лида, который жёстко ставится в PublicPlanAndUnits.tsx при брони с
+// сайта — используем его же, чтобы отметить бронь как ещё не подтверждённую
+// менеджером: как только статус лида поменяют в карточке, отметка сама уйдёт.
+const NEW_BOOKING_LEAD_STATUS = 'Заявка на бронирование';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -90,6 +94,7 @@ export function Leads() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [toggleError, setToggleError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const knownRequirements = useMemo(() => {
     const set = new Set<string>(leadRequirements);
@@ -226,6 +231,35 @@ export function Leads() {
     }
   }
 
+  // Если лид держит бронь кабинета, сначала возвращаем кабинет в "Свободно"
+  // (снимаем lead_id), потом удаляем сам лид — иначе кабинет навсегда
+  // останется висеть "Забронирован" на удалённого лида.
+  async function handleDeleteLead(lead: Lead) {
+    if (deletingId) return;
+    const zone = bookedZones.find((z) => z.leadId === lead.id);
+    const confirmed = window.confirm(
+      zone
+        ? `Удалить лид «${lead.name}»? Бронь кабинета «${zone.label || zoneTypeLabels[zone.zoneType]}» будет снята.`
+        : `Удалить лид «${lead.name}»?`,
+    );
+    if (!confirmed) return;
+
+    setDeletingId(lead.id);
+    setToggleError(null);
+    try {
+      if (zone) {
+        await updateZone(zone.id, { status: 'Свободно', leadId: '' });
+        setBookedZones((prev) => prev.filter((z) => z.id !== zone.id));
+      }
+      await deleteLead(lead.id);
+      setLeads((prev) => prev.filter((l) => l.id !== lead.id));
+    } catch (err) {
+      setToggleError(errorMessage(err, 'Не удалось удалить лид'));
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -239,7 +273,7 @@ export function Leads() {
 
       <Card className="flex flex-col gap-4 p-0">
         <div className="overflow-x-auto">
-          <div className="grid min-w-[900px] grid-cols-[36px_130px_90px_1fr_100px_56px_1fr_130px_44px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
+          <div className="grid min-w-[900px] grid-cols-[36px_130px_90px_1fr_100px_56px_1fr_130px_84px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
             <span />
             <span>Имя</span>
             <span>Источник</span>
@@ -253,7 +287,7 @@ export function Leads() {
           {sortedLeads.map((l) => (
             <div
               key={l.id}
-              className="grid min-w-[900px] grid-cols-[36px_130px_90px_1fr_100px_56px_1fr_130px_44px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
+              className="grid min-w-[900px] grid-cols-[36px_130px_90px_1fr_100px_56px_1fr_130px_84px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
             >
               <button
                 type="button"
@@ -273,14 +307,25 @@ export function Leads() {
               </span>
               <span className="truncate text-ink-muted">{l.contact}</span>
               <span className="text-ink-muted">{l.status}</span>
-              <button
-                type="button"
-                onClick={() => openEditModal(l)}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                aria-label="Редактировать лид"
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => openEditModal(l)}
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                  aria-label="Редактировать лид"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteLead(l)}
+                  disabled={deletingId === l.id}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint hover:text-danger disabled:opacity-50"
+                  aria-label="Удалить лид"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           ))}
           {loading && (
@@ -303,7 +348,7 @@ export function Leads() {
           <div className="text-lg font-bold text-ink">Брони кабинетов</div>
           <Card className="flex flex-col gap-4 p-0">
             <div className="overflow-x-auto">
-              <div className="grid min-w-[1020px] grid-cols-[1fr_150px_1fr_130px_150px_140px_44px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
+              <div className="grid min-w-[1020px] grid-cols-[1fr_150px_1fr_150px_150px_140px_84px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
                 <span>Лид</span>
                 <span>Кабинет</span>
                 <span>Объект</span>
@@ -320,7 +365,7 @@ export function Leads() {
                 return (
                   <div
                     key={zone.id}
-                    className="grid min-w-[1020px] grid-cols-[1fr_150px_1fr_130px_150px_140px_44px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
+                    className="grid min-w-[1020px] grid-cols-[1fr_150px_1fr_150px_150px_140px_84px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
                   >
                     <div className="min-w-0">
                       <div className="truncate font-semibold text-ink">{lead?.name ?? '—'}</div>
@@ -334,13 +379,23 @@ export function Leads() {
                       <div className="truncate text-ink">{object?.address ?? '—'}</div>
                       {plan && <div className="truncate text-xs text-ink-muted">{plan.name}</div>}
                     </div>
-                    <span
-                      className={cn(
-                        'w-fit rounded-full px-3 py-1 text-xs font-semibold',
-                        zoneStatusBadgeClass[zone.status],
+                    <span className="flex items-center gap-1.5">
+                      <span
+                        className={cn(
+                          'w-fit rounded-full px-3 py-1 text-xs font-semibold',
+                          zoneStatusBadgeClass[zone.status],
+                        )}
+                      >
+                        {zone.status}
+                      </span>
+                      {lead?.status === NEW_BOOKING_LEAD_STATUS && (
+                        <span
+                          title="Новая бронь с сайта — ещё не подтверждена"
+                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-warning/15 text-warning"
+                        >
+                          <Sparkles className="h-3.5 w-3.5" />
+                        </span>
                       )}
-                    >
-                      {zone.status}
                     </span>
                     {agreement ? (
                       <a
@@ -367,14 +422,25 @@ export function Leads() {
                       <span />
                     )}
                     {lead ? (
-                      <button
-                        type="button"
-                        onClick={() => openEditModal(lead)}
-                        className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                        aria-label="Редактировать лид"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(lead)}
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                          aria-label="Редактировать лид"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteLead(lead)}
+                          disabled={deletingId === lead.id}
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint hover:text-danger disabled:opacity-50"
+                          aria-label="Удалить лид"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     ) : (
                       <span />
                     )}

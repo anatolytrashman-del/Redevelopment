@@ -96,3 +96,10 @@ export function updateLead(id: string, input: Omit<Lead, 'id'>): Promise<Lead> {
     return fromRow(data as LeadRow);
   });
 }
+
+export function deleteLead(id: string): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase.from('leads').delete().eq('id', id);
+    if (error) throw error;
+  });
+}
