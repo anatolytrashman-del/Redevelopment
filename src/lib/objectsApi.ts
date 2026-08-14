@@ -21,6 +21,7 @@ function fromRow(row: RealtyObjectRow): RealtyObject {
     demandLinks: row.demand_links ?? [],
     inspectionMediaUrl: row.inspection_media_url ?? '',
     buildingPlanIds: row.building_plan_ids ?? [],
+    buildingSpecs: row.building_specs ?? null,
   };
 }
 
@@ -61,6 +62,7 @@ export function insertObject(input: Omit<RealtyObject, 'id'>): Promise<RealtyObj
         demand_links: input.demandLinks,
         inspection_media_url: input.inspectionMediaUrl || null,
         building_plan_ids: input.buildingPlanIds,
+        building_specs: input.buildingSpecs,
       })
       .select()
       .single();
@@ -91,6 +93,7 @@ export function updateObject(id: string, input: Omit<RealtyObject, 'id'>): Promi
         demand_links: input.demandLinks,
         inspection_media_url: input.inspectionMediaUrl || null,
         building_plan_ids: input.buildingPlanIds,
+        building_specs: input.buildingSpecs,
       })
       .eq('id', id)
       .select()

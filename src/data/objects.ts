@@ -9,6 +9,66 @@ export interface DemandLink {
   url: string;
 }
 
+// Технический паспорт здания — необязательный блок, заполняется отдельно
+// от основной формы объекта (см. BuildingSpecsModal). Числовые поля — null,
+// если значение неизвестно; хранится единым JSONB-полем, поэтому ключи здесь
+// совпадают с тем, что лежит в building_specs один-в-один (без snake_case).
+export interface BuildingSpecs {
+  buildingName: string;
+  buildingPurpose: string;
+  yearBuilt: number | null;
+  yearRenovated: number | null;
+  floorsCount: number | null;
+  totalArea: number | null;
+  normativeArea: number | null;
+  roomsCount: number | null;
+  officesCount: number | null;
+  bathroomsCount: number | null;
+  otherRooms: string;
+  foundation: string;
+  walls: string;
+  ceilings: string;
+  structure: string;
+  roof: string;
+  flooring: string;
+  windows: string;
+  phone: string;
+  electricity: string;
+  water: string;
+  sewerage: string;
+  heating: string;
+  landArea: number | null;
+  landPurpose: string;
+}
+
+export const emptyBuildingSpecs: BuildingSpecs = {
+  buildingName: '',
+  buildingPurpose: '',
+  yearBuilt: null,
+  yearRenovated: null,
+  floorsCount: null,
+  totalArea: null,
+  normativeArea: null,
+  roomsCount: null,
+  officesCount: null,
+  bathroomsCount: null,
+  otherRooms: '',
+  foundation: '',
+  walls: '',
+  ceilings: '',
+  structure: '',
+  roof: '',
+  flooring: '',
+  windows: '',
+  phone: '',
+  electricity: '',
+  water: '',
+  sewerage: '',
+  heating: '',
+  landArea: null,
+  landPurpose: '',
+};
+
 export interface RealtyObject {
   id: string;
   address: string;
@@ -27,6 +87,7 @@ export interface RealtyObject {
   demandLinks: DemandLink[];
   inspectionMediaUrl: string;
   buildingPlanIds: string[];
+  buildingSpecs: BuildingSpecs | null;
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/objectsApi.ts
@@ -48,6 +109,7 @@ export interface RealtyObjectRow {
   demand_links: DemandLink[] | null;
   inspection_media_url: string | null;
   building_plan_ids: string[] | null;
+  building_specs: BuildingSpecs | null;
 }
 
 export function pricePerMeter(area: number, startPrice: number): number | null {

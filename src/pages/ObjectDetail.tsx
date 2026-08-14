@@ -8,6 +8,7 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Textarea } from '../components/ui/Textarea';
 import { ObjectFormModal } from '../components/objects/ObjectFormModal';
+import { BuildingSpecsModal } from '../components/objects/BuildingSpecsModal';
 import { ImageLightbox, type LightboxState } from '../components/objects/ImageLightbox';
 import { BuildingPlanWidget } from '../components/objects/BuildingPlanWidget';
 import {
@@ -18,6 +19,7 @@ import {
   type RealtyObject,
   type DemandSource,
   type DemandLink,
+  type BuildingSpecs,
 } from '../data/objects';
 import type { Lead } from '../data/leads';
 import type { BuildingPlanZone } from '../data/buildingPlans';
@@ -42,12 +44,17 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+function formatNum(value: number) {
+  return value.toLocaleString('ru-RU', { maximumFractionDigits: 4 });
+}
+
 export function ObjectDetail() {
   const { id } = useParams();
   const [object, setObject] = useState<RealtyObject | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [specsModalOpen, setSpecsModalOpen] = useState(false);
   const [lightbox, setLightbox] = useState<LightboxState | null>(null);
 
   const [editingConcept, setEditingConcept] = useState(false);
@@ -235,6 +242,68 @@ export function ObjectDetail() {
     null,
   );
 
+  const specs = object?.buildingSpecs ?? null;
+  const specBlocks = specs
+    ? [
+        {
+          title: 'Общие сведения',
+          rows: [
+            ['Наименование', specs.buildingName || null],
+            ['Назначение', specs.buildingPurpose || null],
+            ['Год постройки', specs.yearBuilt],
+            ['Год реконструкции', specs.yearRenovated],
+            ['Этажность', specs.floorsCount],
+          ],
+        },
+        {
+          title: 'Площади и помещения',
+          rows: [
+            ['Общая площадь', specs.totalArea != null ? `${formatNum(specs.totalArea)} м²` : null],
+            ['Нормируемая площадь', specs.normativeArea != null ? `${formatNum(specs.normativeArea)} м²` : null],
+            ['Всего помещений', specs.roomsCount],
+            ['Кабинетов', specs.officesCount],
+            ['Санузлов', specs.bathroomsCount],
+            ['Прочие помещения', specs.otherRooms || null],
+          ],
+        },
+        {
+          title: 'Конструктив',
+          rows: [
+            ['Фундамент', specs.foundation || null],
+            ['Стены', specs.walls || null],
+            ['Перекрытия', specs.ceilings || null],
+            ['Конструкция здания', specs.structure || null],
+            ['Крыша', specs.roof || null],
+            ['Полы', specs.flooring || null],
+            ['Окна', specs.windows || null],
+          ],
+        },
+        {
+          title: 'Инженерные сети',
+          rows: [
+            ['Электроснабжение', specs.electricity || null],
+            ['Водопровод', specs.water || null],
+            ['Канализация', specs.sewerage || null],
+            ['Отопление', specs.heating || null],
+            ['Телефонизация', specs.phone || null],
+          ],
+        },
+        {
+          title: 'Земельный участок',
+          rows: [
+            ['Площадь участка', specs.landArea != null ? `${formatNum(specs.landArea)} га` : null],
+            ['Назначение участка', specs.landPurpose || null],
+          ],
+        },
+      ]
+        .map((block) => ({ ...block, rows: block.rows.filter(([, v]) => v !== null) as [string, string | number][] }))
+        .filter((block) => block.rows.length > 0)
+    : [];
+
+  async function saveBuildingSpecs(nextSpecs: BuildingSpecs) {
+    await saveObjectPatch({ buildingSpecs: nextSpecs });
+  }
+
   return (
     <>
       <PageHeader
@@ -295,6 +364,40 @@ export function ObjectDetail() {
                 </div>
               )}
             </Card>
+
+            {specBlocks.length > 0 ? (
+              specBlocks.map((block, i) => (
+                <Card key={block.title} className="flex flex-col gap-3 p-5">
+                  <div className="flex items-center justify-between">
+                    <div className="font-bold text-ink">{block.title}</div>
+                    {i === 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setSpecsModalOpen(true)}
+                        aria-label="Редактировать характеристики"
+                        className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {block.rows.map(([label, value]) => (
+                    <div key={label}>
+                      <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">{label}</div>
+                      <div className="font-semibold text-ink">{value}</div>
+                    </div>
+                  ))}
+                </Card>
+              ))
+            ) : (
+              <Card className="flex flex-col gap-3 p-5">
+                <div className="font-bold text-ink">Характеристики здания</div>
+                <p className="text-sm text-ink-muted">Характеристики ещё не добавлены.</p>
+                <Button type="button" variant="secondary" className="w-fit" onClick={() => setSpecsModalOpen(true)}>
+                  Добавить характеристики
+                </Button>
+              </Card>
+            )}
 
             <Card className="flex flex-col gap-4 p-5">
               <div>
@@ -605,6 +708,12 @@ export function ObjectDetail() {
       )}
 
       <ObjectFormModal open={editOpen} onClose={() => setEditOpen(false)} editing={object} onSaved={setObject} />
+      <BuildingSpecsModal
+        open={specsModalOpen}
+        onClose={() => setSpecsModalOpen(false)}
+        specs={specs}
+        onSave={saveBuildingSpecs}
+      />
       <ImageLightbox state={lightbox} onChange={setLightbox} />
     </>
   );
