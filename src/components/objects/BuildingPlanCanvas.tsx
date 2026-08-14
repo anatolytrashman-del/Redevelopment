@@ -121,21 +121,27 @@ export function BuildingPlanCanvas({
           style={{ left: hoverZone.x + 14, top: hoverZone.y + 14 }}
         >
           <span className="font-semibold text-ink">{hoverZone.zone.label || zoneTypeLabels[hoverZone.zone.zoneType]}</span>
-          <span className="text-ink-muted">{zoneTypeLabels[hoverZone.zone.zoneType]}</span>
-          {hoverZone.zone.zoneType === 'room' && (
+          {hoverZone.zone.zoneType === 'room' && hoverZone.zone.status === 'Забронировано' ? (
+            <span className="font-semibold text-warning">Забронировано</span>
+          ) : (
             <>
-              <span className="text-ink-muted">
-                {hoverZone.zone.area != null ? `${hoverZone.zone.area} м²` : 'Площадь не указана'}
-              </span>
-              {hoverZone.zone.area != null && (
+              <span className="text-ink-muted">{zoneTypeLabels[hoverZone.zone.zoneType]}</span>
+              {hoverZone.zone.zoneType === 'room' && (
                 <>
-                  <span className="text-ink-muted">Стоимость: {formatMoney(zonePrice(hoverZone.zone.area))}</span>
-                  <span className="text-ink-muted">Первый взнос: {formatMoney(zoneDownPayment(hoverZone.zone.area))}</span>
+                  <span className="text-ink-muted">
+                    {hoverZone.zone.area != null ? `${hoverZone.zone.area} м²` : 'Площадь не указана'}
+                  </span>
+                  {hoverZone.zone.area != null && (
+                    <>
+                      <span className="text-ink-muted">Стоимость: {formatMoney(zonePrice(hoverZone.zone.area))}</span>
+                      <span className="text-ink-muted">Первый взнос: {formatMoney(zoneDownPayment(hoverZone.zone.area))}</span>
+                    </>
+                  )}
+                  <span className="text-ink-muted">
+                    {hoverZone.zone.features.length > 0 ? hoverZone.zone.features.join(', ') : 'Без особенностей'}
+                  </span>
                 </>
               )}
-              <span className="text-ink-muted">
-                {hoverZone.zone.features.length > 0 ? hoverZone.zone.features.join(', ') : 'Без особенностей'}
-              </span>
             </>
           )}
         </div>

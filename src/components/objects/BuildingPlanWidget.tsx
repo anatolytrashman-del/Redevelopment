@@ -117,12 +117,14 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
   const replaceImageInputRef = useRef<HTMLInputElement>(null);
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
   const [hoveredZoneId, setHoveredZoneId] = useState<string | null>(null);
+  const [pinnedZoneId, setPinnedZoneId] = useState<string | null>(null);
+  const planCardRef = useRef<HTMLDivElement>(null);
 
   const objectPlans = object.buildingPlanIds
     .map((id) => plans.find((p) => p.id === id))
     .filter((p): p is BuildingPlan => !!p);
   const plan = objectPlans.find((p) => p.id === activePlanId) ?? null;
-  const highlightZoneId = selectedZone?.id ?? hoveredZoneId;
+  const highlightZoneId = selectedZone?.id ?? pinnedZoneId ?? hoveredZoneId;
 
   useEffect(() => {
     if (object.buildingPlanIds.length === 0) {
@@ -218,6 +220,15 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
     // другого этажа — переключаем вкладку, чтобы план сразу показал нужный.
     if (zone.buildingPlanId !== activePlanId) setActivePlanId(zone.buildingPlanId);
     setSelectedZone(zone);
+  }
+
+  // Кнопка "Посмотреть на плане" в таблице — в отличие от handleZoneClick
+  // не открывает карточку кабинета, только переключает этаж, подсвечивает
+  // контур и прокручивает к плану, чтобы модалка не закрывала сам план.
+  function handleLocateOnPlan(zone: BuildingPlanZone) {
+    if (zone.buildingPlanId !== activePlanId) setActivePlanId(zone.buildingPlanId);
+    setPinnedZoneId(zone.id);
+    planCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   async function saveRedrawnPoints() {
@@ -442,7 +453,9 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
           </div>
         </div>
       ) : (
-        <Card className="flex flex-col gap-3 p-5">{content}</Card>
+        <div ref={planCardRef}>
+          <Card className="flex flex-col gap-3 p-5">{content}</Card>
+        </div>
       )}
 
       {!fullscreen && (
@@ -452,6 +465,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
           highlightedZoneId={highlightZoneId}
           onRowClick={handleZoneClick}
           onRowHover={(zone) => setHoveredZoneId(zone?.id ?? null)}
+          onLocateClick={handleLocateOnPlan}
         />
       )}
 

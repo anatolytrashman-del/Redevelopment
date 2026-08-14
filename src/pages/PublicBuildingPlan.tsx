@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
@@ -45,6 +45,8 @@ export function PublicBuildingPlan() {
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
   const [selectedZone, setSelectedZone] = useState<BuildingPlanZone | null>(null);
   const [hoveredZoneId, setHoveredZoneId] = useState<string | null>(null);
+  const [pinnedZoneId, setPinnedZoneId] = useState<string | null>(null);
+  const planCardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -71,13 +73,22 @@ export function PublicBuildingPlan() {
     : [];
   const plan = objectPlans.find((p) => p.id === activePlanId) ?? null;
   const isRoom = selectedZone?.zoneType === 'room';
-  const highlightZoneId = selectedZone?.id ?? hoveredZoneId;
+  const highlightZoneId = selectedZone?.id ?? pinnedZoneId ?? hoveredZoneId;
 
   function handleZoneSelect(zone: BuildingPlanZone) {
     // Клик по строке таблицы доступных кабинетов может указывать на зону с
     // другого этажа — переключаем вкладку, чтобы план сразу показал нужный.
     if (zone.buildingPlanId !== activePlanId) setActivePlanId(zone.buildingPlanId);
     setSelectedZone(zone);
+  }
+
+  // Кнопка "Посмотреть на плане" — в отличие от handleZoneSelect не открывает
+  // карточку кабинета, только переключает этаж, подсвечивает контур и
+  // прокручивает к плану, чтобы модалка не закрывала сам план.
+  function handleLocateOnPlan(zone: BuildingPlanZone) {
+    if (zone.buildingPlanId !== activePlanId) setActivePlanId(zone.buildingPlanId);
+    setPinnedZoneId(zone.id);
+    planCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   return (
@@ -101,29 +112,31 @@ export function PublicBuildingPlan() {
           <>
             <div className="text-2xl font-extrabold text-ink">{object.address}</div>
 
-            <Card className="flex flex-col gap-3 p-5">
-              <div className="font-bold text-ink">Планировка и нарезка кабинетов</div>
+            <div ref={planCardRef}>
+              <Card className="flex flex-col gap-3 p-5">
+                <div className="font-bold text-ink">Планировка и нарезка кабинетов</div>
 
-              {objectPlans.length === 0 ? (
-                <p className="text-sm text-ink-muted">Планировка для этого объекта пока не добавлена.</p>
-              ) : (
-                <>
-                  <BuildingPlanTabs plans={objectPlans} activePlanId={activePlanId} onSelect={setActivePlanId} />
+                {objectPlans.length === 0 ? (
+                  <p className="text-sm text-ink-muted">Планировка для этого объекта пока не добавлена.</p>
+                ) : (
+                  <>
+                    <BuildingPlanTabs plans={objectPlans} activePlanId={activePlanId} onSelect={setActivePlanId} />
 
-                  {plan && (
-                    <>
-                      <BuildingPlanCanvas
-                        plan={plan}
-                        zones={zones}
-                        onZoneClick={handleZoneSelect}
-                        highlightZoneId={highlightZoneId}
-                      />
-                      <BuildingPlanLegend />
-                    </>
-                  )}
-                </>
-              )}
-            </Card>
+                    {plan && (
+                      <>
+                        <BuildingPlanCanvas
+                          plan={plan}
+                          zones={zones}
+                          onZoneClick={handleZoneSelect}
+                          highlightZoneId={highlightZoneId}
+                        />
+                        <BuildingPlanLegend />
+                      </>
+                    )}
+                  </>
+                )}
+              </Card>
+            </div>
 
             {objectPlans.length > 0 && (
               <AvailableUnitsTable
@@ -132,6 +145,7 @@ export function PublicBuildingPlan() {
                 highlightedZoneId={highlightZoneId}
                 onRowClick={handleZoneSelect}
                 onRowHover={(zone) => setHoveredZoneId(zone?.id ?? null)}
+                onLocateClick={handleLocateOnPlan}
               />
             )}
           </>

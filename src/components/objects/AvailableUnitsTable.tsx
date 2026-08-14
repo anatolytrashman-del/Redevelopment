@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, MapPin } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Input } from '../ui/Input';
 import { zonePrice, zoneTypeLabels, type BuildingPlan, type BuildingPlanZone } from '../../data/buildingPlans';
@@ -20,9 +20,20 @@ interface AvailableUnitsTableProps {
   highlightedZoneId?: string | null;
   onRowClick: (zone: BuildingPlanZone) => void;
   onRowHover?: (zone: BuildingPlanZone | null) => void;
+  // Отдельная кнопка "Посмотреть на плане" — в отличие от onRowClick (который
+  // открывает карточку кабинета) только переключает этаж и подсвечивает
+  // контур, не закрывая план модалкой.
+  onLocateClick: (zone: BuildingPlanZone) => void;
 }
 
-export function AvailableUnitsTable({ plans, zones, highlightedZoneId, onRowClick, onRowHover }: AvailableUnitsTableProps) {
+export function AvailableUnitsTable({
+  plans,
+  zones,
+  highlightedZoneId,
+  onRowClick,
+  onRowHover,
+  onLocateClick,
+}: AvailableUnitsTableProps) {
   const [minArea, setMinArea] = useState('');
   const [maxArea, setMaxArea] = useState('');
   const [minPrice, setMinPrice] = useState('');
@@ -59,21 +70,21 @@ export function AvailableUnitsTable({ plans, zones, highlightedZoneId, onRowClic
       ) : (
         <>
           <div className="overflow-x-auto rounded-control border border-border">
-            <div className="grid min-w-[480px] grid-cols-[1fr_1fr_1fr_1fr] gap-4 bg-surface-muted px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-faint">
+            <div className="grid min-w-[620px] grid-cols-[1fr_1fr_1fr_1fr_auto] gap-4 bg-surface-muted px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-faint">
               <span>Кабинет</span>
               <span>Этаж</span>
               <span>Площадь</span>
               <span>Цена</span>
+              <span />
             </div>
             {visibleUnits.map(({ zone, area, price, floor }) => (
-              <button
+              <div
                 key={zone.id}
-                type="button"
                 onClick={() => onRowClick(zone)}
                 onMouseEnter={() => onRowHover?.(zone)}
                 onMouseLeave={() => onRowHover?.(null)}
                 className={cn(
-                  'grid w-full min-w-[480px] grid-cols-[1fr_1fr_1fr_1fr] items-center gap-4 border-t border-border px-4 py-2.5 text-left text-sm hover:bg-surface-muted',
+                  'grid w-full min-w-[620px] cursor-pointer grid-cols-[1fr_1fr_1fr_1fr_auto] items-center gap-4 border-t border-border px-4 py-2.5 text-sm hover:bg-surface-muted',
                   zone.id === highlightedZoneId && 'bg-primary/10',
                 )}
               >
@@ -81,7 +92,18 @@ export function AvailableUnitsTable({ plans, zones, highlightedZoneId, onRowClic
                 <span className="text-ink-muted">{floor}</span>
                 <span className="text-ink">{area} м²</span>
                 <span className="font-medium text-ink">{formatMoney(price)}</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onLocateClick(zone);
+                  }}
+                  className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border px-3 py-1.5 text-xs font-medium text-ink-muted hover:border-primary hover:text-primary"
+                >
+                  <MapPin className="h-3.5 w-3.5" />
+                  Посмотреть на плане
+                </button>
+              </div>
             ))}
           </div>
 
