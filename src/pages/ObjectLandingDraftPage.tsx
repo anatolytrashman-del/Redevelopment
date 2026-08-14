@@ -152,7 +152,7 @@ export function ObjectLandingDraftPage() {
 
       <div className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-8 sm:px-8">
         <Card className="flex flex-col gap-5 p-5">
-          <div className="text-xl font-extrabold text-ink">Minsk One</div>
+          <div className="text-xl font-extrabold text-ink">Деловой комплекс Minsk One</div>
           <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
             {complexFeatures.map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-3">
