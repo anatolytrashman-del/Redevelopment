@@ -1,0 +1,121 @@
+import { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { Loader2, Ruler, ShieldCheck, SquareParking } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { HeroImageSlider } from '../components/objects/HeroImageSlider';
+import { PublicPlanAndUnits } from '../components/objects/PublicPlanAndUnits';
+import { zonePrice, type BuildingPlan, type BuildingPlanZone } from '../data/buildingPlans';
+import type { RealtyObject } from '../data/objects';
+import { fetchObjectByLandingSlug } from '../lib/objectsApi';
+import { fetchBuildingPlans, fetchZonesForPlan } from '../lib/buildingPlansApi';
+
+function formatMoney(value: number) {
+  return `$${Math.round(value).toLocaleString('ru-RU')}`;
+}
+
+// Пока продающая страница только у одного объекта, оффер и буллеты на
+// главном экране — фиксированный текст под него, а не поле в базе.
+// Когда появится второй объект с такой страницей — вынести в данные объекта.
+const heroFeatures: { icon: LucideIcon; text: string }[] = [
+  { icon: Ruler, text: 'Площади от 8 м² до 40 м²' },
+  { icon: SquareParking, text: 'Большая бесплатная парковка' },
+  { icon: ShieldCheck, text: 'Бронирование без предоплаты' },
+];
+
+// Черновик продающей страницы (/:slug/draft) — здесь обкатывается дизайн
+// главного экрана (оффер, буллеты, слайдер рендеров), пока не готов
+// показывать его клиентам. Публичный /:slug тем временем отдаёт только
+// планировку и список кабинетов — см. ObjectLandingPage.
+export function ObjectLandingDraftPage() {
+  const { slug } = useParams();
+  const [object, setObject] = useState<RealtyObject | null>(null);
+  const [plans, setPlans] = useState<BuildingPlan[]>([]);
+  const [zones, setZones] = useState<BuildingPlanZone[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    if (!slug) return;
+    setLoading(true);
+    setNotFound(false);
+    fetchObjectByLandingSlug(slug)
+      .then(async (obj) => {
+        setObject(obj);
+        if (obj.buildingPlanIds.length === 0) return;
+        const [planList, zoneLists] = await Promise.all([
+          fetchBuildingPlans(),
+          Promise.all(obj.buildingPlanIds.map((planId) => fetchZonesForPlan(planId))),
+        ]);
+        setPlans(planList);
+        setZones(zoneLists.flat());
+      })
+      .catch(() => setNotFound(true))
+      .finally(() => setLoading(false));
+  }, [slug]);
+
+  const cheapestUnit = zones
+    .filter((z) => z.zoneType === 'room' && z.status === 'Свободно' && z.area != null)
+    .reduce<number | null>((min, z) => {
+      const price = zonePrice(z.area as number);
+      return min === null || price < min ? price : min;
+    }, null);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-bg">
+        <Loader2 className="h-6 w-6 animate-spin text-ink-muted" />
+      </div>
+    );
+  }
+
+  if (notFound || !object) {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-bg px-4">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <span className="text-lg font-extrabold tracking-wide text-ink">
+            <span className="font-black text-primary">RED</span>EVELOPMENT
+          </span>
+          <p className="text-sm text-ink-muted">Страница не найдена.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-svh bg-bg">
+      <div className="border-b border-border px-4 py-5 sm:px-8">
+        <span className="text-lg font-extrabold tracking-wide text-ink">
+          <span className="font-black text-primary">RED</span>EVELOPMENT
+        </span>
+        <span className="ml-3 rounded-full bg-warning-bg px-2.5 py-1 text-xs font-semibold text-warning">
+          Черновик, клиентам не показывать
+        </span>
+      </div>
+
+      <div className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-2">
+        <div className="flex flex-col gap-6">
+          <h1 className="text-3xl font-extrabold leading-tight text-ink sm:text-4xl">
+            Стильные кабинеты под любой бизнес рядом с Минск Миром
+            {cheapestUnit != null && <> от {formatMoney(cheapestUnit)}</>}
+          </h1>
+          <div className="flex flex-col gap-3">
+            {heroFeatures.map(({ icon: Icon, text }) => (
+              <div key={text} className="flex items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-muted text-ink">
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="text-base font-medium text-ink">{text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <HeroImageSlider images={object.renderImageUrls} />
+      </div>
+
+      <div className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-8 sm:px-8">
+        <PublicPlanAndUnits object={object} plans={plans} zones={zones} />
+      </div>
+    </div>
+  );
+}
