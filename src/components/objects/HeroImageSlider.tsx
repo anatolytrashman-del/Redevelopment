@@ -35,7 +35,7 @@ export function HeroImageSlider({ images }: HeroImageSliderProps) {
     <div className="relative aspect-video w-full">
       {/* Пастельная подложка, сдвинутая вниз-вправо, — создаёт эффект "слоёной"
           карточки вместо плоского прямоугольника. */}
-      <div className="absolute inset-0 translate-x-3 translate-y-3 bg-success-bg" style={{ clipPath: CLIP_PATH }} />
+      <div className="absolute inset-0 translate-x-3 translate-y-3 bg-warning-bg" style={{ clipPath: CLIP_PATH }} />
 
       {/* Обводка по всему контуру, включая диагональные срезы: box-shadow/ring
           не подходит — clip-path обрезает и его тоже, оставляя дыры на срезах.
@@ -43,7 +43,7 @@ export function HeroImageSlider({ images }: HeroImageSliderProps) {
           с отступом (padding) вложен второй слой с тем же clip-path. Толще и
           тем же приглушённым пастельным тоном, что и подложка выше, а не
           ярким основным цветом. */}
-      <div className="absolute inset-0 bg-success-bg p-2.5" style={{ clipPath: CLIP_PATH }}>
+      <div className="absolute inset-0 bg-warning-bg p-2.5" style={{ clipPath: CLIP_PATH }}>
         <div className="relative h-full w-full overflow-hidden bg-surface-muted" style={{ clipPath: CLIP_PATH }}>
           <img src={images[index]} alt="" className="h-full w-full object-cover" />
 

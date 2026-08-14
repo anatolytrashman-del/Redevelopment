@@ -47,8 +47,8 @@ const complexFeatures: { icon: LucideIcon; text: string }[] = [
   { icon: Clock, text: 'Доступ 24/7' },
   { icon: Cctv, text: 'Видеонаблюдение' },
   { icon: Bath, text: 'Много санузлов' },
-  { icon: Sparkles, text: 'Отличное состояние здания' },
-  { icon: Zap, text: 'Все центральные коммуникации, новые' },
+  { icon: Sparkles, text: 'Ремонт 2026 года' },
+  { icon: Zap, text: 'Все центральные коммуникации' },
   { icon: Wifi, text: 'Телефон и интернет' },
   { icon: TreePine, text: 'Благоустроенная территория' },
 ];
@@ -145,17 +145,14 @@ export function ObjectLandingDraftPage() {
           <HeroImageSlider images={object.renderImageUrls} />
           <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 shadow-card backdrop-blur">
             <img src={MINSK_MIR_LOGO_URL} alt="Минск Мир" className="h-4 w-auto" />
-            <span className="text-xs font-semibold text-ink">Рядом с Минск Мир</span>
+            <span className="text-xs font-semibold text-ink">Рядом с Минск Миром</span>
           </div>
         </div>
       </div>
 
       <div className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-8 sm:px-8">
         <Card className="flex flex-col gap-5 p-5">
-          <div className="flex flex-col gap-1">
-            <div className="text-sm font-medium text-ink-muted">О комплексе</div>
-            <div className="text-xl font-extrabold text-ink">Деловой комплекс One</div>
-          </div>
+          <div className="text-xl font-extrabold text-ink">Minsk One</div>
           <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
             {complexFeatures.map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-3">
