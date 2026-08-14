@@ -6,6 +6,7 @@ import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
 import { BuildingPlanCanvas, BuildingPlanLegend, BuildingPlanTabs } from './BuildingPlanCanvas';
 import { AvailableUnitsTable } from './AvailableUnitsTable';
+import { AgreementSigningFlow } from './AgreementSigningFlow';
 import {
   zoneStatusBadgeClass,
   zoneTypeLabels,
@@ -60,12 +61,14 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated }: Publ
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingDone, setBookingDone] = useState(false);
+  const [bookedLeadId, setBookedLeadId] = useState<string | null>(null);
 
   function resetBookingState(nextOpen: boolean) {
     setBookingOpen(nextOpen);
     setBookingForm(emptyBookingForm);
     setBookingError(null);
     setBookingDone(false);
+    setBookedLeadId(null);
   }
 
   const objectPlans = object.buildingPlanIds
@@ -116,6 +119,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated }: Publ
       const updatedZone = await updateZone(selectedZone.id, { status: 'Забронировано', leadId: lead.id });
       setSelectedZone(updatedZone);
       onZoneUpdated(updatedZone);
+      setBookedLeadId(lead.id);
       setBookingDone(true);
     } catch (err) {
       setBookingError(errorMessage(err, 'Не удалось отправить заявку'));
@@ -217,10 +221,19 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated }: Publ
 
                 {selectedZone.status === 'Свободно' && (
                   <div className="flex flex-col gap-3 border-t border-border pt-3">
-                    {bookingDone ? (
-                      <p className="text-sm font-medium text-success">
-                        Забронировано! Мы скоро свяжемся с вами для подтверждения.
-                      </p>
+                    {bookingDone && bookedLeadId ? (
+                      <div className="flex flex-col gap-3">
+                        <p className="text-sm font-medium text-success">
+                          Забронировано! Мы скоро свяжемся с вами для подтверждения.
+                        </p>
+                        <AgreementSigningFlow
+                          leadId={bookedLeadId}
+                          objectId={object.id}
+                          zoneId={selectedZone.id}
+                          zoneArea={selectedZone.area ?? 0}
+                          zoneFloorLabel={plan?.name ?? ''}
+                        />
+                      </div>
                     ) : bookingOpen ? (
                       <form onSubmit={handleBookingSubmit} className="flex flex-col gap-3">
                         <Input

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Loader2, Pencil, Flame, Droplet, ArrowRight } from 'lucide-react';
+import { Plus, Loader2, Pencil, Flame, Droplet, ArrowRight, Download } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -19,6 +19,7 @@ import { fetchLeads, insertLead, updateLead } from '../lib/leadsApi';
 import { markLeadsViewed } from '../lib/leadsSeen';
 import { fetchObjects } from '../lib/objectsApi';
 import { fetchBookedZones, fetchBuildingPlans } from '../lib/buildingPlansApi';
+import { fetchSignedAgreementsForZones, type SignedAgreementSummary } from '../lib/agreementSigningApi';
 
 const NO_OBJECT = 'Не привязан';
 
@@ -81,6 +82,7 @@ export function Leads() {
   const [objects, setObjects] = useState<RealtyObject[]>([]);
   const [plans, setPlans] = useState<BuildingPlan[]>([]);
   const [bookedZones, setBookedZones] = useState<BuildingPlanZone[]>([]);
+  const [signedAgreements, setSignedAgreements] = useState<SignedAgreementSummary[]>([]);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -135,9 +137,19 @@ export function Leads() {
       .then(setPlans)
       .catch(() => setPlans([]));
     fetchBookedZones()
-      .then(setBookedZones)
+      .then((zones) => {
+        setBookedZones(zones);
+        fetchSignedAgreementsForZones(zones.map((z) => z.id))
+          .then(setSignedAgreements)
+          .catch(() => setSignedAgreements([]));
+      })
       .catch(() => setBookedZones([]));
   }, []);
+
+  const signedAgreementByZoneId = useMemo(
+    () => new Map(signedAgreements.map((a) => [a.zoneId, a])),
+    [signedAgreements],
+  );
 
   const objectOptions = [NO_OBJECT, ...objects.map((o) => o.address)];
 
@@ -291,11 +303,12 @@ export function Leads() {
           <div className="text-lg font-bold text-ink">Брони кабинетов</div>
           <Card className="flex flex-col gap-4 p-0">
             <div className="overflow-x-auto">
-              <div className="grid min-w-[900px] grid-cols-[1fr_150px_1fr_130px_140px_44px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
+              <div className="grid min-w-[1020px] grid-cols-[1fr_150px_1fr_130px_150px_140px_44px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
                 <span>Лид</span>
                 <span>Кабинет</span>
                 <span>Объект</span>
                 <span>Статус</span>
+                <span>Соглашение</span>
                 <span />
                 <span />
               </div>
@@ -303,10 +316,11 @@ export function Leads() {
                 const lead = leadById.get(zone.leadId);
                 const plan = planById.get(zone.buildingPlanId);
                 const object = objectByPlanId.get(zone.buildingPlanId);
+                const agreement = signedAgreementByZoneId.get(zone.id);
                 return (
                   <div
                     key={zone.id}
-                    className="grid min-w-[900px] grid-cols-[1fr_150px_1fr_130px_140px_44px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
+                    className="grid min-w-[1020px] grid-cols-[1fr_150px_1fr_130px_150px_140px_44px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
                   >
                     <div className="min-w-0">
                       <div className="truncate font-semibold text-ink">{lead?.name ?? '—'}</div>
@@ -328,6 +342,19 @@ export function Leads() {
                     >
                       {zone.status}
                     </span>
+                    {agreement ? (
+                      <a
+                        href={agreement.documentUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        Подписано
+                      </a>
+                    ) : (
+                      <span className="text-ink-faint">Не подписано</span>
+                    )}
                     {object ? (
                       <Link
                         to={`/admin/objects/${object.landingSlug || object.id}`}
