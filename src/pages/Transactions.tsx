@@ -15,11 +15,14 @@ import {
   categories,
   categoryColor,
   payers,
+  splitPayers,
+  soloPayers,
   sources,
   type Transaction,
   type Currency,
   type Category,
   type Payer,
+  type SplitPayer,
 } from '../data/transactions';
 import { fetchTransactions, insertTransaction, updateTransaction } from '../lib/transactionsApi';
 
@@ -64,15 +67,16 @@ const emptyForm = {
 // Знак суммы на направление долга не влияет — минус тоже означает
 // "потратил столько-то", просто так завели транзакцию.
 function calculateBalances(transactions: Transaction[]) {
-  const byCurrency = new Map<Currency, Map<Payer, number>>();
+  const byCurrency = new Map<Currency, Map<SplitPayer, number>>();
   for (const t of transactions) {
     if (t.compensated) continue;
+    if (!splitPayers.includes(t.paidBy as SplitPayer)) continue;
     if (!byCurrency.has(t.currency)) byCurrency.set(t.currency, new Map());
     const totals = byCurrency.get(t.currency)!;
-    totals.set(t.paidBy, (totals.get(t.paidBy) ?? 0) + Math.abs(t.amount));
+    totals.set(t.paidBy as SplitPayer, (totals.get(t.paidBy as SplitPayer) ?? 0) + Math.abs(t.amount));
   }
 
-  const [p1, p2] = payers;
+  const [p1, p2] = splitPayers;
   return [...byCurrency.entries()].map(([currency, totals]) => {
     const t1 = totals.get(p1) ?? 0;
     const t2 = totals.get(p2) ?? 0;
@@ -80,12 +84,30 @@ function calculateBalances(transactions: Transaction[]) {
     const owed = Math.round((Math.abs(diff) / 2) * 100) / 100;
     return {
       currency,
-      totals: { [p1]: t1, [p2]: t2 } as Record<Payer, number>,
+      totals: { [p1]: t1, [p2]: t2 } as Record<SplitPayer, number>,
       debtor: diff > 0 ? p2 : p1,
       creditor: diff > 0 ? p1 : p2,
       owed,
     };
   });
+}
+
+// Непогашенные траты плательщиков вне пары (например, Татьяна Давыдчик) —
+// в отличие от calculateBalances здесь ничего не делится пополам, вся сумма
+// просто числится долгом перед ними.
+function calculateSoloDebts(transactions: Transaction[]) {
+  const result: { payer: (typeof soloPayers)[number]; currency: Currency; amount: number }[] = [];
+  for (const payer of soloPayers) {
+    const byCurrency = new Map<Currency, number>();
+    for (const t of transactions) {
+      if (t.compensated || t.paidBy !== payer) continue;
+      byCurrency.set(t.currency, (byCurrency.get(t.currency) ?? 0) + Math.abs(t.amount));
+    }
+    for (const [currency, amount] of byCurrency) {
+      if (amount > 0) result.push({ payer, currency, amount });
+    }
+  }
+  return result;
 }
 
 // Расходы (отрицательная сумма) и доходы (положительная) за текущий календарный
@@ -313,32 +335,47 @@ export function Transactions() {
 
       {toggleError && <p className="text-sm text-danger">{toggleError}</p>}
 
-      {!loading && !loadError && calculateBalances(transactions).length > 0 && (
-        <Card className="flex flex-col gap-3">
-          <span className="text-lg font-bold text-ink">Непогашенный остаток</span>
-          {calculateBalances(transactions).map(({ currency, totals, debtor, creditor, owed }) => (
-            <div
-              key={currency}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-control bg-surface-muted px-4 py-3"
-            >
-              <div className="flex gap-6 text-sm text-ink-muted">
-                {payers.map((p) => (
-                  <span key={p}>
-                    {p}: <span className="font-semibold text-ink">{formatAmount(totals[p] ?? 0, currency)}</span>
-                  </span>
-                ))}
+      {!loading &&
+        !loadError &&
+        (calculateBalances(transactions).length > 0 || calculateSoloDebts(transactions).length > 0) && (
+          <Card className="flex flex-col gap-3">
+            <span className="text-lg font-bold text-ink">Непогашенный остаток</span>
+            {calculateBalances(transactions).map(({ currency, totals, debtor, creditor, owed }) => (
+              <div
+                key={currency}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-control bg-surface-muted px-4 py-3"
+              >
+                <div className="flex gap-6 text-sm text-ink-muted">
+                  {splitPayers.map((p) => (
+                    <span key={p}>
+                      {p}: <span className="font-semibold text-ink">{formatAmount(totals[p] ?? 0, currency)}</span>
+                    </span>
+                  ))}
+                </div>
+                {owed === 0 ? (
+                  <Badge tone="success">Баланс сведён</Badge>
+                ) : (
+                  <Badge tone="primary">
+                    {debtor} должен {creditor}: {formatAmount(owed, currency)}
+                  </Badge>
+                )}
               </div>
-              {owed === 0 ? (
-                <Badge tone="success">Баланс сведён</Badge>
-              ) : (
+            ))}
+            {calculateSoloDebts(transactions).map(({ payer, currency, amount }) => (
+              <div
+                key={`${payer}-${currency}`}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-control bg-surface-muted px-4 py-3"
+              >
+                <span className="text-sm text-ink-muted">
+                  {payer}: <span className="font-semibold text-ink">{formatAmount(amount, currency)}</span>
+                </span>
                 <Badge tone="primary">
-                  {debtor} должен {creditor}: {formatAmount(owed, currency)}
+                  Должны {payer}: {formatAmount(amount, currency)}
                 </Badge>
-              )}
-            </div>
-          ))}
-        </Card>
-      )}
+              </div>
+            ))}
+          </Card>
+        )}
 
       <Modal open={open} onClose={() => setOpen(false)} title={editingId ? 'Редактировать транзакцию' : 'Новая транзакция'}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">

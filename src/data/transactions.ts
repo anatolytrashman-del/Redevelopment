@@ -16,9 +16,17 @@ export const currencySymbols: Record<Currency, string> = {
 export const categories = ['Маркетинг', 'IT-инфраструктура', 'Поездки в Минск', 'Консультации'] as const;
 export type Category = string;
 
-// Партнёры, между которыми считается баланс "кто кому должен" (см. Transactions.tsx).
-// Замените на реальные имена — используются как в форме, так и в расчёте баланса.
-export const payers = ['Трэшмен', 'Степа'] as const;
+// Двое партнёров, между которыми расходы делятся 50/50, если не
+// компенсированы (см. calculateBalances в Transactions.tsx).
+export const splitPayers = ['Трэшмен', 'Степа'] as const;
+export type SplitPayer = (typeof splitPayers)[number];
+
+// Остальные плательщики — их непогашенные траты не делятся пополам, а
+// целиком считаются долгом перед ними (см. calculateSoloDebts в Transactions.tsx).
+export const soloPayers = ['Татьяна Давыдчик'] as const;
+export type SoloPayer = (typeof soloPayers)[number];
+
+export const payers = [...splitPayers, ...soloPayers] as const;
 export type Payer = (typeof payers)[number];
 
 // Готовые варианты "Откуда платил". Список открытый, как и категории —
