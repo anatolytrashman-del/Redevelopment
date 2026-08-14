@@ -28,6 +28,7 @@ import { fetchDemandStats, type DemandStat } from '../lib/demandStatsApi';
 import { fetchLeadsForObject } from '../lib/leadsApi';
 import { fetchBookedZones } from '../lib/buildingPlansApi';
 import { badgeColor } from '../lib/badgeColor';
+import { cn } from '../lib/cn';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -366,29 +367,35 @@ export function ObjectDetail() {
             </Card>
 
             {specBlocks.length > 0 ? (
-              specBlocks.map((block, i) => (
-                <Card key={block.title} className="flex flex-col gap-3 p-5">
-                  <div className="flex items-center justify-between">
-                    <div className="font-bold text-ink">{block.title}</div>
-                    {i === 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setSpecsModalOpen(true)}
-                        aria-label="Редактировать характеристики"
-                        className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  {block.rows.map(([label, value]) => (
-                    <div key={label}>
-                      <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">{label}</div>
-                      <div className="font-semibold text-ink">{value}</div>
+              <Card className="flex flex-col gap-4 p-5">
+                <div className="flex items-center justify-between">
+                  <div className="font-bold text-ink">Характеристики здания</div>
+                  <button
+                    type="button"
+                    onClick={() => setSpecsModalOpen(true)}
+                    aria-label="Редактировать характеристики"
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                {specBlocks.map((block, i) => (
+                  <div key={block.title} className={cn('flex flex-col gap-2', i > 0 && 'border-t border-border pt-3')}>
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">{block.title}</div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                      {block.rows.map(([label, value]) => (
+                        <div
+                          key={label}
+                          className={typeof value === 'string' && value.length > 20 ? 'col-span-2' : undefined}
+                        >
+                          <div className="text-ink-muted">{label}</div>
+                          <div className="font-medium text-ink">{value}</div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </Card>
-              ))
+                  </div>
+                ))}
+              </Card>
             ) : (
               <Card className="flex flex-col gap-3 p-5">
                 <div className="font-bold text-ink">Характеристики здания</div>
