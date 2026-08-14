@@ -9,11 +9,13 @@ import {
   zoneFeatures,
   zoneStatuses,
   zoneStatusBadgeClass,
+  zoneTypes,
   zoneTypeLabels,
   zoneDownPayment,
   zonePrice,
   type BuildingPlanZone,
   type ZoneStatus,
+  type ZoneType,
 } from '../../data/buildingPlans';
 import type { Lead } from '../../data/leads';
 import type { GeneratedDocument } from '../../data/generatedDocuments';
@@ -56,6 +58,7 @@ interface ZoneDetailModalProps {
 
 export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, onDeleted, onRedraw }: ZoneDetailModalProps) {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
+  const [zoneType, setZoneType] = useState<ZoneType>('room');
   const [label, setLabel] = useState('');
   const [area, setArea] = useState('');
   const [status, setStatus] = useState<ZoneStatus>('Свободно');
@@ -67,6 +70,7 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
   useEffect(() => {
     if (!zone) return;
     setMode('view');
+    setZoneType(zone.zoneType);
     setLabel(zone.label);
     setArea(zone.area != null ? String(zone.area) : '');
     setStatus(zone.status);
@@ -77,12 +81,18 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
 
   if (!zone) return null;
 
+  // isRoom — для режима просмотра, всегда по сохранённому типу зоны.
+  // isRoomEdit — для формы редактирования: реагирует на смену типа в
+  // селекте, до сохранения, чтобы поля площади/статуса/клиента сразу
+  // появлялись при переключении зоны в "Кабинет".
   const isRoom = zone.zoneType === 'room';
+  const isRoomEdit = zoneType === 'room';
   const selectedLead = leads.find((l) => l.id === leadId) ?? null;
   const leadDocuments = leadId ? documents.filter((d) => d.leadId === leadId) : [];
 
   function startEdit() {
     if (!zone) return;
+    setZoneType(zone.zoneType);
     setLabel(zone.label);
     setArea(zone.area != null ? String(zone.area) : '');
     setStatus(zone.status);
@@ -102,11 +112,12 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
     setError(null);
     try {
       const updated = await updateZone(zone.id, {
+        zoneType,
         label: label.trim(),
-        area: isRoom && area.trim() ? Number(area) : null,
-        status: isRoom ? status : zone.status,
-        leadId: isRoom ? leadId : '',
-        features: isRoom ? features : [],
+        area: isRoomEdit && area.trim() ? Number(area) : null,
+        status: isRoomEdit ? status : zone.status,
+        leadId: isRoomEdit ? leadId : '',
+        features: isRoomEdit ? features : [],
       });
       onUpdated(updated);
       setMode('view');
@@ -227,8 +238,15 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
           </>
         ) : (
           <>
+            <Select
+              label="Тип зоны"
+              options={zoneTypes.map((t) => zoneTypeLabels[t])}
+              value={zoneTypeLabels[zoneType]}
+              onChange={(v) => setZoneType(zoneTypes.find((t) => zoneTypeLabels[t] === v) ?? zoneType)}
+            />
+
             <Input
-              label={isRoom ? 'Номер кабинета' : 'Подпись'}
+              label={isRoomEdit ? 'Номер кабинета' : 'Подпись'}
               value={label}
               onChange={(e) => setLabel(e.target.value)}
             />
@@ -242,7 +260,7 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
               Перерисовать контур на плане
             </button>
 
-            {isRoom && (
+            {isRoomEdit && (
               <>
                 <Input label="Площадь, м²" type="number" step="0.1" value={area} onChange={(e) => setArea(e.target.value)} />
 

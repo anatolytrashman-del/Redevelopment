@@ -123,10 +123,11 @@ export function insertZone(input: Omit<BuildingPlanZone, 'id'>): Promise<Buildin
 
 export function updateZone(
   id: string,
-  patch: Partial<Pick<BuildingPlanZone, 'label' | 'area' | 'status' | 'leadId' | 'features' | 'points'>>,
+  patch: Partial<Pick<BuildingPlanZone, 'zoneType' | 'label' | 'area' | 'status' | 'leadId' | 'features' | 'points'>>,
 ): Promise<BuildingPlanZone> {
   return withRetry(async () => {
     const payload: Record<string, unknown> = {};
+    if (patch.zoneType !== undefined) payload.zone_type = patch.zoneType;
     if (patch.label !== undefined) payload.label = patch.label;
     if (patch.area !== undefined) payload.area = patch.area;
     if (patch.status !== undefined) payload.status = patch.status;
