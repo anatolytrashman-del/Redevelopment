@@ -34,9 +34,12 @@ export function PasswordGate({ children }: { children: ReactNode }) {
         onSubmit={handleSubmit}
         className="flex w-full max-w-xs flex-col gap-4 rounded-card border border-border bg-surface p-6 shadow-card"
       >
-        <span className="text-center text-lg font-extrabold tracking-wide text-ink">
-          <span className="font-black text-primary">RED</span>EVELOPMENT
-        </span>
+        <div className="flex flex-col items-center gap-1 text-center">
+          <span className="text-lg font-extrabold tracking-wide text-ink">
+            <span className="font-black text-primary">RED</span>EVELOPMENT
+          </span>
+          <span className="text-xs text-ink-faint">Внутренняя панель — доступ только для сотрудников</span>
+        </div>
         <Input
           type="password"
           label="Пароль"
