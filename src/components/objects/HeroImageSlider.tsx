@@ -4,10 +4,11 @@ import { cn } from '../../lib/cn';
 
 const AUTOPLAY_MS = 5000;
 
-// Диагональный скос нижнего левого угла вместо стандартных скруглений —
-// одна и та же форма используется и для самой картинки, и для чёрной
-// подложки под ней (см. ниже), чтобы срез совпадал у обеих.
-const CLIP_PATH = 'polygon(0 0, 100% 0, 100% 100%, 56px 100%, 0 calc(100% - 56px))';
+// Диагональные скосы у двух противоположных углов (верхний правый и нижний
+// левый) вместо стандартных скруглений — одна и та же форма используется и
+// для самой картинки, и для подложки под ней (см. ниже), чтобы срезы совпадали.
+const CLIP_PATH =
+  'polygon(0 0, calc(100% - 56px) 0, 100% 56px, 100% 100%, 56px 100%, 0 calc(100% - 56px))';
 
 interface HeroImageSliderProps {
   images: string[];
@@ -32,9 +33,9 @@ export function HeroImageSlider({ images }: HeroImageSliderProps) {
 
   return (
     <div className="relative aspect-video w-full">
-      {/* Чёрная подложка, сдвинутая вниз-вправо, — создаёт эффект "слоёной"
+      {/* Пастельная подложка, сдвинутая вниз-вправо, — создаёт эффект "слоёной"
           карточки вместо плоского прямоугольника. */}
-      <div className="absolute inset-0 translate-x-3 translate-y-3 bg-ink" style={{ clipPath: CLIP_PATH }} />
+      <div className="absolute inset-0 translate-x-3 translate-y-3 bg-info-bg" style={{ clipPath: CLIP_PATH }} />
 
       <div className="absolute inset-0 overflow-hidden bg-surface-muted" style={{ clipPath: CLIP_PATH }}>
         <img src={images[index]} alt="" className="h-full w-full object-cover" />
