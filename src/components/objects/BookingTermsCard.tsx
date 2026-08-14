@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, ShieldCheck, X } from 'lucide-react';
+import { Download, FileText, Loader2, ShieldCheck, X } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import type { ObjectDocumentFile } from '../../data/objects';
@@ -16,6 +16,12 @@ interface BookingTermsCardProps {
 // выписки из реестра, поэтому загружается отдельно в форме объекта.
 export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(true);
+
+  function openPreview() {
+    setPreviewLoading(true);
+    setPreviewOpen(true);
+  }
 
   return (
     <Card className="flex flex-col items-start gap-5 p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -40,7 +46,7 @@ export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
             type="button"
             variant="secondary"
             icon={<FileText className="h-4 w-4" />}
-            onClick={() => setPreviewOpen(true)}
+            onClick={openPreview}
             className="whitespace-nowrap"
           >
             Посмотреть шаблон
@@ -56,22 +62,45 @@ export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
           <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col gap-3 rounded-card border border-border bg-surface p-4 shadow-card">
             <div className="flex items-center justify-between gap-3">
               <span className="min-w-0 truncate text-sm font-semibold text-ink">{agreement.fileName}</span>
-              <button
-                type="button"
-                onClick={() => setPreviewOpen(false)}
-                aria-label="Закрыть"
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:text-ink"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <a
+                  href={agreement.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 text-xs font-medium text-ink-muted hover:text-primary"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Скачать
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewOpen(false)}
+                  aria-label="Закрыть"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:text-ink"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
-            <div className="min-h-[70vh] flex-1 overflow-hidden rounded-control bg-surface-muted">
+            <div className="relative min-h-[70vh] flex-1 overflow-hidden rounded-control bg-surface-muted">
+              {previewLoading && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-ink-muted">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Загружаем документ...
+                </div>
+              )}
               {agreement.fileName.toLowerCase().endsWith('.pdf') ? (
-                <iframe src={agreement.url} title={agreement.fileName} className="h-full min-h-[70vh] w-full" />
+                <iframe
+                  src={agreement.url}
+                  title={agreement.fileName}
+                  onLoad={() => setPreviewLoading(false)}
+                  className="h-full min-h-[70vh] w-full"
+                />
               ) : (
                 <img
                   src={agreement.url}
                   alt={agreement.fileName}
+                  onLoad={() => setPreviewLoading(false)}
                   className="mx-auto h-full max-h-[70vh] w-auto object-contain"
                 />
               )}
