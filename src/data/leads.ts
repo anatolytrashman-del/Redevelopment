@@ -1,4 +1,4 @@
-export const leadSources = ['Kufar', 'Realt'] as const;
+export const leadSources = ['Kufar', 'Realt', 'Сайт'] as const;
 export type LeadSource = (typeof leadSources)[number];
 
 // Список требований открытый — новые значения можно добавлять прямо

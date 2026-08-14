@@ -333,7 +333,7 @@ export function ObjectDetail() {
         }
       />
 
-      <Link to="/objects" className="inline-flex w-fit items-center gap-2 text-sm font-medium text-ink hover:text-primary">
+      <Link to="/admin/objects" className="inline-flex w-fit items-center gap-2 text-sm font-medium text-ink hover:text-primary">
         <ArrowLeft className="h-4 w-4" />
         Все объекты
       </Link>

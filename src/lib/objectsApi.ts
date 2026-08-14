@@ -24,6 +24,7 @@ function fromRow(row: RealtyObjectRow): RealtyObject {
     buildingSpecs: row.building_specs ?? null,
     documents: row.documents ?? {},
     shareToken: row.share_token,
+    landingSlug: row.landing_slug ?? '',
   };
 }
 
@@ -53,6 +54,16 @@ export function fetchObjectByShareToken(token: string): Promise<RealtyObject> {
   });
 }
 
+// Для продающей страницы объекта (/:slug) — ищем по короткому читаемому
+// landing_slug, а не по id (см. комментарий у RealtyObject.landingSlug).
+export function fetchObjectByLandingSlug(slug: string): Promise<RealtyObject> {
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('objects').select('*').eq('landing_slug', slug).single();
+    if (error) throw error;
+    return fromRow(data as RealtyObjectRow);
+  });
+}
+
 export function insertObject(input: Omit<RealtyObject, 'id' | 'shareToken'>): Promise<RealtyObject> {
   return withRetry(async () => {
     const { data, error } = await supabase
@@ -76,6 +87,7 @@ export function insertObject(input: Omit<RealtyObject, 'id' | 'shareToken'>): Pr
         building_plan_ids: input.buildingPlanIds,
         building_specs: input.buildingSpecs,
         documents: input.documents,
+        landing_slug: input.landingSlug.trim() || null,
       })
       .select()
       .single();
@@ -108,6 +120,7 @@ export function updateObject(id: string, input: Omit<RealtyObject, 'id' | 'share
         building_plan_ids: input.buildingPlanIds,
         building_specs: input.buildingSpecs,
         documents: input.documents,
+        landing_slug: input.landingSlug.trim() || null,
       })
       .eq('id', id)
       .select()

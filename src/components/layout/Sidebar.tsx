@@ -23,18 +23,18 @@ import { getBacklogLastViewedAt, onBacklogViewed } from '../../lib/backlogSeen';
 // В меню показываем только готовые страницы (см. visibleLabels ниже) —
 // остальные пункты добавляйте в этот список по мере готовности страниц.
 const allNavItems = [
-  { to: '/', label: 'Дашборд', icon: LayoutGrid, end: true },
-  { to: '/tasks', label: 'Задачи', icon: ListChecks },
-  { to: '/transactions', label: 'Транзакции', icon: Receipt },
-  { to: '/leads', label: 'Лиды', icon: Users },
-  { to: '/objects', label: 'Объекты', icon: Building2 },
-  { to: '/documents', label: 'Документы', icon: FileStack },
-  { to: '/statistics', label: 'Статистика', icon: PieChart },
-  { to: '/payouts', label: 'Выплаты', icon: Wallet },
-  { to: '/account', label: 'Аккаунт', icon: User },
-  { to: '/support', label: 'Поддержка', icon: MessageCircle },
-  { to: '/faq', label: 'FAQ', icon: HelpCircle },
-  { to: '/invite', label: 'Пригласить партнёра', icon: UserPlus },
+  { to: '/admin/dashboard', label: 'Дашборд', icon: LayoutGrid },
+  { to: '/admin/tasks', label: 'Задачи', icon: ListChecks },
+  { to: '/admin/transactions', label: 'Транзакции', icon: Receipt },
+  { to: '/admin/leads', label: 'Лиды', icon: Users },
+  { to: '/admin/objects', label: 'Объекты', icon: Building2 },
+  { to: '/admin/documents', label: 'Документы', icon: FileStack },
+  { to: '/admin/statistics', label: 'Статистика', icon: PieChart },
+  { to: '/admin/payouts', label: 'Выплаты', icon: Wallet },
+  { to: '/admin/account', label: 'Аккаунт', icon: User },
+  { to: '/admin/support', label: 'Поддержка', icon: MessageCircle },
+  { to: '/admin/faq', label: 'FAQ', icon: HelpCircle },
+  { to: '/admin/invite', label: 'Пригласить партнёра', icon: UserPlus },
 ];
 
 // Порядок пунктов в этом списке — это порядок пунктов в меню.
@@ -66,11 +66,10 @@ export function Sidebar() {
           <span className="font-black text-primary">RED</span>EVELOPMENT
         </span>
         <nav className="flex flex-col gap-1">
-          {navItems.map(({ to, label, icon: Icon, end }) => (
+          {navItems.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
-              end={end}
               className={({ isActive }) =>
                 cn(
                   'flex items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium transition-colors',
@@ -87,7 +86,7 @@ export function Sidebar() {
 
       <div className="mt-auto flex flex-col gap-1 border-t border-border pt-4">
         <NavLink
-          to="/backlog"
+          to="/admin/backlog"
           className={({ isActive }) =>
             cn(
               'flex items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium transition-colors',

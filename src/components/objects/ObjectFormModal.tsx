@@ -34,6 +34,7 @@ const emptyForm = {
   contactPosition: '',
   contactChannel: '' as ContactChannel | '',
   notes: '',
+  landingSlug: '',
 };
 
 function objectToForm(o: RealtyObject) {
@@ -50,6 +51,7 @@ function objectToForm(o: RealtyObject) {
     contactPosition: o.contactPosition,
     contactChannel: o.contactChannel,
     notes: o.notes,
+    landingSlug: o.landingSlug,
   };
 }
 
@@ -136,6 +138,7 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
       contactPosition: form.contactPosition,
       contactChannel: form.contactChannel,
       notes: form.notes,
+      landingSlug: form.landingSlug.trim(),
       concept: editing?.concept ?? '',
       demandLinks: editing?.demandLinks ?? [],
       inspectionMediaUrl: editing?.inspectionMediaUrl ?? '',
@@ -267,6 +270,18 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
           value={form.listingUrl}
           onChange={(e) => setForm((f) => ({ ...f, listingUrl: e.target.value }))}
         />
+
+        <div>
+          <Input
+            label="URL продающей страницы"
+            placeholder="one"
+            value={form.landingSlug}
+            onChange={(e) => setForm((f) => ({ ...f, landingSlug: e.target.value.trim() }))}
+          />
+          {form.landingSlug && (
+            <p className="mt-1.5 text-xs text-ink-faint">redevelopment.pro/{form.landingSlug}</p>
+          )}
+        </div>
 
         <div className="grid grid-cols-2 gap-4">
           <Input

@@ -55,7 +55,7 @@ export function Objects() {
           return (
             <Link
               key={o.id}
-              to={`/objects/${o.id}`}
+              to={`/admin/objects/${o.id}`}
               className="flex items-center gap-5 rounded-card border border-border bg-surface p-4 shadow-card transition-colors hover:border-primary"
             >
               <div className="aspect-[4/3] w-28 shrink-0 overflow-hidden rounded-control bg-surface-muted">

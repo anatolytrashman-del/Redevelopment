@@ -116,6 +116,11 @@ export interface RealtyObject {
   // не мог просто отредактировать URL и попасть на внутреннюю страницу
   // /objects/:id (весь остальной сайт открыт без логина).
   shareToken: string;
+  // Короткий читаемый URL продающей страницы объекта (/:landingSlug,
+  // например "one") — в отличие от shareToken специально предсказуемый и
+  // редактируемый вручную, чтобы ссылку можно было использовать в рекламе.
+  // Пустая строка — страница ещё не привязана ни к одному пути.
+  landingSlug: string;
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/objectsApi.ts
@@ -140,6 +145,7 @@ export interface RealtyObjectRow {
   building_specs: BuildingSpecs | null;
   documents: ObjectDocuments | null;
   share_token: string;
+  landing_slug: string | null;
 }
 
 export function pricePerMeter(area: number, startPrice: number): number | null {
