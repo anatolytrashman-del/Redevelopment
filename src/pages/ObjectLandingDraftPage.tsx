@@ -31,8 +31,7 @@ function formatMoney(value: number) {
 // заказчиком по прямой ссылке. Стоит перезалить в собственное хранилище
 // (например, через загрузку рендеров в форме объекта), если ibb.co когда-то
 // станет недоступен.
-const MINSK_MIR_LOGO_URL =
-  'https://i.ibb.co/HTk92YQk/MINSKWORLD-LOGO-ARH-2-Picsart-Ai-Image-Enhancer-Picsart-Background-Remover.png';
+const MINSK_MIR_LOGO_URL = 'https://i.ibb.co/ynL71Bfj/Untitled-2.png';
 
 // Пока продающая страница только у одного объекта, оффер и буллеты на
 // главном экране — фиксированный текст под него, а не поле в базе.

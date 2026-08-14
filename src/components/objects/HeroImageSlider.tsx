@@ -40,8 +40,10 @@ export function HeroImageSlider({ images }: HeroImageSliderProps) {
       {/* Обводка по всему контуру, включая диагональные срезы: box-shadow/ring
           не подходит — clip-path обрезает и его тоже, оставляя дыры на срезах.
           Вместо этого — сплошная заливка-рамка того же контура, а внутри неё
-          с отступом (padding) вложен второй слой с тем же clip-path. */}
-      <div className="absolute inset-0 bg-success p-[3px]" style={{ clipPath: CLIP_PATH }}>
+          с отступом (padding) вложен второй слой с тем же clip-path. Толще и
+          тем же приглушённым пастельным тоном, что и подложка выше, а не
+          ярким основным цветом. */}
+      <div className="absolute inset-0 bg-success-bg p-2.5" style={{ clipPath: CLIP_PATH }}>
         <div className="relative h-full w-full overflow-hidden bg-surface-muted" style={{ clipPath: CLIP_PATH }}>
           <img src={images[index]} alt="" className="h-full w-full object-cover" />
 
