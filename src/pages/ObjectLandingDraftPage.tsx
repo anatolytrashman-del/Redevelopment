@@ -18,6 +18,7 @@ import type { LucideIcon } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { PublicPlanAndUnits } from '../components/objects/PublicPlanAndUnits';
+import { BookingTermsCard } from '../components/objects/BookingTermsCard';
 import { zonePrice, type BuildingPlan, type BuildingPlanZone } from '../data/buildingPlans';
 import type { RealtyObject } from '../data/objects';
 import { fetchObjectByLandingSlug } from '../lib/objectsApi';
@@ -164,6 +165,8 @@ export function ObjectLandingDraftPage() {
             ))}
           </div>
         </Card>
+
+        <BookingTermsCard documents={object.documents} />
 
         <PublicPlanAndUnits
           object={object}

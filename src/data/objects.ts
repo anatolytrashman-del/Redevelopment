@@ -74,13 +74,14 @@ export const emptyBuildingSpecs: BuildingSpecs = {
 // "Документы" (та — про сгенерированные договоры по шаблонам для лидов).
 // Файлы лежат в Supabase Storage (бакет object-documents), здесь хранится
 // только их метаданные.
-export const objectDocumentCategories = ['registryExtract', 'techPassport', 'landDocs'] as const;
+export const objectDocumentCategories = ['registryExtract', 'techPassport', 'landDocs', 'intentAgreement'] as const;
 export type ObjectDocumentCategory = (typeof objectDocumentCategories)[number];
 
 export const objectDocumentLabels: Record<ObjectDocumentCategory, string> = {
   registryExtract: 'Выписка из реестра',
   techPassport: 'Технический паспорт',
   landDocs: 'Документы на землю',
+  intentAgreement: 'Шаблон соглашения о намерениях',
 };
 
 export interface ObjectDocumentFile {
