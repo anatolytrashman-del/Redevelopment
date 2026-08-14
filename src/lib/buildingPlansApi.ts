@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { withRetry } from './withRetry';
+import { withRetry, UPLOAD_TIMEOUT_MS } from './withRetry';
 import type {
   BuildingPlan,
   BuildingPlanRow,
@@ -60,14 +60,18 @@ export function updateBuildingPlan(id: string, patch: { name?: string; imageUrl?
 }
 
 export function uploadBuildingPlanImage(file: File): Promise<string> {
-  return withRetry(async () => {
-    const ext = file.name.split('.').pop() ?? 'png';
-    const path = `${crypto.randomUUID()}.${ext}`;
-    const { error } = await supabase.storage.from('building-plans').upload(path, file);
-    if (error) throw error;
-    const { data } = supabase.storage.from('building-plans').getPublicUrl(path);
-    return data.publicUrl;
-  });
+  return withRetry(
+    async () => {
+      const ext = file.name.split('.').pop() ?? 'png';
+      const path = `${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from('building-plans').upload(path, file);
+      if (error) throw error;
+      const { data } = supabase.storage.from('building-plans').getPublicUrl(path);
+      return data.publicUrl;
+    },
+    1000,
+    UPLOAD_TIMEOUT_MS,
+  );
 }
 
 export function fetchZonesForPlan(buildingPlanId: string): Promise<BuildingPlanZone[]> {

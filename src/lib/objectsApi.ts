@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { withRetry } from './withRetry';
+import { withRetry, UPLOAD_TIMEOUT_MS } from './withRetry';
 import type { ContactChannel, RealtyObject, RealtyObjectRow } from '../data/objects';
 
 function fromRow(row: RealtyObjectRow): RealtyObject {
@@ -135,23 +135,31 @@ export function updateObject(id: string, input: Omit<RealtyObject, 'id' | 'share
 }
 
 export function uploadObjectImage(file: File): Promise<string> {
-  return withRetry(async () => {
-    const ext = file.name.split('.').pop() ?? 'jpg';
-    const path = `${crypto.randomUUID()}.${ext}`;
-    const { error } = await supabase.storage.from('object-photos').upload(path, file);
-    if (error) throw error;
-    const { data } = supabase.storage.from('object-photos').getPublicUrl(path);
-    return data.publicUrl;
-  });
+  return withRetry(
+    async () => {
+      const ext = file.name.split('.').pop() ?? 'jpg';
+      const path = `${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from('object-photos').upload(path, file);
+      if (error) throw error;
+      const { data } = supabase.storage.from('object-photos').getPublicUrl(path);
+      return data.publicUrl;
+    },
+    1000,
+    UPLOAD_TIMEOUT_MS,
+  );
 }
 
 export function uploadObjectDocument(file: File): Promise<{ url: string; fileName: string }> {
-  return withRetry(async () => {
-    const ext = file.name.split('.').pop() ?? 'pdf';
-    const path = `${crypto.randomUUID()}.${ext}`;
-    const { error } = await supabase.storage.from('object-documents').upload(path, file);
-    if (error) throw error;
-    const { data } = supabase.storage.from('object-documents').getPublicUrl(path);
-    return { url: data.publicUrl, fileName: file.name };
-  });
+  return withRetry(
+    async () => {
+      const ext = file.name.split('.').pop() ?? 'pdf';
+      const path = `${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from('object-documents').upload(path, file);
+      if (error) throw error;
+      const { data } = supabase.storage.from('object-documents').getPublicUrl(path);
+      return { url: data.publicUrl, fileName: file.name };
+    },
+    1000,
+    UPLOAD_TIMEOUT_MS,
+  );
 }

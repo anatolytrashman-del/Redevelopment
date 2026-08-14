@@ -125,19 +125,32 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
     setForm((f) => ({ ...f, floorPlanUrls: f.floorPlanUrls.filter((_, i) => i !== index) }));
   }
 
-  async function handleRenderImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function handleRenderImagesSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (renderImageInputRef.current) renderImageInputRef.current.value = '';
+    if (files.length === 0) return;
+
     setUploadingRenderImage(true);
     setRenderImageUploadError(null);
-    try {
-      const url = await uploadObjectImage(file);
-      setForm((f) => ({ ...f, renderImageUrls: [...f.renderImageUrls, url].slice(0, MAX_RENDER_IMAGES) }));
-    } catch (err) {
-      setRenderImageUploadError(errorMessage(err, 'Не удалось загрузить рендер'));
-    } finally {
-      setUploadingRenderImage(false);
-      if (renderImageInputRef.current) renderImageInputRef.current.value = '';
+    const failed: string[] = [];
+    let remainingSlots = MAX_RENDER_IMAGES - form.renderImageUrls.length;
+
+    for (const file of files) {
+      if (remainingSlots <= 0) break;
+      try {
+        const url = await uploadObjectImage(file);
+        setForm((f) => ({ ...f, renderImageUrls: [...f.renderImageUrls, url] }));
+        remainingSlots -= 1;
+      } catch (err) {
+        failed.push(`${file.name} — ${errorMessage(err, 'не удалось загрузить')}`);
+      }
+    }
+
+    setUploadingRenderImage(false);
+    if (failed.length > 0) {
+      setRenderImageUploadError(
+        `Не удалось загрузить: ${failed.join('; ')}. Если файл большой (рендеры часто весят много) — попробуйте сжать изображение и загрузить снова.`,
+      );
     }
   }
 
@@ -277,8 +290,9 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
                   ref={renderImageInputRef}
                   type="file"
                   accept="image/*"
+                  multiple
                   className="hidden"
-                  onChange={handleRenderImageSelect}
+                  onChange={handleRenderImagesSelect}
                 />
                 <Button
                   type="button"
