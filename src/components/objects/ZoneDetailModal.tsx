@@ -127,77 +127,64 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
 
   return (
     <Modal open={!!zone} onClose={onClose} title={zoneTypeLabels[zone.zoneType]}>
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         {mode === 'view' ? (
           <>
-            <div className="flex flex-col gap-1">
-              <span className="text-sm text-ink-muted">{isRoom ? 'Номер кабинета' : 'Подпись'}</span>
-              <span className="text-lg font-bold text-ink">{zone.label || '—'}</span>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xl font-bold text-ink">{zone.label || '—'}</span>
+              {isRoom && (
+                <span
+                  className={cn(
+                    'shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
+                    zoneStatusBadgeClass[zone.status],
+                  )}
+                >
+                  {zone.status}
+                </span>
+              )}
             </div>
 
             {isRoom && (
               <>
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm text-ink-muted">Площадь, м²</span>
-                  <span className="text-ink">{zone.area != null ? zone.area : '—'}</span>
+                <div className="flex flex-wrap gap-x-5 gap-y-1.5 rounded-control bg-surface-muted px-3 py-2 text-sm">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-ink-muted">Площадь</span>
+                    <span className="font-medium text-ink">{zone.area != null ? `${zone.area} м²` : '—'}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-ink-muted">Клиент</span>
+                    <span className="font-medium text-ink">{selectedLead ? leadLabel(selectedLead) : NO_LEAD}</span>
+                  </div>
                 </div>
 
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm text-ink-muted">Статус</span>
-                  <span
-                    className={cn(
-                      'w-fit rounded-full px-3 py-1 text-sm font-semibold',
-                      zoneStatusBadgeClass[zone.status],
-                    )}
-                  >
-                    {zone.status}
-                  </span>
-                </div>
+                {zone.features.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {zone.features.map((f) => (
+                      <span key={f} className="rounded-full bg-surface-muted px-2.5 py-1 text-xs text-ink">
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm text-ink-muted">Особенности</span>
-                  {zone.features.length === 0 ? (
-                    <span className="text-sm text-ink-faint">Не указаны</span>
-                  ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {zone.features.map((f) => (
-                        <span key={f} className="rounded-full bg-surface-muted px-3 py-1 text-sm text-ink">
-                          {f}
+                {leadId && leadDocuments.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-ink-muted">Документы клиента</span>
+                    {leadDocuments.map((doc) => (
+                      <a
+                        key={doc.id}
+                        href={doc.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-between gap-2 rounded-control border border-border px-2.5 py-1.5 text-xs hover:border-primary"
+                      >
+                        <span className="truncate text-ink">{doc.title}</span>
+                        <span className={`shrink-0 font-medium ${statusTextClass[doc.status] ?? 'text-ink-muted'}`}>
+                          {doc.status}
                         </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm text-ink-muted">Клиент</span>
-                  <span className="text-ink">{selectedLead ? leadLabel(selectedLead) : NO_LEAD}</span>
-                </div>
-
-                {leadId && (
-                  <div className="flex flex-col gap-2">
-                    <span className="text-sm text-ink-muted">Документы клиента</span>
-                    {leadDocuments.length === 0 ? (
-                      <p className="text-sm text-ink-faint">Документов пока нет</p>
-                    ) : (
-                      <div className="flex flex-col gap-1.5">
-                        {leadDocuments.map((doc) => (
-                          <a
-                            key={doc.id}
-                            href={doc.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="flex items-center justify-between gap-2 rounded-control border border-border px-3 py-2 text-sm hover:border-primary"
-                          >
-                            <span className="truncate text-ink">{doc.title}</span>
-                            <span className={`shrink-0 text-xs font-medium ${statusTextClass[doc.status] ?? 'text-ink-muted'}`}>
-                              {doc.status}
-                            </span>
-                            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
-                          </a>
-                        ))}
-                      </div>
-                    )}
+                        <ExternalLink className="h-3 w-3 shrink-0 text-ink-faint" />
+                      </a>
+                    ))}
                   </div>
                 )}
               </>
@@ -205,14 +192,14 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
 
             {error && <p className="text-sm text-danger">{error}</p>}
 
-            <div className="mt-2 flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-3 pt-1">
               <button
                 type="button"
                 onClick={handleDelete}
                 disabled={saving}
-                className="flex items-center gap-2 text-sm font-medium text-ink-muted hover:text-danger disabled:opacity-50"
+                className="flex items-center gap-1.5 text-xs font-medium text-ink-muted hover:text-danger disabled:opacity-50"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3.5 w-3.5" />
                 Удалить зону
               </button>
               <Button type="button" icon={<Pencil className="h-4 w-4" />} onClick={startEdit}>

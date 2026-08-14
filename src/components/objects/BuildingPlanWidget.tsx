@@ -128,6 +128,8 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
   const [replaceImageError, setReplaceImageError] = useState<string | null>(null);
   const replaceImageInputRef = useRef<HTMLInputElement>(null);
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
+  const planContainerRef = useRef<HTMLDivElement>(null);
+  const [hoverZone, setHoverZone] = useState<{ zone: BuildingPlanZone; x: number; y: number } | null>(null);
 
   const objectPlans = object.buildingPlanIds
     .map((id) => plans.find((p) => p.id === id))
@@ -225,6 +227,13 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
   function handleZoneClick(zone: BuildingPlanZone) {
     if (drawingPoints !== null) return;
     setSelectedZone(zone);
+    setHoverZone(null);
+  }
+
+  function handleZoneHover(zone: BuildingPlanZone, e: React.MouseEvent) {
+    const rect = planContainerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setHoverZone({ zone, x: e.clientX - rect.left, y: e.clientY - rect.top });
   }
 
   async function saveRedrawnPoints() {
@@ -393,6 +402,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
       {!loading && !loadError && plan && (
         <>
           <div
+            ref={planContainerRef}
             className={cn(
               'relative w-full select-none overflow-hidden rounded-control border border-border',
               editMode && drawingPoints !== null && 'cursor-crosshair',
@@ -411,9 +421,10 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
                     e.stopPropagation();
                     handleZoneClick(zone);
                   }}
-                >
-                  <title>{zone.label || zoneTypeLabels[zone.zoneType]}</title>
-                </polygon>
+                  onMouseEnter={(e) => handleZoneHover(zone, e)}
+                  onMouseMove={(e) => handleZoneHover(zone, e)}
+                  onMouseLeave={() => setHoverZone(null)}
+                />
               ))}
               {drawingPoints && drawingPoints.length > 0 && (
                 <polyline points={pointsToAttr(drawingPoints)} className="fill-none stroke-primary" strokeWidth={0.4} />
@@ -422,6 +433,28 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
                 <circle key={i} cx={p.x} cy={p.y} r={0.7} className="fill-primary" />
               ))}
             </svg>
+
+            {hoverZone && (
+              <div
+                className="pointer-events-none absolute z-10 flex max-w-[200px] flex-col gap-1 rounded-control border border-border bg-surface px-3 py-2 text-xs shadow-card"
+                style={{ left: hoverZone.x + 14, top: hoverZone.y + 14 }}
+              >
+                <span className="font-semibold text-ink">
+                  {hoverZone.zone.label || zoneTypeLabels[hoverZone.zone.zoneType]}
+                </span>
+                <span className="text-ink-muted">{zoneTypeLabels[hoverZone.zone.zoneType]}</span>
+                {hoverZone.zone.zoneType === 'room' && (
+                  <>
+                    <span className="text-ink-muted">
+                      {hoverZone.zone.area != null ? `${hoverZone.zone.area} м²` : 'Площадь не указана'}
+                    </span>
+                    <span className="text-ink-muted">
+                      {hoverZone.zone.features.length > 0 ? hoverZone.zone.features.join(', ') : 'Без особенностей'}
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {editMode && drawingPoints !== null && !showZoneForm && (
