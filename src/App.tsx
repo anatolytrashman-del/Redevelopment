@@ -8,10 +8,13 @@ import { ObjectDetail } from './pages/ObjectDetail';
 import { Documents } from './pages/Documents';
 import { Tasks } from './pages/Tasks';
 import { Backlog } from './pages/Backlog';
+import { PublicBuildingPlan } from './pages/PublicBuildingPlan';
 
 export default function App() {
   return (
     <Routes>
+      {/* Без AppLayout — ссылка отправляется клиенту напрямую, без бокового меню CRM */}
+      <Route path="/objects/:id/plan" element={<PublicBuildingPlan />} />
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/tasks" element={<Tasks />} />

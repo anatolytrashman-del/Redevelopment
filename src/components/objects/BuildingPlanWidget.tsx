@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Pencil, Check, X, Link2Off, Maximize2, Minimize2, ImageUp, Plus } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Loader2, Pencil, Check, X, Link2Off, Maximize2, Minimize2, ImageUp, Plus, ExternalLink } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { AttachBuildingPlanModal } from './AttachBuildingPlanModal';
 import { ZoneDetailModal } from './ZoneDetailModal';
+import { BuildingPlanCanvas, BuildingPlanLegend, BuildingPlanTabs } from './BuildingPlanCanvas';
 import {
   zoneTypes,
   zoneTypeLabels,
@@ -34,21 +36,6 @@ function errorMessage(err: unknown, fallback: string): string {
     return (err as { message: string }).message;
   }
   return fallback;
-}
-
-function zoneFillClass(zone: BuildingPlanZone): string {
-  if (zone.zoneType === 'room') {
-    if (zone.status === 'Продано') return 'fill-danger/35 stroke-danger';
-    if (zone.status === 'Забронировано') return 'fill-warning/35 stroke-warning';
-    return 'fill-success/25 stroke-success';
-  }
-  if (zone.zoneType === 'bathroom') return 'fill-info-bg/60 stroke-info-text';
-  if (zone.zoneType === 'technical') return 'fill-ink-faint/40 stroke-ink-faint';
-  return 'fill-ink-faint/25 stroke-ink-faint';
-}
-
-function pointsToAttr(points: ZonePoint[]): string {
-  return points.map((p) => `${p.x},${p.y}`).join(' ');
 }
 
 interface NewZoneFormProps {
@@ -128,8 +115,6 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
   const [replaceImageError, setReplaceImageError] = useState<string | null>(null);
   const replaceImageInputRef = useRef<HTMLInputElement>(null);
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
-  const planContainerRef = useRef<HTMLDivElement>(null);
-  const [hoverZone, setHoverZone] = useState<{ zone: BuildingPlanZone; x: number; y: number } | null>(null);
 
   const objectPlans = object.buildingPlanIds
     .map((id) => plans.find((p) => p.id === id))
@@ -227,13 +212,6 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
   function handleZoneClick(zone: BuildingPlanZone) {
     if (drawingPoints !== null) return;
     setSelectedZone(zone);
-    setHoverZone(null);
-  }
-
-  function handleZoneHover(zone: BuildingPlanZone, e: React.MouseEvent) {
-    const rect = planContainerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    setHoverZone({ zone, x: e.clientX - rect.left, y: e.clientY - rect.top });
   }
 
   async function saveRedrawnPoints() {
@@ -358,36 +336,35 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
           >
             {fullscreen ? 'Свернуть' : 'На весь экран'}
           </Button>
+          <Link
+            to={`/objects/${object.id}/plan`}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-medium text-ink-muted hover:border-primary hover:text-primary"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Ссылка для клиента
+          </Link>
         </div>
       </div>
 
-      <div className="flex items-end gap-1 overflow-x-auto border-b border-border">
-        {objectPlans.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => setActivePlanId(p.id)}
-            className={cn(
-              'shrink-0 whitespace-nowrap rounded-t-control border border-b-0 px-4 py-2 text-sm font-medium transition-colors',
-              p.id === activePlanId
-                ? 'border-border bg-surface text-ink'
-                : 'border-transparent bg-surface-muted text-ink-muted hover:text-ink',
-            )}
-          >
-            {p.name}
-          </button>
-        ))}
-        {editMode && (
-          <button
-            type="button"
-            onClick={() => setAttachOpen(true)}
-            aria-label="Добавить этаж"
-            className="flex shrink-0 items-center justify-center rounded-t-control border border-b-0 border-transparent px-3 py-2 text-ink-muted hover:text-primary"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-        )}
-      </div>
+      <BuildingPlanTabs
+        plans={objectPlans}
+        activePlanId={activePlanId}
+        onSelect={setActivePlanId}
+        trailing={
+          editMode && (
+            <button
+              type="button"
+              onClick={() => setAttachOpen(true)}
+              aria-label="Добавить этаж"
+              className="flex shrink-0 items-center justify-center rounded-t-control border border-b-0 border-transparent px-3 py-2 text-ink-muted hover:text-primary"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          )
+        }
+      />
 
       {replaceImageError && <p className="text-sm text-danger">{replaceImageError}</p>}
 
@@ -401,61 +378,14 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
 
       {!loading && !loadError && plan && (
         <>
-          <div
-            ref={planContainerRef}
-            className={cn(
-              'relative w-full select-none overflow-hidden rounded-control border border-border',
-              editMode && drawingPoints !== null && 'cursor-crosshair',
-            )}
-            onClick={handleContainerClick}
-          >
-            <img src={plan.imageUrl} alt={plan.name} className="w-full" draggable={false} />
-            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
-              {zones.filter((zone) => zone.buildingPlanId === plan.id).map((zone) => (
-                <polygon
-                  key={zone.id}
-                  points={pointsToAttr(zone.points)}
-                  className={cn('cursor-pointer transition-opacity hover:opacity-80', zoneFillClass(zone))}
-                  strokeWidth={0.3}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleZoneClick(zone);
-                  }}
-                  onMouseEnter={(e) => handleZoneHover(zone, e)}
-                  onMouseMove={(e) => handleZoneHover(zone, e)}
-                  onMouseLeave={() => setHoverZone(null)}
-                />
-              ))}
-              {drawingPoints && drawingPoints.length > 0 && (
-                <polyline points={pointsToAttr(drawingPoints)} className="fill-none stroke-primary" strokeWidth={0.4} />
-              )}
-              {drawingPoints?.map((p, i) => (
-                <circle key={i} cx={p.x} cy={p.y} r={0.7} className="fill-primary" />
-              ))}
-            </svg>
-
-            {hoverZone && (
-              <div
-                className="pointer-events-none absolute z-10 flex max-w-[200px] flex-col gap-1 rounded-control border border-border bg-surface px-3 py-2 text-xs shadow-card"
-                style={{ left: hoverZone.x + 14, top: hoverZone.y + 14 }}
-              >
-                <span className="font-semibold text-ink">
-                  {hoverZone.zone.label || zoneTypeLabels[hoverZone.zone.zoneType]}
-                </span>
-                <span className="text-ink-muted">{zoneTypeLabels[hoverZone.zone.zoneType]}</span>
-                {hoverZone.zone.zoneType === 'room' && (
-                  <>
-                    <span className="text-ink-muted">
-                      {hoverZone.zone.area != null ? `${hoverZone.zone.area} м²` : 'Площадь не указана'}
-                    </span>
-                    <span className="text-ink-muted">
-                      {hoverZone.zone.features.length > 0 ? hoverZone.zone.features.join(', ') : 'Без особенностей'}
-                    </span>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
+          <BuildingPlanCanvas
+            plan={plan}
+            zones={zones}
+            onZoneClick={handleZoneClick}
+            onContainerClick={handleContainerClick}
+            cursorCrosshair={editMode && drawingPoints !== null}
+            drawingPoints={drawingPoints}
+          />
 
           {editMode && drawingPoints !== null && !showZoneForm && (
             <div className="flex items-center justify-between gap-3 rounded-control bg-surface-muted px-4 py-3 text-sm text-ink-muted">
@@ -484,26 +414,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
 
           {zoneError && <p className="text-sm text-danger">{zoneError}</p>}
 
-          <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-ink-muted">
-            <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm bg-success/40" /> Свободно
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm bg-warning/40" /> Забронировано
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm bg-danger/40" /> Продано
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm bg-ink-faint/40" /> МОП
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm bg-info-bg" /> Санузел
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm bg-ink-faint/40" /> Техническое
-            </span>
-          </div>
+          <BuildingPlanLegend />
         </>
       )}
     </>
