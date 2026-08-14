@@ -4,6 +4,11 @@ import { cn } from '../../lib/cn';
 
 const AUTOPLAY_MS = 5000;
 
+// Диагональный скос нижнего левого угла вместо стандартных скруглений —
+// одна и та же форма используется и для самой картинки, и для чёрной
+// подложки под ней (см. ниже), чтобы срез совпадал у обеих.
+const CLIP_PATH = 'polygon(0 0, 100% 0, 100% 100%, 56px 100%, 0 calc(100% - 56px))';
+
 interface HeroImageSliderProps {
   images: string[];
 }
@@ -26,40 +31,46 @@ export function HeroImageSlider({ images }: HeroImageSliderProps) {
   }
 
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-card bg-surface-muted">
-      <img src={images[index]} alt="" className="h-full w-full object-cover" />
+    <div className="relative aspect-video w-full">
+      {/* Чёрная подложка, сдвинутая вниз-вправо, — создаёт эффект "слоёной"
+          карточки вместо плоского прямоугольника. */}
+      <div className="absolute inset-0 translate-x-3 translate-y-3 bg-ink" style={{ clipPath: CLIP_PATH }} />
 
-      {images.length > 1 && (
-        <>
-          <button
-            type="button"
-            onClick={() => go(-1)}
-            aria-label="Предыдущее фото"
-            className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-ink shadow-card hover:bg-white"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => go(1)}
-            aria-label="Следующее фото"
-            className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-ink shadow-card hover:bg-white"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
-          <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
-            {images.map((url, i) => (
-              <button
-                key={url}
-                type="button"
-                onClick={() => setIndex(i)}
-                aria-label={`Показать фото ${i + 1}`}
-                className={cn('h-1.5 rounded-full transition-all', i === index ? 'w-5 bg-white' : 'w-1.5 bg-white/60')}
-              />
-            ))}
-          </div>
-        </>
-      )}
+      <div className="absolute inset-0 overflow-hidden bg-surface-muted" style={{ clipPath: CLIP_PATH }}>
+        <img src={images[index]} alt="" className="h-full w-full object-cover" />
+
+        {images.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={() => go(-1)}
+              aria-label="Предыдущее фото"
+              className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-ink shadow-card hover:bg-white"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => go(1)}
+              aria-label="Следующее фото"
+              className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-ink shadow-card hover:bg-white"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+            <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
+              {images.map((url, i) => (
+                <button
+                  key={url}
+                  type="button"
+                  onClick={() => setIndex(i)}
+                  aria-label={`Показать фото ${i + 1}`}
+                  className={cn('h-1.5 rounded-full transition-all', i === index ? 'w-5 bg-white' : 'w-1.5 bg-white/60')}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

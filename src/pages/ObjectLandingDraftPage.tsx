@@ -17,7 +17,7 @@ function formatMoney(value: number) {
 // главном экране — фиксированный текст под него, а не поле в базе.
 // Когда появится второй объект с такой страницей — вынести в данные объекта.
 const heroFeatures: { icon: LucideIcon; text: string }[] = [
-  { icon: Ruler, text: 'Площади от 8 м² до 40 м²' },
+  { icon: Ruler, text: 'Площади от 11 м² до 40 м²' },
   { icon: SquareParking, text: 'Большая бесплатная парковка' },
   { icon: ShieldCheck, text: 'Бронирование без предоплаты' },
 ];
