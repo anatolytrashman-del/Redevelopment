@@ -25,6 +25,19 @@ export function fetchLeads(): Promise<Lead[]> {
   });
 }
 
+// Для бейджа непрочитанных лидов в сайдбаре — тот же паттерн, что и у
+// "Предложить идею" (см. fetchBacklogUnreadCount в backlogApi.ts).
+export function fetchLeadsUnreadCount(sinceIso: string): Promise<number> {
+  return withRetry(async () => {
+    const { count, error } = await supabase
+      .from('leads')
+      .select('id', { count: 'exact', head: true })
+      .gt('created_at', sinceIso);
+    if (error) throw error;
+    return count ?? 0;
+  });
+}
+
 export function fetchLeadsForObject(objectId: string): Promise<Lead[]> {
   return withRetry(async () => {
     const { data, error } = await supabase

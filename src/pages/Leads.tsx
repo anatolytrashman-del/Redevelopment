@@ -16,6 +16,7 @@ import { zoneStatusBadgeClass, zoneTypeLabels, type BuildingPlan, type BuildingP
 import { badgeColor } from '../lib/badgeColor';
 import { cn } from '../lib/cn';
 import { fetchLeads, insertLead, updateLead } from '../lib/leadsApi';
+import { markLeadsViewed } from '../lib/leadsSeen';
 import { fetchObjects } from '../lib/objectsApi';
 import { fetchBookedZones, fetchBuildingPlans } from '../lib/buildingPlansApi';
 
@@ -117,6 +118,10 @@ export function Leads() {
     }
     return map;
   }, [objects]);
+
+  useEffect(() => {
+    markLeadsViewed();
+  }, []);
 
   useEffect(() => {
     fetchLeads()

@@ -1,22 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
-import { Modal } from '../components/ui/Modal';
-import { BuildingPlanCanvas, BuildingPlanLegend, BuildingPlanTabs } from '../components/objects/BuildingPlanCanvas';
-import { AvailableUnitsTable } from '../components/objects/AvailableUnitsTable';
-import {
-  zoneStatusBadgeClass,
-  zoneTypeLabels,
-  zoneDownPayment,
-  zonePrice,
-  type BuildingPlan,
-  type BuildingPlanZone,
-} from '../data/buildingPlans';
+import { PublicPlanAndUnits } from '../components/objects/PublicPlanAndUnits';
+import type { BuildingPlan, BuildingPlanZone } from '../data/buildingPlans';
 import type { RealtyObject } from '../data/objects';
 import { fetchObjectByShareToken } from '../lib/objectsApi';
 import { fetchBuildingPlans, fetchZonesForPlan } from '../lib/buildingPlansApi';
-import { cn } from '../lib/cn';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -25,16 +15,11 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-function formatMoney(value: number) {
-  return `$${Math.round(value).toLocaleString('ru-RU')}`;
-}
-
-// Публичная страница-ссылка для клиента: только просмотр планировки и
-// статусов кабинетов, без кнопок редактирования и без данных о лиде —
-// в отличие от внутренней ZoneDetailModal тут нет имени/контакта/документов.
-// Рендер плана/зон/подсказки и легенда переиспользуют BuildingPlanCanvas —
-// те же компоненты, что и во внутренней карточке объекта, поэтому брони и
-// любые будущие правки вёрстки автоматически показываются в обоих местах.
+// Публичная страница-ссылка для клиента: только просмотр планировки,
+// статусов кабинетов и бронирование — без внутренних данных о лиде. План,
+// таблица и модалка кабинета (включая форму брони) переиспользуют
+// PublicPlanAndUnits — тот же блок, что и на продающей странице /:slug,
+// поэтому брони и любые будущие правки автоматически показываются везде.
 export function PublicBuildingPlan() {
   const { token } = useParams();
   const [object, setObject] = useState<RealtyObject | null>(null);
@@ -42,11 +27,6 @@ export function PublicBuildingPlan() {
   const [zones, setZones] = useState<BuildingPlanZone[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [activePlanId, setActivePlanId] = useState<string | null>(null);
-  const [selectedZone, setSelectedZone] = useState<BuildingPlanZone | null>(null);
-  const [hoveredZoneId, setHoveredZoneId] = useState<string | null>(null);
-  const [pinnedZoneId, setPinnedZoneId] = useState<string | null>(null);
-  const planCardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -62,34 +42,10 @@ export function PublicBuildingPlan() {
         ]);
         setPlans(planList);
         setZones(zoneLists.flat());
-        setActivePlanId(obj.buildingPlanIds[0]);
       })
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить планировку')))
       .finally(() => setLoading(false));
   }, [token]);
-
-  const objectPlans = object
-    ? object.buildingPlanIds.map((planId) => plans.find((p) => p.id === planId)).filter((p): p is BuildingPlan => !!p)
-    : [];
-  const plan = objectPlans.find((p) => p.id === activePlanId) ?? null;
-  const isRoom = selectedZone?.zoneType === 'room';
-  const highlightZoneId = selectedZone?.id ?? pinnedZoneId ?? hoveredZoneId;
-
-  function handleZoneSelect(zone: BuildingPlanZone) {
-    // Клик по строке таблицы доступных кабинетов может указывать на зону с
-    // другого этажа — переключаем вкладку, чтобы план сразу показал нужный.
-    if (zone.buildingPlanId !== activePlanId) setActivePlanId(zone.buildingPlanId);
-    setSelectedZone(zone);
-  }
-
-  // Кнопка "Посмотреть на плане" — в отличие от handleZoneSelect не открывает
-  // карточку кабинета, только переключает этаж, подсвечивает контур и
-  // прокручивает к плану, чтобы модалка не закрывала сам план.
-  function handleLocateOnPlan(zone: BuildingPlanZone) {
-    if (zone.buildingPlanId !== activePlanId) setActivePlanId(zone.buildingPlanId);
-    setPinnedZoneId(zone.id);
-    planCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
 
   return (
     <div className="min-h-svh bg-bg px-4 py-8 sm:px-8">
@@ -109,103 +65,14 @@ export function PublicBuildingPlan() {
         {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
 
         {!loading && !loadError && object && (
-          <>
-            <div ref={planCardRef}>
-              <Card className="flex flex-col gap-3 p-5">
-                <div className="font-bold text-ink">Планировка и нарезка кабинетов</div>
-
-                {objectPlans.length === 0 ? (
-                  <p className="text-sm text-ink-muted">Планировка для этого объекта пока не добавлена.</p>
-                ) : (
-                  <>
-                    <BuildingPlanTabs plans={objectPlans} activePlanId={activePlanId} onSelect={setActivePlanId} />
-
-                    {plan && (
-                      <>
-                        <BuildingPlanCanvas
-                          plan={plan}
-                          zones={zones}
-                          onZoneClick={handleZoneSelect}
-                          highlightZoneId={highlightZoneId}
-                        />
-                        <BuildingPlanLegend />
-                      </>
-                    )}
-                  </>
-                )}
-              </Card>
-            </div>
-
-            {objectPlans.length > 0 && (
-              <AvailableUnitsTable
-                plans={objectPlans}
-                zones={zones}
-                highlightedZoneId={highlightZoneId}
-                onRowClick={handleZoneSelect}
-                onRowHover={(zone) => setHoveredZoneId(zone?.id ?? null)}
-                onLocateClick={handleLocateOnPlan}
-              />
-            )}
-          </>
+          <PublicPlanAndUnits
+            object={object}
+            plans={plans}
+            zones={zones}
+            onZoneUpdated={(z) => setZones((prev) => prev.map((x) => (x.id === z.id ? z : x)))}
+          />
         )}
       </div>
-
-      <Modal
-        open={!!selectedZone}
-        onClose={() => setSelectedZone(null)}
-        title={selectedZone ? zoneTypeLabels[selectedZone.zoneType] : ''}
-      >
-        {selectedZone && (
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xl font-bold text-ink">{selectedZone.label || '—'}</span>
-              {isRoom && (
-                <span
-                  className={cn(
-                    'shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
-                    zoneStatusBadgeClass[selectedZone.status],
-                  )}
-                >
-                  {selectedZone.status}
-                </span>
-              )}
-            </div>
-
-            {isRoom && (
-              <>
-                <div className="flex flex-wrap gap-x-5 gap-y-1.5 rounded-control bg-surface-muted px-3 py-2 text-sm">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-ink-muted">Площадь</span>
-                    <span className="font-medium text-ink">{selectedZone.area != null ? `${selectedZone.area} м²` : '—'}</span>
-                  </div>
-                  {selectedZone.area != null && (
-                    <>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-ink-muted">Стоимость</span>
-                        <span className="font-medium text-ink">{formatMoney(zonePrice(selectedZone.area))}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-ink-muted">Первый взнос</span>
-                        <span className="font-medium text-ink">{formatMoney(zoneDownPayment(selectedZone.area))}</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {selectedZone.features.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedZone.features.map((f) => (
-                      <span key={f} className="rounded-full bg-surface-muted px-2.5 py-1 text-xs text-ink">
-                        {f}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }

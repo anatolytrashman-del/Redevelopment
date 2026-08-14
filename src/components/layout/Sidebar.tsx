@@ -18,6 +18,8 @@ import {
 import { cn } from '../../lib/cn';
 import { fetchBacklogUnreadCount } from '../../lib/backlogApi';
 import { getBacklogLastViewedAt, onBacklogViewed } from '../../lib/backlogSeen';
+import { fetchLeadsUnreadCount } from '../../lib/leadsApi';
+import { getLeadsLastViewedAt, onLeadsViewed } from '../../lib/leadsSeen';
 
 // Полная навигация проекта — держим здесь как референс с готовыми иконками.
 // В меню показываем только готовые страницы (см. visibleLabels ниже) —
@@ -43,6 +45,7 @@ const navItems = visibleLabels.map((label) => allNavItems.find((item) => item.la
 
 export function Sidebar() {
   const [backlogUnread, setBacklogUnread] = useState(0);
+  const [leadsUnread, setLeadsUnread] = useState(0);
 
   useEffect(() => {
     function refresh() {
@@ -53,6 +56,21 @@ export function Sidebar() {
     refresh();
     window.addEventListener('focus', refresh);
     const unsubscribe = onBacklogViewed(refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    function refresh() {
+      fetchLeadsUnreadCount(getLeadsLastViewedAt())
+        .then(setLeadsUnread)
+        .catch(() => {});
+    }
+    refresh();
+    window.addEventListener('focus', refresh);
+    const unsubscribe = onLeadsViewed(refresh);
     return () => {
       window.removeEventListener('focus', refresh);
       unsubscribe();
@@ -79,6 +97,11 @@ export function Sidebar() {
             >
               <Icon className="h-5 w-5" />
               {label}
+              {label === 'Лиды' && leadsUnread > 0 && (
+                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">
+                  {leadsUnread}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>

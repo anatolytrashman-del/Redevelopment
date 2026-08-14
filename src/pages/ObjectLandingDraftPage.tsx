@@ -165,7 +165,12 @@ export function ObjectLandingDraftPage() {
           </div>
         </Card>
 
-        <PublicPlanAndUnits object={object} plans={plans} zones={zones} />
+        <PublicPlanAndUnits
+          object={object}
+          plans={plans}
+          zones={zones}
+          onZoneUpdated={(z) => setZones((prev) => prev.map((x) => (x.id === z.id ? z : x)))}
+        />
       </div>
     </div>
   );

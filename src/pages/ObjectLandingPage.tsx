@@ -59,7 +59,14 @@ export function ObjectLandingPage() {
           <p className="py-10 text-center text-sm text-ink-muted">Страница не найдена.</p>
         )}
 
-        {!loading && !notFound && object && <PublicPlanAndUnits object={object} plans={plans} zones={zones} />}
+        {!loading && !notFound && object && (
+          <PublicPlanAndUnits
+            object={object}
+            plans={plans}
+            zones={zones}
+            onZoneUpdated={(z) => setZones((prev) => prev.map((x) => (x.id === z.id ? z : x)))}
+          />
+        )}
       </div>
     </div>
   );
