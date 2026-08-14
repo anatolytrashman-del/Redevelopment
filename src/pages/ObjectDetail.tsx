@@ -96,16 +96,19 @@ export function ObjectDetail() {
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить объект')))
       .finally(() => setLoading(false));
 
-    setLeadsLoading(true);
-    fetchLeadsForObject(id)
-      .then(setLeads)
-      .catch(() => setLeads([]))
-      .finally(() => setLeadsLoading(false));
-
     fetchBookedZones()
       .then(setBookedZones)
       .catch(() => setBookedZones([]));
   }, [id]);
+
+  useEffect(() => {
+    if (!object) return;
+    setLeadsLoading(true);
+    fetchLeadsForObject(object.id)
+      .then(setLeads)
+      .catch(() => setLeads([]))
+      .finally(() => setLeadsLoading(false));
+  }, [object?.id]);
 
   useEffect(() => {
     if (!object) return;
