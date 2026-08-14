@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Loader2, MapPin, Send } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Textarea } from '../components/ui/Textarea';
 import { Modal } from '../components/ui/Modal';
 import { BuildingPlanCanvas, BuildingPlanLegend, BuildingPlanTabs } from '../components/objects/BuildingPlanCanvas';
 import { AvailableUnitsTable } from '../components/objects/AvailableUnitsTable';
@@ -19,21 +16,11 @@ import {
 import type { RealtyObject } from '../data/objects';
 import { fetchObjectByLandingSlug } from '../lib/objectsApi';
 import { fetchBuildingPlans, fetchZonesForPlan } from '../lib/buildingPlansApi';
-import { insertLead } from '../lib/leadsApi';
 import { cn } from '../lib/cn';
-
-function errorMessage(err: unknown, fallback: string): string {
-  if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
-    return (err as { message: string }).message;
-  }
-  return fallback;
-}
 
 function formatMoney(value: number) {
   return `$${Math.round(value).toLocaleString('ru-RU')}`;
 }
-
-const emptyLeadForm = { name: '', contact: '', comment: '' };
 
 // Продающая страница объекта под коротким URL (/:slug, см. RealtyObject.landingSlug)
 // — в отличие от /plan/:token (голая планировка для тех, у кого уже есть
@@ -52,12 +39,6 @@ export function ObjectLandingPage() {
   const [hoveredZoneId, setHoveredZoneId] = useState<string | null>(null);
   const [pinnedZoneId, setPinnedZoneId] = useState<string | null>(null);
   const planCardRef = useRef<HTMLDivElement>(null);
-  const contactRef = useRef<HTMLDivElement>(null);
-
-  const [leadForm, setLeadForm] = useState(emptyLeadForm);
-  const [submittingLead, setSubmittingLead] = useState(false);
-  const [leadError, setLeadError] = useState<string | null>(null);
-  const [leadSent, setLeadSent] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -86,12 +67,6 @@ export function ObjectLandingPage() {
   const isRoom = selectedZone?.zoneType === 'room';
   const highlightZoneId = selectedZone?.id ?? pinnedZoneId ?? hoveredZoneId;
 
-  const availableUnits = zones.filter((z) => z.zoneType === 'room' && z.status === 'Свободно' && z.area != null);
-  const cheapestUnit = availableUnits.reduce<number | null>((min, z) => {
-    const price = zonePrice(z.area as number);
-    return min === null || price < min ? price : min;
-  }, null);
-
   function handleZoneSelect(zone: BuildingPlanZone) {
     if (zone.buildingPlanId !== activePlanId) setActivePlanId(zone.buildingPlanId);
     setSelectedZone(zone);
@@ -101,36 +76,6 @@ export function ObjectLandingPage() {
     if (zone.buildingPlanId !== activePlanId) setActivePlanId(zone.buildingPlanId);
     setPinnedZoneId(zone.id);
     planCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
-
-  function scrollToContact() {
-    contactRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
-
-  async function handleLeadSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!object || !leadForm.name.trim() || !leadForm.contact.trim() || submittingLead) return;
-    setSubmittingLead(true);
-    setLeadError(null);
-    try {
-      await insertLead({
-        name: leadForm.name.trim(),
-        source: 'Сайт',
-        businessType: '',
-        area: '',
-        requirement: leadForm.comment.trim(),
-        contact: leadForm.contact.trim(),
-        status: 'Новая заявка с сайта',
-        isWarm: false,
-        objectId: object.id,
-      });
-      setLeadSent(true);
-      setLeadForm(emptyLeadForm);
-    } catch (err) {
-      setLeadError(errorMessage(err, 'Не удалось отправить заявку'));
-    } finally {
-      setSubmittingLead(false);
-    }
   }
 
   if (loading) {
@@ -160,40 +105,6 @@ export function ObjectLandingPage() {
         <span className="text-lg font-extrabold tracking-wide text-ink">
           <span className="font-black text-primary">RED</span>EVELOPMENT
         </span>
-      </div>
-
-      <div className="relative flex flex-col items-center gap-5 overflow-hidden px-4 py-14 text-center sm:px-8">
-        {object.photoUrl && (
-          <>
-            <img src={object.photoUrl} alt={object.address} className="absolute inset-0 h-full w-full object-cover" />
-            <div className="absolute inset-0 bg-ink/65" />
-          </>
-        )}
-        <div className={cn('relative flex max-w-2xl flex-col items-center gap-4', object.photoUrl ? 'text-white' : 'text-ink')}>
-          <span className={cn('flex items-center gap-1.5 text-sm font-medium', object.photoUrl ? 'text-white/80' : 'text-ink-muted')}>
-            <MapPin className="h-4 w-4" />
-            {object.address}
-          </span>
-          <h1 className="text-3xl font-extrabold sm:text-4xl">{object.address}</h1>
-          {object.concept && (
-            <p className={cn('max-w-xl text-base leading-relaxed', object.photoUrl ? 'text-white/90' : 'text-ink-muted')}>
-              {object.concept}
-            </p>
-          )}
-          {cheapestUnit != null && (
-            <div
-              className={cn(
-                'rounded-control px-5 py-3 text-lg font-bold',
-                object.photoUrl ? 'bg-white/15 text-white backdrop-blur' : 'bg-primary-soft text-primary',
-              )}
-            >
-              Кабинеты от {formatMoney(cheapestUnit)}
-            </div>
-          )}
-          <Button type="button" onClick={scrollToContact}>
-            Оставить заявку
-          </Button>
-        </div>
       </div>
 
       <div className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-8 sm:px-8">
@@ -232,49 +143,6 @@ export function ObjectLandingPage() {
             onLocateClick={handleLocateOnPlan}
           />
         )}
-
-        <div ref={contactRef}>
-          <Card className="flex flex-col gap-4 p-5">
-            <div>
-              <div className="font-bold text-ink">Оставить заявку</div>
-              <p className="text-sm text-ink-muted">Расскажем подробнее и подберём подходящий кабинет</p>
-            </div>
-
-            {leadSent ? (
-              <p className="text-sm font-medium text-success">Спасибо! Мы скоро с вами свяжемся.</p>
-            ) : (
-              <form onSubmit={handleLeadSubmit} className="flex flex-col gap-3">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Input
-                    label="Имя"
-                    placeholder="Как к вам обращаться"
-                    value={leadForm.name}
-                    onChange={(e) => setLeadForm((f) => ({ ...f, name: e.target.value }))}
-                    required
-                  />
-                  <Input
-                    label="Телефон или Telegram"
-                    placeholder="+375 29 ..."
-                    value={leadForm.contact}
-                    onChange={(e) => setLeadForm((f) => ({ ...f, contact: e.target.value }))}
-                    required
-                  />
-                </div>
-                <Textarea
-                  label="Комментарий (необязательно)"
-                  placeholder="Какая площадь интересует, вопросы..."
-                  rows={3}
-                  value={leadForm.comment}
-                  onChange={(e) => setLeadForm((f) => ({ ...f, comment: e.target.value }))}
-                />
-                {leadError && <p className="text-sm text-danger">{leadError}</p>}
-                <Button type="submit" icon={<Send className="h-4 w-4" />} disabled={submittingLead} className="w-fit">
-                  {submittingLead ? 'Отправляем...' : 'Отправить заявку'}
-                </Button>
-              </form>
-            )}
-          </Card>
-        </div>
       </div>
 
       <Modal
