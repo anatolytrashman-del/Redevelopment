@@ -6,7 +6,7 @@ import { Modal } from '../components/ui/Modal';
 import { BuildingPlanCanvas, BuildingPlanLegend, BuildingPlanTabs } from '../components/objects/BuildingPlanCanvas';
 import { zoneStatusBadgeClass, zoneTypeLabels, type BuildingPlan, type BuildingPlanZone } from '../data/buildingPlans';
 import type { RealtyObject } from '../data/objects';
-import { fetchObject } from '../lib/objectsApi';
+import { fetchObjectByShareToken } from '../lib/objectsApi';
 import { fetchBuildingPlans, fetchZonesForPlan } from '../lib/buildingPlansApi';
 import { cn } from '../lib/cn';
 
@@ -24,7 +24,7 @@ function errorMessage(err: unknown, fallback: string): string {
 // те же компоненты, что и во внутренней карточке объекта, поэтому брони и
 // любые будущие правки вёрстки автоматически показываются в обоих местах.
 export function PublicBuildingPlan() {
-  const { id } = useParams();
+  const { token } = useParams();
   const [object, setObject] = useState<RealtyObject | null>(null);
   const [plans, setPlans] = useState<BuildingPlan[]>([]);
   const [zones, setZones] = useState<BuildingPlanZone[]>([]);
@@ -34,10 +34,10 @@ export function PublicBuildingPlan() {
   const [selectedZone, setSelectedZone] = useState<BuildingPlanZone | null>(null);
 
   useEffect(() => {
-    if (!id) return;
+    if (!token) return;
     setLoading(true);
     setLoadError(null);
-    fetchObject(id)
+    fetchObjectByShareToken(token)
       .then(async (obj) => {
         setObject(obj);
         if (obj.buildingPlanIds.length === 0) return;
@@ -51,7 +51,7 @@ export function PublicBuildingPlan() {
       })
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить планировку')))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [token]);
 
   const objectPlans = object
     ? object.buildingPlanIds.map((planId) => plans.find((p) => p.id === planId)).filter((p): p is BuildingPlan => !!p)

@@ -9,12 +9,15 @@ import { Documents } from './pages/Documents';
 import { Tasks } from './pages/Tasks';
 import { Backlog } from './pages/Backlog';
 import { PublicBuildingPlan } from './pages/PublicBuildingPlan';
+import { NotFound } from './pages/NotFound';
 
 export default function App() {
   return (
     <Routes>
-      {/* Без AppLayout — ссылка отправляется клиенту напрямую, без бокового меню CRM */}
-      <Route path="/objects/:id/plan" element={<PublicBuildingPlan />} />
+      {/* Без AppLayout — ссылка отправляется клиенту напрямую, без бокового меню CRM.
+          Путь намеренно не содержит id объекта (см. RealtyObject.shareToken) — иначе
+          достаточно было бы отредактировать URL, чтобы попасть на /objects/:id. */}
+      <Route path="/plan/:token" element={<PublicBuildingPlan />} />
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/tasks" element={<Tasks />} />
@@ -24,8 +27,10 @@ export default function App() {
         <Route path="/objects/:id" element={<ObjectDetail />} />
         <Route path="/documents" element={<Documents />} />
         <Route path="/backlog" element={<Backlog />} />
-        <Route path="*" element={<Home />} />
       </Route>
+      {/* Любой нераспознанный путь (в т.ч. испорченная публичная ссылка) не должен
+          проваливаться в CRM — раньше он попадал на Home внутри AppLayout. */}
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

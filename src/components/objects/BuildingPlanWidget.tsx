@@ -337,7 +337,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
             {fullscreen ? 'Свернуть' : 'На весь экран'}
           </Button>
           <Link
-            to={`/objects/${object.id}/plan`}
+            to={`/plan/${object.shareToken}`}
             target="_blank"
             rel="noreferrer"
             className="flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-medium text-ink-muted hover:border-primary hover:text-primary"

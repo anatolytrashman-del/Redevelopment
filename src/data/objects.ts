@@ -88,6 +88,11 @@ export interface RealtyObject {
   inspectionMediaUrl: string;
   buildingPlanIds: string[];
   buildingSpecs: BuildingSpecs | null;
+  // Отдельный непредсказуемый идентификатор для публичной ссылки на
+  // планировку (/plan/:token) — специально не сам id объекта, чтобы клиент
+  // не мог просто отредактировать URL и попасть на внутреннюю страницу
+  // /objects/:id (весь остальной сайт открыт без логина).
+  shareToken: string;
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/objectsApi.ts
@@ -110,6 +115,7 @@ export interface RealtyObjectRow {
   inspection_media_url: string | null;
   building_plan_ids: string[] | null;
   building_specs: BuildingSpecs | null;
+  share_token: string;
 }
 
 export function pricePerMeter(area: number, startPrice: number): number | null {

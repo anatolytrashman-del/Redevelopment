@@ -22,6 +22,7 @@ function fromRow(row: RealtyObjectRow): RealtyObject {
     inspectionMediaUrl: row.inspection_media_url ?? '',
     buildingPlanIds: row.building_plan_ids ?? [],
     buildingSpecs: row.building_specs ?? null,
+    shareToken: row.share_token,
   };
 }
 
@@ -41,7 +42,17 @@ export function fetchObject(id: string): Promise<RealtyObject> {
   });
 }
 
-export function insertObject(input: Omit<RealtyObject, 'id'>): Promise<RealtyObject> {
+// Для публичной страницы планировки (/plan/:token) — ищем по непредсказуемому
+// share_token, а не по внутреннему id объекта (см. комментарий у RealtyObject.shareToken).
+export function fetchObjectByShareToken(token: string): Promise<RealtyObject> {
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('objects').select('*').eq('share_token', token).single();
+    if (error) throw error;
+    return fromRow(data as RealtyObjectRow);
+  });
+}
+
+export function insertObject(input: Omit<RealtyObject, 'id' | 'shareToken'>): Promise<RealtyObject> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('objects')
@@ -72,7 +83,7 @@ export function insertObject(input: Omit<RealtyObject, 'id'>): Promise<RealtyObj
   });
 }
 
-export function updateObject(id: string, input: Omit<RealtyObject, 'id'>): Promise<RealtyObject> {
+export function updateObject(id: string, input: Omit<RealtyObject, 'id' | 'shareToken'>): Promise<RealtyObject> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('objects')
