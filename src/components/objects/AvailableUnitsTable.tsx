@@ -70,7 +70,7 @@ export function AvailableUnitsTable({
       ) : (
         <>
           <div className="overflow-x-auto rounded-control border border-border">
-            <div className="grid min-w-[620px] grid-cols-[1fr_1fr_1fr_1fr_auto] gap-4 bg-surface-muted px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-faint">
+            <div className="grid min-w-[620px] grid-cols-[1fr_1fr_1fr_1fr_200px] gap-4 bg-surface-muted px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-faint">
               <span>Кабинет</span>
               <span>Этаж</span>
               <span>Площадь</span>
@@ -84,7 +84,7 @@ export function AvailableUnitsTable({
                 onMouseEnter={() => onRowHover?.(zone)}
                 onMouseLeave={() => onRowHover?.(null)}
                 className={cn(
-                  'grid w-full min-w-[620px] cursor-pointer grid-cols-[1fr_1fr_1fr_1fr_auto] items-center gap-4 border-t border-border px-4 py-2.5 text-sm hover:bg-surface-muted',
+                  'grid w-full min-w-[620px] cursor-pointer grid-cols-[1fr_1fr_1fr_1fr_200px] items-center gap-4 border-t border-border px-4 py-2.5 text-sm hover:bg-surface-muted',
                   zone.id === highlightedZoneId && 'bg-primary/10',
                 )}
               >

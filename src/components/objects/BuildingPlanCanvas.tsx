@@ -137,9 +137,9 @@ export function BuildingPlanCanvas({
                       <span className="text-ink-muted">Первый взнос: {formatMoney(zoneDownPayment(hoverZone.zone.area))}</span>
                     </>
                   )}
-                  <span className="text-ink-muted">
-                    {hoverZone.zone.features.length > 0 ? hoverZone.zone.features.join(', ') : 'Без особенностей'}
-                  </span>
+                  {hoverZone.zone.features.length > 0 && (
+                    <span className="text-ink-muted">{hoverZone.zone.features.join(', ')}</span>
+                  )}
                 </>
               )}
             </>
