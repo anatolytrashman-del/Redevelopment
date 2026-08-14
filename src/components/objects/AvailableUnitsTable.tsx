@@ -24,6 +24,10 @@ interface AvailableUnitsTableProps {
   // открывает карточку кабинета) только переключает этаж и подсвечивает
   // контур, не закрывая план модалкой.
   onLocateClick: (zone: BuildingPlanZone) => void;
+  // Только на публичных страницах — открывает форму брони сразу, без
+  // промежуточного клика по кабинету. В админке не передаётся, поэтому
+  // кнопка и место под неё там не показываются.
+  onBookClick?: (zone: BuildingPlanZone) => void;
 }
 
 export function AvailableUnitsTable({
@@ -33,6 +37,7 @@ export function AvailableUnitsTable({
   onRowClick,
   onRowHover,
   onLocateClick,
+  onBookClick,
 }: AvailableUnitsTableProps) {
   const [minArea, setMinArea] = useState('');
   const [maxArea, setMaxArea] = useState('');
@@ -70,7 +75,12 @@ export function AvailableUnitsTable({
       ) : (
         <>
           <div className="overflow-x-auto rounded-control border border-border">
-            <div className="grid min-w-[620px] grid-cols-[1fr_1fr_1fr_1fr_200px] gap-4 bg-surface-muted px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-faint">
+            <div
+              className={cn(
+                'grid gap-4 bg-surface-muted px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-faint',
+                onBookClick ? 'min-w-[700px] grid-cols-[1fr_1fr_1fr_1fr_320px]' : 'min-w-[620px] grid-cols-[1fr_1fr_1fr_1fr_200px]',
+              )}
+            >
               <span>Кабинет</span>
               <span>Этаж</span>
               <span>Площадь</span>
@@ -84,7 +94,8 @@ export function AvailableUnitsTable({
                 onMouseEnter={() => onRowHover?.(zone)}
                 onMouseLeave={() => onRowHover?.(null)}
                 className={cn(
-                  'grid w-full min-w-[620px] cursor-pointer grid-cols-[1fr_1fr_1fr_1fr_200px] items-center gap-4 border-t border-border px-4 py-2.5 text-sm hover:bg-surface-muted',
+                  'grid w-full cursor-pointer items-center gap-4 border-t border-border px-4 py-2.5 text-sm hover:bg-surface-muted',
+                  onBookClick ? 'min-w-[700px] grid-cols-[1fr_1fr_1fr_1fr_320px]' : 'min-w-[620px] grid-cols-[1fr_1fr_1fr_1fr_200px]',
                   zone.id === highlightedZoneId && 'bg-primary/10',
                 )}
               >
@@ -92,17 +103,46 @@ export function AvailableUnitsTable({
                 <span className="text-ink-muted">{floor}</span>
                 <span className="text-ink">{area} м²</span>
                 <span className="font-medium text-ink">{formatMoney(price)}</span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onLocateClick(zone);
-                  }}
-                  className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border px-3 py-1.5 text-xs font-medium text-ink-muted hover:border-primary hover:text-primary"
-                >
-                  <MapPin className="h-3.5 w-3.5" />
-                  Посмотреть на плане
-                </button>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {onBookClick ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onLocateClick(zone);
+                      }}
+                      aria-label="Посмотреть на плане"
+                      title="Посмотреть на плане"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                    >
+                      <MapPin className="h-3.5 w-3.5" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onLocateClick(zone);
+                      }}
+                      className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border px-3 py-1.5 text-xs font-medium text-ink-muted hover:border-primary hover:text-primary"
+                    >
+                      <MapPin className="h-3.5 w-3.5" />
+                      Посмотреть на плане
+                    </button>
+                  )}
+                  {onBookClick && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onBookClick(zone);
+                      }}
+                      className="whitespace-nowrap rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover"
+                    >
+                      Забронировать
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

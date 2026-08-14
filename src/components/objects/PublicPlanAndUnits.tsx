@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Card } from '../ui/Card';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -61,12 +61,12 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated }: Publ
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingDone, setBookingDone] = useState(false);
 
-  useEffect(() => {
-    setBookingOpen(false);
+  function resetBookingState(nextOpen: boolean) {
+    setBookingOpen(nextOpen);
     setBookingForm(emptyBookingForm);
     setBookingError(null);
     setBookingDone(false);
-  }, [selectedZone?.id]);
+  }
 
   const objectPlans = object.buildingPlanIds
     .map((planId) => plans.find((p) => p.id === planId))
@@ -78,6 +78,16 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated }: Publ
   function handleZoneSelect(zone: BuildingPlanZone) {
     if (zone.buildingPlanId !== activePlanId) setActivePlanId(zone.buildingPlanId);
     setSelectedZone(zone);
+    resetBookingState(false);
+  }
+
+  // Кнопка "Забронировать" прямо в таблице доступных кабинетов — то же
+  // самое, что открыть карточку кабинета и нажать "Забронировать" внутри,
+  // но в один клик: сразу открывает модалку с формой брони, а не с кнопкой.
+  function handleBookClick(zone: BuildingPlanZone) {
+    if (zone.buildingPlanId !== activePlanId) setActivePlanId(zone.buildingPlanId);
+    setSelectedZone(zone);
+    resetBookingState(true);
   }
 
   function handleLocateOnPlan(zone: BuildingPlanZone) {
@@ -149,6 +159,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated }: Publ
           onRowClick={handleZoneSelect}
           onRowHover={(zone) => setHoveredZoneId(zone?.id ?? null)}
           onLocateClick={handleLocateOnPlan}
+          onBookClick={handleBookClick}
         />
       )}
 
