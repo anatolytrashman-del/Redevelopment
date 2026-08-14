@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
+import { PasswordGate } from './components/layout/PasswordGate';
 import { Home } from './pages/Home';
 import { Transactions } from './pages/Transactions';
 import { Leads } from './pages/Leads';
@@ -18,7 +19,13 @@ export default function App() {
           Путь намеренно не содержит id объекта (см. RealtyObject.shareToken) — иначе
           достаточно было бы отредактировать URL, чтобы попасть на /objects/:id. */}
       <Route path="/plan/:token" element={<PublicBuildingPlan />} />
-      <Route element={<AppLayout />}>
+      <Route
+        element={
+          <PasswordGate>
+            <AppLayout />
+          </PasswordGate>
+        }
+      >
         <Route path="/" element={<Home />} />
         <Route path="/tasks" element={<Tasks />} />
         <Route path="/transactions" element={<Transactions />} />
