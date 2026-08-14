@@ -26,7 +26,7 @@ export function HeroImageSlider({ images }: HeroImageSliderProps) {
   }
 
   return (
-    <div className="relative aspect-[4/3] w-full overflow-hidden rounded-card bg-surface-muted">
+    <div className="relative aspect-video w-full overflow-hidden rounded-card bg-surface-muted">
       <img src={images[index]} alt="" className="h-full w-full object-cover" />
 
       {images.length > 1 && (

@@ -128,13 +128,13 @@ export function ObjectLandingPage() {
       <div className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-2">
         <div className="flex flex-col gap-6">
           <h1 className="text-3xl font-extrabold leading-tight text-ink sm:text-4xl">
-            Дизайнерские офисы рядом с Минск Миром
+            Стильные кабинеты под любой бизнес рядом с Минск Миром
             {cheapestUnit != null && <> от {formatMoney(cheapestUnit)}</>}
           </h1>
           <div className="flex flex-col gap-3">
             {heroFeatures.map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-muted text-ink">
                   <Icon className="h-4 w-4" />
                 </span>
                 <span className="text-base font-medium text-ink">{text}</span>
@@ -146,7 +146,7 @@ export function ObjectLandingPage() {
         <HeroImageSlider images={object.renderImageUrls} />
       </div>
 
-      <div className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-8 sm:px-8">
+      <div className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-8 sm:px-8">
         <div ref={planCardRef}>
           <Card className="flex flex-col gap-3 p-5">
             <div className="font-bold text-ink">Планировка и доступные кабинеты</div>
