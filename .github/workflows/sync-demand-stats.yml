@@ -1,4 +1,4 @@
-name: Sync demand stats (Kufar + Realt + Avito)
+name: Sync demand stats (Kufar + Realt + Avito + Megapolis-real)
 
 on:
   schedule:
@@ -30,4 +30,9 @@ jobs:
         if: always()
         env:
           AVITO_COOKIE: ${{ secrets.AVITO_COOKIE }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - run: node scripts/sync-megapolis-stats.mjs
+        if: always()
+        env:
+          MEGAPOLIS_COOKIE: ${{ secrets.MEGAPOLIS_COOKIE }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
