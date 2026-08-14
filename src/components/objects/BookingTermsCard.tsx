@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Download, FileText, Loader2, ShieldCheck, X } from 'lucide-react';
+import { Download, FileText, ShieldCheck, X } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
+import { IntentAgreementDocument } from './IntentAgreementDocument';
 import type { ObjectDocumentFile } from '../../data/objects';
 
 interface BookingTermsCardProps {
@@ -14,14 +15,12 @@ interface BookingTermsCardProps {
 // (RealtyObject.intentAgreementFile), а не категория в "Документах объекта":
 // это маркетинговый материал для клиента, а не официальный документ вроде
 // выписки из реестра, поэтому загружается отдельно в форме объекта.
+// Превью рисуется как собственный компонент (IntentAgreementDocument) в
+// типографике сайта, а не через нативный PDF-просмотрщик браузера — тот
+// нечитаем и подолгу грузится. Загруженный файл остаётся доступен по
+// кнопке "Скачать" как оригинал документа.
 export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewLoading, setPreviewLoading] = useState(true);
-
-  function openPreview() {
-    setPreviewLoading(true);
-    setPreviewOpen(true);
-  }
 
   return (
     <Card className="flex flex-col items-start gap-5 p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -46,7 +45,7 @@ export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
             type="button"
             variant="secondary"
             icon={<FileText className="h-4 w-4" />}
-            onClick={openPreview}
+            onClick={() => setPreviewOpen(true)}
             className="whitespace-nowrap"
           >
             Посмотреть шаблон
@@ -61,7 +60,7 @@ export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
           <div className="absolute inset-0 bg-ink/40" onClick={() => setPreviewOpen(false)} />
           <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col gap-3 rounded-card border border-border bg-surface p-4 shadow-card">
             <div className="flex items-center justify-between gap-3">
-              <span className="min-w-0 truncate text-sm font-semibold text-ink">{agreement.fileName}</span>
+              <span className="text-sm font-semibold text-ink">Соглашение о намерениях</span>
               <div className="flex shrink-0 items-center gap-2">
                 <a
                   href={agreement.url}
@@ -82,28 +81,8 @@ export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
                 </button>
               </div>
             </div>
-            <div className="relative min-h-[70vh] flex-1 overflow-hidden rounded-control bg-surface-muted">
-              {previewLoading && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-ink-muted">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Загружаем документ...
-                </div>
-              )}
-              {agreement.fileName.toLowerCase().endsWith('.pdf') ? (
-                <iframe
-                  src={agreement.url}
-                  title={agreement.fileName}
-                  onLoad={() => setPreviewLoading(false)}
-                  className="h-full min-h-[70vh] w-full"
-                />
-              ) : (
-                <img
-                  src={agreement.url}
-                  alt={agreement.fileName}
-                  onLoad={() => setPreviewLoading(false)}
-                  className="mx-auto h-full max-h-[70vh] w-auto object-contain"
-                />
-              )}
+            <div className="flex-1 overflow-y-auto rounded-control bg-surface-muted p-3 sm:p-6">
+              <IntentAgreementDocument />
             </div>
           </div>
         </div>
