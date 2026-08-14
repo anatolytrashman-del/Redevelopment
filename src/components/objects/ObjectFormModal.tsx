@@ -9,6 +9,7 @@ import { contactChannels, pricePerMeter, type ContactChannel, type RealtyObject 
 import { insertObject, updateObject, uploadObjectImage } from '../../lib/objectsApi';
 
 const MAX_FLOOR_PLANS = 3;
+const MAX_RENDER_IMAGES = 10;
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -35,6 +36,7 @@ const emptyForm = {
   contactChannel: '' as ContactChannel | '',
   notes: '',
   landingSlug: '',
+  renderImageUrls: [] as string[],
 };
 
 function objectToForm(o: RealtyObject) {
@@ -52,6 +54,7 @@ function objectToForm(o: RealtyObject) {
     contactChannel: o.contactChannel,
     notes: o.notes,
     landingSlug: o.landingSlug,
+    renderImageUrls: o.renderImageUrls,
   };
 }
 
@@ -70,8 +73,11 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadingFloorPlan, setUploadingFloorPlan] = useState(false);
   const [floorPlanUploadError, setFloorPlanUploadError] = useState<string | null>(null);
+  const [uploadingRenderImage, setUploadingRenderImage] = useState(false);
+  const [renderImageUploadError, setRenderImageUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const floorPlanInputRef = useRef<HTMLInputElement>(null);
+  const renderImageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -119,6 +125,26 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
     setForm((f) => ({ ...f, floorPlanUrls: f.floorPlanUrls.filter((_, i) => i !== index) }));
   }
 
+  async function handleRenderImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingRenderImage(true);
+    setRenderImageUploadError(null);
+    try {
+      const url = await uploadObjectImage(file);
+      setForm((f) => ({ ...f, renderImageUrls: [...f.renderImageUrls, url].slice(0, MAX_RENDER_IMAGES) }));
+    } catch (err) {
+      setRenderImageUploadError(errorMessage(err, 'Не удалось загрузить рендер'));
+    } finally {
+      setUploadingRenderImage(false);
+      if (renderImageInputRef.current) renderImageInputRef.current.value = '';
+    }
+  }
+
+  function removeRenderImage(index: number) {
+    setForm((f) => ({ ...f, renderImageUrls: f.renderImageUrls.filter((_, i) => i !== index) }));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit || submitting) return;
@@ -145,6 +171,7 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
       buildingPlanIds: editing?.buildingPlanIds ?? [],
       buildingSpecs: editing?.buildingSpecs ?? null,
       documents: editing?.documents ?? {},
+      renderImageUrls: form.renderImageUrls,
     };
     try {
       const saved = editing ? await updateObject(editing.id, payload) : await insertObject(payload);
@@ -226,6 +253,46 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
             )}
           </div>
           {floorPlanUploadError && <p className="text-sm text-danger">{floorPlanUploadError}</p>}
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm text-ink-muted">Рендеры для слайдера на продающей странице (до {MAX_RENDER_IMAGES})</span>
+          <div className="flex flex-wrap items-center gap-3">
+            {form.renderImageUrls.map((url, i) => (
+              <div key={url} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-control bg-surface-muted">
+                <img src={url} alt="" className="h-full w-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => removeRenderImage(i)}
+                  aria-label="Удалить рендер"
+                  className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink/70 text-white"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+            {form.renderImageUrls.length < MAX_RENDER_IMAGES && (
+              <>
+                <input
+                  ref={renderImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleRenderImageSelect}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon={uploadingRenderImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  onClick={() => renderImageInputRef.current?.click()}
+                  disabled={uploadingRenderImage}
+                >
+                  {uploadingRenderImage ? 'Загружаем...' : 'Добавить'}
+                </Button>
+              </>
+            )}
+          </div>
+          {renderImageUploadError && <p className="text-sm text-danger">{renderImageUploadError}</p>}
         </div>
 
         <Input

@@ -25,6 +25,7 @@ function fromRow(row: RealtyObjectRow): RealtyObject {
     documents: row.documents ?? {},
     shareToken: row.share_token,
     landingSlug: row.landing_slug ?? '',
+    renderImageUrls: row.render_image_urls ?? [],
   };
 }
 
@@ -88,6 +89,7 @@ export function insertObject(input: Omit<RealtyObject, 'id' | 'shareToken'>): Pr
         building_specs: input.buildingSpecs,
         documents: input.documents,
         landing_slug: input.landingSlug.trim() || null,
+        render_image_urls: input.renderImageUrls,
       })
       .select()
       .single();
@@ -121,6 +123,7 @@ export function updateObject(id: string, input: Omit<RealtyObject, 'id' | 'share
         building_specs: input.buildingSpecs,
         documents: input.documents,
         landing_slug: input.landingSlug.trim() || null,
+        render_image_urls: input.renderImageUrls,
       })
       .eq('id', id)
       .select()

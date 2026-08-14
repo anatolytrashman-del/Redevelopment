@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Ruler, ShieldCheck, SquareParking } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
 import { BuildingPlanCanvas, BuildingPlanLegend, BuildingPlanTabs } from '../components/objects/BuildingPlanCanvas';
 import { AvailableUnitsTable } from '../components/objects/AvailableUnitsTable';
+import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import {
   zoneStatusBadgeClass,
   zoneTypeLabels,
@@ -21,6 +23,15 @@ import { cn } from '../lib/cn';
 function formatMoney(value: number) {
   return `$${Math.round(value).toLocaleString('ru-RU')}`;
 }
+
+// Пока продающая страница только у одного объекта, оффер и буллеты на
+// главном экране — фиксированный текст под него, а не поле в базе.
+// Когда появится второй объект с такой страницей — вынести в данные объекта.
+const heroFeatures: { icon: LucideIcon; text: string }[] = [
+  { icon: Ruler, text: 'Площади от 8 м² до 40 м²' },
+  { icon: SquareParking, text: 'Большая бесплатная парковка' },
+  { icon: ShieldCheck, text: 'Бронирование без предоплаты' },
+];
 
 // Продающая страница объекта под коротким URL (/:slug, см. RealtyObject.landingSlug)
 // — в отличие от /plan/:token (голая планировка для тех, у кого уже есть
@@ -67,6 +78,13 @@ export function ObjectLandingPage() {
   const isRoom = selectedZone?.zoneType === 'room';
   const highlightZoneId = selectedZone?.id ?? pinnedZoneId ?? hoveredZoneId;
 
+  const cheapestUnit = zones
+    .filter((z) => z.zoneType === 'room' && z.status === 'Свободно' && z.area != null)
+    .reduce<number | null>((min, z) => {
+      const price = zonePrice(z.area as number);
+      return min === null || price < min ? price : min;
+    }, null);
+
   function handleZoneSelect(zone: BuildingPlanZone) {
     if (zone.buildingPlanId !== activePlanId) setActivePlanId(zone.buildingPlanId);
     setSelectedZone(zone);
@@ -105,6 +123,27 @@ export function ObjectLandingPage() {
         <span className="text-lg font-extrabold tracking-wide text-ink">
           <span className="font-black text-primary">RED</span>EVELOPMENT
         </span>
+      </div>
+
+      <div className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-2">
+        <div className="flex flex-col gap-6">
+          <h1 className="text-3xl font-extrabold leading-tight text-ink sm:text-4xl">
+            Дизайнерские офисы рядом с Минск Миром
+            {cheapestUnit != null && <> от {formatMoney(cheapestUnit)}</>}
+          </h1>
+          <div className="flex flex-col gap-3">
+            {heroFeatures.map(({ icon: Icon, text }) => (
+              <div key={text} className="flex items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="text-base font-medium text-ink">{text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <HeroImageSlider images={object.renderImageUrls} />
       </div>
 
       <div className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-8 sm:px-8">

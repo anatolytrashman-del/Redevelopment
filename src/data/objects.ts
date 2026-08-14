@@ -121,6 +121,10 @@ export interface RealtyObject {
   // редактируемый вручную, чтобы ссылку можно было использовать в рекламе.
   // Пустая строка — страница ещё не привязана ни к одному пути.
   landingSlug: string;
+  // Рендеры кабинетов для слайдера на продающей странице (/:landingSlug) —
+  // отдельно от photoUrl/floorPlanUrls, которые используются во внутренней
+  // карточке объекта и в лайтбоксе.
+  renderImageUrls: string[];
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/objectsApi.ts
@@ -146,6 +150,7 @@ export interface RealtyObjectRow {
   documents: ObjectDocuments | null;
   share_token: string;
   landing_slug: string | null;
+  render_image_urls: string[] | null;
 }
 
 export function pricePerMeter(area: number, startPrice: number): number | null {
