@@ -110,8 +110,6 @@ export function PublicBuildingPlan() {
 
         {!loading && !loadError && object && (
           <>
-            <div className="text-2xl font-extrabold text-ink">{object.address}</div>
-
             <div ref={planCardRef}>
               <Card className="flex flex-col gap-3 p-5">
                 <div className="font-bold text-ink">Планировка и нарезка кабинетов</div>
