@@ -228,6 +228,10 @@ export function ObjectDetail() {
   }
 
   const perMeter = object ? pricePerMeter(object.area, object.startPrice) : null;
+  const perMeterUseful =
+    object && object.buildingSpecs?.normativeArea
+      ? pricePerMeter(object.buildingSpecs.normativeArea, object.startPrice)
+      : null;
   const images = object ? objectImages(object) : [];
   const missingSources = object
     ? demandSources.filter((s) => !object.demandLinks.some((l) => l.source === s))
@@ -366,6 +370,36 @@ export function ObjectDetail() {
               )}
             </Card>
 
+            <Card className="flex flex-col gap-4 p-5">
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Стоимость объекта</div>
+                <div className="text-2xl font-extrabold text-ink">{formatMoney(object.startPrice)}</div>
+              </div>
+              <div className="flex justify-between gap-3">
+                <div>
+                  <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Цена за м²</div>
+                  <div className="text-lg font-bold text-ink">{perMeter ? formatMoney(perMeter) : '—'}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">
+                    Цена за м² полезной площади
+                  </div>
+                  <div className="text-lg font-bold text-ink">{perMeterUseful ? formatMoney(perMeterUseful) : '—'}</div>
+                </div>
+              </div>
+              {object.listingUrl && (
+                <a
+                  href={object.listingUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex w-fit items-center gap-2 text-sm font-medium text-primary hover:underline"
+                >
+                  <LinkIcon className="h-4 w-4" />
+                  Открыть объявление
+                </a>
+              )}
+            </Card>
+
             {specBlocks.length > 0 ? (
               <Card className="flex flex-col gap-4 p-5">
                 <div className="flex items-center justify-between">
@@ -405,34 +439,6 @@ export function ObjectDetail() {
                 </Button>
               </Card>
             )}
-
-            <Card className="flex flex-col gap-4 p-5">
-              <div>
-                <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Цена</div>
-                <div className="text-2xl font-extrabold text-ink">{formatMoney(object.startPrice)}</div>
-              </div>
-              <div className="flex justify-between">
-                <div>
-                  <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Цена/м²</div>
-                  <div className="text-lg font-bold text-ink">{perMeter ? formatMoney(perMeter) : '—'}</div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Площадь</div>
-                  <div className="text-lg font-bold text-ink">{object.area} м²</div>
-                </div>
-              </div>
-              {object.listingUrl && (
-                <a
-                  href={object.listingUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex w-fit items-center gap-2 text-sm font-medium text-primary hover:underline"
-                >
-                  <LinkIcon className="h-4 w-4" />
-                  Открыть объявление
-                </a>
-              )}
-            </Card>
 
             <Card className="flex flex-col gap-3 p-5">
               <div>
