@@ -74,14 +74,13 @@ export const emptyBuildingSpecs: BuildingSpecs = {
 // "Документы" (та — про сгенерированные договоры по шаблонам для лидов).
 // Файлы лежат в Supabase Storage (бакет object-documents), здесь хранится
 // только их метаданные.
-export const objectDocumentCategories = ['registryExtract', 'techPassport', 'landDocs', 'intentAgreement'] as const;
+export const objectDocumentCategories = ['registryExtract', 'techPassport', 'landDocs'] as const;
 export type ObjectDocumentCategory = (typeof objectDocumentCategories)[number];
 
 export const objectDocumentLabels: Record<ObjectDocumentCategory, string> = {
   registryExtract: 'Выписка из реестра',
   techPassport: 'Технический паспорт',
   landDocs: 'Документы на землю',
-  intentAgreement: 'Шаблон соглашения о намерениях',
 };
 
 export interface ObjectDocumentFile {
@@ -126,6 +125,11 @@ export interface RealtyObject {
   // отдельно от photoUrl/floorPlanUrls, которые используются во внутренней
   // карточке объекта и в лайтбоксе.
   renderImageUrls: string[];
+  // Шаблон соглашения о намерениях для блока "Бронирование без предоплаты"
+  // на продающей странице — намеренно отдельное поле, а не категория в
+  // documents: это маркетинговый материал для клиента, а не официальный
+  // документ объекта (выписка/техпаспорт/землеотвод).
+  intentAgreementFile: ObjectDocumentFile | null;
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/objectsApi.ts
@@ -152,6 +156,7 @@ export interface RealtyObjectRow {
   share_token: string;
   landing_slug: string | null;
   render_image_urls: string[] | null;
+  intent_agreement_file: ObjectDocumentFile | null;
 }
 
 export function pricePerMeter(area: number, startPrice: number): number | null {

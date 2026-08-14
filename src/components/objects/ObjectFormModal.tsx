@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, ImageOff, Upload, X } from 'lucide-react';
+import { Loader2, ImageOff, FileText, Upload, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Textarea } from '../ui/Textarea';
 import { Modal } from '../ui/Modal';
-import { contactChannels, pricePerMeter, type ContactChannel, type RealtyObject } from '../../data/objects';
-import { insertObject, updateObject, uploadObjectImage } from '../../lib/objectsApi';
+import { contactChannels, pricePerMeter, type ContactChannel, type ObjectDocumentFile, type RealtyObject } from '../../data/objects';
+import { insertObject, updateObject, uploadObjectDocument, uploadObjectImage } from '../../lib/objectsApi';
 
 const MAX_FLOOR_PLANS = 3;
 const MAX_RENDER_IMAGES = 10;
@@ -37,6 +37,7 @@ const emptyForm = {
   notes: '',
   landingSlug: '',
   renderImageUrls: [] as string[],
+  intentAgreementFile: null as ObjectDocumentFile | null,
 };
 
 function objectToForm(o: RealtyObject) {
@@ -55,6 +56,7 @@ function objectToForm(o: RealtyObject) {
     notes: o.notes,
     landingSlug: o.landingSlug,
     renderImageUrls: o.renderImageUrls,
+    intentAgreementFile: o.intentAgreementFile,
   };
 }
 
@@ -75,9 +77,12 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
   const [floorPlanUploadError, setFloorPlanUploadError] = useState<string | null>(null);
   const [uploadingRenderImage, setUploadingRenderImage] = useState(false);
   const [renderImageUploadError, setRenderImageUploadError] = useState<string | null>(null);
+  const [uploadingAgreement, setUploadingAgreement] = useState(false);
+  const [agreementUploadError, setAgreementUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const floorPlanInputRef = useRef<HTMLInputElement>(null);
   const renderImageInputRef = useRef<HTMLInputElement>(null);
+  const agreementInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -158,6 +163,26 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
     setForm((f) => ({ ...f, renderImageUrls: f.renderImageUrls.filter((_, i) => i !== index) }));
   }
 
+  async function handleAgreementSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingAgreement(true);
+    setAgreementUploadError(null);
+    try {
+      const uploaded = await uploadObjectDocument(file);
+      setForm((f) => ({ ...f, intentAgreementFile: { ...uploaded, uploadedAt: new Date().toISOString() } }));
+    } catch (err) {
+      setAgreementUploadError(errorMessage(err, 'Не удалось загрузить файл'));
+    } finally {
+      setUploadingAgreement(false);
+      if (agreementInputRef.current) agreementInputRef.current.value = '';
+    }
+  }
+
+  function removeAgreement() {
+    setForm((f) => ({ ...f, intentAgreementFile: null }));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit || submitting) return;
@@ -185,6 +210,7 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
       buildingSpecs: editing?.buildingSpecs ?? null,
       documents: editing?.documents ?? {},
       renderImageUrls: form.renderImageUrls,
+      intentAgreementFile: form.intentAgreementFile,
     };
     try {
       const saved = editing ? await updateObject(editing.id, payload) : await insertObject(payload);
@@ -307,6 +333,42 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
             )}
           </div>
           {renderImageUploadError && <p className="text-sm text-danger">{renderImageUploadError}</p>}
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm text-ink-muted">Шаблон соглашения о намерениях (для продающей страницы)</span>
+          <div className="flex items-center gap-4">
+            <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-control bg-surface-muted">
+              {form.intentAgreementFile ? (
+                <FileText className="h-5 w-5 text-ink-muted" />
+              ) : (
+                <ImageOff className="h-5 w-5 text-ink-faint" />
+              )}
+            </span>
+            <div className="min-w-0 flex-1">
+              {form.intentAgreementFile && (
+                <div className="truncate text-sm text-ink">{form.intentAgreementFile.fileName}</div>
+              )}
+              <input ref={agreementInputRef} type="file" className="hidden" onChange={handleAgreementSelect} />
+              <div className="mt-1 flex gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon={uploadingAgreement ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  onClick={() => agreementInputRef.current?.click()}
+                  disabled={uploadingAgreement}
+                >
+                  {uploadingAgreement ? 'Загружаем...' : form.intentAgreementFile ? 'Заменить файл' : 'Загрузить файл'}
+                </Button>
+                {form.intentAgreementFile && (
+                  <Button type="button" variant="secondary" onClick={removeAgreement}>
+                    Удалить
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+          {agreementUploadError && <p className="text-sm text-danger">{agreementUploadError}</p>}
         </div>
 
         <Input

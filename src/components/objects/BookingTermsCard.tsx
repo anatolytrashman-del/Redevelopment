@@ -2,20 +2,20 @@ import { useState } from 'react';
 import { FileText, ShieldCheck, X } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
-import type { ObjectDocuments } from '../../data/objects';
+import type { ObjectDocumentFile } from '../../data/objects';
 
 interface BookingTermsCardProps {
-  documents: ObjectDocuments;
+  agreement: ObjectDocumentFile | null;
 }
 
 // Блок-развеиватель сомнений рядом с "Бронирование без предоплаты" — даёт
 // сразу открыть и прочитать реальный шаблон соглашения о намерениях, а не
-// просто поверить на слово. Файл берётся из той же карточки документов
-// объекта (см. ObjectDocuments.tsx, категория intentAgreement), которую
-// менеджер уже заполняет в админке — здесь нет отдельной загрузки.
-export function BookingTermsCard({ documents }: BookingTermsCardProps) {
+// просто поверить на слово. Файл — отдельное поле объекта
+// (RealtyObject.intentAgreementFile), а не категория в "Документах объекта":
+// это маркетинговый материал для клиента, а не официальный документ вроде
+// выписки из реестра, поэтому загружается отдельно в форме объекта.
+export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
-  const agreement = documents.intentAgreement;
 
   return (
     <Card className="flex flex-col gap-3 p-5">

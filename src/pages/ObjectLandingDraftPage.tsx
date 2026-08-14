@@ -166,7 +166,7 @@ export function ObjectLandingDraftPage() {
           </div>
         </Card>
 
-        <BookingTermsCard documents={object.documents} />
+        <BookingTermsCard agreement={object.intentAgreementFile} />
 
         <PublicPlanAndUnits
           object={object}
