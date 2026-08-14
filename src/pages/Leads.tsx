@@ -325,7 +325,7 @@ export function Leads() {
                     </span>
                     {object ? (
                       <Link
-                        to={`/admin/objects/${object.id}`}
+                        to={`/admin/objects/${object.landingSlug || object.id}`}
                         className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
                       >
                         На план

@@ -25,7 +25,7 @@ import {
 } from '../data/objects';
 import type { Lead } from '../data/leads';
 import type { BuildingPlanZone } from '../data/buildingPlans';
-import { fetchObject, updateObject } from '../lib/objectsApi';
+import { fetchObjectByIdOrSlug, updateObject } from '../lib/objectsApi';
 import { fetchDemandStats, type DemandStat } from '../lib/demandStatsApi';
 import { fetchLeadsForObject } from '../lib/leadsApi';
 import { fetchBookedZones } from '../lib/buildingPlansApi';
@@ -91,7 +91,7 @@ export function ObjectDetail() {
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-    fetchObject(id)
+    fetchObjectByIdOrSlug(id)
       .then(setObject)
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить объект')))
       .finally(() => setLoading(false));

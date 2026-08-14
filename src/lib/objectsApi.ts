@@ -45,6 +45,22 @@ export function fetchObject(id: string): Promise<RealtyObject> {
   });
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Для /admin/objects/:idOrSlug — тот же landingSlug, что и в продающей
+// ссылке (/:slug), теперь работает и во внутреннем адресе объекта, чтобы не
+// таскать длинный uuid. Определяем колонку по формату значения — сравнение
+// id (uuid-колонка) со строкой не в формате uuid упадёт ошибкой на стороне
+// Postgres, поэтому не пробуем оба варианта одним запросом.
+export function fetchObjectByIdOrSlug(idOrSlug: string): Promise<RealtyObject> {
+  return withRetry(async () => {
+    const column = UUID_RE.test(idOrSlug) ? 'id' : 'landing_slug';
+    const { data, error } = await supabase.from('objects').select('*').eq(column, idOrSlug).single();
+    if (error) throw error;
+    return fromRow(data as RealtyObjectRow);
+  });
+}
+
 // Для публичной страницы планировки (/plan/:token) — ищем по непредсказуемому
 // share_token, а не по внутреннему id объекта (см. комментарий у RealtyObject.shareToken).
 export function fetchObjectByShareToken(token: string): Promise<RealtyObject> {
