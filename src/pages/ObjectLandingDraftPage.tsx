@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Loader2, Ruler, ShieldCheck, SquareParking } from 'lucide-react';
+import { Loader2, MapPin, Ruler, ShieldCheck, SquareParking } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { PublicPlanAndUnits } from '../components/objects/PublicPlanAndUnits';
@@ -94,8 +94,8 @@ export function ObjectLandingDraftPage() {
 
       <div className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-2">
         <div className="flex flex-col gap-6">
-          <h1 className="text-3xl font-extrabold leading-tight text-ink sm:text-4xl">
-            Стильные кабинеты под любой бизнес рядом с Минск Миром
+          <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">
+            Стильные кабинеты под любой бизнес
             {cheapestUnit != null && <> от {formatMoney(cheapestUnit)}</>}
           </h1>
           <div className="flex flex-col gap-3">
@@ -110,7 +110,15 @@ export function ObjectLandingDraftPage() {
           </div>
         </div>
 
-        <HeroImageSlider images={object.renderImageUrls} />
+        <div className="relative">
+          <HeroImageSlider images={object.renderImageUrls} />
+          {/* Заглушка геометки "рядом с Минск Мир" — заменить MapPin на лого
+              Минск Мира, как только пришлют файл (см. переписку с заказчиком). */}
+          <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 shadow-card backdrop-blur">
+            <MapPin className="h-4 w-4 text-ink" />
+            <span className="text-xs font-semibold text-ink">Рядом с Минск Мир</span>
+          </div>
+        </div>
       </div>
 
       <div className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-8 sm:px-8">
