@@ -1,7 +1,22 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Loader2, MapPin, Ruler, ShieldCheck, SquareParking } from 'lucide-react';
+import {
+  Bath,
+  Building2,
+  Cctv,
+  Clock,
+  Loader2,
+  MapPin,
+  Ruler,
+  ShieldCheck,
+  Sparkles,
+  SquareParking,
+  TreePine,
+  Wifi,
+  Zap,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { Card } from '../components/ui/Card';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { PublicPlanAndUnits } from '../components/objects/PublicPlanAndUnits';
 import { zonePrice, type BuildingPlan, type BuildingPlanZone } from '../data/buildingPlans';
@@ -20,6 +35,17 @@ const heroFeatures: { icon: LucideIcon; text: string }[] = [
   { icon: Ruler, text: 'Площади от 11 м² до 40 м²' },
   { icon: SquareParking, text: 'Большая бесплатная парковка' },
   { icon: ShieldCheck, text: 'Бронирование без предоплаты' },
+];
+
+const complexFeatures: { icon: LucideIcon; text: string }[] = [
+  { icon: Building2, text: 'Отдельно стоящее здание' },
+  { icon: Clock, text: 'Доступ 24/7' },
+  { icon: Cctv, text: 'Видеонаблюдение' },
+  { icon: Bath, text: 'Много санузлов' },
+  { icon: Sparkles, text: 'Отличное состояние здания' },
+  { icon: Zap, text: 'Все центральные коммуникации, новые' },
+  { icon: Wifi, text: 'Телефон и интернет' },
+  { icon: TreePine, text: 'Благоустроенная территория' },
 ];
 
 // Черновик продающей страницы (/:slug/draft) — здесь обкатывается дизайн
@@ -122,6 +148,23 @@ export function ObjectLandingDraftPage() {
       </div>
 
       <div className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-8 sm:px-8">
+        <Card className="flex flex-col gap-5 p-5">
+          <div className="flex flex-col gap-1">
+            <div className="text-sm font-medium text-ink-muted">О комплексе</div>
+            <div className="text-xl font-extrabold text-ink">Деловой комплекс One</div>
+          </div>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+            {complexFeatures.map(({ icon: Icon, text }) => (
+              <div key={text} className="flex items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-muted text-ink">
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="text-sm font-medium text-ink">{text}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+
         <PublicPlanAndUnits object={object} plans={plans} zones={zones} />
       </div>
     </div>
