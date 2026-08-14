@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Pencil, Loader2, X, ImageOff, Link as LinkIcon, Eye, Phone, Heart, Flame, Film } from 'lucide-react';
+import { ArrowLeft, Pencil, Loader2, X, ImageOff, Link as LinkIcon, Eye, Phone, Heart, Flame, Film, KeyRound } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -20,9 +20,11 @@ import {
   type DemandLink,
 } from '../data/objects';
 import type { Lead } from '../data/leads';
+import type { BuildingPlanZone } from '../data/buildingPlans';
 import { fetchObject, updateObject } from '../lib/objectsApi';
 import { fetchDemandStats, type DemandStat } from '../lib/demandStatsApi';
 import { fetchLeadsForObject } from '../lib/leadsApi';
+import { fetchBookedZones } from '../lib/buildingPlansApi';
 import { badgeColor } from '../lib/badgeColor';
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -74,6 +76,8 @@ export function ObjectDetail() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(true);
 
+  const [bookedZones, setBookedZones] = useState<BuildingPlanZone[]>([]);
+
   useEffect(() => {
     if (!id) return;
     setLoading(true);
@@ -87,6 +91,10 @@ export function ObjectDetail() {
       .then(setLeads)
       .catch(() => setLeads([]))
       .finally(() => setLeadsLoading(false));
+
+    fetchBookedZones()
+      .then(setBookedZones)
+      .catch(() => setBookedZones([]));
   }, [id]);
 
   useEffect(() => {
@@ -216,8 +224,12 @@ export function ObjectDetail() {
   const missingSources = object
     ? demandSources.filter((s) => !object.demandLinks.some((l) => l.source === s))
     : [...demandSources];
-  const warmLeads = leads.filter((l) => l.isWarm);
-  const regularLeads = leads.filter((l) => !l.isWarm);
+  const objectBookedZones = object
+    ? bookedZones.filter((z) => object.buildingPlanIds.includes(z.buildingPlanId))
+    : [];
+  const bookedLeadIds = new Set(objectBookedZones.map((z) => z.leadId).filter(Boolean));
+  const warmLeads = leads.filter((l) => l.isWarm && !bookedLeadIds.has(l.id));
+  const regularLeads = leads.filter((l) => !l.isWarm && !bookedLeadIds.has(l.id));
   const lastStatsUpdate = demandStats.reduce<string | null>(
     (latest, s) => (!latest || s.checkedAt > latest ? s.checkedAt : latest),
     null,
@@ -483,6 +495,11 @@ export function ObjectDetail() {
                   </div>
                 ) : (
                   <div className="flex gap-8">
+                    <div className="flex items-center gap-2">
+                      <KeyRound className="h-4 w-4 text-ink-muted" />
+                      <span className="text-sm text-ink-muted">Брони</span>
+                      <span className="text-xl font-extrabold text-ink">{objectBookedZones.length}</span>
+                    </div>
                     <div className="flex items-center gap-2">
                       <Flame className="h-4 w-4 fill-warning text-warning" />
                       <span className="text-sm text-ink-muted">Горячие лиды</span>
