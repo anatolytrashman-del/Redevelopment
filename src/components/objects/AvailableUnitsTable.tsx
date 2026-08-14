@@ -78,7 +78,7 @@ export function AvailableUnitsTable({
             <div
               className={cn(
                 'grid gap-4 bg-surface-muted px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-faint',
-                onBookClick ? 'min-w-[700px] grid-cols-[1fr_1fr_1fr_1fr_320px]' : 'min-w-[620px] grid-cols-[1fr_1fr_1fr_1fr_200px]',
+                onBookClick ? 'min-w-[820px] grid-cols-[1fr_1fr_1fr_1fr_440px]' : 'min-w-[620px] grid-cols-[1fr_1fr_1fr_1fr_200px]',
               )}
             >
               <span>Кабинет</span>
@@ -95,7 +95,7 @@ export function AvailableUnitsTable({
                 onMouseLeave={() => onRowHover?.(null)}
                 className={cn(
                   'grid w-full cursor-pointer items-center gap-4 border-t border-border px-4 py-2.5 text-sm hover:bg-surface-muted',
-                  onBookClick ? 'min-w-[700px] grid-cols-[1fr_1fr_1fr_1fr_320px]' : 'min-w-[620px] grid-cols-[1fr_1fr_1fr_1fr_200px]',
+                  onBookClick ? 'min-w-[820px] grid-cols-[1fr_1fr_1fr_1fr_440px]' : 'min-w-[620px] grid-cols-[1fr_1fr_1fr_1fr_200px]',
                   zone.id === highlightedZoneId && 'bg-primary/10',
                 )}
               >
@@ -104,32 +104,17 @@ export function AvailableUnitsTable({
                 <span className="text-ink">{area} м²</span>
                 <span className="font-medium text-ink">{formatMoney(price)}</span>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  {onBookClick ? (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onLocateClick(zone);
-                      }}
-                      aria-label="Посмотреть на плане"
-                      title="Посмотреть на плане"
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                    >
-                      <MapPin className="h-3.5 w-3.5" />
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onLocateClick(zone);
-                      }}
-                      className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border px-3 py-1.5 text-xs font-medium text-ink-muted hover:border-primary hover:text-primary"
-                    >
-                      <MapPin className="h-3.5 w-3.5" />
-                      Посмотреть на плане
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onLocateClick(zone);
+                    }}
+                    className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border px-3 py-1.5 text-xs font-medium text-ink-muted hover:border-primary hover:text-primary"
+                  >
+                    <MapPin className="h-3.5 w-3.5" />
+                    Посмотреть на плане
+                  </button>
                   {onBookClick && (
                     <button
                       type="button"
@@ -137,7 +122,7 @@ export function AvailableUnitsTable({
                         e.stopPropagation();
                         onBookClick(zone);
                       }}
-                      className="whitespace-nowrap rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover"
+                      className="whitespace-nowrap rounded-full bg-ink px-3 py-1.5 text-xs font-semibold text-white hover:bg-ink/85"
                     >
                       Забронировать
                     </button>
