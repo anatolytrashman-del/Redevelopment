@@ -1,6 +1,13 @@
 import { useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { zoneTypeLabels, type BuildingPlan, type BuildingPlanZone, type ZonePoint } from '../../data/buildingPlans';
+import {
+  zoneTypeLabels,
+  zoneDownPayment,
+  zonePrice,
+  type BuildingPlan,
+  type BuildingPlanZone,
+  type ZonePoint,
+} from '../../data/buildingPlans';
 import { cn } from '../../lib/cn';
 
 // Общие куски рендера планировки — используются и во внутреннем виджете
@@ -8,6 +15,10 @@ import { cn } from '../../lib/cn';
 // клиента (PublicBuildingPlan, только просмотр). Вынесены сюда, чтобы
 // изменения (статусы броней, цвета, подсказка при наведении) сразу
 // показывались в обоих местах, а не расходились между двумя копиями.
+
+function formatMoney(value: number) {
+  return `$${Math.round(value).toLocaleString('ru-RU')}`;
+}
 
 export function zoneFillClass(zone: BuildingPlanZone): string {
   if (zone.zoneType === 'room') {
@@ -99,6 +110,12 @@ export function BuildingPlanCanvas({
               <span className="text-ink-muted">
                 {hoverZone.zone.area != null ? `${hoverZone.zone.area} м²` : 'Площадь не указана'}
               </span>
+              {hoverZone.zone.area != null && (
+                <>
+                  <span className="text-ink-muted">Стоимость: {formatMoney(zonePrice(hoverZone.zone.area))}</span>
+                  <span className="text-ink-muted">Первый взнос: {formatMoney(zoneDownPayment(hoverZone.zone.area))}</span>
+                </>
+              )}
               <span className="text-ink-muted">
                 {hoverZone.zone.features.length > 0 ? hoverZone.zone.features.join(', ') : 'Без особенностей'}
               </span>
