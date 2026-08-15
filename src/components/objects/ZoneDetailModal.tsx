@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ExternalLink, Pencil, Spline, Trash2 } from 'lucide-react';
+import { ExternalLink, Pencil, Spline, Trash2, Wand2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
@@ -20,6 +20,7 @@ import {
 import type { Lead } from '../../data/leads';
 import type { GeneratedDocument } from '../../data/generatedDocuments';
 import { updateZone, deleteZone } from '../../lib/buildingPlansApi';
+import { straightenPoints } from '../../lib/straightenPoints';
 import { cn } from '../../lib/cn';
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -123,6 +124,23 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
       setMode('view');
     } catch (err) {
       setError(errorMessage(err, 'Не удалось сохранить зону'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Автоматически подтягивает почти горизонтальные/вертикальные рёбра
+  // контура к оси — чинит "дрожащие" линии от неточных кликов при разметке,
+  // не трогая по-настоящему диагональные углы. См. src/lib/straightenPoints.ts.
+  async function handleStraighten() {
+    if (!zone) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await updateZone(zone.id, { points: straightenPoints(zone.points) });
+      onUpdated(updated);
+    } catch (err) {
+      setError(errorMessage(err, 'Не удалось выпрямить контур'));
     } finally {
       setSaving(false);
     }
@@ -251,14 +269,25 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
               onChange={(e) => setLabel(e.target.value)}
             />
 
-            <button
-              type="button"
-              onClick={() => onRedraw(zone)}
-              className="flex w-fit items-center gap-2 text-sm font-medium text-ink-muted hover:text-primary"
-            >
-              <Spline className="h-4 w-4" />
-              Перерисовать контур на плане
-            </button>
+            <div className="flex flex-wrap gap-x-5 gap-y-2">
+              <button
+                type="button"
+                onClick={() => onRedraw(zone)}
+                className="flex w-fit items-center gap-2 text-sm font-medium text-ink-muted hover:text-primary"
+              >
+                <Spline className="h-4 w-4" />
+                Перерисовать контур на плане
+              </button>
+              <button
+                type="button"
+                onClick={handleStraighten}
+                disabled={saving}
+                className="flex w-fit items-center gap-2 text-sm font-medium text-ink-muted hover:text-primary disabled:opacity-50"
+              >
+                <Wand2 className="h-4 w-4" />
+                Выпрямить линии контура
+              </button>
+            </div>
 
             {isRoomEdit && (
               <>

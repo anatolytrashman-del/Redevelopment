@@ -201,7 +201,7 @@ export function ObjectLandingDraftPage() {
               style={glassPillShadow}
             >
               <span className="text-sm font-medium text-ink/60">от</span>
-              <span className="text-lg font-extrabold text-ink">{formatMoney(cheapestUnit)}</span>
+              <span className="text-lg font-extrabold text-[#4a9b72]">{formatMoney(cheapestUnit)}</span>
             </span>
           )}
         </div>

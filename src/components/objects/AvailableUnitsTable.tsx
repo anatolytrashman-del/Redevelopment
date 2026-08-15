@@ -66,15 +66,23 @@ export function AvailableUnitsTable({
   const visibleUnits = expanded ? units : units.slice(0, VISIBLE_LIMIT);
   const hiddenCount = units.length - visibleUnits.length;
 
+  // Input красит фон общим bg-surface-muted (светло-серый) — на полупрозрачной
+  // стеклянной карточке он сливается с фоном, поэтому здесь пробиваем контраст
+  // инлайн-стилем: он гарантированно перебивает класс независимо от порядка
+  // сборки Tailwind (в отличие от передачи className, где порядок не гарантирован).
+  const inputGlassStyle = glass
+    ? { backgroundColor: 'rgba(255,255,255,0.75)', border: '1px solid rgba(255,255,255,0.7)' }
+    : undefined;
+
   return (
     <Wrapper className={cn('flex flex-col gap-4 p-5', glass && glassCardClass)} style={glass ? glassCardShadow : undefined}>
       <div className="font-bold text-ink">Доступные кабинеты</div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Input label="Площадь от, м²" type="number" placeholder="0" value={minArea} onChange={(e) => setMinArea(e.target.value)} />
-        <Input label="Площадь до, м²" type="number" placeholder="0" value={maxArea} onChange={(e) => setMaxArea(e.target.value)} />
-        <Input label="Цена от, $" type="number" placeholder="0" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} />
-        <Input label="Цена до, $" type="number" placeholder="0" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} />
+        <Input label="Площадь от, м²" type="number" placeholder="0" value={minArea} onChange={(e) => setMinArea(e.target.value)} style={inputGlassStyle} />
+        <Input label="Площадь до, м²" type="number" placeholder="0" value={maxArea} onChange={(e) => setMaxArea(e.target.value)} style={inputGlassStyle} />
+        <Input label="Цена от, $" type="number" placeholder="0" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} style={inputGlassStyle} />
+        <Input label="Цена до, $" type="number" placeholder="0" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} style={inputGlassStyle} />
       </div>
 
       {units.length === 0 ? (
@@ -85,7 +93,7 @@ export function AvailableUnitsTable({
             <div
               className={cn(
                 'grid gap-4 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-faint',
-                glass ? 'bg-white/30 backdrop-blur-md' : 'bg-surface-muted',
+                glass ? 'bg-white/55 backdrop-blur-md' : 'bg-surface-muted',
                 onBookClick ? 'min-w-[760px] grid-cols-[120px_100px_110px_120px_1fr]' : 'min-w-[560px] grid-cols-[120px_100px_110px_120px_1fr]',
               )}
             >
@@ -103,7 +111,7 @@ export function AvailableUnitsTable({
                 onMouseLeave={() => onRowHover?.(null)}
                 className={cn(
                   'grid w-full cursor-pointer items-center gap-4 border-t px-4 py-2.5 text-sm',
-                  glass ? 'border-white/40 bg-white/10 hover:bg-white/30' : 'border-border hover:bg-surface-muted',
+                  glass ? 'border-white/50 bg-white/30 hover:bg-white/50' : 'border-border hover:bg-surface-muted',
                   onBookClick ? 'min-w-[760px] grid-cols-[120px_100px_110px_120px_1fr]' : 'min-w-[560px] grid-cols-[120px_100px_110px_120px_1fr]',
                   zone.id === highlightedZoneId && 'bg-primary/10',
                 )}
