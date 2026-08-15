@@ -220,13 +220,13 @@ export function ObjectLandingPage() {
         rel="noreferrer"
         title={ownerOnline ? 'Онлайн — на связи' : 'Офлайн — отвечу завтра'}
         className={cn(
-          'fixed bottom-5 right-4 z-40 flex h-14 w-14 items-center justify-center sm:hidden',
+          'fixed bottom-5 right-4 z-40 flex items-center gap-2 py-2 pl-2 pr-4 text-sm font-medium text-ink sm:hidden',
           glassPillClass,
         )}
         style={glassPillShadow}
       >
-        <span className="relative flex h-7 w-7 shrink-0 items-center justify-center">
-          <TelegramLogo className="h-7 w-7" />
+        <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
+          <TelegramLogo className="h-9 w-9" />
           <span
             className={cn(
               'absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-white',
@@ -234,6 +234,7 @@ export function ObjectLandingPage() {
             )}
           />
         </span>
+        Написать собственнику
       </a>
 
       <div className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-2">
