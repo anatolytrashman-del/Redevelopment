@@ -265,7 +265,7 @@ export function ObjectLandingPage() {
             {purchaseOptions.map((opt) => (
               <div
                 key={opt.title}
-                className="flex flex-col gap-3 rounded-control border border-white/50 bg-white/40 p-4 backdrop-blur-md"
+                className="flex flex-col gap-3 rounded-control border border-white/70 bg-white/60 p-4 backdrop-blur-md sm:border-white/50 sm:bg-white/40"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center text-ink', glassPillClass)}>
