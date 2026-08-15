@@ -1,6 +1,6 @@
 import { useState, type ElementType } from 'react';
 import { createPortal } from 'react-dom';
-import { Download, FileText, X } from 'lucide-react';
+import { Download, X } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { IntentAgreementDocument } from './IntentAgreementDocument';
@@ -70,7 +70,7 @@ export function BookingTermsCard({ agreement, glass }: BookingTermsCardProps) {
         {steps.map((step, i) => {
           const isCurrent = i === 0;
           return (
-            <div key={step.title} className="flex flex-col gap-3">
+            <div key={step.title} className="flex h-full flex-col gap-3">
               <div className="flex items-center gap-2">
                 <span
                   className={cn(
@@ -84,36 +84,42 @@ export function BookingTermsCard({ agreement, glass }: BookingTermsCardProps) {
                   {step.title}
                 </span>
               </div>
-              <div className="flex flex-col gap-2 pl-10">
+              <div className="flex flex-1 flex-col gap-2 pl-10">
                 <p className="text-xs text-ink-faint">{step.description}</p>
-                {i === 0 && (
-                  <button
-                    type="button"
-                    onClick={scrollToUnits}
-                    className="w-fit text-xs font-semibold text-primary hover:underline"
-                  >
-                    Смотреть кабинеты ↑
-                  </button>
-                )}
-                {i === 1 &&
-                  (agreement ? (
-                    <Button
+                {/* mt-auto прижимает ссылку к низу колонки, чтобы все три
+                    были на одном уровне независимо от длины описания. */}
+                <div className="mt-auto pt-1">
+                  {i === 0 && (
+                    <button
                       type="button"
-                      variant="secondary"
-                      icon={<FileText className="h-4 w-4" />}
-                      onClick={() => setPreviewOpen(true)}
-                      className="w-fit whitespace-nowrap"
+                      onClick={scrollToUnits}
+                      className="w-fit text-sm font-semibold text-primary hover:underline"
                     >
-                      Посмотреть шаблон
-                    </Button>
-                  ) : (
-                    <p className="text-xs text-ink-faint">Шаблон соглашения скоро появится здесь.</p>
-                  ))}
-                {i === 2 && (
-                  <Button type="button" onClick={scrollToUnits} className="w-fit whitespace-nowrap">
-                    Забронировать кабинет
-                  </Button>
-                )}
+                      Смотреть кабинеты ↑
+                    </button>
+                  )}
+                  {i === 1 &&
+                    (agreement ? (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewOpen(true)}
+                        className="w-fit text-sm font-semibold text-primary hover:underline"
+                      >
+                        Посмотреть шаблон
+                      </button>
+                    ) : (
+                      <p className="text-xs text-ink-faint">Шаблон соглашения скоро появится здесь.</p>
+                    ))}
+                  {i === 2 && (
+                    <button
+                      type="button"
+                      onClick={scrollToUnits}
+                      className="w-fit text-sm font-semibold text-primary hover:underline"
+                    >
+                      Забронировать кабинет ↑
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           );
