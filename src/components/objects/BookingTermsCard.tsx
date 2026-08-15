@@ -5,7 +5,7 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { IntentAgreementDocument } from './IntentAgreementDocument';
 import { cn } from '../../lib/cn';
-import { glassCardClass, glassCardShadow } from '../../lib/glass';
+import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../../lib/glass';
 import type { ObjectDocumentFile } from '../../data/objects';
 
 // Тот же id стоит на обёртке PublicPlanAndUnits — кнопка "Выбрать кабинет"
@@ -69,13 +69,16 @@ export function BookingTermsCard({ agreement, glass }: BookingTermsCardProps) {
           return (
             <div key={step.title} className="flex h-full flex-col gap-3">
               <div className="flex items-center gap-2">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">
+                <span
+                  className={cn('flex h-8 w-8 shrink-0 items-center justify-center text-sm font-bold text-ink', glassPillClass)}
+                  style={glassPillShadow}
+                >
                   {i + 1}
                 </span>
                 <span className="text-sm font-semibold text-ink">{step.title}</span>
               </div>
               <div className="flex flex-1 flex-col gap-2 pl-10">
-                <p className="text-xs text-ink-faint">{step.description}</p>
+                <p className="text-sm font-medium text-ink-muted">{step.description}</p>
                 {/* mt-auto прижимает ссылку к низу колонки, чтобы все три
                     были на одном уровне независимо от длины описания. */}
                 <div className="mt-auto pt-1">
