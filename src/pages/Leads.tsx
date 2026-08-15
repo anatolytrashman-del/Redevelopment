@@ -316,7 +316,10 @@ export function Leads() {
       />
 
       <Card className="flex flex-col gap-4 p-0">
-        <div className="overflow-x-auto">
+        {/* От md и шире — таблица-грид с горизонтальным скроллом при нехватке места.
+            Ниже md та же строка неудобна для узкого экрана, поэтому там вместо неё —
+            карточка на лид (см. блок md:hidden сразу за этим). */}
+        <div className="hidden overflow-x-auto md:block">
           <div className="grid min-w-[900px] grid-cols-[36px_130px_90px_1fr_100px_56px_1fr_130px_84px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
             <span />
             <span>Имя</span>
@@ -383,6 +386,66 @@ export function Leads() {
             <div className="px-6 py-10 text-center text-sm text-ink-muted">Лидов пока нет</div>
           )}
         </div>
+
+        <div className="flex flex-col gap-3 p-4 md:hidden">
+          {sortedLeads.map((l) => (
+            <div key={l.id} className="flex flex-col gap-2.5 rounded-control border border-border p-3.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleWarm(l)}
+                    disabled={togglingId === l.id}
+                    className="flex h-6 w-6 shrink-0 items-center justify-center disabled:opacity-50"
+                    aria-label="Отметить тёплым лидом"
+                  >
+                    <Flame className={cn('h-4 w-4', l.isWarm ? 'fill-warning text-warning' : 'text-ink-faint')} />
+                  </button>
+                  <span className="min-w-0 truncate font-semibold text-ink">{l.name}</span>
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(l)}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                    aria-label="Редактировать лид"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteLead(l)}
+                    disabled={deletingId === l.id}
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint hover:text-danger disabled:opacity-50"
+                    aria-label="Удалить лид"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-muted">
+                {l.source && <span>{l.source}</span>}
+                {l.businessType && <span className="text-ink">{l.businessType}</span>}
+                {l.area && <span>{l.area}</span>}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <RequirementBadge requirement={l.requirement} />
+                {l.status && <span className="text-sm text-ink-muted">{l.status}</span>}
+              </div>
+              {l.contact && <div className="truncate text-sm text-ink-muted">{l.contact}</div>}
+            </div>
+          ))}
+          {loading && (
+            <div className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Загружаем лиды...
+            </div>
+          )}
+          {!loading && loadError && <div className="py-10 text-center text-sm text-danger">{loadError}</div>}
+          {!loading && !loadError && leads.length === 0 && (
+            <div className="py-10 text-center text-sm text-ink-muted">Лидов пока нет</div>
+          )}
+        </div>
       </Card>
 
       {toggleError && <p className="text-sm text-danger">{toggleError}</p>}
@@ -391,7 +454,7 @@ export function Leads() {
         <div className="flex flex-col gap-4">
           <div className="text-lg font-bold text-ink">Брони кабинетов</div>
           <Card className="flex flex-col gap-4 p-0">
-            <div className="overflow-x-auto">
+            <div className="hidden overflow-x-auto md:block">
               <div className="grid min-w-[1020px] grid-cols-[1fr_150px_1fr_150px_150px_140px_84px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
                 <span>Лид</span>
                 <span>Кабинет</span>
@@ -572,13 +635,182 @@ export function Leads() {
                 );
               })}
             </div>
+
+            <div className="flex flex-col gap-3 p-4 md:hidden">
+              {bookedZones.map((zone) => {
+                const lead = leadById.get(zone.leadId);
+                const plan = planById.get(zone.buildingPlanId);
+                const object = objectByPlanId.get(zone.buildingPlanId);
+                const agreement = signedAgreementByKey.get(`${zone.id}:${zone.leadId}`);
+                return (
+                  <div key={zone.id} className="flex flex-col gap-2.5 rounded-control border border-border p-3.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold text-ink">{lead?.name ?? '—'}</div>
+                        {lead?.contact && <div className="truncate text-xs text-ink-muted">{lead.contact}</div>}
+                      </div>
+                      {lead && (
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(lead)}
+                            className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                            aria-label="Редактировать лид"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteLead(lead)}
+                            disabled={deletingId === lead.id}
+                            className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint hover:text-danger disabled:opacity-50"
+                            aria-label="Удалить лид"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-sm text-ink">
+                      {zone.label || zoneTypeLabels[zone.zoneType]}
+                      {zone.area != null && <span className="text-ink-muted"> · {zone.area} м²</span>}
+                    </div>
+                    <div className="min-w-0 text-sm">
+                      <div className="truncate text-ink">{object?.address ?? '—'}</div>
+                      {plan && <div className="truncate text-xs text-ink-muted">{plan.name}</div>}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span
+                        className={cn(
+                          'w-fit rounded-full px-3 py-1 text-xs font-semibold',
+                          zoneStatusBadgeClass[zone.status],
+                        )}
+                      >
+                        {zone.status}
+                      </span>
+                      {lead?.status === NEW_BOOKING_LEAD_STATUS && (
+                        <span
+                          title="Новая бронь с сайта — ещё не подтверждена"
+                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-warning/15 text-warning"
+                        >
+                          <Sparkles className="h-3.5 w-3.5" />
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+                      {agreement ? (
+                        <a
+                          href={agreement.documentUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex w-fit items-center gap-1.5 font-medium text-primary hover:underline"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          Подписано
+                        </a>
+                      ) : (
+                        <span className="text-ink-faint">Не подписано</span>
+                      )}
+                      {object && (
+                        <Link
+                          to={`/admin/objects/${object.landingSlug || object.id}`}
+                          className="flex items-center gap-1 font-medium text-primary hover:underline"
+                        >
+                          На план
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {seatBookingRows.map(({ seat, zone, lead }) => {
+                const plan = planById.get(zone.buildingPlanId);
+                const object = objectByPlanId.get(zone.buildingPlanId);
+                const agreement = signedAgreementByKey.get(`${zone.id}:${lead.id}`);
+                return (
+                  <div key={seat.id} className="flex flex-col gap-2.5 rounded-control border border-border p-3.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold text-ink">{lead.name}</div>
+                        {lead.contact && <div className="truncate text-xs text-ink-muted">{lead.contact}</div>}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(lead)}
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                          aria-label="Редактировать лид"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteLead(lead)}
+                          disabled={deletingId === lead.id}
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint hover:text-danger disabled:opacity-50"
+                          aria-label="Удалить лид"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="text-sm text-ink">
+                      {zone.label || zoneTypeLabels[zone.zoneType]}
+                      <span className="text-ink-muted"> · место</span>
+                    </div>
+                    <div className="min-w-0 text-sm">
+                      <div className="truncate text-ink">{object?.address ?? '—'}</div>
+                      {plan && <div className="truncate text-xs text-ink-muted">{plan.name}</div>}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="w-fit rounded-full bg-warning/15 px-3 py-1 text-xs font-semibold text-warning">
+                        Место забронировано
+                      </span>
+                      {lead.status === NEW_BOOKING_LEAD_STATUS && (
+                        <span
+                          title="Новая бронь с сайта — ещё не подтверждена"
+                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-warning/15 text-warning"
+                        >
+                          <Sparkles className="h-3.5 w-3.5" />
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+                      {agreement ? (
+                        <a
+                          href={agreement.documentUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex w-fit items-center gap-1.5 font-medium text-primary hover:underline"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          Подписано
+                        </a>
+                      ) : (
+                        <span className="text-ink-faint">Не подписано</span>
+                      )}
+                      {object && (
+                        <Link
+                          to={`/admin/objects/${object.landingSlug || object.id}`}
+                          className="flex items-center gap-1 font-medium text-primary hover:underline"
+                        >
+                          На план
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </Card>
         </div>
       )}
 
       <Modal open={open} onClose={() => setOpen(false)} title={editingId ? 'Редактировать лид' : 'Новый лид'}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input
               label="Имя"
               placeholder="Имя контакта"

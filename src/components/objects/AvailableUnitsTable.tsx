@@ -119,12 +119,15 @@ export function AvailableUnitsTable({
         <p className="text-sm text-ink-muted">Нет кабинетов, подходящих под фильтр.</p>
       ) : (
         <>
-          <div className={cn('overflow-x-auto rounded-control border', glass ? 'border-white/50' : 'border-border')}>
+          {/* От md и шире — таблица-грид с колонками. На узких экранах горизонтальный
+              скролл таблицы неудобен, поэтому ниже md те же данные рендерятся как
+              стопка карточек (см. блок md:hidden). */}
+          <div className={cn('hidden overflow-x-auto rounded-control border md:block', glass ? 'border-white/50' : 'border-border')}>
             <div
               className={cn(
-                'grid gap-4 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-faint',
+                'grid min-w-[560px] grid-cols-[120px_100px_110px_120px_1fr] gap-4 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-faint',
                 glass ? 'bg-white/55 backdrop-blur-md' : 'bg-surface-muted',
-                onBookClick ? 'min-w-[760px] grid-cols-[120px_100px_110px_120px_1fr]' : 'min-w-[560px] grid-cols-[120px_100px_110px_120px_1fr]',
+                onBookClick && 'min-w-[760px]',
               )}
             >
               <span>Кабинет</span>
@@ -140,20 +143,20 @@ export function AvailableUnitsTable({
                 onMouseEnter={() => onRowHover?.(u.zone)}
                 onMouseLeave={() => onRowHover?.(null)}
                 className={cn(
-                  'grid w-full cursor-pointer items-center gap-4 border-t px-4 py-2.5 text-sm',
+                  'grid w-full min-w-[560px] grid-cols-[120px_100px_110px_120px_1fr] cursor-pointer items-center gap-4 border-t px-4 py-2.5 text-sm',
                   glass ? 'border-white/50 bg-white/30 hover:bg-white/50' : 'border-border hover:bg-surface-muted',
-                  onBookClick ? 'min-w-[760px] grid-cols-[120px_100px_110px_120px_1fr]' : 'min-w-[560px] grid-cols-[120px_100px_110px_120px_1fr]',
+                  onBookClick && 'min-w-[760px]',
                   u.zone.id === highlightedZoneId && 'bg-primary/10',
                 )}
               >
-                <span className="font-medium text-ink">
+                <span className="min-w-0 truncate font-medium text-ink">
                   {u.isWorkstation ? 'Рабочее место' : u.zone.label || zoneTypeLabels[u.zone.zoneType]}
                 </span>
-                <span className="text-ink-muted">{u.floor}</span>
-                <span className="text-ink">
+                <span className="min-w-0 truncate text-ink-muted">{u.floor}</span>
+                <span className="min-w-0 truncate text-ink">
                   {u.isWorkstation ? `Свободно ${u.remaining} мест` : `${u.area} м²`}
                 </span>
-                <span className="font-medium text-ink">{formatMoney(u.price)}</span>
+                <span className="min-w-0 truncate font-medium text-ink">{formatMoney(u.price)}</span>
                 <div className="flex shrink-0 items-center justify-end gap-1.5">
                   <button
                     type="button"
@@ -168,6 +171,60 @@ export function AvailableUnitsTable({
                   >
                     <MapPin className="h-3.5 w-3.5" />
                     Посмотреть на плане
+                  </button>
+                  {onBookClick && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onBookClick(u.zone);
+                      }}
+                      className="whitespace-nowrap rounded-full bg-ink px-3 py-1.5 text-xs font-semibold text-white hover:bg-ink/85"
+                    >
+                      Забронировать
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Ниже md — карточки вместо строк таблицы, без горизонтального скролла. */}
+          <div className="flex flex-col gap-2.5 md:hidden">
+            {visibleUnits.map((u) => (
+              <div
+                key={u.zone.id}
+                onClick={() => onRowClick(u.zone)}
+                className={cn(
+                  'flex cursor-pointer flex-col gap-2.5 rounded-control border p-3.5',
+                  glass ? 'border-white/50 bg-white/30 hover:bg-white/50' : 'border-border hover:bg-surface-muted',
+                  u.zone.id === highlightedZoneId && 'bg-primary/10',
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span className="min-w-0 break-words font-medium text-ink">
+                    {u.isWorkstation ? 'Рабочее место' : u.zone.label || zoneTypeLabels[u.zone.zoneType]}
+                  </span>
+                  <span className="shrink-0 font-semibold text-ink">{formatMoney(u.price)}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-muted">
+                  <span>{u.floor}</span>
+                  <span>{u.isWorkstation ? `Свободно ${u.remaining} мест` : `${u.area} м²`}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onLocateClick(u.zone);
+                    }}
+                    className={cn(
+                      'flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium hover:border-primary hover:text-primary',
+                      glass ? 'border-white/50 bg-white/30 text-ink backdrop-blur-md' : 'border-border text-ink-muted',
+                    )}
+                  >
+                    <MapPin className="h-3.5 w-3.5" />
+                    На плане
                   </button>
                   {onBookClick && (
                     <button

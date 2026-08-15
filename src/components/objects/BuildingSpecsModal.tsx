@@ -175,7 +175,7 @@ export function BuildingSpecsModal({ open, onClose, specs, onSave }: BuildingSpe
         <div className="text-sm font-semibold text-ink">Общие сведения</div>
         <Input label="Наименование" value={form.buildingName} onChange={(e) => set('buildingName', e.target.value)} />
         <Input label="Назначение" value={form.buildingPurpose} onChange={(e) => set('buildingPurpose', e.target.value)} />
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Input label="Год постройки" type="number" value={form.yearBuilt} onChange={(e) => set('yearBuilt', e.target.value)} />
           <Input
             label="Год реконструкции"
@@ -187,7 +187,7 @@ export function BuildingSpecsModal({ open, onClose, specs, onSave }: BuildingSpe
         </div>
 
         <div className="mt-2 text-sm font-semibold text-ink">Площади и помещения</div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input
             label="Общая площадь, м²"
             type="number"
@@ -203,7 +203,7 @@ export function BuildingSpecsModal({ open, onClose, specs, onSave }: BuildingSpe
             onChange={(e) => set('normativeArea', e.target.value)}
           />
         </div>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Input label="Всего помещений" type="number" value={form.roomsCount} onChange={(e) => set('roomsCount', e.target.value)} />
           <Input label="Кабинетов" type="number" value={form.officesCount} onChange={(e) => set('officesCount', e.target.value)} />
           <Input
@@ -221,7 +221,7 @@ export function BuildingSpecsModal({ open, onClose, specs, onSave }: BuildingSpe
         />
 
         <div className="mt-2 text-sm font-semibold text-ink">Конструктив</div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input label="Фундамент" value={form.foundation} onChange={(e) => set('foundation', e.target.value)} />
           <Input label="Стены" value={form.walls} onChange={(e) => set('walls', e.target.value)} />
           <Input label="Перекрытия" value={form.ceilings} onChange={(e) => set('ceilings', e.target.value)} />
@@ -237,7 +237,7 @@ export function BuildingSpecsModal({ open, onClose, specs, onSave }: BuildingSpe
         />
 
         <div className="mt-2 text-sm font-semibold text-ink">Инженерные сети</div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input label="Электроснабжение" value={form.electricity} onChange={(e) => set('electricity', e.target.value)} />
           <Input label="Водопровод" value={form.water} onChange={(e) => set('water', e.target.value)} />
           <Input label="Канализация" value={form.sewerage} onChange={(e) => set('sewerage', e.target.value)} />
@@ -246,7 +246,7 @@ export function BuildingSpecsModal({ open, onClose, specs, onSave }: BuildingSpe
         <Input label="Телефонизация" placeholder="Есть / Нет" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
 
         <div className="mt-2 text-sm font-semibold text-ink">Земельный участок</div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input
             label="Площадь участка, га"
             type="number"

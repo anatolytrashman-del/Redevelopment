@@ -299,7 +299,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
     <>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="font-bold text-ink">Планировка и нарезка кабинетов</div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {editMode && !drawingPoints && (
             <Button type="button" variant="secondary" onClick={startDrawing}>
               Добавить зону
@@ -399,12 +399,12 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
           />
 
           {editMode && drawingPoints !== null && !showZoneForm && (
-            <div className="flex items-center justify-between gap-3 rounded-control bg-surface-muted px-4 py-3 text-sm text-ink-muted">
-              <span>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-control bg-surface-muted px-4 py-3 text-sm text-ink-muted">
+              <span className="min-w-0">
                 {redrawZoneId ? 'Отметьте новые точки контура' : 'Кликайте по плану, чтобы отметить точки контура'} (
                 {drawingPoints.length})
               </span>
-              <div className="flex gap-2">
+              <div className="flex shrink-0 gap-2">
                 <button type="button" onClick={cancelDrawing} aria-label="Отменить" className="text-ink-muted hover:text-danger">
                   <X className="h-4 w-4" />
                 </button>

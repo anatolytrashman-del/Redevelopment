@@ -118,7 +118,7 @@ export function Backlog() {
                 <div className="min-w-0 flex-1">
                   <div className="font-bold text-ink">{item.idea}</div>
                   <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{item.benefit}</p>
-                  <div className="mt-3 flex items-center justify-between gap-4">
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                     <span className="text-xs text-ink-faint">{formatDate(item.createdAt)}</span>
                     <Button
                       type="button"
@@ -154,7 +154,7 @@ export function Backlog() {
                   <div className="min-w-0 flex-1">
                     <div className="font-bold text-ink line-through decoration-ink-faint">{item.idea}</div>
                     <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{item.benefit}</p>
-                    <div className="mt-3 flex items-center justify-between gap-4">
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                       <span className="text-xs text-ink-faint">{formatDate(item.createdAt)}</span>
                       <button
                         type="button"

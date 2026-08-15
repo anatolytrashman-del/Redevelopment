@@ -191,7 +191,7 @@ export function ObjectLandingPage() {
               <span className="font-black text-primary">RED</span>EVELOPMENT
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className={cn('flex items-center gap-2 px-3 py-1.5', glassPillClass)} style={glassPillShadow}>
               <span
                 className={cn('h-2 w-2 shrink-0 rounded-full', ownerOnline ? 'bg-success' : 'bg-ink-faint')}

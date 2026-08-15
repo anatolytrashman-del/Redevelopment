@@ -379,7 +379,7 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
           required
         />
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input
             label="Площадь, м²"
             type="number"
@@ -426,7 +426,7 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input
             label="Собственник"
             placeholder="Имя или компания"
@@ -443,7 +443,7 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input
             label="Имя"
             placeholder="Имя контактного лица"

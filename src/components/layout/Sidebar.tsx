@@ -14,6 +14,7 @@ import {
   FileStack,
   ListChecks,
   Lightbulb,
+  X,
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { fetchBacklogUnreadCount } from '../../lib/backlogApi';
@@ -43,7 +44,15 @@ const allNavItems = [
 const visibleLabels = ['Задачи', 'Объекты', 'Лиды', 'Транзакции', 'Документы'];
 const navItems = visibleLabels.map((label) => allNavItems.find((item) => item.label === label)!);
 
-export function Sidebar() {
+// Ниже lg — сайдбар выезжает поверх контента как шторка (fixed + translate),
+// а не занимает четверть узкого экрана постоянно. От lg и шире — прежнее
+// поведение (sticky-колонка слева, всегда видима, open/onClose не влияют).
+interface SidebarProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+export function Sidebar({ open, onClose }: SidebarProps) {
   const [backlogUnread, setBacklogUnread] = useState(0);
   const [leadsUnread, setLeadsUnread] = useState(0);
 
@@ -78,57 +87,80 @@ export function Sidebar() {
   }, []);
 
   return (
-    <aside className="sticky top-0 flex h-svh w-64 shrink-0 flex-col overflow-y-auto border-r border-white/50 bg-white/30 px-5 py-6 backdrop-blur-xl backdrop-saturate-150">
-      <div className="flex flex-col gap-8">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary">RED</span>EVELOPMENT
-          </span>
-          <span className="text-xs font-medium text-ink-faint">Админка</span>
-        </div>
-        <nav className="flex flex-col gap-1">
-          {navItems.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium transition-colors',
-                  isActive ? 'text-primary' : 'text-ink hover:text-primary',
-                )
-              }
+    <>
+      {/* Подложка-затемнение позади шторки — только когда она открыта и
+          только ниже lg (на десктопе сайдбар постоянно виден, подложка не нужна). */}
+      {open && <div className="fixed inset-0 z-40 bg-ink/40 lg:hidden" onClick={onClose} />}
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-50 flex h-svh w-72 max-w-[85vw] shrink-0 flex-col overflow-y-auto border-r border-white/50 bg-white/70 px-5 py-6 backdrop-blur-xl backdrop-saturate-150 transition-transform duration-200 ease-out',
+          'lg:sticky lg:top-0 lg:z-0 lg:w-64 lg:max-w-none lg:translate-x-0 lg:bg-white/30',
+          open ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
+        <div className="flex flex-col gap-8">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-lg font-extrabold tracking-wide text-ink">
+                <span className="font-black text-primary">RED</span>EVELOPMENT
+              </span>
+              <span className="text-xs font-medium text-ink-faint">Админка</span>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Закрыть меню"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:text-ink lg:hidden"
             >
-              <Icon className="h-5 w-5" />
-              {label}
-              {label === 'Лиды' && leadsUnread > 0 && (
-                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">
-                  {leadsUnread}
-                </span>
-              )}
-            </NavLink>
-          ))}
-        </nav>
-      </div>
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <nav className="flex flex-col gap-1">
+            {navItems.map(({ to, label, icon: Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                onClick={onClose}
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium transition-colors',
+                    isActive ? 'text-primary' : 'text-ink hover:text-primary',
+                  )
+                }
+              >
+                <Icon className="h-5 w-5" />
+                {label}
+                {label === 'Лиды' && leadsUnread > 0 && (
+                  <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">
+                    {leadsUnread}
+                  </span>
+                )}
+              </NavLink>
+            ))}
+          </nav>
+        </div>
 
-      <div className="mt-auto flex flex-col gap-1 border-t border-white/50 pt-4">
-        <NavLink
-          to="/admin/backlog"
-          className={({ isActive }) =>
-            cn(
-              'flex items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium transition-colors',
-              isActive ? 'text-primary' : 'text-ink hover:text-primary',
-            )
-          }
-        >
-          <Lightbulb className="h-5 w-5" />
-          Предложить идею
-          {backlogUnread > 0 && (
-            <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">
-              {backlogUnread}
-            </span>
-          )}
-        </NavLink>
-      </div>
-    </aside>
+        <div className="mt-auto flex flex-col gap-1 border-t border-white/50 pt-4">
+          <NavLink
+            to="/admin/backlog"
+            onClick={onClose}
+            className={({ isActive }) =>
+              cn(
+                'flex items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium transition-colors',
+                isActive ? 'text-primary' : 'text-ink hover:text-primary',
+              )
+            }
+          >
+            <Lightbulb className="h-5 w-5" />
+            Предложить идею
+            {backlogUnread > 0 && (
+              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">
+                {backlogUnread}
+              </span>
+            )}
+          </NavLink>
+        </div>
+      </aside>
+    </>
   );
 }

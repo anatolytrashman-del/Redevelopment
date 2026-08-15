@@ -259,7 +259,8 @@ export function Transactions() {
       />
 
       <Card className="flex flex-col gap-4 p-0">
-        <div className="overflow-x-auto">
+        {/* От md и шире — таблица-грид. Ниже md — карточки (см. блок md:hidden). */}
+        <div className="hidden overflow-x-auto md:block">
           <div className="grid min-w-[1050px] grid-cols-[100px_120px_1.6fr_1fr_1fr_1fr_110px_44px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
             <span>Дата</span>
             <span>Сумма</span>
@@ -318,19 +319,72 @@ export function Transactions() {
           {!loading && !loadError && transactions.length === 0 && (
             <div className="px-6 py-10 text-center text-sm text-ink-muted">Транзакций пока нет</div>
           )}
-          {!loading && !loadError && (
-            <>
-              <div className="flex items-center justify-between border-t border-border bg-black/[0.025] px-6 py-3 text-sm">
-                <span className="font-medium text-ink-muted">Итого расходы за месяц</span>
-                <span className="font-bold text-danger">{formatTotalsMap(monthTotals.expenses)}</span>
+        </div>
+
+        <div className="flex flex-col gap-3 p-4 md:hidden">
+          {transactions.map((t) => (
+            <div key={t.id} className="flex flex-col gap-2.5 rounded-control border border-border p-3.5">
+              <div className="flex items-start justify-between gap-2">
+                <span className="min-w-0 break-words font-medium text-ink">{t.purpose}</span>
+                <button
+                  type="button"
+                  onClick={() => openEditModal(t)}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                  aria-label="Редактировать транзакцию"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
               </div>
-              <div className="flex items-center justify-between border-t border-border bg-black/[0.025] px-6 py-3 text-sm">
-                <span className="font-medium text-ink-muted">Итого доходы за месяц</span>
-                <span className="font-bold text-success">{formatTotalsMap(monthTotals.income)}</span>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-muted">
+                <span>{formatDate(t.date)}</span>
+                <span className="font-semibold text-ink">{formatAmount(t.amount, t.currency)}</span>
               </div>
-            </>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge style={{ backgroundColor: categoryColor(t.category).bg, color: categoryColor(t.category).text }}>
+                  {t.category}
+                </Badge>
+                <button
+                  type="button"
+                  onClick={() => toggleCompensated(t)}
+                  disabled={togglingId === t.id}
+                  className="disabled:opacity-50"
+                  aria-label="Переключить статус «В расчете»"
+                >
+                  <Badge tone={t.compensated ? 'success' : 'warning'}>
+                    {t.compensated ? 'В расчете' : 'Не в расчете'}
+                  </Badge>
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-muted">
+                {t.paidBy && <span>Платил: {t.paidBy}</span>}
+                {t.paidFrom && <span>Откуда: {t.paidFrom}</span>}
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Загружаем транзакции...
+            </div>
+          )}
+          {!loading && loadError && <div className="py-10 text-center text-sm text-danger">{loadError}</div>}
+          {!loading && !loadError && transactions.length === 0 && (
+            <div className="py-10 text-center text-sm text-ink-muted">Транзакций пока нет</div>
           )}
         </div>
+
+        {!loading && !loadError && (
+          <div className="flex flex-col">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-black/[0.025] px-4 py-3 text-sm sm:px-6">
+              <span className="font-medium text-ink-muted">Итого расходы за месяц</span>
+              <span className="font-bold text-danger">{formatTotalsMap(monthTotals.expenses)}</span>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-black/[0.025] px-4 py-3 text-sm sm:px-6">
+              <span className="font-medium text-ink-muted">Итого доходы за месяц</span>
+              <span className="font-bold text-success">{formatTotalsMap(monthTotals.income)}</span>
+            </div>
+          </div>
+        )}
       </Card>
 
       {toggleError && <p className="text-sm text-danger">{toggleError}</p>}
@@ -379,7 +433,7 @@ export function Transactions() {
 
       <Modal open={open} onClose={() => setOpen(false)} title={editingId ? 'Редактировать транзакцию' : 'Новая транзакция'}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input
               label="Дата"
               type="date"
@@ -423,7 +477,7 @@ export function Transactions() {
             newPlaceholder="Название категории"
           />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Select
               label="Кто платил"
               options={[...payers]}

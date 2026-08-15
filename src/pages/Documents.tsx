@@ -185,36 +185,40 @@ export function Documents() {
           const meta = statusMeta[doc.status];
           const Icon = meta?.icon ?? FileCheck;
           return (
-            <Card key={doc.id} className="flex items-center gap-4 p-5">
-              <span
-                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${meta?.className ?? 'bg-surface-muted text-ink-muted'}`}
-              >
-                <Icon className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-semibold text-ink">{doc.title}</div>
-                <div className="text-sm text-ink-muted">
-                  {templateName(doc.templateId)} · {leadName(doc.leadId)} · {formatDate(doc.createdAt)}
+            <Card key={doc.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex min-w-0 flex-1 items-center gap-4">
+                <span
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${meta?.className ?? 'bg-surface-muted text-ink-muted'}`}
+                >
+                  <Icon className="h-5 w-5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-semibold text-ink">{doc.title}</div>
+                  <div className="truncate text-sm text-ink-muted">
+                    {templateName(doc.templateId)} · {leadName(doc.leadId)} · {formatDate(doc.createdAt)}
+                  </div>
                 </div>
               </div>
-              <div className="w-52 shrink-0">
-                <Select
-                  pill
-                  options={[...documentStatuses]}
-                  value={doc.status}
-                  onChange={(v) => handleStatusChange(doc, v)}
-                  triggerClassName={meta?.className}
-                />
+              <div className="flex items-center gap-2 sm:shrink-0">
+                <div className="w-full sm:w-52">
+                  <Select
+                    pill
+                    options={[...documentStatuses]}
+                    value={doc.status}
+                    onChange={(v) => handleStatusChange(doc, v)}
+                    triggerClassName={meta?.className}
+                  />
+                </div>
+                <a
+                  href={doc.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                  aria-label="Открыть документ"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </a>
               </div>
-              <a
-                href={doc.url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                aria-label="Открыть документ"
-              >
-                <ExternalLink className="h-4 w-4" />
-              </a>
             </Card>
           );
         })}
@@ -232,7 +236,7 @@ export function Documents() {
         {updateError && <p className="text-sm text-danger">{updateError}</p>}
       </div>
 
-      <div className="mt-4 flex items-center justify-between">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <div className="text-lg font-bold text-ink">Шаблоны</div>
         <Button variant="secondary" icon={<Plus className="h-4 w-4" />} onClick={openAddTemplateModal}>
           Добавить шаблон

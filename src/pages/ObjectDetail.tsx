@@ -350,7 +350,7 @@ export function ObjectDetail() {
       {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
 
       {!loading && !loadError && object && (
-        <div className="grid grid-cols-[380px_minmax(0,1fr)] items-start gap-6">
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
           <div className="flex min-w-0 flex-col gap-5">
             <Card className="flex flex-col gap-3 p-5">
               <button
