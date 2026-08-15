@@ -75,6 +75,9 @@ export function HeroImageSlider({ images }: HeroImageSliderProps) {
                 />
               ))}
             </div>
+            <div className="absolute bottom-3 right-3 rounded-full bg-white/80 px-2.5 py-1 text-xs font-semibold text-ink shadow-card">
+              {index + 1} / {images.length}
+            </div>
           </>
         )}
       </div>
