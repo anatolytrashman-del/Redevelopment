@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { PasswordGate } from './components/layout/PasswordGate';
@@ -13,7 +14,26 @@ import { PublicBuildingPlan } from './pages/PublicBuildingPlan';
 import { ObjectLandingPage } from './pages/ObjectLandingPage';
 import { NotFound } from './pages/NotFound';
 
+// Случайный щипок двумя пальцами (обычный жест при скролле телефоном,
+// держа его двумя руками) зумит всю страницу нативным зумом Safari — и этот
+// зум остаётся, пока клиент не сведёт пальцы обратно вручную, а верстка
+// после него местами едет. viewport-мета (maximum-scale/user-scalable) для
+// этого ненадёжен: современный iOS Safari игнорирует user-scalable=no.
+// Единственный рабочий способ — как и в зуме планировки (BuildingPlanCanvas) —
+// перехватывать многопальцевый touchmove на уровне всего документа. Двойной
+// тап (зум планировки) не задет: там всегда одно касание за раз.
+function usePreventPageZoom() {
+  useEffect(() => {
+    function onTouchMove(e: TouchEvent) {
+      if (e.touches.length > 1) e.preventDefault();
+    }
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    return () => document.removeEventListener('touchmove', onTouchMove);
+  }, []);
+}
+
 export default function App() {
+  usePreventPageZoom();
   return (
     <Routes>
       {/* Публичная часть — без AppLayout и без пароля, для клиентов и рекламы.
