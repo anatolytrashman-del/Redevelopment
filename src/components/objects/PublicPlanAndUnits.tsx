@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ElementType } from 'react';
+import { Loader2 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import { Modal } from '../ui/Modal';
@@ -91,6 +92,10 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingDone, setBookingDone] = useState(false);
   const [bookedLeadId, setBookedLeadId] = useState<string | null>(null);
+  // "Забронировано!" показываем только после реального подписания
+  // соглашения, а не сразу после отправки формы — иначе клиент решает, что
+  // процесс уже завершён, хотя подпись ещё не поставлена.
+  const [agreementSigned, setAgreementSigned] = useState(false);
 
   function resetBookingState(nextOpen: boolean) {
     setBookingOpen(nextOpen);
@@ -98,6 +103,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
     setBookingError(null);
     setBookingDone(false);
     setBookedLeadId(null);
+    setAgreementSigned(false);
   }
 
   const objectPlans = object.buildingPlanIds
@@ -330,9 +336,15 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
                   <div className="flex flex-col gap-3 border-t border-border pt-3">
                     {bookingDone && bookedLeadId ? (
                       <div className="flex flex-col gap-3">
-                        <p className="text-sm font-medium text-success">
-                          Забронировано! Мы скоро свяжемся с вами для подтверждения.
-                        </p>
+                        {agreementSigned ? (
+                          <p className="text-sm font-medium text-success">
+                            Забронировано! Мы скоро свяжемся с вами для подтверждения.
+                          </p>
+                        ) : (
+                          <p className="text-sm font-medium text-ink">
+                            Осталось подписать соглашение о намерениях, чтобы завершить бронь.
+                          </p>
+                        )}
                         <AgreementSigningFlow
                           leadId={bookedLeadId}
                           objectId={object.id}
@@ -341,6 +353,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
                           zoneFloorLabel={plan?.name ?? ''}
                           zoneLabel={selectedZone.label}
                           isWorkstation={isWorkstation}
+                          onSigned={() => setAgreementSigned(true)}
                         />
                       </div>
                     ) : bookingOpen ? (
@@ -367,6 +380,12 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
                           onChange={(e) => setBookingForm((f) => ({ ...f, comment: e.target.value }))}
                         />
                         {bookingError && <p className="text-sm text-danger">{bookingError}</p>}
+                        {bookingSubmitting && (
+                          <p className="flex items-center gap-2 text-sm text-ink-muted">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Идёт бронирование, подождите...
+                          </p>
+                        )}
                         <Button type="submit" disabled={bookingSubmitting} className="w-fit">
                           {bookingSubmitting ? 'Отправляем...' : 'Далее — подписать соглашение'}
                         </Button>

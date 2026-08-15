@@ -27,6 +27,9 @@ interface AgreementSigningFlowProps {
   zoneFloorLabel: string;
   zoneLabel: string;
   isWorkstation: boolean;
+  // Родитель показывает "Забронировано!" только после реального подписания,
+  // а не сразу после брони — см. PublicPlanAndUnits.
+  onSigned?: () => void;
 }
 
 // Идёт сразу после успешной брони (см. PublicPlanAndUnits) — необязательный,
@@ -42,6 +45,7 @@ export function AgreementSigningFlow({
   zoneFloorLabel,
   zoneLabel,
   isWorkstation,
+  onSigned,
 }: AgreementSigningFlowProps) {
   const [step, setStep] = useState<'closed' | 'form' | 'code' | 'done'>('closed');
   const [form, setForm] = useState(emptyForm);
@@ -93,6 +97,7 @@ export function AgreementSigningFlow({
       const { documentUrl: url } = await verifyAgreementOtp(signatureId, code.trim());
       setDocumentUrl(url);
       setStep('done');
+      onSigned?.();
     } catch (err) {
       setError(errorMessage(err, 'Не удалось подтвердить код'));
     } finally {
