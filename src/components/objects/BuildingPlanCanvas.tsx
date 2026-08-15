@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { Minus, Plus, RotateCcw } from 'lucide-react';
 import {
   zoneTypeLabels,
   zoneDownPayment,
@@ -11,6 +12,18 @@ import {
   type ZonePoint,
 } from '../../data/buildingPlans';
 import { cn } from '../../lib/cn';
+
+const MIN_SCALE = 1;
+const MAX_SCALE = 4;
+const DOUBLE_TAP_MS = 300;
+
+function distance(a: Touch, b: Touch) {
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
 
 // Общие куски рендера планировки — используются и во внутреннем виджете
 // (BuildingPlanWidget, с редактированием), и на публичной странице для
@@ -56,6 +69,14 @@ interface BuildingPlanCanvasProps {
   // Только для клиентских поверхностей (см. zoneFillClass) — админский
   // BuildingPlanWidget этот проп не передаёт, там статус "Продано" виден как есть.
   hideSoldStatus?: boolean;
+  // Пинч-зум и панорамирование пальцем — только на клиентских поверхностях
+  // (PublicPlanAndUnits), где иначе на мобильном приходится зумить всю
+  // страницу через системный pinch-to-zoom браузера: план не читается на
+  // маленьком экране, а при открытии модалки кабинета вёрстка "плывёт",
+  // потому что зумлена вся страница, а не сам план. В админском виджете
+  // (BuildingPlanWidget, там ещё и рисование контуров зон) не включаем —
+  // не хотим смешивать жест панорамирования с расстановкой точек.
+  zoomable?: boolean;
 }
 
 export function BuildingPlanCanvas({
@@ -67,9 +88,22 @@ export function BuildingPlanCanvas({
   drawingPoints,
   highlightZoneId,
   hideSoldStatus,
+  zoomable,
 }: BuildingPlanCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoverZone, setHoverZone] = useState<{ zone: BuildingPlanZone; x: number; y: number } | null>(null);
+  const [scale, setScale] = useState(1);
+  const [translate, setTranslate] = useState({ x: 0, y: 0 });
+  // Состояние активного жеста живёт в ref, а не в стейте — трогается на
+  // каждый touchmove, ререндер тут не нужен, важны только scale/translate.
+  const gestureRef = useRef<{
+    mode: 'pinch' | 'pan' | null;
+    startDistance: number;
+    startScale: number;
+    startTranslate: { x: number; y: number };
+    startTouch: { x: number; y: number };
+  }>({ mode: null, startDistance: 0, startScale: 1, startTranslate: { x: 0, y: 0 }, startTouch: { x: 0, y: 0 } });
+  const lastTapRef = useRef(0);
 
   function handleZoneHover(zone: BuildingPlanZone, e: React.MouseEvent) {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -77,53 +111,197 @@ export function BuildingPlanCanvas({
     setHoverZone({ zone, x: e.clientX - rect.left, y: e.clientY - rect.top });
   }
 
+  function clampTranslate(t: { x: number; y: number }, s: number, rect: DOMRect) {
+    const maxX = (rect.width * (s - 1)) / 2;
+    const maxY = (rect.height * (s - 1)) / 2;
+    return { x: clamp(t.x, -maxX, maxX), y: clamp(t.y, -maxY, maxY) };
+  }
+
+  function resetZoom() {
+    setScale(1);
+    setTranslate({ x: 0, y: 0 });
+  }
+
+  function zoomBy(delta: number) {
+    setScale((s) => {
+      const next = clamp(s + delta, MIN_SCALE, MAX_SCALE);
+      if (next === MIN_SCALE) setTranslate({ x: 0, y: 0 });
+      return next;
+    });
+  }
+
+  // Нативные listener'ы вместо onTouchMove — React по умолчанию вешает
+  // touch-хендлеры как passive, а preventDefault (без него пинч зумит всю
+  // страницу поверх нашего) в passive-режиме браузер просто игнорирует.
+  useEffect(() => {
+    if (!zoomable) return;
+    const el = containerRef.current;
+    if (!el) return;
+
+    function onTouchStart(e: TouchEvent) {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        gestureRef.current = {
+          mode: 'pinch',
+          startDistance: distance(e.touches[0], e.touches[1]),
+          startScale: scale,
+          startTranslate: translate,
+          startTouch: { x: 0, y: 0 },
+        };
+      } else if (e.touches.length === 1 && scale > 1) {
+        gestureRef.current = {
+          mode: 'pan',
+          startDistance: 0,
+          startScale: scale,
+          startTranslate: translate,
+          startTouch: { x: e.touches[0].clientX, y: e.touches[0].clientY },
+        };
+      }
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      const gesture = gestureRef.current;
+      if (!gesture.mode) return;
+      const rect = el!.getBoundingClientRect();
+
+      if (gesture.mode === 'pinch' && e.touches.length === 2) {
+        e.preventDefault();
+        const ratio = distance(e.touches[0], e.touches[1]) / gesture.startDistance;
+        const nextScale = clamp(gesture.startScale * ratio, MIN_SCALE, MAX_SCALE);
+        setScale(nextScale);
+        setTranslate(clampTranslate(gesture.startTranslate, nextScale, rect));
+      } else if (gesture.mode === 'pan' && e.touches.length === 1) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - gesture.startTouch.x;
+        const dy = e.touches[0].clientY - gesture.startTouch.y;
+        setTranslate(
+          clampTranslate(
+            { x: gesture.startTranslate.x + dx, y: gesture.startTranslate.y + dy },
+            gesture.startScale,
+            rect,
+          ),
+        );
+      }
+    }
+
+    function onTouchEnd(e: TouchEvent) {
+      if (e.touches.length === 0) {
+        gestureRef.current.mode = null;
+        setScale((s) => {
+          if (s <= MIN_SCALE + 0.02) {
+            setTranslate({ x: 0, y: 0 });
+            return MIN_SCALE;
+          }
+          return s;
+        });
+        // Двойной тап — быстрый зум без пальцев-«ножниц».
+        const now = Date.now();
+        if (now - lastTapRef.current < DOUBLE_TAP_MS) {
+          setScale((s) => (s > MIN_SCALE ? MIN_SCALE : 2));
+          if (scale > MIN_SCALE) setTranslate({ x: 0, y: 0 });
+        }
+        lastTapRef.current = now;
+      }
+    }
+
+    el.addEventListener('touchstart', onTouchStart, { passive: false });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd);
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [zoomable, scale, translate]);
+
   return (
     <div
       ref={containerRef}
       className={cn(
         'relative w-full select-none overflow-hidden rounded-control border border-border',
         cursorCrosshair && 'cursor-crosshair',
+        zoomable && 'touch-none',
       )}
       onClick={onContainerClick}
     >
-      <img src={plan.imageUrl} alt={plan.name} className="w-full" draggable={false} />
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
-        {zones
-          .filter((zone) => zone.buildingPlanId === plan.id)
-          .map((zone) => (
-            <polygon
-              key={zone.id}
-              points={pointsToAttr(zone.points)}
-              className={cn('cursor-pointer transition-opacity hover:opacity-80', zoneFillClass(zone, hideSoldStatus))}
-              strokeWidth={0.3}
-              onClick={(e) => {
-                e.stopPropagation();
-                onZoneClick(zone);
-                setHoverZone(null);
-              }}
-              onMouseEnter={(e) => handleZoneHover(zone, e)}
-              onMouseMove={(e) => handleZoneHover(zone, e)}
-              onMouseLeave={() => setHoverZone(null)}
-            />
-          ))}
-        {drawingPoints && drawingPoints.length > 0 && (
-          <polyline points={pointsToAttr(drawingPoints)} className="fill-none stroke-primary" strokeWidth={0.4} />
-        )}
-        {drawingPoints?.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r={0.7} className="fill-primary" />
-        ))}
-        {highlightZoneId &&
-          zones
-            .filter((zone) => zone.buildingPlanId === plan.id && zone.id === highlightZoneId)
+      <div
+        className={zoomable ? '' : undefined}
+        style={
+          zoomable
+            ? { transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`, transformOrigin: 'center center' }
+            : undefined
+        }
+      >
+        <img src={plan.imageUrl} alt={plan.name} className="w-full" draggable={false} />
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
+          {zones
+            .filter((zone) => zone.buildingPlanId === plan.id)
             .map((zone) => (
               <polygon
-                key={`highlight-${zone.id}`}
+                key={zone.id}
                 points={pointsToAttr(zone.points)}
-                className="pointer-events-none animate-pulse fill-none stroke-primary"
-                strokeWidth={0.9}
+                className={cn('cursor-pointer transition-opacity hover:opacity-80', zoneFillClass(zone, hideSoldStatus))}
+                strokeWidth={0.3}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onZoneClick(zone);
+                  setHoverZone(null);
+                }}
+                onMouseEnter={(e) => handleZoneHover(zone, e)}
+                onMouseMove={(e) => handleZoneHover(zone, e)}
+                onMouseLeave={() => setHoverZone(null)}
               />
             ))}
-      </svg>
+          {drawingPoints && drawingPoints.length > 0 && (
+            <polyline points={pointsToAttr(drawingPoints)} className="fill-none stroke-primary" strokeWidth={0.4} />
+          )}
+          {drawingPoints?.map((p, i) => (
+            <circle key={i} cx={p.x} cy={p.y} r={0.7} className="fill-primary" />
+          ))}
+          {highlightZoneId &&
+            zones
+              .filter((zone) => zone.buildingPlanId === plan.id && zone.id === highlightZoneId)
+              .map((zone) => (
+                <polygon
+                  key={`highlight-${zone.id}`}
+                  points={pointsToAttr(zone.points)}
+                  className="pointer-events-none animate-pulse fill-none stroke-primary"
+                  strokeWidth={0.9}
+                />
+              ))}
+        </svg>
+      </div>
+
+      {zoomable && (
+        <div className="absolute bottom-3 right-3 flex flex-col gap-1.5">
+          <button
+            type="button"
+            onClick={() => zoomBy(1)}
+            aria-label="Приблизить"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-ink shadow-card hover:bg-white"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => zoomBy(-1)}
+            aria-label="Отдалить"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-ink shadow-card hover:bg-white"
+          >
+            <Minus className="h-4 w-4" />
+          </button>
+          {scale > 1 && (
+            <button
+              type="button"
+              onClick={resetZoom}
+              aria-label="Сбросить масштаб"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-ink shadow-card hover:bg-white"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      )}
 
       {hoverZone && (
         <div

@@ -240,6 +240,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
                     onZoneClick={handleZoneSelect}
                     highlightZoneId={highlightZoneId}
                     hideSoldStatus
+                    zoomable
                   />
                   <BuildingPlanLegend hideSoldStatus />
                 </>
