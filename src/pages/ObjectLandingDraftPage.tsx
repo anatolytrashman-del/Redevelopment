@@ -93,9 +93,6 @@ const complexFeatures: { icon: LucideIcon; text: string }[] = [
 interface PurchaseOption {
   icon: LucideIcon;
   title: string;
-  // Конкретные условия — жирной строкой, только там, где они реально есть
-  // (сейчас только у рассрочки). Для лизинга/кредита пока нет ни ставок, ни
-  // банков-партнёров, поэтому там только description с честной пометкой.
   terms?: string;
   description: string;
   badge?: string;
@@ -112,11 +109,13 @@ const purchaseOptions: PurchaseOption[] = [
   {
     icon: Briefcase,
     title: 'Лизинг',
+    terms: 'Взнос от 10% · Срок до 10 лет',
     description: 'Специальные условия на проекты компании Redevelopment.',
   },
   {
     icon: Landmark,
     title: 'Кредит',
+    terms: 'Взнос от 20% · Срок до 20 лет',
     description: 'Банковское финансирование на покупку коммерческой недвижимости для физлиц и юрлиц.',
   },
 ];
