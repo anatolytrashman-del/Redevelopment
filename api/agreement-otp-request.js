@@ -29,7 +29,68 @@ async function insertSignatureRow(payload) {
   return rows[0];
 }
 
-async function sendOtpEmail(email, code) {
+// Вёрстка письма — табличная, инлайн-стили, без внешних картинок и шрифтов:
+// почтовые клиенты (особенно Outlook) не поддерживают ни бэкграунд-блюр
+// сайта, ни веб-шрифты, ни внешние ассеты со стабильной загрузкой, поэтому
+// "стиль лендинга" здесь — тот же цветовой код и текстовый вордмарк
+// ("RED" красным + "EVELOPMENT" тёмным), что и в шапке сайта, а не копия вёрстки.
+function otpEmailHtml({ code, unitLabel }) {
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f0efed;padding:32px 16px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border:1px solid #e7e5e2;border-radius:20px;">
+            <tr>
+              <td style="padding:36px 32px 8px;text-align:center;">
+                <span style="font-size:20px;font-weight:800;letter-spacing:0.02em;">
+                  <span style="color:#e4152b;">RED</span><span style="color:#14151a;">EVELOPMENT</span>
+                </span>
+              </td>
+            </tr>
+            ${unitLabel ? `
+            <tr>
+              <td style="padding:0 32px;text-align:center;">
+                <span style="display:inline-block;margin-top:8px;padding:4px 12px;border-radius:999px;background:#f5f4f2;color:#6b6d76;font-size:12px;font-weight:600;">${unitLabel}</span>
+              </td>
+            </tr>` : ''}
+            <tr>
+              <td style="padding:24px 32px 4px;text-align:center;color:#14151a;font-size:15px;">
+                Код для подписания соглашения о намерениях
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 32px 0;text-align:center;">
+                <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;background:#fde3e5;border-radius:16px;">
+                  <tr>
+                    <td style="padding:16px 28px;font-size:36px;font-weight:800;letter-spacing:0.25em;color:#14151a;">
+                      ${code}
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px 0;text-align:center;color:#9a9ba3;font-size:13px;">
+                Код действует ${OTP_TTL_MINUTES} минут
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px 32px 32px;">
+                <hr style="border:none;border-top:1px solid #e7e5e2;margin:0 0 20px;" />
+                <p style="margin:0;color:#9a9ba3;font-size:12px;line-height:1.6;text-align:center;">
+                  Если вы не запрашивали подписание — просто проигнорируйте это письмо.<br />
+                  redevelopment.pro
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  `;
+}
+
+async function sendOtpEmail(email, code, unitLabel) {
   const resp = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -40,13 +101,7 @@ async function sendOtpEmail(email, code) {
       from: RESEND_FROM,
       to: [email],
       subject: `Код подтверждения: ${code}`,
-      html: `
-        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-          <p>Код для подписания соглашения о намерениях на redevelopment.pro:</p>
-          <p style="font-size: 32px; font-weight: 700; letter-spacing: 4px;">${code}</p>
-          <p style="color: #888; font-size: 13px;">Код действует ${OTP_TTL_MINUTES} минут. Если вы не запрашивали подписание — просто игнорируйте это письмо.</p>
-        </div>
-      `,
+      html: otpEmailHtml({ code, unitLabel }),
     }),
   });
   if (!resp.ok) {
@@ -117,7 +172,10 @@ export default async function handler(req, res) {
       user_agent: req.headers['user-agent'] ?? null,
     });
 
-    await sendOtpEmail(email, code);
+    const unitLabel = isWorkstation
+      ? `Рабочее место ${zoneLabel || ''}`.trim()
+      : `Кабинет ${zoneLabel || ''}${zoneArea ? ` · ${zoneArea} м²` : ''}`.trim();
+    await sendOtpEmail(email, code, unitLabel);
 
     res.status(200).json({ signatureId: row.id });
   } catch (err) {
