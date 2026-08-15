@@ -23,7 +23,7 @@ import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from
 import type { LucideIcon } from 'lucide-react';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { PublicPlanAndUnits } from '../components/objects/PublicPlanAndUnits';
-import { BookingTermsCard, PLAN_AND_UNITS_ANCHOR_ID } from '../components/objects/BookingTermsCard';
+import { BookingTermsCard } from '../components/objects/BookingTermsCard';
 import type { BuildingPlan, BuildingPlanZone } from '../data/buildingPlans';
 import type { RealtyObject } from '../data/objects';
 import { fetchObjectByLandingSlug } from '../lib/objectsApi';
@@ -98,10 +98,6 @@ interface PurchaseOption {
   terms?: string;
   description: string;
   badge?: string;
-  // Визуально выделяем один вариант, чтобы взгляд сразу цеплялся хоть за
-  // что-то — раньше все 3 карточки были равнозначны по весу и терялись
-  // друг на друге.
-  highlight?: boolean;
 }
 
 const purchaseOptions: PurchaseOption[] = [
@@ -111,7 +107,6 @@ const purchaseOptions: PurchaseOption[] = [
     terms: 'Взнос 25% · Срок 4 месяца',
     description: 'По индивидуальному согласованию.',
     badge: '🇧🇾 🇷🇺',
-    highlight: true,
   },
   {
     icon: Briefcase,
@@ -241,26 +236,14 @@ export function ObjectLandingDraftPage() {
               </div>
             ))}
           </div>
-          {/* Раньше в хиро не было ни одной кнопки действия — только факты
-              списком. Свободный путь "посмотреть кабинеты" сразу под ними. */}
-          <button
-            type="button"
-            onClick={() => document.getElementById(PLAN_AND_UNITS_ANCHOR_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-            className="w-fit rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white hover:bg-primary-hover"
-          >
-            Смотреть кабинеты
-          </button>
         </div>
 
         <div className="relative">
           <HeroImageSlider images={object.renderImageUrls} />
-        </div>
-      </div>
-
-      <div className="mx-auto max-w-5xl px-4 sm:px-8">
-        <div className={cn('flex items-center gap-4 px-5 py-4', glassPillClass)} style={glassPillShadow}>
-          <img src={MINSK_MIR_LOGO_URL} alt="Минск Мир" className="h-9 w-auto shrink-0" />
-          <span className="text-lg font-bold text-ink sm:text-xl">Рядом с Минск Миром</span>
+          <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 shadow-card backdrop-blur">
+            <img src={MINSK_MIR_LOGO_URL} alt="Минск Мир" className="h-4 w-auto" />
+            <span className="text-xs font-semibold text-ink">Рядом с Минск Миром</span>
+          </div>
         </div>
       </div>
 
@@ -285,16 +268,8 @@ export function ObjectLandingDraftPage() {
             {purchaseOptions.map((opt) => (
               <div
                 key={opt.title}
-                className={cn(
-                  'flex flex-col gap-3 rounded-control p-4 backdrop-blur-md',
-                  opt.highlight ? 'border-2 border-primary/50 bg-primary-soft/60' : 'border border-white/50 bg-white/40',
-                )}
+                className="flex flex-col gap-3 rounded-control border border-white/50 bg-white/40 p-4 backdrop-blur-md"
               >
-                {opt.highlight && (
-                  <span className="w-fit rounded-full bg-primary px-2.5 py-1 text-xs font-semibold text-white">
-                    Популярный выбор
-                  </span>
-                )}
                 <div className="flex items-center justify-between gap-2">
                   <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center text-ink', glassPillClass)}>
                     <opt.icon className="h-5 w-5" />
@@ -361,23 +336,6 @@ export function ObjectLandingDraftPage() {
 
         <BookingTermsCard agreement={object.intentAgreementFile} glass />
       </div>
-
-      {/* Плавающая кнопка связи — раньше путь к собственнику был только в
-          шапке и терялся после первого скролла. Ниже z-50 модалок (Modal.tsx,
-          превью соглашения), чтобы не перекрывать их. */}
-      <a
-        href={OWNER_TELEGRAM_URL}
-        target="_blank"
-        rel="noreferrer"
-        className={cn(
-          'fixed bottom-4 right-4 z-40 flex items-center gap-2 px-4 py-3 text-sm font-semibold text-ink hover:border-primary hover:text-primary sm:bottom-6 sm:right-6',
-          glassPillClass,
-        )}
-        style={glassPillShadow}
-      >
-        <TelegramLogo className="h-5 w-5" />
-        <span className="hidden sm:inline">Написать в Telegram</span>
-      </a>
     </div>
   );
 }
