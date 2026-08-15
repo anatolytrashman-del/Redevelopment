@@ -25,6 +25,8 @@ interface AgreementSigningFlowProps {
   zoneId: string;
   zoneArea: number;
   zoneFloorLabel: string;
+  zoneLabel: string;
+  isWorkstation: boolean;
 }
 
 // Идёт сразу после успешной брони (см. PublicPlanAndUnits) — необязательный,
@@ -32,7 +34,15 @@ interface AgreementSigningFlowProps {
 // код на email (api/agreement-otp-request.js) и подтверждает его
 // (api/agreement-otp-verify.js), который заполняет гугл-шаблон соглашения,
 // экспортирует в PDF и сохраняет в Supabase Storage.
-export function AgreementSigningFlow({ leadId, objectId, zoneId, zoneArea, zoneFloorLabel }: AgreementSigningFlowProps) {
+export function AgreementSigningFlow({
+  leadId,
+  objectId,
+  zoneId,
+  zoneArea,
+  zoneFloorLabel,
+  zoneLabel,
+  isWorkstation,
+}: AgreementSigningFlowProps) {
   const [step, setStep] = useState<'closed' | 'form' | 'code' | 'done'>('closed');
   const [form, setForm] = useState(emptyForm);
   const [code, setCode] = useState('');
@@ -56,6 +66,8 @@ export function AgreementSigningFlow({ leadId, objectId, zoneId, zoneArea, zoneF
         zoneId,
         zoneArea,
         zoneFloorLabel,
+        zoneLabel,
+        isWorkstation,
         buyerName: form.buyerName.trim(),
         buyerGender: form.buyerGender,
         buyerPassport: form.buyerPassport.trim(),

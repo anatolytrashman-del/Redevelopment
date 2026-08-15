@@ -21,6 +21,7 @@ import {
 import type { RealtyObject } from '../../data/objects';
 import { insertLead } from '../../lib/leadsApi';
 import { updateZone } from '../../lib/buildingPlansApi';
+import { insertWorkstationSeatLead } from '../../lib/workstationSeatLeadsApi';
 import { cn } from '../../lib/cn';
 
 function formatMoney(value: number) {
@@ -137,6 +138,12 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
             status: selectedZone.workstationsSold + 1 >= (selectedZone.workstationCount as number) ? 'Продано' : 'Свободно',
           })
         : await updateZone(selectedZone.id, { status: 'Забронировано', leadId: lead.id });
+      // Привязка конкретного лида к конкретному месту — отдельная таблица,
+      // потому что у одной зоны может быть до workstationCount разных лидов
+      // (в отличие от обычного кабинета, где zone.leadId — один на всех).
+      if (bookingWorkstation) {
+        await insertWorkstationSeatLead({ zoneId: selectedZone.id, leadId: lead.id });
+      }
       setSelectedZone(updatedZone);
       onZoneUpdated(updatedZone);
       setBookedLeadId(lead.id);
@@ -286,6 +293,8 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
                           zoneId={selectedZone.id}
                           zoneArea={selectedZone.area ?? 0}
                           zoneFloorLabel={plan?.name ?? ''}
+                          zoneLabel={selectedZone.label}
+                          isWorkstation={isWorkstation}
                         />
                       </div>
                     ) : bookingOpen ? (

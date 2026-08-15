@@ -102,6 +102,18 @@ export function fetchBookedZones(): Promise<BuildingPlanZone[]> {
   });
 }
 
+// Зоны по конкретным id — используется, чтобы подтянуть кабинет для брони
+// отдельного рабочего места (workstation_seat_leads хранит только zone_id,
+// без остальных полей плана/лида), не загружая все зоны по всем планам.
+export function fetchZonesByIds(ids: string[]): Promise<BuildingPlanZone[]> {
+  if (ids.length === 0) return Promise.resolve([]);
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('building_plan_zones').select('*').in('id', ids);
+    if (error) throw error;
+    return (data as BuildingPlanZoneRow[]).map(zoneFromRow);
+  });
+}
+
 export function insertZone(input: Omit<BuildingPlanZone, 'id'>): Promise<BuildingPlanZone> {
   return withRetry(async () => {
     const { data, error } = await supabase

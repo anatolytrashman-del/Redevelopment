@@ -82,7 +82,7 @@ export function AvailableUnitsTable({
     .filter((u) => u.isWorkstation || !maxArea.trim() || u.area! <= Number(maxArea))
     .filter((u) => !minPrice.trim() || u.price >= Number(minPrice))
     .filter((u) => !maxPrice.trim() || u.price <= Number(maxPrice))
-    .sort((a, b) => (a.area ?? Infinity) - (b.area ?? Infinity));
+    .sort((a, b) => a.price - b.price);
 
   const visibleUnits = expanded ? units : units.slice(0, VISIBLE_LIMIT);
   const hiddenCount = units.length - visibleUnits.length;
@@ -140,11 +140,9 @@ export function AvailableUnitsTable({
                 <span className="font-medium text-ink">{u.zone.label || zoneTypeLabels[u.zone.zoneType]}</span>
                 <span className="text-ink-muted">{u.floor}</span>
                 <span className="text-ink">
-                  {u.isWorkstation ? `Свободно ${u.remaining} из ${u.total}` : `${u.area} м²`}
+                  {u.isWorkstation ? `Свободно ${u.remaining} мест` : `${u.area} м²`}
                 </span>
-                <span className="font-medium text-ink">
-                  {u.isWorkstation ? `${formatMoney(u.price)} / место` : formatMoney(u.price)}
-                </span>
+                <span className="font-medium text-ink">{formatMoney(u.price)}</span>
                 <div className="flex shrink-0 items-center justify-end gap-1.5">
                   <button
                     type="button"

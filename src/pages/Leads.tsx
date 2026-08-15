@@ -18,8 +18,13 @@ import { cn } from '../lib/cn';
 import { fetchLeads, insertLead, updateLead, deleteLead } from '../lib/leadsApi';
 import { markLeadsViewed } from '../lib/leadsSeen';
 import { fetchObjects } from '../lib/objectsApi';
-import { fetchBookedZones, fetchBuildingPlans, updateZone } from '../lib/buildingPlansApi';
+import { fetchBookedZones, fetchBuildingPlans, fetchZonesByIds, updateZone } from '../lib/buildingPlansApi';
 import { fetchSignedAgreementsForZones, type SignedAgreementSummary } from '../lib/agreementSigningApi';
+import {
+  fetchWorkstationSeatLeads,
+  deleteWorkstationSeatLead,
+  type WorkstationSeatLead,
+} from '../lib/workstationSeatLeadsApi';
 
 const NO_OBJECT = 'Не привязан';
 // Статус лида, который жёстко ставится в PublicPlanAndUnits.tsx при брони с
@@ -86,6 +91,8 @@ export function Leads() {
   const [objects, setObjects] = useState<RealtyObject[]>([]);
   const [plans, setPlans] = useState<BuildingPlan[]>([]);
   const [bookedZones, setBookedZones] = useState<BuildingPlanZone[]>([]);
+  const [seatLeads, setSeatLeads] = useState<WorkstationSeatLead[]>([]);
+  const [seatZones, setSeatZones] = useState<BuildingPlanZone[]>([]);
   const [signedAgreements, setSignedAgreements] = useState<SignedAgreementSummary[]>([]);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -102,7 +109,10 @@ export function Leads() {
     return [...set];
   }, [leads]);
 
-  const bookedLeadIds = useMemo(() => new Set(bookedZones.map((z) => z.leadId).filter(Boolean)), [bookedZones]);
+  const bookedLeadIds = useMemo(
+    () => new Set([...bookedZones.map((z) => z.leadId).filter(Boolean), ...seatLeads.map((s) => s.leadId)]),
+    [bookedZones, seatLeads],
+  );
 
   // Тёплые лиды всегда наверху, порядок внутри группы (по дате создания) сохраняется.
   // Лиды с бронью кабинета показываются отдельным блоком ниже, а не в общем списке.
@@ -113,6 +123,18 @@ export function Leads() {
 
   const leadById = useMemo(() => new Map(leads.map((l) => [l.id, l])), [leads]);
   const planById = useMemo(() => new Map(plans.map((p) => [p.id, p])), [plans]);
+  const seatZoneById = useMemo(() => new Map(seatZones.map((z) => [z.id, z])), [seatZones]);
+
+  // Строки для брони отдельных рабочих мест — одна на каждого лида, купившего
+  // место в зоне с workstationCount (в отличие от bookedZones, где строка на
+  // всю зону целиком с единственным лидом).
+  const seatBookingRows = useMemo(
+    () =>
+      seatLeads
+        .map((seat) => ({ seat, zone: seatZoneById.get(seat.zoneId), lead: leadById.get(seat.leadId) }))
+        .filter((r): r is { seat: WorkstationSeatLead; zone: BuildingPlanZone; lead: Lead } => !!r.zone && !!r.lead),
+    [seatLeads, seatZoneById, leadById],
+  );
 
   // Для каждого плана — объект недвижимости, к которому он привязан (план могут
   // привязать только к одному объекту, но привязку хранит объект, а не план).
@@ -141,18 +163,29 @@ export function Leads() {
     fetchBuildingPlans()
       .then(setPlans)
       .catch(() => setPlans([]));
-    fetchBookedZones()
-      .then((zones) => {
+    Promise.all([fetchBookedZones(), fetchWorkstationSeatLeads()])
+      .then(async ([zones, seats]) => {
         setBookedZones(zones);
-        fetchSignedAgreementsForZones(zones.map((z) => z.id))
+        setSeatLeads(seats);
+        const seatZoneIds = [...new Set(seats.map((s) => s.zoneId))];
+        fetchZonesByIds(seatZoneIds)
+          .then(setSeatZones)
+          .catch(() => setSeatZones([]));
+        const allZoneIds = [...new Set([...zones.map((z) => z.id), ...seatZoneIds])];
+        fetchSignedAgreementsForZones(allZoneIds)
           .then(setSignedAgreements)
           .catch(() => setSignedAgreements([]));
       })
-      .catch(() => setBookedZones([]));
+      .catch(() => {
+        setBookedZones([]);
+        setSeatLeads([]);
+      });
   }, []);
 
-  const signedAgreementByZoneId = useMemo(
-    () => new Map(signedAgreements.map((a) => [a.zoneId, a])),
+  // Ключ — зона+лид, а не просто зона: у зоны с рабочими местами может быть
+  // несколько подписанных соглашений (по одному на лида).
+  const signedAgreementByKey = useMemo(
+    () => new Map(signedAgreements.map((a) => [`${a.zoneId}:${a.leadId}`, a])),
     [signedAgreements],
   );
 
@@ -237,10 +270,14 @@ export function Leads() {
   async function handleDeleteLead(lead: Lead) {
     if (deletingId) return;
     const zone = bookedZones.find((z) => z.leadId === lead.id);
+    const seat = seatLeads.find((s) => s.leadId === lead.id);
+    const seatZone = seat ? seatZoneById.get(seat.zoneId) : undefined;
     const confirmed = window.confirm(
       zone
         ? `Удалить лид «${lead.name}»? Бронь кабинета «${zone.label || zoneTypeLabels[zone.zoneType]}» будет снята.`
-        : `Удалить лид «${lead.name}»?`,
+        : seatZone
+          ? `Удалить лид «${lead.name}»? Место в «${seatZone.label || zoneTypeLabels[seatZone.zoneType]}» будет освобождено.`
+          : `Удалить лид «${lead.name}»?`,
     );
     if (!confirmed) return;
 
@@ -250,6 +287,13 @@ export function Leads() {
       if (zone) {
         await updateZone(zone.id, { status: 'Свободно', leadId: '' });
         setBookedZones((prev) => prev.filter((z) => z.id !== zone.id));
+      }
+      if (seat && seatZone) {
+        const nextSold = Math.max(seatZone.workstationsSold - 1, 0);
+        const releasedZone = await updateZone(seatZone.id, { workstationsSold: nextSold, status: 'Свободно' });
+        await deleteWorkstationSeatLead(seat.id);
+        setSeatLeads((prev) => prev.filter((s) => s.id !== seat.id));
+        setSeatZones((prev) => prev.map((z) => (z.id === releasedZone.id ? releasedZone : z)));
       }
       await deleteLead(lead.id);
       setLeads((prev) => prev.filter((l) => l.id !== lead.id));
@@ -343,7 +387,7 @@ export function Leads() {
 
       {toggleError && <p className="text-sm text-danger">{toggleError}</p>}
 
-      {bookedZones.length > 0 && (
+      {(bookedZones.length > 0 || seatBookingRows.length > 0) && (
         <div className="flex flex-col gap-4">
           <div className="text-lg font-bold text-ink">Брони кабинетов</div>
           <Card className="flex flex-col gap-4 p-0">
@@ -361,7 +405,7 @@ export function Leads() {
                 const lead = leadById.get(zone.leadId);
                 const plan = planById.get(zone.buildingPlanId);
                 const object = objectByPlanId.get(zone.buildingPlanId);
-                const agreement = signedAgreementByZoneId.get(zone.id);
+                const agreement = signedAgreementByKey.get(`${zone.id}:${zone.leadId}`);
                 return (
                   <div
                     key={zone.id}
@@ -444,6 +488,86 @@ export function Leads() {
                     ) : (
                       <span />
                     )}
+                  </div>
+                );
+              })}
+              {seatBookingRows.map(({ seat, zone, lead }) => {
+                const plan = planById.get(zone.buildingPlanId);
+                const object = objectByPlanId.get(zone.buildingPlanId);
+                const agreement = signedAgreementByKey.get(`${zone.id}:${lead.id}`);
+                return (
+                  <div
+                    key={seat.id}
+                    className="grid min-w-[1020px] grid-cols-[1fr_150px_1fr_150px_150px_140px_84px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold text-ink">{lead.name}</div>
+                      <div className="truncate text-xs text-ink-muted">{lead.contact}</div>
+                    </div>
+                    <span className="text-ink">
+                      {zone.label || zoneTypeLabels[zone.zoneType]}
+                      <span className="text-ink-muted"> · место</span>
+                    </span>
+                    <div className="min-w-0">
+                      <div className="truncate text-ink">{object?.address ?? '—'}</div>
+                      {plan && <div className="truncate text-xs text-ink-muted">{plan.name}</div>}
+                    </div>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-fit rounded-full bg-warning/15 px-3 py-1 text-xs font-semibold text-warning">
+                        Место забронировано
+                      </span>
+                      {lead.status === NEW_BOOKING_LEAD_STATUS && (
+                        <span
+                          title="Новая бронь с сайта — ещё не подтверждена"
+                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-warning/15 text-warning"
+                        >
+                          <Sparkles className="h-3.5 w-3.5" />
+                        </span>
+                      )}
+                    </span>
+                    {agreement ? (
+                      <a
+                        href={agreement.documentUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        Подписано
+                      </a>
+                    ) : (
+                      <span className="text-ink-faint">Не подписано</span>
+                    )}
+                    {object ? (
+                      <Link
+                        to={`/admin/objects/${object.landingSlug || object.id}`}
+                        className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                      >
+                        На план
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
+                    ) : (
+                      <span />
+                    )}
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(lead)}
+                        className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                        aria-label="Редактировать лид"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteLead(lead)}
+                        disabled={deletingId === lead.id}
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint hover:text-danger disabled:opacity-50"
+                        aria-label="Удалить лид"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 );
               })}

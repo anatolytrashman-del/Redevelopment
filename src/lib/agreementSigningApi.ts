@@ -7,6 +7,10 @@ export interface AgreementOtpRequestInput {
   zoneId: string;
   zoneArea: number;
   zoneFloorLabel: string;
+  // Номер/подпись кабинета (например "12") — для соглашения на фиксированное
+  // рабочее место (isWorkstation) он подставляется в place of площади.
+  zoneLabel: string;
+  isWorkstation: boolean;
   buyerName: string;
   buyerGender: 'Мужчина' | 'Женщина';
   buyerPassport: string;
@@ -46,6 +50,9 @@ export async function verifyAgreementOtp(signatureId: string, code: string): Pro
 
 export interface SignedAgreementSummary {
   zoneId: string;
+  // Зона с рабочими местами может иметь несколько подписанных соглашений
+  // (по одному на лида) — leadId нужен, чтобы сматчить нужное с нужной бронью.
+  leadId: string;
   documentUrl: string;
   verifiedAt: string;
 }
@@ -57,12 +64,13 @@ export function fetchSignedAgreementsForZones(zoneIds: string[]): Promise<Signed
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('agreement_signatures')
-      .select('zone_id, document_url, verified_at')
+      .select('zone_id, lead_id, document_url, verified_at')
       .in('zone_id', zoneIds)
       .not('verified_at', 'is', null);
     if (error) throw error;
-    return (data as { zone_id: string; document_url: string; verified_at: string }[]).map((row) => ({
+    return (data as { zone_id: string; lead_id: string; document_url: string; verified_at: string }[]).map((row) => ({
       zoneId: row.zone_id,
+      leadId: row.lead_id,
       documentUrl: row.document_url,
       verifiedAt: row.verified_at,
     }));

@@ -115,7 +115,13 @@ export default async function handler(req, res) {
       return;
     }
 
-    const template = await fetchDocumentTemplate(process.env.INTENT_AGREEMENT_TEMPLATE_ID);
+    // Фиксированное рабочее место — отдельный шаблон соглашения (не м²,
+    // а формат/место), который владелец заводит сам через админку "Шаблоны",
+    // как и обычный INTENT_AGREEMENT_TEMPLATE_ID.
+    const templateId = row.is_workstation
+      ? process.env.WORKSTATION_AGREEMENT_TEMPLATE_ID
+      : process.env.INTENT_AGREEMENT_TEMPLATE_ID;
+    const template = await fetchDocumentTemplate(templateId);
     const docId = extractDocId(template.url);
     if (!docId) throw new Error('Не удалось определить ID документа из ссылки шаблона');
 
@@ -136,8 +142,8 @@ export default async function handler(req, res) {
       buyer_passport: row.buyer_passport,
       buyer_passport_issued: row.buyer_passport_issued,
       buyer_address: row.buyer_address,
-      area: `${row.zone_area} `,
-      room_number: row.zone_floor_label || '—',
+      area: row.is_workstation ? 'фиксированное рабочее место' : `${row.zone_area} `,
+      room_number: row.is_workstation ? row.zone_label || '—' : row.zone_floor_label || '—',
       signature_stamp: signatureStamp,
     };
 
