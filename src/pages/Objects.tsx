@@ -7,6 +7,8 @@ import { Button } from '../components/ui/Button';
 import { ObjectFormModal } from '../components/objects/ObjectFormModal';
 import { pricePerMeter, type RealtyObject } from '../data/objects';
 import { fetchObjects } from '../lib/objectsApi';
+import { cn } from '../lib/cn';
+import { glassCardClass, glassCardShadow } from '../lib/glass';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -56,7 +58,8 @@ export function Objects() {
             <Link
               key={o.id}
               to={`/admin/objects/${o.landingSlug || o.id}`}
-              className="flex items-center gap-5 rounded-card border border-border bg-surface p-4 shadow-card transition-colors hover:border-primary"
+              className={cn('flex items-center gap-5 p-4 transition-colors hover:border-primary/40', glassCardClass)}
+              style={glassCardShadow}
             >
               <div className="aspect-[4/3] w-28 shrink-0 overflow-hidden rounded-control bg-surface-muted">
                 {o.photoUrl ? (

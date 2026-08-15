@@ -320,11 +320,11 @@ export function Transactions() {
           )}
           {!loading && !loadError && (
             <>
-              <div className="flex items-center justify-between border-t border-border bg-surface-muted px-6 py-3 text-sm">
+              <div className="flex items-center justify-between border-t border-border bg-black/[0.025] px-6 py-3 text-sm">
                 <span className="font-medium text-ink-muted">Итого расходы за месяц</span>
                 <span className="font-bold text-danger">{formatTotalsMap(monthTotals.expenses)}</span>
               </div>
-              <div className="flex items-center justify-between border-t border-border bg-surface-muted px-6 py-3 text-sm">
+              <div className="flex items-center justify-between border-t border-border bg-black/[0.025] px-6 py-3 text-sm">
                 <span className="font-medium text-ink-muted">Итого доходы за месяц</span>
                 <span className="font-bold text-success">{formatTotalsMap(monthTotals.income)}</span>
               </div>

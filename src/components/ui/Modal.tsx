@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { X } from 'lucide-react';
+import { cn } from '../../lib/cn';
+import { glassCardClass, glassCardShadow } from '../../lib/glass';
 
 interface ModalProps {
   open: boolean;
@@ -22,7 +24,10 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
-      <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col gap-5 overflow-y-auto rounded-card border border-border bg-surface p-6 shadow-card">
+      <div
+        className={cn('relative flex max-h-[90vh] w-full max-w-lg flex-col gap-5 overflow-y-auto p-6', glassCardClass)}
+        style={glassCardShadow}
+      >
         <div className="flex items-center justify-between">
           <span className="text-xl font-extrabold text-ink">{title}</span>
           <button

@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { Download, Eye, FileText, Loader2, Upload, X } from 'lucide-react';
 import { Card } from '../ui/Card';
+import { cn } from '../../lib/cn';
+import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import {
   objectDocumentCategories,
   objectDocumentLabels,
@@ -146,7 +148,7 @@ export function ObjectDocumentsCard({ documents, onChange }: ObjectDocumentsCard
       {preview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-ink/40" onClick={() => setPreview(null)} />
-          <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col gap-3 rounded-card border border-border bg-surface p-4 shadow-card">
+          <div className={cn('relative flex max-h-[90vh] w-full max-w-3xl flex-col gap-3 p-4', glassCardClass)} style={glassCardShadow}>
             <div className="flex items-center justify-between gap-3">
               <span className="min-w-0 truncate text-sm font-semibold text-ink">{preview.fileName}</span>
               <button

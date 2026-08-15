@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '../../lib/cn';
+import { glassCardClass, glassCardShadow } from '../../lib/glass';
 
 export interface TreeRow {
   id: string;
@@ -28,7 +29,7 @@ function Row({ row, depth }: { row: TreeRow; depth: number }) {
       <div
         className={cn(
           'grid grid-cols-[1fr_repeat(4,minmax(90px,auto))] items-center gap-4 border-b border-border px-6 py-4 text-sm',
-          depth > 0 && 'bg-surface-muted',
+          depth > 0 && 'bg-black/[0.025]',
         )}
       >
         <button
@@ -64,7 +65,7 @@ function Row({ row, depth }: { row: TreeRow; depth: number }) {
 
 export function TreeTable({ columns, rows, totalRow }: TreeTableProps) {
   return (
-    <div className="overflow-hidden rounded-card border border-border bg-surface shadow-card">
+    <div className={cn('overflow-hidden', glassCardClass)} style={glassCardShadow}>
       <div className="grid grid-cols-[1fr_repeat(4,minmax(90px,auto))] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
         {columns.map((col, i) => (
           <span key={col} className={i > 0 ? 'text-right' : ''}>

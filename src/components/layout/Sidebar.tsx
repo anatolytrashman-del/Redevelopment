@@ -78,11 +78,14 @@ export function Sidebar() {
   }, []);
 
   return (
-    <aside className="sticky top-0 flex h-svh w-64 shrink-0 flex-col overflow-y-auto border-r border-border bg-bg px-5 py-6">
+    <aside className="sticky top-0 flex h-svh w-64 shrink-0 flex-col overflow-y-auto border-r border-white/50 bg-white/30 px-5 py-6 backdrop-blur-xl backdrop-saturate-150">
       <div className="flex flex-col gap-8">
-        <span className="text-lg font-extrabold tracking-wide text-ink">
-          <span className="font-black text-primary">RED</span>EVELOPMENT
-        </span>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-lg font-extrabold tracking-wide text-ink">
+            <span className="font-black text-primary">RED</span>EVELOPMENT
+          </span>
+          <span className="text-xs font-medium text-ink-faint">Админка</span>
+        </div>
         <nav className="flex flex-col gap-1">
           {navItems.map(({ to, label, icon: Icon }) => (
             <NavLink
@@ -107,7 +110,7 @@ export function Sidebar() {
         </nav>
       </div>
 
-      <div className="mt-auto flex flex-col gap-1 border-t border-border pt-4">
+      <div className="mt-auto flex flex-col gap-1 border-t border-white/50 pt-4">
         <NavLink
           to="/admin/backlog"
           className={({ isActive }) =>

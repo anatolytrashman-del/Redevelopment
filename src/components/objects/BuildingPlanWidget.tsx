@@ -9,6 +9,7 @@ import { AttachBuildingPlanModal } from './AttachBuildingPlanModal';
 import { ZoneDetailModal } from './ZoneDetailModal';
 import { BuildingPlanCanvas, BuildingPlanLegend, BuildingPlanTabs } from './BuildingPlanCanvas';
 import { AvailableUnitsTable } from './AvailableUnitsTable';
+import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import {
   zoneTypes,
   zoneTypeLabels,
@@ -448,7 +449,8 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
           onClick={() => setFullscreen(false)}
         >
           <div
-            className="mx-auto flex max-w-6xl flex-col gap-3 rounded-card bg-surface p-5 shadow-card"
+            className={cn('mx-auto flex max-w-6xl flex-col gap-3 p-5', glassCardClass)}
+            style={glassCardShadow}
             onClick={(e) => e.stopPropagation()}
           >
             {content}

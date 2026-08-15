@@ -1,6 +1,8 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { cn } from '../../lib/cn';
+import { glassCardClass, glassCardShadow } from '../../lib/glass';
 
 // Это не настоящая авторизация — фронтенд статический, без бэкенда, а
 // Supabase-запросы уже работают с открытым anon-ключом без какого-либо
@@ -32,7 +34,8 @@ export function PasswordGate({ children }: { children: ReactNode }) {
     <div className="flex min-h-svh items-center justify-center bg-bg px-4">
       <form
         onSubmit={handleSubmit}
-        className="flex w-full max-w-xs flex-col gap-4 rounded-card border border-border bg-surface p-6 shadow-card"
+        className={cn('flex w-full max-w-xs flex-col gap-4 p-6', glassCardClass)}
+        style={glassCardShadow}
       >
         <div className="flex flex-col items-center gap-1 text-center">
           <span className="text-lg font-extrabold tracking-wide text-ink">
