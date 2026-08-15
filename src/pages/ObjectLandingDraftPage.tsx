@@ -93,6 +93,7 @@ const complexFeatures: { icon: LucideIcon; text: string }[] = [
 interface PurchaseOption {
   icon: LucideIcon;
   title: string;
+  audience: string;
   terms?: string;
   description: string;
   badge?: string;
@@ -102,21 +103,24 @@ const purchaseOptions: PurchaseOption[] = [
   {
     icon: CalendarClock,
     title: 'Рассрочка без %',
+    audience: 'Физлица и юрлица',
     terms: 'Взнос 25% · Срок 4 месяца',
-    description: 'Оплата напрямую собственнику, без банка и процентов.',
+    description: 'Оплата в 4 этапа без банка и процентов.',
     badge: 'Без переплат',
   },
   {
     icon: Briefcase,
     title: 'Лизинг',
+    audience: 'Только ИП и юрлица',
     terms: 'Взнос от 10% · Срок до 10 лет',
     description: 'Специальные условия на проекты компании Redevelopment.',
   },
   {
     icon: Landmark,
     title: 'Кредит',
+    audience: 'Физлица и юрлица',
     terms: 'Взнос от 20% · Срок до 20 лет',
-    description: 'Банковское финансирование на покупку коммерческой недвижимости для физлиц и юрлиц.',
+    description: 'Финансирование от банков-партнёров.',
   },
 ];
 
@@ -274,7 +278,12 @@ export function ObjectLandingDraftPage() {
                     </span>
                   )}
                 </div>
-                <div className="text-base font-bold text-ink">{opt.title}</div>
+                <div className="flex flex-col gap-1">
+                  <div className="text-base font-bold text-ink">{opt.title}</div>
+                  <span className="w-fit rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink-muted">
+                    {opt.audience}
+                  </span>
+                </div>
                 {opt.terms && <div className="text-sm font-semibold text-ink">{opt.terms}</div>}
                 <p className="text-sm text-ink-muted">{opt.description}</p>
               </div>
