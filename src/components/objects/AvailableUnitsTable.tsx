@@ -197,7 +197,7 @@ export function AvailableUnitsTable({
                 onClick={() => onRowClick(u.zone)}
                 className={cn(
                   'flex cursor-pointer flex-col gap-2.5 rounded-control border p-3.5',
-                  glass ? 'border-white/50 bg-white/30 hover:bg-white/50' : 'border-border hover:bg-surface-muted',
+                  glass ? 'border-white/80 bg-white/60 hover:bg-white/75' : 'border-border hover:bg-surface-muted',
                   u.zone.id === highlightedZoneId && 'bg-primary/10',
                 )}
               >
@@ -220,7 +220,7 @@ export function AvailableUnitsTable({
                     }}
                     className={cn(
                       'flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium hover:border-primary hover:text-primary',
-                      glass ? 'border-white/50 bg-white/30 text-ink backdrop-blur-md' : 'border-border text-ink-muted',
+                      glass ? 'border-white/80 bg-white/60 text-ink backdrop-blur-md' : 'border-border text-ink-muted',
                     )}
                   >
                     <MapPin className="h-3.5 w-3.5" />
