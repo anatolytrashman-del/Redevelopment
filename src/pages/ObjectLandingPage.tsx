@@ -286,7 +286,7 @@ export function ObjectLandingPage() {
             {purchaseOptions.map((opt) => (
               <div
                 key={opt.title}
-                className="flex flex-col gap-3 rounded-control border border-white/70 bg-white/60 p-4 backdrop-blur-md sm:border-white/50 sm:bg-white/40"
+                className="flex flex-col gap-3 rounded-control border border-white bg-white/90 p-4 shadow-card backdrop-blur-md sm:border-white/50 sm:bg-white/40 sm:shadow-none"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center text-ink', glassPillClass)}>
@@ -320,7 +320,7 @@ export function ObjectLandingPage() {
           )}
           style={glassCardShadow}
         >
-          <div className="flex items-center gap-4">
+          <div className="flex items-start gap-4 sm:items-center">
             <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center text-ink', glassPillClass)}>
               <TrendingUp className="h-5 w-5" />
             </span>
@@ -334,7 +334,7 @@ export function ObjectLandingPage() {
             target="_blank"
             rel="noreferrer"
             className={cn(
-              'flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium text-ink hover:border-primary hover:text-primary',
+              'flex w-fit shrink-0 items-center gap-2 self-center px-4 py-2.5 text-sm font-medium text-ink hover:border-primary hover:text-primary',
               glassPillClass,
             )}
             style={glassPillShadow}
