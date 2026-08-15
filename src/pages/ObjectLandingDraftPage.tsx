@@ -29,6 +29,12 @@ function formatMoney(value: number) {
   return `$${Math.round(value).toLocaleString('ru-RU')}`;
 }
 
+// Лого партнёра (ТЦ "Минск Мир") для геометки над слайдером — прислано
+// заказчиком по прямой ссылке. Стоит перезалить в собственное хранилище
+// (например, через загрузку рендеров в форме объекта), если ibb.co когда-то
+// станет недоступен.
+const MINSK_MIR_LOGO_URL = 'https://i.ibb.co/ynL71Bfj/Untitled-2.png';
+
 // Логотип Telegram — нарисован инлайн-SVG (фирменный синий кружок с бумажным
 // самолётиком), а не скачан картинкой: внешние хосты недоступны из песочницы
 // разработки, да и так надёжнее — не зависит от стороннего файла.
@@ -177,6 +183,7 @@ export function ObjectLandingDraftPage() {
         <div className="flex flex-col gap-6">
           <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">
             Свой кабинет в клубном комплексе у Минск Мира
+            {cheapestUnit != null && <> от {formatMoney(cheapestUnit)}</>}
           </h1>
           <div className="flex flex-col gap-3">
             {heroFeatures.map(({ icon: Icon, text }) => (
@@ -195,15 +202,10 @@ export function ObjectLandingDraftPage() {
 
         <div className="relative">
           <HeroImageSlider images={object.renderImageUrls} />
-          {cheapestUnit != null && (
-            <span
-              className={cn('absolute left-4 top-4 inline-flex items-center gap-1.5 whitespace-nowrap px-5 py-2', glassPillClass)}
-              style={glassPillShadow}
-            >
-              <span className="text-sm font-medium text-ink/60">от</span>
-              <span className="text-lg font-extrabold text-[#4a9b72]">{formatMoney(cheapestUnit)}</span>
-            </span>
-          )}
+          <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 shadow-card backdrop-blur">
+            <img src={MINSK_MIR_LOGO_URL} alt="Минск Мир" className="h-4 w-auto" />
+            <span className="text-xs font-semibold text-ink">Рядом с Минск Миром</span>
+          </div>
         </div>
       </div>
 
