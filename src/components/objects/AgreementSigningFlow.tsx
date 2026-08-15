@@ -13,12 +13,18 @@ function errorMessage(err: unknown, fallback: string): string {
 
 const emptyForm = {
   buyerName: '',
-  buyerGender: 'Мужчина' as 'Мужчина' | 'Женщина',
-  buyerCitizenship: 'РБ' as 'РБ' | 'РФ',
+  buyerCitizenship: 'Беларусь' as 'Беларусь' | 'Россия',
   buyerPassport: '',
   buyerPassportIssued: '',
   buyerAddress: '',
   email: '',
+};
+
+// В соглашении гражданство пишется сокращением ("Гражданин РБ"), а в форме
+// показываем полное название страны — понятнее для клиента.
+const CITIZENSHIP_CODE: Record<typeof emptyForm.buyerCitizenship, 'РБ' | 'РФ'> = {
+  Беларусь: 'РБ',
+  Россия: 'РФ',
 };
 
 interface AgreementSigningFlowProps {
@@ -51,11 +57,6 @@ export function AgreementSigningFlow({
 }: AgreementSigningFlowProps) {
   const [step, setStep] = useState<'closed' | 'form' | 'code' | 'done'>('closed');
   const [form, setForm] = useState(emptyForm);
-  // Пока пользователь сам не тронул переключатель пола — подставляем
-  // догадку по ФИО (см. guessGenderFromName), чтобы не задавать лишний
-  // вопрос "вы мужчина или женщина". Как только он выбрал вручную —
-  // больше не перезаписываем его выбор при дальнейшем вводе имени.
-  const [genderTouched, setGenderTouched] = useState(false);
   const [code, setCode] = useState('');
   const [signatureId, setSignatureId] = useState<string | null>(null);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
@@ -80,8 +81,8 @@ export function AgreementSigningFlow({
         zoneLabel,
         isWorkstation,
         buyerName: form.buyerName.trim(),
-        buyerGender: form.buyerGender,
-        buyerCitizenship: form.buyerCitizenship,
+        buyerGender: guessGenderFromName(form.buyerName.trim()) ?? 'Мужчина',
+        buyerCitizenship: CITIZENSHIP_CODE[form.buyerCitizenship],
         buyerPassport: form.buyerPassport.trim(),
         buyerPassportIssued: form.buyerPassportIssued.trim(),
         buyerAddress: form.buyerAddress.trim(),
@@ -160,31 +161,15 @@ export function AgreementSigningFlow({
       <Input
         label="ФИО"
         value={form.buyerName}
-        onChange={(e) => {
-          const value = e.target.value;
-          setForm((f) => {
-            if (genderTouched) return { ...f, buyerName: value };
-            const guessed = guessGenderFromName(value);
-            return { ...f, buyerName: value, buyerGender: guessed ?? f.buyerGender };
-          });
-        }}
+        onChange={(e) => setForm((f) => ({ ...f, buyerName: e.target.value }))}
         required
         autoFocus
       />
       <ToggleGroup
-        label="Пол"
-        options={['Мужчина', 'Женщина']}
-        value={form.buyerGender}
-        onChange={(v) => {
-          setGenderTouched(true);
-          setForm((f) => ({ ...f, buyerGender: v as 'Мужчина' | 'Женщина' }));
-        }}
-      />
-      <ToggleGroup
         label="Гражданство"
-        options={['РБ', 'РФ']}
+        options={['Беларусь', 'Россия']}
         value={form.buyerCitizenship}
-        onChange={(v) => setForm((f) => ({ ...f, buyerCitizenship: v as 'РБ' | 'РФ' }))}
+        onChange={(v) => setForm((f) => ({ ...f, buyerCitizenship: v as 'Беларусь' | 'Россия' }))}
       />
       <Input
         label="Паспорт (серия и номер)"
