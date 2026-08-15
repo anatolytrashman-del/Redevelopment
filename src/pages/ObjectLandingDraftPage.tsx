@@ -7,6 +7,7 @@ import {
   CalendarClock,
   Cctv,
   Clock,
+  KeyRound,
   Landmark,
   Loader2,
   Ruler,
@@ -103,10 +104,10 @@ interface PurchaseOption {
 const purchaseOptions: PurchaseOption[] = [
   {
     icon: CalendarClock,
-    title: 'Рассрочка без %',
+    title: 'Рассрочка',
     terms: 'Взнос 25% · Срок 4 месяца',
-    description: 'Оплата в 4 этапа без банка и процентов.',
-    badge: 'Для граждан Беларуси и России',
+    description: 'Оплата в 4 этапа. Фиксированная сумма — по индивидуальному согласованию.',
+    badge: '🇧🇾 🇷🇺',
   },
   {
     icon: Briefcase,
@@ -122,6 +123,14 @@ const purchaseOptions: PurchaseOption[] = [
     terms: 'Взнос от 20% · Срок до 20 лет',
     description: 'Финансирование от банков-партнёров.',
   },
+];
+
+// Оффер для инвесторов — язык рантье (денежный поток, доходность), но без
+// конкретных цифр ставок/сроков окупаемости, которых пока нет. Два пункта,
+// а не абстрактный лозунг про "спецпредложение".
+const investorPoints: { icon: LucideIcon; text: string }[] = [
+  { icon: KeyRound, text: 'Сдаём помещение после покупки — без комиссии' },
+  { icon: TrendingUp, text: 'Формируем денежный поток и доходность без вашего участия' },
 ];
 
 // Черновик продающей страницы (/:slug/draft) — здесь обкатывается дизайн
@@ -291,19 +300,27 @@ export function ObjectLandingDraftPage() {
           </div>
         </div>
 
-        <a
-          href={OWNER_TELEGRAM_URL}
-          target="_blank"
-          rel="noreferrer"
-          className={cn(
-            'flex w-full items-center gap-2 px-5 py-3 text-sm font-semibold text-ink hover:text-primary',
-            glassPillClass,
-          )}
-          style={glassPillShadow}
-        >
-          <TrendingUp className="h-4 w-4 shrink-0 text-primary" />
-          Специальное предложение для инвесторов — помещения с арендаторами
-        </a>
+        <div className={cn('flex flex-col gap-5 p-5', glassCardClass)} style={glassCardShadow}>
+          <div className="text-xl font-extrabold text-ink">Доходная недвижимость с арендатором</div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {investorPoints.map(({ icon: Icon, text }) => (
+              <div key={text} className="flex items-start gap-3">
+                <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)}>
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="text-sm font-medium text-ink">{text}</span>
+              </div>
+            ))}
+          </div>
+          <a
+            href={OWNER_TELEGRAM_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="flex w-fit items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-white hover:bg-ink/85"
+          >
+            Обсудить с собственником
+          </a>
+        </div>
 
         <PublicPlanAndUnits
           object={object}
