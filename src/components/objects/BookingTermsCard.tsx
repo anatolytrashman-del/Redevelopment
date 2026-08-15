@@ -51,6 +51,14 @@ export function BookingTermsCard({ agreement, glass }: BookingTermsCardProps) {
     document.getElementById(PLAN_AND_UNITS_ANCHOR_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  // Из превью соглашения — не просто закрыть модалку, а сразу отправить
+  // читателя дальше по воронке. Скролл — на следующий тик, после того как
+  // модалка реально уйдёт из DOM, а не в том же обработчике, что её закрывает.
+  function handleProceedFromPreview() {
+    setPreviewOpen(false);
+    requestAnimationFrame(scrollToUnits);
+  }
+
   return (
     <Wrapper className={cn('flex flex-col gap-6 p-6', glass && glassCardClass)} style={glass ? glassCardShadow : undefined}>
       <div className="flex flex-col gap-1">
@@ -142,6 +150,12 @@ export function BookingTermsCard({ agreement, glass }: BookingTermsCardProps) {
               </div>
               <div className="flex-1 overflow-y-auto rounded-control bg-surface-muted p-3 sm:p-6">
                 <IntentAgreementDocument />
+              </div>
+              <div className="flex flex-col items-start gap-1 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-ink-faint">Согласны с условиями? Выберите кабинет и подпишите онлайн.</p>
+                <Button type="button" onClick={handleProceedFromPreview} className="w-fit shrink-0 whitespace-nowrap">
+                  Забронировать кабинет
+                </Button>
               </div>
             </div>
           </div>,
