@@ -44,6 +44,14 @@ function errorMessage(err: unknown, fallback: string): string {
 
 const emptyBookingForm = { name: '', contact: '', comment: '' };
 
+// Доп. опция при бронировании кабинета — не атрибут зоны (в отличие от
+// zoneFeatures вроде "Есть мокрая точка"), а платная доработка, которую
+// клиент выбирает сам в момент брони. Фиксированная цена, поэтому не
+// заводили отдельную колонку в building_plan_zones — просто дописывается
+// в комментарий лида, чтобы менеджер увидел выбор при обработке заявки.
+const WET_POINT_ADDON_LABEL = 'Мокрая точка в кабинете';
+const WET_POINT_ADDON_PRICE = 500;
+
 interface PublicPlanAndUnitsProps {
   object: RealtyObject;
   plans: BuildingPlan[];
@@ -87,6 +95,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
 
   const [bookingOpen, setBookingOpen] = useState(false);
   const [bookingForm, setBookingForm] = useState(emptyBookingForm);
+  const [wetPointAddon, setWetPointAddon] = useState(false);
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingDone, setBookingDone] = useState(false);
@@ -99,6 +108,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
   function resetBookingState(nextOpen: boolean) {
     setBookingOpen(nextOpen);
     setBookingForm(emptyBookingForm);
+    setWetPointAddon(false);
     setBookingError(null);
     setBookingDone(false);
     setBookedLeadId(null);
@@ -148,12 +158,20 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
     setBookingSubmitting(true);
     setBookingError(null);
     try {
+      const requirement = [
+        bookingForm.comment.trim(),
+        !bookingWorkstation && wetPointAddon
+          ? `Доп. опция: ${WET_POINT_ADDON_LABEL} (+${formatMoney(WET_POINT_ADDON_PRICE)})`
+          : '',
+      ]
+        .filter(Boolean)
+        .join('\n\n');
       const lead = await insertLead({
         name: bookingForm.name.trim(),
         source: 'Сайт',
         businessType: '',
         area: bookingWorkstation ? 'Фиксированное рабочее место' : selectedZone.area != null ? `${selectedZone.area} м²` : '',
-        requirement: bookingForm.comment.trim(),
+        requirement,
         contact: bookingForm.contact.trim(),
         status: 'Заявка на бронирование',
         isWarm: true,
@@ -406,6 +424,27 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
                           onChange={(e) => setBookingForm((f) => ({ ...f, contact: e.target.value }))}
                           required
                         />
+                        {!isWorkstation && (
+                          <div className="flex flex-col gap-1.5">
+                            <label className="flex items-start gap-2 text-sm text-ink">
+                              <input
+                                type="checkbox"
+                                checked={wetPointAddon}
+                                onChange={(e) => setWetPointAddon(e.target.checked)}
+                                className="mt-0.5 h-4 w-4 shrink-0 rounded border-border-strong text-primary focus:ring-primary"
+                              />
+                              <span>
+                                {WET_POINT_ADDON_LABEL}{' '}
+                                <span className="text-ink-muted">(+{formatMoney(WET_POINT_ADDON_PRICE)})</span>
+                              </span>
+                            </label>
+                            {wetPointAddon && selectedZone.area != null && (
+                              <p className="pl-6 text-xs text-ink-muted">
+                                Итого с допоплатой: {formatMoney(zonePrice(selectedZone.area) + WET_POINT_ADDON_PRICE)}
+                              </p>
+                            )}
+                          </div>
+                        )}
                         <Textarea
                           label="Комментарий (необязательно)"
                           rows={2}
