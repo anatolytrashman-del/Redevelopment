@@ -137,7 +137,9 @@ export function AvailableUnitsTable({
                   u.zone.id === highlightedZoneId && 'bg-primary/10',
                 )}
               >
-                <span className="font-medium text-ink">{u.zone.label || zoneTypeLabels[u.zone.zoneType]}</span>
+                <span className="font-medium text-ink">
+                  {u.isWorkstation ? 'Рабочее место' : u.zone.label || zoneTypeLabels[u.zone.zoneType]}
+                </span>
                 <span className="text-ink-muted">{u.floor}</span>
                 <span className="text-ink">
                   {u.isWorkstation ? `Свободно ${u.remaining} мест` : `${u.area} м²`}
