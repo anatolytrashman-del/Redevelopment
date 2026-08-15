@@ -278,12 +278,12 @@ export function ObjectLandingDraftPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
+                  <div className="text-base font-bold text-ink">{opt.title}</div>
                   {opt.audience && (
                     <span className="w-fit shrink-0 rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink-muted">
                       {opt.audience}
                     </span>
                   )}
-                  <div className="text-base font-bold text-ink">{opt.title}</div>
                 </div>
                 {opt.terms && <div className="text-sm font-semibold text-ink">{opt.terms}</div>}
                 <p className="text-sm text-ink-muted">{opt.description}</p>
