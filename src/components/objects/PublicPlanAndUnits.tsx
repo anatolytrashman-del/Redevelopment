@@ -127,6 +127,17 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
   // только админу (см. ZoneDetailModal, где этот же zone.status показан как есть).
   const displayStatus = selectedZone && selectedZone.status === 'Продано' ? 'Забронировано' : selectedZone?.status;
   const highlightZoneId = selectedZone?.id ?? pinnedZoneId ?? hoveredZoneId;
+  // Этаж и площадь раньше были отдельными строками в карточке — теперь часть
+  // заголовка модалки ("Кабинет 4 - 1 этаж - 19.4 м²"), чтобы не дублировать
+  // их ниже в списке параметров.
+  const zoneModalTitle = (() => {
+    if (!selectedZone) return '';
+    const base = `${zoneTypeLabels[selectedZone.zoneType]} ${selectedZone.label}`.trim();
+    if (!isRoom) return base;
+    const parts = [base, plan?.name];
+    if (!isWorkstation && selectedZone.area != null) parts.push(`${selectedZone.area} м²`);
+    return parts.filter(Boolean).join(' - ');
+  })();
 
   function handleZoneSelect(zone: BuildingPlanZone) {
     if (zone.buildingPlanId !== activePlanId) setActivePlanId(zone.buildingPlanId);
@@ -283,7 +294,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
       <Modal
         open={!!selectedZone}
         onClose={() => setSelectedZone(null)}
-        title={selectedZone ? `${zoneTypeLabels[selectedZone.zoneType]} ${selectedZone.label}`.trim() : ''}
+        title={zoneModalTitle}
       >
         {selectedZone && (
           <div className="flex flex-col gap-3">
@@ -314,53 +325,45 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
             {isRoom && (
               <>
                 {isWorkstation ? (
-                  <div className="flex flex-wrap gap-x-5 gap-y-1.5 rounded-control bg-surface-muted px-3 py-2 text-sm">
-                    <div className="flex items-center gap-1.5">
+                  <div className="flex flex-col divide-y divide-border rounded-control bg-surface-muted px-3 text-sm">
+                    <div className="flex items-center justify-between gap-3 py-2">
                       <span className="text-ink-muted">Формат</span>
                       <span className="font-medium text-ink">Фиксированное рабочее место</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center justify-between gap-3 py-2">
                       <span className="text-ink-muted">Свободно мест</span>
                       <span className="font-medium text-ink">
                         {workstationsLeft} из {selectedZone.workstationCount}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center justify-between gap-3 py-2">
                       <span className="text-ink-muted">Цена за место</span>
                       <span className="font-medium text-ink">{formatMoney(WORKSTATION_PRICE)}</span>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-wrap gap-x-5 gap-y-1.5 rounded-control bg-surface-muted px-3 py-2 text-sm">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-ink-muted">Этаж</span>
-                      <span className="font-medium text-ink">{plan?.name ?? '—'}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-ink-muted">Площадь</span>
-                      <span className="font-medium text-ink">{selectedZone.area != null ? `${selectedZone.area} м²` : '—'}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
+                  <div className="flex flex-col divide-y divide-border rounded-control bg-surface-muted px-3 text-sm">
+                    <div className="flex items-center justify-between gap-3 py-2">
                       <span className="text-ink-muted">Отдельный вход</span>
                       <span className="font-medium text-ink">
                         {selectedZone.features.includes('Отдельный вход') ? 'Есть' : 'Нет'}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center justify-between gap-3 py-2">
                       <span className="text-ink-muted">Количество окон</span>
                       <span className="font-medium text-ink">{selectedZone.windowCount ?? '—'}</span>
                     </div>
                     {selectedZone.area != null && (
                       <>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center justify-between gap-3 py-2">
                           <span className="text-ink-muted">Стоимость за метр</span>
                           <span className="font-medium text-ink">{formatMoney(PRICE_PER_METER)}</span>
                         </div>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center justify-between gap-3 py-2">
                           <span className="text-ink-muted">Общая стоимость</span>
                           <span className="font-medium text-ink">{formatMoney(zonePrice(selectedZone.area))}</span>
                         </div>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center justify-between gap-3 py-2">
                           <span className="text-ink-muted">Первый взнос</span>
                           <span className="font-medium text-ink">{formatMoney(zoneDownPayment(selectedZone.area))}</span>
                         </div>
