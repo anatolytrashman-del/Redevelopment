@@ -13,6 +13,7 @@ export interface AgreementOtpRequestInput {
   isWorkstation: boolean;
   buyerName: string;
   buyerGender: 'Мужчина' | 'Женщина';
+  buyerCitizenship: 'РБ' | 'РФ';
   buyerPassport: string;
   buyerPassportIssued: string;
   buyerAddress: string;

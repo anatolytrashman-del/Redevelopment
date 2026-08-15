@@ -139,6 +139,7 @@ export default async function handler(req, res) {
       buyer_name: row.buyer_name,
       buyer_gender_title: isMale ? 'Гражданин' : 'Гражданка',
       buyer_gender_suffix: isMale ? 'проживающий' : 'проживающая',
+      buyer_citizenship: row.buyer_citizenship || 'РБ',
       buyer_passport: row.buyer_passport,
       buyer_passport_issued: row.buyer_passport_issued,
       buyer_address: row.buyer_address,

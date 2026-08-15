@@ -126,6 +126,7 @@ export default async function handler(req, res) {
     isWorkstation,
     buyerName,
     buyerGender,
+    buyerCitizenship,
     buyerPassport,
     buyerPassportIssued,
     buyerAddress,
@@ -139,6 +140,7 @@ export default async function handler(req, res) {
     !zoneArea ||
     !buyerName ||
     !buyerGender ||
+    !buyerCitizenship ||
     !buyerPassport ||
     !buyerAddress ||
     !email
@@ -162,6 +164,7 @@ export default async function handler(req, res) {
       is_workstation: !!isWorkstation,
       buyer_name: buyerName,
       buyer_gender: buyerGender,
+      buyer_citizenship: buyerCitizenship,
       buyer_passport: buyerPassport,
       buyer_passport_issued: buyerPassportIssued ?? '',
       buyer_address: buyerAddress,

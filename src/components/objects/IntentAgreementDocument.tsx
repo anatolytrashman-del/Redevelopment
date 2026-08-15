@@ -66,8 +66,8 @@ export function IntentAgreementDocument() {
         </p>
         <p className="text-center text-ink-faint">и</p>
         <p>
-          Гражданин(ка) РБ <Blank />, паспорт <Blank />, выдан <Blank />, проживающий(ая) по адресу: <Blank width="8rem" />{' '}
-          (далее — <strong className="text-ink">Покупатель</strong>),
+          Гражданин(ка) <Blank width="3rem" /> <Blank />, паспорт <Blank />, выдан <Blank />, проживающий(ая) по адресу:{' '}
+          <Blank width="8rem" /> (далее — <strong className="text-ink">Покупатель</strong>),
         </p>
         <p>совместно именуемые «Стороны», заключили настоящее Соглашение о нижеследующем:</p>
       </div>
