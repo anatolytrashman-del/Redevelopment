@@ -1,18 +1,133 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import {
+  Bath,
+  Briefcase,
+  Building2,
+  CalendarClock,
+  Cctv,
+  Clock,
+  Landmark,
+  Loader2,
+  Ruler,
+  ShieldCheck,
+  Sparkles,
+  SquareParking,
+  TreePine,
+  TrendingUp,
+  Wifi,
+  Zap,
+} from 'lucide-react';
+import { cn } from '../lib/cn';
+import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
+import type { LucideIcon } from 'lucide-react';
+import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { PublicPlanAndUnits } from '../components/objects/PublicPlanAndUnits';
+import { BookingTermsCard } from '../components/objects/BookingTermsCard';
 import type { BuildingPlan, BuildingPlanZone } from '../data/buildingPlans';
 import type { RealtyObject } from '../data/objects';
 import { fetchObjectByLandingSlug } from '../lib/objectsApi';
 import { fetchBuildingPlans, fetchZonesForPlan } from '../lib/buildingPlansApi';
 
+function formatMoney(value: number) {
+  return `$${Math.round(value).toLocaleString('ru-RU')}`;
+}
+
+// Стартовая цена в заголовке — фиксированный текст под фразу "фиксированные
+// рабочие места" (бюджетнее самих кабинетов), не связана с расчётом
+// стоимости конкретных кабинетов из zonePrice.
+const STARTING_PRICE_FROM = 12000;
+
+// Лого партнёра (ТЦ "Минск Мир") для геометки над слайдером — прислано
+// заказчиком по прямой ссылке. Стоит перезалить в собственное хранилище
+// (например, через загрузку рендеров в форме объекта), если ibb.co когда-то
+// станет недоступен.
+const MINSK_MIR_LOGO_URL = 'https://i.ibb.co/ynL71Bfj/Untitled-2.png';
+
+// Логотип Telegram — нарисован инлайн-SVG (фирменный синий кружок с бумажным
+// самолётиком), а не скачан картинкой: внешние хосты недоступны из песочницы
+// разработки, да и так надёжнее — не зависит от стороннего файла.
+function TelegramLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="12" r="12" fill="#29A9EB" />
+      <path fill="#FFFFFF" d="M5 12.3 18.5 7c.6-.2 1.1.2.9 1.1l-2.3 10.9c-.2.7-.6.9-1.2.6l-3.4-2.5-1.6 1.6c-.2.2-.3.3-.6.3l.2-3.1 5.7-5.1c.2-.2 0-.3-.3-.1l-7 4.4L5 13.7c-.6-.2-.6-.6 0-.9z" />
+      <path fill="#B9DCF2" d="m10.5 15.4-.2 3.1c.3 0 .4-.1.6-.3l1.6-1.6-2-1.2z" />
+    </svg>
+  );
+}
+
+const OWNER_TELEGRAM_URL = 'https://t.me/a_trashman';
+const OWNER_ONLINE_FROM_HOUR = 9;
+const OWNER_ONLINE_TO_HOUR = 23;
+
+// "Онлайн" — по часам собственника в Москве (9:00–23:00), а не по факту
+// его присутствия в сети: индикатор просто честно показывает окно, когда
+// обычно отвечают, без бэкенда и статуса присутствия.
+function isOwnerOnlineNow() {
+  const moscowHour = Number(
+    new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Moscow', hour: 'numeric', hour12: false }).format(new Date()),
+  );
+  return moscowHour >= OWNER_ONLINE_FROM_HOUR && moscowHour < OWNER_ONLINE_TO_HOUR;
+}
+
+// Пока продающая страница только у одного объекта, оффер и буллеты на
+// главном экране — фиксированный текст под него, а не поле в базе.
+// Когда появится второй объект с такой страницей — вынести в данные объекта.
+const heroFeatures: { icon: LucideIcon; text: string }[] = [
+  { icon: Ruler, text: 'Площади от 11 м² до 40 м²' },
+  { icon: Sparkles, text: 'Дизайнерский ремонт' },
+  { icon: ShieldCheck, text: 'Бесплатная онлайн-бронь' },
+];
+
+const complexFeatures: { icon: LucideIcon; text: string }[] = [
+  { icon: Building2, text: 'Собственное здание' },
+  { icon: Clock, text: 'Доступ 24/7' },
+  { icon: Cctv, text: 'Видеонаблюдение' },
+  { icon: Bath, text: 'Много санузлов' },
+  { icon: SquareParking, text: 'Большая парковка' },
+  { icon: Zap, text: 'Все коммуникации' },
+  { icon: Wifi, text: 'Телефон и интернет' },
+  { icon: TreePine, text: 'Благоустройство' },
+];
+
+interface PurchaseOption {
+  icon: LucideIcon;
+  title: string;
+  audience?: string;
+  terms?: string;
+  description: string;
+  badge?: string;
+}
+
+const purchaseOptions: PurchaseOption[] = [
+  {
+    icon: CalendarClock,
+    title: 'Рассрочка',
+    terms: 'Взнос 25% · Срок 4 месяца',
+    description: 'По индивидуальному согласованию с собственником.',
+    badge: '🇧🇾 🇷🇺',
+  },
+  {
+    icon: Briefcase,
+    title: 'Лизинг',
+    audience: 'ИП и юрлица',
+    terms: 'Взнос от 10% · Срок до 10 лет',
+    description: 'Специальные условия на проекты компании Redevelopment.',
+  },
+  {
+    icon: Landmark,
+    title: 'Кредит',
+    audience: 'ИП и юрлица',
+    terms: 'Взнос от 20% · Срок до 20 лет',
+    description: 'Финансирование от банков-партнёров.',
+  },
+];
+
 // Публичная продающая страница объекта под коротким URL (/:slug, см.
-// RealtyObject.landingSlug) — намеренно минимальная (планировка + список
-// кабинетов), пока маркетинговый дизайн главного экрана ещё не готов
-// показывать клиентам. Полная версия с оффером/слайдером обкатывается
-// на /:slug/draft (см. ObjectLandingDraftPage) и переезжает сюда, когда
-// дизайн утверждён.
+// RealtyObject.landingSlug) — перенесена сюда с черновика (/:slug/draft,
+// см. ObjectLandingDraftPage) после утверждения дизайна. Черновик остаётся
+// отдельной страницей для обкатки следующих правок, не влияя на эту.
 export function ObjectLandingPage() {
   const { slug } = useParams();
   const [object, setObject] = useState<RealtyObject | null>(null);
@@ -20,6 +135,12 @@ export function ObjectLandingPage() {
   const [zones, setZones] = useState<BuildingPlanZone[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [ownerOnline, setOwnerOnline] = useState(isOwnerOnlineNow);
+
+  useEffect(() => {
+    const timer = setInterval(() => setOwnerOnline(isOwnerOnlineNow()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!slug) return;
@@ -40,33 +161,173 @@ export function ObjectLandingPage() {
       .finally(() => setLoading(false));
   }, [slug]);
 
+  if (loading) {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-bg">
+        <Loader2 className="h-6 w-6 animate-spin text-ink-muted" />
+      </div>
+    );
+  }
+
+  if (notFound || !object) {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-bg px-4">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <span className="text-lg font-extrabold tracking-wide text-ink">
+            <span className="font-black text-primary">RED</span>EVELOPMENT
+          </span>
+          <p className="text-sm text-ink-muted">Страница не найдена.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-svh bg-bg px-4 py-8 sm:px-8">
-      <div className="mx-auto flex max-w-4xl flex-col gap-5">
+    <div className="min-h-svh bg-bg">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-5 sm:px-8">
         <div>
           <span className="text-lg font-extrabold tracking-wide text-ink">
             <span className="font-black text-primary">RED</span>EVELOPMENT
           </span>
         </div>
-
-        {loading && (
-          <div className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Загружаем планировку...
+        <div className="flex items-center gap-2">
+          <div className={cn('flex items-center gap-2 px-3 py-1.5', glassPillClass)} style={glassPillShadow}>
+            <span
+              className={cn('h-2 w-2 shrink-0 rounded-full', ownerOnline ? 'bg-success' : 'bg-ink-faint')}
+              title={ownerOnline ? 'Онлайн' : 'Офлайн'}
+            />
+            <span className="text-sm font-medium text-ink">На связи</span>
           </div>
-        )}
-        {!loading && (notFound || !object) && (
-          <p className="py-10 text-center text-sm text-ink-muted">Страница не найдена.</p>
-        )}
+          <a
+            href={OWNER_TELEGRAM_URL}
+            target="_blank"
+            rel="noreferrer"
+            className={cn('flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary', glassPillClass)}
+            style={glassPillShadow}
+          >
+            <TelegramLogo className="h-5 w-5" />
+            Написать собственнику
+          </a>
+        </div>
+      </div>
 
-        {!loading && !notFound && object && (
-          <PublicPlanAndUnits
-            object={object}
-            plans={plans}
-            zones={zones}
-            onZoneUpdated={(z) => setZones((prev) => prev.map((x) => (x.id === z.id ? z : x)))}
-          />
-        )}
+      <div className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-2">
+        <div className="flex flex-col gap-6">
+          <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">
+            Приватные кабинеты и фиксированные рабочие места от {formatMoney(STARTING_PRICE_FROM)}
+          </h1>
+          <div className="flex flex-col gap-3">
+            {heroFeatures.map(({ icon: Icon, text }) => (
+              <div key={text} className="flex items-center gap-3">
+                <span
+                  className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)}
+                  style={glassPillShadow}
+                >
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="text-base font-medium text-ink">{text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="relative">
+          <HeroImageSlider images={object.renderImageUrls} />
+          <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 shadow-card backdrop-blur">
+            <img src={MINSK_MIR_LOGO_URL} alt="Минск Мир" className="h-4 w-auto" />
+            <span className="text-xs font-semibold text-ink">Рядом с Минск Миром</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-8 sm:px-8">
+        <div className={cn('flex flex-col gap-5 p-5', glassCardClass)} style={glassCardShadow}>
+          <div className="text-xl font-extrabold text-ink">Клубный деловой центр Minsk One</div>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+            {complexFeatures.map(({ icon: Icon, text }) => (
+              <div key={text} className="flex items-center gap-3">
+                <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)}>
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="text-sm font-medium text-ink">{text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className={cn('flex flex-col gap-5 p-5', glassCardClass)} style={glassCardShadow}>
+          <div className="text-xl font-extrabold text-ink">3 варианта покупки, если нет полной суммы</div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {purchaseOptions.map((opt) => (
+              <div
+                key={opt.title}
+                className="flex flex-col gap-3 rounded-control border border-white/50 bg-white/40 p-4 backdrop-blur-md"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center text-ink', glassPillClass)}>
+                    <opt.icon className="h-5 w-5" />
+                  </span>
+                  {opt.badge && (
+                    <span className="rounded-full bg-success-bg px-2.5 py-1 text-xs font-semibold text-success">
+                      {opt.badge}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="text-base font-bold text-ink">{opt.title}</div>
+                  {opt.audience && (
+                    <span className="w-fit shrink-0 rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink-muted">
+                      {opt.audience}
+                    </span>
+                  )}
+                </div>
+                {opt.terms && <div className="text-sm font-semibold text-ink">{opt.terms}</div>}
+                <p className="text-sm text-ink-muted">{opt.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div
+          className={cn(
+            'flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between',
+            glassCardClass,
+          )}
+          style={glassCardShadow}
+        >
+          <div className="flex items-center gap-4">
+            <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center text-ink', glassPillClass)}>
+              <TrendingUp className="h-5 w-5" />
+            </span>
+            <div className="flex flex-col gap-1">
+              <div className="text-lg font-extrabold text-ink">Помещения с арендаторами для инвесторов</div>
+              <p className="text-sm text-ink-muted">Заселим арендатора без комиссии и вашего участия</p>
+            </div>
+          </div>
+          <a
+            href={OWNER_TELEGRAM_URL}
+            target="_blank"
+            rel="noreferrer"
+            className={cn(
+              'flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium text-ink hover:border-primary hover:text-primary',
+              glassPillClass,
+            )}
+            style={glassPillShadow}
+          >
+            <TelegramLogo className="h-5 w-5" />
+            Обсудить с собственником
+          </a>
+        </div>
+
+        <PublicPlanAndUnits
+          object={object}
+          plans={plans}
+          zones={zones}
+          onZoneUpdated={(z) => setZones((prev) => prev.map((x) => (x.id === z.id ? z : x)))}
+          glass
+        />
+
+        <BookingTermsCard agreement={object.intentAgreementFile} glass />
       </div>
     </div>
   );
