@@ -77,7 +77,7 @@ const heroFeatures: { icon: LucideIcon; text: string }[] = [
 ];
 
 const complexFeatures: { icon: LucideIcon; text: string }[] = [
-  { icon: Building2, text: 'Отдельно стоящее здание' },
+  { icon: Building2, text: 'Собственное здание' },
   { icon: Clock, text: 'Доступ 24/7' },
   { icon: Cctv, text: 'Видеонаблюдение' },
   { icon: Bath, text: 'Много санузлов' },
