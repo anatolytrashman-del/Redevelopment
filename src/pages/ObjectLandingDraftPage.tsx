@@ -20,7 +20,7 @@ import type { LucideIcon } from 'lucide-react';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { PublicPlanAndUnits } from '../components/objects/PublicPlanAndUnits';
 import { BookingTermsCard } from '../components/objects/BookingTermsCard';
-import { zonePrice, type BuildingPlan, type BuildingPlanZone } from '../data/buildingPlans';
+import type { BuildingPlan, BuildingPlanZone } from '../data/buildingPlans';
 import type { RealtyObject } from '../data/objects';
 import { fetchObjectByLandingSlug } from '../lib/objectsApi';
 import { fetchBuildingPlans, fetchZonesForPlan } from '../lib/buildingPlansApi';
@@ -28,6 +28,11 @@ import { fetchBuildingPlans, fetchZonesForPlan } from '../lib/buildingPlansApi';
 function formatMoney(value: number) {
   return `$${Math.round(value).toLocaleString('ru-RU')}`;
 }
+
+// Стартовая цена в заголовке — фиксированный текст под фразу "фиксированные
+// рабочие места" (бюджетнее самих кабинетов), не связана с расчётом
+// стоимости конкретных кабинетов из zonePrice.
+const STARTING_PRICE_FROM = 9900;
 
 // Лого партнёра (ТЦ "Минск Мир") для геометки над слайдером — прислано
 // заказчиком по прямой ссылке. Стоит перезалить в собственное хранилище
@@ -119,13 +124,6 @@ export function ObjectLandingDraftPage() {
       .finally(() => setLoading(false));
   }, [slug]);
 
-  const cheapestUnit = zones
-    .filter((z) => z.zoneType === 'room' && z.status === 'Свободно' && z.area != null)
-    .reduce<number | null>((min, z) => {
-      const price = zonePrice(z.area as number);
-      return min === null || price < min ? price : min;
-    }, null);
-
   if (loading) {
     return (
       <div className="flex min-h-svh items-center justify-center bg-bg">
@@ -182,8 +180,7 @@ export function ObjectLandingDraftPage() {
       <div className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-2">
         <div className="flex flex-col gap-6">
           <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">
-            Свой кабинет в клубном комплексе у Минск Мира
-            {cheapestUnit != null && <> от {formatMoney(cheapestUnit)}</>}
+            Приватные кабинеты и фиксированные рабочие места от {formatMoney(STARTING_PRICE_FROM)}
           </h1>
           <div className="flex flex-col gap-3">
             {heroFeatures.map(({ icon: Icon, text }) => (
