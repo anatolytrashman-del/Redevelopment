@@ -130,7 +130,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
   // Этаж и площадь раньше были отдельными строками в карточке — теперь часть
   // заголовка модалки ("Кабинет 4 - 1 этаж - 19.4 м²"), чтобы не дублировать
   // их ниже в списке параметров.
-  const zoneModalTitle = (() => {
+  const zoneModalTitleText = (() => {
     if (!selectedZone) return '';
     const base = `${zoneTypeLabels[selectedZone.zoneType]} ${selectedZone.label}`.trim();
     if (!isRoom) return base;
@@ -138,6 +138,42 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
     if (!isWorkstation && selectedZone.area != null) parts.push(`${selectedZone.area} м²`);
     return parts.filter(Boolean).join(' - ');
   })();
+
+  // Бейдж статуса — раньше отдельной строкой под заголовком модалки, теперь
+  // рядом с ним в одной строке (см. zoneModalTitle ниже).
+  const zoneStatusBadge =
+    selectedZone && isRoom ? (
+      isWorkstation ? (
+        <span
+          className={cn(
+            'w-fit shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
+            workstationsLeft > 0 ? 'bg-success-bg text-success' : 'bg-danger/15 text-danger',
+          )}
+        >
+          {workstationsLeft > 0 ? `Свободно ${workstationsLeft} из ${selectedZone.workstationCount}` : 'Все места заняты'}
+        </span>
+      ) : (
+        displayStatus && (
+          <span
+            className={cn(
+              'w-fit shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
+              zoneStatusBadgeClass[displayStatus],
+            )}
+          >
+            {displayStatus === 'Свободно' ? 'Свободен' : displayStatus}
+          </span>
+        )
+      )
+    ) : null;
+
+  const zoneModalTitle = selectedZone ? (
+    <span className="flex flex-wrap items-center gap-2">
+      <span className="min-w-0 break-words">{zoneModalTitleText}</span>
+      {zoneStatusBadge}
+    </span>
+  ) : (
+    ''
+  );
 
   function handleZoneSelect(zone: BuildingPlanZone) {
     if (zone.buildingPlanId !== activePlanId) setActivePlanId(zone.buildingPlanId);
@@ -299,30 +335,6 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
         {selectedZone && (
           <div className="flex flex-col gap-3">
             {isRoom && (
-              isWorkstation ? (
-                <span
-                  className={cn(
-                    'w-fit shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
-                    workstationsLeft > 0 ? 'bg-success-bg text-success' : 'bg-danger/15 text-danger',
-                  )}
-                >
-                  {workstationsLeft > 0 ? `Свободно ${workstationsLeft} из ${selectedZone.workstationCount}` : 'Все места заняты'}
-                </span>
-              ) : (
-                displayStatus && (
-                  <span
-                    className={cn(
-                      'w-fit shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
-                      zoneStatusBadgeClass[displayStatus],
-                    )}
-                  >
-                    {displayStatus === 'Свободно' ? 'Свободен' : displayStatus}
-                  </span>
-                )
-              )
-            )}
-
-            {isRoom && (
               <>
                 {isWorkstation ? (
                   <div className="flex flex-col divide-y divide-border rounded-control bg-surface-muted px-3 text-sm">
@@ -466,7 +478,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
                         </Button>
                       </form>
                     ) : (
-                      <Button type="button" onClick={() => setBookingOpen(true)} className="w-fit">
+                      <Button type="button" onClick={() => setBookingOpen(true)} className="w-fit mx-auto">
                         Забронировать
                       </Button>
                     )}

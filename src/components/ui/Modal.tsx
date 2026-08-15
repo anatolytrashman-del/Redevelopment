@@ -7,7 +7,7 @@ import { glassCardClass, glassCardShadow } from '../../lib/glass';
 interface ModalProps {
   open: boolean;
   onClose: () => void;
-  title: string;
+  title: ReactNode;
   children: ReactNode;
 }
 
