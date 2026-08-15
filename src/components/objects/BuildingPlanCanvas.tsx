@@ -22,10 +22,14 @@ function formatMoney(value: number) {
   return `$${Math.round(value).toLocaleString('ru-RU')}`;
 }
 
-export function zoneFillClass(zone: BuildingPlanZone): string {
+// hideSoldStatus — клиентские поверхности не показывают отдельный статус
+// "Продано": для клиента и "Продано", и "Забронировано" означают одно и то
+// же — кабинет недоступен, разница между ними важна только для админа.
+export function zoneFillClass(zone: BuildingPlanZone, hideSoldStatus?: boolean): string {
   if (zone.zoneType === 'room') {
-    if (zone.status === 'Продано') return 'fill-danger/35 stroke-danger';
-    if (zone.status === 'Забронировано') return 'fill-warning/35 stroke-warning';
+    const status = hideSoldStatus && zone.status === 'Продано' ? 'Забронировано' : zone.status;
+    if (status === 'Продано') return 'fill-danger/35 stroke-danger';
+    if (status === 'Забронировано') return 'fill-warning/35 stroke-warning';
     return 'fill-success/25 stroke-success';
   }
   if (zone.zoneType === 'bathroom') return 'fill-info-bg/60 stroke-info-text';
@@ -49,6 +53,9 @@ interface BuildingPlanCanvasProps {
   // или клик по строке таблицы должны показать, где кабинет физически
   // находится на плане.
   highlightZoneId?: string | null;
+  // Только для клиентских поверхностей (см. zoneFillClass) — админский
+  // BuildingPlanWidget этот проп не передаёт, там статус "Продано" виден как есть.
+  hideSoldStatus?: boolean;
 }
 
 export function BuildingPlanCanvas({
@@ -59,6 +66,7 @@ export function BuildingPlanCanvas({
   cursorCrosshair,
   drawingPoints,
   highlightZoneId,
+  hideSoldStatus,
 }: BuildingPlanCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoverZone, setHoverZone] = useState<{ zone: BuildingPlanZone; x: number; y: number } | null>(null);
@@ -86,7 +94,7 @@ export function BuildingPlanCanvas({
             <polygon
               key={zone.id}
               points={pointsToAttr(zone.points)}
-              className={cn('cursor-pointer transition-opacity hover:opacity-80', zoneFillClass(zone))}
+              className={cn('cursor-pointer transition-opacity hover:opacity-80', zoneFillClass(zone, hideSoldStatus))}
               strokeWidth={0.3}
               onClick={(e) => {
                 e.stopPropagation();
@@ -138,8 +146,16 @@ export function BuildingPlanCanvas({
               })()}
               <span className="text-ink-muted">Цена: {formatMoney(WORKSTATION_PRICE)} / место</span>
             </>
-          ) : hoverZone.zone.zoneType === 'room' && hoverZone.zone.status === 'Забронировано' ? (
-            <span className="font-semibold text-warning">Забронировано</span>
+          ) : hoverZone.zone.zoneType === 'room' && hoverZone.zone.status !== 'Свободно' ? (
+            (() => {
+              const status =
+                hideSoldStatus && hoverZone.zone.status === 'Продано' ? 'Забронировано' : hoverZone.zone.status;
+              return (
+                <span className={cn('font-semibold', status === 'Продано' ? 'text-danger' : 'text-warning')}>
+                  {status}
+                </span>
+              );
+            })()
           ) : (
             <>
               <span className="text-ink-muted">{zoneTypeLabels[hoverZone.zone.zoneType]}</span>
@@ -167,7 +183,7 @@ export function BuildingPlanCanvas({
   );
 }
 
-export function BuildingPlanLegend() {
+export function BuildingPlanLegend({ hideSoldStatus }: { hideSoldStatus?: boolean } = {}) {
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-ink-muted">
       <span className="flex items-center gap-1.5">
@@ -176,9 +192,11 @@ export function BuildingPlanLegend() {
       <span className="flex items-center gap-1.5">
         <span className="h-3 w-3 rounded-sm bg-warning/40" /> Забронировано
       </span>
-      <span className="flex items-center gap-1.5">
-        <span className="h-3 w-3 rounded-sm bg-danger/40" /> Продано
-      </span>
+      {!hideSoldStatus && (
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded-sm bg-danger/40" /> Продано
+        </span>
+      )}
       <span className="flex items-center gap-1.5">
         <span className="h-3 w-3 rounded-sm bg-ink-faint/40" /> МОП
       </span>

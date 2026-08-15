@@ -87,6 +87,10 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
   const isRoom = selectedZone?.zoneType === 'room';
   const isWorkstation = selectedZone?.workstationCount != null;
   const workstationsLeft = selectedZone ? workstationsRemaining(selectedZone) : 0;
+  // Клиенту статус "Продано" не показываем отдельно от "Забронировано" —
+  // для него оба означают одно и то же: кабинет недоступен. Разница нужна
+  // только админу (см. ZoneDetailModal, где этот же zone.status показан как есть).
+  const displayStatus = selectedZone && selectedZone.status === 'Продано' ? 'Забронировано' : selectedZone?.status;
   const highlightZoneId = selectedZone?.id ?? pinnedZoneId ?? hoveredZoneId;
 
   function handleZoneSelect(zone: BuildingPlanZone) {
@@ -176,8 +180,9 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
                     zones={zones}
                     onZoneClick={handleZoneSelect}
                     highlightZoneId={highlightZoneId}
+                    hideSoldStatus
                   />
-                  <BuildingPlanLegend />
+                  <BuildingPlanLegend hideSoldStatus />
                 </>
               )}
             </>
@@ -218,14 +223,16 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
                     {workstationsLeft > 0 ? `Свободно ${workstationsLeft} из ${selectedZone.workstationCount}` : 'Все места заняты'}
                   </span>
                 ) : (
-                  <span
-                    className={cn(
-                      'shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
-                      zoneStatusBadgeClass[selectedZone.status],
-                    )}
-                  >
-                    {selectedZone.status}
-                  </span>
+                  displayStatus && (
+                    <span
+                      className={cn(
+                        'shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
+                        zoneStatusBadgeClass[displayStatus],
+                      )}
+                    >
+                      {displayStatus}
+                    </span>
+                  )
                 )
               )}
             </div>
