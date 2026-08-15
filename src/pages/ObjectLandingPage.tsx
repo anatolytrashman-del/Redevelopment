@@ -197,7 +197,9 @@ export function ObjectLandingPage() {
                 className={cn('h-2 w-2 shrink-0 rounded-full', ownerOnline ? 'bg-success' : 'bg-ink-faint')}
                 title={ownerOnline ? 'Онлайн' : 'Офлайн'}
               />
-              <span className="text-sm font-medium text-ink">На связи</span>
+              <span className="text-sm font-medium text-ink">
+                {ownerOnline ? 'На связи' : 'Пишите, отвечу завтра'}
+              </span>
             </div>
             <a
               href={OWNER_TELEGRAM_URL}
