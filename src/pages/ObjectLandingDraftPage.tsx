@@ -7,7 +7,6 @@ import {
   Clock,
   Loader2,
   Ruler,
-  Send,
   ShieldCheck,
   Sparkles,
   SquareParking,
@@ -28,6 +27,19 @@ import { fetchBuildingPlans, fetchZonesForPlan } from '../lib/buildingPlansApi';
 
 function formatMoney(value: number) {
   return `$${Math.round(value).toLocaleString('ru-RU')}`;
+}
+
+// Логотип Telegram — нарисован инлайн-SVG (фирменный синий кружок с бумажным
+// самолётиком), а не скачан картинкой: внешние хосты недоступны из песочницы
+// разработки, да и так надёжнее — не зависит от стороннего файла.
+function TelegramLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="12" r="12" fill="#29A9EB" />
+      <path fill="#FFFFFF" d="M5 12.3 18.5 7c.6-.2 1.1.2.9 1.1l-2.3 10.9c-.2.7-.6.9-1.2.6l-3.4-2.5-1.6 1.6c-.2.2-.3.3-.6.3l.2-3.1 5.7-5.1c.2-.2 0-.3-.3-.1l-7 4.4L5 13.7c-.6-.2-.6-.6 0-.9z" />
+      <path fill="#B9DCF2" d="m10.5 15.4-.2 3.1c.3 0 .4-.1.6-.3l1.6-1.6-2-1.2z" />
+    </svg>
+  );
 }
 
 const OWNER_TELEGRAM_URL = 'https://t.me/a_trashman';
@@ -140,19 +152,24 @@ export function ObjectLandingDraftPage() {
             Черновик, клиентам не показывать
           </span>
         </div>
-        <a
-          href={OWNER_TELEGRAM_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-2 text-sm font-medium text-ink hover:text-primary"
-        >
-          <Send className="h-4 w-4" />
-          Написать собственнику
-          <span
-            className={cn('h-2 w-2 rounded-full', ownerOnline ? 'bg-success' : 'bg-ink-faint')}
-            title={ownerOnline ? 'Онлайн' : 'Офлайн'}
-          />
-        </a>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 rounded-full border border-border px-3 py-1.5">
+            <span
+              className={cn('h-2 w-2 shrink-0 rounded-full', ownerOnline ? 'bg-success' : 'bg-ink-faint')}
+              title={ownerOnline ? 'Онлайн' : 'Офлайн'}
+            />
+            <span className="text-sm font-medium text-ink">На связи</span>
+          </div>
+          <a
+            href={OWNER_TELEGRAM_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary"
+          >
+            <TelegramLogo className="h-5 w-5" />
+            Написать собственнику
+          </a>
+        </div>
       </div>
 
       <div className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-2">
