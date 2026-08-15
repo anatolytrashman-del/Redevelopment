@@ -1,4 +1,4 @@
-import { useRef, useState, type ElementType } from 'react';
+import { useEffect, useRef, useState, type ElementType } from 'react';
 import { Card } from '../ui/Card';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import { Modal } from '../ui/Modal';
@@ -73,6 +73,17 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
   const [hoveredZoneId, setHoveredZoneId] = useState<string | null>(null);
   const [pinnedZoneId, setPinnedZoneId] = useState<string | null>(null);
   const planCardRef = useRef<HTMLDivElement>(null);
+  // Переключение viewMode 'list' → 'plan' меняет высоту блока (таблица со
+  // строками vs план+легенда) — если скроллить в том же обработчике, что и
+  // ставит viewMode, scrollIntoView меряет ещё старую, дореактовую разметку
+  // и промахивается. Поэтому сам скролл — отдельный эффект, срабатывающий
+  // уже после того, как React перерисовал DOM под новый viewMode.
+  const [pendingLocate, setPendingLocate] = useState(0);
+
+  useEffect(() => {
+    if (pendingLocate === 0) return;
+    planCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [pendingLocate]);
 
   const [bookingOpen, setBookingOpen] = useState(false);
   const [bookingForm, setBookingForm] = useState(emptyBookingForm);
@@ -121,7 +132,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
     if (zone.buildingPlanId !== activePlanId) setActivePlanId(zone.buildingPlanId);
     setViewMode('plan');
     setPinnedZoneId(zone.id);
-    planCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setPendingLocate((n) => n + 1);
   }
 
   async function handleBookingSubmit(e: React.FormEvent) {

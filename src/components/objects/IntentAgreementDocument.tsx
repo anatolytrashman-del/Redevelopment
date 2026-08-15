@@ -116,7 +116,7 @@ export function IntentAgreementDocument() {
           и не создает для Сторон юридических или финансовых обязательств.
         </p>
         <p>3.2. Ни одна из Сторон не берет на себя обязательств по обязательному заключению договора купли-продажи в будущем.</p>
-        <p className="rounded-control border border-primary/30 bg-primary-soft px-4 py-3 font-medium text-ink">
+        <p className="rounded-control border border-success/30 bg-success-bg px-4 py-3 font-medium text-ink">
           3.3. В рамках настоящего Соглашения денежные средства (аванс, задаток, платежи за бронирование) не передаются.
         </p>
         <p>

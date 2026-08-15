@@ -27,9 +27,9 @@ interface Step {
 }
 
 const steps: Step[] = [
-  { title: 'Выбрали кабинет', description: 'В списке или на плане выше' },
-  { title: 'Прочитали соглашение', description: '2 страницы, без сложных терминов' },
-  { title: 'Забронировали онлайн', description: 'Код на почту, без предоплаты и визита в офис' },
+  { title: 'Выберите кабинет', description: 'В списке или на плане выше' },
+  { title: 'Прочитайте соглашение', description: '2 страницы, без сложных терминов' },
+  { title: 'Забронируйте онлайн', description: 'Подтверждение по email. Без визитов в офис и оплаты.' },
 ];
 
 // Блок-закрыватель сомнений, а не справка: раньше был статичным списком
@@ -38,6 +38,11 @@ const steps: Step[] = [
 // общий призыв "вот как легко", а не трекер конкретной заявки). Стоит под
 // общим блоком план+список (см. ObjectLandingDraftPage) — сначала клиент
 // смотрит кабинеты, потом здесь снимаем тревогу и ведём назад к брони.
+// Главная кнопка брони — на 3-м шаге (а не на 1-м): бронь физически нельзя
+// начать без выбора конкретного кабинета (форма живёт в модалке кабинета
+// в PublicPlanAndUnits), так что и там, и там кнопка ведёт к списку — но на
+// 3-м шаге это финальный, самый заметный призыв после всего объяснения, а
+// не дубль. Шаг 1 — только лёгкая ссылка-подсказка "куда смотреть".
 export function BookingTermsCard({ agreement, glass }: BookingTermsCardProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const Wrapper: ElementType = glass ? 'div' : Card;
@@ -74,9 +79,13 @@ export function BookingTermsCard({ agreement, glass }: BookingTermsCardProps) {
               <div className="flex flex-col gap-2 pl-10">
                 <p className="text-xs text-ink-faint">{step.description}</p>
                 {i === 0 && (
-                  <Button type="button" onClick={scrollToUnits} className="w-fit whitespace-nowrap">
-                    Выбрать кабинет
-                  </Button>
+                  <button
+                    type="button"
+                    onClick={scrollToUnits}
+                    className="w-fit text-xs font-semibold text-primary hover:underline"
+                  >
+                    Смотреть кабинеты ↑
+                  </button>
                 )}
                 {i === 1 &&
                   (agreement ? (
@@ -92,6 +101,11 @@ export function BookingTermsCard({ agreement, glass }: BookingTermsCardProps) {
                   ) : (
                     <p className="text-xs text-ink-faint">Шаблон соглашения скоро появится здесь.</p>
                   ))}
+                {i === 2 && (
+                  <Button type="button" onClick={scrollToUnits} className="w-fit whitespace-nowrap">
+                    Забронировать кабинет
+                  </Button>
+                )}
               </div>
             </div>
           );
