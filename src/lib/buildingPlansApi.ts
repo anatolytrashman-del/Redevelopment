@@ -26,6 +26,7 @@ function zoneFromRow(row: BuildingPlanZoneRow): BuildingPlanZone {
     points: row.points,
     workstationCount: row.workstation_count,
     workstationsSold: row.workstations_sold ?? 0,
+    windowCount: row.window_count,
   };
 }
 
@@ -129,6 +130,7 @@ export function insertZone(input: Omit<BuildingPlanZone, 'id'>): Promise<Buildin
         points: input.points,
         workstation_count: input.workstationCount,
         workstations_sold: input.workstationsSold,
+        window_count: input.windowCount,
       })
       .select()
       .single();
@@ -142,7 +144,16 @@ export function updateZone(
   patch: Partial<
     Pick<
       BuildingPlanZone,
-      'zoneType' | 'label' | 'area' | 'status' | 'leadId' | 'features' | 'points' | 'workstationCount' | 'workstationsSold'
+      | 'zoneType'
+      | 'label'
+      | 'area'
+      | 'status'
+      | 'leadId'
+      | 'features'
+      | 'points'
+      | 'workstationCount'
+      | 'workstationsSold'
+      | 'windowCount'
     >
   >,
 ): Promise<BuildingPlanZone> {
@@ -157,6 +168,7 @@ export function updateZone(
     if (patch.points !== undefined) payload.points = patch.points;
     if (patch.workstationCount !== undefined) payload.workstation_count = patch.workstationCount;
     if (patch.workstationsSold !== undefined) payload.workstations_sold = patch.workstationsSold;
+    if (patch.windowCount !== undefined) payload.window_count = patch.windowCount;
 
     const { data, error } = await supabase.from('building_plan_zones').update(payload).eq('id', id).select().single();
     if (error) throw error;

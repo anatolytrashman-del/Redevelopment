@@ -70,6 +70,7 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
   const [workstationEnabled, setWorkstationEnabled] = useState(false);
   const [workstationCount, setWorkstationCount] = useState('');
   const [workstationsSold, setWorkstationsSold] = useState('');
+  const [windowCount, setWindowCount] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,6 +86,7 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
     setWorkstationEnabled(zone.workstationCount != null);
     setWorkstationCount(zone.workstationCount != null ? String(zone.workstationCount) : '');
     setWorkstationsSold(String(zone.workstationsSold));
+    setWindowCount(zone.windowCount != null ? String(zone.windowCount) : '');
     setError(null);
   }, [zone]);
 
@@ -111,6 +113,7 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
     setWorkstationEnabled(zone.workstationCount != null);
     setWorkstationCount(zone.workstationCount != null ? String(zone.workstationCount) : '');
     setWorkstationsSold(String(zone.workstationsSold));
+    setWindowCount(zone.windowCount != null ? String(zone.windowCount) : '');
     setError(null);
     setMode('edit');
   }
@@ -139,6 +142,7 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
         features: isRoomEdit ? features : [],
         workstationCount: savedCount,
         workstationsSold: savedSold,
+        windowCount: isRoomEdit && windowCount.trim() ? Number(windowCount) : null,
       });
       onUpdated(updated);
       setMode('view');
@@ -237,10 +241,14 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
                       <span className="text-ink-muted">Площадь</span>
                       <span className="font-medium text-ink">{zone.area != null ? `${zone.area} м²` : '—'}</span>
                     </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-ink-muted">Количество окон</span>
+                      <span className="font-medium text-ink">{zone.windowCount ?? '—'}</span>
+                    </div>
                     {zone.area != null && (
                       <>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-ink-muted">Стоимость</span>
+                          <span className="text-ink-muted">Общая стоимость</span>
                           <span className="font-medium text-ink">{formatMoney(zonePrice(zone.area))}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
@@ -344,6 +352,14 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
             {isRoomEdit && (
               <>
                 <Input label="Площадь, м²" type="number" step="0.1" value={area} onChange={(e) => setArea(e.target.value)} />
+
+                <Input
+                  label="Количество окон"
+                  type="number"
+                  min={0}
+                  value={windowCount}
+                  onChange={(e) => setWindowCount(e.target.value)}
+                />
 
                 <label className="flex items-center gap-2 text-sm text-ink">
                   <input

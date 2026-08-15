@@ -34,7 +34,7 @@ export interface ZonePoint {
 // Вынесены сюда, а не в конкретный компонент, чтобы внутренняя карточка
 // объекта и публичная страница для клиента считали цену одинаково.
 export const PRICE_PER_METER = 2100;
-export const DOWN_PAYMENT_RATE = 0.25;
+export const DOWN_PAYMENT_RATE = 0.1;
 
 export function zonePrice(area: number): number {
   return area * PRICE_PER_METER;
@@ -71,6 +71,9 @@ export interface BuildingPlanZone {
   workstationCount: number | null;
   // Сколько из workstationCount уже забронировано/продано.
   workstationsSold: number;
+  // Проставляется вручную в админке по каждому кабинету — нет способа
+  // вычислить его из контура на плане.
+  windowCount: number | null;
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/buildingPlansApi.ts
@@ -86,6 +89,7 @@ export interface BuildingPlanZoneRow {
   points: ZonePoint[];
   workstation_count: number | null;
   workstations_sold: number | null;
+  window_count: number | null;
 }
 
 export interface BuildingPlan {

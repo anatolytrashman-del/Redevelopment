@@ -205,6 +205,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
         points: drawingPoints,
         workstationCount: null,
         workstationsSold: 0,
+        windowCount: null,
       });
       setZones((prev) => [...prev, created]);
       setDrawingPoints(null);

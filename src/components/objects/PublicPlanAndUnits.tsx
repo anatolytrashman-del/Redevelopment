@@ -16,6 +16,7 @@ import {
   zonePrice,
   workstationsRemaining,
   WORKSTATION_PRICE,
+  PRICE_PER_METER,
   type BuildingPlan,
   type BuildingPlanZone,
 } from '../../data/buildingPlans';
@@ -286,7 +287,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
                       zoneStatusBadgeClass[displayStatus],
                     )}
                   >
-                    {displayStatus}
+                    {displayStatus === 'Свободно' ? 'Свободен' : displayStatus}
                   </span>
                 )
               )
@@ -314,13 +315,31 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
                 ) : (
                   <div className="flex flex-wrap gap-x-5 gap-y-1.5 rounded-control bg-surface-muted px-3 py-2 text-sm">
                     <div className="flex items-center gap-1.5">
+                      <span className="text-ink-muted">Этаж</span>
+                      <span className="font-medium text-ink">{plan?.name ?? '—'}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
                       <span className="text-ink-muted">Площадь</span>
                       <span className="font-medium text-ink">{selectedZone.area != null ? `${selectedZone.area} м²` : '—'}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-ink-muted">Отдельный вход</span>
+                      <span className="font-medium text-ink">
+                        {selectedZone.features.includes('Отдельный вход') ? 'Есть' : 'Нет'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-ink-muted">Количество окон</span>
+                      <span className="font-medium text-ink">{selectedZone.windowCount ?? '—'}</span>
                     </div>
                     {selectedZone.area != null && (
                       <>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-ink-muted">Стоимость</span>
+                          <span className="text-ink-muted">Стоимость за метр</span>
+                          <span className="font-medium text-ink">{formatMoney(PRICE_PER_METER)}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-ink-muted">Общая стоимость</span>
                           <span className="font-medium text-ink">{formatMoney(zonePrice(selectedZone.area))}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
@@ -332,13 +351,17 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
                   </div>
                 )}
 
-                {selectedZone.features.length > 0 && (
+                {/* "Отдельный вход" уже отдельной строкой в сетке выше — здесь
+                    он был бы дублем. */}
+                {selectedZone.features.filter((f) => f !== 'Отдельный вход').length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
-                    {selectedZone.features.map((f) => (
-                      <span key={f} className="rounded-full bg-surface-muted px-2.5 py-1 text-xs text-ink">
-                        {f}
-                      </span>
-                    ))}
+                    {selectedZone.features
+                      .filter((f) => f !== 'Отдельный вход')
+                      .map((f) => (
+                        <span key={f} className="rounded-full bg-surface-muted px-2.5 py-1 text-xs text-ink">
+                          {f}
+                        </span>
+                      ))}
                   </div>
                 )}
 
