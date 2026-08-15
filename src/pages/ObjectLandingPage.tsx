@@ -183,7 +183,7 @@ export function ObjectLandingPage() {
   return (
     <div className="min-h-svh bg-bg">
       <div className="border-b border-border py-5">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 sm:px-8">
+        <div className="mx-auto flex max-w-5xl items-center justify-center gap-3 px-4 sm:justify-between sm:px-8">
           <div>
             <span className="text-lg font-extrabold tracking-wide text-ink">
               <span className="font-black text-primary">RED</span>EVELOPMENT
@@ -194,7 +194,7 @@ export function ObjectLandingPage() {
             target="_blank"
             rel="noreferrer"
             title={ownerOnline ? 'Онлайн — на связи' : 'Офлайн — отвечу завтра'}
-            className={cn('flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary', glassPillClass)}
+            className={cn('hidden items-center gap-2 px-3 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary sm:flex', glassPillClass)}
             style={glassPillShadow}
           >
             <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
@@ -210,6 +210,31 @@ export function ObjectLandingPage() {
           </a>
         </div>
       </div>
+
+      {/* На мобильном кнопка уходит из шапки (там теперь просто центрированное
+          лого) и становится плавающим виджетом в правом нижнем углу — всегда
+          доступна независимо от скролла, как обычный чат-виджет. */}
+      <a
+        href={OWNER_TELEGRAM_URL}
+        target="_blank"
+        rel="noreferrer"
+        title={ownerOnline ? 'Онлайн — на связи' : 'Офлайн — отвечу завтра'}
+        className={cn(
+          'fixed bottom-5 right-4 z-40 flex h-14 w-14 items-center justify-center sm:hidden',
+          glassPillClass,
+        )}
+        style={glassPillShadow}
+      >
+        <span className="relative flex h-7 w-7 shrink-0 items-center justify-center">
+          <TelegramLogo className="h-7 w-7" />
+          <span
+            className={cn(
+              'absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-white',
+              ownerOnline ? 'bg-success' : 'bg-ink-faint',
+            )}
+          />
+        </span>
+      </a>
 
       <div className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-2">
         <div className="flex flex-col gap-6">
