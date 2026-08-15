@@ -259,16 +259,16 @@ export function ObjectLandingPage() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-5 rounded-3xl bg-surface-muted p-5">
+        <div className={cn('flex flex-col gap-5 p-5', glassCardClass)} style={glassCardShadow}>
           <div className="text-xl font-extrabold text-ink">3 варианта покупки, если нет полной суммы</div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {purchaseOptions.map((opt) => (
               <div
                 key={opt.title}
-                className="flex flex-col gap-3 rounded-control border border-border bg-surface p-4"
+                className="flex flex-col gap-3 rounded-control border border-white/50 bg-white/40 p-4 backdrop-blur-md"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-muted text-ink">
+                  <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center text-ink', glassPillClass)}>
                     <opt.icon className="h-5 w-5" />
                   </span>
                   {opt.badge && (
