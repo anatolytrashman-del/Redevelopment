@@ -2,9 +2,12 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Bath,
+  Briefcase,
   Building2,
+  CalendarClock,
   Cctv,
   Clock,
+  Landmark,
   Loader2,
   Ruler,
   ShieldCheck,
@@ -84,7 +87,38 @@ const complexFeatures: { icon: LucideIcon; text: string }[] = [
   { icon: SquareParking, text: 'Большая парковка' },
   { icon: Zap, text: 'Все коммуникации' },
   { icon: Wifi, text: 'Телефон и интернет' },
-  { icon: TreePine, text: 'Ландшафтный дизайн' },
+  { icon: TreePine, text: 'Благоустройство' },
+];
+
+interface PurchaseOption {
+  icon: LucideIcon;
+  title: string;
+  // Конкретные условия — жирной строкой, только там, где они реально есть
+  // (сейчас только у рассрочки). Для лизинга/кредита пока нет ни ставок, ни
+  // банков-партнёров, поэтому там только description с честной пометкой.
+  terms?: string;
+  description: string;
+  badge?: string;
+}
+
+const purchaseOptions: PurchaseOption[] = [
+  {
+    icon: CalendarClock,
+    title: 'Рассрочка без %',
+    terms: 'Взнос 25% · Срок 4 месяца · Переплата 0%',
+    description: 'Оплата напрямую собственнику, без банка и процентов.',
+    badge: 'Без переплат',
+  },
+  {
+    icon: Briefcase,
+    title: 'Лизинг',
+    description: 'Для юридических лиц и ИП. Условия — индивидуально, уточняйте у собственника.',
+  },
+  {
+    icon: Landmark,
+    title: 'Кредит',
+    description: 'Банковское финансирование. Ставки и условия уточняйте у собственника.',
+  },
 ];
 
 // Черновик продающей страницы (/:slug/draft) — здесь обкатывается дизайн
@@ -222,6 +256,35 @@ export function ObjectLandingDraftPage() {
         </div>
 
         <BookingTermsCard agreement={object.intentAgreementFile} glass />
+
+        <div className={cn('flex flex-col gap-5 p-5', glassCardClass)} style={glassCardShadow}>
+          <div className="flex flex-col gap-1">
+            <div className="text-xl font-extrabold text-ink">3 варианта покупки</div>
+            <p className="text-sm text-ink-muted">Выберите удобный способ оплаты — расскажем детали при встрече</p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {purchaseOptions.map((opt) => (
+              <div
+                key={opt.title}
+                className="flex flex-col gap-3 rounded-control border border-white/50 bg-white/40 p-4 backdrop-blur-md"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center text-ink', glassPillClass)}>
+                    <opt.icon className="h-5 w-5" />
+                  </span>
+                  {opt.badge && (
+                    <span className="rounded-full bg-success-bg px-2.5 py-1 text-xs font-semibold text-success">
+                      {opt.badge}
+                    </span>
+                  )}
+                </div>
+                <div className="text-base font-bold text-ink">{opt.title}</div>
+                {opt.terms && <div className="text-sm font-semibold text-ink">{opt.terms}</div>}
+                <p className="text-sm text-ink-muted">{opt.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
 
         <PublicPlanAndUnits
           object={object}
