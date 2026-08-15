@@ -112,7 +112,7 @@ const purchaseOptions: PurchaseOption[] = [
   {
     icon: Briefcase,
     title: 'Лизинг',
-    description: 'Для юридических лиц и ИП. Индивидуальные условия от партнёрской лизинговой компании.',
+    description: 'Специальные условия на проекты компании Redevelopment.',
   },
   {
     icon: Landmark,
