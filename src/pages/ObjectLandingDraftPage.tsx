@@ -28,12 +28,6 @@ function formatMoney(value: number) {
   return `$${Math.round(value).toLocaleString('ru-RU')}`;
 }
 
-// Лого партнёра (ТЦ "Минск Мир") для геометки над слайдером — прислано
-// заказчиком по прямой ссылке. Стоит перезалить в собственное хранилище
-// (например, через загрузку рендеров в форме объекта), если ibb.co когда-то
-// станет недоступен.
-const MINSK_MIR_LOGO_URL = 'https://i.ibb.co/ynL71Bfj/Untitled-2.png';
-
 // Пока продающая страница только у одного объекта, оффер и буллеты на
 // главном экране — фиксированный текст под него, а не поле в базе.
 // Когда появится второй объект с такой страницей — вынести в данные объекта.
@@ -127,13 +121,12 @@ export function ObjectLandingDraftPage() {
       <div className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-2">
         <div className="flex flex-col gap-6">
           <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">
-            Стильные кабинеты под любой бизнес{cheapestUnit != null && <> от</>}{' '}
+            Свой кабинет в клубном комплексе у Минск Мира{cheapestUnit != null && <> от</>}{' '}
             {cheapestUnit != null && (
               <span
-                className="relative inline-flex translate-y-[-2px] items-center whitespace-nowrap bg-primary py-1.5 pl-6 pr-4 align-middle text-white"
-                style={{ clipPath: 'polygon(0 50%, 22px 0, 100% 0, 100% 100%, 22px 100%)' }}
+                className="inline-flex translate-y-[-2px] items-center whitespace-nowrap bg-primary px-5 py-1.5 align-middle text-white"
+                style={{ clipPath: 'polygon(14px 0, 100% 0, calc(100% - 14px) 100%, 0 100%)' }}
               >
-                <span className="absolute left-[9px] top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-bg" />
                 <span className="text-lg font-extrabold">{formatMoney(cheapestUnit)}</span>
               </span>
             )}
@@ -153,8 +146,8 @@ export function ObjectLandingDraftPage() {
         <div className="relative">
           <HeroImageSlider images={object.renderImageUrls} />
           <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 shadow-card backdrop-blur">
-            <img src={MINSK_MIR_LOGO_URL} alt="Минск Мир" className="h-4 w-auto" />
-            <span className="text-xs font-semibold text-ink">Рядом с Минск Миром</span>
+            <ShieldCheck className="h-4 w-4 text-primary" />
+            <span className="text-xs font-semibold text-ink">Бесплатная онлайн-бронь</span>
           </div>
         </div>
       </div>
