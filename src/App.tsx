@@ -11,7 +11,6 @@ import { Tasks } from './pages/Tasks';
 import { Backlog } from './pages/Backlog';
 import { PublicBuildingPlan } from './pages/PublicBuildingPlan';
 import { ObjectLandingPage } from './pages/ObjectLandingPage';
-import { ObjectLandingDraftPage } from './pages/ObjectLandingDraftPage';
 import { NotFound } from './pages/NotFound';
 
 export default function App() {
@@ -22,9 +21,6 @@ export default function App() {
           продающую страницу объекта "Полтавская" (см. RealtyObject.landingSlug). */}
       <Route path="/" element={<Navigate to="/one" replace />} />
       <Route path="/plan/:token" element={<PublicBuildingPlan />} />
-      {/* Черновик главного экрана (оффер/буллеты/слайдер) — не для клиентов,
-          сюда прилетают только правки дизайна перед переносом в /:slug. */}
-      <Route path="/:slug/draft" element={<ObjectLandingDraftPage />} />
       <Route path="/:slug" element={<ObjectLandingPage />} />
 
       {/* Админка теперь живёт под /admin, а не на голом домене — корень

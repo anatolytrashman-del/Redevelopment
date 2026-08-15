@@ -125,9 +125,7 @@ const purchaseOptions: PurchaseOption[] = [
 ];
 
 // Публичная продающая страница объекта под коротким URL (/:slug, см.
-// RealtyObject.landingSlug) — перенесена сюда с черновика (/:slug/draft,
-// см. ObjectLandingDraftPage) после утверждения дизайна. Черновик остаётся
-// отдельной страницей для обкатки следующих правок, не влияя на эту.
+// RealtyObject.landingSlug).
 export function ObjectLandingPage() {
   const { slug } = useParams();
   const [object, setObject] = useState<RealtyObject | null>(null);
@@ -191,27 +189,25 @@ export function ObjectLandingPage() {
               <span className="font-black text-primary">RED</span>EVELOPMENT
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className={cn('flex items-center gap-2 px-3 py-1.5', glassPillClass)} style={glassPillShadow}>
-              <span
-                className={cn('h-2 w-2 shrink-0 rounded-full', ownerOnline ? 'bg-success' : 'bg-ink-faint')}
-                title={ownerOnline ? 'Онлайн' : 'Офлайн'}
-              />
-              <span className="text-sm font-medium text-ink">
-                {ownerOnline ? 'На связи' : 'Пишите, отвечу завтра'}
-              </span>
-            </div>
-            <a
-              href={OWNER_TELEGRAM_URL}
-              target="_blank"
-              rel="noreferrer"
-              className={cn('flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary', glassPillClass)}
-              style={glassPillShadow}
-            >
+          <a
+            href={OWNER_TELEGRAM_URL}
+            target="_blank"
+            rel="noreferrer"
+            title={ownerOnline ? 'Онлайн — на связи' : 'Офлайн — отвечу завтра'}
+            className={cn('flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary', glassPillClass)}
+            style={glassPillShadow}
+          >
+            <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
               <TelegramLogo className="h-5 w-5" />
-              Написать собственнику
-            </a>
-          </div>
+              <span
+                className={cn(
+                  'absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full ring-2 ring-white',
+                  ownerOnline ? 'bg-success' : 'bg-ink-faint',
+                )}
+              />
+            </span>
+            Написать собственнику
+          </a>
         </div>
       </div>
 
@@ -331,7 +327,7 @@ export function ObjectLandingPage() {
           glass
         />
 
-        <BookingTermsCard agreement={object.intentAgreementFile} glass />
+        <BookingTermsCard agreement={object.intentAgreementFile} />
       </div>
     </div>
   );

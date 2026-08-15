@@ -52,17 +52,15 @@ interface PublicPlanAndUnitsProps {
   // ZoneDetailModal в админке) — родитель обновляет свой массив zones, чтобы
   // план и таблица тут же отразили изменение без перезагрузки страницы.
   onZoneUpdated: (zone: BuildingPlanZone) => void;
-  // Только для черновика продающей страницы (/:slug/draft) — см.
-  // src/lib/glass.ts. По умолчанию выключено: этот компонент используется
-  // ещё в /plan/:token, на уже одобренной клиентской /:slug и в админке.
+  // См. src/lib/glass.ts. Включено на продающей странице /:slug; на
+  // легаси-странице /plan/:token остаётся выключенным (старый плоский стиль).
   glass?: boolean;
 }
 
 // Планировка + таблица доступных кабинетов — общий блок для всех публичных
-// поверхностей объекта (/plan/:token, продающая страница /:slug и её
-// черновик /:slug/draft), чтобы подсветка, переключение этажей, кнопка
-// "Посмотреть на плане" и бронирование кабинета вели себя одинаково и не
-// расходились между копиями.
+// поверхностей объекта (/plan/:token и продающая страница /:slug), чтобы
+// подсветка, переключение этажей, кнопка "Посмотреть на плане" и
+// бронирование кабинета вели себя одинаково и не расходились между копиями.
 export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass }: PublicPlanAndUnitsProps) {
   const PlanWrapper: ElementType = glass ? 'div' : Card;
   const [activePlanId, setActivePlanId] = useState<string | null>(object.buildingPlanIds[0] ?? null);

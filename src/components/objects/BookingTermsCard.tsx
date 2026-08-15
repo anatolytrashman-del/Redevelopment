@@ -1,7 +1,6 @@
-import { useState, type ElementType } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Download, X } from 'lucide-react';
-import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { IntentAgreementDocument } from './IntentAgreementDocument';
 import { cn } from '../../lib/cn';
@@ -15,10 +14,6 @@ export const PLAN_AND_UNITS_ANCHOR_ID = 'plan-and-units';
 
 interface BookingTermsCardProps {
   agreement: ObjectDocumentFile | null;
-  // Только для черновика продающей страницы (/:slug/draft) — см.
-  // src/lib/glass.ts. По умолчанию выключено, чтобы не задеть другие
-  // места, где используется этот компонент.
-  glass?: boolean;
 }
 
 interface Step {
@@ -37,16 +32,15 @@ const steps: Step[] = [
 // отслеживают реальный прогресс брони (нет состояния "активен/пройден"),
 // поэтому все три выглядят одинаково — это общий призыв "вот как легко",
 // а не трекер конкретной заявки. Стоит под
-// общим блоком план+список (см. ObjectLandingDraftPage) — сначала клиент
+// общим блоком план+список (см. PublicPlanAndUnits) — сначала клиент
 // смотрит кабинеты, потом здесь снимаем тревогу и ведём назад к брони.
 // Главная кнопка брони — на 3-м шаге (а не на 1-м): бронь физически нельзя
 // начать без выбора конкретного кабинета (форма живёт в модалке кабинета
 // в PublicPlanAndUnits), так что и там, и там кнопка ведёт к списку — но на
 // 3-м шаге это финальный, самый заметный призыв после всего объяснения, а
 // не дубль. Шаг 1 — только лёгкая ссылка-подсказка "куда смотреть".
-export function BookingTermsCard({ agreement, glass }: BookingTermsCardProps) {
+export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
-  const Wrapper: ElementType = glass ? 'div' : Card;
 
   function scrollToUnits() {
     document.getElementById(PLAN_AND_UNITS_ANCHOR_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -61,7 +55,7 @@ export function BookingTermsCard({ agreement, glass }: BookingTermsCardProps) {
   }
 
   return (
-    <Wrapper className={cn('flex flex-col gap-6 p-6', glass && glassCardClass)} style={glass ? glassCardShadow : undefined}>
+    <div className={cn('flex flex-col gap-6 p-6', glassCardClass)} style={glassCardShadow}>
       <div className="text-xl font-extrabold text-ink">Онлайн-бронирование без предоплаты</div>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
@@ -163,6 +157,6 @@ export function BookingTermsCard({ agreement, glass }: BookingTermsCardProps) {
           </div>,
           document.body,
         )}
-    </Wrapper>
+    </div>
   );
 }
