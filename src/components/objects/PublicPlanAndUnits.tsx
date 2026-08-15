@@ -24,6 +24,11 @@ import { updateZone } from '../../lib/buildingPlansApi';
 import { insertWorkstationSeatLead } from '../../lib/workstationSeatLeadsApi';
 import { cn } from '../../lib/cn';
 
+// Тот же id используется в BookingTermsCard.tsx (PLAN_AND_UNITS_ANCHOR_ID) —
+// его кнопка "Выбрать кабинет" скроллит сюда. Строка продублирована вместо
+// импорта, чтобы не тянуть связь между соседними компонентами страницы.
+const PLAN_AND_UNITS_ANCHOR_ID = 'plan-and-units';
+
 function formatMoney(value: number) {
   return `$${Math.round(value).toLocaleString('ru-RU')}`;
 }
@@ -60,6 +65,10 @@ interface PublicPlanAndUnitsProps {
 export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass }: PublicPlanAndUnitsProps) {
   const PlanWrapper: ElementType = glass ? 'div' : Card;
   const [activePlanId, setActivePlanId] = useState<string | null>(object.buildingPlanIds[0] ?? null);
+  // План и список кабинетов теперь вкладки одного блока — "Список" в
+  // trailing-слоте BuildingPlanTabs переключает viewMode отдельно от
+  // activePlanId (какой план показывать, когда viewMode === 'plan').
+  const [viewMode, setViewMode] = useState<'plan' | 'list'>('plan');
   const [selectedZone, setSelectedZone] = useState<BuildingPlanZone | null>(null);
   const [hoveredZoneId, setHoveredZoneId] = useState<string | null>(null);
   const [pinnedZoneId, setPinnedZoneId] = useState<string | null>(null);
@@ -110,6 +119,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
 
   function handleLocateOnPlan(zone: BuildingPlanZone) {
     if (zone.buildingPlanId !== activePlanId) setActivePlanId(zone.buildingPlanId);
+    setViewMode('plan');
     setPinnedZoneId(zone.id);
     planCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
@@ -161,19 +171,40 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
 
   return (
     <>
-      <div ref={planCardRef}>
+      <div ref={planCardRef} id={PLAN_AND_UNITS_ANCHOR_ID}>
         <PlanWrapper
           className={cn('flex flex-col gap-3 p-5', glass && glassCardClass)}
           style={glass ? glassCardShadow : undefined}
         >
-          <div className="font-bold text-ink">Планировка и доступные кабинеты</div>
+          <div className="font-bold text-ink">Кабинеты</div>
 
           {objectPlans.length === 0 ? (
             <p className="text-sm text-ink-muted">Планировка для этого объекта пока не добавлена.</p>
           ) : (
             <>
-              <BuildingPlanTabs plans={objectPlans} activePlanId={activePlanId} onSelect={setActivePlanId} />
-              {plan && (
+              <BuildingPlanTabs
+                plans={objectPlans}
+                activePlanId={viewMode === 'plan' ? activePlanId : null}
+                onSelect={(id) => {
+                  setActivePlanId(id);
+                  setViewMode('plan');
+                }}
+                trailing={
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('list')}
+                    className={cn(
+                      'shrink-0 whitespace-nowrap rounded-t-control border border-b-0 px-4 py-2 text-sm font-medium transition-colors',
+                      viewMode === 'list'
+                        ? 'border-border bg-surface text-ink'
+                        : 'border-transparent bg-surface-muted text-ink-muted hover:text-ink',
+                    )}
+                  >
+                    Список
+                  </button>
+                }
+              />
+              {viewMode === 'plan' && plan && (
                 <>
                   <BuildingPlanCanvas
                     plan={plan}
@@ -185,23 +216,23 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
                   <BuildingPlanLegend hideSoldStatus />
                 </>
               )}
+              {viewMode === 'list' && (
+                <AvailableUnitsTable
+                  plans={objectPlans}
+                  zones={zones}
+                  highlightedZoneId={highlightZoneId}
+                  onRowClick={handleZoneSelect}
+                  onRowHover={(zone) => setHoveredZoneId(zone?.id ?? null)}
+                  onLocateClick={handleLocateOnPlan}
+                  onBookClick={handleBookClick}
+                  glass={glass}
+                  bare
+                />
+              )}
             </>
           )}
         </PlanWrapper>
       </div>
-
-      {objectPlans.length > 0 && (
-        <AvailableUnitsTable
-          plans={objectPlans}
-          zones={zones}
-          highlightedZoneId={highlightZoneId}
-          onRowClick={handleZoneSelect}
-          onRowHover={(zone) => setHoveredZoneId(zone?.id ?? null)}
-          onLocateClick={handleLocateOnPlan}
-          onBookClick={handleBookClick}
-          glass={glass}
-        />
-      )}
 
       <Modal
         open={!!selectedZone}

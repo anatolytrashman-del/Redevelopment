@@ -257,8 +257,6 @@ export function ObjectLandingDraftPage() {
           </div>
         </div>
 
-        <BookingTermsCard agreement={object.intentAgreementFile} glass />
-
         <div className={cn('flex flex-col gap-5 p-5', glassCardClass)} style={glassCardShadow}>
           <div className="text-xl font-extrabold text-ink">3 варианта покупки</div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -299,6 +297,8 @@ export function ObjectLandingDraftPage() {
           onZoneUpdated={(z) => setZones((prev) => prev.map((x) => (x.id === z.id ? z : x)))}
           glass
         />
+
+        <BookingTermsCard agreement={object.intentAgreementFile} glass />
       </div>
     </div>
   );

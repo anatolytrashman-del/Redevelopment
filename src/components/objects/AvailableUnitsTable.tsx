@@ -40,6 +40,11 @@ interface AvailableUnitsTableProps {
   // src/lib/glass.ts. По умолчанию выключено: эта таблица используется ещё
   // в админке и на уже одобренной клиентской /:slug.
   glass?: boolean;
+  // Внутри объединённого блока "план + список на вкладках" (PublicPlanAndUnits)
+  // таблица уже находится в чужой карточке — убирает собственную
+  // обёртку/паддинги/заголовок, чтобы не получилась карточка в карточке.
+  // В админке (BuildingPlanWidget) не передаётся — там своя отдельная карточка.
+  bare?: boolean;
 }
 
 export function AvailableUnitsTable({
@@ -51,8 +56,9 @@ export function AvailableUnitsTable({
   onLocateClick,
   onBookClick,
   glass,
+  bare,
 }: AvailableUnitsTableProps) {
-  const Wrapper: ElementType = glass ? 'div' : Card;
+  const Wrapper: ElementType = bare || glass ? 'div' : Card;
   const [minArea, setMinArea] = useState('');
   const [maxArea, setMaxArea] = useState('');
   const [minPrice, setMinPrice] = useState('');
@@ -96,8 +102,11 @@ export function AvailableUnitsTable({
     : undefined;
 
   return (
-    <Wrapper className={cn('flex flex-col gap-4 p-5', glass && glassCardClass)} style={glass ? glassCardShadow : undefined}>
-      <div className="font-bold text-ink">Доступные кабинеты</div>
+    <Wrapper
+      className={cn('flex flex-col gap-4', !bare && 'p-5', glass && !bare && glassCardClass)}
+      style={glass && !bare ? glassCardShadow : undefined}
+    >
+      {!bare && <div className="font-bold text-ink">Доступные кабинеты</div>}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Input label="Площадь от, м²" type="number" placeholder="0" value={minArea} onChange={(e) => setMinArea(e.target.value)} style={inputGlassStyle} />
