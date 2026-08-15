@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download, FileText, ShieldCheck, X } from 'lucide-react';
+import { Check, Download, FileText, X } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { IntentAgreementDocument } from './IntentAgreementDocument';
@@ -7,6 +7,27 @@ import type { ObjectDocumentFile } from '../../data/objects';
 
 interface BookingTermsCardProps {
   agreement: ObjectDocumentFile | null;
+}
+
+// Рисованная иллюстрация документа (вместо мелкой иконки-щита) — две
+// страницы внахлёст с "текстом" в виде полосок и зелёный штамп поверх,
+// намекающий на подписание, без внешних картинок.
+function DocumentIllustration() {
+  return (
+    <div className="relative h-24 w-20 shrink-0">
+      <div className="absolute inset-0 translate-x-2 translate-y-2 rotate-3 rounded-lg border border-border bg-surface-muted" />
+      <div className="absolute inset-0 flex flex-col gap-1.5 rounded-lg border border-border bg-surface p-3 shadow-card">
+        <span className="h-1.5 w-3/4 rounded-full bg-ink-faint/30" />
+        <span className="h-1.5 w-full rounded-full bg-ink-faint/30" />
+        <span className="h-1.5 w-full rounded-full bg-ink-faint/30" />
+        <span className="h-1.5 w-2/3 rounded-full bg-ink-faint/30" />
+        <span className="mt-auto h-1.5 w-1/2 rounded-full bg-primary/30" />
+      </div>
+      <span className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full bg-success text-white shadow-card">
+        <Check className="h-4 w-4" strokeWidth={3} />
+      </span>
+    </div>
+  );
 }
 
 // Блок-развеиватель сомнений рядом с "Бронирование без предоплаты" — даёт
@@ -23,8 +44,8 @@ export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
 
   return (
-    <Card className="flex flex-col items-start gap-5 p-5 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex flex-col gap-2">
+    <Card className="flex flex-col items-start gap-6 p-6 sm:flex-row sm:items-center">
+      <div className="flex flex-1 flex-col gap-2">
         <div className="text-xl font-extrabold text-ink">Бронирование без предоплаты</div>
         <div className="flex flex-col gap-1.5 text-sm text-ink-muted">
           <p>Бронь оформляется соглашением о намерениях</p>
@@ -32,14 +53,13 @@ export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
             <li>Всего 2 страницы</li>
             <li>Без сложных терминов</li>
             <li>Без финансовых обязательств</li>
+            <li>Подписание онлайн</li>
           </ul>
         </div>
       </div>
 
-      <div className="flex shrink-0 flex-col items-center gap-2">
-        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-muted text-ink">
-          <ShieldCheck className="h-5 w-5" />
-        </span>
+      <div className="flex shrink-0 flex-col items-center gap-3">
+        <DocumentIllustration />
         {agreement ? (
           <Button
             type="button"

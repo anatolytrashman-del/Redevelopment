@@ -78,7 +78,7 @@ export function AvailableUnitsTable({
             <div
               className={cn(
                 'grid gap-4 bg-surface-muted px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-faint',
-                onBookClick ? 'min-w-[820px] grid-cols-[1fr_1fr_1fr_1fr_440px]' : 'min-w-[620px] grid-cols-[1fr_1fr_1fr_1fr_200px]',
+                onBookClick ? 'min-w-[760px] grid-cols-[120px_100px_110px_120px_1fr]' : 'min-w-[560px] grid-cols-[120px_100px_110px_120px_1fr]',
               )}
             >
               <span>Кабинет</span>
@@ -95,7 +95,7 @@ export function AvailableUnitsTable({
                 onMouseLeave={() => onRowHover?.(null)}
                 className={cn(
                   'grid w-full cursor-pointer items-center gap-4 border-t border-border px-4 py-2.5 text-sm hover:bg-surface-muted',
-                  onBookClick ? 'min-w-[820px] grid-cols-[1fr_1fr_1fr_1fr_440px]' : 'min-w-[620px] grid-cols-[1fr_1fr_1fr_1fr_200px]',
+                  onBookClick ? 'min-w-[760px] grid-cols-[120px_100px_110px_120px_1fr]' : 'min-w-[560px] grid-cols-[120px_100px_110px_120px_1fr]',
                   zone.id === highlightedZoneId && 'bg-primary/10',
                 )}
               >
@@ -103,7 +103,7 @@ export function AvailableUnitsTable({
                 <span className="text-ink-muted">{floor}</span>
                 <span className="text-ink">{area} м²</span>
                 <span className="font-medium text-ink">{formatMoney(price)}</span>
-                <div className="flex shrink-0 items-center gap-1.5">
+                <div className="flex shrink-0 items-center justify-end gap-1.5">
                   <button
                     type="button"
                     onClick={(e) => {

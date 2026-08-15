@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Sparkles,
   SquareParking,
+  Tag,
   TreePine,
   Wifi,
   Zap,
@@ -39,7 +40,7 @@ const MINSK_MIR_LOGO_URL = 'https://i.ibb.co/ynL71Bfj/Untitled-2.png';
 // Когда появится второй объект с такой страницей — вынести в данные объекта.
 const heroFeatures: { icon: LucideIcon; text: string }[] = [
   { icon: Ruler, text: 'Площади от 11 м² до 40 м²' },
-  { icon: SquareParking, text: 'Большая бесплатная парковка' },
+  { icon: Sparkles, text: 'Дизайнерский ремонт' },
   { icon: ShieldCheck, text: 'Бронирование без предоплаты' },
 ];
 
@@ -48,7 +49,7 @@ const complexFeatures: { icon: LucideIcon; text: string }[] = [
   { icon: Clock, text: 'Доступ 24/7' },
   { icon: Cctv, text: 'Видеонаблюдение' },
   { icon: Bath, text: 'Много санузлов' },
-  { icon: Sparkles, text: 'Ремонт 2026 года' },
+  { icon: SquareParking, text: 'Большая бесплатная парковка' },
   { icon: Zap, text: 'Все центральные коммуникации' },
   { icon: Wifi, text: 'Телефон и интернет' },
   { icon: TreePine, text: 'Благоустроенная территория' },
@@ -126,10 +127,18 @@ export function ObjectLandingDraftPage() {
 
       <div className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-2">
         <div className="flex flex-col gap-6">
-          <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">
-            Стильные кабинеты под любой бизнес
-            {cheapestUnit != null && <> от {formatMoney(cheapestUnit)}</>}
-          </h1>
+          <div className="flex flex-col gap-4">
+            <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">
+              Стильные кабинеты под любой бизнес
+            </h1>
+            {cheapestUnit != null && (
+              <div className="inline-flex w-fit items-center gap-2 rounded-full bg-ink py-2 pl-3 pr-4 text-white">
+                <Tag className="h-4 w-4 text-white/60" />
+                <span className="text-xs font-medium uppercase tracking-wide text-white/60">Цена от</span>
+                <span className="text-lg font-extrabold">{formatMoney(cheapestUnit)}</span>
+              </div>
+            )}
+          </div>
           <div className="flex flex-col gap-3">
             {heroFeatures.map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-3">
