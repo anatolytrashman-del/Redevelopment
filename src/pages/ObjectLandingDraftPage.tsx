@@ -7,6 +7,7 @@ import {
   Clock,
   Loader2,
   Ruler,
+  Send,
   ShieldCheck,
   Sparkles,
   SquareParking,
@@ -14,6 +15,7 @@ import {
   Wifi,
   Zap,
 } from 'lucide-react';
+import { cn } from '../lib/cn';
 import type { LucideIcon } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
@@ -28,13 +30,27 @@ function formatMoney(value: number) {
   return `$${Math.round(value).toLocaleString('ru-RU')}`;
 }
 
+const OWNER_TELEGRAM_URL = 'https://t.me/a_trashman';
+const OWNER_ONLINE_FROM_HOUR = 9;
+const OWNER_ONLINE_TO_HOUR = 23;
+
+// "Онлайн" — по часам собственника в Москве (9:00–23:00), а не по факту
+// его присутствия в сети: индикатор просто честно показывает окно, когда
+// обычно отвечают, без бэкенда и статуса присутствия.
+function isOwnerOnlineNow() {
+  const moscowHour = Number(
+    new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Moscow', hour: 'numeric', hour12: false }).format(new Date()),
+  );
+  return moscowHour >= OWNER_ONLINE_FROM_HOUR && moscowHour < OWNER_ONLINE_TO_HOUR;
+}
+
 // Пока продающая страница только у одного объекта, оффер и буллеты на
 // главном экране — фиксированный текст под него, а не поле в базе.
 // Когда появится второй объект с такой страницей — вынести в данные объекта.
 const heroFeatures: { icon: LucideIcon; text: string }[] = [
   { icon: Ruler, text: 'Площади от 11 м² до 40 м²' },
   { icon: Sparkles, text: 'Дизайнерский ремонт' },
-  { icon: ShieldCheck, text: 'Бронирование без предоплаты' },
+  { icon: ShieldCheck, text: 'Бесплатная онлайн-бронь' },
 ];
 
 const complexFeatures: { icon: LucideIcon; text: string }[] = [
@@ -59,6 +75,12 @@ export function ObjectLandingDraftPage() {
   const [zones, setZones] = useState<BuildingPlanZone[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [ownerOnline, setOwnerOnline] = useState(isOwnerOnlineNow);
+
+  useEffect(() => {
+    const timer = setInterval(() => setOwnerOnline(isOwnerOnlineNow()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!slug) return;
@@ -109,24 +131,40 @@ export function ObjectLandingDraftPage() {
 
   return (
     <div className="min-h-svh bg-bg">
-      <div className="border-b border-border px-4 py-5 sm:px-8">
-        <span className="text-lg font-extrabold tracking-wide text-ink">
-          <span className="font-black text-primary">RED</span>EVELOPMENT
-        </span>
-        <span className="ml-3 rounded-full bg-warning-bg px-2.5 py-1 text-xs font-semibold text-warning">
-          Черновик, клиентам не показывать
-        </span>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-5 sm:px-8">
+        <div>
+          <span className="text-lg font-extrabold tracking-wide text-ink">
+            <span className="font-black text-primary">RED</span>EVELOPMENT
+          </span>
+          <span className="ml-3 rounded-full bg-warning-bg px-2.5 py-1 text-xs font-semibold text-warning">
+            Черновик, клиентам не показывать
+          </span>
+        </div>
+        <a
+          href={OWNER_TELEGRAM_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-2 text-sm font-medium text-ink hover:text-primary"
+        >
+          <Send className="h-4 w-4" />
+          Написать собственнику
+          <span
+            className={cn('h-2 w-2 rounded-full', ownerOnline ? 'bg-success' : 'bg-ink-faint')}
+            title={ownerOnline ? 'Онлайн' : 'Офлайн'}
+          />
+        </a>
       </div>
 
       <div className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-2">
         <div className="flex flex-col gap-6">
           <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">
-            Свой кабинет в клубном комплексе у Минск Мира{cheapestUnit != null && <> от</>}{' '}
+            Свой кабинет в клубном комплексе у Минск Мира{' '}
             {cheapestUnit != null && (
               <span
-                className="inline-flex translate-y-[-2px] items-center whitespace-nowrap bg-primary px-5 py-1.5 align-middle text-white"
+                className="inline-flex translate-y-[-2px] items-center gap-1.5 whitespace-nowrap bg-primary px-5 py-1.5 align-middle text-white"
                 style={{ clipPath: 'polygon(14px 0, 100% 0, calc(100% - 14px) 100%, 0 100%)' }}
               >
+                <span className="text-base font-medium text-white/70">от</span>
                 <span className="text-lg font-extrabold">{formatMoney(cheapestUnit)}</span>
               </span>
             )}
