@@ -5,6 +5,7 @@ import {
   Building2,
   Cctv,
   Clock,
+  Landmark,
   Loader2,
   Ruler,
   ShieldCheck,
@@ -197,11 +198,27 @@ export function ObjectLandingDraftPage() {
           </div>
         </div>
 
-        <div className="relative">
-          <HeroImageSlider images={object.renderImageUrls} />
-          <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 shadow-card backdrop-blur">
-            <img src={MINSK_MIR_LOGO_URL} alt="Минск Мир" className="h-4 w-auto" />
-            <span className="text-xs font-semibold text-ink">Рядом с Минск Миром</span>
+        <div className="flex flex-col gap-3">
+          <div className="relative">
+            <HeroImageSlider images={object.renderImageUrls} />
+            <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 shadow-card backdrop-blur">
+              <img src={MINSK_MIR_LOGO_URL} alt="Минск Мир" className="h-4 w-auto" />
+              <span className="text-xs font-semibold text-ink">Рядом с Минск Миром</span>
+            </div>
+          </div>
+
+          {/* TODO: заменить иконку на лого Мингорагентства по регистрации,
+              когда пришлют файл/ссылку — сейчас Landmark как заглушка. */}
+          <div className="flex items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-muted text-ink">
+              <Landmark className="h-5 w-5" />
+            </span>
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold text-ink">Право собственности</span>
+              <span className="text-xs text-ink-muted">
+                Регистрация в Мингорагентстве по государственной регистрации и земельному кадастру
+              </span>
+            </div>
           </div>
         </div>
       </div>
