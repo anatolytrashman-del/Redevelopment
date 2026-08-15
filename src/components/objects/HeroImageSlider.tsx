@@ -75,6 +75,10 @@ export function HeroImageSlider({ images }: HeroImageSliderProps) {
                 />
               ))}
             </div>
+            {/* Счётчик рядом с точками — быстрее считывается, чем считать точки. */}
+            <div className="absolute bottom-3 right-3 rounded-full bg-white/80 px-2.5 py-1 text-xs font-semibold text-ink shadow-card">
+              {index + 1} / {images.length}
+            </div>
           </>
         )}
       </div>
