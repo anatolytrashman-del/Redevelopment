@@ -5,7 +5,7 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
-import { BuildingPlanCanvas, BuildingPlanLegend, BuildingPlanTabs } from './BuildingPlanCanvas';
+import { BuildingPlanCanvas, BuildingPlanLegend, BuildingPlanTabs, pointsToAttr, zoneFillClass } from './BuildingPlanCanvas';
 import { AvailableUnitsTable } from './AvailableUnitsTable';
 import { AgreementSigningFlow } from './AgreementSigningFlow';
 import {
@@ -17,6 +17,7 @@ import {
   WORKSTATION_PRICE,
   type BuildingPlan,
   type BuildingPlanZone,
+  type ZonePoint,
 } from '../../data/buildingPlans';
 import type { RealtyObject } from '../../data/objects';
 import { insertLead } from '../../lib/leadsApi';
@@ -31,6 +32,21 @@ const PLAN_AND_UNITS_ANCHOR_ID = 'plan-and-units';
 
 function formatMoney(value: number) {
   return `$${Math.round(value).toLocaleString('ru-RU')}`;
+}
+
+// Обрезка реального плана этажа вокруг кабинета — вместо отдельной
+// сгенерированной картинки используем то, что уже есть: фото плана +
+// координаты контура зоны (те же, что рисует BuildingPlanCanvas). Просто
+// считаем bounding box контура с отступом и меняем viewBox SVG — сам план
+// никак не трогаем и не перерисовываем.
+function zoneBoundingBox(points: ZonePoint[], padding: number) {
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  const minX = Math.max(0, Math.min(...xs) - padding);
+  const minY = Math.max(0, Math.min(...ys) - padding);
+  const maxX = Math.min(100, Math.max(...xs) + padding);
+  const maxY = Math.min(100, Math.max(...ys) + padding);
+  return { x: minX, y: minY, width: Math.max(maxX - minX, 1), height: Math.max(maxY - minY, 1) };
 }
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -248,36 +264,58 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
       <Modal
         open={!!selectedZone}
         onClose={() => setSelectedZone(null)}
-        title={selectedZone ? zoneTypeLabels[selectedZone.zoneType] : ''}
+        title={selectedZone ? `${zoneTypeLabels[selectedZone.zoneType]} ${selectedZone.label}`.trim() : ''}
       >
         {selectedZone && (
           <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xl font-bold text-ink">{selectedZone.label || '—'}</span>
-              {isRoom && (
-                isWorkstation ? (
+            {isRoom && (
+              isWorkstation ? (
+                <span
+                  className={cn(
+                    'w-fit shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
+                    workstationsLeft > 0 ? 'bg-success-bg text-success' : 'bg-danger/15 text-danger',
+                  )}
+                >
+                  {workstationsLeft > 0 ? `Свободно ${workstationsLeft} из ${selectedZone.workstationCount}` : 'Все места заняты'}
+                </span>
+              ) : (
+                displayStatus && (
                   <span
                     className={cn(
-                      'shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
-                      workstationsLeft > 0 ? 'bg-success-bg text-success' : 'bg-danger/15 text-danger',
+                      'w-fit shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
+                      zoneStatusBadgeClass[displayStatus],
                     )}
                   >
-                    {workstationsLeft > 0 ? `Свободно ${workstationsLeft} из ${selectedZone.workstationCount}` : 'Все места заняты'}
+                    {displayStatus}
                   </span>
-                ) : (
-                  displayStatus && (
-                    <span
-                      className={cn(
-                        'shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
-                        zoneStatusBadgeClass[displayStatus],
-                      )}
-                    >
-                      {displayStatus}
-                    </span>
-                  )
                 )
-              )}
-            </div>
+              )
+            )}
+
+            {isRoom && plan && (
+              <div className="relative w-full overflow-hidden rounded-control border border-border" style={{ aspectRatio: '4 / 3' }}>
+                <svg
+                  viewBox={(() => {
+                    const bbox = zoneBoundingBox(selectedZone.points, 12);
+                    return `${bbox.x} ${bbox.y} ${bbox.width} ${bbox.height}`;
+                  })()}
+                  preserveAspectRatio="xMidYMid slice"
+                  className="h-full w-full"
+                >
+                  <image href={plan.imageUrl} x={0} y={0} width={100} height={100} preserveAspectRatio="none" />
+                  {zones
+                    .filter((z) => z.buildingPlanId === plan.id)
+                    .map((z) => (
+                      <polygon key={z.id} points={pointsToAttr(z.points)} className={zoneFillClass(z, true)} strokeWidth={0.3} />
+                    ))}
+                  <polygon
+                    points={pointsToAttr(selectedZone.points)}
+                    className="pointer-events-none fill-none stroke-primary"
+                    strokeWidth={0.8}
+                  />
+                </svg>
+              </div>
+            )}
 
             {isRoom && (
               <>
@@ -371,7 +409,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
                         />
                         {bookingError && <p className="text-sm text-danger">{bookingError}</p>}
                         <Button type="submit" disabled={bookingSubmitting} className="w-fit">
-                          {bookingSubmitting ? 'Отправляем...' : 'Подтвердить бронь'}
+                          {bookingSubmitting ? 'Отправляем...' : 'Далее — подписать соглашение'}
                         </Button>
                       </form>
                     ) : (
