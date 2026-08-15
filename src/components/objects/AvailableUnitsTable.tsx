@@ -2,7 +2,14 @@ import { useState, type ElementType } from 'react';
 import { ChevronDown, ChevronUp, MapPin } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Input } from '../ui/Input';
-import { zonePrice, zoneTypeLabels, type BuildingPlan, type BuildingPlanZone } from '../../data/buildingPlans';
+import {
+  zonePrice,
+  zoneTypeLabels,
+  workstationsRemaining,
+  WORKSTATION_PRICE,
+  type BuildingPlan,
+  type BuildingPlanZone,
+} from '../../data/buildingPlans';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 
@@ -55,13 +62,27 @@ export function AvailableUnitsTable({
   const planNameById = new Map(plans.map((p) => [p.id, p.name]));
 
   const units = zones
-    .filter((z) => z.zoneType === 'room' && z.status === 'Свободно' && z.area != null)
-    .map((z) => ({ zone: z, area: z.area as number, price: zonePrice(z.area as number), floor: planNameById.get(z.buildingPlanId) ?? '—' }))
-    .filter((u) => !minArea.trim() || u.area >= Number(minArea))
-    .filter((u) => !maxArea.trim() || u.area <= Number(maxArea))
+    .filter((z) => z.zoneType === 'room')
+    .filter((z) => (z.workstationCount != null ? workstationsRemaining(z) > 0 : z.status === 'Свободно' && z.area != null))
+    .map((z) => {
+      const isWorkstation = z.workstationCount != null;
+      return {
+        zone: z,
+        isWorkstation,
+        area: isWorkstation ? null : (z.area as number),
+        price: isWorkstation ? WORKSTATION_PRICE : zonePrice(z.area as number),
+        floor: planNameById.get(z.buildingPlanId) ?? '—',
+        remaining: isWorkstation ? workstationsRemaining(z) : null,
+        total: isWorkstation ? z.workstationCount : null,
+      };
+    })
+    // Фильтр по площади не имеет смысла для строки с рабочими местами —
+    // у неё нет единой площади, поэтому такие строки пропускают фильтр площади.
+    .filter((u) => u.isWorkstation || !minArea.trim() || u.area! >= Number(minArea))
+    .filter((u) => u.isWorkstation || !maxArea.trim() || u.area! <= Number(maxArea))
     .filter((u) => !minPrice.trim() || u.price >= Number(minPrice))
     .filter((u) => !maxPrice.trim() || u.price <= Number(maxPrice))
-    .sort((a, b) => a.area - b.area);
+    .sort((a, b) => (a.area ?? Infinity) - (b.area ?? Infinity));
 
   const visibleUnits = expanded ? units : units.slice(0, VISIBLE_LIMIT);
   const hiddenCount = units.length - visibleUnits.length;
@@ -103,29 +124,33 @@ export function AvailableUnitsTable({
               <span>Цена</span>
               <span />
             </div>
-            {visibleUnits.map(({ zone, area, price, floor }) => (
+            {visibleUnits.map((u) => (
               <div
-                key={zone.id}
-                onClick={() => onRowClick(zone)}
-                onMouseEnter={() => onRowHover?.(zone)}
+                key={u.zone.id}
+                onClick={() => onRowClick(u.zone)}
+                onMouseEnter={() => onRowHover?.(u.zone)}
                 onMouseLeave={() => onRowHover?.(null)}
                 className={cn(
                   'grid w-full cursor-pointer items-center gap-4 border-t px-4 py-2.5 text-sm',
                   glass ? 'border-white/50 bg-white/30 hover:bg-white/50' : 'border-border hover:bg-surface-muted',
                   onBookClick ? 'min-w-[760px] grid-cols-[120px_100px_110px_120px_1fr]' : 'min-w-[560px] grid-cols-[120px_100px_110px_120px_1fr]',
-                  zone.id === highlightedZoneId && 'bg-primary/10',
+                  u.zone.id === highlightedZoneId && 'bg-primary/10',
                 )}
               >
-                <span className="font-medium text-ink">{zone.label || zoneTypeLabels[zone.zoneType]}</span>
-                <span className="text-ink-muted">{floor}</span>
-                <span className="text-ink">{area} м²</span>
-                <span className="font-medium text-ink">{formatMoney(price)}</span>
+                <span className="font-medium text-ink">{u.zone.label || zoneTypeLabels[u.zone.zoneType]}</span>
+                <span className="text-ink-muted">{u.floor}</span>
+                <span className="text-ink">
+                  {u.isWorkstation ? `Свободно ${u.remaining} из ${u.total}` : `${u.area} м²`}
+                </span>
+                <span className="font-medium text-ink">
+                  {u.isWorkstation ? `${formatMoney(u.price)} / место` : formatMoney(u.price)}
+                </span>
                 <div className="flex shrink-0 items-center justify-end gap-1.5">
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onLocateClick(zone);
+                      onLocateClick(u.zone);
                     }}
                     className={cn(
                       'flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium hover:border-primary hover:text-primary',
@@ -140,7 +165,7 @@ export function AvailableUnitsTable({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onBookClick(zone);
+                        onBookClick(u.zone);
                       }}
                       className="whitespace-nowrap rounded-full bg-ink px-3 py-1.5 text-xs font-semibold text-white hover:bg-ink/85"
                     >

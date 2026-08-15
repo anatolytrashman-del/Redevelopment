@@ -24,6 +24,8 @@ function zoneFromRow(row: BuildingPlanZoneRow): BuildingPlanZone {
     leadId: row.lead_id ?? '',
     features: row.features ?? [],
     points: row.points,
+    workstationCount: row.workstation_count,
+    workstationsSold: row.workstations_sold ?? 0,
   };
 }
 
@@ -113,6 +115,8 @@ export function insertZone(input: Omit<BuildingPlanZone, 'id'>): Promise<Buildin
         lead_id: input.leadId || null,
         features: input.features,
         points: input.points,
+        workstation_count: input.workstationCount,
+        workstations_sold: input.workstationsSold,
       })
       .select()
       .single();
@@ -123,7 +127,12 @@ export function insertZone(input: Omit<BuildingPlanZone, 'id'>): Promise<Buildin
 
 export function updateZone(
   id: string,
-  patch: Partial<Pick<BuildingPlanZone, 'zoneType' | 'label' | 'area' | 'status' | 'leadId' | 'features' | 'points'>>,
+  patch: Partial<
+    Pick<
+      BuildingPlanZone,
+      'zoneType' | 'label' | 'area' | 'status' | 'leadId' | 'features' | 'points' | 'workstationCount' | 'workstationsSold'
+    >
+  >,
 ): Promise<BuildingPlanZone> {
   return withRetry(async () => {
     const payload: Record<string, unknown> = {};
@@ -134,6 +143,8 @@ export function updateZone(
     if (patch.leadId !== undefined) payload.lead_id = patch.leadId || null;
     if (patch.features !== undefined) payload.features = patch.features;
     if (patch.points !== undefined) payload.points = patch.points;
+    if (patch.workstationCount !== undefined) payload.workstation_count = patch.workstationCount;
+    if (patch.workstationsSold !== undefined) payload.workstations_sold = patch.workstationsSold;
 
     const { data, error } = await supabase.from('building_plan_zones').update(payload).eq('id', id).select().single();
     if (error) throw error;

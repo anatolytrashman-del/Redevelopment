@@ -13,6 +13,8 @@ import {
   zoneTypeLabels,
   zoneDownPayment,
   zonePrice,
+  workstationsRemaining,
+  WORKSTATION_PRICE,
   type BuildingPlan,
   type BuildingPlanZone,
 } from '../../data/buildingPlans';
@@ -82,6 +84,8 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
     .filter((p): p is BuildingPlan => !!p);
   const plan = objectPlans.find((p) => p.id === activePlanId) ?? null;
   const isRoom = selectedZone?.zoneType === 'room';
+  const isWorkstation = selectedZone?.workstationCount != null;
+  const workstationsLeft = selectedZone ? workstationsRemaining(selectedZone) : 0;
   const highlightZoneId = selectedZone?.id ?? pinnedZoneId ?? hoveredZoneId;
 
   function handleZoneSelect(zone: BuildingPlanZone) {
@@ -108,6 +112,8 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
   async function handleBookingSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedZone || !bookingForm.name.trim() || !bookingForm.contact.trim() || bookingSubmitting) return;
+    const bookingWorkstation = selectedZone.workstationCount != null;
+    if (bookingWorkstation && workstationsRemaining(selectedZone) <= 0) return;
     setBookingSubmitting(true);
     setBookingError(null);
     try {
@@ -115,14 +121,22 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
         name: bookingForm.name.trim(),
         source: 'Сайт',
         businessType: '',
-        area: selectedZone.area != null ? `${selectedZone.area} м²` : '',
+        area: bookingWorkstation ? 'Фиксированное рабочее место' : selectedZone.area != null ? `${selectedZone.area} м²` : '',
         requirement: bookingForm.comment.trim(),
         contact: bookingForm.contact.trim(),
         status: 'Заявка на бронирование',
         isWarm: true,
         objectId: object.id,
       });
-      const updatedZone = await updateZone(selectedZone.id, { status: 'Забронировано', leadId: lead.id });
+      // Рабочие места продаются по одному внутри одной зоны — вместо
+      // whole-zone брони (status+leadId) увеличиваем счётчик проданных мест
+      // и переводим зону в "Продано" только когда закончились все места.
+      const updatedZone = bookingWorkstation
+        ? await updateZone(selectedZone.id, {
+            workstationsSold: selectedZone.workstationsSold + 1,
+            status: selectedZone.workstationsSold + 1 >= (selectedZone.workstationCount as number) ? 'Продано' : 'Свободно',
+          })
+        : await updateZone(selectedZone.id, { status: 'Забронировано', leadId: lead.id });
       setSelectedZone(updatedZone);
       onZoneUpdated(updatedZone);
       setBookedLeadId(lead.id);
@@ -187,37 +201,67 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
             <div className="flex items-center justify-between gap-3">
               <span className="text-xl font-bold text-ink">{selectedZone.label || '—'}</span>
               {isRoom && (
-                <span
-                  className={cn(
-                    'shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
-                    zoneStatusBadgeClass[selectedZone.status],
-                  )}
-                >
-                  {selectedZone.status}
-                </span>
+                isWorkstation ? (
+                  <span
+                    className={cn(
+                      'shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
+                      workstationsLeft > 0 ? 'bg-success-bg text-success' : 'bg-danger/15 text-danger',
+                    )}
+                  >
+                    {workstationsLeft > 0 ? `Свободно ${workstationsLeft} из ${selectedZone.workstationCount}` : 'Все места заняты'}
+                  </span>
+                ) : (
+                  <span
+                    className={cn(
+                      'shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
+                      zoneStatusBadgeClass[selectedZone.status],
+                    )}
+                  >
+                    {selectedZone.status}
+                  </span>
+                )
               )}
             </div>
 
             {isRoom && (
               <>
-                <div className="flex flex-wrap gap-x-5 gap-y-1.5 rounded-control bg-surface-muted px-3 py-2 text-sm">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-ink-muted">Площадь</span>
-                    <span className="font-medium text-ink">{selectedZone.area != null ? `${selectedZone.area} м²` : '—'}</span>
+                {isWorkstation ? (
+                  <div className="flex flex-wrap gap-x-5 gap-y-1.5 rounded-control bg-surface-muted px-3 py-2 text-sm">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-ink-muted">Формат</span>
+                      <span className="font-medium text-ink">Фиксированное рабочее место</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-ink-muted">Свободно мест</span>
+                      <span className="font-medium text-ink">
+                        {workstationsLeft} из {selectedZone.workstationCount}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-ink-muted">Цена за место</span>
+                      <span className="font-medium text-ink">{formatMoney(WORKSTATION_PRICE)}</span>
+                    </div>
                   </div>
-                  {selectedZone.area != null && (
-                    <>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-ink-muted">Стоимость</span>
-                        <span className="font-medium text-ink">{formatMoney(zonePrice(selectedZone.area))}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-ink-muted">Первый взнос</span>
-                        <span className="font-medium text-ink">{formatMoney(zoneDownPayment(selectedZone.area))}</span>
-                      </div>
-                    </>
-                  )}
-                </div>
+                ) : (
+                  <div className="flex flex-wrap gap-x-5 gap-y-1.5 rounded-control bg-surface-muted px-3 py-2 text-sm">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-ink-muted">Площадь</span>
+                      <span className="font-medium text-ink">{selectedZone.area != null ? `${selectedZone.area} м²` : '—'}</span>
+                    </div>
+                    {selectedZone.area != null && (
+                      <>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-ink-muted">Стоимость</span>
+                          <span className="font-medium text-ink">{formatMoney(zonePrice(selectedZone.area))}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-ink-muted">Первый взнос</span>
+                          <span className="font-medium text-ink">{formatMoney(zoneDownPayment(selectedZone.area))}</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
 
                 {selectedZone.features.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
@@ -229,7 +273,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
                   </div>
                 )}
 
-                {(selectedZone.status === 'Свободно' || bookingDone) && (
+                {((isWorkstation ? workstationsLeft > 0 : selectedZone.status === 'Свободно') || bookingDone) && (
                   <div className="flex flex-col gap-3 border-t border-border pt-3">
                     {bookingDone && bookedLeadId ? (
                       <div className="flex flex-col gap-3">

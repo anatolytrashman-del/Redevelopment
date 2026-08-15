@@ -44,6 +44,16 @@ export function zoneDownPayment(area: number): number {
   return zonePrice(area) * DOWN_PAYMENT_RATE;
 }
 
+// Фиксированное рабочее место — отдельный формат лота внутри зоны-кабинета:
+// вместо продажи всей площади одним лотом зона делится на N мест с
+// фиксированной ценой за штуку (не считается через zonePrice/площадь).
+export const WORKSTATION_PRICE = 12000;
+
+export function workstationsRemaining(zone: Pick<BuildingPlanZone, 'workstationCount' | 'workstationsSold'>): number {
+  if (zone.workstationCount == null) return 0;
+  return Math.max(zone.workstationCount - zone.workstationsSold, 0);
+}
+
 // Статус/клиент/площадь/особенности имеют смысл только для zoneType === 'room' —
 // у общих зон (МОП, санузел, техническое) это просто подписанный контур.
 export interface BuildingPlanZone {
@@ -56,6 +66,11 @@ export interface BuildingPlanZone {
   leadId: string;
   features: string[];
   points: ZonePoint[];
+  // Если задано — зона продаётся не как единый кабинет, а как набор из N
+  // фиксированных рабочих мест (см. WORKSTATION_PRICE). null — обычный кабинет.
+  workstationCount: number | null;
+  // Сколько из workstationCount уже забронировано/продано.
+  workstationsSold: number;
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/buildingPlansApi.ts
@@ -69,6 +84,8 @@ export interface BuildingPlanZoneRow {
   lead_id: string | null;
   features: string[] | null;
   points: ZonePoint[];
+  workstation_count: number | null;
+  workstations_sold: number | null;
 }
 
 export interface BuildingPlan {

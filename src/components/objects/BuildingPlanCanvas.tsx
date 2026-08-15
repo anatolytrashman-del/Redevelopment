@@ -4,6 +4,8 @@ import {
   zoneTypeLabels,
   zoneDownPayment,
   zonePrice,
+  workstationsRemaining,
+  WORKSTATION_PRICE,
   type BuildingPlan,
   type BuildingPlanZone,
   type ZonePoint,
@@ -121,7 +123,22 @@ export function BuildingPlanCanvas({
           style={{ left: hoverZone.x + 14, top: hoverZone.y + 14 }}
         >
           <span className="font-semibold text-ink">{hoverZone.zone.label || zoneTypeLabels[hoverZone.zone.zoneType]}</span>
-          {hoverZone.zone.zoneType === 'room' && hoverZone.zone.status === 'Забронировано' ? (
+          {hoverZone.zone.workstationCount != null ? (
+            <>
+              <span className="text-ink-muted">Фиксированные рабочие места</span>
+              {(() => {
+                const remaining = workstationsRemaining(hoverZone.zone);
+                return remaining > 0 ? (
+                  <span className="font-semibold text-success">
+                    Свободно {remaining} из {hoverZone.zone.workstationCount}
+                  </span>
+                ) : (
+                  <span className="font-semibold text-danger">Все места заняты</span>
+                );
+              })()}
+              <span className="text-ink-muted">Цена: {formatMoney(WORKSTATION_PRICE)} / место</span>
+            </>
+          ) : hoverZone.zone.zoneType === 'room' && hoverZone.zone.status === 'Забронировано' ? (
             <span className="font-semibold text-warning">Забронировано</span>
           ) : (
             <>

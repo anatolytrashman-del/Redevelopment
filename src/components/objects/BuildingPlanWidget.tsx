@@ -203,6 +203,8 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
         leadId: '',
         features: [],
         points: drawingPoints,
+        workstationCount: null,
+        workstationsSold: 0,
       });
       setZones((prev) => [...prev, created]);
       setDrawingPoints(null);

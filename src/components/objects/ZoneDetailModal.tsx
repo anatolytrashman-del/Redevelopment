@@ -13,6 +13,8 @@ import {
   zoneTypeLabels,
   zoneDownPayment,
   zonePrice,
+  workstationsRemaining,
+  WORKSTATION_PRICE,
   type BuildingPlanZone,
   type ZoneStatus,
   type ZoneType,
@@ -65,6 +67,9 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
   const [status, setStatus] = useState<ZoneStatus>('Свободно');
   const [leadId, setLeadId] = useState('');
   const [features, setFeatures] = useState<string[]>([]);
+  const [workstationEnabled, setWorkstationEnabled] = useState(false);
+  const [workstationCount, setWorkstationCount] = useState('');
+  const [workstationsSold, setWorkstationsSold] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,6 +82,9 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
     setStatus(zone.status);
     setLeadId(zone.leadId);
     setFeatures(zone.features);
+    setWorkstationEnabled(zone.workstationCount != null);
+    setWorkstationCount(zone.workstationCount != null ? String(zone.workstationCount) : '');
+    setWorkstationsSold(String(zone.workstationsSold));
     setError(null);
   }, [zone]);
 
@@ -88,6 +96,7 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
   // появлялись при переключении зоны в "Кабинет".
   const isRoom = zone.zoneType === 'room';
   const isRoomEdit = zoneType === 'room';
+  const isWorkstation = zone.workstationCount != null;
   const selectedLead = leads.find((l) => l.id === leadId) ?? null;
   const leadDocuments = leadId ? documents.filter((d) => d.leadId === leadId) : [];
 
@@ -99,6 +108,9 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
     setStatus(zone.status);
     setLeadId(zone.leadId);
     setFeatures(zone.features);
+    setWorkstationEnabled(zone.workstationCount != null);
+    setWorkstationCount(zone.workstationCount != null ? String(zone.workstationCount) : '');
+    setWorkstationsSold(String(zone.workstationsSold));
     setError(null);
     setMode('edit');
   }
@@ -112,13 +124,21 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
     setSaving(true);
     setError(null);
     try {
+      const saveWorkstation = isRoomEdit && workstationEnabled;
+      const savedCount = saveWorkstation && workstationCount.trim() ? Number(workstationCount) : null;
+      const savedSold = saveWorkstation ? Number(workstationsSold || '0') : 0;
       const updated = await updateZone(zone.id, {
         zoneType,
         label: label.trim(),
         area: isRoomEdit && area.trim() ? Number(area) : null,
-        status: isRoomEdit ? status : zone.status,
-        leadId: isRoomEdit ? leadId : '',
+        // Пока включены рабочие места, статус кабинета считается по остатку
+        // мест (см. workstationsRemaining), а не выбирается вручную — иначе
+        // цветовая маркировка на плане (zoneFillClass) разойдётся с фактом.
+        status: isRoomEdit ? (saveWorkstation ? (savedCount != null && savedSold >= savedCount ? 'Продано' : 'Свободно') : status) : zone.status,
+        leadId: isRoomEdit && !saveWorkstation ? leadId : '',
         features: isRoomEdit ? features : [],
+        workstationCount: savedCount,
+        workstationsSold: savedSold,
       });
       onUpdated(updated);
       setMode('view');
@@ -168,41 +188,73 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
             <div className="flex items-center justify-between gap-3">
               <span className="text-xl font-bold text-ink">{zone.label || '—'}</span>
               {isRoom && (
-                <span
-                  className={cn(
-                    'shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
-                    zoneStatusBadgeClass[zone.status],
-                  )}
-                >
-                  {zone.status}
-                </span>
+                isWorkstation ? (
+                  <span
+                    className={cn(
+                      'shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
+                      workstationsRemaining(zone) > 0 ? 'bg-success-bg text-success' : 'bg-danger/15 text-danger',
+                    )}
+                  >
+                    {workstationsRemaining(zone) > 0
+                      ? `Свободно ${workstationsRemaining(zone)} из ${zone.workstationCount}`
+                      : 'Все места заняты'}
+                  </span>
+                ) : (
+                  <span
+                    className={cn(
+                      'shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
+                      zoneStatusBadgeClass[zone.status],
+                    )}
+                  >
+                    {zone.status}
+                  </span>
+                )
               )}
             </div>
 
             {isRoom && (
               <>
-                <div className="flex flex-wrap gap-x-5 gap-y-1.5 rounded-control bg-surface-muted px-3 py-2 text-sm">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-ink-muted">Площадь</span>
-                    <span className="font-medium text-ink">{zone.area != null ? `${zone.area} м²` : '—'}</span>
+                {isWorkstation ? (
+                  <div className="flex flex-wrap gap-x-5 gap-y-1.5 rounded-control bg-surface-muted px-3 py-2 text-sm">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-ink-muted">Формат</span>
+                      <span className="font-medium text-ink">Фиксированные рабочие места</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-ink-muted">Занято мест</span>
+                      <span className="font-medium text-ink">
+                        {zone.workstationsSold} из {zone.workstationCount}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-ink-muted">Цена за место</span>
+                      <span className="font-medium text-ink">{formatMoney(WORKSTATION_PRICE)}</span>
+                    </div>
                   </div>
-                  {zone.area != null && (
-                    <>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-ink-muted">Стоимость</span>
-                        <span className="font-medium text-ink">{formatMoney(zonePrice(zone.area))}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-ink-muted">Первый взнос</span>
-                        <span className="font-medium text-ink">{formatMoney(zoneDownPayment(zone.area))}</span>
-                      </div>
-                    </>
-                  )}
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-ink-muted">Клиент</span>
-                    <span className="font-medium text-ink">{selectedLead ? leadLabel(selectedLead) : NO_LEAD}</span>
+                ) : (
+                  <div className="flex flex-wrap gap-x-5 gap-y-1.5 rounded-control bg-surface-muted px-3 py-2 text-sm">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-ink-muted">Площадь</span>
+                      <span className="font-medium text-ink">{zone.area != null ? `${zone.area} м²` : '—'}</span>
+                    </div>
+                    {zone.area != null && (
+                      <>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-ink-muted">Стоимость</span>
+                          <span className="font-medium text-ink">{formatMoney(zonePrice(zone.area))}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-ink-muted">Первый взнос</span>
+                          <span className="font-medium text-ink">{formatMoney(zoneDownPayment(zone.area))}</span>
+                        </div>
+                      </>
+                    )}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-ink-muted">Клиент</span>
+                      <span className="font-medium text-ink">{selectedLead ? leadLabel(selectedLead) : NO_LEAD}</span>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {zone.features.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
@@ -293,7 +345,45 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
               <>
                 <Input label="Площадь, м²" type="number" step="0.1" value={area} onChange={(e) => setArea(e.target.value)} />
 
-                <ToggleGroup label="Статус" options={[...zoneStatuses]} value={status} onChange={(v) => setStatus(v as ZoneStatus)} />
+                <label className="flex items-center gap-2 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    checked={workstationEnabled}
+                    onChange={(e) => setWorkstationEnabled(e.target.checked)}
+                    className="h-4 w-4 rounded border-border-strong text-primary focus:ring-primary"
+                  />
+                  Продаётся как фиксированные рабочие места
+                </label>
+
+                {workstationEnabled ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input
+                      label="Всего мест"
+                      type="number"
+                      min={1}
+                      value={workstationCount}
+                      onChange={(e) => setWorkstationCount(e.target.value)}
+                    />
+                    <Input
+                      label="Занято мест"
+                      type="number"
+                      min={0}
+                      value={workstationsSold}
+                      onChange={(e) => setWorkstationsSold(e.target.value)}
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <ToggleGroup label="Статус" options={[...zoneStatuses]} value={status} onChange={(v) => setStatus(v as ZoneStatus)} />
+
+                    <Select
+                      label="Клиент"
+                      options={[NO_LEAD, ...leads.map(leadLabel)]}
+                      value={selectedLead ? leadLabel(selectedLead) : NO_LEAD}
+                      onChange={(v) => setLeadId(v === NO_LEAD ? '' : leads.find((l) => leadLabel(l) === v)?.id ?? '')}
+                    />
+                  </>
+                )}
 
                 <div className="flex flex-col gap-1.5">
                   <span className="text-sm text-ink-muted">Особенности</span>
@@ -311,13 +401,6 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
                     ))}
                   </div>
                 </div>
-
-                <Select
-                  label="Клиент"
-                  options={[NO_LEAD, ...leads.map(leadLabel)]}
-                  value={selectedLead ? leadLabel(selectedLead) : NO_LEAD}
-                  onChange={(v) => setLeadId(v === NO_LEAD ? '' : leads.find((l) => leadLabel(l) === v)?.id ?? '')}
-                />
               </>
             )}
 
