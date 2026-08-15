@@ -81,10 +81,10 @@ const complexFeatures: { icon: LucideIcon; text: string }[] = [
   { icon: Clock, text: 'Доступ 24/7' },
   { icon: Cctv, text: 'Видеонаблюдение' },
   { icon: Bath, text: 'Много санузлов' },
-  { icon: SquareParking, text: 'Большая бесплатная парковка' },
-  { icon: Zap, text: 'Все центральные коммуникации' },
+  { icon: SquareParking, text: 'Большая парковка' },
+  { icon: Zap, text: 'Все коммуникации' },
   { icon: Wifi, text: 'Телефон и интернет' },
-  { icon: TreePine, text: 'Благоустроенная территория' },
+  { icon: TreePine, text: 'Ландшафтный дизайн' },
 ];
 
 // Черновик продающей страницы (/:slug/draft) — здесь обкатывается дизайн
