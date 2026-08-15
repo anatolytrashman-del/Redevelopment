@@ -184,33 +184,35 @@ export function ObjectLandingDraftPage() {
 
   return (
     <div className="min-h-svh bg-bg">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-5 sm:px-8">
-        <div>
-          <span className="text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary">RED</span>EVELOPMENT
-          </span>
-          <span className="ml-3 rounded-full bg-warning-bg px-2.5 py-1 text-xs font-semibold text-warning">
-            Черновик, клиентам не показывать
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className={cn('flex items-center gap-2 px-3 py-1.5', glassPillClass)} style={glassPillShadow}>
-            <span
-              className={cn('h-2 w-2 shrink-0 rounded-full', ownerOnline ? 'bg-success' : 'bg-ink-faint')}
-              title={ownerOnline ? 'Онлайн' : 'Офлайн'}
-            />
-            <span className="text-sm font-medium text-ink">На связи</span>
+      <div className="border-b border-border py-5">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 sm:px-8">
+          <div>
+            <span className="text-lg font-extrabold tracking-wide text-ink">
+              <span className="font-black text-primary">RED</span>EVELOPMENT
+            </span>
+            <span className="ml-3 rounded-full bg-warning-bg px-2.5 py-1 text-xs font-semibold text-warning">
+              Черновик, клиентам не показывать
+            </span>
           </div>
-          <a
-            href={OWNER_TELEGRAM_URL}
-            target="_blank"
-            rel="noreferrer"
-            className={cn('flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary', glassPillClass)}
-            style={glassPillShadow}
-          >
-            <TelegramLogo className="h-5 w-5" />
-            Написать собственнику
-          </a>
+          <div className="flex items-center gap-2">
+            <div className={cn('flex items-center gap-2 px-3 py-1.5', glassPillClass)} style={glassPillShadow}>
+              <span
+                className={cn('h-2 w-2 shrink-0 rounded-full', ownerOnline ? 'bg-success' : 'bg-ink-faint')}
+                title={ownerOnline ? 'Онлайн' : 'Офлайн'}
+              />
+              <span className="text-sm font-medium text-ink">На связи</span>
+            </div>
+            <a
+              href={OWNER_TELEGRAM_URL}
+              target="_blank"
+              rel="noreferrer"
+              className={cn('flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary', glassPillClass)}
+              style={glassPillShadow}
+            >
+              <TelegramLogo className="h-5 w-5" />
+              Написать собственнику
+            </a>
+          </div>
         </div>
       </div>
 
