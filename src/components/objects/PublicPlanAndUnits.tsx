@@ -172,8 +172,19 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
       // Привязка конкретного лида к конкретному месту — отдельная таблица,
       // потому что у одной зоны может быть до workstationCount разных лидов
       // (в отличие от обычного кабинета, где zone.leadId — один на всех).
+      // Если эта запись не создастся (например, забыли RLS-политику на
+      // insert) — откатываем инкремент зоны, иначе останется "фантомное"
+      // занятое место без лида, который его на самом деле занял.
       if (bookingWorkstation) {
-        await insertWorkstationSeatLead({ zoneId: selectedZone.id, leadId: lead.id });
+        try {
+          await insertWorkstationSeatLead({ zoneId: selectedZone.id, leadId: lead.id });
+        } catch (seatErr) {
+          await updateZone(selectedZone.id, {
+            workstationsSold: selectedZone.workstationsSold,
+            status: selectedZone.status,
+          });
+          throw seatErr;
+        }
       }
       setSelectedZone(updatedZone);
       onZoneUpdated(updatedZone);
