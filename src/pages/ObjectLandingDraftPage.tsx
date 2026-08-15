@@ -15,6 +15,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { cn } from '../lib/cn';
+import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import type { LucideIcon } from 'lucide-react';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { PublicPlanAndUnits } from '../components/objects/PublicPlanAndUnits';
@@ -152,7 +153,7 @@ export function ObjectLandingDraftPage() {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 rounded-full border border-border px-3 py-1.5">
+          <div className={cn('flex items-center gap-2 px-3 py-1.5', glassPillClass)} style={glassPillShadow}>
             <span
               className={cn('h-2 w-2 shrink-0 rounded-full', ownerOnline ? 'bg-success' : 'bg-ink-faint')}
               title={ownerOnline ? 'Онлайн' : 'Офлайн'}
@@ -163,7 +164,8 @@ export function ObjectLandingDraftPage() {
             href={OWNER_TELEGRAM_URL}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary"
+            className={cn('flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary', glassPillClass)}
+            style={glassPillShadow}
           >
             <TelegramLogo className="h-5 w-5" />
             Написать собственнику
@@ -179,7 +181,10 @@ export function ObjectLandingDraftPage() {
           <div className="flex flex-col gap-3">
             {heroFeatures.map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-muted text-ink">
+                <span
+                  className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)}
+                  style={glassPillShadow}
+                >
                   <Icon className="h-4 w-4" />
                 </span>
                 <span className="text-base font-medium text-ink">{text}</span>
@@ -192,28 +197,23 @@ export function ObjectLandingDraftPage() {
           <HeroImageSlider images={object.renderImageUrls} />
           {cheapestUnit != null && (
             <span
-              className="absolute left-4 top-4 inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-white/50 bg-white/25 px-5 py-2 backdrop-blur-xl backdrop-saturate-150"
-              style={{ boxShadow: '0 8px 24px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.6)' }}
+              className={cn('absolute left-4 top-4 inline-flex items-center gap-1.5 whitespace-nowrap px-5 py-2', glassPillClass)}
+              style={glassPillShadow}
             >
-              <span className="text-sm font-medium text-ink/70">от</span>
-              <span className="text-lg font-extrabold text-primary">{formatMoney(cheapestUnit)}</span>
+              <span className="text-sm font-medium text-ink/60">от</span>
+              <span className="text-lg font-extrabold text-ink">{formatMoney(cheapestUnit)}</span>
             </span>
           )}
         </div>
       </div>
 
       <div className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-8 sm:px-8">
-        {/* Эксперимент: "жидкое стекло" вместо обычной карточки — только
-            здесь, чтобы сравнить со стилем остальной страницы. */}
-        <div
-          className="flex flex-col gap-5 rounded-3xl border border-white/60 bg-white/40 p-5 backdrop-blur-xl backdrop-saturate-150"
-          style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.7)' }}
-        >
+        <div className={cn('flex flex-col gap-5 p-5', glassCardClass)} style={glassCardShadow}>
           <div className="text-xl font-extrabold text-ink">Клубный деловой комплекс Minsk One</div>
           <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
             {complexFeatures.map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/60 bg-white/50 text-ink backdrop-blur-md">
+                <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)}>
                   <Icon className="h-4 w-4" />
                 </span>
                 <span className="text-sm font-medium text-ink">{text}</span>
@@ -222,13 +222,14 @@ export function ObjectLandingDraftPage() {
           </div>
         </div>
 
-        <BookingTermsCard agreement={object.intentAgreementFile} />
+        <BookingTermsCard agreement={object.intentAgreementFile} glass />
 
         <PublicPlanAndUnits
           object={object}
           plans={plans}
           zones={zones}
           onZoneUpdated={(z) => setZones((prev) => prev.map((x) => (x.id === z.id ? z : x)))}
+          glass
         />
       </div>
     </div>

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, type ElementType } from 'react';
 import { ChevronDown, ChevronUp, MapPin } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Input } from '../ui/Input';
 import { zonePrice, zoneTypeLabels, type BuildingPlan, type BuildingPlanZone } from '../../data/buildingPlans';
 import { cn } from '../../lib/cn';
+import { glassCardClass, glassCardShadow } from '../../lib/glass';
 
 const VISIBLE_LIMIT = 5;
 
@@ -28,6 +29,10 @@ interface AvailableUnitsTableProps {
   // промежуточного клика по кабинету. В админке не передаётся, поэтому
   // кнопка и место под неё там не показываются.
   onBookClick?: (zone: BuildingPlanZone) => void;
+  // Только для черновика продающей страницы (/:slug/draft) — см.
+  // src/lib/glass.ts. По умолчанию выключено: эта таблица используется ещё
+  // в админке и на уже одобренной клиентской /:slug.
+  glass?: boolean;
 }
 
 export function AvailableUnitsTable({
@@ -38,7 +43,9 @@ export function AvailableUnitsTable({
   onRowHover,
   onLocateClick,
   onBookClick,
+  glass,
 }: AvailableUnitsTableProps) {
+  const Wrapper: ElementType = glass ? 'div' : Card;
   const [minArea, setMinArea] = useState('');
   const [maxArea, setMaxArea] = useState('');
   const [minPrice, setMinPrice] = useState('');
@@ -60,7 +67,7 @@ export function AvailableUnitsTable({
   const hiddenCount = units.length - visibleUnits.length;
 
   return (
-    <Card className="flex flex-col gap-4 p-5">
+    <Wrapper className={cn('flex flex-col gap-4 p-5', glass && glassCardClass)} style={glass ? glassCardShadow : undefined}>
       <div className="font-bold text-ink">Доступные кабинеты</div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -74,10 +81,11 @@ export function AvailableUnitsTable({
         <p className="text-sm text-ink-muted">Нет кабинетов, подходящих под фильтр.</p>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-control border border-border">
+          <div className={cn('overflow-x-auto rounded-control border', glass ? 'border-white/50' : 'border-border')}>
             <div
               className={cn(
-                'grid gap-4 bg-surface-muted px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-faint',
+                'grid gap-4 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-faint',
+                glass ? 'bg-white/30 backdrop-blur-md' : 'bg-surface-muted',
                 onBookClick ? 'min-w-[760px] grid-cols-[120px_100px_110px_120px_1fr]' : 'min-w-[560px] grid-cols-[120px_100px_110px_120px_1fr]',
               )}
             >
@@ -94,7 +102,8 @@ export function AvailableUnitsTable({
                 onMouseEnter={() => onRowHover?.(zone)}
                 onMouseLeave={() => onRowHover?.(null)}
                 className={cn(
-                  'grid w-full cursor-pointer items-center gap-4 border-t border-border px-4 py-2.5 text-sm hover:bg-surface-muted',
+                  'grid w-full cursor-pointer items-center gap-4 border-t px-4 py-2.5 text-sm',
+                  glass ? 'border-white/40 bg-white/10 hover:bg-white/30' : 'border-border hover:bg-surface-muted',
                   onBookClick ? 'min-w-[760px] grid-cols-[120px_100px_110px_120px_1fr]' : 'min-w-[560px] grid-cols-[120px_100px_110px_120px_1fr]',
                   zone.id === highlightedZoneId && 'bg-primary/10',
                 )}
@@ -110,7 +119,10 @@ export function AvailableUnitsTable({
                       e.stopPropagation();
                       onLocateClick(zone);
                     }}
-                    className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border px-3 py-1.5 text-xs font-medium text-ink-muted hover:border-primary hover:text-primary"
+                    className={cn(
+                      'flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium hover:border-primary hover:text-primary',
+                      glass ? 'border-white/50 bg-white/30 text-ink backdrop-blur-md' : 'border-border text-ink-muted',
+                    )}
                   >
                     <MapPin className="h-3.5 w-3.5" />
                     Посмотреть на плане
@@ -153,6 +165,6 @@ export function AvailableUnitsTable({
           )}
         </>
       )}
-    </Card>
+    </Wrapper>
   );
 }

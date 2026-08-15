@@ -1,12 +1,18 @@
-import { useState } from 'react';
+import { useState, type ElementType } from 'react';
 import { Check, Download, FileText, X } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { IntentAgreementDocument } from './IntentAgreementDocument';
+import { cn } from '../../lib/cn';
+import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { ObjectDocumentFile } from '../../data/objects';
 
 interface BookingTermsCardProps {
   agreement: ObjectDocumentFile | null;
+  // Только для черновика продающей страницы (/:slug/draft) — см.
+  // src/lib/glass.ts. По умолчанию выключено, чтобы не задеть другие
+  // места, где используется этот компонент.
+  glass?: boolean;
 }
 
 // Рисованная иллюстрация документа (вместо мелкой иконки-щита) — две
@@ -40,11 +46,15 @@ function DocumentIllustration() {
 // типографике сайта, а не через нативный PDF-просмотрщик браузера — тот
 // нечитаем и подолгу грузится. Загруженный файл остаётся доступен по
 // кнопке "Скачать" как оригинал документа.
-export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
+export function BookingTermsCard({ agreement, glass }: BookingTermsCardProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
+  const Wrapper: ElementType = glass ? 'div' : Card;
 
   return (
-    <Card className="flex flex-col items-start gap-6 p-6 sm:flex-row sm:items-center">
+    <Wrapper
+      className={cn('flex flex-col items-start gap-6 p-6 sm:flex-row sm:items-center', glass && glassCardClass)}
+      style={glass ? glassCardShadow : undefined}
+    >
       <div className="flex flex-1 flex-col gap-2">
         <div className="text-xl font-extrabold text-ink">Бронирование без предоплаты</div>
         <div className="flex flex-col gap-1.5 text-sm text-ink-muted">
@@ -107,6 +117,6 @@ export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
           </div>
         </div>
       )}
-    </Card>
+    </Wrapper>
   );
 }

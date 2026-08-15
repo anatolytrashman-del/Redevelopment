@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ElementType } from 'react';
 import { Card } from '../ui/Card';
+import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -42,6 +43,10 @@ interface PublicPlanAndUnitsProps {
   // ZoneDetailModal в админке) — родитель обновляет свой массив zones, чтобы
   // план и таблица тут же отразили изменение без перезагрузки страницы.
   onZoneUpdated: (zone: BuildingPlanZone) => void;
+  // Только для черновика продающей страницы (/:slug/draft) — см.
+  // src/lib/glass.ts. По умолчанию выключено: этот компонент используется
+  // ещё в /plan/:token, на уже одобренной клиентской /:slug и в админке.
+  glass?: boolean;
 }
 
 // Планировка + таблица доступных кабинетов — общий блок для всех публичных
@@ -49,7 +54,8 @@ interface PublicPlanAndUnitsProps {
 // черновик /:slug/draft), чтобы подсветка, переключение этажей, кнопка
 // "Посмотреть на плане" и бронирование кабинета вели себя одинаково и не
 // расходились между копиями.
-export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated }: PublicPlanAndUnitsProps) {
+export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass }: PublicPlanAndUnitsProps) {
+  const PlanWrapper: ElementType = glass ? 'div' : Card;
   const [activePlanId, setActivePlanId] = useState<string | null>(object.buildingPlanIds[0] ?? null);
   const [selectedZone, setSelectedZone] = useState<BuildingPlanZone | null>(null);
   const [hoveredZoneId, setHoveredZoneId] = useState<string | null>(null);
@@ -131,7 +137,10 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated }: Publ
   return (
     <>
       <div ref={planCardRef}>
-        <Card className="flex flex-col gap-3 p-5">
+        <PlanWrapper
+          className={cn('flex flex-col gap-3 p-5', glass && glassCardClass)}
+          style={glass ? glassCardShadow : undefined}
+        >
           <div className="font-bold text-ink">Планировка и доступные кабинеты</div>
 
           {objectPlans.length === 0 ? (
@@ -152,7 +161,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated }: Publ
               )}
             </>
           )}
-        </Card>
+        </PlanWrapper>
       </div>
 
       {objectPlans.length > 0 && (
@@ -164,6 +173,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated }: Publ
           onRowHover={(zone) => setHoveredZoneId(zone?.id ?? null)}
           onLocateClick={handleLocateOnPlan}
           onBookClick={handleBookClick}
+          glass={glass}
         />
       )}
 
