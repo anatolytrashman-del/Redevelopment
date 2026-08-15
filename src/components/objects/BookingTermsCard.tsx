@@ -33,9 +33,10 @@ const steps: Step[] = [
 ];
 
 // Блок-закрыватель сомнений, а не справка: раньше был статичным списком
-// фактов рядом с иконкой документа, теперь — путь из 3 шагов, где клиент
-// всегда "на первом" (сам блок не отслеживает реальный прогресс брони, это
-// общий призыв "вот как легко", а не трекер конкретной заявки). Стоит под
+// фактов рядом с иконкой документа, теперь — путь из 3 шагов. Шаги не
+// отслеживают реальный прогресс брони (нет состояния "активен/пройден"),
+// поэтому все три выглядят одинаково — это общий призыв "вот как легко",
+// а не трекер конкретной заявки. Стоит под
 // общим блоком план+список (см. ObjectLandingDraftPage) — сначала клиент
 // смотрит кабинеты, потом здесь снимаем тревогу и ведём назад к брони.
 // Главная кнопка брони — на 3-м шаге (а не на 1-м): бронь физически нельзя
@@ -61,28 +62,17 @@ export function BookingTermsCard({ agreement, glass }: BookingTermsCardProps) {
 
   return (
     <Wrapper className={cn('flex flex-col gap-6 p-6', glass && glassCardClass)} style={glass ? glassCardShadow : undefined}>
-      <div className="flex flex-col gap-1">
-        <div className="text-xl font-extrabold text-ink">Онлайн-бронирование без предоплаты</div>
-        <p className="text-sm text-ink-muted">Бронь ни к чему не обязывает — вот как это устроено</p>
-      </div>
+      <div className="text-xl font-extrabold text-ink">Онлайн-бронирование без предоплаты</div>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
         {steps.map((step, i) => {
-          const isCurrent = i === 0;
           return (
             <div key={step.title} className="flex h-full flex-col gap-3">
               <div className="flex items-center gap-2">
-                <span
-                  className={cn(
-                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold',
-                    isCurrent ? 'bg-primary text-white' : 'border-2 border-border text-ink-faint',
-                  )}
-                >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">
                   {i + 1}
                 </span>
-                <span className={cn('text-sm font-semibold', isCurrent ? 'text-ink' : 'text-ink-muted')}>
-                  {step.title}
-                </span>
+                <span className="text-sm font-semibold text-ink">{step.title}</span>
               </div>
               <div className="flex flex-1 flex-col gap-2 pl-10">
                 <p className="text-xs text-ink-faint">{step.description}</p>
