@@ -105,7 +105,7 @@ const purchaseOptions: PurchaseOption[] = [
     icon: CalendarClock,
     title: 'Рассрочка',
     terms: 'Взнос 25% · Срок 4 месяца',
-    description: 'По индивидуальному согласованию с собственником.',
+    description: 'По индивидуальному согласованию.',
     badge: '🇧🇾 🇷🇺',
   },
   {
