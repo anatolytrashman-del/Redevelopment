@@ -439,7 +439,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
                           onChange={(e) => setBookingForm((f) => ({ ...f, contact: e.target.value }))}
                           required
                         />
-                        {!isWorkstation && (
+                        {!isWorkstation && selectedZone.features.includes('Можно сделать мокрую точку') && (
                           <div className="flex flex-col gap-1.5">
                             <label className="flex items-start gap-2 text-sm text-ink">
                               <input
