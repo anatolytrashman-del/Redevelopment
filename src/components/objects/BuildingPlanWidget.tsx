@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Loader2, Pencil, Check, X, Link2Off, Maximize2, Minimize2, ImageUp, Plus, ExternalLink } from 'lucide-react';
+import { Loader2, Pencil, Check, X, Link2Off, Maximize2, Minimize2, ImageUp, Plus } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -356,15 +355,6 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
           >
             {fullscreen ? 'Свернуть' : 'На весь экран'}
           </Button>
-          <Link
-            to={`/plan/${object.shareToken}`}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-medium text-ink-muted hover:border-primary hover:text-primary"
-          >
-            <ExternalLink className="h-4 w-4" />
-            Ссылка для клиента
-          </Link>
         </div>
       </div>
 
