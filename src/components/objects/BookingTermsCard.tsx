@@ -67,7 +67,7 @@ export function BookingTermsCard({ agreement, glass }: BookingTermsCardProps) {
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
         {steps.map((step, i) => {
           return (
-            <div key={step.title} className="flex h-full flex-col gap-3">
+            <div key={step.title} className="flex flex-col gap-3 sm:h-full">
               <div className="flex items-center gap-2">
                 <span
                   className={cn('flex h-8 w-8 shrink-0 items-center justify-center text-sm font-bold text-ink', glassPillClass)}
@@ -77,11 +77,14 @@ export function BookingTermsCard({ agreement, glass }: BookingTermsCardProps) {
                 </span>
                 <span className="text-sm font-semibold text-ink">{step.title}</span>
               </div>
-              <div className="flex flex-1 flex-col gap-2 pl-10">
+              <div className="flex flex-col gap-2 pl-10 sm:flex-1">
                 <p className="text-sm font-medium text-ink-muted">{step.description}</p>
-                {/* mt-auto прижимает ссылку к низу колонки, чтобы все три
-                    были на одном уровне независимо от длины описания. */}
-                <div className="mt-auto pt-1">
+                {/* mt-auto прижимает ссылку к низу колонки, чтобы все три были на
+                    одном уровне — но только от sm, где это реально 3-колоночная
+                    сетка. Ниже sm колонка одна, и h-full/flex-1/mt-auto друг на
+                    друге создавали огромный пустой зазор перед ссылкой первого
+                    шага — просто обычный поток с небольшим отступом. */}
+                <div className="pt-1 sm:mt-auto">
                   {i === 0 && (
                     <button
                       type="button"

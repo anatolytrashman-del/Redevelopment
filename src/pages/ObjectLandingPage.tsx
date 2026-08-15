@@ -222,14 +222,14 @@ export function ObjectLandingPage() {
           </h1>
           <div className="flex flex-col gap-3">
             {heroFeatures.map(({ icon: Icon, text }) => (
-              <div key={text} className="flex items-center gap-3">
+              <div key={text} className="flex min-w-0 items-center gap-3">
                 <span
                   className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)}
                   style={glassPillShadow}
                 >
                   <Icon className="h-4 w-4" />
                 </span>
-                <span className="text-base font-medium text-ink">{text}</span>
+                <span className="min-w-0 break-words text-base font-medium text-ink">{text}</span>
               </div>
             ))}
           </div>
@@ -249,11 +249,11 @@ export function ObjectLandingPage() {
           <div className="text-xl font-extrabold text-ink">Клубный деловой центр Minsk One</div>
           <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
             {complexFeatures.map(({ icon: Icon, text }) => (
-              <div key={text} className="flex items-center gap-3">
+              <div key={text} className="flex min-w-0 items-center gap-3">
                 <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)}>
                   <Icon className="h-4 w-4" />
                 </span>
-                <span className="text-sm font-medium text-ink">{text}</span>
+                <span className="min-w-0 break-words text-sm font-medium text-ink">{text}</span>
               </div>
             ))}
           </div>
