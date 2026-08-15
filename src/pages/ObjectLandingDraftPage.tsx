@@ -10,7 +10,6 @@ import {
   ShieldCheck,
   Sparkles,
   SquareParking,
-  Tag,
   TreePine,
   Wifi,
   Zap,
@@ -128,16 +127,13 @@ export function ObjectLandingDraftPage() {
       <div className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-2">
         <div className="flex flex-col gap-6">
           <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">
-            Стильные кабинеты под любой бизнес{' '}
+            Стильные кабинеты под любой бизнес{cheapestUnit != null && <> от</>}{' '}
             {cheapestUnit != null && (
               <span
-                className="inline-flex translate-y-[-2px] items-center gap-1.5 whitespace-nowrap bg-primary px-4 py-1.5 align-middle text-white"
-                style={{
-                  clipPath: 'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)',
-                }}
+                className="relative inline-flex translate-y-[-2px] items-center whitespace-nowrap bg-primary py-1.5 pl-6 pr-4 align-middle text-white"
+                style={{ clipPath: 'polygon(0 50%, 22px 0, 100% 0, 100% 100%, 22px 100%)' }}
               >
-                <Tag className="h-4 w-4 text-white/70" />
-                <span className="text-base font-medium text-white/70">от</span>
+                <span className="absolute left-[9px] top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-bg" />
                 <span className="text-lg font-extrabold">{formatMoney(cheapestUnit)}</span>
               </span>
             )}
