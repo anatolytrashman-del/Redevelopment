@@ -7,6 +7,7 @@ import {
   CalendarClock,
   Cctv,
   Clock,
+  KeyRound,
   Landmark,
   Loader2,
   Ruler,
@@ -14,6 +15,8 @@ import {
   Sparkles,
   SquareParking,
   TreePine,
+  TrendingUp,
+  UserCheck,
   Wifi,
   Zap,
 } from 'lucide-react';
@@ -121,6 +124,16 @@ const purchaseOptions: PurchaseOption[] = [
     terms: 'Взнос от 20% · Срок до 20 лет',
     description: 'Финансирование от банков-партнёров.',
   },
+];
+
+// Отдельный оффер для инвесторов — вариант A (см. обсуждение): чисто
+// маркетинговый блок без привязки к конкретным кабинетам. Если появятся
+// кабинеты, у которых реально уже есть арендатор — понадобится отдельное
+// поле у зоны и бейдж в таблице/на плане, это уже вариант B.
+const investorPoints: { icon: LucideIcon; title: string; description: string }[] = [
+  { icon: UserCheck, title: 'Кабинет уже с арендатором', description: 'Не нужно искать, кто въедет' },
+  { icon: TrendingUp, title: 'Доход с первого дня', description: 'А не после месяцев простоя' },
+  { icon: KeyRound, title: 'Мы сами сдаём кабинет за вас', description: 'Без переговоров и договоров аренды' },
 ];
 
 // Черновик продающей страницы (/:slug/draft) — здесь обкатывается дизайн
@@ -288,6 +301,32 @@ export function ObjectLandingDraftPage() {
               </div>
             ))}
           </div>
+        </div>
+
+        <div className={cn('flex flex-col gap-5 p-5', glassCardClass)} style={glassCardShadow}>
+          <div className="text-xl font-extrabold text-ink">Купите кабинет с арендатором</div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {investorPoints.map(({ icon: Icon, title, description }) => (
+              <div
+                key={title}
+                className="flex flex-col gap-3 rounded-control border border-white/50 bg-white/40 p-4 backdrop-blur-md"
+              >
+                <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center text-ink', glassPillClass)}>
+                  <Icon className="h-5 w-5" />
+                </span>
+                <div className="text-base font-bold text-ink">{title}</div>
+                <p className="text-sm text-ink-muted">{description}</p>
+              </div>
+            ))}
+          </div>
+          <a
+            href={OWNER_TELEGRAM_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="flex w-fit items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-white hover:bg-ink/85"
+          >
+            Обсудить с собственником
+          </a>
         </div>
 
         <PublicPlanAndUnits
