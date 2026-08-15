@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Pencil, Check, X, Link2Off, Maximize2, Minimize2, ImageUp, Plus } from 'lucide-react';
+import { Loader2, Pencil, Check, X, Link2Off, Maximize2, Minimize2, ImageUp, Plus, Wand2 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -30,6 +30,7 @@ import {
 } from '../../lib/buildingPlansApi';
 import { fetchLeads } from '../../lib/leadsApi';
 import { fetchGeneratedDocuments } from '../../lib/generatedDocumentsApi';
+import { straightenPoints } from '../../lib/straightenPoints';
 import { cn } from '../../lib/cn';
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -202,7 +203,10 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
         status: 'Свободно',
         leadId: '',
         features: [],
-        points: drawingPoints,
+        // Автоматически подтягиваем почти прямые рёбра к оси — раньше это
+        // было отдельным ручным действием ("Выпрямить линии контура" в
+        // ZoneDetailModal), теперь применяется сразу при сохранении контура.
+        points: straightenPoints(drawingPoints),
         workstationCount: null,
         workstationsSold: 0,
         windowCount: null,
@@ -239,7 +243,7 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
     setSavingZone(true);
     setZoneError(null);
     try {
-      const updated = await updateZone(redrawZoneId, { points: drawingPoints });
+      const updated = await updateZone(redrawZoneId, { points: straightenPoints(drawingPoints) });
       setZones((prev) => prev.map((z) => (z.id === updated.id ? updated : z)));
       setDrawingPoints(null);
       setRedrawZoneId(null);
@@ -247,6 +251,35 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
       setZoneError(errorMessage(err, 'Не удалось сохранить контур'));
     } finally {
       setSavingZone(false);
+    }
+  }
+
+  const [straighteningAll, setStraighteningAll] = useState(false);
+
+  // Разовое исправление контуров, нарисованных до того, как выпрямление
+  // стало автоматическим (см. saveZone/saveRedrawnPoints выше) — без этого
+  // старые кривые зоны так и остались бы кривыми, пока их не перерисуют
+  // вручную. Пропускает зоны, которых straightenPoints не меняет.
+  async function straightenAllOnPlan() {
+    if (!plan) return;
+    const planZones = zones.filter((z) => z.buildingPlanId === plan.id);
+    if (planZones.length === 0) return;
+    setStraighteningAll(true);
+    setZoneError(null);
+    try {
+      const updated = await Promise.all(
+        planZones.map(async (z) => {
+          const straightened = straightenPoints(z.points);
+          if (JSON.stringify(straightened) === JSON.stringify(z.points)) return null;
+          return updateZone(z.id, { points: straightened });
+        }),
+      );
+      const byId = new Map(updated.filter((z): z is BuildingPlanZone => z !== null).map((z) => [z.id, z]));
+      setZones((prev) => prev.map((z) => byId.get(z.id) ?? z));
+    } catch (err) {
+      setZoneError(errorMessage(err, 'Не удалось выпрямить контуры'));
+    } finally {
+      setStraighteningAll(false);
     }
   }
 
@@ -331,6 +364,16 @@ export function BuildingPlanWidget({ object, onAttachPlan, onDetachPlan }: Build
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-danger hover:text-danger"
               >
                 <Link2Off className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={straightenAllOnPlan}
+                disabled={straighteningAll || zones.filter((z) => z.buildingPlanId === plan?.id).length === 0}
+                aria-label="Выпрямить все контуры на этом плане"
+                title="Выпрямить все контуры на этом плане"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary disabled:opacity-50"
+              >
+                {straighteningAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
               </button>
             </>
           )}
