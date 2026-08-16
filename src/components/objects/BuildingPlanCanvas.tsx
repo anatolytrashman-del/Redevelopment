@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Minus, Plus, RotateCcw } from 'lucide-react';
+import { Loader2, Minus, Plus, RotateCcw } from 'lucide-react';
 import {
   zoneTypeLabels,
   zoneDownPayment,
@@ -94,6 +94,35 @@ export function BuildingPlanCanvas({
   const [hoverZone, setHoverZone] = useState<{ zone: BuildingPlanZone; x: number; y: number } | null>(null);
   const [scale, setScale] = useState(1);
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
+  // При переключении этажа картинка нового плана грузится не мгновенно, а
+  // контуры (чистые данные, без сети) — сразу. Без этой развязки на
+  // медленной сети виден кадр, где уже новые контуры кабинетов лежат поверх
+  // ещё старой картинки этажа — выглядит как "перепутанные" контуры.
+  // Держим старый план на экране, пока новая картинка не догрузится в фоне,
+  // и только тогда переключаем и картинку, и контуры одновременно.
+  const [displayedPlan, setDisplayedPlan] = useState(plan);
+  const switchingPlan = plan.id !== displayedPlan.id;
+
+  useEffect(() => {
+    if (plan.imageUrl === displayedPlan.imageUrl) {
+      if (plan.id !== displayedPlan.id) setDisplayedPlan(plan);
+      return;
+    }
+    let cancelled = false;
+    const preload = new Image();
+    preload.onload = () => {
+      if (!cancelled) setDisplayedPlan(plan);
+    };
+    preload.onerror = () => {
+      // Не блокируем переключение навсегда, если картинка не догрузилась.
+      if (!cancelled) setDisplayedPlan(plan);
+    };
+    preload.src = plan.imageUrl;
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan.id, plan.imageUrl]);
   // Состояние активного жеста живёт в ref, а не в стейте — трогается на
   // каждый touchmove, ререндер тут не нужен, важны только scale/translate.
   const gestureRef = useRef<{
@@ -232,10 +261,10 @@ export function BuildingPlanCanvas({
             : undefined
         }
       >
-        <img src={plan.imageUrl} alt={plan.name} className="w-full" draggable={false} />
+        <img src={displayedPlan.imageUrl} alt={displayedPlan.name} className="w-full" draggable={false} />
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
           {zones
-            .filter((zone) => zone.buildingPlanId === plan.id)
+            .filter((zone) => zone.buildingPlanId === displayedPlan.id)
             .map((zone) => (
               <polygon
                 key={zone.id}
@@ -260,7 +289,7 @@ export function BuildingPlanCanvas({
           ))}
           {highlightZoneId &&
             zones
-              .filter((zone) => zone.buildingPlanId === plan.id && zone.id === highlightZoneId)
+              .filter((zone) => zone.buildingPlanId === displayedPlan.id && zone.id === highlightZoneId)
               .map((zone) => (
                 <polygon
                   key={`highlight-${zone.id}`}
@@ -271,6 +300,12 @@ export function BuildingPlanCanvas({
               ))}
         </svg>
       </div>
+
+      {switchingPlan && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/40 backdrop-blur-[1px]">
+          <Loader2 className="h-6 w-6 animate-spin text-ink-muted" />
+        </div>
+      )}
 
       {zoomable && (
         <div className="absolute bottom-3 right-3 flex flex-col gap-1.5">
