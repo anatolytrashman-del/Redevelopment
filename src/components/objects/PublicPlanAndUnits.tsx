@@ -220,6 +220,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
         area: bookingWorkstation ? 'Фиксированное рабочее место' : selectedZone.area != null ? `${selectedZone.area} м²` : '',
         requirement,
         contact: bookingForm.contact.trim(),
+        contactMethod: '',
         status: 'Заявка на бронирование',
         isWarm: true,
         objectId: object.id,

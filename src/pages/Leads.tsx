@@ -1,19 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Loader2, Pencil, Flame, Droplet, ArrowRight, Download, Trash2, Sparkles } from 'lucide-react';
+import { Plus, Loader2, Pencil, ArrowRight, Download, Trash2, Sparkles } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
-import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { AddableSelect } from '../components/ui/AddableSelect';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Modal } from '../components/ui/Modal';
-import { leadSources, leadRequirements, type Lead, type LeadSource } from '../data/leads';
+import { leadSources, leadRequirements, leadContactMethods, type Lead, type LeadSource } from '../data/leads';
 import type { RealtyObject } from '../data/objects';
 import { zoneStatusBadgeClass, zoneTypeLabels, type BuildingPlan, type BuildingPlanZone } from '../data/buildingPlans';
-import { badgeColor } from '../lib/badgeColor';
 import { cn } from '../lib/cn';
 import { fetchLeads, insertLead, updateLead, deleteLead } from '../lib/leadsApi';
 import { markLeadsViewed } from '../lib/leadsSeen';
@@ -46,6 +44,7 @@ const emptyForm = {
   area: '',
   requirement: '',
   contact: '',
+  contactMethod: '',
   status: '',
   isWarm: false,
   objectId: '',
@@ -68,15 +67,31 @@ function todayIsoDate(): string {
   return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
-// Контакт хранит и телефон/телеграм, и голую ссылку на переписку (например,
-// диалог на Kufar) — превращаем в кликабельную ссылку только когда это
-// реально похоже на URL, чтобы номера телефонов не превращались в мусорные
-// href="+375...".
-function ContactValue({ contact }: { contact: string }) {
+// Контакт хранит и телефон, и телеграм-юзернейм, и голую ссылку на переписку
+// (например, диалог на Kufar) — способ связи (contactMethod) подсказывает,
+// как из этого сделать кликабельную ссылку, ведущую сразу в диалог:
+// Telegram-юзернейм превращается в t.me-ссылку, любой готовый http(s)-адрес
+// (Kufar и т.п.) используется как есть. Номера телефонов ссылкой не
+// становятся — с ними это ничего не открывает.
+function buildDialogLink(contactMethod: string, contact: string): string | null {
+  const trimmed = contact.trim();
+  if (!trimmed) return null;
+  if (contactMethod === 'Telegram') {
+    const handle = trimmed
+      .replace(/^https?:\/\//i, '')
+      .replace(/^(t\.me|telegram\.me)\//i, '')
+      .replace(/^@/, '');
+    return /^[a-zA-Z][a-zA-Z0-9_]{4,31}$/.test(handle) ? `https://t.me/${handle}` : null;
+  }
+  return /^https?:\/\//i.test(trimmed) ? trimmed : null;
+}
+
+function ContactValue({ contact, contactMethod }: { contact: string; contactMethod?: string }) {
   if (!contact) return null;
-  if (/^https?:\/\//i.test(contact.trim())) {
+  const href = buildDialogLink(contactMethod ?? '', contact);
+  if (href) {
     return (
-      <a href={contact} target="_blank" rel="noreferrer" className="truncate text-primary hover:underline">
+      <a href={href} target="_blank" rel="noreferrer" className="truncate text-primary hover:underline">
         {contact}
       </a>
     );
@@ -84,22 +99,24 @@ function ContactValue({ contact }: { contact: string }) {
   return <>{contact}</>;
 }
 
-function RequirementBadge({ requirement }: { requirement: string }) {
-  if (!requirement) return <span className="text-ink-faint">—</span>;
-  if (requirement === 'Мокрая точка') {
-    return (
-      <span
-        title="Мокрая точка"
-        className="flex h-7 w-7 items-center justify-center rounded-full bg-info-bg text-info-text"
-      >
-        <Droplet className="h-4 w-4" />
-      </span>
-    );
-  }
+// "Статус" в смысле важности лида — это isWarm, отдельно от status
+// (свободный текст вроде "первичный контакт", он теперь только в карточке).
+function WarmBadge({ lead, onToggle, disabled }: { lead: Lead; onToggle: () => void; disabled?: boolean }) {
   return (
-    <Badge style={{ backgroundColor: badgeColor(requirement).bg, color: badgeColor(requirement).text }}>
-      {requirement}
-    </Badge>
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      disabled={disabled}
+      className={cn(
+        'w-fit shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold disabled:opacity-50',
+        lead.isWarm ? 'bg-warning/15 text-warning' : 'bg-surface-muted text-ink-muted',
+      )}
+    >
+      {lead.isWarm ? 'Важный' : 'Не важный'}
+    </button>
   );
 }
 
@@ -111,6 +128,7 @@ function leadToForm(l: Lead) {
     area: l.area,
     requirement: l.requirement,
     contact: l.contact,
+    contactMethod: l.contactMethod,
     status: l.status,
     isWarm: l.isWarm,
     objectId: l.objectId,
@@ -140,6 +158,12 @@ export function Leads() {
   const knownRequirements = useMemo(() => {
     const set = new Set<string>(leadRequirements);
     leads.forEach((l) => set.add(l.requirement));
+    return [...set];
+  }, [leads]);
+
+  const knownContactMethods = useMemo(() => {
+    const set = new Set<string>(leadContactMethods);
+    leads.forEach((l) => l.contactMethod && set.add(l.contactMethod));
     return [...set];
   }, [leads]);
 
@@ -258,6 +282,7 @@ export function Leads() {
       area: form.area,
       requirement: form.requirement,
       contact: form.contact,
+      contactMethod: form.contactMethod,
       status: form.status,
       isWarm: form.isWarm,
       objectId: form.objectId,
@@ -295,6 +320,7 @@ export function Leads() {
         area: next.area,
         requirement: next.requirement,
         contact: next.contact,
+        contactMethod: next.contactMethod,
         status: next.status,
         isWarm: next.isWarm,
         objectId: next.objectId,
@@ -365,65 +391,39 @@ export function Leads() {
             Ниже md та же строка неудобна для узкого экрана, поэтому там вместо неё —
             карточка на лид (см. блок md:hidden сразу за этим). */}
         <div className="hidden overflow-x-auto md:block">
-          <div className="grid min-w-[1100px] grid-cols-[36px_130px_90px_1fr_100px_56px_1fr_130px_100px_110px_84px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
-            <span />
-            <span>Имя</span>
-            <span>Источник</span>
-            <span>Сфера деятельности</span>
-            <span>Площадь</span>
-            <span title="Требования">Треб.</span>
-            <span>Контакт</span>
+          <div className="grid min-w-[820px] grid-cols-[110px_1fr_130px_1fr_120px_48px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
             <span>Статус</span>
-            <span>Создан</span>
+            <span>Имя</span>
+            <span>Способ связи</span>
+            <span>Ссылка на диалог</span>
             <span>Посл. контакт</span>
             <span />
           </div>
           {sortedLeads.map((l) => (
             <div
               key={l.id}
-              className="grid min-w-[1100px] grid-cols-[36px_130px_90px_1fr_100px_56px_1fr_130px_100px_110px_84px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
+              onClick={() => openEditModal(l)}
+              className="grid min-w-[820px] cursor-pointer grid-cols-[110px_1fr_130px_1fr_120px_48px] items-center gap-4 border-t border-border px-6 py-4 text-sm hover:bg-surface-muted/60"
             >
+              <WarmBadge lead={l} onToggle={() => toggleWarm(l)} disabled={togglingId === l.id} />
+              <span className="truncate font-semibold text-ink">{l.name}</span>
+              <span className="truncate text-ink-muted">{l.contactMethod || '—'}</span>
+              <span className="truncate text-ink-muted" onClick={(e) => e.stopPropagation()}>
+                <ContactValue contact={l.contact} contactMethod={l.contactMethod} />
+              </span>
+              <span className="text-ink-muted">{formatDate(l.lastContactedAt)}</span>
               <button
                 type="button"
-                onClick={() => toggleWarm(l)}
-                disabled={togglingId === l.id}
-                className="flex h-6 w-6 items-center justify-center disabled:opacity-50"
-                aria-label="Отметить тёплым лидом"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteLead(l);
+                }}
+                disabled={deletingId === l.id}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint hover:text-danger disabled:opacity-50"
+                aria-label="Удалить лид"
               >
-                <Flame className={cn('h-4 w-4', l.isWarm ? 'fill-warning text-warning' : 'text-ink-faint')} />
+                <Trash2 className="h-4 w-4" />
               </button>
-              <span className="font-semibold text-ink">{l.name}</span>
-              <span className="text-ink-muted">{l.source}</span>
-              <span className="text-ink">{l.businessType}</span>
-              <span className="text-ink-muted">{l.area}</span>
-              <span>
-                <RequirementBadge requirement={l.requirement} />
-              </span>
-              <span className="truncate text-ink-muted">
-                <ContactValue contact={l.contact} />
-              </span>
-              <span className="text-ink-muted">{l.status}</span>
-              <span className="text-ink-muted">{formatDate(l.createdAt)}</span>
-              <span className="text-ink-muted">{formatDate(l.lastContactedAt)}</span>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => openEditModal(l)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                  aria-label="Редактировать лид"
-                >
-                  <Pencil className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteLead(l)}
-                  disabled={deletingId === l.id}
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint hover:text-danger disabled:opacity-50"
-                  aria-label="Удалить лид"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
             </div>
           ))}
           {loading && (
@@ -440,58 +440,38 @@ export function Leads() {
 
         <div className="flex flex-col gap-3 p-4 md:hidden">
           {sortedLeads.map((l) => (
-            <div key={l.id} className="flex flex-col gap-2.5 rounded-control border border-border p-3.5">
+            <div
+              key={l.id}
+              onClick={() => openEditModal(l)}
+              className="flex cursor-pointer flex-col gap-2.5 rounded-control border border-border p-3.5"
+            >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => toggleWarm(l)}
-                    disabled={togglingId === l.id}
-                    className="flex h-6 w-6 shrink-0 items-center justify-center disabled:opacity-50"
-                    aria-label="Отметить тёплым лидом"
-                  >
-                    <Flame className={cn('h-4 w-4', l.isWarm ? 'fill-warning text-warning' : 'text-ink-faint')} />
-                  </button>
+                  <WarmBadge lead={l} onToggle={() => toggleWarm(l)} disabled={togglingId === l.id} />
                   <span className="min-w-0 truncate font-semibold text-ink">{l.name}</span>
                 </div>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => openEditModal(l)}
-                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                    aria-label="Редактировать лид"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteLead(l)}
-                    disabled={deletingId === l.id}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint hover:text-danger disabled:opacity-50"
-                    aria-label="Удалить лид"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteLead(l);
+                  }}
+                  disabled={deletingId === l.id}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-danger disabled:opacity-50"
+                  aria-label="Удалить лид"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
               </div>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-muted">
-                {l.source && <span>{l.source}</span>}
-                {l.businessType && <span className="text-ink">{l.businessType}</span>}
-                {l.area && <span>{l.area}</span>}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-muted">
+                {l.contactMethod && <span>{l.contactMethod}</span>}
+                {l.contact && (
+                  <span className="truncate" onClick={(e) => e.stopPropagation()}>
+                    <ContactValue contact={l.contact} contactMethod={l.contactMethod} />
+                  </span>
+                )}
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <RequirementBadge requirement={l.requirement} />
-                {l.status && <span className="text-sm text-ink-muted">{l.status}</span>}
-              </div>
-              {l.contact && (
-                <div className="truncate text-sm text-ink-muted">
-                  <ContactValue contact={l.contact} />
-                </div>
-              )}
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-faint">
-                <span>Создан: {formatDate(l.createdAt)}</span>
-                <span>Посл. контакт: {formatDate(l.lastContactedAt)}</span>
-              </div>
+              <div className="text-xs text-ink-faint">Посл. контакт: {formatDate(l.lastContactedAt)}</div>
             </div>
           ))}
           {loading && (
@@ -535,7 +515,9 @@ export function Leads() {
                   >
                     <div className="min-w-0">
                       <div className="truncate font-semibold text-ink">{lead?.name ?? '—'}</div>
-                      <div className="truncate text-xs text-ink-muted">{lead && <ContactValue contact={lead.contact} />}</div>
+                      <div className="truncate text-xs text-ink-muted">
+                        {lead && <ContactValue contact={lead.contact} contactMethod={lead.contactMethod} />}
+                      </div>
                     </div>
                     <span className="text-ink">
                       {zone.label || zoneTypeLabels[zone.zoneType]}
@@ -625,7 +607,7 @@ export function Leads() {
                     <div className="min-w-0">
                       <div className="truncate font-semibold text-ink">{lead.name}</div>
                       <div className="truncate text-xs text-ink-muted">
-                        <ContactValue contact={lead.contact} />
+                        <ContactValue contact={lead.contact} contactMethod={lead.contactMethod} />
                       </div>
                     </div>
                     <span className="text-ink">
@@ -710,7 +692,7 @@ export function Leads() {
                         <div className="truncate font-semibold text-ink">{lead?.name ?? '—'}</div>
                         {lead?.contact && (
                           <div className="truncate text-xs text-ink-muted">
-                            <ContactValue contact={lead.contact} />
+                            <ContactValue contact={lead.contact} contactMethod={lead.contactMethod} />
                           </div>
                         )}
                       </div>
@@ -800,7 +782,7 @@ export function Leads() {
                         <div className="truncate font-semibold text-ink">{lead.name}</div>
                         {lead.contact && (
                           <div className="truncate text-xs text-ink-muted">
-                            <ContactValue contact={lead.contact} />
+                            <ContactValue contact={lead.contact} contactMethod={lead.contactMethod} />
                           </div>
                         )}
                       </div>
@@ -921,13 +903,28 @@ export function Leads() {
             newPlaceholder="Название требования"
           />
 
-          <Input
-            label="Контакт или ссылка на диалог"
-            placeholder="Телефон, Telegram, ссылка на переписку..."
-            value={form.contact}
-            onChange={(e) => setForm((f) => ({ ...f, contact: e.target.value }))}
-            required
-          />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input
+              label="Контакт или ссылка на диалог"
+              placeholder="Телефон, @username, ссылка на переписку..."
+              value={form.contact}
+              onChange={(e) => setForm((f) => ({ ...f, contact: e.target.value }))}
+              required
+            />
+            <AddableSelect
+              label="Способ связи"
+              placeholder="Не выбрано"
+              options={knownContactMethods}
+              value={form.contactMethod}
+              onChange={(v) => setForm((f) => ({ ...f, contactMethod: v }))}
+              addLabel="+ Добавить способ"
+              newPlaceholder="Название способа связи"
+            />
+          </div>
+          <p className="-mt-2 text-xs text-ink-faint">
+            Для Telegram укажи способ связи "Telegram" — тогда юзернейм (с @ или без) сам превратится в ссылку,
+            открывающую диалог.
+          </p>
 
           <div className="flex items-end gap-2">
             <div className="flex-1">
