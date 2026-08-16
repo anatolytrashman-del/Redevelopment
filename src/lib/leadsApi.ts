@@ -1,6 +1,11 @@
 import { supabase } from './supabase';
-import { withRetry } from './withRetry';
+import { withRetry, UPLOAD_TIMEOUT_MS } from './withRetry';
 import type { Lead, LeadRow } from '../data/leads';
+
+const LEAD_PHOTOS_BUCKET = 'lead-photos';
+// Час: карточку лида держат открытой недолго, а ссылка не должна оставаться
+// рабочей после того, как её случайно куда-то скопировали.
+const PHOTO_URL_TTL_SECONDS = 60 * 60;
 
 function fromRow(row: LeadRow): Lead {
   return {
@@ -17,8 +22,10 @@ function fromRow(row: LeadRow): Lead {
     status: row.status,
     isWarm: row.is_warm,
     objectId: row.object_id ?? '',
+    photoPath: row.photo_path ?? '',
     createdAt: row.created_at,
     lastContactedAt: row.last_contacted_at ?? '',
+    nextContactAt: row.next_contact_at ?? '',
   };
 }
 
@@ -72,7 +79,9 @@ export function insertLead(input: Omit<Lead, 'id' | 'createdAt'>): Promise<Lead>
         status: input.status,
         is_warm: input.isWarm,
         object_id: input.objectId || null,
+        photo_path: input.photoPath || null,
         last_contacted_at: input.lastContactedAt || null,
+        next_contact_at: input.nextContactAt || null,
       })
       .select()
       .single();
@@ -99,7 +108,9 @@ export function updateLead(id: string, input: Omit<Lead, 'id' | 'createdAt'>): P
         status: input.status,
         is_warm: input.isWarm,
         object_id: input.objectId || null,
+        photo_path: input.photoPath || null,
         last_contacted_at: input.lastContactedAt || null,
+        next_contact_at: input.nextContactAt || null,
       })
       .eq('id', id)
       .select()
@@ -115,4 +126,53 @@ export function deleteLead(id: string): Promise<void> {
     const { error } = await supabase.from('leads').delete().eq('id', id);
     if (error) throw error;
   });
+}
+
+// Фото лида лежат в ЗАКРЫТОМ бакете — в отличие от фотографий объектов
+// (uploadObjectImage в objectsApi.ts), которые публичные. Это фотографии
+// клиентов, и постоянная публичная ссылка на них не должна гулять по перепискам.
+//
+// Из-за этого возвращается путь файла, а не URL: готовой вечной ссылки у
+// закрытого бакета нет, её каждый раз подписывают заново (createLeadPhotoUrl).
+// В базе хранится именно путь — см. Lead.photoPath.
+export function uploadLeadPhoto(file: File): Promise<string> {
+  return withRetry(
+    async () => {
+      const ext = file.name.split('.').pop() ?? 'jpg';
+      const path = `${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from(LEAD_PHOTOS_BUCKET).upload(path, file);
+      if (error) throw error;
+      return path;
+    },
+    1000,
+    UPLOAD_TIMEOUT_MS,
+  );
+}
+
+// Подписанная ссылка на фото, живёт PHOTO_URL_TTL_SECONDS. Пустая строка на
+// входе или неудача подписи дают null — вызывающий показывает заглушку с
+// инициалами, а не битую картинку.
+export async function createLeadPhotoUrl(path: string): Promise<string | null> {
+  if (!path) return null;
+  try {
+    const { data, error } = await supabase.storage
+      .from(LEAD_PHOTOS_BUCKET)
+      .createSignedUrl(path, PHOTO_URL_TTL_SECONDS);
+    if (error) throw error;
+    return data?.signedUrl ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Удаление файла — best-effort: вызывается при замене и удалении фото, но
+// осиротевший файл в бакете менее неприятен, чем упавшее сохранение лида,
+// поэтому ошибку глушим.
+export async function deleteLeadPhoto(path: string): Promise<void> {
+  if (!path) return;
+  try {
+    await supabase.storage.from(LEAD_PHOTOS_BUCKET).remove([path]);
+  } catch {
+    // намеренно молча
+  }
 }

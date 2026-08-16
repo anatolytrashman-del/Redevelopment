@@ -21,6 +21,7 @@ import {
   type BuildingPlanZone,
 } from '../../data/buildingPlans';
 import type { RealtyObject } from '../../data/objects';
+import { NEW_BOOKING_LEAD_STATUS } from '../../data/leads';
 import { insertLead } from '../../lib/leadsApi';
 import { updateZone } from '../../lib/buildingPlansApi';
 import { insertWorkstationSeatLead } from '../../lib/workstationSeatLeadsApi';
@@ -223,10 +224,12 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
         contactMethod: '',
         phone: '',
         clientType: '',
-        status: 'Заявка на бронирование',
+        status: NEW_BOOKING_LEAD_STATUS,
         isWarm: true,
         objectId: object.id,
+        photoPath: '',
         lastContactedAt: '',
+        nextContactAt: '',
       });
       // Рабочие места продаются по одному внутри одной зоны — вместо
       // whole-zone брони (status+leadId) увеличиваем счётчик проданных мест

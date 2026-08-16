@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Plus, Loader2, Pencil, ArrowRight, Download, Trash2, Sparkles } from 'lucide-react';
+import { Plus, Loader2, Trash2, Upload, X } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -9,11 +8,24 @@ import { Select } from '../components/ui/Select';
 import { AddableSelect } from '../components/ui/AddableSelect';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Modal } from '../components/ui/Modal';
-import { leadSources, leadRequirements, leadContactMethods, leadClientTypes, type Lead, type LeadSource } from '../data/leads';
+import { ContactValue } from '../components/leads/ContactValue';
+import { LeadAvatar } from '../components/leads/LeadAvatar';
+import { LeadDetailModal } from '../components/leads/LeadDetailModal';
+import { LeadBookings, type BookingRow } from '../components/leads/LeadBookings';
+import {
+  leadSources,
+  leadRequirements,
+  leadContactMethods,
+  leadClientTypes,
+  leadStatuses,
+  type Lead,
+  type LeadSource,
+} from '../data/leads';
 import type { RealtyObject } from '../data/objects';
 import { zoneStatusBadgeClass, zoneTypeLabels, type BuildingPlan, type BuildingPlanZone } from '../data/buildingPlans';
 import { cn } from '../lib/cn';
-import { fetchLeads, insertLead, updateLead, deleteLead } from '../lib/leadsApi';
+import { todayIsoDate } from '../lib/todayIsoDate';
+import { fetchLeads, insertLead, updateLead, deleteLead, uploadLeadPhoto, deleteLeadPhoto } from '../lib/leadsApi';
 import { markLeadsViewed } from '../lib/leadsSeen';
 import { fetchObjects } from '../lib/objectsApi';
 import { fetchBookedZones, fetchBuildingPlans, fetchZonesByIds, updateZone } from '../lib/buildingPlansApi';
@@ -25,10 +37,6 @@ import {
 } from '../lib/workstationSeatLeadsApi';
 
 const NO_OBJECT = 'Не привязан';
-// Статус лида, который жёстко ставится в PublicPlanAndUnits.tsx при брони с
-// сайта — используем его же, чтобы отметить бронь как ещё не подтверждённую
-// менеджером: как только статус лида поменяют в карточке, отметка сама уйдёт.
-const NEW_BOOKING_LEAD_STATUS = 'Заявка на бронирование';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -50,7 +58,9 @@ const emptyForm = {
   status: '',
   isWarm: false,
   objectId: '',
+  photoPath: '',
   lastContactedAt: '',
+  nextContactAt: '',
 };
 
 function formatDate(iso: string): string {
@@ -60,45 +70,11 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-// Дата "как в html-инпуте" (YYYY-MM-DD) — и для value контролируемого
-// <input type="date">, и для отправки в last_contacted_at (колонка типа date).
-function todayIsoDate(): string {
-  const d = new Date();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${mm}-${dd}`;
-}
-
-// Контакт хранит и телефон, и телеграм-юзернейм, и голую ссылку на переписку
-// (например, диалог на Kufar) — способ связи (contactMethod) подсказывает,
-// как из этого сделать кликабельную ссылку, ведущую сразу в диалог:
-// Telegram-юзернейм превращается в t.me-ссылку, любой готовый http(s)-адрес
-// (Kufar и т.п.) используется как есть. Номера телефонов ссылкой не
-// становятся — с ними это ничего не открывает.
-function buildDialogLink(contactMethod: string, contact: string): string | null {
-  const trimmed = contact.trim();
-  if (!trimmed) return null;
-  if (contactMethod === 'Telegram') {
-    const handle = trimmed
-      .replace(/^https?:\/\//i, '')
-      .replace(/^(t\.me|telegram\.me)\//i, '')
-      .replace(/^@/, '');
-    return /^[a-zA-Z][a-zA-Z0-9_]{4,31}$/.test(handle) ? `https://t.me/${handle}` : null;
-  }
-  return /^https?:\/\//i.test(trimmed) ? trimmed : null;
-}
-
-function ContactValue({ contact, contactMethod }: { contact: string; contactMethod?: string }) {
-  if (!contact) return null;
-  const href = buildDialogLink(contactMethod ?? '', contact);
-  if (href) {
-    return (
-      <a href={href} target="_blank" rel="noreferrer" className="truncate text-primary hover:underline">
-        {contact}
-      </a>
-    );
-  }
-  return <>{contact}</>;
+// Просрочен ли следующий контакт: дата назначена и она раньше сегодняшней.
+// Сравниваем строки YYYY-MM-DD, а не Date — обе в одном формате, и это
+// избавляет от разницы часовых поясов при разборе даты без времени.
+function isOverdue(nextContactAt: string): boolean {
+  return !!nextContactAt && nextContactAt < todayIsoDate();
 }
 
 // "Статус" в смысле важности лида — это isWarm, отдельно от status
@@ -136,7 +112,32 @@ function leadToForm(l: Lead) {
     status: l.status,
     isWarm: l.isWarm,
     objectId: l.objectId,
+    photoPath: l.photoPath,
     lastContactedAt: l.lastContactedAt,
+    nextContactAt: l.nextContactAt,
+  };
+}
+
+// Полный payload лида для insert/update. Собирался копипастой в трёх местах
+// (сохранение формы, переключение "важного", и легко забывался при добавлении
+// поля) — из-за чего новое поле могло молча затираться при toggleWarm.
+function leadPayload(l: Omit<Lead, 'id' | 'createdAt'>): Omit<Lead, 'id' | 'createdAt'> {
+  return {
+    name: l.name,
+    source: l.source,
+    businessType: l.businessType,
+    area: l.area,
+    requirement: l.requirement,
+    contact: l.contact,
+    contactMethod: l.contactMethod,
+    phone: l.phone,
+    clientType: l.clientType,
+    status: l.status,
+    isWarm: l.isWarm,
+    objectId: l.objectId,
+    photoPath: l.photoPath,
+    lastContactedAt: l.lastContactedAt,
+    nextContactAt: l.nextContactAt,
   };
 }
 
@@ -151,10 +152,14 @@ export function Leads() {
   const [seatZones, setSeatZones] = useState<BuildingPlanZone[]>([]);
   const [signedAgreements, setSignedAgreements] = useState<SignedAgreementSummary[]>([]);
   const [open, setOpen] = useState(false);
+  // Карточка лида (просмотр) — промежуточный шаг между списком и формой:
+  // клик по строке открывает её, а форма редактирования вызывается уже оттуда.
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [toggleError, setToggleError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -174,6 +179,14 @@ export function Leads() {
   const knownClientTypes = useMemo(() => {
     const set = new Set<string>(leadClientTypes);
     leads.forEach((l) => l.clientType && set.add(l.clientType));
+    return [...set];
+  }, [leads]);
+
+  // Пресет плюс всё, что уже встречается в базе: статус раньше был свободным
+  // текстом, и накопленные значения не должны пропасть из выпадающего списка.
+  const knownStatuses = useMemo(() => {
+    const set = new Set<string>(leadStatuses);
+    leads.forEach((l) => l.status && set.add(l.status));
     return [...set];
   }, [leads]);
 
@@ -257,6 +270,42 @@ export function Leads() {
     [signedAgreements],
   );
 
+  // Брони зон и брони отдельных рабочих мест приводятся к одной форме, чтобы
+  // рисоваться единым кодом (см. LeadBookings). Отличий ровно два: подпись
+  // после названия кабинета и бейдж статуса.
+  const bookingRows = useMemo<BookingRow[]>(() => {
+    const zoneRows = bookedZones.map((zone) => ({
+      key: `zone:${zone.id}`,
+      lead: leadById.get(zone.leadId),
+      unitLabel: zone.label || zoneTypeLabels[zone.zoneType],
+      unitSuffix: zone.area != null ? `${zone.area} м²` : '',
+      statusLabel: zone.status,
+      statusClass: zoneStatusBadgeClass[zone.status],
+      object: objectByPlanId.get(zone.buildingPlanId),
+      plan: planById.get(zone.buildingPlanId),
+      agreement: signedAgreementByKey.get(`${zone.id}:${zone.leadId}`),
+    }));
+
+    const seatRows = seatBookingRows.map(({ seat, zone, lead }) => ({
+      key: `seat:${seat.id}`,
+      lead,
+      unitLabel: zone.label || zoneTypeLabels[zone.zoneType],
+      unitSuffix: 'место',
+      statusLabel: 'Место забронировано',
+      statusClass: 'bg-warning/15 text-warning',
+      object: objectByPlanId.get(zone.buildingPlanId),
+      plan: planById.get(zone.buildingPlanId),
+      agreement: signedAgreementByKey.get(`${zone.id}:${lead.id}`),
+    }));
+
+    return [...zoneRows, ...seatRows];
+  }, [bookedZones, seatBookingRows, leadById, objectByPlanId, planById, signedAgreementByKey]);
+
+  // Лид для карточки берём из общего списка по id, а не копируем в стейт: иначе
+  // после сохранения формы или добавления заметки в карточке остались бы старые
+  // данные, пока её не закроют и не откроют заново.
+  const detailLead = detailId ? (leadById.get(detailId) ?? null) : null;
+
   const objectOptions = [NO_OBJECT, ...objects.map((o) => o.address)];
 
   function objectLabel(objectId: string) {
@@ -276,7 +325,37 @@ export function Leads() {
     setEditingId(l.id);
     setForm(leadToForm(l));
     setSubmitError(null);
+    // Карточку закрываем: две модалки одновременно перекрывали бы друг друга.
+    setDetailId(null);
     setOpen(true);
+  }
+
+  // Фото уходит в бакет сразу при выборе файла, а не при сохранении формы:
+  // так видно превью и понятно, что загрузка прошла. Если это замена, старый
+  // файл удаляем, чтобы бакет не заполнялся мусором.
+  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || photoUploading) return;
+
+    setPhotoUploading(true);
+    setSubmitError(null);
+    const previous = form.photoPath;
+    try {
+      const path = await uploadLeadPhoto(file);
+      setForm((f) => ({ ...f, photoPath: path }));
+      if (previous) await deleteLeadPhoto(previous);
+    } catch (err) {
+      setSubmitError(errorMessage(err, 'Не удалось загрузить фото'));
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
+
+  async function handlePhotoRemove() {
+    const path = form.photoPath;
+    setForm((f) => ({ ...f, photoPath: '' }));
+    await deleteLeadPhoto(path);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -285,21 +364,7 @@ export function Leads() {
 
     setSubmitting(true);
     setSubmitError(null);
-    const payload = {
-      name: form.name,
-      source: form.source,
-      businessType: form.businessType,
-      area: form.area,
-      requirement: form.requirement,
-      contact: form.contact,
-      contactMethod: form.contactMethod,
-      phone: form.phone,
-      clientType: form.clientType,
-      status: form.status,
-      isWarm: form.isWarm,
-      objectId: form.objectId,
-      lastContactedAt: form.lastContactedAt,
-    };
+    const payload = leadPayload(form);
     try {
       if (editingId) {
         const updated = await updateLead(editingId, payload);
@@ -325,21 +390,7 @@ export function Leads() {
     const next = { ...l, isWarm: !l.isWarm };
     setLeads((prev) => prev.map((x) => (x.id === l.id ? next : x)));
     try {
-      const updated = await updateLead(l.id, {
-        name: next.name,
-        source: next.source,
-        businessType: next.businessType,
-        area: next.area,
-        requirement: next.requirement,
-        contact: next.contact,
-        contactMethod: next.contactMethod,
-        phone: next.phone,
-        clientType: next.clientType,
-        status: next.status,
-        isWarm: next.isWarm,
-        objectId: next.objectId,
-        lastContactedAt: next.lastContactedAt,
-      });
+      const updated = await updateLead(l.id, leadPayload(next));
       setLeads((prev) => prev.map((x) => (x.id === l.id ? updated : x)));
     } catch (err) {
       setLeads((prev) => prev.map((x) => (x.id === l.id ? l : x)));
@@ -381,7 +432,11 @@ export function Leads() {
         setSeatZones((prev) => prev.map((z) => (z.id === releasedZone.id ? releasedZone : z)));
       }
       await deleteLead(lead.id);
+      // Заметки удаляются каскадом (on delete cascade у lead_notes.lead_id),
+      // а файл фото в бакете каскадом не удаляется — убираем вручную.
+      await deleteLeadPhoto(lead.photoPath);
       setLeads((prev) => prev.filter((l) => l.id !== lead.id));
+      setDetailId(null);
     } catch (err) {
       setToggleError(errorMessage(err, 'Не удалось удалить лид'));
     } finally {
@@ -405,27 +460,34 @@ export function Leads() {
             Ниже md та же строка неудобна для узкого экрана, поэтому там вместо неё —
             карточка на лид (см. блок md:hidden сразу за этим). */}
         <div className="hidden overflow-x-auto md:block">
-          <div className="grid min-w-[820px] grid-cols-[110px_1fr_130px_1fr_120px_48px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
+          <div className="grid min-w-[900px] grid-cols-[110px_1fr_130px_1fr_120px_120px_48px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
             <span>Статус</span>
             <span>Имя</span>
             <span>Способ связи</span>
             <span>Ссылка на диалог</span>
             <span>Посл. контакт</span>
+            <span>Следующий</span>
             <span />
           </div>
           {sortedLeads.map((l) => (
             <div
               key={l.id}
-              onClick={() => openEditModal(l)}
-              className="grid min-w-[820px] cursor-pointer grid-cols-[110px_1fr_130px_1fr_120px_48px] items-center gap-4 border-t border-border px-6 py-4 text-sm hover:bg-surface-muted/60"
+              onClick={() => setDetailId(l.id)}
+              className="grid min-w-[900px] cursor-pointer grid-cols-[110px_1fr_130px_1fr_120px_120px_48px] items-center gap-4 border-t border-border px-6 py-4 text-sm hover:bg-surface-muted/60"
             >
               <WarmBadge lead={l} onToggle={() => toggleWarm(l)} disabled={togglingId === l.id} />
-              <span className="truncate font-semibold text-ink">{l.name}</span>
+              <span className="flex min-w-0 items-center gap-2.5">
+                <LeadAvatar name={l.name} photoPath={l.photoPath} />
+                <span className="truncate font-semibold text-ink">{l.name}</span>
+              </span>
               <span className="truncate text-ink-muted">{l.contactMethod || '—'}</span>
               <span className="truncate text-ink-muted" onClick={(e) => e.stopPropagation()}>
                 <ContactValue contact={l.contact} contactMethod={l.contactMethod} />
               </span>
               <span className="text-ink-muted">{formatDate(l.lastContactedAt)}</span>
+              <span className={cn(isOverdue(l.nextContactAt) ? 'font-semibold text-danger' : 'text-ink-muted')}>
+                {formatDate(l.nextContactAt)}
+              </span>
               <button
                 type="button"
                 onClick={(e) => {
@@ -456,11 +518,12 @@ export function Leads() {
           {sortedLeads.map((l) => (
             <div
               key={l.id}
-              onClick={() => openEditModal(l)}
+              onClick={() => setDetailId(l.id)}
               className="flex cursor-pointer flex-col gap-2.5 rounded-control border border-border p-3.5"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
+                  <LeadAvatar name={l.name} photoPath={l.photoPath} />
                   <WarmBadge lead={l} onToggle={() => toggleWarm(l)} disabled={togglingId === l.id} />
                   <span className="min-w-0 truncate font-semibold text-ink">{l.name}</span>
                 </div>
@@ -485,7 +548,14 @@ export function Leads() {
                   </span>
                 )}
               </div>
-              <div className="text-xs text-ink-faint">Посл. контакт: {formatDate(l.lastContactedAt)}</div>
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-faint">
+                <span>Посл. контакт: {formatDate(l.lastContactedAt)}</span>
+                {l.nextContactAt && (
+                  <span className={cn(isOverdue(l.nextContactAt) && 'font-semibold text-danger')}>
+                    Следующий: {formatDate(l.nextContactAt)}
+                  </span>
+                )}
+              </div>
             </div>
           ))}
           {loading && (
@@ -503,378 +573,41 @@ export function Leads() {
 
       {toggleError && <p className="text-sm text-danger">{toggleError}</p>}
 
-      {(bookedZones.length > 0 || seatBookingRows.length > 0) && (
-        <div className="flex flex-col gap-4">
-          <div className="text-lg font-bold text-ink">Брони кабинетов</div>
-          <Card className="flex flex-col gap-4 p-0">
-            <div className="hidden overflow-x-auto md:block">
-              <div className="grid min-w-[1020px] grid-cols-[1fr_150px_1fr_150px_150px_140px_84px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
-                <span>Лид</span>
-                <span>Кабинет</span>
-                <span>Объект</span>
-                <span>Статус</span>
-                <span>Соглашение</span>
-                <span />
-                <span />
-              </div>
-              {bookedZones.map((zone) => {
-                const lead = leadById.get(zone.leadId);
-                const plan = planById.get(zone.buildingPlanId);
-                const object = objectByPlanId.get(zone.buildingPlanId);
-                const agreement = signedAgreementByKey.get(`${zone.id}:${zone.leadId}`);
-                return (
-                  <div
-                    key={zone.id}
-                    className="grid min-w-[1020px] grid-cols-[1fr_150px_1fr_150px_150px_140px_84px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
-                  >
-                    <div className="min-w-0">
-                      <div className="truncate font-semibold text-ink">{lead?.name ?? '—'}</div>
-                      <div className="truncate text-xs text-ink-muted">
-                        {lead && <ContactValue contact={lead.contact} contactMethod={lead.contactMethod} />}
-                      </div>
-                    </div>
-                    <span className="text-ink">
-                      {zone.label || zoneTypeLabels[zone.zoneType]}
-                      {zone.area != null && <span className="text-ink-muted"> · {zone.area} м²</span>}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="truncate text-ink">{object?.address ?? '—'}</div>
-                      {plan && <div className="truncate text-xs text-ink-muted">{plan.name}</div>}
-                    </div>
-                    <span className="flex items-center gap-1.5">
-                      <span
-                        className={cn(
-                          'w-fit rounded-full px-3 py-1 text-xs font-semibold',
-                          zoneStatusBadgeClass[zone.status],
-                        )}
-                      >
-                        {zone.status}
-                      </span>
-                      {lead?.status === NEW_BOOKING_LEAD_STATUS && (
-                        <span
-                          title="Новая бронь с сайта — ещё не подтверждена"
-                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-warning/15 text-warning"
-                        >
-                          <Sparkles className="h-3.5 w-3.5" />
-                        </span>
-                      )}
-                    </span>
-                    {agreement ? (
-                      <a
-                        href={agreement.documentUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        Подписано
-                      </a>
-                    ) : (
-                      <span className="text-ink-faint">Не подписано</span>
-                    )}
-                    {object ? (
-                      <Link
-                        to={`/admin/objects/${object.landingSlug || object.id}`}
-                        className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-                      >
-                        На план
-                        <ArrowRight className="h-3.5 w-3.5" />
-                      </Link>
-                    ) : (
-                      <span />
-                    )}
-                    {lead ? (
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(lead)}
-                          className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                          aria-label="Редактировать лид"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteLead(lead)}
-                          disabled={deletingId === lead.id}
-                          className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint hover:text-danger disabled:opacity-50"
-                          aria-label="Удалить лид"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <span />
-                    )}
-                  </div>
-                );
-              })}
-              {seatBookingRows.map(({ seat, zone, lead }) => {
-                const plan = planById.get(zone.buildingPlanId);
-                const object = objectByPlanId.get(zone.buildingPlanId);
-                const agreement = signedAgreementByKey.get(`${zone.id}:${lead.id}`);
-                return (
-                  <div
-                    key={seat.id}
-                    className="grid min-w-[1020px] grid-cols-[1fr_150px_1fr_150px_150px_140px_84px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
-                  >
-                    <div className="min-w-0">
-                      <div className="truncate font-semibold text-ink">{lead.name}</div>
-                      <div className="truncate text-xs text-ink-muted">
-                        <ContactValue contact={lead.contact} contactMethod={lead.contactMethod} />
-                      </div>
-                    </div>
-                    <span className="text-ink">
-                      {zone.label || zoneTypeLabels[zone.zoneType]}
-                      <span className="text-ink-muted"> · место</span>
-                    </span>
-                    <div className="min-w-0">
-                      <div className="truncate text-ink">{object?.address ?? '—'}</div>
-                      {plan && <div className="truncate text-xs text-ink-muted">{plan.name}</div>}
-                    </div>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-fit rounded-full bg-warning/15 px-3 py-1 text-xs font-semibold text-warning">
-                        Место забронировано
-                      </span>
-                      {lead.status === NEW_BOOKING_LEAD_STATUS && (
-                        <span
-                          title="Новая бронь с сайта — ещё не подтверждена"
-                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-warning/15 text-warning"
-                        >
-                          <Sparkles className="h-3.5 w-3.5" />
-                        </span>
-                      )}
-                    </span>
-                    {agreement ? (
-                      <a
-                        href={agreement.documentUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        Подписано
-                      </a>
-                    ) : (
-                      <span className="text-ink-faint">Не подписано</span>
-                    )}
-                    {object ? (
-                      <Link
-                        to={`/admin/objects/${object.landingSlug || object.id}`}
-                        className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-                      >
-                        На план
-                        <ArrowRight className="h-3.5 w-3.5" />
-                      </Link>
-                    ) : (
-                      <span />
-                    )}
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => openEditModal(lead)}
-                        className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                        aria-label="Редактировать лид"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteLead(lead)}
-                        disabled={deletingId === lead.id}
-                        className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint hover:text-danger disabled:opacity-50"
-                        aria-label="Удалить лид"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="flex flex-col gap-3 p-4 md:hidden">
-              {bookedZones.map((zone) => {
-                const lead = leadById.get(zone.leadId);
-                const plan = planById.get(zone.buildingPlanId);
-                const object = objectByPlanId.get(zone.buildingPlanId);
-                const agreement = signedAgreementByKey.get(`${zone.id}:${zone.leadId}`);
-                return (
-                  <div key={zone.id} className="flex flex-col gap-2.5 rounded-control border border-border p-3.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="truncate font-semibold text-ink">{lead?.name ?? '—'}</div>
-                        {lead?.contact && (
-                          <div className="truncate text-xs text-ink-muted">
-                            <ContactValue contact={lead.contact} contactMethod={lead.contactMethod} />
-                          </div>
-                        )}
-                      </div>
-                      {lead && (
-                        <div className="flex shrink-0 items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(lead)}
-                            className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                            aria-label="Редактировать лид"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteLead(lead)}
-                            disabled={deletingId === lead.id}
-                            className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint hover:text-danger disabled:opacity-50"
-                            aria-label="Удалить лид"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="text-sm text-ink">
-                      {zone.label || zoneTypeLabels[zone.zoneType]}
-                      {zone.area != null && <span className="text-ink-muted"> · {zone.area} м²</span>}
-                    </div>
-                    <div className="min-w-0 text-sm">
-                      <div className="truncate text-ink">{object?.address ?? '—'}</div>
-                      {plan && <div className="truncate text-xs text-ink-muted">{plan.name}</div>}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span
-                        className={cn(
-                          'w-fit rounded-full px-3 py-1 text-xs font-semibold',
-                          zoneStatusBadgeClass[zone.status],
-                        )}
-                      >
-                        {zone.status}
-                      </span>
-                      {lead?.status === NEW_BOOKING_LEAD_STATUS && (
-                        <span
-                          title="Новая бронь с сайта — ещё не подтверждена"
-                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-warning/15 text-warning"
-                        >
-                          <Sparkles className="h-3.5 w-3.5" />
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
-                      {agreement ? (
-                        <a
-                          href={agreement.documentUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex w-fit items-center gap-1.5 font-medium text-primary hover:underline"
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                          Подписано
-                        </a>
-                      ) : (
-                        <span className="text-ink-faint">Не подписано</span>
-                      )}
-                      {object && (
-                        <Link
-                          to={`/admin/objects/${object.landingSlug || object.id}`}
-                          className="flex items-center gap-1 font-medium text-primary hover:underline"
-                        >
-                          На план
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              {seatBookingRows.map(({ seat, zone, lead }) => {
-                const plan = planById.get(zone.buildingPlanId);
-                const object = objectByPlanId.get(zone.buildingPlanId);
-                const agreement = signedAgreementByKey.get(`${zone.id}:${lead.id}`);
-                return (
-                  <div key={seat.id} className="flex flex-col gap-2.5 rounded-control border border-border p-3.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="truncate font-semibold text-ink">{lead.name}</div>
-                        {lead.contact && (
-                          <div className="truncate text-xs text-ink-muted">
-                            <ContactValue contact={lead.contact} contactMethod={lead.contactMethod} />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(lead)}
-                          className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                          aria-label="Редактировать лид"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteLead(lead)}
-                          disabled={deletingId === lead.id}
-                          className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint hover:text-danger disabled:opacity-50"
-                          aria-label="Удалить лид"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="text-sm text-ink">
-                      {zone.label || zoneTypeLabels[zone.zoneType]}
-                      <span className="text-ink-muted"> · место</span>
-                    </div>
-                    <div className="min-w-0 text-sm">
-                      <div className="truncate text-ink">{object?.address ?? '—'}</div>
-                      {plan && <div className="truncate text-xs text-ink-muted">{plan.name}</div>}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="w-fit rounded-full bg-warning/15 px-3 py-1 text-xs font-semibold text-warning">
-                        Место забронировано
-                      </span>
-                      {lead.status === NEW_BOOKING_LEAD_STATUS && (
-                        <span
-                          title="Новая бронь с сайта — ещё не подтверждена"
-                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-warning/15 text-warning"
-                        >
-                          <Sparkles className="h-3.5 w-3.5" />
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
-                      {agreement ? (
-                        <a
-                          href={agreement.documentUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex w-fit items-center gap-1.5 font-medium text-primary hover:underline"
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                          Подписано
-                        </a>
-                      ) : (
-                        <span className="text-ink-faint">Не подписано</span>
-                      )}
-                      {object && (
-                        <Link
-                          to={`/admin/objects/${object.landingSlug || object.id}`}
-                          className="flex items-center gap-1 font-medium text-primary hover:underline"
-                        >
-                          На план
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
-        </div>
-      )}
+      <LeadBookings
+        rows={bookingRows}
+        onEditLead={openEditModal}
+        onDeleteLead={handleDeleteLead}
+        deletingId={deletingId}
+      />
 
       <Modal open={open} onClose={() => setOpen(false)} title={editingId ? 'Редактировать лид' : 'Новый лид'}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex items-center gap-4">
+            <LeadAvatar name={form.name || '?'} photoPath={form.photoPath} size="lg" />
+            <div className="flex flex-col items-start gap-1.5">
+              <label
+                className={cn(
+                  'inline-flex cursor-pointer items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold text-ink hover:border-border-strong',
+                  photoUploading && 'pointer-events-none opacity-50',
+                )}
+              >
+                {photoUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                {photoUploading ? 'Загружаем...' : form.photoPath ? 'Заменить фото' : 'Загрузить фото'}
+                <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+              </label>
+              {form.photoPath && !photoUploading && (
+                <button
+                  type="button"
+                  onClick={handlePhotoRemove}
+                  className="inline-flex items-center gap-1 text-xs text-ink-muted underline underline-offset-2 hover:text-danger"
+                >
+                  <X className="h-3 w-3" />
+                  Удалить фото
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input
               label="Имя"
@@ -973,18 +706,30 @@ export function Leads() {
             </Button>
           </div>
 
+          <Input
+            label="Дата следующего контакта"
+            type="date"
+            value={form.nextContactAt}
+            onChange={(e) => setForm((f) => ({ ...f, nextContactAt: e.target.value }))}
+          />
+          <p className="-mt-2 text-xs text-ink-faint">
+            Когда планируешь связаться в следующий раз. Просроченная дата подсвечивается в списке красным.
+          </p>
+
           {editingId && (
             <p className="text-xs text-ink-faint">
               Лид создан: {formatDate(leads.find((l) => l.id === editingId)?.createdAt ?? '')}
             </p>
           )}
 
-          <Input
+          <AddableSelect
             label="Статус"
-            placeholder="Например, первичный контакт, показ назначен..."
+            placeholder="Не выбрано"
+            options={knownStatuses}
             value={form.status}
-            onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-            required
+            onChange={(v) => setForm((f) => ({ ...f, status: v }))}
+            addLabel="+ Добавить статус"
+            newPlaceholder="Название статуса"
           />
 
           <Select
@@ -1020,6 +765,18 @@ export function Leads() {
           </div>
         </form>
       </Modal>
+
+      <LeadDetailModal
+        lead={detailLead}
+        object={detailLead ? objects.find((o) => o.id === detailLead.objectId) : undefined}
+        onClose={() => setDetailId(null)}
+        onEdit={openEditModal}
+        onDelete={handleDeleteLead}
+        onLastContactedChange={(leadId, lastContactedAt) =>
+          setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, lastContactedAt } : l)))
+        }
+        deleting={deletingId === detailLead?.id}
+      />
     </>
   );
 }
