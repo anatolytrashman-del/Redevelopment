@@ -11,6 +11,7 @@ import type { Lead } from '../../data/leads';
 import type { LeadNote } from '../../data/leadNotes';
 import type { RealtyObject } from '../../data/objects';
 import { fetchLeadNotes, insertLeadNote, deleteLeadNote } from '../../lib/leadNotesApi';
+import { tryAutoFillTelegramAvatar } from '../../lib/leadsApi';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -51,9 +52,10 @@ interface LeadDetailModalProps {
   onClose: () => void;
   onEdit: (lead: Lead) => void;
   onDelete: (lead: Lead) => void;
-  // Заметка двигает дату последнего контакта — сообщаем странице, чтобы список
-  // обновился без перезагрузки.
-  onLastContactedChange: (leadId: string, lastContactedAt: string) => void;
+  // Заметка двигает дату последнего контакта, автоподтягивание аватара
+  // меняет photoPath — оба случая сообщают странице обновлённого лида целиком,
+  // чтобы список обновился без перезагрузки.
+  onLeadUpdated: (lead: Lead) => void;
   deleting: boolean;
 }
 
@@ -63,7 +65,7 @@ export function LeadDetailModal({
   onClose,
   onEdit,
   onDelete,
-  onLastContactedChange,
+  onLeadUpdated,
   deleting,
 }: LeadDetailModalProps) {
   const [notes, setNotes] = useState<LeadNote[]>([]);
@@ -98,6 +100,23 @@ export function LeadDetailModal({
     };
   }, [leadId]);
 
+  // Пробуем подтянуть аватар из Telegram при открытии карточки — покрывает
+  // и старых лидов без фото (заведённых до этой фичи), и новых, если фон-фетч
+  // после сохранения формы (см. Leads.tsx) почему-то не сработал. Внутри уже
+  // есть проверка на contactMethod/photoPath — просто вызываем на каждое
+  // открытие, лишний раз не сходит, если фото уже есть.
+  useEffect(() => {
+    if (!lead) return;
+    let active = true;
+    tryAutoFillTelegramAvatar(lead).then((updated) => {
+      if (active && updated) onLeadUpdated(updated);
+    });
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leadId]);
+
   if (!lead) return null;
 
   async function handleAddNote() {
@@ -109,7 +128,7 @@ export function LeadDetailModal({
       const { note, lastContactedAt } = await insertLeadNote(lead.id, body);
       setNotes((prev) => [note, ...prev]);
       setDraft('');
-      onLastContactedChange(lead.id, lastContactedAt);
+      onLeadUpdated({ ...lead, lastContactedAt });
     } catch (err) {
       setNotesError(errorMessage(err, 'Не удалось сохранить заметку'));
     } finally {

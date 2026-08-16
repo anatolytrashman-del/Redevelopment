@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 import { withRetry, UPLOAD_TIMEOUT_MS } from './withRetry';
+import { extractTelegramHandle } from './telegramHandle';
+import { fetchTelegramAvatarBlob } from './telegramAvatarApi';
 import type { Lead, LeadRow } from '../data/leads';
 
 const LEAD_PHOTOS_BUCKET = 'lead-photos';
@@ -174,5 +176,46 @@ export async function deleteLeadPhoto(path: string): Promise<void> {
     await supabase.storage.from(LEAD_PHOTOS_BUCKET).remove([path]);
   } catch {
     // намеренно молча
+  }
+}
+
+// Автоподтягивание аватара из Telegram: срабатывает только если способ связи —
+// Telegram, контакт похож на валидный юзернейм, и фото ещё не загружено
+// вручную (ручная загрузка всегда в приоритете — сюда просто не заходим, если
+// photoPath уже не пустой). Любая неудача (приватность профиля, юзернейма не
+// существует, сеть) — тихо возвращает null, вызывающий ничего не показывает.
+//
+// Идёт через тот же uploadLeadPhoto, что и ручная загрузка — тот же закрытый
+// бакет, та же логика подписанных ссылок, дублировать нечего.
+export async function tryAutoFillTelegramAvatar(lead: Lead): Promise<Lead | null> {
+  if (lead.photoPath || lead.contactMethod !== 'Telegram') return null;
+  const handle = extractTelegramHandle(lead.contact);
+  if (!handle) return null;
+
+  const blob = await fetchTelegramAvatarBlob(handle);
+  if (!blob) return null;
+
+  try {
+    const file = new File([blob], `${handle}.jpg`, { type: blob.type || 'image/jpeg' });
+    const photoPath = await uploadLeadPhoto(file);
+    return await updateLead(lead.id, {
+      name: lead.name,
+      source: lead.source,
+      businessType: lead.businessType,
+      area: lead.area,
+      requirement: lead.requirement,
+      contact: lead.contact,
+      contactMethod: lead.contactMethod,
+      phone: lead.phone,
+      clientType: lead.clientType,
+      status: lead.status,
+      isWarm: lead.isWarm,
+      objectId: lead.objectId,
+      photoPath,
+      lastContactedAt: lead.lastContactedAt,
+      nextContactAt: lead.nextContactAt,
+    });
+  } catch {
+    return null;
   }
 }

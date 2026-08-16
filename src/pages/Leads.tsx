@@ -25,7 +25,15 @@ import type { RealtyObject } from '../data/objects';
 import { zoneStatusBadgeClass, zoneTypeLabels, type BuildingPlan, type BuildingPlanZone } from '../data/buildingPlans';
 import { cn } from '../lib/cn';
 import { todayIsoDate } from '../lib/todayIsoDate';
-import { fetchLeads, insertLead, updateLead, deleteLead, uploadLeadPhoto, deleteLeadPhoto } from '../lib/leadsApi';
+import {
+  fetchLeads,
+  insertLead,
+  updateLead,
+  deleteLead,
+  uploadLeadPhoto,
+  deleteLeadPhoto,
+  tryAutoFillTelegramAvatar,
+} from '../lib/leadsApi';
 import { markLeadsViewed } from '../lib/leadsSeen';
 import { fetchObjects } from '../lib/objectsApi';
 import { fetchBookedZones, fetchBuildingPlans, fetchZonesByIds, updateZone } from '../lib/buildingPlansApi';
@@ -358,6 +366,17 @@ export function Leads() {
     await deleteLeadPhoto(path);
   }
 
+  // Фоновая попытка подтянуть аватар из Telegram после сохранения лида — не
+  // await'ится в handleSubmit: сохранение и закрытие формы не должны ждать
+  // стороннего запроса к t.me, который может быть медленным или недоступным.
+  // Обновляет список, когда (и если) фото найдётся; молчит, если нет —
+  // пользователь при необходимости загрузит фото сам.
+  function autoFillTelegramAvatar(lead: Lead) {
+    tryAutoFillTelegramAvatar(lead).then((updated) => {
+      if (updated) setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+    });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit || submitting) return;
@@ -369,9 +388,11 @@ export function Leads() {
       if (editingId) {
         const updated = await updateLead(editingId, payload);
         setLeads((prev) => prev.map((l) => (l.id === editingId ? updated : l)));
+        autoFillTelegramAvatar(updated);
       } else {
         const created = await insertLead(payload);
         setLeads((prev) => [created, ...prev]);
+        autoFillTelegramAvatar(created);
       }
       setForm(emptyForm);
       setEditingId(null);
@@ -772,9 +793,7 @@ export function Leads() {
         onClose={() => setDetailId(null)}
         onEdit={openEditModal}
         onDelete={handleDeleteLead}
-        onLastContactedChange={(leadId, lastContactedAt) =>
-          setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, lastContactedAt } : l)))
-        }
+        onLeadUpdated={(updated) => setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)))}
         deleting={deletingId === detailLead?.id}
       />
     </>
