@@ -1,0 +1,181 @@
+# Redevelopment — CRM + продающий сайт для редевелопмента коммерческой недвижимости
+
+Прототип-переросший-в-прод для компании, которая переделывает здания под аренду/продажу
+кабинетов и рабочих мест малому бизнесу. Один и тот же кодовый репозиторий обслуживает
+две разные аудитории:
+
+- **Админка** (`/admin/...`, за паролем — см. `PasswordGate`) — внутренняя CRM: лиды,
+  сделки/транзакции, объекты недвижимости, задачи, документы.
+- **Публичная часть** (`/`, `/:slug`, `/plan/:token`) — продающие лендинги объектов
+  (клиент смотрит планировку, бронирует кабинет/рабочее место, подписывает соглашение
+  о намерениях удалённо через email-код).
+
+Домен в проде: **redevelopment.pro**. Владелец на связи как anatoly.trashman@gmail.com.
+
+## Стек
+
+- React 19 + TypeScript + Vite 8 + Tailwind CSS v4 + react-router-dom v7
+- Supabase (`@supabase/supabase-js`) — только anon/publishable key на фронте, без auth;
+  доступ регулируется RLS-политиками в самой базе, не секретностью ключа
+  (см. `src/lib/supabase.ts`)
+- lucide-react — иконки
+- Vercel serverless functions (`api/*.js`, обычный JS, не TS) — всё, что требует секретов
+  (service-role ключ Supabase, Resend, Google OAuth)
+
+## Деплой — ДВЕ цели одновременно
+
+1. **Vercel → redevelopment.pro** — прод. Собирается автоматически при пуше в
+   `claude/redevelopment-platform-prototype-oodobu` (Vercel git-интеграция, вне репозитория,
+   конфигурации workflow для неё нет). Единственное место, где реально работают `api/*.js`
+   (GitHub Pages — статический хостинг, serverless-функции там не выполняются).
+2. **GitHub Pages** (`.github/workflows/deploy-pages.yml`) → `anatolytrashman-del.github.io/Redevelopment/`.
+   Собирается тем же пушем. Держим ли ещё это в актуальном использовании — не факт, но
+   workflow жив и зелёный; при возникновении вопросов "почему два деплоя" — вот ответ.
+
+Нужные env-переменные на Vercel (секреты, не в репозитории):
+
+```
+SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY      — server-side доступ в обход RLS (api/*.js)
+RESEND_API_KEY, RESEND_FROM                  — письма с OTP-кодом подписания
+GOOGLE_OAUTH_CLIENT_ID / _SECRET / _REFRESH_TOKEN
+INTENT_AGREEMENT_TEMPLATE_ID                 — id гугл-шаблона "соглашение о намерениях"
+WORKSTATION_AGREEMENT_TEMPLATE_ID            — отдельный шаблон для рабочих мест
+KUFAR_BEARER_TOKEN, REALT_COOKIE, AVITO_COOKIE, MEGAPOLIS_COOKIE
+                                              — авторизация в scripts/sync-*-stats.mjs
+                                                (крон раз в час, см. sync-demand-stats.yml)
+```
+
+`.env.example` — только для **клиентских** VITE_-переменных (необязательно, в
+`src/lib/supabase.ts` уже зашит рабочий проект по умолчанию).
+
+## Структура
+
+```
+src/pages/        — маршруты (см. App.tsx). Admin-страницы за PasswordGate под /admin/*;
+                     публичные — ObjectLandingPage (/:slug), PublicBuildingPlan (/plan/:token).
+src/components/ui       — база: Button, Card, Badge, Input, Select, AddableSelect,
+                            ToggleGroup, Modal, TreeTable, SearchInput...
+src/components/layout   — Sidebar, PageHeader, AppLayout, PasswordGate, InfoBanner
+src/components/objects  — самая тяжёлая папка: планировки (BuildingPlanCanvas/Widget),
+                            карта объекта (ObjectMapWidget), публичный флоу бронирования
+                            и подписания (PublicPlanAndUnits, AgreementSigningFlow,
+                            ZoneDetailModal), формы/модалки объекта
+src/components/documents — генерация документов из гугл-шаблонов
+src/data/          — доменные типы: для каждой сущности пара `Foo` (camelCase, то,
+                     чем оперирует приложение) + `FooRow` (snake_case, форма строки
+                     в Supabase) — см. "Паттерн работы с данными" ниже
+src/lib/           — supabase-клиент, withRetry, по одному *Api.ts на сущность
+                     (fetchX/insertX/updateX/deleteX + fromRow-маппер), мелкие хелперы
+api/               — Vercel serverless functions (голый JS): OTP-подписание соглашения,
+                     генерация документов, общие Google Docs/Drive хелперы (_google.js)
+scripts/           — почасовые cron-синки статистики спроса (Kufar/Realt/Avito/Megapolis)
+public/fonts/      — self-hosted Montserrat (+ Yandex Sans Text для части макетов)
+examples/          — референс-страницы первого прохода прототипа, в сборку не входят
+```
+
+## Паттерн работы с данными (Supabase)
+
+Для каждой сущности одинаковая связка из трёх файлов — смотри как эталон
+`src/data/leads.ts` + `src/lib/leadsApi.ts`:
+
+1. `data/foo.ts` — `interface Foo` (camelCase, что видит остальной код) и
+   `interface FooRow` (snake_case, ровно колонки таблицы в Supabase). Плюс открытые
+   списки-константы для растущих enum-полей (`leadRequirements`, `leadContactMethods`,
+   `leadClientTypes` и т.п.) — они не жёсткие enum'ы в базе, а просто набор значений
+   "по умолчанию", к которому пользователь может добавлять свои прямо из формы
+   (см. `AddableSelect` + паттерн `useMemo`, объединяющий пресет с фактически
+   встречающимися значениями — есть в `Leads.tsx`, `ObjectFormModal.tsx`).
+2. `lib/fooApi.ts` — `fromRow(row: FooRow): Foo`, `fetchFoo()`, `insertFoo()`,
+   `updateFoo()`, `deleteFoo()`. Все запросы обёрнуты в `withRetry` (см. ниже).
+   `insertFoo`/`updateFoo` принимают `Omit<Foo, 'id' | 'createdAt'>`.
+3. Компонент страницы держит форму в стейте, мапит в обе стороны (`fooToForm` /
+   payload на submit).
+
+**Важно:** после `ALTER TABLE ... ADD COLUMN` в Supabase PostgREST иногда не видит
+новую колонку сразу — ошибка `Could not find the 'x' column ... in the schema cache`.
+Чинится через `NOTIFY pgrst, 'reload schema';` сразу после миграции. Мы не можем
+выполнять SQL против прод-базы сами — миграции всегда отдаются пользователю готовым
+текстом SQL (idempotent, `IF NOT EXISTS`) на выполнение вручную.
+
+Публичный флоу (бронирование, подписание) работает без авторизации — `leads`,
+`agreement_signatures` и т.п. закрыты RLS от анонимной записи там, где нужна
+серверная логика (email, генерация PDF), поэтому такие операции идут не напрямую из
+фронта в Supabase, а через `api/*.js` с `SUPABASE_SERVICE_ROLE_KEY`.
+
+## Ключевые паттерны/утилиты
+
+- **`withRetry` (`src/lib/withRetry.ts`)** — таймаут (15с, 60с для аплоадов) + один
+  молчаливый повтор через 1с. Существует специально из-за Supabase free-tier
+  "холодного старта": первый запрос после паузы иногда рвётся `TypeError: Load failed`
+  (Safari) / `Failed to fetch` (Chrome) ещё до ответа сервера. Если пользователь снова
+  сообщает про "Load failed" — **сначала проверь, не пропущена ли SQL-миграция**
+  (см. схема-кэш выше), это частая настоящая причина, а не сам холодный старт.
+- **`src/lib/glass.ts`** — общие классы для эффекта "жидкое стекло" (Apple Liquid
+  Glass), единый вид админки и публичных страниц. Не re-имплементировать локально —
+  импортировать `glassCardClass`/`glassCardShadow`/`glassPillClass`.
+- **Растущие теги (AddableSelect)** — см. выше, паттерн для `requirement`,
+  `contactMethod`, `clientType` и подобных "открытых" полей.
+- **Кликабельные ссылки на диалог (`Leads.tsx`)** — `buildDialogLink(contactMethod, contact)`
+  превращает Telegram-ник в `https://t.me/<handle>` (снимает `@`/`https://`/`t.me/`
+  префиксы, валидирует по `/^[a-zA-Z][a-zA-Z0-9_]{4,31}$/`), для остальных методов
+  связи линкует только то, что уже начинается с `http(s)://`.
+- **`<img>` + оверлей во время смены данных** — если у компонента есть SVG/canvas
+  оверлей поверх `<img src>` (see `BuildingPlanCanvas.tsx`), при смене исходных данных
+  оверлей обновляется мгновенно, а `<img>` подтягивается по сети с задержкой — старый
+  фон видно с новым оверлеем. Чинится через отдельный `displayedPlan`-стейт, который
+  переключается только после фонового прелоада `new Image().onload`, не через прямой
+  `plan.imageUrl` в JSX.
+- **Числовые "нет данных" ловушки** — `!value` считает `0` отсутствием. Реальный баг
+  этого класса: `zoneArea={selectedZone.area ?? 0}` для рабочих мест (площадь не
+  задаётся) улетало на сервер как `0`, а `api/agreement-otp-request.js` проверял
+  `!zoneArea` как "поле не заполнено" → блокировал подписание для всех рабочих мест.
+  Исправлено (`isWorkstation` снимает требование). Держать в голове при любых
+  будущих "пользователь всё заполнил, а форма ругается" репортах — сначала подозревать
+  такую серверную валидацию, а не фронт.
+
+## Workflow при внесении изменений
+
+- Мок-тест перед пушем UI-изменений: временный `src/pages/__ComponentTest.tsx` +
+  временный `<Route>` в `App.tsx` (бэкапить оригинал через `cp` в scratchpad — у первого
+  `cp` в сессии бывает не срабатывает с первого раза, дублировать команду), скриншотить
+  через Playwright (`/opt/pw-browsers/chromium`), смотреть через Read, восстанавливать
+  оригиналы после.
+- Перед коммитом: `npx tsc -b && npm run build`.
+- `git status --porcelain` → добавлять только реально изменённые файлы поимённо
+  (никогда `git add -A`/`.`).
+- Ветка: `claude/redevelopment-platform-prototype-oodobu`. Пуш:
+  `git push -u origin claude/redevelopment-platform-prototype-oodobu`.
+- Коммиты — с трейлером `Co-Authored-By: Claude ... <noreply@anthropic.com>` +
+  `Claude-Session: ...` (см. систем-промпт харнеса за актуальным форматом).
+- SQL-миграции против прод-Supabase выполнить самостоятельно нельзя — только отдать
+  пользователю точный SQL-текст на ручной запуск.
+
+## Журнал сессий (коротко, для непрерывности между чатами)
+
+Хронологический список, что уже сделано — не дублировать работу, не переспрашивать то,
+что уже решено. Дополнять новыми записями сверху, старые не переписывать.
+
+- **2026-08-16** — Исправлен баг подписания соглашения для рабочих мест
+  (`zoneArea=0` ложно триггерил "Заполните все поля", см. выше). Написан этот файл.
+- **Ранее (даты не зафиксированы, по мере работы над сессией)**:
+  - Фикс "текут" контуры планировки при переключении этажа (race `<img>`/SVG,
+    `BuildingPlanCanvas.tsx`, `displayedPlan`-паттерн).
+  - Блок карты Яндекс на карточке объекта (`ObjectMapWidget.tsx`) — без API-ключа,
+    через Конструктор карт (`yandex.ru/map-constructor` → "По ссылке"/"Публичная" →
+    вкладка "Код" → **только** `src=` iframe-ссылка вида
+    `yandex.ru/map-widget/v1/?um=constructor:<id>&source=constructorLink`; НЕ страница
+    `yandex.ru/maps/?um=constructor:...` и НЕ `<script src="api-maps.yandex.ru/...">`
+    — оба не работают как iframe `src`). Кнопка полноэкранного режима называется "Зум".
+  - Разделение карточки лида: лёгкая таблица (Статус/Имя/Способ связи/кликабельная
+    ссылка на диалог/Последний контакт) + полная карточка (модалка) со всем
+    остальным. Пользователь предупредил, что позже даст ещё правки по карточке —
+    с тех пор запрошены и сделаны: отдельное поле "Телефон" (независимо от
+    Kufar/Telegram-контакта), переименование статуса "Не важный" → "Интересант",
+    теги типа клиента ("Конечный покупатель"/"Инвестор"). Если придут ещё правки
+    по карточке лида — это ожидаемо, не новость.
+
+## Не проектная информация
+
+Владелец в диалогах иногда обсуждает предметку недвижимости (кредит vs. лизинг,
+маркетинговые тексты объявлений и т.п.) — это не про код, отвечать по существу
+вопроса, без привязки к репозиторию.
