@@ -137,7 +137,11 @@ export default async function handler(req, res) {
     !leadId ||
     !objectId ||
     !zoneId ||
-    !zoneArea ||
+    // Для рабочего места (isWorkstation) площадь не имеет смысла и приходит
+    // с фронта как 0 (см. zoneArea={selectedZone.area ?? 0} в
+    // PublicPlanAndUnits) — !zoneArea тут ошибочно считал 0 отсутствующим
+    // полем и блокировал подписание для всех рабочих мест.
+    (!isWorkstation && !zoneArea) ||
     !buyerName ||
     !buyerGender ||
     !buyerCitizenship ||
