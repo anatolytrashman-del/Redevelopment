@@ -28,7 +28,7 @@ export function ObjectMapWidget({ address, mapEmbedUrl }: ObjectMapWidgetProps) 
             icon={fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             onClick={() => setFullscreen((v) => !v)}
           >
-            {fullscreen ? 'Свернуть' : 'На весь экран'}
+            {fullscreen ? 'Свернуть' : 'Зум'}
           </Button>
         )}
       </div>
