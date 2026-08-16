@@ -22,6 +22,10 @@ export interface Lead {
   // превращается в кликабельную ссылку на диалог, см. buildDialogLink в
   // Leads.tsx.
   contactMethod: string;
+  // Отдельно от contact: даже если contact — телеграм-ник (для кликабельной
+  // ссылки на диалог), номер телефона всё равно нужен отдельно — не все
+  // способы связи заменяют звонок.
+  phone: string;
   status: string;
   isWarm: boolean;
   objectId: string;
@@ -43,6 +47,7 @@ export interface LeadRow {
   requirement: string;
   contact: string;
   contact_method: string | null;
+  phone: string | null;
   status: string;
   is_warm: boolean;
   object_id: string | null;

@@ -221,6 +221,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
         requirement,
         contact: bookingForm.contact.trim(),
         contactMethod: '',
+        phone: '',
         status: 'Заявка на бронирование',
         isWarm: true,
         objectId: object.id,

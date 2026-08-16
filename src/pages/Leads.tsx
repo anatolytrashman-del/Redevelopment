@@ -45,6 +45,7 @@ const emptyForm = {
   requirement: '',
   contact: '',
   contactMethod: '',
+  phone: '',
   status: '',
   isWarm: false,
   objectId: '',
@@ -129,6 +130,7 @@ function leadToForm(l: Lead) {
     requirement: l.requirement,
     contact: l.contact,
     contactMethod: l.contactMethod,
+    phone: l.phone,
     status: l.status,
     isWarm: l.isWarm,
     objectId: l.objectId,
@@ -283,6 +285,7 @@ export function Leads() {
       requirement: form.requirement,
       contact: form.contact,
       contactMethod: form.contactMethod,
+      phone: form.phone,
       status: form.status,
       isWarm: form.isWarm,
       objectId: form.objectId,
@@ -321,6 +324,7 @@ export function Leads() {
         requirement: next.requirement,
         contact: next.contact,
         contactMethod: next.contactMethod,
+        phone: next.phone,
         status: next.status,
         isWarm: next.isWarm,
         objectId: next.objectId,
@@ -903,10 +907,18 @@ export function Leads() {
             newPlaceholder="Название требования"
           />
 
+          <Input
+            label="Телефон"
+            placeholder="+375 29 ..."
+            type="tel"
+            value={form.phone}
+            onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+          />
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input
               label="Контакт или ссылка на диалог"
-              placeholder="Телефон, @username, ссылка на переписку..."
+              placeholder="@username, ссылка на переписку..."
               value={form.contact}
               onChange={(e) => setForm((f) => ({ ...f, contact: e.target.value }))}
               required
