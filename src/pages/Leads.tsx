@@ -116,7 +116,7 @@ function WarmBadge({ lead, onToggle, disabled }: { lead: Lead; onToggle: () => v
         lead.isWarm ? 'bg-warning/15 text-warning' : 'bg-surface-muted text-ink-muted',
       )}
     >
-      {lead.isWarm ? 'Важный' : 'Не важный'}
+      {lead.isWarm ? 'Важный' : 'Интересант'}
     </button>
   );
 }
