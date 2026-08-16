@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { X } from 'lucide-react';
-import { cn } from '../../lib/cn';
-import { glassCardClass, glassCardShadow } from '../../lib/glass';
+import { glassCardShadow } from '../../lib/glass';
 
 interface ModalProps {
   open: boolean;
@@ -24,8 +23,13 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
+      {/* Не переиспользуем glassCardClass: он полупрозрачный и рассчитан на
+          светлый фон страницы позади (как у Card). У модалки позади — тёмная
+          затемняющая подложка выше, и то же стекло поверх неё выглядело мутным
+          и плохо читаемым. Модалке нужен непрозрачный фон вне зависимости от
+          того, что под ней. */}
       <div
-        className={cn('relative flex max-h-[90vh] w-full max-w-lg flex-col gap-5 overflow-y-auto p-6', glassCardClass)}
+        className="relative flex max-h-[90vh] w-full max-w-lg flex-col gap-5 overflow-y-auto rounded-3xl border border-white/80 bg-white p-6"
         style={glassCardShadow}
       >
         <div className="flex items-start justify-between gap-3">
