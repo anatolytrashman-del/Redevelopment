@@ -223,6 +223,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
         status: 'Заявка на бронирование',
         isWarm: true,
         objectId: object.id,
+        lastContactedAt: '',
       });
       // Рабочие места продаются по одному внутри одной зоны — вместо
       // whole-zone брони (status+leadId) увеличиваем счётчик проданных мест

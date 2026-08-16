@@ -16,6 +16,12 @@ export interface Lead {
   status: string;
   isWarm: boolean;
   objectId: string;
+  // Ставится базой при создании, никогда не редактируется вручную — см.
+  // Omit<Lead, 'id' | 'createdAt'> в insertLead/updateLead.
+  createdAt: string;
+  // В отличие от createdAt — правится вручную, менеджер отмечает дату
+  // последнего разговора с лидом. Пустая строка — контакта ещё не было.
+  lastContactedAt: string;
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/leadsApi.ts
@@ -30,4 +36,6 @@ export interface LeadRow {
   status: string;
   is_warm: boolean;
   object_id: string | null;
+  created_at: string;
+  last_contacted_at: string | null;
 }

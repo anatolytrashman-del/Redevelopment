@@ -14,6 +14,8 @@ function fromRow(row: LeadRow): Lead {
     status: row.status,
     isWarm: row.is_warm,
     objectId: row.object_id ?? '',
+    createdAt: row.created_at,
+    lastContactedAt: row.last_contacted_at ?? '',
   };
 }
 
@@ -50,7 +52,7 @@ export function fetchLeadsForObject(objectId: string): Promise<Lead[]> {
   });
 }
 
-export function insertLead(input: Omit<Lead, 'id'>): Promise<Lead> {
+export function insertLead(input: Omit<Lead, 'id' | 'createdAt'>): Promise<Lead> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('leads')
@@ -64,6 +66,7 @@ export function insertLead(input: Omit<Lead, 'id'>): Promise<Lead> {
         status: input.status,
         is_warm: input.isWarm,
         object_id: input.objectId || null,
+        last_contacted_at: input.lastContactedAt || null,
       })
       .select()
       .single();
@@ -73,7 +76,7 @@ export function insertLead(input: Omit<Lead, 'id'>): Promise<Lead> {
   });
 }
 
-export function updateLead(id: string, input: Omit<Lead, 'id'>): Promise<Lead> {
+export function updateLead(id: string, input: Omit<Lead, 'id' | 'createdAt'>): Promise<Lead> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('leads')
@@ -87,6 +90,7 @@ export function updateLead(id: string, input: Omit<Lead, 'id'>): Promise<Lead> {
         status: input.status,
         is_warm: input.isWarm,
         object_id: input.objectId || null,
+        last_contacted_at: input.lastContactedAt || null,
       })
       .eq('id', id)
       .select()

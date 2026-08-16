@@ -49,7 +49,40 @@ const emptyForm = {
   status: '',
   isWarm: false,
   objectId: '',
+  lastContactedAt: '',
 };
+
+function formatDate(iso: string): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+// Дата "как в html-инпуте" (YYYY-MM-DD) — и для value контролируемого
+// <input type="date">, и для отправки в last_contacted_at (колонка типа date).
+function todayIsoDate(): string {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+// Контакт хранит и телефон/телеграм, и голую ссылку на переписку (например,
+// диалог на Kufar) — превращаем в кликабельную ссылку только когда это
+// реально похоже на URL, чтобы номера телефонов не превращались в мусорные
+// href="+375...".
+function ContactValue({ contact }: { contact: string }) {
+  if (!contact) return null;
+  if (/^https?:\/\//i.test(contact.trim())) {
+    return (
+      <a href={contact} target="_blank" rel="noreferrer" className="truncate text-primary hover:underline">
+        {contact}
+      </a>
+    );
+  }
+  return <>{contact}</>;
+}
 
 function RequirementBadge({ requirement }: { requirement: string }) {
   if (!requirement) return <span className="text-ink-faint">—</span>;
@@ -81,6 +114,7 @@ function leadToForm(l: Lead) {
     status: l.status,
     isWarm: l.isWarm,
     objectId: l.objectId,
+    lastContactedAt: l.lastContactedAt,
   };
 }
 
@@ -227,6 +261,7 @@ export function Leads() {
       status: form.status,
       isWarm: form.isWarm,
       objectId: form.objectId,
+      lastContactedAt: form.lastContactedAt,
     };
     try {
       if (editingId) {
@@ -253,8 +288,18 @@ export function Leads() {
     const next = { ...l, isWarm: !l.isWarm };
     setLeads((prev) => prev.map((x) => (x.id === l.id ? next : x)));
     try {
-      const { id, ...payload } = next;
-      const updated = await updateLead(id, payload);
+      const updated = await updateLead(l.id, {
+        name: next.name,
+        source: next.source,
+        businessType: next.businessType,
+        area: next.area,
+        requirement: next.requirement,
+        contact: next.contact,
+        status: next.status,
+        isWarm: next.isWarm,
+        objectId: next.objectId,
+        lastContactedAt: next.lastContactedAt,
+      });
       setLeads((prev) => prev.map((x) => (x.id === l.id ? updated : x)));
     } catch (err) {
       setLeads((prev) => prev.map((x) => (x.id === l.id ? l : x)));
@@ -320,7 +365,7 @@ export function Leads() {
             Ниже md та же строка неудобна для узкого экрана, поэтому там вместо неё —
             карточка на лид (см. блок md:hidden сразу за этим). */}
         <div className="hidden overflow-x-auto md:block">
-          <div className="grid min-w-[900px] grid-cols-[36px_130px_90px_1fr_100px_56px_1fr_130px_84px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
+          <div className="grid min-w-[1100px] grid-cols-[36px_130px_90px_1fr_100px_56px_1fr_130px_100px_110px_84px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
             <span />
             <span>Имя</span>
             <span>Источник</span>
@@ -329,12 +374,14 @@ export function Leads() {
             <span title="Требования">Треб.</span>
             <span>Контакт</span>
             <span>Статус</span>
+            <span>Создан</span>
+            <span>Посл. контакт</span>
             <span />
           </div>
           {sortedLeads.map((l) => (
             <div
               key={l.id}
-              className="grid min-w-[900px] grid-cols-[36px_130px_90px_1fr_100px_56px_1fr_130px_84px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
+              className="grid min-w-[1100px] grid-cols-[36px_130px_90px_1fr_100px_56px_1fr_130px_100px_110px_84px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
             >
               <button
                 type="button"
@@ -352,8 +399,12 @@ export function Leads() {
               <span>
                 <RequirementBadge requirement={l.requirement} />
               </span>
-              <span className="truncate text-ink-muted">{l.contact}</span>
+              <span className="truncate text-ink-muted">
+                <ContactValue contact={l.contact} />
+              </span>
               <span className="text-ink-muted">{l.status}</span>
+              <span className="text-ink-muted">{formatDate(l.createdAt)}</span>
+              <span className="text-ink-muted">{formatDate(l.lastContactedAt)}</span>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
@@ -432,7 +483,15 @@ export function Leads() {
                 <RequirementBadge requirement={l.requirement} />
                 {l.status && <span className="text-sm text-ink-muted">{l.status}</span>}
               </div>
-              {l.contact && <div className="truncate text-sm text-ink-muted">{l.contact}</div>}
+              {l.contact && (
+                <div className="truncate text-sm text-ink-muted">
+                  <ContactValue contact={l.contact} />
+                </div>
+              )}
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-faint">
+                <span>Создан: {formatDate(l.createdAt)}</span>
+                <span>Посл. контакт: {formatDate(l.lastContactedAt)}</span>
+              </div>
             </div>
           ))}
           {loading && (
@@ -476,7 +535,7 @@ export function Leads() {
                   >
                     <div className="min-w-0">
                       <div className="truncate font-semibold text-ink">{lead?.name ?? '—'}</div>
-                      <div className="truncate text-xs text-ink-muted">{lead?.contact}</div>
+                      <div className="truncate text-xs text-ink-muted">{lead && <ContactValue contact={lead.contact} />}</div>
                     </div>
                     <span className="text-ink">
                       {zone.label || zoneTypeLabels[zone.zoneType]}
@@ -565,7 +624,9 @@ export function Leads() {
                   >
                     <div className="min-w-0">
                       <div className="truncate font-semibold text-ink">{lead.name}</div>
-                      <div className="truncate text-xs text-ink-muted">{lead.contact}</div>
+                      <div className="truncate text-xs text-ink-muted">
+                        <ContactValue contact={lead.contact} />
+                      </div>
                     </div>
                     <span className="text-ink">
                       {zone.label || zoneTypeLabels[zone.zoneType]}
@@ -647,7 +708,11 @@ export function Leads() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="truncate font-semibold text-ink">{lead?.name ?? '—'}</div>
-                        {lead?.contact && <div className="truncate text-xs text-ink-muted">{lead.contact}</div>}
+                        {lead?.contact && (
+                          <div className="truncate text-xs text-ink-muted">
+                            <ContactValue contact={lead.contact} />
+                          </div>
+                        )}
                       </div>
                       {lead && (
                         <div className="flex shrink-0 items-center gap-1.5">
@@ -733,7 +798,11 @@ export function Leads() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="truncate font-semibold text-ink">{lead.name}</div>
-                        {lead.contact && <div className="truncate text-xs text-ink-muted">{lead.contact}</div>}
+                        {lead.contact && (
+                          <div className="truncate text-xs text-ink-muted">
+                            <ContactValue contact={lead.contact} />
+                          </div>
+                        )}
                       </div>
                       <div className="flex shrink-0 items-center gap-1.5">
                         <button
@@ -859,6 +928,26 @@ export function Leads() {
             onChange={(e) => setForm((f) => ({ ...f, contact: e.target.value }))}
             required
           />
+
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <Input
+                label="Дата последнего контакта"
+                type="date"
+                value={form.lastContactedAt}
+                onChange={(e) => setForm((f) => ({ ...f, lastContactedAt: e.target.value }))}
+              />
+            </div>
+            <Button type="button" variant="secondary" onClick={() => setForm((f) => ({ ...f, lastContactedAt: todayIsoDate() }))}>
+              Сегодня
+            </Button>
+          </div>
+
+          {editingId && (
+            <p className="text-xs text-ink-faint">
+              Лид создан: {formatDate(leads.find((l) => l.id === editingId)?.createdAt ?? '')}
+            </p>
+          )}
 
           <Input
             label="Статус"
