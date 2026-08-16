@@ -9,7 +9,7 @@ import { Select } from '../components/ui/Select';
 import { AddableSelect } from '../components/ui/AddableSelect';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Modal } from '../components/ui/Modal';
-import { leadSources, leadRequirements, leadContactMethods, type Lead, type LeadSource } from '../data/leads';
+import { leadSources, leadRequirements, leadContactMethods, leadClientTypes, type Lead, type LeadSource } from '../data/leads';
 import type { RealtyObject } from '../data/objects';
 import { zoneStatusBadgeClass, zoneTypeLabels, type BuildingPlan, type BuildingPlanZone } from '../data/buildingPlans';
 import { cn } from '../lib/cn';
@@ -46,6 +46,7 @@ const emptyForm = {
   contact: '',
   contactMethod: '',
   phone: '',
+  clientType: '',
   status: '',
   isWarm: false,
   objectId: '',
@@ -131,6 +132,7 @@ function leadToForm(l: Lead) {
     contact: l.contact,
     contactMethod: l.contactMethod,
     phone: l.phone,
+    clientType: l.clientType,
     status: l.status,
     isWarm: l.isWarm,
     objectId: l.objectId,
@@ -166,6 +168,12 @@ export function Leads() {
   const knownContactMethods = useMemo(() => {
     const set = new Set<string>(leadContactMethods);
     leads.forEach((l) => l.contactMethod && set.add(l.contactMethod));
+    return [...set];
+  }, [leads]);
+
+  const knownClientTypes = useMemo(() => {
+    const set = new Set<string>(leadClientTypes);
+    leads.forEach((l) => l.clientType && set.add(l.clientType));
     return [...set];
   }, [leads]);
 
@@ -286,6 +294,7 @@ export function Leads() {
       contact: form.contact,
       contactMethod: form.contactMethod,
       phone: form.phone,
+      clientType: form.clientType,
       status: form.status,
       isWarm: form.isWarm,
       objectId: form.objectId,
@@ -325,6 +334,7 @@ export function Leads() {
         contact: next.contact,
         contactMethod: next.contactMethod,
         phone: next.phone,
+        clientType: next.clientType,
         status: next.status,
         isWarm: next.isWarm,
         objectId: next.objectId,
@@ -897,15 +907,26 @@ export function Leads() {
             required
           />
 
-          <AddableSelect
-            label="Требования"
-            placeholder="Не выбрано"
-            options={knownRequirements}
-            value={form.requirement}
-            onChange={(v) => setForm((f) => ({ ...f, requirement: v }))}
-            addLabel="+ Добавить требование"
-            newPlaceholder="Название требования"
-          />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <AddableSelect
+              label="Требования"
+              placeholder="Не выбрано"
+              options={knownRequirements}
+              value={form.requirement}
+              onChange={(v) => setForm((f) => ({ ...f, requirement: v }))}
+              addLabel="+ Добавить требование"
+              newPlaceholder="Название требования"
+            />
+            <AddableSelect
+              label="Тип клиента"
+              placeholder="Не выбрано"
+              options={knownClientTypes}
+              value={form.clientType}
+              onChange={(v) => setForm((f) => ({ ...f, clientType: v }))}
+              addLabel="+ Добавить тип"
+              newPlaceholder="Название типа клиента"
+            />
+          </div>
 
           <Input
             label="Телефон"

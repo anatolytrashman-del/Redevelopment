@@ -10,6 +10,10 @@ export const leadRequirements = ['Мокрая точка'] as const;
 // потом вести в Telegram.
 export const leadContactMethods = ['Телефон', 'Telegram', 'Kufar', 'WhatsApp', 'Viber', 'Email'] as const;
 
+// Тоже открытый список (см. leadRequirements) — зачем клиенту кабинет:
+// себе под бизнес или сдавать/перепродавать.
+export const leadClientTypes = ['Конечный покупатель', 'Инвестор'] as const;
+
 export interface Lead {
   id: string;
   name: string;
@@ -26,6 +30,9 @@ export interface Lead {
   // ссылки на диалог), номер телефона всё равно нужен отдельно — не все
   // способы связи заменяют звонок.
   phone: string;
+  // Тег типа клиента (Конечный покупатель / Инвестор) — растущий список,
+  // как requirement/contactMethod.
+  clientType: string;
   status: string;
   isWarm: boolean;
   objectId: string;
@@ -48,6 +55,7 @@ export interface LeadRow {
   contact: string;
   contact_method: string | null;
   phone: string | null;
+  client_type: string | null;
   status: string;
   is_warm: boolean;
   object_id: string | null;
