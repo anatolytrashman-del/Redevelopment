@@ -12,6 +12,7 @@ import { BuildingSpecsModal } from '../components/objects/BuildingSpecsModal';
 import { ObjectDocumentsCard } from '../components/objects/ObjectDocuments';
 import { ImageLightbox, type LightboxState } from '../components/objects/ImageLightbox';
 import { BuildingPlanWidget } from '../components/objects/BuildingPlanWidget';
+import { ObjectMapWidget } from '../components/objects/ObjectMapWidget';
 import {
   pricePerMeter,
   objectImages,
@@ -383,6 +384,8 @@ export function ObjectDetail() {
                 </div>
               )}
             </Card>
+
+            <ObjectMapWidget address={object.address} mapEmbedUrl={object.mapEmbedUrl} />
 
             <Card className="flex flex-col gap-4 p-5">
               <div>

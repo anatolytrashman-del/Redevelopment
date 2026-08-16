@@ -130,6 +130,11 @@ export interface RealtyObject {
   // documents: это маркетинговый материал для клиента, а не официальный
   // документ объекта (выписка/техпаспорт/землеотвод).
   intentAgreementFile: ObjectDocumentFile | null;
+  // Ссылка на эмбед карты из Яндекс.Карт Конструктора (constructor.yandex.ru) —
+  // именно iframe-ссылка на готовую карту с меткой, не координаты и не API-
+  // ключ. Осознанный выбор: не нужен свой аккаунт разработчика/ключ Яндекса,
+  // при этом зум/панорамирование карты — родные, самого Яндекс.Карт.
+  mapEmbedUrl: string;
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/objectsApi.ts
@@ -157,6 +162,7 @@ export interface RealtyObjectRow {
   landing_slug: string | null;
   render_image_urls: string[] | null;
   intent_agreement_file: ObjectDocumentFile | null;
+  map_embed_url: string | null;
 }
 
 export function pricePerMeter(area: number, startPrice: number): number | null {

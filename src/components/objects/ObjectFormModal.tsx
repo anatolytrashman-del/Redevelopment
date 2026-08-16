@@ -38,6 +38,7 @@ const emptyForm = {
   landingSlug: '',
   renderImageUrls: [] as string[],
   intentAgreementFile: null as ObjectDocumentFile | null,
+  mapEmbedUrl: '',
 };
 
 function objectToForm(o: RealtyObject) {
@@ -57,6 +58,7 @@ function objectToForm(o: RealtyObject) {
     landingSlug: o.landingSlug,
     renderImageUrls: o.renderImageUrls,
     intentAgreementFile: o.intentAgreementFile,
+    mapEmbedUrl: o.mapEmbedUrl,
   };
 }
 
@@ -211,6 +213,7 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
       documents: editing?.documents ?? {},
       renderImageUrls: form.renderImageUrls,
       intentAgreementFile: form.intentAgreementFile,
+      mapEmbedUrl: form.mapEmbedUrl,
     };
     try {
       const saved = editing ? await updateObject(editing.id, payload) : await insertObject(payload);
@@ -413,6 +416,19 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
           value={form.listingUrl}
           onChange={(e) => setForm((f) => ({ ...f, listingUrl: e.target.value }))}
         />
+
+        <div>
+          <Input
+            label="Ссылка на карту (эмбед из Яндекс.Карт Конструктора)"
+            placeholder="https://yandex.ru/map-widget/v1/?..."
+            value={form.mapEmbedUrl}
+            onChange={(e) => setForm((f) => ({ ...f, mapEmbedUrl: e.target.value }))}
+          />
+          <p className="mt-1.5 text-xs text-ink-faint">
+            constructor.yandex.ru → впиши адрес объекта, поставь метку → скопируй ссылку на готовую карту (не код для
+            вставки, а именно ссылку) и вставь сюда.
+          </p>
+        </div>
 
         <div>
           <Input

@@ -27,6 +27,7 @@ function fromRow(row: RealtyObjectRow): RealtyObject {
     landingSlug: row.landing_slug ?? '',
     renderImageUrls: row.render_image_urls ?? [],
     intentAgreementFile: row.intent_agreement_file ?? null,
+    mapEmbedUrl: row.map_embed_url ?? '',
   };
 }
 
@@ -108,6 +109,7 @@ export function insertObject(input: Omit<RealtyObject, 'id' | 'shareToken'>): Pr
         landing_slug: input.landingSlug.trim() || null,
         render_image_urls: input.renderImageUrls,
         intent_agreement_file: input.intentAgreementFile,
+        map_embed_url: input.mapEmbedUrl.trim() || null,
       })
       .select()
       .single();
@@ -143,6 +145,7 @@ export function updateObject(id: string, input: Omit<RealtyObject, 'id' | 'share
         landing_slug: input.landingSlug.trim() || null,
         render_image_urls: input.renderImageUrls,
         intent_agreement_file: input.intentAgreementFile,
+        map_embed_url: input.mapEmbedUrl.trim() || null,
       })
       .eq('id', id)
       .select()
