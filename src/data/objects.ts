@@ -93,6 +93,11 @@ export type ObjectDocuments = Partial<Record<ObjectDocumentCategory, ObjectDocum
 
 export interface RealtyObject {
   id: string;
+  // Маркетинговое название объекта (например, "Minsk One") — отдельно от
+  // address: адрес нужен всегда и везде (сравнения, ссылки, формы), название —
+  // необязательная надпись для карточки в списке. Пустая строка — карточка
+  // показывает адрес как заголовок, как было раньше этого поля.
+  name: string;
   address: string;
   area: number;
   startPrice: number;
@@ -140,6 +145,7 @@ export interface RealtyObject {
 // Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/objectsApi.ts
 export interface RealtyObjectRow {
   id: string;
+  name: string | null;
   address: string;
   area: number;
   start_price: number;

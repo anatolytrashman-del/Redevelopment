@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Loader2, ImageOff, ArrowRight } from 'lucide-react';
+import { Plus, Loader2, ImageOff } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { ObjectFormModal } from '../components/objects/ObjectFormModal';
-import { pricePerMeter, type RealtyObject } from '../data/objects';
+import type { RealtyObject } from '../data/objects';
 import { fetchObjects } from '../lib/objectsApi';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
@@ -15,10 +15,6 @@ function errorMessage(err: unknown, fallback: string): string {
     return (err as { message: string }).message;
   }
   return fallback;
-}
-
-function formatMoney(value: number) {
-  return `$${Math.round(value).toLocaleString('ru-RU')}`;
 }
 
 export function Objects() {
@@ -52,39 +48,35 @@ export function Objects() {
       <div className="flex flex-col gap-4">
         <div className="text-lg font-bold text-ink">Объекты в проработке</div>
 
-        {objects.map((o) => {
-          const perMeter = pricePerMeter(o.area, o.startPrice);
-          return (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {objects.map((o) => (
             <Link
               key={o.id}
               to={`/admin/objects/${o.landingSlug || o.id}`}
-              className={cn('flex items-center gap-5 p-4 transition-colors hover:border-primary/40', glassCardClass)}
+              className={cn('group flex flex-col overflow-hidden transition-colors hover:border-primary/40', glassCardClass)}
               style={glassCardShadow}
             >
-              <div className="aspect-[4/3] w-28 shrink-0 overflow-hidden rounded-control bg-surface-muted">
+              <div className="aspect-[16/9] w-full shrink-0 overflow-hidden bg-surface-muted">
                 {o.photoUrl ? (
-                  <img src={o.photoUrl} alt={o.address} className="h-full w-full object-cover" />
+                  <img
+                    src={o.photoUrl}
+                    alt={o.name || o.address}
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center">
-                    <ImageOff className="h-6 w-6 text-ink-faint" />
+                    <ImageOff className="h-8 w-8 text-ink-faint" />
                   </div>
                 )}
               </div>
 
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-lg font-bold text-ink">{o.address}</div>
-                <div className="mt-1 text-sm text-ink-muted">
-                  Цена/м² <span className="text-base font-bold text-ink">{perMeter ? formatMoney(perMeter) : '—'}</span>
-                </div>
+              <div className="flex flex-col gap-0.5 p-5">
+                <div className="truncate text-lg font-bold text-ink">{o.name || o.address}</div>
+                {o.name && <div className="truncate text-sm text-ink-muted">{o.address}</div>}
               </div>
-
-              <span className="flex shrink-0 items-center gap-2 rounded-full border border-border px-4 py-2.5 text-sm font-semibold text-ink">
-                Открыть
-                <ArrowRight className="h-4 w-4" />
-              </span>
             </Link>
-          );
-        })}
+          ))}
+        </div>
 
         {loading && (
           <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">

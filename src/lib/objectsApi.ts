@@ -5,6 +5,7 @@ import type { ContactChannel, RealtyObject, RealtyObjectRow } from '../data/obje
 function fromRow(row: RealtyObjectRow): RealtyObject {
   return {
     id: row.id,
+    name: row.name ?? '',
     address: row.address,
     area: row.area,
     startPrice: row.start_price,
@@ -88,6 +89,7 @@ export function insertObject(input: Omit<RealtyObject, 'id' | 'shareToken'>): Pr
     const { data, error } = await supabase
       .from('objects')
       .insert({
+        name: input.name.trim() || null,
         address: input.address,
         area: input.area,
         start_price: input.startPrice,
@@ -124,6 +126,7 @@ export function updateObject(id: string, input: Omit<RealtyObject, 'id' | 'share
     const { data, error } = await supabase
       .from('objects')
       .update({
+        name: input.name.trim() || null,
         address: input.address,
         area: input.area,
         start_price: input.startPrice,

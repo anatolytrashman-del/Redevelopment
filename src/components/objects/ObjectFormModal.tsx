@@ -23,6 +23,7 @@ function formatMoney(value: number) {
 }
 
 const emptyForm = {
+  name: '',
   address: '',
   area: '',
   startPrice: '',
@@ -43,6 +44,7 @@ const emptyForm = {
 
 function objectToForm(o: RealtyObject) {
   return {
+    name: o.name,
     address: o.address,
     area: String(o.area),
     startPrice: String(o.startPrice),
@@ -192,6 +194,7 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
     setSubmitting(true);
     setSubmitError(null);
     const payload = {
+      name: form.name,
       address: form.address,
       area: Number(form.area),
       startPrice: Number(form.startPrice),
@@ -373,6 +376,13 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
           </div>
           {agreementUploadError && <p className="text-sm text-danger">{agreementUploadError}</p>}
         </div>
+
+        <Input
+          label="Название"
+          placeholder="Например, Minsk One — необязательно"
+          value={form.name}
+          onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+        />
 
         <Input
           label="Адрес"
