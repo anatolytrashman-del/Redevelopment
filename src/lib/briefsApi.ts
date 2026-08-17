@@ -1,15 +1,12 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import type { Brief, BriefRow } from '../data/briefs';
+import { emptyBriefPhotos, type Brief, type BriefRow } from '../data/briefs';
 
 function fromRow(row: BriefRow): Brief {
   return {
     id: row.id,
     objectId: row.object_id,
-    beforePhotoUrls: row.before_photo_urls ?? [],
-    afterPhotoUrls: row.after_photo_urls ?? [],
-    interiorChanges: row.interior_changes ?? '',
-    facadeChanges: row.facade_changes ?? '',
+    photos: row.photos ?? emptyBriefPhotos(),
     shareToken: row.share_token,
     createdAt: row.created_at,
   };
@@ -39,10 +36,7 @@ export function insertBrief(input: Omit<Brief, 'id' | 'createdAt' | 'shareToken'
       .from('briefs')
       .insert({
         object_id: input.objectId,
-        before_photo_urls: input.beforePhotoUrls,
-        after_photo_urls: input.afterPhotoUrls,
-        interior_changes: input.interiorChanges,
-        facade_changes: input.facadeChanges,
+        photos: input.photos,
       })
       .select()
       .single();
@@ -58,10 +52,7 @@ export function updateBrief(id: string, input: Omit<Brief, 'id' | 'createdAt' | 
       .from('briefs')
       .update({
         object_id: input.objectId,
-        before_photo_urls: input.beforePhotoUrls,
-        after_photo_urls: input.afterPhotoUrls,
-        interior_changes: input.interiorChanges,
-        facade_changes: input.facadeChanges,
+        photos: input.photos,
       })
       .eq('id', id)
       .select()

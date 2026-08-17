@@ -1,4 +1,6 @@
+import { AnnotatedPhoto } from './AnnotatedPhoto';
 import type { Brief } from '../../data/briefs';
+import { briefPhotoCategories, briefPhotoCategoryLabels } from '../../data/briefs';
 import type { BuildingSpecs, RealtyObject } from '../../data/objects';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
@@ -104,21 +106,25 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
         </Section>
       )}
 
-      <Section title="Фото «до»">
-        <PhotoGrid urls={brief.beforePhotoUrls} emptyLabel="Фото не загружены" />
-      </Section>
+      {briefPhotoCategories.map((category) => {
+        const cat = brief.photos[category];
+        return (
+          <Section key={category} title={briefPhotoCategoryLabels[category]}>
+            <div className="flex flex-col gap-3">
+              <span className="text-xs uppercase tracking-wide text-ink-faint">До — что менять</span>
+              {cat.beforeUrls.length === 0 && <p className="text-sm text-ink-faint">Фото не загружены</p>}
+              {cat.beforeUrls.map((url) => (
+                <AnnotatedPhoto key={url} url={url} pins={cat.pins[url] ?? []} />
+              ))}
+            </div>
 
-      <Section title="Фото «после» (референс)">
-        <PhotoGrid urls={brief.afterPhotoUrls} emptyLabel="Фото не загружены" />
-      </Section>
-
-      <Section title="Планируемые изменения — внутри помещений">
-        <p className="whitespace-pre-wrap text-sm text-ink">{brief.interiorChanges || '—'}</p>
-      </Section>
-
-      <Section title="Планируемые изменения — фасад">
-        <p className="whitespace-pre-wrap text-sm text-ink">{brief.facadeChanges || '—'}</p>
-      </Section>
+            <div className="flex flex-col gap-3 border-t border-border pt-4">
+              <span className="text-xs uppercase tracking-wide text-ink-faint">После (референс)</span>
+              <PhotoGrid urls={cat.afterUrls} emptyLabel="Фото не загружены" />
+            </div>
+          </Section>
+        );
+      })}
     </div>
   );
 }

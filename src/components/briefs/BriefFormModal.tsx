@@ -4,8 +4,15 @@ import { Loader2, Upload, X } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
-import { Textarea } from '../ui/Textarea';
-import type { Brief } from '../../data/briefs';
+import { AnnotatedPhoto } from './AnnotatedPhoto';
+import {
+  briefPhotoCategories,
+  briefPhotoCategoryLabels,
+  emptyBriefPhotos,
+  type Brief,
+  type BriefCategoryPhotos,
+  type BriefPhotoCategory,
+} from '../../data/briefs';
 import type { RealtyObject } from '../../data/objects';
 import { insertBrief, updateBrief } from '../../lib/briefsApi';
 import { uploadObjectImage } from '../../lib/objectsApi';
@@ -23,67 +30,73 @@ function objectLabel(o: RealtyObject): string {
 
 const emptyForm = {
   objectId: '',
-  beforePhotoUrls: [] as string[],
-  afterPhotoUrls: [] as string[],
-  interiorChanges: '',
-  facadeChanges: '',
+  photos: emptyBriefPhotos(),
 };
 
 function briefToForm(b: Brief) {
   return {
     objectId: b.objectId,
-    beforePhotoUrls: b.beforePhotoUrls,
-    afterPhotoUrls: b.afterPhotoUrls,
-    interiorChanges: b.interiorChanges,
-    facadeChanges: b.facadeChanges,
+    photos: b.photos,
   };
 }
 
-// Галерея загруженных фото с кнопкой добавления — одна и та же вёрстка для
-// "до" и "после", разница только в том, какой стейт она обновляет.
-function PhotoGallery({
+// Кнопка загрузки без превью — сами фото со своими отметками рисует
+// AnnotatedPhoto/PlainGallery рядом, эта только открывает выбор файла.
+function UploadTile({
   label,
+  uploading,
+  onSelect,
+}: {
+  label: string;
+  uploading: boolean;
+  onSelect: (e: ChangeEvent<HTMLInputElement>) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <div>
+      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onSelect} />
+      <Button
+        type="button"
+        variant="secondary"
+        icon={uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+      >
+        {uploading ? 'Загружаем...' : label}
+      </Button>
+    </div>
+  );
+}
+
+// Простая галерея без отметок — для фото "после": это референс целевого
+// уровня отделки, комментировать точками там нечего.
+function PlainGallery({
   urls,
   uploading,
   onAdd,
   onRemove,
 }: {
-  label: string;
   urls: string[];
   uploading: boolean;
   onAdd: (e: ChangeEvent<HTMLInputElement>) => void;
   onRemove: (url: string) => void;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
   return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-sm text-ink-muted">{label}</span>
-      <div className="flex flex-wrap items-center gap-3">
-        {urls.map((url) => (
-          <div key={url} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-control bg-surface-muted">
-            <img src={url} alt="" className="h-full w-full object-cover" />
-            <button
-              type="button"
-              onClick={() => onRemove(url)}
-              aria-label="Удалить фото"
-              className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink/70 text-white"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </div>
-        ))}
-        <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onAdd} />
-        <Button
-          type="button"
-          variant="secondary"
-          icon={uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-        >
-          {uploading ? 'Загружаем...' : 'Добавить'}
-        </Button>
-      </div>
+    <div className="flex flex-wrap items-center gap-3">
+      {urls.map((url) => (
+        <div key={url} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-control bg-surface-muted">
+          <img src={url} alt="" className="h-full w-full object-cover" />
+          <button
+            type="button"
+            onClick={() => onRemove(url)}
+            aria-label="Удалить фото"
+            className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink/70 text-white"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      ))}
+      <UploadTile label="Добавить" uploading={uploading} onSelect={onAdd} />
     </div>
   );
 }
@@ -101,8 +114,8 @@ export function BriefFormModal({ open, brief, objects, onClose, onSaved }: Brief
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [uploadingBefore, setUploadingBefore] = useState(false);
-  const [uploadingAfter, setUploadingAfter] = useState(false);
+  // "facade:before" / "offices:after" — какая именно кнопка сейчас грузит фото.
+  const [uploadingKey, setUploadingKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -111,36 +124,73 @@ export function BriefFormModal({ open, brief, objects, onClose, onSaved }: Brief
     }
   }, [open, brief]);
 
-  async function handleBeforePhotoAdd(e: ChangeEvent<HTMLInputElement>) {
+  function updateCategory(category: BriefPhotoCategory, updater: (c: BriefCategoryPhotos) => BriefCategoryPhotos) {
+    setForm((f) => ({ ...f, photos: { ...f.photos, [category]: updater(f.photos[category]) } }));
+  }
+
+  async function handleBeforeAdd(category: BriefPhotoCategory, e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = '';
-    if (!file || uploadingBefore) return;
-    setUploadingBefore(true);
+    if (!file) return;
+    setUploadingKey(`${category}:before`);
     setSubmitError(null);
     try {
       const url = await uploadObjectImage(file);
-      setForm((f) => ({ ...f, beforePhotoUrls: [...f.beforePhotoUrls, url] }));
+      updateCategory(category, (c) => ({ ...c, beforeUrls: [...c.beforeUrls, url] }));
     } catch (err) {
       setSubmitError(errorMessage(err, 'Не удалось загрузить фото'));
     } finally {
-      setUploadingBefore(false);
+      setUploadingKey(null);
     }
   }
 
-  async function handleAfterPhotoAdd(e: ChangeEvent<HTMLInputElement>) {
+  async function handleAfterAdd(category: BriefPhotoCategory, e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = '';
-    if (!file || uploadingAfter) return;
-    setUploadingAfter(true);
+    if (!file) return;
+    setUploadingKey(`${category}:after`);
     setSubmitError(null);
     try {
       const url = await uploadObjectImage(file);
-      setForm((f) => ({ ...f, afterPhotoUrls: [...f.afterPhotoUrls, url] }));
+      updateCategory(category, (c) => ({ ...c, afterUrls: [...c.afterUrls, url] }));
     } catch (err) {
       setSubmitError(errorMessage(err, 'Не удалось загрузить фото'));
     } finally {
-      setUploadingAfter(false);
+      setUploadingKey(null);
     }
+  }
+
+  function removeBeforePhoto(category: BriefPhotoCategory, url: string) {
+    updateCategory(category, (c) => {
+      const restPins = { ...c.pins };
+      delete restPins[url];
+      return { ...c, beforeUrls: c.beforeUrls.filter((u) => u !== url), pins: restPins };
+    });
+  }
+
+  function removeAfterPhoto(category: BriefPhotoCategory, url: string) {
+    updateCategory(category, (c) => ({ ...c, afterUrls: c.afterUrls.filter((u) => u !== url) }));
+  }
+
+  function addPin(category: BriefPhotoCategory, url: string, x: number, y: number) {
+    updateCategory(category, (c) => ({
+      ...c,
+      pins: { ...c.pins, [url]: [...(c.pins[url] ?? []), { id: crypto.randomUUID(), x, y, comment: '' }] },
+    }));
+  }
+
+  function changePinComment(category: BriefPhotoCategory, url: string, pinId: string, comment: string) {
+    updateCategory(category, (c) => ({
+      ...c,
+      pins: { ...c.pins, [url]: (c.pins[url] ?? []).map((p) => (p.id === pinId ? { ...p, comment } : p)) },
+    }));
+  }
+
+  function removePin(category: BriefPhotoCategory, url: string, pinId: string) {
+    updateCategory(category, (c) => ({
+      ...c,
+      pins: { ...c.pins, [url]: (c.pins[url] ?? []).filter((p) => p.id !== pinId) },
+    }));
   }
 
   const canSubmit = form.objectId.length > 0;
@@ -151,13 +201,7 @@ export function BriefFormModal({ open, brief, objects, onClose, onSaved }: Brief
 
     setSubmitting(true);
     setSubmitError(null);
-    const payload = {
-      objectId: form.objectId,
-      beforePhotoUrls: form.beforePhotoUrls,
-      afterPhotoUrls: form.afterPhotoUrls,
-      interiorChanges: form.interiorChanges,
-      facadeChanges: form.facadeChanges,
-    };
+    const payload = { objectId: form.objectId, photos: form.photos };
     try {
       const saved = brief ? await updateBrief(brief.id, payload) : await insertBrief(payload);
       onSaved(saved);
@@ -173,7 +217,7 @@ export function BriefFormModal({ open, brief, objects, onClose, onSaved }: Brief
 
   return (
     <Modal open={open} onClose={onClose} title={brief ? 'Редактировать техзадание' : 'Новое техзадание'}>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         <Select
           label="Объект"
           placeholder="Выберите объект"
@@ -185,37 +229,45 @@ export function BriefFormModal({ open, brief, objects, onClose, onSaved }: Brief
           }}
         />
 
-        <PhotoGallery
-          label="Фото «до»"
-          urls={form.beforePhotoUrls}
-          uploading={uploadingBefore}
-          onAdd={handleBeforePhotoAdd}
-          onRemove={(url) => setForm((f) => ({ ...f, beforePhotoUrls: f.beforePhotoUrls.filter((u) => u !== url) }))}
-        />
+        {briefPhotoCategories.map((category) => {
+          const cat = form.photos[category];
+          return (
+            <div key={category} className="flex flex-col gap-3 border-t border-border pt-4">
+              <span className="text-sm font-semibold text-ink">{briefPhotoCategoryLabels[category]}</span>
 
-        <PhotoGallery
-          label="Фото «после» (референс)"
-          urls={form.afterPhotoUrls}
-          uploading={uploadingAfter}
-          onAdd={handleAfterPhotoAdd}
-          onRemove={(url) => setForm((f) => ({ ...f, afterPhotoUrls: f.afterPhotoUrls.filter((u) => u !== url) }))}
-        />
+              <div className="flex flex-col gap-2">
+                <span className="text-xs uppercase tracking-wide text-ink-faint">До</span>
+                {cat.beforeUrls.map((url) => (
+                  <AnnotatedPhoto
+                    key={url}
+                    url={url}
+                    pins={cat.pins[url] ?? []}
+                    editable
+                    onAddPin={(x, y) => addPin(category, url, x, y)}
+                    onChangeComment={(pinId, comment) => changePinComment(category, url, pinId, comment)}
+                    onRemovePin={(pinId) => removePin(category, url, pinId)}
+                    onRemovePhoto={() => removeBeforePhoto(category, url)}
+                  />
+                ))}
+                <UploadTile
+                  label={cat.beforeUrls.length > 0 ? 'Добавить ещё фото «до»' : 'Добавить фото «до»'}
+                  uploading={uploadingKey === `${category}:before`}
+                  onSelect={(e) => handleBeforeAdd(category, e)}
+                />
+              </div>
 
-        <Textarea
-          label="Изменения внутри помещений"
-          placeholder="Например: демонтаж перегородки между 201 и 202, новая стяжка пола на 2 этаже..."
-          rows={4}
-          value={form.interiorChanges}
-          onChange={(e) => setForm((f) => ({ ...f, interiorChanges: e.target.value }))}
-        />
-
-        <Textarea
-          label="Изменения на фасаде"
-          placeholder="Например: замена витражного остекления по всему первому этажу..."
-          rows={4}
-          value={form.facadeChanges}
-          onChange={(e) => setForm((f) => ({ ...f, facadeChanges: e.target.value }))}
-        />
+              <div className="flex flex-col gap-2">
+                <span className="text-xs uppercase tracking-wide text-ink-faint">После (референс)</span>
+                <PlainGallery
+                  urls={cat.afterUrls}
+                  uploading={uploadingKey === `${category}:after`}
+                  onAdd={(e) => handleAfterAdd(category, e)}
+                  onRemove={(url) => removeAfterPhoto(category, url)}
+                />
+              </div>
+            </div>
+          );
+        })}
 
         {submitError && <p className="text-sm text-danger">{submitError}</p>}
 
