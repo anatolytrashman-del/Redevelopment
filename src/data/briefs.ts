@@ -96,6 +96,25 @@ export function emptyBriefPhotos(): BriefPhotos {
   };
 }
 
+export function changeIsEmpty(change: PhotoChange): boolean {
+  return !change.comment.trim() && !changeHasReference(change);
+}
+
+// Выбрасывает правки, на которые не ссылается ни одна метка И у которых нет
+// вообще никакого содержимого. Такие копятся сами собой: клик "Новая правка"
+// заводит пустую правку сразу, ещё до того, как что-то напечатали, — и если
+// потом снять метку (или передумать), пустышка навсегда осталась бы в списке
+// выбора "та же правка или новая". Правку с текстом, но без меток, наоборот
+// оставляем — её можно осмысленно отметить на другом фото.
+export function pruneEmptyOrphanChanges(c: BriefCategoryPhotos): BriefCategoryPhotos {
+  const used = new Set<string>();
+  for (const list of Object.values(c.markers)) {
+    for (const m of list ?? []) used.add(m.changeId);
+  }
+  const changes = c.changes.filter((ch) => used.has(ch.id) || !changeIsEmpty(ch));
+  return changes.length === c.changes.length ? c : { ...c, changes };
+}
+
 // Достраивает недостающие категории/поля до полной структуры — приходит
 // из безопасности из БД: старые строки (созданные до того, как появилось
 // это поле) получили photos = {} от значения по умолчанию колонки, без
@@ -103,11 +122,13 @@ export function emptyBriefPhotos(): BriefPhotos {
 // такое не ловит, потому что {} — не null/undefined.
 //
 // Отдельно мигрирует старый формат (до общих правок — каждая точка со своим
-// comment/referenceUrl, ключ pins вместо changes/markers): каждая старая
-// точка превращается в одну новую правку + одну метку. Дедуплицировать
-// одинаковый текст с разных старых точек в одну правку автоматически нельзя
-// (не знаем, какие из них "одно и то же" по смыслу) — просто ничего не
-// теряем, а объединять придётся вручную через новый интерфейс, если нужно.
+// comment/referenceUrl, ключ pins вместо changes/markers). Старые точки с
+// ПОЛНОСТЬЮ совпадающим содержимым схлопываются в одну общую правку: раньше
+// одну и ту же правку размножали копированием на каждое фото, и без
+// схлопывания список выбора распухал до десятков дублей (в т.ч. пачки
+// пустых "Без описания" от точек, которым так и не написали текст).
+// Совпадение проверяем по всем полям сразу, а не только по тексту — тогда
+// объединение заведомо безопасно: одинаковое содержимое и есть одно и то же.
 export function normalizeBriefPhotos(raw: unknown): BriefPhotos {
   const result = {} as BriefPhotos;
   for (const category of briefPhotoCategories) {
@@ -127,21 +148,39 @@ export function normalizeBriefPhotos(raw: unknown): BriefPhotos {
       for (const [url, list] of Object.entries(c.markers ?? {})) {
         markers[url] = (list ?? []).map((m) => ({ id: m.id, changeId: m.changeId, x: m.x, y: m.y }));
       }
-      result[category] = { beforeUrls: c.beforeUrls ?? [], afterUrls: c.afterUrls ?? [], changes, markers };
+      result[category] = pruneEmptyOrphanChanges({
+        beforeUrls: c.beforeUrls ?? [],
+        afterUrls: c.afterUrls ?? [],
+        changes,
+        markers,
+      });
     } else {
       const changes: PhotoChange[] = [];
       const markers: Record<string, PhotoMarker[]> = {};
+      const byContent = new Map<string, string>();
       for (const [url, list] of Object.entries(c?.pins ?? {})) {
         markers[url] = [];
         for (const p of list ?? []) {
-          changes.push({
+          const change: PhotoChange = {
             id: p.id,
             comment: p.comment ?? '',
             referenceImageUrl: p.referenceImageUrl ?? '',
             referenceDescription: p.referenceDescription ?? '',
             referenceUrl: p.referenceUrl ?? '',
-          });
-          markers[url].push({ id: `${p.id}-marker`, changeId: p.id, x: p.x, y: p.y });
+          };
+          const key = JSON.stringify([
+            change.comment.trim(),
+            change.referenceImageUrl,
+            change.referenceDescription.trim(),
+            change.referenceUrl,
+          ]);
+          let changeId = byContent.get(key);
+          if (!changeId) {
+            changeId = change.id;
+            byContent.set(key, changeId);
+            changes.push(change);
+          }
+          markers[url].push({ id: `${p.id}-marker`, changeId, x: p.x, y: p.y });
         }
       }
       result[category] = { beforeUrls: c?.beforeUrls ?? [], afterUrls: c?.afterUrls ?? [], changes, markers };

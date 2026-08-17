@@ -5,7 +5,7 @@ import { Textarea } from '../ui/Textarea';
 import { Input } from '../ui/Input';
 import { ReferencePopup } from './ReferencePopup';
 import { cn } from '../../lib/cn';
-import { changeHasReference, type PhotoChange, type PhotoMarker } from '../../data/briefs';
+import { changeHasReference, changeIsEmpty, type PhotoChange, type PhotoMarker } from '../../data/briefs';
 import { uploadObjectImage } from '../../lib/objectsApi';
 
 function Marker({ index, x, y }: { index: number; x: number; y: number }) {
@@ -89,13 +89,21 @@ export function AnnotatedPhoto({
     return map;
   }, [changes]);
 
+  // В списке "та же правка или новая" показываем только правки с описанием:
+  // выбрать пустую всё равно нечего (в ней нет текста, который мог бы
+  // подтянуться), а копятся они легко — каждая ещё не заполненная точка
+  // заводит правку сразу в момент клика по фото.
+  const pickableChanges = useMemo(() => changes.filter((c) => !changeIsEmpty(c)), [changes]);
+
   function handlePhotoClick(e: MouseEvent<HTMLDivElement>) {
     if (!editable) return;
     const rect = photoRef.current?.getBoundingClientRect();
     if (!rect) return;
     const x = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
     const y = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
-    if (changes.length === 0) {
+    // Выбирать не из чего (нет ни одной заполненной правки) — не спрашиваем
+    // лишний раз, сразу заводим новую.
+    if (pickableChanges.length === 0) {
       onCreateChange?.(x, y);
     } else {
       setPendingXY({ x, y });
@@ -163,16 +171,16 @@ export function AnnotatedPhoto({
         {editable && pendingXY && (
           <div className="flex flex-col gap-2 rounded-control border border-primary bg-primary/5 p-3">
             <span className="text-xs font-medium text-ink-muted">Это та же правка, что и на другом фото, или новая?</span>
-            {changes.length > 0 && (
+            {pickableChanges.length > 0 && (
               <div className="flex max-h-40 flex-col gap-1 overflow-y-auto">
-                {changes.map((c, i) => (
+                {pickableChanges.map((c, i) => (
                   <button
                     key={c.id}
                     type="button"
                     onClick={() => pickExisting(c.id)}
                     className="rounded-control border border-border px-2 py-1.5 text-left text-sm text-ink hover:border-primary"
                   >
-                    <span className="font-semibold">{i + 1}.</span> {c.comment || 'Без описания'}
+                    <span className="font-semibold">{i + 1}.</span> {c.comment}
                   </button>
                 ))}
               </div>

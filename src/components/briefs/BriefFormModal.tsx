@@ -13,6 +13,7 @@ import {
   briefPhotoCategoryLabels,
   emptyBriefPhotos,
   PLAN_REQUEST_NOTE,
+  pruneEmptyOrphanChanges,
   type Brief,
   type BriefCategoryPhotos,
   type BriefPhotoCategory,
@@ -151,11 +152,12 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
 
   function removeBeforePhoto(category: BriefPhotoCategory, url: string) {
     updateCategory(category, (c) => {
-      // Правки (changes) не трогаем — url может быть только фото, на
-      // котором ту или иную правку отмечали, а не единственным её местом.
+      // Заполненные правки (changes) не трогаем — удаляемое фото могло быть
+      // лишь одним из мест, где правку отмечали. Уходят только пустышки,
+      // оставшиеся вообще без меток.
       const restMarkers = { ...c.markers };
       delete restMarkers[url];
-      return { ...c, beforeUrls: c.beforeUrls.filter((u) => u !== url), markers: restMarkers };
+      return pruneEmptyOrphanChanges({ ...c, beforeUrls: c.beforeUrls.filter((u) => u !== url), markers: restMarkers });
     });
     setLightbox((lb) => (lb?.kind === 'pin' && lb.url === url ? null : lb));
   }
@@ -164,7 +166,7 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
     updateCategory(category, (c) => {
       const restMarkers = { ...c.markers };
       delete restMarkers[url];
-      return { ...c, afterUrls: c.afterUrls.filter((u) => u !== url), markers: restMarkers };
+      return pruneEmptyOrphanChanges({ ...c, afterUrls: c.afterUrls.filter((u) => u !== url), markers: restMarkers });
     });
     setLightbox((lb) => (lb?.kind === 'pin' && lb.url === url ? null : lb));
   }
@@ -201,12 +203,16 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
   }
 
   // Убирает метку с конкретного фото — саму правку (текст/референс) не
-  // трогает, она может быть отмечена и на других фото.
+  // трогает, она может быть отмечена и на других фото. Исключение —
+  // совсем пустая правка, оставшаяся вообще без меток: её незачем держать
+  // в списке выбора (см. pruneEmptyOrphanChanges).
   function removeMarker(category: BriefPhotoCategory, url: string, markerId: string) {
-    updateCategory(category, (c) => ({
-      ...c,
-      markers: { ...c.markers, [url]: (c.markers[url] ?? []).filter((m) => m.id !== markerId) },
-    }));
+    updateCategory(category, (c) =>
+      pruneEmptyOrphanChanges({
+        ...c,
+        markers: { ...c.markers, [url]: (c.markers[url] ?? []).filter((m) => m.id !== markerId) },
+      }),
+    );
   }
 
   const canSubmit = form.objectId.length > 0;
@@ -217,11 +223,16 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
 
     setSubmitting(true);
     setSubmitError(null);
+    // Чистим пустышки перед сохранением — иначе правка, заведённая кликом по
+    // фото и так и не заполненная, уедет в базу и всплывёт в списке выбора
+    // при следующем открытии.
+    const photos = { ...form.photos };
+    for (const category of briefPhotoCategories) photos[category] = pruneEmptyOrphanChanges(photos[category]);
     const payload = {
       objectId: form.objectId,
       recipientName: form.recipientName,
       recipientPhone: form.recipientPhone,
-      photos: form.photos,
+      photos,
     };
     try {
       const saved = brief ? await updateBrief(brief.id, payload) : await insertBrief(payload);
