@@ -38,8 +38,13 @@ function formatMoney(value: number) {
 // hideSoldStatus — клиентские поверхности не показывают отдельный статус
 // "Продано": для клиента и "Продано", и "Забронировано" означают одно и то
 // же — кабинет недоступен, разница между ними важна только для админа.
-export function zoneFillClass(zone: BuildingPlanZone, hideSoldStatus?: boolean): string {
+// hideBookingStatus — сметчику в техзадании (BriefBuildingPlans.tsx) статус
+// брони кабинета не нужен вообще, важна только разбивка на кабинет/МОП/
+// санузел/техническое: все кабинеты закрашены одним нейтральным цветом
+// независимо от status.
+export function zoneFillClass(zone: BuildingPlanZone, hideSoldStatus?: boolean, hideBookingStatus?: boolean): string {
   if (zone.zoneType === 'room') {
+    if (hideBookingStatus) return 'fill-success/25 stroke-success';
     const status = hideSoldStatus && zone.status === 'Продано' ? 'Забронировано' : zone.status;
     if (status === 'Продано') return 'fill-danger/35 stroke-danger';
     if (status === 'Забронировано') return 'fill-warning/35 stroke-warning';
@@ -69,6 +74,14 @@ interface BuildingPlanCanvasProps {
   // Только для клиентских поверхностей (см. zoneFillClass) — админский
   // BuildingPlanWidget этот проп не передаёт, там статус "Продано" виден как есть.
   hideSoldStatus?: boolean;
+  // Подсказка при наведении на кабинет по умолчанию показывает стоимость и
+  // первый взнос — это нужно клиенту на продающей странице, но не нужно
+  // сметчику в техзадании (см. BriefBuildingPlans.tsx): там из подсказки
+  // остаётся только площадь.
+  hidePricing?: boolean;
+  // См. zoneFillClass — убирает статус брони и из заливки, и из подсказки
+  // при наведении (там же нужен для условия ветки, отдельно от заливки).
+  hideBookingStatus?: boolean;
   // Пинч-зум и панорамирование пальцем — только на клиентских поверхностях
   // (PublicPlanAndUnits), где иначе на мобильном приходится зумить всю
   // страницу через системный pinch-to-zoom браузера: план не читается на
@@ -88,6 +101,8 @@ export function BuildingPlanCanvas({
   drawingPoints,
   highlightZoneId,
   hideSoldStatus,
+  hidePricing,
+  hideBookingStatus,
   zoomable,
 }: BuildingPlanCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -269,7 +284,10 @@ export function BuildingPlanCanvas({
               <polygon
                 key={zone.id}
                 points={pointsToAttr(zone.points)}
-                className={cn('cursor-pointer transition-opacity hover:opacity-80', zoneFillClass(zone, hideSoldStatus))}
+                className={cn(
+                  'cursor-pointer transition-opacity hover:opacity-80',
+                  zoneFillClass(zone, hideSoldStatus, hideBookingStatus),
+                )}
                 strokeWidth={0.3}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -347,19 +365,20 @@ export function BuildingPlanCanvas({
           {hoverZone.zone.workstationCount != null ? (
             <>
               <span className="text-ink-muted">Фиксированные рабочие места</span>
-              {(() => {
-                const remaining = workstationsRemaining(hoverZone.zone);
-                return remaining > 0 ? (
-                  <span className="font-semibold text-success">
-                    Свободно {remaining} из {hoverZone.zone.workstationCount}
-                  </span>
-                ) : (
-                  <span className="font-semibold text-danger">Все места заняты</span>
-                );
-              })()}
-              <span className="text-ink-muted">Цена: {formatMoney(WORKSTATION_PRICE)} / место</span>
+              {!hideBookingStatus &&
+                (() => {
+                  const remaining = workstationsRemaining(hoverZone.zone);
+                  return remaining > 0 ? (
+                    <span className="font-semibold text-success">
+                      Свободно {remaining} из {hoverZone.zone.workstationCount}
+                    </span>
+                  ) : (
+                    <span className="font-semibold text-danger">Все места заняты</span>
+                  );
+                })()}
+              {!hidePricing && <span className="text-ink-muted">Цена: {formatMoney(WORKSTATION_PRICE)} / место</span>}
             </>
-          ) : hoverZone.zone.zoneType === 'room' && hoverZone.zone.status !== 'Свободно' ? (
+          ) : hoverZone.zone.zoneType === 'room' && hoverZone.zone.status !== 'Свободно' && !hideBookingStatus ? (
             (() => {
               const status =
                 hideSoldStatus && hoverZone.zone.status === 'Продано' ? 'Забронировано' : hoverZone.zone.status;
@@ -377,7 +396,7 @@ export function BuildingPlanCanvas({
                   <span className="text-ink-muted">
                     {hoverZone.zone.area != null ? `${hoverZone.zone.area} м²` : 'Площадь не указана'}
                   </span>
-                  {hoverZone.zone.area != null && (
+                  {!hidePricing && hoverZone.zone.area != null && (
                     <>
                       <span className="text-ink-muted">Стоимость: {formatMoney(zonePrice(hoverZone.zone.area))}</span>
                       <span className="text-ink-muted">Первый взнос: {formatMoney(zoneDownPayment(hoverZone.zone.area))}</span>
@@ -396,19 +415,30 @@ export function BuildingPlanCanvas({
   );
 }
 
-export function BuildingPlanLegend({ hideSoldStatus }: { hideSoldStatus?: boolean } = {}) {
+export function BuildingPlanLegend({
+  hideSoldStatus,
+  hideBookingStatus,
+}: { hideSoldStatus?: boolean; hideBookingStatus?: boolean } = {}) {
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-ink-muted">
-      <span className="flex items-center gap-1.5">
-        <span className="h-3 w-3 rounded-sm bg-success/40" /> Свободно
-      </span>
-      <span className="flex items-center gap-1.5">
-        <span className="h-3 w-3 rounded-sm bg-warning/40" /> Забронировано
-      </span>
-      {!hideSoldStatus && (
+      {hideBookingStatus ? (
         <span className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-sm bg-danger/40" /> Продано
+          <span className="h-3 w-3 rounded-sm bg-success/40" /> Кабинет
         </span>
+      ) : (
+        <>
+          <span className="flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-sm bg-success/40" /> Свободно
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-sm bg-warning/40" /> Забронировано
+          </span>
+          {!hideSoldStatus && (
+            <span className="flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded-sm bg-danger/40" /> Продано
+            </span>
+          )}
+        </>
       )}
       <span className="flex items-center gap-1.5">
         <span className="h-3 w-3 rounded-sm bg-ink-faint/40" /> МОП

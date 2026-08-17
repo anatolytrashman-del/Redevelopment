@@ -72,8 +72,8 @@ export function BriefBuildingPlans({ object }: BriefBuildingPlansProps) {
       <BuildingPlanTabs plans={objectPlans} activePlanId={activePlanId} onSelect={setActivePlanId} />
       {plan && (
         <>
-          <BuildingPlanCanvas plan={plan} zones={zones} onZoneClick={() => {}} hideSoldStatus zoomable />
-          <BuildingPlanLegend hideSoldStatus />
+          <BuildingPlanCanvas plan={plan} zones={zones} onZoneClick={() => {}} hidePricing hideBookingStatus zoomable />
+          <BuildingPlanLegend hideBookingStatus />
         </>
       )}
     </div>
