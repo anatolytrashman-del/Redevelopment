@@ -20,6 +20,8 @@ interface PhotoLightboxProps {
   onChangeReferenceImage?: (changeId: string, url: string) => void;
   onChangeReferenceDescription?: (changeId: string, description: string) => void;
   onChangeReferenceUrl?: (changeId: string, url: string) => void;
+  photoLink?: string;
+  onChangePhotoLink?: (link: string) => void;
 }
 
 // Просмотр фото поверх страницы вместо открытия новой вкладки. Размер
@@ -41,6 +43,8 @@ export function PhotoLightbox({
   onChangeReferenceImage,
   onChangeReferenceDescription,
   onChangeReferenceUrl,
+  photoLink,
+  onChangePhotoLink,
 }: PhotoLightboxProps) {
   if (!url) return null;
 
@@ -78,6 +82,8 @@ export function PhotoLightbox({
             onChangeReferenceImage={onChangeReferenceImage}
             onChangeReferenceDescription={onChangeReferenceDescription}
             onChangeReferenceUrl={onChangeReferenceUrl}
+            photoLink={photoLink}
+            onChangePhotoLink={onChangePhotoLink}
             large
           />
         ) : (

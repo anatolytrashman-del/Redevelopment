@@ -20,6 +20,9 @@ const emptyChange: PhotoChange = { id: '', comment: '', referenceImageUrl: '', r
 interface PhotoItem {
   url: string;
   markers: PhotoMarker[];
+  // Ссылка на источник этого конкретного фото (не отдельной правки) —
+  // например, откуда взят референс "после". Необязательна.
+  link?: string;
 }
 
 // Само фото с метками поверх. children — слот под стрелки/точки слайдера,
@@ -58,11 +61,13 @@ function MarkerList({
   markers,
   changesById,
   onOpenReference,
+  link,
   capHeight,
 }: {
   markers: PhotoMarker[];
   changesById: Record<string, PhotoChange>;
   onOpenReference: (change: PhotoChange) => void;
+  link?: string;
   // В слайдере высоту списка ограничиваем: иначе при переключении слайда
   // блок меняет высоту вслед за числом отметок у конкретного фото, и вся
   // страница под ним дёргается вверх-вниз. В режиме списка переключения
@@ -71,6 +76,16 @@ function MarkerList({
 }) {
   return (
     <div className={cn('flex flex-1 flex-col gap-3', capHeight && 'max-h-80 overflow-y-auto')}>
+      {link && (
+        <a
+          href={link}
+          target="_blank"
+          rel="noreferrer"
+          className="w-fit text-sm font-semibold text-primary underline underline-offset-2"
+        >
+          Ссылка на источник
+        </a>
+      )}
       {markers.length === 0 && <p className="text-sm text-ink-faint">Отметок нет</p>}
       {markers.map((m, i) => {
         const change = changesById[m.changeId] ?? emptyChange;
@@ -145,7 +160,12 @@ export function PinnedPhotos({
         {photos.map((photo) => (
           <div key={photo.url} className="flex flex-col gap-4 sm:flex-row">
             <PhotoBox photo={photo} onOpenPhoto={onOpenPhoto} overlayCaption={overlayCaption} />
-            <MarkerList markers={photo.markers} changesById={changesById} onOpenReference={setOpenReferenceChange} />
+            <MarkerList
+              markers={photo.markers}
+              changesById={changesById}
+              onOpenReference={setOpenReferenceChange}
+              link={photo.link}
+            />
           </div>
         ))}
         {popup}
@@ -191,7 +211,13 @@ export function PinnedPhotos({
         )}
       </PhotoBox>
 
-      <MarkerList markers={current.markers} changesById={changesById} onOpenReference={setOpenReferenceChange} capHeight />
+      <MarkerList
+        markers={current.markers}
+        changesById={changesById}
+        onOpenReference={setOpenReferenceChange}
+        link={current.link}
+        capHeight
+      />
 
       {popup}
     </div>

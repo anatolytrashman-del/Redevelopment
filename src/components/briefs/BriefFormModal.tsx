@@ -157,7 +157,14 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
       // оставшиеся вообще без меток.
       const restMarkers = { ...c.markers };
       delete restMarkers[url];
-      return pruneEmptyOrphanChanges({ ...c, beforeUrls: c.beforeUrls.filter((u) => u !== url), markers: restMarkers });
+      const restLinks = { ...c.photoLinks };
+      delete restLinks[url];
+      return pruneEmptyOrphanChanges({
+        ...c,
+        beforeUrls: c.beforeUrls.filter((u) => u !== url),
+        markers: restMarkers,
+        photoLinks: restLinks,
+      });
     });
     setLightbox((lb) => (lb?.kind === 'pin' && lb.url === url ? null : lb));
   }
@@ -166,9 +173,20 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
     updateCategory(category, (c) => {
       const restMarkers = { ...c.markers };
       delete restMarkers[url];
-      return pruneEmptyOrphanChanges({ ...c, afterUrls: c.afterUrls.filter((u) => u !== url), markers: restMarkers });
+      const restLinks = { ...c.photoLinks };
+      delete restLinks[url];
+      return pruneEmptyOrphanChanges({
+        ...c,
+        afterUrls: c.afterUrls.filter((u) => u !== url),
+        markers: restMarkers,
+        photoLinks: restLinks,
+      });
     });
     setLightbox((lb) => (lb?.kind === 'pin' && lb.url === url ? null : lb));
+  }
+
+  function updatePhotoLink(category: BriefPhotoCategory, url: string, link: string) {
+    updateCategory(category, (c) => ({ ...c, photoLinks: { ...c.photoLinks, [url]: link } }));
   }
 
   // Новая правка (описание печатается впервые) + метка на конкретном фото.
@@ -372,6 +390,8 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
             updateChange(lightbox.category, changeId, { referenceDescription })
           }
           onChangeReferenceUrl={(changeId, referenceUrl) => updateChange(lightbox.category, changeId, { referenceUrl })}
+          photoLink={form.photos[lightbox.category].photoLinks[lightbox.url] ?? ''}
+          onChangePhotoLink={(link) => updatePhotoLink(lightbox.category, lightbox.url, link)}
           onClose={() => setLightbox(null)}
         />
       )}

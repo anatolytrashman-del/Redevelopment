@@ -41,6 +41,10 @@ interface AnnotatedPhotoProps {
   onChangeReferenceImage?: (changeId: string, url: string) => void;
   onChangeReferenceDescription?: (changeId: string, description: string) => void;
   onChangeReferenceUrl?: (changeId: string, url: string) => void;
+  // Ссылка на источник самого фото (не отдельной правки) — например,
+  // страница, откуда взят референс "после". Необязательна.
+  photoLink?: string;
+  onChangePhotoLink?: (link: string) => void;
   // Крупный показ внутри PhotoLightbox — фото на всю ширину (то же, что и
   // на публичной странице), список комментариев под ним, а не сбоку: так
   // фото занимает максимум места и по нему реально удобно кликать точками.
@@ -72,6 +76,8 @@ export function AnnotatedPhoto({
   onChangeReferenceImage,
   onChangeReferenceDescription,
   onChangeReferenceUrl,
+  photoLink,
+  onChangePhotoLink,
   large = false,
 }: AnnotatedPhotoProps) {
   const photoRef = useRef<HTMLDivElement>(null);
@@ -162,6 +168,28 @@ export function AnnotatedPhoto({
       </div>
 
       <div className="flex flex-1 flex-col gap-3">
+        {editable ? (
+          onChangePhotoLink && (
+            <Input
+              label="Ссылка на источник фото (необязательно)"
+              placeholder="Откуда взят референс — сайт, каталог..."
+              value={photoLink ?? ''}
+              onChange={(e) => onChangePhotoLink(e.target.value)}
+            />
+          )
+        ) : (
+          photoLink && (
+            <a
+              href={photoLink}
+              target="_blank"
+              rel="noreferrer"
+              className="w-fit text-sm font-semibold text-primary underline underline-offset-2"
+            >
+              Ссылка на источник
+            </a>
+          )
+        )}
+
         {markers.length === 0 && pendingXY === null && (
           <p className="text-sm text-ink-faint">
             {editable ? 'Кликни по фото, чтобы отметить место изменения' : 'Отметок нет'}

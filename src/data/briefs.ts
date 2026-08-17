@@ -42,6 +42,7 @@ export const COST_REDUCTION_IDEAS_TITLE = 'Идеи по сокращению с
 export const COST_REDUCTION_IDEAS = [
   'Просчитать 1–2 кабинета в плане реновации, а остальные кабинеты посчитать согласно площади по аналогии.',
   'Просчитать коридоры только на 1 этаже, а потом умножить сумму на 2.',
+  'Приветствуются любые инженерные решения, которые позволяют улучшить внешний вид без значительных капитальных затрат.',
 ];
 
 // Строка над блоком планировок — план объекта в базе не всегда чертёжного
@@ -102,12 +103,18 @@ export interface BriefCategoryPhotos {
   // удалении фото, а url общий для beforeUrls/afterUrls). Список меток
   // показывается сбоку от фото, пронумерован в тон меткам на самом фото.
   markers: Record<string, PhotoMarker[]>;
+  // Ссылка на источник самого фото (например, откуда взят референс "после") —
+  // ключ тот же url, что и у markers. Это отдельная вещь от referenceUrl
+  // внутри PhotoChange: там ссылка привязана к конкретной ПРАВКЕ ("вот эту
+  // именно дверь купить"), здесь — к самому ФОТО целиком, необязательна и
+  // не связана ни с одной точкой.
+  photoLinks: Record<string, string>;
 }
 
 export type BriefPhotos = Record<BriefPhotoCategory, BriefCategoryPhotos>;
 
 export function emptyCategoryPhotos(): BriefCategoryPhotos {
-  return { beforeUrls: [], afterUrls: [], changes: [], markers: {} };
+  return { beforeUrls: [], afterUrls: [], changes: [], markers: {}, photoLinks: {} };
 }
 
 export function emptyBriefPhotos(): BriefPhotos {
@@ -175,6 +182,7 @@ export function normalizeBriefPhotos(raw: unknown): BriefPhotos {
         afterUrls: c.afterUrls ?? [],
         changes,
         markers,
+        photoLinks: { ...(c.photoLinks ?? {}) },
       });
     } else {
       const changes: PhotoChange[] = [];
@@ -205,7 +213,7 @@ export function normalizeBriefPhotos(raw: unknown): BriefPhotos {
           markers[url].push({ id: `${p.id}-marker`, changeId, x: p.x, y: p.y });
         }
       }
-      result[category] = { beforeUrls: c?.beforeUrls ?? [], afterUrls: c?.afterUrls ?? [], changes, markers };
+      result[category] = { beforeUrls: c?.beforeUrls ?? [], afterUrls: c?.afterUrls ?? [], changes, markers, photoLinks: {} };
     }
   }
   return result;

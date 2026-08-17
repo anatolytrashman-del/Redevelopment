@@ -35,6 +35,7 @@ const specsFields: { key: keyof BuildingSpecs; label: string }[] = [
   { key: 'yearRenovated', label: 'Год последнего ремонта' },
   { key: 'floorsCount', label: 'Этажность' },
   { key: 'totalArea', label: 'Общая площадь, м²' },
+  { key: 'normativeArea', label: 'Нормативная площадь, м²' },
   { key: 'foundation', label: 'Фундамент' },
   { key: 'walls', label: 'Стены' },
   { key: 'ceilings', label: 'Перекрытия' },
@@ -77,7 +78,12 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
   // миниатюре (планировка, фото "до"/"после" со своими метками) вместо
   // перехода в новую вкладку. markers/changes передаются только для фото
   // категории — определяются в месте открытия, не угадываются по контенту.
-  const [lightbox, setLightbox] = useState<{ url: string; markers?: PhotoMarker[]; changes?: PhotoChange[] } | null>(null);
+  const [lightbox, setLightbox] = useState<{
+    url: string;
+    markers?: PhotoMarker[];
+    changes?: PhotoChange[];
+    link?: string;
+  } | null>(null);
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-5">
@@ -88,15 +94,17 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
       </div>
 
       <div
-        className={cn('flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:justify-between', glassCardClass)}
+        className={cn('flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between', glassCardClass)}
         style={glassCardShadow}
       >
         <div className="flex flex-col gap-1">
           <span className="text-base font-semibold text-ink sm:text-lg">
-            Техническое задание на предварительный просчёт сметы реновации здания
+            Техническое задание на предварительный просчёт ведомостей объема работ и материалов для реновации здания
           </span>
-          <span className="text-xl font-bold text-ink sm:text-2xl">{object.name || object.address}</span>
-          {object.name && <span className="text-sm text-ink-faint">{object.address}</span>}
+          {/* Название объекта (RealtyObject.name) сюда намеренно не выводится
+              — оно маркетинговое ("Minsk One" и т.п.), сметчику нужен только
+              реальный адрес. */}
+          <span className="text-xl font-bold text-ink sm:text-2xl">{object.address}</span>
         </div>
         {(brief.recipientName || brief.recipientPhone) && (
           <div className="flex flex-col gap-0.5 sm:w-56 sm:shrink-0 sm:items-end sm:text-right">
@@ -137,9 +145,11 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
             <div className="flex flex-col gap-3">
               <span className="text-lg font-bold text-ink sm:text-xl">{BEFORE_BLOCK_TITLE}</span>
               <PinnedPhotos
-                photos={cat.beforeUrls.map((url) => ({ url, markers: cat.markers[url] ?? [] }))}
+                photos={cat.beforeUrls.map((url) => ({ url, markers: cat.markers[url] ?? [], link: cat.photoLinks[url] }))}
                 changesById={changesById}
-                onOpenPhoto={(url, markers) => setLightbox({ url, markers, changes: cat.changes })}
+                onOpenPhoto={(url, markers) =>
+                  setLightbox({ url, markers, changes: cat.changes, link: cat.photoLinks[url] })
+                }
                 layout={stackedBeforeCategories.includes(category) ? 'stack' : 'carousel'}
               />
             </div>
@@ -151,9 +161,11 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
             <div className="flex flex-col gap-3 border-t border-border pt-4">
               <span className="text-lg font-bold text-ink sm:text-xl">{AFTER_BLOCK_TITLE}</span>
               <PinnedPhotos
-                photos={cat.afterUrls.map((url) => ({ url, markers: cat.markers[url] ?? [] }))}
+                photos={cat.afterUrls.map((url) => ({ url, markers: cat.markers[url] ?? [], link: cat.photoLinks[url] }))}
                 changesById={changesById}
-                onOpenPhoto={(url, markers) => setLightbox({ url, markers, changes: cat.changes })}
+                onOpenPhoto={(url, markers) =>
+                  setLightbox({ url, markers, changes: cat.changes, link: cat.photoLinks[url] })
+                }
                 emptyLabel="Фото не загружены"
                 overlayCaption={category === 'facade' ? FACADE_REFERENCE_CAPTION : undefined}
               />
@@ -177,6 +189,7 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
         url={lightbox?.url ?? null}
         markers={lightbox?.markers}
         changes={lightbox?.changes}
+        photoLink={lightbox?.link}
         onClose={() => setLightbox(null)}
       />
     </div>
