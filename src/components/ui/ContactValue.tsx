@@ -18,9 +18,19 @@ export function buildDialogLink(contactMethod: string, contact: string): string 
   return /^https?:\/\//i.test(contact.trim()) ? contact.trim() : null;
 }
 
-export function ContactValue({ contact, contactMethod }: { contact: string; contactMethod?: string }) {
+// interactive=false — просто текст, без ссылки на диалог (нужно там, где
+// контакт должен быть виден, но не кликабелен, например у подрядчиков).
+export function ContactValue({
+  contact,
+  contactMethod,
+  interactive = true,
+}: {
+  contact: string;
+  contactMethod?: string;
+  interactive?: boolean;
+}) {
   if (!contact) return null;
-  const href = buildDialogLink(contactMethod ?? '', contact);
+  const href = interactive ? buildDialogLink(contactMethod ?? '', contact) : null;
   if (href) {
     return (
       <a href={href} target="_blank" rel="noreferrer" className="truncate text-primary hover:underline">

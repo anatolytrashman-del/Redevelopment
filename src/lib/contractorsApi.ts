@@ -20,6 +20,7 @@ function fromRow(row: ContractorRow): Contractor {
     notes: row.notes ?? '',
     paymentTerms: row.payment_terms ?? '',
     teamTier: row.team_tier ?? '',
+    responsibilityZone: row.responsibility_zone ?? '',
     photoPath: row.photo_path ?? '',
     createdAt: row.created_at,
   };
@@ -47,6 +48,7 @@ export function insertContractor(input: Omit<Contractor, 'id' | 'createdAt'>): P
         notes: input.notes || null,
         payment_terms: input.paymentTerms || null,
         team_tier: input.teamTier || null,
+        responsibility_zone: input.responsibilityZone || null,
         photo_path: input.photoPath || null,
       })
       .select()
@@ -71,6 +73,7 @@ export function updateContractor(id: string, input: Omit<Contractor, 'id' | 'cre
         notes: input.notes || null,
         payment_terms: input.paymentTerms || null,
         team_tier: input.teamTier || null,
+        responsibility_zone: input.responsibilityZone || null,
         photo_path: input.photoPath || null,
       })
       .eq('id', id)
@@ -153,6 +156,7 @@ export async function tryAutoFillTelegramAvatarForContractor(contractor: Contrac
       notes: contractor.notes,
       paymentTerms: contractor.paymentTerms,
       teamTier: contractor.teamTier,
+      responsibilityZone: contractor.responsibilityZone,
       photoPath,
     });
   } catch {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Trash2, Upload, X, Send, Phone, Mail } from 'lucide-react';
+import { Plus, Loader2, Trash2, Upload, X, Send, Phone, Mail, MapPin } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -29,6 +29,7 @@ import {
 } from '../lib/contractorsApi';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
+import { formatPhoneDisplay } from '../lib/formatPhone';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -47,6 +48,7 @@ const emptyForm = {
   notes: '',
   paymentTerms: '',
   teamTier: '',
+  responsibilityZone: '',
   photoPath: '',
 };
 
@@ -61,6 +63,7 @@ function contractorToForm(c: Contractor) {
     notes: c.notes,
     paymentTerms: c.paymentTerms,
     teamTier: c.teamTier,
+    responsibilityZone: c.responsibilityZone,
     photoPath: c.photoPath,
   };
 }
@@ -110,31 +113,29 @@ function ContractorCard({
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
+      {contractor.responsibilityZone && (
+        <div className="flex items-center gap-1.5 truncate text-sm text-ink-muted">
+          <MapPin className="h-3.5 w-3.5 shrink-0" />
+          {contractor.responsibilityZone}
+        </div>
+      )}
       {contractor.contact && !contactDuplicatesDedicatedField(contractor) && (
-        <div className="flex items-center gap-1.5 truncate text-sm" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-1.5 truncate text-sm">
           {contractor.contactMethod === 'Telegram' && <Send className="h-3.5 w-3.5 shrink-0 text-ink-faint" />}
-          <ContactValue contact={contractor.contact} contactMethod={contractor.contactMethod} />
+          <ContactValue contact={contractor.contact} contactMethod={contractor.contactMethod} interactive={false} />
         </div>
       )}
       {contractor.phone && (
-        <a
-          href={`tel:${contractor.phone.replace(/[^\d+]/g, '')}`}
-          onClick={(e) => e.stopPropagation()}
-          className="flex items-center gap-1.5 truncate text-sm text-ink-muted hover:text-primary"
-        >
+        <div className="flex items-center gap-1.5 truncate text-sm text-ink-muted">
           <Phone className="h-3.5 w-3.5 shrink-0" />
-          {contractor.phone}
-        </a>
+          {formatPhoneDisplay(contractor.phone)}
+        </div>
       )}
       {contractor.email && (
-        <a
-          href={`mailto:${contractor.email}`}
-          onClick={(e) => e.stopPropagation()}
-          className="flex items-center gap-1.5 truncate text-sm text-ink-muted hover:text-primary"
-        >
+        <div className="flex items-center gap-1.5 truncate text-sm text-ink-muted">
           <Mail className="h-3.5 w-3.5 shrink-0" />
           {contractor.email}
-        </a>
+        </div>
       )}
     </div>
   );
@@ -307,6 +308,7 @@ export function Contractors() {
       notes: form.notes,
       paymentTerms: form.paymentTerms,
       teamTier: form.teamTier,
+      responsibilityZone: form.responsibilityZone,
       photoPath: form.photoPath,
     };
     try {
@@ -470,6 +472,13 @@ export function Contractors() {
             onChange={(v) => setForm((f) => ({ ...f, specialty: v }))}
             addLabel="+ Добавить специальность"
             newPlaceholder="Название специальности"
+          />
+
+          <Input
+            label="Зона ответственности"
+            placeholder="Например: объекты в Партизанском районе"
+            value={form.responsibilityZone}
+            onChange={(e) => setForm((f) => ({ ...f, responsibilityZone: e.target.value }))}
           />
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

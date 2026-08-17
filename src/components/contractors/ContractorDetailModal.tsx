@@ -4,6 +4,7 @@ import { Button } from '../ui/Button';
 import { ContactValue } from '../ui/ContactValue';
 import { ContractorAvatar } from './ContractorAvatar';
 import { contactDuplicatesDedicatedField, type Contractor } from '../../data/contractors';
+import { formatPhoneDisplay } from '../../lib/formatPhone';
 
 function formatDate(iso: string): string {
   if (!iso) return '—';
@@ -63,23 +64,12 @@ export function ContractorDetailModal({ contractor, onClose, onEdit, onDelete, d
           <Field label="Способ связи">{contractor.contactMethod}</Field>
           {!contactDuplicatesDedicatedField(contractor) && (
             <Field label="Контакт">
-              <ContactValue contact={contractor.contact} contactMethod={contractor.contactMethod} />
+              <ContactValue contact={contractor.contact} contactMethod={contractor.contactMethod} interactive={false} />
             </Field>
           )}
-          <Field label="Телефон">
-            {contractor.phone ? (
-              <a href={`tel:${contractor.phone.replace(/[^\d+]/g, '')}`} className="text-primary hover:underline">
-                {contractor.phone}
-              </a>
-            ) : null}
-          </Field>
-          <Field label="Email">
-            {contractor.email ? (
-              <a href={`mailto:${contractor.email}`} className="text-primary hover:underline">
-                {contractor.email}
-              </a>
-            ) : null}
-          </Field>
+          <Field label="Телефон">{contractor.phone ? formatPhoneDisplay(contractor.phone) : null}</Field>
+          <Field label="Email">{contractor.email}</Field>
+          <Field label="Зона ответственности">{contractor.responsibilityZone}</Field>
           <Field label="Добавлен">{formatDate(contractor.createdAt)}</Field>
         </div>
 
