@@ -87,7 +87,7 @@ function ContractorCard({
     <div
       onClick={() => onOpen(contractor)}
       className={cn(
-        'flex w-full min-w-[240px] max-w-sm flex-1 cursor-pointer flex-col gap-2 p-4 transition-colors hover:border-primary/40',
+        'flex w-full cursor-pointer flex-col gap-2 p-4 transition-colors hover:border-primary/40',
         glassCardClass,
       )}
       style={glassCardShadow}
@@ -371,7 +371,7 @@ export function Contractors() {
           {tierGroups.map((group) => (
             <div key={group.tier} className="flex flex-col gap-4">
               <div className="text-lg font-bold text-ink">{group.tier}</div>
-              <div className="flex flex-wrap gap-4">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
                 {group.items.map((c) => (
                   <ContractorCard
                     key={c.id}
@@ -407,7 +407,7 @@ export function Contractors() {
                     <div className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
                       {group.specialty}
                     </div>
-                    <div className="flex flex-wrap gap-4">
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
                       {group.items.map((c) => (
                         <ContractorCard
                           key={c.id}
