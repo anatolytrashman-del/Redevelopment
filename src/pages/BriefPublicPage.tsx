@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { BriefDocument } from '../components/briefs/BriefDocument';
-import type { Brief } from '../data/briefs';
+import { BRIEF_TITLE, type Brief } from '../data/briefs';
 import type { RealtyObject } from '../data/objects';
 import { fetchBriefByToken } from '../lib/briefsApi';
 import { fetchObject } from '../lib/objectsApi';
@@ -26,6 +26,19 @@ export function BriefPublicPage() {
   const [object, setObject] = useState<RealtyObject | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // index.html — общий статический файл на все роуты (публичный SPA-фолбэк),
+  // его <title> заточен под продающую страницу объекта. Здесь подменяем на
+  // время жизни страницы и возвращаем как было при уходе — тот же приём, что
+  // и в AppLayout для админки. Ставим сразу, не дожидаясь загрузки данных:
+  // вкладка не должна какое-то время висеть с чужим названием.
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = BRIEF_TITLE;
+    return () => {
+      document.title = previousTitle;
+    };
+  }, []);
 
   useEffect(() => {
     if (!token) return;

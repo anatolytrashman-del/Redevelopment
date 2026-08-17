@@ -4,7 +4,7 @@ import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { BriefFormModal } from '../components/briefs/BriefFormModal';
-import type { Brief } from '../data/briefs';
+import { BRIEF_TITLE, type Brief } from '../data/briefs';
 import type { RealtyObject } from '../data/objects';
 import type { Contractor } from '../data/contractors';
 import { fetchBriefs, deleteBrief } from '../lib/briefsApi';
@@ -113,7 +113,10 @@ export function Briefs() {
             style={glassCardShadow}
           >
             <div className="flex min-w-0 flex-col gap-0.5">
-              <span className="truncate font-semibold text-ink">{objectLabel(b.objectId)}</span>
+              <span className="truncate font-semibold text-ink">{BRIEF_TITLE}</span>
+              {/* Объект остаётся строкой ниже — иначе при нескольких
+                  техзаданиях строки списка стали бы неразличимы. */}
+              <span className="truncate text-sm text-ink-muted">{objectLabel(b.objectId)}</span>
               <span className="break-all text-xs text-ink-faint">{publicUrl(b)}</span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
