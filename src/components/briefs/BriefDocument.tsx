@@ -9,7 +9,7 @@ import {
 import type { BuildingSpecs, RealtyObject } from '../../data/objects';
 import { PhotoThumbGrid } from './PhotoThumbGrid';
 import { HeroOrGrid } from './HeroOrGrid';
-import { HeroAnnotatedPhoto } from './HeroAnnotatedPhoto';
+import { BeforePhotoCarousel } from './BeforePhotoCarousel';
 import { PhotoLightbox } from './PhotoLightbox';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
@@ -121,20 +121,10 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
           <Section key={category} title={briefPhotoCategoryLabels[category]}>
             <div className="flex flex-col gap-3">
               <span className="text-xs uppercase tracking-wide text-ink-faint">Сейчас — что менять</span>
-              {cat.beforeUrls.length === 0 ? (
-                <p className="text-sm text-ink-faint">Фото не загружены</p>
-              ) : cat.beforeUrls.length === 1 ? (
-                <HeroAnnotatedPhoto
-                  url={cat.beforeUrls[0]}
-                  pins={cat.pins[cat.beforeUrls[0]] ?? []}
-                  onOpen={() => setLightbox({ url: cat.beforeUrls[0], pins: cat.pins[cat.beforeUrls[0]] ?? [] })}
-                />
-              ) : (
-                <PhotoThumbGrid
-                  items={cat.beforeUrls.map((url) => ({ url, pinCount: (cat.pins[url] ?? []).length }))}
-                  onOpen={(url) => setLightbox({ url, pins: cat.pins[url] ?? [] })}
-                />
-              )}
+              <BeforePhotoCarousel
+                photos={cat.beforeUrls.map((url) => ({ url, pins: cat.pins[url] ?? [] }))}
+                onOpenPhoto={(url, pins) => setLightbox({ url, pins })}
+              />
             </div>
 
             {cat.beforeUrls.length > 0 && cat.afterUrls.length > 0 && (

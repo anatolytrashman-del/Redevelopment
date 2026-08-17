@@ -31,7 +31,7 @@ export const FACADE_REFERENCE_CAPTION = 'Примерный дизайн, соз
 // где фото с точками показывается в реальном размере (не миниатюра без
 // разметки), обязаны использовать один и тот же aspect-[16/9] — иначе
 // object-cover кадрирует фото по-разному и точки визуально съезжают
-// (см. AnnotatedPhoto.tsx/HeroAnnotatedPhoto.tsx).
+// (см. AnnotatedPhoto.tsx/BeforePhotoCarousel.tsx).
 export interface PhotoPin {
   id: string;
   x: number;

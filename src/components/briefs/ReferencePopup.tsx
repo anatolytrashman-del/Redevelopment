@@ -10,9 +10,9 @@ export function ReferencePopup({ pin, onClose }: { pin: PhotoPin; onClose: () =>
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center p-4"
       onClick={(e) => {
-        // Компонент часто монтируется внутри кликабельной обёртки фото
-        // (HeroAnnotatedPhoto) — без остановки клик по подложке долетел бы
-        // и до неё, открыв заодно и лайтбокс с фото.
+        // Защита на случай, если компонент смонтирован внутри кликабельной
+        // обёртки фото — без остановки клик по подложке долетел бы и до
+        // неё, открыв заодно и лайтбокс с фото.
         e.stopPropagation();
         onClose();
       }}
