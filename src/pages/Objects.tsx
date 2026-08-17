@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Loader2, ImageOff, Trash2 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
@@ -9,7 +9,7 @@ import { PledgeDetailModal } from '../components/pledges/PledgeDetailModal';
 import { PledgeFormModal } from '../components/pledges/PledgeFormModal';
 import { PledgePhoto } from '../components/pledges/PledgePhoto';
 import type { RealtyObject } from '../data/objects';
-import type { Pledge } from '../data/pledges';
+import { pledgeTypes, type Pledge } from '../data/pledges';
 import { fetchObjects } from '../lib/objectsApi';
 import { fetchPledges, deletePledge } from '../lib/pledgesApi';
 import { cn } from '../lib/cn';
@@ -46,13 +46,18 @@ function PledgeCard({
       className={cn('group flex cursor-pointer flex-col overflow-hidden transition-colors hover:border-primary/40', glassCardClass)}
       style={glassCardShadow}
     >
-      <div className="aspect-[16/9] w-full shrink-0 bg-surface-muted">
+      <div className="relative aspect-[16/9] w-full shrink-0 bg-surface-muted">
         {pledge.photoPaths[0] ? (
           <PledgePhoto path={pledge.photoPaths[0]} className="h-full w-full" />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
             <ImageOff className="h-6 w-6 text-ink-faint" />
           </div>
+        )}
+        {pledge.propertyType && (
+          <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-ink shadow-sm">
+            {pledge.propertyType}
+          </span>
         )}
       </div>
 
@@ -95,6 +100,12 @@ export function Objects() {
   const [detailPledgeId, setDetailPledgeId] = useState<string | null>(null);
   const [deletingPledgeId, setDeletingPledgeId] = useState<string | null>(null);
   const [pledgeActionError, setPledgeActionError] = useState<string | null>(null);
+
+  const knownPledgeTypes = useMemo(() => {
+    const set = new Set<string>(pledgeTypes);
+    pledges.forEach((p) => p.propertyType && set.add(p.propertyType));
+    return [...set];
+  }, [pledges]);
 
   useEffect(() => {
     fetchObjects()
@@ -247,6 +258,7 @@ export function Objects() {
       <PledgeFormModal
         open={pledgeFormOpen}
         pledge={editingPledge}
+        knownTypes={knownPledgeTypes}
         onClose={() => setPledgeFormOpen(false)}
         onSaved={handlePledgeSaved}
       />

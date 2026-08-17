@@ -36,7 +36,14 @@ export function PledgeDetailModal({ pledge, onClose, onEdit, onDelete, deleting 
   return (
     <Modal open onClose={onClose} title="Объект в залоге">
       <div className="flex flex-col gap-5">
-        <span className="break-words text-lg font-bold text-ink">{pledge.address}</span>
+        <div className="flex flex-col gap-2">
+          <span className="break-words text-lg font-bold text-ink">{pledge.address}</span>
+          {pledge.propertyType && (
+            <span className="w-fit rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+              {pledge.propertyType}
+            </span>
+          )}
+        </div>
 
         {pledge.photoPaths.length > 0 && (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">

@@ -3,9 +3,17 @@
 // в проработке есть отдельный маршрут /admin/objects/:id с планировками,
 // техпаспортом и т.п. — залогу это не нужно, только карточка+модалка,
 // тот же паттерн, что у Lead).
+
+// Открытый список, как contractorSpecialties/leadStatuses — свой вариант
+// добавляется прямо из формы.
+export const pledgeTypes = ['Квартира', 'Коммерческое помещение'] as const;
+
 export interface Pledge {
   id: string;
   address: string;
+  // Пусто — тип не указан. "Квартира"/"Коммерческое помещение" или своё
+  // значение — см. pledgeTypes выше. Показывается бейджем на превью.
+  propertyType: string;
   area: number;
   marketValue: number;
   pledgeValue: number;
@@ -21,6 +29,7 @@ export interface Pledge {
 export interface PledgeRow {
   id: string;
   address: string;
+  property_type: string | null;
   area: number;
   market_value: number;
   pledge_value: number;

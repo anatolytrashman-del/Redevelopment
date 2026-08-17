@@ -10,6 +10,7 @@ function fromRow(row: PledgeRow): Pledge {
   return {
     id: row.id,
     address: row.address,
+    propertyType: row.property_type ?? '',
     area: row.area,
     marketValue: row.market_value,
     pledgeValue: row.pledge_value,
@@ -33,6 +34,7 @@ export function insertPledge(input: Omit<Pledge, 'id' | 'createdAt'>): Promise<P
       .from('pledges')
       .insert({
         address: input.address,
+        property_type: input.propertyType || null,
         area: input.area,
         market_value: input.marketValue,
         pledge_value: input.pledgeValue,
@@ -53,6 +55,7 @@ export function updatePledge(id: string, input: Omit<Pledge, 'id' | 'createdAt'>
       .from('pledges')
       .update({
         address: input.address,
+        property_type: input.propertyType || null,
         area: input.area,
         market_value: input.marketValue,
         pledge_value: input.pledgeValue,

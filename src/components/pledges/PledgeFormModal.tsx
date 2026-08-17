@@ -4,6 +4,7 @@ import { Loader2, Upload, X } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { AddableSelect } from '../ui/AddableSelect';
 import { PledgePhoto } from './PledgePhoto';
 import type { Pledge } from '../../data/pledges';
 import { insertPledge, updatePledge, uploadPledgePhoto, deletePledgePhoto } from '../../lib/pledgesApi';
@@ -18,6 +19,7 @@ function errorMessage(err: unknown, fallback: string): string {
 
 const emptyForm = {
   address: '',
+  propertyType: '',
   area: '',
   marketValue: '',
   pledgeValue: '',
@@ -28,6 +30,7 @@ const emptyForm = {
 function pledgeToForm(p: Pledge) {
   return {
     address: p.address,
+    propertyType: p.propertyType,
     area: p.area ? String(p.area) : '',
     marketValue: p.marketValue ? String(p.marketValue) : '',
     pledgeValue: p.pledgeValue ? String(p.pledgeValue) : '',
@@ -40,11 +43,15 @@ interface PledgeFormModalProps {
   open: boolean;
   // null — создание нового залога, иначе редактирование существующего.
   pledge: Pledge | null;
+  // Известные типы объекта (пресет + фактически встречающиеся значения) —
+  // считает родитель по всему списку залогов, тот же паттерн, что
+  // knownSpecialties в Contractors.tsx.
+  knownTypes: string[];
   onClose: () => void;
   onSaved: (p: Pledge) => void;
 }
 
-export function PledgeFormModal({ open, pledge, onClose, onSaved }: PledgeFormModalProps) {
+export function PledgeFormModal({ open, pledge, knownTypes, onClose, onSaved }: PledgeFormModalProps) {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -91,6 +98,7 @@ export function PledgeFormModal({ open, pledge, onClose, onSaved }: PledgeFormMo
     setSubmitError(null);
     const payload = {
       address: form.address,
+      propertyType: form.propertyType,
       area: Number(form.area) || 0,
       marketValue: Number(form.marketValue) || 0,
       pledgeValue: Number(form.pledgeValue) || 0,
@@ -116,6 +124,16 @@ export function PledgeFormModal({ open, pledge, onClose, onSaved }: PledgeFormMo
           value={form.address}
           onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
           required
+        />
+
+        <AddableSelect
+          label="Тип объекта"
+          placeholder="Не выбрано"
+          options={knownTypes}
+          value={form.propertyType}
+          onChange={(v) => setForm((f) => ({ ...f, propertyType: v }))}
+          addLabel="+ Добавить тип"
+          newPlaceholder="Название типа"
         />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
