@@ -1,8 +1,8 @@
-// Один и тот же список: разница между "постоянной командой" (юрист,
-// налоговый консультант — те, кого уже проверили и держат под рукой) и
-// обычным подрядчиком (строитель, электрик...) — не в структуре данных,
-// а в одном признаке isCoreTeam. Сегодняшний разовый электрик завтра может
-// стать частью команды — это тумблер, а не миграция между таблицами.
+// Один и тот же список подрядчиков — деление на "команду" и "обычных
+// подрядчиков" держится не отдельными таблицами, а одним открытым полем
+// teamTier (см. Contractor.teamTier ниже), тем же паттерном, что и
+// specialty/status у других сущностей: пресет плюс своё значение из формы.
+// Пусто — обычный подрядчик, показывается в общем списке.
 
 // Открытый список, как leadRequirements/leadStatuses — пользователь может
 // добавить свою специальность прямо из формы.
@@ -10,6 +10,13 @@ export const contractorSpecialties = ['Юрист', 'Налоговый конс
 
 // Тот же паттерн, что leadContactMethods, но без Kufar — подрядчиков там не ищут.
 export const contractorContactMethods = ['Телефон', 'Telegram', 'WhatsApp', 'Viber', 'Email'] as const;
+
+// "Команда" — те, кто 24/7 на связи (сейчас никого); "Part-time" — доверенные
+// консультанты по запросу (юрист, налоговый консультант). Открытый список —
+// свой вариант добавляется прямо из формы, как и специальность. Каждое
+// непустое значение получает на странице собственный закреплённый блок
+// (см. Contractors.tsx), а не только эти два конкретных.
+export const contractorTeamTiers = ['Команда', 'Part-time'] as const;
 
 export interface Contractor {
   id: string;
@@ -34,12 +41,27 @@ export interface Contractor {
   // работы: разные по природе вещи, в детальной карточке показываются
   // отдельным блоком.
   paymentTerms: string;
-  isCoreTeam: boolean;
+  // Пусто — обычный подрядчик. "Команда"/"Part-time" или своё значение —
+  // см. contractorTeamTiers выше.
+  teamTier: string;
   // Путь файла в приватном бакете contractor-photos, не готовый URL — тот же
   // паттерн, что и у Lead.photoPath (см. lib/contractorsApi.ts). Для
-  // постоянной команды подтягивается автоматически из Telegram.
+  // всех, у кого teamTier заполнен, подтягивается автоматически из Telegram.
   photoPath: string;
   createdAt: string;
+}
+
+// Когда способ связи — Телефон или Email, contact на практике держит то же
+// самое значение, что и отдельные поля phone/email (форма и заполняется
+// именно так) — тогда карточка показывала бы одну и ту же строку дважды.
+// Сравниваем буквально, а не просто по contactMethod: если когда-нибудь
+// заполнят по-разному, ничего не прячем и не теряем данные.
+export function contactDuplicatesDedicatedField(
+  c: Pick<Contractor, 'contact' | 'contactMethod' | 'phone' | 'email'>,
+): boolean {
+  if (c.contactMethod === 'Телефон' && c.contact === c.phone) return true;
+  if (c.contactMethod === 'Email' && c.contact === c.email) return true;
+  return false;
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/contractorsApi.ts
@@ -53,7 +75,7 @@ export interface ContractorRow {
   email: string | null;
   notes: string | null;
   payment_terms: string | null;
-  is_core_team: boolean;
+  team_tier: string | null;
   photo_path: string | null;
   created_at: string;
 }

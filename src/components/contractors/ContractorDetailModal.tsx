@@ -3,7 +3,7 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { ContactValue } from '../ui/ContactValue';
 import { ContractorAvatar } from './ContractorAvatar';
-import type { Contractor } from '../../data/contractors';
+import { contactDuplicatesDedicatedField, type Contractor } from '../../data/contractors';
 
 function formatDate(iso: string): string {
   if (!iso) return '—';
@@ -45,9 +45,9 @@ export function ContractorDetailModal({ contractor, onClose, onEdit, onDelete, d
           <div className="flex min-w-0 flex-col gap-2">
             <span className="break-words text-lg font-bold text-ink">{contractor.name}</span>
             <div className="flex flex-wrap items-center gap-1.5">
-              {contractor.isCoreTeam && (
+              {contractor.teamTier && (
                 <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
-                  Постоянная команда
+                  {contractor.teamTier}
                 </span>
               )}
               {contractor.specialty && (
@@ -61,9 +61,11 @@ export function ContractorDetailModal({ contractor, onClose, onEdit, onDelete, d
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Способ связи">{contractor.contactMethod}</Field>
-          <Field label="Контакт">
-            <ContactValue contact={contractor.contact} contactMethod={contractor.contactMethod} />
-          </Field>
+          {!contactDuplicatesDedicatedField(contractor) && (
+            <Field label="Контакт">
+              <ContactValue contact={contractor.contact} contactMethod={contractor.contactMethod} />
+            </Field>
+          )}
           <Field label="Телефон">
             {contractor.phone ? (
               <a href={`tel:${contractor.phone.replace(/[^\d+]/g, '')}`} className="text-primary hover:underline">

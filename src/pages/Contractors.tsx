@@ -5,14 +5,19 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { AddableSelect } from '../components/ui/AddableSelect';
-import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Textarea } from '../components/ui/Textarea';
 import { Modal } from '../components/ui/Modal';
 import { SearchInput } from '../components/ui/SearchInput';
 import { ContactValue } from '../components/ui/ContactValue';
 import { ContractorAvatar } from '../components/contractors/ContractorAvatar';
 import { ContractorDetailModal } from '../components/contractors/ContractorDetailModal';
-import { contractorSpecialties, contractorContactMethods, type Contractor } from '../data/contractors';
+import {
+  contractorSpecialties,
+  contractorContactMethods,
+  contractorTeamTiers,
+  contactDuplicatesDedicatedField,
+  type Contractor,
+} from '../data/contractors';
 import {
   fetchContractors,
   insertContractor,
@@ -41,7 +46,7 @@ const emptyForm = {
   email: '',
   notes: '',
   paymentTerms: '',
-  isCoreTeam: false,
+  teamTier: '',
   photoPath: '',
 };
 
@@ -55,7 +60,7 @@ function contractorToForm(c: Contractor) {
     email: c.email,
     notes: c.notes,
     paymentTerms: c.paymentTerms,
-    isCoreTeam: c.isCoreTeam,
+    teamTier: c.teamTier,
     photoPath: c.photoPath,
   };
 }
@@ -105,7 +110,7 @@ function ContractorCard({
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
-      {contractor.contact && (
+      {contractor.contact && !contactDuplicatesDedicatedField(contractor) && (
         <div className="flex items-center gap-1.5 truncate text-sm" onClick={(e) => e.stopPropagation()}>
           {contractor.contactMethod === 'Telegram' && <Send className="h-3.5 w-3.5 shrink-0 text-ink-faint" />}
           <ContactValue contact={contractor.contact} contactMethod={contractor.contactMethod} />
@@ -156,12 +161,13 @@ export function Contractors() {
     fetchContractors()
       .then((loaded) => {
         setContractors(loaded);
-        // Один раз при загрузке страницы пробуем подтянуть фото для команды —
-        // тех, кто уже был занесён до этой фичи и остался без фото. Команда
-        // всегда маленькая (несколько человек), поэтому пройтись по всем сразу
-        // безопасно — в отличие от подрядчиков, где так делать не стоит.
+        // Один раз при загрузке страницы пробуем подтянуть фото для команды и
+        // part-time консультантов — тех, кто уже был занесён до этой фичи и
+        // остался без фото. Этот круг людей всегда маленький (несколько
+        // человек), поэтому пройтись по всем сразу безопасно — в отличие от
+        // подрядчиков, где так делать не стоит.
         loaded
-          .filter((c) => c.isCoreTeam && !c.photoPath)
+          .filter((c) => c.teamTier && !c.photoPath)
           .forEach((c) => {
             tryAutoFillTelegramAvatarForContractor(c).then((updated) => {
               if (updated) setContractors((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
@@ -184,14 +190,34 @@ export function Contractors() {
     return [...set];
   }, [contractors]);
 
-  const coreTeam = useMemo(() => contractors.filter((c) => c.isCoreTeam), [contractors]);
+  const knownTeamTiers = useMemo(() => {
+    const set = new Set<string>(contractorTeamTiers);
+    contractors.forEach((c) => c.teamTier && set.add(c.teamTier));
+    return [...set];
+  }, [contractors]);
 
-  // Общий список — без команды (она уже показана отдельным блоком выше),
-  // отфильтрован поиском по имени/специальности и сгруппирован по
+  // Динамические блоки по занятости (Команда/Part-time/своё значение) — вместо
+  // одной жёстко прибитой группы "Команда". Порядок: сначала пресет
+  // (contractorTeamTiers), затем любые кастомные значения в порядке появления
+  // в данных — так третий уровень занятости не потребует правок кода.
+  const tierGroups = useMemo(() => {
+    const byTier = new Map<string, Contractor[]>();
+    contractors.forEach((c) => {
+      if (!c.teamTier) return;
+      const list = byTier.get(c.teamTier) ?? [];
+      list.push(c);
+      byTier.set(c.teamTier, list);
+    });
+    const order = [...contractorTeamTiers, ...[...byTier.keys()].filter((t) => !(contractorTeamTiers as readonly string[]).includes(t))];
+    return order.filter((tier) => byTier.has(tier)).map((tier) => ({ tier, items: byTier.get(tier)! }));
+  }, [contractors]);
+
+  // Общий список — без команды/part-time (они уже показаны отдельными блоками
+  // выше), отфильтрован поиском по имени/специальности и сгруппирован по
   // специальности, чтобы список из многих подрядчиков было легче просматривать.
   const generalGroups = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const rest = contractors.filter((c) => !c.isCoreTeam);
+    const rest = contractors.filter((c) => !c.teamTier);
     const filtered = q
       ? rest.filter((c) => c.name.toLowerCase().includes(q) || c.specialty.toLowerCase().includes(q))
       : rest;
@@ -280,7 +306,7 @@ export function Contractors() {
       email: form.email,
       notes: form.notes,
       paymentTerms: form.paymentTerms,
-      isCoreTeam: form.isCoreTeam,
+      teamTier: form.teamTier,
       photoPath: form.photoPath,
     };
     try {
@@ -340,11 +366,11 @@ export function Contractors() {
 
       {!loading && !loadError && (
         <div className="flex flex-col gap-8">
-          {coreTeam.length > 0 && (
-            <div className="flex flex-col gap-4">
-              <div className="text-lg font-bold text-ink">Команда</div>
+          {tierGroups.map((group) => (
+            <div key={group.tier} className="flex flex-col gap-4">
+              <div className="text-lg font-bold text-ink">{group.tier}</div>
               <div className="flex flex-wrap gap-4">
-                {coreTeam.map((c) => (
+                {group.items.map((c) => (
                   <ContractorCard
                     key={c.id}
                     contractor={c}
@@ -355,7 +381,7 @@ export function Contractors() {
                 ))}
               </div>
             </div>
-          )}
+          ))}
 
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -502,11 +528,14 @@ export function Contractors() {
             onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
           />
 
-          <ToggleGroup
-            label="Постоянная команда"
-            options={['Да', 'Нет']}
-            value={form.isCoreTeam ? 'Да' : 'Нет'}
-            onChange={(v) => setForm((f) => ({ ...f, isCoreTeam: v === 'Да' }))}
+          <AddableSelect
+            label="Занятость"
+            placeholder="Обычный подрядчик"
+            options={knownTeamTiers}
+            value={form.teamTier}
+            onChange={(v) => setForm((f) => ({ ...f, teamTier: v }))}
+            addLabel="+ Добавить вариант"
+            newPlaceholder="Название"
           />
 
           {submitError && <p className="text-sm text-danger">{submitError}</p>}

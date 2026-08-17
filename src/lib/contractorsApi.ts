@@ -19,7 +19,7 @@ function fromRow(row: ContractorRow): Contractor {
     email: row.email ?? '',
     notes: row.notes ?? '',
     paymentTerms: row.payment_terms ?? '',
-    isCoreTeam: row.is_core_team,
+    teamTier: row.team_tier ?? '',
     photoPath: row.photo_path ?? '',
     createdAt: row.created_at,
   };
@@ -46,7 +46,7 @@ export function insertContractor(input: Omit<Contractor, 'id' | 'createdAt'>): P
         email: input.email || null,
         notes: input.notes || null,
         payment_terms: input.paymentTerms || null,
-        is_core_team: input.isCoreTeam,
+        team_tier: input.teamTier || null,
         photo_path: input.photoPath || null,
       })
       .select()
@@ -70,7 +70,7 @@ export function updateContractor(id: string, input: Omit<Contractor, 'id' | 'cre
         email: input.email || null,
         notes: input.notes || null,
         payment_terms: input.paymentTerms || null,
-        is_core_team: input.isCoreTeam,
+        team_tier: input.teamTier || null,
         photo_path: input.photoPath || null,
       })
       .eq('id', id)
@@ -129,11 +129,11 @@ export async function deleteContractorPhoto(path: string): Promise<void> {
 }
 
 // Автоподтягивание аватара из Telegram — по аналогии с tryAutoFillTelegramAvatar
-// у лидов (leadsApi.ts), но только для постоянной команды: это узкий,
+// у лидов (leadsApi.ts), но только для команды/part-time: это узкий,
 // заведомо доверенный список из нескольких человек, а не весь список
 // подрядчиков — незачем дёргать t.me для каждого случайного электрика.
 export async function tryAutoFillTelegramAvatarForContractor(contractor: Contractor): Promise<Contractor | null> {
-  if (!contractor.isCoreTeam || contractor.photoPath || contractor.contactMethod !== 'Telegram') return null;
+  if (!contractor.teamTier || contractor.photoPath || contractor.contactMethod !== 'Telegram') return null;
   const handle = extractTelegramHandle(contractor.contact);
   if (!handle) return null;
 
@@ -152,7 +152,7 @@ export async function tryAutoFillTelegramAvatarForContractor(contractor: Contrac
       email: contractor.email,
       notes: contractor.notes,
       paymentTerms: contractor.paymentTerms,
-      isCoreTeam: contractor.isCoreTeam,
+      teamTier: contractor.teamTier,
       photoPath,
     });
   } catch {
