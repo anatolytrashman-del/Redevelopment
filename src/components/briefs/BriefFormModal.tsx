@@ -39,6 +39,9 @@ const emptyForm = {
   objectId: '',
   recipientName: '',
   recipientPhone: '',
+  // Пусто — при создании ссылку задаёт сама база (случайный токен), поле
+  // тут просто необязательная возможность выбрать её сразу же самому.
+  shareToken: '',
   photos: emptyBriefPhotos(),
 };
 
@@ -47,6 +50,7 @@ function briefToForm(b: Brief) {
     objectId: b.objectId,
     recipientName: b.recipientName,
     recipientPhone: b.recipientPhone,
+    shareToken: b.shareToken,
     photos: b.photos,
   };
 }
@@ -250,6 +254,7 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
       objectId: form.objectId,
       recipientName: form.recipientName,
       recipientPhone: form.recipientPhone,
+      shareToken: form.shareToken,
       photos,
     };
     try {
@@ -278,6 +283,16 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
             setForm((f) => ({ ...f, objectId: obj?.id ?? '' }));
           }}
         />
+
+        <div>
+          <Input
+            label="Короткая ссылка (необязательно)"
+            placeholder={brief ? '' : 'оставь пустым — сгенерируется случайная'}
+            value={form.shareToken}
+            onChange={(e) => setForm((f) => ({ ...f, shareToken: e.target.value.trim() }))}
+          />
+          {form.shareToken && <p className="mt-1.5 text-xs text-ink-faint">redevelopment.pro/tz/{form.shareToken}</p>}
+        </div>
 
         <div className="flex flex-col gap-3 border-t border-border pt-4">
           <span className="text-sm font-semibold text-ink">Кому направлено</span>

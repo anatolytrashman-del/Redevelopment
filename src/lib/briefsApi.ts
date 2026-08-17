@@ -32,7 +32,11 @@ export function fetchBriefByToken(token: string): Promise<Brief> {
   });
 }
 
-export function insertBrief(input: Omit<Brief, 'id' | 'createdAt' | 'shareToken'>): Promise<Brief> {
+// shareToken тут необязательный (пустая строка — не передавать вовсе,
+// пусть сработает дефолт колонки) специально для insertBrief: обычно
+// короткую ссылку задают уже после создания, через updateBrief, но можно
+// сразу указать её и при первом сохранении.
+export function insertBrief(input: Omit<Brief, 'id' | 'createdAt'>): Promise<Brief> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('briefs')
@@ -41,6 +45,7 @@ export function insertBrief(input: Omit<Brief, 'id' | 'createdAt' | 'shareToken'
         recipient_name: input.recipientName || null,
         recipient_phone: input.recipientPhone || null,
         photos: input.photos,
+        ...(input.shareToken.trim() ? { share_token: input.shareToken.trim() } : {}),
       })
       .select()
       .single();
@@ -50,7 +55,7 @@ export function insertBrief(input: Omit<Brief, 'id' | 'createdAt' | 'shareToken'
   });
 }
 
-export function updateBrief(id: string, input: Omit<Brief, 'id' | 'createdAt' | 'shareToken'>): Promise<Brief> {
+export function updateBrief(id: string, input: Omit<Brief, 'id' | 'createdAt'>): Promise<Brief> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('briefs')
@@ -59,6 +64,9 @@ export function updateBrief(id: string, input: Omit<Brief, 'id' | 'createdAt' | 
         recipient_name: input.recipientName || null,
         recipient_phone: input.recipientPhone || null,
         photos: input.photos,
+        // Пустую ссылку не сохраняем — она единственный способ попасть на
+        // публичную страницу, случайно затереть её в null нельзя.
+        ...(input.shareToken.trim() ? { share_token: input.shareToken.trim() } : {}),
       })
       .eq('id', id)
       .select()

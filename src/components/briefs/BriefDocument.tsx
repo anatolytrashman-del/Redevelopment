@@ -20,12 +20,12 @@ import { PhotoLightbox } from './PhotoLightbox';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 
-// Где фото "сейчас" показываем списком друг под другом, а не слайдером.
-// Общие зоны — это разные помещения (холл, лестница, санузел), а не разные
-// ракурсы одного: пролистывать их по одному, чтобы увидеть весь объём
-// работ, неудобно. У фасада и кабинетов кадры однотипные, там слайдер
-// компактнее.
-const stackedBeforeCategories: BriefPhotoCategory[] = ['commonAreas'];
+// Где фото ("сейчас" и "должно стать") показываем списком друг под другом,
+// а не слайдером. Общие зоны — это разные помещения (холл, лестница,
+// санузел), а не разные ракурсы одного: пролистывать их по одному, чтобы
+// увидеть весь объём работ, неудобно. У фасада и кабинетов кадры
+// однотипные, там слайдер компактнее.
+const stackedCategories: BriefPhotoCategory[] = ['commonAreas'];
 
 // Не все поля техпаспорта — сметчику по ремонту важен конструктив и
 // инженерка, а не, например, количество кабинетов/санузлов.
@@ -150,7 +150,7 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
                 onOpenPhoto={(url, markers) =>
                   setLightbox({ url, markers, changes: cat.changes, link: cat.photoLinks[url] })
                 }
-                layout={stackedBeforeCategories.includes(category) ? 'stack' : 'carousel'}
+                layout={stackedCategories.includes(category) ? 'stack' : 'carousel'}
               />
             </div>
 
@@ -168,6 +168,7 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
                 }
                 emptyLabel="Фото не загружены"
                 overlayCaption={category === 'facade' ? FACADE_REFERENCE_CAPTION : undefined}
+                layout={stackedCategories.includes(category) ? 'stack' : 'carousel'}
               />
             </div>
           </Section>
