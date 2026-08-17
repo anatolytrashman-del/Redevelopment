@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Trash2, Upload, X } from 'lucide-react';
+import { Plus, Loader2, Trash2, Upload, X, Send, Phone, Mail } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -11,6 +11,7 @@ import { Modal } from '../components/ui/Modal';
 import { SearchInput } from '../components/ui/SearchInput';
 import { ContactValue } from '../components/ui/ContactValue';
 import { ContractorAvatar } from '../components/contractors/ContractorAvatar';
+import { ContractorDetailModal } from '../components/contractors/ContractorDetailModal';
 import { contractorSpecialties, contractorContactMethods, type Contractor } from '../data/contractors';
 import {
   fetchContractors,
@@ -39,6 +40,7 @@ const emptyForm = {
   phone: '',
   email: '',
   notes: '',
+  paymentTerms: '',
   isCoreTeam: false,
   photoPath: '',
 };
@@ -52,27 +54,30 @@ function contractorToForm(c: Contractor) {
     phone: c.phone,
     email: c.email,
     notes: c.notes,
+    paymentTerms: c.paymentTerms,
     isCoreTeam: c.isCoreTeam,
     photoPath: c.photoPath,
   };
 }
 
 // Один вид карточки и для "Команды", и для общего списка — разница между ними
-// не в вёрстке, а только в том, из какой группы контактов её взяли.
+// не в вёрстке, а только в том, из какой группы контактов её взяли. Клик по
+// карточке открывает детальную карточку (ContractorDetailModal), не форму
+// редактирования напрямую — та же ступенька, что у карточки лида.
 function ContractorCard({
   contractor,
-  onEdit,
+  onOpen,
   onDelete,
   deleting,
 }: {
   contractor: Contractor;
-  onEdit: (c: Contractor) => void;
+  onOpen: (c: Contractor) => void;
   onDelete: (c: Contractor) => void;
   deleting: boolean;
 }) {
   return (
     <div
-      onClick={() => onEdit(contractor)}
+      onClick={() => onOpen(contractor)}
       className={cn(
         'flex w-full min-w-[240px] max-w-sm flex-1 cursor-pointer flex-col gap-2 p-4 transition-colors hover:border-primary/40',
         glassCardClass,
@@ -84,7 +89,7 @@ function ContractorCard({
           <ContractorAvatar name={contractor.name} photoPath={contractor.photoPath} />
           <div className="min-w-0">
             <div className="truncate font-semibold text-ink">{contractor.name}</div>
-            <div className="truncate text-xs text-ink-muted">{contractor.specialty || '—'}</div>
+            <div className="truncate text-sm text-ink-muted">{contractor.specialty || '—'}</div>
           </div>
         </div>
         <button
@@ -101,7 +106,8 @@ function ContractorCard({
         </button>
       </div>
       {contractor.contact && (
-        <div className="truncate text-sm" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-1.5 truncate text-sm" onClick={(e) => e.stopPropagation()}>
+          {contractor.contactMethod === 'Telegram' && <Send className="h-3.5 w-3.5 shrink-0 text-ink-faint" />}
           <ContactValue contact={contractor.contact} contactMethod={contractor.contactMethod} />
         </div>
       )}
@@ -109,8 +115,9 @@ function ContractorCard({
         <a
           href={`tel:${contractor.phone.replace(/[^\d+]/g, '')}`}
           onClick={(e) => e.stopPropagation()}
-          className="truncate text-sm text-ink-muted hover:text-primary"
+          className="flex items-center gap-1.5 truncate text-sm text-ink-muted hover:text-primary"
         >
+          <Phone className="h-3.5 w-3.5 shrink-0" />
           {contractor.phone}
         </a>
       )}
@@ -118,12 +125,12 @@ function ContractorCard({
         <a
           href={`mailto:${contractor.email}`}
           onClick={(e) => e.stopPropagation()}
-          className="truncate text-sm text-ink-muted hover:text-primary"
+          className="flex items-center gap-1.5 truncate text-sm text-ink-muted hover:text-primary"
         >
+          <Mail className="h-3.5 w-3.5 shrink-0" />
           {contractor.email}
         </a>
       )}
-      {contractor.notes && <div className="truncate text-xs text-ink-faint">{contractor.notes}</div>}
     </div>
   );
 }
@@ -134,6 +141,9 @@ export function Contractors() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
+  // Карточка подрядчика (просмотр) — промежуточный шаг между списком и формой,
+  // тот же приём, что и detailId у лидов.
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
@@ -198,6 +208,8 @@ export function Contractors() {
     return groups;
   }, [contractors, search]);
 
+  const detailContractor = detailId ? (contractors.find((c) => c.id === detailId) ?? null) : null;
+
   const canSubmit = form.name && form.specialty && form.contact;
 
   function openAddModal() {
@@ -211,6 +223,8 @@ export function Contractors() {
     setEditingId(c.id);
     setForm(contractorToForm(c));
     setSubmitError(null);
+    // Карточку закрываем: две модалки одновременно перекрывали бы друг друга.
+    setDetailId(null);
     setOpen(true);
   }
 
@@ -265,6 +279,7 @@ export function Contractors() {
       phone: form.phone,
       email: form.email,
       notes: form.notes,
+      paymentTerms: form.paymentTerms,
       isCoreTeam: form.isCoreTeam,
       photoPath: form.photoPath,
     };
@@ -296,6 +311,7 @@ export function Contractors() {
     try {
       await deleteContractor(c.id);
       setContractors((prev) => prev.filter((x) => x.id !== c.id));
+      setDetailId(null);
     } catch (err) {
       setActionError(errorMessage(err, 'Не удалось удалить подрядчика'));
     } finally {
@@ -332,7 +348,7 @@ export function Contractors() {
                   <ContractorCard
                     key={c.id}
                     contractor={c}
-                    onEdit={openEditModal}
+                    onOpen={(c) => setDetailId(c.id)}
                     onDelete={handleDelete}
                     deleting={deletingId === c.id}
                   />
@@ -368,7 +384,7 @@ export function Contractors() {
                         <ContractorCard
                           key={c.id}
                           contractor={c}
-                          onEdit={openEditModal}
+                          onOpen={(c) => setDetailId(c.id)}
                           onDelete={handleDelete}
                           deleting={deletingId === c.id}
                         />
@@ -471,8 +487,16 @@ export function Contractors() {
           </p>
 
           <Textarea
+            label="Условия оплаты"
+            placeholder="Предоплата, ставка, реквизиты..."
+            rows={2}
+            value={form.paymentTerms}
+            onChange={(e) => setForm((f) => ({ ...f, paymentTerms: e.target.value }))}
+          />
+
+          <Textarea
             label="Заметки"
-            placeholder="Плюсы, минусы, цены, с какими объектами работал..."
+            placeholder="Плюсы, минусы, качество работы, с какими объектами работал..."
             rows={3}
             value={form.notes}
             onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
@@ -497,6 +521,14 @@ export function Contractors() {
           </div>
         </form>
       </Modal>
+
+      <ContractorDetailModal
+        contractor={detailContractor}
+        onClose={() => setDetailId(null)}
+        onEdit={openEditModal}
+        onDelete={handleDelete}
+        deleting={deletingId === detailContractor?.id}
+      />
     </>
   );
 }

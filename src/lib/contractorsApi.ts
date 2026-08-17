@@ -18,6 +18,7 @@ function fromRow(row: ContractorRow): Contractor {
     phone: row.phone ?? '',
     email: row.email ?? '',
     notes: row.notes ?? '',
+    paymentTerms: row.payment_terms ?? '',
     isCoreTeam: row.is_core_team,
     photoPath: row.photo_path ?? '',
     createdAt: row.created_at,
@@ -44,6 +45,7 @@ export function insertContractor(input: Omit<Contractor, 'id' | 'createdAt'>): P
         phone: input.phone || null,
         email: input.email || null,
         notes: input.notes || null,
+        payment_terms: input.paymentTerms || null,
         is_core_team: input.isCoreTeam,
         photo_path: input.photoPath || null,
       })
@@ -67,6 +69,7 @@ export function updateContractor(id: string, input: Omit<Contractor, 'id' | 'cre
         phone: input.phone || null,
         email: input.email || null,
         notes: input.notes || null,
+        payment_terms: input.paymentTerms || null,
         is_core_team: input.isCoreTeam,
         photo_path: input.photoPath || null,
       })
@@ -148,6 +151,7 @@ export async function tryAutoFillTelegramAvatarForContractor(contractor: Contrac
       phone: contractor.phone,
       email: contractor.email,
       notes: contractor.notes,
+      paymentTerms: contractor.paymentTerms,
       isCoreTeam: contractor.isCoreTeam,
       photoPath,
     });

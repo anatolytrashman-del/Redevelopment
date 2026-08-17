@@ -29,6 +29,11 @@ export interface Contractor {
   // подрядчику обычно достаточно одной обновляемой заметки "плюсы/минусы",
   // без хронологии звонков.
   notes: string;
+  // Отдельно от notes — предоплата/постоплата, ставка, реквизиты и т.п.
+  // Держим отдельным полем, а не смешиваем со свободными заметками о качестве
+  // работы: разные по природе вещи, в детальной карточке показываются
+  // отдельным блоком.
+  paymentTerms: string;
   isCoreTeam: boolean;
   // Путь файла в приватном бакете contractor-photos, не готовый URL — тот же
   // паттерн, что и у Lead.photoPath (см. lib/contractorsApi.ts). Для
@@ -47,6 +52,7 @@ export interface ContractorRow {
   phone: string | null;
   email: string | null;
   notes: string | null;
+  payment_terms: string | null;
   is_core_team: boolean;
   photo_path: string | null;
   created_at: string;
