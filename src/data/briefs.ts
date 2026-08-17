@@ -28,17 +28,16 @@ export const FACADE_REFERENCE_CAPTION = 'Примерный дизайн, соз
 // показанная ниже планировка — рабочий вариант для ориентира.
 export const PLAN_REQUEST_NOTE = 'Запрошен техплан у собственника с планировками и размерами в хорошем разрешении';
 
-// Точка-комментарий на фото "до" — x/y в процентах от размера фото (не в
-// пикселях: тогда отметка съезжала бы при показе фото в другом размере,
-// например в модалке редактирования и на публичной странице). Все контейнеры,
-// где фото с точками показывается в реальном размере (не миниатюра без
-// разметки), обязаны использовать один и тот же aspect-[16/9] — иначе
-// object-cover кадрирует фото по-разному и точки визуально съезжают
-// (см. AnnotatedPhoto.tsx/PinnedPhotoCarousel.tsx).
-export interface PhotoPin {
+// Правка — описание изменения ("покрасить стены", "заменить пол") заводится
+// ОДИН раз на категорию и переиспользуется на любом числе фото "до"/"после":
+// текст/референс живут здесь, а не на каждой отметке отдельно. Раньше у
+// каждой точки на каждом фото был свой независимый комментарий — при похожей
+// правке на втором фото приходилось либо печатать текст заново, либо вручную
+// "копировать" точки специальной кнопкой, что было неочевидно и не спасало,
+// если правку правили уже после копирования (правки расходились). Теперь
+// правка одна, а точки на разных фото — просто её метки-координаты.
+export interface PhotoChange {
   id: string;
-  x: number;
-  y: number;
   comment: string;
   // Референс на конкретную модель/товар ("вот такую именно дверь
   // поставить") — необязательный, отдельно от текстового комментария.
@@ -49,25 +48,44 @@ export interface PhotoPin {
   referenceUrl: string;
 }
 
-export function pinHasReference(pin: Pick<PhotoPin, 'referenceImageUrl' | 'referenceDescription' | 'referenceUrl'>): boolean {
-  return !!(pin.referenceImageUrl || pin.referenceDescription || pin.referenceUrl);
+export function changeHasReference(
+  change: Pick<PhotoChange, 'referenceImageUrl' | 'referenceDescription' | 'referenceUrl'>,
+): boolean {
+  return !!(change.referenceImageUrl || change.referenceDescription || change.referenceUrl);
+}
+
+// Метка правки на конкретном фото — x/y в процентах от размера фото (не в
+// пикселях: тогда отметка съезжала бы при показе фото в другом размере,
+// например в модалке редактирования и на публичной странице). Все контейнеры,
+// где фото с метками показывается в реальном размере (не миниатюра без
+// разметки), обязаны использовать один и тот же aspect-[16/9] — иначе
+// object-cover кадрирует фото по-разному и точки визуально съезжают
+// (см. AnnotatedPhoto.tsx/PinnedPhotoCarousel.tsx). Текста внутри нет —
+// только ссылка на PhotoChange, координаты у каждого фото свои (одна и та же
+// правка может быть в разных местах кадра на разных фото).
+export interface PhotoMarker {
+  id: string;
+  changeId: string;
+  x: number;
+  y: number;
 }
 
 export interface BriefCategoryPhotos {
   beforeUrls: string[];
   afterUrls: string[];
-  // Отметки бывают и у фото "до", и у фото "после" — ключ: url фото (не
-  // индекс в массиве: индекс сползает при удалении фото, а url общий для
-  // обоих списков, что и позволяет копировать точки между "до" и "после",
-  // см. copyPins в BriefFormModal.tsx). Список комментариев показывается
-  // сбоку от фото, пронумерован в тон меткам на самом фото.
-  pins: Record<string, PhotoPin[]>;
+  // Общий список правок категории — общий для всех фото "до" и "после"
+  // внутри неё.
+  changes: PhotoChange[];
+  // Метки — ключ: url фото (не индекс в массиве: индекс сползает при
+  // удалении фото, а url общий для beforeUrls/afterUrls). Список меток
+  // показывается сбоку от фото, пронумерован в тон меткам на самом фото.
+  markers: Record<string, PhotoMarker[]>;
 }
 
 export type BriefPhotos = Record<BriefPhotoCategory, BriefCategoryPhotos>;
 
 export function emptyCategoryPhotos(): BriefCategoryPhotos {
-  return { beforeUrls: [], afterUrls: [], pins: {} };
+  return { beforeUrls: [], afterUrls: [], changes: [], markers: {} };
 }
 
 export function emptyBriefPhotos(): BriefPhotos {
@@ -81,28 +99,65 @@ export function emptyBriefPhotos(): BriefPhotos {
 // Достраивает недостающие категории/поля до полной структуры — приходит
 // из безопасности из БД: старые строки (созданные до того, как появилось
 // это поле) получили photos = {} от значения по умолчанию колонки, без
-// ключей facade/offices/commonAreas внутри. row.photos ?? emptyBriefPhotos()
+// ключей facade/offices/commonAreas внутри. raw?.[category] ?? emptyCategoryPhotos()
 // такое не ловит, потому что {} — не null/undefined.
-export function normalizeBriefPhotos(raw: Partial<BriefPhotos> | null | undefined): BriefPhotos {
+//
+// Отдельно мигрирует старый формат (до общих правок — каждая точка со своим
+// comment/referenceUrl, ключ pins вместо changes/markers): каждая старая
+// точка превращается в одну новую правку + одну метку. Дедуплицировать
+// одинаковый текст с разных старых точек в одну правку автоматически нельзя
+// (не знаем, какие из них "одно и то же" по смыслу) — просто ничего не
+// теряем, а объединять придётся вручную через новый интерфейс, если нужно.
+export function normalizeBriefPhotos(raw: unknown): BriefPhotos {
   const result = {} as BriefPhotos;
   for (const category of briefPhotoCategories) {
-    const c = raw?.[category];
-    const pins: Record<string, PhotoPin[]> = {};
-    for (const [url, list] of Object.entries(c?.pins ?? {})) {
-      pins[url] = (list ?? []).map((p) => ({
-        ...p,
-        referenceImageUrl: p.referenceImageUrl ?? '',
-        referenceDescription: p.referenceDescription ?? '',
-        referenceUrl: p.referenceUrl ?? '',
+    const c = (raw as Record<string, unknown> | null | undefined)?.[category] as
+      | (Partial<BriefCategoryPhotos> & { pins?: Record<string, LegacyPhotoPin[]> })
+      | undefined;
+
+    if (c?.changes || c?.markers) {
+      const changes: PhotoChange[] = (c.changes ?? []).map((ch) => ({
+        id: ch.id,
+        comment: ch.comment ?? '',
+        referenceImageUrl: ch.referenceImageUrl ?? '',
+        referenceDescription: ch.referenceDescription ?? '',
+        referenceUrl: ch.referenceUrl ?? '',
       }));
+      const markers: Record<string, PhotoMarker[]> = {};
+      for (const [url, list] of Object.entries(c.markers ?? {})) {
+        markers[url] = (list ?? []).map((m) => ({ id: m.id, changeId: m.changeId, x: m.x, y: m.y }));
+      }
+      result[category] = { beforeUrls: c.beforeUrls ?? [], afterUrls: c.afterUrls ?? [], changes, markers };
+    } else {
+      const changes: PhotoChange[] = [];
+      const markers: Record<string, PhotoMarker[]> = {};
+      for (const [url, list] of Object.entries(c?.pins ?? {})) {
+        markers[url] = [];
+        for (const p of list ?? []) {
+          changes.push({
+            id: p.id,
+            comment: p.comment ?? '',
+            referenceImageUrl: p.referenceImageUrl ?? '',
+            referenceDescription: p.referenceDescription ?? '',
+            referenceUrl: p.referenceUrl ?? '',
+          });
+          markers[url].push({ id: `${p.id}-marker`, changeId: p.id, x: p.x, y: p.y });
+        }
+      }
+      result[category] = { beforeUrls: c?.beforeUrls ?? [], afterUrls: c?.afterUrls ?? [], changes, markers };
     }
-    result[category] = {
-      beforeUrls: c?.beforeUrls ?? [],
-      afterUrls: c?.afterUrls ?? [],
-      pins,
-    };
   }
   return result;
+}
+
+interface LegacyPhotoPin {
+  id: string;
+  x: number;
+  y: number;
+  comment?: string;
+  referenceImageUrl?: string;
+  referenceDescription?: string;
+  referenceUrl?: string;
 }
 
 export interface Brief {

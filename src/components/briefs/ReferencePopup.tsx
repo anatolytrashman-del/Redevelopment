@@ -1,11 +1,11 @@
 import { X } from 'lucide-react';
-import type { PhotoPin } from '../../data/briefs';
+import type { PhotoChange } from '../../data/briefs';
 
 // Мини-карточка референса на конкретную модель/товар — открывается по
-// ссылке "Референс" у отметки, а не показывается сразу картинкой (та
+// ссылке "Референс" у правки, а не показывается сразу картинкой (та
 // загораживала бы само фото "до"). Ссылка на товар открывается в новой
 // вкладке намеренно: это внешняя страница поставщика, не наше изображение.
-export function ReferencePopup({ pin, onClose }: { pin: PhotoPin; onClose: () => void }) {
+export function ReferencePopup({ change, onClose }: { change: PhotoChange; onClose: () => void }) {
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center p-4"
@@ -30,16 +30,16 @@ export function ReferencePopup({ pin, onClose }: { pin: PhotoPin; onClose: () =>
         >
           <X className="h-4 w-4" />
         </button>
-        <span className="max-w-[85%] break-words text-sm font-bold text-ink">{pin.comment || 'Референс'}</span>
-        {pin.referenceImageUrl && (
-          <img src={pin.referenceImageUrl} alt="" className="aspect-[4/3] w-full rounded-control object-cover" />
+        <span className="max-w-[85%] break-words text-sm font-bold text-ink">{change.comment || 'Референс'}</span>
+        {change.referenceImageUrl && (
+          <img src={change.referenceImageUrl} alt="" className="aspect-[4/3] w-full rounded-control object-cover" />
         )}
-        {pin.referenceDescription && (
-          <p className="whitespace-pre-wrap text-sm text-ink-muted">{pin.referenceDescription}</p>
+        {change.referenceDescription && (
+          <p className="whitespace-pre-wrap text-sm text-ink-muted">{change.referenceDescription}</p>
         )}
-        {pin.referenceUrl && (
+        {change.referenceUrl && (
           <a
-            href={pin.referenceUrl}
+            href={change.referenceUrl}
             target="_blank"
             rel="noreferrer"
             className="w-fit text-sm font-semibold text-primary underline underline-offset-2"

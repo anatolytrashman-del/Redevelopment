@@ -5,7 +5,8 @@ import {
   FACADE_REFERENCE_CAPTION,
   PLAN_REQUEST_NOTE,
   type Brief,
-  type PhotoPin,
+  type PhotoChange,
+  type PhotoMarker,
 } from '../../data/briefs';
 import type { BuildingSpecs, RealtyObject } from '../../data/objects';
 import { BriefBuildingPlans } from './BriefBuildingPlans';
@@ -58,12 +59,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 // данными при проверке вёрстки, не поднимая реальный Supabase.
 export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyObject }) {
   // Один стейт лайтбокса на весь документ — открывается кликом по любой
-  // миниатюре (планировка, фото "до" со своими точками, референс "после")
-  // вместо перехода в новую вкладку. pins присутствует только для фото
-  // "сейчас" — определяется в месте открытия, не угадывается по контенту
-  // (у фото без единой точки pins[url] был бы undefined и его нельзя
-  // отличить от обычного фото без разметки).
-  const [lightbox, setLightbox] = useState<{ url: string; pins?: PhotoPin[] } | null>(null);
+  // миниатюре (планировка, фото "до"/"после" со своими метками) вместо
+  // перехода в новую вкладку. markers/changes передаются только для фото
+  // категории — определяются в месте открытия, не угадываются по контенту.
+  const [lightbox, setLightbox] = useState<{ url: string; markers?: PhotoMarker[]; changes?: PhotoChange[] } | null>(null);
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-5">
@@ -116,13 +115,16 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
 
       {briefPhotoCategories.map((category) => {
         const cat = brief.photos[category];
+        const changesById: Record<string, PhotoChange> = {};
+        for (const c of cat.changes) changesById[c.id] = c;
         return (
           <Section key={category} title={briefPhotoCategoryLabels[category]}>
             <div className="flex flex-col gap-3">
               <span className="text-xs uppercase tracking-wide text-ink-faint">Сейчас — что менять</span>
               <PinnedPhotoCarousel
-                photos={cat.beforeUrls.map((url) => ({ url, pins: cat.pins[url] ?? [] }))}
-                onOpenPhoto={(url, pins) => setLightbox({ url, pins })}
+                photos={cat.beforeUrls.map((url) => ({ url, markers: cat.markers[url] ?? [] }))}
+                changesById={changesById}
+                onOpenPhoto={(url, markers) => setLightbox({ url, markers, changes: cat.changes })}
               />
             </div>
 
@@ -133,8 +135,9 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
             <div className="flex flex-col gap-3 border-t border-border pt-4">
               <span className="text-xs uppercase tracking-wide text-ink-faint">Должно стать (референс)</span>
               <PinnedPhotoCarousel
-                photos={cat.afterUrls.map((url) => ({ url, pins: cat.pins[url] ?? [] }))}
-                onOpenPhoto={(url, pins) => setLightbox({ url, pins })}
+                photos={cat.afterUrls.map((url) => ({ url, markers: cat.markers[url] ?? [] }))}
+                changesById={changesById}
+                onOpenPhoto={(url, markers) => setLightbox({ url, markers, changes: cat.changes })}
                 emptyLabel="Фото не загружены"
                 overlayCaption={category === 'facade' ? FACADE_REFERENCE_CAPTION : undefined}
               />
@@ -143,7 +146,12 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
         );
       })}
 
-      <PhotoLightbox url={lightbox?.url ?? null} pins={lightbox?.pins} onClose={() => setLightbox(null)} />
+      <PhotoLightbox
+        url={lightbox?.url ?? null}
+        markers={lightbox?.markers}
+        changes={lightbox?.changes}
+        onClose={() => setLightbox(null)}
+      />
     </div>
   );
 }

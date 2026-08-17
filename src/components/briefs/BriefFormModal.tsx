@@ -16,6 +16,7 @@ import {
   type Brief,
   type BriefCategoryPhotos,
   type BriefPhotoCategory,
+  type PhotoChange,
 } from '../../data/briefs';
 import type { RealtyObject } from '../../data/objects';
 import type { Contractor } from '../../data/contractors';
@@ -150,83 +151,62 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
 
   function removeBeforePhoto(category: BriefPhotoCategory, url: string) {
     updateCategory(category, (c) => {
-      const restPins = { ...c.pins };
-      delete restPins[url];
-      return { ...c, beforeUrls: c.beforeUrls.filter((u) => u !== url), pins: restPins };
+      // Правки (changes) не трогаем — url может быть только фото, на
+      // котором ту или иную правку отмечали, а не единственным её местом.
+      const restMarkers = { ...c.markers };
+      delete restMarkers[url];
+      return { ...c, beforeUrls: c.beforeUrls.filter((u) => u !== url), markers: restMarkers };
     });
     setLightbox((lb) => (lb?.kind === 'pin' && lb.url === url ? null : lb));
   }
 
   function removeAfterPhoto(category: BriefPhotoCategory, url: string) {
     updateCategory(category, (c) => {
-      const restPins = { ...c.pins };
-      delete restPins[url];
-      return { ...c, afterUrls: c.afterUrls.filter((u) => u !== url), pins: restPins };
+      const restMarkers = { ...c.markers };
+      delete restMarkers[url];
+      return { ...c, afterUrls: c.afterUrls.filter((u) => u !== url), markers: restMarkers };
     });
     setLightbox((lb) => (lb?.kind === 'pin' && lb.url === url ? null : lb));
   }
 
-  function addPin(category: BriefPhotoCategory, url: string, x: number, y: number) {
+  // Новая правка (описание печатается впервые) + метка на конкретном фото.
+  function createChangeWithMarker(category: BriefPhotoCategory, url: string, x: number, y: number) {
+    const changeId = crypto.randomUUID();
     updateCategory(category, (c) => ({
       ...c,
-      pins: {
-        ...c.pins,
-        [url]: [
-          ...(c.pins[url] ?? []),
-          { id: crypto.randomUUID(), x, y, comment: '', referenceImageUrl: '', referenceDescription: '', referenceUrl: '' },
-        ],
-      },
+      changes: [
+        ...c.changes,
+        { id: changeId, comment: '', referenceImageUrl: '', referenceDescription: '', referenceUrl: '' },
+      ],
+      markers: { ...c.markers, [url]: [...(c.markers[url] ?? []), { id: crypto.randomUUID(), changeId, x, y }] },
     }));
   }
 
-  function changePinComment(category: BriefPhotoCategory, url: string, pinId: string, comment: string) {
+  // Метка на уже существующую правку — комментарий/референс не дублируются,
+  // просто ещё одна точка со ссылкой на тот же changeId. Именно это заменяет
+  // прежнюю кнопку "Скопировать": вместо копирования текста в новый объект
+  // теперь несколько меток ссылаются на один и тот же текст.
+  function attachExistingChange(category: BriefPhotoCategory, url: string, changeId: string, x: number, y: number) {
     updateCategory(category, (c) => ({
       ...c,
-      pins: { ...c.pins, [url]: (c.pins[url] ?? []).map((p) => (p.id === pinId ? { ...p, comment } : p)) },
+      markers: { ...c.markers, [url]: [...(c.markers[url] ?? []), { id: crypto.randomUUID(), changeId, x, y }] },
     }));
   }
 
-  function changePinReferenceImage(category: BriefPhotoCategory, url: string, pinId: string, referenceImageUrl: string) {
+  function updateChange(category: BriefPhotoCategory, changeId: string, patch: Partial<PhotoChange>) {
     updateCategory(category, (c) => ({
       ...c,
-      pins: { ...c.pins, [url]: (c.pins[url] ?? []).map((p) => (p.id === pinId ? { ...p, referenceImageUrl } : p)) },
+      changes: c.changes.map((ch) => (ch.id === changeId ? { ...ch, ...patch } : ch)),
     }));
   }
 
-  function changePinReferenceDescription(category: BriefPhotoCategory, url: string, pinId: string, referenceDescription: string) {
+  // Убирает метку с конкретного фото — саму правку (текст/референс) не
+  // трогает, она может быть отмечена и на других фото.
+  function removeMarker(category: BriefPhotoCategory, url: string, markerId: string) {
     updateCategory(category, (c) => ({
       ...c,
-      pins: { ...c.pins, [url]: (c.pins[url] ?? []).map((p) => (p.id === pinId ? { ...p, referenceDescription } : p)) },
+      markers: { ...c.markers, [url]: (c.markers[url] ?? []).filter((m) => m.id !== markerId) },
     }));
-  }
-
-  function changePinReferenceUrl(category: BriefPhotoCategory, url: string, pinId: string, referenceUrl: string) {
-    updateCategory(category, (c) => ({
-      ...c,
-      pins: { ...c.pins, [url]: (c.pins[url] ?? []).map((p) => (p.id === pinId ? { ...p, referenceUrl } : p)) },
-    }));
-  }
-
-  function removePin(category: BriefPhotoCategory, url: string, pinId: string) {
-    updateCategory(category, (c) => ({
-      ...c,
-      pins: { ...c.pins, [url]: (c.pins[url] ?? []).filter((p) => p.id !== pinId) },
-    }));
-  }
-
-  // Копирует точки с комментариями и референсами с одного фото на несколько
-  // других (в т.ч. между "до" и "после" — pins хранится по url, независимо
-  // от того, в каком из двух списков этот url лежит) — не заменяет, а
-  // добавляет к уже существующим на целевом фото отметкам, с новыми id.
-  function copyPins(category: BriefPhotoCategory, sourceUrl: string, targetUrls: string[]) {
-    updateCategory(category, (c) => {
-      const sourcePins = c.pins[sourceUrl] ?? [];
-      const pins = { ...c.pins };
-      for (const target of targetUrls) {
-        pins[target] = [...(pins[target] ?? []), ...sourcePins.map((p) => ({ ...p, id: crypto.randomUUID() }))];
-      }
-      return { ...c, pins };
-    });
   }
 
   const canSubmit = form.objectId.length > 0;
@@ -320,7 +300,7 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
               <div className="flex flex-col gap-2">
                 <span className="text-xs uppercase tracking-wide text-ink-faint">Сейчас — отметь, что менять</span>
                 <PhotoThumbGrid
-                  items={cat.beforeUrls.map((url) => ({ url, pinCount: (cat.pins[url] ?? []).length }))}
+                  items={cat.beforeUrls.map((url) => ({ url, pinCount: (cat.markers[url] ?? []).length }))}
                   onOpen={(url) => setLightbox({ kind: 'pin', category, url })}
                   onRemove={(url) => removeBeforePhoto(category, url)}
                 />
@@ -338,7 +318,7 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
               <div className="flex flex-col gap-2">
                 <span className="text-xs uppercase tracking-wide text-ink-faint">Должно стать (референс) — отметь при желании</span>
                 <PhotoThumbGrid
-                  items={cat.afterUrls.map((url) => ({ url, pinCount: (cat.pins[url] ?? []).length }))}
+                  items={cat.afterUrls.map((url) => ({ url, pinCount: (cat.markers[url] ?? []).length }))}
                   onOpen={(url) => setLightbox({ kind: 'pin', category, url })}
                   onRemove={(url) => removeAfterPhoto(category, url)}
                 />
@@ -367,21 +347,20 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
       {lightbox?.kind === 'pin' && (
         <PhotoLightbox
           url={lightbox.url}
-          pins={form.photos[lightbox.category].pins[lightbox.url] ?? []}
+          markers={form.photos[lightbox.category].markers[lightbox.url] ?? []}
+          changes={form.photos[lightbox.category].changes}
           editable
-          onAddPin={(x, y) => addPin(lightbox.category, lightbox.url, x, y)}
-          onChangeComment={(pinId, comment) => changePinComment(lightbox.category, lightbox.url, pinId, comment)}
-          onRemovePin={(pinId) => removePin(lightbox.category, lightbox.url, pinId)}
-          onChangeReferenceImage={(pinId, url) => changePinReferenceImage(lightbox.category, lightbox.url, pinId, url)}
-          onChangeReferenceDescription={(pinId, description) =>
-            changePinReferenceDescription(lightbox.category, lightbox.url, pinId, description)
+          onCreateChange={(x, y) => createChangeWithMarker(lightbox.category, lightbox.url, x, y)}
+          onAttachChange={(changeId, x, y) => attachExistingChange(lightbox.category, lightbox.url, changeId, x, y)}
+          onChangeComment={(changeId, comment) => updateChange(lightbox.category, changeId, { comment })}
+          onRemoveMarker={(markerId) => removeMarker(lightbox.category, lightbox.url, markerId)}
+          onChangeReferenceImage={(changeId, referenceImageUrl) =>
+            updateChange(lightbox.category, changeId, { referenceImageUrl })
           }
-          onChangeReferenceUrl={(pinId, url) => changePinReferenceUrl(lightbox.category, lightbox.url, pinId, url)}
-          copyTargets={[
-            ...form.photos[lightbox.category].beforeUrls.map((u, i) => ({ url: u, label: `До, фото ${i + 1}` })),
-            ...form.photos[lightbox.category].afterUrls.map((u, i) => ({ url: u, label: `После, фото ${i + 1}` })),
-          ].filter((t) => t.url !== lightbox.url)}
-          onCopyPins={(targetUrls) => copyPins(lightbox.category, lightbox.url, targetUrls)}
+          onChangeReferenceDescription={(changeId, referenceDescription) =>
+            updateChange(lightbox.category, changeId, { referenceDescription })
+          }
+          onChangeReferenceUrl={(changeId, referenceUrl) => updateChange(lightbox.category, changeId, { referenceUrl })}
           onClose={() => setLightbox(null)}
         />
       )}

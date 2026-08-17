@@ -1,25 +1,25 @@
 import { X } from 'lucide-react';
 import { AnnotatedPhoto } from './AnnotatedPhoto';
-import type { PhotoPin } from '../../data/briefs';
+import type { PhotoChange, PhotoMarker } from '../../data/briefs';
 import { cn } from '../../lib/cn';
 
 interface PhotoLightboxProps {
   // null — закрыт. Открывается кликом по миниатюре в PhotoThumbGrid/галерее.
   url: string | null;
   onClose: () => void;
-  // Если передан pins — показывается большая версия AnnotatedPhoto (точки +
-  // список комментариев сбоку). Без pins — просто увеличенное фото, без
-  // разметки (планировки, референс "после").
-  pins?: PhotoPin[];
+  // Если передан markers — показывается большая версия AnnotatedPhoto (точки +
+  // список комментариев сбоку). Без markers — просто увеличенное фото, без
+  // разметки (планировки).
+  markers?: PhotoMarker[];
+  changes?: PhotoChange[];
   editable?: boolean;
-  onAddPin?: (x: number, y: number) => void;
-  onChangeComment?: (pinId: string, comment: string) => void;
-  onRemovePin?: (pinId: string) => void;
-  onChangeReferenceImage?: (pinId: string, url: string) => void;
-  onChangeReferenceDescription?: (pinId: string, description: string) => void;
-  onChangeReferenceUrl?: (pinId: string, url: string) => void;
-  copyTargets?: { url: string; label: string }[];
-  onCopyPins?: (targetUrls: string[]) => void;
+  onCreateChange?: (x: number, y: number) => void;
+  onAttachChange?: (changeId: string, x: number, y: number) => void;
+  onChangeComment?: (changeId: string, comment: string) => void;
+  onRemoveMarker?: (markerId: string) => void;
+  onChangeReferenceImage?: (changeId: string, url: string) => void;
+  onChangeReferenceDescription?: (changeId: string, description: string) => void;
+  onChangeReferenceUrl?: (changeId: string, url: string) => void;
 }
 
 // Просмотр фото поверх страницы вместо открытия новой вкладки. Размер
@@ -31,16 +31,16 @@ interface PhotoLightboxProps {
 export function PhotoLightbox({
   url,
   onClose,
-  pins,
+  markers,
+  changes,
   editable,
-  onAddPin,
+  onCreateChange,
+  onAttachChange,
   onChangeComment,
-  onRemovePin,
+  onRemoveMarker,
   onChangeReferenceImage,
   onChangeReferenceDescription,
   onChangeReferenceUrl,
-  copyTargets,
-  onCopyPins,
 }: PhotoLightboxProps) {
   if (!url) return null;
 
@@ -65,19 +65,19 @@ export function PhotoLightbox({
           <X className="h-4 w-4" />
         </button>
 
-        {pins ? (
+        {markers ? (
           <AnnotatedPhoto
             url={url}
-            pins={pins}
+            markers={markers}
+            changes={changes ?? []}
             editable={editable}
-            onAddPin={onAddPin}
+            onCreateChange={onCreateChange}
+            onAttachChange={onAttachChange}
             onChangeComment={onChangeComment}
-            onRemovePin={onRemovePin}
+            onRemoveMarker={onRemoveMarker}
             onChangeReferenceImage={onChangeReferenceImage}
             onChangeReferenceDescription={onChangeReferenceDescription}
             onChangeReferenceUrl={onChangeReferenceUrl}
-            copyTargets={copyTargets}
-            onCopyPins={onCopyPins}
             large
           />
         ) : (

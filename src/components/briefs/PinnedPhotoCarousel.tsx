@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { pinHasReference, type PhotoPin } from '../../data/briefs';
+import { changeHasReference, type PhotoChange, type PhotoMarker } from '../../data/briefs';
 import { ReferencePopup } from './ReferencePopup';
 import { cn } from '../../lib/cn';
 
@@ -15,27 +15,38 @@ function Marker({ index, x, y }: { index: number; x: number; y: number }) {
   );
 }
 
+const emptyChange: PhotoChange = { id: '', comment: '', referenceImageUrl: '', referenceDescription: '', referenceUrl: '' };
+
 interface PinnedPhotoCarouselProps {
-  photos: { url: string; pins: PhotoPin[] }[];
+  photos: { url: string; markers: PhotoMarker[] }[];
+  // Общий список правок категории — текст/референс живут тут, метки на
+  // фото хранят только ссылку (changeId).
+  changesById: Record<string, PhotoChange>;
   // Клик по самому фото — открыть его ещё крупнее в лайтбоксе (не по
   // стрелкам/точкам слайдера, они отдельные соседние элементы, не внутри
   // кликабельной области фото).
-  onOpenPhoto?: (url: string, pins: PhotoPin[]) => void;
+  onOpenPhoto?: (url: string, markers: PhotoMarker[]) => void;
   emptyLabel?: string;
   // Подпись поверх текущего фото (например, "дизайн сгенерирован ИИ" у
   // референса фасада) — применима к любому кадру слайдера.
   overlayCaption?: string;
 }
 
-// Показ фото с точками-комментариями — крупное фото слева со слайдером
-// (несколько фото листаются по одному стрелками/точками, а не сеткой мелких
-// миниатюр — на миниатюре точки не разглядеть), список правок для
-// показанного фото — справа. Один формат и для "до", и для "после": обе
-// стороны используют один и тот же Brief.photos[category].pins, ключ —
-// url конкретного фото независимо от того, в beforeUrls оно или afterUrls.
-export function PinnedPhotoCarousel({ photos, onOpenPhoto, emptyLabel = 'Фото не загружены', overlayCaption }: PinnedPhotoCarouselProps) {
+// Показ фото с метками правок — крупное фото слева со слайдером (несколько
+// фото листаются по одному стрелками/точками, а не сеткой мелких миниатюр —
+// на миниатюре точки не разглядеть), список правок для показанного фото —
+// справа. Один формат и для "до", и для "после": обе стороны используют
+// общий список правок категории (changesById), метки хранят только
+// координаты и ссылку на правку.
+export function PinnedPhotoCarousel({
+  photos,
+  changesById,
+  onOpenPhoto,
+  emptyLabel = 'Фото не загружены',
+  overlayCaption,
+}: PinnedPhotoCarouselProps) {
   const [index, setIndex] = useState(0);
-  const [openReferencePin, setOpenReferencePin] = useState<PhotoPin | null>(null);
+  const [openReferenceChange, setOpenReferenceChange] = useState<PhotoChange | null>(null);
 
   if (photos.length === 0) return <p className="text-sm text-ink-faint">{emptyLabel}</p>;
 
@@ -44,11 +55,11 @@ export function PinnedPhotoCarousel({ photos, onOpenPhoto, emptyLabel = 'Фот�
   return (
     <div className="flex flex-col gap-4 sm:flex-row">
       <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden rounded-control bg-surface-muted sm:w-3/5">
-        <button type="button" onClick={() => onOpenPhoto?.(current.url, current.pins)} className="block h-full w-full">
+        <button type="button" onClick={() => onOpenPhoto?.(current.url, current.markers)} className="block h-full w-full">
           <img src={current.url} alt="" className="h-full w-full object-cover" />
         </button>
-        {current.pins.map((pin, i) => (
-          <Marker key={pin.id} index={i} x={pin.x} y={pin.y} />
+        {current.markers.map((m, i) => (
+          <Marker key={m.id} index={i} x={m.x} y={m.y} />
         ))}
         {overlayCaption && (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/80 to-transparent px-3 pb-2 pt-8">
@@ -92,29 +103,32 @@ export function PinnedPhotoCarousel({ photos, onOpenPhoto, emptyLabel = 'Фот�
           высоту вслед за числом отметок у конкретного фото, и вся страница
           под блоком дёргается вверх-вниз. */}
       <div className="flex max-h-80 flex-1 flex-col gap-3 overflow-y-auto">
-        {current.pins.length === 0 && <p className="text-sm text-ink-faint">Отметок нет</p>}
-        {current.pins.map((pin, i) => (
-          <div key={pin.id} className="flex items-start gap-2">
-            <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
-              {i + 1}
-            </span>
-            <div className="flex flex-col gap-1">
-              <p className="whitespace-pre-wrap text-sm text-ink">{pin.comment || '—'}</p>
-              {pinHasReference(pin) && (
-                <button
-                  type="button"
-                  onClick={() => setOpenReferencePin(pin)}
-                  className="w-fit text-xs font-semibold text-primary underline underline-offset-2"
-                >
-                  Референс
-                </button>
-              )}
+        {current.markers.length === 0 && <p className="text-sm text-ink-faint">Отметок нет</p>}
+        {current.markers.map((m, i) => {
+          const change = changesById[m.changeId] ?? emptyChange;
+          return (
+            <div key={m.id} className="flex items-start gap-2">
+              <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
+                {i + 1}
+              </span>
+              <div className="flex flex-col gap-1">
+                <p className="whitespace-pre-wrap text-sm text-ink">{change.comment || '—'}</p>
+                {changeHasReference(change) && (
+                  <button
+                    type="button"
+                    onClick={() => setOpenReferenceChange(change)}
+                    className="w-fit text-xs font-semibold text-primary underline underline-offset-2"
+                  >
+                    Референс
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {openReferencePin && <ReferencePopup pin={openReferencePin} onClose={() => setOpenReferencePin(null)} />}
+      {openReferenceChange && <ReferencePopup change={openReferenceChange} onClose={() => setOpenReferenceChange(null)} />}
     </div>
   );
 }
