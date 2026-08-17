@@ -6,6 +6,9 @@ import { extractTelegramHandle } from '../../lib/telegramHandle';
 // Telegram-юзернейм превращается в t.me-ссылку, любой готовый http(s)-адрес
 // (Kufar и т.п.) используется как есть. Номера телефонов ссылкой не
 // становятся — с ними это ничего не открывает.
+//
+// Общий компонент для лидов и подрядчиков (contact/contactMethod — один и тот
+// же паттерн в обеих сущностях), раньше жил только в components/leads.
 export function buildDialogLink(contactMethod: string, contact: string): string | null {
   if (!contact.trim()) return null;
   if (contactMethod === 'Telegram') {

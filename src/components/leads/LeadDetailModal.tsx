@@ -5,7 +5,7 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Textarea } from '../ui/Textarea';
 import { LeadAvatar } from './LeadAvatar';
-import { ContactValue } from './ContactValue';
+import { ContactValue } from '../ui/ContactValue';
 import { cn } from '../../lib/cn';
 import type { Lead } from '../../data/leads';
 import type { LeadNote } from '../../data/leadNotes';

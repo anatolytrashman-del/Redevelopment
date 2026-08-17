@@ -8,7 +8,7 @@ import { Select } from '../components/ui/Select';
 import { AddableSelect } from '../components/ui/AddableSelect';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Modal } from '../components/ui/Modal';
-import { ContactValue } from '../components/leads/ContactValue';
+import { ContactValue } from '../components/ui/ContactValue';
 import { LeadAvatar } from '../components/leads/LeadAvatar';
 import { LeadDetailModal } from '../components/leads/LeadDetailModal';
 import { LeadBookings, type BookingRow } from '../components/leads/LeadBookings';

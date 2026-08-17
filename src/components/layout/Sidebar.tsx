@@ -14,6 +14,7 @@ import {
   FileStack,
   ListChecks,
   Lightbulb,
+  HardHat,
   X,
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
@@ -30,6 +31,7 @@ const allNavItems = [
   { to: '/admin/tasks', label: 'Задачи', icon: ListChecks },
   { to: '/admin/transactions', label: 'Транзакции', icon: Receipt },
   { to: '/admin/leads', label: 'Лиды', icon: Users },
+  { to: '/admin/contractors', label: 'Подрядчики', icon: HardHat },
   { to: '/admin/objects', label: 'Объекты', icon: Building2 },
   { to: '/admin/documents', label: 'Документы', icon: FileStack },
   { to: '/admin/statistics', label: 'Статистика', icon: PieChart },
@@ -41,7 +43,7 @@ const allNavItems = [
 ];
 
 // Порядок пунктов в этом списке — это порядок пунктов в меню.
-const visibleLabels = ['Задачи', 'Объекты', 'Лиды', 'Транзакции', 'Документы'];
+const visibleLabels = ['Задачи', 'Объекты', 'Лиды', 'Подрядчики', 'Транзакции', 'Документы'];
 const navItems = visibleLabels.map((label) => allNavItems.find((item) => item.label === label)!);
 
 // Ниже lg — сайдбар выезжает поверх контента как шторка (fixed + translate),

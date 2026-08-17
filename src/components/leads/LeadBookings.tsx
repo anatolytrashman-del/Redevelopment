@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Download, Pencil, Sparkles, Trash2 } from 'lucide-react';
 import { Card } from '../ui/Card';
-import { ContactValue } from './ContactValue';
+import { ContactValue } from '../ui/ContactValue';
 import { cn } from '../../lib/cn';
 import { NEW_BOOKING_LEAD_STATUS, type Lead } from '../../data/leads';
 import type { RealtyObject } from '../../data/objects';

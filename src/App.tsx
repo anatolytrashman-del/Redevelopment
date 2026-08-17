@@ -5,6 +5,7 @@ import { PasswordGate } from './components/layout/PasswordGate';
 import { Home } from './pages/Home';
 import { Transactions } from './pages/Transactions';
 import { Leads } from './pages/Leads';
+import { Contractors } from './pages/Contractors';
 import { Objects } from './pages/Objects';
 import { ObjectDetail } from './pages/ObjectDetail';
 import { Documents } from './pages/Documents';
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="tasks" element={<Tasks />} />
         <Route path="transactions" element={<Transactions />} />
         <Route path="leads" element={<Leads />} />
+        <Route path="contractors" element={<Contractors />} />
         <Route path="objects" element={<Objects />} />
         <Route path="objects/:id" element={<ObjectDetail />} />
         <Route path="documents" element={<Documents />} />
