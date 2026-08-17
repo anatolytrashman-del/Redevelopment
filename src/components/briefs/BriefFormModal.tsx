@@ -185,7 +185,10 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
   function addPin(category: BriefPhotoCategory, url: string, x: number, y: number) {
     updateCategory(category, (c) => ({
       ...c,
-      pins: { ...c.pins, [url]: [...(c.pins[url] ?? []), { id: crypto.randomUUID(), x, y, comment: '' }] },
+      pins: {
+        ...c.pins,
+        [url]: [...(c.pins[url] ?? []), { id: crypto.randomUUID(), x, y, comment: '', referenceImageUrl: '' }],
+      },
     }));
   }
 
@@ -193,6 +196,13 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
     updateCategory(category, (c) => ({
       ...c,
       pins: { ...c.pins, [url]: (c.pins[url] ?? []).map((p) => (p.id === pinId ? { ...p, comment } : p)) },
+    }));
+  }
+
+  function changePinReferenceImage(category: BriefPhotoCategory, url: string, pinId: string, referenceImageUrl: string) {
+    updateCategory(category, (c) => ({
+      ...c,
+      pins: { ...c.pins, [url]: (c.pins[url] ?? []).map((p) => (p.id === pinId ? { ...p, referenceImageUrl } : p)) },
     }));
   }
 
@@ -350,6 +360,7 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
           onAddPin={(x, y) => addPin(lightbox.category, lightbox.url, x, y)}
           onChangeComment={(pinId, comment) => changePinComment(lightbox.category, lightbox.url, pinId, comment)}
           onRemovePin={(pinId) => removePin(lightbox.category, lightbox.url, pinId)}
+          onChangeReferenceImage={(pinId, url) => changePinReferenceImage(lightbox.category, lightbox.url, pinId, url)}
           onClose={() => setLightbox(null)}
         />
       )}

@@ -23,12 +23,19 @@ export const briefPhotoCategoryLabels: Record<BriefPhotoCategory, string> = {
 
 // Точка-комментарий на фото "до" — x/y в процентах от размера фото (не в
 // пикселях: тогда отметка съезжала бы при показе фото в другом размере,
-// например в модалке редактирования и на публичной странице).
+// например в модалке редактирования и на публичной странице). Все контейнеры,
+// где фото с точками показывается в реальном размере (не миниатюра без
+// разметки), обязаны использовать один и тот же aspect-[16/9] — иначе
+// object-cover кадрирует фото по-разному и точки визуально съезжают
+// (см. AnnotatedPhoto.tsx/HeroAnnotatedPhoto.tsx).
 export interface PhotoPin {
   id: string;
   x: number;
   y: number;
   comment: string;
+  // Фото конкретной модели/образца ("вот такую именно дверь поставить") —
+  // необязательное, отдельно от текстового комментария.
+  referenceImageUrl: string;
 }
 
 export interface BriefCategoryPhotos {
@@ -63,10 +70,14 @@ export function normalizeBriefPhotos(raw: Partial<BriefPhotos> | null | undefine
   const result = {} as BriefPhotos;
   for (const category of briefPhotoCategories) {
     const c = raw?.[category];
+    const pins: Record<string, PhotoPin[]> = {};
+    for (const [url, list] of Object.entries(c?.pins ?? {})) {
+      pins[url] = (list ?? []).map((p) => ({ ...p, referenceImageUrl: p.referenceImageUrl ?? '' }));
+    }
     result[category] = {
       beforeUrls: c?.beforeUrls ?? [],
       afterUrls: c?.afterUrls ?? [],
-      pins: c?.pins ?? {},
+      pins,
     };
   }
   return result;

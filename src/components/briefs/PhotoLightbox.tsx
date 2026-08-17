@@ -14,13 +14,23 @@ interface PhotoLightboxProps {
   onAddPin?: (x: number, y: number) => void;
   onChangeComment?: (pinId: string, comment: string) => void;
   onRemovePin?: (pinId: string) => void;
+  onChangeReferenceImage?: (pinId: string, url: string) => void;
 }
 
 // Общий полноэкранный просмотр фото — крупная картинка вместо открытия
 // новой вкладки. Заодно единственное место, где фото с отметками
 // показывается в размере, на котором реально можно точно попасть точкой
 // (маленькая миниатюра в сетке для этого не годится).
-export function PhotoLightbox({ url, onClose, pins, editable, onAddPin, onChangeComment, onRemovePin }: PhotoLightboxProps) {
+export function PhotoLightbox({
+  url,
+  onClose,
+  pins,
+  editable,
+  onAddPin,
+  onChangeComment,
+  onRemovePin,
+  onChangeReferenceImage,
+}: PhotoLightboxProps) {
   if (!url) return null;
 
   return (
@@ -47,6 +57,7 @@ export function PhotoLightbox({ url, onClose, pins, editable, onAddPin, onChange
             onAddPin={onAddPin}
             onChangeComment={onChangeComment}
             onRemovePin={onRemovePin}
+            onChangeReferenceImage={onChangeReferenceImage}
             large
           />
         ) : (

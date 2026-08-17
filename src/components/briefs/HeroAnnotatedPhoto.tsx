@@ -24,10 +24,13 @@ export function HeroAnnotatedPhoto({ url, pins, onOpen }: { url: string; pins: P
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white shadow-sm">
               {i + 1}
             </span>
-            {pin.comment && (
-              <span className="max-w-[220px] rounded-lg bg-ink/80 px-2 py-1 text-xs text-white shadow-sm backdrop-blur-sm">
-                {pin.comment}
-              </span>
+            {(pin.comment || pin.referenceImageUrl) && (
+              <div className="flex max-w-[220px] flex-col gap-1.5 rounded-lg bg-ink/80 p-1.5 text-xs text-white shadow-sm backdrop-blur-sm">
+                {pin.comment && <span className="px-0.5">{pin.comment}</span>}
+                {pin.referenceImageUrl && (
+                  <img src={pin.referenceImageUrl} alt="" className="h-16 w-full rounded object-cover" />
+                )}
+              </div>
             )}
           </div>
         );
