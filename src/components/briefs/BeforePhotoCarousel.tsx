@@ -78,7 +78,10 @@ export function BeforePhotoCarousel({ photos, onOpenPhoto }: BeforePhotoCarousel
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-3">
+      {/* max-h + overflow — иначе при переключении слайда список меняет
+          высоту вслед за числом отметок у конкретного фото, и вся страница
+          под блоком дёргается вверх-вниз. */}
+      <div className="flex max-h-80 flex-1 flex-col gap-3 overflow-y-auto">
         {current.pins.length === 0 && <p className="text-sm text-ink-faint">Отметок нет</p>}
         {current.pins.map((pin, i) => (
           <div key={pin.id} className="flex items-start gap-2">

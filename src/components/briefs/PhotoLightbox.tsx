@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import { AnnotatedPhoto } from './AnnotatedPhoto';
 import type { PhotoPin } from '../../data/briefs';
+import { cn } from '../../lib/cn';
 
 interface PhotoLightboxProps {
   // null — закрыт. Открывается кликом по миниатюре в PhotoThumbGrid/галерее.
@@ -19,10 +20,12 @@ interface PhotoLightboxProps {
   onChangeReferenceUrl?: (pinId: string, url: string) => void;
 }
 
-// Общий полноэкранный просмотр фото — крупная картинка вместо открытия
-// новой вкладки. Заодно единственное место, где фото с отметками
-// показывается в размере, на котором реально можно точно попасть точкой
-// (маленькая миниатюра в сетке для этого не годится).
+// Просмотр фото поверх страницы вместо открытия новой вкладки. Размер
+// зависит от того, зачем открыли: редактирование точек (editable) требует
+// крупного фото, чтобы реально можно было точно попасть кликом — там во
+// всю ширину. Обычный просмотр (посмотреть планировку/референс/точки на
+// публичной странице) — компактное окно, примерно треть экрана, полноэкранный
+// размер тут не нужен и только мешает.
 export function PhotoLightbox({
   url,
   onClose,
@@ -37,11 +40,16 @@ export function PhotoLightbox({
 }: PhotoLightboxProps) {
   if (!url) return null;
 
+  const compact = !editable;
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-ink/70" />
       <div
-        className="relative flex max-h-[90vh] w-full max-w-4xl flex-col gap-4 overflow-y-auto rounded-3xl bg-white p-6"
+        className={cn(
+          'relative flex max-h-[90vh] w-full flex-col gap-4 overflow-y-auto rounded-3xl bg-white p-6',
+          compact ? 'max-w-md' : 'max-w-4xl',
+        )}
         onClick={(e) => e.stopPropagation()}
       >
         <button
