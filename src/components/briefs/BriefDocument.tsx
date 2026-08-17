@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import {
+  AFTER_BLOCK_TITLE,
+  BEFORE_BLOCK_TITLE,
   briefPhotoCategories,
   briefPhotoCategoryLabels,
   FACADE_REFERENCE_CAPTION,
@@ -53,10 +55,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+// Заголовок секции подняли вслед за заголовками блоков внутри неё
+// (BEFORE_BLOCK_TITLE/AFTER_BLOCK_TITLE) — иначе название категории
+// оказалось бы мельче вложенного в неё блока.
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className={cn('flex flex-col gap-4 p-5', glassCardClass)} style={glassCardShadow}>
-      <span className="text-lg font-bold text-ink">{title}</span>
+      <span className="text-xl font-bold text-ink sm:text-2xl">{title}</span>
       {children}
     </div>
   );
@@ -128,7 +133,7 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
         return (
           <Section key={category} title={briefPhotoCategoryLabels[category]}>
             <div className="flex flex-col gap-3">
-              <span className="text-xs uppercase tracking-wide text-ink-faint">Сейчас — что менять</span>
+              <span className="text-lg font-bold text-ink sm:text-xl">{BEFORE_BLOCK_TITLE}</span>
               <PinnedPhotos
                 photos={cat.beforeUrls.map((url) => ({ url, markers: cat.markers[url] ?? [] }))}
                 changesById={changesById}
@@ -142,7 +147,7 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
             )}
 
             <div className="flex flex-col gap-3 border-t border-border pt-4">
-              <span className="text-xs uppercase tracking-wide text-ink-faint">Должно стать (референс)</span>
+              <span className="text-lg font-bold text-ink sm:text-xl">{AFTER_BLOCK_TITLE}</span>
               <PinnedPhotos
                 photos={cat.afterUrls.map((url) => ({ url, markers: cat.markers[url] ?? [] }))}
                 changesById={changesById}
