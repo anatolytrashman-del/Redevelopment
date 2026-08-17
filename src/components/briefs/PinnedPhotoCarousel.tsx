@@ -15,24 +15,29 @@ function Marker({ index, x, y }: { index: number; x: number; y: number }) {
   );
 }
 
-interface BeforePhotoCarouselProps {
+interface PinnedPhotoCarouselProps {
   photos: { url: string; pins: PhotoPin[] }[];
   // Клик по самому фото — открыть его ещё крупнее в лайтбоксе (не по
   // стрелкам/точкам слайдера, они отдельные соседние элементы, не внутри
   // кликабельной области фото).
   onOpenPhoto?: (url: string, pins: PhotoPin[]) => void;
+  emptyLabel?: string;
+  // Подпись поверх текущего фото (например, "дизайн сгенерирован ИИ" у
+  // референса фасада) — применима к любому кадру слайдера.
+  overlayCaption?: string;
 }
 
-// Публичный показ "Сейчас" — крупное фото слева со слайдером (несколько
-// фото листаются по одному стрелками/точками, а не сеткой мелких
+// Показ фото с точками-комментариями — крупное фото слева со слайдером
+// (несколько фото листаются по одному стрелками/точками, а не сеткой мелких
 // миниатюр — на миниатюре точки не разглядеть), список правок для
-// показанного фото — справа. Один формат для всех категорий, включая
-// фасад: если фото одно, слайдер просто без стрелок.
-export function BeforePhotoCarousel({ photos, onOpenPhoto }: BeforePhotoCarouselProps) {
+// показанного фото — справа. Один формат и для "до", и для "после": обе
+// стороны используют один и тот же Brief.photos[category].pins, ключ —
+// url конкретного фото независимо от того, в beforeUrls оно или afterUrls.
+export function PinnedPhotoCarousel({ photos, onOpenPhoto, emptyLabel = 'Фото не загружены', overlayCaption }: PinnedPhotoCarouselProps) {
   const [index, setIndex] = useState(0);
   const [openReferencePin, setOpenReferencePin] = useState<PhotoPin | null>(null);
 
-  if (photos.length === 0) return <p className="text-sm text-ink-faint">Фото не загружены</p>;
+  if (photos.length === 0) return <p className="text-sm text-ink-faint">{emptyLabel}</p>;
 
   const current = photos[Math.min(index, photos.length - 1)];
 
@@ -45,6 +50,11 @@ export function BeforePhotoCarousel({ photos, onOpenPhoto }: BeforePhotoCarousel
         {current.pins.map((pin, i) => (
           <Marker key={pin.id} index={i} x={pin.x} y={pin.y} />
         ))}
+        {overlayCaption && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/80 to-transparent px-3 pb-2 pt-8">
+            <span className="text-xs text-white">{overlayCaption}</span>
+          </div>
+        )}
         {photos.length > 1 && (
           <>
             <button

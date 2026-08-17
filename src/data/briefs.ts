@@ -31,7 +31,7 @@ export const FACADE_REFERENCE_CAPTION = 'Примерный дизайн, соз
 // где фото с точками показывается в реальном размере (не миниатюра без
 // разметки), обязаны использовать один и тот же aspect-[16/9] — иначе
 // object-cover кадрирует фото по-разному и точки визуально съезжают
-// (см. AnnotatedPhoto.tsx/BeforePhotoCarousel.tsx).
+// (см. AnnotatedPhoto.tsx/PinnedPhotoCarousel.tsx).
 export interface PhotoPin {
   id: string;
   x: number;
@@ -53,9 +53,11 @@ export function pinHasReference(pin: Pick<PhotoPin, 'referenceImageUrl' | 'refer
 export interface BriefCategoryPhotos {
   beforeUrls: string[];
   afterUrls: string[];
-  // Отметки только у фото "до" — ключ: url фото (не индекс в массиве: индекс
-  // сползает при удалении фото). Список комментариев показывается сбоку от
-  // фото, пронумерован в тон меткам на самом фото.
+  // Отметки бывают и у фото "до", и у фото "после" — ключ: url фото (не
+  // индекс в массиве: индекс сползает при удалении фото, а url общий для
+  // обоих списков, что и позволяет копировать точки между "до" и "после",
+  // см. copyPins в BriefFormModal.tsx). Список комментариев показывается
+  // сбоку от фото, пронумерован в тон меткам на самом фото.
   pins: Record<string, PhotoPin[]>;
 }
 

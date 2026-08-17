@@ -8,8 +8,7 @@ import {
 } from '../../data/briefs';
 import type { BuildingSpecs, RealtyObject } from '../../data/objects';
 import { PhotoThumbGrid } from './PhotoThumbGrid';
-import { HeroOrGrid } from './HeroOrGrid';
-import { BeforePhotoCarousel } from './BeforePhotoCarousel';
+import { PinnedPhotoCarousel } from './PinnedPhotoCarousel';
 import { PhotoLightbox } from './PhotoLightbox';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
@@ -121,7 +120,7 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
           <Section key={category} title={briefPhotoCategoryLabels[category]}>
             <div className="flex flex-col gap-3">
               <span className="text-xs uppercase tracking-wide text-ink-faint">Сейчас — что менять</span>
-              <BeforePhotoCarousel
+              <PinnedPhotoCarousel
                 photos={cat.beforeUrls.map((url) => ({ url, pins: cat.pins[url] ?? [] }))}
                 onOpenPhoto={(url, pins) => setLightbox({ url, pins })}
               />
@@ -133,9 +132,9 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
 
             <div className="flex flex-col gap-3 border-t border-border pt-4">
               <span className="text-xs uppercase tracking-wide text-ink-faint">Должно стать (референс)</span>
-              <HeroOrGrid
-                urls={cat.afterUrls}
-                onOpen={(url) => setLightbox({ url })}
+              <PinnedPhotoCarousel
+                photos={cat.afterUrls.map((url) => ({ url, pins: cat.pins[url] ?? [] }))}
+                onOpenPhoto={(url, pins) => setLightbox({ url, pins })}
                 emptyLabel="Фото не загружены"
                 overlayCaption={category === 'facade' ? FACADE_REFERENCE_CAPTION : undefined}
               />

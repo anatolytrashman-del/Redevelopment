@@ -36,6 +36,11 @@ interface AnnotatedPhotoProps {
   // на публичной странице), список комментариев под ним, а не сбоку: так
   // фото занимает максимум места и по нему реально удобно кликать точками.
   large?: boolean;
+  // Другие фото этой же категории (и "до", и "после") — чтобы не расставлять
+  // одни и те же точки вручную заново на похожем кадре, можно скопировать
+  // текущий набор точек с комментариями на один или несколько из них.
+  copyTargets?: { url: string; label: string }[];
+  onCopyPins?: (targetUrls: string[]) => void;
 }
 
 // Фото с точками-комментариями поверх — клик по фото (в редактируемом
@@ -44,7 +49,7 @@ interface AnnotatedPhotoProps {
 // фото — что и как менять в этом месте. Удаление самого фото — забота
 // вызывающего (миниатюра в PhotoThumbGrid), не этого компонента.
 //
-// aspect-[16/9] у фото — намеренно тот же, что и у BeforePhotoCarousel: у
+// aspect-[16/9] у фото — намеренно тот же, что и у PinnedPhotoCarousel: у
 // object-cover кадрирование зависит от соотношения сторон контейнера, и при
 // разных aspect-ratio в двух местах одна и та же точка (x/y в процентах)
 // визуально съезжает. Единственный способ не ловить этот баг — держать
@@ -60,12 +65,25 @@ export function AnnotatedPhoto({
   onChangeReferenceDescription,
   onChangeReferenceUrl,
   large = false,
+  copyTargets,
+  onCopyPins,
 }: AnnotatedPhotoProps) {
   const photoRef = useRef<HTMLDivElement>(null);
   const referenceInputRef = useRef<HTMLInputElement>(null);
   const [pendingPinId, setPendingPinId] = useState<string | null>(null);
   const [uploadingPinId, setUploadingPinId] = useState<string | null>(null);
   const [openReferencePin, setOpenReferencePin] = useState<PhotoPin | null>(null);
+  const [copySelection, setCopySelection] = useState<string[]>([]);
+
+  function toggleCopyTarget(url: string) {
+    setCopySelection((sel) => (sel.includes(url) ? sel.filter((u) => u !== url) : [...sel, url]));
+  }
+
+  function handleCopy() {
+    if (copySelection.length === 0) return;
+    onCopyPins?.(copySelection);
+    setCopySelection([]);
+  }
 
   function handlePhotoClick(e: MouseEvent<HTMLDivElement>) {
     if (!editable || !onAddPin) return;
@@ -207,6 +225,33 @@ export function AnnotatedPhoto({
             )}
           </div>
         ))}
+
+        {editable && pins.length > 0 && copyTargets && copyTargets.length > 0 && (
+          <div className="flex flex-col gap-2 rounded-control border border-dashed border-border p-2">
+            <span className="text-xs font-medium text-ink-muted">Скопировать эти точки на другое фото</span>
+            <div className="flex flex-col gap-1">
+              {copyTargets.map((t) => (
+                <label key={t.url} className="flex items-center gap-2 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    checked={copySelection.includes(t.url)}
+                    onChange={() => toggleCopyTarget(t.url)}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  {t.label}
+                </label>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={handleCopy}
+              disabled={copySelection.length === 0}
+              className="w-fit rounded-control bg-primary px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+            >
+              Скопировать
+            </button>
+          </div>
+        )}
       </div>
 
       <input ref={referenceInputRef} type="file" accept="image/*" className="hidden" onChange={handleReferenceFileChange} />

@@ -6,13 +6,11 @@ import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
 import { Input } from '../ui/Input';
 import { PhotoThumbGrid } from './PhotoThumbGrid';
-import { HeroOrGrid } from './HeroOrGrid';
 import { PhotoLightbox } from './PhotoLightbox';
 import {
   briefPhotoCategories,
   briefPhotoCategoryLabels,
   emptyBriefPhotos,
-  FACADE_REFERENCE_CAPTION,
   MAX_BRIEF_PLAN_URLS,
   type Brief,
   type BriefCategoryPhotos,
@@ -52,8 +50,8 @@ function briefToForm(b: Brief) {
   };
 }
 
-// Кнопка загрузки без превью — сами фото со своими отметками рисуют
-// PhotoThumbGrid/HeroOrGrid рядом, эта только открывает выбор файлов.
+// Кнопка загрузки без превью — сами фото со своими отметками рисует
+// PhotoThumbGrid рядом, эта только открывает выбор файлов.
 function UploadTile({
   label,
   uploading,
@@ -180,7 +178,12 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
   }
 
   function removeAfterPhoto(category: BriefPhotoCategory, url: string) {
-    updateCategory(category, (c) => ({ ...c, afterUrls: c.afterUrls.filter((u) => u !== url) }));
+    updateCategory(category, (c) => {
+      const restPins = { ...c.pins };
+      delete restPins[url];
+      return { ...c, afterUrls: c.afterUrls.filter((u) => u !== url), pins: restPins };
+    });
+    setLightbox((lb) => (lb?.kind === 'pin' && lb.url === url ? null : lb));
   }
 
   function addPin(category: BriefPhotoCategory, url: string, x: number, y: number) {
@@ -229,6 +232,21 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
       ...c,
       pins: { ...c.pins, [url]: (c.pins[url] ?? []).filter((p) => p.id !== pinId) },
     }));
+  }
+
+  // Копирует точки с комментариями и референсами с одного фото на несколько
+  // других (в т.ч. между "до" и "после" — pins хранится по url, независимо
+  // от того, в каком из двух списков этот url лежит) — не заменяет, а
+  // добавляет к уже существующим на целевом фото отметкам, с новыми id.
+  function copyPins(category: BriefPhotoCategory, sourceUrl: string, targetUrls: string[]) {
+    updateCategory(category, (c) => {
+      const sourcePins = c.pins[sourceUrl] ?? [];
+      const pins = { ...c.pins };
+      for (const target of targetUrls) {
+        pins[target] = [...(pins[target] ?? []), ...sourcePins.map((p) => ({ ...p, id: crypto.randomUUID() }))];
+      }
+      return { ...c, pins };
+    });
   }
 
   const canSubmit = form.objectId.length > 0;
@@ -341,13 +359,11 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
               </p>
 
               <div className="flex flex-col gap-2">
-                <span className="text-xs uppercase tracking-wide text-ink-faint">Должно стать (референс)</span>
-                <HeroOrGrid
-                  urls={cat.afterUrls}
-                  onOpen={(url) => setLightbox({ kind: 'plain', url })}
+                <span className="text-xs uppercase tracking-wide text-ink-faint">Должно стать (референс) — отметь при желании</span>
+                <PhotoThumbGrid
+                  items={cat.afterUrls.map((url) => ({ url, pinCount: (cat.pins[url] ?? []).length }))}
+                  onOpen={(url) => setLightbox({ kind: 'pin', category, url })}
                   onRemove={(url) => removeAfterPhoto(category, url)}
-                  emptyLabel="Фото не загружены"
-                  overlayCaption={category === 'facade' ? FACADE_REFERENCE_CAPTION : undefined}
                 />
                 <UploadTile
                   label="Добавить"
@@ -384,6 +400,11 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
             changePinReferenceDescription(lightbox.category, lightbox.url, pinId, description)
           }
           onChangeReferenceUrl={(pinId, url) => changePinReferenceUrl(lightbox.category, lightbox.url, pinId, url)}
+          copyTargets={[
+            ...form.photos[lightbox.category].beforeUrls.map((u, i) => ({ url: u, label: `До, фото ${i + 1}` })),
+            ...form.photos[lightbox.category].afterUrls.map((u, i) => ({ url: u, label: `После, фото ${i + 1}` })),
+          ].filter((t) => t.url !== lightbox.url)}
+          onCopyPins={(targetUrls) => copyPins(lightbox.category, lightbox.url, targetUrls)}
           onClose={() => setLightbox(null)}
         />
       )}
