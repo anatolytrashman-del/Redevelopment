@@ -4,6 +4,8 @@ import {
   BEFORE_BLOCK_TITLE,
   briefPhotoCategories,
   briefPhotoCategoryLabels,
+  COST_REDUCTION_IDEAS,
+  COST_REDUCTION_IDEAS_TITLE,
   FACADE_REFERENCE_CAPTION,
   PLAN_REQUEST_NOTE,
   type Brief,
@@ -159,6 +161,17 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
           </Section>
         );
       })}
+
+      <Section title={COST_REDUCTION_IDEAS_TITLE}>
+        <ol className="flex flex-col gap-2">
+          {COST_REDUCTION_IDEAS.map((idea, i) => (
+            <li key={i} className="flex gap-2 text-sm text-ink">
+              <span className="shrink-0 font-semibold text-ink-muted">{i + 1}.</span>
+              <span>{idea}</span>
+            </li>
+          ))}
+        </ol>
+      </Section>
 
       <PhotoLightbox
         url={lightbox?.url ?? null}
