@@ -2,8 +2,10 @@ import { useRef, useState } from 'react';
 import type { ChangeEvent, MouseEvent } from 'react';
 import { Loader2, Upload, X } from 'lucide-react';
 import { Textarea } from '../ui/Textarea';
+import { Input } from '../ui/Input';
+import { ReferencePopup } from './ReferencePopup';
 import { cn } from '../../lib/cn';
-import type { PhotoPin } from '../../data/briefs';
+import { pinHasReference, type PhotoPin } from '../../data/briefs';
 import { uploadObjectImage } from '../../lib/objectsApi';
 
 function Marker({ index, x, y }: { index: number; x: number; y: number }) {
@@ -28,15 +30,17 @@ interface AnnotatedPhotoProps {
   onChangeComment?: (pinId: string, comment: string) => void;
   onRemovePin?: (pinId: string) => void;
   onChangeReferenceImage?: (pinId: string, url: string) => void;
-  // Крупный показ внутри PhotoLightbox — фото занимает больше места, чтобы
-  // по нему было реально удобно кликать точками (в маленькой миниатюре
-  // не попасть).
+  onChangeReferenceDescription?: (pinId: string, description: string) => void;
+  onChangeReferenceUrl?: (pinId: string, url: string) => void;
+  // Крупный показ внутри PhotoLightbox — фото на всю ширину (то же, что и
+  // на публичной странице), список комментариев под ним, а не сбоку: так
+  // фото занимает максимум места и по нему реально удобно кликать точками.
   large?: boolean;
 }
 
 // Фото с точками-комментариями поверх — клик по фото (в редактируемом
 // режиме) ставит точку и заводит для неё пустой комментарий. Список
-// комментариев показан сбоку от фото, пронумерован в тон меткам на самом
+// комментариев показан под фото, пронумерован в тон меткам на самом
 // фото — что и как менять в этом месте. Удаление самого фото — забота
 // вызывающего (миниатюра в PhotoThumbGrid), не этого компонента.
 //
@@ -53,12 +57,15 @@ export function AnnotatedPhoto({
   onChangeComment,
   onRemovePin,
   onChangeReferenceImage,
+  onChangeReferenceDescription,
+  onChangeReferenceUrl,
   large = false,
 }: AnnotatedPhotoProps) {
   const photoRef = useRef<HTMLDivElement>(null);
   const referenceInputRef = useRef<HTMLInputElement>(null);
   const [pendingPinId, setPendingPinId] = useState<string | null>(null);
   const [uploadingPinId, setUploadingPinId] = useState<string | null>(null);
+  const [openReferencePin, setOpenReferencePin] = useState<PhotoPin | null>(null);
 
   function handlePhotoClick(e: MouseEvent<HTMLDivElement>) {
     if (!editable || !onAddPin) return;
@@ -92,13 +99,13 @@ export function AnnotatedPhoto({
   }
 
   return (
-    <div className={cn('flex flex-col gap-4', large ? 'sm:flex-row sm:items-start' : 'sm:flex-row')}>
+    <div className={cn('flex flex-col gap-4', !large && 'sm:flex-row')}>
       <div
         ref={photoRef}
         onClick={handlePhotoClick}
         className={cn(
           'relative aspect-[16/9] w-full shrink-0 overflow-hidden rounded-control bg-surface-muted',
-          large ? 'sm:w-3/5' : 'sm:w-1/2',
+          !large && 'sm:w-1/2',
           editable && 'cursor-crosshair',
         )}
       >
@@ -120,7 +127,7 @@ export function AnnotatedPhoto({
               {i + 1}
             </span>
             {editable ? (
-              <div className="flex flex-1 flex-col gap-1.5">
+              <div className="flex flex-1 flex-col gap-2">
                 <div className="flex items-start gap-2">
                   <Textarea
                     value={pin.comment}
@@ -138,39 +145,63 @@ export function AnnotatedPhoto({
                     <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
-                {pin.referenceImageUrl ? (
-                  <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-control bg-surface-muted">
-                    <img src={pin.referenceImageUrl} alt="" className="h-full w-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => onChangeReferenceImage?.(pin.id, '')}
-                      aria-label="Убрать фото модели"
-                      className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-ink/70 text-white"
-                    >
-                      <X className="h-2.5 w-2.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => triggerReferenceUpload(pin.id)}
-                    disabled={uploadingPinId === pin.id}
-                    className="flex w-fit items-center gap-1 text-xs text-ink-muted underline underline-offset-2 hover:text-primary disabled:opacity-50"
-                  >
-                    {uploadingPinId === pin.id ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
+
+                <div className="flex flex-col gap-2 rounded-control border border-border p-2">
+                  <span className="text-xs font-medium text-ink-muted">Референс на модель/товар (необязательно)</span>
+                  <div className="flex items-start gap-2">
+                    {pin.referenceImageUrl ? (
+                      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-control bg-surface-muted">
+                        <img src={pin.referenceImageUrl} alt="" className="h-full w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => onChangeReferenceImage?.(pin.id, '')}
+                          aria-label="Убрать фото модели"
+                          className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-ink/70 text-white"
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </div>
                     ) : (
-                      <Upload className="h-3 w-3" />
+                      <button
+                        type="button"
+                        onClick={() => triggerReferenceUpload(pin.id)}
+                        disabled={uploadingPinId === pin.id}
+                        className="flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-control border border-dashed border-border text-ink-faint hover:border-border-strong disabled:opacity-50"
+                      >
+                        {uploadingPinId === pin.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Upload className="h-4 w-4" />
+                        )}
+                        <span className="text-[9px]">Фото</span>
+                      </button>
                     )}
-                    {uploadingPinId === pin.id ? 'Загружаем...' : 'Добавить фото модели/образца'}
-                  </button>
-                )}
+                    <Input
+                      placeholder="Ссылка на товар"
+                      value={pin.referenceUrl}
+                      onChange={(e) => onChangeReferenceUrl?.(pin.id, e.target.value)}
+                      className="flex-1 py-2.5"
+                    />
+                  </div>
+                  <Textarea
+                    value={pin.referenceDescription}
+                    onChange={(e) => onChangeReferenceDescription?.(pin.id, e.target.value)}
+                    rows={2}
+                    placeholder="Описание модели: материал, цвет, производитель..."
+                  />
+                </div>
               </div>
             ) : (
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1">
                 <p className="whitespace-pre-wrap pt-1 text-sm text-ink">{pin.comment || '—'}</p>
-                {pin.referenceImageUrl && (
-                  <img src={pin.referenceImageUrl} alt="" className="h-16 w-16 rounded-control object-cover" />
+                {pinHasReference(pin) && (
+                  <button
+                    type="button"
+                    onClick={() => setOpenReferencePin(pin)}
+                    className="w-fit text-xs font-semibold text-primary underline underline-offset-2"
+                  >
+                    Референс
+                  </button>
                 )}
               </div>
             )}
@@ -179,6 +210,7 @@ export function AnnotatedPhoto({
       </div>
 
       <input ref={referenceInputRef} type="file" accept="image/*" className="hidden" onChange={handleReferenceFileChange} />
+      {openReferencePin && <ReferencePopup pin={openReferencePin} onClose={() => setOpenReferencePin(null)} />}
     </div>
   );
 }

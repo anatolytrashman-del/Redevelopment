@@ -37,9 +37,17 @@ export interface PhotoPin {
   x: number;
   y: number;
   comment: string;
-  // Фото конкретной модели/образца ("вот такую именно дверь поставить") —
-  // необязательное, отдельно от текстового комментария.
+  // Референс на конкретную модель/товар ("вот такую именно дверь
+  // поставить") — необязательный, отдельно от текстового комментария.
+  // На публичной странице не показывается сразу картинкой (загораживала
+  // фото), а скрыт за ссылкой "Референс" — см. ReferencePopup.tsx.
   referenceImageUrl: string;
+  referenceDescription: string;
+  referenceUrl: string;
+}
+
+export function pinHasReference(pin: Pick<PhotoPin, 'referenceImageUrl' | 'referenceDescription' | 'referenceUrl'>): boolean {
+  return !!(pin.referenceImageUrl || pin.referenceDescription || pin.referenceUrl);
 }
 
 export interface BriefCategoryPhotos {
@@ -76,7 +84,12 @@ export function normalizeBriefPhotos(raw: Partial<BriefPhotos> | null | undefine
     const c = raw?.[category];
     const pins: Record<string, PhotoPin[]> = {};
     for (const [url, list] of Object.entries(c?.pins ?? {})) {
-      pins[url] = (list ?? []).map((p) => ({ ...p, referenceImageUrl: p.referenceImageUrl ?? '' }));
+      pins[url] = (list ?? []).map((p) => ({
+        ...p,
+        referenceImageUrl: p.referenceImageUrl ?? '',
+        referenceDescription: p.referenceDescription ?? '',
+        referenceUrl: p.referenceUrl ?? '',
+      }));
     }
     result[category] = {
       beforeUrls: c?.beforeUrls ?? [],

@@ -15,6 +15,8 @@ interface PhotoLightboxProps {
   onChangeComment?: (pinId: string, comment: string) => void;
   onRemovePin?: (pinId: string) => void;
   onChangeReferenceImage?: (pinId: string, url: string) => void;
+  onChangeReferenceDescription?: (pinId: string, description: string) => void;
+  onChangeReferenceUrl?: (pinId: string, url: string) => void;
 }
 
 // Общий полноэкранный просмотр фото — крупная картинка вместо открытия
@@ -30,6 +32,8 @@ export function PhotoLightbox({
   onChangeComment,
   onRemovePin,
   onChangeReferenceImage,
+  onChangeReferenceDescription,
+  onChangeReferenceUrl,
 }: PhotoLightboxProps) {
   if (!url) return null;
 
@@ -58,6 +62,8 @@ export function PhotoLightbox({
             onChangeComment={onChangeComment}
             onRemovePin={onRemovePin}
             onChangeReferenceImage={onChangeReferenceImage}
+            onChangeReferenceDescription={onChangeReferenceDescription}
+            onChangeReferenceUrl={onChangeReferenceUrl}
             large
           />
         ) : (

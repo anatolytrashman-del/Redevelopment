@@ -188,7 +188,10 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
       ...c,
       pins: {
         ...c.pins,
-        [url]: [...(c.pins[url] ?? []), { id: crypto.randomUUID(), x, y, comment: '', referenceImageUrl: '' }],
+        [url]: [
+          ...(c.pins[url] ?? []),
+          { id: crypto.randomUUID(), x, y, comment: '', referenceImageUrl: '', referenceDescription: '', referenceUrl: '' },
+        ],
       },
     }));
   }
@@ -204,6 +207,20 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
     updateCategory(category, (c) => ({
       ...c,
       pins: { ...c.pins, [url]: (c.pins[url] ?? []).map((p) => (p.id === pinId ? { ...p, referenceImageUrl } : p)) },
+    }));
+  }
+
+  function changePinReferenceDescription(category: BriefPhotoCategory, url: string, pinId: string, referenceDescription: string) {
+    updateCategory(category, (c) => ({
+      ...c,
+      pins: { ...c.pins, [url]: (c.pins[url] ?? []).map((p) => (p.id === pinId ? { ...p, referenceDescription } : p)) },
+    }));
+  }
+
+  function changePinReferenceUrl(category: BriefPhotoCategory, url: string, pinId: string, referenceUrl: string) {
+    updateCategory(category, (c) => ({
+      ...c,
+      pins: { ...c.pins, [url]: (c.pins[url] ?? []).map((p) => (p.id === pinId ? { ...p, referenceUrl } : p)) },
     }));
   }
 
@@ -363,6 +380,10 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
           onChangeComment={(pinId, comment) => changePinComment(lightbox.category, lightbox.url, pinId, comment)}
           onRemovePin={(pinId) => removePin(lightbox.category, lightbox.url, pinId)}
           onChangeReferenceImage={(pinId, url) => changePinReferenceImage(lightbox.category, lightbox.url, pinId, url)}
+          onChangeReferenceDescription={(pinId, description) =>
+            changePinReferenceDescription(lightbox.category, lightbox.url, pinId, description)
+          }
+          onChangeReferenceUrl={(pinId, url) => changePinReferenceUrl(lightbox.category, lightbox.url, pinId, url)}
           onClose={() => setLightbox(null)}
         />
       )}
