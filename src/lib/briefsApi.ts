@@ -6,6 +6,8 @@ function fromRow(row: BriefRow): Brief {
   return {
     id: row.id,
     objectId: row.object_id,
+    recipientName: row.recipient_name ?? '',
+    recipientPhone: row.recipient_phone ?? '',
     photos: row.photos ?? emptyBriefPhotos(),
     shareToken: row.share_token,
     createdAt: row.created_at,
@@ -36,6 +38,8 @@ export function insertBrief(input: Omit<Brief, 'id' | 'createdAt' | 'shareToken'
       .from('briefs')
       .insert({
         object_id: input.objectId,
+        recipient_name: input.recipientName || null,
+        recipient_phone: input.recipientPhone || null,
         photos: input.photos,
       })
       .select()
@@ -52,6 +56,8 @@ export function updateBrief(id: string, input: Omit<Brief, 'id' | 'createdAt' | 
       .from('briefs')
       .update({
         object_id: input.objectId,
+        recipient_name: input.recipientName || null,
+        recipient_phone: input.recipientPhone || null,
         photos: input.photos,
       })
       .eq('id', id)

@@ -4,6 +4,7 @@ import { Loader2, Upload, X } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
+import { Input } from '../ui/Input';
 import { AnnotatedPhoto } from './AnnotatedPhoto';
 import {
   briefPhotoCategories,
@@ -14,6 +15,7 @@ import {
   type BriefPhotoCategory,
 } from '../../data/briefs';
 import type { RealtyObject } from '../../data/objects';
+import type { Contractor } from '../../data/contractors';
 import { insertBrief, updateBrief } from '../../lib/briefsApi';
 import { uploadObjectImage } from '../../lib/objectsApi';
 
@@ -30,12 +32,16 @@ function objectLabel(o: RealtyObject): string {
 
 const emptyForm = {
   objectId: '',
+  recipientName: '',
+  recipientPhone: '',
   photos: emptyBriefPhotos(),
 };
 
 function briefToForm(b: Brief) {
   return {
     objectId: b.objectId,
+    recipientName: b.recipientName,
+    recipientPhone: b.recipientPhone,
     photos: b.photos,
   };
 }
@@ -106,11 +112,12 @@ interface BriefFormModalProps {
   // null — создание нового техзадания, иначе редактирование существующего.
   brief: Brief | null;
   objects: RealtyObject[];
+  contractors: Contractor[];
   onClose: () => void;
   onSaved: (b: Brief) => void;
 }
 
-export function BriefFormModal({ open, brief, objects, onClose, onSaved }: BriefFormModalProps) {
+export function BriefFormModal({ open, brief, objects, contractors, onClose, onSaved }: BriefFormModalProps) {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -201,7 +208,12 @@ export function BriefFormModal({ open, brief, objects, onClose, onSaved }: Brief
 
     setSubmitting(true);
     setSubmitError(null);
-    const payload = { objectId: form.objectId, photos: form.photos };
+    const payload = {
+      objectId: form.objectId,
+      recipientName: form.recipientName,
+      recipientPhone: form.recipientPhone,
+      photos: form.photos,
+    };
     try {
       const saved = brief ? await updateBrief(brief.id, payload) : await insertBrief(payload);
       onSaved(saved);
@@ -228,6 +240,37 @@ export function BriefFormModal({ open, brief, objects, onClose, onSaved }: Brief
             setForm((f) => ({ ...f, objectId: obj?.id ?? '' }));
           }}
         />
+
+        <div className="flex flex-col gap-3 border-t border-border pt-4">
+          <span className="text-sm font-semibold text-ink">Кому направлено</span>
+          {contractors.length > 0 && (
+            <Select
+              label="Подрядчик из базы (необязательно)"
+              placeholder="Выбрать из базы"
+              options={contractors.map((c) => c.name)}
+              value=""
+              onChange={(v) => {
+                const c = contractors.find((x) => x.name === v);
+                if (c) setForm((f) => ({ ...f, recipientName: c.name, recipientPhone: c.phone }));
+              }}
+            />
+          )}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input
+              label="Имя"
+              placeholder="Имя инженера"
+              value={form.recipientName}
+              onChange={(e) => setForm((f) => ({ ...f, recipientName: e.target.value }))}
+            />
+            <Input
+              label="Телефон"
+              placeholder="+375 29 ..."
+              type="tel"
+              value={form.recipientPhone}
+              onChange={(e) => setForm((f) => ({ ...f, recipientPhone: e.target.value }))}
+            />
+          </div>
+        </div>
 
         {briefPhotoCategories.map((category) => {
           const cat = form.photos[category];

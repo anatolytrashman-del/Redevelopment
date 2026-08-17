@@ -6,8 +6,10 @@ import { Button } from '../components/ui/Button';
 import { BriefFormModal } from '../components/briefs/BriefFormModal';
 import type { Brief } from '../data/briefs';
 import type { RealtyObject } from '../data/objects';
+import type { Contractor } from '../data/contractors';
 import { fetchBriefs, deleteBrief } from '../lib/briefsApi';
 import { fetchObjects } from '../lib/objectsApi';
+import { fetchContractors } from '../lib/contractorsApi';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 
@@ -21,6 +23,7 @@ function errorMessage(err: unknown, fallback: string): string {
 export function Briefs() {
   const [briefs, setBriefs] = useState<Brief[]>([]);
   const [objects, setObjects] = useState<RealtyObject[]>([]);
+  const [contractors, setContractors] = useState<Contractor[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -30,10 +33,11 @@ export function Briefs() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([fetchBriefs(), fetchObjects()])
-      .then(([b, o]) => {
+    Promise.all([fetchBriefs(), fetchObjects(), fetchContractors()])
+      .then(([b, o, c]) => {
         setBriefs(b);
         setObjects(o);
+        setContractors(c);
       })
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить техзадания')))
       .finally(() => setLoading(false));
@@ -149,7 +153,14 @@ export function Briefs() {
         )}
       </div>
 
-      <BriefFormModal open={open} brief={editingBrief} objects={objects} onClose={() => setOpen(false)} onSaved={handleSaved} />
+      <BriefFormModal
+        open={open}
+        brief={editingBrief}
+        objects={objects}
+        contractors={contractors}
+        onClose={() => setOpen(false)}
+        onSaved={handleSaved}
+      />
     </>
   );
 }

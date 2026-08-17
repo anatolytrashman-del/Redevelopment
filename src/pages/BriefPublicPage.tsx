@@ -5,8 +5,10 @@ import { Card } from '../components/ui/Card';
 import { BriefDocument } from '../components/briefs/BriefDocument';
 import type { Brief } from '../data/briefs';
 import type { RealtyObject } from '../data/objects';
+import type { BuildingPlan } from '../data/buildingPlans';
 import { fetchBriefByToken } from '../lib/briefsApi';
 import { fetchObject } from '../lib/objectsApi';
+import { fetchBuildingPlans } from '../lib/buildingPlansApi';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -24,6 +26,7 @@ export function BriefPublicPage() {
   const { token } = useParams();
   const [brief, setBrief] = useState<Brief | null>(null);
   const [object, setObject] = useState<RealtyObject | null>(null);
+  const [plans, setPlans] = useState<BuildingPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -34,7 +37,12 @@ export function BriefPublicPage() {
     fetchBriefByToken(token)
       .then(async (b) => {
         setBrief(b);
-        setObject(await fetchObject(b.objectId));
+        const obj = await fetchObject(b.objectId);
+        setObject(obj);
+        if (obj.buildingPlanIds.length > 0) {
+          const allPlans = await fetchBuildingPlans();
+          setPlans(allPlans.filter((p) => obj.buildingPlanIds.includes(p.id)));
+        }
       })
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить техзадание')))
       .finally(() => setLoading(false));
@@ -64,7 +72,7 @@ export function BriefPublicPage() {
 
   return (
     <div className="min-h-svh bg-bg px-4 py-8 sm:px-8">
-      <BriefDocument brief={brief} object={object} />
+      <BriefDocument brief={brief} object={object} plans={plans} />
     </div>
   );
 }

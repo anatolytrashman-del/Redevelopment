@@ -52,6 +52,11 @@ export function emptyBriefPhotos(): BriefPhotos {
 export interface Brief {
   id: string;
   objectId: string;
+  // Кому направлено техзадание — имя и телефон подставляются из базы
+  // подрядчиков при выборе, но остаются обычными полями формы: можно
+  // вписать вручную человека, которого ещё нет в базе.
+  recipientName: string;
+  recipientPhone: string;
   photos: BriefPhotos;
   shareToken: string;
   createdAt: string;
@@ -64,6 +69,8 @@ export interface Brief {
 export interface BriefRow {
   id: string;
   object_id: string;
+  recipient_name: string | null;
+  recipient_phone: string | null;
   photos: BriefPhotos | null;
   share_token: string;
   created_at: string;
