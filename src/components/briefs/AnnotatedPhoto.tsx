@@ -74,6 +74,9 @@ export function AnnotatedPhoto({
   const [uploadingPinId, setUploadingPinId] = useState<string | null>(null);
   const [openReferencePin, setOpenReferencePin] = useState<PhotoPin | null>(null);
   const [copySelection, setCopySelection] = useState<string[]>([]);
+  // Без этого клик по "Скопировать" никак не подтверждался — непонятно,
+  // сработало действие или нет (кнопка просто возвращалась в исходный вид).
+  const [justCopiedCount, setJustCopiedCount] = useState<number | null>(null);
 
   function toggleCopyTarget(url: string) {
     setCopySelection((sel) => (sel.includes(url) ? sel.filter((u) => u !== url) : [...sel, url]));
@@ -82,7 +85,9 @@ export function AnnotatedPhoto({
   function handleCopy() {
     if (copySelection.length === 0) return;
     onCopyPins?.(copySelection);
+    setJustCopiedCount(copySelection.length);
     setCopySelection([]);
+    setTimeout(() => setJustCopiedCount(null), 2500);
   }
 
   function handlePhotoClick(e: MouseEvent<HTMLDivElement>) {
@@ -242,14 +247,18 @@ export function AnnotatedPhoto({
                 </label>
               ))}
             </div>
-            <button
-              type="button"
-              onClick={handleCopy}
-              disabled={copySelection.length === 0}
-              className="w-fit rounded-control bg-primary px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
-            >
-              Скопировать
-            </button>
+            {justCopiedCount ? (
+              <span className="text-xs font-semibold text-success">Скопировано на {justCopiedCount} фото ✓</span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleCopy}
+                disabled={copySelection.length === 0}
+                className="w-fit rounded-control bg-primary px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+              >
+                Скопировать
+              </button>
+            )}
           </div>
         )}
       </div>
