@@ -3,11 +3,12 @@ import {
   briefPhotoCategories,
   briefPhotoCategoryLabels,
   FACADE_REFERENCE_CAPTION,
+  PLAN_REQUEST_NOTE,
   type Brief,
   type PhotoPin,
 } from '../../data/briefs';
 import type { BuildingSpecs, RealtyObject } from '../../data/objects';
-import { PhotoThumbGrid } from './PhotoThumbGrid';
+import { BriefBuildingPlans } from './BriefBuildingPlans';
 import { PinnedPhotoCarousel } from './PinnedPhotoCarousel';
 import { PhotoLightbox } from './PhotoLightbox';
 import { cn } from '../../lib/cn';
@@ -108,11 +109,10 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
         </Section>
       )}
 
-      {brief.planUrls.length > 0 && (
-        <Section title="Планировки">
-          <PhotoThumbGrid items={brief.planUrls.map((url) => ({ url }))} onOpen={(url) => setLightbox({ url })} />
-        </Section>
-      )}
+      <Section title="Планировки">
+        <p className="text-sm text-ink-muted">{PLAN_REQUEST_NOTE}</p>
+        <BriefBuildingPlans object={object} />
+      </Section>
 
       {briefPhotoCategories.map((category) => {
         const cat = brief.photos[category];

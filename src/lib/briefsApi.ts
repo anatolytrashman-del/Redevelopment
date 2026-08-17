@@ -8,7 +8,6 @@ function fromRow(row: BriefRow): Brief {
     objectId: row.object_id,
     recipientName: row.recipient_name ?? '',
     recipientPhone: row.recipient_phone ?? '',
-    planUrls: row.plan_urls ?? [],
     photos: normalizeBriefPhotos(row.photos),
     shareToken: row.share_token,
     createdAt: row.created_at,
@@ -41,7 +40,6 @@ export function insertBrief(input: Omit<Brief, 'id' | 'createdAt' | 'shareToken'
         object_id: input.objectId,
         recipient_name: input.recipientName || null,
         recipient_phone: input.recipientPhone || null,
-        plan_urls: input.planUrls,
         photos: input.photos,
       })
       .select()
@@ -60,7 +58,6 @@ export function updateBrief(id: string, input: Omit<Brief, 'id' | 'createdAt' | 
         object_id: input.objectId,
         recipient_name: input.recipientName || null,
         recipient_phone: input.recipientPhone || null,
-        plan_urls: input.planUrls,
         photos: input.photos,
       })
       .eq('id', id)

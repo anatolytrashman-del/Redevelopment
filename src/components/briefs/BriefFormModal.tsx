@@ -7,11 +7,12 @@ import { Select } from '../ui/Select';
 import { Input } from '../ui/Input';
 import { PhotoThumbGrid } from './PhotoThumbGrid';
 import { PhotoLightbox } from './PhotoLightbox';
+import { BriefBuildingPlans } from './BriefBuildingPlans';
 import {
   briefPhotoCategories,
   briefPhotoCategoryLabels,
   emptyBriefPhotos,
-  MAX_BRIEF_PLAN_URLS,
+  PLAN_REQUEST_NOTE,
   type Brief,
   type BriefCategoryPhotos,
   type BriefPhotoCategory,
@@ -36,7 +37,6 @@ const emptyForm = {
   objectId: '',
   recipientName: '',
   recipientPhone: '',
-  planUrls: [] as string[],
   photos: emptyBriefPhotos(),
 };
 
@@ -45,7 +45,6 @@ function briefToForm(b: Brief) {
     objectId: b.objectId,
     recipientName: b.recipientName,
     recipientPhone: b.recipientPhone,
-    planUrls: b.planUrls,
     photos: b.photos,
   };
 }
@@ -81,9 +80,8 @@ function UploadTile({
 }
 
 // Какое именно фото открыто крупным планом. "pin" — редактируем точки на
-// фото "сейчас" внутри конкретной категории, "plain" — просто увеличенный
-// просмотр (планировка или референс "после").
-type LightboxState = { kind: 'pin'; category: BriefPhotoCategory; url: string } | { kind: 'plain'; url: string } | null;
+// фото "сейчас" (или "после") внутри конкретной категории.
+type LightboxState = { kind: 'pin'; category: BriefPhotoCategory; url: string } | null;
 
 interface BriefFormModalProps {
   open: boolean;
@@ -122,24 +120,6 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
       }
     }
     return failed;
-  }
-
-  async function handlePlansAdd(e: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    e.target.value = '';
-    if (files.length === 0) return;
-    setUploadingKey('plans');
-    setSubmitError(null);
-    const remainingSlots = MAX_BRIEF_PLAN_URLS - form.planUrls.length;
-    const failed = await uploadMany(files.slice(0, Math.max(remainingSlots, 0)), (url) =>
-      setForm((f) => ({ ...f, planUrls: [...f.planUrls, url] })),
-    );
-    setUploadingKey(null);
-    if (failed.length > 0) setSubmitError(`Не удалось загрузить: ${failed.join('; ')}.`);
-  }
-
-  function removePlan(url: string) {
-    setForm((f) => ({ ...f, planUrls: f.planUrls.filter((u) => u !== url) }));
   }
 
   function updateCategory(category: BriefPhotoCategory, updater: (c: BriefCategoryPhotos) => BriefCategoryPhotos) {
@@ -261,7 +241,6 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
       objectId: form.objectId,
       recipientName: form.recipientName,
       recipientPhone: form.recipientPhone,
-      planUrls: form.planUrls,
       photos: form.photos,
     };
     try {
@@ -323,14 +302,12 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
         </div>
 
         <div className="flex flex-col gap-2 border-t border-border pt-4">
-          <span className="text-sm font-semibold text-ink">Планировки (до {MAX_BRIEF_PLAN_URLS})</span>
-          <PhotoThumbGrid
-            items={form.planUrls.map((url) => ({ url }))}
-            onOpen={(url) => setLightbox({ kind: 'plain', url })}
-            onRemove={removePlan}
-          />
-          {form.planUrls.length < MAX_BRIEF_PLAN_URLS && (
-            <UploadTile label="Добавить планировки" uploading={uploadingKey === 'plans'} onSelect={handlePlansAdd} />
+          <span className="text-sm font-semibold text-ink">Планировки</span>
+          <p className="text-sm text-ink-muted">{PLAN_REQUEST_NOTE}</p>
+          {selectedObject ? (
+            <BriefBuildingPlans object={selectedObject} />
+          ) : (
+            <p className="text-sm text-ink-faint">Сначала выберите объект</p>
           )}
         </div>
 
@@ -408,7 +385,6 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
           onClose={() => setLightbox(null)}
         />
       )}
-      {lightbox?.kind === 'plain' && <PhotoLightbox url={lightbox.url} onClose={() => setLightbox(null)} />}
     </Modal>
   );
 }
