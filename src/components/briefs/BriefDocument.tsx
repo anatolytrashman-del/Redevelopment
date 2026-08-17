@@ -104,7 +104,7 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
           {/* Название объекта (RealtyObject.name) сюда намеренно не выводится
               — оно маркетинговое ("Minsk One" и т.п.), сметчику нужен только
               реальный адрес. */}
-          <span className="text-xl font-bold text-ink sm:text-2xl">{object.address}</span>
+          <span className="text-base font-bold text-ink sm:text-lg">{object.address}</span>
         </div>
         {(brief.recipientName || brief.recipientPhone) && (
           <div className="flex flex-col gap-0.5 sm:w-56 sm:shrink-0 sm:items-end sm:text-right">
