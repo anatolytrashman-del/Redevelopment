@@ -3,6 +3,7 @@ import { briefPhotoCategories, briefPhotoCategoryLabels, type Brief, type PhotoP
 import type { BuildingSpecs, RealtyObject } from '../../data/objects';
 import { PhotoThumbGrid } from './PhotoThumbGrid';
 import { HeroOrGrid } from './HeroOrGrid';
+import { HeroAnnotatedPhoto } from './HeroAnnotatedPhoto';
 import { PhotoLightbox } from './PhotoLightbox';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
@@ -71,14 +72,14 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
         style={glassCardShadow}
       >
         <div className="flex flex-col gap-1">
-          <span className="text-xl font-extrabold text-ink sm:text-2xl">
+          <span className="text-base font-semibold text-ink sm:text-lg">
             Техническое задание на предварительный просчёт сметы реновации здания
           </span>
-          <span className="text-lg font-semibold text-ink-muted">{object.name || object.address}</span>
+          <span className="text-xl font-bold text-ink sm:text-2xl">{object.name || object.address}</span>
           {object.name && <span className="text-sm text-ink-faint">{object.address}</span>}
         </div>
         {(brief.recipientName || brief.recipientPhone) && (
-          <div className="flex flex-col gap-0.5 sm:text-right">
+          <div className="flex flex-col gap-0.5 sm:w-56 sm:shrink-0 sm:items-end sm:text-right">
             <span className="text-xs uppercase tracking-wide text-ink-faint">Кому направлено</span>
             {brief.recipientName && <span className="text-sm font-semibold text-ink">{brief.recipientName}</span>}
             {brief.recipientPhone && <span className="text-sm text-ink-muted">{brief.recipientPhone}</span>}
@@ -116,6 +117,12 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
               <span className="text-xs uppercase tracking-wide text-ink-faint">Сейчас — что менять</span>
               {cat.beforeUrls.length === 0 ? (
                 <p className="text-sm text-ink-faint">Фото не загружены</p>
+              ) : cat.beforeUrls.length === 1 ? (
+                <HeroAnnotatedPhoto
+                  url={cat.beforeUrls[0]}
+                  pins={cat.pins[cat.beforeUrls[0]] ?? []}
+                  onOpen={() => setLightbox({ url: cat.beforeUrls[0], pins: cat.pins[cat.beforeUrls[0]] ?? [] })}
+                />
               ) : (
                 <PhotoThumbGrid
                   items={cat.beforeUrls.map((url) => ({ url, pinCount: (cat.pins[url] ?? []).length }))}
