@@ -11,12 +11,12 @@ export const contractorSpecialties = ['Юрист', 'Налоговый конс
 // Тот же паттерн, что leadContactMethods, но без Kufar — подрядчиков там не ищут.
 export const contractorContactMethods = ['Телефон', 'Telegram', 'WhatsApp', 'Viber', 'Email'] as const;
 
-// "Команда" — те, кто 24/7 на связи (сейчас никого); "Part-time консультанты" —
+// "Команда" — те, кто 24/7 на связи (сейчас никого); "Part-time" —
 // доверенные консультанты по запросу (юрист, налоговый консультант). Открытый
 // список — свой вариант добавляется прямо из формы, как и специальность.
 // Каждое непустое значение получает на странице собственный закреплённый блок
 // (см. Contractors.tsx), а не только эти два конкретных.
-export const contractorTeamTiers = ['Команда', 'Part-time консультанты'] as const;
+export const contractorTeamTiers = ['Команда', 'Part-time'] as const;
 
 export interface Contractor {
   id: string;
@@ -41,7 +41,7 @@ export interface Contractor {
   // работы: разные по природе вещи, в детальной карточке показываются
   // отдельным блоком.
   paymentTerms: string;
-  // Пусто — обычный подрядчик. "Команда"/"Part-time консультанты" или своё
+  // Пусто — обычный подрядчик. "Команда"/"Part-time" или своё
   // значение — см. contractorTeamTiers выше.
   teamTier: string;
   // Свободный текст, заполняется вручную (не связан с объектами базы) —
