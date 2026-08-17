@@ -5,15 +5,23 @@ import {
   FACADE_REFERENCE_CAPTION,
   PLAN_REQUEST_NOTE,
   type Brief,
+  type BriefPhotoCategory,
   type PhotoChange,
   type PhotoMarker,
 } from '../../data/briefs';
 import type { BuildingSpecs, RealtyObject } from '../../data/objects';
 import { BriefBuildingPlans } from './BriefBuildingPlans';
-import { PinnedPhotoCarousel } from './PinnedPhotoCarousel';
+import { PinnedPhotos } from './PinnedPhotos';
 import { PhotoLightbox } from './PhotoLightbox';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
+
+// Где фото "сейчас" показываем списком друг под другом, а не слайдером.
+// Общие зоны — это разные помещения (холл, лестница, санузел), а не разные
+// ракурсы одного: пролистывать их по одному, чтобы увидеть весь объём
+// работ, неудобно. У фасада и кабинетов кадры однотипные, там слайдер
+// компактнее.
+const stackedBeforeCategories: BriefPhotoCategory[] = ['commonAreas'];
 
 // Не все поля техпаспорта — сметчику по ремонту важен конструктив и
 // инженерка, а не, например, количество кабинетов/санузлов.
@@ -121,10 +129,11 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
           <Section key={category} title={briefPhotoCategoryLabels[category]}>
             <div className="flex flex-col gap-3">
               <span className="text-xs uppercase tracking-wide text-ink-faint">Сейчас — что менять</span>
-              <PinnedPhotoCarousel
+              <PinnedPhotos
                 photos={cat.beforeUrls.map((url) => ({ url, markers: cat.markers[url] ?? [] }))}
                 changesById={changesById}
                 onOpenPhoto={(url, markers) => setLightbox({ url, markers, changes: cat.changes })}
+                layout={stackedBeforeCategories.includes(category) ? 'stack' : 'carousel'}
               />
             </div>
 
@@ -134,7 +143,7 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
 
             <div className="flex flex-col gap-3 border-t border-border pt-4">
               <span className="text-xs uppercase tracking-wide text-ink-faint">Должно стать (референс)</span>
-              <PinnedPhotoCarousel
+              <PinnedPhotos
                 photos={cat.afterUrls.map((url) => ({ url, markers: cat.markers[url] ?? [] }))}
                 changesById={changesById}
                 onOpenPhoto={(url, markers) => setLightbox({ url, markers, changes: cat.changes })}

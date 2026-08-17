@@ -60,7 +60,7 @@ export function changeHasReference(
 // где фото с метками показывается в реальном размере (не миниатюра без
 // разметки), обязаны использовать один и тот же aspect-[16/9] — иначе
 // object-cover кадрирует фото по-разному и точки визуально съезжают
-// (см. AnnotatedPhoto.tsx/PinnedPhotoCarousel.tsx). Текста внутри нет —
+// (см. AnnotatedPhoto.tsx/PinnedPhotos.tsx). Текста внутри нет —
 // только ссылка на PhotoChange, координаты у каждого фото свои (одна и та же
 // правка может быть в разных местах кадра на разных фото).
 export interface PhotoMarker {
