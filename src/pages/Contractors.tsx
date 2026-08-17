@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Trash2 } from 'lucide-react';
+import { Plus, Loader2, Trash2, Upload, X } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -10,8 +10,17 @@ import { Textarea } from '../components/ui/Textarea';
 import { Modal } from '../components/ui/Modal';
 import { SearchInput } from '../components/ui/SearchInput';
 import { ContactValue } from '../components/ui/ContactValue';
+import { ContractorAvatar } from '../components/contractors/ContractorAvatar';
 import { contractorSpecialties, contractorContactMethods, type Contractor } from '../data/contractors';
-import { fetchContractors, insertContractor, updateContractor, deleteContractor } from '../lib/contractorsApi';
+import {
+  fetchContractors,
+  insertContractor,
+  updateContractor,
+  deleteContractor,
+  uploadContractorPhoto,
+  deleteContractorPhoto,
+  tryAutoFillTelegramAvatarForContractor,
+} from '../lib/contractorsApi';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 
@@ -27,8 +36,11 @@ const emptyForm = {
   specialty: '',
   contact: '',
   contactMethod: '',
+  phone: '',
+  email: '',
   notes: '',
   isCoreTeam: false,
+  photoPath: '',
 };
 
 function contractorToForm(c: Contractor) {
@@ -37,8 +49,11 @@ function contractorToForm(c: Contractor) {
     specialty: c.specialty,
     contact: c.contact,
     contactMethod: c.contactMethod,
+    phone: c.phone,
+    email: c.email,
     notes: c.notes,
     isCoreTeam: c.isCoreTeam,
+    photoPath: c.photoPath,
   };
 }
 
@@ -65,9 +80,12 @@ function ContractorCard({
       style={glassCardShadow}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="truncate font-semibold text-ink">{contractor.name}</div>
-          <div className="truncate text-xs text-ink-muted">{contractor.specialty || '—'}</div>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <ContractorAvatar name={contractor.name} photoPath={contractor.photoPath} />
+          <div className="min-w-0">
+            <div className="truncate font-semibold text-ink">{contractor.name}</div>
+            <div className="truncate text-xs text-ink-muted">{contractor.specialty || '—'}</div>
+          </div>
         </div>
         <button
           type="button"
@@ -87,6 +105,24 @@ function ContractorCard({
           <ContactValue contact={contractor.contact} contactMethod={contractor.contactMethod} />
         </div>
       )}
+      {contractor.phone && (
+        <a
+          href={`tel:${contractor.phone.replace(/[^\d+]/g, '')}`}
+          onClick={(e) => e.stopPropagation()}
+          className="truncate text-sm text-ink-muted hover:text-primary"
+        >
+          {contractor.phone}
+        </a>
+      )}
+      {contractor.email && (
+        <a
+          href={`mailto:${contractor.email}`}
+          onClick={(e) => e.stopPropagation()}
+          className="truncate text-sm text-ink-muted hover:text-primary"
+        >
+          {contractor.email}
+        </a>
+      )}
       {contractor.notes && <div className="truncate text-xs text-ink-faint">{contractor.notes}</div>}
     </div>
   );
@@ -104,10 +140,24 @@ export function Contractors() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   useEffect(() => {
     fetchContractors()
-      .then(setContractors)
+      .then((loaded) => {
+        setContractors(loaded);
+        // Один раз при загрузке страницы пробуем подтянуть фото для команды —
+        // тех, кто уже был занесён до этой фичи и остался без фото. Команда
+        // всегда маленькая (несколько человек), поэтому пройтись по всем сразу
+        // безопасно — в отличие от подрядчиков, где так делать не стоит.
+        loaded
+          .filter((c) => c.isCoreTeam && !c.photoPath)
+          .forEach((c) => {
+            tryAutoFillTelegramAvatarForContractor(c).then((updated) => {
+              if (updated) setContractors((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+            });
+          });
+      })
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить подрядчиков')))
       .finally(() => setLoading(false));
   }, []);
@@ -164,6 +214,43 @@ export function Contractors() {
     setOpen(true);
   }
 
+  // Фото уходит в бакет сразу при выборе файла — тот же приём, что и у лидов
+  // (см. handlePhotoChange в Leads.tsx).
+  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || photoUploading) return;
+
+    setPhotoUploading(true);
+    setSubmitError(null);
+    const previous = form.photoPath;
+    try {
+      const path = await uploadContractorPhoto(file);
+      setForm((f) => ({ ...f, photoPath: path }));
+      if (previous) await deleteContractorPhoto(previous);
+    } catch (err) {
+      setSubmitError(errorMessage(err, 'Не удалось загрузить фото'));
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
+
+  async function handlePhotoRemove() {
+    const path = form.photoPath;
+    setForm((f) => ({ ...f, photoPath: '' }));
+    await deleteContractorPhoto(path);
+  }
+
+  // Фоновая попытка подтянуть аватар из Telegram после сохранения — не
+  // await'ится в handleSubmit, чтобы сохранение и закрытие формы не ждали
+  // стороннего запроса к t.me. Молчит, если не сработало (не команда, не
+  // Telegram, приватность профиля) — см. tryAutoFillTelegramAvatarForContractor.
+  function autoFillTelegramAvatar(contractor: Contractor) {
+    tryAutoFillTelegramAvatarForContractor(contractor).then((updated) => {
+      if (updated) setContractors((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit || submitting) return;
@@ -175,16 +262,21 @@ export function Contractors() {
       specialty: form.specialty,
       contact: form.contact,
       contactMethod: form.contactMethod,
+      phone: form.phone,
+      email: form.email,
       notes: form.notes,
       isCoreTeam: form.isCoreTeam,
+      photoPath: form.photoPath,
     };
     try {
       if (editingId) {
         const updated = await updateContractor(editingId, payload);
         setContractors((prev) => prev.map((c) => (c.id === editingId ? updated : c)));
+        autoFillTelegramAvatar(updated);
       } else {
         const created = await insertContractor(payload);
         setContractors((prev) => [...prev, created]);
+        autoFillTelegramAvatar(created);
       }
       setForm(emptyForm);
       setEditingId(null);
@@ -294,6 +386,32 @@ export function Contractors() {
 
       <Modal open={open} onClose={() => setOpen(false)} title={editingId ? 'Редактировать подрядчика' : 'Новый подрядчик'}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex items-center gap-4">
+            <ContractorAvatar name={form.name || '?'} photoPath={form.photoPath} size="lg" />
+            <div className="flex flex-col items-start gap-1.5">
+              <label
+                className={cn(
+                  'inline-flex cursor-pointer items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold text-ink hover:border-border-strong',
+                  photoUploading && 'pointer-events-none opacity-50',
+                )}
+              >
+                {photoUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                {photoUploading ? 'Загружаем...' : form.photoPath ? 'Заменить фото' : 'Загрузить фото'}
+                <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+              </label>
+              {form.photoPath && !photoUploading && (
+                <button
+                  type="button"
+                  onClick={handlePhotoRemove}
+                  className="inline-flex items-center gap-1 text-xs text-ink-muted underline underline-offset-2 hover:text-danger"
+                >
+                  <X className="h-3 w-3" />
+                  Удалить фото
+                </button>
+              )}
+            </div>
+          </div>
+
           <Input
             label="Имя"
             placeholder="Имя или название компании"
@@ -311,6 +429,23 @@ export function Contractors() {
             addLabel="+ Добавить специальность"
             newPlaceholder="Название специальности"
           />
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input
+              label="Телефон"
+              placeholder="+375 29 ..."
+              type="tel"
+              value={form.phone}
+              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+            />
+            <Input
+              label="Email"
+              placeholder="mail@example.com"
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+            />
+          </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input

@@ -1,6 +1,12 @@
 import { supabase } from './supabase';
-import { withRetry } from './withRetry';
+import { withRetry, UPLOAD_TIMEOUT_MS } from './withRetry';
+import { extractTelegramHandle } from './telegramHandle';
+import { fetchTelegramAvatarBlob } from './telegramAvatarApi';
 import type { Contractor, ContractorRow } from '../data/contractors';
+
+const CONTRACTOR_PHOTOS_BUCKET = 'contractor-photos';
+// Час — тот же TTL, что и у lead-photos (см. leadsApi.ts).
+const PHOTO_URL_TTL_SECONDS = 60 * 60;
 
 function fromRow(row: ContractorRow): Contractor {
   return {
@@ -9,8 +15,11 @@ function fromRow(row: ContractorRow): Contractor {
     specialty: row.specialty,
     contact: row.contact,
     contactMethod: row.contact_method ?? '',
+    phone: row.phone ?? '',
+    email: row.email ?? '',
     notes: row.notes ?? '',
     isCoreTeam: row.is_core_team,
+    photoPath: row.photo_path ?? '',
     createdAt: row.created_at,
   };
 }
@@ -32,8 +41,11 @@ export function insertContractor(input: Omit<Contractor, 'id' | 'createdAt'>): P
         specialty: input.specialty,
         contact: input.contact,
         contact_method: input.contactMethod || null,
+        phone: input.phone || null,
+        email: input.email || null,
         notes: input.notes || null,
         is_core_team: input.isCoreTeam,
+        photo_path: input.photoPath || null,
       })
       .select()
       .single();
@@ -52,8 +64,11 @@ export function updateContractor(id: string, input: Omit<Contractor, 'id' | 'cre
         specialty: input.specialty,
         contact: input.contact,
         contact_method: input.contactMethod || null,
+        phone: input.phone || null,
+        email: input.email || null,
         notes: input.notes || null,
         is_core_team: input.isCoreTeam,
+        photo_path: input.photoPath || null,
       })
       .eq('id', id)
       .select()
@@ -69,4 +84,74 @@ export function deleteContractor(id: string): Promise<void> {
     const { error } = await supabase.from('contractors').delete().eq('id', id);
     if (error) throw error;
   });
+}
+
+// Фото подрядчика — тот же паттерн, что и у лидов (закрытый бакет, путь а не
+// URL в базе, подписанная ссылка на каждый показ). См. подробный комментарий
+// у uploadLeadPhoto/createLeadPhotoUrl/deleteLeadPhoto в leadsApi.ts.
+export function uploadContractorPhoto(file: File): Promise<string> {
+  return withRetry(
+    async () => {
+      const ext = file.name.split('.').pop() ?? 'jpg';
+      const path = `${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from(CONTRACTOR_PHOTOS_BUCKET).upload(path, file);
+      if (error) throw error;
+      return path;
+    },
+    1000,
+    UPLOAD_TIMEOUT_MS,
+  );
+}
+
+export async function createContractorPhotoUrl(path: string): Promise<string | null> {
+  if (!path) return null;
+  try {
+    const { data, error } = await supabase.storage
+      .from(CONTRACTOR_PHOTOS_BUCKET)
+      .createSignedUrl(path, PHOTO_URL_TTL_SECONDS);
+    if (error) throw error;
+    return data?.signedUrl ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteContractorPhoto(path: string): Promise<void> {
+  if (!path) return;
+  try {
+    await supabase.storage.from(CONTRACTOR_PHOTOS_BUCKET).remove([path]);
+  } catch {
+    // намеренно молча
+  }
+}
+
+// Автоподтягивание аватара из Telegram — по аналогии с tryAutoFillTelegramAvatar
+// у лидов (leadsApi.ts), но только для постоянной команды: это узкий,
+// заведомо доверенный список из нескольких человек, а не весь список
+// подрядчиков — незачем дёргать t.me для каждого случайного электрика.
+export async function tryAutoFillTelegramAvatarForContractor(contractor: Contractor): Promise<Contractor | null> {
+  if (!contractor.isCoreTeam || contractor.photoPath || contractor.contactMethod !== 'Telegram') return null;
+  const handle = extractTelegramHandle(contractor.contact);
+  if (!handle) return null;
+
+  const blob = await fetchTelegramAvatarBlob(handle);
+  if (!blob) return null;
+
+  try {
+    const file = new File([blob], `${handle}.jpg`, { type: blob.type || 'image/jpeg' });
+    const photoPath = await uploadContractorPhoto(file);
+    return await updateContractor(contractor.id, {
+      name: contractor.name,
+      specialty: contractor.specialty,
+      contact: contractor.contact,
+      contactMethod: contractor.contactMethod,
+      phone: contractor.phone,
+      email: contractor.email,
+      notes: contractor.notes,
+      isCoreTeam: contractor.isCoreTeam,
+      photoPath,
+    });
+  } catch {
+    return null;
+  }
 }
