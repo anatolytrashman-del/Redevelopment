@@ -13,6 +13,8 @@ import { Tasks } from './pages/Tasks';
 import { Backlog } from './pages/Backlog';
 import { PublicBuildingPlan } from './pages/PublicBuildingPlan';
 import { ObjectLandingPage } from './pages/ObjectLandingPage';
+import { Briefs } from './pages/Briefs';
+import { BriefPublicPage } from './pages/BriefPublicPage';
 import { NotFound } from './pages/NotFound';
 
 // Случайный щипок двумя пальцами (обычный жест при скролле телефоном,
@@ -42,6 +44,7 @@ export default function App() {
           продающую страницу объекта "Полтавская" (см. RealtyObject.landingSlug). */}
       <Route path="/" element={<Navigate to="/one" replace />} />
       <Route path="/plan/:token" element={<PublicBuildingPlan />} />
+      <Route path="/tz/:token" element={<BriefPublicPage />} />
       <Route path="/:slug" element={<ObjectLandingPage />} />
 
       {/* Админка теперь живёт под /admin, а не на голом домене — корень
@@ -62,6 +65,7 @@ export default function App() {
         <Route path="contractors" element={<Contractors />} />
         <Route path="objects" element={<Objects />} />
         <Route path="objects/:id" element={<ObjectDetail />} />
+        <Route path="tz" element={<Briefs />} />
         <Route path="documents" element={<Documents />} />
         <Route path="backlog" element={<Backlog />} />
       </Route>
