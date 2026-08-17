@@ -49,6 +49,24 @@ export function emptyBriefPhotos(): BriefPhotos {
   };
 }
 
+// Достраивает недостающие категории/поля до полной структуры — приходит
+// из безопасности из БД: старые строки (созданные до того, как появилось
+// это поле) получили photos = {} от значения по умолчанию колонки, без
+// ключей facade/offices/commonAreas внутри. row.photos ?? emptyBriefPhotos()
+// такое не ловит, потому что {} — не null/undefined.
+export function normalizeBriefPhotos(raw: Partial<BriefPhotos> | null | undefined): BriefPhotos {
+  const result = {} as BriefPhotos;
+  for (const category of briefPhotoCategories) {
+    const c = raw?.[category];
+    result[category] = {
+      beforeUrls: c?.beforeUrls ?? [],
+      afterUrls: c?.afterUrls ?? [],
+      pins: c?.pins ?? {},
+    };
+  }
+  return result;
+}
+
 export interface Brief {
   id: string;
   objectId: string;

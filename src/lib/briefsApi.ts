@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import { emptyBriefPhotos, type Brief, type BriefRow } from '../data/briefs';
+import { normalizeBriefPhotos, type Brief, type BriefRow } from '../data/briefs';
 
 function fromRow(row: BriefRow): Brief {
   return {
@@ -8,7 +8,7 @@ function fromRow(row: BriefRow): Brief {
     objectId: row.object_id,
     recipientName: row.recipient_name ?? '',
     recipientPhone: row.recipient_phone ?? '',
-    photos: row.photos ?? emptyBriefPhotos(),
+    photos: normalizeBriefPhotos(row.photos),
     shareToken: row.share_token,
     createdAt: row.created_at,
   };
