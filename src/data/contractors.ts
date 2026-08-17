@@ -6,7 +6,7 @@
 
 // Открытый список, как leadRequirements/leadStatuses — пользователь может
 // добавить свою специальность прямо из формы.
-export const contractorSpecialties = ['Юрист', 'Налоговый консультант', 'Электрик', 'Строитель'] as const;
+export const contractorSpecialties = ['Юрист', 'Налоговый консультант', 'Электрик'] as const;
 
 // Тот же паттерн, что leadContactMethods, но без Kufar — подрядчиков там не ищут.
 export const contractorContactMethods = ['Телефон', 'Telegram', 'WhatsApp', 'Viber', 'Email'] as const;
