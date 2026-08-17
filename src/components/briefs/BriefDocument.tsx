@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { briefPhotoCategories, briefPhotoCategoryLabels, type Brief, type PhotoPin } from '../../data/briefs';
+import {
+  briefPhotoCategories,
+  briefPhotoCategoryLabels,
+  FACADE_REFERENCE_CAPTION,
+  type Brief,
+  type PhotoPin,
+} from '../../data/briefs';
 import type { BuildingSpecs, RealtyObject } from '../../data/objects';
 import { PhotoThumbGrid } from './PhotoThumbGrid';
 import { HeroOrGrid } from './HeroOrGrid';
@@ -137,7 +143,12 @@ export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyO
 
             <div className="flex flex-col gap-3 border-t border-border pt-4">
               <span className="text-xs uppercase tracking-wide text-ink-faint">Должно стать (референс)</span>
-              <HeroOrGrid urls={cat.afterUrls} onOpen={(url) => setLightbox({ url })} emptyLabel="Фото не загружены" />
+              <HeroOrGrid
+                urls={cat.afterUrls}
+                onOpen={(url) => setLightbox({ url })}
+                emptyLabel="Фото не загружены"
+                overlayCaption={category === 'facade' ? FACADE_REFERENCE_CAPTION : undefined}
+              />
             </div>
           </Section>
         );

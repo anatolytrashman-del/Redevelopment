@@ -12,6 +12,7 @@ import {
   briefPhotoCategories,
   briefPhotoCategoryLabels,
   emptyBriefPhotos,
+  FACADE_REFERENCE_CAPTION,
   MAX_BRIEF_PLAN_URLS,
   type Brief,
   type BriefCategoryPhotos,
@@ -329,6 +330,7 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
                   onOpen={(url) => setLightbox({ kind: 'plain', url })}
                   onRemove={(url) => removeAfterPhoto(category, url)}
                   emptyLabel="Фото не загружены"
+                  overlayCaption={category === 'facade' ? FACADE_REFERENCE_CAPTION : undefined}
                 />
                 <UploadTile
                   label="Добавить"

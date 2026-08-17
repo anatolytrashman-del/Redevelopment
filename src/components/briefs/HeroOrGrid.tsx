@@ -6,11 +6,14 @@ interface HeroOrGridProps {
   onOpen: (url: string) => void;
   onRemove?: (url: string) => void;
   emptyLabel: string;
+  // Подпись поверх фото (например, "дизайн сгенерирован ИИ") — только на
+  // крупном единичном фото, на миниатюрах в сетке нечитаема.
+  overlayCaption?: string;
 }
 
 // Одно фото — крупно на всю ширину блока (обычная ситуация для "после":
 // один референс). Несколько — обычная компактная сетка миниатюр.
-export function HeroOrGrid({ urls, onOpen, onRemove, emptyLabel }: HeroOrGridProps) {
+export function HeroOrGrid({ urls, onOpen, onRemove, emptyLabel, overlayCaption }: HeroOrGridProps) {
   if (urls.length === 0) return <p className="text-sm text-ink-faint">{emptyLabel}</p>;
 
   if (urls.length === 1) {
@@ -20,6 +23,11 @@ export function HeroOrGrid({ urls, onOpen, onRemove, emptyLabel }: HeroOrGridPro
         <button type="button" onClick={() => onOpen(url)} className="block h-full w-full">
           <img src={url} alt="" className="h-full w-full object-cover" />
         </button>
+        {overlayCaption && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/80 to-transparent px-3 pb-2 pt-8">
+            <span className="text-xs text-white">{overlayCaption}</span>
+          </div>
+        )}
         {onRemove && (
           <button
             type="button"
