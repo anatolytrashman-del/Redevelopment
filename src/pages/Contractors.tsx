@@ -387,7 +387,7 @@ export function Contractors() {
 
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="text-lg font-bold text-ink">Все подрядчики</div>
+              <div className="text-lg font-bold text-ink">Прочие подрядчики</div>
               <SearchInput
                 placeholder="Имя или специальность..."
                 value={search}
