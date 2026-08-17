@@ -1,8 +1,13 @@
 // Техзадание для инженера, который считает смету ремонта — привязано к
-// существующему объекту (RealtyObject), переиспользует его планировки и
-// технический паспорт (BuildingSpecs), а не дублирует их. Публикуется по
+// существующему объекту (RealtyObject), переиспользует его технический
+// паспорт (BuildingSpecs). Планировки — не из объекта: их отдельно и
+// вручную загружают в само техзадание (planUrls), объектный
+// buildingPlanIds — про другое (интерактивный план для бронирования
+// клиентом), не всегда актуален как чертёж для сметчика. Публикуется по
 // share_token на /tz/:token — сам документ не требует пароля админки, его
 // смотрит внешний инженер.
+
+export const MAX_BRIEF_PLAN_URLS = 10;
 
 // Три вида, по которым разложены фото "до"/"после" — у здания и кабинетов, и
 // общих зон, и фасада разная логика ремонта, инженеру удобнее смотреть их
@@ -75,6 +80,9 @@ export interface Brief {
   // вписать вручную человека, которого ещё нет в базе.
   recipientName: string;
   recipientPhone: string;
+  // Планировки — загружаются вручную прямо в техзадание, до
+  // MAX_BRIEF_PLAN_URLS штук (не тянутся из buildingPlanIds объекта).
+  planUrls: string[];
   photos: BriefPhotos;
   shareToken: string;
   createdAt: string;
@@ -89,6 +97,7 @@ export interface BriefRow {
   object_id: string;
   recipient_name: string | null;
   recipient_phone: string | null;
+  plan_urls: string[] | null;
   photos: BriefPhotos | null;
   share_token: string;
   created_at: string;

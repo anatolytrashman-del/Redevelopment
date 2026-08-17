@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { Loader2, Upload, X } from 'lucide-react';
+import { Loader2, Upload } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
 import { Input } from '../ui/Input';
-import { AnnotatedPhoto } from './AnnotatedPhoto';
+import { PhotoThumbGrid } from './PhotoThumbGrid';
+import { HeroOrGrid } from './HeroOrGrid';
+import { PhotoLightbox } from './PhotoLightbox';
 import {
   briefPhotoCategories,
   briefPhotoCategoryLabels,
   emptyBriefPhotos,
+  MAX_BRIEF_PLAN_URLS,
   type Brief,
   type BriefCategoryPhotos,
   type BriefPhotoCategory,
@@ -34,6 +37,7 @@ const emptyForm = {
   objectId: '',
   recipientName: '',
   recipientPhone: '',
+  planUrls: [] as string[],
   photos: emptyBriefPhotos(),
 };
 
@@ -42,25 +46,28 @@ function briefToForm(b: Brief) {
     objectId: b.objectId,
     recipientName: b.recipientName,
     recipientPhone: b.recipientPhone,
+    planUrls: b.planUrls,
     photos: b.photos,
   };
 }
 
-// Кнопка загрузки без превью — сами фото со своими отметками рисует
-// AnnotatedPhoto/PlainGallery рядом, эта только открывает выбор файла.
+// Кнопка загрузки без превью — сами фото со своими отметками рисуют
+// PhotoThumbGrid/HeroOrGrid рядом, эта только открывает выбор файлов.
 function UploadTile({
   label,
   uploading,
+  multiple = true,
   onSelect,
 }: {
   label: string;
   uploading: boolean;
+  multiple?: boolean;
   onSelect: (e: ChangeEvent<HTMLInputElement>) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
     <div>
-      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onSelect} />
+      <input ref={inputRef} type="file" accept="image/*" multiple={multiple} className="hidden" onChange={onSelect} />
       <Button
         type="button"
         variant="secondary"
@@ -74,38 +81,10 @@ function UploadTile({
   );
 }
 
-// Простая галерея без отметок — для фото "после": это референс целевого
-// уровня отделки, комментировать точками там нечего.
-function PlainGallery({
-  urls,
-  uploading,
-  onAdd,
-  onRemove,
-}: {
-  urls: string[];
-  uploading: boolean;
-  onAdd: (e: ChangeEvent<HTMLInputElement>) => void;
-  onRemove: (url: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-3">
-      {urls.map((url) => (
-        <div key={url} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-control bg-surface-muted">
-          <img src={url} alt="" className="h-full w-full object-cover" />
-          <button
-            type="button"
-            onClick={() => onRemove(url)}
-            aria-label="Удалить фото"
-            className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink/70 text-white"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        </div>
-      ))}
-      <UploadTile label="Добавить" uploading={uploading} onSelect={onAdd} />
-    </div>
-  );
-}
+// Какое именно фото открыто крупным планом. "pin" — редактируем точки на
+// фото "сейчас" внутри конкретной категории, "plain" — просто увеличенный
+// просмотр (планировка или референс "после").
+type LightboxState = { kind: 'pin'; category: BriefPhotoCategory; url: string } | { kind: 'plain'; url: string } | null;
 
 interface BriefFormModalProps {
   open: boolean;
@@ -121,50 +100,73 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  // "facade:before" / "offices:after" — какая именно кнопка сейчас грузит фото.
+  // "plans" / "facade:before" / "offices:after" — какая именно кнопка сейчас грузит фото.
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<LightboxState>(null);
 
   useEffect(() => {
     if (open) {
       setForm(brief ? briefToForm(brief) : emptyForm);
       setSubmitError(null);
+      setLightbox(null);
     }
   }, [open, brief]);
+
+  async function uploadMany(files: File[], onEach: (url: string) => void): Promise<string[]> {
+    const failed: string[] = [];
+    for (const file of files) {
+      try {
+        const url = await uploadObjectImage(file);
+        onEach(url);
+      } catch (err) {
+        failed.push(`${file.name} — ${errorMessage(err, 'не удалось загрузить')}`);
+      }
+    }
+    return failed;
+  }
+
+  async function handlePlansAdd(e: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (files.length === 0) return;
+    setUploadingKey('plans');
+    setSubmitError(null);
+    const remainingSlots = MAX_BRIEF_PLAN_URLS - form.planUrls.length;
+    const failed = await uploadMany(files.slice(0, Math.max(remainingSlots, 0)), (url) =>
+      setForm((f) => ({ ...f, planUrls: [...f.planUrls, url] })),
+    );
+    setUploadingKey(null);
+    if (failed.length > 0) setSubmitError(`Не удалось загрузить: ${failed.join('; ')}.`);
+  }
+
+  function removePlan(url: string) {
+    setForm((f) => ({ ...f, planUrls: f.planUrls.filter((u) => u !== url) }));
+  }
 
   function updateCategory(category: BriefPhotoCategory, updater: (c: BriefCategoryPhotos) => BriefCategoryPhotos) {
     setForm((f) => ({ ...f, photos: { ...f.photos, [category]: updater(f.photos[category]) } }));
   }
 
   async function handleBeforeAdd(category: BriefPhotoCategory, e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = '';
-    if (!file) return;
+    if (files.length === 0) return;
     setUploadingKey(`${category}:before`);
     setSubmitError(null);
-    try {
-      const url = await uploadObjectImage(file);
-      updateCategory(category, (c) => ({ ...c, beforeUrls: [...c.beforeUrls, url] }));
-    } catch (err) {
-      setSubmitError(errorMessage(err, 'Не удалось загрузить фото'));
-    } finally {
-      setUploadingKey(null);
-    }
+    const failed = await uploadMany(files, (url) => updateCategory(category, (c) => ({ ...c, beforeUrls: [...c.beforeUrls, url] })));
+    setUploadingKey(null);
+    if (failed.length > 0) setSubmitError(`Не удалось загрузить: ${failed.join('; ')}.`);
   }
 
   async function handleAfterAdd(category: BriefPhotoCategory, e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = '';
-    if (!file) return;
+    if (files.length === 0) return;
     setUploadingKey(`${category}:after`);
     setSubmitError(null);
-    try {
-      const url = await uploadObjectImage(file);
-      updateCategory(category, (c) => ({ ...c, afterUrls: [...c.afterUrls, url] }));
-    } catch (err) {
-      setSubmitError(errorMessage(err, 'Не удалось загрузить фото'));
-    } finally {
-      setUploadingKey(null);
-    }
+    const failed = await uploadMany(files, (url) => updateCategory(category, (c) => ({ ...c, afterUrls: [...c.afterUrls, url] })));
+    setUploadingKey(null);
+    if (failed.length > 0) setSubmitError(`Не удалось загрузить: ${failed.join('; ')}.`);
   }
 
   function removeBeforePhoto(category: BriefPhotoCategory, url: string) {
@@ -173,6 +175,7 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
       delete restPins[url];
       return { ...c, beforeUrls: c.beforeUrls.filter((u) => u !== url), pins: restPins };
     });
+    setLightbox((lb) => (lb?.kind === 'pin' && lb.url === url ? null : lb));
   }
 
   function removeAfterPhoto(category: BriefPhotoCategory, url: string) {
@@ -212,6 +215,7 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
       objectId: form.objectId,
       recipientName: form.recipientName,
       recipientPhone: form.recipientPhone,
+      planUrls: form.planUrls,
       photos: form.photos,
     };
     try {
@@ -272,6 +276,18 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
           </div>
         </div>
 
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
+          <span className="text-sm font-semibold text-ink">Планировки (до {MAX_BRIEF_PLAN_URLS})</span>
+          <PhotoThumbGrid
+            items={form.planUrls.map((url) => ({ url }))}
+            onOpen={(url) => setLightbox({ kind: 'plain', url })}
+            onRemove={removePlan}
+          />
+          {form.planUrls.length < MAX_BRIEF_PLAN_URLS && (
+            <UploadTile label="Добавить планировки" uploading={uploadingKey === 'plans'} onSelect={handlePlansAdd} />
+          )}
+        </div>
+
         {briefPhotoCategories.map((category) => {
           const cat = form.photos[category];
           return (
@@ -279,33 +295,35 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
               <span className="text-sm font-semibold text-ink">{briefPhotoCategoryLabels[category]}</span>
 
               <div className="flex flex-col gap-2">
-                <span className="text-xs uppercase tracking-wide text-ink-faint">До</span>
-                {cat.beforeUrls.map((url) => (
-                  <AnnotatedPhoto
-                    key={url}
-                    url={url}
-                    pins={cat.pins[url] ?? []}
-                    editable
-                    onAddPin={(x, y) => addPin(category, url, x, y)}
-                    onChangeComment={(pinId, comment) => changePinComment(category, url, pinId, comment)}
-                    onRemovePin={(pinId) => removePin(category, url, pinId)}
-                    onRemovePhoto={() => removeBeforePhoto(category, url)}
-                  />
-                ))}
+                <span className="text-xs uppercase tracking-wide text-ink-faint">Сейчас — отметь, что менять</span>
+                <PhotoThumbGrid
+                  items={cat.beforeUrls.map((url) => ({ url, pinCount: (cat.pins[url] ?? []).length }))}
+                  onOpen={(url) => setLightbox({ kind: 'pin', category, url })}
+                  onRemove={(url) => removeBeforePhoto(category, url)}
+                />
                 <UploadTile
-                  label={cat.beforeUrls.length > 0 ? 'Добавить ещё фото «до»' : 'Добавить фото «до»'}
+                  label={cat.beforeUrls.length > 0 ? 'Добавить ещё фото' : 'Добавить фото'}
                   uploading={uploadingKey === `${category}:before`}
                   onSelect={(e) => handleBeforeAdd(category, e)}
                 />
               </div>
 
+              <p className="text-xs text-ink-faint">
+                ↓ Отмеченные точками изменения приводят к результату ниже
+              </p>
+
               <div className="flex flex-col gap-2">
-                <span className="text-xs uppercase tracking-wide text-ink-faint">После (референс)</span>
-                <PlainGallery
+                <span className="text-xs uppercase tracking-wide text-ink-faint">Должно стать (референс)</span>
+                <HeroOrGrid
                   urls={cat.afterUrls}
-                  uploading={uploadingKey === `${category}:after`}
-                  onAdd={(e) => handleAfterAdd(category, e)}
+                  onOpen={(url) => setLightbox({ kind: 'plain', url })}
                   onRemove={(url) => removeAfterPhoto(category, url)}
+                  emptyLabel="Фото не загружены"
+                />
+                <UploadTile
+                  label="Добавить"
+                  uploading={uploadingKey === `${category}:after`}
+                  onSelect={(e) => handleAfterAdd(category, e)}
                 />
               </div>
             </div>
@@ -323,6 +341,19 @@ export function BriefFormModal({ open, brief, objects, contractors, onClose, onS
           </Button>
         </div>
       </form>
+
+      {lightbox?.kind === 'pin' && (
+        <PhotoLightbox
+          url={lightbox.url}
+          pins={form.photos[lightbox.category].pins[lightbox.url] ?? []}
+          editable
+          onAddPin={(x, y) => addPin(lightbox.category, lightbox.url, x, y)}
+          onChangeComment={(pinId, comment) => changePinComment(lightbox.category, lightbox.url, pinId, comment)}
+          onRemovePin={(pinId) => removePin(lightbox.category, lightbox.url, pinId)}
+          onClose={() => setLightbox(null)}
+        />
+      )}
+      {lightbox?.kind === 'plain' && <PhotoLightbox url={lightbox.url} onClose={() => setLightbox(null)} />}
     </Modal>
   );
 }

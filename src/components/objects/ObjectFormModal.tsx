@@ -8,7 +8,7 @@ import { Modal } from '../ui/Modal';
 import { contactChannels, pricePerMeter, type ContactChannel, type ObjectDocumentFile, type RealtyObject } from '../../data/objects';
 import { insertObject, updateObject, uploadObjectDocument, uploadObjectImage } from '../../lib/objectsApi';
 
-const MAX_FLOOR_PLANS = 3;
+const MAX_FLOOR_PLANS = 10;
 const MAX_RENDER_IMAGES = 10;
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -115,18 +115,29 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
   }
 
   async function handleFloorPlanSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (floorPlanInputRef.current) floorPlanInputRef.current.value = '';
+    if (files.length === 0) return;
+
     setUploadingFloorPlan(true);
     setFloorPlanUploadError(null);
-    try {
-      const url = await uploadObjectImage(file);
-      setForm((f) => ({ ...f, floorPlanUrls: [...f.floorPlanUrls, url].slice(0, MAX_FLOOR_PLANS) }));
-    } catch (err) {
-      setFloorPlanUploadError(errorMessage(err, 'Не удалось загрузить планировку'));
-    } finally {
-      setUploadingFloorPlan(false);
-      if (floorPlanInputRef.current) floorPlanInputRef.current.value = '';
+    const failed: string[] = [];
+    let remainingSlots = MAX_FLOOR_PLANS - form.floorPlanUrls.length;
+
+    for (const file of files) {
+      if (remainingSlots <= 0) break;
+      try {
+        const url = await uploadObjectImage(file);
+        setForm((f) => ({ ...f, floorPlanUrls: [...f.floorPlanUrls, url] }));
+        remainingSlots -= 1;
+      } catch (err) {
+        failed.push(`${file.name} — ${errorMessage(err, 'не удалось загрузить')}`);
+      }
+    }
+
+    setUploadingFloorPlan(false);
+    if (failed.length > 0) {
+      setFloorPlanUploadError(`Не удалось загрузить: ${failed.join('; ')}.`);
     }
   }
 
@@ -282,6 +293,7 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
                   ref={floorPlanInputRef}
                   type="file"
                   accept="image/*"
+                  multiple
                   className="hidden"
                   onChange={handleFloorPlanSelect}
                 />

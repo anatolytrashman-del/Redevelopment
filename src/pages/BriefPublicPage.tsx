@@ -5,10 +5,8 @@ import { Card } from '../components/ui/Card';
 import { BriefDocument } from '../components/briefs/BriefDocument';
 import type { Brief } from '../data/briefs';
 import type { RealtyObject } from '../data/objects';
-import type { BuildingPlan } from '../data/buildingPlans';
 import { fetchBriefByToken } from '../lib/briefsApi';
 import { fetchObject } from '../lib/objectsApi';
-import { fetchBuildingPlans } from '../lib/buildingPlansApi';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -18,15 +16,14 @@ function errorMessage(err: unknown, fallback: string): string {
 }
 
 // Публичная ссылка для внешнего инженера, который считает смету ремонта —
-// без пароля админки. Собирает воедино техпаспорт и планировки объекта
-// (уже есть в базе, не дублируются) и то, что специфично для этого
-// техзадания: фото "до"/"после" и список изменений. Сама вёрстка — в
-// BriefDocument, здесь только загрузка данных по токену.
+// без пароля админки. Собирает воедино техпаспорт объекта (уже есть в базе,
+// не дублируется) и то, что специфично для этого техзадания: планировки,
+// фото "до"/"после" и точки-комментарии. Сама вёрстка — в BriefDocument,
+// здесь только загрузка данных по токену.
 export function BriefPublicPage() {
   const { token } = useParams();
   const [brief, setBrief] = useState<Brief | null>(null);
   const [object, setObject] = useState<RealtyObject | null>(null);
-  const [plans, setPlans] = useState<BuildingPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -37,12 +34,7 @@ export function BriefPublicPage() {
     fetchBriefByToken(token)
       .then(async (b) => {
         setBrief(b);
-        const obj = await fetchObject(b.objectId);
-        setObject(obj);
-        if (obj.buildingPlanIds.length > 0) {
-          const allPlans = await fetchBuildingPlans();
-          setPlans(allPlans.filter((p) => obj.buildingPlanIds.includes(p.id)));
-        }
+        setObject(await fetchObject(b.objectId));
       })
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить техзадание')))
       .finally(() => setLoading(false));
@@ -72,7 +64,7 @@ export function BriefPublicPage() {
 
   return (
     <div className="min-h-svh bg-bg px-4 py-8 sm:px-8">
-      <BriefDocument brief={brief} object={object} plans={plans} />
+      <BriefDocument brief={brief} object={object} />
     </div>
   );
 }

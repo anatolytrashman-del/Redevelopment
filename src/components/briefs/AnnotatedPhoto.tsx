@@ -26,22 +26,18 @@ interface AnnotatedPhotoProps {
   onAddPin?: (x: number, y: number) => void;
   onChangeComment?: (pinId: string, comment: string) => void;
   onRemovePin?: (pinId: string) => void;
-  onRemovePhoto?: () => void;
+  // Крупный показ внутри PhotoLightbox — фото занимает больше места, чтобы
+  // по нему было реально удобно кликать точками (в маленькой миниатюре
+  // не попасть).
+  large?: boolean;
 }
 
 // Фото с точками-комментариями поверх — клик по фото (в редактируемом
 // режиме) ставит точку и заводит для неё пустой комментарий. Список
 // комментариев показан сбоку от фото, пронумерован в тон меткам на самом
-// фото — что и как менять в этом месте.
-export function AnnotatedPhoto({
-  url,
-  pins,
-  editable = false,
-  onAddPin,
-  onChangeComment,
-  onRemovePin,
-  onRemovePhoto,
-}: AnnotatedPhotoProps) {
+// фото — что и как менять в этом месте. Удаление самого фото — забота
+// вызывающего (миниатюра в PhotoThumbGrid), не этого компонента.
+export function AnnotatedPhoto({ url, pins, editable = false, onAddPin, onChangeComment, onRemovePin, large = false }: AnnotatedPhotoProps) {
   const photoRef = useRef<HTMLDivElement>(null);
 
   function handlePhotoClick(e: MouseEvent<HTMLDivElement>) {
@@ -54,12 +50,13 @@ export function AnnotatedPhoto({
   }
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row">
+    <div className={cn('flex flex-col gap-4', large ? 'sm:flex-row sm:items-start' : 'sm:flex-row')}>
       <div
         ref={photoRef}
         onClick={handlePhotoClick}
         className={cn(
-          'relative aspect-[4/3] w-full shrink-0 overflow-hidden rounded-control bg-surface-muted sm:w-1/2',
+          'relative w-full shrink-0 overflow-hidden rounded-control bg-surface-muted',
+          large ? 'aspect-[4/3] sm:w-3/5' : 'aspect-[4/3] sm:w-1/2',
           editable && 'cursor-crosshair',
         )}
       >
@@ -67,19 +64,6 @@ export function AnnotatedPhoto({
         {pins.map((pin, i) => (
           <Marker key={pin.id} index={i} x={pin.x} y={pin.y} />
         ))}
-        {editable && onRemovePhoto && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemovePhoto();
-            }}
-            aria-label="Удалить фото"
-            className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-ink/70 text-white"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        )}
       </div>
 
       <div className="flex flex-1 flex-col gap-2">

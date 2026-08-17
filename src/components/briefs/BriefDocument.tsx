@@ -1,8 +1,9 @@
-import { AnnotatedPhoto } from './AnnotatedPhoto';
-import type { Brief } from '../../data/briefs';
-import { briefPhotoCategories, briefPhotoCategoryLabels } from '../../data/briefs';
+import { useState } from 'react';
+import { briefPhotoCategories, briefPhotoCategoryLabels, type Brief, type PhotoPin } from '../../data/briefs';
 import type { BuildingSpecs, RealtyObject } from '../../data/objects';
-import type { BuildingPlan } from '../../data/buildingPlans';
+import { PhotoThumbGrid } from './PhotoThumbGrid';
+import { HeroOrGrid } from './HeroOrGrid';
+import { PhotoLightbox } from './PhotoLightbox';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 
@@ -45,58 +46,18 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function PhotoGrid({ urls, emptyLabel }: { urls: string[]; emptyLabel: string }) {
-  if (urls.length === 0) return <p className="text-sm text-ink-faint">{emptyLabel}</p>;
-  return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-      {urls.map((url) => (
-        <a
-          key={url}
-          href={url}
-          target="_blank"
-          rel="noreferrer"
-          className="block aspect-[4/3] overflow-hidden rounded-control bg-surface-muted"
-        >
-          <img src={url} alt="" className="h-full w-full object-cover" />
-        </a>
-      ))}
-    </div>
-  );
-}
-
-function PlanGrid({ plans }: { plans: BuildingPlan[] }) {
-  return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-      {plans.map((plan) => (
-        <a
-          key={plan.id}
-          href={plan.imageUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="flex flex-col gap-1.5"
-        >
-          <div className="aspect-[4/3] overflow-hidden rounded-control bg-surface-muted">
-            <img src={plan.imageUrl} alt={plan.name} className="h-full w-full object-cover" />
-          </div>
-          {plan.name && <span className="truncate text-xs text-ink-muted">{plan.name}</span>}
-        </a>
-      ))}
-    </div>
-  );
-}
-
 // Сама вёрстка документа — вынесена из BriefPublicPage.tsx отдельно от
 // загрузки данных по токену, чтобы её можно было прогнать с моковыми
 // данными при проверке вёрстки, не поднимая реальный Supabase.
-export function BriefDocument({
-  brief,
-  object,
-  plans,
-}: {
-  brief: Brief;
-  object: RealtyObject;
-  plans: BuildingPlan[];
-}) {
+export function BriefDocument({ brief, object }: { brief: Brief; object: RealtyObject }) {
+  // Один стейт лайтбокса на весь документ — открывается кликом по любой
+  // миниатюре (планировка, фото "до" со своими точками, референс "после")
+  // вместо перехода в новую вкладку. pins присутствует только для фото
+  // "сейчас" — определяется в месте открытия, не угадывается по контенту
+  // (у фото без единой точки pins[url] был бы undefined и его нельзя
+  // отличить от обычного фото без разметки).
+  const [lightbox, setLightbox] = useState<{ url: string; pins?: PhotoPin[] } | null>(null);
+
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-5">
       <div>
@@ -105,17 +66,23 @@ export function BriefDocument({
         </span>
       </div>
 
-      <div className={cn('flex flex-col gap-1 p-5', glassCardClass)} style={glassCardShadow}>
-        <span className="text-xs font-semibold tracking-wide text-ink-faint">
-          Техническое задание на предварительный просчёт сметы реновации здания
-        </span>
-        <span className="text-2xl font-bold text-ink">{object.name || object.address}</span>
-        {object.name && <span className="text-sm text-ink-muted">{object.address}</span>}
-        {object.area > 0 && <span className="text-sm text-ink-muted">Площадь: {object.area} м²</span>}
-        {(brief.recipientName || brief.recipientPhone) && (
-          <span className="mt-2 text-sm text-ink-muted">
-            Кому: {[brief.recipientName, brief.recipientPhone].filter(Boolean).join(', ')}
+      <div
+        className={cn('flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:justify-between', glassCardClass)}
+        style={glassCardShadow}
+      >
+        <div className="flex flex-col gap-1">
+          <span className="text-xl font-extrabold text-ink sm:text-2xl">
+            Техническое задание на предварительный просчёт сметы реновации здания
           </span>
+          <span className="text-lg font-semibold text-ink-muted">{object.name || object.address}</span>
+          {object.name && <span className="text-sm text-ink-faint">{object.address}</span>}
+        </div>
+        {(brief.recipientName || brief.recipientPhone) && (
+          <div className="flex flex-col gap-0.5 sm:text-right">
+            <span className="text-xs uppercase tracking-wide text-ink-faint">Кому направлено</span>
+            {brief.recipientName && <span className="text-sm font-semibold text-ink">{brief.recipientName}</span>}
+            {brief.recipientPhone && <span className="text-sm text-ink-muted">{brief.recipientPhone}</span>}
+          </div>
         )}
       </div>
 
@@ -135,13 +102,9 @@ export function BriefDocument({
         </Section>
       )}
 
-      {(plans.length > 0 || object.floorPlanUrls.length > 0) && (
+      {brief.planUrls.length > 0 && (
         <Section title="Планировки">
-          {plans.length > 0 ? (
-            <PlanGrid plans={plans} />
-          ) : (
-            <PhotoGrid urls={object.floorPlanUrls} emptyLabel="Планировки не загружены" />
-          )}
+          <PhotoThumbGrid items={brief.planUrls.map((url) => ({ url }))} onOpen={(url) => setLightbox({ url })} />
         </Section>
       )}
 
@@ -150,20 +113,30 @@ export function BriefDocument({
         return (
           <Section key={category} title={briefPhotoCategoryLabels[category]}>
             <div className="flex flex-col gap-3">
-              <span className="text-xs uppercase tracking-wide text-ink-faint">До — что менять</span>
-              {cat.beforeUrls.length === 0 && <p className="text-sm text-ink-faint">Фото не загружены</p>}
-              {cat.beforeUrls.map((url) => (
-                <AnnotatedPhoto key={url} url={url} pins={cat.pins[url] ?? []} />
-              ))}
+              <span className="text-xs uppercase tracking-wide text-ink-faint">Сейчас — что менять</span>
+              {cat.beforeUrls.length === 0 ? (
+                <p className="text-sm text-ink-faint">Фото не загружены</p>
+              ) : (
+                <PhotoThumbGrid
+                  items={cat.beforeUrls.map((url) => ({ url, pinCount: (cat.pins[url] ?? []).length }))}
+                  onOpen={(url) => setLightbox({ url, pins: cat.pins[url] ?? [] })}
+                />
+              )}
             </div>
 
+            {cat.beforeUrls.length > 0 && cat.afterUrls.length > 0 && (
+              <p className="text-xs text-ink-faint">↓ Отмеченные точками изменения приводят к результату ниже</p>
+            )}
+
             <div className="flex flex-col gap-3 border-t border-border pt-4">
-              <span className="text-xs uppercase tracking-wide text-ink-faint">После (референс)</span>
-              <PhotoGrid urls={cat.afterUrls} emptyLabel="Фото не загружены" />
+              <span className="text-xs uppercase tracking-wide text-ink-faint">Должно стать (референс)</span>
+              <HeroOrGrid urls={cat.afterUrls} onOpen={(url) => setLightbox({ url })} emptyLabel="Фото не загружены" />
             </div>
           </Section>
         );
       })}
+
+      <PhotoLightbox url={lightbox?.url ?? null} pins={lightbox?.pins} onClose={() => setLightbox(null)} />
     </div>
   );
 }
