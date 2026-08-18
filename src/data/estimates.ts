@@ -18,6 +18,10 @@
 export interface EstimateProductRef {
   id: string;
   label: string;
+  manufacturer: string;
+  model: string;
+  // Пусто — цена ещё не известна (товар не выбран/не согласован).
+  price: number | null;
   photoUrl: string;
   link: string;
 }

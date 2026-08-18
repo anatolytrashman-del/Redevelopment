@@ -68,7 +68,13 @@ export function EstimatePositionFormModal({
   }
 
   function addProduct() {
-    setForm((f) => ({ ...f, products: [...f.products, { id: crypto.randomUUID(), label: '', photoUrl: '', link: '' }] }));
+    setForm((f) => ({
+      ...f,
+      products: [
+        ...f.products,
+        { id: crypto.randomUUID(), label: '', manufacturer: '', model: '', price: null, photoUrl: '', link: '' },
+      ],
+    }));
   }
 
   function removeProduct(id: string) {
@@ -142,53 +148,74 @@ export function EstimatePositionFormModal({
         <div className="flex flex-col gap-2">
           <span className="text-sm text-ink-muted">Товары/референсы (фото + ссылка)</span>
           {form.products.map((p) => (
-            <div key={p.id} className="flex items-start gap-3 rounded-control border border-border p-3">
-              <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-control bg-surface-muted">
-                {p.photoUrl ? (
-                  <img src={p.photoUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <ImageOff className="h-5 w-5 text-ink-faint" />
-                )}
-              </span>
-              <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <div key={p.id} className="flex flex-col gap-3 rounded-control border border-border p-3">
+              <div className="flex items-start gap-3">
+                <span className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-control bg-surface-muted">
+                  {p.photoUrl ? (
+                    <img src={p.photoUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <ImageOff className="h-6 w-6 text-ink-faint" />
+                  )}
+                </span>
+                <div className="flex min-w-0 flex-1 flex-col gap-2">
+                  <Input
+                    placeholder="Например, Дверь или Замок"
+                    value={p.label}
+                    onChange={(e) => updateProduct(p.id, { label: e.target.value })}
+                  />
+                  <input
+                    ref={(el) => {
+                      fileInputRefs.current[p.id] = el;
+                    }}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handlePhotoSelect(p.id, e)}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon={uploadingProductId === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                    onClick={() => fileInputRefs.current[p.id]?.click()}
+                    disabled={uploadingProductId === p.id}
+                    className="w-fit"
+                  >
+                    {uploadingProductId === p.id ? 'Загружаем...' : p.photoUrl ? 'Заменить фото' : 'Загрузить фото'}
+                  </Button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeProduct(p.id)}
+                  aria-label="Удалить товар"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-danger"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <Input
-                  placeholder="Например, Дверь или Замок"
-                  value={p.label}
-                  onChange={(e) => updateProduct(p.id, { label: e.target.value })}
+                  placeholder="Производитель"
+                  value={p.manufacturer}
+                  onChange={(e) => updateProduct(p.id, { manufacturer: e.target.value })}
+                />
+                <Input
+                  placeholder="Модель"
+                  value={p.model}
+                  onChange={(e) => updateProduct(p.id, { model: e.target.value })}
+                />
+                <Input
+                  type="number"
+                  placeholder="Цена, $"
+                  value={p.price ?? ''}
+                  onChange={(e) => updateProduct(p.id, { price: e.target.value === '' ? null : Number(e.target.value) })}
                 />
                 <Input
                   placeholder="Ссылка на товар (https://...)"
                   value={p.link}
                   onChange={(e) => updateProduct(p.id, { link: e.target.value })}
                 />
-                <input
-                  ref={(el) => {
-                    fileInputRefs.current[p.id] = el;
-                  }}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => handlePhotoSelect(p.id, e)}
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  icon={uploadingProductId === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                  onClick={() => fileInputRefs.current[p.id]?.click()}
-                  disabled={uploadingProductId === p.id}
-                  className="w-fit"
-                >
-                  {uploadingProductId === p.id ? 'Загружаем...' : p.photoUrl ? 'Заменить фото' : 'Загрузить фото'}
-                </Button>
               </div>
-              <button
-                type="button"
-                onClick={() => removeProduct(p.id)}
-                aria-label="Удалить товар"
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-danger"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
             </div>
           ))}
           <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} className="w-fit" onClick={addProduct}>

@@ -6,9 +6,20 @@ function fromRow(row: EstimateRow): Estimate {
   return {
     id: row.id,
     objectId: row.object_id,
-    // positions добавили позже photo/body — у строк, сохранённых до этого,
-    // его нет в JSONB вообще, а не пустой массив.
-    sections: (row.sections ?? []).map((s) => ({ ...s, positions: s.positions ?? [] })),
+    // positions/manufacturer/model/price добавили позже body — у строк,
+    // сохранённых до этого, их нет в JSONB вообще, а не пустое значение.
+    sections: (row.sections ?? []).map((s) => ({
+      ...s,
+      positions: (s.positions ?? []).map((p) => ({
+        ...p,
+        products: p.products.map((prod) => ({
+          ...prod,
+          manufacturer: prod.manufacturer ?? '',
+          model: prod.model ?? '',
+          price: prod.price ?? null,
+        })),
+      })),
+    })),
     questions: row.questions ?? [],
     createdAt: row.created_at,
   };

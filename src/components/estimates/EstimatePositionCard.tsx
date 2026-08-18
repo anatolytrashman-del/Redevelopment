@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Pencil, Trash2, ImageOff, Link as LinkIcon } from 'lucide-react';
+import { ImageLightbox, type LightboxState } from '../objects/ImageLightbox';
 import { POSITION_OPS_INTRO, POSITION_OPS_CATCHALL, type EstimatePosition } from '../../data/estimates';
 
 interface EstimatePositionCardProps {
@@ -7,11 +9,18 @@ interface EstimatePositionCardProps {
   onDelete: () => void;
 }
 
-// Карточка структурированной позиции сметы (просмотр) — название, фото
-// референсов (дверь/замок/...) со ссылками, состав работ в фиксированной
-// формулировке "Цена за работу включает..." + завершающая оговорка про
-// прочие работы (POSITION_OPS_CATCHALL) последним пунктом списка всегда.
+function formatMoney(value: number): string {
+  return `$${Math.round(value).toLocaleString('ru-RU')}`;
+}
+
+// Карточка структурированной позиции сметы (просмотр) — название, крупные
+// кликабельные фото референсов (дверь/замок/...) с производителем/моделью/
+// ценой и ссылкой, состав работ в фиксированной формулировке "Цена за
+// работу включает..." + завершающая оговорка про прочие работы
+// (POSITION_OPS_CATCHALL) последним пунктом списка всегда.
 export function EstimatePositionCard({ position, onEdit, onDelete }: EstimatePositionCardProps) {
+  const [lightbox, setLightbox] = useState<LightboxState | null>(null);
+
   return (
     <div className="flex flex-col gap-3 rounded-control border border-border p-4">
       <div className="flex items-center justify-between gap-3">
@@ -37,17 +46,26 @@ export function EstimatePositionCard({ position, onEdit, onDelete }: EstimatePos
       </div>
 
       {position.products.length > 0 && (
-        <div className="flex flex-wrap gap-3">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
           {position.products.map((p) => (
-            <div key={p.id} className="flex w-28 shrink-0 flex-col gap-1">
-              <div className="flex aspect-square w-28 items-center justify-center overflow-hidden rounded-control bg-surface-muted">
+            <div key={p.id} className="flex flex-col gap-1.5">
+              <button
+                type="button"
+                onClick={() => p.photoUrl && setLightbox({ urls: [p.photoUrl], index: 0 })}
+                disabled={!p.photoUrl}
+                className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-control bg-surface-muted disabled:cursor-default"
+              >
                 {p.photoUrl ? (
-                  <img src={p.photoUrl} alt={p.label} className="h-full w-full object-cover" />
+                  <img src={p.photoUrl} alt={p.label} className="h-full w-full cursor-zoom-in object-cover" />
                 ) : (
-                  <ImageOff className="h-5 w-5 text-ink-faint" />
+                  <ImageOff className="h-6 w-6 text-ink-faint" />
                 )}
-              </div>
-              <span className="truncate text-xs font-medium text-ink">{p.label || 'Без названия'}</span>
+              </button>
+              <span className="truncate text-sm font-semibold text-ink">{p.label || 'Без названия'}</span>
+              {(p.manufacturer || p.model) && (
+                <span className="truncate text-xs text-ink-muted">{[p.manufacturer, p.model].filter(Boolean).join(' — ')}</span>
+              )}
+              {p.price != null && <span className="text-xs font-semibold text-ink">{formatMoney(p.price)}</span>}
               {p.link && (
                 <a
                   href={p.link}
@@ -75,6 +93,8 @@ export function EstimatePositionCard({ position, onEdit, onDelete }: EstimatePos
           </ul>
         </div>
       )}
+
+      <ImageLightbox state={lightbox} onChange={setLightbox} />
     </div>
   );
 }
