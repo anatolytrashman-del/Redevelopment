@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Trash2, Upload, X, Send, Phone, Mail, MapPin } from 'lucide-react';
+import { Plus, Loader2, Trash2, Upload, X, Send, Phone, Mail, MapPin, Cake } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -16,6 +16,7 @@ import {
   contractorContactMethods,
   contractorTeamTiers,
   contactDuplicatesDedicatedField,
+  isBirthdayToday,
   type Contractor,
 } from '../data/contractors';
 import {
@@ -50,6 +51,7 @@ const emptyForm = {
   teamTier: '',
   responsibilityZone: '',
   photoPath: '',
+  birthday: '',
 };
 
 function contractorToForm(c: Contractor) {
@@ -65,6 +67,7 @@ function contractorToForm(c: Contractor) {
     teamTier: c.teamTier,
     responsibilityZone: c.responsibilityZone,
     photoPath: c.photoPath,
+    birthday: c.birthday,
   };
 }
 
@@ -96,7 +99,14 @@ function ContractorCard({
         <div className="flex min-w-0 items-center gap-2.5">
           <ContractorAvatar name={contractor.name} photoPath={contractor.photoPath} />
           <div className="min-w-0">
-            <div className="truncate font-semibold text-ink">{contractor.name}</div>
+            <div className="flex items-center gap-1.5">
+              <span className="truncate font-semibold text-ink">{contractor.name}</span>
+              {isBirthdayToday(contractor.birthday) && (
+                <Cake className="h-4 w-4 shrink-0 text-primary" aria-label="Сегодня день рождения">
+                  <title>Сегодня день рождения</title>
+                </Cake>
+              )}
+            </div>
             <div className="truncate text-sm text-ink-muted">{contractor.specialty || '—'}</div>
           </div>
         </div>
@@ -310,6 +320,7 @@ export function Contractors() {
       teamTier: form.teamTier,
       responsibilityZone: form.responsibilityZone,
       photoPath: form.photoPath,
+      birthday: form.birthday,
     };
     try {
       if (editingId) {
@@ -479,6 +490,13 @@ export function Contractors() {
             placeholder="Например: объекты в Партизанском районе"
             value={form.responsibilityZone}
             onChange={(e) => setForm((f) => ({ ...f, responsibilityZone: e.target.value }))}
+          />
+
+          <Input
+            label="День рождения"
+            type="date"
+            value={form.birthday}
+            onChange={(e) => setForm((f) => ({ ...f, birthday: e.target.value }))}
           />
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

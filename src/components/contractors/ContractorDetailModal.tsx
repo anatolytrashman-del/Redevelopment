@@ -1,9 +1,9 @@
-import { Pencil, Trash2 } from 'lucide-react';
+import { Cake, Pencil, Trash2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { ContactValue } from '../ui/ContactValue';
 import { ContractorAvatar } from './ContractorAvatar';
-import { contactDuplicatesDedicatedField, type Contractor } from '../../data/contractors';
+import { contactDuplicatesDedicatedField, isBirthdayToday, type Contractor } from '../../data/contractors';
 import { formatPhoneDisplay } from '../../lib/formatPhone';
 
 function formatDate(iso: string): string {
@@ -11,6 +11,15 @@ function formatDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+// Без года — год рождения для дня рождения не важен (см. isBirthdayToday),
+// а полная дата с годом уже неявно видна в самой форме редактирования.
+function formatBirthday(iso: string): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', timeZone: 'UTC' });
 }
 
 // Строка «поле — значение» — тот же паттерн, что и Field в LeadDetailModal.tsx.
@@ -44,7 +53,14 @@ export function ContractorDetailModal({ contractor, onClose, onEdit, onDelete, d
         <div className="flex items-start gap-4">
           <ContractorAvatar name={contractor.name} photoPath={contractor.photoPath} size="lg" />
           <div className="flex min-w-0 flex-col gap-2">
-            <span className="break-words text-lg font-bold text-ink">{contractor.name}</span>
+            <span className="flex items-center gap-1.5 break-words text-lg font-bold text-ink">
+              {contractor.name}
+              {isBirthdayToday(contractor.birthday) && (
+                <Cake className="h-4 w-4 shrink-0 text-primary" aria-label="Сегодня день рождения">
+                  <title>Сегодня день рождения</title>
+                </Cake>
+              )}
+            </span>
             <div className="flex flex-wrap items-center gap-1.5">
               {contractor.teamTier && (
                 <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
@@ -70,6 +86,7 @@ export function ContractorDetailModal({ contractor, onClose, onEdit, onDelete, d
           <Field label="Телефон">{contractor.phone ? formatPhoneDisplay(contractor.phone) : null}</Field>
           <Field label="Email">{contractor.email}</Field>
           <Field label="Зона ответственности">{contractor.responsibilityZone}</Field>
+          <Field label="День рождения">{contractor.birthday ? formatBirthday(contractor.birthday) : null}</Field>
           <Field label="Добавлен">{formatDate(contractor.createdAt)}</Field>
         </div>
 

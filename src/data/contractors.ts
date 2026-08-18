@@ -51,7 +51,24 @@ export interface Contractor {
   // паттерн, что и у Lead.photoPath (см. lib/contractorsApi.ts). Для
   // всех, у кого teamTier заполнен, подтягивается автоматически из Telegram.
   photoPath: string;
+  // Дата рождения — полная (с годом, формат <input type="date">, "YYYY-MM-DD"),
+  // но для поздравлений важен только день и месяц (см. isBirthdayToday ниже).
+  // Год хранится просто потому, что так отдаёт обычный date-инпут, отдельно
+  // нигде не используется. Пусто — не указана.
+  birthday: string;
   createdAt: string;
+}
+
+// Сегодня у подрядчика день рождения — сравниваем только месяц и день,
+// год не важен. birthday — это "YYYY-MM-DD" (native-формат value у
+// <input type="date">, тот же, что отдаёт Postgres-колонка типа date через
+// Supabase), поэтому сравнение срезом строки надёжнее, чем через Date:
+// не зависит от часового пояса браузера.
+export function isBirthdayToday(birthday: string): boolean {
+  if (!birthday) return false;
+  const today = new Date();
+  const monthDay = `${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  return birthday.slice(5, 10) === monthDay;
 }
 
 // Когда способ связи — Телефон или Email, contact на практике держит то же
@@ -81,5 +98,6 @@ export interface ContractorRow {
   team_tier: string | null;
   responsibility_zone: string | null;
   photo_path: string | null;
+  birth_date: string | null;
   created_at: string;
 }

@@ -16,6 +16,7 @@ import {
   Lightbulb,
   HardHat,
   ClipboardList,
+  Cake,
   X,
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
@@ -23,6 +24,7 @@ import { fetchBacklogUnreadCount } from '../../lib/backlogApi';
 import { getBacklogLastViewedAt, onBacklogViewed } from '../../lib/backlogSeen';
 import { fetchLeadsUnreadCount } from '../../lib/leadsApi';
 import { getLeadsLastViewedAt, onLeadsViewed } from '../../lib/leadsSeen';
+import { fetchContractorsWithBirthdayToday } from '../../lib/contractorsApi';
 
 // Полная навигация проекта — держим здесь как референс с готовыми иконками.
 // В меню показываем только готовые страницы (см. visibleLabels ниже) —
@@ -59,6 +61,7 @@ interface SidebarProps {
 export function Sidebar({ open, onClose }: SidebarProps) {
   const [backlogUnread, setBacklogUnread] = useState(0);
   const [leadsUnread, setLeadsUnread] = useState(0);
+  const [birthdayNames, setBirthdayNames] = useState<string[]>([]);
 
   useEffect(() => {
     function refresh() {
@@ -88,6 +91,20 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       window.removeEventListener('focus', refresh);
       unsubscribe();
     };
+  }, []);
+
+  // Без отметки "просмотрено" — в отличие от бэклога/лидов, тут не список,
+  // который можно прочитать и закрыть, а факт "сегодня чей-то день рождения",
+  // актуальный весь день независимо от того, заходили ли уже в "Подрядчики".
+  useEffect(() => {
+    function refresh() {
+      fetchContractorsWithBirthdayToday()
+        .then((list) => setBirthdayNames(list.map((c) => c.name)))
+        .catch(() => {});
+    }
+    refresh();
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
   }, []);
 
   return (
@@ -133,6 +150,14 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 }
               >
                 <Icon className="h-5 w-5" />
+                {label === 'Подрядчики' && birthdayNames.length > 0 && (
+                  <Cake
+                    className="h-4 w-4 shrink-0 text-primary"
+                    aria-label={`Сегодня день рождения: ${birthdayNames.join(', ')}`}
+                  >
+                    <title>{`Сегодня день рождения: ${birthdayNames.join(', ')}`}</title>
+                  </Cake>
+                )}
                 {label}
                 {label === 'Лиды' && leadsUnread > 0 && (
                   <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">

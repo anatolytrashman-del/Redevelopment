@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import { withRetry, UPLOAD_TIMEOUT_MS } from './withRetry';
 import { extractTelegramHandle } from './telegramHandle';
 import { fetchTelegramAvatarBlob } from './telegramAvatarApi';
-import type { Contractor, ContractorRow } from '../data/contractors';
+import { isBirthdayToday, type Contractor, type ContractorRow } from '../data/contractors';
 
 const CONTRACTOR_PHOTOS_BUCKET = 'contractor-photos';
 // Час — тот же TTL, что и у lead-photos (см. leadsApi.ts).
@@ -22,6 +22,7 @@ function fromRow(row: ContractorRow): Contractor {
     teamTier: row.team_tier ?? '',
     responsibilityZone: row.responsibility_zone ?? '',
     photoPath: row.photo_path ?? '',
+    birthday: row.birth_date ?? '',
     createdAt: row.created_at,
   };
 }
@@ -32,6 +33,14 @@ export function fetchContractors(): Promise<Contractor[]> {
     if (error) throw error;
     return (data as ContractorRow[]).map(fromRow);
   });
+}
+
+// Для бейджика в сайдбаре (см. Sidebar.tsx) — весь список подрядчиков и так
+// небольшой, отдельный SQL-запрос "только у кого сегодня ДР" не нужен,
+// сравнение месяца/дня дешевле сделать на клиенте после обычного fetchContractors.
+export async function fetchContractorsWithBirthdayToday(): Promise<Contractor[]> {
+  const all = await fetchContractors();
+  return all.filter((c) => isBirthdayToday(c.birthday));
 }
 
 export function insertContractor(input: Omit<Contractor, 'id' | 'createdAt'>): Promise<Contractor> {
@@ -50,6 +59,7 @@ export function insertContractor(input: Omit<Contractor, 'id' | 'createdAt'>): P
         team_tier: input.teamTier || null,
         responsibility_zone: input.responsibilityZone || null,
         photo_path: input.photoPath || null,
+        birth_date: input.birthday || null,
       })
       .select()
       .single();
@@ -75,6 +85,7 @@ export function updateContractor(id: string, input: Omit<Contractor, 'id' | 'cre
         team_tier: input.teamTier || null,
         responsibility_zone: input.responsibilityZone || null,
         photo_path: input.photoPath || null,
+        birth_date: input.birthday || null,
       })
       .eq('id', id)
       .select()
@@ -158,6 +169,7 @@ export async function tryAutoFillTelegramAvatarForContractor(contractor: Contrac
       teamTier: contractor.teamTier,
       responsibilityZone: contractor.responsibilityZone,
       photoPath,
+      birthday: contractor.birthday,
     });
   } catch {
     return null;
