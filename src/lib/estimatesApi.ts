@@ -6,7 +6,9 @@ function fromRow(row: EstimateRow): Estimate {
   return {
     id: row.id,
     objectId: row.object_id,
-    sections: row.sections ?? [],
+    // positions добавили позже photo/body — у строк, сохранённых до этого,
+    // его нет в JSONB вообще, а не пустой массив.
+    sections: (row.sections ?? []).map((s) => ({ ...s, positions: s.positions ?? [] })),
     questions: row.questions ?? [],
     createdAt: row.created_at,
   };

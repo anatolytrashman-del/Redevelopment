@@ -7,8 +7,10 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
 import { CatalogPickerModal } from '../components/estimates/CatalogPickerModal';
+import { EstimatePositionCard } from '../components/estimates/EstimatePositionCard';
+import { EstimatePositionFormModal } from '../components/estimates/EstimatePositionFormModal';
 import { cn } from '../lib/cn';
-import type { Estimate, EstimateQuestion, EstimateSection } from '../data/estimates';
+import type { Estimate, EstimatePosition, EstimateQuestion, EstimateSection } from '../data/estimates';
 import type { EstimateCatalogItem } from '../data/estimateCatalog';
 import type { RealtyObject } from '../data/objects';
 import type { BuildingPlanZone } from '../data/buildingPlans';
@@ -48,6 +50,10 @@ export function EstimateDetail() {
 
   const [catalogItems, setCatalogItems] = useState<EstimateCatalogItem[]>([]);
   const [catalogOpen, setCatalogOpen] = useState(false);
+
+  const [positionModalOpen, setPositionModalOpen] = useState(false);
+  const [positionSectionId, setPositionSectionId] = useState<string | null>(null);
+  const [editingPosition, setEditingPosition] = useState<EstimatePosition | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -113,7 +119,7 @@ export function EstimateDetail() {
 
   async function addSection() {
     if (!estimate) return;
-    const section: EstimateSection = { id: crypto.randomUUID(), title: 'Новый раздел', body: '' };
+    const section: EstimateSection = { id: crypto.randomUUID(), title: 'Новый раздел', body: '', positions: [] };
     try {
       await saveEstimatePatch({ sections: [...estimate.sections, section] });
       startEditSection(section);
@@ -161,6 +167,45 @@ export function EstimateDetail() {
 
   function insertCatalogText(text: string) {
     setBodyDraft((prev) => (prev.trim() ? `${prev}\n\n${text}` : text));
+  }
+
+  function openAddPosition(sectionId: string) {
+    setPositionSectionId(sectionId);
+    setEditingPosition(null);
+    setPositionModalOpen(true);
+  }
+
+  function openEditPosition(sectionId: string, position: EstimatePosition) {
+    setPositionSectionId(sectionId);
+    setEditingPosition(position);
+    setPositionModalOpen(true);
+  }
+
+  async function savePosition(saved: EstimatePosition) {
+    if (!estimate || !positionSectionId) return;
+    const sections = estimate.sections.map((s) => {
+      if (s.id !== positionSectionId) return s;
+      const exists = s.positions.some((p) => p.id === saved.id);
+      return { ...s, positions: exists ? s.positions.map((p) => (p.id === saved.id ? saved : p)) : [...s.positions, saved] };
+    });
+    try {
+      await saveEstimatePatch({ sections });
+    } catch (err) {
+      setSectionError(errorMessage(err, 'Не удалось сохранить позицию'));
+    }
+  }
+
+  async function deletePosition(sectionId: string, positionId: string) {
+    if (!estimate) return;
+    if (!window.confirm('Удалить позицию?')) return;
+    const sections = estimate.sections.map((s) =>
+      s.id === sectionId ? { ...s, positions: s.positions.filter((p) => p.id !== positionId) } : s,
+    );
+    try {
+      await saveEstimatePatch({ sections });
+    } catch (err) {
+      setSectionError(errorMessage(err, 'Не удалось удалить позицию'));
+    }
   }
 
   async function deleteQuestion(questionId: string) {
@@ -275,9 +320,35 @@ export function EstimateDetail() {
                       </button>
                     </div>
                   </div>
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">
-                    {section.body || 'Раздел пока пустой — нажмите на карандаш, чтобы заполнить.'}
-                  </p>
+                  {section.body && (
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{section.body}</p>
+                  )}
+                  {section.positions.length === 0 && !section.body && (
+                    <p className="text-sm text-ink-faint">Раздел пока пустой — нажмите на карандаш или добавьте позицию.</p>
+                  )}
+
+                  {section.positions.length > 0 && (
+                    <div className="flex flex-col gap-3">
+                      {section.positions.map((p) => (
+                        <EstimatePositionCard
+                          key={p.id}
+                          position={p}
+                          onEdit={() => openEditPosition(section.id, p)}
+                          onDelete={() => deletePosition(section.id, p.id)}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon={<Plus className="h-4 w-4" />}
+                    className="w-fit"
+                    onClick={() => openAddPosition(section.id)}
+                  >
+                    Добавить позицию
+                  </Button>
                 </>
               )}
             </Card>
@@ -341,6 +412,13 @@ export function EstimateDetail() {
         items={catalogItems}
         onInsert={insertCatalogText}
         onCreated={(item) => setCatalogItems((prev) => [...prev, item].sort((a, b) => a.title.localeCompare(b.title, 'ru')))}
+      />
+
+      <EstimatePositionFormModal
+        open={positionModalOpen}
+        position={editingPosition}
+        onClose={() => setPositionModalOpen(false)}
+        onSaved={savePosition}
       />
     </>
   );
