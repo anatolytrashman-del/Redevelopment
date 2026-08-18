@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Pencil, Plus, Trash2, X, Check } from 'lucide-react';
+import { ArrowLeft, Loader2, Pencil, Plus, Trash2, X, Check, LibraryBig } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
+import { CatalogPickerModal } from '../components/estimates/CatalogPickerModal';
 import { cn } from '../lib/cn';
 import type { Estimate, EstimateQuestion, EstimateSection } from '../data/estimates';
+import type { EstimateCatalogItem } from '../data/estimateCatalog';
 import type { RealtyObject } from '../data/objects';
 import type { BuildingPlanZone } from '../data/buildingPlans';
 import { fetchEstimate, updateEstimate } from '../lib/estimatesApi';
+import { fetchEstimateCatalogItems } from '../lib/estimateCatalogApi';
 import { fetchObject } from '../lib/objectsApi';
 import { fetchZonesForPlan } from '../lib/buildingPlansApi';
 
@@ -43,6 +46,9 @@ export function EstimateDetail() {
   const [savingQuestions, setSavingQuestions] = useState(false);
   const [questionsError, setQuestionsError] = useState<string | null>(null);
 
+  const [catalogItems, setCatalogItems] = useState<EstimateCatalogItem[]>([]);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+
   useEffect(() => {
     if (!id) return;
     setLoading(true);
@@ -61,6 +67,10 @@ export function EstimateDetail() {
       })
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить смету')))
       .finally(() => setLoading(false));
+
+    fetchEstimateCatalogItems()
+      .then(setCatalogItems)
+      .catch(() => {});
   }, [id]);
 
   const roomZones = zones.filter((z) => z.zoneType === 'room');
@@ -149,6 +159,10 @@ export function EstimateDetail() {
     }
   }
 
+  function insertCatalogText(text: string) {
+    setBodyDraft((prev) => (prev.trim() ? `${prev}\n\n${text}` : text));
+  }
+
   async function deleteQuestion(questionId: string) {
     if (!estimate) return;
     setQuestionsError(null);
@@ -209,13 +223,25 @@ export function EstimateDetail() {
               {editingSectionId === section.id ? (
                 <div className="flex flex-col gap-3">
                   <Input label="Название раздела" value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} />
-                  <Textarea
-                    label="Содержимое"
-                    value={bodyDraft}
-                    onChange={(e) => setBodyDraft(e.target.value)}
-                    rows={10}
-                    placeholder="Состав работ, материалы, количества, открытые вопросы по разделу..."
-                  />
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <span className="text-sm text-ink-muted">Содержимое</span>
+                      <button
+                        type="button"
+                        onClick={() => setCatalogOpen(true)}
+                        className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-ink-muted hover:border-primary hover:text-primary"
+                      >
+                        <LibraryBig className="h-3.5 w-3.5" />
+                        Добавить из каталога
+                      </button>
+                    </div>
+                    <Textarea
+                      value={bodyDraft}
+                      onChange={(e) => setBodyDraft(e.target.value)}
+                      rows={10}
+                      placeholder="Состав работ, материалы, количества, открытые вопросы по разделу..."
+                    />
+                  </div>
                   {sectionError && <p className="text-sm text-danger">{sectionError}</p>}
                   <div className="flex justify-end gap-2">
                     <Button type="button" variant="secondary" onClick={() => setEditingSectionId(null)}>
@@ -308,6 +334,14 @@ export function EstimateDetail() {
           </Card>
         </div>
       )}
+
+      <CatalogPickerModal
+        open={catalogOpen}
+        onClose={() => setCatalogOpen(false)}
+        items={catalogItems}
+        onInsert={insertCatalogText}
+        onCreated={(item) => setCatalogItems((prev) => [...prev, item].sort((a, b) => a.title.localeCompare(b.title, 'ru')))}
+      />
     </>
   );
 }
