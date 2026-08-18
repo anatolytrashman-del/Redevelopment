@@ -150,15 +150,15 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 }
               >
                 <Icon className="h-5 w-5" />
+                {label}
                 {label === 'Подрядчики' && birthdayNames.length > 0 && (
                   <Cake
-                    className="h-4 w-4 shrink-0 text-primary"
+                    className="ml-auto h-4 w-4 shrink-0 text-primary"
                     aria-label={`Сегодня день рождения: ${birthdayNames.join(', ')}`}
                   >
                     <title>{`Сегодня день рождения: ${birthdayNames.join(', ')}`}</title>
                   </Cake>
                 )}
-                {label}
                 {label === 'Лиды' && leadsUnread > 0 && (
                   <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">
                     {leadsUnread}
