@@ -1,4 +1,4 @@
-import { Cake, Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { ContactValue } from '../ui/ContactValue';
@@ -56,9 +56,9 @@ export function ContractorDetailModal({ contractor, onClose, onEdit, onDelete, d
             <span className="flex items-center gap-1.5 break-words text-lg font-bold text-ink">
               {contractor.name}
               {isBirthdayToday(contractor.birthday) && (
-                <Cake className="h-4 w-4 shrink-0 text-primary" aria-label="Сегодня день рождения">
-                  <title>Сегодня день рождения</title>
-                </Cake>
+                <span className="shrink-0 text-xl leading-none" role="img" aria-label="Сегодня день рождения" title="Сегодня день рождения">
+                  🎂
+                </span>
               )}
             </span>
             <div className="flex flex-wrap items-center gap-1.5">

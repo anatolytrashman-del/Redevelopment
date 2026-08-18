@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Trash2, Upload, X, Send, Phone, Mail, MapPin, Cake } from 'lucide-react';
+import { Plus, Loader2, Trash2, Upload, X, Send, Phone, Mail, MapPin } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -102,9 +102,9 @@ function ContractorCard({
             <div className="flex items-center gap-1.5">
               <span className="truncate font-semibold text-ink">{contractor.name}</span>
               {isBirthdayToday(contractor.birthday) && (
-                <Cake className="h-4 w-4 shrink-0 text-primary" aria-label="Сегодня день рождения">
-                  <title>Сегодня день рождения</title>
-                </Cake>
+                <span className="shrink-0 text-base leading-none" role="img" aria-label="Сегодня день рождения" title="Сегодня день рождения">
+                  🎂
+                </span>
               )}
             </div>
             <div className="truncate text-sm text-ink-muted">{contractor.specialty || '—'}</div>
