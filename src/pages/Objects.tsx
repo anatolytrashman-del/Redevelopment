@@ -5,6 +5,7 @@ import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { ObjectFormModal } from '../components/objects/ObjectFormModal';
+import { PhotoCarousel } from '../components/objects/PhotoCarousel';
 import { PledgeDetailModal } from '../components/pledges/PledgeDetailModal';
 import { PledgeFormModal } from '../components/pledges/PledgeFormModal';
 import { PledgePhoto } from '../components/pledges/PledgePhoto';
@@ -187,17 +188,7 @@ export function Objects() {
                 style={glassCardShadow}
               >
                 <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden bg-surface-muted">
-                  {o.photoUrl ? (
-                    <img
-                      src={o.photoUrl}
-                      alt={o.name || o.address}
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center">
-                      <ImageOff className="h-6 w-6 text-ink-faint" />
-                    </div>
-                  )}
+                  <PhotoCarousel images={o.photoUrls} alt={o.name || o.address} imgClassName="transition-transform duration-300 group-hover:scale-105" />
                   {o.status && (
                     <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-ink shadow-sm">
                       {o.status}

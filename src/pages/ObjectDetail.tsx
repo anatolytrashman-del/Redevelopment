@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Pencil, Loader2, X, ImageOff, Link as LinkIcon, Eye, Phone, Heart, Flame, Film, KeyRound } from 'lucide-react';
+import { ArrowLeft, Pencil, Loader2, X, Link as LinkIcon, Eye, Phone, Heart, Flame, Film, KeyRound } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -8,6 +8,7 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Textarea } from '../components/ui/Textarea';
 import { ObjectFormModal } from '../components/objects/ObjectFormModal';
+import { PhotoCarousel } from '../components/objects/PhotoCarousel';
 import { BuildingSpecsModal } from '../components/objects/BuildingSpecsModal';
 import { ObjectDocumentsCard } from '../components/objects/ObjectDocuments';
 import { ImageLightbox, type LightboxState } from '../components/objects/ImageLightbox';
@@ -364,20 +365,13 @@ export function ObjectDetail() {
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
           <div className="flex min-w-0 flex-col gap-5">
             <Card className="flex flex-col gap-3 p-5">
-              <button
-                type="button"
-                onClick={() => object.photoUrl && setLightbox({ urls: images, index: 0 })}
-                className="aspect-[4/3] w-full overflow-hidden rounded-control bg-surface-muted"
-                disabled={!object.photoUrl}
-              >
-                {object.photoUrl ? (
-                  <img src={object.photoUrl} alt={object.address} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center">
-                    <ImageOff className="h-6 w-6 text-ink-faint" />
-                  </div>
-                )}
-              </button>
+              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-control bg-surface-muted">
+                <PhotoCarousel
+                  images={object.photoUrls}
+                  alt={object.address}
+                  onImageClick={(i) => setLightbox({ urls: images, index: images.indexOf(object.photoUrls[i]) })}
+                />
+              </div>
               {object.floorPlanUrls.length > 0 && (
                 <div className="flex gap-2">
                   {object.floorPlanUrls.map((url, i) => (

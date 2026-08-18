@@ -9,6 +9,7 @@ import { Modal } from '../ui/Modal';
 import { contactChannels, pricePerMeter, type ContactChannel, type ObjectDocumentFile, type RealtyObject } from '../../data/objects';
 import { insertObject, updateObject, uploadObjectDocument, uploadObjectImage } from '../../lib/objectsApi';
 
+const MAX_PHOTOS = 10;
 const MAX_FLOOR_PLANS = 10;
 const MAX_RENDER_IMAGES = 10;
 
@@ -29,7 +30,7 @@ const emptyForm = {
   address: '',
   area: '',
   startPrice: '',
-  photoUrl: '',
+  photoUrls: [] as string[],
   floorPlanUrls: [] as string[],
   listingUrl: '',
   owner: '',
@@ -51,7 +52,7 @@ function objectToForm(o: RealtyObject) {
     address: o.address,
     area: String(o.area),
     startPrice: String(o.startPrice),
-    photoUrl: o.photoUrl,
+    photoUrls: o.photoUrls,
     floorPlanUrls: o.floorPlanUrls,
     listingUrl: o.listingUrl,
     owner: o.owner,
@@ -105,20 +106,35 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
 
   const canSubmit = form.address && form.area && form.startPrice && form.owner && form.ownerContact;
 
-  async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function handlePhotosSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (files.length === 0) return;
+
     setUploading(true);
     setUploadError(null);
-    try {
-      const url = await uploadObjectImage(file);
-      setForm((f) => ({ ...f, photoUrl: url }));
-    } catch (err) {
-      setUploadError(errorMessage(err, 'Не удалось загрузить фото'));
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+    const failed: string[] = [];
+    let remainingSlots = MAX_PHOTOS - form.photoUrls.length;
+
+    for (const file of files) {
+      if (remainingSlots <= 0) break;
+      try {
+        const url = await uploadObjectImage(file);
+        setForm((f) => ({ ...f, photoUrls: [...f.photoUrls, url] }));
+        remainingSlots -= 1;
+      } catch (err) {
+        failed.push(`${file.name} — ${errorMessage(err, 'не удалось загрузить')}`);
+      }
     }
+
+    setUploading(false);
+    if (failed.length > 0) {
+      setUploadError(`Не удалось загрузить: ${failed.join('; ')}.`);
+    }
+  }
+
+  function removePhoto(index: number) {
+    setForm((f) => ({ ...f, photoUrls: f.photoUrls.filter((_, i) => i !== index) }));
   }
 
   async function handleFloorPlanSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -217,7 +233,7 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
       address: form.address,
       area: Number(form.area),
       startPrice: Number(form.startPrice),
-      photoUrl: form.photoUrl,
+      photoUrls: form.photoUrls,
       floorPlanUrls: form.floorPlanUrls,
       listingUrl: form.listingUrl,
       owner: form.owner,
@@ -256,25 +272,42 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
     <Modal open={open} onClose={onClose} title={editing ? 'Редактировать объект' : 'Новый объект'}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
-          <span className="text-sm text-ink-muted">Фото</span>
-          <div className="flex items-center gap-4">
-            <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-control bg-surface-muted">
-              {form.photoUrl ? (
-                <img src={form.photoUrl} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <ImageOff className="h-5 w-5 text-ink-faint" />
-              )}
-            </span>
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelect} />
-            <Button
-              type="button"
-              variant="secondary"
-              icon={uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-            >
-              {uploading ? 'Загружаем...' : form.photoUrl ? 'Заменить фото' : 'Загрузить фото'}
-            </Button>
+          <span className="text-sm text-ink-muted">Фото (до {MAX_PHOTOS}, листаются слайдером на карточке и в лайтбоксе)</span>
+          <div className="flex flex-wrap items-center gap-3">
+            {form.photoUrls.map((url, i) => (
+              <div key={url} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-control bg-surface-muted">
+                <img src={url} alt="" className="h-full w-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => removePhoto(i)}
+                  aria-label="Удалить фото"
+                  className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink/70 text-white"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+            {form.photoUrls.length < MAX_PHOTOS && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handlePhotosSelect}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon={uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? 'Загружаем...' : 'Добавить'}
+                </Button>
+              </>
+            )}
           </div>
           {uploadError && <p className="text-sm text-danger">{uploadError}</p>}
         </div>

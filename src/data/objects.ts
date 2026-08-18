@@ -110,7 +110,11 @@ export interface RealtyObject {
   address: string;
   area: number;
   startPrice: number;
-  photoUrl: string;
+  // Фото объекта — массив (до 10, см. MAX_PHOTOS в ObjectFormModal), листаются
+  // слайдером (PhotoCarousel) и на превью карточки, и в лайтбоксе. Раньше было
+  // одно фото (photoUrl); при миграции старое значение переносится первым
+  // элементом массива, см. комментарий у RealtyObjectRow.photo_urls.
+  photoUrls: string[];
   floorPlanUrls: string[];
   listingUrl: string;
   owner: string;
@@ -159,7 +163,10 @@ export interface RealtyObjectRow {
   address: string;
   area: number;
   start_price: number;
-  photo_url: string | null;
+  // Новая колонка вместо photo_url (одиночного фото) — см. миграцию,
+  // которую нужно выполнить вручную в Supabase (переносит старое photo_url
+  // первым элементом массива и оставляет photo_url в базе неиспользуемым).
+  photo_urls: string[] | null;
   floor_plan_urls: string[] | null;
   listing_url: string;
   owner: string;
@@ -186,8 +193,8 @@ export function pricePerMeter(area: number, startPrice: number): number | null {
   return startPrice / area;
 }
 
-export function objectImages(o: Pick<RealtyObject, 'photoUrl' | 'floorPlanUrls'>): string[] {
-  return [o.photoUrl, ...o.floorPlanUrls].filter(Boolean);
+export function objectImages(o: Pick<RealtyObject, 'photoUrls' | 'floorPlanUrls'>): string[] {
+  return [...o.photoUrls, ...o.floorPlanUrls].filter(Boolean);
 }
 
 // ID объявления — используется, чтобы сопоставить ссылку из "Проверки спроса"
