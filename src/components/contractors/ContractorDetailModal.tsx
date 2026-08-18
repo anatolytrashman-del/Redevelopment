@@ -1,4 +1,4 @@
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { ContactValue } from '../ui/ContactValue';
@@ -37,14 +37,14 @@ interface ContractorDetailModalProps {
   contractor: Contractor | null;
   onClose: () => void;
   onEdit: (c: Contractor) => void;
-  onDelete: (c: Contractor) => void;
-  deleting: boolean;
 }
 
 // Промежуточный шаг между маленькой карточкой в списке и формой редактирования —
 // тот же приём, что и карточка лида (LeadDetailModal.tsx), но проще: у
-// подрядчика нет ленты истории общения, только статичные поля.
-export function ContractorDetailModal({ contractor, onClose, onEdit, onDelete, deleting }: ContractorDetailModalProps) {
+// подрядчика нет ленты истории общения, только статичные поля. Удаление
+// отсюда убрано — доступно только из формы редактирования (Contractors.tsx),
+// чтобы не сносить подрядчика в один случайный клик с экрана просмотра.
+export function ContractorDetailModal({ contractor, onClose, onEdit }: ContractorDetailModalProps) {
   if (!contractor) return null;
 
   return (
@@ -103,15 +103,6 @@ export function ContractorDetailModal({ contractor, onClose, onEdit, onDelete, d
         </div>
 
         <div className="flex flex-wrap justify-end gap-3 border-t border-border pt-4">
-          <Button
-            type="button"
-            variant="ghost"
-            icon={<Trash2 className="h-4 w-4" />}
-            disabled={deleting}
-            onClick={() => onDelete(contractor)}
-          >
-            Удалить
-          </Button>
           <Button type="button" icon={<Pencil className="h-4 w-4" />} onClick={() => onEdit(contractor)}>
             Редактировать
           </Button>

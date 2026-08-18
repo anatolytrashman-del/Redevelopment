@@ -74,18 +74,11 @@ function contractorToForm(c: Contractor) {
 // Один вид карточки и для "Команды", и для общего списка — разница между ними
 // не в вёрстке, а только в том, из какой группы контактов её взяли. Клик по
 // карточке открывает детальную карточку (ContractorDetailModal), не форму
-// редактирования напрямую — та же ступенька, что у карточки лида.
-function ContractorCard({
-  contractor,
-  onOpen,
-  onDelete,
-  deleting,
-}: {
-  contractor: Contractor;
-  onOpen: (c: Contractor) => void;
-  onDelete: (c: Contractor) => void;
-  deleting: boolean;
-}) {
+// редактирования напрямую — та же ступенька, что у карточки лида. Удаление
+// с превью убрано намеренно — только через форму редактирования (см.
+// handleDelete/кнопку "Удалить" в модалке формы ниже), чтобы случайный клик
+// по карточке не сносил подрядчика.
+function ContractorCard({ contractor, onOpen }: { contractor: Contractor; onOpen: (c: Contractor) => void }) {
   return (
     <div
       onClick={() => onOpen(contractor)}
@@ -95,33 +88,19 @@ function ContractorCard({
       )}
       style={glassCardShadow}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <ContractorAvatar name={contractor.name} photoPath={contractor.photoPath} />
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="truncate font-semibold text-ink">{contractor.name}</span>
-              {isBirthdayToday(contractor.birthday) && (
-                <span className="shrink-0 text-base leading-none" role="img" aria-label="Сегодня день рождения" title="Сегодня день рождения">
-                  🎂
-                </span>
-              )}
-            </div>
-            <div className="truncate text-sm text-ink-muted">{contractor.specialty || '—'}</div>
+      <div className="flex min-w-0 items-center gap-2.5">
+        <ContractorAvatar name={contractor.name} photoPath={contractor.photoPath} />
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="break-words font-semibold text-ink">{contractor.name}</span>
+            {isBirthdayToday(contractor.birthday) && (
+              <span className="shrink-0 text-base leading-none" role="img" aria-label="Сегодня день рождения" title="Сегодня день рождения">
+                🎂
+              </span>
+            )}
           </div>
+          <div className="truncate text-sm text-ink-muted">{contractor.specialty || '—'}</div>
         </div>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(contractor);
-          }}
-          disabled={deleting}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-danger disabled:opacity-50"
-          aria-label="Удалить подрядчика"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
       </div>
       {contractor.responsibilityZone && (
         <div className="flex items-center gap-1.5 truncate text-sm text-ink-muted">
@@ -165,7 +144,6 @@ export function Contractors() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
 
   useEffect(() => {
@@ -246,6 +224,7 @@ export function Contractors() {
   }, [contractors, search]);
 
   const detailContractor = detailId ? (contractors.find((c) => c.id === detailId) ?? null) : null;
+  const editingContractor = editingId ? (contractors.find((c) => c.id === editingId) ?? null) : null;
 
   const canSubmit = form.name && form.specialty && form.contact;
 
@@ -342,17 +321,22 @@ export function Contractors() {
     }
   }
 
+  // Единственный путь к удалению — кнопка внутри формы редактирования (см.
+  // ниже), а не с превью или карточки просмотра: те доступны в один клик по
+  // всей карточке, и кнопка удаления там рядом слишком легко нажималась
+  // случайно.
   async function handleDelete(c: Contractor) {
     if (deletingId) return;
     if (!window.confirm(`Удалить подрядчика «${c.name}»?`)) return;
     setDeletingId(c.id);
-    setActionError(null);
+    setSubmitError(null);
     try {
       await deleteContractor(c.id);
       setContractors((prev) => prev.filter((x) => x.id !== c.id));
       setDetailId(null);
+      setOpen(false);
     } catch (err) {
-      setActionError(errorMessage(err, 'Не удалось удалить подрядчика'));
+      setSubmitError(errorMessage(err, 'Не удалось удалить подрядчика'));
     } finally {
       setDeletingId(null);
     }
@@ -384,13 +368,7 @@ export function Contractors() {
               <div className="text-lg font-bold text-ink">{group.tier}</div>
               <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
                 {group.items.map((c) => (
-                  <ContractorCard
-                    key={c.id}
-                    contractor={c}
-                    onOpen={(c) => setDetailId(c.id)}
-                    onDelete={handleDelete}
-                    deleting={deletingId === c.id}
-                  />
+                  <ContractorCard key={c.id} contractor={c} onOpen={(c) => setDetailId(c.id)} />
                 ))}
               </div>
             </div>
@@ -420,13 +398,7 @@ export function Contractors() {
                     </div>
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
                       {group.items.map((c) => (
-                        <ContractorCard
-                          key={c.id}
-                          contractor={c}
-                          onOpen={(c) => setDetailId(c.id)}
-                          onDelete={handleDelete}
-                          deleting={deletingId === c.id}
-                        />
+                        <ContractorCard key={c.id} contractor={c} onOpen={(c) => setDetailId(c.id)} />
                       ))}
                     </div>
                   </div>
@@ -436,8 +408,6 @@ export function Contractors() {
           </div>
         </div>
       )}
-
-      {actionError && <p className="text-sm text-danger">{actionError}</p>}
 
       <Modal open={open} onClose={() => setOpen(false)} title={editingId ? 'Редактировать подрядчика' : 'Новый подрядчик'}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -567,7 +537,19 @@ export function Contractors() {
 
           {submitError && <p className="text-sm text-danger">{submitError}</p>}
 
-          <div className="mt-2 flex justify-end gap-3">
+          <div className="mt-2 flex items-center justify-end gap-3">
+            {editingContractor && (
+              <Button
+                type="button"
+                variant="ghost"
+                icon={<Trash2 className="h-4 w-4" />}
+                disabled={deletingId === editingContractor.id}
+                onClick={() => handleDelete(editingContractor)}
+                className="mr-auto"
+              >
+                Удалить
+              </Button>
+            )}
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
               Отмена
             </Button>
@@ -578,13 +560,7 @@ export function Contractors() {
         </form>
       </Modal>
 
-      <ContractorDetailModal
-        contractor={detailContractor}
-        onClose={() => setDetailId(null)}
-        onEdit={openEditModal}
-        onDelete={handleDelete}
-        deleting={deletingId === detailContractor?.id}
-      />
+      <ContractorDetailModal contractor={detailContractor} onClose={() => setDetailId(null)} onEdit={openEditModal} />
     </>
   );
 }
