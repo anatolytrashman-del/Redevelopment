@@ -172,8 +172,9 @@ export function uploadObjectImage(file: File): Promise<string> {
       const { data } = supabase.storage.from('object-photos').getPublicUrl(path);
       return data.publicUrl;
     },
-    1000,
+    1500,
     UPLOAD_TIMEOUT_MS,
+    3,
   );
 }
 
@@ -187,7 +188,8 @@ export function uploadObjectDocument(file: File): Promise<{ url: string; fileNam
       const { data } = supabase.storage.from('object-documents').getPublicUrl(path);
       return { url: data.publicUrl, fileName: file.name };
     },
-    1000,
+    1500,
     UPLOAD_TIMEOUT_MS,
+    3,
   );
 }

@@ -26,13 +26,20 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
 // Первый запрос к Supabase после паузы иногда рвётся сетевой ошибкой
 // ("TypeError: Load failed" / "Failed to fetch") ещё до ответа сервера —
 // повторяем один раз молча, прежде чем показывать ошибку пользователю.
-export async function withRetry<T>(fn: () => Promise<T>, delayMs = 1000, timeoutMs = TIMEOUT_MS): Promise<T> {
-  try {
-    return await withTimeout(fn(), timeoutMs);
-  } catch (err) {
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
-    return withTimeout(fn(), timeoutMs).catch(() => {
-      throw err;
-    });
+// retries=1 (по умолчанию) — как раньше; загрузка файлов с мобильной сети
+// падает так чаще одного раза подряд, поэтому uploadObjectImage и
+// uploadObjectDocument просят больше попыток с растущей паузой.
+export async function withRetry<T>(fn: () => Promise<T>, delayMs = 1000, timeoutMs = TIMEOUT_MS, retries = 1): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await withTimeout(fn(), timeoutMs);
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs * (attempt + 1)));
+      }
+    }
   }
+  throw lastErr;
 }
