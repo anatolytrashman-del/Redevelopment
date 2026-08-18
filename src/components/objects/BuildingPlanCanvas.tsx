@@ -59,6 +59,15 @@ export function pointsToAttr(points: ZonePoint[]): string {
   return points.map((p) => `${p.x},${p.y}`).join(' ');
 }
 
+// Простое среднее вершин, не геометрический центроид многоугольника —
+// для типичной прямоугольной/почти прямоугольной комнаты разницы не видно,
+// а формула на порядок проще (см. showAreaLabels ниже).
+function polygonCenter(points: ZonePoint[]): ZonePoint {
+  if (points.length === 0) return { x: 50, y: 50 };
+  const sum = points.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
+  return { x: sum.x / points.length, y: sum.y / points.length };
+}
+
 interface BuildingPlanCanvasProps {
   plan: BuildingPlan;
   zones: BuildingPlanZone[];
@@ -90,6 +99,13 @@ interface BuildingPlanCanvasProps {
   // (BuildingPlanWidget, там ещё и рисование контуров зон) не включаем —
   // не хотим смешивать жест панорамирования с расстановкой точек.
   zoomable?: boolean;
+  // Вместо всплывающей подсказки по наведению/тапу (на телефоне не держится
+  // на экране — тап по кабинету триггерит и hover, и click, а click сразу
+  // же сбрасывает hoverZone) — статичная подпись с площадью прямо на
+  // контуре кабинета, всегда видна, тыкать никуда не нужно. Только для
+  // техзадания (см. BriefBuildingPlans.tsx), где смётчику нужны именно
+  // площади, а не бронирование/цены.
+  showAreaLabels?: boolean;
 }
 
 export function BuildingPlanCanvas({
@@ -104,6 +120,7 @@ export function BuildingPlanCanvas({
   hidePricing,
   hideBookingStatus,
   zoomable,
+  showAreaLabels,
 }: BuildingPlanCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoverZone, setHoverZone] = useState<{ zone: BuildingPlanZone; x: number; y: number } | null>(null);
@@ -294,9 +311,9 @@ export function BuildingPlanCanvas({
                   onZoneClick(zone);
                   setHoverZone(null);
                 }}
-                onMouseEnter={(e) => handleZoneHover(zone, e)}
-                onMouseMove={(e) => handleZoneHover(zone, e)}
-                onMouseLeave={() => setHoverZone(null)}
+                onMouseEnter={showAreaLabels ? undefined : (e) => handleZoneHover(zone, e)}
+                onMouseMove={showAreaLabels ? undefined : (e) => handleZoneHover(zone, e)}
+                onMouseLeave={showAreaLabels ? undefined : () => setHoverZone(null)}
               />
             ))}
           {drawingPoints && drawingPoints.length > 0 && (
@@ -317,6 +334,21 @@ export function BuildingPlanCanvas({
                 />
               ))}
         </svg>
+        {showAreaLabels &&
+          zones
+            .filter((zone) => zone.buildingPlanId === displayedPlan.id && zone.zoneType === 'room' && zone.area != null)
+            .map((zone) => {
+              const center = polygonCenter(zone.points);
+              return (
+                <span
+                  key={`area-${zone.id}`}
+                  className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-white/90 px-1 py-0.5 text-[10px] font-semibold text-ink shadow-sm"
+                  style={{ left: `${center.x}%`, top: `${center.y}%` }}
+                >
+                  {zone.area} м²
+                </span>
+              );
+            })}
       </div>
 
       {switchingPlan && (
