@@ -3,6 +3,7 @@ import { Loader2, ImageOff, FileText, Upload, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
+import { AddableSelect } from '../ui/AddableSelect';
 import { Textarea } from '../ui/Textarea';
 import { Modal } from '../ui/Modal';
 import { contactChannels, pricePerMeter, type ContactChannel, type ObjectDocumentFile, type RealtyObject } from '../../data/objects';
@@ -24,6 +25,7 @@ function formatMoney(value: number) {
 
 const emptyForm = {
   name: '',
+  status: '',
   address: '',
   area: '',
   startPrice: '',
@@ -45,6 +47,7 @@ const emptyForm = {
 function objectToForm(o: RealtyObject) {
   return {
     name: o.name,
+    status: o.status,
     address: o.address,
     area: String(o.area),
     startPrice: String(o.startPrice),
@@ -68,10 +71,14 @@ interface ObjectFormModalProps {
   open: boolean;
   onClose: () => void;
   editing?: RealtyObject | null;
+  // Известные статусы (пресет + фактически встречающиеся значения) —
+  // считает родитель по всем объектам, тот же паттерн, что knownTypes у
+  // PledgeFormModal.
+  knownStatuses: string[];
   onSaved: (obj: RealtyObject) => void;
 }
 
-export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormModalProps) {
+export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved }: ObjectFormModalProps) {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -206,6 +213,7 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
     setSubmitError(null);
     const payload = {
       name: form.name,
+      status: form.status,
       address: form.address,
       area: Number(form.area),
       startPrice: Number(form.startPrice),
@@ -394,6 +402,16 @@ export function ObjectFormModal({ open, onClose, editing, onSaved }: ObjectFormM
           placeholder="Например, Minsk One — необязательно"
           value={form.name}
           onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+        />
+
+        <AddableSelect
+          label="Статус"
+          placeholder="Не выбрано"
+          options={knownStatuses}
+          value={form.status}
+          onChange={(v) => setForm((f) => ({ ...f, status: v }))}
+          addLabel="+ Добавить статус"
+          newPlaceholder="Название статуса"
         />
 
         <Input

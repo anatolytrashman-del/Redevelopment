@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Pencil, Loader2, X, ImageOff, Link as LinkIcon, Eye, Phone, Heart, Flame, Film, KeyRound } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
@@ -18,6 +18,7 @@ import {
   objectImages,
   demandSources,
   extractAdId,
+  objectStatuses,
   type RealtyObject,
   type DemandSource,
   type DemandLink,
@@ -60,6 +61,15 @@ export function ObjectDetail() {
   const [editOpen, setEditOpen] = useState(false);
   const [specsModalOpen, setSpecsModalOpen] = useState(false);
   const [lightbox, setLightbox] = useState<LightboxState | null>(null);
+
+  // Здесь виден только один объект (не список, как на странице Objects) —
+  // известные статусы это пресет плюс текущее значение этого объекта, если
+  // оно кастомное.
+  const knownStatuses = useMemo(() => {
+    const set = new Set<string>(objectStatuses);
+    if (object?.status) set.add(object.status);
+    return [...set];
+  }, [object?.status]);
 
   const [editingConcept, setEditingConcept] = useState(false);
   const [conceptDraft, setConceptDraft] = useState('');
@@ -739,7 +749,13 @@ export function ObjectDetail() {
         </div>
       )}
 
-      <ObjectFormModal open={editOpen} onClose={() => setEditOpen(false)} editing={object} onSaved={setObject} />
+      <ObjectFormModal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        editing={object}
+        knownStatuses={knownStatuses}
+        onSaved={setObject}
+      />
       <BuildingSpecsModal
         open={specsModalOpen}
         onClose={() => setSpecsModalOpen(false)}

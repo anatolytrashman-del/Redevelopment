@@ -8,7 +8,7 @@ import { ObjectFormModal } from '../components/objects/ObjectFormModal';
 import { PledgeDetailModal } from '../components/pledges/PledgeDetailModal';
 import { PledgeFormModal } from '../components/pledges/PledgeFormModal';
 import { PledgePhoto } from '../components/pledges/PledgePhoto';
-import type { RealtyObject } from '../data/objects';
+import { objectStatuses, type RealtyObject } from '../data/objects';
 import { pledgeTypes, type Pledge } from '../data/pledges';
 import { fetchObjects } from '../lib/objectsApi';
 import { fetchPledges, deletePledge } from '../lib/pledgesApi';
@@ -107,6 +107,12 @@ export function Objects() {
     return [...set];
   }, [pledges]);
 
+  const knownObjectStatuses = useMemo(() => {
+    const set = new Set<string>(objectStatuses);
+    objects.forEach((o) => o.status && set.add(o.status));
+    return [...set];
+  }, [objects]);
+
   useEffect(() => {
     fetchObjects()
       .then(setObjects)
@@ -180,7 +186,7 @@ export function Objects() {
                 className={cn('group flex flex-col overflow-hidden transition-colors hover:border-primary/40', glassCardClass)}
                 style={glassCardShadow}
               >
-                <div className="aspect-[16/9] w-full shrink-0 overflow-hidden bg-surface-muted">
+                <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden bg-surface-muted">
                   {o.photoUrl ? (
                     <img
                       src={o.photoUrl}
@@ -191,6 +197,11 @@ export function Objects() {
                     <div className="flex h-full w-full items-center justify-center">
                       <ImageOff className="h-6 w-6 text-ink-faint" />
                     </div>
+                  )}
+                  {o.status && (
+                    <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-ink shadow-sm">
+                      {o.status}
+                    </span>
                   )}
                 </div>
 
@@ -253,7 +264,12 @@ export function Objects() {
         </div>
       </div>
 
-      <ObjectFormModal open={open} onClose={() => setOpen(false)} onSaved={handleSaved} />
+      <ObjectFormModal
+        open={open}
+        onClose={() => setOpen(false)}
+        knownStatuses={knownObjectStatuses}
+        onSaved={handleSaved}
+      />
 
       <PledgeFormModal
         open={pledgeFormOpen}

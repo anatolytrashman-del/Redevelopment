@@ -4,6 +4,11 @@ export type DemandSource = (typeof demandSources)[number];
 export const contactChannels = ['Телефон', 'Telegram', 'WhatsApp', 'Email'] as const;
 export type ContactChannel = (typeof contactChannels)[number];
 
+// Открытый список, как pledgeTypes/contractorSpecialties — свой вариант
+// добавляется прямо из формы. Показывается бейджем на превью карточки,
+// тот же приём, что и Pledge.propertyType.
+export const objectStatuses = ['Деловой центр', 'Склад'] as const;
+
 export interface DemandLink {
   source: DemandSource;
   url: string;
@@ -98,6 +103,10 @@ export interface RealtyObject {
   // необязательная надпись для карточки в списке. Пустая строка — карточка
   // показывает адрес как заголовок, как было раньше этого поля.
   name: string;
+  // Пусто — статус не указан. "Деловой центр"/"Склад" или своё значение —
+  // см. objectStatuses выше. Показывается бейджем на превью, как
+  // Pledge.propertyType у залогов.
+  status: string;
   address: string;
   area: number;
   startPrice: number;
@@ -146,6 +155,7 @@ export interface RealtyObject {
 export interface RealtyObjectRow {
   id: string;
   name: string | null;
+  status: string | null;
   address: string;
   area: number;
   start_price: number;

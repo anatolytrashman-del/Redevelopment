@@ -6,6 +6,7 @@ function fromRow(row: RealtyObjectRow): RealtyObject {
   return {
     id: row.id,
     name: row.name ?? '',
+    status: row.status ?? '',
     address: row.address,
     area: row.area,
     startPrice: row.start_price,
@@ -90,6 +91,7 @@ export function insertObject(input: Omit<RealtyObject, 'id' | 'shareToken'>): Pr
       .from('objects')
       .insert({
         name: input.name.trim() || null,
+        status: input.status || null,
         address: input.address,
         area: input.area,
         start_price: input.startPrice,
@@ -127,6 +129,7 @@ export function updateObject(id: string, input: Omit<RealtyObject, 'id' | 'share
       .from('objects')
       .update({
         name: input.name.trim() || null,
+        status: input.status || null,
         address: input.address,
         area: input.area,
         start_price: input.startPrice,
