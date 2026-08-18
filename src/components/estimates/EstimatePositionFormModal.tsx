@@ -47,7 +47,10 @@ export function EstimatePositionFormModal({
 }: EstimatePositionFormModalProps) {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  // Ошибка загрузки фото привязана к конкретному товару — иначе при рендере
+  // одним блоком в самом низу формы (под "Состав работ") её не видно рядом
+  // с кнопкой "Загрузить фото", и выглядит это как "ничего не происходит".
+  const [uploadError, setUploadError] = useState<{ productId: string; message: string } | null>(null);
   const [uploadingProductId, setUploadingProductId] = useState<string | null>(null);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -55,7 +58,7 @@ export function EstimatePositionFormModal({
   useEffect(() => {
     if (open) {
       setForm(position ? positionToForm(position) : emptyForm);
-      setSubmitError(null);
+      setUploadError(null);
     }
   }, [open, position]);
 
@@ -89,12 +92,12 @@ export function EstimatePositionFormModal({
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadingProductId(id);
-    setSubmitError(null);
+    setUploadError(null);
     try {
       const url = await uploadObjectImage(file);
       updateProduct(id, { photoUrl: url });
     } catch (err) {
-      setSubmitError(errorMessage(err, 'Не удалось загрузить фото'));
+      setUploadError({ productId: id, message: errorMessage(err, 'Не удалось загрузить фото') });
     } finally {
       setUploadingProductId(null);
       const input = fileInputRefs.current[id];
@@ -182,6 +185,9 @@ export function EstimatePositionFormModal({
                   >
                     {uploadingProductId === p.id ? 'Загружаем...' : p.photoUrl ? 'Заменить фото' : 'Загрузить фото'}
                   </Button>
+                  {uploadError?.productId === p.id && (
+                    <p className="text-xs text-danger">{uploadError.message}</p>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -230,8 +236,6 @@ export function EstimatePositionFormModal({
           onChange={(e) => setForm((f) => ({ ...f, opsText: e.target.value }))}
           rows={6}
         />
-
-        {submitError && <p className="text-sm text-danger">{submitError}</p>}
 
         <div className="mt-2 flex justify-end gap-3">
           <Button type="button" variant="secondary" onClick={onClose}>
