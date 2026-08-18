@@ -15,6 +15,8 @@ import { PublicBuildingPlan } from './pages/PublicBuildingPlan';
 import { ObjectLandingPage } from './pages/ObjectLandingPage';
 import { Briefs } from './pages/Briefs';
 import { BriefPublicPage } from './pages/BriefPublicPage';
+import { Estimates } from './pages/Estimates';
+import { EstimateDetail } from './pages/EstimateDetail';
 import { NotFound } from './pages/NotFound';
 
 // Случайный щипок двумя пальцами (обычный жест при скролле телефоном,
@@ -66,6 +68,8 @@ export default function App() {
         <Route path="objects" element={<Objects />} />
         <Route path="objects/:id" element={<ObjectDetail />} />
         <Route path="tz" element={<Briefs />} />
+        <Route path="estimates" element={<Estimates />} />
+        <Route path="estimates/:id" element={<EstimateDetail />} />
         <Route path="documents" element={<Documents />} />
         <Route path="backlog" element={<Backlog />} />
       </Route>
