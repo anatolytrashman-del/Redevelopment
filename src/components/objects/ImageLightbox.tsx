@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export interface LightboxState {
@@ -29,8 +30,13 @@ export function ImageLightbox({ state, onChange }: ImageLightboxProps) {
 
   if (!state) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-6" onClick={() => onChange(null)}>
+  // Портал в document.body — см. комментарий у Modal.tsx: без него фото
+  // позиционировалось бы относительно ближайшего предка с backdrop-blur
+  // (почти любая карточка в админке), а не всего экрана. z-[60], а не z-50
+  // (как у обычных модалок) — лайтбокс должен уметь открыться поверх уже
+  // открытой модалки (например, из карточки кабинета).
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" onClick={() => onChange(null)}>
       <div className="absolute inset-0 bg-ink/70" />
       <img
         src={state.urls[state.index]}
@@ -72,6 +78,7 @@ export function ImageLightbox({ state, onChange }: ImageLightboxProps) {
           </button>
         </>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { MapPin, Maximize2, Minimize2 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -52,7 +53,10 @@ export function ObjectMapWidget({ address, mapEmbedUrl }: ObjectMapWidgetProps) 
   );
 
   if (fullscreen) {
-    return (
+    // Портал в document.body — см. комментарий у Modal.tsx: иначе "fixed"
+    // считает своим предком ближайшую карточку с backdrop-blur и накрывает
+    // не весь экран, а только её область.
+    return createPortal(
       <div className="fixed inset-0 z-40 overflow-y-auto bg-ink/60 p-6" onClick={() => setFullscreen(false)}>
         <div
           className={cn('mx-auto flex max-w-6xl flex-col gap-3 p-5', glassCardClass)}
@@ -61,7 +65,8 @@ export function ObjectMapWidget({ address, mapEmbedUrl }: ObjectMapWidgetProps) 
         >
           {content}
         </div>
-      </div>
+      </div>,
+      document.body,
     );
   }
 

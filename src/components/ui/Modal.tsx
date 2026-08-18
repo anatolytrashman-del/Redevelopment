@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { glassCardShadow } from '../../lib/glass';
 
@@ -20,7 +21,11 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
 
   if (!open) return null;
 
-  return (
+  // Портал в document.body — иначе фиксированная модалка позиционируется
+  // не относительно вьюпорта, а относительно ближайшего предка с transform/
+  // filter/backdrop-filter (у нас почти на каждой карточке — см. glassCardClass
+  // с backdrop-blur), и часть контента страницы вылезает поверх модалки.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
       {/* Не переиспользуем glassCardClass: он полупрозрачный и рассчитан на
@@ -44,6 +49,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

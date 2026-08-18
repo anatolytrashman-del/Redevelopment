@@ -193,10 +193,6 @@ export function pricePerMeter(area: number, startPrice: number): number | null {
   return startPrice / area;
 }
 
-export function objectImages(o: Pick<RealtyObject, 'photoUrls' | 'floorPlanUrls'>): string[] {
-  return [...o.photoUrls, ...o.floorPlanUrls].filter(Boolean);
-}
-
 // ID объявления — используется, чтобы сопоставить ссылку из "Проверки спроса"
 // со строкой статистики в demand_stats (см. scripts/sync-*-stats.mjs).
 // У Kufar/Realt id — отдельный числовой сегмент пути. У Avito id приклеен

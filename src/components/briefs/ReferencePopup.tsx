@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import type { PhotoChange } from '../../data/briefs';
 
@@ -6,7 +7,10 @@ import type { PhotoChange } from '../../data/briefs';
 // загораживала бы само фото "до"). Ссылка на товар открывается в новой
 // вкладке намеренно: это внешняя страница поставщика, не наше изображение.
 export function ReferencePopup({ change, onClose }: { change: PhotoChange; onClose: () => void }) {
-  return (
+  // Портал в document.body — см. комментарий у Modal.tsx: иначе "fixed"
+  // считает своим предком ближайшую карточку с backdrop-blur и накрывает
+  // не весь экран, а только её область.
+  return createPortal(
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center p-4"
       onClick={(e) => {
@@ -48,6 +52,7 @@ export function ReferencePopup({ change, onClose }: { change: PhotoChange; onClo
           </a>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

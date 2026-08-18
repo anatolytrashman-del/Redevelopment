@@ -16,7 +16,6 @@ import { BuildingPlanWidget } from '../components/objects/BuildingPlanWidget';
 import { ObjectMapWidget } from '../components/objects/ObjectMapWidget';
 import {
   pricePerMeter,
-  objectImages,
   demandSources,
   extractAdId,
   objectStatuses,
@@ -254,7 +253,6 @@ export function ObjectDetail() {
     object && object.buildingSpecs?.normativeArea
       ? pricePerMeter(object.buildingSpecs.normativeArea, object.startPrice)
       : null;
-  const images = object ? objectImages(object) : [];
   const missingSources = object
     ? demandSources.filter((s) => !object.demandLinks.some((l) => l.source === s))
     : [...demandSources];
@@ -369,24 +367,9 @@ export function ObjectDetail() {
                 <PhotoCarousel
                   images={object.photoUrls}
                   alt={object.address}
-                  onImageClick={(i) => setLightbox({ urls: images, index: images.indexOf(object.photoUrls[i]) })}
+                  onImageClick={(i) => setLightbox({ urls: object.photoUrls, index: i })}
                 />
               </div>
-              {object.floorPlanUrls.length > 0 && (
-                <div className="flex gap-2">
-                  {object.floorPlanUrls.map((url, i) => (
-                    <button
-                      key={url}
-                      type="button"
-                      onClick={() => setLightbox({ urls: images, index: images.indexOf(url) })}
-                      title="Планировка"
-                      className="aspect-square flex-1 overflow-hidden rounded-control border border-border bg-surface-muted"
-                    >
-                      <img src={url} alt={`Планировка ${i + 1}`} className="h-full w-full object-contain" />
-                    </button>
-                  ))}
-                </div>
-              )}
             </Card>
 
             <ObjectMapWidget address={object.address} mapEmbedUrl={object.mapEmbedUrl} />

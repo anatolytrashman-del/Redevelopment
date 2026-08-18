@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { AnnotatedPhoto } from './AnnotatedPhoto';
 import type { PhotoChange, PhotoMarker } from '../../data/briefs';
@@ -50,7 +51,10 @@ export function PhotoLightbox({
 
   const compact = !editable;
 
-  return (
+  // Портал в document.body — см. комментарий у Modal.tsx: иначе "fixed"
+  // считает своим предком ближайшую карточку с backdrop-blur и накрывает
+  // не весь экран, а только её область.
+  return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-ink/70" />
       <div
@@ -90,6 +94,7 @@ export function PhotoLightbox({
           <img src={url} alt="" className="max-h-[80vh] w-full rounded-control object-contain" />
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
