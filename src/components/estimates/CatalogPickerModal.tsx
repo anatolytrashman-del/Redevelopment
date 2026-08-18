@@ -4,7 +4,7 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
-import { formatCatalogItemForInsert, type EstimateCatalogItem } from '../../data/estimateCatalog';
+import type { EstimateCatalogItem } from '../../data/estimateCatalog';
 import { insertEstimateCatalogItem } from '../../lib/estimateCatalogApi';
 import { cn } from '../../lib/cn';
 
@@ -19,10 +19,13 @@ interface CatalogPickerModalProps {
   open: boolean;
   onClose: () => void;
   items: EstimateCatalogItem[];
-  // Вставляет отформатированный блок позиции в текущий раздел сметы —
-  // модалка не закрывается после вставки, можно добавить несколько позиций
-  // подряд за один заход.
-  onInsert: (text: string) => void;
+  // Отдаёт сырой элемент каталога — вызывающая сторона сама решает, как его
+  // применить: раздел (EstimateSection.body) форматирует в текст и
+  // дописывает, форма позиции (EstimatePositionFormModal) раскладывает
+  // title/ops по своим полям формы. Модалка не закрывается после вставки —
+  // можно добавить несколько позиций подряд за один заход (кроме формы
+  // позиции, где вызывающая сторона сама закрывает после выбора одной).
+  onInsert: (item: EstimateCatalogItem) => void;
   onCreated: (item: EstimateCatalogItem) => void;
 }
 
@@ -55,7 +58,7 @@ export function CatalogPickerModal({ open, onClose, items, onInsert, onCreated }
   const filtered = items.filter((item) => item.title.toLowerCase().includes(query.trim().toLowerCase()));
 
   function handleInsertExisting(item: EstimateCatalogItem) {
-    onInsert(formatCatalogItemForInsert(item));
+    onInsert(item);
     setInsertedId(item.id);
     setTimeout(() => setInsertedId((id) => (id === item.id ? null : id)), 1200);
   }
@@ -71,7 +74,7 @@ export function CatalogPickerModal({ open, onClose, items, onInsert, onCreated }
         .filter(Boolean);
       const created = await insertEstimateCatalogItem({ title: newTitle.trim(), ops, materials: newMaterials.trim() });
       onCreated(created);
-      onInsert(formatCatalogItemForInsert(created));
+      onInsert(created);
       setShowNewForm(false);
       setNewTitle('');
       setNewOps('');

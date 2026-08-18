@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Upload, X, Plus, ImageOff } from 'lucide-react';
+import { Loader2, Upload, X, Plus, ImageOff, LibraryBig } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
+import { CatalogPickerModal } from './CatalogPickerModal';
 import type { EstimatePosition, EstimateProductRef } from '../../data/estimates';
+import type { EstimateCatalogItem } from '../../data/estimateCatalog';
 import { uploadObjectImage } from '../../lib/objectsApi';
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -23,19 +25,31 @@ const emptyForm = { title: '', opsText: '', products: [] as EstimateProductRef[]
 interface EstimatePositionFormModalProps {
   open: boolean;
   position: EstimatePosition | null;
+  // Каталог типовых позиций (см. CatalogPickerModal) — выбор из каталога
+  // разом заполняет название и состав работ, чтобы не сочинять их с нуля.
+  catalogItems: EstimateCatalogItem[];
   onClose: () => void;
   onSaved: (position: EstimatePosition) => void;
+  onCatalogItemCreated: (item: EstimateCatalogItem) => void;
 }
 
 // Позиция сметы — название + референсы на товары (фото + ссылка, "Дверь",
 // "Замок" и т.п. — сколько нужно) + состав работ. Фото референсов грузятся в
 // тот же публичный бакет, что и фото объекта (uploadObjectImage) — свой
 // отдельный бакет под сметы пока не нужен, это тоже просто публичная картинка.
-export function EstimatePositionFormModal({ open, position, onClose, onSaved }: EstimatePositionFormModalProps) {
+export function EstimatePositionFormModal({
+  open,
+  position,
+  catalogItems,
+  onClose,
+  onSaved,
+  onCatalogItemCreated,
+}: EstimatePositionFormModalProps) {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [uploadingProductId, setUploadingProductId] = useState<string | null>(null);
+  const [catalogOpen, setCatalogOpen] = useState(false);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
@@ -44,6 +58,14 @@ export function EstimatePositionFormModal({ open, position, onClose, onSaved }: 
       setSubmitError(null);
     }
   }, [open, position]);
+
+  // Выбор из каталога заменяет название и состав работ целиком — это способ
+  // начать позицию с готовой заготовки, а не дописать что-то к уже начатому.
+  // Товары (фото/ссылки) каталог не знает — их всё равно вносить руками.
+  function fillFromCatalog(item: EstimateCatalogItem) {
+    setForm((f) => ({ ...f, title: item.title, opsText: item.ops.join('\n') }));
+    setCatalogOpen(false);
+  }
 
   function addProduct() {
     setForm((f) => ({ ...f, products: [...f.products, { id: crypto.randomUUID(), label: '', photoUrl: '', link: '' }] }));
@@ -98,6 +120,17 @@ export function EstimatePositionFormModal({ open, position, onClose, onSaved }: 
   return (
     <Modal open={open} onClose={onClose} title={position ? 'Редактировать позицию' : 'Новая позиция'}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setCatalogOpen(true)}
+            className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-ink-muted hover:border-primary hover:text-primary"
+          >
+            <LibraryBig className="h-3.5 w-3.5" />
+            Заполнить из каталога
+          </button>
+        </div>
+
         <Input
           label="Название работы"
           placeholder="Например, Замена входных дверей"
@@ -182,6 +215,14 @@ export function EstimatePositionFormModal({ open, position, onClose, onSaved }: 
           </Button>
         </div>
       </form>
+
+      <CatalogPickerModal
+        open={catalogOpen}
+        onClose={() => setCatalogOpen(false)}
+        items={catalogItems}
+        onInsert={fillFromCatalog}
+        onCreated={onCatalogItemCreated}
+      />
     </Modal>
   );
 }

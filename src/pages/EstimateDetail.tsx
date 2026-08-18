@@ -11,7 +11,7 @@ import { EstimatePositionCard } from '../components/estimates/EstimatePositionCa
 import { EstimatePositionFormModal } from '../components/estimates/EstimatePositionFormModal';
 import { cn } from '../lib/cn';
 import type { Estimate, EstimatePosition, EstimateQuestion, EstimateSection } from '../data/estimates';
-import type { EstimateCatalogItem } from '../data/estimateCatalog';
+import { formatCatalogItemForInsert, type EstimateCatalogItem } from '../data/estimateCatalog';
 import type { RealtyObject } from '../data/objects';
 import type { BuildingPlanZone } from '../data/buildingPlans';
 import { fetchEstimate, updateEstimate } from '../lib/estimatesApi';
@@ -165,7 +165,8 @@ export function EstimateDetail() {
     }
   }
 
-  function insertCatalogText(text: string) {
+  function insertCatalogItem(item: EstimateCatalogItem) {
+    const text = formatCatalogItemForInsert(item);
     setBodyDraft((prev) => (prev.trim() ? `${prev}\n\n${text}` : text));
   }
 
@@ -410,15 +411,17 @@ export function EstimateDetail() {
         open={catalogOpen}
         onClose={() => setCatalogOpen(false)}
         items={catalogItems}
-        onInsert={insertCatalogText}
+        onInsert={insertCatalogItem}
         onCreated={(item) => setCatalogItems((prev) => [...prev, item].sort((a, b) => a.title.localeCompare(b.title, 'ru')))}
       />
 
       <EstimatePositionFormModal
         open={positionModalOpen}
         position={editingPosition}
+        catalogItems={catalogItems}
         onClose={() => setPositionModalOpen(false)}
         onSaved={savePosition}
+        onCatalogItemCreated={(item) => setCatalogItems((prev) => [...prev, item].sort((a, b) => a.title.localeCompare(b.title, 'ru')))}
       />
     </>
   );
