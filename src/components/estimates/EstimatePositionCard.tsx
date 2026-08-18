@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { Pencil, Trash2, ImageOff, Link as LinkIcon } from 'lucide-react';
 import { ImageLightbox, type LightboxState } from '../objects/ImageLightbox';
-import { POSITION_OPS_INTRO, POSITION_OPS_CATCHALL, type EstimatePosition } from '../../data/estimates';
+import {
+  POSITION_OPS_INTRO,
+  POSITION_OPS_CATCHALL,
+  type EstimatePosition,
+  type EstimateProductRef,
+} from '../../data/estimates';
 
 interface EstimatePositionCardProps {
   position: EstimatePosition;
@@ -9,8 +14,15 @@ interface EstimatePositionCardProps {
   onDelete: () => void;
 }
 
-function formatMoney(value: number): string {
-  return `$${Math.round(value).toLocaleString('ru-RU')}`;
+// BYN — основная валюта (поставщики Минска), RUB/USD — ориентир по
+// поставщикам Москвы и в долларах. Каждая заполняется независимо, без
+// автоконвертации по курсу — показываем только то, что реально заполнено.
+function formatPrices(p: EstimateProductRef): string {
+  const parts: string[] = [];
+  if (p.priceByn != null) parts.push(`${Math.round(p.priceByn).toLocaleString('ru-RU')} Br`);
+  if (p.priceRub != null) parts.push(`${Math.round(p.priceRub).toLocaleString('ru-RU')} ₽`);
+  if (p.priceUsd != null) parts.push(`$${Math.round(p.priceUsd).toLocaleString('ru-RU')}`);
+  return parts.join(' · ');
 }
 
 // Карточка структурированной позиции сметы (просмотр) — название, крупные
@@ -65,7 +77,9 @@ export function EstimatePositionCard({ position, onEdit, onDelete }: EstimatePos
               {(p.manufacturer || p.model) && (
                 <span className="truncate text-xs text-ink-muted">{[p.manufacturer, p.model].filter(Boolean).join(' — ')}</span>
               )}
-              {p.price != null && <span className="text-xs font-semibold text-ink">{formatMoney(p.price)}</span>}
+              {(p.priceByn != null || p.priceRub != null || p.priceUsd != null) && (
+                <span className="text-xs font-semibold text-ink">{formatPrices(p)}</span>
+              )}
               {p.link && (
                 <a
                   href={p.link}

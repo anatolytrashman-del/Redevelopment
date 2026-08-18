@@ -15,13 +15,18 @@
 // принцип, что у PhotoChange.referenceImageUrl/referenceUrl в техзадании
 // (data/briefs.ts), но здесь может быть несколько референсов на одну
 // позицию сразу (дверь + замок), а не один на правку.
+// Цена — сразу в трёх валютах (поставщики в Минске и Москве считают по-
+// разному, плюс нужен ориентир в долларах), BYN — основная. Каждая
+// заполняется независимо вручную, без автоконвертации по курсу.
 export interface EstimateProductRef {
   id: string;
   label: string;
   manufacturer: string;
   model: string;
-  // Пусто — цена ещё не известна (товар не выбран/не согласован).
-  price: number | null;
+  // Пусто — цена в этой валюте ещё не известна.
+  priceByn: number | null;
+  priceRub: number | null;
+  priceUsd: number | null;
   photoUrl: string;
   link: string;
 }

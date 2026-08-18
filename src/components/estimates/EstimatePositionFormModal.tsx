@@ -75,7 +75,17 @@ export function EstimatePositionFormModal({
       ...f,
       products: [
         ...f.products,
-        { id: crypto.randomUUID(), label: '', manufacturer: '', model: '', price: null, photoUrl: '', link: '' },
+        {
+          id: crypto.randomUUID(),
+          label: '',
+          manufacturer: '',
+          model: '',
+          priceByn: null,
+          priceRub: null,
+          priceUsd: null,
+          photoUrl: '',
+          link: '',
+        },
       ],
     }));
   }
@@ -210,18 +220,32 @@ export function EstimatePositionFormModal({
                   value={p.model}
                   onChange={(e) => updateProduct(p.id, { model: e.target.value })}
                 />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <Input
+                  type="number"
+                  placeholder="Цена, BYN"
+                  value={p.priceByn ?? ''}
+                  onChange={(e) => updateProduct(p.id, { priceByn: e.target.value === '' ? null : Number(e.target.value) })}
+                />
+                <Input
+                  type="number"
+                  placeholder="Цена, ₽"
+                  value={p.priceRub ?? ''}
+                  onChange={(e) => updateProduct(p.id, { priceRub: e.target.value === '' ? null : Number(e.target.value) })}
+                />
                 <Input
                   type="number"
                   placeholder="Цена, $"
-                  value={p.price ?? ''}
-                  onChange={(e) => updateProduct(p.id, { price: e.target.value === '' ? null : Number(e.target.value) })}
-                />
-                <Input
-                  placeholder="Ссылка на товар (https://...)"
-                  value={p.link}
-                  onChange={(e) => updateProduct(p.id, { link: e.target.value })}
+                  value={p.priceUsd ?? ''}
+                  onChange={(e) => updateProduct(p.id, { priceUsd: e.target.value === '' ? null : Number(e.target.value) })}
                 />
               </div>
+              <Input
+                placeholder="Ссылка на товар (https://...)"
+                value={p.link}
+                onChange={(e) => updateProduct(p.id, { link: e.target.value })}
+              />
             </div>
           ))}
           <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} className="w-fit" onClick={addProduct}>
