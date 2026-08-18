@@ -68,6 +68,17 @@ function polygonCenter(points: ZonePoint[]): ZonePoint {
   return { x: sum.x / points.length, y: sum.y / points.length };
 }
 
+// Ширина/высота охватывающего прямоугольника контура в тех же процентах,
+// что и точки, — ограничивает подпись площади шириной самого кабинета
+// (см. showAreaLabels), чтобы узкие кабинеты в ряд не накладывали подписи
+// друг на друга и на стены.
+function polygonBoundsSize(points: ZonePoint[]): { width: number; height: number } {
+  if (points.length === 0) return { width: 0, height: 0 };
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  return { width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
+}
+
 interface BuildingPlanCanvasProps {
   plan: BuildingPlan;
   zones: BuildingPlanZone[];
@@ -339,11 +350,22 @@ export function BuildingPlanCanvas({
             .filter((zone) => zone.buildingPlanId === displayedPlan.id && zone.zoneType === 'room' && zone.area != null)
             .map((zone) => {
               const center = polygonCenter(zone.points);
+              const bounds = polygonBoundsSize(zone.points);
               return (
                 <span
                   key={`area-${zone.id}`}
-                  className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-white/90 px-1 py-0.5 text-[10px] font-semibold text-ink shadow-sm"
-                  style={{ left: `${center.x}%`, top: `${center.y}%` }}
+                  // maxWidth/maxHeight — в процентах от того же контейнера, что и
+                  // сам контур (см. комментарий у polygonBoundsSize), с запасом
+                  // от стен (* 0.85), overflow-hidden режет, если даже мелкий
+                  // текст не влезает в совсем узкий кабинет, а не вылезает на
+                  // соседей, как раньше при whitespace-nowrap без ограничения.
+                  className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-sm bg-white/85 px-0.5 text-center text-[6px] font-semibold leading-[7px] text-ink shadow-sm"
+                  style={{
+                    left: `${center.x}%`,
+                    top: `${center.y}%`,
+                    maxWidth: `${bounds.width * 0.85}%`,
+                    maxHeight: `${bounds.height * 0.85}%`,
+                  }}
                 >
                   {zone.area} м²
                 </span>
