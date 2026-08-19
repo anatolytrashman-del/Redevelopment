@@ -3,6 +3,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
+import { findProfileByPassword, hasStoredAccess, unlockProfile } from '../../lib/accessProfile';
 
 // Это не настоящая авторизация — фронтенд статический, без бэкенда, а
 // Supabase-запросы уже работают с открытым anon-ключом без какого-либо
@@ -10,11 +11,12 @@ import { glassCardClass, glassCardShadow } from '../../lib/glass';
 // посетителей корня сайта: любой, кто откроет DevTools, может обойти
 // проверку или прочитать пароль прямо в собранном JS. Публичная страница
 // планировки (/plan/:token) находится вне этого гейта и его не требует.
-const PASSWORD = '0000';
-const STORAGE_KEY = 'redevelopment-unlocked';
-
+//
+// Профилей доступа несколько (см. data/accessProfiles.ts) — у каждого
+// свой пароль и свой список открытых страниц (проверяется дальше в
+// Sidebar.tsx/RequirePage.tsx), не только "пустил / не пустил".
 export function PasswordGate({ children }: { children: ReactNode }) {
-  const [unlocked, setUnlocked] = useState(() => localStorage.getItem(STORAGE_KEY) === '1');
+  const [unlocked, setUnlocked] = useState(() => hasStoredAccess());
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
 
@@ -22,8 +24,9 @@ export function PasswordGate({ children }: { children: ReactNode }) {
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (password === PASSWORD) {
-      localStorage.setItem(STORAGE_KEY, '1');
+    const profile = findProfileByPassword(password);
+    if (profile) {
+      unlockProfile(profile);
       setUnlocked(true);
     } else {
       setError(true);

@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { PasswordGate } from './components/layout/PasswordGate';
+import { RequirePage } from './components/layout/RequirePage';
+import { AdminIndex } from './pages/AdminIndex';
 import { Home } from './pages/Home';
 import { Transactions } from './pages/Transactions';
 import { Leads } from './pages/Leads';
@@ -20,6 +22,7 @@ import { EstimateDetail } from './pages/EstimateDetail';
 import { MeetingSummaries } from './pages/MeetingSummaries';
 import { MeetingSummaryDetail } from './pages/MeetingSummaryDetail';
 import { MeetingSummaryPublicPage } from './pages/MeetingSummaryPublicPage';
+import { Settings } from './pages/Settings';
 import { NotFound } from './pages/NotFound';
 
 // Случайный щипок двумя пальцами (обычный жест при скролле телефоном,
@@ -63,21 +66,36 @@ export default function App() {
           </PasswordGate>
         }
       >
-        <Route index element={<Tasks />} />
-        <Route path="dashboard" element={<Home />} />
-        <Route path="tasks" element={<Tasks />} />
-        <Route path="transactions" element={<Transactions />} />
-        <Route path="leads" element={<Leads />} />
-        <Route path="contractors" element={<Contractors />} />
-        <Route path="objects" element={<Objects />} />
-        <Route path="objects/:id" element={<ObjectDetail />} />
-        <Route path="tz" element={<Briefs />} />
-        <Route path="estimates" element={<Estimates />} />
-        <Route path="estimates/:id" element={<EstimateDetail />} />
-        <Route path="documents" element={<Documents />} />
-        <Route path="meeting-summaries" element={<MeetingSummaries />} />
-        <Route path="meeting-summaries/:id" element={<MeetingSummaryDetail />} />
-        <Route path="backlog" element={<Backlog />} />
+        <Route index element={<AdminIndex />} />
+        <Route path="dashboard" element={<RequirePage page="dashboard"><Home /></RequirePage>} />
+        <Route path="tasks" element={<RequirePage page="tasks"><Tasks /></RequirePage>} />
+        <Route path="transactions" element={<RequirePage page="transactions"><Transactions /></RequirePage>} />
+        <Route path="leads" element={<RequirePage page="leads"><Leads /></RequirePage>} />
+        <Route path="contractors" element={<RequirePage page="contractors"><Contractors /></RequirePage>} />
+        <Route path="objects" element={<RequirePage page="objects"><Objects /></RequirePage>} />
+        <Route path="objects/:id" element={<RequirePage page="objects"><ObjectDetail /></RequirePage>} />
+        <Route path="tz" element={<RequirePage page="tz"><Briefs /></RequirePage>} />
+        <Route path="estimates" element={<RequirePage page="estimates"><Estimates /></RequirePage>} />
+        <Route path="estimates/:id" element={<RequirePage page="estimates"><EstimateDetail /></RequirePage>} />
+        <Route path="documents" element={<RequirePage page="documents"><Documents /></RequirePage>} />
+        <Route
+          path="meeting-summaries"
+          element={
+            <RequirePage page="meetingSummaries">
+              <MeetingSummaries />
+            </RequirePage>
+          }
+        />
+        <Route
+          path="meeting-summaries/:id"
+          element={
+            <RequirePage page="meetingSummaries">
+              <MeetingSummaryDetail />
+            </RequirePage>
+          }
+        />
+        <Route path="settings" element={<RequirePage page="settings"><Settings /></RequirePage>} />
+        <Route path="backlog" element={<RequirePage page="backlog"><Backlog /></RequirePage>} />
       </Route>
       {/* Любой нераспознанный путь (в т.ч. испорченная публичная ссылка) не должен
           проваливаться в CRM — раньше он попадал на Home внутри AppLayout. */}

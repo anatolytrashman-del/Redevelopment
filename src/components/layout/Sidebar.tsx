@@ -1,57 +1,17 @@
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import {
-  LayoutGrid,
-  Building2,
-  PieChart,
-  Wallet,
-  User,
-  MessageCircle,
-  HelpCircle,
-  UserPlus,
-  Receipt,
-  Users,
-  FileStack,
-  ListChecks,
-  Lightbulb,
-  HardHat,
-  ClipboardList,
-  Calculator,
-  MessageSquareText,
-  X,
-} from 'lucide-react';
+import { Lightbulb, Lock, LogOut, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { fetchBacklogUnreadCount } from '../../lib/backlogApi';
 import { getBacklogLastViewedAt, onBacklogViewed } from '../../lib/backlogSeen';
 import { fetchLeadsUnreadCount } from '../../lib/leadsApi';
 import { getLeadsLastViewedAt, onLeadsViewed } from '../../lib/leadsSeen';
 import { fetchContractorsWithBirthdayToday } from '../../lib/contractorsApi';
+import { VISIBLE_PAGE_KEYS, findPage } from '../../data/pages';
+import { getCurrentProfile, isPageAllowed, lockAccess } from '../../lib/accessProfile';
 
-// Полная навигация проекта — держим здесь как референс с готовыми иконками.
-// В меню показываем только готовые страницы (см. visibleLabels ниже) —
-// остальные пункты добавляйте в этот список по мере готовности страниц.
-const allNavItems = [
-  { to: '/admin/dashboard', label: 'Дашборд', icon: LayoutGrid },
-  { to: '/admin/tasks', label: 'Задачи', icon: ListChecks },
-  { to: '/admin/transactions', label: 'Транзакции', icon: Receipt },
-  { to: '/admin/leads', label: 'Лиды', icon: Users },
-  { to: '/admin/contractors', label: 'Подрядчики', icon: HardHat },
-  { to: '/admin/objects', label: 'Объекты', icon: Building2 },
-  { to: '/admin/tz', label: 'Техзадания', icon: ClipboardList },
-  { to: '/admin/estimates', label: 'Сметы', icon: Calculator },
-  { to: '/admin/documents', label: 'Документы', icon: FileStack },
-  { to: '/admin/meeting-summaries', label: 'Саммери встреч', icon: MessageSquareText },
-  { to: '/admin/statistics', label: 'Статистика', icon: PieChart },
-  { to: '/admin/payouts', label: 'Выплаты', icon: Wallet },
-  { to: '/admin/account', label: 'Аккаунт', icon: User },
-  { to: '/admin/support', label: 'Поддержка', icon: MessageCircle },
-  { to: '/admin/faq', label: 'FAQ', icon: HelpCircle },
-  { to: '/admin/invite', label: 'Пригласить партнёра', icon: UserPlus },
-];
-
-// Порядок пунктов в этом списке — это порядок пунктов в меню.
-const visibleLabels = ['Задачи', 'Объекты', 'Техзадания', 'Сметы', 'Лиды', 'Подрядчики', 'Транзакции', 'Документы', 'Саммери встреч'];
-const navItems = visibleLabels.map((label) => allNavItems.find((item) => item.label === label)!);
+const navItems = VISIBLE_PAGE_KEYS.map((key) => findPage(key));
+const backlogPage = findPage('backlog');
 
 // Ниже lg — сайдбар выезжает поверх контента как шторка (fixed + translate),
 // а не занимает четверть узкого экрана постоянно. От lg и шире — прежнее
@@ -62,11 +22,20 @@ interface SidebarProps {
 }
 
 export function Sidebar({ open, onClose }: SidebarProps) {
+  const profile = getCurrentProfile();
   const [backlogUnread, setBacklogUnread] = useState(0);
   const [leadsUnread, setLeadsUnread] = useState(0);
   const [birthdayNames, setBirthdayNames] = useState<string[]>([]);
 
+  const backlogAllowed = isPageAllowed(profile, 'backlog');
+  const leadsAllowed = isPageAllowed(profile, 'leads');
+  const contractorsAllowed = isPageAllowed(profile, 'contractors');
+
+  // Не считаем непрочитанные бэклог/лиды и дни рождения подрядчиков для
+  // профиля, которому эти разделы всё равно недоступны — не только чтобы
+  // не показывать лишние бейджики, но и не гонять запросы впустую.
   useEffect(() => {
+    if (!backlogAllowed) return;
     function refresh() {
       fetchBacklogUnreadCount(getBacklogLastViewedAt())
         .then(setBacklogUnread)
@@ -79,9 +48,10 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       window.removeEventListener('focus', refresh);
       unsubscribe();
     };
-  }, []);
+  }, [backlogAllowed]);
 
   useEffect(() => {
+    if (!leadsAllowed) return;
     function refresh() {
       fetchLeadsUnreadCount(getLeadsLastViewedAt())
         .then(setLeadsUnread)
@@ -94,12 +64,13 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       window.removeEventListener('focus', refresh);
       unsubscribe();
     };
-  }, []);
+  }, [leadsAllowed]);
 
   // Без отметки "просмотрено" — в отличие от бэклога/лидов, тут не список,
   // который можно прочитать и закрыть, а факт "сегодня чей-то день рождения",
   // актуальный весь день независимо от того, заходили ли уже в "Подрядчики".
   useEffect(() => {
+    if (!contractorsAllowed) return;
     function refresh() {
       fetchContractorsWithBirthdayToday()
         .then((list) => setBirthdayNames(list.map((c) => c.name)))
@@ -108,7 +79,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     refresh();
     window.addEventListener('focus', refresh);
     return () => window.removeEventListener('focus', refresh);
-  }, []);
+  }, [contractorsAllowed]);
+
+  function handleLogout() {
+    lockAccess();
+    window.location.href = '/admin';
+  }
 
   return (
     <>
@@ -124,11 +100,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       >
         <div className="flex flex-col gap-8">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex flex-col gap-0.5">
+            <div className="flex min-w-0 flex-col gap-0.5">
               <span className="text-lg font-extrabold tracking-wide text-ink">
                 <span className="font-black text-primary">RED</span>EVELOPMENT
               </span>
-              <span className="text-xs font-medium text-ink-faint">Админка</span>
+              <span className="truncate text-xs font-medium text-ink-faint">{profile.displayName}</span>
             </div>
             <button
               type="button"
@@ -140,59 +116,95 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             </button>
           </div>
           <nav className="flex flex-col gap-1">
-            {navItems.map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                onClick={onClose}
-                className={({ isActive }) =>
-                  cn(
-                    'flex items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium transition-colors',
-                    isActive ? 'text-primary' : 'text-ink hover:text-primary',
-                  )
-                }
-              >
-                <Icon className="h-5 w-5" />
-                {label}
-                {label === 'Подрядчики' && birthdayNames.length > 0 && (
+            {navItems.map(({ key, to, label, icon: Icon }) => {
+              const allowed = isPageAllowed(profile, key);
+              if (!allowed) {
+                return (
                   <span
-                    className="ml-auto shrink-0 text-base leading-none"
-                    role="img"
-                    aria-label={`Сегодня день рождения: ${birthdayNames.join(', ')}`}
-                    title={`Сегодня день рождения: ${birthdayNames.join(', ')}`}
+                    key={to}
+                    aria-label={`${label} — недоступно для вашего доступа`}
+                    title="Недоступно для вашего доступа"
+                    className="flex cursor-not-allowed items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium text-ink-faint/60"
                   >
-                    🎂
+                    <Icon className="h-5 w-5" />
+                    {label}
+                    <Lock className="ml-auto h-3.5 w-3.5 shrink-0" />
                   </span>
-                )}
-                {label === 'Лиды' && leadsUnread > 0 && (
-                  <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">
-                    {leadsUnread}
-                  </span>
-                )}
-              </NavLink>
-            ))}
+                );
+              }
+              return (
+                <NavLink
+                  key={to}
+                  to={to}
+                  onClick={onClose}
+                  className={({ isActive }) =>
+                    cn(
+                      'flex items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium transition-colors',
+                      isActive ? 'text-primary' : 'text-ink hover:text-primary',
+                    )
+                  }
+                >
+                  <Icon className="h-5 w-5" />
+                  {label}
+                  {key === 'contractors' && birthdayNames.length > 0 && (
+                    <span
+                      className="ml-auto shrink-0 text-base leading-none"
+                      role="img"
+                      aria-label={`Сегодня день рождения: ${birthdayNames.join(', ')}`}
+                      title={`Сегодня день рождения: ${birthdayNames.join(', ')}`}
+                    >
+                      🎂
+                    </span>
+                  )}
+                  {key === 'leads' && leadsUnread > 0 && (
+                    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">
+                      {leadsUnread}
+                    </span>
+                  )}
+                </NavLink>
+              );
+            })}
           </nav>
         </div>
 
         <div className="mt-auto flex flex-col gap-1 border-t border-white/50 pt-4">
-          <NavLink
-            to="/admin/backlog"
-            onClick={onClose}
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium transition-colors',
-                isActive ? 'text-primary' : 'text-ink hover:text-primary',
-              )
-            }
+          {backlogAllowed ? (
+            <NavLink
+              to={backlogPage.to}
+              onClick={onClose}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium transition-colors',
+                  isActive ? 'text-primary' : 'text-ink hover:text-primary',
+                )
+              }
+            >
+              <Lightbulb className="h-5 w-5" />
+              Предложить идею
+              {backlogUnread > 0 && (
+                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">
+                  {backlogUnread}
+                </span>
+              )}
+            </NavLink>
+          ) : (
+            <span
+              title="Недоступно для вашего доступа"
+              className="flex cursor-not-allowed items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium text-ink-faint/60"
+            >
+              <Lightbulb className="h-5 w-5" />
+              Предложить идею
+              <Lock className="ml-auto h-3.5 w-3.5 shrink-0" />
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium text-ink-muted hover:text-primary"
           >
-            <Lightbulb className="h-5 w-5" />
-            Предложить идею
-            {backlogUnread > 0 && (
-              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">
-                {backlogUnread}
-              </span>
-            )}
-          </NavLink>
+            <LogOut className="h-5 w-5" />
+            Выйти
+          </button>
         </div>
       </aside>
     </>
