@@ -399,7 +399,7 @@ export function Transactions() {
                 key={currency}
                 className="flex flex-wrap items-center justify-between gap-3 rounded-control bg-surface-muted px-4 py-3"
               >
-                <div className="flex gap-6 text-sm text-ink-muted">
+                <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-1 text-sm text-ink-muted">
                   {splitPayers.map((p) => (
                     <span key={p}>
                       {p}: <span className="font-semibold text-ink">{formatAmount(totals[p] ?? 0, currency)}</span>

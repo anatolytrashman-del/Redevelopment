@@ -92,6 +92,13 @@
 
 body {
   margin: 0;
+  /* Мобильный Sidebar (см. components/layout/Sidebar.tsx) закрыт через
+     transform: translateX(-100%) на position: fixed элементе — iOS Safari
+     всё равно учитывает его непреобразованный (полноразмерный) блок при
+     подсчёте скроллируемой ширины документа, из-за чего вся страница
+     скроллится вбок "в никуда" на телефоне. Это не костыль поверх другого
+     бага, а стандартный фикс именно под этот паттерн off-canvas меню. */
+  overflow-x: hidden;
   background: var(--color-bg);
   color: var(--color-ink);
   font-family: var(--font-sans);
@@ -101,4 +108,5 @@ body {
 
 #root {
   min-height: 100svh;
+  overflow-x: hidden;
 }
