@@ -312,7 +312,7 @@ export function EstimatePositionFormModal({
         </div>
 
         <div className="flex flex-col gap-2">
-          <span className="text-sm text-ink-muted">Оттенки RAL</span>
+          <span className="text-sm text-ink-muted">Варианты оттенков</span>
           <div className="flex flex-wrap gap-3">
             {form.colors.map((c) => (
               <div key={c.id} className="flex flex-col items-center gap-1.5">

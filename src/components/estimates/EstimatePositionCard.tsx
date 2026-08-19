@@ -91,6 +91,7 @@ export function EstimatePositionCard({
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
           {position.products.map((p) => (
             <div key={p.id} className="flex flex-col gap-1.5">
+              <span className="truncate text-sm font-medium text-ink">{p.label || 'Без названия'}</span>
               <button
                 type="button"
                 onClick={() => p.photoUrl && setLightbox({ urls: [p.photoUrl], index: 0 })}
@@ -103,7 +104,6 @@ export function EstimatePositionCard({
                   <ImageOff className="h-6 w-6 text-ink-faint" />
                 )}
               </button>
-              <span className="truncate text-sm font-semibold text-ink">{p.label || 'Без названия'}</span>
               {(p.manufacturer || p.model) && (
                 <span className="truncate text-xs text-ink-muted">{[p.manufacturer, p.model].filter(Boolean).join(' — ')}</span>
               )}
@@ -127,16 +127,19 @@ export function EstimatePositionCard({
       )}
 
       {position.colors.length > 0 && (
-        <div className="flex flex-wrap gap-3">
-          {position.colors.map((c) => (
-            <div key={c.id} className="flex flex-col items-center gap-1">
-              <span
-                className="h-10 w-10 rounded-md border border-black/10 bg-surface-muted"
-                style={c.hex ? { backgroundColor: c.hex } : undefined}
-              />
-              <span className="text-center text-xs font-medium text-ink">{c.code || '—'}</span>
-            </div>
-          ))}
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium text-ink">Варианты оттенков</span>
+          <div className="flex flex-wrap gap-3">
+            {position.colors.map((c) => (
+              <div key={c.id} className="flex flex-col items-center gap-1">
+                <span
+                  className="h-10 w-10 rounded-md border border-black/10 bg-surface-muted"
+                  style={c.hex ? { backgroundColor: c.hex } : undefined}
+                />
+                <span className="text-center text-xs font-medium text-ink">{c.code || '—'}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
