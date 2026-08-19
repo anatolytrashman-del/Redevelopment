@@ -8,6 +8,12 @@ interface PhotoCarouselProps {
   alt?: string;
   imgClassName?: string;
   onImageClick?: (index: number) => void;
+  // 'cover' (по умолчанию) — кроп по контейнеру, как у превью-карточек.
+  // 'contain' — картинка целиком вписывается в контейнер (с полями по
+  // бокам/сверху-снизу при несовпадении пропорций), нужен там, где могут
+  // быть вертикальные фото вперемешку с горизонтальными и важно видеть
+  // кадр целиком, а не обрезанным (см. PledgeDetailModal).
+  fit?: 'cover' | 'contain';
 }
 
 // Компактный слайдер по фото объекта — используется и на превью карточки в
@@ -17,7 +23,7 @@ interface PhotoCarouselProps {
 // карточку (переход на страницу объекта). Своей обёртки не рисует — родитель
 // должен быть position:relative + overflow:hidden, у разных мест
 // использования разный aspect-ratio/фон, дублировать их здесь незачем.
-export function PhotoCarousel({ images, alt = '', imgClassName, onImageClick }: PhotoCarouselProps) {
+export function PhotoCarousel({ images, alt = '', imgClassName, onImageClick, fit = 'cover' }: PhotoCarouselProps) {
   const [index, setIndex] = useState(0);
 
   if (images.length === 0) {
@@ -50,7 +56,7 @@ export function PhotoCarousel({ images, alt = '', imgClassName, onImageClick }: 
               }
             : undefined
         }
-        className={cn('h-full w-full object-cover', onImageClick && 'cursor-zoom-in', imgClassName)}
+        className={cn('h-full w-full', fit === 'cover' ? 'object-cover' : 'object-contain', onImageClick && 'cursor-zoom-in', imgClassName)}
       />
       {images.length > 1 && (
         <>

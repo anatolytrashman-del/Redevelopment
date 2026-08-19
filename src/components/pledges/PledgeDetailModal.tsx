@@ -64,10 +64,14 @@ export function PledgeDetailModal({ pledge, onClose, onEdit, onDelete, deleting 
         </div>
 
         {pledge.photoPaths.length > 0 && (
-          <div className="relative aspect-video w-full overflow-hidden rounded-control bg-surface-muted">
+          // Высота фиксированная, а не aspect-ratio — среди фото могут быть
+          // и горизонтальные, и вертикальные вперемешку (см. fit="contain"
+          // у PhotoCarousel), под aspect-video вертикальные обрезались бы.
+          <div className="relative h-72 w-full overflow-hidden rounded-control bg-surface-muted sm:h-96">
             <PledgePhotoCarousel
               paths={pledge.photoPaths}
               alt={pledge.address}
+              fit="contain"
               onImageClick={(index, urls) => setLightbox({ urls, index })}
             />
           </div>

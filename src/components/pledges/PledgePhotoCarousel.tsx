@@ -14,10 +14,12 @@ export function PledgePhotoCarousel({
   paths,
   alt,
   onImageClick,
+  fit,
 }: {
   paths: string[];
   alt?: string;
   onImageClick?: (index: number, urls: string[]) => void;
+  fit?: 'cover' | 'contain';
 }) {
   const [urls, setUrls] = useState<string[] | null>(null);
   const pathsKey = paths.join('|');
@@ -46,5 +48,12 @@ export function PledgePhotoCarousel({
     );
   }
 
-  return <PhotoCarousel images={urls} alt={alt} onImageClick={onImageClick ? (index) => onImageClick(index, urls) : undefined} />;
+  return (
+    <PhotoCarousel
+      images={urls}
+      alt={alt}
+      fit={fit}
+      onImageClick={onImageClick ? (index) => onImageClick(index, urls) : undefined}
+    />
+  );
 }
