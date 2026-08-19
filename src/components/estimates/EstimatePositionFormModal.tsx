@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Upload, X, Plus, ImageOff, LibraryBig } from 'lucide-react';
+import { Loader2, Upload, X, Plus, ImageOff, LibraryBig, Palette, Ruler } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
 import { CatalogPickerModal } from './CatalogPickerModal';
-import type { EstimatePosition, EstimateProductRef } from '../../data/estimates';
+import { RalColorPickerModal } from './RalColorPickerModal';
+import type { EstimatePosition, EstimateProductRef, RalColor, FacadeDimension } from '../../data/estimates';
 import type { EstimateCatalogItem } from '../../data/estimateCatalog';
 import { uploadObjectImage } from '../../lib/objectsApi';
 
@@ -17,10 +18,16 @@ function errorMessage(err: unknown, fallback: string): string {
 }
 
 function positionToForm(p: EstimatePosition) {
-  return { title: p.title, opsText: p.ops.join('\n'), products: p.products };
+  return { title: p.title, opsText: p.ops.join('\n'), products: p.products, colors: p.colors, dimensions: p.dimensions };
 }
 
-const emptyForm = { title: '', opsText: '', products: [] as EstimateProductRef[] };
+const emptyForm = {
+  title: '',
+  opsText: '',
+  products: [] as EstimateProductRef[],
+  colors: [] as RalColor[],
+  dimensions: [] as FacadeDimension[],
+};
 
 interface EstimatePositionFormModalProps {
   open: boolean;
@@ -56,6 +63,8 @@ export function EstimatePositionFormModal({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [uploadingProductId, setUploadingProductId] = useState<string | null>(null);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  // Слот, для которого сейчас открыт пикер оттенка — null, когда закрыт.
+  const [colorPickerSlotId, setColorPickerSlotId] = useState<string | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
@@ -102,6 +111,38 @@ export function EstimatePositionFormModal({
     setForm((f) => ({ ...f, products: f.products.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
   }
 
+  function addColorSlot() {
+    setForm((f) => ({ ...f, colors: [...f.colors, { id: crypto.randomUUID(), code: '', name: '', hex: null }] }));
+  }
+
+  function removeColorSlot(id: string) {
+    setForm((f) => ({ ...f, colors: f.colors.filter((c) => c.id !== id) }));
+  }
+
+  function applyColorPick(id: string, picked: Omit<RalColor, 'id'>) {
+    setForm((f) => ({ ...f, colors: f.colors.map((c) => (c.id === id ? { ...c, ...picked } : c)) }));
+  }
+
+  function addDimension() {
+    setForm((f) => ({
+      ...f,
+      dimensions: [...f.dimensions, { id: crypto.randomUUID(), label: '', width: null, height: null }],
+    }));
+  }
+
+  function removeDimension(id: string) {
+    setForm((f) => ({ ...f, dimensions: f.dimensions.filter((d) => d.id !== id) }));
+  }
+
+  function updateDimension(id: string, patch: Partial<FacadeDimension>) {
+    setForm((f) => ({ ...f, dimensions: f.dimensions.map((d) => (d.id === id ? { ...d, ...patch } : d)) }));
+  }
+
+  const dimensionsTotalArea = form.dimensions.reduce(
+    (sum, d) => sum + (d.width != null && d.height != null ? d.width * d.height : 0),
+    0,
+  );
+
   async function handlePhotoSelect(id: string, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -140,6 +181,8 @@ export function EstimatePositionFormModal({
       title: form.title.trim(),
       ops,
       products: form.products,
+      colors: form.colors,
+      dimensions: form.dimensions,
     };
     try {
       await onSaved(saved);
@@ -268,6 +311,93 @@ export function EstimatePositionFormModal({
           </Button>
         </div>
 
+        <div className="flex flex-col gap-2">
+          <span className="text-sm text-ink-muted">Оттенки RAL</span>
+          <div className="flex flex-wrap gap-3">
+            {form.colors.map((c) => (
+              <div key={c.id} className="flex flex-col items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setColorPickerSlotId(c.id)}
+                  className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-control border border-border"
+                  style={c.hex ? { backgroundColor: c.hex } : undefined}
+                >
+                  {!c.hex && <Palette className="h-5 w-5 text-ink-faint" />}
+                </button>
+                <span className="max-w-16 truncate text-center text-xs font-medium text-ink">{c.code || 'Выбрать'}</span>
+                <button
+                  type="button"
+                  onClick={() => removeColorSlot(c.id)}
+                  aria-label="Удалить оттенок"
+                  className="text-xs text-ink-faint hover:text-danger"
+                >
+                  Удалить
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addColorSlot}
+              className="flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-control border border-dashed border-border text-ink-faint hover:border-primary hover:text-primary"
+            >
+              <Plus className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-1.5 text-sm text-ink-muted">
+            <Ruler className="h-3.5 w-3.5" />
+            Размеры фасада
+          </div>
+          {form.dimensions.map((d) => (
+            <div key={d.id} className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <Input
+                  placeholder="Например, Главный фасад"
+                  value={d.label}
+                  onChange={(e) => updateDimension(d.id, { label: e.target.value })}
+                />
+              </div>
+              <div className="w-20 shrink-0">
+                <Input
+                  type="number"
+                  placeholder="Ширина, м"
+                  value={d.width ?? ''}
+                  onChange={(e) => updateDimension(d.id, { width: e.target.value === '' ? null : Number(e.target.value) })}
+                />
+              </div>
+              <div className="w-20 shrink-0">
+                <Input
+                  type="number"
+                  placeholder="Высота, м"
+                  value={d.height ?? ''}
+                  onChange={(e) => updateDimension(d.id, { height: e.target.value === '' ? null : Number(e.target.value) })}
+                />
+              </div>
+              <span className="w-16 shrink-0 text-right text-xs text-ink-muted">
+                {d.width != null && d.height != null ? `${(d.width * d.height).toLocaleString('ru-RU')} м²` : ''}
+              </span>
+              <button
+                type="button"
+                onClick={() => removeDimension(d.id)}
+                aria-label="Удалить размер"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-danger"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+          <div className="flex items-center justify-between gap-2">
+            <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} className="w-fit" onClick={addDimension}>
+              Добавить размер
+            </Button>
+            {form.dimensions.length > 0 && (
+              <span className="text-sm font-semibold text-ink">Итого: {dimensionsTotalArea.toLocaleString('ru-RU')} м²</span>
+            )}
+          </div>
+        </div>
+
         <Textarea
           label="Состав работ (каждый пункт с новой строки)"
           placeholder={'Демонтаж старой двери\nМонтаж новой двери\nГерметизация примыканий'}
@@ -294,6 +424,14 @@ export function EstimatePositionFormModal({
         items={catalogItems}
         onInsert={fillFromCatalog}
         onCreated={onCatalogItemCreated}
+      />
+
+      <RalColorPickerModal
+        open={colorPickerSlotId !== null}
+        onClose={() => setColorPickerSlotId(null)}
+        onPick={(picked) => {
+          if (colorPickerSlotId) applyColorPick(colorPickerSlotId, picked);
+        }}
       />
     </Modal>
   );

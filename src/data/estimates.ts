@@ -31,6 +31,26 @@ export interface EstimateProductRef {
   link: string;
 }
 
+// Оттенок по RAL (см. src/data/ralColors.ts под пресеты) — для позиций
+// покраски: "серия прямоугольников", каждый — выбранный/уточняемый цвет.
+// hex может быть пустым, если код внесён вручную (не из пресета).
+export interface RalColor {
+  id: string;
+  code: string;
+  name: string;
+  hex: string | null;
+}
+
+// Размер одной стороны фасада (или другой плоскости под покраску) — ширина
+// и высота перемножаются в площадь на карточке/форме. Числа необязательны:
+// пока замеров нет, строка живёт как шаблон-заготовка с пустыми полями.
+export interface FacadeDimension {
+  id: string;
+  label: string;
+  width: number | null;
+  height: number | null;
+}
+
 // Структурированная позиция сметы — "Замена входных дверей" и т.п.: состав
 // работ + референсы на конкретные товары. В отличие от EstimateSection.body
 // (свободный текст) — жёсткая форма для позиций, где уже понятен состав
@@ -44,6 +64,10 @@ export interface EstimatePosition {
   // POSITION_OPS_CATCHALL последним пунктом (см. EstimatePositionCard.tsx).
   ops: string[];
   products: EstimateProductRef[];
+  // Оба поля ниже актуальны не для всех позиций (в основном для покраски) —
+  // пустой массив по умолчанию, блок в карточке/форме просто не рисуется.
+  colors: RalColor[];
+  dimensions: FacadeDimension[];
 }
 
 export const POSITION_OPS_INTRO = 'Цена за работу включает следующие работы:';

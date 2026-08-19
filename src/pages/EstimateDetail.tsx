@@ -195,6 +195,24 @@ export function EstimateDetail() {
     await saveEstimatePatch({ sections });
   }
 
+  async function movePosition(sectionId: string, positionId: string, direction: 'up' | 'down') {
+    if (!estimate) return;
+    const sections = estimate.sections.map((s) => {
+      if (s.id !== sectionId) return s;
+      const idx = s.positions.findIndex((p) => p.id === positionId);
+      const swapWith = direction === 'up' ? idx - 1 : idx + 1;
+      if (idx === -1 || swapWith < 0 || swapWith >= s.positions.length) return s;
+      const positions = [...s.positions];
+      [positions[idx], positions[swapWith]] = [positions[swapWith], positions[idx]];
+      return { ...s, positions };
+    });
+    try {
+      await saveEstimatePatch({ sections });
+    } catch (err) {
+      setSectionError(errorMessage(err, 'Не удалось изменить порядок'));
+    }
+  }
+
   async function deletePosition(sectionId: string, positionId: string) {
     if (!estimate) return;
     if (!window.confirm('Удалить позицию?')) return;
@@ -329,12 +347,16 @@ export function EstimateDetail() {
 
                   {section.positions.length > 0 && (
                     <div className="flex flex-col gap-3">
-                      {section.positions.map((p) => (
+                      {section.positions.map((p, i) => (
                         <EstimatePositionCard
                           key={p.id}
                           position={p}
                           onEdit={() => openEditPosition(section.id, p)}
                           onDelete={() => deletePosition(section.id, p.id)}
+                          onMoveUp={() => movePosition(section.id, p.id, 'up')}
+                          onMoveDown={() => movePosition(section.id, p.id, 'down')}
+                          canMoveUp={i > 0}
+                          canMoveDown={i < section.positions.length - 1}
                         />
                       ))}
                     </div>

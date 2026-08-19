@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pencil, Trash2, ImageOff, Link as LinkIcon } from 'lucide-react';
+import { Pencil, Trash2, ImageOff, Link as LinkIcon, ChevronUp, ChevronDown } from 'lucide-react';
 import { ImageLightbox, type LightboxState } from '../objects/ImageLightbox';
 import {
   POSITION_OPS_INTRO,
@@ -12,6 +12,10 @@ interface EstimatePositionCardProps {
   position: EstimatePosition;
   onEdit: () => void;
   onDelete: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
 }
 
 // BYN — основная валюта (поставщики Минска), RUB/USD — ориентир по
@@ -30,7 +34,15 @@ function formatPrices(p: EstimateProductRef): string {
 // ценой и ссылкой, состав работ в фиксированной формулировке "Цена за
 // работу включает..." + завершающая оговорка про прочие работы
 // (POSITION_OPS_CATCHALL) последним пунктом списка всегда.
-export function EstimatePositionCard({ position, onEdit, onDelete }: EstimatePositionCardProps) {
+export function EstimatePositionCard({
+  position,
+  onEdit,
+  onDelete,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
+}: EstimatePositionCardProps) {
   const [lightbox, setLightbox] = useState<LightboxState | null>(null);
 
   return (
@@ -38,6 +50,24 @@ export function EstimatePositionCard({ position, onEdit, onDelete }: EstimatePos
       <div className="flex items-center justify-between gap-3">
         <div className="font-semibold text-ink">{position.title}</div>
         <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={onMoveUp}
+            disabled={!canMoveUp}
+            aria-label="Переместить выше"
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            <ChevronUp className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={onMoveDown}
+            disabled={!canMoveDown}
+            aria-label="Переместить ниже"
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
           <button
             type="button"
             onClick={onEdit}
@@ -93,6 +123,44 @@ export function EstimatePositionCard({ position, onEdit, onDelete }: EstimatePos
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {position.colors.length > 0 && (
+        <div className="flex flex-wrap gap-3">
+          {position.colors.map((c) => (
+            <div key={c.id} className="flex flex-col items-center gap-1">
+              <span
+                className="h-10 w-10 rounded-md border border-black/10 bg-surface-muted"
+                style={c.hex ? { backgroundColor: c.hex } : undefined}
+              />
+              <span className="text-center text-xs font-medium text-ink">{c.code || '—'}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {position.dimensions.length > 0 && (
+        <div className="flex flex-col gap-1 text-sm">
+          {position.dimensions.map((d) => (
+            <div key={d.id} className="flex items-center justify-between gap-3 text-ink-muted">
+              <span>{d.label || 'Без названия'}</span>
+              <span>
+                {d.width != null && d.height != null
+                  ? `${d.width} × ${d.height} м = ${(d.width * d.height).toLocaleString('ru-RU')} м²`
+                  : '—'}
+              </span>
+            </div>
+          ))}
+          <div className="flex items-center justify-between gap-3 border-t border-border pt-1 font-semibold text-ink">
+            <span>Итого площадь</span>
+            <span>
+              {position.dimensions
+                .reduce((sum, d) => sum + (d.width != null && d.height != null ? d.width * d.height : 0), 0)
+                .toLocaleString('ru-RU')}{' '}
+              м²
+            </span>
+          </div>
         </div>
       )}
 
