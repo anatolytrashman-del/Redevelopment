@@ -159,7 +159,7 @@ export function EstimatePositionCard({
               <span>
                 {d.width != null && d.height != null
                   ? `${d.width} × ${d.height} м = ${(d.width * d.height).toLocaleString('ru-RU')} м²${
-                      d.windowsArea ? ` − окна ${d.windowsArea.toLocaleString('ru-RU')} м² = ${netFacadeArea(d).toLocaleString('ru-RU')} м²` : ''
+                      d.windowsArea ? ` − проёмы ${d.windowsArea.toLocaleString('ru-RU')} м² = ${netFacadeArea(d).toLocaleString('ru-RU')} м²` : ''
                     }`
                   : '—'}
               </span>

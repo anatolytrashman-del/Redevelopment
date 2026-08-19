@@ -392,14 +392,14 @@ export function EstimatePositionFormModal({
                   <div className="w-24 shrink-0">
                     <Input
                       type="number"
-                      placeholder="Окна, м²"
+                      placeholder="Проёмы, м²"
                       value={d.windowsArea ?? ''}
                       onChange={(e) => updateDimension(d.id, { windowsArea: e.target.value === '' ? null : Number(e.target.value) })}
                     />
                   </div>
                   <span className="text-xs text-ink-muted">
                     {net != null
-                      ? `${gross!.toLocaleString('ru-RU')} м²${d.windowsArea ? ` − окна ${d.windowsArea.toLocaleString('ru-RU')} м²` : ''} = ${net.toLocaleString('ru-RU')} м² чистой`
+                      ? `${gross!.toLocaleString('ru-RU')} м²${d.windowsArea ? ` − проёмы ${d.windowsArea.toLocaleString('ru-RU')} м²` : ''} = ${net.toLocaleString('ru-RU')} м² чистой`
                       : ''}
                   </span>
                 </div>
