@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Pencil, Trash2, FileText } from 'lucide-react';
+import { Pencil, Trash2, FileText, Maximize2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { ImageLightbox, type LightboxState } from '../objects/ImageLightbox';
-import { PledgePhoto } from './PledgePhoto';
+import { PledgePhotoCarousel } from './PledgePhotoCarousel';
 import type { Pledge } from '../../data/pledges';
 import { createPledgePhotoUrl } from '../../lib/pledgesApi';
 
@@ -64,10 +64,12 @@ export function PledgeDetailModal({ pledge, onClose, onEdit, onDelete, deleting 
         </div>
 
         {pledge.photoPaths.length > 0 && (
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-            {pledge.photoPaths.map((path) => (
-              <PledgePhoto key={path} path={path} className="aspect-square rounded-control" />
-            ))}
+          <div className="relative aspect-video w-full overflow-hidden rounded-control bg-surface-muted">
+            <PledgePhotoCarousel
+              paths={pledge.photoPaths}
+              alt={pledge.address}
+              onImageClick={(index, urls) => setLightbox({ urls, index })}
+            />
           </div>
         )}
 
@@ -85,10 +87,16 @@ export function PledgeDetailModal({ pledge, onClose, onEdit, onDelete, deleting 
               type="button"
               onClick={() => certificateUrl && setLightbox({ urls: [certificateUrl], index: 0 })}
               disabled={!certificateUrl}
-              className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-control bg-surface-muted disabled:cursor-default"
+              className="relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-control bg-surface-muted disabled:cursor-default"
             >
               {certificateUrl ? (
-                <img src={certificateUrl} alt="Свидетельство БРТИ" className="h-full w-full cursor-zoom-in object-cover" />
+                <>
+                  <img src={certificateUrl} alt="Свидетельство БРТИ" className="h-full w-full cursor-zoom-in object-cover" />
+                  <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-ink shadow-sm">
+                    <Maximize2 className="h-3 w-3" />
+                    Зум
+                  </span>
+                </>
               ) : (
                 <FileText className="h-6 w-6 text-ink-faint" />
               )}

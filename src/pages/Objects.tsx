@@ -47,7 +47,7 @@ function PledgeCard({
       className={cn('group flex cursor-pointer flex-col overflow-hidden transition-colors hover:border-primary/40', glassCardClass)}
       style={glassCardShadow}
     >
-      <div className="relative aspect-[4/3] w-full shrink-0 overflow-hidden bg-surface-muted">
+      <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden bg-surface-muted">
         <PledgePhotoCarousel paths={pledge.photoPaths} alt={pledge.address} />
         {pledge.propertyType && (
           <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-ink shadow-sm">
@@ -222,10 +222,7 @@ export function Objects() {
 
           {pledgeActionError && <p className="text-sm text-danger">{pledgeActionError}</p>}
 
-          {/* Крупнее, чем сетка "Объектов в проработке" — залогам нужен
-              полноценный блок с фото (слайдер по нескольким снимкам), а не
-              маленький превью-квадрат. */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {pledges.map((p) => (
               <PledgeCard
                 key={p.id}

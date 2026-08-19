@@ -8,7 +8,17 @@ import { createPledgePhotoUrl } from '../../lib/pledgesApi';
 // (который принимает уже готовые ссылки, как у RealtyObject.photoUrls),
 // подписываем все пути разом. Родитель должен быть position:relative +
 // overflow:hidden — сам компонент своей обёртки не рисует, как и PhotoCarousel.
-export function PledgePhotoCarousel({ paths, alt }: { paths: string[]; alt?: string }) {
+// onImageClick получает уже подписанные ссылки — родителю (например,
+// PledgeDetailModal) для лайтбокса нужен весь массив, не только индекс.
+export function PledgePhotoCarousel({
+  paths,
+  alt,
+  onImageClick,
+}: {
+  paths: string[];
+  alt?: string;
+  onImageClick?: (index: number, urls: string[]) => void;
+}) {
   const [urls, setUrls] = useState<string[] | null>(null);
   const pathsKey = paths.join('|');
 
@@ -36,5 +46,5 @@ export function PledgePhotoCarousel({ paths, alt }: { paths: string[]; alt?: str
     );
   }
 
-  return <PhotoCarousel images={urls} alt={alt} />;
+  return <PhotoCarousel images={urls} alt={alt} onImageClick={onImageClick ? (index) => onImageClick(index, urls) : undefined} />;
 }
