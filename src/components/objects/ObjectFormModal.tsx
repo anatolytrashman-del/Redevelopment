@@ -43,6 +43,7 @@ const emptyForm = {
   renderImageUrls: [] as string[],
   intentAgreementFile: null as ObjectDocumentFile | null,
   mapEmbedUrl: '',
+  priority: false,
 };
 
 function objectToForm(o: RealtyObject) {
@@ -65,6 +66,7 @@ function objectToForm(o: RealtyObject) {
     renderImageUrls: o.renderImageUrls,
     intentAgreementFile: o.intentAgreementFile,
     mapEmbedUrl: o.mapEmbedUrl,
+    priority: o.priority,
   };
 }
 
@@ -252,6 +254,7 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
       renderImageUrls: form.renderImageUrls,
       intentAgreementFile: form.intentAgreementFile,
       mapEmbedUrl: form.mapEmbedUrl,
+      priority: form.priority,
     };
     try {
       const saved = editing ? await updateObject(editing.id, payload) : await insertObject(payload);
@@ -446,6 +449,16 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
           addLabel="+ Добавить статус"
           newPlaceholder="Название статуса"
         />
+
+        <label className="flex w-fit items-center gap-2 text-sm font-medium text-ink">
+          <input
+            type="checkbox"
+            checked={form.priority}
+            onChange={(e) => setForm((f) => ({ ...f, priority: e.target.checked }))}
+            className="h-4 w-4 rounded border-border accent-primary"
+          />
+          🔥 Приоритет (первым в списке, с бейджем на превью)
+        </label>
 
         <Input
           label="Адрес"

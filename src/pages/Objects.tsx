@@ -188,6 +188,11 @@ export function Objects() {
                       {o.status}
                     </span>
                   )}
+                  {o.priority && (
+                    <span className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-ink shadow-sm">
+                      🔥 Приоритет
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-0.5 p-3">

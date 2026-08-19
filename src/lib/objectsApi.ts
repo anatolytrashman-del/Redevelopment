@@ -31,6 +31,7 @@ function fromRow(row: RealtyObjectRow): RealtyObject {
     renderImageUrls: row.render_image_urls ?? [],
     intentAgreementFile: row.intent_agreement_file ?? null,
     mapEmbedUrl: row.map_embed_url ?? '',
+    priority: row.priority ?? false,
   };
 }
 
@@ -38,7 +39,9 @@ export function fetchObjects(): Promise<RealtyObject[]> {
   return withRetry(async () => {
     const { data, error } = await supabase.from('objects').select('*').order('created_at', { ascending: false });
     if (error) throw error;
-    return (data as RealtyObjectRow[]).map(fromRow);
+    // Приоритетные — первыми, внутри каждой группы порядок как из базы
+    // (по дате создания, см. .order выше) — Array.sort стабильна.
+    return (data as RealtyObjectRow[]).map(fromRow).sort((a, b) => Number(b.priority) - Number(a.priority));
   });
 }
 
@@ -115,6 +118,7 @@ export function insertObject(input: Omit<RealtyObject, 'id' | 'shareToken'>): Pr
         render_image_urls: input.renderImageUrls,
         intent_agreement_file: input.intentAgreementFile,
         map_embed_url: input.mapEmbedUrl.trim() || null,
+        priority: input.priority,
       })
       .select()
       .single();
@@ -153,6 +157,7 @@ export function updateObject(id: string, input: Omit<RealtyObject, 'id' | 'share
         render_image_urls: input.renderImageUrls,
         intent_agreement_file: input.intentAgreementFile,
         map_embed_url: input.mapEmbedUrl.trim() || null,
+        priority: input.priority,
       })
       .eq('id', id)
       .select()

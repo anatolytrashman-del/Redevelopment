@@ -153,6 +153,10 @@ export interface RealtyObject {
   // ключ. Осознанный выбор: не нужен свой аккаунт разработчика/ключ Яндекса,
   // при этом зум/панорамирование карты — родные, самого Яндекс.Карт.
   mapEmbedUrl: string;
+  // Приоритетные объекты идут первыми в списке "Объекты в проработке" и
+  // получают бейдж "🔥 Приоритет" на превью — ручная отметка, не связана
+  // со статусом/датой создания.
+  priority: boolean;
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/objectsApi.ts
@@ -186,6 +190,7 @@ export interface RealtyObjectRow {
   render_image_urls: string[] | null;
   intent_agreement_file: ObjectDocumentFile | null;
   map_embed_url: string | null;
+  priority: boolean | null;
 }
 
 export function pricePerMeter(area: number, startPrice: number): number | null {
