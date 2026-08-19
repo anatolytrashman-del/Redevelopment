@@ -22,6 +22,10 @@ export interface Pledge {
   // паттерн, что и у Lead.photoPath/Contractor.photoPath (см.
   // lib/pledgesApi.ts), но массив: у объекта в залоге фотографий несколько.
   photoPaths: string[];
+  // Скан/фото свидетельства о собственности (БРТИ) — тот же приватный
+  // бакет и паттерн пути, что и у photoPaths, но одно поле: документ один,
+  // а не серия фото объекта.
+  certificatePhotoPath: string;
   createdAt: string;
 }
 
@@ -35,5 +39,6 @@ export interface PledgeRow {
   pledge_value: number;
   rental_income: number;
   photo_paths: string[] | null;
+  certificate_photo_path: string | null;
   created_at: string;
 }

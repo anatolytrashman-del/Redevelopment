@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry, UPLOAD_TIMEOUT_MS } from './withRetry';
+import { compressImageIfNeeded } from './imageCompress';
 import type { Pledge, PledgeRow } from '../data/pledges';
 
 const PLEDGE_PHOTOS_BUCKET = 'pledge-photos';
@@ -16,6 +17,7 @@ function fromRow(row: PledgeRow): Pledge {
     pledgeValue: row.pledge_value,
     rentalIncome: row.rental_income,
     photoPaths: row.photo_paths ?? [],
+    certificatePhotoPath: row.certificate_photo_path ?? '',
     createdAt: row.created_at,
   };
 }
@@ -40,6 +42,7 @@ export function insertPledge(input: Omit<Pledge, 'id' | 'createdAt'>): Promise<P
         pledge_value: input.pledgeValue,
         rental_income: input.rentalIncome,
         photo_paths: input.photoPaths,
+        certificate_photo_path: input.certificatePhotoPath || null,
       })
       .select()
       .single();
@@ -61,6 +64,7 @@ export function updatePledge(id: string, input: Omit<Pledge, 'id' | 'createdAt'>
         pledge_value: input.pledgeValue,
         rental_income: input.rentalIncome,
         photo_paths: input.photoPaths,
+        certificate_photo_path: input.certificatePhotoPath || null,
       })
       .eq('id', id)
       .select()
@@ -81,17 +85,19 @@ export function deletePledge(id: string): Promise<void> {
 // Фото залога — тот же паттерн, что и у лидов/подрядчиков (закрытый бакет,
 // путь а не URL в базе, подписанная ссылка на каждый показ). См. подробный
 // комментарий у uploadLeadPhoto/createLeadPhotoUrl в leadsApi.ts.
-export function uploadPledgePhoto(file: File): Promise<string> {
+export async function uploadPledgePhoto(file: File): Promise<string> {
+  const toUpload = await compressImageIfNeeded(file);
   return withRetry(
     async () => {
-      const ext = file.name.split('.').pop() ?? 'jpg';
+      const ext = toUpload.name.split('.').pop() ?? 'jpg';
       const path = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from(PLEDGE_PHOTOS_BUCKET).upload(path, file);
+      const { error } = await supabase.storage.from(PLEDGE_PHOTOS_BUCKET).upload(path, toUpload);
       if (error) throw error;
       return path;
     },
-    1000,
+    1500,
     UPLOAD_TIMEOUT_MS,
+    3,
   );
 }
 

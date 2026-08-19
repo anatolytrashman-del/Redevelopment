@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Loader2, ImageOff, Trash2 } from 'lucide-react';
+import { Plus, Loader2, Trash2 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -8,7 +8,7 @@ import { ObjectFormModal } from '../components/objects/ObjectFormModal';
 import { PhotoCarousel } from '../components/objects/PhotoCarousel';
 import { PledgeDetailModal } from '../components/pledges/PledgeDetailModal';
 import { PledgeFormModal } from '../components/pledges/PledgeFormModal';
-import { PledgePhoto } from '../components/pledges/PledgePhoto';
+import { PledgePhotoCarousel } from '../components/pledges/PledgePhotoCarousel';
 import { objectStatuses, type RealtyObject } from '../data/objects';
 import { pledgeTypes, type Pledge } from '../data/pledges';
 import { fetchObjects } from '../lib/objectsApi';
@@ -47,14 +47,8 @@ function PledgeCard({
       className={cn('group flex cursor-pointer flex-col overflow-hidden transition-colors hover:border-primary/40', glassCardClass)}
       style={glassCardShadow}
     >
-      <div className="relative aspect-[16/9] w-full shrink-0 bg-surface-muted">
-        {pledge.photoPaths[0] ? (
-          <PledgePhoto path={pledge.photoPaths[0]} className="h-full w-full" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <ImageOff className="h-6 w-6 text-ink-faint" />
-          </div>
-        )}
+      <div className="relative aspect-[4/3] w-full shrink-0 overflow-hidden bg-surface-muted">
+        <PledgePhotoCarousel paths={pledge.photoPaths} alt={pledge.address} />
         {pledge.propertyType && (
           <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-ink shadow-sm">
             {pledge.propertyType}
@@ -228,7 +222,10 @@ export function Objects() {
 
           {pledgeActionError && <p className="text-sm text-danger">{pledgeActionError}</p>}
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {/* Крупнее, чем сетка "Объектов в проработке" — залогам нужен
+              полноценный блок с фото (слайдер по нескольким снимкам), а не
+              маленький превью-квадрат. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {pledges.map((p) => (
               <PledgeCard
                 key={p.id}

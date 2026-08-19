@@ -25,6 +25,7 @@ const emptyForm = {
   pledgeValue: '',
   rentalIncome: '',
   photoPaths: [] as string[],
+  certificatePhotoPath: '',
 };
 
 function pledgeToForm(p: Pledge) {
@@ -36,6 +37,7 @@ function pledgeToForm(p: Pledge) {
     pledgeValue: p.pledgeValue ? String(p.pledgeValue) : '',
     rentalIncome: p.rentalIncome ? String(p.rentalIncome) : '',
     photoPaths: p.photoPaths,
+    certificatePhotoPath: p.certificatePhotoPath,
   };
 }
 
@@ -56,6 +58,7 @@ export function PledgeFormModal({ open, pledge, knownTypes, onClose, onSaved }: 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [certificateUploading, setCertificateUploading] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -88,6 +91,31 @@ export function PledgeFormModal({ open, pledge, knownTypes, onClose, onSaved }: 
     await deletePledgePhoto(path);
   }
 
+  async function handleCertificateAdd(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || certificateUploading) return;
+
+    setCertificateUploading(true);
+    setSubmitError(null);
+    try {
+      const previous = form.certificatePhotoPath;
+      const path = await uploadPledgePhoto(file);
+      setForm((f) => ({ ...f, certificatePhotoPath: path }));
+      if (previous) await deletePledgePhoto(previous);
+    } catch (err) {
+      setSubmitError(errorMessage(err, 'Не удалось загрузить свидетельство'));
+    } finally {
+      setCertificateUploading(false);
+    }
+  }
+
+  async function handleCertificateRemove() {
+    const path = form.certificatePhotoPath;
+    setForm((f) => ({ ...f, certificatePhotoPath: '' }));
+    if (path) await deletePledgePhoto(path);
+  }
+
   const canSubmit = form.address.trim().length > 0;
 
   async function handleSubmit(e: FormEvent) {
@@ -104,6 +132,7 @@ export function PledgeFormModal({ open, pledge, knownTypes, onClose, onSaved }: 
       pledgeValue: Number(form.pledgeValue) || 0,
       rentalIncome: Number(form.rentalIncome) || 0,
       photoPaths: form.photoPaths,
+      certificatePhotoPath: form.certificatePhotoPath,
     };
     try {
       const saved = pledge ? await updatePledge(pledge.id, payload) : await insertPledge(payload);
@@ -117,7 +146,7 @@ export function PledgeFormModal({ open, pledge, knownTypes, onClose, onSaved }: 
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={pledge ? 'Редактировать залог' : 'Новый объект в залоге'}>
+    <Modal open={open} onClose={onClose} title={pledge ? 'Редактировать залог' : 'Новый объект для залога'}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Input
           label="Адрес"
@@ -192,6 +221,36 @@ export function PledgeFormModal({ open, pledge, knownTypes, onClose, onSaved }: 
               <span className="text-[10px]">Добавить</span>
               <input type="file" accept="image/*" className="hidden" onChange={handlePhotoAdd} />
             </label>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium text-ink">Свидетельство БРТИ</span>
+          <div className="flex flex-wrap gap-2">
+            {form.certificatePhotoPath ? (
+              <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-control">
+                <PledgePhoto path={form.certificatePhotoPath} className="h-full w-full" />
+                <button
+                  type="button"
+                  onClick={handleCertificateRemove}
+                  className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-ink/60 text-white hover:bg-danger"
+                  aria-label="Удалить свидетельство"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ) : (
+              <label
+                className={cn(
+                  'flex h-20 w-20 shrink-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-control border border-dashed border-border text-ink-faint hover:border-border-strong',
+                  certificateUploading && 'pointer-events-none opacity-50',
+                )}
+              >
+                {certificateUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                <span className="text-[10px]">Загрузить</span>
+                <input type="file" accept="image/*" className="hidden" onChange={handleCertificateAdd} />
+              </label>
+            )}
           </div>
         </div>
 
