@@ -29,7 +29,7 @@ interface EstimatePositionFormModalProps {
   // разом заполняет название и состав работ, чтобы не сочинять их с нуля.
   catalogItems: EstimateCatalogItem[];
   onClose: () => void;
-  onSaved: (position: EstimatePosition) => void;
+  onSaved: (position: EstimatePosition) => Promise<void>;
   onCatalogItemCreated: (item: EstimateCatalogItem) => void;
 }
 
@@ -51,6 +51,9 @@ export function EstimatePositionFormModal({
   // одним блоком в самом низу формы (под "Состав работ") её не видно рядом
   // с кнопкой "Загрузить фото", и выглядит это как "ничего не происходит".
   const [uploadError, setUploadError] = useState<{ productId: string; message: string } | null>(null);
+  // Ошибка самого сохранения (не фото) — сеть может оборваться при отправке;
+  // форма при этом не закрывается, чтобы ничего не терялось молча (см. ниже).
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [uploadingProductId, setUploadingProductId] = useState<string | null>(null);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -59,6 +62,7 @@ export function EstimatePositionFormModal({
     if (open) {
       setForm(position ? positionToForm(position) : emptyForm);
       setUploadError(null);
+      setSubmitError(null);
     }
   }, [open, position]);
 
@@ -117,10 +121,16 @@ export function EstimatePositionFormModal({
 
   const canSubmit = form.title.trim().length > 0;
 
-  function handleSubmit(e: React.FormEvent) {
+  // Форма закрывается только после подтверждённого сохранения — раньше
+  // onClose() вызывался сразу, не дожидаясь ответа сервера, и при обрыве
+  // сети (см. ту же природу бага с фото) правки тихо терялись: форма уже
+  // закрылась, а сохранить не успело — снаружи выглядело как "заголовок
+  // остался старым, будто ничего не произошло".
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit || submitting) return;
     setSubmitting(true);
+    setSubmitError(null);
     const ops = form.opsText
       .split('\n')
       .map((line) => line.trim())
@@ -131,9 +141,14 @@ export function EstimatePositionFormModal({
       ops,
       products: form.products,
     };
-    onSaved(saved);
-    setSubmitting(false);
-    onClose();
+    try {
+      await onSaved(saved);
+      onClose();
+    } catch (err) {
+      setSubmitError(errorMessage(err, 'Не удалось сохранить позицию'));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -261,12 +276,14 @@ export function EstimatePositionFormModal({
           rows={6}
         />
 
+        {submitError && <p className="text-sm text-danger">{submitError}</p>}
+
         <div className="mt-2 flex justify-end gap-3">
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={submitting}>
             Отмена
           </Button>
-          <Button type="submit" disabled={!canSubmit || submitting}>
-            {position ? 'Сохранить' : 'Добавить'}
+          <Button type="submit" disabled={!canSubmit || submitting} icon={submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : undefined}>
+            {submitting ? 'Сохраняем...' : position ? 'Сохранить' : 'Добавить'}
           </Button>
         </div>
       </form>

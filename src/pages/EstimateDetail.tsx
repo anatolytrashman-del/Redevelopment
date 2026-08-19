@@ -182,6 +182,9 @@ export function EstimateDetail() {
     setPositionModalOpen(true);
   }
 
+  // Ошибку не глотаем здесь — пробрасываем в EstimatePositionFormModal, чтобы
+  // форма при сбое сети не закрывалась и показала ошибку сама (см. её
+  // handleSubmit): иначе форма уже закрыта, а sectionError у неё не виден.
   async function savePosition(saved: EstimatePosition) {
     if (!estimate || !positionSectionId) return;
     const sections = estimate.sections.map((s) => {
@@ -189,11 +192,7 @@ export function EstimateDetail() {
       const exists = s.positions.some((p) => p.id === saved.id);
       return { ...s, positions: exists ? s.positions.map((p) => (p.id === saved.id ? saved : p)) : [...s.positions, saved] };
     });
-    try {
-      await saveEstimatePatch({ sections });
-    } catch (err) {
-      setSectionError(errorMessage(err, 'Не удалось сохранить позицию'));
-    }
+    await saveEstimatePatch({ sections });
   }
 
   async function deletePosition(sectionId: string, positionId: string) {
