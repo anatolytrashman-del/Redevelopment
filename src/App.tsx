@@ -17,6 +17,9 @@ import { Briefs } from './pages/Briefs';
 import { BriefPublicPage } from './pages/BriefPublicPage';
 import { Estimates } from './pages/Estimates';
 import { EstimateDetail } from './pages/EstimateDetail';
+import { MeetingSummaries } from './pages/MeetingSummaries';
+import { MeetingSummaryDetail } from './pages/MeetingSummaryDetail';
+import { MeetingSummaryPublicPage } from './pages/MeetingSummaryPublicPage';
 import { NotFound } from './pages/NotFound';
 
 // Случайный щипок двумя пальцами (обычный жест при скролле телефоном,
@@ -47,6 +50,7 @@ export default function App() {
       <Route path="/" element={<Navigate to="/one" replace />} />
       <Route path="/plan/:token" element={<PublicBuildingPlan />} />
       <Route path="/tz/:token" element={<BriefPublicPage />} />
+      <Route path="/summary/:token" element={<MeetingSummaryPublicPage />} />
       <Route path="/:slug" element={<ObjectLandingPage />} />
 
       {/* Админка теперь живёт под /admin, а не на голом домене — корень
@@ -71,6 +75,8 @@ export default function App() {
         <Route path="estimates" element={<Estimates />} />
         <Route path="estimates/:id" element={<EstimateDetail />} />
         <Route path="documents" element={<Documents />} />
+        <Route path="meeting-summaries" element={<MeetingSummaries />} />
+        <Route path="meeting-summaries/:id" element={<MeetingSummaryDetail />} />
         <Route path="backlog" element={<Backlog />} />
       </Route>
       {/* Любой нераспознанный путь (в т.ч. испорченная публичная ссылка) не должен

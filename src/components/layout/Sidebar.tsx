@@ -17,6 +17,7 @@ import {
   HardHat,
   ClipboardList,
   Calculator,
+  MessageSquareText,
   X,
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
@@ -39,6 +40,7 @@ const allNavItems = [
   { to: '/admin/tz', label: 'Техзадания', icon: ClipboardList },
   { to: '/admin/estimates', label: 'Сметы', icon: Calculator },
   { to: '/admin/documents', label: 'Документы', icon: FileStack },
+  { to: '/admin/meeting-summaries', label: 'Саммери встреч', icon: MessageSquareText },
   { to: '/admin/statistics', label: 'Статистика', icon: PieChart },
   { to: '/admin/payouts', label: 'Выплаты', icon: Wallet },
   { to: '/admin/account', label: 'Аккаунт', icon: User },
@@ -48,7 +50,7 @@ const allNavItems = [
 ];
 
 // Порядок пунктов в этом списке — это порядок пунктов в меню.
-const visibleLabels = ['Задачи', 'Объекты', 'Техзадания', 'Сметы', 'Лиды', 'Подрядчики', 'Транзакции', 'Документы'];
+const visibleLabels = ['Задачи', 'Объекты', 'Техзадания', 'Сметы', 'Лиды', 'Подрядчики', 'Транзакции', 'Документы', 'Саммери встреч'];
 const navItems = visibleLabels.map((label) => allNavItems.find((item) => item.label === label)!);
 
 // Ниже lg — сайдбар выезжает поверх контента как шторка (fixed + translate),
