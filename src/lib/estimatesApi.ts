@@ -15,7 +15,7 @@ function fromRow(row: EstimateRow): Estimate {
       positions: (s.positions ?? []).map((p) => ({
         ...p,
         colors: p.colors ?? [],
-        dimensions: p.dimensions ?? [],
+        dimensions: (p.dimensions ?? []).map((d) => ({ ...d, windowsArea: d.windowsArea ?? null })),
         products: p.products.map((prod) => {
           const legacyPrice = (prod as unknown as { price?: number | null }).price;
           return {

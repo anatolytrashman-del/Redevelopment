@@ -6,6 +6,7 @@ import {
   POSITION_OPS_CATCHALL,
   type EstimatePosition,
   type EstimateProductRef,
+  type FacadeDimension,
 } from '../../data/estimates';
 
 interface EstimatePositionCardProps {
@@ -27,6 +28,13 @@ function formatPrices(p: EstimateProductRef): string {
   if (p.priceRub != null) parts.push(`${Math.round(p.priceRub).toLocaleString('ru-RU')} ₽`);
   if (p.priceUsd != null) parts.push(`$${Math.round(p.priceUsd).toLocaleString('ru-RU')}`);
   return parts.join(' · ');
+}
+
+// Площадь под покраску без проёмов (окна/витражи) — если размеры ещё не
+// заполнены, площадь 0, не мешает суммировать по всем строкам.
+function netFacadeArea(d: FacadeDimension): number {
+  if (d.width == null || d.height == null) return 0;
+  return Math.max(0, d.width * d.height - (d.windowsArea ?? 0));
 }
 
 // Карточка структурированной позиции сметы (просмотр) — название, крупные
@@ -150,19 +158,16 @@ export function EstimatePositionCard({
               <span>{d.label || 'Без названия'}</span>
               <span>
                 {d.width != null && d.height != null
-                  ? `${d.width} × ${d.height} м = ${(d.width * d.height).toLocaleString('ru-RU')} м²`
+                  ? `${d.width} × ${d.height} м = ${(d.width * d.height).toLocaleString('ru-RU')} м²${
+                      d.windowsArea ? ` − окна ${d.windowsArea.toLocaleString('ru-RU')} м² = ${netFacadeArea(d).toLocaleString('ru-RU')} м²` : ''
+                    }`
                   : '—'}
               </span>
             </div>
           ))}
           <div className="flex items-center justify-between gap-3 border-t border-border pt-1 font-semibold text-ink">
-            <span>Итого площадь</span>
-            <span>
-              {position.dimensions
-                .reduce((sum, d) => sum + (d.width != null && d.height != null ? d.width * d.height : 0), 0)
-                .toLocaleString('ru-RU')}{' '}
-              м²
-            </span>
+            <span>Итого чистая площадь (предварительный расчёт)</span>
+            <span>{position.dimensions.reduce((sum, d) => sum + netFacadeArea(d), 0).toLocaleString('ru-RU')} м²</span>
           </div>
         </div>
       )}

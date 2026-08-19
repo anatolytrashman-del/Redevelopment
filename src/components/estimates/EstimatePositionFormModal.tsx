@@ -126,7 +126,7 @@ export function EstimatePositionFormModal({
   function addDimension() {
     setForm((f) => ({
       ...f,
-      dimensions: [...f.dimensions, { id: crypto.randomUUID(), label: '', width: null, height: null }],
+      dimensions: [...f.dimensions, { id: crypto.randomUUID(), label: '', width: null, height: null, windowsArea: null }],
     }));
   }
 
@@ -139,7 +139,7 @@ export function EstimatePositionFormModal({
   }
 
   const dimensionsTotalArea = form.dimensions.reduce(
-    (sum, d) => sum + (d.width != null && d.height != null ? d.width * d.height : 0),
+    (sum, d) => sum + Math.max(0, d.width != null && d.height != null ? d.width * d.height - (d.windowsArea ?? 0) : 0),
     0,
   );
 
@@ -350,50 +350,70 @@ export function EstimatePositionFormModal({
             <Ruler className="h-3.5 w-3.5" />
             Размеры фасада
           </div>
-          {form.dimensions.map((d) => (
-            <div key={d.id} className="flex items-center gap-2">
-              <div className="min-w-0 flex-1">
-                <Input
-                  placeholder="Например, Главный фасад"
-                  value={d.label}
-                  onChange={(e) => updateDimension(d.id, { label: e.target.value })}
-                />
+          {form.dimensions.map((d) => {
+            const gross = d.width != null && d.height != null ? d.width * d.height : null;
+            const net = gross != null ? Math.max(0, gross - (d.windowsArea ?? 0)) : null;
+            return (
+              <div key={d.id} className="flex flex-col gap-2 rounded-control border border-border p-3">
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <Input
+                      placeholder="Например, Главный фасад"
+                      value={d.label}
+                      onChange={(e) => updateDimension(d.id, { label: e.target.value })}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeDimension(d.id)}
+                    aria-label="Удалить размер"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-danger"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="w-20 shrink-0">
+                    <Input
+                      type="number"
+                      placeholder="Ширина, м"
+                      value={d.width ?? ''}
+                      onChange={(e) => updateDimension(d.id, { width: e.target.value === '' ? null : Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="w-20 shrink-0">
+                    <Input
+                      type="number"
+                      placeholder="Высота, м"
+                      value={d.height ?? ''}
+                      onChange={(e) => updateDimension(d.id, { height: e.target.value === '' ? null : Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="w-24 shrink-0">
+                    <Input
+                      type="number"
+                      placeholder="Окна, м²"
+                      value={d.windowsArea ?? ''}
+                      onChange={(e) => updateDimension(d.id, { windowsArea: e.target.value === '' ? null : Number(e.target.value) })}
+                    />
+                  </div>
+                  <span className="text-xs text-ink-muted">
+                    {net != null
+                      ? `${gross!.toLocaleString('ru-RU')} м²${d.windowsArea ? ` − окна ${d.windowsArea.toLocaleString('ru-RU')} м²` : ''} = ${net.toLocaleString('ru-RU')} м² чистой`
+                      : ''}
+                  </span>
+                </div>
               </div>
-              <div className="w-20 shrink-0">
-                <Input
-                  type="number"
-                  placeholder="Ширина, м"
-                  value={d.width ?? ''}
-                  onChange={(e) => updateDimension(d.id, { width: e.target.value === '' ? null : Number(e.target.value) })}
-                />
-              </div>
-              <div className="w-20 shrink-0">
-                <Input
-                  type="number"
-                  placeholder="Высота, м"
-                  value={d.height ?? ''}
-                  onChange={(e) => updateDimension(d.id, { height: e.target.value === '' ? null : Number(e.target.value) })}
-                />
-              </div>
-              <span className="w-16 shrink-0 text-right text-xs text-ink-muted">
-                {d.width != null && d.height != null ? `${(d.width * d.height).toLocaleString('ru-RU')} м²` : ''}
-              </span>
-              <button
-                type="button"
-                onClick={() => removeDimension(d.id)}
-                aria-label="Удалить размер"
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-danger"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
+            );
+          })}
           <div className="flex items-center justify-between gap-2">
             <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} className="w-fit" onClick={addDimension}>
               Добавить размер
             </Button>
             {form.dimensions.length > 0 && (
-              <span className="text-sm font-semibold text-ink">Итого: {dimensionsTotalArea.toLocaleString('ru-RU')} м²</span>
+              <span className="text-sm font-semibold text-ink">
+                Итого чистой (предварительный расчёт): {dimensionsTotalArea.toLocaleString('ru-RU')} м²
+              </span>
             )}
           </div>
         </div>
