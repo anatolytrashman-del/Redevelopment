@@ -156,7 +156,7 @@ export function defaultFinCategories(): FinCategory[] {
     },
     {
       id: crypto.randomUUID(),
-      title: 'Эксплуатация',
+      title: 'Эксплуатация здания',
       kind: 'expense',
       entries: [
         entry('Электричество', { ...monthly }),
@@ -165,8 +165,6 @@ export function defaultFinCategories(): FinCategory[] {
         entry('Вывоз мусора', { ...monthly }),
         entry('Уборка помещений', { ...monthly }),
         entry('Уборка территории и снега', { ...monthly }),
-        entry('Интернет', { ...monthly }),
-        entry('Онлайн-сервисы (CRM, ЭДО)', { ...monthly }),
         entry('Пожарная сигнализация (обслуживание)', { ...monthly }),
         entry('Тревожная кнопка / охрана', { ...monthly }),
         entry('Видеонаблюдение', { ...monthly }),
@@ -178,13 +176,25 @@ export function defaultFinCategories(): FinCategory[] {
     },
     {
       id: crypto.randomUUID(),
-      title: 'Управление',
+      title: 'Операционная деятельность',
+      kind: 'expense',
+      entries: [
+        entry('Интернет', { ...monthly }),
+        entry('Телефония', { ...monthly }),
+        entry('Онлайн-сервисы (CRM, ЭДО)', { ...monthly }),
+        entry('Онлайн-банкинг', { ...monthly }),
+        entry('Банковские комиссии', { ...monthly }),
+        entry('Маркетинг и реклама', { ...monthly }),
+      ],
+    },
+    {
+      id: crypto.randomUUID(),
+      title: 'Оплата команды',
       kind: 'expense',
       entries: [
         entry('Зарплата управляющего', { ...monthly }),
         entry('Бухгалтерия', { ...monthly }),
-        entry('Маркетинг и реклама', { ...monthly }),
-        entry('Банковские комиссии', { ...monthly }),
+        entry('Юридическое и налоговое сопровождение', { ...monthly }),
       ],
     },
   ];
