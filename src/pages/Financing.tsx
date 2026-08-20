@@ -10,6 +10,7 @@ import { Modal } from '../components/ui/Modal';
 import { financingStatuses, type FinancingOffer } from '../data/financing';
 import { badgeColor } from '../lib/badgeColor';
 import { cn } from '../lib/cn';
+import { glassCardClass, glassCardShadow } from '../lib/glass';
 import {
   fetchFinancingOffers,
   insertFinancingOffer,
@@ -64,7 +65,65 @@ function BankLogo({ url, className }: { url: string; className?: string }) {
   return <img src={url} alt="" className={cn('shrink-0 rounded-control bg-surface-muted object-contain', className)} />;
 }
 
-const gridCols = 'grid-cols-[220px_180px_140px_220px_90px]';
+// Узкая карточка вместо широкой строки таблицы — при логотипе такого
+// размера (см. BankLogo ниже) полноширинная строка почти целиком состоит
+// из пустого места вокруг него. Остальные поля — только в форме (Modal),
+// открывается кликом по карточке.
+function FinancingOfferCard({
+  offer,
+  onEdit,
+  onDelete,
+  deleting,
+}: {
+  offer: FinancingOffer;
+  onEdit: (o: FinancingOffer) => void;
+  onDelete: (o: FinancingOffer) => void;
+  deleting: boolean;
+}) {
+  const colors = badgeColor(offer.status);
+  return (
+    <div
+      onClick={() => onEdit(offer)}
+      className={cn(
+        'relative flex cursor-pointer flex-col items-center gap-3 p-4 text-center transition-colors hover:border-primary/40',
+        glassCardClass,
+      )}
+      style={glassCardShadow}
+    >
+      <div className="absolute right-2 top-2 flex gap-1.5">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(offer);
+          }}
+          aria-label="Редактировать"
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface text-ink-muted hover:border-primary hover:text-primary"
+        >
+          <Pencil className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(offer);
+          }}
+          disabled={deleting}
+          aria-label="Удалить"
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface text-ink-muted hover:border-danger hover:text-danger disabled:opacity-50"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+      <BankLogo url={offer.logoUrl} className="h-[173px] w-[173px]" />
+      <Badge style={{ backgroundColor: colors.bg, color: colors.text }}>{offer.status}</Badge>
+      <div className="flex w-full flex-col gap-1 text-sm text-ink-muted">
+        <span>Ставка: {offer.rateOffer || '—'}</span>
+        <span>Срок: {offer.maxTerm || '—'}</span>
+      </div>
+    </div>
+  );
+}
 
 export function Financing() {
   const [offers, setOffers] = useState<FinancingOffer[]>([]);
@@ -187,141 +246,36 @@ export function Financing() {
         }
       />
 
-      <Card className="flex flex-col gap-4 p-0">
-        {/* От lg и шире — таблица-грид, компактное превью (лого/ставка/срок/
-            статус), остальные поля — только в карточке (см. Modal ниже),
-            открывается кликом по строке. Ниже lg — карточки. */}
-        <div className="hidden overflow-x-auto lg:block">
-          <div className={cn('grid min-w-[850px] items-center gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint', gridCols)}>
-            <span>Лого</span>
-            <span>Ставка</span>
-            <span>Срок</span>
-            <span>Статус</span>
-            <span />
-          </div>
-          {offers.map((o) => {
-            const colors = badgeColor(o.status);
-            return (
-              <div
-                key={o.id}
-                onClick={() => openEditModal(o)}
-                className={cn(
-                  'grid min-w-[850px] cursor-pointer items-center gap-4 border-t border-border px-6 py-4 text-sm hover:bg-surface-muted',
-                  gridCols,
-                )}
-              >
-                <BankLogo url={o.logoUrl} className="h-[192px] w-[192px]" />
-                <span className="truncate text-ink-muted">{o.rateOffer || '—'}</span>
-                <span className="truncate text-ink-muted">{o.maxTerm || '—'}</span>
-                <span>
-                  <Badge style={{ backgroundColor: colors.bg, color: colors.text }}>{o.status}</Badge>
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openEditModal(o);
-                    }}
-                    aria-label="Редактировать"
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(o);
-                    }}
-                    disabled={deletingId === o.id}
-                    aria-label="Удалить"
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-danger hover:text-danger disabled:opacity-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-          {loading && (
-            <div className="flex items-center justify-center gap-2 px-6 py-10 text-sm text-ink-muted">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Загружаем предложения...
-            </div>
-          )}
-          {!loading && loadError && <div className="px-6 py-10 text-center text-sm text-danger">{loadError}</div>}
-          {!loading && !loadError && offers.length === 0 && (
-            <div className="px-6 py-10 text-center text-sm text-ink-muted">Пока нет ни одного банка — добавь первый</div>
-          )}
+      {loading && (
+        <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Загружаем предложения...
+        </Card>
+      )}
+      {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
+      {!loading && !loadError && offers.length === 0 && (
+        <Card className="py-10 text-center text-sm text-ink-muted">Пока нет ни одного банка — добавь первый</Card>
+      )}
+      {!loading && !loadError && offers.length > 0 && (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
+          {offers.map((o) => (
+            <FinancingOfferCard
+              key={o.id}
+              offer={o}
+              onEdit={openEditModal}
+              onDelete={handleDelete}
+              deleting={deletingId === o.id}
+            />
+          ))}
         </div>
-
-        <div className="flex flex-col gap-3 p-4 lg:hidden">
-          {offers.map((o) => {
-            const colors = badgeColor(o.status);
-            return (
-              <div
-                key={o.id}
-                onClick={() => openEditModal(o)}
-                className="flex cursor-pointer flex-col gap-2.5 rounded-control border border-border p-3.5 hover:bg-surface-muted"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <BankLogo url={o.logoUrl} className="h-[168px] w-[168px]" />
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEditModal(o);
-                      }}
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                      aria-label="Редактировать"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(o);
-                      }}
-                      disabled={deletingId === o.id}
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-danger hover:text-danger disabled:opacity-50"
-                      aria-label="Удалить"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-                <Badge style={{ backgroundColor: colors.bg, color: colors.text }} className="w-fit">
-                  {o.status}
-                </Badge>
-                <div className="flex flex-col gap-1 text-sm text-ink-muted">
-                  <span>Ставка: {o.rateOffer || '—'}</span>
-                  <span>Срок: {o.maxTerm || '—'}</span>
-                </div>
-              </div>
-            );
-          })}
-          {loading && (
-            <div className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Загружаем предложения...
-            </div>
-          )}
-          {!loading && loadError && <div className="py-10 text-center text-sm text-danger">{loadError}</div>}
-          {!loading && !loadError && offers.length === 0 && (
-            <div className="py-10 text-center text-sm text-ink-muted">Пока нет ни одного банка — добавь первый</div>
-          )}
-        </div>
-      </Card>
+      )}
 
       {deleteError && <p className="text-sm text-danger">{deleteError}</p>}
 
       <Modal open={open} onClose={() => setOpen(false)} title={editingId ? 'Редактировать банк' : 'Новый банк'}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex items-center gap-4">
-            <BankLogo url={form.logoUrl} className="h-[192px] w-[192px]" />
+            <BankLogo url={form.logoUrl} className="h-[173px] w-[173px]" />
             <label
               className={cn(
                 'flex cursor-pointer items-center gap-2 rounded-control border border-dashed border-border px-4 py-2.5 text-sm text-ink-muted hover:border-border-strong',
