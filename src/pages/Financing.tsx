@@ -257,7 +257,7 @@ export function Financing() {
         <Card className="py-10 text-center text-sm text-ink-muted">Пока нет ни одного банка — добавь первый</Card>
       )}
       {!loading && !loadError && offers.length > 0 && (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {offers.map((o) => (
             <FinancingOfferCard
               key={o.id}
