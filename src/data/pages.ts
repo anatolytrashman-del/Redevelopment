@@ -11,6 +11,7 @@ import {
   MessageSquareText,
   Settings,
   ListChecks,
+  TrendingUp,
 } from 'lucide-react';
 
 // Единый список страниц админки — здесь и маршрут, и ключ доступа (см.
@@ -28,6 +29,7 @@ export type PageKey =
   | 'objects'
   | 'tz'
   | 'estimates'
+  | 'finModels'
   | 'documents'
   | 'meetingSummaries'
   | 'settings'
@@ -49,6 +51,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   { key: 'objects', to: '/admin/objects', label: 'Объекты', icon: Building2 },
   { key: 'tz', to: '/admin/tz', label: 'Техзадания', icon: ClipboardList },
   { key: 'estimates', to: '/admin/estimates', label: 'Сметы', icon: Calculator },
+  { key: 'finModels', to: '/admin/finmodels', label: 'Финмодели', icon: TrendingUp },
   { key: 'leads', to: '/admin/leads', label: 'Лиды', icon: Users },
   { key: 'contractors', to: '/admin/contractors', label: 'Подрядчики', icon: HardHat },
   { key: 'transactions', to: '/admin/transactions', label: 'Транзакции', icon: Receipt },
@@ -65,6 +68,7 @@ export const VISIBLE_PAGE_KEYS: PageKey[] = [
   'objects',
   'tz',
   'estimates',
+  'finModels',
   'leads',
   'contractors',
   'transactions',

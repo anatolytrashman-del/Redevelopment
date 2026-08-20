@@ -19,6 +19,8 @@ import { Briefs } from './pages/Briefs';
 import { BriefPublicPage } from './pages/BriefPublicPage';
 import { Estimates } from './pages/Estimates';
 import { EstimateDetail } from './pages/EstimateDetail';
+import { FinModels } from './pages/FinModels';
+import { FinModelDetail } from './pages/FinModelDetail';
 import { MeetingSummaries } from './pages/MeetingSummaries';
 import { MeetingSummaryDetail } from './pages/MeetingSummaryDetail';
 import { MeetingSummaryPublicPage } from './pages/MeetingSummaryPublicPage';
@@ -77,6 +79,8 @@ export default function App() {
         <Route path="tz" element={<RequirePage page="tz"><Briefs /></RequirePage>} />
         <Route path="estimates" element={<RequirePage page="estimates"><Estimates /></RequirePage>} />
         <Route path="estimates/:id" element={<RequirePage page="estimates"><EstimateDetail /></RequirePage>} />
+        <Route path="finmodels" element={<RequirePage page="finModels"><FinModels /></RequirePage>} />
+        <Route path="finmodels/:id" element={<RequirePage page="finModels"><FinModelDetail /></RequirePage>} />
         <Route path="documents" element={<RequirePage page="documents"><Documents /></RequirePage>} />
         <Route
           path="meeting-summaries"
