@@ -35,6 +35,7 @@ function websiteHref(website: string) {
 const emptyForm = {
   logoUrl: '',
   bankName: '',
+  creditName: '',
   website: '',
   generalEmail: '',
   managerName: '',
@@ -48,6 +49,7 @@ function offerToForm(o: FinancingOffer) {
   return {
     logoUrl: o.logoUrl,
     bankName: o.bankName,
+    creditName: o.creditName,
     website: o.website,
     generalEmail: o.generalEmail,
     managerName: o.managerName,
@@ -142,6 +144,7 @@ export function Financing() {
     const payload = {
       logoUrl: form.logoUrl,
       bankName: form.bankName.trim(),
+      creditName: form.creditName.trim(),
       website: form.website.trim(),
       generalEmail: form.generalEmail.trim(),
       managerName: form.managerName.trim(),
@@ -369,6 +372,13 @@ export function Financing() {
             value={form.bankName}
             onChange={(e) => setForm((f) => ({ ...f, bankName: e.target.value }))}
             required
+          />
+
+          <Input
+            label="Название кредита"
+            placeholder="Например, Инвестиционный кредит на приобретение ОС"
+            value={form.creditName}
+            onChange={(e) => setForm((f) => ({ ...f, creditName: e.target.value }))}
           />
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -14,6 +14,7 @@ export interface FinancingOffer {
   id: string;
   logoUrl: string;
   bankName: string;
+  creditName: string;
   website: string;
   generalEmail: string;
   managerName: string;
@@ -29,6 +30,7 @@ export interface FinancingOfferRow {
   id: string;
   logo_url: string;
   bank_name: string;
+  credit_name: string;
   website: string;
   general_email: string;
   manager_name: string;

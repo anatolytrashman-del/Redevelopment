@@ -14,6 +14,7 @@ function fromRow(row: FinancingOfferRow): FinancingOffer {
     id: row.id,
     logoUrl: row.logo_url ?? '',
     bankName: row.bank_name,
+    creditName: row.credit_name ?? '',
     website: row.website ?? '',
     generalEmail: row.general_email ?? '',
     managerName: row.manager_name ?? '',
@@ -40,6 +41,7 @@ export function insertFinancingOffer(input: Omit<FinancingOffer, 'id' | 'created
       .insert({
         logo_url: input.logoUrl || null,
         bank_name: input.bankName,
+        credit_name: input.creditName || null,
         website: input.website || null,
         general_email: input.generalEmail || null,
         manager_name: input.managerName || null,
@@ -63,6 +65,7 @@ export function updateFinancingOffer(id: string, input: Omit<FinancingOffer, 'id
       .update({
         logo_url: input.logoUrl || null,
         bank_name: input.bankName,
+        credit_name: input.creditName || null,
         website: input.website || null,
         general_email: input.generalEmail || null,
         manager_name: input.managerName || null,
