@@ -92,6 +92,17 @@ export interface FinRent {
   workstationPrice: number | null;
 }
 
+// Амортизация — отдельный неденежный расход, не статья категорий: сумма в
+// месяц уменьшает налоговую базу (как "расход ИП" в режиме "от прибыли"),
+// но НЕ списывается с расчётного счёта — в отличие от остальных расходов,
+// не входит в кассовый поток вообще, только в налоговый вычет.
+export interface FinAmortization {
+  monthlyAmount: number | null;
+  startMonth: number;
+  // null — до конца горизонта модели.
+  termMonths: number | null;
+}
+
 export interface FinParams {
   // Месяц 1 модели, формат YYYY-MM.
   startDate: string;
@@ -111,6 +122,7 @@ export interface FinModel {
   params: FinParams;
   leasing: FinLeasing;
   rent: FinRent;
+  amortization: FinAmortization;
   categories: FinCategory[];
   createdAt: string;
 }
@@ -123,6 +135,7 @@ export interface FinModelRow {
   params: FinParams | null;
   leasing: FinLeasing | null;
   rent: FinRent | null;
+  amortization: FinAmortization | null;
   categories: FinCategory[] | null;
   created_at: string;
 }
@@ -157,6 +170,10 @@ export function defaultFinRent(): FinRent {
     workstationCount: null,
     workstationPrice: null,
   };
+}
+
+export function defaultFinAmortization(): FinAmortization {
+  return { monthlyAmount: null, startMonth: 1, termMonths: null };
 }
 
 function entry(label: string, schedule: FinSchedule, deductible = true): FinEntry {

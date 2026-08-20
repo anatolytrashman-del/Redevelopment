@@ -1,10 +1,12 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
 import {
+  defaultFinAmortization,
   defaultFinCategories,
   defaultFinLeasing,
   defaultFinParams,
   defaultFinRent,
+  type FinAmortization,
   type FinCategory,
   type FinLeasing,
   type FinModel,
@@ -14,8 +16,8 @@ import {
 } from '../data/finModels';
 
 // Дефолты подставляются и при чтении — на случай строк, сохранённых до
-// добавления новых полей в params/leasing/rent (тот же приём, что fromRow в
-// estimatesApi.ts).
+// добавления новых полей в params/leasing/rent/amortization (тот же приём,
+// что fromRow в estimatesApi.ts).
 function fromRow(row: FinModelRow): FinModel {
   return {
     id: row.id,
@@ -24,6 +26,7 @@ function fromRow(row: FinModelRow): FinModel {
     params: { ...defaultFinParams(), ...(row.params ?? {}) },
     leasing: { ...defaultFinLeasing(), ...(row.leasing ?? {}) },
     rent: { ...defaultFinRent(), ...(row.rent ?? {}) },
+    amortization: { ...defaultFinAmortization(), ...(row.amortization ?? {}) },
     // reimbursable добавлено позже — на статьях, сохранённых до этого,
     // его нет в JSONB, без ?? чекбокс ушёл бы в React undefined→controlled.
     categories: (row.categories ?? []).map((c) => ({
@@ -56,6 +59,7 @@ export function insertFinModel(input: {
   params?: FinParams;
   leasing?: FinLeasing;
   rent?: FinRent;
+  amortization?: FinAmortization;
   categories?: FinCategory[];
 }): Promise<FinModel> {
   return withRetry(async () => {
@@ -67,6 +71,7 @@ export function insertFinModel(input: {
         params: input.params ?? defaultFinParams(),
         leasing: input.leasing ?? defaultFinLeasing(),
         rent: input.rent ?? defaultFinRent(),
+        amortization: input.amortization ?? defaultFinAmortization(),
         categories: input.categories ?? defaultFinCategories(),
       })
       .select()
@@ -79,7 +84,14 @@ export function insertFinModel(input: {
 
 export function updateFinModel(
   id: string,
-  input: { name: string; params: FinParams; leasing: FinLeasing; rent: FinRent; categories: FinCategory[] },
+  input: {
+    name: string;
+    params: FinParams;
+    leasing: FinLeasing;
+    rent: FinRent;
+    amortization: FinAmortization;
+    categories: FinCategory[];
+  },
 ): Promise<FinModel> {
   return withRetry(async () => {
     const { data, error } = await supabase
@@ -89,6 +101,7 @@ export function updateFinModel(
         params: input.params,
         leasing: input.leasing,
         rent: input.rent,
+        amortization: input.amortization,
         categories: input.categories,
       })
       .eq('id', id)
@@ -122,6 +135,7 @@ export function duplicateFinModel(source: FinModel): Promise<FinModel> {
     params: { ...source.params },
     leasing: { ...source.leasing },
     rent: { ...source.rent },
+    amortization: { ...source.amortization },
     categories,
   });
 }

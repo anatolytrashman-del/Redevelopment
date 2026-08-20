@@ -8,6 +8,7 @@ import { Input } from '../components/ui/Input';
 import { BynSign } from '../components/ui/BynSign';
 import {
   LEASING_CURRENCY_SYMBOLS,
+  type FinAmortization,
   type FinCategory,
   type FinEntry,
   type FinModel,
@@ -100,6 +101,7 @@ export function FinModelDetail() {
         params: model.params,
         leasing: model.leasing,
         rent: model.rent,
+        amortization: model.amortization,
         categories: model.categories,
       });
       setModel(updated);
@@ -276,6 +278,8 @@ export function FinModelEditor({
       <RentCard model={model} patchModel={patchModel} />
 
       <LeasingCard model={model} result={result} patchModel={patchModel} />
+
+      <AmortizationCard model={model} patchModel={patchModel} />
 
       <SummarySection model={model} result={result} />
 
@@ -510,6 +514,52 @@ function LeasingCard({
   );
 }
 
+function AmortizationCard({ model, patchModel }: { model: FinModel; patchModel: (patch: Partial<FinModel>) => void }) {
+  const amortization = model.amortization;
+  function patchAmortization(patch: Partial<FinAmortization>) {
+    patchModel({ amortization: { ...amortization, ...patch } });
+  }
+  const endMonth =
+    amortization.termMonths != null ? amortization.startMonth + amortization.termMonths - 1 : null;
+
+  return (
+    <Card className="flex flex-col gap-4 p-5">
+      <div className="text-lg font-bold text-ink">Амортизация</div>
+      <p className="text-xs text-ink-faint">
+        Неденежный расход — уменьшает налоговую базу (режим "от прибыли"), но не списывается с кассы: не входит в
+        расходы и чистый денежный поток, только в налоговый вычет.
+      </p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Input
+          label="Сумма в месяц, Br"
+          type="number"
+          value={amortization.monthlyAmount ?? ''}
+          onChange={(e) => patchAmortization({ monthlyAmount: numOrNull(e.target.value) })}
+        />
+        <Input
+          label="Месяц начала"
+          type="number"
+          value={amortization.startMonth || ''}
+          onChange={(e) => patchAmortization({ startMonth: Number(e.target.value) || 1 })}
+        />
+        <Input
+          label="Срок, мес."
+          type="number"
+          placeholder="до конца горизонта"
+          value={amortization.termMonths ?? ''}
+          onChange={(e) => patchAmortization({ termMonths: numOrNull(e.target.value) })}
+        />
+      </div>
+      {(amortization.monthlyAmount ?? 0) > 0 && (
+        <span className="text-sm text-ink-muted">
+          {formatNum(amortization.monthlyAmount ?? 0)} Br/мес, с месяца {amortization.startMonth}
+          {endMonth != null ? ` по месяц ${endMonth}` : ' до конца горизонта'}
+        </span>
+      )}
+    </Card>
+  );
+}
+
 function CategoriesSection({
   title,
   categories,
@@ -701,10 +751,16 @@ function SummarySection({ model, result }: { model: FinModel; result: ReturnType
           tone="neutral"
           hint="Сумма статей 'на арендаторов' за весь горизонт — компенсация расходов, не входит в чистую прибыль и не входит в аренду"
         />
+        <Kpi
+          label="Амортизация за горизонт"
+          value={<Byn value={result.totalAmortization} />}
+          tone="neutral"
+          hint="Не касса — только снижает налоговую базу, не входит в расходы и чистый денежный поток"
+        />
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[860px] border-collapse text-sm">
+        <table className="w-full min-w-[960px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-faint">
               <th className="px-2 py-2 font-medium">Год</th>
@@ -713,6 +769,9 @@ function SummarySection({ model, result }: { model: FinModel; result: ReturnType
               <th className="px-2 py-2 text-right font-medium">в т.ч. лизинг</th>
               <th className="px-2 py-2 text-right font-medium" title="Из расходов — переложено на арендаторов сверх аренды, не режет чистую прибыль">
                 в т.ч. на аренд.
+              </th>
+              <th className="px-2 py-2 text-right font-medium" title="Амортизация — не в кассе, только снижает налоговую базу (не входит в Расходы левее)">
+                аморт. (не касса)
               </th>
               <th className="px-2 py-2 text-right font-medium">Налог</th>
               <th className="px-2 py-2 text-right font-medium">Чистый поток</th>
@@ -753,6 +812,7 @@ function YearRow({ year, limit }: { year: FinYear; limit: number }) {
         <td className="px-2 py-2 text-right text-ink"><Byn value={year.expense} /></td>
         <td className="px-2 py-2 text-right text-ink-muted"><Byn value={year.leasing} /></td>
         <td className="px-2 py-2 text-right text-primary"><Byn value={year.reimbursedExpense} /></td>
+        <td className="px-2 py-2 text-right text-ink-faint italic"><Byn value={year.amortization} /></td>
         <td
           className="px-2 py-2 text-right text-ink"
           title={`От оборота: ${formatByn(year.taxRevenueVariant)} · От прибыли: ${formatByn(year.taxProfitVariant)}`}
@@ -773,6 +833,7 @@ function YearRow({ year, limit }: { year: FinYear; limit: number }) {
             <td className="px-2 py-1.5 text-right"><Byn value={m.expense} /></td>
             <td className="px-2 py-1.5 text-right"><Byn value={m.leasing} /></td>
             <td className="px-2 py-1.5 text-right text-primary"><Byn value={m.reimbursedExpense} /></td>
+            <td className="px-2 py-1.5 text-right italic"><Byn value={m.amortization} /></td>
             <td className="px-2 py-1.5 text-right"><Byn value={m.tax} /></td>
             <td className={cn('px-2 py-1.5 text-right', m.net >= 0 ? 'text-success' : 'text-danger')}><Byn value={m.net} /></td>
             <td className={cn('px-2 py-1.5 text-right', m.cumulative >= 0 ? '' : 'text-danger')}><Byn value={m.cumulative} /></td>
