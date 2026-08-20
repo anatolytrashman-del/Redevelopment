@@ -21,7 +21,12 @@ function fromRow(row: FinModelRow): FinModel {
     name: row.name,
     params: { ...defaultFinParams(), ...(row.params ?? {}) },
     leasing: { ...defaultFinLeasing(), ...(row.leasing ?? {}) },
-    categories: row.categories ?? [],
+    // reimbursable добавлено позже — на статьях, сохранённых до этого,
+    // его нет в JSONB, без ?? чекбокс ушёл бы в React undefined→controlled.
+    categories: (row.categories ?? []).map((c) => ({
+      ...c,
+      entries: c.entries.map((e) => ({ ...e, reimbursable: e.reimbursable ?? false })),
+    })),
     createdAt: row.created_at,
   };
 }
