@@ -13,6 +13,7 @@ import {
   currencies,
   currencySymbols,
   categories,
+  incomeCategories,
   categoryColor,
   payers,
   incomePayers,
@@ -162,9 +163,21 @@ export function Transactions() {
 
   // Списки категорий и источников открытые: стартовый набор + всё, что уже
   // встречалось в загруженных транзакциях (в т.ч. добавленное через форму ранее).
-  const knownCategories = useMemo(() => {
+  // Категории расхода и дохода — разные наборы (знак amount определяет,
+  // в какой из них попадает уже сохранённая транзакция).
+  const knownExpenseCategories = useMemo(() => {
     const set = new Set<string>(categories);
-    transactions.forEach((t) => set.add(t.category));
+    transactions.forEach((t) => {
+      if (t.amount < 0) set.add(t.category);
+    });
+    return [...set];
+  }, [transactions]);
+
+  const knownIncomeCategories = useMemo(() => {
+    const set = new Set<string>(incomeCategories);
+    transactions.forEach((t) => {
+      if (t.amount > 0) set.add(t.category);
+    });
     return [...set];
   }, [transactions]);
 
@@ -446,6 +459,7 @@ export function Transactions() {
                 ...f,
                 kind: v as OperationKind,
                 paidBy: v === 'Доход' ? incomePayers[0] : payers[0],
+                category: v === 'Доход' ? incomeCategories[0] : categories[0],
               }))
             }
           />
@@ -487,7 +501,7 @@ export function Transactions() {
 
           <AddableSelect
             label="Категория"
-            options={knownCategories}
+            options={form.kind === 'Доход' ? knownIncomeCategories : knownExpenseCategories}
             value={form.category}
             onChange={(v) => setForm((f) => ({ ...f, category: v }))}
             addLabel="+ Добавить категорию"

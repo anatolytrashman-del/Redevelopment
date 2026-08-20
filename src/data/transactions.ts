@@ -16,6 +16,10 @@ export const currencySymbols: Record<Currency, string> = {
 export const categories = ['Маркетинг', 'IT-инфраструктура', 'Поездки в Минск', 'Консультации'] as const;
 export type Category = string;
 
+// Категории для операций дохода — отдельный (растущий) список, как и
+// категории расходов выше; список расходных категорий при этом не меняется.
+export const incomeCategories = ['Сдача недвижимости в аренду'] as const;
+
 // Двое партнёров, между которыми расходы делятся 50/50, если не
 // компенсированы (см. calculateBalances в Transactions.tsx).
 export const splitPayers = ['Трэшмен', 'Степа'] as const;
