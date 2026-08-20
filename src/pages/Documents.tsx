@@ -6,10 +6,6 @@ import {
   FileText,
   ExternalLink,
   X,
-  FileCheck,
-  Send,
-  Hourglass,
-  Archive,
   Trash2,
   Eye,
   Download,
@@ -19,7 +15,6 @@ import {
   HardHat,
   Scale,
 } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { cn } from '../lib/cn';
@@ -29,22 +24,18 @@ import { Select } from '../components/ui/Select';
 import { Modal } from '../components/ui/Modal';
 import { CreateDocumentModal } from '../components/documents/CreateDocumentModal';
 import { DocumentPreviewModal, isPreviewable, type PreviewFile } from '../components/documents/DocumentPreviewModal';
-import { documentStatuses, type DocumentStatus, type GeneratedDocument } from '../data/generatedDocuments';
 import type { DocumentTemplate, TemplateField, TemplateFieldType } from '../data/documentTemplates';
 import type { Lead } from '../data/leads';
 import type { RealtyObject } from '../data/objects';
 import type { Contractor } from '../data/contractors';
 import type { ContractorDocument } from '../data/contractorDocuments';
 import type { LegalDocument } from '../data/legalDocuments';
-import {
-  fetchGeneratedDocuments,
-  updateGeneratedDocumentStatus,
-  deleteGeneratedDocument,
-} from '../lib/generatedDocumentsApi';
+import type { Pledge } from '../data/pledges';
 import { fetchDocumentTemplates, insertDocumentTemplate, updateDocumentTemplate } from '../lib/documentTemplatesApi';
 import { fetchLeads } from '../lib/leadsApi';
 import { fetchAllSignedAgreements, type SignedAgreement } from '../lib/agreementSigningApi';
-import { fetchObjects, updateObject, uploadObjectDocument } from '../lib/objectsApi';
+import { fetchObjects, uploadObjectDocument } from '../lib/objectsApi';
+import { fetchPledges, createPledgePhotoUrl } from '../lib/pledgesApi';
 import { fetchContractors } from '../lib/contractorsApi';
 import {
   fetchContractorDocuments,
@@ -64,13 +55,6 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-const statusMeta: Record<DocumentStatus, { icon: LucideIcon; className: string }> = {
-  'Готов к отправке': { icon: FileCheck, className: 'bg-surface-muted text-ink-muted' },
-  'Отправлен клиенту': { icon: Send, className: 'bg-info-bg text-info-text' },
-  'Ждём от клиента': { icon: Hourglass, className: 'bg-warning-bg text-warning' },
-  'Документ в архиве': { icon: Archive, className: 'bg-surface-muted text-ink-faint' },
-};
-
 const fieldTypes: TemplateFieldType[] = ['text', 'date', 'gender'];
 const fieldTypeLabels: Record<TemplateFieldType, string> = { text: 'Текст', date: 'Дата', gender: 'Пол' };
 
@@ -81,14 +65,9 @@ function templateToForm(t: DocumentTemplate) {
 }
 
 export function Documents() {
-  const [documents, setDocuments] = useState<GeneratedDocument[]>([]);
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [updateError, setUpdateError] = useState<string | null>(null);
 
   const [templatesLoading, setTemplatesLoading] = useState(true);
   const [templatesError, setTemplatesError] = useState<string | null>(null);
@@ -97,7 +76,6 @@ export function Documents() {
   const [templateForm, setTemplateForm] = useState(emptyTemplateForm);
   const [templateSubmitting, setTemplateSubmitting] = useState(false);
   const [templateSubmitError, setTemplateSubmitError] = useState<string | null>(null);
-  const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
 
   // Подписанные соглашения — читаются напрямую из agreement_signatures
   // (см. agreementSigningApi.ts), а не заводятся вручную: раньше сюда
@@ -109,14 +87,18 @@ export function Documents() {
   const [signedLoading, setSignedLoading] = useState(true);
   const [signedError, setSignedError] = useState<string | null>(null);
 
-  // Документы объектов (БРТИ/техпаспорт) — то же поле RealtyObject.documents,
-  // что и на странице объекта (см. ObjectDocuments.tsx), просто сводка по
-  // всем объектам сразу, без захода в каждый по отдельности.
+  // Объекты нужны только для objectName() в "Подписанные соглашения" —
+  // раздел с самими объектами (техпаспорт/БРТИ) заменён на залоги ниже,
+  // объекты в проработке ещё не имеют настоящих документов о собственности.
   const [objects, setObjects] = useState<RealtyObject[]>([]);
-  const [objectsLoading, setObjectsLoading] = useState(true);
-  const [objectsError, setObjectsError] = useState<string | null>(null);
-  const [uploadingObjectId, setUploadingObjectId] = useState<string | null>(null);
-  const [objectDocError, setObjectDocError] = useState<string | null>(null);
+
+  // Объекты в залоге (см. страницу "Объекты" → блок "Залоги") — у каждого
+  // уже есть скан свидетельства о собственности (certificatePhotoPath,
+  // приватный бакет pledge-photos), просто показываем его тут же, без
+  // похода на другую страницу.
+  const [pledges, setPledges] = useState<Pledge[]>([]);
+  const [pledgesLoading, setPledgesLoading] = useState(true);
+  const [pledgesError, setPledgesError] = useState<string | null>(null);
 
   // Договоры с подрядчиками — отдельная таблица (contractor_documents), не
   // поле на Contractor: загрузка идёт прямо отсюда, без похода на страницу
@@ -149,15 +131,9 @@ export function Documents() {
   // Вкладки вместо длинной вертикальной портянки разделов — переключают
   // видимость блока, все данные при этом всё равно грузятся сразу
   // (см. useEffect ниже), просто не рендерятся, пока не открыта вкладка.
-  const [activeTab, setActiveTab] = useState<
-    'documents' | 'signed' | 'objects' | 'contractors' | 'legal' | 'templates'
-  >('documents');
+  const [activeTab, setActiveTab] = useState<'signed' | 'objects' | 'contractors' | 'legal' | 'templates'>('signed');
 
   useEffect(() => {
-    fetchGeneratedDocuments()
-      .then(setDocuments)
-      .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить документы')))
-      .finally(() => setLoading(false));
     fetchDocumentTemplates()
       .then(setTemplates)
       .catch((err) => setTemplatesError(errorMessage(err, 'Не удалось загрузить шаблоны')))
@@ -168,8 +144,11 @@ export function Documents() {
       .finally(() => setSignedLoading(false));
     fetchObjects()
       .then(setObjects)
-      .catch((err) => setObjectsError(errorMessage(err, 'Не удалось загрузить объекты')))
-      .finally(() => setObjectsLoading(false));
+      .catch(() => setObjects([]));
+    fetchPledges()
+      .then(setPledges)
+      .catch((err) => setPledgesError(errorMessage(err, 'Не удалось загрузить залоги')))
+      .finally(() => setPledgesLoading(false));
     fetchContractors()
       .then(setContractors)
       .catch(() => setContractors([]));
@@ -186,77 +165,18 @@ export function Documents() {
       .catch(() => setLeads([]));
   }, []);
 
-  function templateName(templateId: string) {
-    return templates.find((t) => t.id === templateId)?.name ?? '—';
-  }
-
-  function leadName(leadId: string) {
-    return leads.find((l) => l.id === leadId)?.name ?? '—';
-  }
-
-  async function handleStatusChange(doc: GeneratedDocument, status: string) {
-    if (updatingId) return;
-    setUpdatingId(doc.id);
-    setUpdateError(null);
-    const next = { ...doc, status: status as DocumentStatus };
-    setDocuments((prev) => prev.map((d) => (d.id === doc.id ? next : d)));
-    try {
-      const updated = await updateGeneratedDocumentStatus(doc.id, status as DocumentStatus);
-      setDocuments((prev) => prev.map((d) => (d.id === doc.id ? updated : d)));
-    } catch (err) {
-      setDocuments((prev) => prev.map((d) => (d.id === doc.id ? doc : d)));
-      setUpdateError(errorMessage(err, 'Не удалось изменить статус'));
-    } finally {
-      setUpdatingId(null);
-    }
-  }
-
-  async function handleDeleteDocument(doc: GeneratedDocument) {
-    if (!window.confirm(`Удалить «${doc.title}» из списка?`)) return;
-    setDeletingDocId(doc.id);
-    setUpdateError(null);
-    try {
-      await deleteGeneratedDocument(doc.id);
-      setDocuments((prev) => prev.filter((d) => d.id !== doc.id));
-    } catch (err) {
-      setUpdateError(errorMessage(err, 'Не удалось удалить документ'));
-    } finally {
-      setDeletingDocId(null);
-    }
-  }
-
   function objectName(objectId: string) {
     const o = objects.find((x) => x.id === objectId);
     return o ? o.name || o.address : '—';
   }
 
-  async function handleObjectDocUpload(object: RealtyObject, file: File) {
-    setUploadingObjectId(object.id);
-    setObjectDocError(null);
-    try {
-      const uploaded = await uploadObjectDocument(file);
-      const nextDocuments = { ...object.documents, techPassport: { ...uploaded, uploadedAt: new Date().toISOString() } };
-      const { id, shareToken, ...rest } = object;
-      const updated = await updateObject(id, { ...rest, documents: nextDocuments });
-      setObjects((prev) => prev.map((o) => (o.id === id ? updated : o)));
-    } catch (err) {
-      setObjectDocError(errorMessage(err, 'Не удалось загрузить файл'));
-    } finally {
-      setUploadingObjectId(null);
-    }
-  }
-
-  async function handleObjectDocRemove(object: RealtyObject) {
-    setObjectDocError(null);
-    const nextDocuments = { ...object.documents };
-    delete nextDocuments.techPassport;
-    const { id, shareToken, ...rest } = object;
-    try {
-      const updated = await updateObject(id, { ...rest, documents: nextDocuments });
-      setObjects((prev) => prev.map((o) => (o.id === id ? updated : o)));
-    } catch (err) {
-      setObjectDocError(errorMessage(err, 'Не удалось удалить файл'));
-    }
+  // Свидетельство БРТИ лежит в приватном бакете pledge-photos — готового
+  // URL в базе нет, ссылку подписываем на лету (тот же паттерн, что и у
+  // фото лида/подрядчика), а не при каждом рендере списка.
+  async function openPledgeCertificate(pledge: Pledge) {
+    if (!pledge.certificatePhotoPath) return;
+    const url = await createPledgePhotoUrl(pledge.certificatePhotoPath);
+    if (url) setPreviewFile({ url, fileName: pledge.certificatePhotoPath });
   }
 
   function contractorName(contractorId: string) {
@@ -418,11 +338,10 @@ export function Documents() {
       <div className="flex gap-1 overflow-x-auto border-b border-border">
         {(
           [
-            ['documents', 'Документы', documents.length],
             ['signed', 'Подписанные соглашения', signedAgreements.length],
-            ['objects', 'Объекты (БРТИ)', objects.length],
+            ['objects', 'Объекты (БРТИ)', pledges.length],
             ['contractors', 'Подрядчики', contractorDocs.length],
-            ['legal', 'Юристы', legalDocs.length],
+            ['legal', 'Нормативка', legalDocs.length],
             ['templates', 'Шаблоны', templates.length],
           ] as const
         ).map(([key, label, count]) => (
@@ -442,73 +361,6 @@ export function Documents() {
           </button>
         ))}
       </div>
-
-      {activeTab === 'documents' && (
-      <div className="flex flex-col gap-4">
-        {documents.map((doc) => {
-          const meta = statusMeta[doc.status];
-          const Icon = meta?.icon ?? FileCheck;
-          return (
-            <Card key={doc.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex min-w-0 flex-1 items-center gap-4">
-                <span
-                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${meta?.className ?? 'bg-surface-muted text-ink-muted'}`}
-                >
-                  <Icon className="h-5 w-5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-semibold text-ink">{doc.title}</div>
-                  <div className="truncate text-sm text-ink-muted">
-                    {templateName(doc.templateId)} · {leadName(doc.leadId)} · {formatDate(doc.createdAt)}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 sm:shrink-0">
-                <div className="w-full sm:w-52">
-                  <Select
-                    pill
-                    options={[...documentStatuses]}
-                    value={doc.status}
-                    onChange={(v) => handleStatusChange(doc, v)}
-                    triggerClassName={meta?.className}
-                  />
-                </div>
-                <a
-                  href={doc.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                  aria-label="Открыть документ"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteDocument(doc)}
-                  disabled={deletingDocId === doc.id}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-danger hover:text-danger disabled:opacity-50"
-                  aria-label="Удалить"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            </Card>
-          );
-        })}
-
-        {loading && (
-          <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Загружаем документы...
-          </Card>
-        )}
-        {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
-        {!loading && !loadError && documents.length === 0 && (
-          <Card className="py-10 text-center text-sm text-ink-muted">Документов пока нет</Card>
-        )}
-        {updateError && <p className="text-sm text-danger">{updateError}</p>}
-      </div>
-      )}
 
       {activeTab === 'signed' && (
       <div className="flex flex-col gap-4">
@@ -562,90 +414,45 @@ export function Documents() {
 
       {activeTab === 'objects' && (
       <div className="flex flex-col gap-4">
-        {objects.map((o) => {
-          const file = o.documents.techPassport;
-          const uploading = uploadingObjectId === o.id;
-          return (
-            <Card key={o.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex min-w-0 flex-1 items-center gap-4">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
-                  <Building2 className="h-5 w-5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-semibold text-ink">{o.address}</div>
-                  {file ? (
-                    <div className="truncate text-sm text-ink-muted">
-                      {file.fileName} · {formatDate(file.uploadedAt)}
-                    </div>
-                  ) : (
-                    <div className="text-sm text-ink-faint">Файл не загружен</div>
-                  )}
-                </div>
+        {pledges.map((p) => (
+          <Card key={p.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:gap-4">
+            <div className="flex min-w-0 flex-1 items-center gap-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
+                <Building2 className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-semibold text-ink">{p.address}</div>
+                {p.certificatePhotoPath ? (
+                  <div className="truncate text-sm text-ink-muted">Свидетельство БРТИ загружено</div>
+                ) : (
+                  <div className="text-sm text-ink-faint">Свидетельство не загружено</div>
+                )}
               </div>
-              <div className="flex items-center gap-2 sm:shrink-0">
-                {file && isPreviewable(file.fileName) && (
-                  <button
-                    type="button"
-                    onClick={() => setPreviewFile(file)}
-                    aria-label="Просмотреть"
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </button>
-                )}
-                {file && (
-                  <a
-                    href={file.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label="Скачать"
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                  >
-                    <Download className="h-4 w-4" />
-                  </a>
-                )}
-                <input
-                  type="file"
-                  id={`brti-upload-${o.id}`}
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    e.target.value = '';
-                    if (f) handleObjectDocUpload(o, f);
-                  }}
-                />
-                <label
-                  htmlFor={`brti-upload-${o.id}`}
-                  aria-label={file ? 'Заменить файл' : 'Загрузить файл'}
-                  className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+            </div>
+            <div className="flex items-center gap-2 sm:shrink-0">
+              {p.certificatePhotoPath && (
+                <button
+                  type="button"
+                  onClick={() => openPledgeCertificate(p)}
+                  aria-label="Просмотреть свидетельство"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
                 >
-                  {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                </label>
-                {file && (
-                  <button
-                    type="button"
-                    onClick={() => handleObjectDocRemove(o)}
-                    aria-label="Удалить файл"
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-danger"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-            </Card>
-          );
-        })}
-        {objectsLoading && (
+                  <Eye className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </Card>
+        ))}
+        {pledgesLoading && (
           <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Загружаем объекты...
+            Загружаем залоги...
           </Card>
         )}
-        {!objectsLoading && objectsError && <Card className="py-10 text-center text-sm text-danger">{objectsError}</Card>}
-        {!objectsLoading && !objectsError && objects.length === 0 && (
-          <Card className="py-10 text-center text-sm text-ink-muted">Объектов пока нет</Card>
+        {!pledgesLoading && pledgesError && <Card className="py-10 text-center text-sm text-danger">{pledgesError}</Card>}
+        {!pledgesLoading && !pledgesError && pledges.length === 0 && (
+          <Card className="py-10 text-center text-sm text-ink-muted">Залогов пока нет</Card>
         )}
-        {objectDocError && <p className="text-sm text-danger">{objectDocError}</p>}
       </div>
       )}
 
@@ -839,7 +646,7 @@ export function Documents() {
         onClose={() => setCreateOpen(false)}
         templates={templates}
         leads={leads}
-        onCreated={(doc) => setDocuments((prev) => [doc, ...prev])}
+        onCreated={() => {}}
       />
 
       <Modal
