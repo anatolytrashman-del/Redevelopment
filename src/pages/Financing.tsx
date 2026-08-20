@@ -64,14 +64,14 @@ function BankLogo({ url, className }: { url: string; className?: string }) {
   if (!url) {
     return (
       <div className={cn('flex shrink-0 items-center justify-center rounded-control bg-surface-muted text-ink-faint', className)}>
-        <Landmark className="h-5 w-5" />
+        <Landmark className="h-7 w-7" />
       </div>
     );
   }
   return <img src={url} alt="" className={cn('shrink-0 rounded-control bg-surface-muted object-contain', className)} />;
 }
 
-const gridCols = 'grid-cols-[64px_170px_150px_190px_150px_150px_130px_110px_190px_80px]';
+const gridCols = 'grid-cols-[96px_150px_190px_150px_150px_130px_110px_190px_80px]';
 
 export function Financing() {
   const [offers, setOffers] = useState<FinancingOffer[]>([]);
@@ -198,9 +198,8 @@ export function Financing() {
         {/* От lg и шире — таблица-грид, много колонок под каждое поле из
             запроса. Ниже lg — карточки. */}
         <div className="hidden overflow-x-auto lg:block">
-          <div className={cn('grid min-w-[1500px] items-center gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint', gridCols)}>
+          <div className={cn('grid min-w-[1350px] items-center gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint', gridCols)}>
             <span>Лого</span>
-            <span>Банк</span>
             <span>Сайт</span>
             <span>Почта</span>
             <span>Менеджер</span>
@@ -213,9 +212,8 @@ export function Financing() {
           {offers.map((o) => {
             const colors = badgeColor(o.status);
             return (
-              <div key={o.id} className={cn('grid min-w-[1500px] items-center gap-4 border-t border-border px-6 py-4 text-sm', gridCols)}>
-                <BankLogo url={o.logoUrl} className="h-10 w-10" />
-                <span className="truncate font-semibold text-ink">{o.bankName}</span>
+              <div key={o.id} className={cn('grid min-w-[1350px] items-center gap-4 border-t border-border px-6 py-4 text-sm', gridCols)}>
+                <BankLogo url={o.logoUrl} className="h-16 w-16" />
                 <span className="truncate">
                   {o.website ? (
                     <a href={websiteHref(o.website)} target="_blank" rel="noreferrer" className="truncate text-primary hover:underline">
@@ -282,8 +280,7 @@ export function Financing() {
               <div key={o.id} className="flex flex-col gap-2.5 rounded-control border border-border p-3.5">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-3">
-                    <BankLogo url={o.logoUrl} className="h-10 w-10" />
-                    <span className="min-w-0 break-words font-semibold text-ink">{o.bankName}</span>
+                    <BankLogo url={o.logoUrl} className="h-14 w-14" />
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
                     <button
