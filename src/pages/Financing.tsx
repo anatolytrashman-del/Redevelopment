@@ -103,8 +103,6 @@ export function Financing() {
       .finally(() => setLoading(false));
   }, []);
 
-  const canSubmit = form.bankName.trim().length > 0;
-
   function openAddModal() {
     setEditingId(null);
     setForm(emptyForm);
@@ -137,7 +135,7 @@ export function Financing() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit || submitting) return;
+    if (submitting) return;
 
     setSubmitting(true);
     setSubmitError(null);
@@ -172,7 +170,7 @@ export function Financing() {
   }
 
   async function handleDelete(o: FinancingOffer) {
-    if (!window.confirm(`Удалить «${o.bankName}» из списка?`)) return;
+    if (!window.confirm(`Удалить «${o.bankName || o.creditName || 'без названия'}» из списка?`)) return;
     setDeletingId(o.id);
     setDeleteError(null);
     try {
@@ -367,14 +365,6 @@ export function Financing() {
           </div>
 
           <Input
-            label="Название банка"
-            placeholder="Например, Приорбанк"
-            value={form.bankName}
-            onChange={(e) => setForm((f) => ({ ...f, bankName: e.target.value }))}
-            required
-          />
-
-          <Input
             label="Название кредита"
             placeholder="Например, Инвестиционный кредит на приобретение ОС"
             value={form.creditName}
@@ -441,7 +431,7 @@ export function Financing() {
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
               Отмена
             </Button>
-            <Button type="submit" disabled={!canSubmit || submitting}>
+            <Button type="submit" disabled={submitting}>
               {submitting ? 'Сохраняем...' : editingId ? 'Сохранить' : 'Добавить'}
             </Button>
           </div>
