@@ -5,7 +5,15 @@ import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import type { FinCategory, FinEntry, FinModel, FinSchedule } from '../data/finModels';
+import { BynSign } from '../components/ui/BynSign';
+import {
+  LEASING_CURRENCY_SYMBOLS,
+  type FinCategory,
+  type FinEntry,
+  type FinModel,
+  type FinSchedule,
+  type LeasingCurrency,
+} from '../data/finModels';
 import type { RealtyObject } from '../data/objects';
 import { fetchFinModel, updateFinModel } from '../lib/finModelsApi';
 import { fetchObject } from '../lib/objectsApi';
@@ -19,8 +27,24 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
+function formatNum(value: number): string {
+  return Math.round(value).toLocaleString('ru-RU');
+}
+
+// Для plain-text мест (title-атрибуты), где SVG-знак рубля не отрисуется.
 function formatByn(value: number): string {
-  return `${Math.round(value).toLocaleString('ru-RU')} Br`;
+  return `${formatNum(value)} Br`;
+}
+
+// Сумма в BYN со знаком рубля (см. BynSign — у знака нет кодовой точки в
+// Юникоде, поэтому JSX, а не строка).
+function Byn({ value }: { value: number }) {
+  return (
+    <span className="whitespace-nowrap">
+      {formatNum(value)}&nbsp;
+      <BynSign />
+    </span>
+  );
 }
 
 // '' <-> null для числовых полей: пустая строка в инпуте = "не заполнено",
@@ -242,58 +266,11 @@ export function FinModelEditor({
         </div>
         <p className="text-xs text-ink-faint">
           Все суммы в BYN. Налог на каждый год считается в обоих режимах, в итог идёт меньший. Лимит выручки ИП —{' '}
-          {formatByn(model.params.revenueLimitByn)} в календарный год, превышение подсвечивается в сводке.
+          <Byn value={model.params.revenueLimitByn} /> в календарный год, превышение подсвечивается в сводке.
         </p>
       </Card>
 
-      <Card className="flex flex-col gap-4 p-5">
-        <div className="text-lg font-bold text-ink">Лизинг</div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Input
-            label="Сумма договора, Br"
-            type="number"
-            value={model.leasing.contractSum ?? ''}
-            onChange={(e) => patchModel({ leasing: { ...model.leasing, contractSum: numOrNull(e.target.value) } })}
-          />
-          <Input
-            label="Аванс, Br"
-            type="number"
-            value={model.leasing.downPayment ?? ''}
-            onChange={(e) => patchModel({ leasing: { ...model.leasing, downPayment: numOrNull(e.target.value) } })}
-          />
-          <Input
-            label="Срок, мес."
-            type="number"
-            value={model.leasing.termMonths ?? ''}
-            onChange={(e) => patchModel({ leasing: { ...model.leasing, termMonths: numOrNull(e.target.value) } })}
-          />
-          <Input
-            label="Ставка, %/год"
-            type="number"
-            value={model.leasing.annualRatePct ?? ''}
-            onChange={(e) => patchModel({ leasing: { ...model.leasing, annualRatePct: numOrNull(e.target.value) } })}
-          />
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <label className="flex items-center gap-2 text-sm font-medium text-ink">
-            <input
-              type="checkbox"
-              checked={model.leasing.deductible}
-              onChange={(e) => patchModel({ leasing: { ...model.leasing, deductible: e.target.checked } })}
-              className="h-4 w-4 rounded border-border accent-primary"
-            />
-            Зачитывать платежи как расходы ИП
-          </label>
-          <span className="text-sm text-ink-muted">
-            Платёж:{' '}
-            <span className="font-semibold text-ink">
-              {result.monthlyLeasingPayment != null
-                ? `${formatByn(result.monthlyLeasingPayment)}/мес`
-                : '— заполните сумму и срок'}
-            </span>
-          </span>
-        </div>
-      </Card>
+      <LeasingCard model={model} result={result} patchModel={patchModel} />
 
       <SummarySection model={model} result={result} />
 
@@ -319,6 +296,108 @@ export function FinModelEditor({
         onRemoveEntry={removeEntry}
       />
     </div>
+  );
+}
+
+function LeasingCard({
+  model,
+  result,
+  patchModel,
+}: {
+  model: FinModel;
+  result: ReturnType<typeof calculateFinModel>;
+  patchModel: (patch: Partial<FinModel>) => void;
+}) {
+  const sym = LEASING_CURRENCY_SYMBOLS[model.leasing.currency];
+  const isByn = model.leasing.currency === 'BYN';
+  const payment = result.monthlyLeasingPayment;
+  const paymentByn =
+    payment != null && !result.leasingRateMissing ? payment * (isByn ? 1 : (model.leasing.exchangeRate ?? 0)) : null;
+
+  return (
+    <Card className="flex flex-col gap-4 p-5">
+      <div className="text-lg font-bold text-ink">Лизинг</div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Input
+          label={`Сумма договора, ${sym}`}
+          type="number"
+          value={model.leasing.contractSum ?? ''}
+          onChange={(e) => patchModel({ leasing: { ...model.leasing, contractSum: numOrNull(e.target.value) } })}
+        />
+        <Input
+          label={`Аванс, ${sym}`}
+          type="number"
+          value={model.leasing.downPayment ?? ''}
+          onChange={(e) => patchModel({ leasing: { ...model.leasing, downPayment: numOrNull(e.target.value) } })}
+        />
+        <Input
+          label="Срок, мес."
+          type="number"
+          value={model.leasing.termMonths ?? ''}
+          onChange={(e) => patchModel({ leasing: { ...model.leasing, termMonths: numOrNull(e.target.value) } })}
+        />
+        <Input
+          label="Ставка, %/год"
+          type="number"
+          value={model.leasing.annualRatePct ?? ''}
+          onChange={(e) => patchModel({ leasing: { ...model.leasing, annualRatePct: numOrNull(e.target.value) } })}
+        />
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm text-ink-muted">Валюта договора</span>
+          <select
+            value={model.leasing.currency}
+            onChange={(e) => patchModel({ leasing: { ...model.leasing, currency: e.target.value as LeasingCurrency } })}
+            className="rounded-control border border-transparent bg-surface-muted px-4 py-3 text-sm text-ink outline-none focus:border-primary"
+          >
+            <option value="USD">Доллар ($)</option>
+            <option value="EUR">Евро (€)</option>
+            <option value="BYN">Бел. рубль</option>
+          </select>
+        </label>
+        {!isByn && (
+          <Input
+            label={`Курс BYN за 1 ${sym}`}
+            type="number"
+            step="0.0001"
+            value={model.leasing.exchangeRate ?? ''}
+            onChange={(e) => patchModel({ leasing: { ...model.leasing, exchangeRate: numOrNull(e.target.value) } })}
+          />
+        )}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <label className="flex items-center gap-2 text-sm font-medium text-ink">
+          <input
+            type="checkbox"
+            checked={model.leasing.deductible}
+            onChange={(e) => patchModel({ leasing: { ...model.leasing, deductible: e.target.checked } })}
+            className="h-4 w-4 rounded border-border accent-primary"
+          />
+          Зачитывать платежи как расходы ИП
+        </label>
+        <span className="text-sm text-ink-muted">
+          Платёж:{' '}
+          {payment == null ? (
+            <span className="font-semibold text-ink">— заполните сумму и срок</span>
+          ) : (
+            <span className="font-semibold text-ink">
+              {formatNum(payment)} {sym}/мес
+              {paymentByn != null && !isByn && (
+                <span className="text-ink-muted">
+                  {' '}
+                  ≈ <Byn value={paymentByn} />
+                  /мес
+                </span>
+              )}
+            </span>
+          )}
+        </span>
+      </div>
+      {result.leasingRateMissing && (
+        <p className="text-sm font-medium text-warning">
+          Укажите курс — без него лизинг не попадает в расчёт (пересчитывать {sym} в BYN 1:1 было бы обманом модели).
+        </p>
+      )}
+    </Card>
   );
 }
 
@@ -476,7 +555,7 @@ function SummarySection({ model, result }: { model: FinModel; result: ReturnType
       <div className="text-lg font-bold text-ink">Сводка</div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Kpi label="Итог за горизонт" value={formatByn(result.netProfit)} tone={result.netProfit >= 0 ? 'success' : 'danger'} />
+        <Kpi label="Итог за горизонт" value={<Byn value={result.netProfit} />} tone={result.netProfit >= 0 ? 'success' : 'danger'} />
         <Kpi
           label="Выход в плюс"
           value={result.breakEvenMonth ? `${result.breakEvenMonth.label} (мес. ${result.breakEvenMonth.index})` : '— не выходит'}
@@ -484,11 +563,11 @@ function SummarySection({ model, result }: { model: FinModel; result: ReturnType
         />
         <Kpi
           label="Макс. просадка"
-          value={formatByn(Math.abs(result.maxDrawdown))}
+          value={<Byn value={Math.abs(result.maxDrawdown)} />}
           tone="neutral"
           hint="Сколько всего денег нужно завести в проект до самоокупаемости"
         />
-        <Kpi label="Налоги за горизонт" value={formatByn(result.totalTax)} tone="neutral" />
+        <Kpi label="Налоги за горизонт" value={<Byn value={result.totalTax} />} tone="neutral" />
       </div>
 
       <div className="overflow-x-auto">
@@ -534,38 +613,38 @@ function YearRow({ year, limit }: { year: FinYear; limit: number }) {
             )}
           </span>
         </td>
-        <td className="px-2 py-2 text-right text-ink">{formatByn(year.income)}</td>
-        <td className="px-2 py-2 text-right text-ink">{formatByn(year.expense)}</td>
-        <td className="px-2 py-2 text-right text-ink-muted">{formatByn(year.leasing)}</td>
+        <td className="px-2 py-2 text-right text-ink"><Byn value={year.income} /></td>
+        <td className="px-2 py-2 text-right text-ink"><Byn value={year.expense} /></td>
+        <td className="px-2 py-2 text-right text-ink-muted"><Byn value={year.leasing} /></td>
         <td
           className="px-2 py-2 text-right text-ink"
           title={`От оборота: ${formatByn(year.taxRevenueVariant)} · От прибыли: ${formatByn(year.taxProfitVariant)}`}
         >
-          {formatByn(year.tax)}
+          <Byn value={year.tax} />
           <span className="ml-1 text-[11px] text-ink-faint">{year.taxRegime === 'profit' ? 'от прибыли' : 'от оборота'}</span>
         </td>
-        <td className={cn('px-2 py-2 text-right font-semibold', year.net >= 0 ? 'text-success' : 'text-danger')}>{formatByn(year.net)}</td>
+        <td className={cn('px-2 py-2 text-right font-semibold', year.net >= 0 ? 'text-success' : 'text-danger')}><Byn value={year.net} /></td>
         <td className={cn('px-2 py-2 text-right font-semibold', year.cumulativeEnd >= 0 ? 'text-ink' : 'text-danger')}>
-          {formatByn(year.cumulativeEnd)}
+          <Byn value={year.cumulativeEnd} />
         </td>
       </tr>
       {expanded &&
         year.months.map((m) => (
           <tr key={m.index} className="border-b border-border/50 text-xs text-ink-muted">
             <td className="px-2 py-1.5 pl-7">{m.label}</td>
-            <td className="px-2 py-1.5 text-right">{formatByn(m.income)}</td>
-            <td className="px-2 py-1.5 text-right">{formatByn(m.expense)}</td>
-            <td className="px-2 py-1.5 text-right">{formatByn(m.leasing)}</td>
-            <td className="px-2 py-1.5 text-right">{formatByn(m.tax)}</td>
-            <td className={cn('px-2 py-1.5 text-right', m.net >= 0 ? 'text-success' : 'text-danger')}>{formatByn(m.net)}</td>
-            <td className={cn('px-2 py-1.5 text-right', m.cumulative >= 0 ? '' : 'text-danger')}>{formatByn(m.cumulative)}</td>
+            <td className="px-2 py-1.5 text-right"><Byn value={m.income} /></td>
+            <td className="px-2 py-1.5 text-right"><Byn value={m.expense} /></td>
+            <td className="px-2 py-1.5 text-right"><Byn value={m.leasing} /></td>
+            <td className="px-2 py-1.5 text-right"><Byn value={m.tax} /></td>
+            <td className={cn('px-2 py-1.5 text-right', m.net >= 0 ? 'text-success' : 'text-danger')}><Byn value={m.net} /></td>
+            <td className={cn('px-2 py-1.5 text-right', m.cumulative >= 0 ? '' : 'text-danger')}><Byn value={m.cumulative} /></td>
           </tr>
         ))}
     </>
   );
 }
 
-function Kpi({ label, value, tone, hint }: { label: string; value: string; tone: 'success' | 'danger' | 'neutral'; hint?: string }) {
+function Kpi({ label, value, tone, hint }: { label: string; value: React.ReactNode; tone: 'success' | 'danger' | 'neutral'; hint?: string }) {
   return (
     <div className="flex flex-col gap-0.5 rounded-control bg-surface-muted p-3" title={hint}>
       <span className="text-xs uppercase tracking-wide text-ink-faint">{label}</span>

@@ -48,7 +48,11 @@ export interface FinResult {
   // Самая глубокая просадка накопленного итога (≤0) — сколько всего денег
   // нужно завести в проект до самоокупаемости.
   maxDrawdown: number;
+  // В валюте договора лизинга (см. FinLeasing.currency), не в BYN.
   monthlyLeasingPayment: number | null;
+  // Валютный лизинг без заполненного курса — платежи не попали в расчёт,
+  // UI обязан показать это явно.
+  leasingRateMissing: boolean;
 }
 
 const MONTH_LABELS = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
@@ -77,8 +81,8 @@ function entryAmountInMonth(e: FinEntry, monthIndex: number, horizon: number): n
   }
 }
 
-// Аннуитетный платёж по лизингу от финансируемой части (сумма − аванс).
-// При нулевой ставке — просто равные доли.
+// Аннуитетный платёж по лизингу от финансируемой части (сумма − аванс) —
+// в валюте договора. При нулевой ставке — просто равные доли.
 export function leasingMonthlyPayment(l: FinLeasing): number | null {
   const sum = l.contractSum ?? 0;
   const n = l.termMonths ?? 0;
@@ -89,7 +93,15 @@ export function leasingMonthlyPayment(l: FinLeasing): number | null {
   return (financed * r) / (1 - Math.pow(1 + r, -n));
 }
 
-function leasingInMonth(l: FinLeasing, monthIndex: number, payment: number | null): number {
+// Курс пересчёта лизинговых сумм в BYN. Для валютного договора без
+// заполненного курса — 0 (лизинг выпадает из расчёта, но об этом явно
+// сигналит leasingRateMissing), НЕ 1: молчаливый пересчёт доллара 1:1
+// занизил бы расходы втрое и выглядел бы как правдоподобная модель.
+export function leasingByn(l: FinLeasing): number {
+  return l.currency === 'BYN' ? 1 : (l.exchangeRate ?? 0);
+}
+
+function leasingInMonth(l: FinLeasing, monthIndex: number, payment: number | null, rate: number): number {
   let total = 0;
   if (monthIndex === 1) total += l.downPayment ?? 0;
   if (payment != null) {
@@ -97,7 +109,7 @@ function leasingInMonth(l: FinLeasing, monthIndex: number, payment: number | nul
     const n = l.termMonths ?? 0;
     if (monthIndex >= start && monthIndex < start + n) total += payment;
   }
-  return total;
+  return total * rate;
 }
 
 export function calculateFinModel(model: FinModel): FinResult {
@@ -105,6 +117,8 @@ export function calculateFinModel(model: FinModel): FinResult {
   const horizon = Math.max(1, Math.floor(params.horizonMonths) || 60);
   const start = parseStart(params.startDate);
   const payment = leasingMonthlyPayment(leasing);
+  const rate = leasingByn(leasing);
+  const leasingRateMissing = payment != null && rate === 0;
 
   const incomeEntries = categories.filter((c) => c.kind === 'income').flatMap((c) => c.entries);
   const expenseEntries = categories.filter((c) => c.kind === 'expense').flatMap((c) => c.entries);
@@ -122,7 +136,7 @@ export function calculateFinModel(model: FinModel): FinResult {
       (s, e) => s + (e.deductible ? entryAmountInMonth(e, i, horizon) : 0),
       0,
     );
-    const lease = leasingInMonth(leasing, i, payment);
+    const lease = leasingInMonth(leasing, i, payment, rate);
 
     months.push({
       index: i,
@@ -213,5 +227,6 @@ export function calculateFinModel(model: FinModel): FinResult {
     breakEvenMonth,
     maxDrawdown,
     monthlyLeasingPayment: payment,
+    leasingRateMissing,
   };
 }

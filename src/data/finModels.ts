@@ -34,15 +34,32 @@ export interface FinCategory {
   entries: FinEntry[];
 }
 
+export type LeasingCurrency = 'USD' | 'EUR' | 'BYN';
+
+export const LEASING_CURRENCY_SYMBOLS: Record<LeasingCurrency, string> = {
+  USD: '$',
+  EUR: '€',
+  BYN: 'Br',
+};
+
 // Лизинг — не ручная статья, а калькулятор: из суммы/аванса/срока/ставки
 // генерируется аннуитетный график платежей, который подставляется в расходы.
 // Ставка annualRatePct — то самое "сменное" поле: пока реальная ставка
 // неизвестна, подставляется любая, вся модель пересчитывается на лету.
+//
+// Договор лизинга — валютный (обычно USD), остальная модель — BYN, поэтому
+// сумма/аванс/платёж живут в валюте договора, а в общий расчёт уходят через
+// exchangeRate (BYN за 1 единицу валюты). Курс — второе "сменное" поле:
+// прогнозировать его нельзя, но в сценариях-копиях можно стресс-тестить.
+// Пока курс не заполнен (и валюта не BYN), лизинг в расчёт не попадает —
+// UI показывает это явно, а не подставляет молча 1:1.
 export interface FinLeasing {
   contractSum: number | null;
   downPayment: number | null;
   termMonths: number | null;
   annualRatePct: number | null;
+  currency: LeasingCurrency;
+  exchangeRate: number | null;
   // Месяц первого регулярного платежа (аванс всегда в месяце 1).
   startMonth: number;
   // Платежи по лизингу зачитываются как расходы ИП (ускоренная амортизация,
@@ -90,7 +107,16 @@ export function defaultFinParams(): FinParams {
 }
 
 export function defaultFinLeasing(): FinLeasing {
-  return { contractSum: null, downPayment: null, termMonths: 60, annualRatePct: null, startMonth: 1, deductible: true };
+  return {
+    contractSum: null,
+    downPayment: null,
+    termMonths: 60,
+    annualRatePct: null,
+    currency: 'USD',
+    exchangeRate: null,
+    startMonth: 1,
+    deductible: true,
+  };
 }
 
 function entry(label: string, schedule: FinSchedule, deductible = true): FinEntry {
