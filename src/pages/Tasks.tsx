@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, CheckCircle2, Trash2, Flame, Pencil } from 'lucide-react';
+import { Plus, Loader2, CheckCircle2, Trash2, Flame, Pencil, ChevronRight } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -51,9 +51,32 @@ function AssigneeBadges({ assignees }: { assignees: TaskAssignee[] }) {
   );
 }
 
+function isoDate(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function todayIsoDate() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  return isoDate(new Date());
+}
+
+function tomorrowIsoDate() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return isoDate(d);
+}
+
+// Понедельник текущей недели — getDay() воскресенье=0, поэтому сдвигаем на
+// европейскую неделю (Пн=0 ... Вс=6).
+function startOfWeekIsoDate() {
+  const d = new Date();
+  const mondayOffset = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - mondayOffset);
+  return isoDate(d);
+}
+
+function startOfMonthIsoDate() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
 function ActiveTaskCard({
@@ -122,6 +145,94 @@ function ActiveTaskCard({
   );
 }
 
+function ArchivedTaskCard({
+  task,
+  onEdit,
+  onDelete,
+  deleting,
+}: {
+  task: Task;
+  onEdit: (task: Task) => void;
+  onDelete: (task: Task) => void;
+  deleting: boolean;
+}) {
+  return (
+    <Card className="flex flex-col gap-3 p-5 opacity-80">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            {task.isPriority && (
+              <span title="Приоритет">
+                <Flame className="h-4 w-4 shrink-0 fill-warning text-warning" />
+              </span>
+            )}
+            <div className="font-bold text-ink line-through decoration-ink-faint">{task.title}</div>
+          </div>
+          {task.description && (
+            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{task.description}</p>
+          )}
+        </div>
+        <AssigneeBadges assignees={task.assignees} />
+      </div>
+      <div className="text-sm text-ink-muted">{formatDate(task.date)}</div>
+      <div className="rounded-control bg-surface-muted px-4 py-3">
+        <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Результат</div>
+        <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{task.result}</p>
+      </div>
+      <div className="flex items-center gap-4">
+        <button
+          type="button"
+          onClick={() => onEdit(task)}
+          className="flex w-fit items-center gap-2 text-sm font-medium text-ink-muted hover:text-primary"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+          Редактировать
+        </button>
+        <button
+          type="button"
+          onClick={() => onDelete(task)}
+          disabled={deleting}
+          className="flex w-fit items-center gap-2 text-sm font-medium text-ink-muted hover:text-danger disabled:opacity-50"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Удалить
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+// Свёрнутая по умолчанию группа — чтобы страница не разрасталась, видимыми
+// сразу остаются только "Задачи на сегодня" (см. Tasks ниже), всё остальное
+// открывается по клику.
+function Spoiler({
+  title,
+  count,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  count: number;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="flex flex-col gap-4">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 text-left text-lg font-bold text-ink"
+      >
+        <ChevronRight className={cn('h-5 w-5 shrink-0 text-ink-faint transition-transform', open && 'rotate-90')} />
+        {title}
+        <span className="text-sm font-medium text-ink-faint">{count}</span>
+      </button>
+      {open && children}
+    </div>
+  );
+}
+
 export function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -149,18 +260,46 @@ export function Tasks() {
   }, []);
 
   const activeTasks = useMemo(() => tasks.filter((t) => !t.isDone), [tasks]);
+  // Просроченные (date < сегодня) остаются в "на сегодня" — не хотим, чтобы
+  // они потерялись под спойлером "на другие дни".
   const todayTasks = useMemo(() => {
     const today = todayIsoDate();
     return activeTasks.filter((t) => t.date <= today);
   }, [activeTasks]);
-  const otherTasks = useMemo(() => {
-    const today = todayIsoDate();
-    return activeTasks.filter((t) => t.date > today);
+  const tomorrowTasks = useMemo(() => {
+    const tomorrow = tomorrowIsoDate();
+    return activeTasks.filter((t) => t.date === tomorrow);
   }, [activeTasks]);
+  const otherTasks = useMemo(() => {
+    const tomorrow = tomorrowIsoDate();
+    return activeTasks.filter((t) => t.date > tomorrow);
+  }, [activeTasks]);
+
   const archivedTasks = useMemo(
     () => [...tasks.filter((t) => t.isDone)].sort((a, b) => b.date.localeCompare(a.date)),
     [tasks],
   );
+  // Бакеты архива считаются по дате задачи (date), отдельного поля даты
+  // выполнения в Task нет — на практике задача обычно закрывается около
+  // своей даты, так что это достаточная оценка "когда сделано".
+  const doneToday = useMemo(() => {
+    const today = todayIsoDate();
+    return archivedTasks.filter((t) => t.date === today);
+  }, [archivedTasks]);
+  const doneThisWeek = useMemo(() => {
+    const today = todayIsoDate();
+    const weekStart = startOfWeekIsoDate();
+    return archivedTasks.filter((t) => t.date !== today && t.date >= weekStart);
+  }, [archivedTasks]);
+  const doneThisMonth = useMemo(() => {
+    const weekStart = startOfWeekIsoDate();
+    const monthStart = startOfMonthIsoDate();
+    return archivedTasks.filter((t) => t.date < weekStart && t.date >= monthStart);
+  }, [archivedTasks]);
+  const doneOlder = useMemo(() => {
+    const monthStart = startOfMonthIsoDate();
+    return archivedTasks.filter((t) => t.date < monthStart);
+  }, [archivedTasks]);
 
   const canSubmit = form.title.trim() && form.date && form.assignees.length > 0;
 
@@ -298,8 +437,23 @@ export function Tasks() {
             )}
           </div>
 
-          <div className="flex flex-col gap-4">
-            <div className="text-lg font-bold text-ink">Задачи на другой день</div>
+          <Spoiler title="Задачи на завтра" count={tomorrowTasks.length}>
+            {tomorrowTasks.map((task) => (
+              <ActiveTaskCard
+                key={task.id}
+                task={task}
+                onComplete={openCompleteModal}
+                onEdit={openEditModal}
+                onDelete={handleDelete}
+                deleting={deletingId === task.id}
+              />
+            ))}
+            {tomorrowTasks.length === 0 && (
+              <Card className="py-10 text-center text-sm text-ink-muted">На завтра задач нет</Card>
+            )}
+          </Spoiler>
+
+          <Spoiler title="Задачи на другие дни" count={otherTasks.length}>
             {otherTasks.map((task) => (
               <ActiveTaskCard
                 key={task.id}
@@ -313,60 +467,70 @@ export function Tasks() {
             {otherTasks.length === 0 && (
               <Card className="py-10 text-center text-sm text-ink-muted">Задач на другие дни нет</Card>
             )}
-          </div>
+          </Spoiler>
         </div>
       )}
       {deleteError && <p className="text-sm text-danger">{deleteError}</p>}
 
       {!loading && archivedTasks.length > 0 && (
-        <div className="flex flex-col gap-4">
-          <div className="text-lg font-bold text-ink">Архив</div>
-          {archivedTasks.map((task) => {
-            return (
-              <Card key={task.id} className="flex flex-col gap-3 p-5 opacity-80">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      {task.isPriority && (
-                      <span title="Приоритет">
-                        <Flame className="h-4 w-4 shrink-0 fill-warning text-warning" />
-                      </span>
-                    )}
-                      <div className="font-bold text-ink line-through decoration-ink-faint">{task.title}</div>
-                    </div>
-                    {task.description && (
-                      <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{task.description}</p>
-                    )}
-                  </div>
-                  <AssigneeBadges assignees={task.assignees} />
-                </div>
-                <div className="text-sm text-ink-muted">{formatDate(task.date)}</div>
-                <div className="rounded-control bg-surface-muted px-4 py-3">
-                  <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Результат</div>
-                  <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{task.result}</p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <button
-                    type="button"
-                    onClick={() => openEditModal(task)}
-                    className="flex w-fit items-center gap-2 text-sm font-medium text-ink-muted hover:text-primary"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Редактировать
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(task)}
-                    disabled={deletingId === task.id}
-                    className="flex w-fit items-center gap-2 text-sm font-medium text-ink-muted hover:text-danger disabled:opacity-50"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Удалить
-                  </button>
-                </div>
-              </Card>
-            );
-          })}
+        <div className="flex flex-col gap-6">
+          <Spoiler title="Сделано за сегодня" count={doneToday.length}>
+            {doneToday.map((task) => (
+              <ArchivedTaskCard
+                key={task.id}
+                task={task}
+                onEdit={openEditModal}
+                onDelete={handleDelete}
+                deleting={deletingId === task.id}
+              />
+            ))}
+            {doneToday.length === 0 && (
+              <Card className="py-10 text-center text-sm text-ink-muted">Сегодня ничего не выполнено</Card>
+            )}
+          </Spoiler>
+
+          <Spoiler title="Сделано за эту неделю" count={doneThisWeek.length}>
+            {doneThisWeek.map((task) => (
+              <ArchivedTaskCard
+                key={task.id}
+                task={task}
+                onEdit={openEditModal}
+                onDelete={handleDelete}
+                deleting={deletingId === task.id}
+              />
+            ))}
+            {doneThisWeek.length === 0 && (
+              <Card className="py-10 text-center text-sm text-ink-muted">На этой неделе ничего не выполнено</Card>
+            )}
+          </Spoiler>
+
+          <Spoiler title="Сделано за этот месяц" count={doneThisMonth.length}>
+            {doneThisMonth.map((task) => (
+              <ArchivedTaskCard
+                key={task.id}
+                task={task}
+                onEdit={openEditModal}
+                onDelete={handleDelete}
+                deleting={deletingId === task.id}
+              />
+            ))}
+            {doneThisMonth.length === 0 && (
+              <Card className="py-10 text-center text-sm text-ink-muted">В этом месяце ничего не выполнено</Card>
+            )}
+          </Spoiler>
+
+          <Spoiler title="Архив" count={doneOlder.length}>
+            {doneOlder.map((task) => (
+              <ArchivedTaskCard
+                key={task.id}
+                task={task}
+                onEdit={openEditModal}
+                onDelete={handleDelete}
+                deleting={deletingId === task.id}
+              />
+            ))}
+            {doneOlder.length === 0 && <Card className="py-10 text-center text-sm text-ink-muted">Архив пуст</Card>}
+          </Spoiler>
         </div>
       )}
 
