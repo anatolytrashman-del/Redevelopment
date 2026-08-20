@@ -4,15 +4,17 @@ import {
   defaultFinCategories,
   defaultFinLeasing,
   defaultFinParams,
+  defaultFinRent,
   type FinCategory,
   type FinLeasing,
   type FinModel,
   type FinModelRow,
   type FinParams,
+  type FinRent,
 } from '../data/finModels';
 
 // Дефолты подставляются и при чтении — на случай строк, сохранённых до
-// добавления новых полей в params/leasing (тот же приём, что fromRow в
+// добавления новых полей в params/leasing/rent (тот же приём, что fromRow в
 // estimatesApi.ts).
 function fromRow(row: FinModelRow): FinModel {
   return {
@@ -21,6 +23,7 @@ function fromRow(row: FinModelRow): FinModel {
     name: row.name,
     params: { ...defaultFinParams(), ...(row.params ?? {}) },
     leasing: { ...defaultFinLeasing(), ...(row.leasing ?? {}) },
+    rent: { ...defaultFinRent(), ...(row.rent ?? {}) },
     // reimbursable добавлено позже — на статьях, сохранённых до этого,
     // его нет в JSONB, без ?? чекбокс ушёл бы в React undefined→controlled.
     categories: (row.categories ?? []).map((c) => ({
@@ -52,6 +55,7 @@ export function insertFinModel(input: {
   name: string;
   params?: FinParams;
   leasing?: FinLeasing;
+  rent?: FinRent;
   categories?: FinCategory[];
 }): Promise<FinModel> {
   return withRetry(async () => {
@@ -62,6 +66,7 @@ export function insertFinModel(input: {
         name: input.name,
         params: input.params ?? defaultFinParams(),
         leasing: input.leasing ?? defaultFinLeasing(),
+        rent: input.rent ?? defaultFinRent(),
         categories: input.categories ?? defaultFinCategories(),
       })
       .select()
@@ -74,12 +79,18 @@ export function insertFinModel(input: {
 
 export function updateFinModel(
   id: string,
-  input: { name: string; params: FinParams; leasing: FinLeasing; categories: FinCategory[] },
+  input: { name: string; params: FinParams; leasing: FinLeasing; rent: FinRent; categories: FinCategory[] },
 ): Promise<FinModel> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('fin_models')
-      .update({ name: input.name, params: input.params, leasing: input.leasing, categories: input.categories })
+      .update({
+        name: input.name,
+        params: input.params,
+        leasing: input.leasing,
+        rent: input.rent,
+        categories: input.categories,
+      })
       .eq('id', id)
       .select()
       .single();
@@ -110,6 +121,7 @@ export function duplicateFinModel(source: FinModel): Promise<FinModel> {
     name: `${source.name} (копия)`,
     params: { ...source.params },
     leasing: { ...source.leasing },
+    rent: { ...source.rent },
     categories,
   });
 }

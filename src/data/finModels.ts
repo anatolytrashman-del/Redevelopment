@@ -72,6 +72,26 @@ export interface FinLeasing {
   deductible: boolean;
 }
 
+// Аренда — не ручные статьи, а калькулятор (та же идея, что у лизинга):
+// до реновации площадь сдаётся по одной цене за м², во время реновации
+// простой (доход 0, месяцы не сдаются), после реновации — обновлённая цена
+// за м² под кабинеты плюс отдельно рабочие места (обычно новый формат,
+// появляется вместе с обновлённой арендой). renovationStartMonth = null —
+// реновация не запланирована/дата не указана, вся модель считается по
+// цене "до реновации" (см. "числовые ловушки" в CLAUDE.md — null, не 0).
+export interface FinRent {
+  areaPreMeters: number | null;
+  pricePreMeter: number | null;
+  // Месяц модели (1-based), с которого начинается простой на реновацию.
+  renovationStartMonth: number | null;
+  // Длительность простоя, мес. (доход 0 весь этот период).
+  renovationMonths: number | null;
+  areaPostMeters: number | null;
+  pricePostMeter: number | null;
+  workstationCount: number | null;
+  workstationPrice: number | null;
+}
+
 export interface FinParams {
   // Месяц 1 модели, формат YYYY-MM.
   startDate: string;
@@ -90,6 +110,7 @@ export interface FinModel {
   name: string;
   params: FinParams;
   leasing: FinLeasing;
+  rent: FinRent;
   categories: FinCategory[];
   createdAt: string;
 }
@@ -101,6 +122,7 @@ export interface FinModelRow {
   name: string;
   params: FinParams | null;
   leasing: FinLeasing | null;
+  rent: FinRent | null;
   categories: FinCategory[] | null;
   created_at: string;
 }
@@ -124,6 +146,19 @@ export function defaultFinLeasing(): FinLeasing {
   };
 }
 
+export function defaultFinRent(): FinRent {
+  return {
+    areaPreMeters: null,
+    pricePreMeter: null,
+    renovationStartMonth: null,
+    renovationMonths: 3,
+    areaPostMeters: null,
+    pricePostMeter: null,
+    workstationCount: null,
+    workstationPrice: null,
+  };
+}
+
 function entry(label: string, schedule: FinSchedule, deductible = true): FinEntry {
   return { id: crypto.randomUUID(), label, amount: null, schedule, deductible, reimbursable: false };
 }
@@ -137,12 +172,6 @@ const once: FinSchedule = { type: 'once', fromMonth: 1, toMonth: null };
 // консультацию). Всё редактируется/удаляется из интерфейса.
 export function defaultFinCategories(): FinCategory[] {
   return [
-    {
-      id: crypto.randomUUID(),
-      title: 'Аренда',
-      kind: 'income',
-      entries: [entry('Аренда кабинетов', { ...monthly }), entry('Аренда рабочих мест', { ...monthly })],
-    },
     {
       id: crypto.randomUUID(),
       title: 'Продажа объектов',

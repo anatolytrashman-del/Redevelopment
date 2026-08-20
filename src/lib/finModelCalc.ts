@@ -1,4 +1,4 @@
-import type { FinEntry, FinLeasing, FinModel } from '../data/finModels';
+import type { FinEntry, FinLeasing, FinModel, FinRent } from '../data/finModels';
 
 // Чистый расчёт финмодели — без UI и без запросов, на вход FinModel, на
 // выход помесячная сетка + годовые сводки + KPI. Вынесен отдельно, чтобы
@@ -10,6 +10,7 @@ export interface FinMonth {
   year: number; // календарный год (для группировки и лимита 500k)
   label: string; // "янв 2027"
   income: number;
+  rentIncome: number; // из них аренда (калькулятор — см. rentInMonth)
   expense: number; // операционные расходы + лизинг, без налога
   leasing: number; // из них лизинг (аванс + платежи) — для отдельной строки
   deductibleExpense: number;
@@ -28,6 +29,7 @@ export interface FinYear {
   year: number;
   months: FinMonth[];
   income: number;
+  rentIncome: number;
   expense: number;
   leasing: number;
   reimbursedExpense: number;
@@ -44,6 +46,7 @@ export interface FinResult {
   months: FinMonth[];
   years: FinYear[];
   totalIncome: number;
+  totalRentIncome: number;
   totalExpense: number; // операционные + лизинг, без налога
   totalTax: number;
   netProfit: number;
@@ -109,6 +112,23 @@ export function leasingByn(l: FinLeasing): number {
   return l.currency === 'BYN' ? 1 : (l.exchangeRate ?? 0);
 }
 
+// Доход от аренды в конкретном месяце — до реновации по одной цене за м²,
+// во время простоя 0, после реновации обновлённая цена за м² плюс рабочие
+// места (появляются вместе с обновлённой арендой). renovationStartMonth
+// не заполнен — считаем, что реновация ещё не наступит в горизонте модели,
+// весь срок по цене "до реновации".
+export function rentInMonth(rent: FinRent, monthIndex: number): number {
+  const renoStart = rent.renovationStartMonth;
+  if (renoStart == null || monthIndex < renoStart) {
+    return (rent.pricePreMeter ?? 0) * (rent.areaPreMeters ?? 0);
+  }
+  const downtime = Math.max(0, Math.floor(rent.renovationMonths ?? 0) || 0);
+  if (monthIndex < renoStart + downtime) return 0;
+  const cabinets = (rent.pricePostMeter ?? 0) * (rent.areaPostMeters ?? 0);
+  const workstations = (rent.workstationPrice ?? 0) * (rent.workstationCount ?? 0);
+  return cabinets + workstations;
+}
+
 function leasingInMonth(l: FinLeasing, monthIndex: number, payment: number | null, rate: number): number {
   let total = 0;
   if (monthIndex === 1) total += l.downPayment ?? 0;
@@ -121,7 +141,7 @@ function leasingInMonth(l: FinLeasing, monthIndex: number, payment: number | nul
 }
 
 export function calculateFinModel(model: FinModel): FinResult {
-  const { params, leasing, categories } = model;
+  const { params, leasing, rent, categories } = model;
   const horizon = Math.max(1, Math.floor(params.horizonMonths) || 60);
   const start = parseStart(params.startDate);
   const payment = leasingMonthlyPayment(leasing);
@@ -138,7 +158,8 @@ export function calculateFinModel(model: FinModel): FinResult {
     const year = start.year + Math.floor(absMonth / 12);
     const label = `${MONTH_LABELS[absMonth % 12]} ${year}`;
 
-    const income = incomeEntries.reduce((s, e) => s + entryAmountInMonth(e, i, horizon), 0);
+    const rentIncome = rentInMonth(rent, i);
+    const income = incomeEntries.reduce((s, e) => s + entryAmountInMonth(e, i, horizon), 0) + rentIncome;
     const opex = expenseEntries.reduce((s, e) => s + entryAmountInMonth(e, i, horizon), 0);
     const deductibleOpex = expenseEntries.reduce(
       (s, e) => s + (e.deductible ? entryAmountInMonth(e, i, horizon) : 0),
@@ -155,6 +176,7 @@ export function calculateFinModel(model: FinModel): FinResult {
       year,
       label,
       income,
+      rentIncome,
       expense: opex + lease,
       leasing: lease,
       deductibleExpense: deductibleOpex + (leasing.deductible ? lease : 0),
@@ -189,6 +211,7 @@ export function calculateFinModel(model: FinModel): FinResult {
       year,
       months: inYear,
       income,
+      rentIncome: inYear.reduce((s, m) => s + m.rentIncome, 0),
       expense: inYear.reduce((s, m) => s + m.expense, 0),
       leasing: inYear.reduce((s, m) => s + m.leasing, 0),
       reimbursedExpense: inYear.reduce((s, m) => s + m.reimbursedExpense, 0),
@@ -215,6 +238,7 @@ export function calculateFinModel(model: FinModel): FinResult {
   }
 
   const totalIncome = months.reduce((s, m) => s + m.income, 0);
+  const totalRentIncome = months.reduce((s, m) => s + m.rentIncome, 0);
   const totalExpense = months.reduce((s, m) => s + m.expense, 0);
   const totalTax = months.reduce((s, m) => s + m.tax, 0);
   const totalReimbursedExpense = months.reduce((s, m) => s + m.reimbursedExpense, 0);
@@ -236,6 +260,7 @@ export function calculateFinModel(model: FinModel): FinResult {
     months,
     years,
     totalIncome,
+    totalRentIncome,
     totalExpense,
     totalTax,
     netProfit: totalIncome - totalExpense + totalReimbursedExpense - totalTax,

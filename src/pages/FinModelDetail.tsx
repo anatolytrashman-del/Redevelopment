@@ -11,6 +11,7 @@ import {
   type FinCategory,
   type FinEntry,
   type FinModel,
+  type FinRent,
   type FinSchedule,
   type LeasingCurrency,
 } from '../data/finModels';
@@ -98,6 +99,7 @@ export function FinModelDetail() {
         name: model.name.trim() || 'Без названия',
         params: model.params,
         leasing: model.leasing,
+        rent: model.rent,
         categories: model.categories,
       });
       setModel(updated);
@@ -271,6 +273,8 @@ export function FinModelEditor({
         </p>
       </Card>
 
+      <RentCard model={model} patchModel={patchModel} />
+
       <LeasingCard model={model} result={result} patchModel={patchModel} />
 
       <SummarySection model={model} result={result} />
@@ -297,6 +301,110 @@ export function FinModelEditor({
         onRemoveEntry={removeEntry}
       />
     </div>
+  );
+}
+
+function RentCard({ model, patchModel }: { model: FinModel; patchModel: (patch: Partial<FinModel>) => void }) {
+  const rent = model.rent;
+  function patchRent(patch: Partial<FinRent>) {
+    patchModel({ rent: { ...rent, ...patch } });
+  }
+
+  const preMonthly = (rent.pricePreMeter ?? 0) * (rent.areaPreMeters ?? 0);
+  const postCabinets = (rent.pricePostMeter ?? 0) * (rent.areaPostMeters ?? 0);
+  const postWorkstations = (rent.workstationPrice ?? 0) * (rent.workstationCount ?? 0);
+  const downtime = Math.max(0, Math.floor(rent.renovationMonths ?? 0) || 0);
+  const postStartMonth = rent.renovationStartMonth != null ? rent.renovationStartMonth + downtime : null;
+
+  return (
+    <Card className="flex flex-col gap-4 p-5">
+      <div className="text-lg font-bold text-ink">Аренда</div>
+
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-semibold text-ink">До реновации</span>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <Input
+            label="Площадь, м²"
+            type="number"
+            value={rent.areaPreMeters ?? ''}
+            onChange={(e) => patchRent({ areaPreMeters: numOrNull(e.target.value) })}
+          />
+          <Input
+            label="Цена за м², Br"
+            type="number"
+            value={rent.pricePreMeter ?? ''}
+            onChange={(e) => patchRent({ pricePreMeter: numOrNull(e.target.value) })}
+          />
+        </div>
+        <span className="text-sm text-ink-muted">
+          Аренда сейчас: <span className="font-semibold text-ink">{formatNum(preMonthly)} Br/мес</span>
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-2 border-t border-border pt-4">
+        <span className="text-sm font-semibold text-ink">Реновация (простой)</span>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <Input
+            label="Месяц начала простоя"
+            type="number"
+            title="Номер месяца модели, с которого аренда прекращается на время реновации (1 = месяц старта)"
+            value={rent.renovationStartMonth ?? ''}
+            onChange={(e) => patchRent({ renovationStartMonth: numOrNull(e.target.value) })}
+          />
+          <Input
+            label="Простой, мес."
+            type="number"
+            value={rent.renovationMonths ?? ''}
+            onChange={(e) => patchRent({ renovationMonths: numOrNull(e.target.value) })}
+          />
+        </div>
+        <span className="text-sm text-ink-muted">
+          {rent.renovationStartMonth == null ? (
+            'Месяц начала не указан — вся модель считается по цене "до реновации"'
+          ) : (
+            <>
+              Простой: месяцы {rent.renovationStartMonth}–{postStartMonth != null ? postStartMonth - 1 : '?'} (доход 0),
+              новая цена — с месяца {postStartMonth}
+            </>
+          )}
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-2 border-t border-border pt-4">
+        <span className="text-sm font-semibold text-ink">После реновации</span>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Input
+            label="Площадь, м² (кабинеты)"
+            type="number"
+            value={rent.areaPostMeters ?? ''}
+            onChange={(e) => patchRent({ areaPostMeters: numOrNull(e.target.value) })}
+          />
+          <Input
+            label="Цена за м², Br"
+            type="number"
+            value={rent.pricePostMeter ?? ''}
+            onChange={(e) => patchRent({ pricePostMeter: numOrNull(e.target.value) })}
+          />
+          <Input
+            label="Рабочих мест, шт"
+            type="number"
+            value={rent.workstationCount ?? ''}
+            onChange={(e) => patchRent({ workstationCount: numOrNull(e.target.value) })}
+          />
+          <Input
+            label="Цена за место, Br"
+            type="number"
+            value={rent.workstationPrice ?? ''}
+            onChange={(e) => patchRent({ workstationPrice: numOrNull(e.target.value) })}
+          />
+        </div>
+        <span className="text-sm text-ink-muted">
+          Аренда после реновации:{' '}
+          <span className="font-semibold text-ink">{formatNum(postCabinets + postWorkstations)} Br/мес</span>{' '}
+          (кабинеты {formatNum(postCabinets)} + места {formatNum(postWorkstations)})
+        </span>
+      </div>
+    </Card>
   );
 }
 
@@ -585,6 +693,7 @@ function SummarySection({ model, result }: { model: FinModel; result: ReturnType
           tone="neutral"
           hint="Сколько всего денег нужно завести в проект до самоокупаемости"
         />
+        <Kpi label="Аренда за горизонт" value={<Byn value={result.totalRentIncome} />} tone="neutral" />
         <Kpi label="Налоги за горизонт" value={<Byn value={result.totalTax} />} tone="neutral" />
         <Kpi
           label="Нагрузка на арендаторов сверх аренды"
