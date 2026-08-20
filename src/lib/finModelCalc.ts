@@ -82,6 +82,18 @@ export interface FinResult {
   // Непогашенный остаток долга, который потребовалось погасить одной суммой
   // в конце срока договора (баллон) — null, если баллона нет.
   leasingBalloonAmount: number | null;
+  // Разбивка дохода/расхода по категориям — для P&L-страницы (отдельные
+  // строки по названиям категорий, а не общей суммой).
+  categoryBreakdown: FinCategoryBreakdown[];
+}
+
+export interface FinCategoryBreakdown {
+  categoryId: string;
+  title: string;
+  kind: 'income' | 'expense';
+  // По годам, в том же порядке, что FinResult.years.
+  totalByYear: number[];
+  total: number;
 }
 
 const MONTH_LABELS = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
@@ -454,6 +466,27 @@ export function calculateFinModel(model: FinModel): FinResult {
   }
   const maxDrawdown = Math.min(0, ...months.map((m) => m.cumulative));
 
+  // Разбивка по категориям (для P&L) — считаем отдельным проходом, чтобы не
+  // усложнять основной цикл; те же формулы (с инфляцией для расходов), что
+  // и в первом проходе выше.
+  const categoryBreakdown: FinCategoryBreakdown[] = categories.map((c) => {
+    const monthlyTotals = months.map((m) =>
+      c.entries.reduce(
+        (s, e) =>
+          s + (c.kind === 'expense' ? inflatedEntryAmount(e, m.index, horizon, inflationPct) : entryAmountInMonth(e, m.index, horizon)),
+        0,
+      ),
+    );
+    const totalByYear = years.map((y) => y.months.reduce((s, m) => s + monthlyTotals[m.index - 1], 0));
+    return {
+      categoryId: c.id,
+      title: c.title,
+      kind: c.kind,
+      totalByYear,
+      total: monthlyTotals.reduce((s, v) => s + v, 0),
+    };
+  });
+
   return {
     months,
     years,
@@ -471,5 +504,6 @@ export function calculateFinModel(model: FinModel): FinResult {
     monthlyLeasingPayment: payment,
     leasingRateMissing,
     leasingBalloonAmount,
+    categoryBreakdown,
   };
 }

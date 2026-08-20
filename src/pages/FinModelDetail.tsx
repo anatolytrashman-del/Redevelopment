@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, Fragment } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Plus, X, Trash2, ChevronDown, ChevronRight, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, Plus, X, Trash2 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { BynSign } from '../components/ui/BynSign';
 import {
   LEASING_CURRENCY_SYMBOLS,
   type FinAmortization,
@@ -21,7 +20,8 @@ import {
 import type { RealtyObject } from '../data/objects';
 import { fetchFinModel, updateFinModel } from '../lib/finModelsApi';
 import { fetchObject } from '../lib/objectsApi';
-import { calculateFinModel, saleAmountByn, saleNetByn, type FinYear } from '../lib/finModelCalc';
+import { calculateFinModel, saleAmountByn, saleNetByn } from '../lib/finModelCalc';
+import { Byn, formatNum } from '../lib/finModelFormat';
 import { cn } from '../lib/cn';
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -29,26 +29,6 @@ function errorMessage(err: unknown, fallback: string): string {
     return (err as { message: string }).message;
   }
   return fallback;
-}
-
-function formatNum(value: number): string {
-  return Math.round(value).toLocaleString('ru-RU');
-}
-
-// Для plain-text мест (title-атрибуты), где SVG-знак рубля не отрисуется.
-function formatByn(value: number): string {
-  return `${formatNum(value)} Br`;
-}
-
-// Сумма в BYN со знаком рубля (см. BynSign — у знака нет кодовой точки в
-// Юникоде, поэтому JSX, а не строка).
-function Byn({ value }: { value: number }) {
-  return (
-    <span className="whitespace-nowrap">
-      {formatNum(value)}&nbsp;
-      <BynSign />
-    </span>
-  );
 }
 
 // '' <-> null для числовых полей: пустая строка в инпуте = "не заполнено",
@@ -133,10 +113,21 @@ export function FinModelDetail() {
         }
       />
 
-      <Link to="/admin/finmodels" className="inline-flex w-fit items-center gap-2 text-sm font-medium text-ink hover:text-primary">
-        <ArrowLeft className="h-4 w-4" />
-        Все финмодели
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link to="/admin/finmodels" className="inline-flex w-fit items-center gap-2 text-sm font-medium text-ink hover:text-primary">
+          <ArrowLeft className="h-4 w-4" />
+          Все финмодели
+        </Link>
+        {id && (
+          <Link
+            to={`/admin/finmodels/${id}/report`}
+            className="inline-flex w-fit items-center gap-2 text-sm font-medium text-primary hover:underline"
+          >
+            Открыть финмодель (P&L)
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        )}
+      </div>
 
       {saveError && <p className="text-sm text-danger">{saveError}</p>}
 
@@ -282,43 +273,62 @@ export function FinModelEditor({
         </div>
         <p className="text-xs text-ink-faint">
           Все суммы в BYN. Налог на каждый год считается в обоих режимах, в итог идёт меньший. Лимит выручки ИП —{' '}
-          <Byn value={model.params.revenueLimitByn} /> в календарный год, превышение подсвечивается в сводке.
+          <Byn value={model.params.revenueLimitByn} /> в календарный год, превышение подсвечивается на странице финмодели.
         </p>
       </Card>
 
-      <RentCard model={model} patchModel={patchModel} />
-
-      <SalesCard model={model} patchModel={patchModel} />
-
       <LeasingCard model={model} result={result} patchModel={patchModel} />
 
-      <AmortizationCard model={model} patchModel={patchModel} />
+      <div className="flex flex-col gap-3">
+        <div className="text-lg font-bold text-ink">Доходы</div>
+        <RentCard model={model} patchModel={patchModel} />
+        <SalesCard model={model} patchModel={patchModel} />
+        {incomeCategories.map((c) => (
+          <CategoryCard
+            key={c.id}
+            category={c}
+            onPatchCategory={(patch) => patchCategory(c.id, patch)}
+            onRemoveCategory={() => removeCategory(c.id)}
+            onAddEntry={() => addEntry(c.id)}
+            onPatchEntry={(entryId, patch) => patchEntry(c.id, entryId, patch)}
+            onRemoveEntry={(entryId) => removeEntry(c.id, entryId)}
+          />
+        ))}
+        <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} className="w-fit" onClick={() => addCategory('income')}>
+          Добавить категорию
+        </Button>
+      </div>
 
-      <CapexReserveCard model={model} patchModel={patchModel} result={result} />
-
-      <SummarySection model={model} result={result} />
-
-      <CategoriesSection
-        title="Доходы"
-        categories={incomeCategories}
-        onAddCategory={() => addCategory('income')}
-        onRemoveCategory={removeCategory}
-        onPatchCategory={patchCategory}
-        onAddEntry={addEntry}
-        onPatchEntry={patchEntry}
-        onRemoveEntry={removeEntry}
-      />
-
-      <CategoriesSection
-        title="Расходы"
-        categories={expenseCategories}
-        onAddCategory={() => addCategory('expense')}
-        onRemoveCategory={removeCategory}
-        onPatchCategory={patchCategory}
-        onAddEntry={addEntry}
-        onPatchEntry={patchEntry}
-        onRemoveEntry={removeEntry}
-      />
+      <div className="flex flex-col gap-3">
+        <div className="text-lg font-bold text-ink">Расходы</div>
+        {expenseCategories.map((c) => (
+          <Fragment key={c.id}>
+            <CategoryCard
+              category={c}
+              onPatchCategory={(patch) => patchCategory(c.id, patch)}
+              onRemoveCategory={() => removeCategory(c.id)}
+              onAddEntry={() => addEntry(c.id)}
+              onPatchEntry={(entryId, patch) => patchEntry(c.id, entryId, patch)}
+              onRemoveEntry={(entryId) => removeEntry(c.id, entryId)}
+            />
+            {c.title.toLowerCase().includes('эксплуатац') && (
+              <>
+                <AmortizationCard model={model} patchModel={patchModel} />
+                <CapexReserveCard model={model} patchModel={patchModel} result={result} />
+              </>
+            )}
+          </Fragment>
+        ))}
+        {!expenseCategories.some((c) => c.title.toLowerCase().includes('эксплуатац')) && (
+          <>
+            <AmortizationCard model={model} patchModel={patchModel} />
+            <CapexReserveCard model={model} patchModel={patchModel} result={result} />
+          </>
+        )}
+        <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} className="w-fit" onClick={() => addCategory('expense')}>
+          Добавить категорию
+        </Button>
+      </div>
     </div>
   );
 }
@@ -484,7 +494,7 @@ function SalesCard({ model, patchModel }: { model: FinModel; patchModel: (patch:
 
   return (
     <Card className="flex flex-col gap-4 p-5">
-      <div className="text-lg font-bold text-ink">Продажа объектов</div>
+      <div className="text-lg font-bold text-ink">Продажа кабинетов</div>
       <div className="flex flex-col gap-3">
         {sales.map((s) => {
           const amountByn = saleAmountByn(s);
@@ -825,66 +835,59 @@ function CapexReserveCard({
   );
 }
 
-function CategoriesSection({
-  title,
-  categories,
-  onAddCategory,
-  onRemoveCategory,
+// Одна карточка категории (статьи + добавление/удаление) — переиспользуется
+// и в Доходах (рядом с Арендой/Продажей), и в Расходах (рядом с
+// Амортизацией/Резервом), поэтому вынесена отдельно от общего списка
+// категорий: секции "Доходы"/"Расходы" теперь собирают вёрстку сами,
+// с калькуляторами вперемешку с категориями.
+function CategoryCard({
+  category,
   onPatchCategory,
+  onRemoveCategory,
   onAddEntry,
   onPatchEntry,
   onRemoveEntry,
 }: {
-  title: string;
-  categories: FinCategory[];
-  onAddCategory: () => void;
-  onRemoveCategory: (categoryId: string) => void;
-  onPatchCategory: (categoryId: string, patch: Partial<FinCategory>) => void;
-  onAddEntry: (categoryId: string) => void;
-  onPatchEntry: (categoryId: string, entryId: string, patch: Partial<FinEntry>) => void;
-  onRemoveEntry: (categoryId: string, entryId: string) => void;
+  category: FinCategory;
+  onPatchCategory: (patch: Partial<FinCategory>) => void;
+  onRemoveCategory: () => void;
+  onAddEntry: () => void;
+  onPatchEntry: (entryId: string, patch: Partial<FinEntry>) => void;
+  onRemoveEntry: (entryId: string) => void;
 }) {
   return (
-    <div className="flex flex-col gap-3">
-      <div className="text-lg font-bold text-ink">{title}</div>
-      {categories.map((c) => (
-        <Card key={c.id} className="flex flex-col gap-3 p-5">
-          <div className="flex items-center gap-2">
-            <div className="min-w-0 flex-1">
-              <Input value={c.title} onChange={(e) => onPatchCategory(c.id, { title: e.target.value })} />
-            </div>
-            <button
-              type="button"
-              onClick={() => onRemoveCategory(c.id)}
-              aria-label="Удалить категорию"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-danger"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
+    <Card className="flex flex-col gap-3 p-5">
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <Input value={category.title} onChange={(e) => onPatchCategory({ title: e.target.value })} />
+        </div>
+        <button
+          type="button"
+          onClick={onRemoveCategory}
+          aria-label="Удалить категорию"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-danger"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
 
-          <div className="flex flex-col gap-2">
-            {c.entries.map((e) => (
-              <EntryRow
-                key={e.id}
-                entry={e}
-                kind={c.kind}
-                onPatch={(patch) => onPatchEntry(c.id, e.id, patch)}
-                onRemove={() => onRemoveEntry(c.id, e.id)}
-              />
-            ))}
-            {c.entries.length === 0 && <p className="text-sm text-ink-faint">Статей пока нет</p>}
-          </div>
+      <div className="flex flex-col gap-2">
+        {category.entries.map((e) => (
+          <EntryRow
+            key={e.id}
+            entry={e}
+            kind={category.kind}
+            onPatch={(patch) => onPatchEntry(e.id, patch)}
+            onRemove={() => onRemoveEntry(e.id)}
+          />
+        ))}
+        {category.entries.length === 0 && <p className="text-sm text-ink-faint">Статей пока нет</p>}
+      </div>
 
-          <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} className="w-fit" onClick={() => onAddEntry(c.id)}>
-            Добавить статью
-          </Button>
-        </Card>
-      ))}
-      <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} className="w-fit" onClick={onAddCategory}>
-        Добавить категорию
+      <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} className="w-fit" onClick={onAddEntry}>
+        Добавить статью
       </Button>
-    </div>
+    </Card>
   );
 }
 
@@ -990,138 +993,3 @@ function EntryRow({
   );
 }
 
-function SummarySection({ model, result }: { model: FinModel; result: ReturnType<typeof calculateFinModel> }) {
-  return (
-    <Card className="flex flex-col gap-4 p-5">
-      <div className="text-lg font-bold text-ink">Сводка</div>
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Kpi label="Итог за горизонт" value={<Byn value={result.netProfit} />} tone={result.netProfit >= 0 ? 'success' : 'danger'} />
-        <Kpi
-          label="Выход в плюс"
-          value={result.breakEvenMonth ? `${result.breakEvenMonth.label} (мес. ${result.breakEvenMonth.index})` : '— не выходит'}
-          tone={result.breakEvenMonth ? 'success' : 'danger'}
-        />
-        <Kpi
-          label="Макс. просадка"
-          value={<Byn value={Math.abs(result.maxDrawdown)} />}
-          tone="neutral"
-          hint="Сколько всего денег нужно завести в проект до самоокупаемости"
-        />
-        <Kpi label="Аренда за горизонт" value={<Byn value={result.totalRentIncome} />} tone="neutral" />
-        <Kpi label="Продажи за горизонт" value={<Byn value={result.totalSaleIncome} />} tone="neutral" />
-        <Kpi label="Налоги за горизонт" value={<Byn value={result.totalTax} />} tone="neutral" />
-        <Kpi
-          label="Нагрузка на арендаторов сверх аренды"
-          value={<Byn value={result.totalReimbursedExpense} />}
-          tone="neutral"
-          hint="Сумма статей 'на арендаторов' за весь горизонт — компенсация расходов, не входит в чистую прибыль и не входит в аренду"
-        />
-        <Kpi
-          label="Амортизация за горизонт"
-          value={<Byn value={result.totalAmortization} />}
-          tone="neutral"
-          hint="Не касса — только снижает налоговую базу, не входит в расходы и чистый денежный поток"
-        />
-        <Kpi label="Резерв на капремонт за горизонт" value={<Byn value={result.totalCapexReserve} />} tone="neutral" />
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[1080px] border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-faint">
-              <th className="px-2 py-2 font-medium">Год</th>
-              <th className="px-2 py-2 text-right font-medium">Доходы</th>
-              <th className="px-2 py-2 text-right font-medium">Расходы</th>
-              <th className="px-2 py-2 text-right font-medium">в т.ч. лизинг</th>
-              <th className="px-2 py-2 text-right font-medium" title="Из расходов — переложено на арендаторов сверх аренды, не режет чистую прибыль">
-                в т.ч. на аренд.
-              </th>
-              <th className="px-2 py-2 text-right font-medium" title="Резерв на капремонт, % от аренды — реальная касса, входит в Расходы левее">
-                в т.ч. резерв
-              </th>
-              <th className="px-2 py-2 text-right font-medium" title="Амортизация — не в кассе, только снижает налоговую базу (не входит в Расходы левее)">
-                аморт. (не касса)
-              </th>
-              <th className="px-2 py-2 text-right font-medium">Налог</th>
-              <th className="px-2 py-2 text-right font-medium">Чистый поток</th>
-              <th className="px-2 py-2 text-right font-medium">Накопленно</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.years.map((y) => (
-              <YearRow key={y.year} year={y} limit={model.params.revenueLimitByn} />
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Card>
-  );
-}
-
-function YearRow({ year, limit }: { year: FinYear; limit: number }) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <>
-      <tr className="cursor-pointer border-b border-border hover:bg-surface-muted/50" onClick={() => setExpanded((v) => !v)}>
-        <td className="px-2 py-2 font-semibold text-ink">
-          <span className="flex items-center gap-1">
-            {expanded ? <ChevronDown className="h-3.5 w-3.5 text-ink-faint" /> : <ChevronRight className="h-3.5 w-3.5 text-ink-faint" />}
-            {year.year}
-            {year.limitExceeded && (
-              <span
-                className="flex items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 text-[11px] font-semibold text-warning"
-                title={`Выручка за год превышает лимит ИП ${formatByn(limit)} — переход в юрлицо, 30% со всего дохода`}
-              >
-                <TriangleAlert className="h-3 w-3" /> лимит ИП
-              </span>
-            )}
-          </span>
-        </td>
-        <td className="px-2 py-2 text-right text-ink"><Byn value={year.income} /></td>
-        <td className="px-2 py-2 text-right text-ink"><Byn value={year.expense} /></td>
-        <td className="px-2 py-2 text-right text-ink-muted"><Byn value={year.leasing} /></td>
-        <td className="px-2 py-2 text-right text-primary"><Byn value={year.reimbursedExpense} /></td>
-        <td className="px-2 py-2 text-right text-ink-muted"><Byn value={year.capexReserve} /></td>
-        <td className="px-2 py-2 text-right text-ink-faint italic"><Byn value={year.amortization} /></td>
-        <td
-          className="px-2 py-2 text-right text-ink"
-          title={`От оборота: ${formatByn(year.taxRevenueVariant)} · От прибыли: ${formatByn(year.taxProfitVariant)}`}
-        >
-          <Byn value={year.tax} />
-          <span className="ml-1 text-[11px] text-ink-faint">{year.taxRegime === 'profit' ? 'от прибыли' : 'от оборота'}</span>
-        </td>
-        <td className={cn('px-2 py-2 text-right font-semibold', year.net >= 0 ? 'text-success' : 'text-danger')}><Byn value={year.net} /></td>
-        <td className={cn('px-2 py-2 text-right font-semibold', year.cumulativeEnd >= 0 ? 'text-ink' : 'text-danger')}>
-          <Byn value={year.cumulativeEnd} />
-        </td>
-      </tr>
-      {expanded &&
-        year.months.map((m) => (
-          <tr key={m.index} className="border-b border-border/50 text-xs text-ink-muted">
-            <td className="px-2 py-1.5 pl-7">{m.label}</td>
-            <td className="px-2 py-1.5 text-right"><Byn value={m.income} /></td>
-            <td className="px-2 py-1.5 text-right"><Byn value={m.expense} /></td>
-            <td className="px-2 py-1.5 text-right"><Byn value={m.leasing} /></td>
-            <td className="px-2 py-1.5 text-right text-primary"><Byn value={m.reimbursedExpense} /></td>
-            <td className="px-2 py-1.5 text-right"><Byn value={m.capexReserve} /></td>
-            <td className="px-2 py-1.5 text-right italic"><Byn value={m.amortization} /></td>
-            <td className="px-2 py-1.5 text-right"><Byn value={m.tax} /></td>
-            <td className={cn('px-2 py-1.5 text-right', m.net >= 0 ? 'text-success' : 'text-danger')}><Byn value={m.net} /></td>
-            <td className={cn('px-2 py-1.5 text-right', m.cumulative >= 0 ? '' : 'text-danger')}><Byn value={m.cumulative} /></td>
-          </tr>
-        ))}
-    </>
-  );
-}
-
-function Kpi({ label, value, tone, hint }: { label: string; value: React.ReactNode; tone: 'success' | 'danger' | 'neutral'; hint?: string }) {
-  return (
-    <div className="flex flex-col gap-0.5 rounded-control bg-surface-muted p-3" title={hint}>
-      <span className="text-xs uppercase tracking-wide text-ink-faint">{label}</span>
-      <span className={cn('text-sm font-bold', tone === 'success' && 'text-success', tone === 'danger' && 'text-danger', tone === 'neutral' && 'text-ink')}>
-        {value}
-      </span>
-    </div>
-  );
-}
