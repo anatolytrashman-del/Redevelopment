@@ -21,5 +21,5 @@ export const OWNER_PROFILE_ID = 'owner';
 
 export const ACCESS_PROFILES: AccessProfile[] = [
   { id: OWNER_PROFILE_ID, password: '3520841', displayName: 'Трэшмен', pages: 'all' },
-  { id: 'tatiana', password: '1111', displayName: 'Татьяна Гаврис', pages: ['objects', 'meetingSummaries'] },
+  { id: 'tatiana', password: '1111', displayName: 'Татьяна Гаврис', pages: ['objects', 'meetingSummaries', 'finModels'] },
 ];
