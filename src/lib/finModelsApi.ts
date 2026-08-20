@@ -6,6 +6,7 @@ import {
   defaultFinLeasing,
   defaultFinParams,
   defaultFinRent,
+  defaultFinSales,
   type FinAmortization,
   type FinCategory,
   type FinLeasing,
@@ -13,11 +14,12 @@ import {
   type FinModelRow,
   type FinParams,
   type FinRent,
+  type FinSale,
 } from '../data/finModels';
 
 // Дефолты подставляются и при чтении — на случай строк, сохранённых до
-// добавления новых полей в params/leasing/rent/amortization (тот же приём,
-// что fromRow в estimatesApi.ts).
+// добавления новых полей в params/leasing/rent/amortization/sales (тот же
+// приём, что fromRow в estimatesApi.ts).
 function fromRow(row: FinModelRow): FinModel {
   return {
     id: row.id,
@@ -27,6 +29,15 @@ function fromRow(row: FinModelRow): FinModel {
     leasing: { ...defaultFinLeasing(), ...(row.leasing ?? {}) },
     rent: { ...defaultFinRent(), ...(row.rent ?? {}) },
     amortization: { ...defaultFinAmortization(), ...(row.amortization ?? {}) },
+    sales: (row.sales ?? defaultFinSales()).map((s) => ({
+      id: s.id,
+      label: s.label,
+      saleDate: s.saleDate ?? '',
+      areaMeters: s.areaMeters ?? null,
+      pricePerMeterUsd: s.pricePerMeterUsd ?? null,
+      exchangeRate: s.exchangeRate ?? null,
+      applyToLeasing: s.applyToLeasing ?? false,
+    })),
     // reimbursable добавлено позже — на статьях, сохранённых до этого,
     // его нет в JSONB, без ?? чекбокс ушёл бы в React undefined→controlled.
     categories: (row.categories ?? []).map((c) => ({
@@ -60,6 +71,7 @@ export function insertFinModel(input: {
   leasing?: FinLeasing;
   rent?: FinRent;
   amortization?: FinAmortization;
+  sales?: FinSale[];
   categories?: FinCategory[];
 }): Promise<FinModel> {
   return withRetry(async () => {
@@ -72,6 +84,7 @@ export function insertFinModel(input: {
         leasing: input.leasing ?? defaultFinLeasing(),
         rent: input.rent ?? defaultFinRent(),
         amortization: input.amortization ?? defaultFinAmortization(),
+        sales: input.sales ?? defaultFinSales(),
         categories: input.categories ?? defaultFinCategories(),
       })
       .select()
@@ -90,6 +103,7 @@ export function updateFinModel(
     leasing: FinLeasing;
     rent: FinRent;
     amortization: FinAmortization;
+    sales: FinSale[];
     categories: FinCategory[];
   },
 ): Promise<FinModel> {
@@ -102,6 +116,7 @@ export function updateFinModel(
         leasing: input.leasing,
         rent: input.rent,
         amortization: input.amortization,
+        sales: input.sales,
         categories: input.categories,
       })
       .eq('id', id)
@@ -129,6 +144,7 @@ export function duplicateFinModel(source: FinModel): Promise<FinModel> {
     id: crypto.randomUUID(),
     entries: c.entries.map((e) => ({ ...e, id: crypto.randomUUID() })),
   }));
+  const sales = source.sales.map((s) => ({ ...s, id: crypto.randomUUID() }));
   return insertFinModel({
     objectId: source.objectId,
     name: `${source.name} (копия)`,
@@ -136,6 +152,7 @@ export function duplicateFinModel(source: FinModel): Promise<FinModel> {
     leasing: { ...source.leasing },
     rent: { ...source.rent },
     amortization: { ...source.amortization },
+    sales,
     categories,
   });
 }

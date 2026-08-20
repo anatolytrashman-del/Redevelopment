@@ -13,13 +13,14 @@ import {
   type FinEntry,
   type FinModel,
   type FinRent,
+  type FinSale,
   type FinSchedule,
   type LeasingCurrency,
 } from '../data/finModels';
 import type { RealtyObject } from '../data/objects';
 import { fetchFinModel, updateFinModel } from '../lib/finModelsApi';
 import { fetchObject } from '../lib/objectsApi';
-import { calculateFinModel, type FinYear } from '../lib/finModelCalc';
+import { calculateFinModel, saleAmountByn, type FinYear } from '../lib/finModelCalc';
 import { cn } from '../lib/cn';
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -102,6 +103,7 @@ export function FinModelDetail() {
         leasing: model.leasing,
         rent: model.rent,
         amortization: model.amortization,
+        sales: model.sales,
         categories: model.categories,
       });
       setModel(updated);
@@ -277,6 +279,8 @@ export function FinModelEditor({
 
       <RentCard model={model} patchModel={patchModel} />
 
+      <SalesCard model={model} patchModel={patchModel} />
+
       <LeasingCard model={model} result={result} patchModel={patchModel} />
 
       <AmortizationCard model={model} patchModel={patchModel} />
@@ -412,6 +416,125 @@ function RentCard({ model, patchModel }: { model: FinModel; patchModel: (patch: 
   );
 }
 
+function SalesCard({ model, patchModel }: { model: FinModel; patchModel: (patch: Partial<FinModel>) => void }) {
+  const sales = model.sales;
+
+  function patchSale(id: string, patch: Partial<FinSale>) {
+    patchModel({ sales: sales.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
+  }
+  function addSale() {
+    patchModel({
+      sales: [
+        ...sales,
+        {
+          id: crypto.randomUUID(),
+          label: '',
+          saleDate: '',
+          areaMeters: null,
+          pricePerMeterUsd: null,
+          exchangeRate: null,
+          applyToLeasing: false,
+        },
+      ],
+    });
+  }
+  function removeSale(id: string) {
+    patchModel({ sales: sales.filter((s) => s.id !== id) });
+  }
+
+  return (
+    <Card className="flex flex-col gap-4 p-5">
+      <div className="text-lg font-bold text-ink">Продажа объектов</div>
+      <div className="flex flex-col gap-3">
+        {sales.map((s) => {
+          const amountByn = saleAmountByn(s);
+          const rateMissing = (s.areaMeters ?? 0) > 0 && (s.pricePerMeterUsd ?? 0) > 0 && !(s.exchangeRate ?? 0);
+          return (
+            <div key={s.id} className="flex flex-col gap-2 rounded-control border border-border p-3">
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <Input
+                    placeholder="Название продажи"
+                    value={s.label}
+                    onChange={(e) => patchSale(s.id, { label: e.target.value })}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeSale(s.id)}
+                  aria-label="Удалить продажу"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-danger"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <Input
+                  label="Дата продажи"
+                  type="month"
+                  value={s.saleDate}
+                  onChange={(e) => patchSale(s.id, { saleDate: e.target.value })}
+                />
+                <Input
+                  label="Площадь, м²"
+                  type="number"
+                  value={s.areaMeters ?? ''}
+                  onChange={(e) => patchSale(s.id, { areaMeters: numOrNull(e.target.value) })}
+                />
+                <Input
+                  label="Цена за м², $"
+                  type="number"
+                  value={s.pricePerMeterUsd ?? ''}
+                  onChange={(e) => patchSale(s.id, { pricePerMeterUsd: numOrNull(e.target.value) })}
+                />
+                <Input
+                  label="Курс BYN за $"
+                  type="number"
+                  step="0.0001"
+                  value={s.exchangeRate ?? ''}
+                  onChange={(e) => patchSale(s.id, { exchangeRate: numOrNull(e.target.value) })}
+                />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label
+                  className={cn(
+                    'flex items-center gap-1.5 text-xs font-medium',
+                    s.applyToLeasing ? 'text-primary' : 'text-ink-muted',
+                  )}
+                  title="Вся сумма продажи (в BYN) уходит на досрочное частичное погашение остатка долга по лизингу в месяце продажи — срок лизинга не меняется, платёж на оставшийся срок пересчитывается и становится меньше"
+                >
+                  <input
+                    type="checkbox"
+                    checked={s.applyToLeasing}
+                    onChange={(e) => patchSale(s.id, { applyToLeasing: e.target.checked })}
+                    className="h-4 w-4 rounded border-border accent-primary"
+                  />
+                  на погашение лизинга
+                </label>
+                <span className="text-sm text-ink-muted">
+                  {amountByn > 0 ? (
+                    <>
+                      = <span className="font-semibold text-ink">{formatNum(amountByn)} Br</span>
+                    </>
+                  ) : rateMissing ? (
+                    <span className="font-medium text-warning">укажите курс</span>
+                  ) : (
+                    '—'
+                  )}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+        {sales.length === 0 && <p className="text-sm text-ink-faint">Продаж пока нет</p>}
+      </div>
+      <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} className="w-fit" onClick={addSale}>
+        Добавить продажу
+      </Button>
+    </Card>
+  );
+}
+
 function LeasingCard({
   model,
   result,
@@ -426,6 +549,7 @@ function LeasingCard({
   const payment = result.monthlyLeasingPayment;
   const paymentByn =
     payment != null && !result.leasingRateMissing ? payment * (isByn ? 1 : (model.leasing.exchangeRate ?? 0)) : null;
+  const hasPrepayments = model.sales.some((s) => s.applyToLeasing);
 
   return (
     <Card className="flex flex-col gap-4 p-5">
@@ -488,7 +612,7 @@ function LeasingCard({
           Зачитывать платежи как расходы ИП
         </label>
         <span className="text-sm text-ink-muted">
-          Платёж:{' '}
+          Платёж{hasPrepayments ? ' (исходный)' : ''}:{' '}
           {payment == null ? (
             <span className="font-semibold text-ink">— заполните сумму и срок</span>
           ) : (
@@ -508,6 +632,12 @@ function LeasingCard({
       {result.leasingRateMissing && (
         <p className="text-sm font-medium text-warning">
           Укажите курс — без него лизинг не попадает в расчёт (пересчитывать {sym} в BYN 1:1 было бы обманом модели).
+        </p>
+      )}
+      {hasPrepayments && (
+        <p className="text-xs text-ink-faint">
+          Есть продажи "на погашение лизинга" — после каждой из них платёж на оставшийся срок пересчитывается и
+          уменьшается (срок не меняется). Актуальные суммы по месяцам — в таблице ниже, колонка "в т.ч. лизинг".
         </p>
       )}
     </Card>
@@ -744,6 +874,7 @@ function SummarySection({ model, result }: { model: FinModel; result: ReturnType
           hint="Сколько всего денег нужно завести в проект до самоокупаемости"
         />
         <Kpi label="Аренда за горизонт" value={<Byn value={result.totalRentIncome} />} tone="neutral" />
+        <Kpi label="Продажи за горизонт" value={<Byn value={result.totalSaleIncome} />} tone="neutral" />
         <Kpi label="Налоги за горизонт" value={<Byn value={result.totalTax} />} tone="neutral" />
         <Kpi
           label="Нагрузка на арендаторов сверх аренды"

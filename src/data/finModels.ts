@@ -103,6 +103,26 @@ export interface FinAmortization {
   termMonths: number | null;
 }
 
+// Продажа объектов — не ручные статьи, а список сделок (в отличие от
+// аренды/лизинга — их может быть несколько). Площадь и цена за м² — цена в
+// $ (реальный рынок так и котируется), пересчёт в BYN через exchangeRate
+// у каждой продажи отдельно (курс на разные даты продажи может отличаться).
+// saleDate — как params.startDate (YYYY-MM), переводится в номер месяца
+// модели при расчёте; '' — дата не указана, сделка не считается.
+// applyToLeasing — вся сумма продажи (в BYN) в месяце сделки уходит на
+// частичное досрочное погашение остатка долга по лизингу: срок лизинга не
+// меняется, платёж на оставшийся срок пересчитывается и становится меньше
+// (см. buildLeasingCashFlow в finModelCalc.ts).
+export interface FinSale {
+  id: string;
+  label: string;
+  saleDate: string;
+  areaMeters: number | null;
+  pricePerMeterUsd: number | null;
+  exchangeRate: number | null;
+  applyToLeasing: boolean;
+}
+
 export interface FinParams {
   // Месяц 1 модели, формат YYYY-MM.
   startDate: string;
@@ -123,6 +143,7 @@ export interface FinModel {
   leasing: FinLeasing;
   rent: FinRent;
   amortization: FinAmortization;
+  sales: FinSale[];
   categories: FinCategory[];
   createdAt: string;
 }
@@ -136,6 +157,7 @@ export interface FinModelRow {
   leasing: FinLeasing | null;
   rent: FinRent | null;
   amortization: FinAmortization | null;
+  sales: FinSale[] | null;
   categories: FinCategory[] | null;
   created_at: string;
 }
@@ -176,6 +198,20 @@ export function defaultFinAmortization(): FinAmortization {
   return { monthlyAmount: null, startMonth: 1, termMonths: null };
 }
 
+export function defaultFinSales(): FinSale[] {
+  return [
+    {
+      id: crypto.randomUUID(),
+      label: 'Продажа части здания',
+      saleDate: '',
+      areaMeters: null,
+      pricePerMeterUsd: null,
+      exchangeRate: null,
+      applyToLeasing: false,
+    },
+  ];
+}
+
 function entry(label: string, schedule: FinSchedule, deductible = true): FinEntry {
   return { id: crypto.randomUUID(), label, amount: null, schedule, deductible, reimbursable: false };
 }
@@ -189,12 +225,6 @@ const once: FinSchedule = { type: 'once', fromMonth: 1, toMonth: null };
 // консультацию). Всё редактируется/удаляется из интерфейса.
 export function defaultFinCategories(): FinCategory[] {
   return [
-    {
-      id: crypto.randomUUID(),
-      title: 'Продажа объектов',
-      kind: 'income',
-      entries: [entry('Продажа части здания', { ...once })],
-    },
     {
       id: crypto.randomUUID(),
       title: 'Ремонт',

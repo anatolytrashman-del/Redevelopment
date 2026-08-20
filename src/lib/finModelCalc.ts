@@ -1,4 +1,4 @@
-import type { FinAmortization, FinEntry, FinLeasing, FinModel, FinRent } from '../data/finModels';
+import type { FinAmortization, FinEntry, FinLeasing, FinModel, FinRent, FinSale } from '../data/finModels';
 
 // Чистый расчёт финмодели — без UI и без запросов, на вход FinModel, на
 // выход помесячная сетка + годовые сводки + KPI. Вынесен отдельно, чтобы
@@ -11,6 +11,7 @@ export interface FinMonth {
   label: string; // "янв 2027"
   income: number;
   rentIncome: number; // из них аренда (калькулятор — см. rentInMonth)
+  saleIncome: number; // из них продажи объектов (калькулятор — см. FinSale)
   expense: number; // операционные расходы + лизинг, без налога
   leasing: number; // из них лизинг (аванс + платежи) — для отдельной строки
   deductibleExpense: number;
@@ -33,6 +34,7 @@ export interface FinYear {
   months: FinMonth[];
   income: number;
   rentIncome: number;
+  saleIncome: number;
   expense: number;
   leasing: number;
   reimbursedExpense: number;
@@ -51,6 +53,7 @@ export interface FinResult {
   years: FinYear[];
   totalIncome: number;
   totalRentIncome: number;
+  totalSaleIncome: number;
   totalExpense: number; // операционные + лизинг, без налога
   totalTax: number;
   netProfit: number;
@@ -98,16 +101,24 @@ function entryAmountInMonth(e: FinEntry, monthIndex: number, horizon: number): n
   }
 }
 
+// Аннуитетный платёж на остаток долга и оставшийся срок — общая формула,
+// используется и для исходного платежа по лизингу, и для пересчёта после
+// досрочного погашения (см. buildLeasingCashFlow). При нулевой ставке —
+// просто равные доли.
+export function annuityPayment(balance: number, remainingMonths: number, monthlyRate: number): number {
+  if (balance <= 0 || remainingMonths <= 0) return 0;
+  if (monthlyRate === 0) return balance / remainingMonths;
+  return (balance * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -remainingMonths));
+}
+
 // Аннуитетный платёж по лизингу от финансируемой части (сумма − аванс) —
-// в валюте договора. При нулевой ставке — просто равные доли.
+// в валюте договора, на весь исходный срок (без учёта досрочных погашений).
 export function leasingMonthlyPayment(l: FinLeasing): number | null {
   const sum = l.contractSum ?? 0;
   const n = l.termMonths ?? 0;
   if (sum <= 0 || n <= 0) return null;
   const financed = Math.max(0, sum - (l.downPayment ?? 0));
-  const r = (l.annualRatePct ?? 0) / 100 / 12;
-  if (r === 0) return financed / n;
-  return (financed * r) / (1 - Math.pow(1 + r, -n));
+  return annuityPayment(financed, n, (l.annualRatePct ?? 0) / 100 / 12);
 }
 
 // Курс пересчёта лизинговых сумм в BYN. Для валютного договора без
@@ -147,24 +158,87 @@ export function amortizationInMonth(a: FinAmortization, monthIndex: number): num
   return amount;
 }
 
-function leasingInMonth(l: FinLeasing, monthIndex: number, payment: number | null, rate: number): number {
-  let total = 0;
-  if (monthIndex === 1) total += l.downPayment ?? 0;
-  if (payment != null) {
-    const start = Math.max(1, l.startMonth || 1);
-    const n = l.termMonths ?? 0;
-    if (monthIndex >= start && monthIndex < start + n) total += payment;
+// "YYYY-MM" (как params.startDate) → номер месяца модели (1-based), может
+// быть меньше 1 (дата до старта модели) или больше горизонта — вызывающий
+// код сам сверяет с диапазоном.
+function monthIndexFromDate(dateStr: string, start: { year: number; month: number }): number | null {
+  if (!dateStr) return null;
+  const [y, m] = dateStr.split('-').map(Number);
+  if (!y || !m) return null;
+  return (y - start.year) * 12 + (m - start.month) + 1;
+}
+
+// Сумма продажи в BYN: площадь × цена за м² ($) × курс. Курс не заполнен —
+// 0 (сделка не считается), тот же принцип, что у leasingByn — не подставлять
+// молча 1:1.
+export function saleAmountByn(s: FinSale): number {
+  return (s.areaMeters ?? 0) * (s.pricePerMeterUsd ?? 0) * (s.exchangeRate ?? 0);
+}
+
+// Кассовый поток по лизингу (аванс + платежи), в BYN, по месяцам модели
+// (индекс 0 = месяц 1). Обычный аннуитет на весь срок, ЕСЛИ ни одна продажа
+// не помечена "на погашение лизинга" — пересчитанный на каждый месяц платёж
+// в этом случае совпадает с исходным (математическое тождество аннуитета).
+// Продажа с applyToLeasing уменьшает остаток долга в месяце сделки, платёж
+// на оставшийся срок пересчитывается заново (annuityPayment) — срок лизинга
+// не меняется, платёж становится меньше.
+export function buildLeasingCashFlow(
+  leasing: FinLeasing,
+  sales: FinSale[],
+  start: { year: number; month: number },
+  horizon: number,
+): number[] {
+  const cashFlow = new Array(horizon).fill(0);
+  const rate = leasingByn(leasing);
+  const termMonths = leasing.termMonths ?? 0;
+  const leasingStart = Math.max(1, leasing.startMonth || 1);
+  const financed = Math.max(0, (leasing.contractSum ?? 0) - (leasing.downPayment ?? 0));
+  const rMonthly = (leasing.annualRatePct ?? 0) / 100 / 12;
+
+  if (leasing.downPayment && rate > 0) {
+    cashFlow[0] += leasing.downPayment * rate;
   }
-  return total * rate;
+  if (financed <= 0 || termMonths <= 0 || rate <= 0) return cashFlow;
+
+  const prepayments = sales
+    .filter((s) => s.applyToLeasing)
+    .map((s) => ({ amountByn: saleAmountByn(s), monthIndex: monthIndexFromDate(s.saleDate, start) }))
+    .filter((p): p is { amountByn: number; monthIndex: number } => p.amountByn > 0 && p.monthIndex != null);
+
+  let balance = financed;
+  let payment = annuityPayment(balance, termMonths, rMonthly);
+
+  for (let i = 1; i <= horizon; i++) {
+    if (i >= leasingStart && i < leasingStart + termMonths && payment > 0) {
+      const interest = balance * rMonthly;
+      const principal = Math.min(balance, Math.max(0, payment - interest));
+      balance = Math.max(0, balance - principal);
+      cashFlow[i - 1] += payment * rate;
+    }
+
+    for (const p of prepayments) {
+      if (p.monthIndex !== i || balance <= 0) continue;
+      const applied = Math.min(balance, p.amountByn / rate);
+      balance -= applied;
+      cashFlow[i - 1] += applied * rate;
+    }
+
+    const monthsPaid = Math.max(0, Math.min(termMonths, i + 1 - leasingStart));
+    const remainingMonths = termMonths - monthsPaid;
+    payment = remainingMonths > 0 ? annuityPayment(balance, remainingMonths, rMonthly) : 0;
+  }
+
+  return cashFlow;
 }
 
 export function calculateFinModel(model: FinModel): FinResult {
-  const { params, leasing, rent, amortization, categories } = model;
+  const { params, leasing, rent, amortization, sales, categories } = model;
   const horizon = Math.max(1, Math.floor(params.horizonMonths) || 60);
   const start = parseStart(params.startDate);
   const payment = leasingMonthlyPayment(leasing);
   const rate = leasingByn(leasing);
   const leasingRateMissing = payment != null && rate === 0;
+  const leaseCashFlow = buildLeasingCashFlow(leasing, sales, start, horizon);
 
   const incomeEntries = categories.filter((c) => c.kind === 'income').flatMap((c) => c.entries);
   const expenseEntries = categories.filter((c) => c.kind === 'expense').flatMap((c) => c.entries);
@@ -177,7 +251,11 @@ export function calculateFinModel(model: FinModel): FinResult {
     const label = `${MONTH_LABELS[absMonth % 12]} ${year}`;
 
     const rentIncome = rentInMonth(rent, i);
-    const income = incomeEntries.reduce((s, e) => s + entryAmountInMonth(e, i, horizon), 0) + rentIncome;
+    const saleIncome = sales.reduce((s, sale) => {
+      const idx = monthIndexFromDate(sale.saleDate, start);
+      return idx === i ? s + saleAmountByn(sale) : s;
+    }, 0);
+    const income = incomeEntries.reduce((s, e) => s + entryAmountInMonth(e, i, horizon), 0) + rentIncome + saleIncome;
     const opex = expenseEntries.reduce((s, e) => s + entryAmountInMonth(e, i, horizon), 0);
     const deductibleOpex = expenseEntries.reduce(
       (s, e) => s + (e.deductible ? entryAmountInMonth(e, i, horizon) : 0),
@@ -187,7 +265,7 @@ export function calculateFinModel(model: FinModel): FinResult {
       (s, e) => s + (e.reimbursable ? entryAmountInMonth(e, i, horizon) : 0),
       0,
     );
-    const lease = leasingInMonth(leasing, i, payment, rate);
+    const lease = leaseCashFlow[i - 1];
     const amort = amortizationInMonth(amortization, i);
 
     months.push({
@@ -196,6 +274,7 @@ export function calculateFinModel(model: FinModel): FinResult {
       label,
       income,
       rentIncome,
+      saleIncome,
       expense: opex + lease,
       leasing: lease,
       deductibleExpense: deductibleOpex + (leasing.deductible ? lease : 0) + amort,
@@ -232,6 +311,7 @@ export function calculateFinModel(model: FinModel): FinResult {
       months: inYear,
       income,
       rentIncome: inYear.reduce((s, m) => s + m.rentIncome, 0),
+      saleIncome: inYear.reduce((s, m) => s + m.saleIncome, 0),
       expense: inYear.reduce((s, m) => s + m.expense, 0),
       leasing: inYear.reduce((s, m) => s + m.leasing, 0),
       reimbursedExpense: inYear.reduce((s, m) => s + m.reimbursedExpense, 0),
@@ -260,6 +340,7 @@ export function calculateFinModel(model: FinModel): FinResult {
 
   const totalIncome = months.reduce((s, m) => s + m.income, 0);
   const totalRentIncome = months.reduce((s, m) => s + m.rentIncome, 0);
+  const totalSaleIncome = months.reduce((s, m) => s + m.saleIncome, 0);
   const totalExpense = months.reduce((s, m) => s + m.expense, 0);
   const totalTax = months.reduce((s, m) => s + m.tax, 0);
   const totalReimbursedExpense = months.reduce((s, m) => s + m.reimbursedExpense, 0);
@@ -283,6 +364,7 @@ export function calculateFinModel(model: FinModel): FinResult {
     years,
     totalIncome,
     totalRentIncome,
+    totalSaleIncome,
     totalExpense,
     totalTax,
     netProfit: totalIncome - totalExpense + totalReimbursedExpense - totalTax,
