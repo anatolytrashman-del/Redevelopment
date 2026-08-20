@@ -15,13 +15,13 @@ import {
   categories,
   categoryColor,
   payers,
+  incomePayers,
   splitPayers,
   soloPayers,
   sources,
   type Transaction,
   type Currency,
   type Category,
-  type Payer,
   type SplitPayer,
 } from '../data/transactions';
 import { fetchTransactions, insertTransaction, updateTransaction } from '../lib/transactionsApi';
@@ -51,13 +51,16 @@ function formatTotalsMap(map: Map<Currency, number>) {
   return [...map.entries()].map(([currency, amount]) => formatAmount(amount, currency)).join(' · ');
 }
 
+type OperationKind = 'Расход' | 'Доход';
+
 const emptyForm = {
+  kind: 'Расход' as OperationKind,
   date: '',
   amount: '',
   currency: 'RUB' as Currency,
   purpose: '',
   category: 'Маркетинг' as Category,
-  paidBy: payers[0] as Payer,
+  paidBy: payers[0] as string,
   paidFrom: '',
   compensated: 'Нет',
 };
@@ -133,8 +136,9 @@ function calculateMonthTotals(transactions: Transaction[]) {
 
 function transactionToForm(t: Transaction) {
   return {
+    kind: (t.amount < 0 ? 'Расход' : 'Доход') as OperationKind,
     date: t.date,
-    amount: String(t.amount),
+    amount: String(Math.abs(t.amount)),
     currency: t.currency,
     purpose: t.purpose,
     category: t.category,
@@ -201,7 +205,7 @@ export function Transactions() {
     setSubmitError(null);
     const payload = {
       date: form.date,
-      amount: Number(form.amount),
+      amount: Math.abs(Number(form.amount)) * (form.kind === 'Доход' ? 1 : -1),
       currency: form.currency,
       purpose: form.purpose,
       category: form.category,
@@ -433,6 +437,19 @@ export function Transactions() {
 
       <Modal open={open} onClose={() => setOpen(false)} title={editingId ? 'Редактировать транзакцию' : 'Новая транзакция'}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <ToggleGroup
+            label="Тип операции"
+            options={['Расход', 'Доход']}
+            value={form.kind}
+            onChange={(v) =>
+              setForm((f) => ({
+                ...f,
+                kind: v as OperationKind,
+                paidBy: v === 'Доход' ? incomePayers[0] : payers[0],
+              }))
+            }
+          />
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input
               label="Дата"
@@ -480,9 +497,9 @@ export function Transactions() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Select
               label="Кто платил"
-              options={[...payers]}
+              options={form.kind === 'Доход' ? [...incomePayers] : [...payers]}
               value={form.paidBy}
-              onChange={(v) => setForm((f) => ({ ...f, paidBy: v as Payer }))}
+              onChange={(v) => setForm((f) => ({ ...f, paidBy: v }))}
             />
             <AddableSelect
               label="Откуда платил"

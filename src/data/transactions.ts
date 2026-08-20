@@ -27,7 +27,16 @@ export const soloPayers = ['Татьяна Давыдчик'] as const;
 export type SoloPayer = (typeof soloPayers)[number];
 
 export const payers = [...splitPayers, ...soloPayers] as const;
-export type Payer = (typeof payers)[number];
+
+// Плательщики для операций дохода (кто нам заплатил) — отдельный список,
+// не участвует в делёжке 50/50 (calculateBalances) или долгах вне пары
+// (calculateSoloDebts) в Transactions.tsx, чисто для отметки источника.
+export const incomePayers = ['Влад Ждонец', 'Рита'] as const;
+
+// Раньше было объединением payers — теперь просто string, потому что
+// значение может приходить из payers (расход) или incomePayers (доход),
+// а оба списка открытые (пополняются прямо из формы, см. Transactions.tsx).
+export type Payer = string;
 
 // Готовые варианты "Откуда платил". Список открытый, как и категории —
 // новые источники добавляются прямо из формы транзакции.
