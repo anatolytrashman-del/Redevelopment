@@ -57,14 +57,14 @@ function BankLogo({ url, className }: { url: string; className?: string }) {
   if (!url) {
     return (
       <div className={cn('flex shrink-0 items-center justify-center rounded-control bg-surface-muted text-ink-faint', className)}>
-        <Landmark className="h-7 w-7" />
+        <Landmark className="h-16 w-16" />
       </div>
     );
   }
   return <img src={url} alt="" className={cn('shrink-0 rounded-control bg-surface-muted object-contain', className)} />;
 }
 
-const gridCols = 'grid-cols-[96px_180px_140px_220px_90px]';
+const gridCols = 'grid-cols-[220px_180px_140px_220px_90px]';
 
 export function Financing() {
   const [offers, setOffers] = useState<FinancingOffer[]>([]);
@@ -192,7 +192,7 @@ export function Financing() {
             статус), остальные поля — только в карточке (см. Modal ниже),
             открывается кликом по строке. Ниже lg — карточки. */}
         <div className="hidden overflow-x-auto lg:block">
-          <div className={cn('grid min-w-[720px] items-center gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint', gridCols)}>
+          <div className={cn('grid min-w-[850px] items-center gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint', gridCols)}>
             <span>Лого</span>
             <span>Ставка</span>
             <span>Срок</span>
@@ -206,11 +206,11 @@ export function Financing() {
                 key={o.id}
                 onClick={() => openEditModal(o)}
                 className={cn(
-                  'grid min-w-[720px] cursor-pointer items-center gap-4 border-t border-border px-6 py-4 text-sm hover:bg-surface-muted',
+                  'grid min-w-[850px] cursor-pointer items-center gap-4 border-t border-border px-6 py-4 text-sm hover:bg-surface-muted',
                   gridCols,
                 )}
               >
-                <BankLogo url={o.logoUrl} className="h-16 w-16" />
+                <BankLogo url={o.logoUrl} className="h-[192px] w-[192px]" />
                 <span className="truncate text-ink-muted">{o.rateOffer || '—'}</span>
                 <span className="truncate text-ink-muted">{o.maxTerm || '—'}</span>
                 <span>
@@ -266,7 +266,7 @@ export function Financing() {
                 className="flex cursor-pointer flex-col gap-2.5 rounded-control border border-border p-3.5 hover:bg-surface-muted"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <BankLogo url={o.logoUrl} className="h-14 w-14" />
+                  <BankLogo url={o.logoUrl} className="h-[168px] w-[168px]" />
                   <div className="flex shrink-0 items-center gap-1.5">
                     <button
                       type="button"
@@ -321,7 +321,7 @@ export function Financing() {
       <Modal open={open} onClose={() => setOpen(false)} title={editingId ? 'Редактировать банк' : 'Новый банк'}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex items-center gap-4">
-            <BankLogo url={form.logoUrl} className="h-16 w-16" />
+            <BankLogo url={form.logoUrl} className="h-[192px] w-[192px]" />
             <label
               className={cn(
                 'flex cursor-pointer items-center gap-2 rounded-control border border-dashed border-border px-4 py-2.5 text-sm text-ink-muted hover:border-border-strong',
