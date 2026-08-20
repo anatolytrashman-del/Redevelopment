@@ -22,6 +22,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
+import { cn } from '../lib/cn';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
@@ -144,6 +145,13 @@ export function Documents() {
   // Общая модалка предпросмотра (PDF/картинки/.docx) — одна на всю
   // страницу, используется всеми секциями ниже.
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null);
+
+  // Вкладки вместо длинной вертикальной портянки разделов — переключают
+  // видимость блока, все данные при этом всё равно грузятся сразу
+  // (см. useEffect ниже), просто не рендерятся, пока не открыта вкладка.
+  const [activeTab, setActiveTab] = useState<
+    'documents' | 'signed' | 'objects' | 'contractors' | 'legal' | 'templates'
+  >('documents');
 
   useEffect(() => {
     fetchGeneratedDocuments()
@@ -407,6 +415,35 @@ export function Documents() {
         }
       />
 
+      <div className="flex gap-1 overflow-x-auto border-b border-border">
+        {(
+          [
+            ['documents', 'Документы', documents.length],
+            ['signed', 'Подписанные соглашения', signedAgreements.length],
+            ['objects', 'Объекты (БРТИ)', objects.length],
+            ['contractors', 'Подрядчики', contractorDocs.length],
+            ['legal', 'Юристы', legalDocs.length],
+            ['templates', 'Шаблоны', templates.length],
+          ] as const
+        ).map(([key, label, count]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setActiveTab(key)}
+            className={cn(
+              'shrink-0 whitespace-nowrap rounded-t-control border border-b-0 px-4 py-2.5 text-sm font-semibold transition-colors',
+              activeTab === key
+                ? 'border-border bg-surface text-ink'
+                : 'border-transparent bg-transparent text-ink-muted hover:text-ink',
+            )}
+          >
+            {label}
+            {count > 0 && <span className="ml-1.5 text-ink-faint">{count}</span>}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'documents' && (
       <div className="flex flex-col gap-4">
         {documents.map((doc) => {
           const meta = statusMeta[doc.status];
@@ -471,8 +508,9 @@ export function Documents() {
         )}
         {updateError && <p className="text-sm text-danger">{updateError}</p>}
       </div>
+      )}
 
-      <div className="mt-8 text-lg font-bold text-ink">Подписанные соглашения</div>
+      {activeTab === 'signed' && (
       <div className="flex flex-col gap-4">
         {signedAgreements.map((a) => (
           <Card key={a.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:gap-4">
@@ -520,8 +558,9 @@ export function Documents() {
           <Card className="py-10 text-center text-sm text-ink-muted">Подписанных соглашений пока нет</Card>
         )}
       </div>
+      )}
 
-      <div className="mt-8 text-lg font-bold text-ink">Документы объектов — техпаспорт (БРТИ)</div>
+      {activeTab === 'objects' && (
       <div className="flex flex-col gap-4">
         {objects.map((o) => {
           const file = o.documents.techPassport;
@@ -533,7 +572,7 @@ export function Documents() {
                   <Building2 className="h-5 w-5" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate font-semibold text-ink">{o.name || o.address}</div>
+                  <div className="truncate font-semibold text-ink">{o.address}</div>
                   {file ? (
                     <div className="truncate text-sm text-ink-muted">
                       {file.fileName} · {formatDate(file.uploadedAt)}
@@ -608,9 +647,11 @@ export function Documents() {
         )}
         {objectDocError && <p className="text-sm text-danger">{objectDocError}</p>}
       </div>
+      )}
 
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
-        <div className="text-lg font-bold text-ink">Договоры с подрядчиками</div>
+      {activeTab === 'contractors' && (
+      <>
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <Button variant="secondary" icon={<Plus className="h-4 w-4" />} onClick={openContractorDocModal}>
           Добавить договор
         </Button>
@@ -672,9 +713,12 @@ export function Documents() {
           <Card className="py-10 text-center text-sm text-ink-muted">Договоров пока нет</Card>
         )}
       </div>
+      </>
+      )}
 
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
-        <div className="text-lg font-bold text-ink">Документы от юристов</div>
+      {activeTab === 'legal' && (
+      <>
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <Button variant="secondary" icon={<Plus className="h-4 w-4" />} onClick={openLegalDocModal}>
           Добавить документ
         </Button>
@@ -734,9 +778,12 @@ export function Documents() {
           <Card className="py-10 text-center text-sm text-ink-muted">Документов пока нет</Card>
         )}
       </div>
+      </>
+      )}
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="text-lg font-bold text-ink">Шаблоны</div>
+      {activeTab === 'templates' && (
+      <>
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <Button variant="secondary" icon={<Plus className="h-4 w-4" />} onClick={openAddTemplateModal}>
           Добавить шаблон
         </Button>
@@ -784,6 +831,8 @@ export function Documents() {
           <Card className="py-10 text-center text-sm text-ink-muted">Шаблонов пока нет</Card>
         )}
       </div>
+      </>
+      )}
 
       <CreateDocumentModal
         open={createOpen}
