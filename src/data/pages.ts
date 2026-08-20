@@ -12,6 +12,7 @@ import {
   Settings,
   ListChecks,
   TrendingUp,
+  Landmark,
 } from 'lucide-react';
 
 // Единый список страниц админки — здесь и маршрут, и ключ доступа (см.
@@ -30,6 +31,7 @@ export type PageKey =
   | 'tz'
   | 'estimates'
   | 'finModels'
+  | 'financing'
   | 'documents'
   | 'meetingSummaries'
   | 'settings'
@@ -52,6 +54,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   { key: 'tz', to: '/admin/tz', label: 'Техзадания', icon: ClipboardList },
   { key: 'estimates', to: '/admin/estimates', label: 'Сметы', icon: Calculator },
   { key: 'finModels', to: '/admin/finmodels', label: 'Финмодели', icon: TrendingUp },
+  { key: 'financing', to: '/admin/financing', label: 'Финансирование', icon: Landmark },
   { key: 'leads', to: '/admin/leads', label: 'Лиды', icon: Users },
   { key: 'contractors', to: '/admin/contractors', label: 'Подрядчики', icon: HardHat },
   { key: 'transactions', to: '/admin/transactions', label: 'Транзакции', icon: Receipt },
@@ -69,6 +72,7 @@ export const VISIBLE_PAGE_KEYS: PageKey[] = [
   'tz',
   'estimates',
   'finModels',
+  'financing',
   'leads',
   'contractors',
   'transactions',

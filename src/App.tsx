@@ -22,6 +22,7 @@ import { EstimateDetail } from './pages/EstimateDetail';
 import { FinModels } from './pages/FinModels';
 import { FinModelDetail } from './pages/FinModelDetail';
 import { FinModelReport } from './pages/FinModelReport';
+import { Financing } from './pages/Financing';
 import { MeetingSummaries } from './pages/MeetingSummaries';
 import { MeetingSummaryDetail } from './pages/MeetingSummaryDetail';
 import { MeetingSummaryPublicPage } from './pages/MeetingSummaryPublicPage';
@@ -83,6 +84,7 @@ export default function App() {
         <Route path="finmodels" element={<RequirePage page="finModels"><FinModels /></RequirePage>} />
         <Route path="finmodels/:id" element={<RequirePage page="finModels"><FinModelDetail /></RequirePage>} />
         <Route path="finmodels/:id/report" element={<RequirePage page="finModels"><FinModelReport /></RequirePage>} />
+        <Route path="financing" element={<RequirePage page="financing"><Financing /></RequirePage>} />
         <Route path="documents" element={<RequirePage page="documents"><Documents /></RequirePage>} />
         <Route
           path="meeting-summaries"
