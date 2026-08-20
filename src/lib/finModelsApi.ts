@@ -53,11 +53,17 @@ function fromRow(row: FinModelRow): FinModel {
       applyToLeasing: s.applyToLeasing ?? false,
       transactionCost: s.transactionCost ?? null,
     })),
-    // reimbursable добавлено позже — на статьях, сохранённых до этого,
-    // его нет в JSONB, без ?? чекбокс ушёл бы в React undefined→controlled.
+    // reimbursable/vatIncluded/vatPct добавлены позже — на статьях,
+    // сохранённых до этого, их нет в JSONB, без ?? чекбоксы ушли бы в React
+    // undefined→controlled.
     categories: (row.categories ?? []).map((c) => ({
       ...c,
-      entries: c.entries.map((e) => ({ ...e, reimbursable: e.reimbursable ?? false })),
+      entries: c.entries.map((e) => ({
+        ...e,
+        reimbursable: e.reimbursable ?? false,
+        vatIncluded: e.vatIncluded ?? false,
+        vatPct: e.vatPct ?? null,
+      })),
     })),
     createdAt: row.created_at,
   };

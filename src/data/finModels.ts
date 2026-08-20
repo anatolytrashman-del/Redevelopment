@@ -30,6 +30,13 @@ export interface FinEntry {
   // видна в расходах как есть (деньги реально уходят из кассы), но не режет
   // чистую прибыль — см. finModelCalc.ts. У доходов игнорируется.
   reimbursable: boolean;
+  // Сумма включает НДС по ставке vatPct — в кассе (то, что видно в таблице)
+  // остаётся полная сумма как введена, а в налоговую базу ИП (доход "от
+  // оборота", вычитаемый расход "от прибыли") идёт сумма без НДС — это
+  // транзит в бюджет, не доход/расход ИП. Заведено на будущее сравнение
+  // сценариев "с НДС" / "без НДС" — включается по одной статье за раз.
+  vatIncluded: boolean;
+  vatPct: number | null;
 }
 
 export interface FinCategory {
@@ -109,6 +116,10 @@ export interface FinRent {
   // Плавный выход на полную заполняемость после конца простоя, мес. — линейный
   // рост занятости от 0 до 100% вместо мгновенного скачка. null/0 — скачком.
   stabilizationMonths: number | null;
+  // Ставка аренды с НДС — см. FinEntry.vatIncluded, тот же принцип: в кассе
+  // полная сумма, в налоговую базу — без НДС.
+  vatIncluded: boolean;
+  vatPct: number | null;
 }
 
 // Амортизация — отдельный неденежный расход, не статья категорий: сумма в
@@ -243,6 +254,8 @@ export function defaultFinRent(): FinRent {
     vacancyPct: null,
     annualGrowthPct: null,
     stabilizationMonths: null,
+    vatIncluded: false,
+    vatPct: null,
   };
 }
 
@@ -270,7 +283,7 @@ export function defaultFinSales(): FinSale[] {
 }
 
 function entry(label: string, schedule: FinSchedule, deductible = true): FinEntry {
-  return { id: crypto.randomUUID(), label, amount: null, schedule, deductible, reimbursable: false };
+  return { id: crypto.randomUUID(), label, amount: null, schedule, deductible, reimbursable: false, vatIncluded: false, vatPct: null };
 }
 
 const monthly: FinSchedule = { type: 'monthly', fromMonth: 1, toMonth: null };
@@ -287,9 +300,15 @@ export function defaultFinCategories(): FinCategory[] {
       title: 'Ремонт',
       kind: 'expense',
       entries: [
-        entry('Ремонт фасада', { ...once }),
-        entry('Ремонт интерьера', { ...once }),
-        entry('Согласование фасада', { ...once }),
+        // Платим равными частями за 3 месяца реновации — сумма статьи это
+        // размер месячного платежа, не общая стоимость (как везде в модели
+        // у monthly-статей, не автоделится). При другом сроке реновации
+        // поменять "по мес." под фактический renovationMonths в Аренде.
+        entry('Ремонт фасада', { type: 'monthly', fromMonth: 1, toMonth: 3 }),
+        entry('Ремонт интерьера', { type: 'monthly', fromMonth: 1, toMonth: 3 }),
+        // Разрешения и согласования — разовым платежом в первый месяц
+        // модернизации (см. "Месяц начала простоя" в Аренде).
+        entry('Разрешения и согласования', { ...once }),
       ],
     },
     {

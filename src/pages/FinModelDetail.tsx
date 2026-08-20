@@ -199,6 +199,8 @@ export function FinModelEditor({
                   schedule: { type: 'monthly', fromMonth: 1, toMonth: null },
                   deductible: c.kind === 'expense',
                   reimbursable: false,
+                  vatIncluded: false,
+                  vatPct: null,
                 },
               ],
             }
@@ -258,7 +260,7 @@ export function FinModelEditor({
             onChange={(e) => patchModel({ params: { ...model.params, taxRevenuePct: Number(e.target.value) || 0 } })}
           />
           <Input
-            label="Налог от прибыли, %"
+            label="Подоходный налог от прибыли, %"
             type="number"
             value={model.params.taxProfitPct}
             onChange={(e) => patchModel({ params: { ...model.params, taxProfitPct: Number(e.target.value) || 0 } })}
@@ -459,6 +461,37 @@ function RentCard({ model, patchModel }: { model: FinModel; patchModel: (patch: 
             value={rent.stabilizationMonths ?? ''}
             onChange={(e) => patchRent({ stabilizationMonths: numOrNull(e.target.value) })}
           />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2 border-t border-border pt-4">
+        <span className="text-sm font-semibold text-ink">НДС</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <label
+            className={cn(
+              'flex items-center gap-1.5 text-sm font-medium',
+              rent.vatIncluded ? 'text-primary' : 'text-ink-muted',
+            )}
+            title="Цена за м² указана с НДС — в кассе остаётся полная сумма, а в налоговую базу ИП идёт сумма без НДС"
+          >
+            <input
+              type="checkbox"
+              checked={rent.vatIncluded}
+              onChange={(e) => patchRent({ vatIncluded: e.target.checked })}
+              className="h-4 w-4 rounded border-border accent-primary"
+            />
+            Аренда с НДС
+          </label>
+          {rent.vatIncluded && (
+            <div className="w-32">
+              <Input
+                type="number"
+                placeholder="Ставка, %"
+                value={rent.vatPct ?? ''}
+                onChange={(e) => patchRent({ vatPct: numOrNull(e.target.value) })}
+              />
+            </div>
+          )}
         </div>
       </div>
     </Card>
@@ -986,6 +1019,31 @@ function EntryRow({
               />
               на арендаторов
             </label>
+            <label
+              className={cn(
+                'flex items-center gap-1.5 text-xs font-medium',
+                entry.vatIncluded ? 'text-primary' : 'text-ink-muted',
+              )}
+              title="Сумма указана с НДС — в кассе остаётся полная сумма, а в вычитаемый расход ИП идёт сумма без НДС"
+            >
+              <input
+                type="checkbox"
+                checked={entry.vatIncluded}
+                onChange={(e) => onPatch({ vatIncluded: e.target.checked })}
+                className="h-4 w-4 rounded border-border accent-primary"
+              />
+              с НДС
+            </label>
+            {entry.vatIncluded && (
+              <div className="w-20 shrink-0">
+                <Input
+                  type="number"
+                  placeholder="Ставка, %"
+                  value={entry.vatPct ?? ''}
+                  onChange={(e) => onPatch({ vatPct: e.target.value === '' ? null : Number(e.target.value) })}
+                />
+              </div>
+            )}
           </>
         )}
       </div>

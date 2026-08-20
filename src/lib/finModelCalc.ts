@@ -12,6 +12,10 @@ export interface FinMonth {
   income: number;
   rentIncome: number; // из них аренда (калькулятор — см. rentInMonth)
   saleIncome: number; // из них продажи объектов (калькулятор — см. FinSale)
+  // income без НДС по статьям, отмеченным "с НДС" — то, что реально идёт в
+  // налоговую базу "от оборота" (см. vatNetAmount). Касса (income) не
+  // меняется — НДС из неё не вычитается, это просто налоговый расчёт.
+  taxableIncome: number;
   expense: number; // операционные расходы + лизинг, без налога
   leasing: number; // из них лизинг (аванс + платежи) — для отдельной строки
   deductibleExpense: number;
@@ -38,6 +42,7 @@ export interface FinYear {
   income: number;
   rentIncome: number;
   saleIncome: number;
+  taxableIncome: number;
   expense: number;
   leasing: number;
   reimbursedExpense: number;
@@ -132,6 +137,18 @@ function inflatedEntryAmount(e: FinEntry, monthIndex: number, horizon: number, i
   return base * Math.pow(1 + inflationPctPerYear / 100, elapsedYears);
 }
 
+// НДС: сумма как введена (с НДС) остаётся в кассе полностью — это реальные
+// деньги, которые прошли через счёт. В налоговую базу ИП (доход "от
+// оборота", вычитаемый расход "от прибыли") идёт сумма БЕЗ НДС — эта часть
+// не доход/расход ИП, а транзит в бюджет. Ставка не заполнена — НДС не
+// вычитается (0% эквивалентно "без НДС", безопасный дефолт).
+function vatNetAmount(gross: number, vatIncluded: boolean, vatPct: number | null): number {
+  if (!vatIncluded || !gross) return gross;
+  const pct = vatPct ?? 0;
+  if (pct <= 0) return gross;
+  return gross / (1 + pct / 100);
+}
+
 // Аннуитетный платёж на остаток долга и оставшийся срок — общая формула,
 // используется и для исходного платежа по лизингу, и для пересчёта после
 // досрочного погашения (см. buildLeasingCashFlow). При нулевой ставке —
@@ -198,6 +215,12 @@ export function rentInMonth(rent: FinRent, monthIndex: number): number {
 
   const vacancyFactor = 1 - Math.min(1, Math.max(0, (rent.vacancyPct ?? 0) / 100));
   return gross * occupancyFactor * vacancyFactor;
+}
+
+// Аренда без НДС — та часть, что идёт в налоговую базу ИП (см. vatNetAmount).
+// Касса (rentInMonth) не меняется, НДС из неё не вычитается.
+export function rentTaxableInMonth(rent: FinRent, monthIndex: number): number {
+  return vatNetAmount(rentInMonth(rent, monthIndex), rent.vatIncluded, rent.vatPct);
 }
 
 // Амортизация — фиксированная сумма в месяц на заданный срок (null —
@@ -359,9 +382,15 @@ export function calculateFinModel(model: FinModel): FinResult {
       return idx === i ? s + saleNetByn(sale) : s;
     }, 0);
     const income = incomeEntries.reduce((s, e) => s + entryAmountInMonth(e, i, horizon), 0) + rentIncome + saleIncome;
+    const taxableIncomeEntries = incomeEntries.reduce(
+      (s, e) => s + vatNetAmount(entryAmountInMonth(e, i, horizon), e.vatIncluded, e.vatPct),
+      0,
+    );
+    const taxableIncome = taxableIncomeEntries + rentTaxableInMonth(rent, i) + saleIncome;
     const opex = expenseEntries.reduce((s, e) => s + inflatedEntryAmount(e, i, horizon, inflationPct), 0);
     const deductibleOpex = expenseEntries.reduce(
-      (s, e) => s + (e.deductible ? inflatedEntryAmount(e, i, horizon, inflationPct) : 0),
+      (s, e) =>
+        s + (e.deductible ? vatNetAmount(inflatedEntryAmount(e, i, horizon, inflationPct), e.vatIncluded, e.vatPct) : 0),
       0,
     );
     const reimbursedOpex = expenseEntries.reduce(
@@ -379,6 +408,7 @@ export function calculateFinModel(model: FinModel): FinResult {
       income,
       rentIncome,
       saleIncome,
+      taxableIncome,
       expense: opex + lease + capexAmt,
       leasing: lease,
       deductibleExpense: deductibleOpex + (leasing.deductible ? lease : 0) + amort + (capexReserve.deductible ? capexAmt : 0),
@@ -401,13 +431,17 @@ export function calculateFinModel(model: FinModel): FinResult {
   for (const year of yearNumbers) {
     const inYear = months.filter((m) => m.year === year);
     const income = inYear.reduce((s, m) => s + m.income, 0);
+    const taxableIncome = inYear.reduce((s, m) => s + m.taxableIncome, 0);
     const deductible = inYear.reduce((s, m) => s + m.deductibleExpense, 0);
-    const taxRevenueVariant = income * (params.taxRevenuePct / 100);
-    const taxProfitVariant = Math.max(0, income - deductible) * (params.taxProfitPct / 100);
+    const taxRevenueVariant = taxableIncome * (params.taxRevenuePct / 100);
+    const taxProfitVariant = Math.max(0, taxableIncome - deductible) * (params.taxProfitPct / 100);
     const taxRegime: TaxRegime = taxProfitVariant < taxRevenueVariant ? 'profit' : 'revenue';
     const tax = Math.min(taxRevenueVariant, taxProfitVariant);
 
     for (const m of inYear) {
+      // Раскидка по месяцам — по доле КАССОВОГО дохода месяца (income), не
+      // налоговой базы: это просто сглаживание графика платежей, не имеет
+      // значения, от какой суммы считать пропорцию.
       m.tax = income > 0 ? tax * (m.income / income) : 0;
     }
 
@@ -417,6 +451,7 @@ export function calculateFinModel(model: FinModel): FinResult {
       income,
       rentIncome: inYear.reduce((s, m) => s + m.rentIncome, 0),
       saleIncome: inYear.reduce((s, m) => s + m.saleIncome, 0),
+      taxableIncome,
       expense: inYear.reduce((s, m) => s + m.expense, 0),
       leasing: inYear.reduce((s, m) => s + m.leasing, 0),
       reimbursedExpense: inYear.reduce((s, m) => s + m.reimbursedExpense, 0),
@@ -428,7 +463,7 @@ export function calculateFinModel(model: FinModel): FinResult {
       taxProfitVariant,
       net: 0,
       cumulativeEnd: 0,
-      limitExceeded: income > params.revenueLimitByn,
+      limitExceeded: taxableIncome > params.revenueLimitByn,
     });
   }
 
