@@ -1,9 +1,6 @@
 import { useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Download, Eye, FileText, Loader2, Upload, X } from 'lucide-react';
 import { Card } from '../ui/Card';
-import { cn } from '../../lib/cn';
-import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import {
   objectDocumentCategories,
   objectDocumentLabels,
@@ -12,14 +9,10 @@ import {
   type ObjectDocuments,
 } from '../../data/objects';
 import { uploadObjectDocument } from '../../lib/objectsApi';
+import { DocumentPreviewModal, isPreviewable } from '../documents/DocumentPreviewModal';
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-function isPreviewable(fileName: string) {
-  const ext = fileName.split('.').pop()?.toLowerCase();
-  return ext === 'pdf' || ext === 'png' || ext === 'jpg' || ext === 'jpeg' || ext === 'webp';
 }
 
 interface ObjectDocumentsCardProps {
@@ -31,13 +24,7 @@ export function ObjectDocumentsCard({ documents, onChange }: ObjectDocumentsCard
   const [uploadingCategory, setUploadingCategory] = useState<ObjectDocumentCategory | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<ObjectDocumentFile | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(true);
   const inputRefs = useRef<Partial<Record<ObjectDocumentCategory, HTMLInputElement | null>>>({});
-
-  function openPreview(file: ObjectDocumentFile) {
-    setPreviewLoading(true);
-    setPreview(file);
-  }
 
   async function handleFile(category: ObjectDocumentCategory, file: File) {
     setUploadingCategory(category);
@@ -90,7 +77,7 @@ export function ObjectDocumentsCard({ documents, onChange }: ObjectDocumentsCard
                 {file && isPreviewable(file.fileName) && (
                   <button
                     type="button"
-                    onClick={() => openPreview(file)}
+                    onClick={() => setPreview(file)}
                     aria-label="Просмотреть"
                     className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
                   >
@@ -146,49 +133,7 @@ export function ObjectDocumentsCard({ documents, onChange }: ObjectDocumentsCard
       </div>
       {error && <p className="text-sm text-danger">{error}</p>}
 
-      {preview &&
-        createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-ink/40" onClick={() => setPreview(null)} />
-            <div className={cn('relative flex max-h-[90vh] w-full max-w-3xl flex-col gap-3 p-4', glassCardClass)} style={glassCardShadow}>
-              <div className="flex items-center justify-between gap-3">
-                <span className="min-w-0 truncate text-sm font-semibold text-ink">{preview.fileName}</span>
-                <button
-                  type="button"
-                  onClick={() => setPreview(null)}
-                  aria-label="Закрыть"
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:text-ink"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="relative min-h-[70vh] flex-1 overflow-hidden rounded-control bg-surface-muted">
-                {previewLoading && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-ink-muted">
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    Загружаем документ...
-                  </div>
-                )}
-                {preview.fileName.toLowerCase().endsWith('.pdf') ? (
-                  <iframe
-                    src={preview.url}
-                    title={preview.fileName}
-                    onLoad={() => setPreviewLoading(false)}
-                    className="h-full min-h-[70vh] w-full"
-                  />
-                ) : (
-                  <img
-                    src={preview.url}
-                    alt={preview.fileName}
-                    onLoad={() => setPreviewLoading(false)}
-                    className="mx-auto h-full max-h-[70vh] w-auto object-contain"
-                  />
-                )}
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
+      <DocumentPreviewModal file={preview} onClose={() => setPreview(null)} />
     </Card>
   );
 }

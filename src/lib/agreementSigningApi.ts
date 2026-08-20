@@ -58,6 +58,55 @@ export interface SignedAgreementSummary {
   verifiedAt: string;
 }
 
+// Полная запись подписанного соглашения — для страницы "Документы"
+// (автоматический список вместо ручного заведения записи, см. Documents.tsx).
+// Как и у SignedAgreementSummary выше, читаются только завершённые подписания.
+export interface SignedAgreement {
+  id: string;
+  leadId: string;
+  objectId: string;
+  zoneLabel: string;
+  isWorkstation: boolean;
+  buyerName: string;
+  documentUrl: string;
+  verifiedAt: string;
+  createdAt: string;
+}
+
+export function fetchAllSignedAgreements(): Promise<SignedAgreement[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('agreement_signatures')
+      .select('id, lead_id, object_id, zone_label, is_workstation, buyer_name, document_url, verified_at, created_at')
+      .not('verified_at', 'is', null)
+      .order('verified_at', { ascending: false });
+    if (error) throw error;
+    return (
+      data as {
+        id: string;
+        lead_id: string;
+        object_id: string;
+        zone_label: string;
+        is_workstation: boolean;
+        buyer_name: string;
+        document_url: string;
+        verified_at: string;
+        created_at: string;
+      }[]
+    ).map((row) => ({
+      id: row.id,
+      leadId: row.lead_id,
+      objectId: row.object_id,
+      zoneLabel: row.zone_label,
+      isWorkstation: row.is_workstation,
+      buyerName: row.buyer_name,
+      documentUrl: row.document_url,
+      verifiedAt: row.verified_at,
+      createdAt: row.created_at,
+    }));
+  });
+}
+
 // Только завершённые подписания читаемы анонимным ключом (см. RLS-политику
 // в SQL для agreement_signatures) — незавершённые с активным кодом скрыты.
 export function fetchSignedAgreementsForZones(zoneIds: string[]): Promise<SignedAgreementSummary[]> {

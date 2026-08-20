@@ -66,3 +66,10 @@ export function updateGeneratedDocumentStatus(id: string, status: DocumentStatus
     return fromRow(data as GeneratedDocumentRow);
   });
 }
+
+export function deleteGeneratedDocument(id: string): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase.from('generated_documents').delete().eq('id', id);
+    if (error) throw error;
+  });
+}
