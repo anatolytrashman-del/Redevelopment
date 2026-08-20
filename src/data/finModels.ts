@@ -61,12 +61,21 @@ export const LEASING_CURRENCY_SYMBOLS: Record<LeasingCurrency, string> = {
 export interface FinLeasing {
   contractSum: number | null;
   downPayment: number | null;
+  // Срок, на который считается размер платежа (аннуитет от него).
+  amortizationMonths: number | null;
+  // Срок самого договора — когда реально нужно всё погасить/рефинансировать.
+  // null — совпадает со сроком амортизации (обычный лизинг без баллона).
+  // Если меньше amortizationMonths — баллонный платёж: остаток долга на
+  // этот момент гасится одной суммой (см. buildLeasingCashFlow).
   termMonths: number | null;
   annualRatePct: number | null;
   currency: LeasingCurrency;
   exchangeRate: number | null;
   // Месяц первого регулярного платежа (аванс всегда в месяце 1).
   startMonth: number;
+  // Разовая комиссия за оформление, % от суммы договора — в месяце 1,
+  // вместе с авансом.
+  originationFeePct: number | null;
   // Платежи по лизингу зачитываются как расходы ИП (ускоренная амортизация,
   // см. консультацию с юристом в Саммери встреч) — по умолчанию да.
   deductible: boolean;
@@ -90,6 +99,16 @@ export interface FinRent {
   pricePostMeter: number | null;
   workstationCount: number | null;
   workstationPrice: number | null;
+  // Вакансия/недосбор — % от потенциальной аренды, который никогда не
+  // собирается (простой между арендаторами и т.п.). Применяется поверх
+  // простоя на реновацию (тот — 0 всегда, вакансия — процент от остального).
+  vacancyPct: number | null;
+  // Ежегодный рост арендной ставки, % (сложным процентом от даты старта
+  // модели) — реальная аренда не стоит на месте 5 лет.
+  annualGrowthPct: number | null;
+  // Плавный выход на полную заполняемость после конца простоя, мес. — линейный
+  // рост занятости от 0 до 100% вместо мгновенного скачка. null/0 — скачком.
+  stabilizationMonths: number | null;
 }
 
 // Амортизация — отдельный неденежный расход, не статья категорий: сумма в
@@ -121,6 +140,11 @@ export interface FinSale {
   pricePerMeterUsd: number | null;
   exchangeRate: number | null;
   applyToLeasing: boolean;
+  // Расходы на саму сделку (риелтор, оформление, налоги при продаже) —
+  // разовая сумма в BYN, не процент: у крупной продажи здания и мелкой
+  // продажи юнита это совершенно разные по характеру издержки, процент от
+  // цены их не отражает. Вычитается из суммы продажи (см. saleNetByn).
+  transactionCost: number | null;
 }
 
 export interface FinParams {
@@ -133,6 +157,20 @@ export interface FinParams {
   taxProfitPct: number;
   // Годовой лимит выручки ИП — при превышении подсветка "переход в юрлицо".
   revenueLimitByn: number;
+  // Общая инфляция, % в год — применяется к регулярным (monthly/yearly)
+  // статьям расходов из категорий (не к разовым once — считаем, что их
+  // сумму пользователь уже вводит по ожидаемой цене на нужный месяц; не к
+  // лизингу/амортизации/резерву — у них своя динамика).
+  expenseInflationPct: number | null;
+}
+
+// Резерв на капремонт — не ручная статья, а % от арендного дохода месяца,
+// откладываемый автоматически (капремонт кровли, инженерии и т.п. — расход
+// не постатейный, а плановое резервирование). Реальные деньги — входит в
+// expense, в отличие от амортизации.
+export interface FinCapexReserve {
+  pct: number | null;
+  deductible: boolean;
 }
 
 export interface FinModel {
@@ -143,6 +181,7 @@ export interface FinModel {
   leasing: FinLeasing;
   rent: FinRent;
   amortization: FinAmortization;
+  capexReserve: FinCapexReserve;
   sales: FinSale[];
   categories: FinCategory[];
   createdAt: string;
@@ -157,6 +196,7 @@ export interface FinModelRow {
   leasing: FinLeasing | null;
   rent: FinRent | null;
   amortization: FinAmortization | null;
+  capex_reserve: FinCapexReserve | null;
   sales: FinSale[] | null;
   categories: FinCategory[] | null;
   created_at: string;
@@ -165,18 +205,27 @@ export interface FinModelRow {
 export function defaultFinParams(): FinParams {
   const now = new Date();
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  return { startDate: ym, horizonMonths: 60, taxRevenuePct: 16, taxProfitPct: 20, revenueLimitByn: 500000 };
+  return {
+    startDate: ym,
+    horizonMonths: 60,
+    taxRevenuePct: 16,
+    taxProfitPct: 20,
+    revenueLimitByn: 500000,
+    expenseInflationPct: null,
+  };
 }
 
 export function defaultFinLeasing(): FinLeasing {
   return {
     contractSum: null,
     downPayment: null,
-    termMonths: 60,
+    amortizationMonths: 60,
+    termMonths: null,
     annualRatePct: null,
     currency: 'USD',
     exchangeRate: null,
     startMonth: 1,
+    originationFeePct: null,
     deductible: true,
   };
 }
@@ -191,11 +240,18 @@ export function defaultFinRent(): FinRent {
     pricePostMeter: null,
     workstationCount: null,
     workstationPrice: null,
+    vacancyPct: null,
+    annualGrowthPct: null,
+    stabilizationMonths: null,
   };
 }
 
 export function defaultFinAmortization(): FinAmortization {
   return { monthlyAmount: null, startMonth: 1, termMonths: null };
+}
+
+export function defaultFinCapexReserve(): FinCapexReserve {
+  return { pct: null, deductible: true };
 }
 
 export function defaultFinSales(): FinSale[] {
@@ -208,6 +264,7 @@ export function defaultFinSales(): FinSale[] {
       pricePerMeterUsd: null,
       exchangeRate: null,
       applyToLeasing: false,
+      transactionCost: null,
     },
   ];
 }

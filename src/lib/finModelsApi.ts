@@ -2,12 +2,14 @@ import { supabase } from './supabase';
 import { withRetry } from './withRetry';
 import {
   defaultFinAmortization,
+  defaultFinCapexReserve,
   defaultFinCategories,
   defaultFinLeasing,
   defaultFinParams,
   defaultFinRent,
   defaultFinSales,
   type FinAmortization,
+  type FinCapexReserve,
   type FinCategory,
   type FinLeasing,
   type FinModel,
@@ -18,17 +20,29 @@ import {
 } from '../data/finModels';
 
 // Дефолты подставляются и при чтении — на случай строк, сохранённых до
-// добавления новых полей в params/leasing/rent/amortization/sales (тот же
-// приём, что fromRow в estimatesApi.ts).
+// добавления новых полей в params/leasing/rent/amortization/sales/capex
+// (тот же приём, что fromRow в estimatesApi.ts).
 function fromRow(row: FinModelRow): FinModel {
+  // До разделения "срока амортизации" и "срока договора" termMonths был
+  // и тем, и другим сразу — у старых сохранённых моделей переносим его
+  // значение в amortizationMonths, а termMonths (баллон) оставляем пустым,
+  // чтобы поведение расчёта не изменилось молча.
+  const rawLeasing: Partial<FinLeasing> = row.leasing ?? {};
+  const leasing = { ...defaultFinLeasing(), ...rawLeasing };
+  if (rawLeasing.amortizationMonths == null && rawLeasing.termMonths != null) {
+    leasing.amortizationMonths = rawLeasing.termMonths;
+    leasing.termMonths = null;
+  }
+
   return {
     id: row.id,
     objectId: row.object_id,
     name: row.name,
     params: { ...defaultFinParams(), ...(row.params ?? {}) },
-    leasing: { ...defaultFinLeasing(), ...(row.leasing ?? {}) },
+    leasing,
     rent: { ...defaultFinRent(), ...(row.rent ?? {}) },
     amortization: { ...defaultFinAmortization(), ...(row.amortization ?? {}) },
+    capexReserve: { ...defaultFinCapexReserve(), ...(row.capex_reserve ?? {}) },
     sales: (row.sales ?? defaultFinSales()).map((s) => ({
       id: s.id,
       label: s.label,
@@ -37,6 +51,7 @@ function fromRow(row: FinModelRow): FinModel {
       pricePerMeterUsd: s.pricePerMeterUsd ?? null,
       exchangeRate: s.exchangeRate ?? null,
       applyToLeasing: s.applyToLeasing ?? false,
+      transactionCost: s.transactionCost ?? null,
     })),
     // reimbursable добавлено позже — на статьях, сохранённых до этого,
     // его нет в JSONB, без ?? чекбокс ушёл бы в React undefined→controlled.
@@ -71,6 +86,7 @@ export function insertFinModel(input: {
   leasing?: FinLeasing;
   rent?: FinRent;
   amortization?: FinAmortization;
+  capexReserve?: FinCapexReserve;
   sales?: FinSale[];
   categories?: FinCategory[];
 }): Promise<FinModel> {
@@ -84,6 +100,7 @@ export function insertFinModel(input: {
         leasing: input.leasing ?? defaultFinLeasing(),
         rent: input.rent ?? defaultFinRent(),
         amortization: input.amortization ?? defaultFinAmortization(),
+        capex_reserve: input.capexReserve ?? defaultFinCapexReserve(),
         sales: input.sales ?? defaultFinSales(),
         categories: input.categories ?? defaultFinCategories(),
       })
@@ -103,6 +120,7 @@ export function updateFinModel(
     leasing: FinLeasing;
     rent: FinRent;
     amortization: FinAmortization;
+    capexReserve: FinCapexReserve;
     sales: FinSale[];
     categories: FinCategory[];
   },
@@ -116,6 +134,7 @@ export function updateFinModel(
         leasing: input.leasing,
         rent: input.rent,
         amortization: input.amortization,
+        capex_reserve: input.capexReserve,
         sales: input.sales,
         categories: input.categories,
       })
@@ -152,6 +171,7 @@ export function duplicateFinModel(source: FinModel): Promise<FinModel> {
     leasing: { ...source.leasing },
     rent: { ...source.rent },
     amortization: { ...source.amortization },
+    capexReserve: { ...source.capexReserve },
     sales,
     categories,
   });

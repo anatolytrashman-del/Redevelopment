@@ -9,6 +9,7 @@ import { BynSign } from '../components/ui/BynSign';
 import {
   LEASING_CURRENCY_SYMBOLS,
   type FinAmortization,
+  type FinCapexReserve,
   type FinCategory,
   type FinEntry,
   type FinModel,
@@ -20,7 +21,7 @@ import {
 import type { RealtyObject } from '../data/objects';
 import { fetchFinModel, updateFinModel } from '../lib/finModelsApi';
 import { fetchObject } from '../lib/objectsApi';
-import { calculateFinModel, saleAmountByn, type FinYear } from '../lib/finModelCalc';
+import { calculateFinModel, saleAmountByn, saleNetByn, type FinYear } from '../lib/finModelCalc';
 import { cn } from '../lib/cn';
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -103,6 +104,7 @@ export function FinModelDetail() {
         leasing: model.leasing,
         rent: model.rent,
         amortization: model.amortization,
+        capexReserve: model.capexReserve,
         sales: model.sales,
         categories: model.categories,
       });
@@ -270,6 +272,13 @@ export function FinModelEditor({
             value={model.params.taxProfitPct}
             onChange={(e) => patchModel({ params: { ...model.params, taxProfitPct: Number(e.target.value) || 0 } })}
           />
+          <Input
+            label="Инфляция расходов, %/год"
+            type="number"
+            title="Ежегодный рост регулярных статей расходов из категорий (не разовых, не лизинга/амортизации/резерва — у них своя динамика)"
+            value={model.params.expenseInflationPct ?? ''}
+            onChange={(e) => patchModel({ params: { ...model.params, expenseInflationPct: numOrNull(e.target.value) } })}
+          />
         </div>
         <p className="text-xs text-ink-faint">
           Все суммы в BYN. Налог на каждый год считается в обоих режимах, в итог идёт меньший. Лимит выручки ИП —{' '}
@@ -284,6 +293,8 @@ export function FinModelEditor({
       <LeasingCard model={model} result={result} patchModel={patchModel} />
 
       <AmortizationCard model={model} patchModel={patchModel} />
+
+      <CapexReserveCard model={model} patchModel={patchModel} result={result} />
 
       <SummarySection model={model} result={result} />
 
@@ -412,6 +423,34 @@ function RentCard({ model, patchModel }: { model: FinModel; patchModel: (patch: 
           (кабинеты {formatNum(postCabinets)} + места {formatNum(postWorkstations)})
         </span>
       </div>
+
+      <div className="flex flex-col gap-2 border-t border-border pt-4">
+        <span className="text-sm font-semibold text-ink">Вакансия, рост, выход на заполняемость</span>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <Input
+            label="Вакансия / недосбор, %"
+            type="number"
+            title="Процент от потенциальной аренды, который никогда не собирается (простой между арендаторами и т.п.)"
+            value={rent.vacancyPct ?? ''}
+            onChange={(e) => patchRent({ vacancyPct: numOrNull(e.target.value) })}
+          />
+          <Input
+            label="Рост ставки, %/год"
+            type="number"
+            title="Ежегодная индексация арендной ставки, сложным процентом от даты старта модели"
+            value={rent.annualGrowthPct ?? ''}
+            onChange={(e) => patchRent({ annualGrowthPct: numOrNull(e.target.value) })}
+          />
+          <Input
+            label="Выход на заполняемость, мес."
+            type="number"
+            placeholder="скачком"
+            title="Сколько месяцев после конца простоя занятость линейно растёт от 0 до 100% вместо мгновенного скачка"
+            value={rent.stabilizationMonths ?? ''}
+            onChange={(e) => patchRent({ stabilizationMonths: numOrNull(e.target.value) })}
+          />
+        </div>
+      </div>
     </Card>
   );
 }
@@ -434,6 +473,7 @@ function SalesCard({ model, patchModel }: { model: FinModel; patchModel: (patch:
           pricePerMeterUsd: null,
           exchangeRate: null,
           applyToLeasing: false,
+          transactionCost: null,
         },
       ],
     });
@@ -448,6 +488,7 @@ function SalesCard({ model, patchModel }: { model: FinModel; patchModel: (patch:
       <div className="flex flex-col gap-3">
         {sales.map((s) => {
           const amountByn = saleAmountByn(s);
+          const netByn = saleNetByn(s);
           const rateMissing = (s.areaMeters ?? 0) > 0 && (s.pricePerMeterUsd ?? 0) > 0 && !(s.exchangeRate ?? 0);
           return (
             <div key={s.id} className="flex flex-col gap-2 rounded-control border border-border p-3">
@@ -468,7 +509,7 @@ function SalesCard({ model, patchModel }: { model: FinModel; patchModel: (patch:
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                 <Input
                   label="Дата продажи"
                   type="month"
@@ -494,6 +535,13 @@ function SalesCard({ model, patchModel }: { model: FinModel; patchModel: (patch:
                   value={s.exchangeRate ?? ''}
                   onChange={(e) => patchSale(s.id, { exchangeRate: numOrNull(e.target.value) })}
                 />
+                <Input
+                  label="Расходы на сделку, Br"
+                  type="number"
+                  title="Разовая сумма (не процент) — риелтор, оформление, налоги при продаже. У крупной и мелкой сделки это разные по характеру издержки"
+                  value={s.transactionCost ?? ''}
+                  onChange={(e) => patchSale(s.id, { transactionCost: numOrNull(e.target.value) })}
+                />
               </div>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <label
@@ -501,7 +549,7 @@ function SalesCard({ model, patchModel }: { model: FinModel; patchModel: (patch:
                     'flex items-center gap-1.5 text-xs font-medium',
                     s.applyToLeasing ? 'text-primary' : 'text-ink-muted',
                   )}
-                  title="Вся сумма продажи (в BYN) уходит на досрочное частичное погашение остатка долга по лизингу в месяце продажи — срок лизинга не меняется, платёж на оставшийся срок пересчитывается и становится меньше"
+                  title="Сумма продажи за вычетом расходов на сделку уходит на досрочное частичное погашение остатка долга по лизингу в месяце продажи — срок лизинга не меняется, платёж на оставшийся срок пересчитывается и становится меньше"
                 >
                   <input
                     type="checkbox"
@@ -514,7 +562,20 @@ function SalesCard({ model, patchModel }: { model: FinModel; patchModel: (patch:
                 <span className="text-sm text-ink-muted">
                   {amountByn > 0 ? (
                     <>
-                      = <span className="font-semibold text-ink">{formatNum(amountByn)} Br</span>
+                      {formatNum(amountByn)} Br
+                      {(s.transactionCost ?? 0) > 0 && (
+                        <>
+                          {' − '}
+                          {formatNum(s.transactionCost ?? 0)} Br ={' '}
+                          <span className="font-semibold text-ink">{formatNum(netByn)} Br</span>
+                        </>
+                      )}
+                      {!(s.transactionCost ?? 0) && (
+                        <>
+                          {' = '}
+                          <span className="font-semibold text-ink">{formatNum(netByn)} Br</span>
+                        </>
+                      )}
                     </>
                   ) : rateMissing ? (
                     <span className="font-medium text-warning">укажите курс</span>
@@ -568,8 +629,17 @@ function LeasingCard({
           onChange={(e) => patchModel({ leasing: { ...model.leasing, downPayment: numOrNull(e.target.value) } })}
         />
         <Input
-          label="Срок, мес."
+          label="Срок амортизации, мес."
           type="number"
+          title="Срок, на который считается размер платежа (аннуитет)"
+          value={model.leasing.amortizationMonths ?? ''}
+          onChange={(e) => patchModel({ leasing: { ...model.leasing, amortizationMonths: numOrNull(e.target.value) } })}
+        />
+        <Input
+          label="Срок договора (баллон), мес."
+          type="number"
+          placeholder="как срок амортизации"
+          title="Когда реально нужно всё погасить/рефинансировать — если меньше срока амортизации, остаток долга на этот момент гасится одной суммой"
           value={model.leasing.termMonths ?? ''}
           onChange={(e) => patchModel({ leasing: { ...model.leasing, termMonths: numOrNull(e.target.value) } })}
         />
@@ -578,6 +648,13 @@ function LeasingCard({
           type="number"
           value={model.leasing.annualRatePct ?? ''}
           onChange={(e) => patchModel({ leasing: { ...model.leasing, annualRatePct: numOrNull(e.target.value) } })}
+        />
+        <Input
+          label="Комиссия за оформление, %"
+          type="number"
+          title="Разовая комиссия за оформление, % от суммы договора — списывается в месяце 1, вместе с авансом"
+          value={model.leasing.originationFeePct ?? ''}
+          onChange={(e) => patchModel({ leasing: { ...model.leasing, originationFeePct: numOrNull(e.target.value) } })}
         />
         <label className="flex flex-col gap-1.5">
           <span className="text-sm text-ink-muted">Валюта договора</span>
@@ -640,6 +717,12 @@ function LeasingCard({
           уменьшается (срок не меняется). Актуальные суммы по месяцам — в таблице ниже, колонка "в т.ч. лизинг".
         </p>
       )}
+      {result.leasingBalloonAmount != null && (
+        <p className="text-sm font-medium text-warning">
+          Срок договора короче срока амортизации — в месяце {(model.leasing.startMonth || 1) + (model.leasing.termMonths ?? 0) - 1}{' '}
+          нужно будет погасить остаток одной суммой: ≈ <Byn value={result.leasingBalloonAmount * (isByn ? 1 : (model.leasing.exchangeRate ?? 0))} />.
+        </p>
+      )}
     </Card>
   );
 }
@@ -684,6 +767,58 @@ function AmortizationCard({ model, patchModel }: { model: FinModel; patchModel: 
         <span className="text-sm text-ink-muted">
           {formatNum(amortization.monthlyAmount ?? 0)} Br/мес, с месяца {amortization.startMonth}
           {endMonth != null ? ` по месяц ${endMonth}` : ' до конца горизонта'}
+        </span>
+      )}
+    </Card>
+  );
+}
+
+function CapexReserveCard({
+  model,
+  patchModel,
+  result,
+}: {
+  model: FinModel;
+  patchModel: (patch: Partial<FinModel>) => void;
+  result: ReturnType<typeof calculateFinModel>;
+}) {
+  const capexReserve = model.capexReserve;
+  function patchCapexReserve(patch: Partial<FinCapexReserve>) {
+    patchModel({ capexReserve: { ...capexReserve, ...patch } });
+  }
+  const currentMonthly = result.months[0]?.capexReserve ?? 0;
+
+  return (
+    <Card className="flex flex-col gap-4 p-5">
+      <div className="text-lg font-bold text-ink">Резерв на капремонт</div>
+      <p className="text-xs text-ink-faint">
+        % от арендного дохода месяца, откладывается автоматически на будущий капремонт — реальная касса, в отличие
+        от амортизации.
+      </p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Input
+          label="% от аренды"
+          type="number"
+          value={capexReserve.pct ?? ''}
+          onChange={(e) => patchCapexReserve({ pct: numOrNull(e.target.value) })}
+        />
+        <label
+          className="flex items-center gap-2 self-end pb-3 text-sm font-medium text-ink"
+          title="Зачитывается как расход ИП — уменьшает налоговую базу в режиме 'от прибыли'"
+        >
+          <input
+            type="checkbox"
+            checked={capexReserve.deductible}
+            onChange={(e) => patchCapexReserve({ deductible: e.target.checked })}
+            className="h-4 w-4 rounded border-border accent-primary"
+          />
+          расход ИП
+        </label>
+      </div>
+      {(capexReserve.pct ?? 0) > 0 && (
+        <span className="text-sm text-ink-muted">
+          В месяце 1: <span className="font-semibold text-ink">{formatNum(currentMonthly)} Br</span> — дальше
+          меняется вместе с арендой (0 во время простоя на реновацию)
         </span>
       )}
     </Card>
@@ -888,10 +1023,11 @@ function SummarySection({ model, result }: { model: FinModel; result: ReturnType
           tone="neutral"
           hint="Не касса — только снижает налоговую базу, не входит в расходы и чистый денежный поток"
         />
+        <Kpi label="Резерв на капремонт за горизонт" value={<Byn value={result.totalCapexReserve} />} tone="neutral" />
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[960px] border-collapse text-sm">
+        <table className="w-full min-w-[1080px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-faint">
               <th className="px-2 py-2 font-medium">Год</th>
@@ -900,6 +1036,9 @@ function SummarySection({ model, result }: { model: FinModel; result: ReturnType
               <th className="px-2 py-2 text-right font-medium">в т.ч. лизинг</th>
               <th className="px-2 py-2 text-right font-medium" title="Из расходов — переложено на арендаторов сверх аренды, не режет чистую прибыль">
                 в т.ч. на аренд.
+              </th>
+              <th className="px-2 py-2 text-right font-medium" title="Резерв на капремонт, % от аренды — реальная касса, входит в Расходы левее">
+                в т.ч. резерв
               </th>
               <th className="px-2 py-2 text-right font-medium" title="Амортизация — не в кассе, только снижает налоговую базу (не входит в Расходы левее)">
                 аморт. (не касса)
@@ -943,6 +1082,7 @@ function YearRow({ year, limit }: { year: FinYear; limit: number }) {
         <td className="px-2 py-2 text-right text-ink"><Byn value={year.expense} /></td>
         <td className="px-2 py-2 text-right text-ink-muted"><Byn value={year.leasing} /></td>
         <td className="px-2 py-2 text-right text-primary"><Byn value={year.reimbursedExpense} /></td>
+        <td className="px-2 py-2 text-right text-ink-muted"><Byn value={year.capexReserve} /></td>
         <td className="px-2 py-2 text-right text-ink-faint italic"><Byn value={year.amortization} /></td>
         <td
           className="px-2 py-2 text-right text-ink"
@@ -964,6 +1104,7 @@ function YearRow({ year, limit }: { year: FinYear; limit: number }) {
             <td className="px-2 py-1.5 text-right"><Byn value={m.expense} /></td>
             <td className="px-2 py-1.5 text-right"><Byn value={m.leasing} /></td>
             <td className="px-2 py-1.5 text-right text-primary"><Byn value={m.reimbursedExpense} /></td>
+            <td className="px-2 py-1.5 text-right"><Byn value={m.capexReserve} /></td>
             <td className="px-2 py-1.5 text-right italic"><Byn value={m.amortization} /></td>
             <td className="px-2 py-1.5 text-right"><Byn value={m.tax} /></td>
             <td className={cn('px-2 py-1.5 text-right', m.net >= 0 ? 'text-success' : 'text-danger')}><Byn value={m.net} /></td>
