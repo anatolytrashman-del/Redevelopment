@@ -13,8 +13,12 @@ export interface FinMonth {
   expense: number; // операционные расходы + лизинг, без налога
   leasing: number; // из них лизинг (аванс + платежи) — для отдельной строки
   deductibleExpense: number;
+  // Из expense — статьи, отмеченные "переложить на арендаторов". Реально
+  // уходят из кассы (остаются в expense), но не режут net — компенсируются
+  // арендатором сверх аренды.
+  reimbursedExpense: number;
   tax: number; // доля годового налога, пропорциональная доходу месяца
-  net: number; // income − expense − tax
+  net: number; // income − (expense − reimbursedExpense) − tax
   cumulative: number;
 }
 
@@ -26,6 +30,7 @@ export interface FinYear {
   income: number;
   expense: number;
   leasing: number;
+  reimbursedExpense: number;
   tax: number;
   taxRegime: TaxRegime;
   taxRevenueVariant: number; // сколько было бы "от оборота"
@@ -42,6 +47,9 @@ export interface FinResult {
   totalExpense: number; // операционные + лизинг, без налога
   totalTax: number;
   netProfit: number;
+  // Сумма всех статей "переложить на арендаторов" за весь горизонт — сколько
+  // всего сверх аренды ляжет на арендаторов компенсацией расходов.
+  totalReimbursedExpense: number;
   // Первый месяц, в котором накопленный итог вышел в плюс (null — не вышел
   // за горизонт модели).
   breakEvenMonth: FinMonth | null;
@@ -136,6 +144,10 @@ export function calculateFinModel(model: FinModel): FinResult {
       (s, e) => s + (e.deductible ? entryAmountInMonth(e, i, horizon) : 0),
       0,
     );
+    const reimbursedOpex = expenseEntries.reduce(
+      (s, e) => s + (e.reimbursable ? entryAmountInMonth(e, i, horizon) : 0),
+      0,
+    );
     const lease = leasingInMonth(leasing, i, payment, rate);
 
     months.push({
@@ -146,6 +158,7 @@ export function calculateFinModel(model: FinModel): FinResult {
       expense: opex + lease,
       leasing: lease,
       deductibleExpense: deductibleOpex + (leasing.deductible ? lease : 0),
+      reimbursedExpense: reimbursedOpex,
       tax: 0,
       net: 0,
       cumulative: 0,
@@ -178,6 +191,7 @@ export function calculateFinModel(model: FinModel): FinResult {
       income,
       expense: inYear.reduce((s, m) => s + m.expense, 0),
       leasing: inYear.reduce((s, m) => s + m.leasing, 0),
+      reimbursedExpense: inYear.reduce((s, m) => s + m.reimbursedExpense, 0),
       tax,
       taxRegime,
       taxRevenueVariant,
@@ -191,7 +205,7 @@ export function calculateFinModel(model: FinModel): FinResult {
   // Третий проход: чистый поток и накопленный итог.
   let cumulative = 0;
   for (const m of months) {
-    m.net = m.income - m.expense - m.tax;
+    m.net = m.income - (m.expense - m.reimbursedExpense) - m.tax;
     cumulative += m.net;
     m.cumulative = cumulative;
   }
@@ -203,6 +217,7 @@ export function calculateFinModel(model: FinModel): FinResult {
   const totalIncome = months.reduce((s, m) => s + m.income, 0);
   const totalExpense = months.reduce((s, m) => s + m.expense, 0);
   const totalTax = months.reduce((s, m) => s + m.tax, 0);
+  const totalReimbursedExpense = months.reduce((s, m) => s + m.reimbursedExpense, 0);
   // Точка выхода в плюс — только после того, как проект успел побывать в
   // минусе: без этого условия месяц 1 с нулевыми данными считался бы
   // "выходом в плюс" у совсем пустой модели.
@@ -223,7 +238,8 @@ export function calculateFinModel(model: FinModel): FinResult {
     totalIncome,
     totalExpense,
     totalTax,
-    netProfit: totalIncome - totalExpense - totalTax,
+    netProfit: totalIncome - totalExpense + totalReimbursedExpense - totalTax,
+    totalReimbursedExpense,
     breakEvenMonth,
     maxDrawdown,
     monthlyLeasingPayment: payment,

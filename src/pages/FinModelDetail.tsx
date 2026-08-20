@@ -199,6 +199,7 @@ export function FinModelEditor({
                   amount: null,
                   schedule: { type: 'monthly', fromMonth: 1, toMonth: null },
                   deductible: c.kind === 'expense',
+                  reimbursable: false,
                 },
               ],
             }
@@ -531,18 +532,35 @@ function EntryRow({
           </div>
         )}
         {kind === 'expense' && (
-          <label
-            className="flex items-center gap-1.5 text-xs font-medium text-ink-muted"
-            title="Зачитывается как расход ИП — уменьшает налоговую базу в режиме 'от прибыли'"
-          >
-            <input
-              type="checkbox"
-              checked={entry.deductible}
-              onChange={(e) => onPatch({ deductible: e.target.checked })}
-              className="h-4 w-4 rounded border-border accent-primary"
-            />
-            расход ИП
-          </label>
+          <>
+            <label
+              className="flex items-center gap-1.5 text-xs font-medium text-ink-muted"
+              title="Зачитывается как расход ИП — уменьшает налоговую базу в режиме 'от прибыли'"
+            >
+              <input
+                type="checkbox"
+                checked={entry.deductible}
+                onChange={(e) => onPatch({ deductible: e.target.checked })}
+                className="h-4 w-4 rounded border-border accent-primary"
+              />
+              расход ИП
+            </label>
+            <label
+              className={cn(
+                'flex items-center gap-1.5 text-xs font-medium',
+                entry.reimbursable ? 'text-primary' : 'text-ink-muted',
+              )}
+              title="Перекладывается на арендаторов (компенсация сверх аренды) — сумма остаётся в расходах, но не режет чистую прибыль"
+            >
+              <input
+                type="checkbox"
+                checked={entry.reimbursable}
+                onChange={(e) => onPatch({ reimbursable: e.target.checked })}
+                className="h-4 w-4 rounded border-border accent-primary"
+              />
+              на арендаторов
+            </label>
+          </>
         )}
       </div>
     </div>
@@ -568,16 +586,25 @@ function SummarySection({ model, result }: { model: FinModel; result: ReturnType
           hint="Сколько всего денег нужно завести в проект до самоокупаемости"
         />
         <Kpi label="Налоги за горизонт" value={<Byn value={result.totalTax} />} tone="neutral" />
+        <Kpi
+          label="Нагрузка на арендаторов сверх аренды"
+          value={<Byn value={result.totalReimbursedExpense} />}
+          tone="neutral"
+          hint="Сумма статей 'на арендаторов' за весь горизонт — компенсация расходов, не входит в чистую прибыль и не входит в аренду"
+        />
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] border-collapse text-sm">
+        <table className="w-full min-w-[860px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-faint">
               <th className="px-2 py-2 font-medium">Год</th>
               <th className="px-2 py-2 text-right font-medium">Доходы</th>
               <th className="px-2 py-2 text-right font-medium">Расходы</th>
               <th className="px-2 py-2 text-right font-medium">в т.ч. лизинг</th>
+              <th className="px-2 py-2 text-right font-medium" title="Из расходов — переложено на арендаторов сверх аренды, не режет чистую прибыль">
+                в т.ч. на аренд.
+              </th>
               <th className="px-2 py-2 text-right font-medium">Налог</th>
               <th className="px-2 py-2 text-right font-medium">Чистый поток</th>
               <th className="px-2 py-2 text-right font-medium">Накопленно</th>
@@ -616,6 +643,7 @@ function YearRow({ year, limit }: { year: FinYear; limit: number }) {
         <td className="px-2 py-2 text-right text-ink"><Byn value={year.income} /></td>
         <td className="px-2 py-2 text-right text-ink"><Byn value={year.expense} /></td>
         <td className="px-2 py-2 text-right text-ink-muted"><Byn value={year.leasing} /></td>
+        <td className="px-2 py-2 text-right text-primary"><Byn value={year.reimbursedExpense} /></td>
         <td
           className="px-2 py-2 text-right text-ink"
           title={`От оборота: ${formatByn(year.taxRevenueVariant)} · От прибыли: ${formatByn(year.taxProfitVariant)}`}
@@ -635,6 +663,7 @@ function YearRow({ year, limit }: { year: FinYear; limit: number }) {
             <td className="px-2 py-1.5 text-right"><Byn value={m.income} /></td>
             <td className="px-2 py-1.5 text-right"><Byn value={m.expense} /></td>
             <td className="px-2 py-1.5 text-right"><Byn value={m.leasing} /></td>
+            <td className="px-2 py-1.5 text-right text-primary"><Byn value={m.reimbursedExpense} /></td>
             <td className="px-2 py-1.5 text-right"><Byn value={m.tax} /></td>
             <td className={cn('px-2 py-1.5 text-right', m.net >= 0 ? 'text-success' : 'text-danger')}><Byn value={m.net} /></td>
             <td className={cn('px-2 py-1.5 text-right', m.cumulative >= 0 ? '' : 'text-danger')}><Byn value={m.cumulative} /></td>

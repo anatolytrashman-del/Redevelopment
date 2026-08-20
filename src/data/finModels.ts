@@ -25,6 +25,11 @@ export interface FinEntry {
   // Для расходов: зачитывается ли как расход ИП — уменьшает налоговую базу
   // в режиме "20% от (доходы − расходы)". У доходов игнорируется.
   deductible: boolean;
+  // Для расходов: перекладывается ли эта статья на арендаторов (компенсация
+  // коммунальных/сервисных расходов сверх аренды). Такая статья остаётся
+  // видна в расходах как есть (деньги реально уходят из кассы), но не режет
+  // чистую прибыль — см. finModelCalc.ts. У доходов игнорируется.
+  reimbursable: boolean;
 }
 
 export interface FinCategory {
@@ -120,7 +125,7 @@ export function defaultFinLeasing(): FinLeasing {
 }
 
 function entry(label: string, schedule: FinSchedule, deductible = true): FinEntry {
-  return { id: crypto.randomUUID(), label, amount: null, schedule, deductible };
+  return { id: crypto.randomUUID(), label, amount: null, schedule, deductible, reimbursable: false };
 }
 
 const monthly: FinSchedule = { type: 'monthly', fromMonth: 1, toMonth: null };
