@@ -25,13 +25,6 @@ function errorMessage(err: unknown, fallback: string) {
   return fallback;
 }
 
-// Сайт может быть введён и с протоколом, и без — сохраняем как ввели, а
-// ссылку в таблице всегда собираем на https, чтобы клик открывал страницу,
-// а не пытался перейти на relative-путь текущего приложения.
-function websiteHref(website: string) {
-  return /^https?:\/\//i.test(website) ? website : `https://${website}`;
-}
-
 const emptyForm = {
   logoUrl: '',
   bankName: '',
@@ -71,7 +64,7 @@ function BankLogo({ url, className }: { url: string; className?: string }) {
   return <img src={url} alt="" className={cn('shrink-0 rounded-control bg-surface-muted object-contain', className)} />;
 }
 
-const gridCols = 'grid-cols-[96px_150px_190px_150px_150px_130px_110px_190px_80px]';
+const gridCols = 'grid-cols-[96px_180px_140px_220px_90px]';
 
 export function Financing() {
   const [offers, setOffers] = useState<FinancingOffer[]>([]);
@@ -195,15 +188,12 @@ export function Financing() {
       />
 
       <Card className="flex flex-col gap-4 p-0">
-        {/* От lg и шире — таблица-грид, много колонок под каждое поле из
-            запроса. Ниже lg — карточки. */}
+        {/* От lg и шире — таблица-грид, компактное превью (лого/ставка/срок/
+            статус), остальные поля — только в карточке (см. Modal ниже),
+            открывается кликом по строке. Ниже lg — карточки. */}
         <div className="hidden overflow-x-auto lg:block">
-          <div className={cn('grid min-w-[1350px] items-center gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint', gridCols)}>
+          <div className={cn('grid min-w-[720px] items-center gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint', gridCols)}>
             <span>Лого</span>
-            <span>Сайт</span>
-            <span>Почта</span>
-            <span>Менеджер</span>
-            <span>Контакт</span>
             <span>Ставка</span>
             <span>Срок</span>
             <span>Статус</span>
@@ -212,28 +202,15 @@ export function Financing() {
           {offers.map((o) => {
             const colors = badgeColor(o.status);
             return (
-              <div key={o.id} className={cn('grid min-w-[1350px] items-center gap-4 border-t border-border px-6 py-4 text-sm', gridCols)}>
+              <div
+                key={o.id}
+                onClick={() => openEditModal(o)}
+                className={cn(
+                  'grid min-w-[720px] cursor-pointer items-center gap-4 border-t border-border px-6 py-4 text-sm hover:bg-surface-muted',
+                  gridCols,
+                )}
+              >
                 <BankLogo url={o.logoUrl} className="h-16 w-16" />
-                <span className="truncate">
-                  {o.website ? (
-                    <a href={websiteHref(o.website)} target="_blank" rel="noreferrer" className="truncate text-primary hover:underline">
-                      {o.website.replace(/^https?:\/\//i, '')}
-                    </a>
-                  ) : (
-                    <span className="text-ink-faint">—</span>
-                  )}
-                </span>
-                <span className="truncate">
-                  {o.generalEmail ? (
-                    <a href={`mailto:${o.generalEmail}`} className="truncate text-primary hover:underline">
-                      {o.generalEmail}
-                    </a>
-                  ) : (
-                    <span className="text-ink-faint">—</span>
-                  )}
-                </span>
-                <span className="truncate text-ink-muted">{o.managerName || '—'}</span>
-                <span className="truncate text-ink-muted">{o.managerContact || '—'}</span>
                 <span className="truncate text-ink-muted">{o.rateOffer || '—'}</span>
                 <span className="truncate text-ink-muted">{o.maxTerm || '—'}</span>
                 <span>
@@ -242,7 +219,10 @@ export function Financing() {
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => openEditModal(o)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openEditModal(o);
+                    }}
                     aria-label="Редактировать"
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
                   >
@@ -250,7 +230,10 @@ export function Financing() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleDelete(o)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(o);
+                    }}
                     disabled={deletingId === o.id}
                     aria-label="Удалить"
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-danger hover:text-danger disabled:opacity-50"
@@ -277,15 +260,20 @@ export function Financing() {
           {offers.map((o) => {
             const colors = badgeColor(o.status);
             return (
-              <div key={o.id} className="flex flex-col gap-2.5 rounded-control border border-border p-3.5">
+              <div
+                key={o.id}
+                onClick={() => openEditModal(o)}
+                className="flex cursor-pointer flex-col gap-2.5 rounded-control border border-border p-3.5 hover:bg-surface-muted"
+              >
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <BankLogo url={o.logoUrl} className="h-14 w-14" />
-                  </div>
+                  <BankLogo url={o.logoUrl} className="h-14 w-14" />
                   <div className="flex shrink-0 items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => openEditModal(o)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditModal(o);
+                      }}
                       className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
                       aria-label="Редактировать"
                     >
@@ -293,7 +281,10 @@ export function Financing() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDelete(o)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(o);
+                      }}
                       disabled={deletingId === o.id}
                       className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-danger hover:text-danger disabled:opacity-50"
                       aria-label="Удалить"
@@ -306,26 +297,8 @@ export function Financing() {
                   {o.status}
                 </Badge>
                 <div className="flex flex-col gap-1 text-sm text-ink-muted">
-                  {o.website && (
-                    <span>
-                      Сайт:{' '}
-                      <a href={websiteHref(o.website)} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                        {o.website.replace(/^https?:\/\//i, '')}
-                      </a>
-                    </span>
-                  )}
-                  {o.generalEmail && (
-                    <span>
-                      Почта:{' '}
-                      <a href={`mailto:${o.generalEmail}`} className="text-primary hover:underline">
-                        {o.generalEmail}
-                      </a>
-                    </span>
-                  )}
-                  {o.managerName && <span>Менеджер: {o.managerName}</span>}
-                  {o.managerContact && <span>Контакт: {o.managerContact}</span>}
-                  {o.rateOffer && <span>Ставка: {o.rateOffer}</span>}
-                  {o.maxTerm && <span>Срок: {o.maxTerm}</span>}
+                  <span>Ставка: {o.rateOffer || '—'}</span>
+                  <span>Срок: {o.maxTerm || '—'}</span>
                 </div>
               </div>
             );
