@@ -21,7 +21,12 @@ export function Input({ label, state = 'default', helperText, className, ...prop
       <span className="relative flex items-center">
         <input
           className={cn(
-            'w-full rounded-control border bg-surface-muted px-4 py-3 text-sm text-ink outline-none placeholder:text-ink-faint',
+            // text-base (16px), не text-sm — iOS Safari сам зумит страницу при
+            // фокусе на поле с font-size < 16px, а сбросить зум обратно
+            // пальцами нельзя (см. usePreventPageZoom в App.tsx, который
+            // специально блокирует multi-touch touchmove, чтобы случайный
+            // щипок при скролле телефоном не зумил страницу).
+            'w-full rounded-control border bg-surface-muted px-4 py-3 text-base text-ink outline-none placeholder:text-ink-faint sm:text-sm',
             stateBorder[state],
             className,
           )}

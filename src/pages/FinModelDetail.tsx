@@ -704,7 +704,7 @@ function LeasingCard({
           <select
             value={model.leasing.currency}
             onChange={(e) => patchModel({ leasing: { ...model.leasing, currency: e.target.value as LeasingCurrency } })}
-            className="rounded-control border border-transparent bg-surface-muted px-4 py-3 text-sm text-ink outline-none focus:border-primary"
+            className="rounded-control border border-transparent bg-surface-muted px-4 py-3 text-base text-ink outline-none focus:border-primary sm:text-sm"
           >
             <option value="USD">Доллар ($)</option>
             <option value="EUR">Евро (€)</option>
@@ -962,7 +962,7 @@ function EntryRow({
         <select
           value={entry.schedule.type}
           onChange={(e) => onPatch({ schedule: { ...entry.schedule, type: e.target.value as FinSchedule['type'] } })}
-          className="rounded-control border border-transparent bg-surface-muted px-3 py-3 text-sm text-ink outline-none focus:border-primary"
+          className="rounded-control border border-transparent bg-surface-muted px-3 py-3 text-base text-ink outline-none focus:border-primary sm:text-sm"
         >
           {(Object.keys(SCHEDULE_LABELS) as FinSchedule['type'][]).map((t) => (
             <option key={t} value={t}>
