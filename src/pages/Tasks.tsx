@@ -203,8 +203,8 @@ function ArchivedTaskCard({
 }
 
 // Свёрнутая по умолчанию группа — чтобы страница не разрасталась, видимыми
-// сразу остаются только "Задачи на сегодня" (см. Tasks ниже), всё остальное
-// открывается по клику.
+// сразу остаются только "Задачи на сегодня" (не спойлер) и "Задачи на завтра"
+// (defaultOpen, см. Tasks ниже), всё остальное открывается по клику.
 function Spoiler({
   title,
   count,
@@ -437,7 +437,7 @@ export function Tasks() {
             )}
           </div>
 
-          <Spoiler title="Задачи на завтра" count={tomorrowTasks.length}>
+          <Spoiler title="Задачи на завтра" count={tomorrowTasks.length} defaultOpen>
             {tomorrowTasks.map((task) => (
               <ActiveTaskCard
                 key={task.id}
