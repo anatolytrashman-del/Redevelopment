@@ -5,9 +5,10 @@ import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { Textarea } from '../components/ui/Textarea';
 import { AddableSelect } from '../components/ui/AddableSelect';
 import { Modal } from '../components/ui/Modal';
-import { financingStatuses, type FinancingOffer } from '../data/financing';
+import { financingStatuses, REJECTED_FINANCING_STATUS, type FinancingOffer } from '../data/financing';
 import { badgeColor } from '../lib/badgeColor';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
@@ -36,6 +37,7 @@ const emptyForm = {
   managerContact: '',
   rateOffer: '',
   maxTerm: '',
+  bankResponse: '',
   status: financingStatuses[0] as string,
 };
 
@@ -50,6 +52,7 @@ function offerToForm(o: FinancingOffer) {
     managerContact: o.managerContact,
     rateOffer: o.rateOffer,
     maxTerm: o.maxTerm,
+    bankResponse: o.bankResponse,
     status: o.status,
   };
 }
@@ -148,6 +151,16 @@ export function Financing() {
     return [...set];
   }, [offers]);
 
+  // Банки с "Не подходят условия" не в работе — не должны занимать топ
+  // грида, но и из списка их не убираем (ответ банка мог пригодиться).
+  const sortedOffers = useMemo(
+    () =>
+      [...offers].sort(
+        (a, b) => Number(a.status === REJECTED_FINANCING_STATUS) - Number(b.status === REJECTED_FINANCING_STATUS),
+      ),
+    [offers],
+  );
+
   useEffect(() => {
     fetchFinancingOffers()
       .then(setOffers)
@@ -201,6 +214,7 @@ export function Financing() {
       managerContact: form.managerContact.trim(),
       rateOffer: form.rateOffer.trim(),
       maxTerm: form.maxTerm.trim(),
+      bankResponse: form.bankResponse.trim(),
       status: form.status,
     };
     try {
@@ -258,7 +272,7 @@ export function Financing() {
       )}
       {!loading && !loadError && offers.length > 0 && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {offers.map((o) => (
+          {sortedOffers.map((o) => (
             <FinancingOfferCard
               key={o.id}
               offer={o}
@@ -339,6 +353,13 @@ export function Financing() {
               onChange={(e) => setForm((f) => ({ ...f, maxTerm: e.target.value }))}
             />
           </div>
+
+          <Textarea
+            label="Ответ банка"
+            placeholder="Что ответил банк по итогам обращения..."
+            value={form.bankResponse}
+            onChange={(e) => setForm((f) => ({ ...f, bankResponse: e.target.value }))}
+          />
 
           <AddableSelect
             label="Статус"

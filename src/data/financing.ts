@@ -7,8 +7,14 @@ export const financingStatuses = [
   'Общаюсь с личным менеджером',
   'Жду КП',
   'Получены условия',
+  'Не подходят условия',
 ] as const;
 export type FinancingStatus = string;
+
+// Карточки с этим статусом уходят в конец списка на странице
+// "Финансирование" (см. FinancingOfferCard/Financing.tsx) — банк уже
+// прогружен ответом, но по факту не в работе, незачем занимать топ грида.
+export const REJECTED_FINANCING_STATUS = 'Не подходят условия';
 
 export interface FinancingOffer {
   id: string;
@@ -21,6 +27,7 @@ export interface FinancingOffer {
   managerContact: string;
   rateOffer: string;
   maxTerm: string;
+  bankResponse: string;
   status: FinancingStatus;
   createdAt: string;
 }
@@ -37,6 +44,7 @@ export interface FinancingOfferRow {
   manager_contact: string;
   rate_offer: string;
   max_term: string;
+  bank_response: string | null;
   status: string;
   created_at: string;
 }

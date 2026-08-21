@@ -21,6 +21,7 @@ function fromRow(row: FinancingOfferRow): FinancingOffer {
     managerContact: row.manager_contact ?? '',
     rateOffer: row.rate_offer ?? '',
     maxTerm: row.max_term ?? '',
+    bankResponse: row.bank_response ?? '',
     status: row.status,
     createdAt: row.created_at,
   };
@@ -48,6 +49,7 @@ export function insertFinancingOffer(input: Omit<FinancingOffer, 'id' | 'created
         manager_contact: input.managerContact || null,
         rate_offer: input.rateOffer || null,
         max_term: input.maxTerm || null,
+        bank_response: input.bankResponse || null,
         status: input.status,
       })
       .select()
@@ -72,6 +74,7 @@ export function updateFinancingOffer(id: string, input: Omit<FinancingOffer, 'id
         manager_contact: input.managerContact || null,
         rate_offer: input.rateOffer || null,
         max_term: input.maxTerm || null,
+        bank_response: input.bankResponse || null,
         status: input.status,
       })
       .eq('id', id)
