@@ -14,6 +14,7 @@ import {
   currencySymbols,
   categories,
   incomeCategories,
+  subcategoriesByCategory,
   categoryColor,
   payers,
   incomePayers,
@@ -61,6 +62,7 @@ const emptyForm = {
   currency: 'RUB' as Currency,
   purpose: '',
   category: 'Маркетинг' as Category,
+  subcategory: '',
   paidBy: payers[0] as string,
   paidFrom: '',
   compensated: 'Нет',
@@ -143,6 +145,7 @@ function transactionToForm(t: Transaction) {
     currency: t.currency,
     purpose: t.purpose,
     category: t.category,
+    subcategory: t.subcategory,
     paidBy: t.paidBy,
     paidFrom: t.paidFrom,
     compensated: t.compensated ? 'Да' : 'Нет',
@@ -187,6 +190,39 @@ export function Transactions() {
     return [...set];
   }, [transactions]);
 
+  // "Кто платил" — тоже открытый список, тем же принципом, что категории/
+  // источники выше: стартовый набор (payers/incomePayers) + все значения,
+  // уже встречавшиеся в транзакциях. Новый человек, добавленный так, не
+  // попадает ни в splitPayers, ни в soloPayers — его траты просто не
+  // участвуют в разделе "Непогашенный остаток" (calculateBalances/
+  // calculateSoloDebts завязаны на конкретные фиксированные списки).
+  const knownPayers = useMemo(() => {
+    const set = new Set<string>(payers);
+    transactions.forEach((t) => {
+      if (t.amount < 0) set.add(t.paidBy);
+    });
+    return [...set];
+  }, [transactions]);
+
+  const knownIncomePayers = useMemo(() => {
+    const set = new Set<string>(incomePayers);
+    transactions.forEach((t) => {
+      if (t.amount > 0) set.add(t.paidBy);
+    });
+    return [...set];
+  }, [transactions]);
+
+  // Подкатегории — свои для каждой категории (не общий список): стартовый
+  // набор из subcategoriesByCategory для выбранной категории + всё, что уже
+  // встречалось в расходах именно этой категории.
+  const knownSubcategories = useMemo(() => {
+    const set = new Set<string>(subcategoriesByCategory[form.category] ?? []);
+    transactions.forEach((t) => {
+      if (t.amount < 0 && t.category === form.category && t.subcategory) set.add(t.subcategory);
+    });
+    return [...set];
+  }, [transactions, form.category]);
+
   useEffect(() => {
     fetchTransactions()
       .then(setTransactions)
@@ -222,6 +258,7 @@ export function Transactions() {
       currency: form.currency,
       purpose: form.purpose,
       category: form.category,
+      subcategory: form.kind === 'Расход' ? form.subcategory : '',
       paidBy: form.paidBy,
       paidFrom: form.paidFrom,
       compensated: form.compensated === 'Да',
@@ -298,7 +335,7 @@ export function Transactions() {
               <span className="text-ink">{t.purpose}</span>
               <span>
                 <Badge style={{ backgroundColor: categoryColor(t.category).bg, color: categoryColor(t.category).text }}>
-                  {t.category}
+                  {t.subcategory ? `${t.category} — ${t.subcategory}` : t.category}
                 </Badge>
               </span>
               <span className="text-ink-muted">{t.paidBy}</span>
@@ -358,7 +395,7 @@ export function Transactions() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge style={{ backgroundColor: categoryColor(t.category).bg, color: categoryColor(t.category).text }}>
-                  {t.category}
+                  {t.subcategory ? `${t.category} — ${t.subcategory}` : t.category}
                 </Badge>
                 <button
                   type="button"
@@ -460,6 +497,7 @@ export function Transactions() {
                 kind: v as OperationKind,
                 paidBy: v === 'Доход' ? incomePayers[0] : payers[0],
                 category: v === 'Доход' ? incomeCategories[0] : categories[0],
+                subcategory: '',
               }))
             }
           />
@@ -503,17 +541,30 @@ export function Transactions() {
             label="Категория"
             options={form.kind === 'Доход' ? knownIncomeCategories : knownExpenseCategories}
             value={form.category}
-            onChange={(v) => setForm((f) => ({ ...f, category: v }))}
+            onChange={(v) => setForm((f) => ({ ...f, category: v, subcategory: '' }))}
             addLabel="+ Добавить категорию"
             newPlaceholder="Название категории"
           />
 
+          {form.kind === 'Расход' && (
+            <AddableSelect
+              label="Подкатегория"
+              options={knownSubcategories}
+              value={form.subcategory}
+              onChange={(v) => setForm((f) => ({ ...f, subcategory: v }))}
+              addLabel="+ Добавить подкатегорию"
+              newPlaceholder="Название подкатегории"
+            />
+          )}
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Select
+            <AddableSelect
               label="Кто платил"
-              options={form.kind === 'Доход' ? [...incomePayers] : [...payers]}
+              options={form.kind === 'Доход' ? knownIncomePayers : knownPayers}
               value={form.paidBy}
               onChange={(v) => setForm((f) => ({ ...f, paidBy: v }))}
+              addLabel="+ Добавить человека"
+              newPlaceholder="Имя"
             />
             <AddableSelect
               label="Откуда платил"

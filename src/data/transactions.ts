@@ -16,6 +16,14 @@ export const currencySymbols: Record<Currency, string> = {
 export const categories = ['Маркетинг', 'IT-инфраструктура', 'Поездки в Минск', 'Консультации'] as const;
 export type Category = string;
 
+// Подкатегории — только для расходов, привязаны к конкретной категории
+// (не общий список на все категории сразу). Список открытый и per-категория,
+// как и сами категории — новые подкатегории добавляются прямо из формы
+// (см. Transactions.tsx), это только стартовый набор.
+export const subcategoriesByCategory: Record<string, readonly string[]> = {
+  'Ремонтные работы': ['Электрика'],
+};
+
 // Категории для операций дохода — отдельный (растущий) список, как и
 // категории расходов выше; список расходных категорий при этом не меняется.
 export const incomeCategories = ['Сдача недвижимости в аренду'] as const;
@@ -55,6 +63,9 @@ export interface Transaction {
   currency: Currency;
   purpose: string;
   category: Category;
+  // Пусто — подкатегория не указана (не для всех категорий она вообще
+  // заведена) или транзакция дохода, где подкатегорий нет.
+  subcategory: string;
   paidBy: Payer;
   paidFrom: string;
   compensated: boolean;
@@ -68,6 +79,7 @@ export interface TransactionRow {
   currency: Currency;
   purpose: string;
   category: string;
+  subcategory: string | null;
   paid_by: string;
   paid_from: string;
   compensated: boolean;
