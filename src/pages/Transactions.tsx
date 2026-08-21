@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Pencil } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Plus, Loader2, Pencil, FileBarChart } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -27,6 +28,7 @@ import {
   type SplitPayer,
 } from '../data/transactions';
 import { fetchTransactions, insertTransaction, updateTransaction } from '../lib/transactionsApi';
+import { fetchTodayRate } from '../lib/exchangeRatesApi';
 
 // Ошибки Supabase (PostgrestError) — обычные объекты с полем message,
 // а не экземпляры Error, поэтому `instanceof Error` их не ловит.
@@ -160,6 +162,11 @@ export function Transactions() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Только чтобы при сохранении правки достать исходный rateDate — курс не
+  // редактируется из формы (не показываем его пользователю вовсе), но и
+  // не должен молча съезжать на другую дату при каждом редактировании
+  // транзакции (см. handleSubmit).
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -236,6 +243,7 @@ export function Transactions() {
 
   function openAddModal() {
     setEditingId(null);
+    setEditingTransaction(null);
     setForm(emptyForm);
     setSubmitError(null);
     setOpen(true);
@@ -243,6 +251,7 @@ export function Transactions() {
 
   function openEditModal(t: Transaction) {
     setEditingId(t.id);
+    setEditingTransaction(t);
     setForm(transactionToForm(t));
     setSubmitError(null);
     setOpen(true);
@@ -254,18 +263,23 @@ export function Transactions() {
 
     setSubmitting(true);
     setSubmitError(null);
-    const payload = {
-      date: form.date,
-      amount: Math.abs(Number(form.amount)) * (form.kind === 'Доход' ? 1 : -1),
-      currency: form.currency,
-      purpose: form.purpose,
-      category: form.category,
-      subcategory: form.kind === 'Расход' ? form.subcategory : '',
-      paidBy: form.paidBy,
-      paidFrom: form.paidFrom,
-      compensated: form.compensated === 'Да',
-    };
     try {
+      // Курс фиксируется один раз, при создании — правка старой транзакции
+      // сохраняет её исходный rateDate, а не переезжает на курс сегодняшнего
+      // дня редактирования (см. комментарий у editingTransaction выше).
+      const rateDate = editingId ? (editingTransaction?.rateDate ?? '') : (await fetchTodayRate()).date;
+      const payload = {
+        date: form.date,
+        amount: Math.abs(Number(form.amount)) * (form.kind === 'Доход' ? 1 : -1),
+        currency: form.currency,
+        purpose: form.purpose,
+        category: form.category,
+        subcategory: form.kind === 'Расход' ? form.subcategory : '',
+        paidBy: form.paidBy,
+        paidFrom: form.paidFrom,
+        compensated: form.compensated === 'Да',
+        rateDate,
+      };
       if (editingId) {
         const updated = await updateTransaction(editingId, payload);
         setTransactions((prev) => prev.map((t) => (t.id === editingId ? updated : t)));
@@ -275,6 +289,7 @@ export function Transactions() {
       }
       setForm(emptyForm);
       setEditingId(null);
+      setEditingTransaction(null);
       setOpen(false);
     } catch (err) {
       setSubmitError(errorMessage(err, 'Не удалось сохранить транзакцию'));
@@ -308,9 +323,18 @@ export function Transactions() {
       <PageHeader
         title="Транзакции"
         action={
-          <Button icon={<Plus className="h-4 w-4" />} onClick={openAddModal}>
-            Добавить транзакцию
-          </Button>
+          <>
+            <Link
+              to="/admin/transactions/report"
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-5 py-3 text-sm font-semibold text-ink transition-colors hover:border-primary hover:text-primary"
+            >
+              <FileBarChart className="h-4 w-4" />
+              Отчёт P&L
+            </Link>
+            <Button icon={<Plus className="h-4 w-4" />} onClick={openAddModal}>
+              Добавить транзакцию
+            </Button>
+          </>
         }
       />
 

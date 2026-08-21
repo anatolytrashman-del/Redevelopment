@@ -14,6 +14,7 @@ function fromRow(row: TransactionRow): Transaction {
     paidBy: row.paid_by as Transaction['paidBy'],
     paidFrom: row.paid_from,
     compensated: row.compensated,
+    rateDate: row.rate_date ?? '',
   };
 }
 
@@ -44,6 +45,7 @@ export function insertTransaction(input: Omit<Transaction, 'id'>): Promise<Trans
         paid_by: input.paidBy,
         paid_from: input.paidFrom,
         compensated: input.compensated,
+        rate_date: input.rateDate || null,
       })
       .select()
       .single();
@@ -67,6 +69,7 @@ export function updateTransaction(id: string, input: Omit<Transaction, 'id'>): P
         paid_by: input.paidBy,
         paid_from: input.paidFrom,
         compensated: input.compensated,
+        rate_date: input.rateDate || null,
       })
       .eq('id', id)
       .select()

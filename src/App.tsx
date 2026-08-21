@@ -6,6 +6,7 @@ import { RequirePage } from './components/layout/RequirePage';
 import { AdminIndex } from './pages/AdminIndex';
 import { Home } from './pages/Home';
 import { Transactions } from './pages/Transactions';
+import { TransactionsReport } from './pages/TransactionsReport';
 import { Leads } from './pages/Leads';
 import { Contractors } from './pages/Contractors';
 import { Objects } from './pages/Objects';
@@ -74,6 +75,14 @@ export default function App() {
         <Route path="dashboard" element={<RequirePage page="dashboard"><Home /></RequirePage>} />
         <Route path="tasks" element={<RequirePage page="tasks"><Tasks /></RequirePage>} />
         <Route path="transactions" element={<RequirePage page="transactions"><Transactions /></RequirePage>} />
+        <Route
+          path="transactions/report"
+          element={
+            <RequirePage page="transactions">
+              <TransactionsReport />
+            </RequirePage>
+          }
+        />
         <Route path="leads" element={<RequirePage page="leads"><Leads /></RequirePage>} />
         <Route path="contractors" element={<RequirePage page="contractors"><Contractors /></RequirePage>} />
         <Route path="objects" element={<RequirePage page="objects"><Objects /></RequirePage>} />

@@ -74,6 +74,11 @@ export interface Transaction {
   paidBy: Payer;
   paidFrom: string;
   compensated: boolean;
+  // Дата, на которую зафиксирован курс валюты этой транзакции к USD (см.
+  // exchangeRatesApi.ts/currencyConvert.ts) — дата СОХРАНЕНИЯ записи, не
+  // дата самой транзакции (см. развёрнутый комментарий в Transactions.tsx
+  // у места, где эта дата проставляется). Не редактируется из формы.
+  rateDate: string;
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/transactionsApi.ts
@@ -88,4 +93,5 @@ export interface TransactionRow {
   paid_by: string;
   paid_from: string;
   compensated: boolean;
+  rate_date: string | null;
 }
