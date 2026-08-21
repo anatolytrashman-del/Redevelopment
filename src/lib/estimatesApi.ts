@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import type { Estimate, EstimateQuestion, EstimateRow, EstimateSection } from '../data/estimates';
+import { estimateStatuses, type Estimate, type EstimateQuestion, type EstimateRow, type EstimateSection } from '../data/estimates';
 
 function fromRow(row: EstimateRow): Estimate {
   return {
@@ -30,6 +30,7 @@ function fromRow(row: EstimateRow): Estimate {
       })),
     })),
     questions: row.questions ?? [],
+    status: row.status ?? estimateStatuses[0],
     createdAt: row.created_at,
   };
 }
@@ -50,11 +51,16 @@ export function fetchEstimate(id: string): Promise<Estimate> {
   });
 }
 
-export function insertEstimate(input: { objectId: string; sections: EstimateSection[]; questions: EstimateQuestion[] }): Promise<Estimate> {
+export function insertEstimate(input: {
+  objectId: string;
+  sections: EstimateSection[];
+  questions: EstimateQuestion[];
+  status: string;
+}): Promise<Estimate> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('estimates')
-      .insert({ object_id: input.objectId, sections: input.sections, questions: input.questions })
+      .insert({ object_id: input.objectId, sections: input.sections, questions: input.questions, status: input.status })
       .select()
       .single();
 
@@ -63,11 +69,14 @@ export function insertEstimate(input: { objectId: string; sections: EstimateSect
   });
 }
 
-export function updateEstimate(id: string, input: { sections: EstimateSection[]; questions: EstimateQuestion[] }): Promise<Estimate> {
+export function updateEstimate(
+  id: string,
+  input: { sections: EstimateSection[]; questions: EstimateQuestion[]; status: string },
+): Promise<Estimate> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('estimates')
-      .update({ sections: input.sections, questions: input.questions })
+      .update({ sections: input.sections, questions: input.questions, status: input.status })
       .eq('id', id)
       .select()
       .single();

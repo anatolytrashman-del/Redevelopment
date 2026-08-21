@@ -3,13 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Loader2, Trash2 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
+import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Select } from '../components/ui/Select';
-import { defaultEstimateSections, type Estimate } from '../data/estimates';
+import { defaultEstimateSections, estimateStatuses, type Estimate } from '../data/estimates';
 import type { RealtyObject } from '../data/objects';
 import { fetchEstimates, insertEstimate, deleteEstimate } from '../lib/estimatesApi';
 import { fetchObjects } from '../lib/objectsApi';
+import { badgeColor } from '../lib/badgeColor';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 
@@ -69,7 +71,12 @@ export function Estimates() {
     setCreating(true);
     setCreateError(null);
     try {
-      const created = await insertEstimate({ objectId: picked.id, sections: defaultEstimateSections(), questions: [] });
+      const created = await insertEstimate({
+        objectId: picked.id,
+        sections: defaultEstimateSections(),
+        questions: [],
+        status: estimateStatuses[0],
+      });
       setEstimates((prev) => [created, ...prev]);
       setOpen(false);
       navigate(`/admin/estimates/${created.id}`);
@@ -122,8 +129,13 @@ export function Estimates() {
               )}
               style={glassCardShadow}
             >
-              <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="truncate font-semibold text-ink">{obj ? objectLabel(obj) : 'Объект удалён'}</span>
+              <div className="flex min-w-0 flex-col gap-1">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="truncate font-semibold text-ink">{obj ? objectLabel(obj) : 'Объект удалён'}</span>
+                  <Badge style={{ backgroundColor: badgeColor(e.status).bg, color: badgeColor(e.status).text }}>
+                    {e.status}
+                  </Badge>
+                </div>
                 <span className="text-sm text-ink-muted">
                   {e.sections.length} {e.sections.length === 1 ? 'раздел' : 'раздела'} · создана {formatDate(e.createdAt)}
                 </span>

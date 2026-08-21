@@ -6,11 +6,12 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
+import { AddableSelect } from '../components/ui/AddableSelect';
 import { CatalogPickerModal } from '../components/estimates/CatalogPickerModal';
 import { EstimatePositionCard } from '../components/estimates/EstimatePositionCard';
 import { EstimatePositionFormModal } from '../components/estimates/EstimatePositionFormModal';
 import { cn } from '../lib/cn';
-import type { Estimate, EstimatePosition, EstimateQuestion, EstimateSection } from '../data/estimates';
+import { estimateStatuses, type Estimate, type EstimatePosition, type EstimateQuestion, type EstimateSection } from '../data/estimates';
 import { formatCatalogItemForInsert, type EstimateCatalogItem } from '../data/estimateCatalog';
 import type { RealtyObject } from '../data/objects';
 import type { BuildingPlanZone } from '../data/buildingPlans';
@@ -38,6 +39,15 @@ export function EstimateDetail() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Черновик статуса, а не прямая запись в estimate.status на каждый
+  // onChange: AddableSelect в режиме "+ Добавить статус" дёргает onChange
+  // на каждое нажатие клавиши — без черновика это был бы сетевой запрос на
+  // каждую букву, вперемешку и с реальным риском гонки (поздний ответ на
+  // раннюю букву перезатирает финальное значение).
+  const [statusDraft, setStatusDraft] = useState('');
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
+
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
   const [titleDraft, setTitleDraft] = useState('');
   const [bodyDraft, setBodyDraft] = useState('');
@@ -62,6 +72,7 @@ export function EstimateDetail() {
     fetchEstimate(id)
       .then((e) => {
         setEstimate(e);
+        setStatusDraft(e.status);
         return fetchObject(e.objectId);
       })
       .then((o) => {
@@ -83,14 +94,29 @@ export function EstimateDetail() {
   const roomCount = roomZones.length;
   const roomArea = roomZones.reduce((sum, z) => sum + (z.area ?? 0), 0);
 
-  async function saveEstimatePatch(patch: Partial<Pick<Estimate, 'sections' | 'questions'>>) {
+  async function saveEstimatePatch(patch: Partial<Pick<Estimate, 'sections' | 'questions' | 'status'>>) {
     if (!estimate) throw new Error('Смета не загружена');
     const updated = await updateEstimate(estimate.id, {
       sections: patch.sections ?? estimate.sections,
       questions: patch.questions ?? estimate.questions,
+      status: patch.status ?? estimate.status,
     });
     setEstimate(updated);
     return updated;
+  }
+
+  async function handleStatusSave() {
+    if (!estimate || !statusDraft.trim() || statusDraft === estimate.status || savingStatus) return;
+    setSavingStatus(true);
+    setStatusError(null);
+    try {
+      const updated = await saveEstimatePatch({ status: statusDraft });
+      setStatusDraft(updated.status);
+    } catch (err) {
+      setStatusError(errorMessage(err, 'Не удалось изменить статус'));
+    } finally {
+      setSavingStatus(false);
+    }
   }
 
   function startEditSection(section: EstimateSection) {
@@ -258,10 +284,36 @@ export function EstimateDetail() {
       {!loading && !loadError && estimate && object && (
         <div className="flex flex-col gap-5">
           <Card className="flex flex-col gap-4 p-5">
-            <div>
-              <div className="text-lg font-bold text-ink">{object.name || object.address}</div>
-              {object.name && <div className="text-sm text-ink-muted">{object.address}</div>}
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="text-lg font-bold text-ink">{object.name || object.address}</div>
+                {object.name && <div className="text-sm text-ink-muted">{object.address}</div>}
+              </div>
+              <div className="flex items-end gap-2">
+                <div className="w-48">
+                  <AddableSelect
+                    label="Статус"
+                    options={[...new Set([...estimateStatuses, estimate.status])]}
+                    value={statusDraft}
+                    onChange={setStatusDraft}
+                    addLabel="+ Добавить статус"
+                    newPlaceholder="Название статуса"
+                  />
+                </div>
+                {statusDraft.trim() && statusDraft !== estimate.status && (
+                  <button
+                    type="button"
+                    onClick={handleStatusSave}
+                    disabled={savingStatus}
+                    aria-label="Сохранить статус"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-primary text-primary disabled:opacity-50"
+                  >
+                    {savingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  </button>
+                )}
+              </div>
             </div>
+            {statusError && <p className="text-sm text-danger">{statusError}</p>}
             <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
               {object.area > 0 && (
                 <Stat label="Общая площадь" value={`${formatArea(object.area)} м²`} />

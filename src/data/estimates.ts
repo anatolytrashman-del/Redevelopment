@@ -91,11 +91,17 @@ export interface EstimateQuestion {
   resolved: boolean;
 }
 
+// Открытый список, как leadStatuses/financingStatuses — растёт из формы
+// через AddableSelect (см. EstimateDetail.tsx), это просто стартовое
+// значение для новых смет.
+export const estimateStatuses = ['В работе'] as const;
+
 export interface Estimate {
   id: string;
   objectId: string;
   sections: EstimateSection[];
   questions: EstimateQuestion[];
+  status: string;
   createdAt: string;
 }
 
@@ -105,6 +111,7 @@ export interface EstimateRow {
   object_id: string;
   sections: EstimateSection[] | null;
   questions: EstimateQuestion[] | null;
+  status: string;
   created_at: string;
 }
 
