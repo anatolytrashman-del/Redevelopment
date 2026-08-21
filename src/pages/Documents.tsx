@@ -76,6 +76,10 @@ export function Documents() {
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
+  // Единая кнопка "Создать документ" вместо отдельных "Добавить..." на
+  // каждой вкладке — сначала выбираем тип документа здесь, дальше уже
+  // открывается нужная модалка и переключается вкладка.
+  const [addChooserOpen, setAddChooserOpen] = useState(false);
 
   const [templatesLoading, setTemplatesLoading] = useState(true);
   const [templatesError, setTemplatesError] = useState<string | null>(null);
@@ -340,7 +344,7 @@ export function Documents() {
       <PageHeader
         title="Документы"
         action={
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setCreateOpen(true)}>
+          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setAddChooserOpen(true)}>
             Создать документ
           </Button>
         }
@@ -468,12 +472,6 @@ export function Documents() {
       )}
 
       {activeTab === 'contractors' && (
-      <>
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        <Button variant="secondary" icon={<Plus className="h-4 w-4" />} onClick={openContractorDocModal}>
-          Добавить договор
-        </Button>
-      </div>
       <div className="flex flex-col gap-4">
         {contractorDocs.map((d) => (
           <Card key={d.id} className="flex flex-col gap-3 p-5">
@@ -538,16 +536,9 @@ export function Documents() {
           <Card className="py-10 text-center text-sm text-ink-muted">Договоров пока нет</Card>
         )}
       </div>
-      </>
       )}
 
       {activeTab === 'legal' && (
-      <>
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        <Button variant="secondary" icon={<Plus className="h-4 w-4" />} onClick={openLegalDocModal}>
-          Добавить документ
-        </Button>
-      </div>
       <div className="flex flex-col gap-4">
         {legalDocs.map((d) => (
           <Card key={d.id} className="flex flex-col gap-3 p-5">
@@ -610,17 +601,9 @@ export function Documents() {
           <Card className="py-10 text-center text-sm text-ink-muted">Документов пока нет</Card>
         )}
       </div>
-      </>
       )}
 
       {activeTab === 'templates' && (
-      <>
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        <Button variant="secondary" icon={<Plus className="h-4 w-4" />} onClick={openAddTemplateModal}>
-          Добавить шаблон
-        </Button>
-      </div>
-
       <div className="flex flex-col gap-4">
         {templates.map((t) => (
           <Card key={t.id} className="flex items-center gap-4 p-5">
@@ -663,8 +646,59 @@ export function Documents() {
           <Card className="py-10 text-center text-sm text-ink-muted">Шаблонов пока нет</Card>
         )}
       </div>
-      </>
       )}
+
+      <Modal open={addChooserOpen} onClose={() => setAddChooserOpen(false)} title="Что добавить?">
+        <div className="flex flex-col gap-2">
+          {(
+            [
+              [FileSignature, 'Соглашение из шаблона', 'bg-success-bg text-success', () => setCreateOpen(true)],
+              [
+                Handshake,
+                'Договор с подрядчиком',
+                'bg-warning-bg text-warning',
+                () => {
+                  setActiveTab('contractors');
+                  openContractorDocModal();
+                },
+              ],
+              [
+                Scale,
+                'Документ — Нормативка',
+                'bg-info-bg text-info-text',
+                () => {
+                  setActiveTab('legal');
+                  openLegalDocModal();
+                },
+              ],
+              [
+                FileText,
+                'Шаблон документа',
+                'bg-primary-soft text-primary',
+                () => {
+                  setActiveTab('templates');
+                  openAddTemplateModal();
+                },
+              ],
+            ] as const
+          ).map(([Icon, label, className, onSelect]) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => {
+                setAddChooserOpen(false);
+                onSelect();
+              }}
+              className="flex items-center gap-4 rounded-control border border-border p-4 text-left transition-colors hover:border-primary"
+            >
+              <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-full', className)}>
+                <Icon className="h-5 w-5" />
+              </span>
+              <span className="font-semibold text-ink">{label}</span>
+            </button>
+          ))}
+        </div>
+      </Modal>
 
       <CreateDocumentModal
         open={createOpen}
