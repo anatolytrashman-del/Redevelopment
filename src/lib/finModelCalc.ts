@@ -159,14 +159,32 @@ export function annuityPayment(balance: number, remainingMonths: number, monthly
   return (balance * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -remainingMonths));
 }
 
-// Аннуитетный платёж по лизингу от финансируемой части (сумма − аванс) —
-// в валюте договора, на срок АМОРТИЗАЦИИ (не срок договора — см. FinLeasing).
+// Ставка на конкретный месяц СРОКА КРЕДИТА/ЛИЗИНГА (0-based от даты выдачи,
+// не календарный год) — комбинированная по годам: 1-й год/2-й/с 3-го.
+// Незаполненный ярус берёт ставку предыдущего — один заполненный
+// ratePctYear1 равносилен старой единой ставке на весь срок (см. FinLeasing).
+export function rateForLoanMonth(l: FinLeasing, monthsSinceStart: number): number {
+  const year1 = l.ratePctYear1 ?? 0;
+  if (monthsSinceStart < 12) return year1;
+  const year2 = l.ratePctYear2 ?? year1;
+  if (monthsSinceStart < 24) return year2;
+  return l.ratePctFromYear3 ?? year2;
+}
+
+// Первый платёж по лизингу от финансируемой части (сумма − аванс) — в
+// валюте договора, на срок ПОГАШЕНИЯ (не срок договора — см. FinLeasing).
+// "Первый" — не постоянная величина на весь срок, как раньше: ставка по
+// годам может отличаться, а на период "только проценты" платёж отдельно
+// меньше обычного аннуитета (см. buildLeasingCashFlow) — это лишь
+// ориентир для месяца 1, полная помесячная динамика в таблице ниже.
 export function leasingMonthlyPayment(l: FinLeasing): number | null {
   const sum = l.contractSum ?? 0;
   const n = l.amortizationMonths ?? 0;
   if (sum <= 0 || n <= 0) return null;
   const financed = Math.max(0, sum - (l.downPayment ?? 0));
-  return annuityPayment(financed, n, (l.annualRatePct ?? 0) / 100 / 12);
+  const rMonthly = rateForLoanMonth(l, 0) / 100 / 12;
+  if ((l.interestOnlyMonths ?? 0) > 0) return financed * rMonthly;
+  return annuityPayment(financed, n, rMonthly);
 }
 
 // Курс пересчёта лизинговых сумм в BYN. Для валютного договора без
@@ -269,15 +287,18 @@ export interface LeasingCashFlowResult {
 }
 
 // Кассовый поток по лизингу (аванс + комиссия за оформление + платежи +
-// баллонный платёж), в BYN. Платёж считается на срок АМОРТИЗАЦИИ, но
-// реально платится только до срока ДОГОВОРА (termMonths) — если он короче,
-// остаток долга на этот момент гасится одной суммой (баллон), лизинг
-// закрыт. Обычный аннуитет на весь срок, ЕСЛИ ни одна продажа не помечена
-// "на погашение лизинга" и баллона нет — пересчитанный на каждый месяц
-// платёж в этом случае совпадает с исходным (тождество аннуитета).
-// Продажа с applyToLeasing уменьшает остаток долга в месяце сделки, платёж
-// на оставшийся срок пересчитывается заново — срок амортизации не меняется,
-// платёж становится меньше.
+// баллонный платёж), в BYN. Платёж считается на срок ПОГАШЕНИЯ, но реально
+// платится только до срока ДОГОВОРА (termMonths) — если он короче, остаток
+// долга на этот момент гасится одной суммой (баллон), лизинг закрыт.
+// Ставка может отличаться по годам срока (см. rateForLoanMonth) — платёж
+// пересчитывается на каждый месяц от текущего остатка/оставшегося срока,
+// поэтому смена ставки на границе года подхватывается сама собой (при
+// постоянной ставке пересчёт — no-op, тождество аннуитета). Первые
+// interestOnlyMonths месяцев (если заданы) — платится только процент, тело
+// долга не уменьшается; после них аннуитет пересчитывается на оставшийся
+// срок погашения, платёж соответственно становится больше. Продажа с
+// applyToLeasing уменьшает остаток долга в месяце сделки, платёж на
+// оставшийся срок пересчитывается заново — срок погашения не меняется.
 export function buildLeasingCashFlow(
   leasing: FinLeasing,
   sales: FinSale[],
@@ -291,7 +312,7 @@ export function buildLeasingCashFlow(
   const hasBalloon = leasing.termMonths != null && leasing.termMonths > 0 && leasing.termMonths < amortMonths;
   const leasingStart = Math.max(1, leasing.startMonth || 1);
   const financed = Math.max(0, (leasing.contractSum ?? 0) - (leasing.downPayment ?? 0));
-  const rMonthly = (leasing.annualRatePct ?? 0) / 100 / 12;
+  const interestOnlyMonths = Math.max(0, leasing.interestOnlyMonths ?? 0);
 
   if (rate > 0) {
     if (leasing.downPayment) cashFlow[0] += leasing.downPayment * rate;
@@ -309,16 +330,26 @@ export function buildLeasingCashFlow(
     .filter((p): p is { amountByn: number; monthIndex: number } => p.amountByn > 0 && p.monthIndex != null);
 
   let balance = financed;
-  let payment = annuityPayment(balance, amortMonths, rMonthly);
   let balloonAmount: number | null = null;
   let closed = false;
 
   for (let i = 1; i <= horizon; i++) {
-    if (!closed && i >= leasingStart && i < leasingStart + payoffMonths && payment > 0) {
+    const monthsSinceStart = i - leasingStart;
+    if (!closed && monthsSinceStart >= 0 && monthsSinceStart < payoffMonths) {
+      const rMonthly = rateForLoanMonth(leasing, monthsSinceStart) / 100 / 12;
       const interest = balance * rMonthly;
-      const principal = Math.min(balance, Math.max(0, payment - interest));
+      let payment: number;
+      let principal: number;
+      if (monthsSinceStart < interestOnlyMonths) {
+        payment = interest;
+        principal = 0;
+      } else {
+        const remainingAmortMonths = amortMonths - monthsSinceStart;
+        payment = annuityPayment(balance, remainingAmortMonths, rMonthly);
+        principal = Math.min(balance, Math.max(0, payment - interest));
+      }
       balance = Math.max(0, balance - principal);
-      cashFlow[i - 1] += payment * rate;
+      if (payment > 0) cashFlow[i - 1] += payment * rate;
     }
 
     if (!closed) {
@@ -332,7 +363,7 @@ export function buildLeasingCashFlow(
 
     // Последний месяц срока договора при баллоне — остаток гасится одной
     // суммой, лизинг закрыт (дальше ни платежей, ни погашений).
-    if (!closed && hasBalloon && i === leasingStart + payoffMonths - 1) {
+    if (!closed && hasBalloon && monthsSinceStart === payoffMonths - 1) {
       if (balance > 0) {
         balloonAmount = balance;
         cashFlow[i - 1] += balance * rate;
@@ -340,19 +371,15 @@ export function buildLeasingCashFlow(
       }
       closed = true;
     }
-
-    if (!closed) {
-      const monthsPaid = Math.max(0, Math.min(amortMonths, i + 1 - leasingStart));
-      const remainingMonths = amortMonths - monthsPaid;
-      payment = remainingMonths > 0 ? annuityPayment(balance, remainingMonths, rMonthly) : 0;
-    }
   }
 
   return { cashFlow, balloonAmount };
 }
 
 export function calculateFinModel(model: FinModel): FinResult {
-  const { params, leasing, rent, amortization, capexReserve, sales, categories } = model;
+  // amortization (model.amortization) сознательно не читается — см.
+  // комментарий у `const amort = 0` ниже.
+  const { params, leasing, rent, capexReserve, sales, categories } = model;
   const horizon = Math.max(1, Math.floor(params.horizonMonths) || 60);
   const start = parseStart(params.startDate);
   const payment = leasingMonthlyPayment(leasing);
@@ -398,7 +425,12 @@ export function calculateFinModel(model: FinModel): FinResult {
       0,
     );
     const lease = leaseCashFlow[i - 1];
-    const amort = amortizationInMonth(amortization, i);
+    // Амортизация временно отключена (принудительно 0) — механизм под
+    // вопросом до уточнения с Татьяной Гаврис, см. комментарий у
+    // FinAmortization в data/finModels.ts. amortizationInMonth(amortization, i)
+    // осознанно не вызывается здесь, чтобы неподтверждённая цифра не влияла
+    // на видимые сейчас платежи/налог.
+    const amort = 0;
     const capexAmt = ((capexReserve.pct ?? 0) / 100) * rentIncome;
 
     months.push({

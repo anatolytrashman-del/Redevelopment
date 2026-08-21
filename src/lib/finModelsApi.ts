@@ -27,11 +27,18 @@ function fromRow(row: FinModelRow): FinModel {
   // и тем, и другим сразу — у старых сохранённых моделей переносим его
   // значение в amortizationMonths, а termMonths (баллон) оставляем пустым,
   // чтобы поведение расчёта не изменилось молча.
-  const rawLeasing: Partial<FinLeasing> = row.leasing ?? {};
+  const rawLeasing: Partial<FinLeasing> & { annualRatePct?: number | null } = row.leasing ?? {};
   const leasing = { ...defaultFinLeasing(), ...rawLeasing };
   if (rawLeasing.amortizationMonths == null && rawLeasing.termMonths != null) {
     leasing.amortizationMonths = rawLeasing.termMonths;
     leasing.termMonths = null;
+  }
+  // До комбинированной ставки по годам была одна annualRatePct на весь
+  // срок — у старых сохранённых моделей переносим её в ratePctYear1 (ярусы
+  // 2/3 не заполнены — rateForLoanMonth в finModelCalc.ts сам продолжит
+  // тем же значением, поведение расчёта не меняется молча).
+  if (rawLeasing.ratePctYear1 == null && rawLeasing.annualRatePct != null) {
+    leasing.ratePctYear1 = rawLeasing.annualRatePct;
   }
 
   return {

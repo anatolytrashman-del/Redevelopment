@@ -7,7 +7,6 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import {
   LEASING_CURRENCY_SYMBOLS,
-  type FinAmortization,
   type FinCapexReserve,
   type FinCategory,
   type FinEntry,
@@ -35,6 +34,18 @@ function errorMessage(err: unknown, fallback: string): string {
 // не ноль (см. "числовые ловушки" в CLAUDE.md).
 function numOrNull(v: string): number | null {
   return v === '' ? null : Number(v);
+}
+
+// Сроки кредита/лизинга хранятся в месяцах (весь остальной расчёт —
+// помесячная сетка), но на глаз удобнее прикидывать в годах — поле только
+// в интерфейсе, конвертация туда-обратно при отображении/вводе.
+function monthsToYearsStr(months: number | null | undefined): string {
+  return months == null ? '' : String(months / 12);
+}
+function yearsStrToMonths(v: string): number | null {
+  if (v === '') return null;
+  const years = Number(v);
+  return Number.isFinite(years) ? Math.round(years * 12) : null;
 }
 
 const SCHEDULE_LABELS: Record<FinSchedule['type'], string> = {
@@ -315,7 +326,7 @@ export function FinModelEditor({
             />
             {c.title.toLowerCase().includes('эксплуатац') && (
               <>
-                <AmortizationCard model={model} patchModel={patchModel} />
+                <AmortizationOnHoldCard />
                 <CapexReserveCard model={model} patchModel={patchModel} result={result} />
               </>
             )}
@@ -323,7 +334,7 @@ export function FinModelEditor({
         ))}
         {!expenseCategories.some((c) => c.title.toLowerCase().includes('эксплуатац')) && (
           <>
-            <AmortizationCard model={model} patchModel={patchModel} />
+            <AmortizationOnHoldCard />
             <CapexReserveCard model={model} patchModel={patchModel} result={result} />
           </>
         )}
@@ -657,7 +668,7 @@ function LeasingCard({
 
   return (
     <Card className="flex flex-col gap-4 p-5">
-      <div className="text-lg font-bold text-ink">Лизинг</div>
+      <div className="text-lg font-bold text-ink">Лизинг / Кредит</div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Input
           label={`Сумма договора, ${sym}`}
@@ -672,25 +683,54 @@ function LeasingCard({
           onChange={(e) => patchModel({ leasing: { ...model.leasing, downPayment: numOrNull(e.target.value) } })}
         />
         <Input
-          label="Срок амортизации, мес."
+          label="Срок погашения, лет"
           type="number"
-          title="Срок, на который считается размер платежа (аннуитет)"
-          value={model.leasing.amortizationMonths ?? ''}
-          onChange={(e) => patchModel({ leasing: { ...model.leasing, amortizationMonths: numOrNull(e.target.value) } })}
+          step="0.5"
+          title="Срок, на который считается размер платежа (аннуитет) — раньше назывался «срок амортизации», переименовано, чтобы не путать с налоговой амортизацией ИП (см. блок ниже)"
+          value={monthsToYearsStr(model.leasing.amortizationMonths)}
+          onChange={(e) =>
+            patchModel({ leasing: { ...model.leasing, amortizationMonths: yearsStrToMonths(e.target.value) } })
+          }
         />
         <Input
-          label="Срок договора (баллон), мес."
+          label="Срок договора (баллон), лет"
           type="number"
-          placeholder="как срок амортизации"
-          title="Когда реально нужно всё погасить/рефинансировать — если меньше срока амортизации, остаток долга на этот момент гасится одной суммой"
-          value={model.leasing.termMonths ?? ''}
-          onChange={(e) => patchModel({ leasing: { ...model.leasing, termMonths: numOrNull(e.target.value) } })}
+          step="0.5"
+          placeholder="как срок погашения"
+          title="Когда реально нужно всё погасить/рефинансировать — если меньше срока погашения, остаток долга на этот момент гасится одной суммой"
+          value={monthsToYearsStr(model.leasing.termMonths)}
+          onChange={(e) => patchModel({ leasing: { ...model.leasing, termMonths: yearsStrToMonths(e.target.value) } })}
         />
         <Input
-          label="Ставка, %/год"
+          label="Только проценты, лет"
           type="number"
-          value={model.leasing.annualRatePct ?? ''}
-          onChange={(e) => patchModel({ leasing: { ...model.leasing, annualRatePct: numOrNull(e.target.value) } })}
+          step="0.5"
+          placeholder="нет льготного периода"
+          title="Срок в начале графика, когда платится только процент, тело долга не гасится — считается внутри срока погашения, не сверх него"
+          value={monthsToYearsStr(model.leasing.interestOnlyMonths)}
+          onChange={(e) =>
+            patchModel({ leasing: { ...model.leasing, interestOnlyMonths: yearsStrToMonths(e.target.value) } })
+          }
+        />
+        <Input
+          label="Ставка 1-й год, %/год"
+          type="number"
+          value={model.leasing.ratePctYear1 ?? ''}
+          onChange={(e) => patchModel({ leasing: { ...model.leasing, ratePctYear1: numOrNull(e.target.value) } })}
+        />
+        <Input
+          label="Ставка 2-й год, %/год"
+          type="number"
+          placeholder="как 1-й год"
+          value={model.leasing.ratePctYear2 ?? ''}
+          onChange={(e) => patchModel({ leasing: { ...model.leasing, ratePctYear2: numOrNull(e.target.value) } })}
+        />
+        <Input
+          label="Ставка с 3-го года, %/год"
+          type="number"
+          placeholder="как 2-й год"
+          value={model.leasing.ratePctFromYear3 ?? ''}
+          onChange={(e) => patchModel({ leasing: { ...model.leasing, ratePctFromYear3: numOrNull(e.target.value) } })}
         />
         <Input
           label="Комиссия за оформление, %"
@@ -732,7 +772,7 @@ function LeasingCard({
           Зачитывать платежи как расходы ИП
         </label>
         <span className="text-sm text-ink-muted">
-          Платёж{hasPrepayments ? ' (исходный)' : ''}:{' '}
+          Первый платёж:{' '}
           {payment == null ? (
             <span className="font-semibold text-ink">— заполните сумму и срок</span>
           ) : (
@@ -762,7 +802,7 @@ function LeasingCard({
       )}
       {result.leasingBalloonAmount != null && (
         <p className="text-sm font-medium text-warning">
-          Срок договора короче срока амортизации — в месяце {(model.leasing.startMonth || 1) + (model.leasing.termMonths ?? 0) - 1}{' '}
+          Срок договора короче срока погашения — в месяце {(model.leasing.startMonth || 1) + (model.leasing.termMonths ?? 0) - 1}{' '}
           нужно будет погасить остаток одной суммой: ≈ <Byn value={result.leasingBalloonAmount * (isByn ? 1 : (model.leasing.exchangeRate ?? 0))} />.
         </p>
       )}
@@ -770,48 +810,23 @@ function LeasingCard({
   );
 }
 
-function AmortizationCard({ model, patchModel }: { model: FinModel; patchModel: (patch: Partial<FinModel>) => void }) {
-  const amortization = model.amortization;
-  function patchAmortization(patch: Partial<FinAmortization>) {
-    patchModel({ amortization: { ...amortization, ...patch } });
-  }
-  const endMonth =
-    amortization.termMonths != null ? amortization.startMonth + amortization.termMonths - 1 : null;
-
+// Была редактируемой карточкой (сумма/месяц начала/срок) — временно
+// закомментирована и заменена на заглушку-подсказку: сам механизм
+// налоговой амортизации ИП под вопросом до уточнения с Татьяной Гаврис,
+// а видеть реальные платежи по кредиту/лизингу нужно уже сейчас, без
+// влияния неподтверждённой цифры на налоговый расчёт (см. calculateFinModel
+// в finModelCalc.ts, где вклад амортизации принудительно зануляется).
+// Ранее введённые model.amortization не удалены, просто не показываются
+// и не редактируются — вернуть карточку можно из истории git.
+function AmortizationOnHoldCard() {
   return (
-    <Card className="flex flex-col gap-4 p-5">
-      <div className="text-lg font-bold text-ink">Амортизация</div>
-      <p className="text-xs text-ink-faint">
-        Неденежный расход — уменьшает налоговую базу (режим "от прибыли"), но не списывается с кассы: не входит в
-        расходы и чистый денежный поток, только в налоговый вычет.
+    <Card className="flex flex-col gap-2 p-5">
+      <div className="text-lg font-bold text-ink-faint">Амортизация — на паузе</div>
+      <p className="text-sm text-ink-muted">
+        Временно не учитывается в расчёте — механизм (что именно и как амортизировать ИП) требует уточнения у
+        Татьяны Гаврис (налоговый консультант). Ранее введённые данные не потеряны, просто не влияют на цифры, пока
+        не проверим механизм.
       </p>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Input
-          label="Сумма в месяц, Br"
-          type="number"
-          value={amortization.monthlyAmount ?? ''}
-          onChange={(e) => patchAmortization({ monthlyAmount: numOrNull(e.target.value) })}
-        />
-        <Input
-          label="Месяц начала"
-          type="number"
-          value={amortization.startMonth || ''}
-          onChange={(e) => patchAmortization({ startMonth: Number(e.target.value) || 1 })}
-        />
-        <Input
-          label="Срок, мес."
-          type="number"
-          placeholder="до конца горизонта"
-          value={amortization.termMonths ?? ''}
-          onChange={(e) => patchAmortization({ termMonths: numOrNull(e.target.value) })}
-        />
-      </div>
-      {(amortization.monthlyAmount ?? 0) > 0 && (
-        <span className="text-sm text-ink-muted">
-          {formatNum(amortization.monthlyAmount ?? 0)} Br/мес, с месяца {amortization.startMonth}
-          {endMonth != null ? ` по месяц ${endMonth}` : ' до конца горизонта'}
-        </span>
-      )}
     </Card>
   );
 }

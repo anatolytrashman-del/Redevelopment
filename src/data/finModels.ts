@@ -68,14 +68,31 @@ export const LEASING_CURRENCY_SYMBOLS: Record<LeasingCurrency, string> = {
 export interface FinLeasing {
   contractSum: number | null;
   downPayment: number | null;
-  // Срок, на который считается размер платежа (аннуитет от него).
+  // Срок, на который считается размер платежа (аннуитет от него) — он же
+  // "срок погашения" в интерфейсе (сознательно не "срок амортизации" —
+  // с тем же словом у ИП есть отдельное налоговое понятие, см.
+  // FinAmortization ниже, и путаница этих двух смыслов уже была реальной
+  // причиной непонятных цифр).
   amortizationMonths: number | null;
   // Срок самого договора — когда реально нужно всё погасить/рефинансировать.
   // null — совпадает со сроком амортизации (обычный лизинг без баллона).
   // Если меньше amortizationMonths — баллонный платёж: остаток долга на
   // этот момент гасится одной суммой (см. buildLeasingCashFlow).
   termMonths: number | null;
-  annualRatePct: number | null;
+  // Комбинированная ставка по годам кредита/лизинга (считая от startMonth,
+  // не от календарного года) — так часто реально предлагают банки: ниже в
+  // первый год, потом дороже. year2/fromYear3 не заполнены — берётся ставка
+  // предыдущего яруса (см. rateForLoanMonth в finModelCalc.ts), то есть один
+  // заполненный ratePctYear1 равносилен старой единой ставке на весь срок.
+  ratePctYear1: number | null;
+  ratePctYear2: number | null;
+  ratePctFromYear3: number | null;
+  // Срок в начале графика, когда платится только процент, тело долга не
+  // гасится (частое условие у банков на период стройки/выхода на доход).
+  // Считается ВНУТРИ amortizationMonths, не сверх него — после этого срока
+  // остаток гасится аннуитетом на оставшуюся часть срока погашения, платёж
+  // соответственно становится больше, чем был бы без льготного периода.
+  interestOnlyMonths: number | null;
   currency: LeasingCurrency;
   exchangeRate: number | null;
   // Месяц первого регулярного платежа (аванс всегда в месяце 1).
@@ -126,6 +143,14 @@ export interface FinRent {
 // месяц уменьшает налоговую базу (как "расход ИП" в режиме "от прибыли"),
 // но НЕ списывается с расчётного счёта — в отличие от остальных расходов,
 // не входит в кассовый поток вообще, только в налоговый вычет.
+//
+// 2026-08-21: сам механизм (что именно и как амортизировать ИП) под
+// вопросом до уточнения с Татьяной Гаврис (налоговый консультант) — карточка
+// временно не в интерфейсе (см. FinModelDetail.tsx), а вклад в расчёт
+// принудительно занулён (см. calculateFinModel в finModelCalc.ts), чтобы
+// неподтверждённая цифра не искажала видимые сейчас платежи по кредиту/
+// лизингу. Ранее введённые значения не удалены — просто временно не
+// учитываются, восстановить эффект — вернуть код на месте.
 export interface FinAmortization {
   monthlyAmount: number | null;
   startMonth: number;
@@ -232,7 +257,10 @@ export function defaultFinLeasing(): FinLeasing {
     downPayment: null,
     amortizationMonths: 60,
     termMonths: null,
-    annualRatePct: null,
+    ratePctYear1: null,
+    ratePctYear2: null,
+    ratePctFromYear3: null,
+    interestOnlyMonths: null,
     currency: 'USD',
     exchangeRate: null,
     startMonth: 1,
