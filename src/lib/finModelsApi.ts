@@ -23,15 +23,17 @@ import {
 // добавления новых полей в params/leasing/rent/amortization/sales/capex
 // (тот же приём, что fromRow в estimatesApi.ts).
 function fromRow(row: FinModelRow): FinModel {
-  // До разделения "срока амортизации" и "срока договора" termMonths был
-  // и тем, и другим сразу — у старых сохранённых моделей переносим его
-  // значение в amortizationMonths, а termMonths (баллон) оставляем пустым,
-  // чтобы поведение расчёта не изменилось молча.
-  const rawLeasing: Partial<FinLeasing> & { annualRatePct?: number | null } = row.leasing ?? {};
+  // Баллонный платёж (termMonths — отдельный от amortizationMonths срок
+  // договора) убран из интерфейса и расчёта по просьбе владельца — только
+  // стандартный срок погашения. У очень старых сохранённых моделей срок
+  // договора мог быть заполнен вместо срока погашения (до их разделения) —
+  // переносим в amortizationMonths, если он сам не заполнен; поле
+  // termMonths больше не существует в FinLeasing, просто не читается дальше.
+  const rawLeasing: Partial<FinLeasing> & { annualRatePct?: number | null; termMonths?: number | null } =
+    row.leasing ?? {};
   const leasing = { ...defaultFinLeasing(), ...rawLeasing };
   if (rawLeasing.amortizationMonths == null && rawLeasing.termMonths != null) {
     leasing.amortizationMonths = rawLeasing.termMonths;
-    leasing.termMonths = null;
   }
   // До комбинированной ставки по годам была одна annualRatePct на весь
   // срок — у старых сохранённых моделей переносим её в ratePctYear1 (ярусы

@@ -74,11 +74,6 @@ export interface FinLeasing {
   // FinAmortization ниже, и путаница этих двух смыслов уже была реальной
   // причиной непонятных цифр).
   amortizationMonths: number | null;
-  // Срок самого договора — когда реально нужно всё погасить/рефинансировать.
-  // null — совпадает со сроком амортизации (обычный лизинг без баллона).
-  // Если меньше amortizationMonths — баллонный платёж: остаток долга на
-  // этот момент гасится одной суммой (см. buildLeasingCashFlow).
-  termMonths: number | null;
   // Комбинированная ставка по годам кредита/лизинга (считая от startMonth,
   // не от календарного года) — так часто реально предлагают банки: ниже в
   // первый год, потом дороже. year2/fromYear3 не заполнены — берётся ставка
@@ -256,7 +251,6 @@ export function defaultFinLeasing(): FinLeasing {
     contractSum: null,
     downPayment: null,
     amortizationMonths: 60,
-    termMonths: null,
     ratePctYear1: null,
     ratePctYear2: null,
     ratePctFromYear3: null,

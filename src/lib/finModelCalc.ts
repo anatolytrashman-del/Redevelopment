@@ -84,9 +84,6 @@ export interface FinResult {
   // Валютный лизинг без заполненного курса — платежи не попали в расчёт,
   // UI обязан показать это явно.
   leasingRateMissing: boolean;
-  // Непогашенный остаток долга, который потребовалось погасить одной суммой
-  // в конце срока договора (баллон) — null, если баллона нет.
-  leasingBalloonAmount: number | null;
   // Разбивка дохода/расхода по категориям — для P&L-страницы (отдельные
   // строки по названиям категорий, а не общей суммой).
   categoryBreakdown: FinCategoryBreakdown[];
@@ -280,25 +277,21 @@ export function saleNetByn(s: FinSale): number {
 export interface LeasingCashFlowResult {
   // BYN по месяцам модели (индекс 0 = месяц 1).
   cashFlow: number[];
-  // Непогашенный остаток, который потребовалось погасить одной суммой в
-  // конце срока договора (баллон) — null, если баллона нет (срок договора
-  // не короче срока амортизации, или лизинг не задан).
-  balloonAmount: number | null;
 }
 
-// Кассовый поток по лизингу (аванс + комиссия за оформление + платежи +
-// баллонный платёж), в BYN. Платёж считается на срок ПОГАШЕНИЯ, но реально
-// платится только до срока ДОГОВОРА (termMonths) — если он короче, остаток
-// долга на этот момент гасится одной суммой (баллон), лизинг закрыт.
-// Ставка может отличаться по годам срока (см. rateForLoanMonth) — платёж
-// пересчитывается на каждый месяц от текущего остатка/оставшегося срока,
-// поэтому смена ставки на границе года подхватывается сама собой (при
-// постоянной ставке пересчёт — no-op, тождество аннуитета). Первые
-// interestOnlyMonths месяцев (если заданы) — платится только процент, тело
-// долга не уменьшается; после них аннуитет пересчитывается на оставшийся
-// срок погашения, платёж соответственно становится больше. Продажа с
-// applyToLeasing уменьшает остаток долга в месяце сделки, платёж на
-// оставшийся срок пересчитывается заново — срок погашения не меняется.
+// Кассовый поток по лизингу (аванс + комиссия за оформление + платежи), в
+// BYN — платится ровно на срок погашения, без баллонных схем (владелец
+// сознательно отказался от отдельного, более короткого срока договора —
+// путал и не соответствовал ни одному реальному предложению). Ставка может
+// отличаться по годам срока (см. rateForLoanMonth) — платёж пересчитывается
+// на каждый месяц от текущего остатка/оставшегося срока, поэтому смена
+// ставки на границе года подхватывается сама собой (при постоянной ставке
+// пересчёт — no-op, тождество аннуитета). Первые interestOnlyMonths месяцев
+// (если заданы) — платится только процент, тело долга не уменьшается; после
+// них аннуитет пересчитывается на оставшийся срок погашения, платёж
+// соответственно становится больше. Продажа с applyToLeasing уменьшает
+// остаток долга в месяце сделки, платёж на оставшийся срок пересчитывается
+// заново — срок погашения не меняется.
 export function buildLeasingCashFlow(
   leasing: FinLeasing,
   sales: FinSale[],
@@ -308,8 +301,6 @@ export function buildLeasingCashFlow(
   const cashFlow = new Array(horizon).fill(0);
   const rate = leasingByn(leasing);
   const amortMonths = leasing.amortizationMonths ?? 0;
-  const payoffMonths = leasing.termMonths ?? amortMonths;
-  const hasBalloon = leasing.termMonths != null && leasing.termMonths > 0 && leasing.termMonths < amortMonths;
   const leasingStart = Math.max(1, leasing.startMonth || 1);
   const financed = Math.max(0, (leasing.contractSum ?? 0) - (leasing.downPayment ?? 0));
   const interestOnlyMonths = Math.max(0, leasing.interestOnlyMonths ?? 0);
@@ -320,8 +311,8 @@ export function buildLeasingCashFlow(
       cashFlow[0] += (leasing.contractSum ?? 0) * (leasing.originationFeePct / 100) * rate;
     }
   }
-  if (financed <= 0 || amortMonths <= 0 || payoffMonths <= 0 || rate <= 0) {
-    return { cashFlow, balloonAmount: null };
+  if (financed <= 0 || amortMonths <= 0 || rate <= 0) {
+    return { cashFlow };
   }
 
   const prepayments = sales
@@ -330,12 +321,10 @@ export function buildLeasingCashFlow(
     .filter((p): p is { amountByn: number; monthIndex: number } => p.amountByn > 0 && p.monthIndex != null);
 
   let balance = financed;
-  let balloonAmount: number | null = null;
-  let closed = false;
 
   for (let i = 1; i <= horizon; i++) {
     const monthsSinceStart = i - leasingStart;
-    if (!closed && monthsSinceStart >= 0 && monthsSinceStart < payoffMonths) {
+    if (monthsSinceStart >= 0 && monthsSinceStart < amortMonths && balance > 0) {
       const rMonthly = rateForLoanMonth(leasing, monthsSinceStart) / 100 / 12;
       const interest = balance * rMonthly;
       let payment: number;
@@ -352,28 +341,15 @@ export function buildLeasingCashFlow(
       if (payment > 0) cashFlow[i - 1] += payment * rate;
     }
 
-    if (!closed) {
-      for (const p of prepayments) {
-        if (p.monthIndex !== i || balance <= 0) continue;
-        const applied = Math.min(balance, p.amountByn / rate);
-        balance -= applied;
-        cashFlow[i - 1] += applied * rate;
-      }
-    }
-
-    // Последний месяц срока договора при баллоне — остаток гасится одной
-    // суммой, лизинг закрыт (дальше ни платежей, ни погашений).
-    if (!closed && hasBalloon && monthsSinceStart === payoffMonths - 1) {
-      if (balance > 0) {
-        balloonAmount = balance;
-        cashFlow[i - 1] += balance * rate;
-        balance = 0;
-      }
-      closed = true;
+    for (const p of prepayments) {
+      if (p.monthIndex !== i || balance <= 0) continue;
+      const applied = Math.min(balance, p.amountByn / rate);
+      balance -= applied;
+      cashFlow[i - 1] += applied * rate;
     }
   }
 
-  return { cashFlow, balloonAmount };
+  return { cashFlow };
 }
 
 export function calculateFinModel(model: FinModel): FinResult {
@@ -385,12 +361,7 @@ export function calculateFinModel(model: FinModel): FinResult {
   const payment = leasingMonthlyPayment(leasing);
   const rate = leasingByn(leasing);
   const leasingRateMissing = payment != null && rate === 0;
-  const { cashFlow: leaseCashFlow, balloonAmount: leasingBalloonAmount } = buildLeasingCashFlow(
-    leasing,
-    sales,
-    start,
-    horizon,
-  );
+  const { cashFlow: leaseCashFlow } = buildLeasingCashFlow(leasing, sales, start, horizon);
   const inflationPct = params.expenseInflationPct ?? 0;
 
   const incomeEntries = categories.filter((c) => c.kind === 'income').flatMap((c) => c.entries);
@@ -570,7 +541,6 @@ export function calculateFinModel(model: FinModel): FinResult {
     maxDrawdown,
     monthlyLeasingPayment: payment,
     leasingRateMissing,
-    leasingBalloonAmount,
     categoryBreakdown,
   };
 }

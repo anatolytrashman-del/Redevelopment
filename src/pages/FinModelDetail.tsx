@@ -693,15 +693,6 @@ function LeasingCard({
           }
         />
         <Input
-          label="Срок договора (баллон), лет"
-          type="number"
-          step="0.5"
-          placeholder="как срок погашения"
-          title="Когда реально нужно всё погасить/рефинансировать — если меньше срока погашения, остаток долга на этот момент гасится одной суммой"
-          value={monthsToYearsStr(model.leasing.termMonths)}
-          onChange={(e) => patchModel({ leasing: { ...model.leasing, termMonths: yearsStrToMonths(e.target.value) } })}
-        />
-        <Input
           label="Только проценты, лет"
           type="number"
           step="0.5"
@@ -798,12 +789,6 @@ function LeasingCard({
         <p className="text-xs text-ink-faint">
           Есть продажи "на погашение лизинга" — после каждой из них платёж на оставшийся срок пересчитывается и
           уменьшается (срок не меняется). Актуальные суммы по месяцам — в таблице ниже, колонка "в т.ч. лизинг".
-        </p>
-      )}
-      {result.leasingBalloonAmount != null && (
-        <p className="text-sm font-medium text-warning">
-          Срок договора короче срока погашения — в месяце {(model.leasing.startMonth || 1) + (model.leasing.termMonths ?? 0) - 1}{' '}
-          нужно будет погасить остаток одной суммой: ≈ <Byn value={result.leasingBalloonAmount * (isByn ? 1 : (model.leasing.exchangeRate ?? 0))} />.
         </p>
       )}
     </Card>
