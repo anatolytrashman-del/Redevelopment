@@ -1,5 +1,7 @@
-export const taskAssignees = ['Трэшмен', 'Степа', 'Татьяна Давыдчик', 'Светлана'] as const;
-export type TaskAssignee = (typeof taskAssignees)[number];
+// Список ответственных больше не хардкод — берётся из таблицы people
+// (см. data/people.ts, lib/peopleApi.ts), у кого выставлен флаг
+// is_task_assignee. Тип поэтому обычный string, а не литеральный union.
+export type TaskAssignee = string;
 
 export interface Task {
   id: string;

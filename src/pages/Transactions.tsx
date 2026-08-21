@@ -17,18 +17,15 @@ import {
   incomeCategories,
   subcategoriesByCategory,
   categoryColor,
-  payers,
-  incomePayers,
-  splitPayers,
-  soloPayers,
   sources,
   type Transaction,
   type Currency,
   type Category,
-  type SplitPayer,
 } from '../data/transactions';
+import type { Person } from '../data/people';
 import { fetchTransactions, insertTransaction, updateTransaction } from '../lib/transactionsApi';
 import { fetchTodayRate } from '../lib/exchangeRatesApi';
+import { fetchPeople } from '../lib/peopleApi';
 
 // Ошибки Supabase (PostgrestError) — обычные объекты с полем message,
 // а не экземпляры Error, поэтому `instanceof Error` их не ловит.
@@ -65,26 +62,29 @@ const emptyForm = {
   purpose: '',
   category: 'Маркетинг' as Category,
   subcategory: '',
-  paidBy: payers[0] as string,
+  paidBy: '',
   paidFrom: '',
   compensated: 'Нет',
 };
 
 // Баланс считается только по невзаимозачтённым тратам ("В расчете" = Нет),
-// отдельно по каждой валюте, поровну между двумя партнёрами из payers.
+// отдельно по каждой валюте, поровну между двумя партнёрами из splitPayers.
 // Знак суммы на направление долга не влияет — минус тоже означает
-// "потратил столько-то", просто так завели транзакцию.
-function calculateBalances(transactions: Transaction[]) {
-  const byCurrency = new Map<Currency, Map<SplitPayer, number>>();
+// "потратил столько-то", просто так завели транзакцию. splitPayers
+// приходит параметром (строится в компоненте из fetchPeople(), см. Transactions
+// ниже) — ожидается ровно 2 человека, как и раньше при захардкоженном списке.
+function calculateBalances(transactions: Transaction[], splitPayers: string[]) {
+  const byCurrency = new Map<Currency, Map<string, number>>();
   for (const t of transactions) {
     if (t.compensated) continue;
-    if (!splitPayers.includes(t.paidBy as SplitPayer)) continue;
+    if (!splitPayers.includes(t.paidBy)) continue;
     if (!byCurrency.has(t.currency)) byCurrency.set(t.currency, new Map());
     const totals = byCurrency.get(t.currency)!;
-    totals.set(t.paidBy as SplitPayer, (totals.get(t.paidBy as SplitPayer) ?? 0) + Math.abs(t.amount));
+    totals.set(t.paidBy, (totals.get(t.paidBy) ?? 0) + Math.abs(t.amount));
   }
 
   const [p1, p2] = splitPayers;
+  if (!p1 || !p2) return [];
   return [...byCurrency.entries()].map(([currency, totals]) => {
     const t1 = totals.get(p1) ?? 0;
     const t2 = totals.get(p2) ?? 0;
@@ -92,7 +92,7 @@ function calculateBalances(transactions: Transaction[]) {
     const owed = Math.round((Math.abs(diff) / 2) * 100) / 100;
     return {
       currency,
-      totals: { [p1]: t1, [p2]: t2 } as Record<SplitPayer, number>,
+      totals: { [p1]: t1, [p2]: t2 } as Record<string, number>,
       debtor: diff > 0 ? p2 : p1,
       creditor: diff > 0 ? p1 : p2,
       owed,
@@ -104,9 +104,9 @@ function calculateBalances(transactions: Transaction[]) {
 // Влад Ждонец) — в отличие от calculateBalances здесь ничего не делится
 // пополам, вся сумма просто числится долгом перед ними. Только расходы
 // (amount < 0): у Влада Ждонца отдельно бывают ещё и доходные операции
-// (см. incomePayers) — те тут ни при чём, это разные, не связанные долги.
-function calculateSoloDebts(transactions: Transaction[]) {
-  const result: { payer: (typeof soloPayers)[number]; currency: Currency; amount: number }[] = [];
+// (isIncomePayer) — те тут ни при чём, это разные, не связанные долги.
+function calculateSoloDebts(transactions: Transaction[], soloPayers: string[]) {
+  const result: { payer: string; currency: Currency; amount: number }[] = [];
   for (const payer of soloPayers) {
     const byCurrency = new Map<Currency, number>();
     for (const t of transactions) {
@@ -173,6 +173,14 @@ export function Transactions() {
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [toggleError, setToggleError] = useState<string | null>(null);
 
+  // Кто платит/получает деньги — из общей таблицы people (data/people.ts),
+  // не из захардкоженных списков (см. комментарий у Payer в data/transactions.ts).
+  const [people, setPeople] = useState<Person[]>([]);
+  const splitPayers = useMemo(() => people.filter((p) => p.isSplitPayer).map((p) => p.name), [people]);
+  const soloPayers = useMemo(() => people.filter((p) => p.isSoloPayer).map((p) => p.name), [people]);
+  const incomePayers = useMemo(() => people.filter((p) => p.isIncomePayer).map((p) => p.name), [people]);
+  const payers = useMemo(() => [...splitPayers, ...soloPayers], [splitPayers, soloPayers]);
+
   // Списки категорий и источников открытые: стартовый набор + всё, что уже
   // встречалось в загруженных транзакциях (в т.ч. добавленное через форму ранее).
   // Категории расхода и дохода — разные наборы (знак amount определяет,
@@ -200,18 +208,18 @@ export function Transactions() {
   }, [transactions]);
 
   // "Кто платил" — тоже открытый список, тем же принципом, что категории/
-  // источники выше: стартовый набор (payers/incomePayers) + все значения,
-  // уже встречавшиеся в транзакциях. Человек, добавленный так через форму
-  // (а не через soloPayers/splitPayers в data/transactions.ts), не попадает
-  // в раздел "Непогашенный остаток" — calculateBalances/calculateSoloDebts
-  // завязаны на конкретные фиксированные списки, а не на все значения paidBy.
+  // источники выше: стартовый набор (payers/incomePayers из people) + все
+  // значения, уже встречавшиеся в транзакциях. Человек, добавленный так
+  // через форму (а не через флаги в таблице people), не попадает в раздел
+  // "Непогашенный остаток" — calculateBalances/calculateSoloDebts завязаны
+  // на people-списки, а не на все значения paidBy.
   const knownPayers = useMemo(() => {
     const set = new Set<string>(payers);
     transactions.forEach((t) => {
       if (t.amount < 0) set.add(t.paidBy);
     });
     return [...set];
-  }, [transactions]);
+  }, [transactions, payers]);
 
   const knownIncomePayers = useMemo(() => {
     const set = new Set<string>(incomePayers);
@@ -219,7 +227,7 @@ export function Transactions() {
       if (t.amount > 0) set.add(t.paidBy);
     });
     return [...set];
-  }, [transactions]);
+  }, [transactions, incomePayers]);
 
   // Подкатегории — свои для каждой категории (не общий список): стартовый
   // набор из subcategoriesByCategory для выбранной категории + всё, что уже
@@ -237,6 +245,9 @@ export function Transactions() {
       .then(setTransactions)
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить транзакции')))
       .finally(() => setLoading(false));
+    fetchPeople()
+      .then(setPeople)
+      .catch(() => setPeople([]));
   }, []);
 
   const canSubmit = form.date && form.amount && form.purpose && form.category && form.paidBy && form.paidFrom;
@@ -471,10 +482,11 @@ export function Transactions() {
 
       {!loading &&
         !loadError &&
-        (calculateBalances(transactions).length > 0 || calculateSoloDebts(transactions).length > 0) && (
+        (calculateBalances(transactions, splitPayers).length > 0 ||
+          calculateSoloDebts(transactions, soloPayers).length > 0) && (
           <Card className="flex flex-col gap-3">
             <span className="text-lg font-bold text-ink">Непогашенный остаток</span>
-            {calculateBalances(transactions).map(({ currency, totals, debtor, creditor, owed }) => (
+            {calculateBalances(transactions, splitPayers).map(({ currency, totals, debtor, creditor, owed }) => (
               <div
                 key={currency}
                 className="flex flex-wrap items-center justify-between gap-3 rounded-control bg-surface-muted px-4 py-3"
@@ -495,7 +507,7 @@ export function Transactions() {
                 )}
               </div>
             ))}
-            {calculateSoloDebts(transactions).map(({ payer, currency, amount }) => (
+            {calculateSoloDebts(transactions, soloPayers).map(({ payer, currency, amount }) => (
               <div
                 key={`${payer}-${currency}`}
                 className="flex flex-wrap items-center justify-between gap-3 rounded-control bg-surface-muted px-4 py-3"
@@ -521,7 +533,7 @@ export function Transactions() {
               setForm((f) => ({
                 ...f,
                 kind: v as OperationKind,
-                paidBy: v === 'Доход' ? incomePayers[0] : payers[0],
+                paidBy: v === 'Доход' ? (incomePayers[0] ?? '') : (payers[0] ?? ''),
                 category: v === 'Доход' ? incomeCategories[0] : categories[0],
                 subcategory: '',
               }))

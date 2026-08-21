@@ -7,10 +7,12 @@ import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Modal } from '../components/ui/Modal';
-import { taskAssignees, type Task, type TaskAssignee } from '../data/tasks';
+import type { Task, TaskAssignee } from '../data/tasks';
+import type { Person } from '../data/people';
 import { badgeColor } from '../lib/badgeColor';
 import { cn } from '../lib/cn';
 import { fetchTasks, insertTask, updateTask, deleteTask } from '../lib/tasksApi';
+import { fetchPeople } from '../lib/peopleApi';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -238,6 +240,12 @@ export function Tasks() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Список кандидатов в "Ответственные" — из таблицы people (is_task_assignee),
+  // не из захардкоженного массива (см. data/tasks.ts). Если задача уже
+  // назначена на кого-то, кого убрали из people, его имя всё равно останется
+  // видно в самой задаче (просто исчезнет из списка выбора в форме).
+  const [taskAssignees, setTaskAssignees] = useState<TaskAssignee[]>([]);
+
   const [open, setOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -257,6 +265,9 @@ export function Tasks() {
       .then(setTasks)
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить задачи')))
       .finally(() => setLoading(false));
+    fetchPeople()
+      .then((people: Person[]) => setTaskAssignees(people.filter((p) => p.isTaskAssignee).map((p) => p.name)))
+      .catch(() => setTaskAssignees([]));
   }, []);
 
   const activeTasks = useMemo(() => tasks.filter((t) => !t.isDone), [tasks]);
