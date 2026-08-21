@@ -1,4 +1,4 @@
-import { ACCESS_PROFILES, OWNER_PROFILE_ID, type AccessProfile } from '../data/accessProfiles';
+import type { AccessProfile } from '../data/accessProfiles';
 import type { PageKey } from '../data/pages';
 
 const PROFILE_STORAGE_KEY = 'redevelopment-access-profile-id';
@@ -7,8 +7,20 @@ const PROFILE_STORAGE_KEY = 'redevelopment-access-profile-id';
 // уже был залогинен, разлогинились бы при обновлении платформы.
 const LEGACY_UNLOCKED_KEY = 'redevelopment-unlocked';
 
+// Профили теперь живут в Supabase (access_profiles), а не в статическом
+// массиве — но Sidebar/RequirePage/AdminIndex читают текущий профиль
+// синхронно на каждый рендер, без своего useEffect/loading. Поэтому
+// PasswordGate загружает список один раз при монтировании (до того, как
+// отрисуются любые дети) и кладёт сюда — дальше весь модуль работает как
+// раньше, просто источник данных не хардкод, а кэш из этой переменной.
+let cachedProfiles: AccessProfile[] = [];
+
+export function setAccessProfilesCache(profiles: AccessProfile[]): void {
+  cachedProfiles = profiles;
+}
+
 export function findProfileByPassword(password: string): AccessProfile | null {
-  return ACCESS_PROFILES.find((p) => p.password === password) ?? null;
+  return cachedProfiles.find((p) => p.password === password) ?? null;
 }
 
 export function hasStoredAccess(): boolean {
@@ -25,11 +37,16 @@ export function lockAccess(): void {
   localStorage.removeItem(LEGACY_UNLOCKED_KEY);
 }
 
+// Фолбэк, если id из localStorage не находится среди загруженных профилей
+// (профиль удалили, либо старая legacy-сессия без profile-id вовсе) —
+// раньше был фиксированный OWNER_PROFILE_ID='owner', теперь id из базы
+// (uuid), поэтому берём первый профиль с полным доступом, а если такого
+// вовсе нет — первый по списку.
 export function getCurrentProfile(): AccessProfile {
   const id = localStorage.getItem(PROFILE_STORAGE_KEY);
-  const found = ACCESS_PROFILES.find((p) => p.id === id);
+  const found = cachedProfiles.find((p) => p.id === id);
   if (found) return found;
-  return ACCESS_PROFILES.find((p) => p.id === OWNER_PROFILE_ID)!;
+  return cachedProfiles.find((p) => p.pages === 'all') ?? cachedProfiles[0];
 }
 
 export function isPageAllowed(profile: AccessProfile, page: PageKey): boolean {

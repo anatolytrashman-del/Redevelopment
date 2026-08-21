@@ -1,11 +1,12 @@
 import type { PageKey } from './pages';
 
 // Профили доступа — вместо одного общего пароля админки (см.
-// PasswordGate.tsx) теперь несколько: у каждого свой пароль и свой список
+// PasswordGate.tsx) несколько: у каждого свой пароль и свой список
 // открытых страниц. Пароли — не полноценная авторизация (см. предупреждение
 // в PasswordGate.tsx), тот же уровень защиты, что и раньше, просто на
-// несколько "дверей" вместо одной. Новый гостевой доступ — это правка
-// массива ниже + деплой, в интерфейсе не настраивается.
+// несколько "дверей" вместо одной. Живут в таблице access_profiles
+// (см. lib/accessProfilesApi.ts) — редактируются прямо из /admin/settings,
+// без правки кода и деплоя.
 export interface AccessProfile {
   id: string;
   password: string;
@@ -17,10 +18,11 @@ export interface AccessProfile {
   pages: 'all' | PageKey[];
 }
 
-export const OWNER_PROFILE_ID = 'owner';
-
-export const ACCESS_PROFILES: AccessProfile[] = [
-  { id: OWNER_PROFILE_ID, password: '3520841', displayName: 'Трэшмен', pages: 'all' },
-  { id: 'tatiana', password: '1111', displayName: 'Татьяна Гаврис', pages: ['objects', 'meetingSummaries', 'finModels', 'tz'] },
-  { id: 'stepan', password: '9866382', displayName: 'Степан', pages: 'all' },
-];
+// Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/accessProfilesApi.ts
+export interface AccessProfileRow {
+  id: string;
+  password: string;
+  display_name: string;
+  pages: 'all' | PageKey[];
+  created_at: string;
+}
