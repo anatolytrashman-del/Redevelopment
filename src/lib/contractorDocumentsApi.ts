@@ -1,13 +1,12 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import type { ContractorDocument, ContractorDocumentRow } from '../data/contractorDocuments';
+import type { ContractorDocument, ContractorDocumentRow, DocumentFile } from '../data/contractorDocuments';
 
 function fromRow(row: ContractorDocumentRow): ContractorDocument {
   return {
     id: row.id,
     contractorId: row.contractor_id,
-    fileUrl: row.file_url,
-    fileName: row.file_name,
+    files: row.files,
     uploadedAt: row.uploaded_at,
   };
 }
@@ -23,15 +22,11 @@ export function fetchContractorDocuments(): Promise<ContractorDocument[]> {
   });
 }
 
-export function insertContractorDocument(input: {
-  contractorId: string;
-  fileUrl: string;
-  fileName: string;
-}): Promise<ContractorDocument> {
+export function insertContractorDocument(input: { contractorId: string; files: DocumentFile[] }): Promise<ContractorDocument> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('contractor_documents')
-      .insert({ contractor_id: input.contractorId, file_url: input.fileUrl, file_name: input.fileName })
+      .insert({ contractor_id: input.contractorId, files: input.files })
       .select()
       .single();
     if (error) throw error;

@@ -1,13 +1,13 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
 import type { LegalDocument, LegalDocumentRow } from '../data/legalDocuments';
+import type { DocumentFile } from '../data/contractorDocuments';
 
 function fromRow(row: LegalDocumentRow): LegalDocument {
   return {
     id: row.id,
     title: row.title,
-    fileUrl: row.file_url,
-    fileName: row.file_name,
+    files: row.files,
     uploadedAt: row.uploaded_at,
   };
 }
@@ -20,11 +20,11 @@ export function fetchLegalDocuments(): Promise<LegalDocument[]> {
   });
 }
 
-export function insertLegalDocument(input: { title: string; fileUrl: string; fileName: string }): Promise<LegalDocument> {
+export function insertLegalDocument(input: { title: string; files: DocumentFile[] }): Promise<LegalDocument> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('legal_documents')
-      .insert({ title: input.title, file_url: input.fileUrl, file_name: input.fileName })
+      .insert({ title: input.title, files: input.files })
       .select()
       .single();
     if (error) throw error;

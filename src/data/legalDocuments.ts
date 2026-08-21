@@ -1,11 +1,15 @@
+import type { DocumentFile } from './contractorDocuments';
+
 // Документы от юристов (нормативка, разъяснения и т.п.) — свободная
 // подборка без привязки к лиду/объекту/подрядчику, загружается прямо со
 // страницы "Документы" (см. Documents.tsx).
+//
+// Один документ под общим названием (title) может состоять из нескольких
+// файлов — тот же паттерн, что и у ContractorDocument.files.
 export interface LegalDocument {
   id: string;
   title: string;
-  fileUrl: string;
-  fileName: string;
+  files: DocumentFile[];
   uploadedAt: string;
 }
 
@@ -13,7 +17,6 @@ export interface LegalDocument {
 export interface LegalDocumentRow {
   id: string;
   title: string;
-  file_url: string;
-  file_name: string;
+  files: DocumentFile[];
   uploaded_at: string;
 }

@@ -12,7 +12,7 @@ import {
   Upload,
   FileSignature,
   Building2,
-  HardHat,
+  Handshake,
   Scale,
 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
@@ -53,6 +53,14 @@ function errorMessage(err: unknown, fallback: string): string {
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function pluralFiles(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'файл';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'файла';
+  return 'файлов';
 }
 
 const fieldTypes: TemplateFieldType[] = ['text', 'date', 'gender'];
@@ -108,7 +116,7 @@ export function Documents() {
   const [contractorDocsLoading, setContractorDocsLoading] = useState(true);
   const [contractorDocsError, setContractorDocsError] = useState<string | null>(null);
   const [contractorDocModalOpen, setContractorDocModalOpen] = useState(false);
-  const [contractorDocForm, setContractorDocForm] = useState({ contractorId: '', file: null as File | null });
+  const [contractorDocForm, setContractorDocForm] = useState({ contractorId: '', files: [] as File[] });
   const [contractorDocSubmitting, setContractorDocSubmitting] = useState(false);
   const [contractorDocSubmitError, setContractorDocSubmitError] = useState<string | null>(null);
   const [deletingContractorDocId, setDeletingContractorDocId] = useState<string | null>(null);
@@ -119,7 +127,7 @@ export function Documents() {
   const [legalDocsLoading, setLegalDocsLoading] = useState(true);
   const [legalDocsError, setLegalDocsError] = useState<string | null>(null);
   const [legalDocModalOpen, setLegalDocModalOpen] = useState(false);
-  const [legalDocForm, setLegalDocForm] = useState({ title: '', file: null as File | null });
+  const [legalDocForm, setLegalDocForm] = useState({ title: '', files: [] as File[] });
   const [legalDocSubmitting, setLegalDocSubmitting] = useState(false);
   const [legalDocSubmitError, setLegalDocSubmitError] = useState<string | null>(null);
   const [deletingLegalDocId, setDeletingLegalDocId] = useState<string | null>(null);
@@ -184,22 +192,21 @@ export function Documents() {
   }
 
   function openContractorDocModal() {
-    setContractorDocForm({ contractorId: contractors[0]?.id ?? '', file: null });
+    setContractorDocForm({ contractorId: contractors[0]?.id ?? '', files: [] });
     setContractorDocSubmitError(null);
     setContractorDocModalOpen(true);
   }
 
   async function handleContractorDocSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!contractorDocForm.contractorId || !contractorDocForm.file || contractorDocSubmitting) return;
+    if (!contractorDocForm.contractorId || contractorDocForm.files.length === 0 || contractorDocSubmitting) return;
     setContractorDocSubmitting(true);
     setContractorDocSubmitError(null);
     try {
-      const uploaded = await uploadObjectDocument(contractorDocForm.file);
+      const uploaded = await Promise.all(contractorDocForm.files.map(uploadObjectDocument));
       const created = await insertContractorDocument({
         contractorId: contractorDocForm.contractorId,
-        fileUrl: uploaded.url,
-        fileName: uploaded.fileName,
+        files: uploaded,
       });
       setContractorDocs((prev) => [created, ...prev]);
       setContractorDocModalOpen(false);
@@ -211,7 +218,12 @@ export function Documents() {
   }
 
   async function handleDeleteContractorDoc(doc: ContractorDocument) {
-    if (!window.confirm(`Удалить «${doc.fileName}» из списка?`)) return;
+    if (
+      !window.confirm(
+        `Удалить пакет документов «${contractorName(doc.contractorId)}» (${doc.files.length} ${pluralFiles(doc.files.length)})?`,
+      )
+    )
+      return;
     setDeletingContractorDocId(doc.id);
     setContractorDocsError(null);
     try {
@@ -225,22 +237,21 @@ export function Documents() {
   }
 
   function openLegalDocModal() {
-    setLegalDocForm({ title: '', file: null });
+    setLegalDocForm({ title: '', files: [] });
     setLegalDocSubmitError(null);
     setLegalDocModalOpen(true);
   }
 
   async function handleLegalDocSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!legalDocForm.title.trim() || !legalDocForm.file || legalDocSubmitting) return;
+    if (!legalDocForm.title.trim() || legalDocForm.files.length === 0 || legalDocSubmitting) return;
     setLegalDocSubmitting(true);
     setLegalDocSubmitError(null);
     try {
-      const uploaded = await uploadObjectDocument(legalDocForm.file);
+      const uploaded = await Promise.all(legalDocForm.files.map(uploadObjectDocument));
       const created = await insertLegalDocument({
         title: legalDocForm.title.trim(),
-        fileUrl: uploaded.url,
-        fileName: uploaded.fileName,
+        files: uploaded,
       });
       setLegalDocs((prev) => [created, ...prev]);
       setLegalDocModalOpen(false);
@@ -465,45 +476,52 @@ export function Documents() {
       </div>
       <div className="flex flex-col gap-4">
         {contractorDocs.map((d) => (
-          <Card key={d.id} className="flex items-center gap-4 p-5">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-warning-bg text-warning">
-              <HardHat className="h-5 w-5" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-semibold text-ink">{contractorName(d.contractorId)}</div>
-              <div className="truncate text-sm text-ink-muted">
-                {d.fileName} · {formatDate(d.uploadedAt)}
+          <Card key={d.id} className="flex flex-col gap-3 p-5">
+            <div className="flex items-center gap-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-warning-bg text-warning">
+                <Handshake className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-semibold text-ink">{contractorName(d.contractorId)}</div>
+                <div className="truncate text-sm text-ink-muted">
+                  {d.files.length} {pluralFiles(d.files.length)} · {formatDate(d.uploadedAt)}
+                </div>
               </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {isPreviewable(d.fileName) && (
-                <button
-                  type="button"
-                  onClick={() => setPreviewFile({ url: d.fileUrl, fileName: d.fileName })}
-                  aria-label="Просмотреть"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                >
-                  <Eye className="h-4 w-4" />
-                </button>
-              )}
-              <a
-                href={d.fileUrl}
-                target="_blank"
-                rel="noreferrer"
-                aria-label="Скачать"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-              >
-                <Download className="h-4 w-4" />
-              </a>
               <button
                 type="button"
                 onClick={() => handleDeleteContractorDoc(d)}
                 disabled={deletingContractorDocId === d.id}
-                aria-label="Удалить"
+                aria-label="Удалить пакет"
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-danger hover:text-danger disabled:opacity-50"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
+            </div>
+            <div className="flex flex-col gap-1.5 pl-15">
+              {d.files.map((f, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-control bg-surface-muted px-3 py-2">
+                  <span className="min-w-0 flex-1 truncate text-sm text-ink">{f.fileName}</span>
+                  {isPreviewable(f.fileName) && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewFile(f)}
+                      aria-label="Просмотреть"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-muted hover:text-primary"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                  )}
+                  <a
+                    href={f.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Скачать"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-muted hover:text-primary"
+                  >
+                    <Download className="h-4 w-4" />
+                  </a>
+                </div>
+              ))}
             </div>
           </Card>
         ))}
@@ -532,45 +550,52 @@ export function Documents() {
       </div>
       <div className="flex flex-col gap-4">
         {legalDocs.map((d) => (
-          <Card key={d.id} className="flex items-center gap-4 p-5">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-info-bg text-info-text">
-              <Scale className="h-5 w-5" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-semibold text-ink">{d.title}</div>
-              <div className="truncate text-sm text-ink-muted">
-                {d.fileName} · {formatDate(d.uploadedAt)}
+          <Card key={d.id} className="flex flex-col gap-3 p-5">
+            <div className="flex items-center gap-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-info-bg text-info-text">
+                <Scale className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-semibold text-ink">{d.title}</div>
+                <div className="truncate text-sm text-ink-muted">
+                  {d.files.length} {pluralFiles(d.files.length)} · {formatDate(d.uploadedAt)}
+                </div>
               </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {isPreviewable(d.fileName) && (
-                <button
-                  type="button"
-                  onClick={() => setPreviewFile({ url: d.fileUrl, fileName: d.fileName })}
-                  aria-label="Просмотреть"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                >
-                  <Eye className="h-4 w-4" />
-                </button>
-              )}
-              <a
-                href={d.fileUrl}
-                target="_blank"
-                rel="noreferrer"
-                aria-label="Скачать"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-              >
-                <Download className="h-4 w-4" />
-              </a>
               <button
                 type="button"
                 onClick={() => handleDeleteLegalDoc(d)}
                 disabled={deletingLegalDocId === d.id}
-                aria-label="Удалить"
+                aria-label="Удалить пакет"
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-danger hover:text-danger disabled:opacity-50"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
+            </div>
+            <div className="flex flex-col gap-1.5 pl-15">
+              {d.files.map((f, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-control bg-surface-muted px-3 py-2">
+                  <span className="min-w-0 flex-1 truncate text-sm text-ink">{f.fileName}</span>
+                  {isPreviewable(f.fileName) && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewFile(f)}
+                      aria-label="Просмотреть"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-muted hover:text-primary"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                  )}
+                  <a
+                    href={f.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Скачать"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-muted hover:text-primary"
+                  >
+                    <Download className="h-4 w-4" />
+                  </a>
+                </div>
+              ))}
             </div>
           </Card>
         ))}
@@ -748,14 +773,35 @@ export function Documents() {
             }
           />
           <div className="flex flex-col gap-1.5">
-            <span className="text-sm text-ink-muted">Файл договора</span>
+            <span className="text-sm text-ink-muted">Файлы договора — один договор может быть пакетом из нескольких файлов</span>
+            {contractorDocForm.files.map((file, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-2 rounded-control border border-border px-3 py-2 text-sm text-ink"
+              >
+                <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setContractorDocForm((f) => ({ ...f, files: f.files.filter((_, idx) => idx !== i) }))}
+                  aria-label="Убрать файл"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center text-ink-faint hover:text-danger"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
             <label className="flex w-fit cursor-pointer items-center gap-2 rounded-control border border-dashed border-border px-4 py-2.5 text-sm text-ink-muted hover:border-border-strong">
               <Upload className="h-4 w-4" />
-              {contractorDocForm.file ? contractorDocForm.file.name : 'Выбрать файл'}
+              Добавить файлы
               <input
                 type="file"
+                multiple
                 className="hidden"
-                onChange={(e) => setContractorDocForm((f) => ({ ...f, file: e.target.files?.[0] ?? null }))}
+                onChange={(e) => {
+                  const picked = Array.from(e.target.files ?? []);
+                  e.target.value = '';
+                  if (picked.length) setContractorDocForm((f) => ({ ...f, files: [...f.files, ...picked] }));
+                }}
               />
             </label>
           </div>
@@ -766,7 +812,7 @@ export function Documents() {
             </Button>
             <Button
               type="submit"
-              disabled={!contractorDocForm.contractorId || !contractorDocForm.file || contractorDocSubmitting}
+              disabled={!contractorDocForm.contractorId || contractorDocForm.files.length === 0 || contractorDocSubmitting}
             >
               {contractorDocSubmitting ? 'Загружаем...' : 'Добавить'}
             </Button>
@@ -784,14 +830,35 @@ export function Documents() {
             required
           />
           <div className="flex flex-col gap-1.5">
-            <span className="text-sm text-ink-muted">Файл</span>
+            <span className="text-sm text-ink-muted">Файлы — под одним названием может быть несколько файлов</span>
+            {legalDocForm.files.map((file, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-2 rounded-control border border-border px-3 py-2 text-sm text-ink"
+              >
+                <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setLegalDocForm((f) => ({ ...f, files: f.files.filter((_, idx) => idx !== i) }))}
+                  aria-label="Убрать файл"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center text-ink-faint hover:text-danger"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
             <label className="flex w-fit cursor-pointer items-center gap-2 rounded-control border border-dashed border-border px-4 py-2.5 text-sm text-ink-muted hover:border-border-strong">
               <Upload className="h-4 w-4" />
-              {legalDocForm.file ? legalDocForm.file.name : 'Выбрать файл'}
+              Добавить файлы
               <input
                 type="file"
+                multiple
                 className="hidden"
-                onChange={(e) => setLegalDocForm((f) => ({ ...f, file: e.target.files?.[0] ?? null }))}
+                onChange={(e) => {
+                  const picked = Array.from(e.target.files ?? []);
+                  e.target.value = '';
+                  if (picked.length) setLegalDocForm((f) => ({ ...f, files: [...f.files, ...picked] }));
+                }}
               />
             </label>
           </div>
@@ -800,7 +867,10 @@ export function Documents() {
             <Button type="button" variant="secondary" onClick={() => setLegalDocModalOpen(false)}>
               Отмена
             </Button>
-            <Button type="submit" disabled={!legalDocForm.title.trim() || !legalDocForm.file || legalDocSubmitting}>
+            <Button
+              type="submit"
+              disabled={!legalDocForm.title.trim() || legalDocForm.files.length === 0 || legalDocSubmitting}
+            >
               {legalDocSubmitting ? 'Загружаем...' : 'Добавить'}
             </Button>
           </div>
