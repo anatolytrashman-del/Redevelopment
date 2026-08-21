@@ -98,35 +98,18 @@ function calculateBalances(transactions: Transaction[]) {
   });
 }
 
-// Непогашенные траты плательщиков вне пары (например, Татьяна Давыдчик) —
-// в отличие от calculateBalances здесь ничего не делится пополам, вся сумма
-// просто числится долгом перед ними.
+// Непогашенные траты плательщиков вне пары (например, Татьяна Давыдчик,
+// Влад Ждонец) — в отличие от calculateBalances здесь ничего не делится
+// пополам, вся сумма просто числится долгом перед ними. Только расходы
+// (amount < 0): у Влада Ждонца отдельно бывают ещё и доходные операции
+// (см. incomePayers) — те тут ни при чём, это разные, не связанные долги.
 function calculateSoloDebts(transactions: Transaction[]) {
   const result: { payer: (typeof soloPayers)[number]; currency: Currency; amount: number }[] = [];
   for (const payer of soloPayers) {
     const byCurrency = new Map<Currency, number>();
     for (const t of transactions) {
-      if (t.compensated || t.paidBy !== payer) continue;
+      if (t.compensated || t.paidBy !== payer || t.amount >= 0) continue;
       byCurrency.set(t.currency, (byCurrency.get(t.currency) ?? 0) + Math.abs(t.amount));
-    }
-    for (const [currency, amount] of byCurrency) {
-      if (amount > 0) result.push({ payer, currency, amount });
-    }
-  }
-  return result;
-}
-
-// Непогашенные поступления от плательщиков дохода (например, Влад Ждонец) —
-// зеркально calculateSoloDebts, но в обратную сторону: доход, ещё не
-// отмеченный "В расчете", значит обещанная оплата ещё фактически не
-// получена, то есть плательщик должен эту сумму нам, а не наоборот.
-function calculateIncomeDebts(transactions: Transaction[]) {
-  const result: { payer: string; currency: Currency; amount: number }[] = [];
-  for (const payer of incomePayers) {
-    const byCurrency = new Map<Currency, number>();
-    for (const t of transactions) {
-      if (t.compensated || t.paidBy !== payer || t.amount <= 0) continue;
-      byCurrency.set(t.currency, (byCurrency.get(t.currency) ?? 0) + t.amount);
     }
     for (const [currency, amount] of byCurrency) {
       if (amount > 0) result.push({ payer, currency, amount });
@@ -211,10 +194,10 @@ export function Transactions() {
 
   // "Кто платил" — тоже открытый список, тем же принципом, что категории/
   // источники выше: стартовый набор (payers/incomePayers) + все значения,
-  // уже встречавшиеся в транзакциях. Новый человек, добавленный так, не
-  // попадает ни в splitPayers, ни в soloPayers — его траты просто не
-  // участвуют в разделе "Непогашенный остаток" (calculateBalances/
-  // calculateSoloDebts завязаны на конкретные фиксированные списки).
+  // уже встречавшиеся в транзакциях. Человек, добавленный так через форму
+  // (а не через soloPayers/splitPayers в data/transactions.ts), не попадает
+  // в раздел "Непогашенный остаток" — calculateBalances/calculateSoloDebts
+  // завязаны на конкретные фиксированные списки, а не на все значения paidBy.
   const knownPayers = useMemo(() => {
     const set = new Set<string>(payers);
     transactions.forEach((t) => {
@@ -464,9 +447,7 @@ export function Transactions() {
 
       {!loading &&
         !loadError &&
-        (calculateBalances(transactions).length > 0 ||
-          calculateSoloDebts(transactions).length > 0 ||
-          calculateIncomeDebts(transactions).length > 0) && (
+        (calculateBalances(transactions).length > 0 || calculateSoloDebts(transactions).length > 0) && (
           <Card className="flex flex-col gap-3">
             <span className="text-lg font-bold text-ink">Непогашенный остаток</span>
             {calculateBalances(transactions).map(({ currency, totals, debtor, creditor, owed }) => (
@@ -500,19 +481,6 @@ export function Transactions() {
                 </span>
                 <Badge tone="primary">
                   Должны {payer}: {formatAmount(amount, currency)}
-                </Badge>
-              </div>
-            ))}
-            {calculateIncomeDebts(transactions).map(({ payer, currency, amount }) => (
-              <div
-                key={`income-${payer}-${currency}`}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-control bg-surface-muted px-4 py-3"
-              >
-                <span className="text-sm text-ink-muted">
-                  {payer}: <span className="font-semibold text-ink">{formatAmount(amount, currency)}</span>
-                </span>
-                <Badge tone="warning">
-                  Ожидаем оплату от {payer}: {formatAmount(amount, currency)}
                 </Badge>
               </div>
             ))}

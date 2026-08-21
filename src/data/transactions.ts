@@ -35,14 +35,19 @@ export type SplitPayer = (typeof splitPayers)[number];
 
 // Остальные плательщики — их непогашенные траты не делятся пополам, а
 // целиком считаются долгом перед ними (см. calculateSoloDebts в Transactions.tsx).
-export const soloPayers = ['Татьяна Давыдчик'] as const;
+// Влад Ждонец тоже здесь: он платит за компанию из своих денег, и это нужно
+// вернуть — тот же механизм долга, что и у Татьяны Давыдчик. При этом у него
+// отдельно бывают и доходные операции (см. incomePayers ниже) — это два
+// независимых списка, один человек может встречаться в обоих сразу.
+export const soloPayers = ['Татьяна Давыдчик', 'Влад Ждонец'] as const;
 export type SoloPayer = (typeof soloPayers)[number];
 
 export const payers = [...splitPayers, ...soloPayers] as const;
 
 // Плательщики для операций дохода (кто нам заплатил) — отдельный список,
-// не участвует в делёжке 50/50 (calculateBalances) или долгах вне пары
-// (calculateSoloDebts) в Transactions.tsx, чисто для отметки источника.
+// не участвует в делёжке 50/50 (calculateBalances) в Transactions.tsx, чисто
+// для отметки источника. calculateSoloDebts (расходы) и этот список
+// (доходы) — разные, не связанные друг с другом измерения одного человека.
 export const incomePayers = ['Влад Ждонец', 'Рита'] as const;
 
 // Раньше было объединением payers — теперь просто string, потому что
