@@ -241,9 +241,12 @@ export function MoodboardDetail() {
         }
       />
 
-      <Link to="/admin/design-projects" className="inline-flex w-fit items-center gap-2 text-sm font-medium text-ink hover:text-primary">
+      <Link
+        to={id ? `/admin/design-projects/moodboards/${id}` : '/admin/design-projects'}
+        className="inline-flex w-fit items-center gap-2 text-sm font-medium text-ink hover:text-primary"
+      >
         <ArrowLeft className="h-4 w-4" />
-        Все дизайн-проекты
+        Назад к мудборду
       </Link>
 
       {saveError && <p className="text-sm text-danger">{saveError}</p>}
