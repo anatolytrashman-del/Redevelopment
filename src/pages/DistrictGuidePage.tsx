@@ -1,6 +1,19 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Bus, Building2, GraduationCap, MapPin, Package, ShoppingBag, Sparkles, Store, TrainFront } from 'lucide-react';
+import {
+  Bus,
+  Building2,
+  Car,
+  Landmark,
+  MapPin,
+  Package,
+  ShoppingBag,
+  Sparkles,
+  Stethoscope,
+  Store,
+  TrainFront,
+  Users,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
@@ -9,9 +22,9 @@ import { FaqAccordion } from '../components/ui/FaqAccordion';
 import type { FaqItem } from '../components/ui/FaqAccordion';
 
 const PAGE_URL = 'https://redevelopment.pro/rayon-minsk-mir';
-const TITLE = 'Минск Мир для бизнеса: инфраструктура, транспорт, коммерческая недвижимость';
+const TITLE = 'Офисы и коммерческие помещения в районе Минск Мир';
 const DESCRIPTION =
-  'Что в районе Минск Мир есть для бизнеса: 2 станции метро, автобусные маршруты, инфраструктура, деловой квартал. Обзор для тех, кто ищет офис или коммерческую недвижимость по соседству.';
+  'Коммерческая недвижимость в районе Минск Мир: готовая аудитория, транспорт, банки и МФЦ, медицина, форматы помещений под любой бизнес. Гид для арендаторов и собственников.';
 // Обновлять вручную при каждом квартальном пересмотре текста (см. SEO_PLAN.md, Э3-1).
 const DATE_MODIFIED = '2026-08-22';
 
@@ -32,14 +45,21 @@ const MAP_EMBED_URL =
 const HERO_IMAGE_URL = '';
 
 // Источник фактов: Википедия, статья "Минск Мир" (ru.wikipedia.org,
-// прислана владельцем 2026-08-22) + веб-поиск (Avia Mall, инфраструктура).
-// Официальные координаты района, обе станции метро, реальные номера
-// автобусных/троллейбусных маршрутов — оттуда, не выдуманы.
+// прислана владельцем 2026-08-22) + веб-поиск (Avia Mall, инфраструктура)
+// + Wordstat-выгрузка владельца (спрос на коммерческую инфраструктуру,
+// расклассифицирована и очищена от шума — см. журнал SEO_PLAN.md) +
+// текст согласован с владельцем и написан через Gemini (см. журнал плана,
+// интеграция ProxyAPI) по брифу, собранному на этих данных.
 const DISTRICT_COORDS = '53°52′04″ с.ш. 27°32′37″ в.д.';
 
+// Второй заход на структуру страницы (2026-08-22) — первая версия была
+// нейтральным гидом "про район", вторая переосмыслена под аудиторию
+// предпринимателей/собственников коммерции: не "район для жизни", а
+// "готовая бизнес-среда". Сроки застройки (2015-2027) и историю сознательно
+// убрали — фокус на настоящем, не на прошлом (решение владельца).
 const statTiles: { icon: LucideIcon; value: string; label: string }[] = [
+  { icon: Users, value: '25–45', label: 'лет — ядро жителей района: семьи, IT-специалисты' },
   { icon: TrainFront, value: '2', label: 'станции метро на территории' },
-  { icon: Building2, value: '2015–2027', label: 'годы застройки — район растёт сейчас' },
   { icon: ShoppingBag, value: '138 200 м²', label: 'площадь Avia Mall — крупнейший ТЦ Минска' },
   { icon: Bus, value: '14', label: 'автобусных и троллейбусных маршрутов' },
 ];
@@ -47,71 +67,80 @@ const statTiles: { icon: LucideIcon; value: string; label: string }[] = [
 const busRoutes = ['4', '47с', '53', '56', '73', '84', '100', '107', '124', '172'];
 const trolleyRoutes = ['19', '27', '59', '82'];
 
-// Портрет арендаторов района — прислан владельцем (2026-08-22), собственный
-// анализ, не веб-поиск. Один пример аптечной сети из присланного текста
-// нечитаем из-за битой кодировки при копировании ("In塗то") — пока не
-// уточнили у владельца, что имелось в виду, не включаю, чтобы не публиковать
-// искажённое название бренда.
+// Портрет арендаторов — прислан владельцем (2026-08-22), собственный анализ.
+// Перегруппирован через Gemini под технические маркеры формата помещения
+// (метраж + факторы успеха) вместо оригинального деления "сферы/критерии" —
+// владелец согласовал такую структуру. Бренд-примеры из исходного портрета
+// сохранены там, где укладываются в новую категорию; для новой категории
+// "офисы и клиентские сервисы" (её не было в исходном портрете) — своих
+// примеров нет, только факторы. Один пример аптечной сети из присланного
+// текста был нечитаем из-за битой кодировки при копировании ("In塗то") —
+// не уточнили у владельца, что имелось в виду, не включаю.
 const tenantProfiles: { icon: LucideIcon; title: string; examples: string; footage: string; criteria: string }[] = [
   {
     icon: Store,
-    title: 'Сетевой малый и средний бизнес',
-    examples: 'Аптеки («Остров здоровья»), алкогольные маркеты («7 пятниц», «Вино»), кофейни (DOPE, «Варка»), зоомагазины',
+    title: 'Сетевой ритейл, аптеки, спецмагазины',
+    examples: 'Аптеки («Остров здоровья»), алкомаркеты («7 пятниц», «Вино»), кофейни (DOPE, «Варка»)',
     footage: '60–150 м²',
-    criteria: 'Первая линия домов, витринные окна, отдельный вход с улицы, электрическая мощность от 20–30 кВт',
-  },
-  {
-    icon: Package,
-    title: 'Пункты выдачи заказов',
-    examples: 'Wildberries, Ozon, Европочта, Яндекс Маркет, СДЭК',
-    footage: '30–60 м²',
-    criteria: 'Низкая арендная ставка, необязательно первая линия — важна доступность внутри квартала',
+    criteria: 'Первая линия, витринное остекление, свободная планировка, высокий пешеходный трафик',
   },
   {
     icon: Sparkles,
-    title: 'Индустрия красоты и здоровья',
-    examples: 'Салоны красоты, барбершопы, студии пилатеса и йоги, медицинские лаборатории (Synevo, Invitro)',
+    title: 'Медицина, стоматология, бьюти-сфера',
+    examples: 'Салоны красоты, барбершопы, студии пилатеса и йоги, медлаборатории (Synevo, Invitro)',
     footage: '40–100 м²',
-    criteria: 'Качественный ремонт, хорошая вентиляция, несколько мокрых точек (раковин) в помещении',
+    criteria: 'Разводка мокрых точек под каждый кабинет, условия для приточно-вытяжной вентиляции',
   },
   {
-    icon: ShoppingBag,
-    title: 'Локальный крафтовый бизнес',
-    examples: 'Авторские пекарни, цветочные бутики, детские развивающие центры, магазины фермерских продуктов',
-    footage: '25–50 м²',
-    criteria: 'Уютные кварталы внутри комплекса, близость к детским площадкам и школам, невысокая ставка',
+    icon: Building2,
+    title: 'Офисы и клиентские сервисы',
+    examples: '',
+    footage: 'от 50 м²',
+    criteria: 'Близость к метро для сотрудников, представительская входная группа, open-space или кабинеты',
+  },
+  {
+    icon: Package,
+    title: 'ПВЗ и крафтовый бизнес',
+    examples: 'Wildberries, Ozon, Европочта, СДЭК; авторские пекарни, цветочные бутики, детские центры',
+    footage: '25–60 м²',
+    criteria: 'Локация внутри жилых кварталов, соседство с детскими площадками, невысокая ставка',
   },
 ];
 
+// FAQ — только проверенные темы (владелец явно исключил "согласование
+// вывесок" и "готовность объектов" — по ним нет проверенных фактов).
 const districtFaq: FaqItem[] = [
   {
-    question: 'Сколько станций метро в районе Минск Мир?',
+    question: 'Как добраться до коммерческих объектов на общественном транспорте?',
     answer:
-      'Две — «Ковальская Слобода» и «Аэродромная», обе на Зеленолужской линии (третья линия Минского метрополитена).',
+      'Две станции метро Зеленолужской линии — «Ковальская Слобода» и «Аэродромная», плюс 14 маршрутов наземного транспорта (10 автобусных, 4 троллейбусных), связывающих район со всеми частями Минска.',
   },
   {
-    question: 'Как добраться до района на автобусе или троллейбусе?',
-    answer:
-      'Автобусы: 4, 47с, 53, 56, 73, 84, 100, 107, 124, 172. Троллейбусы: 19, 27, 59, 82 — маршруты связывают район с разными частями Минска, включая вокзал и ж/д станцию «Минск-Южный».',
+    question: 'Как решён вопрос с парковкой для клиентов и сотрудников?',
+    answer: 'В районе есть многоуровневые паркинги и подземные паркинги в жилых домах.',
   },
   {
-    question: 'Далеко ли Red One от Минск Мира?',
-    answer: 'Red One расположен по соседству с районом — не на его территории, но в непосредственной близости.',
+    question: 'Сколько детских садов и школ рядом?',
+    answer:
+      'В районе действуют 3 школы и 4 детских сада (строится 5-й). Через дорогу от Red One — ещё 5 детских садов.',
   },
   {
-    question: 'Что уже открыто в районе для бизнеса?',
+    question: 'Что из крупной торговой инфраструктуры уже работает?',
+    answer: 'Avia Mall — 138 200 м², якорный арендатор — сеть гипермаркетов Green.',
+  },
+  {
+    question: 'Где находится Red One относительно района?',
     answer:
-      'Крупнейший в Минске торговый центр Avia Mall (138 200 м², якорный арендатор — сеть гипермаркетов Green), строится Международный финансовый центр — деловой кластер с пешеходными галереями и подземным паркингом.',
+      'По соседству с Минск Миром — не на его территории, но в непосредственной близости, с быстрым доступом к метро и основным магистралям района.',
   },
 ];
 
-// Информационный гид, не продающая страница объекта (SEO_PLAN.md, Э3-1) —
-// по Wordstat «минск мир» это на 99%+ спрос на квартиры (см. журнал плана),
-// узкая офисная/коммерческая часть держится на паре сотен показов в месяц,
-// а «район минск мир» — отдельная, более осмысленная для нас фраза (989/мес).
-// Задача страницы — не биться за широкое «минск мир», а закрыть эту нишу и
-// вести заинтересованных дальше на /one. Обратной ссылки с /one сюда нет
-// осознанно — решение владельца не отвлекать с продающей страницы.
+// Гид для предпринимателей и собственников коммерческой недвижимости, не
+// продающая страница объекта (SEO_PLAN.md, Э3-1) — по Wordstat «минск мир»
+// это на 99%+ спрос на квартиры (см. журнал плана), узкая коммерческая
+// часть держится на паре тысяч показов в месяц, а «район минск мир» —
+// отдельная, более осмысленная для нас фраза. Обратной ссылки с /one сюда
+// нет осознанно — решение владельца не отвлекать с продающей страницы.
 export function DistrictGuidePage() {
   useEffect(() => {
     setGenericPageMeta({ title: TITLE, description: DESCRIPTION, url: PAGE_URL });
@@ -138,14 +167,10 @@ export function DistrictGuidePage() {
       <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-12 sm:px-8">
         <div className="flex flex-col gap-3">
           <p className="text-sm font-medium text-ink-muted">Обновлено: август 2026</p>
-          <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">
-            Офисы и коммерческая недвижимость в районе Минск Мир
-          </h1>
+          <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">{TITLE}</h1>
           <p className="text-base text-ink-muted">
-            Минск Мир — самый активно строящийся многофункциональный район Минска: жильё, деловой квартал,
-            парковая зона и крупнейший в городе торговый центр Avia Mall. Застройка продолжается прямо сейчас,
-            до 2027 года. По соседству — деловой центр Red One (Полтавская, 10). Разберём, что в районе сегодня
-            есть для бизнеса.
+            Готовая платёжеспособная аудитория для вашего бизнеса в шаговой доступности от двух станций метро.
+            По соседству — деловой центр Red One (Полтавская, 10).
           </p>
           <p className="flex items-center gap-1.5 text-xs text-ink-faint">
             <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -166,12 +191,11 @@ export function DistrictGuidePage() {
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {statTiles.map(({ icon: Icon, value, label }) => (
-            <div
-              key={label}
-              className={cn('flex flex-col gap-2 p-4', glassCardClass)}
-              style={glassCardShadow}
-            >
-              <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)} style={glassPillShadow}>
+            <div key={label} className={cn('flex flex-col gap-2 p-4', glassCardClass)} style={glassCardShadow}>
+              <span
+                className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)}
+                style={glassPillShadow}
+              >
                 <Icon className="h-4 w-4" />
               </span>
               <div className="text-lg font-extrabold text-ink">{value}</div>
@@ -182,8 +206,63 @@ export function DistrictGuidePage() {
 
         <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
           <div className="flex items-center gap-3">
+            <Landmark className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Генераторы ежедневного трафика</h2>
+          </div>
+          <p className="text-sm text-ink-muted">
+            Avia Mall (138 200 м², якорный арендатор — сеть гипермаркетов Green) — главный торговый центр района,
+            межрайонный автомобильный и пешеходный поток. Рядом строится Международный финансовый центр — деловой
+            кластер с пешеходными галереями и подземным паркингом, аккумулирует офисный трафик и B2B-сервисы.
+          </p>
+          <p className="text-sm text-ink-muted">
+            Жители района активно ищут поблизости банковские отделения и расчётно-справочные центры (РСЦ) —
+            помещения рядом с такими точками получают дополнительный целевой поток.
+          </p>
+        </div>
+
+        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <Stethoscope className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Медицина и здоровье</h2>
+          </div>
+          <p className="text-sm text-ink-muted">
+            В районе работают и строятся поликлиники — жители привыкли получать услуги рядом с домом. Высокая доля
+            молодых семей формирует устойчивый спрос на стоматологии, многопрофильные клиники, диагностические
+            центры и ветклиники.
+          </p>
+        </div>
+
+        <div className={cn('flex flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <Store className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Готовые решения под ваш тип бизнеса</h2>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {tenantProfiles.map(({ icon: Icon, title, examples, footage, criteria }) => (
+              <div
+                key={title}
+                className="flex flex-col gap-2 rounded-control border border-white bg-white/90 p-4 shadow-card backdrop-blur-md sm:border-white/50 sm:bg-white/40 sm:shadow-none"
+              >
+                <div className="flex items-center gap-2">
+                  <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center text-ink', glassPillClass)}>
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="text-sm font-bold text-ink">{title}</span>
+                </div>
+                {examples && <p className="text-xs text-ink-muted">{examples}</p>}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink">{footage}</span>
+                </div>
+                <p className="text-xs text-ink-faint">{criteria}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
             <TrainFront className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Транспорт</h2>
+            <h2 className="text-lg font-bold text-ink">Транспорт и парковка</h2>
           </div>
           <p className="text-sm text-ink-muted">
             Две станции метро на Зеленолужской линии — «Ковальская Слобода» и «Аэродромная». Рядом — Национальный
@@ -211,59 +290,9 @@ export function DistrictGuidePage() {
               </div>
             </div>
           </div>
-        </div>
-
-        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex items-center gap-3">
-            <GraduationCap className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Инфраструктура</h2>
-          </div>
-          <p className="text-sm text-ink-muted">
-            В районе работают три школы и четыре детских сада (строится пятый), детская и взрослая поликлиники —
-            актуально для сотрудников с детьми. По соседству с Red One, через дорогу — ещё пять детских садов.
-          </p>
-        </div>
-
-        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex items-center gap-3">
-            <Building2 className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Деловая часть района</h2>
-          </div>
-          <p className="text-sm text-ink-muted">
-            Avia Mall — крупнейший торговый центр Минска, 138 200 м² (Братская, 18), якорный арендатор — сеть
-            гипермаркетов Green. Рядом строится Международный финансовый центр — деловой кластер с пешеходными
-            галереями и подземным паркингом.
-          </p>
-        </div>
-
-        <div className={cn('flex flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex items-center gap-3">
-            <Store className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Кто арендует помещения в районе</h2>
-          </div>
-          <p className="text-sm text-ink-muted">
-            Арендаторы напрямую зависят от платёжеспособности местных жителей — в основном это молодые семьи и
-            специалисты 25–45 лет, много IT-сегмента. Вот какой бизнес выбирает район сегодня.
-          </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {tenantProfiles.map(({ icon: Icon, title, examples, footage, criteria }) => (
-              <div
-                key={title}
-                className="flex flex-col gap-2 rounded-control border border-white bg-white/90 p-4 shadow-card backdrop-blur-md sm:border-white/50 sm:bg-white/40 sm:shadow-none"
-              >
-                <div className="flex items-center gap-2">
-                  <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center text-ink', glassPillClass)}>
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span className="text-sm font-bold text-ink">{title}</span>
-                </div>
-                <p className="text-xs text-ink-muted">{examples}</p>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink">{footage}</span>
-                </div>
-                <p className="text-xs text-ink-faint">{criteria}</p>
-              </div>
-            ))}
+          <div className="flex items-center gap-2 pt-1">
+            <Car className="h-4 w-4 shrink-0 text-ink-muted" />
+            <p className="text-sm text-ink-muted">Многоуровневые и подземные паркинги в жилых домах района.</p>
           </div>
         </div>
 
@@ -274,12 +303,7 @@ export function DistrictGuidePage() {
               <h2 className="text-lg font-bold text-ink">Карта района</h2>
             </div>
             <div className="overflow-hidden rounded-control border border-border">
-              <iframe
-                src={MAP_EMBED_URL}
-                title="Карта района Минск Мир"
-                className="h-80 w-full"
-                loading="lazy"
-              />
+              <iframe src={MAP_EMBED_URL} title="Карта района Минск Мир" className="h-80 w-full" loading="lazy" />
             </div>
           </div>
         )}
@@ -287,10 +311,11 @@ export function DistrictGuidePage() {
         <FaqAccordion title="Частые вопросы о районе" items={districtFaq} />
 
         <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
-          <h2 className="text-lg font-bold text-ink">Red One — по соседству с районом</h2>
+          <h2 className="text-lg font-bold text-ink">Red One — готовый центр коммерческой активности</h2>
           <p className="text-sm text-ink-muted">
-            Приватные кабинеты и фиксированные рабочие места в собственном здании рядом с Минск Миром — с
-            дизайнерской отделкой, парковкой и онлайн-бронированием без предоплаты.
+            Приватные кабинеты и фиксированные рабочие места в собственном здании по соседству с Минск Миром — с
+            дизайнерской отделкой, парковкой и онлайн-бронированием без предоплаты. Через дорогу — 5 детских садов
+            и постоянный поток родителей утром и вечером, в районе — 3 школы и 4 детских сада (строится 5-й).
           </p>
           <Link to="/one" className="w-fit text-sm font-semibold text-primary hover:underline">
             Смотреть кабинеты в Red One →
