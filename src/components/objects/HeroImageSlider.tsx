@@ -45,7 +45,7 @@ export function HeroImageSlider({ images, alt = '' }: HeroImageSliderProps) {
             'drop-shadow(0 16px 32px rgb(0 0 0 / 0.16)) drop-shadow(0 4px 10px rgb(0 0 0 / 0.10))',
         }}
       >
-        <img src={images[index]} alt={alt} className="h-full w-full object-cover" />
+        <img src={images[index]} alt={alt} className="h-full w-full object-cover" loading="eager" fetchPriority="high" />
 
         {images.length > 1 && (
           <>

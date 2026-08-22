@@ -304,7 +304,7 @@ export function BuildingPlanCanvas({
             : undefined
         }
       >
-        <img src={displayedPlan.imageUrl} alt={displayedPlan.name} className="w-full" draggable={false} />
+        <img src={displayedPlan.imageUrl} alt={displayedPlan.name} className="w-full" draggable={false} loading="lazy" />
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
           {zones
             .filter((zone) => zone.buildingPlanId === displayedPlan.id)

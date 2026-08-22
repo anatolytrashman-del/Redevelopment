@@ -1,39 +1,48 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { AppLayout } from './components/layout/AppLayout';
-import { PasswordGate } from './components/layout/PasswordGate';
+import { Loader2 } from 'lucide-react';
 import { RequirePage } from './components/layout/RequirePage';
-import { AdminIndex } from './pages/AdminIndex';
-import { Home } from './pages/Home';
-import { Transactions } from './pages/Transactions';
-import { TransactionsReport } from './pages/TransactionsReport';
-import { Leads } from './pages/Leads';
-import { Contractors } from './pages/Contractors';
-import { Objects } from './pages/Objects';
-import { ObjectDetail } from './pages/ObjectDetail';
-import { Documents } from './pages/Documents';
-import { Tasks } from './pages/Tasks';
-import { Backlog } from './pages/Backlog';
 import { PublicBuildingPlan } from './pages/PublicBuildingPlan';
 import { ObjectLandingPage } from './pages/ObjectLandingPage';
-import { Briefs } from './pages/Briefs';
 import { BriefPublicPage } from './pages/BriefPublicPage';
-import { Estimates } from './pages/Estimates';
-import { EstimateDetail } from './pages/EstimateDetail';
-import { FinModels } from './pages/FinModels';
-import { FinModelDetail } from './pages/FinModelDetail';
-import { FinModelReport } from './pages/FinModelReport';
-import { Financing } from './pages/Financing';
-import { DesignProjects } from './pages/DesignProjects';
-import { DesignProjectView } from './pages/DesignProjectView';
-import { DesignProjectDetail } from './pages/DesignProjectDetail';
-import { MoodboardView } from './pages/MoodboardView';
-import { MoodboardDetail } from './pages/MoodboardDetail';
-import { MeetingSummaries } from './pages/MeetingSummaries';
-import { MeetingSummaryDetail } from './pages/MeetingSummaryDetail';
 import { MeetingSummaryPublicPage } from './pages/MeetingSummaryPublicPage';
-import { Settings } from './pages/Settings';
 import { NotFound } from './pages/NotFound';
+
+// Вся админка (CRM с десятком разделов — финмодели, сметы, документы и т.д.)
+// нужна только за PasswordGate на /admin/*, но раньше грузилась тем же JS-
+// бандлом, что и продающая страница объекта — посетитель лендинга скачивал
+// весь код CRM, даже никогда его не открыв. lazy() выносит каждую админ-
+// страницу в свой чанк, догружаемый при переходе в /admin — публичные
+// страницы (лендинг объекта и три токенизированные, см. Routes ниже) этого
+// веса больше не тащат.
+const AppLayout = lazy(() => import('./components/layout/AppLayout').then((m) => ({ default: m.AppLayout })));
+const PasswordGate = lazy(() => import('./components/layout/PasswordGate').then((m) => ({ default: m.PasswordGate })));
+const AdminIndex = lazy(() => import('./pages/AdminIndex').then((m) => ({ default: m.AdminIndex })));
+const Home = lazy(() => import('./pages/Home').then((m) => ({ default: m.Home })));
+const Transactions = lazy(() => import('./pages/Transactions').then((m) => ({ default: m.Transactions })));
+const TransactionsReport = lazy(() => import('./pages/TransactionsReport').then((m) => ({ default: m.TransactionsReport })));
+const Leads = lazy(() => import('./pages/Leads').then((m) => ({ default: m.Leads })));
+const Contractors = lazy(() => import('./pages/Contractors').then((m) => ({ default: m.Contractors })));
+const Objects = lazy(() => import('./pages/Objects').then((m) => ({ default: m.Objects })));
+const ObjectDetail = lazy(() => import('./pages/ObjectDetail').then((m) => ({ default: m.ObjectDetail })));
+const Documents = lazy(() => import('./pages/Documents').then((m) => ({ default: m.Documents })));
+const Tasks = lazy(() => import('./pages/Tasks').then((m) => ({ default: m.Tasks })));
+const Backlog = lazy(() => import('./pages/Backlog').then((m) => ({ default: m.Backlog })));
+const Briefs = lazy(() => import('./pages/Briefs').then((m) => ({ default: m.Briefs })));
+const Estimates = lazy(() => import('./pages/Estimates').then((m) => ({ default: m.Estimates })));
+const EstimateDetail = lazy(() => import('./pages/EstimateDetail').then((m) => ({ default: m.EstimateDetail })));
+const FinModels = lazy(() => import('./pages/FinModels').then((m) => ({ default: m.FinModels })));
+const FinModelDetail = lazy(() => import('./pages/FinModelDetail').then((m) => ({ default: m.FinModelDetail })));
+const FinModelReport = lazy(() => import('./pages/FinModelReport').then((m) => ({ default: m.FinModelReport })));
+const Financing = lazy(() => import('./pages/Financing').then((m) => ({ default: m.Financing })));
+const DesignProjects = lazy(() => import('./pages/DesignProjects').then((m) => ({ default: m.DesignProjects })));
+const DesignProjectView = lazy(() => import('./pages/DesignProjectView').then((m) => ({ default: m.DesignProjectView })));
+const DesignProjectDetail = lazy(() => import('./pages/DesignProjectDetail').then((m) => ({ default: m.DesignProjectDetail })));
+const MoodboardView = lazy(() => import('./pages/MoodboardView').then((m) => ({ default: m.MoodboardView })));
+const MoodboardDetail = lazy(() => import('./pages/MoodboardDetail').then((m) => ({ default: m.MoodboardDetail })));
+const MeetingSummaries = lazy(() => import('./pages/MeetingSummaries').then((m) => ({ default: m.MeetingSummaries })));
+const MeetingSummaryDetail = lazy(() => import('./pages/MeetingSummaryDetail').then((m) => ({ default: m.MeetingSummaryDetail })));
+const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })));
 
 // Случайный щипок двумя пальцами (обычный жест при скролле телефоном,
 // держа его двумя руками) зумит всю страницу нативным зумом Safari — и этот
@@ -53,13 +62,26 @@ function usePreventPageZoom() {
   }, []);
 }
 
+// Фолбэк на время догрузки чанка админки (см. lazy() выше) — только для
+// /admin/*, публичные страницы импортированы статически и его не видят.
+function AdminChunkFallback() {
+  return (
+    <div className="flex min-h-svh items-center justify-center">
+      <Loader2 className="h-6 w-6 animate-spin text-ink-muted" />
+    </div>
+  );
+}
+
 export default function App() {
   usePreventPageZoom();
   return (
     <Routes>
       {/* Публичная часть — без AppLayout и без пароля, для клиентов и рекламы.
           Пока нет отдельного лендинга компании, голый домен ведёт сразу на
-          продающую страницу объекта "Полтавская" (см. RealtyObject.landingSlug). */}
+          продающую страницу объекта "Полтавская" (см. RealtyObject.landingSlug).
+          Импортированы статически (не lazy) — это ровно те страницы, ради
+          которых существует бандл-сплиттинг выше: им нельзя добавлять лишний
+          сетевой перелёт на догрузку чанка. */}
       <Route path="/" element={<Navigate to="/one" replace />} />
       <Route path="/plan/:token" element={<PublicBuildingPlan />} />
       <Route path="/tz/:token" element={<BriefPublicPage />} />
@@ -71,9 +93,11 @@ export default function App() {
       <Route
         path="/admin"
         element={
-          <PasswordGate>
-            <AppLayout />
-          </PasswordGate>
+          <Suspense fallback={<AdminChunkFallback />}>
+            <PasswordGate>
+              <AppLayout />
+            </PasswordGate>
+          </Suspense>
         }
       >
         <Route index element={<AdminIndex />} />

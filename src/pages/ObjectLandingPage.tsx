@@ -28,6 +28,7 @@ import type { BuildingPlan, BuildingPlanZone } from '../data/buildingPlans';
 import type { RealtyObject } from '../data/objects';
 import { fetchObjectByLandingSlug } from '../lib/objectsApi';
 import { fetchBuildingPlans, fetchZonesForPlan } from '../lib/buildingPlansApi';
+import { setObjectPageMeta } from '../lib/pageMeta';
 
 function formatMoney(value: number) {
   return `$${Math.round(value).toLocaleString('ru-RU')}`;
@@ -139,6 +140,15 @@ export function ObjectLandingPage() {
     const timer = setInterval(() => setOwnerOnline(isOwnerOnlineNow()), 60_000);
     return () => clearInterval(timer);
   }, []);
+
+  // title/description/og/canonical/JSON-LD в index.html статически заточены
+  // под Red One (см. lib/pageMeta.ts) — здесь подменяются на актуальные для
+  // реально открытого объекта, иначе, например, Red Storage выдавал бы в
+  // поиске и соцсетях чужой заголовок.
+  useEffect(() => {
+    if (!slug || !object) return;
+    setObjectPageMeta(slug, object, object.renderImageUrls[0]);
+  }, [slug, object]);
 
   useEffect(() => {
     if (!slug) return;
