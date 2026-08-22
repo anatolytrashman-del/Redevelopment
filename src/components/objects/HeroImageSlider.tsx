@@ -12,11 +12,12 @@ const CLIP_PATH =
 
 interface HeroImageSliderProps {
   images: string[];
+  alt?: string;
 }
 
 // Слайдер рендеров кабинетов на продающей странице объекта — пока нет
 // фото самого здания, это основная картинка на главном экране.
-export function HeroImageSlider({ images }: HeroImageSliderProps) {
+export function HeroImageSlider({ images, alt = '' }: HeroImageSliderProps) {
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
@@ -44,7 +45,7 @@ export function HeroImageSlider({ images }: HeroImageSliderProps) {
             'drop-shadow(0 16px 32px rgb(0 0 0 / 0.16)) drop-shadow(0 4px 10px rgb(0 0 0 / 0.10))',
         }}
       >
-        <img src={images[index]} alt="" className="h-full w-full object-cover" />
+        <img src={images[index]} alt={alt} className="h-full w-full object-cover" />
 
         {images.length > 1 && (
           <>
