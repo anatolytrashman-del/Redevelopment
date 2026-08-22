@@ -270,7 +270,7 @@ export function ObjectLandingPage() {
       <div className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-2">
         <div className="flex flex-col gap-6">
           <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">
-            Офисы и помещения в Минск Мире — приватные кабинеты и фиксированные рабочие места от{' '}
+            Офисы и помещения рядом с Минск Миром — приватные кабинеты и фиксированные рабочие места от{' '}
             {formatMoney(STARTING_PRICE_FROM)}
           </h1>
           <div className="flex flex-col gap-3">
@@ -291,7 +291,7 @@ export function ObjectLandingPage() {
         <div className="relative">
           <HeroImageSlider
             images={object.renderImageUrls}
-            alt={`Офисы и кабинеты в Минск Мире — ${object.name || object.address}`}
+            alt={`Офисы и кабинеты рядом с Минск Миром — ${object.name || object.address}`}
           />
           <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 shadow-card backdrop-blur">
             <img src={MINSK_MIR_LOGO_URL} alt="Минск Мир" className="h-4 w-auto" />
