@@ -109,7 +109,11 @@ async function main() {
       const page = await browser.newPage();
       for (const slug of slugs) {
         try {
-          await page.goto(`${BASE_URL}/${slug}`, { waitUntil: 'domcontentloaded' });
+          // ?prerender=1 — сигнал для инлайн-скрипта Яндекс.Метрики в
+          // index.html не считать этот заход реальным визитом (см. комментарий
+          // там же). В сохранённый HTML этот параметр не попадает — только
+          // управляет тем, что выполнится при заходе именно отсюда.
+          await page.goto(`${BASE_URL}/${slug}?prerender=1`, { waitUntil: 'domcontentloaded' });
           // ObjectLandingPage держит спиннер, пока не пришли данные из
           // Supabase (см. состояние loading) — h1 в разметке появляется
           // только у реального контента, это и есть сигнал готовности.
