@@ -75,11 +75,17 @@ export function DesignProjectDetail() {
     setUploading(true);
     setUploadError(null);
     const failed: string[] = [];
+    // Накапливаем в локальной переменной, а не читаем project.photoUrls на
+    // каждой итерации — project остаётся замыканием на состояние на момент
+    // вызова обработчика, второй и следующие файлы иначе перезаписывали бы
+    // друг друга поверх одного и того же исходного массива, а не добавлялись.
+    let photoUrls = project.photoUrls;
 
     for (const file of files) {
       try {
         const url = await uploadDesignProjectPhoto(file);
-        const updated = await updateDesignProject(project.id, { photoUrls: [...project.photoUrls, url] });
+        photoUrls = [...photoUrls, url];
+        const updated = await updateDesignProject(project.id, { photoUrls });
         setProject(updated);
       } catch (err) {
         failed.push(`${file.name} — ${errorMessage(err, 'не удалось загрузить')}`);
