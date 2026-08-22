@@ -51,6 +51,22 @@ export function clearNoIndex() {
   setMetaContent('meta[name="robots"]', 'index, follow');
 }
 
+// Google отключил FAQ rich results (май 2026), эта разметка не ради
+// сниппета — её читают AI-краулеры/Яндекс/Bing (см. SEO_PLAN.md, Э1-7).
+export function setFaqJsonLd(items: { question: string; answer: string }[]) {
+  const ld = document.getElementById('faq-json-ld');
+  if (!ld) return;
+  ld.textContent = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: items.map((item) => ({
+      '@type': 'Question',
+      name: item.question,
+      acceptedAnswer: { '@type': 'Answer', text: item.answer },
+    })),
+  });
+}
+
 function setMetaContent(selector: string, content: string) {
   const el = document.head.querySelector(selector);
   if (el) el.setAttribute('content', content);

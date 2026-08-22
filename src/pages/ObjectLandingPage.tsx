@@ -24,12 +24,13 @@ import type { LucideIcon } from 'lucide-react';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { PublicPlanAndUnits } from '../components/objects/PublicPlanAndUnits';
 import { BookingTermsCard } from '../components/objects/BookingTermsCard';
+import { FaqCard, FAQ_ITEMS } from '../components/objects/FaqCard';
 import { zonePrice, WORKSTATION_PRICE, PRICE_PER_METER } from '../data/buildingPlans';
 import type { BuildingPlan, BuildingPlanZone } from '../data/buildingPlans';
 import type { RealtyObject } from '../data/objects';
 import { fetchObjectByLandingSlug } from '../lib/objectsApi';
 import { fetchBuildingPlans, fetchZonesForPlan } from '../lib/buildingPlansApi';
-import { setObjectPageMeta, setNoIndex, clearNoIndex } from '../lib/pageMeta';
+import { setObjectPageMeta, setNoIndex, clearNoIndex, setFaqJsonLd } from '../lib/pageMeta';
 
 function formatMoney(value: number) {
   return `$${Math.round(value).toLocaleString('ru-RU')}`;
@@ -159,6 +160,12 @@ export function ObjectLandingPage() {
     if (!slug || !object) return;
     setObjectPageMeta(slug, object, object.renderImageUrls[0]);
   }, [slug, object]);
+
+  // FAQ_ITEMS общий для всех объектов (см. FaqCard.tsx), не зависит от slug —
+  // достаточно один раз при монтировании страницы.
+  useEffect(() => {
+    setFaqJsonLd(FAQ_ITEMS);
+  }, []);
 
   // Soft-404: /:slug (App.tsx) перехватывает любой односегментный путь раньше
   // маршрута "*", поэтому опечатка в ссылке всё равно отдаёт 200. Раз контент
@@ -409,6 +416,8 @@ export function ObjectLandingPage() {
         />
 
         <BookingTermsCard agreement={object.intentAgreementFile} />
+
+        <FaqCard />
       </div>
     </div>
   );
