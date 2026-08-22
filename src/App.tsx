@@ -27,6 +27,7 @@ import { Financing } from './pages/Financing';
 import { DesignProjects } from './pages/DesignProjects';
 import { DesignProjectView } from './pages/DesignProjectView';
 import { DesignProjectDetail } from './pages/DesignProjectDetail';
+import { MoodboardDetail } from './pages/MoodboardDetail';
 import { MeetingSummaries } from './pages/MeetingSummaries';
 import { MeetingSummaryDetail } from './pages/MeetingSummaryDetail';
 import { MeetingSummaryPublicPage } from './pages/MeetingSummaryPublicPage';
@@ -111,6 +112,14 @@ export default function App() {
           element={
             <RequirePage page="designProjects">
               <DesignProjectDetail />
+            </RequirePage>
+          }
+        />
+        <Route
+          path="design-projects/moodboards/:id"
+          element={
+            <RequirePage page="designProjects">
+              <MoodboardDetail />
             </RequirePage>
           }
         />
