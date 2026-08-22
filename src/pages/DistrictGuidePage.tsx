@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Bus, Building2, GraduationCap, MapPin, ShoppingBag, TrainFront } from 'lucide-react';
+import { Bus, Building2, GraduationCap, MapPin, Package, ShoppingBag, Sparkles, Store, TrainFront } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
@@ -15,11 +15,21 @@ const DESCRIPTION =
 // Обновлять вручную при каждом квартальном пересмотре текста (см. SEO_PLAN.md, Э3-1).
 const DATE_MODIFIED = '2026-08-22';
 
-// Пустая строка — карты пока нет (нужна ссылка из Яндекс.Конструктора карт
-// от владельца, тот же приём, что и ObjectMapWidget.tsx: только src=
-// iframe-ссылка вида yandex.ru/map-widget/v1/?um=constructor:<id>). Секция
-// с картой просто не рендерится, пока сюда не подставят реальный URL.
-const MAP_EMBED_URL = '';
+// Ссылка от владельца пришла в двух нерабочих как iframe src форматах
+// (страница yandex.ru/maps/?um=... и <script src="api-maps.yandex.ru/...">
+// — оба не работают как src, см. предупреждение в ObjectMapWidget.tsx и
+// CLAUDE.md). Собрано вручную по id конструктора из присланной ссылки в
+// рабочий формат — тот же самый, что реально используется в mapEmbedUrl
+// объекта Red One (проверено запросом к Supabase).
+const MAP_EMBED_URL =
+  'https://yandex.ru/map-widget/v1/?um=constructor%3A1d794325dcda320ce9255c449e982037d1332cf776404d4a207b9a3e8bf2f307&source=constructorLink';
+
+// Пусто — реальное фото прислано владельцем прямо в чат (не файлом,
+// вставить программно нечем), нужна ссылка на него (любой хостинг, тот же
+// приём, что и у MINSK_MIR_LOGO_URL в ObjectLandingPage.tsx — фото партнёра
+// тоже пришло по прямой ссылке). Пока пусто — вместо фото рендерится
+// плейсхолдер, чтобы было видно вёрстку до того, как появится ссылка.
+const HERO_IMAGE_URL = '';
 
 // Источник фактов: Википедия, статья "Минск Мир" (ru.wikipedia.org,
 // прислана владельцем 2026-08-22) + веб-поиск (Avia Mall, инфраструктура).
@@ -36,6 +46,42 @@ const statTiles: { icon: LucideIcon; value: string; label: string }[] = [
 
 const busRoutes = ['4', '47с', '53', '56', '73', '84', '100', '107', '124', '172'];
 const trolleyRoutes = ['19', '27', '59', '82'];
+
+// Портрет арендаторов района — прислан владельцем (2026-08-22), собственный
+// анализ, не веб-поиск. Один пример аптечной сети из присланного текста
+// нечитаем из-за битой кодировки при копировании ("In塗то") — пока не
+// уточнили у владельца, что имелось в виду, не включаю, чтобы не публиковать
+// искажённое название бренда.
+const tenantProfiles: { icon: LucideIcon; title: string; examples: string; footage: string; criteria: string }[] = [
+  {
+    icon: Store,
+    title: 'Сетевой малый и средний бизнес',
+    examples: 'Аптеки («Остров здоровья»), алкогольные маркеты («7 пятниц», «Вино»), кофейни (DOPE, «Варка»), зоомагазины',
+    footage: '60–150 м²',
+    criteria: 'Первая линия домов, витринные окна, отдельный вход с улицы, электрическая мощность от 20–30 кВт',
+  },
+  {
+    icon: Package,
+    title: 'Пункты выдачи заказов',
+    examples: 'Wildberries, Ozon, Европочта, Яндекс Маркет, СДЭК',
+    footage: '30–60 м²',
+    criteria: 'Низкая арендная ставка, необязательно первая линия — важна доступность внутри квартала',
+  },
+  {
+    icon: Sparkles,
+    title: 'Индустрия красоты и здоровья',
+    examples: 'Салоны красоты, барбершопы, студии пилатеса и йоги, медицинские лаборатории (Synevo, Invitro)',
+    footage: '40–100 м²',
+    criteria: 'Качественный ремонт, хорошая вентиляция, несколько мокрых точек (раковин) в помещении',
+  },
+  {
+    icon: ShoppingBag,
+    title: 'Локальный крафтовый бизнес',
+    examples: 'Авторские пекарни, цветочные бутики, детские развивающие центры, магазины фермерских продуктов',
+    footage: '25–50 м²',
+    criteria: 'Уютные кварталы внутри комплекса, близость к детским площадкам и школам, невысокая ставка',
+  },
+];
 
 const districtFaq: FaqItem[] = [
   {
@@ -105,6 +151,17 @@ export function DistrictGuidePage() {
             <MapPin className="h-3.5 w-3.5 shrink-0" />
             {DISTRICT_COORDS} · Октябрьский район Минска
           </p>
+        </div>
+
+        <div className="overflow-hidden rounded-3xl border border-white/80">
+          {HERO_IMAGE_URL ? (
+            <img src={HERO_IMAGE_URL} alt="Район Минск Мир" className="aspect-[3/2] w-full object-cover" />
+          ) : (
+            <div className="flex aspect-[3/2] w-full flex-col items-center justify-center gap-2 bg-surface-muted text-ink-faint">
+              <Building2 className="h-8 w-8" />
+              <p className="text-xs font-medium">Фото района — здесь появится, когда пришлёте ссылку</p>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -177,8 +234,37 @@ export function DistrictGuidePage() {
             гипермаркетов Green. Рядом строится Международный финансовый центр — деловой кластер с пешеходными
             галереями и подземным паркингом.
           </p>
-          {/* TODO: расширить список арендаторов района, когда владелец пришлёт данные
-              (не только Avia Mall) — см. журнал SEO_PLAN.md. */}
+        </div>
+
+        <div className={cn('flex flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <Store className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Кто арендует помещения в районе</h2>
+          </div>
+          <p className="text-sm text-ink-muted">
+            Арендаторы напрямую зависят от платёжеспособности местных жителей — в основном это молодые семьи и
+            специалисты 25–45 лет, много IT-сегмента. Вот какой бизнес выбирает район сегодня.
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {tenantProfiles.map(({ icon: Icon, title, examples, footage, criteria }) => (
+              <div
+                key={title}
+                className="flex flex-col gap-2 rounded-control border border-white bg-white/90 p-4 shadow-card backdrop-blur-md sm:border-white/50 sm:bg-white/40 sm:shadow-none"
+              >
+                <div className="flex items-center gap-2">
+                  <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center text-ink', glassPillClass)}>
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="text-sm font-bold text-ink">{title}</span>
+                </div>
+                <p className="text-xs text-ink-muted">{examples}</p>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink">{footage}</span>
+                </div>
+                <p className="text-xs text-ink-faint">{criteria}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
         {MAP_EMBED_URL && (
