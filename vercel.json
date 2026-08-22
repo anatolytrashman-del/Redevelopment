@@ -1,6 +1,6 @@
 {
   "redirects": [
-    { "source": "/", "destination": "/one", "permanent": true }
+    { "source": "/", "destination": "/one", "permanent": false }
   ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
