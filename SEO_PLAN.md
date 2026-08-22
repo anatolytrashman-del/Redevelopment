@@ -153,12 +153,11 @@
   - Актуализация данных — Vercel Deploy Hook при сохранении объекта
     (владелец выбрал этот вариант из трёх; `objectsApi.ts` дёргает
     `api/trigger-rebuild.js` после `insertObject`/`updateObject`).
-  - **Осталось сделать владельцу:** создать Deploy Hook в Vercel
-    (Project Settings → Git → Deploy Hooks, привязать к ветке
-    `claude/redevelopment-platform-prototype-oodobu`) и добавить его URL
-    в переменные окружения Vercel как `VERCEL_DEPLOY_HOOK_URL` — без
-    этого сохранение объекта в админке просто не триггерит пересборку
-    (сама генерация HTML при обычном деплое уже работает и без этого).
+  - Deploy Hook создан владельцем (Project Settings → Git → Deploy Hooks,
+    ветка `claude/redevelopment-platform-prototype-oodobu`), URL сохранён
+    в переменных окружения Vercel как `VERCEL_DEPLOY_HOOK_URL`. Цепочка
+    целиком проверена прямым POST на `/api/trigger-rebuild` —
+    `{"triggered":true}`, реальная пересборка запускается.
   - **Проверено на реальном деплое 2026-08-22 — всё сработало с первого
     раза:** curl без JS на `/one` и `/redstorage` отдаёт 200 с полностью
     отрисованным HTML (реальные H1, цены, план этажа, JSON-LD с верными
