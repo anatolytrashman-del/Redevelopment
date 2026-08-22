@@ -19,6 +19,39 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
+// Мозаика-превью для карточки мудборда — одно фото на весь блок скрывало
+// бы, что внутри много разных решений; коллаж из нескольких (как обложка
+// доски в Pinterest) честнее отражает содержимое. Раскладка зависит от
+// количества фото: 1 — во всю карточку, 2 — пополам, 3 — большое слева +
+// два маленьких справа, 4+ — сетка 2×2 (берём первые 4 по всем блокам).
+function MoodboardPreview({ photoUrls }: { photoUrls: string[] }) {
+  if (photoUrls.length === 0) {
+    return (
+      <div className="flex h-36 items-center justify-center rounded-control bg-surface-muted">
+        <ImageOff className="h-8 w-8 text-ink-faint" />
+      </div>
+    );
+  }
+
+  const photos = photoUrls.slice(0, 4);
+
+  return (
+    <div className="grid h-36 grid-cols-2 grid-rows-2 gap-0.5 overflow-hidden rounded-control bg-surface-muted">
+      {photos.length === 1 && <img src={photos[0]} alt="" className="col-span-2 row-span-2 h-full w-full object-cover" />}
+      {photos.length === 2 &&
+        photos.map((url) => <img key={url} src={url} alt="" className="row-span-2 h-full w-full object-cover" />)}
+      {photos.length === 3 && (
+        <>
+          <img src={photos[0]} alt="" className="row-span-2 h-full w-full object-cover" />
+          <img src={photos[1]} alt="" className="h-full w-full object-cover" />
+          <img src={photos[2]} alt="" className="h-full w-full object-cover" />
+        </>
+      )}
+      {photos.length >= 4 && photos.map((url) => <img key={url} src={url} alt="" className="h-full w-full object-cover" />)}
+    </div>
+  );
+}
+
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
@@ -200,7 +233,7 @@ export function DesignProjects() {
       {tab === 'Мудборды' && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {moodboards.map((m) => {
-            const previewPhoto = m.blocks.flatMap((b) => b.photoUrls)[0];
+            const previewPhotos = m.blocks.flatMap((b) => b.photoUrls);
             return (
               <div
                 key={m.id}
@@ -208,13 +241,7 @@ export function DesignProjects() {
                 className={cn('flex cursor-pointer flex-col gap-3 p-4 transition-colors hover:border-primary/40', glassCardClass)}
                 style={glassCardShadow}
               >
-                <div className="flex h-36 items-center justify-center overflow-hidden rounded-control bg-surface-muted">
-                  {previewPhoto ? (
-                    <img src={previewPhoto} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <ImageOff className="h-8 w-8 text-ink-faint" />
-                  )}
-                </div>
+                <MoodboardPreview photoUrls={previewPhotos} />
                 <div className="flex min-w-0 items-start justify-between gap-2">
                   <div className="flex min-w-0 flex-col gap-1">
                     <span className="truncate font-semibold text-ink">{m.name}</span>
