@@ -25,6 +25,7 @@ import { FinModelDetail } from './pages/FinModelDetail';
 import { FinModelReport } from './pages/FinModelReport';
 import { Financing } from './pages/Financing';
 import { DesignProjects } from './pages/DesignProjects';
+import { DesignProjectView } from './pages/DesignProjectView';
 import { DesignProjectDetail } from './pages/DesignProjectDetail';
 import { MeetingSummaries } from './pages/MeetingSummaries';
 import { MeetingSummaryDetail } from './pages/MeetingSummaryDetail';
@@ -99,6 +100,14 @@ export default function App() {
         <Route path="design-projects" element={<RequirePage page="designProjects"><DesignProjects /></RequirePage>} />
         <Route
           path="design-projects/:id"
+          element={
+            <RequirePage page="designProjects">
+              <DesignProjectView />
+            </RequirePage>
+          }
+        />
+        <Route
+          path="design-projects/:id/edit"
           element={
             <RequirePage page="designProjects">
               <DesignProjectDetail />
