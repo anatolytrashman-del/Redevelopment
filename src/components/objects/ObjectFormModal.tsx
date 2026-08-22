@@ -435,7 +435,7 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
 
         <Input
           label="Название"
-          placeholder="Например, Minsk One — необязательно"
+          placeholder="Например, Red One — необязательно"
           value={form.name}
           onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
         />

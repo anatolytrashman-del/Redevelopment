@@ -272,7 +272,7 @@ export function ObjectLandingPage() {
 
       <div className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-8 sm:px-8">
         <div className={cn('flex flex-col gap-5 p-5', glassCardClass)} style={glassCardShadow}>
-          <div className="text-xl font-extrabold text-ink">Клубный деловой центр Minsk One</div>
+          <div className="text-xl font-extrabold text-ink">Клубный деловой центр Red One</div>
           <div className="grid grid-cols-1 gap-y-4 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-5 md:grid-cols-4">
             {complexFeatures.map(({ icon: Icon, text }) => (
               <div key={text} className="flex min-w-0 items-center gap-3">
