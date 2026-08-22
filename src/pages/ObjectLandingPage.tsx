@@ -270,8 +270,7 @@ export function ObjectLandingPage() {
       <div className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-2">
         <div className="flex flex-col gap-6">
           <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">
-            Офисы и помещения рядом с Минск Миром — приватные кабинеты и фиксированные рабочие места от{' '}
-            {formatMoney(STARTING_PRICE_FROM)}
+            Приватные кабинеты и фиксированные рабочие места от {formatMoney(STARTING_PRICE_FROM)}
           </h1>
           <div className="flex flex-col gap-3">
             {heroFeatures.map(({ icon: Icon, text }) => (
