@@ -22,9 +22,9 @@ npm run dev
 
 ## Деплой
 
-При каждом пуше в `claude/redevelopment-platform-prototype-oodobu` или `main` GitHub Actions
-(`.github/workflows/deploy-pages.yml`) собирает проект и публикует на GitHub Pages:
-https://anatolytrashman-del.github.io/Redevelopment/
+Прод — Vercel (redevelopment.pro), собирается автоматически при пуше в
+`claude/redevelopment-platform-prototype-oodobu` (git-интеграция Vercel, вне репозитория).
+Зеркало на GitHub Pages отключено (2026-08-22).
 
 ## Структура
 
