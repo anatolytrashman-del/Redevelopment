@@ -67,6 +67,50 @@ export function setFaqJsonLd(items: { question: string; answer: string }[]) {
   });
 }
 
+// Для контентных страниц вне сущности "объект" (гиды, будущий кластер
+// поддержки — Э3-1/Э3-3 в SEO_PLAN.md) — та же подмена тегов, что у
+// setObjectPageMeta, но без RealEstateListing/offers, которых у гида нет.
+// object-json-ld при этом очищается — иначе на гиде осталась бы разметка
+// последнего открытого объекта.
+export function setGenericPageMeta(meta: PageMeta & { url: string }) {
+  document.title = meta.title;
+  setMetaContent('meta[name="description"]', meta.description);
+  setLinkHref('link[rel="canonical"]', meta.url);
+
+  setMetaContent('meta[property="og:title"]', meta.title);
+  setMetaContent('meta[property="og:description"]', meta.description);
+  setMetaContent('meta[property="og:url"]', meta.url);
+  setMetaContent('meta[name="twitter:title"]', meta.title);
+  setMetaContent('meta[name="twitter:description"]', meta.description);
+  setMetaContent('meta[name="robots"]', 'index, follow');
+
+  const objectLd = document.getElementById('object-json-ld');
+  if (objectLd) objectLd.textContent = '';
+}
+
+// Свежесть страницы — часть смысла гидов (Э3-1): датированный контент
+// весомее для цитирования AI-системами. dateModified обновлять вручную
+// при каждом квартальном пересмотре текста.
+export function setArticleJsonLd(article: {
+  headline: string;
+  description: string;
+  url: string;
+  datePublished: string;
+  dateModified: string;
+}) {
+  const ld = document.getElementById('article-json-ld');
+  if (!ld) return;
+  ld.textContent = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: article.headline,
+    description: article.description,
+    url: article.url,
+    datePublished: article.datePublished,
+    dateModified: article.dateModified,
+  });
+}
+
 function setMetaContent(selector: string, content: string) {
   const el = document.head.querySelector(selector);
   if (el) el.setAttribute('content', content);

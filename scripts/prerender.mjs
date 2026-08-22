@@ -37,6 +37,11 @@ const BASE_URL = `http://localhost:${PORT}`;
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
 
+// Контентные страницы вне сущности "объект" (гиды и т.п., см. App.tsx) — не
+// в Supabase, поэтому перечислены явно. Добавлять сюда каждый новый гид
+// (Э3-1/Э3-3 в SEO_PLAN.md).
+const STATIC_SLUGS = ['rayon-minsk-mir'];
+
 async function fetchLandingSlugs() {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/objects?select=landing_slug&landing_slug=not.is.null`, {
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
@@ -95,9 +100,9 @@ async function launchBrowser() {
 async function main() {
   if (!existsSync(DIST_DIR)) throw new Error('dist/ не найден — запускать после vite build');
 
-  const slugs = await fetchLandingSlugs();
+  const slugs = [...(await fetchLandingSlugs()), ...STATIC_SLUGS];
   if (slugs.length === 0) {
-    console.warn('[prerender] ни у одного объекта нет landing_slug — пререндерить нечего');
+    console.warn('[prerender] пререндерить нечего — нет ни объектов с landing_slug, ни статических страниц');
     return;
   }
 

@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { RequirePage } from './components/layout/RequirePage';
 import { PublicBuildingPlan } from './pages/PublicBuildingPlan';
 import { ObjectLandingPage } from './pages/ObjectLandingPage';
+import { DistrictGuidePage } from './pages/DistrictGuidePage';
 import { BriefPublicPage } from './pages/BriefPublicPage';
 import { MeetingSummaryPublicPage } from './pages/MeetingSummaryPublicPage';
 import { NotFound } from './pages/NotFound';
@@ -83,6 +84,7 @@ export default function App() {
           которых существует бандл-сплиттинг выше: им нельзя добавлять лишний
           сетевой перелёт на догрузку чанка. */}
       <Route path="/" element={<Navigate to="/one" replace />} />
+      <Route path="/rayon-minsk-mir" element={<DistrictGuidePage />} />
       <Route path="/plan/:token" element={<PublicBuildingPlan />} />
       <Route path="/tz/:token" element={<BriefPublicPage />} />
       <Route path="/summary/:token" element={<MeetingSummaryPublicPage />} />
