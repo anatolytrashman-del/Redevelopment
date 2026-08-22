@@ -1,10 +1,5 @@
-import { cn } from '../../lib/cn';
-import { glassCardClass, glassCardShadow } from '../../lib/glass';
-
-interface FaqItem {
-  question: string;
-  answer: string;
-}
+import { FaqAccordion } from '../ui/FaqAccordion';
+import type { FaqItem } from '../ui/FaqAccordion';
 
 // Пока продающая страница только у одного шаблона (см. MIN_ROOM_AREA в
 // ObjectLandingPage.tsx) — контент общий для всех объектов, не поле в базе.
@@ -42,20 +37,6 @@ export const FAQ_ITEMS: FaqItem[] = [
   },
 ];
 
-// <details>/<summary> вместо аккордеона на useState: контент есть в DOM
-// независимо от открыт/закрыт (важно для краулеров), не нужен JS-стейт.
 export function FaqCard() {
-  return (
-    <div className={cn('flex flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
-      <h2 className="text-xl font-extrabold text-ink">Частые вопросы</h2>
-      <div className="flex flex-col divide-y divide-border">
-        {FAQ_ITEMS.map((item) => (
-          <details key={item.question} className="py-3 first:pt-0 last:pb-0">
-            <summary className="cursor-pointer text-sm font-semibold text-ink">{item.question}</summary>
-            <p className="mt-2 text-sm text-ink-muted">{item.answer}</p>
-          </details>
-        ))}
-      </div>
-    </div>
-  );
+  return <FaqAccordion title="Частые вопросы" items={FAQ_ITEMS} />;
 }
