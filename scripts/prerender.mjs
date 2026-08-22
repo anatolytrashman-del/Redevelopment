@@ -111,28 +111,46 @@ async function main() {
     await waitForServer();
     const browser = await launchBrowser();
     try {
-      const page = await browser.newPage();
       for (const slug of slugs) {
-        try {
-          // ?prerender=1 — сигнал для инлайн-скрипта Яндекс.Метрики в
-          // index.html не считать этот заход реальным визитом (см. комментарий
-          // там же). В сохранённый HTML этот параметр не попадает — только
-          // управляет тем, что выполнится при заходе именно отсюда.
-          await page.goto(`${BASE_URL}/${slug}?prerender=1`, { waitUntil: 'domcontentloaded' });
-          // ObjectLandingPage держит спиннер, пока не пришли данные из
-          // Supabase (см. состояние loading) — h1 в разметке появляется
-          // только у реального контента, это и есть сигнал готовности.
-          await page.waitForSelector('h1', { timeout: 15_000 });
-          const html = await page.content();
-          const dir = join(DIST_DIR, slug);
-          mkdirSync(dir, { recursive: true });
-          writeFileSync(join(dir, 'index.html'), html);
-          console.log(`[prerender] /${slug} → dist/${slug}/index.html (${Math.round(html.length / 1024)} КБ)`);
-        } catch (err) {
-          // Одна проблемная страница не должна ронять сборку остальных —
-          // без снапшота роут просто останется на клиентском рендере, как
-          // и было раньше, до Э2-1 (не хуже текущего состояния).
-          console.error(`[prerender] /${slug} пропущен:`, err instanceof Error ? err.message : err);
+        // Одна попытка молча пропала на реальном деплое (первый заход
+        // rayon-minsk-mir — build-контейнер Vercel слабее этой песочницы,
+        // локально та же страница рендерится мгновенно и без ошибок) — один
+        // повтор на случай разовой нестабильности, не только на первый раз.
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          // Отдельная вкладка на каждую попытку — не переиспользуем одну
+          // между слагами/повторами, чтобы состояние предыдущего захода
+          // (таймеры, подписки) точно не могло повлиять на следующий.
+          const page = await browser.newPage();
+          try {
+            // ?prerender=1 — сигнал для инлайн-скрипта Яндекс.Метрики в
+            // index.html не считать этот заход реальным визитом (см.
+            // комментарий там же). В сохранённый HTML параметр не попадает —
+            // только управляет тем, что выполнится при заходе именно отсюда.
+            await page.goto(`${BASE_URL}/${slug}?prerender=1`, { waitUntil: 'domcontentloaded' });
+            // ObjectLandingPage держит спиннер, пока не пришли данные из
+            // Supabase (см. состояние loading) — h1 в разметке появляется
+            // только у реального контента, это и есть сигнал готовности
+            // (для статических страниц вроде DistrictGuidePage h1 есть сразу).
+            await page.waitForSelector('h1', { timeout: 20_000 });
+            const html = await page.content();
+            const dir = join(DIST_DIR, slug);
+            mkdirSync(dir, { recursive: true });
+            writeFileSync(join(dir, 'index.html'), html);
+            console.log(`[prerender] /${slug} → dist/${slug}/index.html (${Math.round(html.length / 1024)} КБ)`);
+            break;
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            if (attempt === 2) {
+              // Одна проблемная страница не должна ронять сборку остальных —
+              // без снапшота роут просто останется на клиентском рендере, как
+              // и было раньше, до Э2-1 (не хуже текущего состояния).
+              console.error(`[prerender] /${slug} пропущен после 2 попыток:`, message);
+            } else {
+              console.warn(`[prerender] /${slug}: попытка ${attempt} не удалась (${message}), повтор`);
+            }
+          } finally {
+            await page.close();
+          }
         }
       }
     } finally {
