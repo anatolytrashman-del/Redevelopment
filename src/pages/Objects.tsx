@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Loader2, Trash2 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -82,6 +82,7 @@ function PledgeCard({
 }
 
 export function Objects() {
+  const navigate = useNavigate();
   const [objects, setObjects] = useState<RealtyObject[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -175,14 +176,14 @@ export function Objects() {
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {objects.map((o) => (
-              <Link
+              <div
                 key={o.id}
-                to={`/admin/objects/${o.landingSlug || o.id}`}
-                className={cn('group flex flex-col overflow-hidden transition-colors hover:border-primary/40', glassCardClass)}
+                onClick={() => navigate(`/admin/objects/${o.landingSlug || o.id}`)}
+                className={cn('group flex cursor-pointer flex-col overflow-hidden transition-colors hover:border-primary/40', glassCardClass)}
                 style={glassCardShadow}
               >
                 <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden bg-surface-muted">
-                  <PhotoCarousel images={o.photoUrls} alt={o.name || o.address} imgClassName="transition-transform duration-300 group-hover:scale-105" />
+                  <PhotoCarousel images={o.photoUrls} alt={o.name || o.address} imgClassName="transition-transform duration-300 sm:group-hover:scale-105" />
                   {o.status && (
                     <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-ink shadow-sm">
                       {o.status}
@@ -199,7 +200,7 @@ export function Objects() {
                   <div className="truncate text-sm font-semibold text-ink">{o.name || o.address}</div>
                   {o.name && <div className="truncate text-xs text-ink-muted">{o.address}</div>}
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
 
