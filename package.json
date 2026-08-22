@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && cp dist/index.html dist/404.html && node scripts/generate-tz-preview-html.mjs",
+    "build": "tsc -b && vite build && cp dist/index.html dist/404.html && node scripts/generate-tz-preview-html.mjs && node scripts/prerender.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },
@@ -19,6 +19,7 @@
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
+    "@sparticuz/chromium": "^149.0.0",
     "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.13.3",
@@ -26,6 +27,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
     "oxlint": "^1.75.0",
+    "playwright-core": "^1.62.1",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
     "vite": "^8.2.0"

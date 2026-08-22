@@ -3,6 +3,15 @@ import { withRetry, UPLOAD_TIMEOUT_MS } from './withRetry';
 import { compressImageIfNeeded } from './imageCompress';
 import type { ContactChannel, RealtyObject, RealtyObjectRow } from '../data/objects';
 
+// Пререндеренный при сборке HTML публичных лендингов (scripts/prerender.mjs,
+// SEO_PLAN.md Э2-1) хранит title/meta/цену объекта на момент последней
+// сборки — без этого хука они протухали бы до следующего обычного пуша.
+// Best-effort, не блокирует сохранение объекта в админке: ошибку/недоступный
+// хук просто глотаем, api/trigger-rebuild.js сам логирует детали.
+function triggerPublicRebuild() {
+  fetch('/api/trigger-rebuild', { method: 'POST' }).catch(() => {});
+}
+
 function fromRow(row: RealtyObjectRow): RealtyObject {
   return {
     id: row.id,
@@ -124,6 +133,7 @@ export function insertObject(input: Omit<RealtyObject, 'id' | 'shareToken'>): Pr
       .single();
 
     if (error) throw error;
+    if (input.landingSlug.trim()) triggerPublicRebuild();
     return fromRow(data as RealtyObjectRow);
   });
 }
@@ -164,6 +174,7 @@ export function updateObject(id: string, input: Omit<RealtyObject, 'id' | 'share
       .single();
 
     if (error) throw error;
+    if (input.landingSlug.trim()) triggerPublicRebuild();
     return fromRow(data as RealtyObjectRow);
   });
 }
