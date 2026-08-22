@@ -7,6 +7,7 @@ import { BRIEF_TITLE, type Brief } from '../data/briefs';
 import type { RealtyObject } from '../data/objects';
 import { fetchBriefByToken } from '../lib/briefsApi';
 import { fetchObject } from '../lib/objectsApi';
+import { setNoIndex, clearNoIndex } from '../lib/pageMeta';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -38,6 +39,13 @@ export function BriefPublicPage() {
     return () => {
       document.title = previousTitle;
     };
+  }, []);
+
+  // Клиентская ссылка для внешнего инженера — рассылается напрямую, в поиске
+  // быть не должна (см. setNoIndex).
+  useEffect(() => {
+    setNoIndex();
+    return () => clearNoIndex();
   }, []);
 
   useEffect(() => {

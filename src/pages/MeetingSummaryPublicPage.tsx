@@ -5,6 +5,7 @@ import { Card } from '../components/ui/Card';
 import { MarkdownContent } from '../components/ui/MarkdownContent';
 import type { MeetingSummary } from '../data/meetingSummaries';
 import { fetchMeetingSummaryByToken } from '../lib/meetingSummariesApi';
+import { setNoIndex, clearNoIndex } from '../lib/pageMeta';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -29,6 +30,13 @@ export function MeetingSummaryPublicPage() {
       document.title = previousTitle;
     };
   }, [summary]);
+
+  // Ссылка на саммери встречи — рассылается напрямую участникам разговора,
+  // в поиске быть не должна (см. setNoIndex).
+  useEffect(() => {
+    setNoIndex();
+    return () => clearNoIndex();
+  }, []);
 
   useEffect(() => {
     if (!token) return;

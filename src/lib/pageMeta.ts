@@ -36,6 +36,21 @@ export function fallbackObjectMeta(input: {
   return { title, description: parts.join(' · ') };
 }
 
+// Для клиентских ссылок, которые не должны попадать в индекс (токен-страницы
+// вида /plan/:token, /tz/:token, /summary/:token — рассылаются в мессенджеры/
+// почту и могут содержать данные конкретного клиента) и для soft-404 (когда
+// /:slug не совпал ни с одним объектом, но роут отдаёт 200, см. App.tsx).
+// Именно noindex, а не Disallow в robots.txt — закрытая в robots страница не
+// получит noindex-тег и всё равно может попасть в индекс по внешней ссылке.
+// Вызывающий код обязан сбросить тег при размонтировании (см. useNoIndex).
+export function setNoIndex() {
+  setMetaContent('meta[name="robots"]', 'noindex, nofollow');
+}
+
+export function clearNoIndex() {
+  setMetaContent('meta[name="robots"]', 'index, follow');
+}
+
 function setMetaContent(selector: string, content: string) {
   const el = document.head.querySelector(selector);
   if (el) el.setAttribute('content', content);
@@ -70,6 +85,11 @@ export function setObjectPageMeta(
     setMetaContent('meta[property="og:image"]', image);
     setMetaContent('meta[name="twitter:image"]', image);
   }
+
+  // Публичная страница объекта найдена — сбрасываем возможный noindex,
+  // оставшийся от предыдущего слага, если это не полный remount компонента
+  // (например, переход между двумя лендингами объектов в рамках SPA).
+  setMetaContent('meta[name="robots"]', 'index, follow');
 
   const ld = document.getElementById('object-json-ld');
   if (ld) {

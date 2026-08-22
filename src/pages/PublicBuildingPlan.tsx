@@ -7,6 +7,7 @@ import type { BuildingPlan, BuildingPlanZone } from '../data/buildingPlans';
 import type { RealtyObject } from '../data/objects';
 import { fetchObjectByShareToken } from '../lib/objectsApi';
 import { fetchBuildingPlans, fetchZonesForPlan } from '../lib/buildingPlansApi';
+import { setNoIndex, clearNoIndex } from '../lib/pageMeta';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -27,6 +28,13 @@ export function PublicBuildingPlan() {
   const [zones, setZones] = useState<BuildingPlanZone[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Клиентская ссылка — рассылается в мессенджеры/почту, может содержать
+  // данные конкретного лида/сделки, в поиске быть не должна.
+  useEffect(() => {
+    setNoIndex();
+    return () => clearNoIndex();
+  }, []);
 
   useEffect(() => {
     if (!token) return;

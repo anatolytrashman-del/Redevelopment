@@ -12,6 +12,11 @@ import type { ObjectDocumentFile } from '../../data/objects';
 // компонентами страницы.
 export const PLAN_AND_UNITS_ANCHOR_ID = 'plan-and-units';
 
+// Дублирует PURCHASE_OPTIONS_ANCHOR_ID из ObjectLandingPage.tsx — тот же
+// приём, что и у PLAN_AND_UNITS_ANCHOR_ID выше (строка-якорь продублирована,
+// а не импортирована, чтобы компонент не тянул зависимость на страницу).
+const PURCHASE_OPTIONS_ANCHOR_ID = 'purchase-options';
+
 interface BookingTermsCardProps {
   agreement: ObjectDocumentFile | null;
 }
@@ -21,29 +26,41 @@ interface Step {
   description: string;
 }
 
+// Полный путь сделки видимым текстом (бронь → соглашение о намерениях,
+// подписанное кодом из email — УТП, которого нет у обычных объявлений
+// → бронирование без предоплаты → оплата рассрочкой/лизингом/кредитом) —
+// снимает типичные возражения и заодно коммерческий фактор для Яндекса
+// (см. SEO_PLAN.md, Э1-6).
 const steps: Step[] = [
   { title: 'Выберите кабинет', description: 'В списке или на плане выше' },
   { title: 'Прочитайте соглашение', description: '2 страницы, без сложных терминов' },
-  { title: 'Забронируйте онлайн', description: 'Подтверждение по email. Без визитов в офис и оплаты.' },
+  { title: 'Забронируйте онлайн', description: 'Подписание — кодом из email, без визитов в офис и без оплаты.' },
+  { title: 'Оплатите', description: 'Рассрочка, лизинг или кредит — на выбор' },
 ];
 
 // Блок-закрыватель сомнений, а не справка: раньше был статичным списком
-// фактов рядом с иконкой документа, теперь — путь из 3 шагов. Шаги не
-// отслеживают реальный прогресс брони (нет состояния "активен/пройден"),
-// поэтому все три выглядят одинаково — это общий призыв "вот как легко",
-// а не трекер конкретной заявки. Стоит под
+// фактов рядом с иконкой документа, теперь — путь из 4 шагов (полный цикл
+// сделки: бронь → соглашение о намерениях → бронирование → оплата, видимым
+// текстом — см. SEO_PLAN.md Э1-6). Шаги не отслеживают реальный прогресс
+// брони (нет состояния "активен/пройден"), поэтому все выглядят одинаково —
+// это общий призыв "вот как легко", а не трекер конкретной заявки. Стоит под
 // общим блоком план+список (см. PublicPlanAndUnits) — сначала клиент
 // смотрит кабинеты, потом здесь снимаем тревогу и ведём назад к брони.
 // Главная кнопка брони — на 3-м шаге (а не на 1-м): бронь физически нельзя
 // начать без выбора конкретного кабинета (форма живёт в модалке кабинета
 // в PublicPlanAndUnits), так что и там, и там кнопка ведёт к списку — но на
 // 3-м шаге это финальный, самый заметный призыв после всего объяснения, а
-// не дубль. Шаг 1 — только лёгкая ссылка-подсказка "куда смотреть".
+// не дубль. Шаг 1 — только лёгкая ссылка-подсказка "куда смотреть", шаг 4 —
+// ссылка назад к вариантам оплаты (карточка "3 варианта покупки" выше).
 export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
 
   function scrollToUnits() {
     document.getElementById(PLAN_AND_UNITS_ANCHOR_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function scrollToPurchaseOptions() {
+    document.getElementById(PURCHASE_OPTIONS_ANCHOR_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   // Из превью соглашения — не просто закрыть модалку, а сразу отправить
@@ -58,7 +75,7 @@ export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
     <div className={cn('flex flex-col gap-6 p-6', glassCardClass)} style={glassCardShadow}>
       <div className="text-xl font-extrabold text-ink">Онлайн-бронирование без предоплаты</div>
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {steps.map((step, i) => {
           return (
             <div key={step.title} className="flex flex-col gap-3 sm:h-full">
@@ -73,11 +90,12 @@ export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
               </div>
               <div className="flex flex-col gap-2 pl-10 sm:flex-1">
                 <p className="text-sm font-medium text-ink-muted">{step.description}</p>
-                {/* mt-auto прижимает ссылку к низу колонки, чтобы все три были на
-                    одном уровне — но только от sm, где это реально 3-колоночная
-                    сетка. Ниже sm колонка одна, и h-full/flex-1/mt-auto друг на
-                    друге создавали огромный пустой зазор перед ссылкой первого
-                    шага — просто обычный поток с небольшим отступом. */}
+                {/* mt-auto прижимает ссылку к низу колонки, чтобы шаги были на
+                    одном уровне — но только от sm, где это уже сетка в
+                    несколько колонок. Ниже sm колонка одна, и h-full/flex-1/
+                    mt-auto друг на друге создавали огромный пустой зазор перед
+                    ссылкой первого шага — просто обычный поток с небольшим
+                    отступом. */}
                 <div className="pt-1 sm:mt-auto">
                   {i === 0 && (
                     <button
@@ -107,6 +125,15 @@ export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
                       className="w-fit text-sm font-semibold text-primary hover:underline"
                     >
                       Забронировать кабинет ↑
+                    </button>
+                  )}
+                  {i === 3 && (
+                    <button
+                      type="button"
+                      onClick={scrollToPurchaseOptions}
+                      className="w-fit text-sm font-semibold text-primary hover:underline"
+                    >
+                      Смотреть варианты ↑
                     </button>
                   )}
                 </div>

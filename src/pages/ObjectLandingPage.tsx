@@ -24,11 +24,12 @@ import type { LucideIcon } from 'lucide-react';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { PublicPlanAndUnits } from '../components/objects/PublicPlanAndUnits';
 import { BookingTermsCard } from '../components/objects/BookingTermsCard';
+import { zonePrice, WORKSTATION_PRICE, PRICE_PER_METER } from '../data/buildingPlans';
 import type { BuildingPlan, BuildingPlanZone } from '../data/buildingPlans';
 import type { RealtyObject } from '../data/objects';
 import { fetchObjectByLandingSlug } from '../lib/objectsApi';
 import { fetchBuildingPlans, fetchZonesForPlan } from '../lib/buildingPlansApi';
-import { setObjectPageMeta } from '../lib/pageMeta';
+import { setObjectPageMeta, setNoIndex, clearNoIndex } from '../lib/pageMeta';
 
 function formatMoney(value: number) {
   return `$${Math.round(value).toLocaleString('ru-RU')}`;
@@ -75,8 +76,11 @@ function isOwnerOnlineNow() {
 // Пока продающая страница только у одного объекта, оффер и буллеты на
 // главном экране — фиксированный текст под него, а не поле в базе.
 // Когда появится второй объект с такой страницей — вынести в данные объекта.
+const MIN_ROOM_AREA = 11;
+const MAX_ROOM_AREA = 40;
+
 const heroFeatures: { icon: LucideIcon; text: string }[] = [
-  { icon: Ruler, text: 'Площади от 11 м² до 40 м²' },
+  { icon: Ruler, text: `Площади от ${MIN_ROOM_AREA} м² до ${MAX_ROOM_AREA} м²` },
   { icon: Sparkles, text: 'Дизайнерский ремонт' },
   { icon: ShieldCheck, text: 'Бесплатная онлайн-бронь' },
 ];
@@ -100,6 +104,12 @@ interface PurchaseOption {
   description: string;
   badge?: string;
 }
+
+// Якорь для 4-го шага BookingTermsCard ("Оплатите") — id продублирован в
+// BookingTermsCard.tsx константой с тем же значением (тот же приём, что и
+// PLAN_AND_UNITS_ANCHOR_ID в PublicPlanAndUnits.tsx — без кросс-импорта
+// между страницей и компонентом).
+const PURCHASE_OPTIONS_ANCHOR_ID = 'purchase-options';
 
 const purchaseOptions: PurchaseOption[] = [
   {
@@ -149,6 +159,16 @@ export function ObjectLandingPage() {
     if (!slug || !object) return;
     setObjectPageMeta(slug, object, object.renderImageUrls[0]);
   }, [slug, object]);
+
+  // Soft-404: /:slug (App.tsx) перехватывает любой односегментный путь раньше
+  // маршрута "*", поэтому опечатка в ссылке всё равно отдаёт 200. Раз контент
+  // не 404, единственный способ не дать боту проиндексировать пустую
+  // страницу — явный noindex, пока не найден объект.
+  useEffect(() => {
+    if (!notFound) return;
+    setNoIndex();
+    return () => clearNoIndex();
+  }, [notFound]);
 
   useEffect(() => {
     if (!slug) return;
@@ -295,7 +315,29 @@ export function ObjectLandingPage() {
           </div>
         </div>
 
-        <div className={cn('flex flex-col gap-5 p-5', glassCardClass)} style={glassCardShadow}>
+        {/* Видимый текст цен в HTML, не только внутри интерактивного плана/
+            таблицы ниже (PublicPlanAndUnits) — коммерческий фактор №1 для
+            Яндекса и материал для цитирования AI-системами по ценовым
+            запросам (см. SEO_PLAN.md, Э1-5). Цифры берём из тех же констант,
+            что считают реальные цены на плане (zonePrice/WORKSTATION_PRICE),
+            а не дублируем их вручную. */}
+        <div className={cn('flex flex-col gap-4 p-5', glassCardClass)} style={glassCardShadow}>
+          <h2 className="text-xl font-extrabold text-ink">Цены</h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1">
+              <div className="text-lg font-bold text-ink">
+                Кабинеты {MIN_ROOM_AREA}–{MAX_ROOM_AREA} м² — от {formatMoney(zonePrice(MIN_ROOM_AREA))}
+              </div>
+              <p className="text-sm text-ink-muted">${PRICE_PER_METER} за м² · рассрочка, лизинг или кредит — см. ниже</p>
+            </div>
+            <div className="flex flex-col gap-1">
+              <div className="text-lg font-bold text-ink">Фиксированное рабочее место — от {formatMoney(WORKSTATION_PRICE)}</div>
+              <p className="text-sm text-ink-muted">Готовое место в общем кабинете, без ремонта</p>
+            </div>
+          </div>
+        </div>
+
+        <div id={PURCHASE_OPTIONS_ANCHOR_ID} className={cn('flex flex-col gap-5 p-5', glassCardClass)} style={glassCardShadow}>
           <div className="text-xl font-extrabold text-ink">3 варианта покупки, если нет полной суммы</div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {purchaseOptions.map((opt) => (
