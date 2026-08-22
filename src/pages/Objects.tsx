@@ -184,15 +184,19 @@ export function Objects() {
               >
                 <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden bg-surface-muted">
                   <PhotoCarousel images={o.photoUrls} alt={o.name || o.address} imgClassName="transition-transform duration-300 sm:group-hover:scale-105" />
-                  {o.status && (
-                    <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-ink shadow-sm">
-                      {o.status}
-                    </span>
-                  )}
-                  {o.priority && (
-                    <span className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-ink shadow-sm">
-                      🔥 Приоритет
-                    </span>
+                  {(o.status || o.priority) && (
+                    <div className="absolute inset-x-2 top-2 flex flex-wrap items-start gap-1">
+                      {o.status && (
+                        <span className="rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-ink shadow-sm">
+                          {o.status}
+                        </span>
+                      )}
+                      {o.priority && (
+                        <span className="ml-auto rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-ink shadow-sm">
+                          🔥 Приоритет
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
 
