@@ -7,6 +7,7 @@ function fromRow(row: MeetingSummaryRow): MeetingSummary {
     id: row.id,
     title: row.title,
     content: row.content,
+    transcript: row.transcript ?? '',
     shareToken: row.share_token,
     createdAt: row.created_at,
   };
@@ -59,11 +60,16 @@ export function insertMeetingSummary(input: { title: string; content: string }):
   });
 }
 
-export function updateMeetingSummary(id: string, input: { title: string; content: string }): Promise<MeetingSummary> {
+export function updateMeetingSummary(
+  id: string,
+  input: { title: string; content: string; transcript?: string },
+): Promise<MeetingSummary> {
   return withRetry(async () => {
+    const payload: Record<string, string> = { title: input.title, content: input.content };
+    if (input.transcript !== undefined) payload.transcript = input.transcript;
     const { data, error } = await supabase
       .from('meeting_summaries')
-      .update({ title: input.title, content: input.content })
+      .update(payload)
       .eq('id', id)
       .select()
       .single();

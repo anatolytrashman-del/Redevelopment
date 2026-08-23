@@ -9,6 +9,13 @@ export interface MeetingSummary {
   // Markdown — рендерится и в форме редактирования (превью), и на
   // публичной странице (см. lib/markdown.ts).
   content: string;
+  // Сырая расшифровка аудиозаписи встречи (Whisper через ProxyAPI, см.
+  // api/transcribe-meeting.js + lib/meetingTranscribeApi.ts). Хранится
+  // отдельно от content: content — причёсанное саммери для публичной
+  // страницы, transcript — исходник, из которого саммери генерируется
+  // (и к которому можно вернуться при смене промта). Само аудио НЕ
+  // хранится — куски удаляются из Storage сразу после расшифровки.
+  transcript: string;
   shareToken: string;
   createdAt: string;
 }
@@ -18,6 +25,7 @@ export interface MeetingSummaryRow {
   id: string;
   title: string;
   content: string;
+  transcript: string | null;
   share_token: string;
   created_at: string;
 }

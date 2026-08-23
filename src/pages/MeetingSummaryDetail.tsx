@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Copy, Check, Eye, Pencil } from 'lucide-react';
+import { ArrowLeft, Loader2, Copy, Check, Eye, Pencil, Mic, Sparkles } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -9,6 +9,7 @@ import { Textarea } from '../components/ui/Textarea';
 import { MarkdownContent } from '../components/ui/MarkdownContent';
 import type { MeetingSummary } from '../data/meetingSummaries';
 import { fetchMeetingSummary, updateMeetingSummary } from '../lib/meetingSummariesApi';
+import { transcribeAudioFile, summarizeTranscript, type TranscribeProgress } from '../lib/meetingTranscribeApi';
 import { cn } from '../lib/cn';
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -26,10 +27,18 @@ export function MeetingSummaryDetail() {
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [transcript, setTranscript] = useState('');
   const [tab, setTab] = useState<'edit' | 'preview'>('edit');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const audioInputRef = useRef<HTMLInputElement>(null);
+  const [transcribing, setTranscribing] = useState(false);
+  const [progress, setProgress] = useState<TranscribeProgress | null>(null);
+  const [transcribeError, setTranscribeError] = useState<string | null>(null);
+  const [summarizing, setSummarizing] = useState(false);
+  const [showTranscript, setShowTranscript] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -40,26 +49,75 @@ export function MeetingSummaryDetail() {
         setSummary(s);
         setTitle(s.title);
         setContent(s.content);
+        setTranscript(s.transcript);
       })
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить саммери')))
       .finally(() => setLoading(false));
   }, [id]);
 
-  const dirty = summary != null && (title !== summary.title || content !== summary.content);
+  const dirty =
+    summary != null && (title !== summary.title || content !== summary.content || transcript !== summary.transcript);
 
   async function handleSave() {
     if (!summary || saving) return;
     setSaving(true);
     setSaveError(null);
     try {
-      const updated = await updateMeetingSummary(summary.id, { title: title.trim() || 'Без названия', content });
+      const updated = await updateMeetingSummary(summary.id, {
+        title: title.trim() || 'Без названия',
+        content,
+        transcript,
+      });
       setSummary(updated);
       setTitle(updated.title);
       setContent(updated.content);
+      setTranscript(updated.transcript);
     } catch (err) {
       setSaveError(errorMessage(err, 'Не удалось сохранить саммери'));
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Расшифровка сохраняется в базу СРАЗУ по завершении (не ждёт общей кнопки
+  // "Сохранить") — потерять результат многоминутной оплачиваемой расшифровки
+  // из-за забытого клика больнее всего; тот же принцип, что немедленное
+  // сохранение фото в дизайн-проектах.
+  async function handleAudioSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (audioInputRef.current) audioInputRef.current.value = '';
+    if (!file || !summary || transcribing) return;
+    setTranscribing(true);
+    setTranscribeError(null);
+    setProgress(null);
+    try {
+      const text = await transcribeAudioFile(file, setProgress);
+      if (!text.trim()) throw new Error('Распознавание вернуло пустой текст — проверьте запись');
+      setTranscript(text);
+      setShowTranscript(true);
+      const updated = await updateMeetingSummary(summary.id, { title: summary.title, content: summary.content, transcript: text });
+      setSummary(updated);
+    } catch (err) {
+      setTranscribeError(errorMessage(err, 'Не удалось расшифровать запись'));
+    } finally {
+      setTranscribing(false);
+      setProgress(null);
+    }
+  }
+
+  async function handleSummarize() {
+    if (!transcript.trim() || summarizing) return;
+    if (content.trim() && !window.confirm('Текст саммери уже заполнен — заменить его сгенерированным?')) return;
+    setSummarizing(true);
+    setTranscribeError(null);
+    try {
+      const generated = await summarizeTranscript(transcript);
+      setContent(generated);
+      setTab('preview');
+    } catch (err) {
+      setTranscribeError(errorMessage(err, 'Не удалось сгенерировать саммери'));
+    } finally {
+      setSummarizing(false);
     }
   }
 
@@ -93,6 +151,67 @@ export function MeetingSummaryDetail() {
         </Card>
       )}
       {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
+
+      {!loading && !loadError && summary && (
+        <Card className="flex flex-col gap-4 p-5">
+          <div className="text-lg font-bold text-ink">Запись встречи</div>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              ref={audioInputRef}
+              type="file"
+              accept="audio/*,.m4a,.mp3,.wav,.ogg"
+              className="hidden"
+              onChange={handleAudioSelected}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              icon={transcribing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
+              onClick={() => audioInputRef.current?.click()}
+              disabled={transcribing}
+            >
+              {transcribing
+                ? progress?.stage === 'preparing'
+                  ? 'Готовим аудио...'
+                  : progress && progress.chunkCount > 1
+                    ? `Расшифровка: часть ${progress.chunkIndex} из ${progress.chunkCount}...`
+                    : 'Расшифровка...'
+                : transcript.trim()
+                  ? 'Расшифровать другую запись'
+                  : 'Загрузить запись и расшифровать'}
+            </Button>
+            <Button
+              type="button"
+              icon={summarizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              onClick={handleSummarize}
+              disabled={!transcript.trim() || summarizing || transcribing}
+            >
+              {summarizing ? 'Генерируем саммери...' : 'Сделать саммери из расшифровки'}
+            </Button>
+          </div>
+          {transcribeError && <p className="text-sm text-danger">{transcribeError}</p>}
+          {transcript.trim() && (
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => setShowTranscript((v) => !v)}
+                className="w-fit text-sm font-medium text-ink-muted hover:text-primary"
+              >
+                {showTranscript ? 'Скрыть расшифровку' : 'Показать расшифровку'}
+              </button>
+              {showTranscript && (
+                <Textarea
+                  value={transcript}
+                  onChange={(e) => setTranscript(e.target.value)}
+                  rows={12}
+                  className="font-mono text-xs"
+                  placeholder="Расшифровка записи"
+                />
+              )}
+            </div>
+          )}
+        </Card>
+      )}
 
       {!loading && !loadError && summary && (
         <Card className="flex flex-col gap-4 p-5">

@@ -1,4 +1,8 @@
 {
+  "functions": {
+    "api/transcribe-meeting.js": { "maxDuration": 60 },
+    "api/summarize-meeting.js": { "maxDuration": 60 }
+  },
   "redirects": [
     { "source": "/", "destination": "/one", "permanent": false }
   ],
