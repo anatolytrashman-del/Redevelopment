@@ -125,6 +125,7 @@ interface EditFormState {
   size: string;
   pricePerSqm: string;
   finishStatus: FinishStatus;
+  floor: string;
   address: string;
 }
 
@@ -135,6 +136,7 @@ function offerToForm(offer: MarketOffer): EditFormState {
     size: String(offer.size),
     pricePerSqm: String(offer.pricePerSqm),
     finishStatus: offer.finishStatus as FinishStatus,
+    floor: offer.floor == null ? '' : String(offer.floor),
     address: offer.address ?? '',
   };
 }
@@ -194,6 +196,7 @@ function OfferRow({
       <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-muted">
         {offer.size} м² <span className="text-ink-faint">({areaBucket(offer.size)})</span>
       </td>
+      <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-muted">{offer.floor ?? '—'}</td>
       <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-muted">
         {offer.pricePerSqm} $/м²{offer.dealType === 'rent' ? '/мес' : ''}
       </td>
@@ -226,6 +229,7 @@ function OfferTableHead() {
         <th className="py-2 px-2">Тип</th>
         <th className="py-2 px-2">Сделка</th>
         <th className="py-2 px-2 text-right">Площадь</th>
+        <th className="py-2 px-2 text-right">Этаж</th>
         <th className="py-2 px-2 text-right">Цена / м²</th>
         <th className="py-2 px-2">Отделка</th>
         <th className="py-2 px-2">Обработка</th>
@@ -401,6 +405,12 @@ export function MarketOffersReview() {
       setError('Площадь и цена должны быть положительными числами.');
       return;
     }
+    const floorTrimmed = editForm.floor.trim();
+    const floor = floorTrimmed === '' ? null : Number(floorTrimmed);
+    if (floor != null && !Number.isFinite(floor)) {
+      setError('Этаж должен быть числом (или оставьте поле пустым).');
+      return;
+    }
     setSaving(true);
     try {
       const patch = {
@@ -409,6 +419,7 @@ export function MarketOffersReview() {
         size,
         pricePerSqm,
         finishStatus: editForm.finishStatus,
+        floor,
         address: editForm.address,
       };
       await updateMarketOffer(editingOffer.id, patch);
@@ -497,7 +508,8 @@ export function MarketOffersReview() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-sm text-ink-muted">
                       <span className="font-semibold text-ink">{group[0].address ?? 'без адреса'}</span> ·{' '}
-                      {group[0].size} м² · {group.length} объявления похожи друг на друга
+                      {group[0].size} м² · этаж {group[0].floor ?? '?'} · {group.length} объявления похожи друг на
+                      друга
                     </p>
                     <Button
                       variant="secondary"
@@ -591,6 +603,13 @@ export function MarketOffersReview() {
                 onChange={(e) => setEditForm((f) => f && { ...f, pricePerSqm: e.target.value })}
               />
             </div>
+            <Input
+              label="Этаж (не обязательно)"
+              type="text"
+              inputMode="numeric"
+              value={editForm.floor}
+              onChange={(e) => setEditForm((f) => f && { ...f, floor: e.target.value })}
+            />
             <div>
               <span className="mb-1.5 block text-sm text-ink-muted">Отделка</span>
               <FinishStatusPicker

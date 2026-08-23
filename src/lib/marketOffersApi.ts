@@ -13,6 +13,7 @@ function fromRow(row: MarketOfferRow): MarketOffer {
     pricePerSqm: row.price_per_sqm,
     finishStatus: row.finish_status,
     reviewed: row.reviewed,
+    floor: row.floor,
     address: row.address,
     adLink: row.ad_link,
     updatedAt: row.updated_at,
@@ -53,11 +54,12 @@ export interface MarketOfferEditPatch {
   size: number;
   pricePerSqm: number;
   finishStatus: string;
+  floor: number | null;
   address: string;
 }
 
-// Полное редактирование строки (цена/тип/площадь/сделка/отделка/адрес) —
-// тоже считается обработкой.
+// Полное редактирование строки (цена/тип/площадь/сделка/отделка/этаж/адрес)
+// — тоже считается обработкой.
 export function updateMarketOffer(id: number, patch: MarketOfferEditPatch): Promise<void> {
   return withRetry(async () => {
     const { error } = await supabase
@@ -68,6 +70,7 @@ export function updateMarketOffer(id: number, patch: MarketOfferEditPatch): Prom
         size: patch.size,
         price_per_sqm: patch.pricePerSqm,
         finish_status: patch.finishStatus,
+        floor: patch.floor,
         address: patch.address || null,
         reviewed: true,
       })

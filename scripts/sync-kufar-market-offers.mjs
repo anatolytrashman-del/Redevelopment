@@ -191,6 +191,11 @@ function extractOffers(ads, dealType, excluded) {
       continue;
     }
 
+    // Этаж — доп. сигнал для поиска дублей (data/marketOffers.ts, dedupKey):
+    // в одном доме часто много одинаковых по площади кабинетов на РАЗНЫХ
+    // этажах — без этажа они ложно считались одним и тем же дублем.
+    const floor = getAdParam(ad, 'floor')?.v?.[0] ?? null;
+
     offers.push({
       source: 'Kufar',
       ad_id: String(ad.ad_id),
@@ -199,6 +204,7 @@ function extractOffers(ads, dealType, excluded) {
       size,
       price_per_sqm: pricePerSqm,
       finish_status: classifyFinishStatus(ad),
+      floor,
       address: address ?? null,
       ad_link: adLink,
     });
@@ -249,7 +255,7 @@ async function main() {
   const adIds = offers.map((o) => o.ad_id);
   const { data: existing, error: fetchError } = await supabase
     .from('market_offers')
-    .select('ad_id, deal_type, property_type, size, price_per_sqm, finish_status, address, reviewed')
+    .select('ad_id, deal_type, property_type, size, price_per_sqm, finish_status, floor, address, reviewed')
     .eq('source', 'Kufar')
     .in('ad_id', adIds);
   if (fetchError) throw fetchError;

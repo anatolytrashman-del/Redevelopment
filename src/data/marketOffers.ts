@@ -19,6 +19,9 @@ export interface MarketOffer {
   // Одновременно это же поле защищает строку от перезаписи при следующем
   // месячном синке (см. scripts/sync-kufar-market-offers.mjs).
   reviewed: boolean;
+  // Не у всех объявлений заполнен — используется только как доп. сигнал
+  // при поиске дублей (dedupKey), в остальном не критичен.
+  floor: number | null;
   address: string | null;
   adLink: string | null;
   updatedAt: string;
@@ -34,6 +37,7 @@ export interface MarketOfferRow {
   price_per_sqm: number;
   finish_status: string;
   reviewed: boolean;
+  floor: number | null;
   address: string | null;
   ad_link: string | null;
   updated_at: string;
@@ -75,10 +79,20 @@ export const MARKET_PROPERTY_TYPES = [
 // строк тут бесполезно, поэтому грубый ключ: последнее слово перед "ул"
 // (обычно и есть узнаваемая "фамилия" улицы что у Kufar, что у Realt) +
 // номер дома (первое число в адресе) + округлённая площадь + тип сделки.
+//
+// Этаж — обязательная часть ключа, когда он известен у обеих сторон. Без
+// него бизнес-центры с одинаковыми по площади кабинетами на разных этажах
+// (а их в Минск Мире много — у Red One та же модель) ложно считались одной
+// огромной группой дублей: например, ул. Алфёрова 14 — 16 объявлений с
+// одинаковой площадью, которые на деле как минимум 3 разных помещения
+// (владелец проверил вручную, август 2026). Этаж неизвестен — не повод
+// разделять группу (используем sentinel '?', а не пустой — иначе тот же
+// эффект, что раньше без этажа вообще), просто менее надёжный сигнал.
+//
 // Специально не автоматизируем удаление — только группируем и подсвечиваем
 // в /admin/market-offers, решение остаётся за владельцем (может быть и
-// два разных объявления на две разные секции одного дома).
-export function dedupKey(offer: Pick<MarketOffer, 'dealType' | 'size' | 'address'>): string | null {
+// два разных объявления на две разные секции одного дома на одном этаже).
+export function dedupKey(offer: Pick<MarketOffer, 'dealType' | 'size' | 'address' | 'floor'>): string | null {
   if (!offer.address) return null;
   const normalized = offer.address.toLowerCase().replace(/ё/g, 'е').replace(/[.,]/g, ' ');
   // (?![а-я]) вместо \b — \b в JS считает границей слова только [A-Za-z0-9_],
@@ -86,5 +100,6 @@ export function dedupKey(offer: Pick<MarketOffer, 'dealType' | 'size' | 'address
   const streetMatch = normalized.match(/([а-я-]+)\s+ул(?![а-я])/);
   const houseMatch = normalized.match(/ул\S*\s+(\d+)/);
   if (!streetMatch || !houseMatch) return null;
-  return `${offer.dealType}|${streetMatch[1]}|${houseMatch[1]}|${Math.round(offer.size)}`;
+  const floorKey = offer.floor ?? '?';
+  return `${offer.dealType}|${streetMatch[1]}|${houseMatch[1]}|${Math.round(offer.size)}|${floorKey}`;
 }

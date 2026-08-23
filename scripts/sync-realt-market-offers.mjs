@@ -165,6 +165,10 @@ function extractOffers(objects, dealType, dealSlug, categorySlug, propertyType, 
       size,
       price_per_sqm: pricePerSqm,
       finish_status: classifyFinishStatus(o.repairState),
+      // Этаж — доп. сигнал для поиска дублей (data/marketOffers.ts, dedupKey):
+      // без него много одинаковых по площади кабинетов в одном доме на
+      // разных этажах ложно считались одним и тем же дублем.
+      floor: o.storey ?? null,
       address: o.address ?? null,
       ad_link: adLink,
     });
@@ -215,7 +219,7 @@ async function main() {
   const adIds = offers.map((o) => o.ad_id);
   const { data: existing, error: fetchError } = await supabase
     .from('market_offers')
-    .select('ad_id, deal_type, property_type, size, price_per_sqm, finish_status, address, reviewed')
+    .select('ad_id, deal_type, property_type, size, price_per_sqm, finish_status, floor, address, reviewed')
     .eq('source', 'Realt')
     .in('ad_id', adIds);
   if (fetchError) throw fetchError;
