@@ -33,7 +33,12 @@ export function HeroImageSlider({ images, alt = '' }: HeroImageSliderProps) {
   }
 
   return (
-    <div className="relative aspect-video w-full">
+    // min-h-0 обязателен: без него flex-родитель (страница держит секции в
+    // flex-col) считает автоматический min-height по контенту — с портретным
+    // фото внутри (уже случилось на гиде района, где фото 512×640, а не
+    // альбомные рендеры как здесь) это игнорирует aspect-video и раздувает
+    // блок под пропорции самой картинки.
+    <div className="relative aspect-video w-full min-h-0">
       {/* Рассеянная тень вместо жёсткой обводки — drop-shadow (в отличие от
           box-shadow/ring) огибает реальный силуэт после clip-path, включая
           диагональные срезы, без отдельного слоя-рамки. */}

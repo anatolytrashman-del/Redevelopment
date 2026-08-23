@@ -27,6 +27,7 @@ import type { LucideIcon } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setFaqJsonLd } from '../lib/pageMeta';
+import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
 import type { FaqItem } from '../components/ui/FaqAccordion';
 
@@ -46,12 +47,22 @@ const DATE_MODIFIED = '2026-08-22';
 const MAP_EMBED_URL =
   'https://yandex.ru/map-widget/v1/?um=constructor%3A1d794325dcda320ce9255c449e982037d1332cf776404d4a207b9a3e8bf2f307&source=constructorLink';
 
-// Пусто — реальное фото прислано владельцем прямо в чат (не файлом,
-// вставить программно нечем), нужна ссылка на него (любой хостинг, тот же
-// приём, что и у MINSK_MIR_LOGO_URL в ObjectLandingPage.tsx — фото партнёра
-// тоже пришло по прямой ссылке). Пока пусто — вместо фото рендерится
-// плейсхолдер, чтобы было видно вёрстку до того, как появится ссылка.
-const HERO_IMAGE_URL = '';
+// 6 аэрофото района от владельца (ссылки на ibb.co) — скачаны и
+// самостоятельно захостены в public/images/district/ (тот же принцип,
+// что и с логотипом метро — не зависеть от внешнего хостинга для
+// критичной для LCP картинки). У всех фото водяной знак «@PROMIR_BY» —
+// владелец подтвердил, что публикация с сохранённым водяным знаком
+// нормальна (это открытая публикация автора, не тайком скопированная).
+// HeroImageSlider — тот же компонент, что и слайдер рендеров на /one
+// (components/objects/HeroImageSlider.tsx), просто переиспользован.
+const HERO_IMAGES = [
+  '/images/district/hero-1.jpg',
+  '/images/district/hero-2.jpg',
+  '/images/district/hero-3.jpg',
+  '/images/district/hero-4.jpg',
+  '/images/district/hero-5.jpg',
+  '/images/district/hero-6.jpg',
+];
 
 // Источник фактов: Википедия, статья "Минск Мир" (ru.wikipedia.org,
 // прислана владельцем 2026-08-22) + веб-поиск (Avia Mall, инфраструктура)
@@ -348,16 +359,7 @@ export function DistrictGuidePage() {
           </p>
         </div>
 
-        <div className="overflow-hidden rounded-3xl border border-white/80">
-          {HERO_IMAGE_URL ? (
-            <img src={HERO_IMAGE_URL} alt="Район Минск Мир" className="aspect-[3/2] w-full object-cover" />
-          ) : (
-            <div className="flex aspect-[3/2] w-full flex-col items-center justify-center gap-2 bg-surface-muted text-ink-faint">
-              <Building2 className="h-8 w-8" />
-              <p className="text-xs font-medium">Фото района — здесь появится, когда пришлёте ссылку</p>
-            </div>
-          )}
-        </div>
+        <HeroImageSlider images={HERO_IMAGES} alt="Аэрофото района Минск Мир" />
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {statTiles.map(({ icon: Icon, value, label }) => (
