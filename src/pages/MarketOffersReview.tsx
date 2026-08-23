@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Check, ExternalLink, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { Check, CheckCircle2, ExternalLink, Loader2, Pencil, Play, Trash2 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { SearchInput } from '../components/ui/SearchInput';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
@@ -41,6 +41,18 @@ import type { MarketOffer, FinishStatus } from '../data/marketOffers';
 // совпадают у нескольких объявлений) — их нужно разобрать до одиночных
 // объявлений, поэтому секция дублей всегда идёт первой на странице, а
 // объявления внутри неё не показываются повторно в общей таблице ниже.
+//
+// "Начать верификацию" — пошаговый режим поверх того же порядка: по одной
+// показывает либо ближайшую нерешённую группу дублей, либо (когда группы
+// кончились) ближайшее непроверенное одиночное объявление — сразу в
+// карточке редактирования. После решения группы/сохранения карточки
+// подставляется следующее автоматически (см. verifyGroupTarget/
+// verifySingleTarget ниже — оба выводятся реактивно из текущих данных, без
+// отдельной очереди с индексом, поэтому переживают удаления/отклонения
+// прямо во время прохода). "Пропустить" откладывает текущее до конца ЭТОЙ
+// сессии верификации (skippedGroupKeys/skippedSingleIds — сбрасываются
+// каждый раз при новом запуске), не путать с "Это разные помещения"
+// (постоянное решение в БД).
 
 const FINISH_FILTER_OPTIONS = ['Все', 'Не указано', 'С отделкой', 'Без отделки'] as const;
 type FinishFilter = (typeof FINISH_FILTER_OPTIONS)[number];
@@ -257,6 +269,9 @@ export function MarketOffersReview() {
   const [editForm, setEditForm] = useState<EditFormState | null>(null);
   const [saving, setSaving] = useState(false);
   const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(new Set());
+  const [verifying, setVerifying] = useState(false);
+  const [skippedGroupKeys, setSkippedGroupKeys] = useState<Set<string>>(new Set());
+  const [skippedSingleIds, setSkippedSingleIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     fetchMarketOffers()
@@ -341,6 +356,43 @@ export function MarketOffersReview() {
       .sort((a, b) => a[0].localeCompare(b[0]));
   }, [duplicateGroups, search]);
 
+  // Верификация всегда идёт по ВСЕМ группам/объявлениям, игнорируя поиск и
+  // остальные фильтры на странице — это отдельный сквозной проход, не
+  // привязанный к тому, что сейчас введено в поиске.
+  const allGroupsSorted = useMemo(
+    () => [...duplicateGroups.entries()].sort((a, b) => a[0].localeCompare(b[0])),
+    [duplicateGroups],
+  );
+
+  const ungroupedUnreviewed = useMemo(
+    () => (offers ?? []).filter((o) => !o.reviewed && !duplicateKeyByOfferId.has(o.id)).sort((a, b) => a.size - b.size),
+    [offers, duplicateKeyByOfferId],
+  );
+
+  const hasPendingVerification = allGroupsSorted.length > 0 || ungroupedUnreviewed.length > 0;
+
+  // Текущая цель — первая группа/объявление, которые ещё не отложены в этой
+  // сессии верификации ("Пропустить"). Оба выводятся заново на каждый
+  // рендер, поэтому после удаления строки, отклонения группы или сохранения
+  // карточки следующее подставляется само — без ручного управления индексом.
+  const verifyGroupTarget = useMemo(() => {
+    if (!verifying) return null;
+    return allGroupsSorted.find(([key]) => !skippedGroupKeys.has(key)) ?? null;
+  }, [verifying, allGroupsSorted, skippedGroupKeys]);
+
+  const verifySingleTarget = useMemo(() => {
+    if (!verifying || verifyGroupTarget) return null;
+    return ungroupedUnreviewed.find((o) => !skippedSingleIds.has(o.id)) ?? null;
+  }, [verifying, verifyGroupTarget, ungroupedUnreviewed, skippedSingleIds]);
+
+  // "Осталось" не уменьшается от "Пропустить" — пропущенное всё ещё не
+  // разобрано, просто временно не показывается в этом проходе.
+  const verifyRemaining =
+    allGroupsSorted.filter(([key]) => !skippedGroupKeys.has(key)).length +
+    ungroupedUnreviewed.filter((o) => !skippedSingleIds.has(o.id)).length;
+
+  const verifySkippedCount = skippedGroupKeys.size + skippedSingleIds.size;
+
   function patchOffer(id: number, patch: Partial<MarketOffer>) {
     setOffers((prev) => (prev ?? []).map((o) => (o.id === id ? { ...o, ...patch } : o)));
   }
@@ -373,6 +425,46 @@ export function MarketOffersReview() {
     setEditingOffer(offer);
     setEditForm(offerToForm(offer));
   }
+
+  function startVerification() {
+    setSkippedGroupKeys(new Set());
+    setSkippedSingleIds(new Set());
+    setVerifying(true);
+  }
+
+  function stopVerification() {
+    setVerifying(false);
+    setEditingOffer(null);
+    setEditForm(null);
+  }
+
+  function skipCurrentVerification() {
+    if (verifyGroupTarget) {
+      setSkippedGroupKeys((prev) => new Set(prev).add(verifyGroupTarget[0]));
+    } else if (verifySingleTarget) {
+      setSkippedSingleIds((prev) => new Set(prev).add(verifySingleTarget.id));
+    }
+  }
+
+  // Во время верификации закрытие карточки (крестик/фон/"Пропустить") — это
+  // тоже пропуск текущего одиночного объявления, а не просто закрытие: иначе
+  // эффект ниже тут же открыл бы ту же карточку заново (цель не изменилась).
+  function closeOrSkipEdit() {
+    if (verifying && editingOffer) {
+      setSkippedSingleIds((prev) => new Set(prev).add(editingOffer.id));
+    }
+    setEditingOffer(null);
+    setEditForm(null);
+  }
+
+  // Подставляет карточку редактирования для текущей цели-одиночки во время
+  // верификации — как только сохранение/пропуск меняют verifySingleTarget,
+  // здесь открывается следующая.
+  useEffect(() => {
+    if (verifySingleTarget && editingOffer?.id !== verifySingleTarget.id) {
+      openEdit(verifySingleTarget);
+    }
+  }, [verifySingleTarget, editingOffer]);
 
   async function handleEditSubmit(e: FormEvent) {
     e.preventDefault();
@@ -437,58 +529,141 @@ export function MarketOffersReview() {
       {offers !== null && (
         <div className="flex flex-col gap-4">
           {counts && (
-            <p className="text-sm text-ink-muted">
-              Всего {counts.total} объявлений (Kufar {counts.kufar} · Realt {counts.realt}) · с отделкой{' '}
-              {counts.finished} · без отделки {counts.unfinished} · не указано {counts.unknown} · обработано{' '}
-              {counts.reviewed} из {counts.total}
-              {counts.duplicates > 0 && (
-                <>
-                  {' '}
-                  ·{' '}
-                  <span className="font-semibold text-warning">возможных дублей — {counts.duplicates}</span>
-                </>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-ink-muted">
+                Всего {counts.total} объявлений (Kufar {counts.kufar} · Realt {counts.realt}) · с отделкой{' '}
+                {counts.finished} · без отделки {counts.unfinished} · не указано {counts.unknown} · обработано{' '}
+                {counts.reviewed} из {counts.total}
+                {counts.duplicates > 0 && (
+                  <>
+                    {' '}
+                    ·{' '}
+                    <span className="font-semibold text-warning">возможных дублей — {counts.duplicates}</span>
+                  </>
+                )}
+              </p>
+              {!verifying && (
+                <Button icon={<Play className="h-4 w-4" />} disabled={!hasPendingVerification} onClick={startVerification}>
+                  Начать верификацию
+                </Button>
               )}
-            </p>
+            </div>
           )}
 
-          <div className={cn('flex flex-col gap-3 p-4', glassCardClass)} style={glassCardShadow}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <SearchInput
-                placeholder="Поиск по адресу или типу…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="sm:max-w-xs"
-              />
-              <div className="flex flex-wrap gap-3">
-                <ToggleGroup
-                  label="Обработка"
-                  options={[...REVIEW_FILTER_OPTIONS]}
-                  value={reviewFilter}
-                  onChange={(v) => setReviewFilter(v as ReviewFilter)}
-                />
-                <ToggleGroup
-                  label="Источник"
-                  options={[...SOURCE_FILTER_OPTIONS]}
-                  value={sourceFilter}
-                  onChange={(v) => setSourceFilter(v as SourceFilter)}
-                />
-                <ToggleGroup label="Сделка" options={[...DEAL_FILTER_OPTIONS]} value={dealFilter} onChange={(v) => setDealFilter(v as DealFilter)} />
-                <ToggleGroup
-                  label="Отделка"
-                  options={[...FINISH_FILTER_OPTIONS]}
-                  value={finishFilter}
-                  onChange={(v) => setFinishFilter(v as FinishFilter)}
-                />
+          {verifying ? (
+            <div className="flex flex-col gap-3">
+              <div className={cn('flex flex-wrap items-center justify-between gap-3 p-4', glassCardClass)} style={glassCardShadow}>
+                <p className="text-sm font-semibold text-ink">Верификация — осталось {verifyRemaining}</p>
+                <div className="flex gap-2">
+                  {(verifyGroupTarget || verifySingleTarget) && (
+                    <Button variant="secondary" onClick={skipCurrentVerification}>
+                      Пропустить
+                    </Button>
+                  )}
+                  <Button variant="ghost" onClick={stopVerification}>
+                    Завершить проверку
+                  </Button>
+                </div>
               </div>
-            </div>
-            <p className="text-xs text-ink-faint">
-              Правки сразу учитываются в таблице на /rayon-minsk-mir и не перезатираются автоматическим синком.
-              Фильтры действуют на таблицу одиночных объявлений ниже — дубли выше показаны все, без фильтров, чтобы
-              не спрятать половину пары.
-            </p>
-          </div>
 
-          {duplicateGroups.size > 0 && (
+              {verifyGroupTarget ? (
+                <div className={cn('flex flex-col gap-3 p-4', glassCardClass)} style={glassCardShadow}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm text-ink-muted">
+                      <span className="font-semibold text-ink">{verifyGroupTarget[1][0].address ?? 'без адреса'}</span> ·{' '}
+                      {verifyGroupTarget[1][0].size} м² · этаж {verifyGroupTarget[1][0].floor ?? '?'} ·{' '}
+                      {verifyGroupTarget[1].length} объявления похожи друг на друга
+                    </p>
+                    <Button
+                      variant="secondary"
+                      icon={<Check className="h-4 w-4" />}
+                      disabled={pendingGroupKey === verifyGroupTarget[0]}
+                      onClick={() => handleDismissGroup(verifyGroupTarget[0])}
+                    >
+                      Это разные помещения
+                    </Button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[900px] border-collapse text-sm">
+                      <OfferTableHead />
+                      <tbody className="divide-y divide-border">
+                        {verifyGroupTarget[1].map((offer) => (
+                          <OfferRow
+                            key={offer.id}
+                            offer={offer}
+                            pending={pendingId === offer.id}
+                            onEdit={openEdit}
+                            onDelete={handleDelete}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : verifySingleTarget ? (
+                <p className="py-10 text-center text-sm text-ink-faint">
+                  Заполните карточку редактирования и сохраните — следующее объявление откроется само.
+                </p>
+              ) : (
+                <div className={cn('flex flex-col items-center gap-2 p-8 text-center', glassCardClass)} style={glassCardShadow}>
+                  <CheckCircle2 className="h-8 w-8 text-success" />
+                  <p className="text-sm font-semibold text-ink">Всё проверено!</p>
+                  {verifySkippedCount > 0 && (
+                    <p className="text-xs text-ink-faint">
+                      Пропущено {verifySkippedCount} — найдёте их в обычном списке ниже.
+                    </p>
+                  )}
+                  <Button className="mt-2" onClick={stopVerification}>
+                    Вернуться к списку
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className={cn('flex flex-col gap-3 p-4', glassCardClass)} style={glassCardShadow}>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <SearchInput
+                    placeholder="Поиск по адресу или типу…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="sm:max-w-xs"
+                  />
+                  <div className="flex flex-wrap gap-3">
+                    <ToggleGroup
+                      label="Обработка"
+                      options={[...REVIEW_FILTER_OPTIONS]}
+                      value={reviewFilter}
+                      onChange={(v) => setReviewFilter(v as ReviewFilter)}
+                    />
+                    <ToggleGroup
+                      label="Источник"
+                      options={[...SOURCE_FILTER_OPTIONS]}
+                      value={sourceFilter}
+                      onChange={(v) => setSourceFilter(v as SourceFilter)}
+                    />
+                    <ToggleGroup
+                      label="Сделка"
+                      options={[...DEAL_FILTER_OPTIONS]}
+                      value={dealFilter}
+                      onChange={(v) => setDealFilter(v as DealFilter)}
+                    />
+                    <ToggleGroup
+                      label="Отделка"
+                      options={[...FINISH_FILTER_OPTIONS]}
+                      value={finishFilter}
+                      onChange={(v) => setFinishFilter(v as FinishFilter)}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-ink-faint">
+                  Правки сразу учитываются в таблице на /rayon-minsk-mir и не перезатираются автоматическим синком.
+                  Фильтры действуют на таблицу одиночных объявлений ниже — дубли выше показаны все, без фильтров,
+                  чтобы не спрятать половину пары.
+                </p>
+              </div>
+
+              {duplicateGroups.size > 0 && (
             <div className="flex flex-col gap-3">
               <h2 className="text-sm font-semibold text-ink">
                 Дубли для проверки — {duplicateGroups.size} {duplicateGroups.size === 1 ? 'группа' : 'группы'}
@@ -559,10 +734,12 @@ export function MarketOffersReview() {
               {filtered.length === 0 && <p className="py-6 text-center text-sm text-ink-faint">Ничего не найдено.</p>}
             </div>
           </div>
+            </>
+          )}
         </div>
       )}
 
-      <Modal open={!!editingOffer} onClose={() => setEditingOffer(null)} title="Редактировать объявление">
+      <Modal open={!!editingOffer} onClose={closeOrSkipEdit} title="Редактировать объявление">
         {editForm && (
           <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
             <Select
@@ -652,13 +829,20 @@ export function MarketOffersReview() {
               value={editForm.address}
               onChange={(e) => setEditForm((f) => f && { ...f, address: e.target.value })}
             />
-            <div className="flex justify-end gap-3">
-              <Button type="button" variant="secondary" onClick={() => setEditingOffer(null)}>
-                Отмена
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? 'Сохраняем…' : 'Сохранить'}
-              </Button>
+            <div className="flex items-center justify-between gap-3">
+              {verifying && (
+                <button type="button" onClick={stopVerification} className="text-xs text-ink-faint underline hover:text-ink">
+                  Завершить проверку
+                </button>
+              )}
+              <div className="flex flex-1 justify-end gap-3">
+                <Button type="button" variant="secondary" onClick={closeOrSkipEdit}>
+                  {verifying ? 'Пропустить' : 'Отмена'}
+                </Button>
+                <Button type="submit" disabled={saving}>
+                  {saving ? 'Сохраняем…' : 'Сохранить'}
+                </Button>
+              </div>
             </div>
           </form>
         )}
