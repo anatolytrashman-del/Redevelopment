@@ -1,4 +1,13 @@
 import { supabase } from './supabase';
+import { withRetry } from './withRetry';
+
+// Саммери/предложения задач — тоже обычные запросы к нашим Vercel-функциям,
+// подвержены той же сетевой ошибке "Load failed"/"Failed to fetch" ещё до
+// ответа сервера (см. withRetry.ts), что и запросы к Supabase — один
+// молчаливый повтор вместо немедленной ошибки. Таймаут длиннее обычного
+// (60с, не 15с по умолчанию): gpt-4o на полном транскрипте часовой встречи
+// отвечает не мгновенно, и это не повод обрывать ещё идущий запрос.
+const AI_CALL_TIMEOUT_MS = 60000;
 
 // Клиентская часть расшифровки аудиозаписей встреч. Схема:
 //
@@ -279,23 +288,27 @@ export async function suggestTasksFromTranscript(
   assignees: string[],
   alreadySuggested: string[],
 ): Promise<SuggestedTask[]> {
-  const resp = await fetch('/api/suggest-tasks', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ transcript, assignees, alreadySuggested }),
-  });
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) throw new Error(data.error || `Ошибка извлечения задач (${resp.status})`);
-  return Array.isArray(data.tasks) ? data.tasks : [];
+  return withRetry(async () => {
+    const resp = await fetch('/api/suggest-tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript, assignees, alreadySuggested }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.error || `Ошибка извлечения задач (${resp.status})`);
+    return Array.isArray(data.tasks) ? data.tasks : [];
+  }, 1000, AI_CALL_TIMEOUT_MS);
 }
 
 export async function summarizeTranscript(transcript: string): Promise<string> {
-  const resp = await fetch('/api/summarize-meeting', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ transcript }),
-  });
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) throw new Error(data.error || `Ошибка генерации саммери (${resp.status})`);
-  return data.summary ?? '';
+  return withRetry(async () => {
+    const resp = await fetch('/api/summarize-meeting', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.error || `Ошибка генерации саммери (${resp.status})`);
+    return data.summary ?? '';
+  }, 1000, AI_CALL_TIMEOUT_MS);
 }
