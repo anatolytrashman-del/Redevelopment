@@ -45,6 +45,17 @@ export function MeetingSummaryDetail() {
   const [transcribing, setTranscribing] = useState(false);
   const [progress, setProgress] = useState<TranscribeProgress | null>(null);
   const [transcribeError, setTranscribeError] = useState<string | null>(null);
+  // Секундомер поверх progress — единственный сигнал владельцу, что процесс
+  // не завис, пока ждём первый кусок (запросы к Whisper через ProxyAPI
+  // бывают медленными, а обновлений от progress между кусками может не
+  // быть минутами).
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  useEffect(() => {
+    if (!transcribing) return;
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => setElapsedSeconds(Math.round((Date.now() - startedAt) / 1000)), 1000);
+    return () => window.clearInterval(timer);
+  }, [transcribing]);
   const [summarizing, setSummarizing] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
 
@@ -113,6 +124,7 @@ export function MeetingSummaryDetail() {
     setTranscribing(true);
     setTranscribeError(null);
     setProgress(null);
+    setElapsedSeconds(0);
     try {
       const text = await transcribeAudioFile(file, setProgress);
       if (!text.trim()) throw new Error('Распознавание вернуло пустой текст — проверьте запись');
@@ -290,8 +302,8 @@ export function MeetingSummaryDetail() {
                 ? progress?.stage === 'preparing'
                   ? 'Готовим аудио...'
                   : progress && progress.chunkCount > 1
-                    ? `Расшифровка: часть ${progress.chunkIndex} из ${progress.chunkCount}...`
-                    : 'Расшифровка...'
+                    ? `Расшифровка: часть ${progress.chunkIndex} из ${progress.chunkCount}... (${elapsedSeconds}с)`
+                    : `Расшифровка... (${elapsedSeconds}с)`
                 : transcript.trim()
                   ? 'Расшифровать другую запись'
                   : 'Загрузить запись и расшифровать'}
