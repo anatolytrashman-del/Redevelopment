@@ -24,7 +24,10 @@ import { supabase } from './supabase';
 // декодируются — уходят как есть одним куском.
 
 const DIRECT_UPLOAD_LIMIT_BYTES = 20 * 1024 * 1024;
-const CHUNK_SECONDS = 5 * 60;
+// 3 минуты, не 5: при параллельной обработке (см. CHUNK_CONCURRENCY ниже)
+// более мелкие куски дают более ровный прогресс и реже упираются в
+// серверную отсечку на медленном ответе ProxyAPI.
+const CHUNK_SECONDS = 3 * 60;
 // Целиком (без нарезки) — только короткие записи. Ограничение по ВРЕМЕНИ, не
 // только по размеру: сжатая m4a-запись часовой встречи весит меньше 20 МБ, но
 // Whisper обрабатывает её дольше лимита Vercel-функции (реальный 504 на
@@ -207,18 +210,52 @@ export async function transcribeAudioFile(
   }
   const samplesPerChunk = CHUNK_SECONDS * TARGET_SAMPLE_RATE;
   const chunkCount = Math.ceil(mono.length / samplesPerChunk);
+  return transcribeChunksConcurrently(mono, samplesPerChunk, chunkCount, onProgress);
+}
 
-  const parts: string[] = [];
-  for (let i = 0; i < chunkCount; i++) {
-    onProgress({ stage: 'transcribing', chunkIndex: i + 1, chunkCount });
-    const slice = mono.subarray(i * samplesPerChunk, Math.min((i + 1) * samplesPerChunk, mono.length));
-    const wav = encodeWavMono(slice, TARGET_SAMPLE_RATE);
-    // Хвост уже расшифрованного текста — как контекст-подсказка Whisper для
-    // связного шва между кусками (см. prompt в transcribe-meeting.js).
-    const prompt = parts.join(' ').slice(-600);
-    parts.push((await uploadAndTranscribe(wav, 'wav', prompt, i * CHUNK_SECONDS)).trim());
+// Куски независимы друг от друга (кроме подсказки-prompt — а это просто
+// намёк Whisper для связности шва, не обязательное условие корректности),
+// поэтому расшифровываем их НЕСКОЛЬКО ОДНОВРЕМЕННО, а не строго по очереди.
+// Строго последовательная обработка на медленном ProxyAPI означала полчаса
+// ожидания на часовую запись — владелец успевал сходить в магазин между
+// частями. Пул воркеров: каждый вытягивает следующий незанятый индекс,
+// результат кладётся в results[i] по этому индексу — порядок склейки не
+// зависит от того, в каком порядке куски реально доехали.
+const CHUNK_CONCURRENCY = 4;
+
+async function transcribeChunksConcurrently(
+  mono: Float32Array,
+  samplesPerChunk: number,
+  chunkCount: number,
+  onProgress: (p: TranscribeProgress) => void,
+): Promise<string> {
+  const results: string[] = new Array(chunkCount);
+  let runningPrompt = '';
+  let nextIndex = 0;
+  let completed = 0;
+  onProgress({ stage: 'transcribing', chunkIndex: 0, chunkCount });
+
+  async function worker() {
+    for (;;) {
+      const i = nextIndex++;
+      if (i >= chunkCount) return;
+      const slice = mono.subarray(i * samplesPerChunk, Math.min((i + 1) * samplesPerChunk, mono.length));
+      const wav = encodeWavMono(slice, TARGET_SAMPLE_RATE);
+      // Хвост текста, накопленного к моменту старта ЭТОГО куска — под
+      // конкурентной обработкой это не всегда буквально предыдущий по
+      // номеру кусок, но для контекстной подсказки Whisper точность до
+      // соседнего куска не требуется.
+      const prompt = runningPrompt.slice(-600);
+      const text = (await uploadAndTranscribe(wav, 'wav', prompt, i * CHUNK_SECONDS)).trim();
+      results[i] = text;
+      runningPrompt += (runningPrompt ? ' ' : '') + text;
+      completed++;
+      onProgress({ stage: 'transcribing', chunkIndex: completed, chunkCount });
+    }
   }
-  return parts.filter(Boolean).join('\n\n');
+
+  await Promise.all(Array.from({ length: Math.min(CHUNK_CONCURRENCY, chunkCount) }, () => worker()));
+  return results.filter(Boolean).join('\n\n');
 }
 
 export interface SuggestedTask {
