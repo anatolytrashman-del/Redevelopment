@@ -58,15 +58,26 @@ const DEAL_TYPES = [
   { slug: 'rent', dealType: 'rent' },
 ];
 
-// Те же категории, что различает Kufar-скрипт — сверять таблицу на сайте
-// удобнее, когда оба источника используют один словарь типов помещений
-// (см. MARKET_PROPERTY_TYPES в src/data/marketOffers.ts).
+// Полный список категорий сверен через sitemap.xml realt.by и проверен на
+// реальных ответах (owner, август 2026) — почти все совпадают со словарём
+// Kufar (MARKET_PROPERTY_TYPES в src/data/marketOffers.ts), 'Общепит' у
+// Kufar отдельно не выделяется (там это часть "Прочая коммерческая"), но
+// у Realt это своя категория restorant-cafe — оставляем как есть, вместе
+// стыкуется с блоком "Общепит" на самой странице гида района.
+// 'storages' — несмотря на название (звучит как "склады"), это на деле
+// общая категория "Помещения" без уточнения назначения — прямой аналог
+// "Прочая коммерческая" у Kufar (настоящие склады у Realt — отдельная
+// категория warehouses). slug 'business' (готовый бизнес) и 'garage'
+// (гаражи/машиноместа) сознательно не запрашиваем — не тот сегмент
+// (не офисы/торговля/склады, которыми оперирует Red One и вся эта фича).
 const CATEGORIES = [
   { slug: 'offices', propertyType: 'Офисы' },
   { slug: 'shops', propertyType: 'Магазины, торговые помещения' },
   { slug: 'services', propertyType: 'Сфера услуг' },
   { slug: 'warehouses', propertyType: 'Склады' },
   { slug: 'production', propertyType: 'Промышленные помещения' },
+  { slug: 'storages', propertyType: 'Прочая коммерческая' },
+  { slug: 'restorant-cafe', propertyType: 'Общепит' },
 ];
 
 // Совпадает с PRICE_BOUNDS в sync-kufar-market-offers.mjs — тот же рынок,
