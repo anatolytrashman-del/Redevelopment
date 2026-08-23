@@ -20,6 +20,17 @@ import { fetchPeople } from '../lib/peopleApi';
 import { insertTask } from '../lib/tasksApi';
 import { cn } from '../lib/cn';
 
+// «Следующие шаги» в готовом саммери (см. DEFAULT_SUMMARY_PROMPT в
+// api/summarize-meeting.js — это всегда ПОСЛЕДНИЙ блок) уже содержит те же
+// поручения, что модель иначе искала бы по всему транскрипту заново — во
+// много раз короче и без воды, gpt-4o отвечает заметно быстрее. Полный
+// транскрипт остаётся фолбэком, если саммери ещё не сделано или не в этом
+// формате (блок не нашёлся).
+function extractNextStepsSection(summary: string): string | null {
+  const idx = summary.indexOf('## Следующие шаги');
+  return idx === -1 ? null : summary.slice(idx).trim();
+}
+
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
     return (err as { message: string }).message;
@@ -187,8 +198,9 @@ export function MeetingSummaryDetail() {
     setSuggesting(true);
     setSuggestError(null);
     try {
+      const source = extractNextStepsSection(content) ?? transcript;
       const found = await suggestTasksFromTranscript(
-        transcript,
+        source,
         taskAssignees,
         suggestions.map((s) => s.title),
       );
