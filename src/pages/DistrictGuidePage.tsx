@@ -4,6 +4,7 @@ import {
   Bus,
   Building2,
   Car,
+  Coffee,
   Landmark,
   MapPin,
   Package,
@@ -108,6 +109,23 @@ const medicinePrivateList: { label: string; text: string }[] = [
   },
   { label: 'Многопрофильные услуги:', text: 'медцентр «ИдеалМед» (ул. Аэродромная, 26)' },
   { label: 'Ветеринария:', text: 'ветклиника «Главное Хвост» (ул. Казинца, 46А)' },
+];
+
+// Список общепита — владелец сохранил webarchive результатов поиска
+// "кафе" на Яндекс.Картах (тот же метод, что и с аптеками выше), 78 строк
+// в исходнике → 73 уникальных места (5 дублей от повторного скролла) →
+// 60 из них с категорией "кафе" и/или "кофейня" (объединено, чтобы не
+// считать дважды заведения с обеими метками). Полный список владельцу не
+// нужен, только сводная статистика по типам — см. журнал SEO_PLAN.md.
+const foodServiceTotal = 73;
+const foodServiceBreakdown: { label: string; count: number }[] = [
+  { label: 'Кафе / кофейни', count: 60 },
+  { label: 'Рестораны', count: 13 },
+  { label: 'Бары', count: 8 },
+  { label: 'Фастфуд', count: 8 },
+  { label: 'Пекарни', count: 5 },
+  { label: 'Пиццерии', count: 4 },
+  { label: 'Кондитерские', count: 3 },
 ];
 
 const metroStations = ['Ковальская Слобода', 'Аэродромная'];
@@ -303,6 +321,25 @@ export function DistrictGuidePage() {
                 </li>
               ))}
             </ul>
+          </div>
+        </div>
+
+        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <Coffee className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Общепит: кафе, рестораны, бары</h2>
+          </div>
+          <p className="text-sm text-ink-muted">
+            <span className="font-semibold text-ink">{foodServiceTotal} заведений общепита</span> в шаговой
+            доступности — плотное покрытие с явным перекосом в кафе и кофейни, что логично для портрета аудитории
+            района. Локальная сеть Varka («Варка») — 5 точек.
+          </p>
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {foodServiceBreakdown.map(({ label, count }) => (
+              <span key={label} className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink">
+                {label} — {count}
+              </span>
+            ))}
           </div>
         </div>
 
