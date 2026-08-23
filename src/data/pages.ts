@@ -14,6 +14,7 @@ import {
   TrendingUp,
   Landmark,
   Palette,
+  Globe,
 } from 'lucide-react';
 
 // Единый список страниц админки — здесь и маршрут, и ключ доступа (см.
@@ -27,6 +28,7 @@ export type PageKey =
   | 'tasks'
   | 'transactions'
   | 'leads'
+  | 'landings'
   | 'contractors'
   | 'objects'
   | 'tz'
@@ -59,6 +61,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   { key: 'financing', to: '/admin/financing', label: 'Финансирование', icon: Landmark },
   { key: 'designProjects', to: '/admin/design-projects', label: 'Дизайн-проекты', icon: Palette },
   { key: 'leads', to: '/admin/leads', label: 'Лиды', icon: Users },
+  { key: 'landings', to: '/admin/landings', label: 'Лендинги', icon: Globe },
   { key: 'contractors', to: '/admin/contractors', label: 'Подрядчики', icon: HardHat },
   { key: 'transactions', to: '/admin/transactions', label: 'Транзакции', icon: Receipt },
   { key: 'documents', to: '/admin/documents', label: 'Документы', icon: FileStack },
@@ -77,12 +80,36 @@ export const VISIBLE_PAGE_KEYS: PageKey[] = [
   'finModels',
   'financing',
   'designProjects',
+  'landings',
   'leads',
   'contractors',
   'transactions',
   'documents',
   'meetingSummaries',
   'settings',
+];
+
+// Раскладка сайдбара поверх VISIBLE_PAGE_KEYS: обычно пункт меню = страница,
+// но некоторые пункты хочется сгруппировать под общим подзаголовком (см.
+// Sidebar.tsx) — например "Маркетинг" объединяет "Лендинги" и "Лиды", когда
+// пунктов в этой теме набирается больше одного. Остальные пункты остаются
+// плоским списком, как раньше.
+export type SidebarEntry = { type: 'page'; key: PageKey } | { type: 'group'; label: string; keys: PageKey[] };
+
+export const SIDEBAR_LAYOUT: SidebarEntry[] = [
+  { type: 'page', key: 'tasks' },
+  { type: 'page', key: 'objects' },
+  { type: 'page', key: 'tz' },
+  { type: 'page', key: 'estimates' },
+  { type: 'page', key: 'finModels' },
+  { type: 'page', key: 'financing' },
+  { type: 'page', key: 'designProjects' },
+  { type: 'group', label: 'Маркетинг', keys: ['landings', 'leads'] },
+  { type: 'page', key: 'contractors' },
+  { type: 'page', key: 'transactions' },
+  { type: 'page', key: 'documents' },
+  { type: 'page', key: 'meetingSummaries' },
+  { type: 'page', key: 'settings' },
 ];
 
 export function findPage(key: PageKey): AdminPage {

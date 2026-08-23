@@ -37,6 +37,7 @@ const FinModelDetail = lazy(() => import('./pages/FinModelDetail').then((m) => (
 const FinModelReport = lazy(() => import('./pages/FinModelReport').then((m) => ({ default: m.FinModelReport })));
 const Financing = lazy(() => import('./pages/Financing').then((m) => ({ default: m.Financing })));
 const DesignProjects = lazy(() => import('./pages/DesignProjects').then((m) => ({ default: m.DesignProjects })));
+const Landings = lazy(() => import('./pages/Landings').then((m) => ({ default: m.Landings })));
 const DesignProjectView = lazy(() => import('./pages/DesignProjectView').then((m) => ({ default: m.DesignProjectView })));
 const DesignProjectDetail = lazy(() => import('./pages/DesignProjectDetail').then((m) => ({ default: m.DesignProjectDetail })));
 const MoodboardView = lazy(() => import('./pages/MoodboardView').then((m) => ({ default: m.MoodboardView })));
@@ -115,6 +116,7 @@ export default function App() {
           }
         />
         <Route path="leads" element={<RequirePage page="leads"><Leads /></RequirePage>} />
+        <Route path="landings" element={<RequirePage page="landings"><Landings /></RequirePage>} />
         <Route path="contractors" element={<RequirePage page="contractors"><Contractors /></RequirePage>} />
         <Route path="objects" element={<RequirePage page="objects"><Objects /></RequirePage>} />
         <Route path="objects/:id" element={<RequirePage page="objects"><ObjectDetail /></RequirePage>} />

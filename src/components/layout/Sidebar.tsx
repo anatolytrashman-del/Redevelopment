@@ -7,10 +7,9 @@ import { getBacklogLastViewedAt, onBacklogViewed } from '../../lib/backlogSeen';
 import { fetchLeadsUnreadCount } from '../../lib/leadsApi';
 import { getLeadsLastViewedAt, onLeadsViewed } from '../../lib/leadsSeen';
 import { fetchContractorsWithBirthdayToday } from '../../lib/contractorsApi';
-import { VISIBLE_PAGE_KEYS, findPage } from '../../data/pages';
+import { SIDEBAR_LAYOUT, findPage } from '../../data/pages';
 import { getCurrentProfile, isPageAllowed, lockAccess } from '../../lib/accessProfile';
 
-const navItems = VISIBLE_PAGE_KEYS.map((key) => findPage(key));
 const backlogPage = findPage('backlog');
 
 // Ниже lg — сайдбар выезжает поверх контента как шторка (fixed + translate),
@@ -86,6 +85,55 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     window.location.href = '/admin';
   }
 
+  function renderNavItem({ key, to, label, icon: Icon }: ReturnType<typeof findPage>) {
+    const allowed = isPageAllowed(profile, key);
+    if (!allowed) {
+      return (
+        <span
+          key={to}
+          aria-label={`${label} — недоступно для вашего доступа`}
+          title="Недоступно для вашего доступа"
+          className="flex cursor-not-allowed items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium text-ink-faint/60"
+        >
+          <Icon className="h-5 w-5" />
+          {label}
+          <Lock className="ml-auto h-3.5 w-3.5 shrink-0" />
+        </span>
+      );
+    }
+    return (
+      <NavLink
+        key={to}
+        to={to}
+        onClick={onClose}
+        className={({ isActive }) =>
+          cn(
+            'flex items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium transition-colors',
+            isActive ? 'text-primary' : 'text-ink hover:text-primary',
+          )
+        }
+      >
+        <Icon className="h-5 w-5" />
+        {label}
+        {key === 'contractors' && birthdayNames.length > 0 && (
+          <span
+            className="ml-auto shrink-0 text-base leading-none"
+            role="img"
+            aria-label={`Сегодня день рождения: ${birthdayNames.join(', ')}`}
+            title={`Сегодня день рождения: ${birthdayNames.join(', ')}`}
+          >
+            🎂
+          </span>
+        )}
+        {key === 'leads' && leadsUnread > 0 && (
+          <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">
+            {leadsUnread}
+          </span>
+        )}
+      </NavLink>
+    );
+  }
+
   return (
     <>
       {/* Подложка-затемнение позади шторки — только когда она открыта и
@@ -116,54 +164,16 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             </button>
           </div>
           <nav className="flex flex-col gap-1">
-            {navItems.map(({ key, to, label, icon: Icon }) => {
-              const allowed = isPageAllowed(profile, key);
-              if (!allowed) {
-                return (
-                  <span
-                    key={to}
-                    aria-label={`${label} — недоступно для вашего доступа`}
-                    title="Недоступно для вашего доступа"
-                    className="flex cursor-not-allowed items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium text-ink-faint/60"
-                  >
-                    <Icon className="h-5 w-5" />
-                    {label}
-                    <Lock className="ml-auto h-3.5 w-3.5 shrink-0" />
-                  </span>
-                );
-              }
-              return (
-                <NavLink
-                  key={to}
-                  to={to}
-                  onClick={onClose}
-                  className={({ isActive }) =>
-                    cn(
-                      'flex items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium transition-colors',
-                      isActive ? 'text-primary' : 'text-ink hover:text-primary',
-                    )
-                  }
-                >
-                  <Icon className="h-5 w-5" />
-                  {label}
-                  {key === 'contractors' && birthdayNames.length > 0 && (
-                    <span
-                      className="ml-auto shrink-0 text-base leading-none"
-                      role="img"
-                      aria-label={`Сегодня день рождения: ${birthdayNames.join(', ')}`}
-                      title={`Сегодня день рождения: ${birthdayNames.join(', ')}`}
-                    >
-                      🎂
-                    </span>
-                  )}
-                  {key === 'leads' && leadsUnread > 0 && (
-                    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">
-                      {leadsUnread}
-                    </span>
-                  )}
-                </NavLink>
-              );
-            })}
+            {SIDEBAR_LAYOUT.map((entry) =>
+              entry.type === 'group' ? (
+                <div key={entry.label} className="flex flex-col gap-1 pt-3 first:pt-0">
+                  <span className="px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">{entry.label}</span>
+                  {entry.keys.map((key) => renderNavItem(findPage(key)))}
+                </div>
+              ) : (
+                renderNavItem(findPage(entry.key))
+              ),
+            )}
           </nav>
         </div>
 
