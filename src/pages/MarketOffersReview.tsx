@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Copy, ExternalLink, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { Check, Copy, ExternalLink, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { SearchInput } from '../components/ui/SearchInput';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
@@ -16,6 +16,8 @@ import {
   setMarketOfferReviewed,
   updateMarketOffer,
   deleteMarketOffer,
+  fetchDismissedDedupKeys,
+  dismissDuplicateGroup,
 } from '../lib/marketOffersApi';
 import { FINISH_STATUSES, MARKET_PROPERTY_TYPES, areaBucket, dedupKey } from '../data/marketOffers';
 import type { MarketOffer, FinishStatus } from '../data/marketOffers';
@@ -137,6 +139,102 @@ function offerToForm(offer: MarketOffer): EditFormState {
   };
 }
 
+// Одна строка объявления — переиспользуется и в обычной таблице, и внутри
+// карточек групп дублей (там сравнение построено вокруг компактной
+// мини-таблицы на каждую группу, чтобы Kufar/Realt-варианты одного
+// помещения были видны рядом).
+function OfferRow({
+  offer,
+  pending,
+  showDuplicateBadge,
+  onFinishChange,
+  onReviewedChange,
+  onEdit,
+  onDelete,
+}: {
+  offer: MarketOffer;
+  pending: boolean;
+  showDuplicateBadge: boolean;
+  onFinishChange: (offer: MarketOffer, status: FinishStatus) => void;
+  onReviewedChange: (offer: MarketOffer, reviewed: boolean) => void;
+  onEdit: (offer: MarketOffer) => void;
+  onDelete: (offer: MarketOffer) => void;
+}) {
+  return (
+    <tr className={pending ? 'opacity-50' : undefined}>
+      <td className="max-w-[200px] py-2.5 pr-3">
+        <div className="flex items-center gap-1.5">
+          {offer.adLink ? (
+            <a
+              href={offer.adLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex min-w-0 items-center gap-1 text-ink hover:underline"
+            >
+              <span className="truncate">{offer.address ?? '—'}</span>
+              <ExternalLink className="h-3 w-3 shrink-0 text-ink-faint" />
+            </a>
+          ) : (
+            <span className="truncate">{offer.address ?? '—'}</span>
+          )}
+          {showDuplicateBadge && (
+            <span
+              title="Похожее объявление есть ещё раз в базе — проверьте и удалите лишнее"
+              className="flex shrink-0 items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 text-xs font-medium text-warning"
+            >
+              <Copy className="h-3 w-3" />
+              дубль
+            </span>
+          )}
+        </div>
+      </td>
+      <td className="whitespace-nowrap py-2.5 px-2 text-ink-muted">{offer.source}</td>
+      <td className="whitespace-nowrap py-2.5 px-2 text-ink-muted">{offer.propertyType}</td>
+      <td className="whitespace-nowrap py-2.5 px-2 text-ink-muted">{offer.dealType === 'sale' ? 'Продажа' : 'Аренда'}</td>
+      <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-muted">
+        {offer.size} м² <span className="text-ink-faint">({areaBucket(offer.size)})</span>
+      </td>
+      <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-muted">
+        {offer.pricePerSqm} $/м²{offer.dealType === 'rent' ? '/мес' : ''}
+      </td>
+      <td className="whitespace-nowrap py-2.5 px-2">
+        <FinishStatusPicker value={offer.finishStatus as FinishStatus} onChange={(status) => onFinishChange(offer, status)} />
+      </td>
+      <td className="whitespace-nowrap py-2.5 px-2">
+        <ReviewedPicker value={offer.reviewed} onChange={(reviewed) => onReviewedChange(offer, reviewed)} />
+      </td>
+      <td className="whitespace-nowrap py-2.5 pl-2">
+        <div className="flex items-center justify-end gap-3">
+          <button type="button" onClick={() => onEdit(offer)} aria-label="Редактировать объявление" className="text-ink-faint hover:text-primary">
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button type="button" onClick={() => onDelete(offer)} aria-label="Удалить объявление" className="text-ink-faint hover:text-danger">
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function OfferTableHead() {
+  return (
+    <thead>
+      <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-ink-faint">
+        <th className="py-2 pr-3">Адрес</th>
+        <th className="py-2 px-2">Источник</th>
+        <th className="py-2 px-2">Тип</th>
+        <th className="py-2 px-2">Сделка</th>
+        <th className="py-2 px-2 text-right">Площадь</th>
+        <th className="py-2 px-2 text-right">Цена / м²</th>
+        <th className="py-2 px-2">Отделка</th>
+        <th className="py-2 px-2">Обработка</th>
+        <th className="py-2 pl-2" />
+      </tr>
+    </thead>
+  );
+}
+
 export function MarketOffersReview() {
   const [offers, setOffers] = useState<MarketOffer[] | null>(null);
   const [error, setError] = useState('');
@@ -147,26 +245,33 @@ export function MarketOffersReview() {
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('Все');
   const [dupFilter, setDupFilter] = useState<DupFilter>('Все');
   const [pendingId, setPendingId] = useState<number | null>(null);
+  const [pendingGroupKey, setPendingGroupKey] = useState<string | null>(null);
   const [editingOffer, setEditingOffer] = useState<MarketOffer | null>(null);
   const [editForm, setEditForm] = useState<EditFormState | null>(null);
   const [saving, setSaving] = useState(false);
+  const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchMarketOffers()
       .then(setOffers)
       .catch(() => setError('Не удалось загрузить объявления.'));
+    fetchDismissedDedupKeys()
+      .then(setDismissedKeys)
+      .catch(() => {}); // не критично — просто снова покажутся уже разобранные группы
   }, []);
 
   // Возможные дубли — один и тот же объект на разных площадках (или дважды
   // на одной), см. dedupKey в data/marketOffers.ts. Считаем по ВСЕМ
   // объявлениям, не по уже отфильтрованным — иначе включённые фильтры
   // (например, "Продажа") случайно спрятали бы вторую половину пары.
+  // Группы, которые ассистент уже посмотрел и подтвердил как два разных
+  // помещения (dismissedKeys), из подсчёта убираем — они разобраны.
   const duplicateGroups = useMemo(() => {
     if (!offers) return new Map<string, MarketOffer[]>();
     const groups = new Map<string, MarketOffer[]>();
     for (const offer of offers) {
       const key = dedupKey(offer);
-      if (!key) continue;
+      if (!key || dismissedKeys.has(key)) continue;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(offer);
     }
@@ -174,7 +279,7 @@ export function MarketOffersReview() {
       if (group.length < 2) groups.delete(key);
     }
     return groups;
-  }, [offers]);
+  }, [offers, dismissedKeys]);
 
   const duplicateKeyByOfferId = useMemo(() => {
     const map = new Map<number, string>();
@@ -198,30 +303,37 @@ export function MarketOffersReview() {
     };
   }, [offers, duplicateGroups]);
 
+  // В режиме "Только дубли" таблица уступает место карточкам групп (ниже) —
+  // там сравнение построено вокруг пары/тройки объявлений одного помещения,
+  // а не построчного списка, поэтому остальные фильтры (отделка/сделка/
+  // источник) в этом режиме не применяются — иначе легко спрятать половину
+  // пары и потерять сравнение.
   const filtered = useMemo(() => {
-    if (!offers) return [];
+    if (!offers || dupFilter === 'Только дубли') return [];
     const query = search.trim().toLowerCase();
-    const rows = offers.filter((o) => {
-      const wantedFinish = FINISH_FILTER_TO_DB[finishFilter];
-      if (wantedFinish && o.finishStatus !== wantedFinish) return false;
-      if (dealFilter === 'Продажа' && o.dealType !== 'sale') return false;
-      if (dealFilter === 'Аренда' && o.dealType !== 'rent') return false;
-      if (reviewFilter === 'Не обработано' && o.reviewed) return false;
-      if (reviewFilter === 'Проверено' && !o.reviewed) return false;
-      if (sourceFilter !== 'Все' && o.source !== sourceFilter) return false;
-      if (dupFilter === 'Только дубли' && !duplicateKeyByOfferId.has(o.id)) return false;
-      if (query && !(o.address ?? '').toLowerCase().includes(query) && !o.propertyType.toLowerCase().includes(query)) {
-        return false;
-      }
-      return true;
-    });
+    return offers
+      .filter((o) => {
+        const wantedFinish = FINISH_FILTER_TO_DB[finishFilter];
+        if (wantedFinish && o.finishStatus !== wantedFinish) return false;
+        if (dealFilter === 'Продажа' && o.dealType !== 'sale') return false;
+        if (dealFilter === 'Аренда' && o.dealType !== 'rent') return false;
+        if (reviewFilter === 'Не обработано' && o.reviewed) return false;
+        if (reviewFilter === 'Проверено' && !o.reviewed) return false;
+        if (sourceFilter !== 'Все' && o.source !== sourceFilter) return false;
+        if (query && !(o.address ?? '').toLowerCase().includes(query) && !o.propertyType.toLowerCase().includes(query)) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => a.size - b.size);
+  }, [offers, search, finishFilter, dealFilter, reviewFilter, sourceFilter, dupFilter]);
 
-    if (dupFilter === 'Только дубли') {
-      // Дубли — рядом, чтобы сравнивать глазами, а не искать пару по всей таблице.
-      return rows.sort((a, b) => (duplicateKeyByOfferId.get(a.id) ?? '').localeCompare(duplicateKeyByOfferId.get(b.id) ?? ''));
-    }
-    return rows.sort((a, b) => a.size - b.size);
-  }, [offers, search, finishFilter, dealFilter, reviewFilter, sourceFilter, dupFilter, duplicateKeyByOfferId]);
+  const duplicateGroupsList = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return [...duplicateGroups.entries()]
+      .filter(([, group]) => !query || group.some((o) => (o.address ?? '').toLowerCase().includes(query)))
+      .sort((a, b) => a[0].localeCompare(b[0]));
+  }, [duplicateGroups, search]);
 
   function patchOffer(id: number, patch: Partial<MarketOffer>) {
     setOffers((prev) => (prev ?? []).map((o) => (o.id === id ? { ...o, ...patch } : o)));
@@ -260,6 +372,18 @@ export function MarketOffersReview() {
       setError('Не удалось удалить объявление — попробуйте ещё раз.');
     } finally {
       setPendingId(null);
+    }
+  }
+
+  async function handleDismissGroup(key: string) {
+    setPendingGroupKey(key);
+    try {
+      await dismissDuplicateGroup(key);
+      setDismissedKeys((prev) => new Set(prev).add(key));
+    } catch {
+      setError('Не удалось сохранить — попробуйте ещё раз.');
+    } finally {
+      setPendingGroupKey(null);
     }
   }
 
@@ -360,101 +484,77 @@ export function MarketOffersReview() {
               </div>
             </div>
             <p className="text-xs text-ink-faint">
-              Правки сразу учитываются в таблице на /rayon-minsk-mir и не перезатираются автоматическим синком.
+              {dupFilter === 'Только дубли'
+                ? 'Похожие объявления сгруппированы по адресу и площади — откройте ссылку, сверьте вручную и либо удалите лишнюю копию, либо подтвердите, что это разные помещения. Остальные фильтры здесь не действуют, чтобы не спрятать половину пары.'
+                : 'Правки сразу учитываются в таблице на /rayon-minsk-mir и не перезатираются автоматическим синком.'}
             </p>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1140px] border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-ink-faint">
-                  <th className="py-2 pr-3">Адрес</th>
-                  <th className="py-2 px-2">Источник</th>
-                  <th className="py-2 px-2">Тип</th>
-                  <th className="py-2 px-2">Сделка</th>
-                  <th className="py-2 px-2 text-right">Площадь</th>
-                  <th className="py-2 px-2 text-right">Цена / м²</th>
-                  <th className="py-2 px-2">Отделка</th>
-                  <th className="py-2 px-2">Обработка</th>
-                  <th className="py-2 pl-2" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filtered.map((offer) => {
-                  const isDuplicate = duplicateKeyByOfferId.has(offer.id);
-                  return (
-                  <tr key={offer.id} className={pendingId === offer.id ? 'opacity-50' : undefined}>
-                    <td className="max-w-[200px] py-2.5 pr-3">
-                      <div className="flex items-center gap-1.5">
-                        {offer.adLink ? (
-                          <a
-                            href={offer.adLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex min-w-0 items-center gap-1 text-ink hover:underline"
-                          >
-                            <span className="truncate">{offer.address ?? '—'}</span>
-                            <ExternalLink className="h-3 w-3 shrink-0 text-ink-faint" />
-                          </a>
-                        ) : (
-                          <span className="truncate">{offer.address ?? '—'}</span>
-                        )}
-                        {isDuplicate && (
-                          <span
-                            title="Похожее объявление есть ещё раз в базе — проверьте и удалите лишнее"
-                            className="flex shrink-0 items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 text-xs font-medium text-warning"
-                          >
-                            <Copy className="h-3 w-3" />
-                            дубль
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="whitespace-nowrap py-2.5 px-2 text-ink-muted">{offer.source}</td>
-                    <td className="whitespace-nowrap py-2.5 px-2 text-ink-muted">{offer.propertyType}</td>
-                    <td className="whitespace-nowrap py-2.5 px-2 text-ink-muted">{offer.dealType === 'sale' ? 'Продажа' : 'Аренда'}</td>
-                    <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-muted">
-                      {offer.size} м² <span className="text-ink-faint">({areaBucket(offer.size)})</span>
-                    </td>
-                    <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-muted">
-                      {offer.pricePerSqm} $/м²{offer.dealType === 'rent' ? '/мес' : ''}
-                    </td>
-                    <td className="whitespace-nowrap py-2.5 px-2">
-                      <FinishStatusPicker
-                        value={offer.finishStatus as FinishStatus}
-                        onChange={(status) => handleFinishChange(offer, status)}
-                      />
-                    </td>
-                    <td className="whitespace-nowrap py-2.5 px-2">
-                      <ReviewedPicker value={offer.reviewed} onChange={(reviewed) => handleReviewedChange(offer, reviewed)} />
-                    </td>
-                    <td className="whitespace-nowrap py-2.5 pl-2">
-                      <div className="flex items-center justify-end gap-3">
-                        <button
-                          type="button"
-                          onClick={() => openEdit(offer)}
-                          aria-label="Редактировать объявление"
-                          className="text-ink-faint hover:text-primary"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(offer)}
-                          aria-label="Удалить объявление"
-                          className="text-ink-faint hover:text-danger"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            {filtered.length === 0 && <p className="py-6 text-center text-sm text-ink-faint">Ничего не найдено.</p>}
-          </div>
+          {dupFilter === 'Только дубли' ? (
+            <div className="flex flex-col gap-4">
+              {duplicateGroupsList.map(([key, group]) => (
+                <div key={key} className={cn('flex flex-col gap-3 p-4', glassCardClass)} style={glassCardShadow}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm text-ink-muted">
+                      <span className="font-semibold text-ink">{group[0].address ?? 'без адреса'}</span> ·{' '}
+                      {group[0].size} м² · {group.length} объявления похожи друг на друга
+                    </p>
+                    <Button
+                      variant="secondary"
+                      icon={<Check className="h-4 w-4" />}
+                      disabled={pendingGroupKey === key}
+                      onClick={() => handleDismissGroup(key)}
+                    >
+                      Это разные помещения
+                    </Button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[1020px] border-collapse text-sm">
+                      <OfferTableHead />
+                      <tbody className="divide-y divide-border">
+                        {group.map((offer) => (
+                          <OfferRow
+                            key={offer.id}
+                            offer={offer}
+                            pending={pendingId === offer.id}
+                            showDuplicateBadge={false}
+                            onFinishChange={handleFinishChange}
+                            onReviewedChange={handleReviewedChange}
+                            onEdit={openEdit}
+                            onDelete={handleDelete}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+              {duplicateGroupsList.length === 0 && (
+                <p className="py-6 text-center text-sm text-ink-faint">Дублей не найдено.</p>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1140px] border-collapse text-sm">
+                <OfferTableHead />
+                <tbody className="divide-y divide-border">
+                  {filtered.map((offer) => (
+                    <OfferRow
+                      key={offer.id}
+                      offer={offer}
+                      pending={pendingId === offer.id}
+                      showDuplicateBadge={duplicateKeyByOfferId.has(offer.id)}
+                      onFinishChange={handleFinishChange}
+                      onReviewedChange={handleReviewedChange}
+                      onEdit={openEdit}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </tbody>
+              </table>
+              {filtered.length === 0 && <p className="py-6 text-center text-sm text-ink-faint">Ничего не найдено.</p>}
+            </div>
+          )}
         </div>
       )}
 

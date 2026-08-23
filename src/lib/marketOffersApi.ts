@@ -82,3 +82,22 @@ export function deleteMarketOffer(id: number): Promise<void> {
     if (error) throw error;
   });
 }
+
+// Группы дублей, которые ассистент уже посмотрел вручную и подтвердил —
+// это реально два разных помещения, не повтор. Ключ — тот же dedupKey
+// (data/marketOffers.ts), что группирует карточки на /admin/market-offers;
+// раз отклонённая группа больше не считается дублем и не подсвечивается.
+export function fetchDismissedDedupKeys(): Promise<Set<string>> {
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('market_offer_dedup_dismissals').select('key');
+    if (error) throw error;
+    return new Set((data ?? []).map((row) => row.key as string));
+  });
+}
+
+export function dismissDuplicateGroup(key: string): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase.from('market_offer_dedup_dismissals').upsert({ key }, { onConflict: 'key' });
+    if (error) throw error;
+  });
+}
