@@ -334,11 +334,11 @@ export function ObjectLandingPage() {
               <div className="text-lg font-bold text-ink">
                 Кабинеты {MIN_ROOM_AREA}–{MAX_ROOM_AREA} м² — от {formatMoney(zonePrice(MIN_ROOM_AREA))}
               </div>
-              <p className="text-sm text-ink-muted">${PRICE_PER_METER} за м² · с мебелью · рассрочка, лизинг или кредит — см. ниже</p>
+              <p className="text-sm text-ink-muted">${PRICE_PER_METER} за м² · рассрочка, лизинг или кредит — см. ниже</p>
             </div>
             <div className="flex flex-col gap-1">
               <div className="text-lg font-bold text-ink">Фиксированное рабочее место — от {formatMoney(WORKSTATION_PRICE)}</div>
-              <p className="text-sm text-ink-muted">Готовое место в общем кабинете, с ремонтом</p>
+              <p className="text-sm text-ink-muted">Готовое место в общем кабинете, с ремонтом и мебелью</p>
             </div>
           </div>
         </div>
