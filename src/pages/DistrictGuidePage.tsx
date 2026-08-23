@@ -4,9 +4,11 @@ import {
   Bus,
   Building2,
   Car,
+  Cigarette,
   Coffee,
   CreditCard,
   Dumbbell,
+  Flower2,
   Landmark,
   MapPin,
   Package,
@@ -212,6 +214,21 @@ const groceryBreakdown: { label: string; count: number }[] = [
 const pvzOzonCount = 11;
 const pvzWildberriesCount = 20;
 const pvzTotal = pvzOzonCount + pvzWildberriesCount;
+
+// Цветочные магазины — webarchive, поиск "цветы", 36 строк, все уникальны.
+const flowerTotal = 36;
+const flowerDeliveryCount = 7;
+
+// Табак и вейп-шопы — владелец объединил два отдельных поиска ("табак" и
+// "вейп-шоп") в одну категорию и попросил убрать дубли, которые попали в
+// обе выдачи (совпадающие по названию+адресу точки — Puff-Lab, ЗаПар,
+// Liberty Vape, Изишоп, NovaSens, Vape Lounge, Вейп шоп). 18 + 15 строк →
+// 22 уникальные точки.
+const tobaccoVapeTotal = 22;
+const tobaccoVapeBreakdown: { label: string; count: number }[] = [
+  { label: 'Вейп-шопы', count: 15 },
+  { label: 'Табачные магазины', count: 7 },
+];
 
 const metroStations = ['Ковальская Слобода', 'Аэродромная'];
 const busRoutes = ['4', '47с', '53', '56', '73', '84', '100', '107', '124', '172'];
@@ -529,6 +546,34 @@ export function DistrictGuidePage() {
             <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink">
               Ozon — {pvzOzonCount}
             </span>
+          </div>
+        </div>
+
+        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <Flower2 className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Цветочные магазины и флористы</h2>
+          </div>
+          <p className="text-sm text-ink-muted">
+            <span className="font-semibold text-ink">{flowerTotal} точек</span> в районе, у {flowerDeliveryCount} из
+            них — доставка букетов.
+          </p>
+        </div>
+
+        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <Cigarette className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Табак и вейп-шопы</h2>
+          </div>
+          <p className="text-sm text-ink-muted">
+            <span className="font-semibold text-ink">{tobaccoVapeTotal} точки</span> в районе.
+          </p>
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {tobaccoVapeBreakdown.map(({ label, count }) => (
+              <span key={label} className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink">
+                {label} — {count}
+              </span>
+            ))}
           </div>
         </div>
 
