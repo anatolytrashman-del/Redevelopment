@@ -10,7 +10,9 @@ import {
   Landmark,
   MapPin,
   Package,
+  Scissors,
   ShoppingBag,
+  ShoppingBasket,
   Sparkles,
   Stethoscope,
   Store,
@@ -171,6 +173,45 @@ const bankBreakdown: { label: string; count: number }[] = [
 const autoServiceTotal = 64;
 const autoServiceClusterCount = 42;
 const autoServiceClusterStreets = 'Казинца, Брестской, Бородинской и Брилевском тупике';
+
+// Салоны красоты — webarchive, поиск "салоны красоты", 91 строка → 88
+// уникальных мест. Один из самых насыщенных сегментов района — логично
+// для портрета аудитории (бьюти-сфера уже отдельная категория в
+// tenantProfiles ниже). Показаны только специализации с заметным числом
+// точек, у остальных (пирсинг, шугаринг и т.п.) по 1-2 точки — не
+// перегружаем блок длинным хвостом.
+const beautyTotal = 88;
+const beautyBreakdown: { label: string; count: number }[] = [
+  { label: 'Ногтевые студии', count: 13 },
+  { label: 'Парикмахерские', count: 5 },
+  { label: 'Стилисты', count: 5 },
+  { label: 'Косметология', count: 5 },
+  { label: 'Брови и ресницы', count: 5 },
+  { label: 'Барбершопы', count: 3 },
+];
+
+// Магазины продуктов — webarchive, поиск "магазин продуктов", 44 строки,
+// все уникальны (категории у выдачи почти всегда пустые — считаем по
+// названиям). Отдельно посчитаны специализированные лавки (мясные/
+// овощные/фермерские — по ключевым словам в названии), не только сети.
+const groceryTotal = 44;
+const groceryBreakdown: { label: string; count: number }[] = [
+  { label: 'Копеечка', count: 6 },
+  { label: 'Соседи / Соседи Экспресс', count: 3 },
+  { label: 'Санта', count: 3 },
+  { label: 'Евроопт Market', count: 2 },
+  { label: 'Знічка', count: 2 },
+  { label: 'Остров', count: 2 },
+  { label: 'Специализированные (мясо, овощи, фермерское)', count: 8 },
+];
+
+// ПВЗ — webarchive, поиск "пункт выдачи заказов", 46 строк, но владелец
+// попросил учитывать только Ozon и Wildberries — в выдачу попали лишние
+// организации (Emall.by, Lamoda и другие агрегаторы/магазины с похожей
+// категорией, не относящиеся к запросу).
+const pvzOzonCount = 11;
+const pvzWildberriesCount = 20;
+const pvzTotal = pvzOzonCount + pvzWildberriesCount;
 
 const metroStations = ['Ковальская Слобода', 'Аэродромная'];
 const busRoutes = ['4', '47с', '53', '56', '73', '84', '100', '107', '124', '172'];
@@ -434,6 +475,61 @@ export function DistrictGuidePage() {
             <span className="font-semibold text-ink">{autoServiceClusterCount} из {autoServiceTotal} точек</span>{' '}
             СТО, шиномонтажа и автозапчастей сконцентрированы на улицах {autoServiceClusterStreets}.
           </p>
+        </div>
+
+        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <Scissors className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Салоны красоты и бьюти-сфера</h2>
+          </div>
+          <p className="text-sm text-ink-muted">
+            <span className="font-semibold text-ink">{beautyTotal} салонов и студий</span> — один из самых
+            насыщенных сегментов района.
+          </p>
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {beautyBreakdown.map(({ label, count }) => (
+              <span key={label} className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink">
+                {label} — {count}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <ShoppingBasket className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Магазины продуктов</h2>
+          </div>
+          <p className="text-sm text-ink-muted">
+            <span className="font-semibold text-ink">{groceryTotal} точки</span> — от крупных сетей до независимых
+            лавок и специализированных магазинов.
+          </p>
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {groceryBreakdown.map(({ label, count }) => (
+              <span key={label} className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink">
+                {label} — {count}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <Package className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Пункты выдачи заказов</h2>
+          </div>
+          <p className="text-sm text-ink-muted">
+            <span className="font-semibold text-ink">{pvzTotal} точек</span> Ozon и Wildberries — сильный спрос на
+            маркетплейсы, формат ПВЗ хорошо приживается в районе.
+          </p>
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink">
+              Wildberries — {pvzWildberriesCount}
+            </span>
+            <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink">
+              Ozon — {pvzOzonCount}
+            </span>
+          </div>
         </div>
 
         <div className={cn('flex flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
