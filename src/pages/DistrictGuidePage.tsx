@@ -206,6 +206,7 @@ const groceryBreakdown: { label: string; count: number }[] = [
   { label: 'Остров', count: 2 },
   { label: 'Специализированные (мясо, овощи, фермерское)', count: 8 },
 ];
+const groceryMax = Math.max(...groceryBreakdown.map((b) => b.count));
 
 // ПВЗ — webarchive, поиск "пункт выдачи заказов", 46 строк, но владелец
 // попросил учитывать только Ozon и Wildberries — в выдачу попали лишние
@@ -229,6 +230,7 @@ const tobaccoVapeBreakdown: { label: string; count: number }[] = [
   { label: 'Вейп-шопы', count: 15 },
   { label: 'Табачные магазины', count: 7 },
 ];
+const tobaccoVapeMax = Math.max(...tobaccoVapeBreakdown.map((b) => b.count));
 
 const metroStations = ['Ковальская Слобода', 'Аэродромная'];
 const busRoutes = ['4', '47с', '53', '56', '73', '84', '100', '107', '124', '172'];
@@ -450,17 +452,15 @@ export function DistrictGuidePage() {
             <Dumbbell className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Спорт и фитнес</h2>
           </div>
-          <p className="text-sm text-ink-muted">
-            <span className="font-semibold text-ink">{sportTotal} залов и студий</span> в шаговой доступности —
-            от тренажёрных залов до йоги и пилатеса.
+          <p className="text-sm leading-relaxed text-ink-muted">
+            В районе работает <span className="font-semibold text-ink">{sportTotal} залов и студий</span> — от
+            классических тренажёрных залов до узкоспециализированных практик. Большинство,{' '}
+            <span className="font-semibold text-ink">{sportBreakdown[0].count}</span>, — тренажёрные залы и
+            фитнес-клубы полного цикла; ещё <span className="font-semibold text-ink">{sportBreakdown[1].count}</span>{' '}
+            точки — студии с акцентом на растяжку и осознанность: йога, пилатес, стретчинг. Спортивная
+            инфраструктура в шаговой доступности уже сформирована — конкуренция за помещение под эту нишу будет
+            только расти.
           </p>
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {sportBreakdown.map(({ label, count }) => (
-              <span key={label} className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink">
-                {label} — {count}
-              </span>
-            ))}
-          </div>
         </div>
 
         <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
@@ -472,13 +472,19 @@ export function DistrictGuidePage() {
             <span className="font-semibold text-ink">{bankPointsTotal} банковских точек</span> в районе —{' '}
             {bankNamesCount} разных банков, от крупных государственных до частных сетевых.
           </p>
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {bankBreakdown.map(({ label, count }) => (
-              <span key={label} className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink">
-                {label} — {count}
-              </span>
+          <ol className="flex flex-col divide-y divide-border">
+            {bankBreakdown.map(({ label, count }, index) => (
+              <li key={label} className="flex items-center gap-3 py-2 first:pt-0 last:pb-0">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-muted text-xs font-bold text-ink-muted">
+                  {index + 1}
+                </span>
+                <span className="flex-1 text-sm font-medium text-ink">{label}</span>
+                <span className="text-xs text-ink-faint">
+                  {count} {count === 1 ? 'точка' : 'точки'}
+                </span>
+              </li>
             ))}
-          </div>
+          </ol>
         </div>
 
         <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
@@ -486,12 +492,23 @@ export function DistrictGuidePage() {
             <Wrench className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">СТО и автосервисы</h2>
           </div>
-          <p className="text-sm text-ink-muted">
-            Внутри самого Минск Мира профильных автосервисов почти нет — район жилой, не под авто-бизнес. Зато по
-            соседству находится крупная сервисная зона:{' '}
-            <span className="font-semibold text-ink">{autoServiceClusterCount} из {autoServiceTotal} точек</span>{' '}
-            СТО, шиномонтажа и автозапчастей сконцентрированы на улицах {autoServiceClusterStreets}.
-          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1 rounded-control border border-dashed border-border p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">В самом районе</p>
+              <p className="text-sm text-ink-muted">
+                Профильных точек почти нет — Минск Мир жилой, не под авто-бизнес.
+              </p>
+            </div>
+            <div className="flex flex-col gap-1 rounded-control border border-white bg-white/60 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">По соседству</p>
+              <p className="text-sm text-ink-muted">
+                <span className="font-semibold text-ink">
+                  {autoServiceClusterCount} из {autoServiceTotal} точек
+                </span>{' '}
+                СТО, шиномонтажа и автозапчастей — на улицах {autoServiceClusterStreets}.
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
@@ -499,17 +516,16 @@ export function DistrictGuidePage() {
             <Scissors className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Салоны красоты и бьюти-сфера</h2>
           </div>
-          <p className="text-sm text-ink-muted">
-            <span className="font-semibold text-ink">{beautyTotal} салонов и студий</span> — один из самых
-            насыщенных сегментов района.
-          </p>
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {beautyBreakdown.map(({ label, count }) => (
-              <span key={label} className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink">
-                {label} — {count}
-              </span>
-            ))}
+          <div className="flex items-end gap-3">
+            <span className="text-5xl font-black leading-none text-primary">{beautyTotal}</span>
+            <span className="pb-1 text-sm text-ink-muted">
+              салонов и студий — один из самых насыщенных сегментов района
+            </span>
           </div>
+          <p className="text-xs text-ink-faint">
+            Лидируют ногтевые студии ({beautyBreakdown[0].count}) и парикмахерские ({beautyBreakdown[1].count});
+            также широко представлены стилисты, косметология, брови и ресницы, барбершопы.
+          </p>
         </div>
 
         <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
@@ -521,11 +537,20 @@ export function DistrictGuidePage() {
             <span className="font-semibold text-ink">{groceryTotal} точки</span> — от крупных сетей до независимых
             лавок и специализированных магазинов.
           </p>
-          <div className="flex flex-wrap gap-1.5 pt-1">
+          <div className="flex flex-col gap-2 pt-1">
             {groceryBreakdown.map(({ label, count }) => (
-              <span key={label} className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink">
-                {label} — {count}
-              </span>
+              <div key={label} className="flex flex-col gap-1">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xs text-ink-muted">{label}</span>
+                  <span className="shrink-0 text-xs font-semibold text-ink">{count}</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-surface-muted">
+                  <div
+                    className="h-full rounded-full bg-primary/70"
+                    style={{ width: `${Math.round((count / groceryMax) * 100)}%` }}
+                  />
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -535,18 +560,15 @@ export function DistrictGuidePage() {
             <Package className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Пункты выдачи заказов</h2>
           </div>
-          <p className="text-sm text-ink-muted">
-            <span className="font-semibold text-ink">{pvzTotal} точек</span> Ozon и Wildberries — сильный спрос на
-            маркетплейсы, формат ПВЗ хорошо приживается в районе.
-          </p>
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink">
-              Wildberries — {pvzWildberriesCount}
-            </span>
-            <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink">
-              Ozon — {pvzOzonCount}
+          <div className="flex items-end gap-3">
+            <span className="text-5xl font-black leading-none text-primary">{pvzTotal}</span>
+            <span className="pb-1 text-sm text-ink-muted">
+              точка Ozon и Wildberries — сильный спрос на маркетплейсы
             </span>
           </div>
+          <p className="text-xs text-ink-faint">
+            Wildberries — {pvzWildberriesCount}, Ozon — {pvzOzonCount}
+          </p>
         </div>
 
         <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
@@ -554,9 +576,12 @@ export function DistrictGuidePage() {
             <Flower2 className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Цветочные магазины и флористы</h2>
           </div>
-          <p className="text-sm text-ink-muted">
-            <span className="font-semibold text-ink">{flowerTotal} точек</span> в районе, у {flowerDeliveryCount} из
-            них — доставка букетов.
+          <p className="text-sm leading-relaxed text-ink-muted">
+            <span className="font-semibold text-ink">{flowerTotal} цветочных точек</span> и флористических студий
+            работают в районе — заметная плотность для жилого квартала такого размера. У{' '}
+            <span className="font-semibold text-ink">{flowerDeliveryCount} из них</span> есть доставка букетов день
+            в день — признак зрелого локального рынка, где конкуренция идёт не только за витрину, но и за скорость
+            сервиса.
           </p>
         </div>
 
@@ -568,11 +593,20 @@ export function DistrictGuidePage() {
           <p className="text-sm text-ink-muted">
             <span className="font-semibold text-ink">{tobaccoVapeTotal} точки</span> в районе.
           </p>
-          <div className="flex flex-wrap gap-1.5 pt-1">
+          <div className="flex flex-col gap-2 pt-1">
             {tobaccoVapeBreakdown.map(({ label, count }) => (
-              <span key={label} className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink">
-                {label} — {count}
-              </span>
+              <div key={label} className="flex flex-col gap-1">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xs text-ink-muted">{label}</span>
+                  <span className="shrink-0 text-xs font-semibold text-ink">{count}</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-surface-muted">
+                  <div
+                    className="h-full rounded-full bg-primary/70"
+                    style={{ width: `${Math.round((count / tobaccoVapeMax) * 100)}%` }}
+                  />
+                </div>
+              </div>
             ))}
           </div>
         </div>
