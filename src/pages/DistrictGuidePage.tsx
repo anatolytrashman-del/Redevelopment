@@ -557,14 +557,14 @@ export function DistrictGuidePage() {
   return (
     <div className="min-h-svh bg-bg">
       <div className="border-b border-border py-5">
-        <div className="mx-auto flex max-w-3xl items-center justify-center px-4 sm:px-8">
+        <div className="mx-auto flex max-w-6xl items-center justify-center px-4 sm:px-8">
           <span className="text-lg font-extrabold tracking-wide text-ink">
             <span className="font-black text-primary">RED</span>EVELOPMENT
           </span>
         </div>
       </div>
 
-      <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-12 sm:px-8">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-12 sm:px-8">
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:items-center">
           <div className="flex flex-col gap-3">
             <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">{PAGE_H1}</h1>
@@ -640,7 +640,7 @@ export function DistrictGuidePage() {
             <Users className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Целевая аудитория и покупательская способность</h2>
           </div>
-          <ul className="flex flex-col gap-2">
+          <ul className="flex max-w-2xl flex-col gap-2">
             {audienceHighlights.map(({ label, text }) => (
               <li key={label} className="text-sm text-ink-muted">
                 <span className="font-semibold text-ink">{label}</span> {text}
@@ -654,12 +654,12 @@ export function DistrictGuidePage() {
             <Landmark className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Генераторы ежедневного трафика</h2>
           </div>
-          <p className="text-sm text-ink-muted">
+          <p className="max-w-2xl text-sm text-ink-muted">
             Avia Mall (138 200 м², якорный арендатор — сеть гипермаркетов Green) — главный торговый центр района,
             межрайонный автомобильный и пешеходный поток. Рядом строится Международный финансовый центр — деловой
             кластер с пешеходными галереями и подземным паркингом, аккумулирует офисный трафик и B2B-сервисы.
           </p>
-          <p className="text-sm text-ink-muted">
+          <p className="max-w-2xl text-sm text-ink-muted">
             Жители района активно ищут поблизости банковские отделения и расчётно-справочные центры (РСЦ) —
             помещения рядом с такими точками получают дополнительный целевой поток.
           </p>
@@ -815,7 +815,7 @@ export function DistrictGuidePage() {
               Аналитика по сферам бизнеса
             </h2>
           </div>
-          <div className="flex flex-col divide-y divide-border">
+          <div className="flex flex-col divide-y divide-border [&>div]:max-w-2xl">
         <div className="flex flex-col gap-3 px-6 py-6">
           <div className="flex items-center gap-3">
             <Stethoscope className="h-5 w-5 shrink-0 text-ink" />
@@ -1131,7 +1131,7 @@ export function DistrictGuidePage() {
 
         <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
           <h2 className="text-lg font-bold text-ink">Red One — готовый центр коммерческой активности</h2>
-          <p className="text-sm text-ink-muted">
+          <p className="max-w-2xl text-sm text-ink-muted">
             Приватные кабинеты и фиксированные рабочие места в собственном здании по соседству с Минск Миром — с
             дизайнерской отделкой, парковкой и онлайн-бронированием без предоплаты. Через дорогу — 5 детских садов
             и постоянный поток родителей утром и вечером, в районе — 3 школы и 4 детских сада (строится 5-й).
