@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Banknote,
@@ -28,6 +28,7 @@ import {
   Store,
   TrainFront,
   TramFront,
+  TrendingUp,
   TriangleAlert,
   Users,
   Wrench,
@@ -39,6 +40,10 @@ import { setGenericPageMeta, setArticleJsonLd, setFaqJsonLd } from '../lib/pageM
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
 import type { FaqItem } from '../components/ui/FaqAccordion';
+import { ToggleGroup } from '../components/ui/ToggleGroup';
+import { fetchLatestMarketOfferStats } from '../lib/marketOffersApi';
+import { AREA_BUCKET_ORDER } from '../data/marketOffers';
+import type { MarketOfferStat } from '../data/marketOffers';
 
 const PAGE_URL = 'https://redevelopment.pro/rayon-minsk-mir';
 // TITLE — для <title>/og/canonical, не трогаем: уже подобран под целевые
@@ -355,6 +360,85 @@ const densityData: { icon: LucideIcon; label: string; count: number }[] = [
   { icon: Dumbbell, label: 'Спорт и фитнес', count: sportTotal },
 ];
 
+// Порядок строк таблицы рынка — офисы первыми (это сегмент Red One),
+// остальное — по убыванию значимости. Строка не показывается, если для
+// текущего типа сделки по ней нет ни одного предложения.
+const MARKET_PROPERTY_TYPE_ORDER = [
+  'Офисы',
+  'Магазины, торговые помещения',
+  'Сфера услуг',
+  'Склады',
+  'Промышленные помещения',
+  'Прочая коммерческая',
+];
+
+interface MarketPivotCell {
+  count: number;
+  avgPrice: number;
+}
+
+interface MarketPivotRow {
+  propertyType: string;
+  cells: (MarketPivotCell | null)[];
+}
+
+// Схлопывает finish_status (нужен отдельно только для дефицит-инсайта ниже)
+// и считает средневзвешенную цену по каждой ячейке (тип помещения × площадь).
+function buildMarketPivot(stats: MarketOfferStat[], dealType: 'sale' | 'rent'): MarketPivotRow[] {
+  const byType = new Map<string, Map<string, { count: number; priceSum: number }>>();
+
+  for (const stat of stats) {
+    if (stat.dealType !== dealType) continue;
+    if (!byType.has(stat.propertyType)) byType.set(stat.propertyType, new Map());
+    const byBucket = byType.get(stat.propertyType)!;
+    const cell = byBucket.get(stat.areaBucket) ?? { count: 0, priceSum: 0 };
+    cell.count += stat.offersCount;
+    cell.priceSum += stat.avgPricePerSqm * stat.offersCount;
+    byBucket.set(stat.areaBucket, cell);
+  }
+
+  return MARKET_PROPERTY_TYPE_ORDER.filter((type) => byType.has(type)).map((propertyType) => {
+    const byBucket = byType.get(propertyType)!;
+    const cells = AREA_BUCKET_ORDER.map((bucket) => {
+      const cell = byBucket.get(bucket);
+      return cell ? { count: cell.count, avgPrice: Math.round(cell.priceSum / cell.count) } : null;
+    });
+    return { propertyType, cells };
+  });
+}
+
+function countSmallFinishedOffices(stats: MarketOfferStat[], dealType: 'sale' | 'rent'): number {
+  return stats
+    .filter(
+      (s) =>
+        s.dealType === dealType &&
+        s.propertyType === 'Офисы' &&
+        s.areaBucket === '<40 м²' &&
+        s.finishStatus === 'с отделкой',
+    )
+    .reduce((sum, s) => sum + s.offersCount, 0);
+}
+
+const MONTH_NAMES = [
+  'январь',
+  'февраль',
+  'март',
+  'апрель',
+  'май',
+  'июнь',
+  'июль',
+  'август',
+  'сентябрь',
+  'октябрь',
+  'ноябрь',
+  'декабрь',
+];
+
+function formatStatsMonth(month: string): string {
+  const [year, monthNum] = month.split('-');
+  return `${MONTH_NAMES[Number(monthNum) - 1]} ${year}`;
+}
+
 const metroStations = ['Ковальская Слобода', 'Аэродромная'];
 const busRoutes = ['4', '47с', '53', '56', '73', '84', '100', '107', '124', '172'];
 const trolleyRoutes = ['19', '27', '59', '82'];
@@ -435,6 +519,9 @@ const districtFaq: FaqItem[] = [
 // отдельная, более осмысленная для нас фраза. Обратной ссылки с /one сюда
 // нет осознанно — решение владельца не отвлекать с продающей страницы.
 export function DistrictGuidePage() {
+  const [marketStats, setMarketStats] = useState<MarketOfferStat[] | null>(null);
+  const [marketDealType, setMarketDealType] = useState<'Продажа' | 'Аренда'>('Продажа');
+
   useEffect(() => {
     setGenericPageMeta({ title: TITLE, description: DESCRIPTION, url: PAGE_URL });
     setArticleJsonLd({
@@ -445,6 +532,12 @@ export function DistrictGuidePage() {
       dateModified: DATE_MODIFIED,
     });
     setFaqJsonLd(districtFaq);
+  }, []);
+
+  useEffect(() => {
+    fetchLatestMarketOfferStats()
+      .then(setMarketStats)
+      .catch(() => setMarketStats([]));
   }, []);
 
   return (
@@ -598,6 +691,92 @@ export function DistrictGuidePage() {
               нишу стоит оценивать отдельно.
             </p>
           </div>
+        </div>
+
+        <div className={cn('flex flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <TrendingUp className="h-5 w-5 shrink-0 text-ink" />
+              <h2 className="text-lg font-bold text-ink">Рынок коммерческой недвижимости</h2>
+            </div>
+            {marketStats && marketStats.length > 0 && (
+              <span className="text-xs text-ink-faint">Kufar · {formatStatsMonth(marketStats[0].month)}</span>
+            )}
+          </div>
+          <p className="text-sm text-ink-muted">
+            Действующие предложения продажи и аренды коммерческих помещений в Минск Мире — количество и средняя
+            цена за м² по типу помещения и площади. Обновляется раз в месяц.
+          </p>
+
+          {marketStats === null && <p className="text-sm text-ink-faint">Загрузка…</p>}
+          {marketStats !== null && marketStats.length === 0 && (
+            <p className="text-sm text-ink-faint">Данные пока не собраны.</p>
+          )}
+
+          {marketStats && marketStats.length > 0 && (
+            <>
+              <ToggleGroup
+                options={['Продажа', 'Аренда']}
+                value={marketDealType}
+                onChange={(value) => setMarketDealType(value as 'Продажа' | 'Аренда')}
+              />
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[520px] border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                      <th className="py-2 pr-3 text-left">Тип помещения</th>
+                      {AREA_BUCKET_ORDER.map((bucket) => (
+                        <th key={bucket} className="py-2 px-2 text-right font-semibold">
+                          {bucket}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {buildMarketPivot(marketStats, marketDealType === 'Продажа' ? 'sale' : 'rent').map((row) => (
+                      <tr key={row.propertyType}>
+                        <td className="py-2.5 pr-3 font-medium text-ink">{row.propertyType}</td>
+                        {row.cells.map((cell, i) => (
+                          <td key={i} className="py-2.5 px-2 text-right tabular-nums">
+                            {cell ? (
+                              <>
+                                <div className="font-semibold text-ink">{cell.count}</div>
+                                <div className="text-xs text-ink-faint">
+                                  {cell.avgPrice} $/м²{marketDealType === 'Аренда' ? '/мес' : ''}
+                                </div>
+                              </>
+                            ) : (
+                              <span className="text-ink-faint">—</span>
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-ink-faint">Сверху — количество предложений, снизу — средняя цена за м².</p>
+
+              <div className="flex items-start gap-2.5 rounded-control border border-success/30 bg-success-bg px-4 py-3">
+                <Sparkles className="h-4 w-4 shrink-0 translate-y-0.5 text-success" />
+                <p className="text-sm text-ink">
+                  Небольших офисов (до 40 м²) с готовой отделкой в районе почти нет:{' '}
+                  <span className="font-semibold text-success">
+                    {countSmallFinishedOffices(marketStats, 'sale')} предложение на продажу
+                  </span>{' '}
+                  и{' '}
+                  <span className="font-semibold text-success">
+                    {countSmallFinishedOffices(marketStats, 'rent')} в аренду
+                  </span>{' '}
+                  на весь Минск Мир. Red One закрывает именно этот дефицит —{' '}
+                  <Link to="/one" className="font-semibold underline">
+                    кабинеты с отделкой под ключ
+                  </Link>
+                  .
+                </p>
+              </div>
+            </>
+          )}
         </div>
 
         <div className={cn('flex flex-col', glassCardClass)} style={glassCardShadow}>
