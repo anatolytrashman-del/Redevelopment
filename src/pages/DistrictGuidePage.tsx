@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Archive,
+  ArrowRight,
   Banknote,
   BedDouble,
   Briefcase,
@@ -9,6 +10,7 @@ import {
   Building2,
   Car,
   Cigarette,
+  CircleHelp,
   CircleParking,
   Clock,
   Coffee,
@@ -22,6 +24,7 @@ import {
   LayoutGrid,
   Layers,
   MapPin,
+  Menu,
   Package,
   Phone,
   Pill,
@@ -37,6 +40,7 @@ import {
   TriangleAlert,
   Users,
   Wrench,
+  X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../lib/cn';
@@ -563,19 +567,25 @@ const districtFaq: FaqItem[] = [
 // отступ сверху при переходе, чтобы заголовок не упирался в край экрана).
 // Показывается только от lg и выше (см. рендер) — на мобильном/планшете
 // после узкой колонки контента для него просто нет места сбоку.
-const SECTION_NAV: { id: string; label: string }[] = [
-  { id: 'developer', label: 'Застройщик' },
-  { id: 'audience', label: 'Целевая аудитория' },
-  { id: 'traffic', label: 'Генераторы трафика' },
-  { id: 'property-types', label: 'Виды недвижимости' },
-  { id: 'business-density', label: 'Плотность бизнеса' },
-  { id: 'market', label: 'Рынок недвижимости' },
-  { id: 'business-analytics', label: 'Аналитика по сферам бизнеса' },
-  { id: 'tenant-profiles', label: 'Решения под бизнес' },
-  { id: 'transport', label: 'Транспорт и парковка' },
-  { id: 'map', label: 'Карта района' },
-  { id: 'faq', label: 'Частые вопросы' },
-  { id: 'red-one', label: 'Red One' },
+// Иконка каждого пункта — та же, что и у заголовка соответствующей секции
+// (см. рендер ниже), не своя отдельная: так пункт меню сразу узнаётся на
+// самой секции при переходе, а не выглядит как случайно другая картинка.
+// У "Частые вопросы"/"Red One" своей иконки в заголовке секции нет (FAQ —
+// просто текст, Red One — CTA-блок без иконки), для меню всё равно нужна
+// своя — CircleHelp/ArrowRight не заняты нигде на странице.
+const SECTION_NAV: { id: string; label: string; icon: LucideIcon }[] = [
+  { id: 'developer', label: 'Застройщик', icon: HardHat },
+  { id: 'audience', label: 'Целевая аудитория', icon: Users },
+  { id: 'traffic', label: 'Генераторы трафика', icon: Landmark },
+  { id: 'property-types', label: 'Виды недвижимости', icon: Layers },
+  { id: 'business-density', label: 'Плотность бизнеса', icon: Grid2x2 },
+  { id: 'market', label: 'Рынок недвижимости', icon: TrendingUp },
+  { id: 'business-analytics', label: 'Аналитика по сферам бизнеса', icon: LayoutGrid },
+  { id: 'tenant-profiles', label: 'Решения под бизнес', icon: Store },
+  { id: 'transport', label: 'Транспорт и парковка', icon: TrainFront },
+  { id: 'map', label: 'Карта района', icon: MapPin },
+  { id: 'faq', label: 'Частые вопросы', icon: CircleHelp },
+  { id: 'red-one', label: 'Red One', icon: ArrowRight },
 ];
 
 // Гид для предпринимателей и собственников коммерческой недвижимости, не
@@ -638,8 +648,61 @@ export function DistrictGuidePage() {
     return () => window.removeEventListener('resize', measure);
   }, []);
 
+  // Меню-оглавление ниже lg — тот же паттерн шторки, что и в админке
+  // (components/layout/Sidebar.tsx/AppLayout.tsx): плавающая кнопка вместо
+  // постоянно видимой колонки (для неё просто нет места на узком экране),
+  // открывает панель поверх контента с затемнением фона.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
   return (
     <div className="min-h-svh bg-bg">
+      <button
+        type="button"
+        onClick={() => setMobileNavOpen(true)}
+        className={cn(
+          'fixed bottom-4 right-4 z-30 flex items-center gap-2 px-4 py-3 text-sm font-semibold text-ink lg:hidden',
+          glassPillClass,
+        )}
+        style={glassPillShadow}
+      >
+        <Menu className="h-4 w-4 shrink-0" />
+        Содержание гайда
+      </button>
+
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-40 bg-ink/40 lg:hidden" onClick={() => setMobileNavOpen(false)} />
+      )}
+
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-50 flex h-svh w-72 max-w-[85vw] flex-col gap-1 overflow-y-auto border-r border-white/50 bg-white/70 px-5 py-6 backdrop-blur-xl backdrop-saturate-150 transition-transform duration-200 ease-out lg:hidden',
+          mobileNavOpen ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <span className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Содержание гайда</span>
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(false)}
+            aria-label="Закрыть меню"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:text-ink"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        {SECTION_NAV.map(({ id, label, icon: Icon }) => (
+          <a
+            key={id}
+            href={`#${id}`}
+            onClick={() => setMobileNavOpen(false)}
+            className="flex items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium text-ink transition-colors hover:text-primary"
+          >
+            <Icon className="h-5 w-5 shrink-0" />
+            {label}
+          </a>
+        ))}
+      </aside>
+
       <div className="border-b border-border py-5">
         <div className="mx-auto flex max-w-3xl items-center justify-center px-4 sm:px-8">
           <span className="text-lg font-extrabold tracking-wide text-ink">
@@ -652,16 +715,20 @@ export function DistrictGuidePage() {
         <div className="lg:grid lg:grid-cols-[200px_1fr] lg:gap-10">
           <aside ref={navAsideRef} className="hidden lg:block">
             <nav
-              className="fixed top-24 flex max-h-[calc(100vh-7rem)] flex-col gap-0.5 overflow-y-auto text-sm"
-              style={navBox ? { left: navBox.left, width: navBox.width } : { visibility: 'hidden' }}
+              className={cn(
+                'fixed top-24 flex max-h-[calc(100vh-7rem)] flex-col gap-0.5 overflow-y-auto p-3 text-sm',
+                glassCardClass,
+              )}
+              style={navBox ? { ...glassCardShadow, left: navBox.left, width: navBox.width } : { visibility: 'hidden' }}
             >
               <p className="mb-1 px-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">На странице</p>
-              {SECTION_NAV.map(({ id, label }) => (
+              {SECTION_NAV.map(({ id, label, icon: Icon }) => (
                 <a
                   key={id}
                   href={`#${id}`}
-                  className="rounded-control px-2 py-1.5 text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
+                  className="flex items-center gap-2 rounded-control px-2 py-1.5 text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
                 >
+                  <Icon className="h-3.5 w-3.5 shrink-0" />
                   {label}
                 </a>
               ))}
