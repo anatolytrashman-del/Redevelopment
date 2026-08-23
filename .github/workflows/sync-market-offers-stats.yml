@@ -1,0 +1,23 @@
+name: Sync market offers stats (Kufar + Realt)
+
+on:
+  schedule:
+    # Раз в месяц, 1-го числа — рынок не меняется настолько быстро, чтобы
+    # парсить чаще (в отличие от sync-demand-stats.yml, который следит за
+    # своими объявлениями и крутится каждый час)
+    - cron: '0 3 1 * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/sync-kufar-market-offers.mjs
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
