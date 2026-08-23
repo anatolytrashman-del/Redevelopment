@@ -65,6 +65,51 @@ const statTiles: { icon: LucideIcon; value: string; label: string }[] = [
   { icon: Bus, value: '14', label: 'автобусных и троллейбусных маршрутов' },
 ];
 
+// Портрет аудитории и медицинская инфраструктура — текст от Gemini по брифу,
+// собранному на реальных данных: возрастное ядро и «почти нет пенсионеров» —
+// от владельца (личное знание района, как и с паркингами выше); аптеки —
+// список из 22 точек, полученный от владельца через сохранённую HTML-страницу
+// (webarchive) результатов поиска на Яндекс.Картах (спарсено вручную, у самого
+// Яндекс.Карт нет доступного из этой среды способа сделать это автоматически —
+// см. журнал SEO_PLAN.md); поликлиника/стоматологии/медцентр/ветклиника —
+// веб-поиск, адреса перепроверены. Сеть InLek (5 из 22 точек) — тот самый
+// нечитаемый бренд "In塗то" из исходного портрета арендаторов ниже, разгадан
+// по совпадению с этим списком.
+const audienceHighlights: { label: string; text: string }[] = [
+  {
+    label: 'Ядро аудитории — 25–45 лет.',
+    text: 'Основные жители района: молодые семьи, IT-специалисты, предприниматели и квалифицированные специалисты. Доля людей пенсионного возраста стремится к нулю.',
+  },
+  {
+    label: 'Активная модель потребления.',
+    text: 'Жители ориентированы на комфорт, ценят время и тратят деньги внутри района: на готовое питание, сервисы у дома, здоровье, спорт и досуг.',
+  },
+  {
+    label: 'Фокус на детскую и семейную инфраструктуру.',
+    text: 'Высокая доля семей с детьми формирует постоянный коммерческий спрос на детские центры, профильные магазины, развивающие студии и семейные кафе.',
+  },
+];
+
+const medicineHighlights: { label: string; text: string }[] = [
+  {
+    label: 'Государственный якорь.',
+    text: '41-я городская поликлиника (ул. Кижеватова, 5а, открыта в январе 2026 года) обеспечивает первичную медицинскую помощь жителям и генерирует стабильный пешеходный трафик.',
+  },
+  {
+    label: 'Высокая плотность фарм-ритейла.',
+    text: 'В районе работают 22 аптеки. Крупнейшая сеть — InLek (5 филиалов), что подтверждает высокий спрос на товары для здоровья в шаговой доступности.',
+  },
+];
+
+const medicinePrivateList: { label: string; text: string }[] = [
+  {
+    label: 'Стоматологии:',
+    text: 'ConstantaClinic (просп. Мира, 1), Dentalove (ул. Аэродромная, 30), Healthy Smile (ул. Братская, 4)',
+  },
+  { label: 'Многопрофильные услуги:', text: 'медцентр «ИдеалМед» (ул. Аэродромная, 26)' },
+  { label: 'Ветеринария:', text: 'ветклиника «Главное Хвост» (ул. Казинца, 46А)' },
+];
+
 const metroStations = ['Ковальская Слобода', 'Аэродромная'];
 const busRoutes = ['4', '47с', '53', '56', '73', '84', '100', '107', '124', '172'];
 const trolleyRoutes = ['19', '27', '59', '82'];
@@ -77,12 +122,13 @@ const trolleyRoutes = ['19', '27', '59', '82'];
 // "офисы и клиентские сервисы" (её не было в исходном портрете) — своих
 // примеров нет, только факторы. Один пример аптечной сети из присланного
 // текста был нечитаем из-за битой кодировки при копировании ("In塗то") —
-// не уточнили у владельца, что имелось в виду, не включаю.
+// разгадан позже как InLek (см. medicineHighlights выше, сеть из 5 аптек
+// в районе по данным Яндекс.Карт), добавлен обратно в примеры.
 const tenantProfiles: { icon: LucideIcon; title: string; examples: string; footage: string; criteria: string }[] = [
   {
     icon: Store,
     title: 'Сетевой ритейл, аптеки, спецмагазины',
-    examples: 'Аптеки («Остров здоровья»), алкомаркеты («7 пятниц», «Вино»), кофейни (DOPE, «Варка»)',
+    examples: 'Аптеки (InLek, «Остров здоровья»), алкомаркеты («7 пятниц», «Вино»), кофейни (DOPE, «Варка»)',
     footage: '60–150 м²',
     criteria: 'Первая линия, витринное остекление, свободная планировка, высокий пешеходный трафик',
   },
@@ -208,6 +254,20 @@ export function DistrictGuidePage() {
 
         <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
           <div className="flex items-center gap-3">
+            <Users className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Целевая аудитория и покупательская способность</h2>
+          </div>
+          <ul className="flex flex-col gap-2">
+            {audienceHighlights.map(({ label, text }) => (
+              <li key={label} className="text-sm text-ink-muted">
+                <span className="font-semibold text-ink">{label}</span> {text}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
             <Landmark className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Генераторы ежедневного трафика</h2>
           </div>
@@ -227,11 +287,23 @@ export function DistrictGuidePage() {
             <Stethoscope className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Медицина и здоровье</h2>
           </div>
-          <p className="text-sm text-ink-muted">
-            В районе работают и строятся поликлиники — жители привыкли получать услуги рядом с домом. Высокая доля
-            молодых семей формирует устойчивый спрос на стоматологии, многопрофильные клиники, диагностические
-            центры и ветклиники.
-          </p>
+          <ul className="flex flex-col gap-2">
+            {medicineHighlights.map(({ label, text }) => (
+              <li key={label} className="text-sm text-ink-muted">
+                <span className="font-semibold text-ink">{label}</span> {text}
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-col gap-1.5 pt-1">
+            <p className="text-sm font-semibold text-ink">Частная медицина и специализированный бизнес:</p>
+            <ul className="flex flex-col gap-1 pl-4">
+              {medicinePrivateList.map(({ label, text }) => (
+                <li key={label} className="list-disc text-sm text-ink-muted marker:text-ink-faint">
+                  <span className="font-semibold text-ink">{label}</span> {text}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
 
         <div className={cn('flex flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
