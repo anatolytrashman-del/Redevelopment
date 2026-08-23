@@ -1,0 +1,232 @@
+// Раз в месяц (см. .github/workflows/sync-market-offers-stats.yml) собирает с
+// Realt.by публичные объявления коммерческой недвижимости по Минск Миру и
+// сохраняет СЫРЫЕ объявления в public.market_offers (source='Realt') — тот
+// же принцип, что и у scripts/sync-kufar-market-offers.mjs (см. его же
+// комментарии и SEO_PLAN.md за общим контекстом фичи).
+//
+// Как достаём данные: Realt — Next.js с серверным рендером по умолчанию
+// (не только для ботов, как у Kufar) — обычный fetch без спецзаголовков
+// отдаёт HTML с готовым __NEXT_DATA__, внутри которого лежит
+// props.pageProps.objects — реальные объявления со всеми атрибутами.
+//
+// Геопривязка к Минск Миру: в отличие от Kufar, у Realt есть свой точный
+// микрорайон-фильтр в самом URL (slug minsk-mir-mk-r-n) — проверено
+// вручную на реальных адресах (Игоря Лученка, Николы Теслы, Савицкого,
+// Жореса Алфёрова и т.д., без примеси старого центра города, которая была
+// у Kufar). Поэтому свой список улиц (как в Kufar-скрипте) тут не нужен.
+//
+// Категории помещений — берём из URL (slug), не из числового поля Realt
+// category/objectType (там нет текстовых меток, только коды) — так же,
+// как deal_type определяется в Kufar-скрипте по URL, а не по угадыванию.
+// Нет прямого аналога "Прочая коммерческая" у Realt — не запрашиваем.
+//
+// Валюта: сырое pricePerM2 объявления — В ВАЛЮТЕ ПРОДАВЦА (priceCurrency:
+// 933=BYN/840=USD/978=EUR — ISO 4217), не всегда USD! Проверено вручную:
+// часть объявлений на реальном ответе была в EUR. Поэтому цену за м² берём
+// ТОЛЬКО из priceRatesPerM2['840'] (Realt сам конвертирует и отдаёт цену в
+// каждой валюте под её ISO-кодом) — это гарантированно USD независимо от
+// того, в чём указал цену продавец.
+//
+// Состояние отделки — тоже готовое структурное поле Realt (repairState,
+// шкала 0-8: 0 евроремонт .. 8 без отделки, см. живую расшифровку в
+// SEO_PLAN.md). 0-3 (евроремонт/отличный/хороший/нормальный) — реальная
+// законченная отделка → "с отделкой". 4-8 (удовлетворительный..без
+// отделки) — требует работ или совсем голое помещение → "без отделки".
+// Это огрубление такое же условное, как для Kufar — исправляется вручную
+// на /admin/market-offers, если владелец не согласен с конкретным случаем.
+
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = 'https://iohcdylttyuhwovztrbk.supabase.co';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const DRY_RUN = process.argv.includes('--dry-run');
+const JSON_OUT = process.argv.includes('--json');
+
+if (!SUPABASE_SERVICE_ROLE_KEY && !DRY_RUN) {
+  console.error('Не задана переменная окружения SUPABASE_SERVICE_ROLE_KEY (или запусти с --dry-run)');
+  process.exit(1);
+}
+
+const supabase = DRY_RUN ? null : createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+const USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0.1 Safari/605.1.15';
+const MAX_PAGES = 20; // страховка от бесконечного цикла
+
+const DEAL_TYPES = [
+  { slug: 'sale', dealType: 'sale' },
+  { slug: 'rent', dealType: 'rent' },
+];
+
+// Те же категории, что различает Kufar-скрипт — сверять таблицу на сайте
+// удобнее, когда оба источника используют один словарь типов помещений
+// (см. MARKET_PROPERTY_TYPES в src/data/marketOffers.ts).
+const CATEGORIES = [
+  { slug: 'offices', propertyType: 'Офисы' },
+  { slug: 'shops', propertyType: 'Магазины, торговые помещения' },
+  { slug: 'services', propertyType: 'Сфера услуг' },
+  { slug: 'warehouses', propertyType: 'Склады' },
+  { slug: 'production', propertyType: 'Промышленные помещения' },
+];
+
+// Совпадает с PRICE_BOUNDS в sync-kufar-market-offers.mjs — тот же рынок,
+// та же логика: широкие границы, отсекают только математически
+// невозможное (цена "по запросу", ушедшая в базу как 0).
+const PRICE_BOUNDS = {
+  sale: { min: 300, max: 15000 },
+  rent: { min: 5, max: 150 },
+};
+
+function isPlausiblePrice(dealType, pricePerSqm) {
+  const bounds = PRICE_BOUNDS[dealType];
+  return pricePerSqm >= bounds.min && pricePerSqm <= bounds.max;
+}
+
+function classifyFinishStatus(repairState) {
+  if (repairState == null) return 'не указано';
+  if (repairState <= 3) return 'с отделкой';
+  return 'без отделки';
+}
+
+async function fetchCategoryPage(dealSlug, categorySlug, page) {
+  const url = new URL(`https://realt.by/${dealSlug}/${categorySlug}/minsk/minsk-mir-mk-r-n/`);
+  if (page > 1) url.searchParams.set('page', String(page));
+
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': USER_AGENT,
+      Accept: 'text/html',
+      'Accept-Language': 'ru',
+    },
+  });
+
+  if (res.status === 404) return { objects: [], totalCount: 0 }; // категории без объявлений в районе отдают 404
+  if (!res.ok) {
+    throw new Error(`Realt (${dealSlug}/${categorySlug}) вернул ${res.status} для ${url}`);
+  }
+
+  const html = await res.text();
+  const match = html.match(/<script id="__NEXT_DATA__"[^>]*>(.*?)<\/script>/s);
+  if (!match) {
+    throw new Error(`Realt (${dealSlug}/${categorySlug}): не нашёл __NEXT_DATA__ в ответе — вероятно, поменялась вёрстка`);
+  }
+
+  const data = JSON.parse(match[1]);
+  const pp = data?.props?.pageProps;
+  if (!pp) {
+    throw new Error(`Realt (${dealSlug}/${categorySlug}): не нашёл props.pageProps — вероятно, поменялась структура`);
+  }
+
+  return { objects: pp.objects || [], totalCount: pp.totalCount ?? 0 };
+}
+
+async function fetchAllForCategory(dealSlug, categorySlug) {
+  const all = [];
+  let totalCount = Infinity;
+  for (let page = 1; page <= MAX_PAGES && all.length < totalCount; page++) {
+    const result = await fetchCategoryPage(dealSlug, categorySlug, page);
+    totalCount = result.totalCount;
+    if (result.objects.length === 0) break;
+    all.push(...result.objects);
+  }
+  return all;
+}
+
+function extractOffers(objects, dealType, dealSlug, categorySlug, propertyType, excluded) {
+  const offers = [];
+
+  for (const o of objects) {
+    const size = o.areaTotal ?? o.areaMax ?? o.areaMin ?? null;
+    const pricePerSqm = o.priceRatesPerM2?.['840'] ?? null; // '840' = USD (ISO 4217), см. комментарий вверху файла
+    if (size == null || pricePerSqm == null) continue;
+
+    const adLink = `https://realt.by/${dealSlug}-${categorySlug}/object/${o.code}/`;
+    if (!isPlausiblePrice(dealType, pricePerSqm)) {
+      excluded.push({ dealType, propertyType, size, pricePerSqm, adLink });
+      continue;
+    }
+
+    offers.push({
+      source: 'Realt',
+      ad_id: String(o.code),
+      deal_type: dealType,
+      property_type: propertyType,
+      size,
+      price_per_sqm: pricePerSqm,
+      finish_status: classifyFinishStatus(o.repairState),
+      address: o.address ?? null,
+      ad_link: adLink,
+    });
+  }
+
+  return offers;
+}
+
+async function main() {
+  const offers = [];
+  const excluded = [];
+
+  for (const { slug: dealSlug, dealType } of DEAL_TYPES) {
+    for (const { slug: categorySlug, propertyType } of CATEGORIES) {
+      console.log(`Realt: тяну объявления (${dealSlug}/${categorySlug})...`);
+      const objects = await fetchAllForCategory(dealSlug, categorySlug);
+      const extracted = extractOffers(objects, dealType, dealSlug, categorySlug, propertyType, excluded);
+      console.log(`Realt (${dealSlug}/${categorySlug}): получено ${objects.length}, из них годных — ${extracted.length}`);
+      offers.push(...extracted);
+    }
+  }
+
+  if (excluded.length > 0) {
+    console.log(`Realt: отфильтровано ${excluded.length} объявлений с неправдоподобной ценой за м²:`);
+    console.table(excluded);
+  }
+
+  if (offers.length === 0) {
+    console.log('Realt: по Минск Миру ничего не нашлось, в базу нечего писать.');
+    return;
+  }
+
+  if (JSON_OUT) {
+    console.log(JSON.stringify(offers));
+    return;
+  }
+
+  console.table(offers);
+
+  if (DRY_RUN) {
+    console.log('--dry-run: запись в Supabase пропущена.');
+    return;
+  }
+
+  // Не затираем то, что владелец разобрал вручную (/admin/market-offers) —
+  // тот же принцип, что и в Kufar-скрипте: reviewed=true защищает всю
+  // строку, синк для таких строк только подтверждает актуальность.
+  const adIds = offers.map((o) => o.ad_id);
+  const { data: existing, error: fetchError } = await supabase
+    .from('market_offers')
+    .select('ad_id, deal_type, property_type, size, price_per_sqm, finish_status, address, reviewed')
+    .eq('source', 'Realt')
+    .in('ad_id', adIds);
+  if (fetchError) throw fetchError;
+
+  const reviewedByAdId = new Map((existing ?? []).filter((e) => e.reviewed).map((e) => [e.ad_id, e]));
+
+  const now = new Date().toISOString();
+  const payload = offers.map((o) => {
+    const reviewedRow = reviewedByAdId.get(o.ad_id);
+    if (reviewedRow) {
+      return { ...o, ...reviewedRow, reviewed: true, updated_at: now };
+    }
+    return { ...o, reviewed: false, updated_at: now };
+  });
+
+  const { error } = await supabase.from('market_offers').upsert(payload, { onConflict: 'source,ad_id' });
+  if (error) throw error;
+
+  console.log(`Сохранено ${payload.length} объявлений в market_offers (${reviewedByAdId.size} проверенных вручную — не тронуты).`);
+}
+
+main().catch((err) => {
+  console.error('Синхронизация не удалась:', err);
+  process.exit(1);
+});

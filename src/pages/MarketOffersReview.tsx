@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { ExternalLink, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { Copy, ExternalLink, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { SearchInput } from '../components/ui/SearchInput';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
@@ -17,7 +17,7 @@ import {
   updateMarketOffer,
   deleteMarketOffer,
 } from '../lib/marketOffersApi';
-import { FINISH_STATUSES, MARKET_PROPERTY_TYPES, areaBucket } from '../data/marketOffers';
+import { FINISH_STATUSES, MARKET_PROPERTY_TYPES, areaBucket, dedupKey } from '../data/marketOffers';
 import type { MarketOffer, FinishStatus } from '../data/marketOffers';
 
 // Ручная верификация объявлений с Kufar (и позже Realt): владелец сам
@@ -51,6 +51,12 @@ type DealFilter = (typeof DEAL_FILTER_OPTIONS)[number];
 
 const REVIEW_FILTER_OPTIONS = ['Все', 'Не обработано', 'Проверено'] as const;
 type ReviewFilter = (typeof REVIEW_FILTER_OPTIONS)[number];
+
+const SOURCE_FILTER_OPTIONS = ['Все', 'Kufar', 'Realt'] as const;
+type SourceFilter = (typeof SOURCE_FILTER_OPTIONS)[number];
+
+const DUP_FILTER_OPTIONS = ['Все', 'Только дубли'] as const;
+type DupFilter = (typeof DUP_FILTER_OPTIONS)[number];
 
 const FINISH_PILL_LABEL: Record<FinishStatus, string> = {
   'с отделкой': 'С отделкой',
@@ -138,6 +144,8 @@ export function MarketOffersReview() {
   const [finishFilter, setFinishFilter] = useState<FinishFilter>('Все');
   const [dealFilter, setDealFilter] = useState<DealFilter>('Все');
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>('Не обработано');
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('Все');
+  const [dupFilter, setDupFilter] = useState<DupFilter>('Все');
   const [pendingId, setPendingId] = useState<number | null>(null);
   const [editingOffer, setEditingOffer] = useState<MarketOffer | null>(null);
   const [editForm, setEditForm] = useState<EditFormState | null>(null);
@@ -149,35 +157,71 @@ export function MarketOffersReview() {
       .catch(() => setError('Не удалось загрузить объявления.'));
   }, []);
 
+  // Возможные дубли — один и тот же объект на разных площадках (или дважды
+  // на одной), см. dedupKey в data/marketOffers.ts. Считаем по ВСЕМ
+  // объявлениям, не по уже отфильтрованным — иначе включённые фильтры
+  // (например, "Продажа") случайно спрятали бы вторую половину пары.
+  const duplicateGroups = useMemo(() => {
+    if (!offers) return new Map<string, MarketOffer[]>();
+    const groups = new Map<string, MarketOffer[]>();
+    for (const offer of offers) {
+      const key = dedupKey(offer);
+      if (!key) continue;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(offer);
+    }
+    for (const [key, group] of groups) {
+      if (group.length < 2) groups.delete(key);
+    }
+    return groups;
+  }, [offers]);
+
+  const duplicateKeyByOfferId = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const [key, group] of duplicateGroups) {
+      for (const offer of group) map.set(offer.id, key);
+    }
+    return map;
+  }, [duplicateGroups]);
+
   const counts = useMemo(() => {
     if (!offers) return null;
     return {
       total: offers.length,
+      kufar: offers.filter((o) => o.source === 'Kufar').length,
+      realt: offers.filter((o) => o.source === 'Realt').length,
       finished: offers.filter((o) => o.finishStatus === 'с отделкой').length,
       unfinished: offers.filter((o) => o.finishStatus === 'без отделки').length,
       unknown: offers.filter((o) => o.finishStatus === 'не указано').length,
       reviewed: offers.filter((o) => o.reviewed).length,
+      duplicates: [...duplicateGroups.values()].reduce((sum, g) => sum + g.length, 0),
     };
-  }, [offers]);
+  }, [offers, duplicateGroups]);
 
   const filtered = useMemo(() => {
     if (!offers) return [];
     const query = search.trim().toLowerCase();
-    return offers
-      .filter((o) => {
-        const wantedFinish = FINISH_FILTER_TO_DB[finishFilter];
-        if (wantedFinish && o.finishStatus !== wantedFinish) return false;
-        if (dealFilter === 'Продажа' && o.dealType !== 'sale') return false;
-        if (dealFilter === 'Аренда' && o.dealType !== 'rent') return false;
-        if (reviewFilter === 'Не обработано' && o.reviewed) return false;
-        if (reviewFilter === 'Проверено' && !o.reviewed) return false;
-        if (query && !(o.address ?? '').toLowerCase().includes(query) && !o.propertyType.toLowerCase().includes(query)) {
-          return false;
-        }
-        return true;
-      })
-      .sort((a, b) => a.size - b.size);
-  }, [offers, search, finishFilter, dealFilter, reviewFilter]);
+    const rows = offers.filter((o) => {
+      const wantedFinish = FINISH_FILTER_TO_DB[finishFilter];
+      if (wantedFinish && o.finishStatus !== wantedFinish) return false;
+      if (dealFilter === 'Продажа' && o.dealType !== 'sale') return false;
+      if (dealFilter === 'Аренда' && o.dealType !== 'rent') return false;
+      if (reviewFilter === 'Не обработано' && o.reviewed) return false;
+      if (reviewFilter === 'Проверено' && !o.reviewed) return false;
+      if (sourceFilter !== 'Все' && o.source !== sourceFilter) return false;
+      if (dupFilter === 'Только дубли' && !duplicateKeyByOfferId.has(o.id)) return false;
+      if (query && !(o.address ?? '').toLowerCase().includes(query) && !o.propertyType.toLowerCase().includes(query)) {
+        return false;
+      }
+      return true;
+    });
+
+    if (dupFilter === 'Только дубли') {
+      // Дубли — рядом, чтобы сравнивать глазами, а не искать пару по всей таблице.
+      return rows.sort((a, b) => (duplicateKeyByOfferId.get(a.id) ?? '').localeCompare(duplicateKeyByOfferId.get(b.id) ?? ''));
+    }
+    return rows.sort((a, b) => a.size - b.size);
+  }, [offers, search, finishFilter, dealFilter, reviewFilter, sourceFilter, dupFilter, duplicateKeyByOfferId]);
 
   function patchOffer(id: number, patch: Partial<MarketOffer>) {
     setOffers((prev) => (prev ?? []).map((o) => (o.id === id ? { ...o, ...patch } : o)));
@@ -271,8 +315,16 @@ export function MarketOffersReview() {
         <div className="flex flex-col gap-4">
           {counts && (
             <p className="text-sm text-ink-muted">
-              Всего {counts.total} объявлений (Kufar) · с отделкой {counts.finished} · без отделки {counts.unfinished} ·
-              не указано {counts.unknown} · обработано {counts.reviewed} из {counts.total}
+              Всего {counts.total} объявлений (Kufar {counts.kufar} · Realt {counts.realt}) · с отделкой{' '}
+              {counts.finished} · без отделки {counts.unfinished} · не указано {counts.unknown} · обработано{' '}
+              {counts.reviewed} из {counts.total}
+              {counts.duplicates > 0 && (
+                <>
+                  {' '}
+                  ·{' '}
+                  <span className="font-semibold text-warning">возможных дублей — {counts.duplicates}</span>
+                </>
+              )}
             </p>
           )}
 
@@ -291,6 +343,12 @@ export function MarketOffersReview() {
                   value={reviewFilter}
                   onChange={(v) => setReviewFilter(v as ReviewFilter)}
                 />
+                <ToggleGroup
+                  label="Источник"
+                  options={[...SOURCE_FILTER_OPTIONS]}
+                  value={sourceFilter}
+                  onChange={(v) => setSourceFilter(v as SourceFilter)}
+                />
                 <ToggleGroup label="Сделка" options={[...DEAL_FILTER_OPTIONS]} value={dealFilter} onChange={(v) => setDealFilter(v as DealFilter)} />
                 <ToggleGroup
                   label="Отделка"
@@ -298,6 +356,7 @@ export function MarketOffersReview() {
                   value={finishFilter}
                   onChange={(v) => setFinishFilter(v as FinishFilter)}
                 />
+                <ToggleGroup label="Дубли" options={[...DUP_FILTER_OPTIONS]} value={dupFilter} onChange={(v) => setDupFilter(v as DupFilter)} />
               </div>
             </div>
             <p className="text-xs text-ink-faint">
@@ -306,10 +365,11 @@ export function MarketOffersReview() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1020px] border-collapse text-sm">
+            <table className="w-full min-w-[1140px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-ink-faint">
                   <th className="py-2 pr-3">Адрес</th>
+                  <th className="py-2 px-2">Источник</th>
                   <th className="py-2 px-2">Тип</th>
                   <th className="py-2 px-2">Сделка</th>
                   <th className="py-2 px-2 text-right">Площадь</th>
@@ -320,23 +380,37 @@ export function MarketOffersReview() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filtered.map((offer) => (
+                {filtered.map((offer) => {
+                  const isDuplicate = duplicateKeyByOfferId.has(offer.id);
+                  return (
                   <tr key={offer.id} className={pendingId === offer.id ? 'opacity-50' : undefined}>
                     <td className="max-w-[200px] py-2.5 pr-3">
-                      {offer.adLink ? (
-                        <a
-                          href={offer.adLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-ink hover:underline"
-                        >
+                      <div className="flex items-center gap-1.5">
+                        {offer.adLink ? (
+                          <a
+                            href={offer.adLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex min-w-0 items-center gap-1 text-ink hover:underline"
+                          >
+                            <span className="truncate">{offer.address ?? '—'}</span>
+                            <ExternalLink className="h-3 w-3 shrink-0 text-ink-faint" />
+                          </a>
+                        ) : (
                           <span className="truncate">{offer.address ?? '—'}</span>
-                          <ExternalLink className="h-3 w-3 shrink-0 text-ink-faint" />
-                        </a>
-                      ) : (
-                        (offer.address ?? '—')
-                      )}
+                        )}
+                        {isDuplicate && (
+                          <span
+                            title="Похожее объявление есть ещё раз в базе — проверьте и удалите лишнее"
+                            className="flex shrink-0 items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 text-xs font-medium text-warning"
+                          >
+                            <Copy className="h-3 w-3" />
+                            дубль
+                          </span>
+                        )}
+                      </div>
                     </td>
+                    <td className="whitespace-nowrap py-2.5 px-2 text-ink-muted">{offer.source}</td>
                     <td className="whitespace-nowrap py-2.5 px-2 text-ink-muted">{offer.propertyType}</td>
                     <td className="whitespace-nowrap py-2.5 px-2 text-ink-muted">{offer.dealType === 'sale' ? 'Продажа' : 'Аренда'}</td>
                     <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-muted">
@@ -375,7 +449,8 @@ export function MarketOffersReview() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
             {filtered.length === 0 && <p className="py-6 text-center text-sm text-ink-faint">Ничего не найдено.</p>}

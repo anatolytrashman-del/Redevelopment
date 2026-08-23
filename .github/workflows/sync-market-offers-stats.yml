@@ -21,3 +21,8 @@ jobs:
       - run: node scripts/sync-kufar-market-offers.mjs
         env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # if: always() — чтобы сбой одного источника не мешал другому
+      - run: node scripts/sync-realt-market-offers.mjs
+        if: always()
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
