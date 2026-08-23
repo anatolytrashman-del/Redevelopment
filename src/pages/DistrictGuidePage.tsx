@@ -374,7 +374,7 @@ const MARKET_PROPERTY_TYPE_ORDER = [
 
 interface MarketPivotCell {
   count: number;
-  avgPrice: number;
+  medianPrice: number;
 }
 
 interface MarketPivotRow {
@@ -382,26 +382,26 @@ interface MarketPivotRow {
   cells: (MarketPivotCell | null)[];
 }
 
-// Схлопывает finish_status (нужен отдельно только для дефицит-инсайта ниже)
-// и считает средневзвешенную цену по каждой ячейке (тип помещения × площадь).
+// Берёт готовую сводную строку (finish_status='все') — её count/медиана уже
+// честно посчитаны в скрипте синка напрямую из сырых цен, без клиентского
+// пересчёта (пересчитывать медиану из уже готовых под-групп "с отделкой"/
+// "без отделки" математически некорректно, поэтому раньше тут стояло
+// среднее — но одно битое или выпадающее объявление в маленькой ячейке
+// (1–3 предложения) полностью его ломало, отсюда нереалистичные цифры).
 function buildMarketPivot(stats: MarketOfferStat[], dealType: 'sale' | 'rent'): MarketPivotRow[] {
-  const byType = new Map<string, Map<string, { count: number; priceSum: number }>>();
+  const byType = new Map<string, Map<string, { count: number; medianPrice: number }>>();
 
   for (const stat of stats) {
-    if (stat.dealType !== dealType) continue;
+    if (stat.dealType !== dealType || stat.finishStatus !== 'все') continue;
     if (!byType.has(stat.propertyType)) byType.set(stat.propertyType, new Map());
-    const byBucket = byType.get(stat.propertyType)!;
-    const cell = byBucket.get(stat.areaBucket) ?? { count: 0, priceSum: 0 };
-    cell.count += stat.offersCount;
-    cell.priceSum += stat.avgPricePerSqm * stat.offersCount;
-    byBucket.set(stat.areaBucket, cell);
+    byType.get(stat.propertyType)!.set(stat.areaBucket, { count: stat.offersCount, medianPrice: stat.medianPricePerSqm });
   }
 
   return MARKET_PROPERTY_TYPE_ORDER.filter((type) => byType.has(type)).map((propertyType) => {
     const byBucket = byType.get(propertyType)!;
     const cells = AREA_BUCKET_ORDER.map((bucket) => {
       const cell = byBucket.get(bucket);
-      return cell ? { count: cell.count, avgPrice: Math.round(cell.priceSum / cell.count) } : null;
+      return cell ? { count: cell.count, medianPrice: Math.round(cell.medianPrice) } : null;
     });
     return { propertyType, cells };
   });
@@ -704,7 +704,7 @@ export function DistrictGuidePage() {
             )}
           </div>
           <p className="text-sm text-ink-muted">
-            Действующие предложения продажи и аренды коммерческих помещений в Минск Мире — количество и средняя
+            Действующие предложения продажи и аренды коммерческих помещений в Минск Мире — количество и медианная
             цена за м² по типу помещения и площади. Обновляется раз в месяц.
           </p>
 
@@ -742,7 +742,7 @@ export function DistrictGuidePage() {
                               <>
                                 <div className="font-semibold text-ink">{cell.count}</div>
                                 <div className="text-xs text-ink-faint">
-                                  {cell.avgPrice} $/м²{marketDealType === 'Аренда' ? '/мес' : ''}
+                                  {cell.medianPrice} $/м²{marketDealType === 'Аренда' ? '/мес' : ''}
                                 </div>
                               </>
                             ) : (
@@ -755,7 +755,7 @@ export function DistrictGuidePage() {
                   </tbody>
                 </table>
               </div>
-              <p className="text-xs text-ink-faint">Сверху — количество предложений, снизу — средняя цена за м².</p>
+              <p className="text-xs text-ink-faint">Сверху — количество предложений, снизу — медианная цена за м².</p>
 
               <div className="flex items-start gap-2.5 rounded-control border border-success/30 bg-success-bg px-4 py-3">
                 <Sparkles className="h-4 w-4 shrink-0 translate-y-0.5 text-success" />

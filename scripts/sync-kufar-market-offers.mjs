@@ -113,6 +113,25 @@ function median(values) {
   return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
+// Живые проверки (владелец, август 2026): в цене за м² попадаются явно
+// битые значения — "цена по запросу" без реальной цифры (0 / $0.01 / $0.67
+// за м²/мес) и минимум один явный выброс ($29 583/м² на продаже — 72 м² на
+// ул. Игоря Лученка 4, при рынке района $1–13 тыс/м²). При маленьких N
+// (1–3 объявления в ячейке) один такой выброс убивает среднее. Границы
+// широкие и намеренно НЕ пытаются угадывать "подозрительно круглые" цены
+// (например, серия одинаковых $990/$1035 в одном доме на Савицкого 39 —
+// возможно, ошибка продавца, а возможно, реальная акция; граница их не
+// трогает) — только отсекают то, что математически не может быть ценой.
+const PRICE_BOUNDS = {
+  sale: { min: 300, max: 15000 },
+  rent: { min: 5, max: 150 },
+};
+
+function isPlausiblePrice(dealType, pricePerSqm) {
+  const bounds = PRICE_BOUNDS[dealType];
+  return pricePerSqm >= bounds.min && pricePerSqm <= bounds.max;
+}
+
 async function fetchListingPage(slug, cursor) {
   const url = new URL(`https://re.kufar.by/l/minsk-oktyabrskij-rajon/${slug}/kommercheskaya`);
   url.searchParams.set('size', String(PAGE_SIZE));
@@ -163,8 +182,15 @@ async function fetchAllListings(slug) {
   return allAds;
 }
 
-function aggregate(ads, dealType) {
-  const groups = new Map();
+// finish_status: 'все' — отдельная сводная строка на (тип сделки × тип
+// помещения × площадь), посчитанная НАПРЯМУЮ из сырых цен всей группы
+// (а не как среднее по под-группам "с отделкой"/"без отделки"/"не
+// указано" — так медиана считается честно, а не оценивается задним
+// числом из уже готовых кусков). Именно 'все' идёт в таблицу на сайте;
+// разбивку по отделке использует только "дефицит"-инсайт.
+function aggregate(ads, dealType, excluded) {
+  const rawByGroup = new Map(); // key без finish_status — для сводной строки
+  const rawByFinishGroup = new Map();
 
   for (const ad of ads) {
     const address = getAccountParam(ad, 'address')?.v;
@@ -176,23 +202,36 @@ function aggregate(ads, dealType) {
     const bucket = areaBucket(size);
     if (!bucket || pricePerSqm == null) continue; // без площади/цены за м² в сводку не берём
 
-    const finishStatus = classifyFinishStatus(ad);
-    const key = `${dealType}|${propertyType}|${bucket}|${finishStatus}`;
-    if (!groups.has(key)) {
-      groups.set(key, { dealType, propertyType, bucket, finishStatus, prices: [] });
+    if (!isPlausiblePrice(dealType, pricePerSqm)) {
+      excluded.push({ dealType, propertyType, size, pricePerSqm, adLink: `https://re.kufar.by/vi/${ad.ad_id}` });
+      continue;
     }
-    groups.get(key).prices.push(pricePerSqm);
+
+    const groupKey = `${dealType}|${propertyType}|${bucket}`;
+    if (!rawByGroup.has(groupKey)) rawByGroup.set(groupKey, { dealType, propertyType, bucket, prices: [] });
+    rawByGroup.get(groupKey).prices.push(pricePerSqm);
+
+    const finishStatus = classifyFinishStatus(ad);
+    const finishKey = `${groupKey}|${finishStatus}`;
+    if (!rawByFinishGroup.has(finishKey)) {
+      rawByFinishGroup.set(finishKey, { dealType, propertyType, bucket, finishStatus, prices: [] });
+    }
+    rawByFinishGroup.get(finishKey).prices.push(pricePerSqm);
   }
 
-  return [...groups.values()].map((g) => ({
-    deal_type: g.dealType,
-    property_type: g.propertyType,
-    area_bucket: g.bucket,
-    finish_status: g.finishStatus,
-    offers_count: g.prices.length,
-    avg_price_per_sqm: Math.round((g.prices.reduce((a, b) => a + b, 0) / g.prices.length) * 100) / 100,
-    median_price_per_sqm: median(g.prices),
-  }));
+  function toRow(g) {
+    return {
+      deal_type: g.dealType,
+      property_type: g.propertyType,
+      area_bucket: g.bucket,
+      finish_status: g.finishStatus ?? 'все',
+      offers_count: g.prices.length,
+      avg_price_per_sqm: Math.round((g.prices.reduce((a, b) => a + b, 0) / g.prices.length) * 100) / 100,
+      median_price_per_sqm: median(g.prices),
+    };
+  }
+
+  return [...rawByGroup.values()].map(toRow).concat([...rawByFinishGroup.values()].map(toRow));
 }
 
 async function main() {
@@ -201,14 +240,21 @@ async function main() {
   const monthStr = month.toISOString().slice(0, 10);
 
   const rows = [];
+  const excluded = [];
   for (const { slug, dealType } of DEAL_TYPES) {
     console.log(`Kufar: тяну объявления (${slug})...`);
     const ads = await fetchAllListings(slug);
     console.log(`Kufar (${slug}): получено ${ads.length} объявлений по Октябрьскому району`);
 
-    const aggregated = aggregate(ads, dealType);
-    console.log(`Kufar (${slug}): из них по Минск Миру — ${aggregated.reduce((s, r) => s + r.offers_count, 0)} объявлений в ${aggregated.length} группах`);
+    const aggregated = aggregate(ads, dealType, excluded);
+    const summaryRows = aggregated.filter((r) => r.finish_status === 'все');
+    console.log(`Kufar (${slug}): из них по Минск Миру — ${summaryRows.reduce((s, r) => s + r.offers_count, 0)} объявлений в ${summaryRows.length} группах`);
     rows.push(...aggregated);
+  }
+
+  if (excluded.length > 0) {
+    console.log(`Kufar: отфильтровано ${excluded.length} объявлений с неправдоподобной ценой за м² (границы: продажа ${PRICE_BOUNDS.sale.min}–${PRICE_BOUNDS.sale.max} $/м², аренда ${PRICE_BOUNDS.rent.min}–${PRICE_BOUNDS.rent.max} $/м²/мес) — стоит бегло свериться по ссылкам:`);
+    console.table(excluded);
   }
 
   if (rows.length === 0) {
