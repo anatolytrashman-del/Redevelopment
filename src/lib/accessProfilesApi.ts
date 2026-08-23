@@ -8,6 +8,7 @@ function fromRow(row: AccessProfileRow): AccessProfile {
     password: row.password,
     displayName: row.display_name,
     pages: row.pages,
+    isSuperAdmin: row.is_super_admin,
   };
 }
 
@@ -19,7 +20,12 @@ export function fetchAccessProfiles(): Promise<AccessProfile[]> {
   });
 }
 
-export function insertAccessProfile(input: Omit<AccessProfile, 'id'>): Promise<AccessProfile> {
+// isSuperAdmin сознательно исключён из входа этих двух функций — форма
+// профилей в /admin/settings его не редактирует (см. AccessProfile в
+// data/accessProfiles.ts): она доступна и Степану, и Светлане (оба видят
+// "Настройки"), а супер-доступ должен оставаться только у владельца.
+// Значение в БД меняется исключительно прямой SQL-правкой.
+export function insertAccessProfile(input: Omit<AccessProfile, 'id' | 'isSuperAdmin'>): Promise<AccessProfile> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('access_profiles')
@@ -32,7 +38,7 @@ export function insertAccessProfile(input: Omit<AccessProfile, 'id'>): Promise<A
   });
 }
 
-export function updateAccessProfile(id: string, input: Omit<AccessProfile, 'id'>): Promise<AccessProfile> {
+export function updateAccessProfile(id: string, input: Omit<AccessProfile, 'id' | 'isSuperAdmin'>): Promise<AccessProfile> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('access_profiles')

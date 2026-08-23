@@ -52,3 +52,11 @@ export function getCurrentProfile(): AccessProfile {
 export function isPageAllowed(profile: AccessProfile, page: PageKey): boolean {
   return profile.pages === 'all' || profile.pages.includes(page);
 }
+
+// Отдельная, более строгая проверка для страниц, скрытых даже от профилей
+// с pages:'all' (например лог активности сотрудников) — см. isSuperAdmin в
+// data/accessProfiles.ts. Использовать вместо isPageAllowed там, где обычное
+// "all" не должно давать доступ.
+export function isSuperAdminAllowed(profile: AccessProfile): boolean {
+  return profile.isSuperAdmin;
+}

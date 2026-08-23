@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { RequirePage } from './components/layout/RequirePage';
+import { RequireSuperAdmin } from './components/layout/RequireSuperAdmin';
 import { PublicBuildingPlan } from './pages/PublicBuildingPlan';
 import { ObjectLandingPage } from './pages/ObjectLandingPage';
 import { DistrictGuidePage } from './pages/DistrictGuidePage';
@@ -39,6 +40,7 @@ const Financing = lazy(() => import('./pages/Financing').then((m) => ({ default:
 const DesignProjects = lazy(() => import('./pages/DesignProjects').then((m) => ({ default: m.DesignProjects })));
 const Landings = lazy(() => import('./pages/Landings').then((m) => ({ default: m.Landings })));
 const MarketOffersReview = lazy(() => import('./pages/MarketOffersReview').then((m) => ({ default: m.MarketOffersReview })));
+const ActivityLog = lazy(() => import('./pages/ActivityLog').then((m) => ({ default: m.ActivityLog })));
 const DesignProjectView = lazy(() => import('./pages/DesignProjectView').then((m) => ({ default: m.DesignProjectView })));
 const DesignProjectDetail = lazy(() => import('./pages/DesignProjectDetail').then((m) => ({ default: m.DesignProjectDetail })));
 const MoodboardView = lazy(() => import('./pages/MoodboardView').then((m) => ({ default: m.MoodboardView })));
@@ -124,6 +126,17 @@ export default function App() {
             <RequirePage page="marketOffers">
               <MarketOffersReview />
             </RequirePage>
+          }
+        />
+        {/* Не в меню, не в data/pages.ts — гейт RequireSuperAdmin строже
+            обычного RequirePage, не пропускает даже профили с pages:'all'
+            (см. компонент и комментарий в data/accessProfiles.ts). */}
+        <Route
+          path="activity-log"
+          element={
+            <RequireSuperAdmin>
+              <ActivityLog />
+            </RequireSuperAdmin>
           }
         />
         <Route path="contractors" element={<RequirePage page="contractors"><Contractors /></RequirePage>} />

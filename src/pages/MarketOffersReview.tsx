@@ -17,6 +17,7 @@ import {
   fetchDismissedDedupKeys,
   dismissDuplicateGroup,
 } from '../lib/marketOffersApi';
+import { logActivity } from '../lib/activityLogApi';
 import { FINISH_STATUSES, MARKET_PROPERTY_TYPES, areaBucket, dedupKey, netSize, netPricePerSqm } from '../data/marketOffers';
 import type { MarketOffer, FinishStatus } from '../data/marketOffers';
 
@@ -504,6 +505,7 @@ export function MarketOffersReview() {
       };
       await updateMarketOffer(editingOffer.id, patch);
       patchOffer(editingOffer.id, { ...patch, address: editForm.address || null, reviewed: true });
+      logActivity('market_offer_verified');
       setEditingOffer(null);
       setEditForm(null);
     } catch {
