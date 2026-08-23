@@ -7,7 +7,8 @@ export interface Task {
   id: string;
   title: string;
   description: string;
-  date: string;
+  startDate: string;
+  endDate: string;
   assignees: TaskAssignee[];
   isPriority: boolean;
   isDone: boolean;
@@ -19,7 +20,8 @@ export interface TaskRow {
   id: string;
   title: string;
   description: string;
-  date: string;
+  start_date: string;
+  end_date: string;
   assignees: string[];
   is_priority: boolean;
   is_done: boolean;

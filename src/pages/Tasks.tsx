@@ -26,10 +26,25 @@ function formatDate(isoDate: string) {
   return new Date(`${isoDate}T00:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+// Однодневная задача (по умолчанию — startDate===endDate) показывает одну
+// дату, как раньше; многодневная — диапазон. Один год и месяц не повторяем
+// у первой даты («24–26 августа 2026»), иначе выписываем обе целиком.
+function formatDateRange(startIso: string, endIso: string) {
+  if (!startIso) return '—';
+  if (!endIso || startIso === endIso) return formatDate(startIso);
+  const start = new Date(`${startIso}T00:00:00`);
+  const end = new Date(`${endIso}T00:00:00`);
+  if (start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()) {
+    return `${start.getDate()}–${end.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+  }
+  return `${formatDate(startIso)} – ${formatDate(endIso)}`;
+}
+
 const emptyForm = {
   title: '',
   description: '',
-  date: '',
+  startDate: '',
+  endDate: '',
   assignees: [] as TaskAssignee[],
   isPriority: false,
 };
@@ -114,7 +129,7 @@ function ActiveTaskCard({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="text-sm text-ink-muted">{formatDate(task.date)}</span>
+        <span className="text-sm text-ink-muted">{formatDateRange(task.startDate, task.endDate)}</span>
         <div className="flex items-center gap-2">
           <Button
             type="button"
@@ -176,7 +191,7 @@ function ArchivedTaskCard({
         </div>
         <AssigneeBadges assignees={task.assignees} />
       </div>
-      <div className="text-sm text-ink-muted">{formatDate(task.date)}</div>
+      <div className="text-sm text-ink-muted">{formatDateRange(task.startDate, task.endDate)}</div>
       <div className="rounded-control bg-surface-muted px-4 py-3">
         <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Результат</div>
         <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{task.result}</p>
@@ -271,48 +286,54 @@ export function Tasks() {
   }, []);
 
   const activeTasks = useMemo(() => tasks.filter((t) => !t.isDone), [tasks]);
-  // Просроченные (date < сегодня) остаются в "на сегодня" — не хотим, чтобы
-  // они потерялись под спойлером "на другие дни".
+  // Многодневная задача (startDate < endDate) должна быть видна в каждый
+  // день, который она захватывает — поэтому бакеты ниже не взаимоисключающие,
+  // одна и та же задача может попасть сразу в "сегодня" и "завтра" (и даже
+  // в "другие дни", если тянется дальше), а не только в один из них.
+  // "Сегодня" условие startDate<=today одно покрывает и текущие (endDate
+  // ещё не наступил или наступает сегодня), и просроченные (endDate уже
+  // прошёл) задачи — те и другие остаются на виду, не теряются под спойлером.
   const todayTasks = useMemo(() => {
     const today = todayIsoDate();
-    return activeTasks.filter((t) => t.date <= today);
+    return activeTasks.filter((t) => t.startDate <= today);
   }, [activeTasks]);
   const tomorrowTasks = useMemo(() => {
     const tomorrow = tomorrowIsoDate();
-    return activeTasks.filter((t) => t.date === tomorrow);
+    return activeTasks.filter((t) => t.startDate <= tomorrow && t.endDate >= tomorrow);
   }, [activeTasks]);
   const otherTasks = useMemo(() => {
     const tomorrow = tomorrowIsoDate();
-    return activeTasks.filter((t) => t.date > tomorrow);
+    return activeTasks.filter((t) => t.endDate > tomorrow);
   }, [activeTasks]);
 
   const archivedTasks = useMemo(
-    () => [...tasks.filter((t) => t.isDone)].sort((a, b) => b.date.localeCompare(a.date)),
+    () => [...tasks.filter((t) => t.isDone)].sort((a, b) => b.endDate.localeCompare(a.endDate)),
     [tasks],
   );
-  // Бакеты архива считаются по дате задачи (date), отдельного поля даты
+  // Бакеты архива считаются по концу задачи (endDate), отдельного поля даты
   // выполнения в Task нет — на практике задача обычно закрывается около
-  // своей даты, так что это достаточная оценка "когда сделано".
+  // своего срока, так что это достаточная оценка "когда сделано".
   const doneToday = useMemo(() => {
     const today = todayIsoDate();
-    return archivedTasks.filter((t) => t.date === today);
+    return archivedTasks.filter((t) => t.endDate === today);
   }, [archivedTasks]);
   const doneThisWeek = useMemo(() => {
     const today = todayIsoDate();
     const weekStart = startOfWeekIsoDate();
-    return archivedTasks.filter((t) => t.date !== today && t.date >= weekStart);
+    return archivedTasks.filter((t) => t.endDate !== today && t.endDate >= weekStart);
   }, [archivedTasks]);
   const doneThisMonth = useMemo(() => {
     const weekStart = startOfWeekIsoDate();
     const monthStart = startOfMonthIsoDate();
-    return archivedTasks.filter((t) => t.date < weekStart && t.date >= monthStart);
+    return archivedTasks.filter((t) => t.endDate < weekStart && t.endDate >= monthStart);
   }, [archivedTasks]);
   const doneOlder = useMemo(() => {
     const monthStart = startOfMonthIsoDate();
-    return archivedTasks.filter((t) => t.date < monthStart);
+    return archivedTasks.filter((t) => t.endDate < monthStart);
   }, [archivedTasks]);
 
-  const canSubmit = form.title.trim() && form.date && form.assignees.length > 0;
+  const canSubmit =
+    form.title.trim() && form.startDate && form.endDate && form.endDate >= form.startDate && form.assignees.length > 0;
 
   function openAddModal() {
     setEditingTask(null);
@@ -326,7 +347,8 @@ export function Tasks() {
     setForm({
       title: task.title,
       description: task.description,
-      date: task.date,
+      startDate: task.startDate,
+      endDate: task.endDate,
       assignees: task.assignees,
       isPriority: task.isPriority,
     });
@@ -345,7 +367,8 @@ export function Tasks() {
         const updated = await updateTask(editingTask.id, {
           title: form.title.trim(),
           description: form.description.trim(),
-          date: form.date,
+          startDate: form.startDate,
+          endDate: form.endDate,
           assignees: form.assignees,
           isPriority: form.isPriority,
           isDone: editingTask.isDone,
@@ -356,7 +379,8 @@ export function Tasks() {
         const created = await insertTask({
           title: form.title.trim(),
           description: form.description.trim(),
-          date: form.date,
+          startDate: form.startDate,
+          endDate: form.endDate,
           assignees: form.assignees,
           isPriority: form.isPriority,
           isDone: false,
@@ -560,13 +584,37 @@ export function Tasks() {
             value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
           />
-          <Input
-            label="Дата"
-            type="date"
-            value={form.date}
-            onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-            required
-          />
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Дата начала"
+              type="date"
+              value={form.startDate}
+              onChange={(e) => {
+                const startDate = e.target.value;
+                setForm((f) => ({
+                  // Однодневная задача — типичный случай: пока конец не
+                  // тронут вручную (пуст или совпадал с прежним началом),
+                  // подтягиваем его вслед за началом, чтобы не заставлять
+                  // всегда заполнять оба поля.
+                  ...f,
+                  startDate,
+                  endDate: !f.endDate || f.endDate === f.startDate ? startDate : f.endDate,
+                }));
+              }}
+              required
+            />
+            <Input
+              label="Дата конца"
+              type="date"
+              value={form.endDate}
+              min={form.startDate || undefined}
+              onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
+              required
+            />
+          </div>
+          {form.startDate && form.endDate && form.endDate < form.startDate && (
+            <p className="text-sm text-danger">Дата конца раньше даты начала</p>
+          )}
 
           <div className="flex flex-col gap-1.5">
             <span className="text-sm text-ink-muted">Ответственные</span>

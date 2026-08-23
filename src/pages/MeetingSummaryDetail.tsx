@@ -243,10 +243,12 @@ export function MeetingSummaryDetail() {
     setDecidingId(sid);
     setSuggestError(null);
     try {
+      const today = new Date().toISOString().slice(0, 10);
       await insertTask({
         title: s.title.trim() || 'Без названия',
         description: s.description,
-        date: new Date().toISOString().slice(0, 10),
+        startDate: today,
+        endDate: today,
         assignees: s.assignees,
         isPriority: false,
         isDone: false,

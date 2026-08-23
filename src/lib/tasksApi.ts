@@ -7,7 +7,8 @@ function fromRow(row: TaskRow): Task {
     id: row.id,
     title: row.title,
     description: row.description,
-    date: row.date,
+    startDate: row.start_date,
+    endDate: row.end_date,
     assignees: (row.assignees ?? []) as Task['assignees'],
     isPriority: row.is_priority,
     isDone: row.is_done,
@@ -17,7 +18,7 @@ function fromRow(row: TaskRow): Task {
 
 export function fetchTasks(): Promise<Task[]> {
   return withRetry(async () => {
-    const { data, error } = await supabase.from('tasks').select('*').order('date', { ascending: true });
+    const { data, error } = await supabase.from('tasks').select('*').order('start_date', { ascending: true });
     if (error) throw error;
     return (data as TaskRow[]).map(fromRow);
   });
@@ -30,7 +31,8 @@ export function insertTask(input: Omit<Task, 'id'>): Promise<Task> {
       .insert({
         title: input.title,
         description: input.description,
-        date: input.date,
+        start_date: input.startDate,
+        end_date: input.endDate,
         assignees: input.assignees,
         is_priority: input.isPriority,
         is_done: input.isDone,
@@ -51,7 +53,8 @@ export function updateTask(id: string, input: Omit<Task, 'id'>): Promise<Task> {
       .update({
         title: input.title,
         description: input.description,
-        date: input.date,
+        start_date: input.startDate,
+        end_date: input.endDate,
         assignees: input.assignees,
         is_priority: input.isPriority,
         is_done: input.isDone,
