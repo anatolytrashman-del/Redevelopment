@@ -22,6 +22,7 @@ import {
   Store,
   TrainFront,
   TramFront,
+  TriangleAlert,
   Users,
   Wrench,
 } from 'lucide-react';
@@ -264,15 +265,25 @@ const tobaccoVapeMax = Math.max(...tobaccoVapeBreakdown.map((b) => b.count));
 // достоверной цифры населения района, см. audienceHighlights); границы
 // круглые, не строгие терцили, чтобы не резать по живому при равных
 // значениях (аптеки/табак — оба по 22): высокая ≥40, средняя 20–39,
-// низкая <20. Явно НЕ "конкуренция" в тексте — количество точек само по
-// себе не хорошо и не плохо (может значить и доказанный спрос), поэтому
-// формулировка нейтральная — "плотность", вывод оставляем читателю.
+// низкая <20.
+//
+// Цвета — первая версия была одним оттенком красного (ordinal-рамп,
+// провалидирован через dataviz-скилл), но владелец справедливо заметил:
+// сплошной красный читается как "тревога" везде, даже там, где это
+// низкая плотность. Переделано на статусную триаду проекта
+// (--color-success/warning/danger из index.css — тот же смысл: низкая
+// плотность зелёная как "свободно", высокая красная как "занято"), не
+// изобретал новых цветов. Текст на плитках подобран по контрасту:
+// success/warning светлые для белого текста (contrast() из
+// validate_palette.js даёт ~3.3:1 — ниже 4.5:1 для мелкого текста
+// подписи), поэтому там тёмный текст (~5.4:1); danger темнее, там
+// белый текст держит 4.6:1.
 type DensityTier = 'low' | 'medium' | 'high';
 
 const DENSITY_TIER_STYLE: Record<DensityTier, { bg: string; text: string }> = {
-  low: { bg: '#ee8f97', text: '#14151a' },
-  medium: { bg: '#e4152b', text: '#ffffff' },
-  high: { bg: '#8f0d1c', text: '#ffffff' },
+  low: { bg: '#1aa053', text: '#14151a' },
+  medium: { bg: '#b8842a', text: '#14151a' },
+  high: { bg: '#e0293f', text: '#ffffff' },
 };
 
 const DENSITY_TIER_LABEL: Record<DensityTier, string> = {
@@ -764,10 +775,7 @@ export function DistrictGuidePage() {
             <Grid2x2 className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Плотность бизнеса по нишам</h2>
           </div>
-          <p className="text-sm text-ink-muted">
-            Число точек по каждой категории — не оценка «хорошо/плохо», а плотность рынка на сегодня. Больше точек
-            — доказанный спрос, но и больше конкурентов; меньше — ниша менее занята.
-          </p>
+          <p className="text-sm text-ink-muted">Число точек по каждой категории бизнеса в районе.</p>
           <div className="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-3">
             {densityData.map(({ icon: Icon, label, count }) => {
               const tier = DENSITY_TIER_STYLE[densityTier(count)];
@@ -794,6 +802,13 @@ export function DistrictGuidePage() {
                 <span className="text-xs text-ink-muted">{DENSITY_TIER_LABEL[tier]}</span>
               </div>
             ))}
+          </div>
+          <div className="flex items-start gap-2.5 rounded-control bg-warning-bg px-4 py-3">
+            <TriangleAlert className="h-4 w-4 shrink-0 translate-y-0.5 text-warning" />
+            <p className="text-sm text-warning">
+              Высокая плотность — это не только высокая конкуренция, но и доказательство высокого спроса. Каждую
+              нишу стоит оценивать отдельно.
+            </p>
           </div>
         </div>
 
