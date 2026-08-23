@@ -170,24 +170,33 @@ const sportBreakdown: { label: string; count: number }[] = [
   { label: 'Йога / пилатес / стретчинг', count: 4 },
 ];
 
-// Банки/банкоматы — webarchive, поиск "банкоматы", 19 строк → 18 уникальных
-// точек (1 дубль) → 11 разных банков (варианты написания вроде "Альфабанк,
-// банкомат" объединены с "Альфа-Банк"). В выдаче вперемешку отделения и
-// банкоматы — считаем точками присутствия банка, не буквально банкоматами.
-const bankPointsTotal = 18;
-const bankNamesCount = 11;
-const bankBreakdown: { label: string; count: number }[] = [
-  { label: 'Приорбанк', count: 2 },
-  { label: 'Беларусбанк', count: 2 },
-  { label: 'Альфа-Банк', count: 2 },
-  { label: 'МТБанк', count: 2 },
-  { label: 'Paritetbank', count: 2 },
-  { label: 'Белинвестбанк', count: 2 },
-  { label: 'Белагропромбанк', count: 2 },
-  { label: 'Банк ВТБ', count: 1 },
-  { label: 'БелВЭБ', count: 1 },
-  { label: 'Белгазпромбанк', count: 1 },
-  { label: 'Банк РРБ', count: 1 },
+// Банки/банкоматы — первый заход (поиск "банкоматы" одним запросом) не
+// разделял отделения и банкоматы — категория в выдаче была пустой у
+// большинства точек. Владелец обратил внимание, что не понятно, где что,
+// и подсказал, что в районе точно есть БНБ-Банк — его не было в первом
+// списке. Пересобрано двумя отдельными запросами ("банкоматы" отдельно,
+// "отделения банков" отдельно, категория "Банк" у второго подтверждена) —
+// 22+11 строк → 30 уникальных точек, 13 разных банков (БНБ-Банк
+// оказался в выдаче под полным юрлицом "Белорусский народный банк" — та
+// самая пропущенная сеть, отделение и банкомат в Avia Mall). "Три цены"
+// (не банк, магазин) попал в выдачу по отделениям как шум — исключён.
+const bankPointsTotal = 30;
+const bankNamesCount = 13;
+const bankBranchCount = 9;
+const bankMatrix: { label: string; hasBranch: boolean; hasAtm: boolean }[] = [
+  { label: 'Paritetbank', hasBranch: true, hasAtm: true },
+  { label: 'БНБ-Банк', hasBranch: true, hasAtm: true },
+  { label: 'Банк ВТБ', hasBranch: true, hasAtm: true },
+  { label: 'БелВЭБ', hasBranch: true, hasAtm: true },
+  { label: 'Белагропромбанк', hasBranch: true, hasAtm: true },
+  { label: 'Беларусбанк', hasBranch: true, hasAtm: true },
+  { label: 'Белгазпромбанк', hasBranch: true, hasAtm: true },
+  { label: 'МТБанк', hasBranch: true, hasAtm: true },
+  { label: 'Приорбанк', hasBranch: true, hasAtm: true },
+  { label: 'Альфа-Банк', hasBranch: false, hasAtm: true },
+  { label: 'Банк РРБ', hasBranch: false, hasAtm: true },
+  { label: 'Белинвестбанк', hasBranch: false, hasAtm: true },
+  { label: 'Сбер Банк', hasBranch: false, hasAtm: true },
 ];
 
 // СТО/автосервисы — webarchive, поиск "автосервис", 67 строк → 64
@@ -586,22 +595,28 @@ export function DistrictGuidePage() {
             <h3 className="text-base font-bold text-ink">Банки и банкоматы</h3>
           </div>
           <p className="text-sm text-ink-muted">
-            <span className="font-semibold text-ink">{bankPointsTotal} банковских точек</span> в районе —{' '}
-            {bankNamesCount} разных банков, от крупных государственных до частных сетевых.
+            <span className="font-semibold text-ink">{bankNamesCount} разных банков</span> в районе ({bankPointsTotal}{' '}
+            точек) — у {bankBranchCount} есть полноценное отделение, у всех — банкомат.
           </p>
-          <ol className="flex flex-col divide-y divide-border">
-            {bankBreakdown.map(({ label, count }, index) => (
-              <li key={label} className="flex items-center gap-3 py-2 first:pt-0 last:pb-0">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-muted text-xs font-bold text-ink-muted">
-                  {index + 1}
-                </span>
-                <span className="flex-1 text-sm font-medium text-ink">{label}</span>
-                <span className="text-xs text-ink-faint">
-                  {count} {count === 1 ? 'точка' : 'точки'}
-                </span>
-              </li>
+          <div className="grid grid-cols-1 gap-x-6 gap-y-1.5 pt-1 sm:grid-cols-2">
+            {bankMatrix.map(({ label, hasBranch, hasAtm }) => (
+              <div key={label} className="flex items-center justify-between gap-2 border-b border-border py-1.5">
+                <span className="text-sm font-medium text-ink">{label}</span>
+                <div className="flex shrink-0 gap-1">
+                  {hasBranch && (
+                    <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[10px] font-medium text-ink-muted">
+                      Отделение
+                    </span>
+                  )}
+                  {hasAtm && (
+                    <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[10px] font-medium text-ink-muted">
+                      Банкомат
+                    </span>
+                  )}
+                </div>
+              </div>
             ))}
-          </ol>
+          </div>
         </div>
 
         <div className="flex flex-col gap-3 px-6 py-6">
