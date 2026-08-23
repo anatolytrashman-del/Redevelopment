@@ -11,9 +11,9 @@ export interface FaqItem {
 // Вынесено из FaqCard.tsx (объект Red One) — тот же виджет нужен и на
 // контентных страницах вроде DistrictGuidePage, каждая держит свой список
 // вопросов и свою JSON-LD-разметку (setFaqJsonLd), общая только вёрстка.
-export function FaqAccordion({ title, items }: { title: string; items: FaqItem[] }) {
+export function FaqAccordion({ title, items, id }: { title: string; items: FaqItem[]; id?: string }) {
   return (
-    <div className={cn('flex flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
+    <div id={id} className={cn('flex flex-col gap-4 p-6 scroll-mt-6', glassCardClass)} style={glassCardShadow}>
       <h2 className="text-xl font-extrabold text-ink">{title}</h2>
       <div className="flex flex-col divide-y divide-border">
         {items.map((item) => (

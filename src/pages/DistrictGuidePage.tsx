@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Archive,
@@ -557,6 +557,27 @@ const districtFaq: FaqItem[] = [
   },
 ];
 
+// Боковое меню-оглавление (владелец, август 2026) — якоря на все основные
+// H2-секции страницы по порядку их появления. id совпадает с якорем в href
+// и вешается прямо на обёртку каждой секции (scroll-mt-6 на них — небольшой
+// отступ сверху при переходе, чтобы заголовок не упирался в край экрана).
+// Показывается только от lg и выше (см. рендер) — на мобильном/планшете
+// после узкой колонки контента для него просто нет места сбоку.
+const SECTION_NAV: { id: string; label: string }[] = [
+  { id: 'developer', label: 'Застройщик' },
+  { id: 'audience', label: 'Целевая аудитория' },
+  { id: 'traffic', label: 'Генераторы трафика' },
+  { id: 'property-types', label: 'Виды недвижимости' },
+  { id: 'business-density', label: 'Плотность бизнеса' },
+  { id: 'market', label: 'Рынок недвижимости' },
+  { id: 'business-analytics', label: 'Аналитика по сферам бизнеса' },
+  { id: 'tenant-profiles', label: 'Решения под бизнес' },
+  { id: 'transport', label: 'Транспорт и парковка' },
+  { id: 'map', label: 'Карта района' },
+  { id: 'faq', label: 'Частые вопросы' },
+  { id: 'red-one', label: 'Red One' },
+];
+
 // Гид для предпринимателей и собственников коммерческой недвижимости, не
 // продающая страница объекта (SEO_PLAN.md, Э3-1) — по Wordstat «минск мир»
 // это на 99%+ спрос на квартиры (см. журнал плана), узкая коммерческая
@@ -586,6 +607,37 @@ export function DistrictGuidePage() {
       .catch(() => setMarketOffers([]));
   }, []);
 
+  // Плавный переход по якорям бокового меню-оглавления (SECTION_NAV ниже) —
+  // scroll-behavior работает только на реальном скролл-контейнере страницы
+  // (html), не на произвольном div, поэтому включаем/выключаем классом на
+  // документе, а не в CSS этой конкретной страницы.
+  useEffect(() => {
+    document.documentElement.classList.add('scroll-smooth');
+    return () => document.documentElement.classList.remove('scroll-smooth');
+  }, []);
+
+  // Меню-оглавление держим на position:fixed, а не sticky: body/#root в
+  // index.css намеренно носят overflow-x:hidden (фикс мобильного off-canvas
+  // сайдбара, см. комментарий там) — по спецификации CSS это принудительно
+  // переводит overflow-y в auto ДАЖЕ если он нигде явно не задан и даже если
+  // явно прописать overflow-y:visible поверх (проверено вручную), а это в
+  // свою очередь ломает position:sticky для любых потомков на всём сайте.
+  // fixed этой проблемы не боится (её ломают только transform/filter у
+  // предков, которых тут нет) — но сам не привязан к колонке сетки, поэтому
+  // width/left измеряем от реального узла aside и держим в стейте.
+  const navAsideRef = useRef<HTMLElement>(null);
+  const [navBox, setNavBox] = useState<{ left: number; width: number } | null>(null);
+
+  useEffect(() => {
+    function measure() {
+      const rect = navAsideRef.current?.getBoundingClientRect();
+      if (rect && rect.width > 0) setNavBox({ left: rect.left, width: rect.width });
+    }
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
   return (
     <div className="min-h-svh bg-bg">
       <div className="border-b border-border py-5">
@@ -596,7 +648,27 @@ export function DistrictGuidePage() {
         </div>
       </div>
 
-      <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-12 sm:px-8">
+      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-8">
+        <div className="lg:grid lg:grid-cols-[200px_1fr] lg:gap-10">
+          <aside ref={navAsideRef} className="hidden lg:block">
+            <nav
+              className="fixed top-24 flex max-h-[calc(100vh-7rem)] flex-col gap-0.5 overflow-y-auto text-sm"
+              style={navBox ? { left: navBox.left, width: navBox.width } : { visibility: 'hidden' }}
+            >
+              <p className="mb-1 px-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">На странице</p>
+              {SECTION_NAV.map(({ id, label }) => (
+                <a
+                  key={id}
+                  href={`#${id}`}
+                  className="rounded-control px-2 py-1.5 text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
+                >
+                  {label}
+                </a>
+              ))}
+            </nav>
+          </aside>
+
+          <div className="mx-auto flex max-w-3xl flex-col gap-6">
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:items-center">
           <div className="flex flex-col gap-3">
             <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">{PAGE_H1}</h1>
@@ -623,7 +695,7 @@ export function DistrictGuidePage() {
           ))}
         </div>
 
-        <div className={cn('flex flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
+        <div id="developer" className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
           <div className="flex items-center gap-3">
             <HardHat className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Застройщик района</h2>
@@ -667,7 +739,7 @@ export function DistrictGuidePage() {
           </div>
         </div>
 
-        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+        <div id="audience" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
           <div className="flex items-center gap-3">
             <Users className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Целевая аудитория и покупательская способность</h2>
@@ -681,7 +753,7 @@ export function DistrictGuidePage() {
           </ul>
         </div>
 
-        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+        <div id="traffic" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
           <div className="flex items-center gap-3">
             <Landmark className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Генераторы ежедневного трафика</h2>
@@ -697,7 +769,7 @@ export function DistrictGuidePage() {
           </p>
         </div>
 
-        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+        <div id="business-density" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
           <div className="flex items-center gap-3">
             <Grid2x2 className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Плотность бизнеса по нишам</h2>
@@ -739,7 +811,7 @@ export function DistrictGuidePage() {
           </div>
         </div>
 
-        <div className={cn('flex flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
+        <div id="property-types" className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
           <div className="flex items-center gap-3">
             <Layers className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Виды коммерческой недвижимости в Минск Мире</h2>
@@ -760,7 +832,7 @@ export function DistrictGuidePage() {
           </div>
         </div>
 
-        <div className={cn('flex flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
+        <div id="market" className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-3">
               <TrendingUp className="h-5 w-5 shrink-0 text-ink" />
@@ -861,7 +933,7 @@ export function DistrictGuidePage() {
           )}
         </div>
 
-        <div className={cn('flex flex-col', glassCardClass)} style={glassCardShadow}>
+        <div id="business-analytics" className={cn('flex scroll-mt-6 flex-col', glassCardClass)} style={glassCardShadow}>
           <div className="flex items-center gap-2 border-b border-border px-6 py-4">
             <LayoutGrid className="h-4 w-4 shrink-0 text-ink-faint" />
             <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
@@ -1086,7 +1158,7 @@ export function DistrictGuidePage() {
           </div>
         </div>
 
-        <div className={cn('flex flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
+        <div id="tenant-profiles" className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
           <div className="flex items-center gap-3">
             <Store className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Готовые решения под ваш тип бизнеса</h2>
@@ -1113,7 +1185,7 @@ export function DistrictGuidePage() {
           </div>
         </div>
 
-        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+        <div id="transport" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
           <div className="flex items-center gap-3">
             <TrainFront className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Транспорт и парковка</h2>
@@ -1169,7 +1241,7 @@ export function DistrictGuidePage() {
         </div>
 
         {MAP_EMBED_URL && (
-          <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div id="map" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
             <div className="flex items-center gap-3">
               <MapPin className="h-5 w-5 shrink-0 text-ink" />
               <h2 className="text-lg font-bold text-ink">Карта района</h2>
@@ -1180,9 +1252,9 @@ export function DistrictGuidePage() {
           </div>
         )}
 
-        <FaqAccordion title="Частые вопросы о районе" items={districtFaq} />
+        <FaqAccordion id="faq" title="Частые вопросы о районе" items={districtFaq} />
 
-        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+        <div id="red-one" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
           <h2 className="text-lg font-bold text-ink">Red One — готовый центр коммерческой активности</h2>
           <p className="text-sm text-ink-muted">
             Приватные кабинеты и фиксированные рабочие места в собственном здании по соседству с Минск Миром — с
@@ -1192,6 +1264,8 @@ export function DistrictGuidePage() {
           <Link to="/one" className="w-fit text-sm font-semibold text-primary hover:underline">
             Смотреть кабинеты в Red One →
           </Link>
+        </div>
+          </div>
         </div>
       </div>
     </div>
