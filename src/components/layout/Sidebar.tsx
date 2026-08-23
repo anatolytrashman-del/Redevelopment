@@ -85,7 +85,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     window.location.href = '/admin';
   }
 
-  function renderNavItem({ key, to, label, icon: Icon }: ReturnType<typeof findPage>) {
+  // indented — пункт внутри группы с подзаголовком (см. SIDEBAR_LAYOUT):
+  // небольшой отступ вправо, иначе сгруппированные и обычные пункты выглядят
+  // одинаково и группа "перетекает" в идущие следом плоские пункты без
+  // подзаголовка (сам подзаголовок это не спасает — он выше, у следующего
+  // плоского пункта после группы своего заголовка нет).
+  function renderNavItem({ key, to, label, icon: Icon }: ReturnType<typeof findPage>, indented = false) {
     const allowed = isPageAllowed(profile, key);
     if (!allowed) {
       return (
@@ -93,7 +98,10 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           key={to}
           aria-label={`${label} — недоступно для вашего доступа`}
           title="Недоступно для вашего доступа"
-          className="flex cursor-not-allowed items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium text-ink-faint/60"
+          className={cn(
+            'flex cursor-not-allowed items-center gap-3 rounded-control py-2.5 text-sm font-medium text-ink-faint/60',
+            indented ? 'pl-6 pr-3' : 'px-3',
+          )}
         >
           <Icon className="h-5 w-5" />
           {label}
@@ -108,7 +116,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         onClick={onClose}
         className={({ isActive }) =>
           cn(
-            'flex items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium transition-colors',
+            'flex items-center gap-3 rounded-control py-2.5 text-sm font-medium transition-colors',
+            indented ? 'pl-6 pr-3' : 'px-3',
             isActive ? 'text-primary' : 'text-ink hover:text-primary',
           )
         }
@@ -168,7 +177,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               entry.type === 'group' ? (
                 <div key={entry.label} className="flex flex-col gap-1 pt-3 first:pt-0">
                   <span className="px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">{entry.label}</span>
-                  {entry.keys.map((key) => renderNavItem(findPage(key)))}
+                  {entry.keys.map((key) => renderNavItem(findPage(key), true))}
                 </div>
               ) : (
                 renderNavItem(findPage(entry.key))
