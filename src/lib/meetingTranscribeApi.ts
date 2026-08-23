@@ -38,11 +38,13 @@ async function uploadChunk(blob: Blob, ext: string): Promise<string> {
   return path;
 }
 
-async function transcribeChunk(path: string, prompt: string): Promise<string> {
+async function transcribeChunk(path: string, prompt: string, offsetSeconds: number): Promise<string> {
   const resp = await fetch('/api/transcribe-meeting', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, prompt }),
+    // offsetSeconds — позиция куска в целой записи: сервер вшивает в текст
+    // метки времени, и они должны идти сквозной шкалой, а не с нуля на кусок.
+    body: JSON.stringify({ path, prompt, offsetSeconds }),
   });
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) throw new Error(data.error || `Ошибка расшифровки (${resp.status})`);
@@ -117,7 +119,7 @@ export async function transcribeAudioFile(
   if (file.size <= DIRECT_UPLOAD_LIMIT_BYTES) {
     onProgress({ stage: 'transcribing', chunkIndex: 1, chunkCount: 1 });
     const path = await uploadChunk(file, fileExt(file));
-    return (await transcribeChunk(path, '')).trim();
+    return (await transcribeChunk(path, '', 0)).trim();
   }
 
   onProgress({ stage: 'preparing', chunkIndex: 0, chunkCount: 0 });
@@ -134,7 +136,7 @@ export async function transcribeAudioFile(
     // Хвост уже расшифрованного текста — как контекст-подсказка Whisper для
     // связного шва между кусками (см. prompt в transcribe-meeting.js).
     const prompt = parts.join(' ').slice(-600);
-    parts.push((await transcribeChunk(path, prompt)).trim());
+    parts.push((await transcribeChunk(path, prompt, i * CHUNK_SECONDS)).trim());
   }
   return parts.filter(Boolean).join('\n\n');
 }
