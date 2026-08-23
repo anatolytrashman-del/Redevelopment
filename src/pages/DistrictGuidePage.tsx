@@ -6,15 +6,19 @@ import {
   Building2,
   Car,
   Cigarette,
+  Clock,
   Coffee,
   CreditCard,
   Dumbbell,
+  ExternalLink,
   Flower2,
   Grid2x2,
+  HardHat,
   Landmark,
   LayoutGrid,
   MapPin,
   Package,
+  Phone,
   Pill,
   Scissors,
   ShoppingBag,
@@ -96,6 +100,35 @@ const statTiles: { icon: LucideIcon; value: string; label: string }[] = [
   { icon: ShoppingBag, value: '138 200 м²', label: 'площадь Avia Mall — крупнейший ТЦ Минска' },
   { icon: Bus, value: '14', label: 'автобусных и троллейбусных маршрутов' },
 ];
+
+// Блок застройщика — владелец знал имя (Dana Holdings), но не располагал
+// фактурой, попросил найти самостоятельно. Собрано веб-поиском, каждый
+// факт минимум из одного независимого источника (t-s.by, naviny.by,
+// Википедия "Минск Мир"): международная группа компаний, головной офис в
+// Швейцарии, работает в Беларуси с 2006 года; основатели — сербские
+// братья Богoлюб и Драгомир Карич. Земля под Минск Мир (территория
+// бывшего аэропорта Минск-1, 300+ га) получена указом Президента от
+// 22.09.2014 без аукциона юрлицом ИООО «Дана Астра» — та самая компания,
+// что и упомянута в контактах владельца. Заявленный масштаб проекта на
+// момент старта — 320 га, ~30 тыс. квартир, ~$3,5 млрд инвестиций (это
+// план 2014 года, не факт текущей стройки — фраза ниже это отражает).
+// Другие проекты компании в Минске — Vogue, «Маяк Минска», ЖК «Рахманинов»,
+// ЖК «Вивальди». Логотип прислан владельцем (ibb.co), скачан и обработан
+// локально (Pillow: побелевший фон JPEG превращён в альфа-канал через
+// классический трюк "alpha = 255 − min(R,G,B)" с де-премультипликацией
+// цвета) — не смог найти логотип с уже прозрачным фоном официально,
+// пришлось вырезать вручную, как и просил владелец.
+const DEVELOPER_LOGO_URL = '/images/district/dana-holdings-logo.png';
+const DEVELOPER_LINKS = [
+  { label: 'minskworld.by', url: 'https://minskworld.by' },
+  { label: 'bir.by', url: 'https://bir.by' },
+];
+const DEVELOPER_CONTACTS = {
+  phone: '7675',
+  phoneHref: 'tel:7675',
+  address: 'Отдел продаж: ул. П. Мстиславца, 9, «Дана Центр», 1 этаж',
+  hours: 'Пн–Пт: 8:30–20:30, Сб–Вс: 9:00–20:00',
+};
 
 // Портрет аудитории и медицинская инфраструктура — текст от Gemini по брифу,
 // собранному на реальных данных: возрастное ядро и «почти нет пенсионеров» —
@@ -449,6 +482,52 @@ export function DistrictGuidePage() {
               <p className="text-xs leading-snug text-ink-muted">{label}</p>
             </div>
           ))}
+        </div>
+
+        <div className={cn('flex flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <HardHat className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Застройщик района</h2>
+          </div>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <img src={DEVELOPER_LOGO_URL} alt="Dana Holdings" className="h-9 w-auto object-contain" />
+            <div className="flex flex-wrap gap-2">
+              {DEVELOPER_LINKS.map(({ label, url }) => (
+                <a
+                  key={url}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded-full bg-surface-muted px-3 py-1.5 text-xs font-medium text-ink hover:bg-border"
+                >
+                  {label}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              ))}
+            </div>
+          </div>
+          <p className="text-sm text-ink-muted">
+            <span className="font-semibold text-ink">Dana Holdings</span> — международная группа компаний полного
+            цикла (инвестиции, строительство, эксплуатация недвижимости) с головным офисом в Швейцарии, основана
+            сербскими предпринимателями Боголюбом и Драгомиром Каричами. В Беларуси работает с 2006 года; земля под
+            Минск Мир (территория бывшего аэропорта Минск-1) получена указом Президента в 2014 году юрлицом ИООО
+            «Дана Астра». Заявленный на старте масштаб проекта — 320 га, около 30 тысяч квартир, порядка $3,5 млрд
+            инвестиций. Другие проекты компании в Минске — Vogue, «Маяк Минска», ЖК «Рахманинов», ЖК «Вивальди».
+          </p>
+          <div className="flex flex-col gap-1.5 pt-1 text-sm text-ink-muted">
+            <a href={DEVELOPER_CONTACTS.phoneHref} className="flex w-fit items-center gap-2 text-ink hover:underline">
+              <Phone className="h-4 w-4 shrink-0" />
+              {DEVELOPER_CONTACTS.phone}
+            </a>
+            <div className="flex items-start gap-2">
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{DEVELOPER_CONTACTS.address}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 shrink-0" />
+              <span>{DEVELOPER_CONTACTS.hours}</span>
+            </div>
+          </div>
         </div>
 
         <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
