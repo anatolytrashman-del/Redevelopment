@@ -11,6 +11,7 @@ import {
   Flower2,
   Grid2x2,
   Landmark,
+  LayoutGrid,
   MapPin,
   Package,
   Pill,
@@ -472,8 +473,58 @@ export function DistrictGuidePage() {
 
         <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
           <div className="flex items-center gap-3">
+            <Grid2x2 className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Плотность бизнеса по нишам</h2>
+          </div>
+          <p className="text-sm text-ink-muted">Число точек по каждой категории бизнеса в районе.</p>
+          <div className="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-3">
+            {densityData.map(({ icon: Icon, label, count }) => {
+              const tier = DENSITY_TIER_STYLE[densityTier(count)];
+              return (
+                <div
+                  key={label}
+                  className="flex flex-col gap-2 rounded-control p-3"
+                  style={{ backgroundColor: tier.bg, color: tier.text }}
+                >
+                  <Icon className="h-4 w-4 shrink-0 opacity-80" />
+                  <div className="text-2xl font-black leading-none">{count}</div>
+                  <p className="text-xs font-medium leading-snug">{label}</p>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-center gap-4 pt-1">
+            {(['low', 'medium', 'high'] as DensityTier[]).map((tier) => (
+              <div key={tier} className="flex items-center gap-1.5">
+                <span
+                  className="h-3 w-3 shrink-0 rounded-full"
+                  style={{ backgroundColor: DENSITY_TIER_STYLE[tier].bg }}
+                />
+                <span className="text-xs text-ink-muted">{DENSITY_TIER_LABEL[tier]}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-start gap-2.5 rounded-control bg-warning-bg px-4 py-3">
+            <TriangleAlert className="h-4 w-4 shrink-0 translate-y-0.5 text-warning" />
+            <p className="text-sm text-warning">
+              Высокая плотность — это не только высокая конкуренция, но и доказательство высокого спроса. Каждую
+              нишу стоит оценивать отдельно.
+            </p>
+          </div>
+        </div>
+
+        <div className={cn('flex flex-col', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-2 border-b border-border px-6 py-4">
+            <LayoutGrid className="h-4 w-4 shrink-0 text-ink-faint" />
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
+              Аналитика по сферам бизнеса
+            </h2>
+          </div>
+          <div className="flex flex-col divide-y divide-border">
+        <div className="flex flex-col gap-3 px-6 py-6">
+          <div className="flex items-center gap-3">
             <Stethoscope className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Медицина и здоровье</h2>
+            <h3 className="text-base font-bold text-ink">Медицина и здоровье</h3>
           </div>
           <ul className="flex flex-col gap-2">
             {medicineHighlights.map(({ label, text }) => (
@@ -494,10 +545,10 @@ export function DistrictGuidePage() {
           </div>
         </div>
 
-        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+        <div className="flex flex-col gap-3 px-6 py-6">
           <div className="flex items-center gap-3">
             <Coffee className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Общепит: кафе, рестораны, бары</h2>
+            <h3 className="text-base font-bold text-ink">Общепит: кафе, рестораны, бары</h3>
           </div>
           <p className="text-sm text-ink-muted">
             <span className="font-semibold text-ink">{foodServiceTotal} заведений общепита</span> в шаговой
@@ -513,10 +564,10 @@ export function DistrictGuidePage() {
           </div>
         </div>
 
-        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+        <div className="flex flex-col gap-3 px-6 py-6">
           <div className="flex items-center gap-3">
             <Dumbbell className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Спорт и фитнес</h2>
+            <h3 className="text-base font-bold text-ink">Спорт и фитнес</h3>
           </div>
           <p className="text-sm leading-relaxed text-ink-muted">
             В районе работает <span className="font-semibold text-ink">{sportTotal} залов и студий</span> — от
@@ -529,10 +580,10 @@ export function DistrictGuidePage() {
           </p>
         </div>
 
-        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+        <div className="flex flex-col gap-3 px-6 py-6">
           <div className="flex items-center gap-3">
             <CreditCard className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Банки и банкоматы</h2>
+            <h3 className="text-base font-bold text-ink">Банки и банкоматы</h3>
           </div>
           <p className="text-sm text-ink-muted">
             <span className="font-semibold text-ink">{bankPointsTotal} банковских точек</span> в районе —{' '}
@@ -553,10 +604,10 @@ export function DistrictGuidePage() {
           </ol>
         </div>
 
-        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+        <div className="flex flex-col gap-3 px-6 py-6">
           <div className="flex items-center gap-3">
             <Wrench className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">СТО и автосервисы</h2>
+            <h3 className="text-base font-bold text-ink">СТО и автосервисы</h3>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1 rounded-control border border-dashed border-border p-4">
@@ -577,10 +628,10 @@ export function DistrictGuidePage() {
           </div>
         </div>
 
-        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+        <div className="flex flex-col gap-3 px-6 py-6">
           <div className="flex items-center gap-3">
             <Scissors className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Салоны красоты и бьюти-сфера</h2>
+            <h3 className="text-base font-bold text-ink">Салоны красоты и бьюти-сфера</h3>
           </div>
           <div className="flex items-end gap-3">
             <span className="text-5xl font-black leading-none text-primary">{beautyTotal}</span>
@@ -594,10 +645,10 @@ export function DistrictGuidePage() {
           </p>
         </div>
 
-        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+        <div className="flex flex-col gap-3 px-6 py-6">
           <div className="flex items-center gap-3">
             <ShoppingBasket className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Магазины продуктов</h2>
+            <h3 className="text-base font-bold text-ink">Магазины продуктов</h3>
           </div>
           <p className="text-sm text-ink-muted">
             <span className="font-semibold text-ink">{groceryTotal} точки</span> — от крупных сетей до независимых
@@ -612,7 +663,7 @@ export function DistrictGuidePage() {
                 </div>
                 <div className="h-1.5 overflow-hidden rounded-full bg-surface-muted">
                   <div
-                    className="h-full rounded-full bg-primary/70"
+                    className="h-full rounded-full bg-ink/70"
                     style={{ width: `${Math.round((count / groceryMax) * 100)}%` }}
                   />
                 </div>
@@ -621,10 +672,10 @@ export function DistrictGuidePage() {
           </div>
         </div>
 
-        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+        <div className="flex flex-col gap-3 px-6 py-6">
           <div className="flex items-center gap-3">
             <Package className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Пункты выдачи заказов</h2>
+            <h3 className="text-base font-bold text-ink">Пункты выдачи заказов</h3>
           </div>
           <div className="flex items-end gap-3">
             <span className="text-5xl font-black leading-none text-primary">{pvzTotal}</span>
@@ -637,10 +688,10 @@ export function DistrictGuidePage() {
           </p>
         </div>
 
-        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+        <div className="flex flex-col gap-3 px-6 py-6">
           <div className="flex items-center gap-3">
             <Flower2 className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Цветочные магазины и флористы</h2>
+            <h3 className="text-base font-bold text-ink">Цветочные магазины и флористы</h3>
           </div>
           <p className="text-sm leading-relaxed text-ink-muted">
             <span className="font-semibold text-ink">{flowerTotal} цветочных точек</span> и флористических студий
@@ -651,10 +702,10 @@ export function DistrictGuidePage() {
           </p>
         </div>
 
-        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+        <div className="flex flex-col gap-3 px-6 py-6">
           <div className="flex items-center gap-3">
             <Cigarette className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Табак и вейп-шопы</h2>
+            <h3 className="text-base font-bold text-ink">Табак и вейп-шопы</h3>
           </div>
           <p className="text-sm text-ink-muted">
             <span className="font-semibold text-ink">{tobaccoVapeTotal} точки</span> в районе.
@@ -668,12 +719,14 @@ export function DistrictGuidePage() {
                 </div>
                 <div className="h-1.5 overflow-hidden rounded-full bg-surface-muted">
                   <div
-                    className="h-full rounded-full bg-primary/70"
+                    className="h-full rounded-full bg-ink/70"
                     style={{ width: `${Math.round((count / tobaccoVapeMax) * 100)}%` }}
                   />
                 </div>
               </div>
             ))}
+          </div>
+        </div>
           </div>
         </div>
 
@@ -770,48 +823,6 @@ export function DistrictGuidePage() {
             </div>
           </div>
         )}
-
-        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex items-center gap-3">
-            <Grid2x2 className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Плотность бизнеса по нишам</h2>
-          </div>
-          <p className="text-sm text-ink-muted">Число точек по каждой категории бизнеса в районе.</p>
-          <div className="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-3">
-            {densityData.map(({ icon: Icon, label, count }) => {
-              const tier = DENSITY_TIER_STYLE[densityTier(count)];
-              return (
-                <div
-                  key={label}
-                  className="flex flex-col gap-2 rounded-control p-3"
-                  style={{ backgroundColor: tier.bg, color: tier.text }}
-                >
-                  <Icon className="h-4 w-4 shrink-0 opacity-80" />
-                  <div className="text-2xl font-black leading-none">{count}</div>
-                  <p className="text-xs font-medium leading-snug">{label}</p>
-                </div>
-              );
-            })}
-          </div>
-          <div className="flex flex-wrap items-center gap-4 pt-1">
-            {(['low', 'medium', 'high'] as DensityTier[]).map((tier) => (
-              <div key={tier} className="flex items-center gap-1.5">
-                <span
-                  className="h-3 w-3 shrink-0 rounded-full"
-                  style={{ backgroundColor: DENSITY_TIER_STYLE[tier].bg }}
-                />
-                <span className="text-xs text-ink-muted">{DENSITY_TIER_LABEL[tier]}</span>
-              </div>
-            ))}
-          </div>
-          <div className="flex items-start gap-2.5 rounded-control bg-warning-bg px-4 py-3">
-            <TriangleAlert className="h-4 w-4 shrink-0 translate-y-0.5 text-warning" />
-            <p className="text-sm text-warning">
-              Высокая плотность — это не только высокая конкуренция, но и доказательство высокого спроса. Каждую
-              нишу стоит оценивать отдельно.
-            </p>
-          </div>
-        </div>
 
         <FaqAccordion title="Частые вопросы о районе" items={districtFaq} />
 
