@@ -13,7 +13,12 @@ export interface MarketOffer {
   size: number;
   pricePerSqm: number;
   finishStatus: string;
-  finishStatusVerified: boolean;
+  // Отдельно от finishStatus: обработал ли владелец эту строку вручную —
+  // не только статус отделки, а вообще ("проверил цену/тип/площадь и всё
+  // верно" тоже ставит reviewed=true, даже если отделку не трогали).
+  // Одновременно это же поле защищает строку от перезаписи при следующем
+  // месячном синке (см. scripts/sync-kufar-market-offers.mjs).
+  reviewed: boolean;
   address: string | null;
   adLink: string | null;
   updatedAt: string;
@@ -28,7 +33,7 @@ export interface MarketOfferRow {
   size: number;
   price_per_sqm: number;
   finish_status: string;
-  finish_status_verified: boolean;
+  reviewed: boolean;
   address: string | null;
   ad_link: string | null;
   updated_at: string;
@@ -46,3 +51,15 @@ export function areaBucket(size: number): string {
 
 export const FINISH_STATUSES = ['с отделкой', 'без отделки', 'не указано'] as const;
 export type FinishStatus = (typeof FINISH_STATUSES)[number];
+
+// Типы помещений, которые реально приходят с Kufar — офисы первыми (это
+// сегмент Red One), используется и порядком строк таблицы на гиде района,
+// и списком вариантов в форме редактирования на /admin/market-offers.
+export const MARKET_PROPERTY_TYPES = [
+  'Офисы',
+  'Магазины, торговые помещения',
+  'Сфера услуг',
+  'Склады',
+  'Промышленные помещения',
+  'Прочая коммерческая',
+];

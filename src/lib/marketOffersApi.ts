@@ -12,7 +12,7 @@ function fromRow(row: MarketOfferRow): MarketOffer {
     size: row.size,
     pricePerSqm: row.price_per_sqm,
     finishStatus: row.finish_status,
-    finishStatusVerified: row.finish_status_verified,
+    reviewed: row.reviewed,
     address: row.address,
     adLink: row.ad_link,
     updatedAt: row.updated_at,
@@ -27,14 +27,50 @@ export function fetchMarketOffers(): Promise<MarketOffer[]> {
   });
 }
 
-// Ручная простановка статуса отделки владельцем — помечает строку
-// verified=true, чтобы следующий месячный синк её не перезаписал (см.
-// scripts/sync-kufar-market-offers.mjs).
+// Быстрая простановка статуса отделки прямо из таблицы — считается
+// обработкой строки (reviewed=true), чтобы следующий месячный синк её не
+// перезаписал (см. scripts/sync-kufar-market-offers.mjs).
 export function setMarketOfferFinishStatus(id: number, finishStatus: FinishStatus): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase.from('market_offers').update({ finish_status: finishStatus, reviewed: true }).eq('id', id);
+    if (error) throw error;
+  });
+}
+
+// Независимый тумблер "Не обработано"/"Проверено" — владелец может
+// отметить строку разобранной, даже не меняя в ней ничего (например,
+// свериться по ссылке и убедиться, что "не указано" — это и есть правда).
+export function setMarketOfferReviewed(id: number, reviewed: boolean): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase.from('market_offers').update({ reviewed }).eq('id', id);
+    if (error) throw error;
+  });
+}
+
+export interface MarketOfferEditPatch {
+  dealType: 'sale' | 'rent';
+  propertyType: string;
+  size: number;
+  pricePerSqm: number;
+  finishStatus: string;
+  address: string;
+}
+
+// Полное редактирование строки (цена/тип/площадь/сделка/отделка/адрес) —
+// тоже считается обработкой.
+export function updateMarketOffer(id: number, patch: MarketOfferEditPatch): Promise<void> {
   return withRetry(async () => {
     const { error } = await supabase
       .from('market_offers')
-      .update({ finish_status: finishStatus, finish_status_verified: true })
+      .update({
+        deal_type: patch.dealType,
+        property_type: patch.propertyType,
+        size: patch.size,
+        price_per_sqm: patch.pricePerSqm,
+        finish_status: patch.finishStatus,
+        address: patch.address || null,
+        reviewed: true,
+      })
       .eq('id', id);
     if (error) throw error;
   });

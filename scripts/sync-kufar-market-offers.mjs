@@ -32,10 +32,10 @@
 // полям Kufar: commercial_repair, иначе тег "С отделкой" в commercial_
 // improvements), но большинство объявлений (см. живую проверку — владелец,
 // август 2026) этого поля вообще не заполняют — "не указано" доминирует.
-// Владелец решил проставлять статус вручную. Поэтому при повторном синке
-// (раз в месяц) автоматически определённый статус НЕ перезаписывает то, что
-// уже подтверждено вручную (finish_status_verified=true) — обновляются
-// только цена/площадь/ссылка, статус остаётся как задал владелец.
+// Владелец решил разбирать вручную на /admin/market-offers — там же он может
+// поправить и остальные поля (цена/тип/площадь), не только отделку. Поэтому
+// при повторном синке (раз в месяц) для строк с reviewed=true ничего не
+// перезаписывается — только подтверждается, что объявление ещё активно.
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -242,31 +242,33 @@ async function main() {
     return;
   }
 
-  // Не затираем вручную подтверждённый статус отделки: подтягиваем, что уже
-  // есть в базе для этих ad_id, и для верифицированных строк оставляем
-  // finish_status как задал владелец — обновляем только цену/площадь/ссылку.
+  // Не затираем то, что владелец разобрал вручную (/admin/market-offers) —
+  // reviewed=true защищает ВСЮ строку (не только отделку — владелец может
+  // поправить и цену, и тип, и площадь, если Kufar отдал их неверно), синк
+  // для таких строк только подтверждает, что объявление всё ещё живо.
   const adIds = offers.map((o) => o.ad_id);
   const { data: existing, error: fetchError } = await supabase
     .from('market_offers')
-    .select('ad_id, finish_status, finish_status_verified')
+    .select('ad_id, deal_type, property_type, size, price_per_sqm, finish_status, address, reviewed')
     .eq('source', 'Kufar')
     .in('ad_id', adIds);
   if (fetchError) throw fetchError;
 
-  const verifiedByAdId = new Map((existing ?? []).filter((e) => e.finish_status_verified).map((e) => [e.ad_id, e.finish_status]));
+  const reviewedByAdId = new Map((existing ?? []).filter((e) => e.reviewed).map((e) => [e.ad_id, e]));
 
   const now = new Date().toISOString();
-  const payload = offers.map((o) => ({
-    ...o,
-    finish_status: verifiedByAdId.get(o.ad_id) ?? o.finish_status,
-    finish_status_verified: verifiedByAdId.has(o.ad_id),
-    updated_at: now,
-  }));
+  const payload = offers.map((o) => {
+    const reviewedRow = reviewedByAdId.get(o.ad_id);
+    if (reviewedRow) {
+      return { ...o, ...reviewedRow, reviewed: true, updated_at: now };
+    }
+    return { ...o, reviewed: false, updated_at: now };
+  });
 
   const { error } = await supabase.from('market_offers').upsert(payload, { onConflict: 'source,ad_id' });
   if (error) throw error;
 
-  console.log(`Сохранено ${payload.length} объявлений в market_offers (${verifiedByAdId.size} с сохранённой ручной пометкой отделки).`);
+  console.log(`Сохранено ${payload.length} объявлений в market_offers (${reviewedByAdId.size} проверенных вручную — не тронуты).`);
 }
 
 main().catch((err) => {

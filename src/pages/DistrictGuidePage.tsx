@@ -42,7 +42,7 @@ import { FaqAccordion } from '../components/ui/FaqAccordion';
 import type { FaqItem } from '../components/ui/FaqAccordion';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { fetchMarketOffers } from '../lib/marketOffersApi';
-import { AREA_BUCKET_ORDER, areaBucket } from '../data/marketOffers';
+import { AREA_BUCKET_ORDER, areaBucket, MARKET_PROPERTY_TYPES } from '../data/marketOffers';
 import type { MarketOffer } from '../data/marketOffers';
 
 const PAGE_URL = 'https://redevelopment.pro/rayon-minsk-mir';
@@ -360,17 +360,10 @@ const densityData: { icon: LucideIcon; label: string; count: number }[] = [
   { icon: Dumbbell, label: 'Спорт и фитнес', count: sportTotal },
 ];
 
-// Порядок строк таблицы рынка — офисы первыми (это сегмент Red One),
-// остальное — по убыванию значимости. Строка не показывается, если для
-// текущего типа сделки по ней нет ни одного предложения.
-const MARKET_PROPERTY_TYPE_ORDER = [
-  'Офисы',
-  'Магазины, торговые помещения',
-  'Сфера услуг',
-  'Склады',
-  'Промышленные помещения',
-  'Прочая коммерческая',
-];
+// Строка не показывается, если для текущего типа сделки по ней нет ни
+// одного предложения. Сам порядок — MARKET_PROPERTY_TYPES (data/marketOffers.ts),
+// общий со страницей верификации /admin/market-offers.
+const MARKET_PROPERTY_TYPE_ORDER = MARKET_PROPERTY_TYPES;
 
 interface MarketPivotCell {
   count: number;
