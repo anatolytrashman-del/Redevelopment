@@ -19,7 +19,7 @@ export function FaqAccordion({ title, items }: { title: string; items: FaqItem[]
         {items.map((item) => (
           <details key={item.question} className="py-3 first:pt-0 last:pb-0">
             <summary className="cursor-pointer text-sm font-semibold text-ink">{item.question}</summary>
-            <p className="mt-2 max-w-2xl text-sm text-ink-muted">{item.answer}</p>
+            <p className="mt-2 text-sm text-ink-muted">{item.answer}</p>
           </details>
         ))}
       </div>
