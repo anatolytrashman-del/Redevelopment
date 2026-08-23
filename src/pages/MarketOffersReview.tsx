@@ -623,119 +623,118 @@ export function MarketOffersReview() {
             </div>
           ) : (
             <>
-              <div className={cn('flex flex-col gap-3 p-4', glassCardClass)} style={glassCardShadow}>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <SearchInput
-                    placeholder="Поиск по адресу или типу…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="sm:max-w-xs"
-                  />
-                  <div className="flex flex-wrap gap-3">
-                    <ToggleGroup
-                      label="Обработка"
-                      options={[...REVIEW_FILTER_OPTIONS]}
-                      value={reviewFilter}
-                      onChange={(v) => setReviewFilter(v as ReviewFilter)}
-                    />
-                    <ToggleGroup
-                      label="Источник"
-                      options={[...SOURCE_FILTER_OPTIONS]}
-                      value={sourceFilter}
-                      onChange={(v) => setSourceFilter(v as SourceFilter)}
-                    />
-                    <ToggleGroup
-                      label="Сделка"
-                      options={[...DEAL_FILTER_OPTIONS]}
-                      value={dealFilter}
-                      onChange={(v) => setDealFilter(v as DealFilter)}
-                    />
-                    <ToggleGroup
-                      label="Отделка"
-                      options={[...FINISH_FILTER_OPTIONS]}
-                      value={finishFilter}
-                      onChange={(v) => setFinishFilter(v as FinishFilter)}
-                    />
-                  </div>
-                </div>
+              <div className={cn('flex flex-col gap-2 p-4', glassCardClass)} style={glassCardShadow}>
+                <SearchInput
+                  placeholder="Поиск по адресу или типу…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="sm:max-w-xs"
+                />
                 <p className="text-xs text-ink-faint">
                   Правки сразу учитываются в таблице на /rayon-minsk-mir и не перезатираются автоматическим синком.
-                  Фильтры действуют на таблицу одиночных объявлений ниже — дубли выше показаны все, без фильтров,
-                  чтобы не спрятать половину пары.
                 </p>
               </div>
 
               {duplicateGroups.size > 0 && (
-            <div className="flex flex-col gap-3">
-              <h2 className="text-sm font-semibold text-ink">
-                Дубли для проверки — {duplicateGroups.size} {duplicateGroups.size === 1 ? 'группа' : 'группы'}
-              </h2>
-              <p className="text-xs text-ink-faint">
-                Похожие объявления сгруппированы по адресу и площади (и этажу, если он известен) — откройте ссылку,
-                сверьте вручную и либо удалите лишнюю копию, либо подтвердите, что это разные помещения. Разберите
-                дубли, прежде чем переходить к одиночным объявлениям ниже.
-              </p>
-              {duplicateGroupsList.map(([key, group]) => (
-                <div key={key} className={cn('flex flex-col gap-3 p-4', glassCardClass)} style={glassCardShadow}>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm text-ink-muted">
-                      <span className="font-semibold text-ink">{group[0].address ?? 'без адреса'}</span> ·{' '}
-                      {group[0].size} м² · этаж {group[0].floor ?? '?'} · {group.length} объявления похожи друг на
-                      друга
-                    </p>
-                    <Button
-                      variant="secondary"
-                      icon={<Check className="h-4 w-4" />}
-                      disabled={pendingGroupKey === key}
-                      onClick={() => handleDismissGroup(key)}
-                    >
-                      Это разные помещения
-                    </Button>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[900px] border-collapse text-sm">
-                      <OfferTableHead />
-                      <tbody className="divide-y divide-border">
-                        {group.map((offer) => (
-                          <OfferRow
-                            key={offer.id}
-                            offer={offer}
-                            pending={pendingId === offer.id}
-                            onEdit={openEdit}
-                            onDelete={handleDelete}
-                          />
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))}
-              {duplicateGroupsList.length === 0 && (
-                <p className="py-4 text-center text-sm text-ink-faint">Дублей по этому запросу не найдено.</p>
-              )}
-            </div>
-          )}
-
-          <div className="flex flex-col gap-3">
-            {duplicateGroups.size > 0 && <h2 className="text-sm font-semibold text-ink">Одиночные объявления</h2>}
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] border-collapse text-sm">
-                <OfferTableHead />
-                <tbody className="divide-y divide-border">
-                  {filtered.map((offer) => (
-                    <OfferRow
-                      key={offer.id}
-                      offer={offer}
-                      pending={pendingId === offer.id}
-                      onEdit={openEdit}
-                      onDelete={handleDelete}
-                    />
+                <div className="flex flex-col gap-3">
+                  <h2 className="text-sm font-semibold text-ink">
+                    Дубли для проверки — {duplicateGroups.size} {duplicateGroups.size === 1 ? 'группа' : 'группы'}
+                  </h2>
+                  <p className="text-xs text-ink-faint">
+                    Похожие объявления сгруппированы по адресу и площади (и этажу, если он известен) — откройте
+                    ссылку, сверьте вручную и либо удалите лишнюю копию, либо подтвердите, что это разные помещения.
+                    Разберите дубли, прежде чем переходить к одиночным объявлениям ниже. Фильтры ниже сюда не
+                    относятся — группа показывается целиком, чтобы не спрятать половину пары.
+                  </p>
+                  {duplicateGroupsList.map(([key, group]) => (
+                    <div key={key} className={cn('flex flex-col gap-3 p-4', glassCardClass)} style={glassCardShadow}>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm text-ink-muted">
+                          <span className="font-semibold text-ink">{group[0].address ?? 'без адреса'}</span> ·{' '}
+                          {group[0].size} м² · этаж {group[0].floor ?? '?'} · {group.length} объявления похожи друг
+                          на друга
+                        </p>
+                        <Button
+                          variant="secondary"
+                          icon={<Check className="h-4 w-4" />}
+                          disabled={pendingGroupKey === key}
+                          onClick={() => handleDismissGroup(key)}
+                        >
+                          Это разные помещения
+                        </Button>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[900px] border-collapse text-sm">
+                          <OfferTableHead />
+                          <tbody className="divide-y divide-border">
+                            {group.map((offer) => (
+                              <OfferRow
+                                key={offer.id}
+                                offer={offer}
+                                pending={pendingId === offer.id}
+                                onEdit={openEdit}
+                                onDelete={handleDelete}
+                              />
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-              {filtered.length === 0 && <p className="py-6 text-center text-sm text-ink-faint">Ничего не найдено.</p>}
-            </div>
-          </div>
+                  {duplicateGroupsList.length === 0 && (
+                    <p className="py-4 text-center text-sm text-ink-faint">Дублей по этому запросу не найдено.</p>
+                  )}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3">
+                {duplicateGroups.size > 0 && <h2 className="text-sm font-semibold text-ink">Одиночные объявления</h2>}
+                <div className={cn('flex flex-wrap gap-3 p-4', glassCardClass)} style={glassCardShadow}>
+                  <ToggleGroup
+                    label="Обработка"
+                    options={[...REVIEW_FILTER_OPTIONS]}
+                    value={reviewFilter}
+                    onChange={(v) => setReviewFilter(v as ReviewFilter)}
+                  />
+                  <ToggleGroup
+                    label="Источник"
+                    options={[...SOURCE_FILTER_OPTIONS]}
+                    value={sourceFilter}
+                    onChange={(v) => setSourceFilter(v as SourceFilter)}
+                  />
+                  <ToggleGroup
+                    label="Сделка"
+                    options={[...DEAL_FILTER_OPTIONS]}
+                    value={dealFilter}
+                    onChange={(v) => setDealFilter(v as DealFilter)}
+                  />
+                  <ToggleGroup
+                    label="Отделка"
+                    options={[...FINISH_FILTER_OPTIONS]}
+                    value={finishFilter}
+                    onChange={(v) => setFinishFilter(v as FinishFilter)}
+                  />
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[900px] border-collapse text-sm">
+                    <OfferTableHead />
+                    <tbody className="divide-y divide-border">
+                      {filtered.map((offer) => (
+                        <OfferRow
+                          key={offer.id}
+                          offer={offer}
+                          pending={pendingId === offer.id}
+                          onEdit={openEdit}
+                          onDelete={handleDelete}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                  {filtered.length === 0 && (
+                    <p className="py-6 text-center text-sm text-ink-faint">Ничего не найдено.</p>
+                  )}
+                </div>
+              </div>
             </>
           )}
         </div>
