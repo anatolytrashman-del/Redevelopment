@@ -9,9 +9,11 @@ import {
   CreditCard,
   Dumbbell,
   Flower2,
+  Grid2x2,
   Landmark,
   MapPin,
   Package,
+  Pill,
   Scissors,
   ShoppingBag,
   ShoppingBasket,
@@ -117,6 +119,8 @@ const audienceHighlights: { label: string; text: string }[] = [
   },
 ];
 
+const pharmacyTotal = 22;
+
 const medicineHighlights: { label: string; text: string }[] = [
   {
     label: 'Государственный якорь.',
@@ -124,7 +128,7 @@ const medicineHighlights: { label: string; text: string }[] = [
   },
   {
     label: 'Высокая плотность фарм-ритейла.',
-    text: 'В районе работают 22 аптеки. Крупнейшая сеть — InLek (5 филиалов), что подтверждает высокий спрос на товары для здоровья в шаговой доступности.',
+    text: `В районе работают ${pharmacyTotal} аптеки. Крупнейшая сеть — InLek (5 филиалов), что подтверждает высокий спрос на товары для здоровья в шаговой доступности.`,
   },
 ];
 
@@ -250,6 +254,50 @@ const tobaccoVapeBreakdown: { label: string; count: number }[] = [
   { label: 'Табачные магазины', count: 7 },
 ];
 const tobaccoVapeMax = Math.max(...tobaccoVapeBreakdown.map((b) => b.count));
+
+// Тепловая карта плотности бизнеса — синтез всех собранных выше чисел по
+// категориям, предложено владельцем. Методика (согласована с владельцем
+// до вёрстки): считаем только категории, где точки физически внутри
+// района (СТО не входит — у него принципиально другая суть, "почти нет
+// здесь, зато плотно рядом", свой блок с контрастом уже есть). Три уровня
+// по абсолютному числу точек (не проценты, не на душу населения — нет
+// достоверной цифры населения района, см. audienceHighlights); границы
+// круглые, не строгие терцили, чтобы не резать по живому при равных
+// значениях (аптеки/табак — оба по 22): высокая ≥40, средняя 20–39,
+// низкая <20. Явно НЕ "конкуренция" в тексте — количество точек само по
+// себе не хорошо и не плохо (может значить и доказанный спрос), поэтому
+// формулировка нейтральная — "плотность", вывод оставляем читателю.
+type DensityTier = 'low' | 'medium' | 'high';
+
+const DENSITY_TIER_STYLE: Record<DensityTier, { bg: string; text: string }> = {
+  low: { bg: '#ee8f97', text: '#14151a' },
+  medium: { bg: '#e4152b', text: '#ffffff' },
+  high: { bg: '#8f0d1c', text: '#ffffff' },
+};
+
+const DENSITY_TIER_LABEL: Record<DensityTier, string> = {
+  low: 'Низкая',
+  medium: 'Средняя',
+  high: 'Высокая',
+};
+
+function densityTier(count: number): DensityTier {
+  if (count >= 40) return 'high';
+  if (count >= 20) return 'medium';
+  return 'low';
+}
+
+const densityData: { icon: LucideIcon; label: string; count: number }[] = [
+  { icon: Scissors, label: 'Салоны красоты', count: beautyTotal },
+  { icon: Coffee, label: 'Общепит', count: foodServiceTotal },
+  { icon: ShoppingBasket, label: 'Продукты', count: groceryTotal },
+  { icon: Flower2, label: 'Цветы', count: flowerTotal },
+  { icon: Package, label: 'ПВЗ', count: pvzTotal },
+  { icon: Pill, label: 'Аптеки', count: pharmacyTotal },
+  { icon: Cigarette, label: 'Табак / вейп', count: tobaccoVapeTotal },
+  { icon: CreditCard, label: 'Банки', count: bankPointsTotal },
+  { icon: Dumbbell, label: 'Спорт и фитнес', count: sportTotal },
+];
 
 const metroStations = ['Ковальская Слобода', 'Аэродромная'];
 const busRoutes = ['4', '47с', '53', '56', '73', '84', '100', '107', '124', '172'];
@@ -710,6 +758,44 @@ export function DistrictGuidePage() {
             </div>
           </div>
         )}
+
+        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <Grid2x2 className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Плотность бизнеса по нишам</h2>
+          </div>
+          <p className="text-sm text-ink-muted">
+            Число точек по каждой категории — не оценка «хорошо/плохо», а плотность рынка на сегодня. Больше точек
+            — доказанный спрос, но и больше конкурентов; меньше — ниша менее занята.
+          </p>
+          <div className="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-3">
+            {densityData.map(({ icon: Icon, label, count }) => {
+              const tier = DENSITY_TIER_STYLE[densityTier(count)];
+              return (
+                <div
+                  key={label}
+                  className="flex flex-col gap-2 rounded-control p-3"
+                  style={{ backgroundColor: tier.bg, color: tier.text }}
+                >
+                  <Icon className="h-4 w-4 shrink-0 opacity-80" />
+                  <div className="text-2xl font-black leading-none">{count}</div>
+                  <p className="text-xs font-medium leading-snug">{label}</p>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-center gap-4 pt-1">
+            {(['low', 'medium', 'high'] as DensityTier[]).map((tier) => (
+              <div key={tier} className="flex items-center gap-1.5">
+                <span
+                  className="h-3 w-3 shrink-0 rounded-full"
+                  style={{ backgroundColor: DENSITY_TIER_STYLE[tier].bg }}
+                />
+                <span className="text-xs text-ink-muted">{DENSITY_TIER_LABEL[tier]}</span>
+              </div>
+            ))}
+          </div>
+        </div>
 
         <FaqAccordion title="Частые вопросы о районе" items={districtFaq} />
 
