@@ -12,6 +12,8 @@
 //
 // Работает только на Vercel-домене — на статическом хостинге бэкенда нет.
 
+import { proxyApiKeyProblem } from './_proxyapi.js';
+
 const BUCKET = 'meeting-audio';
 const WHISPER_MODEL = 'whisper-1';
 
@@ -87,8 +89,9 @@ export default async function handler(req, res) {
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
-  if (!process.env.PROXYAPI_KEY) {
-    res.status(500).json({ error: 'PROXYAPI_KEY не настроен в переменных окружения Vercel' });
+  const keyProblem = proxyApiKeyProblem();
+  if (keyProblem) {
+    res.status(500).json({ error: keyProblem });
     return;
   }
 

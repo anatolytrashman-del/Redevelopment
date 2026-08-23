@@ -7,6 +7,8 @@
 // Решение одобрить/отклонить каждое предложение остаётся за владельцем
 // в интерфейсе — эта функция сама задач НЕ создаёт.
 
+import { proxyApiKeyProblem } from './_proxyapi.js';
+
 const MODEL = 'gpt-4o';
 
 function buildSystemPrompt(assignees, alreadySuggested) {
@@ -34,8 +36,9 @@ export default async function handler(req, res) {
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
-  if (!process.env.PROXYAPI_KEY) {
-    res.status(500).json({ error: 'PROXYAPI_KEY не настроен в переменных окружения Vercel' });
+  const keyProblem = proxyApiKeyProblem();
+  if (keyProblem) {
+    res.status(500).json({ error: keyProblem });
     return;
   }
 

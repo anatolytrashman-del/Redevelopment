@@ -8,6 +8,8 @@
 // которые он сохранял из прошлых чатов) — это его устоявшийся формат,
 // не выдуманный. Правки формата — только по просьбе владельца.
 
+import { proxyApiKeyProblem } from './_proxyapi.js';
+
 // gpt-4o, не -mini: часовая встреча со множеством цифр и юридических
 // деталей — mini на таком объёме смазывает конкретику, а разница в цене
 // на одно саммери — центы на фоне стоимости Whisper-минут.
@@ -52,8 +54,9 @@ export default async function handler(req, res) {
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
-  if (!process.env.PROXYAPI_KEY) {
-    res.status(500).json({ error: 'PROXYAPI_KEY не настроен в переменных окружения Vercel' });
+  const keyProblem = proxyApiKeyProblem();
+  if (keyProblem) {
+    res.status(500).json({ error: keyProblem });
     return;
   }
 
