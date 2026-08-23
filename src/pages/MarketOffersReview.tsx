@@ -300,7 +300,7 @@ export function MarketOffersReview() {
 
   return (
     <>
-      <PageHeader title="Рынок недвижимости" />
+      <PageHeader title="Аналитика рынка" />
 
       {error && <p className="text-sm text-danger">{error}</p>}
 

@@ -64,7 +64,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   { key: 'designProjects', to: '/admin/design-projects', label: 'Дизайн-проекты', icon: Palette },
   { key: 'leads', to: '/admin/leads', label: 'Лиды', icon: Users },
   { key: 'landings', to: '/admin/landings', label: 'Лендинги', icon: Globe },
-  { key: 'marketOffers', to: '/admin/market-offers', label: 'Рынок недвижимости', icon: ClipboardCheck },
+  { key: 'marketOffers', to: '/admin/market-offers', label: 'Аналитика рынка', icon: ClipboardCheck },
   { key: 'contractors', to: '/admin/contractors', label: 'Подрядчики', icon: HardHat },
   { key: 'transactions', to: '/admin/transactions', label: 'Транзакции', icon: Receipt },
   { key: 'documents', to: '/admin/documents', label: 'Документы', icon: FileStack },
