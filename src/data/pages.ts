@@ -75,6 +75,7 @@ export const ADMIN_PAGES: AdminPage[] = [
 export const VISIBLE_PAGE_KEYS: PageKey[] = [
   'tasks',
   'objects',
+  'contractors',
   'tz',
   'estimates',
   'finModels',
@@ -82,7 +83,6 @@ export const VISIBLE_PAGE_KEYS: PageKey[] = [
   'designProjects',
   'landings',
   'leads',
-  'contractors',
   'transactions',
   'documents',
   'meetingSummaries',
@@ -99,10 +99,10 @@ export type SidebarEntry = { type: 'page'; key: PageKey } | { type: 'group'; lab
 export const SIDEBAR_LAYOUT: SidebarEntry[] = [
   { type: 'page', key: 'tasks' },
   { type: 'page', key: 'objects' },
+  { type: 'page', key: 'contractors' },
   { type: 'group', label: 'Стройка', keys: ['tz', 'estimates', 'designProjects'] },
   { type: 'group', label: 'Финансы', keys: ['finModels', 'financing', 'transactions', 'documents'] },
   { type: 'group', label: 'Маркетинг', keys: ['landings', 'leads'] },
-  { type: 'page', key: 'contractors' },
   { type: 'page', key: 'meetingSummaries' },
   { type: 'page', key: 'settings' },
 ];
