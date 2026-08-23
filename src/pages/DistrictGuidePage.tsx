@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  Banknote,
   Bus,
   Building2,
   Car,
@@ -604,12 +605,14 @@ export function DistrictGuidePage() {
                 <span className="text-sm font-medium text-ink">{label}</span>
                 <div className="flex shrink-0 gap-1">
                   {hasBranch && (
-                    <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[10px] font-medium text-ink-muted">
+                    <span className="flex items-center gap-1 rounded-full bg-surface-muted px-2 py-0.5 text-[10px] font-medium text-ink-muted">
+                      <Building2 className="h-2.5 w-2.5 shrink-0" />
                       Отделение
                     </span>
                   )}
                   {hasAtm && (
-                    <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[10px] font-medium text-ink-muted">
+                    <span className="flex items-center gap-1 rounded-full bg-surface-muted px-2 py-0.5 text-[10px] font-medium text-ink-muted">
+                      <Banknote className="h-2.5 w-2.5 shrink-0" />
                       Банкомат
                     </span>
                   )}
