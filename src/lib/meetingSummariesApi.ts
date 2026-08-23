@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import type { MeetingSummary, MeetingSummaryRow } from '../data/meetingSummaries';
+import type { MeetingSummary, MeetingSummaryRow, TaskSuggestion } from '../data/meetingSummaries';
 
 function fromRow(row: MeetingSummaryRow): MeetingSummary {
   return {
@@ -8,6 +8,7 @@ function fromRow(row: MeetingSummaryRow): MeetingSummary {
     title: row.title,
     content: row.content,
     transcript: row.transcript ?? '',
+    taskSuggestions: row.task_suggestions ?? [],
     shareToken: row.share_token,
     createdAt: row.created_at,
   };
@@ -62,11 +63,12 @@ export function insertMeetingSummary(input: { title: string; content: string }):
 
 export function updateMeetingSummary(
   id: string,
-  input: { title: string; content: string; transcript?: string },
+  input: { title: string; content: string; transcript?: string; taskSuggestions?: TaskSuggestion[] },
 ): Promise<MeetingSummary> {
   return withRetry(async () => {
-    const payload: Record<string, string> = { title: input.title, content: input.content };
+    const payload: Record<string, unknown> = { title: input.title, content: input.content };
     if (input.transcript !== undefined) payload.transcript = input.transcript;
+    if (input.taskSuggestions !== undefined) payload.task_suggestions = input.taskSuggestions;
     const { data, error } = await supabase
       .from('meeting_summaries')
       .update(payload)

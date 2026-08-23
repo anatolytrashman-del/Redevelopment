@@ -141,6 +141,30 @@ export async function transcribeAudioFile(
   return parts.filter(Boolean).join('\n\n');
 }
 
+export interface SuggestedTask {
+  title: string;
+  description: string;
+  assignees: string[];
+}
+
+// alreadySuggested — заголовки уже имеющихся предложений (в т.ч. решённых):
+// сервер передаёт их модели как «не повторять», чтобы повторная генерация
+// не предлагала одно и то же.
+export async function suggestTasksFromTranscript(
+  transcript: string,
+  assignees: string[],
+  alreadySuggested: string[],
+): Promise<SuggestedTask[]> {
+  const resp = await fetch('/api/suggest-tasks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transcript, assignees, alreadySuggested }),
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data.error || `Ошибка извлечения задач (${resp.status})`);
+  return Array.isArray(data.tasks) ? data.tasks : [];
+}
+
 export async function summarizeTranscript(transcript: string): Promise<string> {
   const resp = await fetch('/api/summarize-meeting', {
     method: 'POST',

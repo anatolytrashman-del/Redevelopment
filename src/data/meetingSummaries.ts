@@ -3,6 +3,20 @@
 // файлах на компьютере. Публикуется по share_token на /summary/:token —
 // без пароля админки, чтобы второй стороне разговора можно было просто
 // скинуть ссылку почитать (тот же приём, что у Brief на /tz/:token).
+// Предложение задачи, извлечённое LLM из расшифровки встречи (см.
+// api/suggest-tasks.js). Живёт в jsonb-поле саммери (как blocks у
+// Moodboard) до решения владельца: «В задачи» — создаётся настоящая
+// Task и статус становится approved, «Отклонить» — rejected. Уже
+// решённые предложения не удаляются — остаются свёрнутым следом, чтобы
+// повторная генерация не предлагала то же самое по второму разу.
+export interface TaskSuggestion {
+  id: string;
+  title: string;
+  description: string;
+  assignees: string[];
+  status: 'pending' | 'approved' | 'rejected';
+}
+
 export interface MeetingSummary {
   id: string;
   title: string;
@@ -16,6 +30,7 @@ export interface MeetingSummary {
   // (и к которому можно вернуться при смене промта). Само аудио НЕ
   // хранится — куски удаляются из Storage сразу после расшифровки.
   transcript: string;
+  taskSuggestions: TaskSuggestion[];
   shareToken: string;
   createdAt: string;
 }
@@ -26,6 +41,7 @@ export interface MeetingSummaryRow {
   title: string;
   content: string;
   transcript: string | null;
+  task_suggestions: TaskSuggestion[] | null;
   share_token: string;
   created_at: string;
 }
