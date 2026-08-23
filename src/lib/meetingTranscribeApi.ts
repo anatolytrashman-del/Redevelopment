@@ -2,7 +2,8 @@ import { supabase } from './supabase';
 
 // Клиентская часть расшифровки аудиозаписей встреч. Схема:
 //
-//   файл → [если >20 МБ: декодировать и порезать на 5-минутные WAV-куски]
+//   файл → [если >20 МБ или длиннее ~6 минут: декодировать и порезать на
+//           5-минутные WAV-куски]
 //        → каждый кусок в приватный бакет meeting-audio (anon может только
 //          insert — читать/удалять куски умеет лишь service role в функции)
 //        → api/transcribe-meeting.js на каждый кусок (Whisper через
@@ -11,7 +12,8 @@ import { supabase } from './supabase';
 //
 // Почему нарезка на клиенте: у Whisper лимит 25 МБ на файл, у Vercel —
 // 4.5 МБ на тело запроса (поэтому файл едет через Storage, не через
-// функцию). Часовая запись с диктофона — 30–60 МБ, без нарезки никак.
+// функцию) и maxDuration на функцию (час аудио одним Whisper-вызовом не
+// успевает — реальный 504). Часовая запись с диктофона — 30–60 МБ.
 // WAV 16 кГц моно выбран как формат кусков, потому что кодируется в
 // браузере тривиально (это сырой PCM с 44-байтовым заголовком) и
 // мгновенно, в отличие от mp3-энкодеров на JS; 5 минут такого WAV — 9.6 МБ.
@@ -23,6 +25,11 @@ import { supabase } from './supabase';
 
 const DIRECT_UPLOAD_LIMIT_BYTES = 20 * 1024 * 1024;
 const CHUNK_SECONDS = 5 * 60;
+// Целиком (без нарезки) — только короткие записи. Ограничение по ВРЕМЕНИ, не
+// только по размеру: сжатая m4a-запись часовой встречи весит меньше 20 МБ, но
+// Whisper обрабатывает её дольше лимита Vercel-функции (реальный 504 на
+// первом же прогоне владельца). Длинное = резать, каким бы маленьким ни было.
+const DIRECT_LIMIT_SECONDS = 6 * 60;
 const TARGET_SAMPLE_RATE = 16000;
 
 export interface TranscribeProgress {
@@ -47,7 +54,14 @@ async function transcribeChunk(path: string, prompt: string, offsetSeconds: numb
     body: JSON.stringify({ path, prompt, offsetSeconds }),
   });
   const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) throw new Error(data.error || `Ошибка расшифровки (${resp.status})`);
+  if (!resp.ok) {
+    // 504 отдаёт сам Vercel (функция не уложилась в maxDuration), тела с
+    // нашим сообщением у него нет — переводим на человеческий.
+    if (resp.status === 504) {
+      throw new Error('Сервер не успел расшифровать кусок за отведённое время — попробуйте ещё раз');
+    }
+    throw new Error(data.error || `Ошибка расшифровки (${resp.status})`);
+  }
   return data.text ?? '';
 }
 
@@ -111,19 +125,56 @@ function fileExt(file: File): string {
   return /^[a-z0-9]{1,5}$/.test(ext) ? ext : 'mp3';
 }
 
+// Длительность по метаданным контейнера — <audio> читает только заголовок,
+// файл целиком не декодируется. null = формат/метаданные не прочитались.
+function getAudioDuration(file: File): Promise<number | null> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const audio = new Audio();
+    const done = (v: number | null) => {
+      URL.revokeObjectURL(url);
+      resolve(v);
+    };
+    audio.onloadedmetadata = () => done(Number.isFinite(audio.duration) ? audio.duration : null);
+    audio.onerror = () => done(null);
+    audio.preload = 'metadata';
+    audio.src = url;
+  });
+}
+
+async function transcribeWholeFile(
+  file: File,
+  onProgress: (p: TranscribeProgress) => void,
+): Promise<string> {
+  onProgress({ stage: 'transcribing', chunkIndex: 1, chunkCount: 1 });
+  const path = await uploadChunk(file, fileExt(file));
+  return (await transcribeChunk(path, '', 0)).trim();
+}
+
 export async function transcribeAudioFile(
   file: File,
   onProgress: (p: TranscribeProgress) => void,
 ): Promise<string> {
-  // Небольшой файл — без декодирования и нарезки, одним куском как есть.
-  if (file.size <= DIRECT_UPLOAD_LIMIT_BYTES) {
-    onProgress({ stage: 'transcribing', chunkIndex: 1, chunkCount: 1 });
-    const path = await uploadChunk(file, fileExt(file));
-    return (await transcribeChunk(path, '', 0)).trim();
+  // Целиком без нарезки — только маленький И короткий файл (см.
+  // DIRECT_LIMIT_SECONDS: длинную запись любого размера нужно резать).
+  const smallFile = file.size <= DIRECT_UPLOAD_LIMIT_BYTES;
+  if (smallFile) {
+    const duration = await getAudioDuration(file);
+    if (duration !== null && duration <= DIRECT_LIMIT_SECONDS) {
+      return transcribeWholeFile(file, onProgress);
+    }
   }
 
   onProgress({ stage: 'preparing', chunkIndex: 0, chunkCount: 0 });
-  const mono = await decodeToMono16k(file);
+  let mono: Float32Array;
+  try {
+    mono = await decodeToMono16k(file);
+  } catch (err) {
+    // Не смогли декодировать для нарезки (экзотический контейнер?) — для
+    // маленького файла последний шанс: отправить как есть одним куском.
+    if (smallFile) return transcribeWholeFile(file, onProgress);
+    throw err;
+  }
   const samplesPerChunk = CHUNK_SECONDS * TARGET_SAMPLE_RATE;
   const chunkCount = Math.ceil(mono.length / samplesPerChunk);
 
