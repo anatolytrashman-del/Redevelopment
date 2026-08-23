@@ -42,7 +42,7 @@ import { FaqAccordion } from '../components/ui/FaqAccordion';
 import type { FaqItem } from '../components/ui/FaqAccordion';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { fetchMarketOffers } from '../lib/marketOffersApi';
-import { AREA_BUCKET_ORDER, areaBucket, MARKET_PROPERTY_TYPES } from '../data/marketOffers';
+import { AREA_BUCKET_ORDER, areaBucket, MARKET_PROPERTY_TYPES, netSize, netPricePerSqm } from '../data/marketOffers';
 import type { MarketOffer } from '../data/marketOffers';
 
 const PAGE_URL = 'https://redevelopment.pro/rayon-minsk-mir';
@@ -394,9 +394,9 @@ function buildMarketPivot(offers: MarketOffer[], dealType: 'sale' | 'rent', fini
     if (offer.dealType !== dealType || offer.finishStatus !== finishStatus) continue;
     if (!byType.has(offer.propertyType)) byType.set(offer.propertyType, new Map());
     const byBucket = byType.get(offer.propertyType)!;
-    const bucket = areaBucket(offer.size);
+    const bucket = areaBucket(netSize(offer));
     if (!byBucket.has(bucket)) byBucket.set(bucket, []);
-    byBucket.get(bucket)!.push(offer.pricePerSqm);
+    byBucket.get(bucket)!.push(netPricePerSqm(offer));
   }
 
   return MARKET_PROPERTY_TYPE_ORDER.filter((type) => byType.has(type)).map((propertyType) => {
@@ -411,7 +411,7 @@ function buildMarketPivot(offers: MarketOffer[], dealType: 'sale' | 'rent', fini
 
 function countSmallFinishedOffices(offers: MarketOffer[], dealType: 'sale' | 'rent'): number {
   return offers.filter(
-    (o) => o.dealType === dealType && o.propertyType === 'Офисы' && o.size < 40 && o.finishStatus === 'с отделкой',
+    (o) => o.dealType === dealType && o.propertyType === 'Офисы' && netSize(o) < 40 && o.finishStatus === 'с отделкой',
   ).length;
 }
 

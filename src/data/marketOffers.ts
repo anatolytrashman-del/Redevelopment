@@ -22,6 +22,13 @@ export interface MarketOffer {
   // Не у всех объявлений заполнен — используется только как доп. сигнал
   // при поиске дублей (dedupKey), в остальном не критичен.
   floor: number | null;
+  // Помещения с террасой — Kufar/Realt считают её площадь в общий size, а
+  // терраса стоит заметно дешевле закрытого помещения, что занижает цену
+  // за м² в сводке (см. netSize/netPricePerSqm ниже). Ни один источник не
+  // помечает это в структурированных данных — ставится вручную на
+  // /admin/market-offers, когда видно на плане/в описании.
+  hasTerrace: boolean;
+  terraceArea: number | null;
   address: string | null;
   adLink: string | null;
   updatedAt: string;
@@ -38,9 +45,32 @@ export interface MarketOfferRow {
   finish_status: string;
   reviewed: boolean;
   floor: number | null;
+  has_terrace: boolean;
+  terrace_area: number | null;
   address: string | null;
   ad_link: string | null;
   updated_at: string;
+}
+
+// "Чистая" площадь — закрытая часть помещения без террасы. Пример из
+// реального объявления (владелец, август 2026): Realt object/4148005 —
+// 64.5 м² общей площади, из них 25.4 м² терраса, то есть чистых 39.1 м².
+// Терраса стоит заметно дешевле закрытого помещения — если считать цену
+// на общую площадь, такое помещение выглядит неоправданно дешёвым и тянет
+// вниз медиану в сводной таблице. Раз мы НЕ знаем, за сколько отдельно
+// продаётся терраса, просто исключаем её квадратуру из площади и
+// пересчитываем ту же общую стоимость на оставшиеся метры — единственный
+// способ сравнивать такие помещения с обычными на равных.
+export function netSize(offer: Pick<MarketOffer, 'size' | 'hasTerrace' | 'terraceArea'>): number {
+  if (!offer.hasTerrace || offer.terraceArea == null) return offer.size;
+  const net = offer.size - offer.terraceArea;
+  return net > 0 ? net : offer.size;
+}
+
+export function netPricePerSqm(offer: Pick<MarketOffer, 'size' | 'pricePerSqm' | 'hasTerrace' | 'terraceArea'>): number {
+  const net = netSize(offer);
+  if (net === offer.size) return offer.pricePerSqm;
+  return Math.round(((offer.pricePerSqm * offer.size) / net) * 100) / 100;
 }
 
 // Порядок площадей в таблице.

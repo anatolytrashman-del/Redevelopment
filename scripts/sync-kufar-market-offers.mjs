@@ -255,7 +255,7 @@ async function main() {
   const adIds = offers.map((o) => o.ad_id);
   const { data: existing, error: fetchError } = await supabase
     .from('market_offers')
-    .select('ad_id, deal_type, property_type, size, price_per_sqm, finish_status, floor, address, reviewed')
+    .select('ad_id, deal_type, property_type, size, price_per_sqm, finish_status, floor, has_terrace, terrace_area, address, reviewed')
     .eq('source', 'Kufar')
     .in('ad_id', adIds);
   if (fetchError) throw fetchError;

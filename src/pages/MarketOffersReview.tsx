@@ -19,7 +19,7 @@ import {
   fetchDismissedDedupKeys,
   dismissDuplicateGroup,
 } from '../lib/marketOffersApi';
-import { FINISH_STATUSES, MARKET_PROPERTY_TYPES, areaBucket, dedupKey } from '../data/marketOffers';
+import { FINISH_STATUSES, MARKET_PROPERTY_TYPES, areaBucket, dedupKey, netSize, netPricePerSqm } from '../data/marketOffers';
 import type { MarketOffer, FinishStatus } from '../data/marketOffers';
 
 // Ручная верификация объявлений с Kufar (и позже Realt): владелец сам
@@ -126,6 +126,8 @@ interface EditFormState {
   pricePerSqm: string;
   finishStatus: FinishStatus;
   floor: string;
+  hasTerrace: boolean;
+  terraceArea: string;
   address: string;
 }
 
@@ -137,6 +139,8 @@ function offerToForm(offer: MarketOffer): EditFormState {
     pricePerSqm: String(offer.pricePerSqm),
     finishStatus: offer.finishStatus as FinishStatus,
     floor: offer.floor == null ? '' : String(offer.floor),
+    hasTerrace: offer.hasTerrace,
+    terraceArea: offer.terraceArea == null ? '' : String(offer.terraceArea),
     address: offer.address ?? '',
   };
 }
@@ -194,11 +198,17 @@ function OfferRow({
       <td className="whitespace-nowrap py-2.5 px-2 text-ink-muted">{offer.propertyType}</td>
       <td className="whitespace-nowrap py-2.5 px-2 text-ink-muted">{offer.dealType === 'sale' ? 'Продажа' : 'Аренда'}</td>
       <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-muted">
-        {offer.size} м² <span className="text-ink-faint">({areaBucket(offer.size)})</span>
+        {offer.size} м² <span className="text-ink-faint">({areaBucket(netSize(offer))})</span>
+        {offer.hasTerrace && (
+          <div className="text-xs text-warning">терраса {offer.terraceArea ?? '?'} · чисто {netSize(offer)} м²</div>
+        )}
       </td>
       <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-muted">{offer.floor ?? '—'}</td>
       <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-muted">
         {offer.pricePerSqm} $/м²{offer.dealType === 'rent' ? '/мес' : ''}
+        {offer.hasTerrace && (
+          <div className="text-xs text-warning">на чистую — {netPricePerSqm(offer)} $/м²</div>
+        )}
       </td>
       <td className="whitespace-nowrap py-2.5 px-2">
         <FinishStatusPicker value={offer.finishStatus as FinishStatus} onChange={(status) => onFinishChange(offer, status)} />
@@ -411,6 +421,14 @@ export function MarketOffersReview() {
       setError('Этаж должен быть числом (или оставьте поле пустым).');
       return;
     }
+    let terraceArea: number | null = null;
+    if (editForm.hasTerrace) {
+      terraceArea = Number(editForm.terraceArea.replace(',', '.'));
+      if (!Number.isFinite(terraceArea) || terraceArea <= 0 || terraceArea >= size) {
+        setError('Площадь террасы должна быть положительным числом меньше общей площади.');
+        return;
+      }
+    }
     setSaving(true);
     try {
       const patch = {
@@ -420,6 +438,8 @@ export function MarketOffersReview() {
         pricePerSqm,
         finishStatus: editForm.finishStatus,
         floor,
+        hasTerrace: editForm.hasTerrace,
+        terraceArea,
         address: editForm.address,
       };
       await updateMarketOffer(editingOffer.id, patch);
@@ -610,6 +630,44 @@ export function MarketOffersReview() {
               value={editForm.floor}
               onChange={(e) => setEditForm((f) => f && { ...f, floor: e.target.value })}
             />
+            <div className="flex flex-col gap-3 rounded-control bg-surface-muted p-3">
+              <label className="flex items-center gap-2 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  checked={editForm.hasTerrace}
+                  onChange={(e) => setEditForm((f) => f && { ...f, hasTerrace: e.target.checked })}
+                  className="h-4 w-4 rounded border-border"
+                />
+                Помещение с террасой
+              </label>
+              {editForm.hasTerrace && (
+                <>
+                  <p className="text-xs text-ink-faint">
+                    Терраса стоит дешевле закрытого помещения и занижает цену за м² в сводке — считаем цену на
+                    чистую площадь.
+                  </p>
+                  <Input
+                    label="Терраса, м²"
+                    type="text"
+                    inputMode="decimal"
+                    value={editForm.terraceArea}
+                    onChange={(e) => setEditForm((f) => f && { ...f, terraceArea: e.target.value })}
+                  />
+                  <p className="text-sm text-ink-muted">
+                    Чистая площадь:{' '}
+                    <span className="font-semibold text-ink">
+                      {(() => {
+                        const total = Number(editForm.size.replace(',', '.'));
+                        const terrace = Number(editForm.terraceArea.replace(',', '.'));
+                        if (!Number.isFinite(total) || !Number.isFinite(terrace) || terrace <= 0) return '—';
+                        const net = total - terrace;
+                        return net > 0 ? `${Math.round(net * 100) / 100} м²` : '—';
+                      })()}
+                    </span>
+                  </p>
+                </>
+              )}
+            </div>
             <div>
               <span className="mb-1.5 block text-sm text-ink-muted">Отделка</span>
               <FinishStatusPicker
