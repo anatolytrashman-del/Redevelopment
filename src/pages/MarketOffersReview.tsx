@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Check, Copy, ExternalLink, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { Check, ExternalLink, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { SearchInput } from '../components/ui/SearchInput';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
@@ -12,8 +12,6 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import {
   fetchMarketOffers,
-  setMarketOfferFinishStatus,
-  setMarketOfferReviewed,
   updateMarketOffer,
   deleteMarketOffer,
   fetchDismissedDedupKeys,
@@ -22,21 +20,27 @@ import {
 import { FINISH_STATUSES, MARKET_PROPERTY_TYPES, areaBucket, dedupKey, netSize, netPricePerSqm } from '../data/marketOffers';
 import type { MarketOffer, FinishStatus } from '../data/marketOffers';
 
-// Ручная верификация объявлений с Kufar (и позже Realt): владелец сам
-// проставляет статус отделки (у большинства объявлений его нет в исходных
-// данных, см. SEO_PLAN.md) и правит остальные поля, если Kufar отдал их
+// Ручная верификация объявлений с Kufar (и позже Realt): помощница (Светлана)
+// сверяет объявление по ссылке и правит поля, если источник отдал их
 // неверно. Это ЖИВОЙ источник для таблицы на /rayon-minsk-mir — правки
 // здесь видны там сразу, без пересинка (DistrictGuidePage.tsx считает
 // медиану прямо из этих же строк).
 //
-// Два независимых статуса на строке:
-// - "Отделка" (finishStatus) — сами данные: с отделкой / без отделки / не
-//   указано.
-// - "Обработано" (reviewed) — статус РАБОТЫ владельца над строкой: смотрел
-//   ли он её вообще. Можно поставить "Проверено", даже не трогая отделку
-//   (например, свериться по ссылке и убедиться, что "не указано" — и есть
-//   правда). Reviewed=true заодно защищает всю строку от перезаписи при
-//   следующем месячном синке (см. scripts/sync-kufar-market-offers.mjs).
+// Верификация — только через карточку редактирования (кнопка
+// "Редактировать"): в строке таблицы нет отдельных кликабельных
+// переключателей отделки/обработки — это раньше загромождало таблицу и
+// путало (см. историю в SEO_PLAN.md), теперь строка только показывает
+// статусы (статичные бейджи), а меняются они в модалке. Любое сохранение
+// через модалку — это и есть "проверил объявление", поэтому оно всегда
+// ставит reviewed=true (см. updateMarketOffer), даже если по факту ничего
+// не поменяли (свериться по ссылке и подтвердить "не указано" — тоже
+// проверка). Reviewed=true заодно защищает всю строку от перезаписи при
+// следующем месячном синке (см. scripts/sync-kufar-market-offers.mjs).
+//
+// Порядок работы: сначала группы дублей (адрес+площадь+иногда этаж
+// совпадают у нескольких объявлений) — их нужно разобрать до одиночных
+// объявлений, поэтому секция дублей всегда идёт первой на странице, а
+// объявления внутри неё не показываются повторно в общей таблице ниже.
 
 const FINISH_FILTER_OPTIONS = ['Все', 'Не указано', 'С отделкой', 'Без отделки'] as const;
 type FinishFilter = (typeof FINISH_FILTER_OPTIONS)[number];
@@ -56,9 +60,6 @@ type ReviewFilter = (typeof REVIEW_FILTER_OPTIONS)[number];
 
 const SOURCE_FILTER_OPTIONS = ['Все', 'Kufar', 'Realt'] as const;
 type SourceFilter = (typeof SOURCE_FILTER_OPTIONS)[number];
-
-const DUP_FILTER_OPTIONS = ['Все', 'Только дубли'] as const;
-type DupFilter = (typeof DUP_FILTER_OPTIONS)[number];
 
 const FINISH_PILL_LABEL: Record<FinishStatus, string> = {
   'с отделкой': 'С отделкой',
@@ -92,30 +93,32 @@ function FinishStatusPicker({
   );
 }
 
-function ReviewedPicker({ value, onChange }: { value: boolean; onChange: (reviewed: boolean) => void }) {
+// Статичные бейджи вместо переключателей — статус в строке таблицы только
+// для справки, менять его можно только через карточку редактирования
+// (см. комментарий вверху файла).
+function FinishBadge({ status }: { status: FinishStatus }) {
   return (
-    <div className="flex gap-1">
-      <button
-        type="button"
-        onClick={() => onChange(false)}
-        className={cn(
-          'rounded-full px-2.5 py-1 text-xs font-medium transition-colors',
-          !value ? 'bg-warning-bg text-warning' : 'bg-surface-muted text-ink-muted hover:bg-border',
-        )}
-      >
-        Не обработано
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange(true)}
-        className={cn(
-          'rounded-full px-2.5 py-1 text-xs font-medium transition-colors',
-          value ? 'bg-success-bg text-success' : 'bg-surface-muted text-ink-muted hover:bg-border',
-        )}
-      >
-        Проверено
-      </button>
-    </div>
+    <span
+      className={cn(
+        'whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium',
+        status === 'с отделкой' ? 'bg-ink/80 text-white' : 'bg-surface-muted text-ink-muted',
+      )}
+    >
+      {FINISH_PILL_LABEL[status]}
+    </span>
+  );
+}
+
+function ReviewedBadge({ reviewed }: { reviewed: boolean }) {
+  return (
+    <span
+      className={cn(
+        'whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium',
+        reviewed ? 'bg-success-bg text-success' : 'bg-warning-bg text-warning',
+      )}
+    >
+      {reviewed ? 'Проверено' : 'Не обработано'}
+    </span>
   );
 }
 
@@ -152,76 +155,68 @@ function offerToForm(offer: MarketOffer): EditFormState {
 function OfferRow({
   offer,
   pending,
-  showDuplicateBadge,
-  onFinishChange,
-  onReviewedChange,
   onEdit,
   onDelete,
 }: {
   offer: MarketOffer;
   pending: boolean;
-  showDuplicateBadge: boolean;
-  onFinishChange: (offer: MarketOffer, status: FinishStatus) => void;
-  onReviewedChange: (offer: MarketOffer, reviewed: boolean) => void;
   onEdit: (offer: MarketOffer) => void;
   onDelete: (offer: MarketOffer) => void;
 }) {
   return (
     <tr className={pending ? 'opacity-50' : undefined}>
-      <td className="max-w-[200px] py-2.5 pr-3">
-        <div className="flex items-center gap-1.5">
-          {offer.adLink ? (
-            <a
-              href={offer.adLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex min-w-0 items-center gap-1 text-ink hover:underline"
-            >
-              <span className="truncate">{offer.address ?? '—'}</span>
-              <ExternalLink className="h-3 w-3 shrink-0 text-ink-faint" />
-            </a>
-          ) : (
+      <td className="max-w-[240px] py-2.5 pr-3">
+        {offer.adLink ? (
+          <a
+            href={offer.adLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex min-w-0 items-center gap-1 text-ink hover:underline"
+          >
             <span className="truncate">{offer.address ?? '—'}</span>
-          )}
-          {showDuplicateBadge && (
-            <span
-              title="Похожее объявление есть ещё раз в базе — проверьте и удалите лишнее"
-              className="flex shrink-0 items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 text-xs font-medium text-warning"
-            >
-              <Copy className="h-3 w-3" />
-              дубль
-            </span>
-          )}
-        </div>
+            <ExternalLink className="h-3 w-3 shrink-0 text-ink-faint" />
+          </a>
+        ) : (
+          <span className="truncate">{offer.address ?? '—'}</span>
+        )}
+        <div className="text-xs text-ink-faint">{offer.source}</div>
       </td>
-      <td className="whitespace-nowrap py-2.5 px-2 text-ink-muted">{offer.source}</td>
-      <td className="whitespace-nowrap py-2.5 px-2 text-ink-muted">{offer.propertyType}</td>
+      <td className="max-w-[130px] py-2.5 px-2 text-ink-muted">{offer.propertyType}</td>
       <td className="whitespace-nowrap py-2.5 px-2 text-ink-muted">{offer.dealType === 'sale' ? 'Продажа' : 'Аренда'}</td>
-      <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-muted">
-        {offer.size} м² <span className="text-ink-faint">({areaBucket(netSize(offer))})</span>
+      <td className="max-w-[140px] py-2.5 px-2 text-right tabular-nums text-ink-muted">
+        <span className="whitespace-nowrap">
+          {offer.size} м² <span className="text-ink-faint">({areaBucket(netSize(offer))})</span>
+        </span>
         {offer.hasTerrace && (
           <div className="text-xs text-warning">терраса {offer.terraceArea ?? '?'} · чисто {netSize(offer)} м²</div>
         )}
       </td>
       <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-muted">{offer.floor ?? '—'}</td>
-      <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-muted">
-        {offer.pricePerSqm} $/м²{offer.dealType === 'rent' ? '/мес' : ''}
+      <td className="max-w-[150px] py-2.5 px-2 text-right tabular-nums text-ink-muted">
+        <span className="whitespace-nowrap">
+          {offer.pricePerSqm} $/м²{offer.dealType === 'rent' ? '/мес' : ''}
+        </span>
         {offer.hasTerrace && (
           <div className="text-xs text-warning">на чистую — {netPricePerSqm(offer)} $/м²</div>
         )}
       </td>
       <td className="whitespace-nowrap py-2.5 px-2">
-        <FinishStatusPicker value={offer.finishStatus as FinishStatus} onChange={(status) => onFinishChange(offer, status)} />
+        <FinishBadge status={offer.finishStatus as FinishStatus} />
       </td>
       <td className="whitespace-nowrap py-2.5 px-2">
-        <ReviewedPicker value={offer.reviewed} onChange={(reviewed) => onReviewedChange(offer, reviewed)} />
+        <ReviewedBadge reviewed={offer.reviewed} />
       </td>
       <td className="whitespace-nowrap py-2.5 pl-2">
-        <div className="flex items-center justify-end gap-3">
-          <button type="button" onClick={() => onEdit(offer)} aria-label="Редактировать объявление" className="text-ink-faint hover:text-primary">
-            <Pencil className="h-4 w-4" />
+        <div className="flex items-center justify-end gap-1.5">
+          <button
+            type="button"
+            onClick={() => onEdit(offer)}
+            className="flex items-center gap-1 rounded-full border border-border px-2 py-1 text-xs font-medium text-ink hover:border-border-strong hover:bg-surface-muted"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Редактировать
           </button>
-          <button type="button" onClick={() => onDelete(offer)} aria-label="Удалить объявление" className="text-ink-faint hover:text-danger">
+          <button type="button" onClick={() => onDelete(offer)} aria-label="Удалить объявление" className="p-1 text-ink-faint hover:text-danger">
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
@@ -234,8 +229,7 @@ function OfferTableHead() {
   return (
     <thead>
       <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-ink-faint">
-        <th className="py-2 pr-3">Адрес</th>
-        <th className="py-2 px-2">Источник</th>
+        <th className="py-2 pr-3">Адрес / источник</th>
         <th className="py-2 px-2">Тип</th>
         <th className="py-2 px-2">Сделка</th>
         <th className="py-2 px-2 text-right">Площадь</th>
@@ -257,7 +251,6 @@ export function MarketOffersReview() {
   const [dealFilter, setDealFilter] = useState<DealFilter>('Все');
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>('Не обработано');
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('Все');
-  const [dupFilter, setDupFilter] = useState<DupFilter>('Все');
   const [pendingId, setPendingId] = useState<number | null>(null);
   const [pendingGroupKey, setPendingGroupKey] = useState<string | null>(null);
   const [editingOffer, setEditingOffer] = useState<MarketOffer | null>(null);
@@ -317,16 +310,15 @@ export function MarketOffersReview() {
     };
   }, [offers, duplicateGroups]);
 
-  // В режиме "Только дубли" таблица уступает место карточкам групп (ниже) —
-  // там сравнение построено вокруг пары/тройки объявлений одного помещения,
-  // а не построчного списка, поэтому остальные фильтры (отделка/сделка/
-  // источник) в этом режиме не применяются — иначе легко спрятать половину
-  // пары и потерять сравнение.
+  // Одиночные объявления — таблица под секцией дублей (см. рендер ниже).
+  // Дублей в ней не показываем: они уже разобраны отдельными карточками
+  // выше, повтор в общем списке только путал бы, что уже проверено.
   const filtered = useMemo(() => {
-    if (!offers || dupFilter === 'Только дубли') return [];
+    if (!offers) return [];
     const query = search.trim().toLowerCase();
     return offers
       .filter((o) => {
+        if (duplicateKeyByOfferId.has(o.id)) return false;
         const wantedFinish = FINISH_FILTER_TO_DB[finishFilter];
         if (wantedFinish && o.finishStatus !== wantedFinish) return false;
         if (dealFilter === 'Продажа' && o.dealType !== 'sale') return false;
@@ -340,7 +332,7 @@ export function MarketOffersReview() {
         return true;
       })
       .sort((a, b) => a.size - b.size);
-  }, [offers, search, finishFilter, dealFilter, reviewFilter, sourceFilter, dupFilter]);
+  }, [offers, search, finishFilter, dealFilter, reviewFilter, sourceFilter, duplicateKeyByOfferId]);
 
   const duplicateGroupsList = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -351,30 +343,6 @@ export function MarketOffersReview() {
 
   function patchOffer(id: number, patch: Partial<MarketOffer>) {
     setOffers((prev) => (prev ?? []).map((o) => (o.id === id ? { ...o, ...patch } : o)));
-  }
-
-  async function handleFinishChange(offer: MarketOffer, status: FinishStatus) {
-    setPendingId(offer.id);
-    try {
-      await setMarketOfferFinishStatus(offer.id, status);
-      patchOffer(offer.id, { finishStatus: status, reviewed: true });
-    } catch {
-      setError('Не удалось сохранить статус — попробуйте ещё раз.');
-    } finally {
-      setPendingId(null);
-    }
-  }
-
-  async function handleReviewedChange(offer: MarketOffer, reviewed: boolean) {
-    setPendingId(offer.id);
-    try {
-      await setMarketOfferReviewed(offer.id, reviewed);
-      patchOffer(offer.id, { reviewed });
-    } catch {
-      setError('Не удалось сохранить статус — попробуйте ещё раз.');
-    } finally {
-      setPendingId(null);
-    }
   }
 
   async function handleDelete(offer: MarketOffer) {
@@ -511,18 +479,25 @@ export function MarketOffersReview() {
                   value={finishFilter}
                   onChange={(v) => setFinishFilter(v as FinishFilter)}
                 />
-                <ToggleGroup label="Дубли" options={[...DUP_FILTER_OPTIONS]} value={dupFilter} onChange={(v) => setDupFilter(v as DupFilter)} />
               </div>
             </div>
             <p className="text-xs text-ink-faint">
-              {dupFilter === 'Только дубли'
-                ? 'Похожие объявления сгруппированы по адресу и площади — откройте ссылку, сверьте вручную и либо удалите лишнюю копию, либо подтвердите, что это разные помещения. Остальные фильтры здесь не действуют, чтобы не спрятать половину пары.'
-                : 'Правки сразу учитываются в таблице на /rayon-minsk-mir и не перезатираются автоматическим синком.'}
+              Правки сразу учитываются в таблице на /rayon-minsk-mir и не перезатираются автоматическим синком.
+              Фильтры действуют на таблицу одиночных объявлений ниже — дубли выше показаны все, без фильтров, чтобы
+              не спрятать половину пары.
             </p>
           </div>
 
-          {dupFilter === 'Только дубли' ? (
-            <div className="flex flex-col gap-4">
+          {duplicateGroups.size > 0 && (
+            <div className="flex flex-col gap-3">
+              <h2 className="text-sm font-semibold text-ink">
+                Дубли для проверки — {duplicateGroups.size} {duplicateGroups.size === 1 ? 'группа' : 'группы'}
+              </h2>
+              <p className="text-xs text-ink-faint">
+                Похожие объявления сгруппированы по адресу и площади (и этажу, если он известен) — откройте ссылку,
+                сверьте вручную и либо удалите лишнюю копию, либо подтвердите, что это разные помещения. Разберите
+                дубли, прежде чем переходить к одиночным объявлениям ниже.
+              </p>
               {duplicateGroupsList.map(([key, group]) => (
                 <div key={key} className={cn('flex flex-col gap-3 p-4', glassCardClass)} style={glassCardShadow}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -541,7 +516,7 @@ export function MarketOffersReview() {
                     </Button>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[1020px] border-collapse text-sm">
+                    <table className="w-full min-w-[900px] border-collapse text-sm">
                       <OfferTableHead />
                       <tbody className="divide-y divide-border">
                         {group.map((offer) => (
@@ -549,9 +524,6 @@ export function MarketOffersReview() {
                             key={offer.id}
                             offer={offer}
                             pending={pendingId === offer.id}
-                            showDuplicateBadge={false}
-                            onFinishChange={handleFinishChange}
-                            onReviewedChange={handleReviewedChange}
                             onEdit={openEdit}
                             onDelete={handleDelete}
                           />
@@ -562,12 +534,15 @@ export function MarketOffersReview() {
                 </div>
               ))}
               {duplicateGroupsList.length === 0 && (
-                <p className="py-6 text-center text-sm text-ink-faint">Дублей не найдено.</p>
+                <p className="py-4 text-center text-sm text-ink-faint">Дублей по этому запросу не найдено.</p>
               )}
             </div>
-          ) : (
+          )}
+
+          <div className="flex flex-col gap-3">
+            {duplicateGroups.size > 0 && <h2 className="text-sm font-semibold text-ink">Одиночные объявления</h2>}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1140px] border-collapse text-sm">
+              <table className="w-full min-w-[900px] border-collapse text-sm">
                 <OfferTableHead />
                 <tbody className="divide-y divide-border">
                   {filtered.map((offer) => (
@@ -575,9 +550,6 @@ export function MarketOffersReview() {
                       key={offer.id}
                       offer={offer}
                       pending={pendingId === offer.id}
-                      showDuplicateBadge={duplicateKeyByOfferId.has(offer.id)}
-                      onFinishChange={handleFinishChange}
-                      onReviewedChange={handleReviewedChange}
                       onEdit={openEdit}
                       onDelete={handleDelete}
                     />
@@ -586,7 +558,7 @@ export function MarketOffersReview() {
               </table>
               {filtered.length === 0 && <p className="py-6 text-center text-sm text-ink-faint">Ничего не найдено.</p>}
             </div>
-          )}
+          </div>
         </div>
       )}
 
