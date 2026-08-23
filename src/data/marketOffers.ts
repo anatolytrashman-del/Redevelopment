@@ -1,33 +1,48 @@
-// Месячный агрегат по объявлениям коммерческой недвижимости (Kufar, позже
-// Realt) — см. scripts/sync-kufar-market-offers.mjs и SEO_PLAN.md. Строка —
-// не объявление, а уже готовая группа (тип сделки × тип помещения × площадь
-// × отделка) с числом предложений и ценой за м².
+// Сырые объявления коммерческой недвижимости (Kufar, позже Realt) — см.
+// scripts/sync-kufar-market-offers.mjs и SEO_PLAN.md. Строка — одно
+// объявление, не готовый агрегат: таблица на гиде района и страница
+// верификации (/admin/market-offers) считают сводки прямо из этих строк,
+// чтобы правки владельца сразу отражались везде.
 
-export interface MarketOfferStat {
+export interface MarketOffer {
   id: number;
-  month: string;
   source: string;
+  adId: string;
   dealType: 'sale' | 'rent';
   propertyType: string;
-  areaBucket: string;
+  size: number;
+  pricePerSqm: number;
   finishStatus: string;
-  offersCount: number;
-  avgPricePerSqm: number;
-  medianPricePerSqm: number;
+  finishStatusVerified: boolean;
+  address: string | null;
+  adLink: string | null;
+  updatedAt: string;
 }
 
-export interface MarketOfferStatRow {
+export interface MarketOfferRow {
   id: number;
-  month: string;
   source: string;
+  ad_id: string;
   deal_type: string;
   property_type: string;
-  area_bucket: string;
+  size: number;
+  price_per_sqm: number;
   finish_status: string;
-  offers_count: number;
-  avg_price_per_sqm: number;
-  median_price_per_sqm: number;
+  finish_status_verified: boolean;
+  address: string | null;
+  ad_link: string | null;
+  updated_at: string;
 }
 
-// Порядок площадей в таблице — должен совпадать с areaBucket() в скрипте синка.
+// Порядок площадей в таблице.
 export const AREA_BUCKET_ORDER = ['<40 м²', '40–80 м²', '80–150 м²', '150+ м²'];
+
+export function areaBucket(size: number): string {
+  if (size < 40) return '<40 м²';
+  if (size < 80) return '40–80 м²';
+  if (size < 150) return '80–150 м²';
+  return '150+ м²';
+}
+
+export const FINISH_STATUSES = ['с отделкой', 'без отделки', 'не указано'] as const;
+export type FinishStatus = (typeof FINISH_STATUSES)[number];

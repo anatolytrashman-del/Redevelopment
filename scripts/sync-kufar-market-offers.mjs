@@ -1,9 +1,10 @@
 // Раз в месяц (см. .github/workflows/sync-market-offers-stats.yml) собирает с
 // Kufar (re.kufar.by — у Kufar недвижимость на отдельном поддомене со своим
 // SSR-фронтендом, не общий www.kufar.by) публичные объявления коммерческой
-// недвижимости по Минск Миру и сохраняет агрегат (не сырые объявления) в
-// public.market_offers_stats — для сводной таблицы "рынок аренды/продажи" на
-// гиде района.
+// недвижимости по Минск Миру и сохраняет СЫРЫЕ объявления (не готовый
+// агрегат) в public.market_offers — владелец верифицирует/правит статус
+// отделки вручную на /admin/market-offers (см. MarketOffersReview.tsx),
+// таблица на гиде района считается прямо из этих строк на лету.
 //
 // Как достаём данные без авторизации и без обхода антибота: re.kufar.by —
 // Next.js SPA, для обычных браузеров отдаёт пустой __NEXT_DATA__ с одним
@@ -26,11 +27,15 @@
 // центра комплекса ~53.8628,27.5470 — улицы Минск Мира почти все ≤1.4 км,
 // улицы вне комплекса — от 2 км).
 //
-// Состояние отделки — НЕ гадаем по тексту описания (ненадёжно, см. историю
-// с банками в CLAUDE.md), а берём готовые структурированные поля Kufar:
-// сначала commercial_repair (шкала "Офисная отделка"/"Под чистовую
-// отделку"/"Требуется ремонт"), если его нет — ищем тег "С отделкой" в
-// списке удобств commercial_improvements, если и его нет — "не указано".
+// Состояние отделки — сначала пробуем угадать сами (НЕ по тексту описания —
+// ненадёжно, см. историю с банками в CLAUDE.md, а по готовым структурным
+// полям Kufar: commercial_repair, иначе тег "С отделкой" в commercial_
+// improvements), но большинство объявлений (см. живую проверку — владелец,
+// август 2026) этого поля вообще не заполняют — "не указано" доминирует.
+// Владелец решил проставлять статус вручную. Поэтому при повторном синке
+// (раз в месяц) автоматически определённый статус НЕ перезаписывает то, что
+// уже подтверждено вручную (finish_status_verified=true) — обновляются
+// только цена/площадь/ссылка, статус остаётся как задал владелец.
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -78,14 +83,6 @@ function isMinskMirAddress(address) {
   return MINSK_MIR_MARKERS.some((marker) => lower.includes(marker));
 }
 
-function areaBucket(size) {
-  if (size == null) return null;
-  if (size < 40) return '<40 м²';
-  if (size < 80) return '40–80 м²';
-  if (size < 150) return '80–150 м²';
-  return '150+ м²';
-}
-
 function getAdParam(ad, code) {
   return (ad.ad_parameters || []).find((p) => p.p === code) ?? null;
 }
@@ -106,22 +103,16 @@ function classifyFinishStatus(ad) {
   return 'не указано';
 }
 
-function median(values) {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
-}
-
 // Живые проверки (владелец, август 2026): в цене за м² попадаются явно
 // битые значения — "цена по запросу" без реальной цифры (0 / $0.01 / $0.67
 // за м²/мес) и минимум один явный выброс ($29 583/м² на продаже — 72 м² на
-// ул. Игоря Лученка 4, при рынке района $1–13 тыс/м²). При маленьких N
-// (1–3 объявления в ячейке) один такой выброс убивает среднее. Границы
-// широкие и намеренно НЕ пытаются угадывать "подозрительно круглые" цены
-// (например, серия одинаковых $990/$1035 в одном доме на Савицкого 39 —
-// возможно, ошибка продавца, а возможно, реальная акция; граница их не
-// трогает) — только отсекают то, что математически не может быть ценой.
+// ул. Игоря Лученка 4, при рынке района $1–13 тыс/м²). Границы широкие и
+// намеренно НЕ пытаются угадывать "подозрительно круглые" цены (например,
+// серия одинаковых $990/$1035 в одном доме на Савицкого 39 — возможно,
+// ошибка продавца, а возможно, реальная акция; граница их не трогает) —
+// только отсекают то, что математически не может быть ценой. Остальную
+// сверку (в т.ч. такие подозрительные случаи) владелец делает сам на
+// /admin/market-offers.
 const PRICE_BOUNDS = {
   sale: { min: 300, max: 15000 },
   rent: { min: 5, max: 150 },
@@ -182,15 +173,8 @@ async function fetchAllListings(slug) {
   return allAds;
 }
 
-// finish_status: 'все' — отдельная сводная строка на (тип сделки × тип
-// помещения × площадь), посчитанная НАПРЯМУЮ из сырых цен всей группы
-// (а не как среднее по под-группам "с отделкой"/"без отделки"/"не
-// указано" — так медиана считается честно, а не оценивается задним
-// числом из уже готовых кусков). Именно 'все' идёт в таблицу на сайте;
-// разбивку по отделке использует только "дефицит"-инсайт.
-function aggregate(ads, dealType, excluded) {
-  const rawByGroup = new Map(); // key без finish_status — для сводной строки
-  const rawByFinishGroup = new Map();
+function extractOffers(ads, dealType, excluded) {
+  const offers = [];
 
   for (const ad of ads) {
     const address = getAccountParam(ad, 'address')?.v;
@@ -199,57 +183,41 @@ function aggregate(ads, dealType, excluded) {
     const propertyType = getAdParam(ad, 'property_type')?.vl || 'Не указано';
     const size = getAdParam(ad, 'size')?.v ?? null;
     const pricePerSqm = getAdParam(ad, 'square_meter')?.v ?? null;
-    const bucket = areaBucket(size);
-    if (!bucket || pricePerSqm == null) continue; // без площади/цены за м² в сводку не берём
+    if (size == null || pricePerSqm == null) continue; // без площади/цены за м² в сводку не берём
 
+    const adLink = `https://re.kufar.by/vi/${ad.ad_id}`;
     if (!isPlausiblePrice(dealType, pricePerSqm)) {
-      excluded.push({ dealType, propertyType, size, pricePerSqm, adLink: `https://re.kufar.by/vi/${ad.ad_id}` });
+      excluded.push({ dealType, propertyType, size, pricePerSqm, adLink });
       continue;
     }
 
-    const groupKey = `${dealType}|${propertyType}|${bucket}`;
-    if (!rawByGroup.has(groupKey)) rawByGroup.set(groupKey, { dealType, propertyType, bucket, prices: [] });
-    rawByGroup.get(groupKey).prices.push(pricePerSqm);
-
-    const finishStatus = classifyFinishStatus(ad);
-    const finishKey = `${groupKey}|${finishStatus}`;
-    if (!rawByFinishGroup.has(finishKey)) {
-      rawByFinishGroup.set(finishKey, { dealType, propertyType, bucket, finishStatus, prices: [] });
-    }
-    rawByFinishGroup.get(finishKey).prices.push(pricePerSqm);
+    offers.push({
+      source: 'Kufar',
+      ad_id: String(ad.ad_id),
+      deal_type: dealType,
+      property_type: propertyType,
+      size,
+      price_per_sqm: pricePerSqm,
+      finish_status: classifyFinishStatus(ad),
+      address: address ?? null,
+      ad_link: adLink,
+    });
   }
 
-  function toRow(g) {
-    return {
-      deal_type: g.dealType,
-      property_type: g.propertyType,
-      area_bucket: g.bucket,
-      finish_status: g.finishStatus ?? 'все',
-      offers_count: g.prices.length,
-      avg_price_per_sqm: Math.round((g.prices.reduce((a, b) => a + b, 0) / g.prices.length) * 100) / 100,
-      median_price_per_sqm: median(g.prices),
-    };
-  }
-
-  return [...rawByGroup.values()].map(toRow).concat([...rawByFinishGroup.values()].map(toRow));
+  return offers;
 }
 
 async function main() {
-  const month = new Date();
-  month.setUTCDate(1);
-  const monthStr = month.toISOString().slice(0, 10);
-
-  const rows = [];
+  const offers = [];
   const excluded = [];
   for (const { slug, dealType } of DEAL_TYPES) {
     console.log(`Kufar: тяну объявления (${slug})...`);
     const ads = await fetchAllListings(slug);
     console.log(`Kufar (${slug}): получено ${ads.length} объявлений по Октябрьскому району`);
 
-    const aggregated = aggregate(ads, dealType, excluded);
-    const summaryRows = aggregated.filter((r) => r.finish_status === 'все');
-    console.log(`Kufar (${slug}): из них по Минск Миру — ${summaryRows.reduce((s, r) => s + r.offers_count, 0)} объявлений в ${summaryRows.length} группах`);
-    rows.push(...aggregated);
+    const extracted = extractOffers(ads, dealType, excluded);
+    console.log(`Kufar (${slug}): из них по Минск Миру — ${extracted.length} объявлений`);
+    offers.push(...extracted);
   }
 
   if (excluded.length > 0) {
@@ -257,32 +225,48 @@ async function main() {
     console.table(excluded);
   }
 
-  if (rows.length === 0) {
+  if (offers.length === 0) {
     console.log('Kufar: по Минск Миру ничего не нашлось, в базу нечего писать.');
     return;
   }
 
   if (JSON_OUT) {
-    console.log(JSON.stringify(rows.map((r) => ({ ...r, month: monthStr, source: 'Kufar' }))));
+    console.log(JSON.stringify(offers));
     return;
   }
 
-  console.table(rows.map((r) => ({ ...r, month: monthStr })));
+  console.table(offers);
 
   if (DRY_RUN) {
     console.log('--dry-run: запись в Supabase пропущена.');
     return;
   }
 
-  const checkedAt = new Date().toISOString();
-  const payload = rows.map((r) => ({ ...r, month: monthStr, source: 'Kufar', checked_at: checkedAt }));
+  // Не затираем вручную подтверждённый статус отделки: подтягиваем, что уже
+  // есть в базе для этих ad_id, и для верифицированных строк оставляем
+  // finish_status как задал владелец — обновляем только цену/площадь/ссылку.
+  const adIds = offers.map((o) => o.ad_id);
+  const { data: existing, error: fetchError } = await supabase
+    .from('market_offers')
+    .select('ad_id, finish_status, finish_status_verified')
+    .eq('source', 'Kufar')
+    .in('ad_id', adIds);
+  if (fetchError) throw fetchError;
 
-  const { error } = await supabase
-    .from('market_offers_stats')
-    .upsert(payload, { onConflict: 'month,source,deal_type,property_type,area_bucket,finish_status' });
+  const verifiedByAdId = new Map((existing ?? []).filter((e) => e.finish_status_verified).map((e) => [e.ad_id, e.finish_status]));
+
+  const now = new Date().toISOString();
+  const payload = offers.map((o) => ({
+    ...o,
+    finish_status: verifiedByAdId.get(o.ad_id) ?? o.finish_status,
+    finish_status_verified: verifiedByAdId.has(o.ad_id),
+    updated_at: now,
+  }));
+
+  const { error } = await supabase.from('market_offers').upsert(payload, { onConflict: 'source,ad_id' });
   if (error) throw error;
 
-  console.log(`Сохранено ${payload.length} агрегированных строк в market_offers_stats.`);
+  console.log(`Сохранено ${payload.length} объявлений в market_offers (${verifiedByAdId.size} с сохранённой ручной пометкой отделки).`);
 }
 
 main().catch((err) => {

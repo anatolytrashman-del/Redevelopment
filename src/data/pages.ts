@@ -15,6 +15,7 @@ import {
   Landmark,
   Palette,
   Globe,
+  ClipboardCheck,
 } from 'lucide-react';
 
 // Единый список страниц админки — здесь и маршрут, и ключ доступа (см.
@@ -29,6 +30,7 @@ export type PageKey =
   | 'transactions'
   | 'leads'
   | 'landings'
+  | 'marketOffers'
   | 'contractors'
   | 'objects'
   | 'tz'
@@ -62,6 +64,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   { key: 'designProjects', to: '/admin/design-projects', label: 'Дизайн-проекты', icon: Palette },
   { key: 'leads', to: '/admin/leads', label: 'Лиды', icon: Users },
   { key: 'landings', to: '/admin/landings', label: 'Лендинги', icon: Globe },
+  { key: 'marketOffers', to: '/admin/market-offers', label: 'Рынок недвижимости', icon: ClipboardCheck },
   { key: 'contractors', to: '/admin/contractors', label: 'Подрядчики', icon: HardHat },
   { key: 'transactions', to: '/admin/transactions', label: 'Транзакции', icon: Receipt },
   { key: 'documents', to: '/admin/documents', label: 'Документы', icon: FileStack },
@@ -82,6 +85,7 @@ export const VISIBLE_PAGE_KEYS: PageKey[] = [
   'financing',
   'designProjects',
   'landings',
+  'marketOffers',
   'leads',
   'transactions',
   'documents',
@@ -102,7 +106,7 @@ export const SIDEBAR_LAYOUT: SidebarEntry[] = [
   { type: 'page', key: 'contractors' },
   { type: 'group', label: 'Стройка', keys: ['tz', 'estimates', 'designProjects'] },
   { type: 'group', label: 'Финансы', keys: ['finModels', 'financing', 'transactions', 'documents'] },
-  { type: 'group', label: 'Маркетинг', keys: ['landings', 'leads'] },
+  { type: 'group', label: 'Маркетинг', keys: ['landings', 'marketOffers', 'leads'] },
   { type: 'page', key: 'meetingSummaries' },
   { type: 'page', key: 'settings' },
 ];

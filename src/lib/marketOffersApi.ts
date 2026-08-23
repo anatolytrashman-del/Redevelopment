@@ -1,37 +1,48 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import type { MarketOfferStat, MarketOfferStatRow } from '../data/marketOffers';
+import type { MarketOffer, MarketOfferRow, FinishStatus } from '../data/marketOffers';
 
-function fromRow(row: MarketOfferStatRow): MarketOfferStat {
+function fromRow(row: MarketOfferRow): MarketOffer {
   return {
     id: row.id,
-    month: row.month,
     source: row.source,
-    dealType: row.deal_type as MarketOfferStat['dealType'],
+    adId: row.ad_id,
+    dealType: row.deal_type as MarketOffer['dealType'],
     propertyType: row.property_type,
-    areaBucket: row.area_bucket,
+    size: row.size,
+    pricePerSqm: row.price_per_sqm,
     finishStatus: row.finish_status,
-    offersCount: row.offers_count,
-    avgPricePerSqm: row.avg_price_per_sqm,
-    medianPricePerSqm: row.median_price_per_sqm,
+    finishStatusVerified: row.finish_status_verified,
+    address: row.address,
+    adLink: row.ad_link,
+    updatedAt: row.updated_at,
   };
 }
 
-// Отдаёт только последний собранный месяц (не всю историю) — на странице
-// нужен текущий срез рынка, не таймлайн.
-export function fetchLatestMarketOfferStats(): Promise<MarketOfferStat[]> {
+export function fetchMarketOffers(): Promise<MarketOffer[]> {
   return withRetry(async () => {
-    const { data: latest, error: latestError } = await supabase
-      .from('market_offers_stats')
-      .select('month')
-      .order('month', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (latestError) throw latestError;
-    if (!latest) return [];
-
-    const { data, error } = await supabase.from('market_offers_stats').select('*').eq('month', latest.month);
+    const { data, error } = await supabase.from('market_offers').select('*').order('updated_at', { ascending: false });
     if (error) throw error;
-    return (data as MarketOfferStatRow[]).map(fromRow);
+    return (data as MarketOfferRow[]).map(fromRow);
+  });
+}
+
+// Ручная простановка статуса отделки владельцем — помечает строку
+// verified=true, чтобы следующий месячный синк её не перезаписал (см.
+// scripts/sync-kufar-market-offers.mjs).
+export function setMarketOfferFinishStatus(id: number, finishStatus: FinishStatus): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase
+      .from('market_offers')
+      .update({ finish_status: finishStatus, finish_status_verified: true })
+      .eq('id', id);
+    if (error) throw error;
+  });
+}
+
+export function deleteMarketOffer(id: number): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase.from('market_offers').delete().eq('id', id);
+    if (error) throw error;
   });
 }

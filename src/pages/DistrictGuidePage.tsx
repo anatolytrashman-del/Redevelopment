@@ -41,9 +41,9 @@ import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
 import type { FaqItem } from '../components/ui/FaqAccordion';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
-import { fetchLatestMarketOfferStats } from '../lib/marketOffersApi';
-import { AREA_BUCKET_ORDER } from '../data/marketOffers';
-import type { MarketOfferStat } from '../data/marketOffers';
+import { fetchMarketOffers } from '../lib/marketOffersApi';
+import { AREA_BUCKET_ORDER, areaBucket } from '../data/marketOffers';
+import type { MarketOffer } from '../data/marketOffers';
 
 const PAGE_URL = 'https://redevelopment.pro/rayon-minsk-mir';
 // TITLE — для <title>/og/canonical, не трогаем: уже подобран под целевые
@@ -382,45 +382,44 @@ interface MarketPivotRow {
   cells: (MarketPivotCell | null)[];
 }
 
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
 // Цена помещений с отделкой и без — это принципиально разные рынки (голый
 // бетон стоит заметно дешевле готового к въезду), поэтому таблица не
 // схлопывает finish_status в общую цифру, а показывает выбранный статус
-// отдельно (переключатель ниже) — count/медиана для каждого статуса уже
-// честно посчитаны в скрипте синка напрямую из сырых цен этой подгруппы,
-// без клиентского пересчёта.
-function buildMarketPivot(
-  stats: MarketOfferStat[],
-  dealType: 'sale' | 'rent',
-  finishStatus: string,
-): MarketPivotRow[] {
-  const byType = new Map<string, Map<string, { count: number; medianPrice: number }>>();
+// отдельно (переключатель ниже). Медиана считается прямо здесь из сырых
+// объявлений — не из чужого предпосчитанного агрегата — поэтому правки
+// владельца на /admin/market-offers сразу видны и тут.
+function buildMarketPivot(offers: MarketOffer[], dealType: 'sale' | 'rent', finishStatus: string): MarketPivotRow[] {
+  const byType = new Map<string, Map<string, number[]>>();
 
-  for (const stat of stats) {
-    if (stat.dealType !== dealType || stat.finishStatus !== finishStatus) continue;
-    if (!byType.has(stat.propertyType)) byType.set(stat.propertyType, new Map());
-    byType.get(stat.propertyType)!.set(stat.areaBucket, { count: stat.offersCount, medianPrice: stat.medianPricePerSqm });
+  for (const offer of offers) {
+    if (offer.dealType !== dealType || offer.finishStatus !== finishStatus) continue;
+    if (!byType.has(offer.propertyType)) byType.set(offer.propertyType, new Map());
+    const byBucket = byType.get(offer.propertyType)!;
+    const bucket = areaBucket(offer.size);
+    if (!byBucket.has(bucket)) byBucket.set(bucket, []);
+    byBucket.get(bucket)!.push(offer.pricePerSqm);
   }
 
   return MARKET_PROPERTY_TYPE_ORDER.filter((type) => byType.has(type)).map((propertyType) => {
     const byBucket = byType.get(propertyType)!;
     const cells = AREA_BUCKET_ORDER.map((bucket) => {
-      const cell = byBucket.get(bucket);
-      return cell ? { count: cell.count, medianPrice: Math.round(cell.medianPrice) } : null;
+      const prices = byBucket.get(bucket);
+      return prices ? { count: prices.length, medianPrice: Math.round(median(prices)) } : null;
     });
     return { propertyType, cells };
   });
 }
 
-function countSmallFinishedOffices(stats: MarketOfferStat[], dealType: 'sale' | 'rent'): number {
-  return stats
-    .filter(
-      (s) =>
-        s.dealType === dealType &&
-        s.propertyType === 'Офисы' &&
-        s.areaBucket === '<40 м²' &&
-        s.finishStatus === 'с отделкой',
-    )
-    .reduce((sum, s) => sum + s.offersCount, 0);
+function countSmallFinishedOffices(offers: MarketOffer[], dealType: 'sale' | 'rent'): number {
+  return offers.filter(
+    (o) => o.dealType === dealType && o.propertyType === 'Офисы' && o.size < 40 && o.finishStatus === 'с отделкой',
+  ).length;
 }
 
 const MONTH_NAMES = [
@@ -438,9 +437,10 @@ const MONTH_NAMES = [
   'декабрь',
 ];
 
-function formatStatsMonth(month: string): string {
-  const [year, monthNum] = month.split('-');
-  return `${MONTH_NAMES[Number(monthNum) - 1]} ${year}`;
+function formatLatestUpdate(offers: MarketOffer[]): string {
+  const latest = offers.reduce((max, o) => (o.updatedAt > max ? o.updatedAt : max), offers[0].updatedAt);
+  const date = new Date(latest);
+  return `${MONTH_NAMES[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
 }
 
 const MARKET_FINISH_OPTIONS = ['С отделкой', 'Без отделки', 'Не указано'] as const;
@@ -530,7 +530,7 @@ const districtFaq: FaqItem[] = [
 // отдельная, более осмысленная для нас фраза. Обратной ссылки с /one сюда
 // нет осознанно — решение владельца не отвлекать с продающей страницы.
 export function DistrictGuidePage() {
-  const [marketStats, setMarketStats] = useState<MarketOfferStat[] | null>(null);
+  const [marketOffers, setMarketOffers] = useState<MarketOffer[] | null>(null);
   const [marketDealType, setMarketDealType] = useState<'Продажа' | 'Аренда'>('Продажа');
   const [marketFinish, setMarketFinish] = useState<(typeof MARKET_FINISH_OPTIONS)[number]>('С отделкой');
 
@@ -547,9 +547,9 @@ export function DistrictGuidePage() {
   }, []);
 
   useEffect(() => {
-    fetchLatestMarketOfferStats()
-      .then(setMarketStats)
-      .catch(() => setMarketStats([]));
+    fetchMarketOffers()
+      .then(setMarketOffers)
+      .catch(() => setMarketOffers([]));
   }, []);
 
   return (
@@ -711,8 +711,8 @@ export function DistrictGuidePage() {
               <TrendingUp className="h-5 w-5 shrink-0 text-ink" />
               <h2 className="text-lg font-bold text-ink">Рынок коммерческой недвижимости</h2>
             </div>
-            {marketStats && marketStats.length > 0 && (
-              <span className="text-xs text-ink-faint">Kufar · {formatStatsMonth(marketStats[0].month)}</span>
+            {marketOffers && marketOffers.length > 0 && (
+              <span className="text-xs text-ink-faint">Kufar · {formatLatestUpdate(marketOffers)}</span>
             )}
           </div>
           <p className="text-sm text-ink-muted">
@@ -720,12 +720,12 @@ export function DistrictGuidePage() {
             цена за м² по типу помещения и площади. Обновляется раз в месяц.
           </p>
 
-          {marketStats === null && <p className="text-sm text-ink-faint">Загрузка…</p>}
-          {marketStats !== null && marketStats.length === 0 && (
+          {marketOffers === null && <p className="text-sm text-ink-faint">Загрузка…</p>}
+          {marketOffers !== null && marketOffers.length === 0 && (
             <p className="text-sm text-ink-faint">Данные пока не собраны.</p>
           )}
 
-          {marketStats && marketStats.length > 0 && (
+          {marketOffers && marketOffers.length > 0 && (
             <>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <ToggleGroup
@@ -757,7 +757,7 @@ export function DistrictGuidePage() {
                   </thead>
                   <tbody className="divide-y divide-border">
                     {buildMarketPivot(
-                      marketStats,
+                      marketOffers,
                       marketDealType === 'Продажа' ? 'sale' : 'rent',
                       MARKET_FINISH_TO_DB[marketFinish],
                     ).map((row) => (
@@ -789,11 +789,11 @@ export function DistrictGuidePage() {
                 <p className="text-sm text-ink">
                   Небольших офисов (до 40 м²) с готовой отделкой в районе почти нет:{' '}
                   <span className="font-semibold text-success">
-                    {countSmallFinishedOffices(marketStats, 'sale')} предложение на продажу
+                    {countSmallFinishedOffices(marketOffers, 'sale')} предложение на продажу
                   </span>{' '}
                   и{' '}
                   <span className="font-semibold text-success">
-                    {countSmallFinishedOffices(marketStats, 'rent')} в аренду
+                    {countSmallFinishedOffices(marketOffers, 'rent')} в аренду
                   </span>{' '}
                   на весь Минск Мир. Red One закрывает именно этот дефицит —{' '}
                   <Link to="/one" className="font-semibold underline">
