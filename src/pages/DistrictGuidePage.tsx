@@ -32,9 +32,18 @@ import { FaqAccordion } from '../components/ui/FaqAccordion';
 import type { FaqItem } from '../components/ui/FaqAccordion';
 
 const PAGE_URL = 'https://redevelopment.pro/rayon-minsk-mir';
+// TITLE — для <title>/og/canonical, не трогаем: уже подобран под целевые
+// запросы, длиннее рискует обрезаться в поисковой выдаче. PAGE_H1 — то, что
+// реально видит посетитель на странице, может быть многословнее и точнее
+// по позиционированию ("гайд и аналитика" — владелец так решил после того,
+// как страница обросла блоками с реальными цифрами по каждой категории
+// арендаторов, это уже не просто описание района).
 const TITLE = 'Офисы и коммерческие помещения в районе Минск Мир';
+const PAGE_H1 = 'Гайд и аналитика по офисам и коммерческим помещениям в районе Минск Мир';
 const DESCRIPTION =
   'Коммерческая недвижимость в районе Минск Мир: готовая аудитория, транспорт, банки и МФЦ, медицина, форматы помещений под любой бизнес. Гид для арендаторов и собственников.';
+const INTRO_TEXT =
+  'Коммерческая недвижимость в районе Минск Мир: кто здесь живёт, чем уже занят рынок и какие ниши свободны. Актуальные данные по инфраструктуре — для тех, кто выбирает офис, кабинет или торговое помещение в аренду.';
 // Обновлять вручную при каждом квартальном пересмотре текста (см. SEO_PLAN.md, Э3-1).
 const DATE_MODIFIED = '2026-08-22';
 
@@ -346,20 +355,20 @@ export function DistrictGuidePage() {
       </div>
 
       <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-12 sm:px-8">
-        <div className="flex flex-col gap-3">
-          <p className="text-sm font-medium text-ink-muted">Обновлено: август 2026</p>
-          <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">{TITLE}</h1>
-          <p className="text-base text-ink-muted">
-            Готовая платёжеспособная аудитория для вашего бизнеса в шаговой доступности от двух станций метро.
-            По соседству — деловой центр Red One (Полтавская, 10).
-          </p>
-          <p className="flex items-center gap-1.5 text-xs text-ink-faint">
-            <MapPin className="h-3.5 w-3.5 shrink-0" />
-            {DISTRICT_COORDS} · Октябрьский район Минска
-          </p>
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:items-center">
+          <div className="flex flex-col gap-3">
+            <p className="text-sm font-medium text-ink-muted">Обновлено: август 2026</p>
+            <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">{PAGE_H1}</h1>
+            <p className="text-base text-ink-muted">{INTRO_TEXT}</p>
+            <p className="flex items-center gap-1.5 text-xs text-ink-faint">
+              <MapPin className="h-3.5 w-3.5 shrink-0" />
+              {DISTRICT_COORDS} · Октябрьский район Минска
+            </p>
+          </div>
+          <div className="mx-auto w-full max-w-xs sm:max-w-none">
+            <HeroImageSlider images={HERO_IMAGES} alt="Аэрофото района Минск Мир" aspectClassName="aspect-[4/5]" />
+          </div>
         </div>
-
-        <HeroImageSlider images={HERO_IMAGES} alt="Аэрофото района Минск Мир" />
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {statTiles.map(({ icon: Icon, value, label }) => (

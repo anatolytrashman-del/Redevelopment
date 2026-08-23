@@ -13,11 +13,15 @@ const CLIP_PATH =
 interface HeroImageSliderProps {
   images: string[];
   alt?: string;
+  // По умолчанию альбомный (16:9) — рендеры кабинетов на /one. Гид района
+  // передаёт вертикальный aspect-[4/5] под реальные портретные аэрофото —
+  // не разводить два похожих компонента ради одной пропорции.
+  aspectClassName?: string;
 }
 
 // Слайдер рендеров кабинетов на продающей странице объекта — пока нет
 // фото самого здания, это основная картинка на главном экране.
-export function HeroImageSlider({ images, alt = '' }: HeroImageSliderProps) {
+export function HeroImageSlider({ images, alt = '', aspectClassName = 'aspect-video' }: HeroImageSliderProps) {
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
@@ -38,7 +42,7 @@ export function HeroImageSlider({ images, alt = '' }: HeroImageSliderProps) {
     // фото внутри (уже случилось на гиде района, где фото 512×640, а не
     // альбомные рендеры как здесь) это игнорирует aspect-video и раздувает
     // блок под пропорции самой картинки.
-    <div className="relative aspect-video w-full min-h-0">
+    <div className={cn('relative w-full min-h-0', aspectClassName)}>
       {/* Рассеянная тень вместо жёсткой обводки — drop-shadow (в отличие от
           box-shadow/ring) огибает реальный силуэт после clip-path, включая
           диагональные срезы, без отдельного слоя-рамки. */}
