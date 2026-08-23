@@ -57,12 +57,43 @@ async function transcribeChunk(path: string, prompt: string, offsetSeconds: numb
   if (!resp.ok) {
     // 504 отдаёт сам Vercel (функция не уложилась в maxDuration), тела с
     // нашим сообщением у него нет — переводим на человеческий.
-    if (resp.status === 504) {
-      throw new Error('Сервер не успел расшифровать кусок за отведённое время — попробуйте ещё раз');
-    }
-    throw new Error(data.error || `Ошибка расшифровки (${resp.status})`);
+    const message = resp.status === 504
+      ? 'Сервер не успел расшифровать кусок за отведённое время — попробуйте ещё раз'
+      : data.error || `Ошибка расшифровки (${resp.status})`;
+    const err = new Error(message) as Error & { status?: number };
+    err.status = resp.status;
+    throw err;
   }
   return data.text ?? '';
+}
+
+// Один упавший кусок не должен ронять всю многоминутную (и оплачиваемую)
+// расшифровку — таймаут/икота Whisper на одном куске из дюжины реальна.
+// Повторяем цикл целиком, включая загрузку в бакет: сервер удаляет файл
+// из бакета даже при ошибке, к моменту повтора старого пути уже нет.
+// Осмысленные отказы (4xx: битый ключ, кривой запрос) не повторяем.
+const CHUNK_ATTEMPTS = 3;
+const RETRY_DELAYS_MS = [2000, 5000];
+
+async function uploadAndTranscribe(
+  blob: Blob,
+  ext: string,
+  prompt: string,
+  offsetSeconds: number,
+): Promise<string> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < CHUNK_ATTEMPTS; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt - 1]));
+    try {
+      const path = await uploadChunk(blob, ext);
+      return await transcribeChunk(path, prompt, offsetSeconds);
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      if (typeof status === 'number' && status < 500) throw err;
+      lastErr = err;
+    }
+  }
+  throw lastErr;
 }
 
 // Моно-микс + WAV-контейнер (PCM 16-бит little-endian) — стандартный
@@ -147,8 +178,7 @@ async function transcribeWholeFile(
   onProgress: (p: TranscribeProgress) => void,
 ): Promise<string> {
   onProgress({ stage: 'transcribing', chunkIndex: 1, chunkCount: 1 });
-  const path = await uploadChunk(file, fileExt(file));
-  return (await transcribeChunk(path, '', 0)).trim();
+  return (await uploadAndTranscribe(file, fileExt(file), '', 0)).trim();
 }
 
 export async function transcribeAudioFile(
@@ -183,11 +213,10 @@ export async function transcribeAudioFile(
     onProgress({ stage: 'transcribing', chunkIndex: i + 1, chunkCount });
     const slice = mono.subarray(i * samplesPerChunk, Math.min((i + 1) * samplesPerChunk, mono.length));
     const wav = encodeWavMono(slice, TARGET_SAMPLE_RATE);
-    const path = await uploadChunk(wav, 'wav');
     // Хвост уже расшифрованного текста — как контекст-подсказка Whisper для
     // связного шва между кусками (см. prompt в transcribe-meeting.js).
     const prompt = parts.join(' ').slice(-600);
-    parts.push((await transcribeChunk(path, prompt, i * CHUNK_SECONDS)).trim());
+    parts.push((await uploadAndTranscribe(wav, 'wav', prompt, i * CHUNK_SECONDS)).trim());
   }
   return parts.filter(Boolean).join('\n\n');
 }

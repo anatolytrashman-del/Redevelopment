@@ -120,11 +120,23 @@ export default async function handler(req, res) {
       form.append('prompt', prompt.slice(-600));
     }
 
-    const resp = await fetch('https://api.proxyapi.ru/openai/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.PROXYAPI_KEY}` },
-      body: form,
-    });
+    // Своя отсечка ДО жёсткого maxDuration Vercel: при ней функция успевает
+    // удалить файл из бакета и отдать внятный JSON (клиент повторит кусок),
+    // а при 504 от самого Vercel не происходит ни того, ни другого.
+    let resp;
+    try {
+      resp = await fetch('https://api.proxyapi.ru/openai/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.PROXYAPI_KEY}` },
+        body: form,
+        signal: AbortSignal.timeout(240_000),
+      });
+    } catch (err) {
+      if (err && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+        throw new Error('Whisper не ответил за 4 минуты — попробуйте кусок ещё раз');
+      }
+      throw err;
+    }
 
     if (!resp.ok) {
       const text = await resp.text();
