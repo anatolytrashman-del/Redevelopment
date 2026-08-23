@@ -99,15 +99,10 @@ export type SidebarEntry = { type: 'page'; key: PageKey } | { type: 'group'; lab
 export const SIDEBAR_LAYOUT: SidebarEntry[] = [
   { type: 'page', key: 'tasks' },
   { type: 'page', key: 'objects' },
-  { type: 'page', key: 'tz' },
-  { type: 'page', key: 'estimates' },
-  { type: 'page', key: 'finModels' },
-  { type: 'page', key: 'financing' },
-  { type: 'page', key: 'designProjects' },
+  { type: 'group', label: 'Стройка', keys: ['tz', 'estimates', 'designProjects'] },
+  { type: 'group', label: 'Финансы', keys: ['finModels', 'financing', 'transactions', 'documents'] },
   { type: 'group', label: 'Маркетинг', keys: ['landings', 'leads'] },
   { type: 'page', key: 'contractors' },
-  { type: 'page', key: 'transactions' },
-  { type: 'page', key: 'documents' },
   { type: 'page', key: 'meetingSummaries' },
   { type: 'page', key: 'settings' },
 ];
