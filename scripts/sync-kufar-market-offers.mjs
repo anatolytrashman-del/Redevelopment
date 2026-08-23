@@ -123,6 +123,28 @@ function isPlausiblePrice(dealType, pricePerSqm) {
   return pricePerSqm >= bounds.min && pricePerSqm <= bounds.max;
 }
 
+// Сокращённый набор категорий (владелец, август 2026) — полное обоснование
+// в комментарии над MARKET_PROPERTY_TYPES (src/data/marketOffers.ts).
+// Kufar отдаёт property_type одной строкой из своего словаря на весь
+// commercial-раздел разом (в отличие от Realt, где категория — часть URL,
+// см. sync-realt-market-offers.mjs) — поэтому переименование/удаление
+// категорий делаем тут, уже после получения, а не фильтрацией запроса.
+const PROPERTY_TYPE_RENAME = {
+  'Магазины, торговые помещения': 'Торговые помещения',
+  Склады: 'Кладовые',
+};
+// "Промышленные помещения"/"Прочая коммерческая" как категории не нужны
+// владельцу — новые такие объявления сразу попадают без категории (тот же
+// смысл, что и у ручного сброса существующих строк в миграции). "Сфера
+// услуг"/"Общепит" НЕ трогаем — эти по-прежнему нужны, Светлана
+// перераспределяет их по этажу в Офисы/Торговые при верификации.
+const UNCATEGORIZED_SOURCE_TYPES = new Set(['Промышленные помещения', 'Прочая коммерческая']);
+
+function normalizePropertyType(rawType) {
+  if (UNCATEGORIZED_SOURCE_TYPES.has(rawType)) return 'Без категории';
+  return PROPERTY_TYPE_RENAME[rawType] ?? rawType;
+}
+
 async function fetchListingPage(slug, cursor) {
   const url = new URL(`https://re.kufar.by/l/minsk-oktyabrskij-rajon/${slug}/kommercheskaya`);
   url.searchParams.set('size', String(PAGE_SIZE));
@@ -180,7 +202,7 @@ function extractOffers(ads, dealType, excluded) {
     const address = getAccountParam(ad, 'address')?.v;
     if (!isMinskMirAddress(address)) continue;
 
-    const propertyType = getAdParam(ad, 'property_type')?.vl || 'Не указано';
+    const propertyType = normalizePropertyType(getAdParam(ad, 'property_type')?.vl || 'Не указано');
     const size = getAdParam(ad, 'size')?.v ?? null;
     const pricePerSqm = getAdParam(ad, 'square_meter')?.v ?? null;
     if (size == null || pricePerSqm == null) continue; // без площади/цены за м² в сводку не берём

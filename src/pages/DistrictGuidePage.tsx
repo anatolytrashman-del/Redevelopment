@@ -387,11 +387,19 @@ function median(values: number[]): number {
 // отдельно (переключатель ниже). Медиана считается прямо здесь из сырых
 // объявлений — не из чужого предпосчитанного агрегата — поэтому правки
 // владельца на /admin/market-offers сразу видны и тут.
+//
+// В таблицу попадают только reviewed=true объявления — сырые данные с
+// Kufar/Realt часто путают отделку/тип/площадь (см. комментарии в
+// scripts/sync-*-market-offers.mjs), непроверенная строка может исказить
+// публичную статистику неправильной ценой. Как только Светлана
+// верифицирует объявление на /admin/market-offers, оно на этой же
+// перезагрузке страницы появится в сводке — без отдельного шага "включить
+// в статистику".
 function buildMarketPivot(offers: MarketOffer[], dealType: 'sale' | 'rent', finishStatus: string): MarketPivotRow[] {
   const byType = new Map<string, Map<string, number[]>>();
 
   for (const offer of offers) {
-    if (offer.dealType !== dealType || offer.finishStatus !== finishStatus) continue;
+    if (!offer.reviewed || offer.dealType !== dealType || offer.finishStatus !== finishStatus) continue;
     if (!byType.has(offer.propertyType)) byType.set(offer.propertyType, new Map());
     const byBucket = byType.get(offer.propertyType)!;
     const bucket = areaBucket(netSize(offer));
@@ -411,7 +419,8 @@ function buildMarketPivot(offers: MarketOffer[], dealType: 'sale' | 'rent', fini
 
 function countSmallFinishedOffices(offers: MarketOffer[], dealType: 'sale' | 'rent'): number {
   return offers.filter(
-    (o) => o.dealType === dealType && o.propertyType === 'Офисы' && netSize(o) < 40 && o.finishStatus === 'с отделкой',
+    (o) =>
+      o.reviewed && o.dealType === dealType && o.propertyType === 'Офисы' && netSize(o) < 40 && o.finishStatus === 'с отделкой',
   ).length;
 }
 
