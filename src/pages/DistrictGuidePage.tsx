@@ -382,17 +382,21 @@ interface MarketPivotRow {
   cells: (MarketPivotCell | null)[];
 }
 
-// Берёт готовую сводную строку (finish_status='все') — её count/медиана уже
-// честно посчитаны в скрипте синка напрямую из сырых цен, без клиентского
-// пересчёта (пересчитывать медиану из уже готовых под-групп "с отделкой"/
-// "без отделки" математически некорректно, поэтому раньше тут стояло
-// среднее — но одно битое или выпадающее объявление в маленькой ячейке
-// (1–3 предложения) полностью его ломало, отсюда нереалистичные цифры).
-function buildMarketPivot(stats: MarketOfferStat[], dealType: 'sale' | 'rent'): MarketPivotRow[] {
+// Цена помещений с отделкой и без — это принципиально разные рынки (голый
+// бетон стоит заметно дешевле готового к въезду), поэтому таблица не
+// схлопывает finish_status в общую цифру, а показывает выбранный статус
+// отдельно (переключатель ниже) — count/медиана для каждого статуса уже
+// честно посчитаны в скрипте синка напрямую из сырых цен этой подгруппы,
+// без клиентского пересчёта.
+function buildMarketPivot(
+  stats: MarketOfferStat[],
+  dealType: 'sale' | 'rent',
+  finishStatus: string,
+): MarketPivotRow[] {
   const byType = new Map<string, Map<string, { count: number; medianPrice: number }>>();
 
   for (const stat of stats) {
-    if (stat.dealType !== dealType || stat.finishStatus !== 'все') continue;
+    if (stat.dealType !== dealType || stat.finishStatus !== finishStatus) continue;
     if (!byType.has(stat.propertyType)) byType.set(stat.propertyType, new Map());
     byType.get(stat.propertyType)!.set(stat.areaBucket, { count: stat.offersCount, medianPrice: stat.medianPricePerSqm });
   }
@@ -438,6 +442,13 @@ function formatStatsMonth(month: string): string {
   const [year, monthNum] = month.split('-');
   return `${MONTH_NAMES[Number(monthNum) - 1]} ${year}`;
 }
+
+const MARKET_FINISH_OPTIONS = ['С отделкой', 'Без отделки', 'Не указано'] as const;
+const MARKET_FINISH_TO_DB: Record<(typeof MARKET_FINISH_OPTIONS)[number], string> = {
+  'С отделкой': 'с отделкой',
+  'Без отделки': 'без отделки',
+  'Не указано': 'не указано',
+};
 
 const metroStations = ['Ковальская Слобода', 'Аэродромная'];
 const busRoutes = ['4', '47с', '53', '56', '73', '84', '100', '107', '124', '172'];
@@ -521,6 +532,7 @@ const districtFaq: FaqItem[] = [
 export function DistrictGuidePage() {
   const [marketStats, setMarketStats] = useState<MarketOfferStat[] | null>(null);
   const [marketDealType, setMarketDealType] = useState<'Продажа' | 'Аренда'>('Продажа');
+  const [marketFinish, setMarketFinish] = useState<(typeof MARKET_FINISH_OPTIONS)[number]>('С отделкой');
 
   useEffect(() => {
     setGenericPageMeta({ title: TITLE, description: DESCRIPTION, url: PAGE_URL });
@@ -715,11 +727,22 @@ export function DistrictGuidePage() {
 
           {marketStats && marketStats.length > 0 && (
             <>
-              <ToggleGroup
-                options={['Продажа', 'Аренда']}
-                value={marketDealType}
-                onChange={(value) => setMarketDealType(value as 'Продажа' | 'Аренда')}
-              />
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <ToggleGroup
+                  options={['Продажа', 'Аренда']}
+                  value={marketDealType}
+                  onChange={(value) => setMarketDealType(value as 'Продажа' | 'Аренда')}
+                />
+                <ToggleGroup
+                  label="Отделка"
+                  options={[...MARKET_FINISH_OPTIONS]}
+                  value={marketFinish}
+                  onChange={(value) => setMarketFinish(value as (typeof MARKET_FINISH_OPTIONS)[number])}
+                />
+              </div>
+              <p className="text-xs text-ink-faint">
+                Цена с отделкой и без — разные рынки, поэтому не смешиваем их в одной цифре.
+              </p>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[520px] border-collapse text-sm">
                   <thead>
@@ -733,7 +756,11 @@ export function DistrictGuidePage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {buildMarketPivot(marketStats, marketDealType === 'Продажа' ? 'sale' : 'rent').map((row) => (
+                    {buildMarketPivot(
+                      marketStats,
+                      marketDealType === 'Продажа' ? 'sale' : 'rent',
+                      MARKET_FINISH_TO_DB[marketFinish],
+                    ).map((row) => (
                       <tr key={row.propertyType}>
                         <td className="py-2.5 pr-3 font-medium text-ink">{row.propertyType}</td>
                         {row.cells.map((cell, i) => (
