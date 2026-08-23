@@ -12,6 +12,7 @@ import {
   Stethoscope,
   Store,
   TrainFront,
+  TramFront,
   Users,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -64,6 +65,7 @@ const statTiles: { icon: LucideIcon; value: string; label: string }[] = [
   { icon: Bus, value: '14', label: 'автобусных и троллейбусных маршрутов' },
 ];
 
+const metroStations = ['Ковальская Слобода', 'Аэродромная'];
 const busRoutes = ['4', '47с', '53', '56', '73', '84', '100', '107', '124', '172'];
 const trolleyRoutes = ['19', '27', '59', '82'];
 
@@ -265,12 +267,27 @@ export function DistrictGuidePage() {
             <h2 className="text-lg font-bold text-ink">Транспорт и парковка</h2>
           </div>
           <p className="text-sm text-ink-muted">
-            Две станции метро на Зеленолужской линии — «Ковальская Слобода» и «Аэродромная». Рядом — Национальный
-            аэропорт Минск и Южная магистраль, удобный выезд на кольцевую.
+            Рядом — Национальный аэропорт Минск и Южная магистраль, удобный выезд на кольцевую.
           </p>
           <div className="flex flex-col gap-2 pt-1">
             <div className="flex flex-wrap items-start gap-2">
-              <span className="shrink-0 pt-1 text-xs font-semibold text-ink-muted">Автобусы:</span>
+              <span className="flex shrink-0 items-center gap-1.5 pt-0.5 text-xs font-semibold text-ink-muted">
+                <img src="/icons/minsk-metro-line3.png" alt="" className="h-4 w-auto" />
+                Метро:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {metroStations.map((s) => (
+                  <span key={s} className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink">
+                    {s}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-start gap-2">
+              <span className="flex shrink-0 items-center gap-1.5 pt-0.5 text-xs font-semibold text-ink-muted">
+                <Bus className="h-3.5 w-3.5" />
+                Автобусы:
+              </span>
               <div className="flex flex-wrap gap-1.5">
                 {busRoutes.map((r) => (
                   <span key={r} className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink">
@@ -280,7 +297,10 @@ export function DistrictGuidePage() {
               </div>
             </div>
             <div className="flex flex-wrap items-start gap-2">
-              <span className="shrink-0 pt-1 text-xs font-semibold text-ink-muted">Троллейбусы:</span>
+              <span className="flex shrink-0 items-center gap-1.5 pt-0.5 text-xs font-semibold text-ink-muted">
+                <TramFront className="h-3.5 w-3.5" />
+                Троллейбусы:
+              </span>
               <div className="flex flex-wrap gap-1.5">
                 {trolleyRoutes.map((r) => (
                   <span key={r} className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink">
