@@ -5,6 +5,8 @@ import {
   Building2,
   Car,
   Coffee,
+  CreditCard,
+  Dumbbell,
   Landmark,
   MapPin,
   Package,
@@ -15,6 +17,7 @@ import {
   TrainFront,
   TramFront,
   Users,
+  Wrench,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../lib/cn';
@@ -127,6 +130,47 @@ const foodServiceBreakdown: { label: string; count: number }[] = [
   { label: 'Пиццерии', count: 4 },
   { label: 'Кондитерские', count: 3 },
 ];
+
+// Спорт/фитнес — тот же метод (webarchive, поиск "спорт" на Яндекс.Картах),
+// 11 строк → 10 уникальных мест (1 дубль). Категории пересекаются (например
+// студия с йогой и пилатесом сразу), поэтому суммы по группам не равны
+// общему числу мест.
+const sportTotal = 10;
+const sportBreakdown: { label: string; count: number }[] = [
+  { label: 'Тренажёрные залы / фитнес-клубы', count: 7 },
+  { label: 'Йога / пилатес / стретчинг', count: 4 },
+];
+
+// Банки/банкоматы — webarchive, поиск "банкоматы", 19 строк → 18 уникальных
+// точек (1 дубль) → 11 разных банков (варианты написания вроде "Альфабанк,
+// банкомат" объединены с "Альфа-Банк"). В выдаче вперемешку отделения и
+// банкоматы — считаем точками присутствия банка, не буквально банкоматами.
+const bankPointsTotal = 18;
+const bankNamesCount = 11;
+const bankBreakdown: { label: string; count: number }[] = [
+  { label: 'Приорбанк', count: 2 },
+  { label: 'Беларусбанк', count: 2 },
+  { label: 'Альфа-Банк', count: 2 },
+  { label: 'МТБанк', count: 2 },
+  { label: 'Paritetbank', count: 2 },
+  { label: 'Белинвестбанк', count: 2 },
+  { label: 'Белагропромбанк', count: 2 },
+  { label: 'Банк ВТБ', count: 1 },
+  { label: 'БелВЭБ', count: 1 },
+  { label: 'Белгазпромбанк', count: 1 },
+  { label: 'Банк РРБ', count: 1 },
+];
+
+// СТО/автосервисы — webarchive, поиск "автосервис", 67 строк → 64
+// уникальных точки. В отличие от прошлых категорий, здесь важен не общий
+// счёт, а география: внутри жилых кварталов Минск Мира профильных точек
+// почти нет, зато рядом (ул. Казинца, Брестская, Бородинская, Брилевский
+// тупик) — плотный автосервисный кластер: 42 из 64 точек, больше 2/3
+// выдачи. Ровно то, что и предполагал владелец — подтверждено данными,
+// не просто общее наблюдение.
+const autoServiceTotal = 64;
+const autoServiceClusterCount = 42;
+const autoServiceClusterStreets = 'Казинца, Брестской, Бородинской и Брилевском тупике';
 
 const metroStations = ['Ковальская Слобода', 'Аэродромная'];
 const busRoutes = ['4', '47с', '53', '56', '73', '84', '100', '107', '124', '172'];
@@ -341,6 +385,55 @@ export function DistrictGuidePage() {
               </span>
             ))}
           </div>
+        </div>
+
+        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <Dumbbell className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Спорт и фитнес</h2>
+          </div>
+          <p className="text-sm text-ink-muted">
+            <span className="font-semibold text-ink">{sportTotal} залов и студий</span> в шаговой доступности —
+            от тренажёрных залов до йоги и пилатеса.
+          </p>
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {sportBreakdown.map(({ label, count }) => (
+              <span key={label} className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink">
+                {label} — {count}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <CreditCard className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Банки и банкоматы</h2>
+          </div>
+          <p className="text-sm text-ink-muted">
+            <span className="font-semibold text-ink">{bankPointsTotal} банковских точек</span> в районе —{' '}
+            {bankNamesCount} разных банков, от крупных государственных до частных сетевых.
+          </p>
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {bankBreakdown.map(({ label, count }) => (
+              <span key={label} className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink">
+                {label} — {count}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <Wrench className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">СТО и автосервисы</h2>
+          </div>
+          <p className="text-sm text-ink-muted">
+            Внутри самого Минск Мира профильных автосервисов почти нет — район жилой, не под авто-бизнес. Зато по
+            соседству находится крупная сервисная зона:{' '}
+            <span className="font-semibold text-ink">{autoServiceClusterCount} из {autoServiceTotal} точек</span>{' '}
+            СТО, шиномонтажа и автозапчастей сконцентрированы на улицах {autoServiceClusterStreets}.
+          </p>
         </div>
 
         <div className={cn('flex flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
