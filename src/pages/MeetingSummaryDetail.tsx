@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Copy, Check, Eye, Pencil, Mic, Sparkles, ListChecks, X } from 'lucide-react';
+import { ArrowLeft, Loader2, Copy, Check, Eye, Pencil, Mic, Upload, Sparkles, ListChecks, X } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -42,6 +42,8 @@ export function MeetingSummaryDetail() {
   const [copied, setCopied] = useState(false);
 
   const audioInputRef = useRef<HTMLInputElement>(null);
+  const transcriptFileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingTranscriptFile, setUploadingTranscriptFile] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [progress, setProgress] = useState<TranscribeProgress | null>(null);
   const [transcribeError, setTranscribeError] = useState<string | null>(null);
@@ -137,6 +139,32 @@ export function MeetingSummaryDetail() {
     } finally {
       setTranscribing(false);
       setProgress(null);
+    }
+  }
+
+  // Временный обходной путь, пока расшифровка через ProxyAPI неприемлемо
+  // медленная (и до одобрения заявки на API speech2text.ru): расшифровка,
+  // сделанная где угодно вручную, подхватывается загрузкой .txt-файла — тот
+  // же немедленный save, что и у расшифровки из аудио, чтобы не потерять
+  // результат забытым кликом. Дальше саммери/задачи работают одинаково,
+  // независимо от источника текста.
+  async function handleTranscriptFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (transcriptFileInputRef.current) transcriptFileInputRef.current.value = '';
+    if (!file || !summary || uploadingTranscriptFile) return;
+    setUploadingTranscriptFile(true);
+    setTranscribeError(null);
+    try {
+      const text = (await file.text()).trim();
+      if (!text) throw new Error('Файл пустой');
+      setTranscript(text);
+      setShowTranscript(true);
+      const updated = await updateMeetingSummary(summary.id, { title: summary.title, content: summary.content, transcript: text });
+      setSummary(updated);
+    } catch (err) {
+      setTranscribeError(errorMessage(err, 'Не удалось загрузить файл расшифровки'));
+    } finally {
+      setUploadingTranscriptFile(false);
     }
   }
 
@@ -308,6 +336,22 @@ export function MeetingSummaryDetail() {
                   ? 'Расшифровать другую запись'
                   : 'Загрузить запись и расшифровать'}
             </Button>
+            <input
+              ref={transcriptFileInputRef}
+              type="file"
+              accept=".txt,.md,text/plain"
+              className="hidden"
+              onChange={handleTranscriptFileSelected}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              icon={uploadingTranscriptFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              onClick={() => transcriptFileInputRef.current?.click()}
+              disabled={uploadingTranscriptFile || transcribing}
+            >
+              {uploadingTranscriptFile ? 'Загружаем...' : 'Загрузить текст расшифровки'}
+            </Button>
             <Button
               type="button"
               icon={summarizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
@@ -318,26 +362,24 @@ export function MeetingSummaryDetail() {
             </Button>
           </div>
           {transcribeError && <p className="text-sm text-danger">{transcribeError}</p>}
-          {transcript.trim() && (
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => setShowTranscript((v) => !v)}
-                className="w-fit text-sm font-medium text-ink-muted hover:text-primary"
-              >
-                {showTranscript ? 'Скрыть расшифровку' : 'Показать расшифровку'}
-              </button>
-              {showTranscript && (
-                <Textarea
-                  value={transcript}
-                  onChange={(e) => setTranscript(e.target.value)}
-                  rows={12}
-                  className="font-mono text-xs"
-                  placeholder="Расшифровка записи"
-                />
-              )}
-            </div>
-          )}
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => setShowTranscript((v) => !v)}
+              className="w-fit text-sm font-medium text-ink-muted hover:text-primary"
+            >
+              {showTranscript ? 'Скрыть расшифровку' : transcript.trim() ? 'Показать расшифровку' : 'Ввести расшифровку вручную'}
+            </button>
+            {showTranscript && (
+              <Textarea
+                value={transcript}
+                onChange={(e) => setTranscript(e.target.value)}
+                rows={12}
+                className="font-mono text-xs"
+                placeholder="Расшифровка записи"
+              />
+            )}
+          </div>
         </Card>
       )}
 
