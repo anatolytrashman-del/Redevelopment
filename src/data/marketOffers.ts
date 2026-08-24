@@ -19,6 +19,16 @@ export interface MarketOffer {
   // Одновременно это же поле защищает строку от перезаписи при следующем
   // месячном синке (см. scripts/sync-kufar-market-offers.mjs).
   reviewed: boolean;
+  // Светлана посмотрела объявление и решила, что оно не подходит (не тот
+  // сегмент/дублирует уже отклонённое/явный мусор) — не удаляем строку
+  // физически, а помечаем: удалённая строка при следующем месячном синке
+  // (тот же ad_id ещё есть у источника) считалась бы "новой" и появлялась
+  // бы заново, а reviewed=true уже и так защищает всю строку от
+  // перезаписи (см. scripts/sync-kufar-market-offers.mjs) — rejected
+  // просто держит её ещё и скрытой из очереди верификации и сводной
+  // статистики. Устанавливается вместе с reviewed=true (отклонение —
+  // тоже форма обработки).
+  rejected: boolean;
   // Не у всех объявлений заполнен — используется только как доп. сигнал
   // при поиске дублей (dedupKey), в остальном не критичен.
   floor: number | null;
@@ -44,6 +54,7 @@ export interface MarketOfferRow {
   price_per_sqm: number;
   finish_status: string;
   reviewed: boolean;
+  rejected: boolean;
   floor: number | null;
   has_terrace: boolean;
   terrace_area: number | null;

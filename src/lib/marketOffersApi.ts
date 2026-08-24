@@ -13,6 +13,7 @@ function fromRow(row: MarketOfferRow): MarketOffer {
     pricePerSqm: row.price_per_sqm,
     finishStatus: row.finish_status,
     reviewed: row.reviewed,
+    rejected: row.rejected,
     floor: row.floor,
     hasTerrace: row.has_terrace,
     terraceArea: row.terrace_area,
@@ -46,6 +47,20 @@ export function setMarketOfferFinishStatus(id: number, finishStatus: FinishStatu
 export function setMarketOfferReviewed(id: number, reviewed: boolean): Promise<void> {
   return withRetry(async () => {
     const { error } = await supabase.from('market_offers').update({ reviewed }).eq('id', id);
+    if (error) throw error;
+  });
+}
+
+// "Не подходит" / "Восстановить" — см. MarketOffer.rejected в
+// data/marketOffers.ts. Отклонение всегда заодно ставит reviewed=true
+// (это тоже обработка строки); восстановление reviewed не трогает —
+// строка уже была разобрана, просто решение поменялось.
+export function setMarketOfferRejected(id: number, rejected: boolean): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase
+      .from('market_offers')
+      .update(rejected ? { rejected, reviewed: true } : { rejected })
+      .eq('id', id);
     if (error) throw error;
   });
 }

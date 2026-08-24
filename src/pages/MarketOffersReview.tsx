@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Check, CheckCircle2, ExternalLink, Loader2, Pencil, Play, Trash2 } from 'lucide-react';
+import { Ban, Check, CheckCircle2, ExternalLink, Loader2, Pencil, Play, Trash2, Undo2 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { SearchInput } from '../components/ui/SearchInput';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
@@ -14,6 +14,7 @@ import {
   fetchMarketOffers,
   updateMarketOffer,
   deleteMarketOffer,
+  setMarketOfferRejected,
   fetchDismissedDedupKeys,
   dismissDuplicateGroup,
 } from '../lib/marketOffersApi';
@@ -54,6 +55,19 @@ import type { MarketOffer, FinishStatus } from '../data/marketOffers';
 // сессии верификации (skippedGroupKeys/skippedSingleIds — сбрасываются
 // каждый раз при новом запуске), не путать с "Это разные помещения"
 // (постоянное решение в БД).
+//
+// "Не подходит" (кнопка в строке) — для объявлений, которые Светлана
+// разобрала, но которые не годятся для сводки (не тот сегмент, явный
+// мусор и т.п.). НЕ удаляет строку — просто ставит rejected=true (заодно
+// reviewed=true). Владелец: "сохраняй его в памяти, чтобы в следующем
+// месяце при парсинге он не отображался снова" — удалённая строка была бы
+// неотличима от новой при следующем месячном синке (тот же ad_id всё ещё
+// есть у источника) и появилась бы в очереди верификации заново; оставленная
+// в базе с rejected=true не показывается ни в очереди верификации, ни в
+// группах дублей, ни в сводной статистике на /minsk/minsk-mir (см.
+// buildMarketPivot/countSmallFinishedOffices там и в DistrictAnalyticsPage.tsx),
+// но остаётся видна на этой странице через фильтр "Не подходит" — на случай,
+// если решение нужно будет отменить ("Восстановить").
 
 const FINISH_FILTER_OPTIONS = ['Все', 'Не указано', 'С отделкой', 'Без отделки'] as const;
 type FinishFilter = (typeof FINISH_FILTER_OPTIONS)[number];
@@ -68,7 +82,7 @@ const FINISH_FILTER_TO_DB: Record<FinishFilter, FinishStatus | null> = {
 const DEAL_FILTER_OPTIONS = ['Все', 'Продажа', 'Аренда'] as const;
 type DealFilter = (typeof DEAL_FILTER_OPTIONS)[number];
 
-const REVIEW_FILTER_OPTIONS = ['Все', 'Не обработано', 'Проверено'] as const;
+const REVIEW_FILTER_OPTIONS = ['Все', 'Не обработано', 'Проверено', 'Не подходит'] as const;
 type ReviewFilter = (typeof REVIEW_FILTER_OPTIONS)[number];
 
 const SOURCE_FILTER_OPTIONS = ['Все', 'Kufar', 'Realt'] as const;
@@ -122,7 +136,14 @@ function FinishBadge({ status }: { status: FinishStatus }) {
   );
 }
 
-function ReviewedBadge({ reviewed }: { reviewed: boolean }) {
+function ReviewedBadge({ reviewed, rejected }: { reviewed: boolean; rejected: boolean }) {
+  if (rejected) {
+    return (
+      <span className="whitespace-nowrap rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-medium text-ink-faint">
+        Не подходит
+      </span>
+    );
+  }
   return (
     <span
       className={cn(
@@ -170,11 +191,13 @@ function OfferRow({
   pending,
   onEdit,
   onDelete,
+  onToggleReject,
 }: {
   offer: MarketOffer;
   pending: boolean;
   onEdit: (offer: MarketOffer) => void;
   onDelete: (offer: MarketOffer) => void;
+  onToggleReject: (offer: MarketOffer) => void;
 }) {
   return (
     <tr className={pending ? 'opacity-50' : undefined}>
@@ -217,7 +240,7 @@ function OfferRow({
         <FinishBadge status={offer.finishStatus as FinishStatus} />
       </td>
       <td className="whitespace-nowrap py-2.5 px-2">
-        <ReviewedBadge reviewed={offer.reviewed} />
+        <ReviewedBadge reviewed={offer.reviewed} rejected={offer.rejected} />
       </td>
       <td className="whitespace-nowrap py-2.5 pl-2">
         <div className="flex items-center justify-end gap-1.5">
@@ -228,6 +251,23 @@ function OfferRow({
           >
             <Pencil className="h-3.5 w-3.5" />
             Редактировать
+          </button>
+          <button
+            type="button"
+            onClick={() => onToggleReject(offer)}
+            className="flex items-center gap-1 rounded-full border border-border px-2 py-1 text-xs font-medium text-ink-muted hover:border-border-strong hover:bg-surface-muted"
+          >
+            {offer.rejected ? (
+              <>
+                <Undo2 className="h-3.5 w-3.5" />
+                Восстановить
+              </>
+            ) : (
+              <>
+                <Ban className="h-3.5 w-3.5" />
+                Не подходит
+              </>
+            )}
           </button>
           <button type="button" onClick={() => onDelete(offer)} aria-label="Удалить объявление" className="p-1 text-ink-faint hover:text-danger">
             <Trash2 className="h-4 w-4" />
@@ -293,6 +333,7 @@ export function MarketOffersReview() {
     if (!offers) return new Map<string, MarketOffer[]>();
     const groups = new Map<string, MarketOffer[]>();
     for (const offer of offers) {
+      if (offer.rejected) continue;
       const key = dedupKey(offer);
       if (!key || dismissedKeys.has(key)) continue;
       if (!groups.has(key)) groups.set(key, []);
@@ -321,7 +362,8 @@ export function MarketOffersReview() {
       finished: offers.filter((o) => o.finishStatus === 'с отделкой').length,
       unfinished: offers.filter((o) => o.finishStatus === 'без отделки').length,
       unknown: offers.filter((o) => o.finishStatus === 'не указано').length,
-      reviewed: offers.filter((o) => o.reviewed).length,
+      reviewed: offers.filter((o) => o.reviewed && !o.rejected).length,
+      rejected: offers.filter((o) => o.rejected).length,
       duplicates: [...duplicateGroups.values()].reduce((sum, g) => sum + g.length, 0),
     };
   }, [offers, duplicateGroups]);
@@ -340,7 +382,8 @@ export function MarketOffersReview() {
         if (dealFilter === 'Продажа' && o.dealType !== 'sale') return false;
         if (dealFilter === 'Аренда' && o.dealType !== 'rent') return false;
         if (reviewFilter === 'Не обработано' && o.reviewed) return false;
-        if (reviewFilter === 'Проверено' && !o.reviewed) return false;
+        if (reviewFilter === 'Проверено' && (!o.reviewed || o.rejected)) return false;
+        if (reviewFilter === 'Не подходит' && !o.rejected) return false;
         if (sourceFilter !== 'Все' && o.source !== sourceFilter) return false;
         if (query && !(o.address ?? '').toLowerCase().includes(query) && !o.propertyType.toLowerCase().includes(query)) {
           return false;
@@ -405,6 +448,22 @@ export function MarketOffersReview() {
       setOffers((prev) => (prev ?? []).filter((o) => o.id !== offer.id));
     } catch {
       setError('Не удалось удалить объявление — попробуйте ещё раз.');
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  // "Не подходит" — не удаляет строку (см. MarketOffer.rejected):
+  // объявление остаётся в базе с тем же ad_id, поэтому следующий месячный
+  // синк не заведёт его заново как новое.
+  async function handleToggleReject(offer: MarketOffer) {
+    const nextRejected = !offer.rejected;
+    setPendingId(offer.id);
+    try {
+      await setMarketOfferRejected(offer.id, nextRejected);
+      patchOffer(offer.id, { rejected: nextRejected, reviewed: nextRejected ? true : offer.reviewed });
+    } catch {
+      setError('Не удалось сохранить решение — попробуйте ещё раз.');
     } finally {
       setPendingId(null);
     }
@@ -536,6 +595,7 @@ export function MarketOffersReview() {
                 Всего {counts.total} объявлений (Kufar {counts.kufar} · Realt {counts.realt}) · с отделкой{' '}
                 {counts.finished} · без отделки {counts.unfinished} · не указано {counts.unknown} · обработано{' '}
                 {counts.reviewed} из {counts.total}
+                {counts.rejected > 0 && <> · не подходит {counts.rejected}</>}
                 {counts.duplicates > 0 && (
                   <>
                     {' '}
@@ -596,6 +656,7 @@ export function MarketOffersReview() {
                             pending={pendingId === offer.id}
                             onEdit={openEdit}
                             onDelete={handleDelete}
+                            onToggleReject={handleToggleReject}
                           />
                         ))}
                       </tbody>
@@ -674,6 +735,7 @@ export function MarketOffersReview() {
                                 pending={pendingId === offer.id}
                                 onEdit={openEdit}
                                 onDelete={handleDelete}
+                                onToggleReject={handleToggleReject}
                               />
                             ))}
                           </tbody>
@@ -726,6 +788,7 @@ export function MarketOffersReview() {
                           pending={pendingId === offer.id}
                           onEdit={openEdit}
                           onDelete={handleDelete}
+                          onToggleReject={handleToggleReject}
                         />
                       ))}
                     </tbody>

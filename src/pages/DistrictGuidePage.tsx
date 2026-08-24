@@ -538,7 +538,7 @@ function buildMarketPivot(offers: MarketOffer[], dealType: 'sale' | 'rent', fini
   const byType = new Map<string, Map<string, number[]>>();
 
   for (const offer of offers) {
-    if (!offer.reviewed || offer.dealType !== dealType || offer.finishStatus !== finishStatus) continue;
+    if (!offer.reviewed || offer.rejected || offer.dealType !== dealType || offer.finishStatus !== finishStatus) continue;
     if (!byType.has(offer.propertyType)) byType.set(offer.propertyType, new Map());
     const byBucket = byType.get(offer.propertyType)!;
     const bucket = areaBucket(netSize(offer));
@@ -559,7 +559,7 @@ function buildMarketPivot(offers: MarketOffer[], dealType: 'sale' | 'rent', fini
 function countSmallFinishedOffices(offers: MarketOffer[], dealType: 'sale' | 'rent'): number {
   return offers.filter(
     (o) =>
-      o.reviewed && o.dealType === dealType && o.propertyType === 'Офисы' && netSize(o) < 40 && o.finishStatus === 'с отделкой',
+      o.reviewed && !o.rejected && o.dealType === dealType && o.propertyType === 'Офисы' && netSize(o) < 40 && o.finishStatus === 'с отделкой',
   ).length;
 }
 
