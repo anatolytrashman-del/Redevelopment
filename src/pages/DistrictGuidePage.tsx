@@ -69,9 +69,8 @@ const PAGE_URL = 'https://redevelopment.pro/minsk/minsk-mir';
 const TITLE = 'Офисы и коммерческие помещения в районе Минск Мир';
 const PAGE_H1 = 'Коммерческая недвижимость Минск Мира: гайд и аналитика';
 const DESCRIPTION =
-  'Экспертный разбор коммерческой недвижимости в Минск Мире для инвесторов, собственников и арендаторов.';
-const INTRO_TEXT =
-  'Кто здесь уже работает, какие ниши свободны и на что смотреть при выборе офиса или торгового помещения в районе.';
+  'Коммерческая недвижимость в районе Минск Мир: готовая аудитория, транспорт, банки и МФЦ, медицина, форматы помещений под любой бизнес. Гид для арендаторов и собственников.';
+const INTRO_TEXT = 'Экспертный разбор коммерческой недвижимости в Минск Мире для инвесторов, собственников и арендаторов.';
 // Обновлять вручную при каждом квартальном пересмотре текста (см. SEO_PLAN.md, Э3-1).
 const DATE_MODIFIED = '2026-08-22';
 
@@ -820,27 +819,26 @@ export function DistrictGuidePage() {
       </aside>
 
       {/* Шапка выровнена по той же сетке, что и основной контент ниже
-          (lg:grid-cols-[200px_1fr]) — пустая первая колонка держит место
-          под боковое оглавление, логотип и меню начинаются ровно там же,
-          где начинается главный блок (карточка hero), а не у самого края
-          страницы, как раньше (владелец: "выровнять по левому краю
-          главного блока"). Ниже lg сайдбар скрыт целиком, поэтому и
-          колонка-заглушка скрыта — шапка занимает всю ширину, как обычно. */}
+          (lg:grid-cols-[200px_1fr]) — но не общим блоком во второй
+          колонке (так было в прошлом заходе, владелец поправил разметкой
+          на скриншоте: красным обвёл логотип, зелёным — меню). Логотип —
+          в ПЕРВОЙ колонке, там же, где ниже начинается боковое
+          оглавление; меню "Аналитика"/Red One — во ВТОРОЙ, там же, где
+          начинается hero-карточка, прижато к левому краю этой колонки
+          (не justify-between до правого края страницы). Ниже lg обе
+          колонки становятся одним flex-рядом на всю ширину, как и раньше. */}
       <div className="border-b border-border py-5">
         <div className="mx-auto max-w-6xl px-4 sm:px-8">
-          <div className="lg:grid lg:grid-cols-[200px_1fr] lg:gap-10">
-            <div className="hidden lg:block" />
-            <div className="flex items-center justify-between">
-              <Link to="/minsk" className="shrink-0 text-lg font-extrabold tracking-wide text-ink">
-                <span className="font-black text-primary">RED</span>EVELOPMENT
+          <div className="flex items-center justify-between lg:grid lg:grid-cols-[200px_1fr] lg:items-center lg:gap-10">
+            <Link to="/minsk" className="shrink-0 text-lg font-extrabold tracking-wide text-ink">
+              <span className="font-black text-primary">RED</span>EVELOPMENT
+            </Link>
+            <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted sm:flex">
+              <Link to="/minsk/one" className="transition-colors hover:text-ink">
+                Деловой центр Red One
               </Link>
-              <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted sm:flex">
-                <Link to="/minsk/one" className="transition-colors hover:text-ink">
-                  Деловой центр Red One
-                </Link>
-                <AnalyticsMenu />
-              </nav>
-            </div>
+              <AnalyticsMenu />
+            </nav>
           </div>
         </div>
       </div>
