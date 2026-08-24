@@ -104,14 +104,14 @@ export const PRIMARY_MARKET_ROW_ORDER: { key: string; label: string; filter: (o:
   },
   {
     key: 'apartments-stroitsya',
-    label: 'Бизнес-апартаменты — строится',
+    label: 'Бизнес-апартаменты',
     filter: (o) => o.category === 'Бизнес-апартаменты' && o.stage === 'Строится',
   },
   { key: 'retail', label: 'Торговые помещения', filter: (o) => o.category === 'Торговые помещения' },
   { key: 'offices', label: 'Офисы', filter: (o) => o.category === 'Офисы' },
   { key: 'pantry', label: 'Кладовые', filter: (o) => o.category === 'Кладовые' },
-  { key: 'parking-covered', label: 'Машиноместа — крытые', filter: (o) => o.category === 'Машиноместа (крытые)' },
-  { key: 'parking-underground', label: 'Машиноместа — подземные', filter: (o) => o.category === 'Машиноместа (подземные)' },
+  { key: 'parking-covered', label: 'Машиноместа крытые', filter: (o) => o.category === 'Машиноместа (крытые)' },
+  { key: 'parking-underground', label: 'Машиноместа подземные', filter: (o) => o.category === 'Машиноместа (подземные)' },
 ];
 
 export function buildPrimaryMarketPivot(offers: PrimaryMarketOffer[]): PrimaryMarketPivotRow[] {

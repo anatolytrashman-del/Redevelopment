@@ -1347,7 +1347,7 @@ export function DistrictGuidePage() {
                     >
                       <td className="py-2.5 pr-3 font-medium text-ink">{row.label}</td>
                       <td className="py-2.5 px-2 text-right tabular-nums text-ink">{row.count}</td>
-                      <td className="py-2.5 px-2 text-right tabular-nums text-ink-faint">
+                      <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-faint">
                         {row.areaMin === row.areaMax ? `${row.areaMin}` : `${row.areaMin}–${row.areaMax}`} м²
                       </td>
                       <td className="py-2.5 px-2 text-right tabular-nums text-ink-faint">
@@ -1383,8 +1383,6 @@ export function DistrictGuidePage() {
               </span>
             </button>
           )}
-
-          <p className="text-xs text-ink-faint">Источник — bir.by, объявления Dana Holdings в Минск Мире.</p>
         </div>
 
         <div id="market" className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
