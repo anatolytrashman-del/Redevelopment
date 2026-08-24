@@ -16,14 +16,24 @@ interface LandingEntry {
 
 const LANDINGS: LandingEntry[] = [
   {
+    title: 'Хаб «Минск»',
+    description: 'Комплексы компании, гиды по районам и аналитика рынка — общий раздел /minsk.',
+    url: 'https://redevelopment.pro/minsk',
+  },
+  {
     title: 'Лендинг комплекса Red One',
     description: 'Продающая страница делового комплекса Red One — планировки, бронирование кабинетов и рабочих мест.',
-    url: 'https://redevelopment.pro/one',
+    url: 'https://redevelopment.pro/minsk/one',
   },
   {
     title: 'Страница про Минск-Мир',
     description: 'Гид и аналитика по офисам и коммерческим помещениям в районе Минск Мир — контентная SEO-страница.',
-    url: 'https://redevelopment.pro/rayon-minsk-mir',
+    url: 'https://redevelopment.pro/minsk/minsk-mir',
+  },
+  {
+    title: 'Аналитика рынка: Минск Мир',
+    description: 'Цены и предложения по продаже и аренде коммерческих помещений — сводная таблица по району.',
+    url: 'https://redevelopment.pro/minsk/analytics/minsk-mir',
   },
 ];
 

@@ -3,9 +3,13 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { RequirePage } from './components/layout/RequirePage';
 import { RequireSuperAdmin } from './components/layout/RequireSuperAdmin';
+import { useParams } from 'react-router-dom';
 import { PublicBuildingPlan } from './pages/PublicBuildingPlan';
 import { ObjectLandingPage } from './pages/ObjectLandingPage';
 import { DistrictGuidePage } from './pages/DistrictGuidePage';
+import { MinskHub } from './pages/MinskHub';
+import { MinskAnalyticsHub } from './pages/MinskAnalyticsHub';
+import { DistrictAnalyticsPage } from './pages/DistrictAnalyticsPage';
 import { BriefPublicPage } from './pages/BriefPublicPage';
 import { MeetingSummaryPublicPage } from './pages/MeetingSummaryPublicPage';
 import { NotFound } from './pages/NotFound';
@@ -67,6 +71,16 @@ function usePreventPageZoom() {
   }, []);
 }
 
+// Старые ссылки без /minsk (индексировались недолго, до переезда на
+// city-scoped структуру урлов — см. CLAUDE.md) — /one, /redstorage и любой
+// будущий объект по тому же паттерну автоматически редиректятся на новый
+// адрес. /rayon-minsk-mir — особый случай (слаг переименован в minsk-mir,
+// не просто добавлен префикс), у него свой отдельный редирект ниже.
+function LegacySlugRedirect() {
+  const { legacySlug } = useParams();
+  return <Navigate to={`/minsk/${legacySlug}`} replace />;
+}
+
 // Фолбэк на время догрузки чанка админки (см. lazy() выше) — только для
 // /admin/*, публичные страницы импортированы статически и его не видят.
 function AdminChunkFallback() {
@@ -82,17 +96,25 @@ export default function App() {
   return (
     <Routes>
       {/* Публичная часть — без AppLayout и без пароля, для клиентов и рекламы.
-          Пока нет отдельного лендинга компании, голый домен ведёт сразу на
-          продающую страницу объекта "Полтавская" (см. RealtyObject.landingSlug).
-          Импортированы статически (не lazy) — это ровно те страницы, ради
-          которых существует бандл-сплиттинг выше: им нельзя добавлять лишний
-          сетевой перелёт на догрузку чанка. */}
-      <Route path="/" element={<Navigate to="/one" replace />} />
-      <Route path="/rayon-minsk-mir" element={<DistrictGuidePage />} />
+          Пока нет отдельного лендинга компании (см. SEO_PLAN.md, Э2-4), корень
+          временно ведёт на /minsk — city-scoped раздел (комплексы, гиды по
+          районам, аналитика), готовый к появлению других городов рядом без
+          переезда уже проиндексированных ссылок под /minsk. Импортированы
+          статически (не lazy) — это ровно те страницы, ради которых существует
+          бандл-сплиттинг выше: им нельзя добавлять лишний сетевой перелёт на
+          догрузку чанка. */}
+      <Route path="/" element={<Navigate to="/minsk" replace />} />
+      <Route path="/minsk" element={<MinskHub />} />
+      <Route path="/minsk/analytics" element={<MinskAnalyticsHub />} />
+      <Route path="/minsk/analytics/:district" element={<DistrictAnalyticsPage />} />
+      <Route path="/minsk/minsk-mir" element={<DistrictGuidePage />} />
       <Route path="/plan/:token" element={<PublicBuildingPlan />} />
       <Route path="/tz/:token" element={<BriefPublicPage />} />
       <Route path="/summary/:token" element={<MeetingSummaryPublicPage />} />
-      <Route path="/:slug" element={<ObjectLandingPage />} />
+      <Route path="/minsk/:slug" element={<ObjectLandingPage />} />
+      {/* Старые адреса без /minsk — см. LegacySlugRedirect выше. */}
+      <Route path="/rayon-minsk-mir" element={<Navigate to="/minsk/minsk-mir" replace />} />
+      <Route path="/:legacySlug" element={<LegacySlugRedirect />} />
 
       {/* Админка теперь живёт под /admin, а не на голом домене — корень
           зарезервирован под продающие страницы объектов. */}

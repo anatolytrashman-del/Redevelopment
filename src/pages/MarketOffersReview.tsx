@@ -23,7 +23,7 @@ import type { MarketOffer, FinishStatus } from '../data/marketOffers';
 
 // Ручная верификация объявлений с Kufar (и позже Realt): помощница (Светлана)
 // сверяет объявление по ссылке и правит поля, если источник отдал их
-// неверно. Это ЖИВОЙ источник для таблицы на /rayon-minsk-mir — правки
+// неверно. Это ЖИВОЙ источник для таблицы на /minsk/minsk-mir — правки
 // здесь видны там сразу, без пересинка (DistrictGuidePage.tsx считает
 // медиану прямо из этих же строк).
 //
@@ -631,7 +631,7 @@ export function MarketOffersReview() {
                   className="sm:max-w-xs"
                 />
                 <p className="text-xs text-ink-faint">
-                  Правки сразу учитываются в таблице на /rayon-minsk-mir и не перезатираются автоматическим синком.
+                  Правки сразу учитываются в таблице на /minsk/minsk-mir и не перезатираются автоматическим синком.
                 </p>
               </div>
 

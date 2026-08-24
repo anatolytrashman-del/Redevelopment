@@ -1,6 +1,6 @@
 // Пререндер публичных лендингов объектов (SEO_PLAN.md, Э2-1) — после
 // vite build открывает каждую опубликованную страницу headless-браузером
-// и сохраняет реально отрисованный HTML в dist/<slug>/index.html.
+// и сохраняет реально отрисованный HTML в dist/<path>/index.html.
 //
 // Зачем: у SPA один статический index.html на все роуты, а контент
 // (title/meta, H1, цены) появляется только после клиентского фетча из
@@ -37,18 +37,24 @@ const BASE_URL = `http://localhost:${PORT}`;
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
 
-// Контентные страницы вне сущности "объект" (гиды и т.п., см. App.tsx) — не
-// в Supabase, поэтому перечислены явно. Добавлять сюда каждый новый гид
-// (Э3-1/Э3-3 в SEO_PLAN.md).
-const STATIC_SLUGS = ['rayon-minsk-mir'];
+// Все публичные страницы теперь под /minsk/... (см. CLAUDE.md, урл-
+// структура) — переменная переименована из STATIC_SLUGS в STATIC_PATHS:
+// это уже полные пути от корня, не голые слаги (у хабов их и не может
+// быть, они не привязаны к одному сегменту). Добавлять сюда каждую новую
+// контентную страницу вне сущности "объект" (гиды, аналитика — Э3-1/Э3-3
+// в SEO_PLAN.md).
+const STATIC_PATHS = ['minsk', 'minsk/minsk-mir', 'minsk/analytics', 'minsk/analytics/minsk-mir'];
 
-async function fetchLandingSlugs() {
+async function fetchLandingPaths() {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/objects?select=landing_slug&landing_slug=not.is.null`, {
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
   });
   if (!res.ok) throw new Error(`Supabase вернул ${res.status} при запросе landing_slug`);
   const rows = await res.json();
-  return rows.map((r) => r.landing_slug).filter((slug) => typeof slug === 'string' && slug.trim() !== '');
+  return rows
+    .map((r) => r.landing_slug)
+    .filter((slug) => typeof slug === 'string' && slug.trim() !== '')
+    .map((slug) => `minsk/${slug}`);
 }
 
 // `vite preview` — тот же сервер, что уже настроен как npm-скрипт
@@ -100,8 +106,8 @@ async function launchBrowser() {
 async function main() {
   if (!existsSync(DIST_DIR)) throw new Error('dist/ не найден — запускать после vite build');
 
-  const slugs = [...(await fetchLandingSlugs()), ...STATIC_SLUGS];
-  if (slugs.length === 0) {
+  const paths = [...(await fetchLandingPaths()), ...STATIC_PATHS];
+  if (paths.length === 0) {
     console.warn('[prerender] пререндерить нечего — нет ни объектов с landing_slug, ни статических страниц');
     return;
   }
@@ -109,7 +115,7 @@ async function main() {
   const serverProc = startPreviewServer();
   try {
     await waitForServer();
-    for (const slug of slugs) {
+    for (const path of paths) {
       // Свежий браузер на каждую попытку — не один на всю сборку. На
       // build-контейнере Vercel браузер один раз неожиданно закрылся между
       // слагами (browser.newPage(): Target page, context or browser has
@@ -128,17 +134,17 @@ async function main() {
           // index.html не считать этот заход реальным визитом (см.
           // комментарий там же). В сохранённый HTML параметр не попадает —
           // только управляет тем, что выполнится при заходе именно отсюда.
-          await page.goto(`${BASE_URL}/${slug}?prerender=1`, { waitUntil: 'domcontentloaded' });
+          await page.goto(`${BASE_URL}/${path}?prerender=1`, { waitUntil: 'domcontentloaded' });
           // ObjectLandingPage держит спиннер, пока не пришли данные из
           // Supabase (см. состояние loading) — h1 в разметке появляется
           // только у реального контента, это и есть сигнал готовности
           // (для статических страниц вроде DistrictGuidePage h1 есть сразу).
           await page.waitForSelector('h1', { timeout: 20_000 });
           const html = await page.content();
-          const dir = join(DIST_DIR, slug);
+          const dir = join(DIST_DIR, path);
           mkdirSync(dir, { recursive: true });
           writeFileSync(join(dir, 'index.html'), html);
-          console.log(`[prerender] /${slug} → dist/${slug}/index.html (${Math.round(html.length / 1024)} КБ)`);
+          console.log(`[prerender] /${path} → dist/${path}/index.html (${Math.round(html.length / 1024)} КБ)`);
           break;
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
@@ -146,9 +152,9 @@ async function main() {
             // Одна проблемная страница не должна ронять сборку остальных —
             // без снапшота роут просто останется на клиентском рендере, как
             // и было раньше, до Э2-1 (не хуже текущего состояния).
-            console.error(`[prerender] /${slug} пропущен после 2 попыток:`, message);
+            console.error(`[prerender] /${path} пропущен после 2 попыток:`, message);
           } else {
-            console.warn(`[prerender] /${slug}: попытка ${attempt} не удалась (${message}), повтор`);
+            console.warn(`[prerender] /${path}: попытка ${attempt} не удалась (${message}), повтор`);
           }
         } finally {
           if (browser) {

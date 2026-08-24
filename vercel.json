@@ -5,7 +5,10 @@
     "api/suggest-tasks.js": { "maxDuration": 300 }
   },
   "redirects": [
-    { "source": "/", "destination": "/one", "permanent": false }
+    { "source": "/", "destination": "/minsk", "permanent": false },
+    { "source": "/one", "destination": "/minsk/one", "permanent": true },
+    { "source": "/redstorage", "destination": "/minsk/redstorage", "permanent": true },
+    { "source": "/rayon-minsk-mir", "destination": "/minsk/minsk-mir", "permanent": true }
   ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },

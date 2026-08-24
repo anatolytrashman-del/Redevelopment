@@ -524,7 +524,7 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
             onChange={(e) => setForm((f) => ({ ...f, landingSlug: e.target.value.trim() }))}
           />
           {form.landingSlug && (
-            <p className="mt-1.5 text-xs text-ink-faint">redevelopment.pro/{form.landingSlug}</p>
+            <p className="mt-1.5 text-xs text-ink-faint">redevelopment.pro/minsk/{form.landingSlug}</p>
           )}
         </div>
 

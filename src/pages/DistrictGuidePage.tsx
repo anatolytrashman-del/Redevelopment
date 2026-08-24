@@ -54,7 +54,9 @@ import { fetchMarketOffers } from '../lib/marketOffersApi';
 import { AREA_BUCKET_ORDER, areaBucket, MARKET_PROPERTY_TYPES, netSize, netPricePerSqm } from '../data/marketOffers';
 import type { MarketOffer } from '../data/marketOffers';
 
-const PAGE_URL = 'https://redevelopment.pro/rayon-minsk-mir';
+// Переехала с /rayon-minsk-mir на /minsk/minsk-mir (см. CLAUDE.md, урл-
+// структура /minsk/...) — старый адрес редиректит сюда (App.tsx).
+const PAGE_URL = 'https://redevelopment.pro/minsk/minsk-mir';
 // TITLE — для <title>/og/canonical, не трогаем: уже подобран под целевые
 // запросы, длиннее рискует обрезаться в поисковой выдаче. PAGE_H1 — то, что
 // реально видит посетитель на странице, может быть многословнее и точнее
@@ -1085,7 +1087,7 @@ export function DistrictGuidePage() {
                     {countSmallFinishedOffices(marketOffers, 'rent')} в аренду
                   </span>{' '}
                   на весь Минск Мир. Red One закрывает именно этот дефицит —{' '}
-                  <Link to="/one" className="font-semibold underline">
+                  <Link to="/minsk/one" className="font-semibold underline">
                     кабинеты с отделкой под ключ
                   </Link>
                   .
@@ -1423,7 +1425,7 @@ export function DistrictGuidePage() {
             дизайнерской отделкой, парковкой и онлайн-бронированием без предоплаты. Через дорогу — 5 детских садов
             и постоянный поток родителей утром и вечером, в районе — 3 школы и 4 детских сада (строится 5-й).
           </p>
-          <Link to="/one" className="w-fit text-sm font-semibold text-primary hover:underline">
+          <Link to="/minsk/one" className="w-fit text-sm font-semibold text-primary hover:underline">
             Смотреть кабинеты в Red One →
           </Link>
         </div>

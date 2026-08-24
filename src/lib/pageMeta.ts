@@ -130,7 +130,7 @@ export function setObjectPageMeta(
   image?: string,
 ) {
   const meta = SEO_OVERRIDES[slug] ?? fallbackObjectMeta(object);
-  const url = `https://redevelopment.pro/${slug}`;
+  const url = `https://redevelopment.pro/minsk/${slug}`;
 
   document.title = meta.title;
   setMetaContent('meta[name="description"]', meta.description);
