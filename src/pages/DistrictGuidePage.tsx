@@ -60,6 +60,11 @@ import type { MarketOffer } from '../data/marketOffers';
 import { fetchPrimaryMarketOffers } from '../lib/primaryMarketOffersApi';
 import { buildPrimaryMarketPivot } from '../data/primaryMarketOffers';
 import type { PrimaryMarketOffer } from '../data/primaryMarketOffers';
+import { fetchTodayRate } from '../lib/exchangeRatesApi';
+import { convertToEur, convertFromEur } from '../lib/currencyConvert';
+import { currencySymbols } from '../data/transactions';
+import type { Currency } from '../data/transactions';
+import type { ExchangeRate } from '../data/exchangeRates';
 import { PrimaryMarketProModal } from '../components/district/PrimaryMarketProModal';
 import { DISTRICTS } from '../data/districts';
 
@@ -581,6 +586,56 @@ function formatLatestUpdate(offers: MarketOffer[]): string {
 }
 
 const MARKET_FINISH_OPTIONS = ['С отделкой', 'Без отделки', 'Не указано'] as const;
+
+// Порядок валют в переключателях "Первичный"/"Вторичный рынок" — EUR
+// по умолчанию первой (владелец), не общий порядок currencies из
+// data/transactions.ts (там RUB первым, для админской формы транзакций).
+const CURRENCY_OPTIONS: Currency[] = ['EUR', 'USD', 'BYN', 'RUB'];
+
+// Компактный вариант ToggleGroup (components/ui/ToggleGroup.tsx) специально
+// для этого переключателя — обычный ToggleGroup (px-4 py-2) с 4 опциями не
+// помещался в одну строку рядом с длинным заголовком блока на ширине
+// колонки контента (max-w-3xl), переносился на новую строку и терял
+// заявленное "справа от заголовка" позиционирование.
+function CurrencyToggle({ value, onChange }: { value: Currency; onChange: (currency: Currency) => void }) {
+  return (
+    <div className="flex w-fit shrink-0 gap-0.5 rounded-full border border-border bg-surface-muted p-0.5">
+      {CURRENCY_OPTIONS.map((option) => (
+        <button
+          key={option}
+          type="button"
+          onClick={() => onChange(option)}
+          className={cn(
+            'rounded-full px-2.5 py-1 text-xs font-semibold transition-colors',
+            value === option ? 'bg-surface text-primary shadow-card' : 'text-ink-muted',
+          )}
+        >
+          {option}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Сумма уже приведена к EUR (см. комментарий у exchangeRate в компоненте) —
+// тут только перевод в валюту отображения и форматирование. rate===null
+// (курс ещё грузится или bnb.by недоступен) — не считаем это нулём, просто
+// "—", тот же принцип, что и у convertToUsd в lib/currencyConvert.ts.
+function formatPricePerM2(amountEur: number, currency: Currency, rate: ExchangeRate | null): string {
+  const converted = convertFromEur(amountEur, currency, rate);
+  if (converted == null) return '—';
+  return `${Math.round(converted).toLocaleString('ru-RU')} ${currencySymbols[currency]}`;
+}
+
+// Вторичный рынок (Kufar) хранит цену в USD — переводим в EUR тем же
+// курсом, что и первичный рынок (владелец: "давай всё сводить к евро"),
+// и уже от EUR идём в выбранную валюту через formatPricePerM2 выше — один
+// и тот же путь конвертации для обоих блоков.
+function formatMedianPriceLabel(amountUsd: number, currency: Currency, rate: ExchangeRate | null, isRent: boolean): string {
+  const amountEur = convertToEur(amountUsd, 'USD', rate);
+  if (amountEur == null) return '—';
+  return `${formatPricePerM2(amountEur, currency, rate)}/м²${isRent ? '/мес' : ''}`;
+}
 const MARKET_FINISH_TO_DB: Record<(typeof MARKET_FINISH_OPTIONS)[number], string> = {
   'С отделкой': 'с отделкой',
   'Без отделки': 'без отделки',
@@ -658,47 +713,6 @@ const parkingAddresses: { category: string; house: string; address: string | nul
   { category: 'Подземные', house: 'Паркинг 24.2.7', address: null },
   { category: 'Подземные', house: 'Паркинг 28.4', address: 'ул. Михаила Савицкого, 23' },
   { category: 'Подземные', house: 'Паркинг 28.8', address: 'ул. Игоря Лученка, 16' },
-];
-
-// Портрет арендаторов — прислан владельцем (2026-08-22), собственный анализ.
-// Перегруппирован через Gemini под технические маркеры формата помещения
-// (метраж + факторы успеха) вместо оригинального деления "сферы/критерии" —
-// владелец согласовал такую структуру. Бренд-примеры из исходного портрета
-// сохранены там, где укладываются в новую категорию; для новой категории
-// "офисы и клиентские сервисы" (её не было в исходном портрете) — своих
-// примеров нет, только факторы. Один пример аптечной сети из присланного
-// текста был нечитаем из-за битой кодировки при копировании ("In塗то") —
-// разгадан позже как InLek (см. medicineHighlights выше, сеть из 5 аптек
-// в районе по данным Яндекс.Карт), добавлен обратно в примеры.
-const tenantProfiles: { icon: LucideIcon; title: string; examples: string; footage: string; criteria: string }[] = [
-  {
-    icon: Store,
-    title: 'Сетевой ритейл, аптеки, спецмагазины',
-    examples: 'Аптеки (InLek, «Остров здоровья»), алкомаркеты («7 пятниц», «Вино»), кофейни (DOPE, «Варка»)',
-    footage: '60–150 м²',
-    criteria: 'Первая линия, витринное остекление, свободная планировка, высокий пешеходный трафик',
-  },
-  {
-    icon: Sparkles,
-    title: 'Медицина, стоматология, бьюти-сфера',
-    examples: 'Салоны красоты, барбершопы, студии пилатеса и йоги, медлаборатории (Synevo, Invitro)',
-    footage: '40–100 м²',
-    criteria: 'Разводка мокрых точек под каждый кабинет, условия для приточно-вытяжной вентиляции',
-  },
-  {
-    icon: Building2,
-    title: 'Офисы и клиентские сервисы',
-    examples: '',
-    footage: 'от 50 м²',
-    criteria: 'Близость к метро для сотрудников, представительская входная группа, open-space или кабинеты',
-  },
-  {
-    icon: Package,
-    title: 'ПВЗ и крафтовый бизнес',
-    examples: 'Wildberries, Ozon, Европочта, СДЭК; авторские пекарни, цветочные бутики, детские центры',
-    footage: '25–60 м²',
-    criteria: 'Локация внутри жилых кварталов, соседство с детскими площадками, невысокая ставка',
-  },
 ];
 
 // "Виды коммерческой недвижимости в Минск Мире" (владелец, август 2026) —
@@ -850,7 +864,6 @@ const SECTION_NAV: { id: string; label: string; icon: LucideIcon }[] = [
   { id: 'primary-market', label: 'Первичный рынок', icon: Banknote },
   { id: 'market', label: 'Вторичный рынок', icon: TrendingUp },
   { id: 'business-analytics', label: 'Аналитика по сферам бизнеса', icon: LayoutGrid },
-  { id: 'tenant-profiles', label: 'Решения под бизнес', icon: Store },
   { id: 'transport', label: 'Транспорт', icon: TrainFront },
   { id: 'parking', label: 'Паркинги', icon: Car },
   { id: 'map', label: 'Карта района', icon: MapPin },
@@ -870,6 +883,24 @@ export function DistrictGuidePage() {
   const [marketFinish, setMarketFinish] = useState<(typeof MARKET_FINISH_OPTIONS)[number]>('С отделкой');
   const [primaryMarketOffers, setPrimaryMarketOffers] = useState<PrimaryMarketOffer[] | null>(null);
   const [primaryMarketProKey, setPrimaryMarketProKey] = useState<string | null>(null);
+
+  // Переключатель валют (первичный/вторичный рынок) — владелец: "справа от
+  // заголовка просится переключатель EUR/USD/BYN/RUB, курсы с bnb.by".
+  // Данные обоих блоков сведены к EUR как общему знаменателю (первичный
+  // рынок изначально в EUR; вторичный — в USD с Kufar, конвертируется в EUR
+  // тем же курсом, см. convertToEur/convertFromEur в lib/currencyConvert.ts)
+  // — переключатель просто меняет валюту ОТОБРАЖЕНИЯ поверх общего EUR-расчёта.
+  // Курс — тот же api/exchange-rate.js (bnb.by), что уже используют
+  // Транзакции/Ресерч подрядчиков, один запрос на всю страницу.
+  const [exchangeRate, setExchangeRate] = useState<ExchangeRate | null>(null);
+  const [primaryMarketCurrency, setPrimaryMarketCurrency] = useState<Currency>('EUR');
+  const [marketCurrency, setMarketCurrency] = useState<Currency>('EUR');
+
+  useEffect(() => {
+    fetchTodayRate()
+      .then(setExchangeRate)
+      .catch(() => setExchangeRate(null));
+  }, []);
 
   useEffect(() => {
     setGenericPageMeta({ title: TITLE, description: DESCRIPTION, url: PAGE_URL });
@@ -956,6 +987,18 @@ export function DistrictGuidePage() {
     return () => observer.disconnect();
   }, []);
 
+  // Само меню-оглавление тоже скроллится (высокий список разделов не
+  // влезает в max-h экрана) — владелец: активный пункт при длинном скролле
+  // страницы уходил за пределы видимой части меню, непонятно было, где
+  // находишься. scrollIntoView({block:'nearest'}) трогает только ближайший
+  // scroll-контейнер (сам nav), не страницу целиком.
+  useEffect(() => {
+    if (!activeSectionId) return;
+    document
+      .querySelectorAll(`[data-nav-id="${activeSectionId}"]`)
+      .forEach((el) => el.scrollIntoView({ block: 'nearest' }));
+  }, [activeSectionId]);
+
   return (
     <>
       <div className="min-h-svh bg-bg">
@@ -997,6 +1040,7 @@ export function DistrictGuidePage() {
           <a
             key={id}
             href={`#${id}`}
+            data-nav-id={id}
             onClick={() => setMobileNavOpen(false)}
             className={cn(
               'flex items-center gap-3 rounded-control px-3 py-2.5 text-sm transition-colors hover:text-primary',
@@ -1020,10 +1064,25 @@ export function DistrictGuidePage() {
           меню повторяет тот же `mx-auto max-w-3xl`, чтобы совпасть
           именно с ним, а не с более левой границей колонки. Ниже lg обе
           колонки становятся одним flex-рядом на всю ширину, как и раньше. */}
+      {/* Логотип зафиксирован над боковым меню-оглавлением на lg+ (владелец:
+          при долгом скролле терялось ощущение "где я" — оригинальный
+          логотип в шапке уезжал вверх вместе со страницей). Дублируем его
+          отдельным fixed-элементом, привязанным к той же navBox.left, что и
+          сам `nav` ниже, а исходный логотип в шапке скрываем на lg+, чтобы
+          не было двух логотипов одновременно (тот же приём, что и с пустой
+          первой колонкой-заглушкой под fixed-сайдбар в сетке контента ниже). */}
+      <Link
+        to="/minsk"
+        className="fixed top-6 z-40 hidden shrink-0 text-lg font-extrabold tracking-wide text-ink lg:block"
+        style={navBox ? { left: navBox.left } : { visibility: 'hidden' }}
+      >
+        <span className="font-black text-primary">RED</span>EVELOPMENT
+      </Link>
+
       <div className="border-b border-border py-5">
         <div className="mx-auto max-w-6xl px-4 sm:px-8">
           <div className="flex items-center justify-between lg:grid lg:grid-cols-[200px_1fr] lg:items-center lg:gap-10">
-            <Link to="/minsk" className="shrink-0 text-lg font-extrabold tracking-wide text-ink">
+            <Link to="/minsk" className="shrink-0 text-lg font-extrabold tracking-wide text-ink lg:invisible">
               <span className="font-black text-primary">RED</span>EVELOPMENT
             </Link>
             <div className="lg:mx-auto lg:w-full lg:max-w-3xl">
@@ -1053,6 +1112,7 @@ export function DistrictGuidePage() {
                 <a
                   key={id}
                   href={`#${id}`}
+                  data-nav-id={id}
                   className={cn(
                     'flex items-center gap-2 rounded-control px-2 py-1.5 transition-colors',
                     activeSectionId === id
@@ -1353,9 +1413,12 @@ export function DistrictGuidePage() {
         </div>
 
         <div id="primary-market" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex items-center gap-3">
-            <Banknote className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Первичный рынок коммерческой недвижимости</h2>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <Banknote className="h-5 w-5 shrink-0 text-ink" />
+              <h2 className="text-lg font-bold text-ink">Первичный рынок коммерческой недвижимости</h2>
+            </div>
+            <CurrencyToggle value={primaryMarketCurrency} onChange={setPrimaryMarketCurrency} />
           </div>
           <p className="text-sm text-ink-muted">
             Предложения от застройщика (bir.by) — бизнес-апартаменты, торговые помещения, офисы и кладовые. Цена — за
@@ -1375,9 +1438,11 @@ export function DistrictGuidePage() {
                     <th className="py-2 pr-3 text-left">Категория</th>
                     <th className="py-2 px-2 text-right font-semibold">Предложений</th>
                     <th className="py-2 px-2 text-right font-semibold">Площадь</th>
-                    <th className="py-2 px-2 text-right font-semibold">Мин, €/м²</th>
-                    <th className="py-2 px-2 text-right font-semibold">Средняя, €/м²</th>
-                    <th className="py-2 pl-2 text-right font-semibold">Макс, €/м²</th>
+                    <th className="py-2 px-2 text-right font-semibold">Мин, {currencySymbols[primaryMarketCurrency]}/м²</th>
+                    <th className="py-2 px-2 text-right font-semibold">
+                      Средняя, {currencySymbols[primaryMarketCurrency]}/м²
+                    </th>
+                    <th className="py-2 pl-2 text-right font-semibold">Макс, {currencySymbols[primaryMarketCurrency]}/м²</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -1393,13 +1458,13 @@ export function DistrictGuidePage() {
                         {row.areaMin === row.areaMax ? `${row.areaMin}` : `${row.areaMin}–${row.areaMax}`} м²
                       </td>
                       <td className="py-2.5 px-2 text-right tabular-nums text-ink-faint">
-                        {row.priceMinEur.toLocaleString('ru-RU')} €
+                        {formatPricePerM2(row.priceMinEur, primaryMarketCurrency, exchangeRate)}
                       </td>
                       <td className="py-2.5 px-2 text-right tabular-nums font-semibold text-ink">
-                        {row.priceAvgEur.toLocaleString('ru-RU')} €
+                        {formatPricePerM2(row.priceAvgEur, primaryMarketCurrency, exchangeRate)}
                       </td>
                       <td className="py-2.5 pl-2 text-right tabular-nums text-ink-faint">
-                        {row.priceMaxEur.toLocaleString('ru-RU')} €
+                        {formatPricePerM2(row.priceMaxEur, primaryMarketCurrency, exchangeRate)}
                       </td>
                     </tr>
                   ))}
@@ -1428,15 +1493,16 @@ export function DistrictGuidePage() {
         </div>
 
         <div id="market" className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               <TrendingUp className="h-5 w-5 shrink-0 text-ink" />
               <h2 className="text-lg font-bold text-ink">Вторичный рынок коммерческой недвижимости</h2>
             </div>
-            {marketOffers && marketOffers.length > 0 && (
-              <span className="text-xs text-ink-faint">Kufar · {formatLatestUpdate(marketOffers)}</span>
-            )}
+            <CurrencyToggle value={marketCurrency} onChange={setMarketCurrency} />
           </div>
+          {marketOffers && marketOffers.length > 0 && (
+            <span className="-mt-2 text-xs text-ink-faint">Kufar · {formatLatestUpdate(marketOffers)}</span>
+          )}
           <p className="text-sm text-ink-muted">
             Действующие предложения продажи и аренды коммерческих помещений в Минск Мире — количество и медианная
             цена за м² по типу помещения и площади. Обновляется раз в месяц.
@@ -1491,7 +1557,7 @@ export function DistrictGuidePage() {
                               <>
                                 <div className="font-semibold text-ink">{cell.count}</div>
                                 <div className="text-xs text-ink-faint">
-                                  {cell.medianPrice} $/м²{marketDealType === 'Аренда' ? '/мес' : ''}
+                                  {formatMedianPriceLabel(cell.medianPrice, marketCurrency, exchangeRate, marketDealType === 'Аренда')}
                                 </div>
                               </>
                             ) : (
@@ -1748,33 +1814,6 @@ export function DistrictGuidePage() {
             ))}
           </div>
         </div>
-          </div>
-        </div>
-
-        <div id="tenant-profiles" className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex items-center gap-3">
-            <Store className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Готовые решения под ваш тип бизнеса</h2>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {tenantProfiles.map(({ icon: Icon, title, examples, footage, criteria }) => (
-              <div
-                key={title}
-                className="flex flex-col gap-2 rounded-control border border-white bg-white/90 p-4 shadow-card backdrop-blur-md sm:border-white/50 sm:bg-white/40 sm:shadow-none"
-              >
-                <div className="flex items-center gap-2">
-                  <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center text-ink', glassPillClass)}>
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span className="text-sm font-bold text-ink">{title}</span>
-                </div>
-                {examples && <p className="text-xs text-ink-muted">{examples}</p>}
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink">{footage}</span>
-                </div>
-                <p className="text-xs text-ink-faint">{criteria}</p>
-              </div>
-            ))}
           </div>
         </div>
 
