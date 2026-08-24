@@ -194,9 +194,12 @@ const trafficHighlights: { label: string; text: string }[] = [
   },
 ];
 
-// Плотность населения — цитата из статьи Onliner, прислана владельцем
-// 2026-08-24 (доступ к самому домену realt.onliner.by из этой среды
-// заблокирован прокси, поэтому цифры не перепроверить самостоятельно,
+// Плотность населения — отдельный блок ("population-density") прямо перед
+// "Плотность бизнеса по нишам" (владелец: "пусть он будет отдельным, как
+// раз перед блоком плотности бизнеса" — раньше жил внутри карточки
+// "Генераторы трафика"). Цифры — цитата из статьи Onliner, прислана
+// владельцем 2026-08-24 (доступ к самому домену realt.onliner.by из этой
+// среды заблокирован прокси, поэтому цифры не перепроверить самостоятельно,
 // взяты как есть из присланного текста): "по регламентам генплана
 // высокоплотной многоквартирной застройкой в Минске считается застройка
 // с... плотностью населения в пределах 231—290 человек на 1 гектар. В
@@ -616,8 +619,9 @@ const SECTION_NAV: { id: string; label: string; icon: LucideIcon }[] = [
   { id: 'developer', label: 'Застройщик', icon: HardHat },
   { id: 'audience', label: 'Целевая аудитория', icon: Users },
   { id: 'traffic', label: 'Генераторы трафика', icon: Landmark },
-  { id: 'property-types', label: 'Виды недвижимости', icon: Layers },
+  { id: 'population-density', label: 'Плотность населения', icon: Building2 },
   { id: 'business-density', label: 'Плотность бизнеса', icon: Grid2x2 },
+  { id: 'property-types', label: 'Виды недвижимости', icon: Layers },
   { id: 'market', label: 'Рынок недвижимости', icon: TrendingUp },
   { id: 'business-analytics', label: 'Аналитика по сферам бизнеса', icon: LayoutGrid },
   { id: 'tenant-profiles', label: 'Решения под бизнес', icon: Store },
@@ -871,34 +875,39 @@ export function DistrictGuidePage() {
               </li>
             ))}
           </ul>
+        </div>
 
-          <div className="flex flex-col gap-2.5 rounded-control border border-white bg-white/60 p-4 sm:border-white/50 sm:bg-white/40">
-            <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
-              Плотность населения, человек на гектар
-            </p>
-            <div className="flex flex-col gap-1">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-xs text-ink-muted">Норматив «высокоплотная застройка» в Минске (максимум)</span>
-                <span className="shrink-0 text-xs font-semibold tabular-nums text-ink">{MINSK_HIGH_DENSITY_NORM_MAX}</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-surface-muted">
-                <div className="h-full rounded-full bg-ink/30" style={{ width: `${densityNormBarPct}%` }} />
-              </div>
-            </div>
-            <div className="flex flex-col gap-1">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-xs font-semibold text-ink">Минск Мир</span>
-                <span className="shrink-0 text-xs font-semibold tabular-nums text-ink">{DISTRICT_DENSITY_PER_HECTARE}</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-surface-muted">
-                <div className="h-full rounded-full bg-primary" style={{ width: '100%' }} />
-              </div>
-            </div>
-            <p className="text-xs text-ink-faint">
-              Почти в {densityRatioLabel} раза выше верхней границы «высокоплотной застройки» по регламенту генплана
-              Минска.
-            </p>
+        <div id="population-density" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <Building2 className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Плотность населения</h2>
           </div>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-sm text-ink-muted">Норматив «высокоплотная застройка» в Минске (максимум)</span>
+              <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">
+                {MINSK_HIGH_DENSITY_NORM_MAX} чел/га
+              </span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-surface-muted">
+              <div className="h-full rounded-full bg-ink/30" style={{ width: `${densityNormBarPct}%` }} />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-sm font-semibold text-ink">Минск Мир</span>
+              <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">
+                {DISTRICT_DENSITY_PER_HECTARE} чел/га
+              </span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-surface-muted">
+              <div className="h-full rounded-full bg-primary" style={{ width: '100%' }} />
+            </div>
+          </div>
+          <p className="text-sm text-ink-muted">
+            Почти в {densityRatioLabel} раза выше верхней границы «высокоплотной застройки» по регламенту генплана
+            Минска — высокая концентрация потенциальных клиентов прямо внутри жилых кварталов.
+          </p>
         </div>
 
         <div id="business-density" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
