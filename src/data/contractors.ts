@@ -51,6 +51,15 @@ export interface Contractor {
   // паттерн, что и у Lead.photoPath (см. lib/contractorsApi.ts). Для
   // всех, у кого teamTier заполнен, подтягивается автоматически из Telegram.
   photoPath: string;
+  // Резюме (например, для кандидата, найденного на hh) — тот же паттерн
+  // приватного бакета и подписанной ссылки, что и у photoPath, только
+  // бакет contractor-resumes и произвольный тип файла (pdf/doc/docx), не
+  // только изображение. resumeFileName — исходное имя файла, отдельно от
+  // resumePath: путь в бакете это crypto.randomUUID() + расширение (как и
+  // у фото), по нему нельзя показать пользователю осмысленное имя файла
+  // при скачивании.
+  resumePath: string;
+  resumeFileName: string;
   // Дата рождения — полная (с годом, формат <input type="date">, "YYYY-MM-DD"),
   // но для поздравлений важен только день и месяц (см. isBirthdayToday ниже).
   // Год хранится просто потому, что так отдаёт обычный date-инпут, отдельно
@@ -99,5 +108,7 @@ export interface ContractorRow {
   responsibility_zone: string | null;
   photo_path: string | null;
   birth_date: string | null;
+  resume_path: string | null;
+  resume_file_name: string | null;
   created_at: string;
 }

@@ -5,8 +5,10 @@ import { fetchTelegramAvatarBlob } from './telegramAvatarApi';
 import { isBirthdayToday, type Contractor, type ContractorRow } from '../data/contractors';
 
 const CONTRACTOR_PHOTOS_BUCKET = 'contractor-photos';
+const CONTRACTOR_RESUMES_BUCKET = 'contractor-resumes';
 // Час — тот же TTL, что и у lead-photos (см. leadsApi.ts).
 const PHOTO_URL_TTL_SECONDS = 60 * 60;
+const RESUME_URL_TTL_SECONDS = 60 * 60;
 
 function fromRow(row: ContractorRow): Contractor {
   return {
@@ -23,6 +25,8 @@ function fromRow(row: ContractorRow): Contractor {
     responsibilityZone: row.responsibility_zone ?? '',
     photoPath: row.photo_path ?? '',
     birthday: row.birth_date ?? '',
+    resumePath: row.resume_path ?? '',
+    resumeFileName: row.resume_file_name ?? '',
     createdAt: row.created_at,
   };
 }
@@ -60,6 +64,8 @@ export function insertContractor(input: Omit<Contractor, 'id' | 'createdAt'>): P
         responsibility_zone: input.responsibilityZone || null,
         photo_path: input.photoPath || null,
         birth_date: input.birthday || null,
+        resume_path: input.resumePath || null,
+        resume_file_name: input.resumeFileName || null,
       })
       .select()
       .single();
@@ -86,6 +92,8 @@ export function updateContractor(id: string, input: Omit<Contractor, 'id' | 'cre
         responsibility_zone: input.responsibilityZone || null,
         photo_path: input.photoPath || null,
         birth_date: input.birthday || null,
+        resume_path: input.resumePath || null,
+        resume_file_name: input.resumeFileName || null,
       })
       .eq('id', id)
       .select()
@@ -142,6 +150,45 @@ export async function deleteContractorPhoto(path: string): Promise<void> {
   }
 }
 
+// Резюме — тот же паттерн, что и фото (закрытый бакет, путь а не URL,
+// подписанная ссылка на каждый показ), только свой бакет и без ограничения
+// на тип файла (accept для инпута — на стороне формы, см. Contractors.tsx).
+export function uploadContractorResume(file: File): Promise<string> {
+  return withRetry(
+    async () => {
+      const ext = file.name.split('.').pop() ?? 'pdf';
+      const path = `${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from(CONTRACTOR_RESUMES_BUCKET).upload(path, file);
+      if (error) throw error;
+      return path;
+    },
+    1000,
+    UPLOAD_TIMEOUT_MS,
+  );
+}
+
+export async function createContractorResumeUrl(path: string): Promise<string | null> {
+  if (!path) return null;
+  try {
+    const { data, error } = await supabase.storage
+      .from(CONTRACTOR_RESUMES_BUCKET)
+      .createSignedUrl(path, RESUME_URL_TTL_SECONDS);
+    if (error) throw error;
+    return data?.signedUrl ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteContractorResume(path: string): Promise<void> {
+  if (!path) return;
+  try {
+    await supabase.storage.from(CONTRACTOR_RESUMES_BUCKET).remove([path]);
+  } catch {
+    // намеренно молча
+  }
+}
+
 // Автоподтягивание аватара из Telegram — по аналогии с tryAutoFillTelegramAvatar
 // у лидов (leadsApi.ts), но только для команды/part-time: это узкий,
 // заведомо доверенный список из нескольких человек, а не весь список
@@ -170,6 +217,8 @@ export async function tryAutoFillTelegramAvatarForContractor(contractor: Contrac
       responsibilityZone: contractor.responsibilityZone,
       photoPath,
       birthday: contractor.birthday,
+      resumePath: contractor.resumePath,
+      resumeFileName: contractor.resumeFileName,
     });
   } catch {
     return null;

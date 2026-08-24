@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Trash2, Upload, X, Send, Phone, Mail, MapPin } from 'lucide-react';
+import { Plus, Loader2, Trash2, Upload, X, Send, Phone, Mail, MapPin, FileText } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -28,6 +28,8 @@ import {
   deleteContractor,
   uploadContractorPhoto,
   deleteContractorPhoto,
+  uploadContractorResume,
+  deleteContractorResume,
   tryAutoFillTelegramAvatarForContractor,
 } from '../lib/contractorsApi';
 import { cn } from '../lib/cn';
@@ -54,6 +56,8 @@ const emptyForm = {
   responsibilityZone: '',
   photoPath: '',
   birthday: '',
+  resumePath: '',
+  resumeFileName: '',
 };
 
 function contractorToForm(c: Contractor) {
@@ -70,6 +74,8 @@ function contractorToForm(c: Contractor) {
     responsibilityZone: c.responsibilityZone,
     photoPath: c.photoPath,
     birthday: c.birthday,
+    resumePath: c.resumePath,
+    resumeFileName: c.resumeFileName,
   };
 }
 
@@ -98,6 +104,11 @@ function ContractorCard({ contractor, onOpen }: { contractor: Contractor; onOpen
             {isBirthdayToday(contractor.birthday) && (
               <span className="shrink-0 text-base leading-none" role="img" aria-label="Сегодня день рождения" title="Сегодня день рождения">
                 🎂
+              </span>
+            )}
+            {contractor.resumePath && (
+              <span className="shrink-0" title="Есть резюме">
+                <FileText className="h-3.5 w-3.5 text-ink-faint" />
               </span>
             )}
           </div>
@@ -151,6 +162,7 @@ export function Contractors() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [resumeUploading, setResumeUploading] = useState(false);
 
   useEffect(() => {
     fetchContractors()
@@ -277,6 +289,33 @@ export function Contractors() {
     await deleteContractorPhoto(path);
   }
 
+  // Резюме — тот же приём, что и фото выше (сразу в бакет при выборе файла),
+  // только без ограничения на тип (accept у инпута ниже принимает pdf/doc/docx).
+  async function handleResumeChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || resumeUploading) return;
+
+    setResumeUploading(true);
+    setSubmitError(null);
+    const previous = form.resumePath;
+    try {
+      const path = await uploadContractorResume(file);
+      setForm((f) => ({ ...f, resumePath: path, resumeFileName: file.name }));
+      if (previous) await deleteContractorResume(previous);
+    } catch (err) {
+      setSubmitError(errorMessage(err, 'Не удалось загрузить резюме'));
+    } finally {
+      setResumeUploading(false);
+    }
+  }
+
+  async function handleResumeRemove() {
+    const path = form.resumePath;
+    setForm((f) => ({ ...f, resumePath: '', resumeFileName: '' }));
+    await deleteContractorResume(path);
+  }
+
   // Фоновая попытка подтянуть аватар из Telegram после сохранения — не
   // await'ится в handleSubmit, чтобы сохранение и закрытие формы не ждали
   // стороннего запроса к t.me. Молчит, если не сработало (не команда, не
@@ -306,6 +345,8 @@ export function Contractors() {
       responsibilityZone: form.responsibilityZone,
       photoPath: form.photoPath,
       birthday: form.birthday,
+      resumePath: form.resumePath,
+      resumeFileName: form.resumeFileName,
     };
     try {
       if (editingId) {
@@ -548,6 +589,35 @@ export function Contractors() {
             addLabel="+ Добавить вариант"
             newPlaceholder="Название"
           />
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-ink">Резюме</span>
+            <div className="flex flex-wrap items-center gap-3">
+              <label
+                className={cn(
+                  'inline-flex cursor-pointer items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold text-ink hover:border-border-strong',
+                  resumeUploading && 'pointer-events-none opacity-50',
+                )}
+              >
+                {resumeUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                {resumeUploading ? 'Загружаем...' : form.resumePath ? 'Заменить файл' : 'Прикрепить файл'}
+                <input type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={handleResumeChange} />
+              </label>
+              {form.resumePath && !resumeUploading && (
+                <>
+                  <span className="max-w-[12rem] truncate text-sm text-ink-muted">{form.resumeFileName}</span>
+                  <button
+                    type="button"
+                    onClick={handleResumeRemove}
+                    className="inline-flex items-center gap-1 text-xs text-ink-muted underline underline-offset-2 hover:text-danger"
+                  >
+                    <X className="h-3 w-3" />
+                    Удалить
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
 
           {submitError && <p className="text-sm text-danger">{submitError}</p>}
 

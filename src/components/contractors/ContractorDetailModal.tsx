@@ -1,10 +1,12 @@
-import { Pencil } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Pencil, FileText, Loader2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { ContactValue } from '../ui/ContactValue';
 import { ContractorAvatar } from './ContractorAvatar';
 import { contactDuplicatesDedicatedField, isBirthdayToday, type Contractor } from '../../data/contractors';
 import { formatPhoneDisplay } from '../../lib/formatPhone';
+import { createContractorResumeUrl } from '../../lib/contractorsApi';
 
 function formatDate(iso: string): string {
   if (!iso) return '—';
@@ -20,6 +22,47 @@ function formatBirthday(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', timeZone: 'UTC' });
+}
+
+// Ссылка на резюме — подписывается заново при каждом открытии карточки
+// (закрытый бакет, тот же принцип, что и у фото через ContractorAvatar/
+// Avatar.tsx, только тут просто ссылка, не картинка).
+function ResumeLink({ path, fileName }: { path: string; fileName: string }) {
+  const [url, setUrl] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    let active = true;
+    setUrl(undefined);
+    createContractorResumeUrl(path).then((signed) => {
+      if (active) setUrl(signed);
+    });
+    return () => {
+      active = false;
+    };
+  }, [path]);
+
+  if (url === undefined) {
+    return (
+      <span className="inline-flex items-center gap-2 text-sm text-ink-muted">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Готовим ссылку...
+      </span>
+    );
+  }
+  if (!url) {
+    return <span className="text-sm text-danger">Не удалось получить ссылку на файл</span>;
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+    >
+      <FileText className="h-4 w-4 shrink-0" />
+      {fileName || 'Открыть резюме'}
+    </a>
+  );
 }
 
 // Строка «поле — значение» — тот же паттерн, что и Field в LeadDetailModal.tsx.
@@ -89,6 +132,13 @@ export function ContractorDetailModal({ contractor, onClose, onEdit }: Contracto
           <Field label="День рождения">{contractor.birthday ? formatBirthday(contractor.birthday) : null}</Field>
           <Field label="Добавлен">{formatDate(contractor.createdAt)}</Field>
         </div>
+
+        {contractor.resumePath && (
+          <div className="flex flex-col gap-1.5 border-t border-border pt-4">
+            <span className="text-sm font-semibold text-ink">Резюме</span>
+            <ResumeLink path={contractor.resumePath} fileName={contractor.resumeFileName} />
+          </div>
+        )}
 
         <div className="flex flex-col gap-1.5 border-t border-border pt-4">
           <span className="text-sm font-semibold text-ink">Условия оплаты</span>
