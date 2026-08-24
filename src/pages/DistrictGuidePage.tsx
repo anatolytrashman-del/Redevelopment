@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   Archive,
   ArrowRight,
+  BadgeCheck,
   Banknote,
   BedDouble,
   Briefcase,
@@ -645,9 +646,11 @@ const districtFaq: FaqItem[] = [
 // Верхнее меню страницы (шапка) — отдельно от бокового оглавления
 // SECTION_NAV ниже: то список якорей внутри ЭТОЙ страницы, а тут —
 // переходы на другие страницы сайта (лендинг Red One, аналитика по
-// районам). Выпадающий список закрывается кликом вне себя — тот же приём,
-// что и mobileNavOpen ниже, только без затемнения (мелкий дропдаун, не
-// полноэкранная шторка).
+// районам). Раскрывается и наведением (owner: "должно автоматически
+// раскрываться при наведении"), и кликом (совместимость с touch — там
+// hover не срабатывает надёжно); закрывается кликом вне себя — тот же
+// приём, что и mobileNavOpen ниже, только без затемнения (мелкий
+// дропдаун, не полноэкранная шторка).
 function AnalyticsMenu() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -662,7 +665,7 @@ function AnalyticsMenu() {
   }, [open]);
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
       <button type="button" onClick={() => setOpen((v) => !v)} className="flex items-center gap-1 hover:text-ink">
         Аналитика
         <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 transition-transform', open && 'rotate-180')} />
@@ -816,17 +819,29 @@ export function DistrictGuidePage() {
         ))}
       </aside>
 
+      {/* Шапка выровнена по той же сетке, что и основной контент ниже
+          (lg:grid-cols-[200px_1fr]) — пустая первая колонка держит место
+          под боковое оглавление, логотип и меню начинаются ровно там же,
+          где начинается главный блок (карточка hero), а не у самого края
+          страницы, как раньше (владелец: "выровнять по левому краю
+          главного блока"). Ниже lg сайдбар скрыт целиком, поэтому и
+          колонка-заглушка скрыта — шапка занимает всю ширину, как обычно. */}
       <div className="border-b border-border py-5">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-8">
-          <Link to="/minsk" className="shrink-0 text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary">RED</span>EVELOPMENT
-          </Link>
-          <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted sm:flex">
-            <Link to="/minsk/one" className="transition-colors hover:text-ink">
-              Деловой центр Red One
-            </Link>
-            <AnalyticsMenu />
-          </nav>
+        <div className="mx-auto max-w-6xl px-4 sm:px-8">
+          <div className="lg:grid lg:grid-cols-[200px_1fr] lg:gap-10">
+            <div className="hidden lg:block" />
+            <div className="flex items-center justify-between">
+              <Link to="/minsk" className="shrink-0 text-lg font-extrabold tracking-wide text-ink">
+                <span className="font-black text-primary">RED</span>EVELOPMENT
+              </Link>
+              <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted sm:flex">
+                <Link to="/minsk/one" className="transition-colors hover:text-ink">
+                  Деловой центр Red One
+                </Link>
+                <AnalyticsMenu />
+              </nav>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -870,7 +885,14 @@ export function DistrictGuidePage() {
           <div className="flex flex-col gap-3">
             <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">{PAGE_H1}</h1>
             <p className="text-base text-ink-muted">{INTRO_TEXT}</p>
-            <p className="text-xs text-ink-faint">Обновлено: август 2026</p>
+            {/* Пометка свежести — владелец: "чтобы инфа выглядела супер-
+                актуальной", спокойный зелёный, не просто блёклый текст.
+                BadgeCheck вместо точки/иконки календаря — читается как
+                "проверено", не только "когда-то обновлено". */}
+            <span className="flex w-fit items-center gap-1.5 rounded-full border border-success/30 bg-success-bg px-3 py-1 text-xs font-semibold text-success">
+              <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
+              Обновлено: август 2026
+            </span>
           </div>
           <div className="mx-auto w-full max-w-xs sm:max-w-none">
             <HeroImageSlider images={HERO_IMAGES} alt="Аэрофото района Минск Мир" aspectClassName="aspect-[4/5]" />
