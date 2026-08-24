@@ -1099,12 +1099,9 @@ export function DistrictGuidePage() {
             {statTiles.map(({ icon: Icon, value, label }) => (
               <div
                 key={label}
-                className="flex flex-col gap-2 rounded-control border border-white bg-white/60 p-4 sm:border-white/50 sm:bg-white/40"
+                className="flex flex-col gap-2 rounded-control border border-border/60 bg-white p-4 shadow-card"
               >
-                <span
-                  className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)}
-                  style={glassPillShadow}
-                >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-muted text-ink">
                   <Icon className="h-4 w-4" />
                 </span>
                 <div className="text-lg font-extrabold text-ink">{value}</div>
