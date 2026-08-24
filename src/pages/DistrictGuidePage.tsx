@@ -57,6 +57,9 @@ import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { fetchMarketOffers } from '../lib/marketOffersApi';
 import { AREA_BUCKET_ORDER, areaBucket, MARKET_PROPERTY_TYPES, netSize, netPricePerSqm } from '../data/marketOffers';
 import type { MarketOffer } from '../data/marketOffers';
+import { fetchPrimaryMarketOffers } from '../lib/primaryMarketOffersApi';
+import { primaryNetAreaM2, primaryNetPricePerM2Eur } from '../data/primaryMarketOffers';
+import type { PrimaryMarketOffer } from '../data/primaryMarketOffers';
 import { DISTRICTS } from '../data/districts';
 
 // Переехала с /rayon-minsk-mir на /minsk/minsk-mir (см. CLAUDE.md, урл-
@@ -545,6 +548,45 @@ function countSmallFinishedOffices(offers: MarketOffer[], dealType: 'sale' | 're
   ).length;
 }
 
+interface PrimaryMarketPivotRow {
+  label: string;
+  count: number;
+  areaMin: number;
+  areaMax: number;
+  medianPricePerM2Eur: number;
+}
+
+// Порядок строк сводки первичного рынка — обычные квартиры (vid=Квартира)
+// сюда сознательно не входят (владелец: "квартиры не нужны, только апарты
+// и остальная коммерция"). Апартаменты разбиты на "сдано"/"строится" —
+// владелец: "сданные дома фиксируем и выводим отдельно, по ним стоит
+// сравнивать цену с вторичкой".
+const PRIMARY_MARKET_ROW_ORDER: { label: string; filter: (o: PrimaryMarketOffer) => boolean }[] = [
+  { label: 'Бизнес-апартаменты — сдано', filter: (o) => o.category === 'Бизнес-апартаменты' && o.stage === 'Сдано' },
+  { label: 'Бизнес-апартаменты — строится', filter: (o) => o.category === 'Бизнес-апартаменты' && o.stage === 'Строится' },
+  { label: 'Торговые помещения', filter: (o) => o.category === 'Торговые помещения' },
+  { label: 'Офисы', filter: (o) => o.category === 'Офисы' },
+  { label: 'Кладовые', filter: (o) => o.category === 'Кладовые' },
+];
+
+function buildPrimaryMarketPivot(offers: PrimaryMarketOffer[]): PrimaryMarketPivotRow[] {
+  const rows: PrimaryMarketPivotRow[] = [];
+  for (const { label, filter } of PRIMARY_MARKET_ROW_ORDER) {
+    const matched = offers.filter(filter);
+    if (matched.length === 0) continue;
+    const areas = matched.map(primaryNetAreaM2);
+    const prices = matched.map(primaryNetPricePerM2Eur);
+    rows.push({
+      label,
+      count: matched.length,
+      areaMin: Math.round(Math.min(...areas) * 10) / 10,
+      areaMax: Math.round(Math.max(...areas) * 10) / 10,
+      medianPricePerM2Eur: Math.round(median(prices)),
+    });
+  }
+  return rows;
+}
+
 const MONTH_NAMES = [
   'январь',
   'февраль',
@@ -854,6 +896,7 @@ export function DistrictGuidePage() {
   const [marketOffers, setMarketOffers] = useState<MarketOffer[] | null>(null);
   const [marketDealType, setMarketDealType] = useState<'Продажа' | 'Аренда'>('Продажа');
   const [marketFinish, setMarketFinish] = useState<(typeof MARKET_FINISH_OPTIONS)[number]>('С отделкой');
+  const [primaryMarketOffers, setPrimaryMarketOffers] = useState<PrimaryMarketOffer[] | null>(null);
 
   useEffect(() => {
     setGenericPageMeta({ title: TITLE, description: DESCRIPTION, url: PAGE_URL });
@@ -871,6 +914,12 @@ export function DistrictGuidePage() {
     fetchMarketOffers()
       .then(setMarketOffers)
       .catch(() => setMarketOffers([]));
+  }, []);
+
+  useEffect(() => {
+    fetchPrimaryMarketOffers()
+      .then(setPrimaryMarketOffers)
+      .catch(() => setPrimaryMarketOffers([]));
   }, []);
 
   // Плавный переход по якорям бокового меню-оглавления (SECTION_NAV ниже) —
@@ -1301,7 +1350,45 @@ export function DistrictGuidePage() {
             <Banknote className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Первичный рынок коммерческой недвижимости</h2>
           </div>
-          <p className="text-sm text-ink-faint">Информацию добавим отдельно.</p>
+          <p className="text-sm text-ink-muted">
+            Предложения от застройщика (bir.by) — бизнес-апартаменты, торговые помещения, офисы и кладовые. Цена — за
+            чистый м², без учёта террас.
+          </p>
+
+          {primaryMarketOffers === null && <p className="text-sm text-ink-faint">Загрузка…</p>}
+          {primaryMarketOffers !== null && primaryMarketOffers.length === 0 && (
+            <p className="text-sm text-ink-faint">Данные пока не собраны.</p>
+          )}
+
+          {primaryMarketOffers && primaryMarketOffers.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[480px] border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                    <th className="py-2 pr-3 text-left">Категория</th>
+                    <th className="py-2 px-2 text-right font-semibold">Предложений</th>
+                    <th className="py-2 px-2 text-right font-semibold">Площадь</th>
+                    <th className="py-2 pl-2 text-right font-semibold">Цена за м²</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {buildPrimaryMarketPivot(primaryMarketOffers).map((row) => (
+                    <tr key={row.label}>
+                      <td className="py-2.5 pr-3 font-medium text-ink">{row.label}</td>
+                      <td className="py-2.5 px-2 text-right tabular-nums text-ink">{row.count}</td>
+                      <td className="py-2.5 px-2 text-right tabular-nums text-ink-faint">
+                        {row.areaMin === row.areaMax ? `${row.areaMin}` : `${row.areaMin}–${row.areaMax}`} м²
+                      </td>
+                      <td className="py-2.5 pl-2 text-right tabular-nums font-semibold text-ink">
+                        {row.medianPricePerM2Eur.toLocaleString('ru-RU')} €
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="text-xs text-ink-faint">Источник — bir.by, объявления Dana Holdings в Минск Мире.</p>
         </div>
 
         <div id="market" className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
