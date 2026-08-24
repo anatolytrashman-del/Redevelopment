@@ -167,7 +167,7 @@ const DEVELOPER_CONTACTS = {
 // номере (tel:115 одинаково валиден для всех).
 const MANAGEMENT_COMPANY_LOGO_URL = '/images/district/happy-planet-logo.png';
 const MANAGEMENT_COMPANY_DESCRIPTION =
-  'Управляющая компания «Happy Planet» отвечает за эксплуатацию и управление недвижимостью в районе «Минск Мир». Организация обслуживает сданные объекты Dana Holdings, а её бэк-офис для работы с собственниками и арендаторами находится непосредственно в границах района.';
+  'Управляющая компания «Happy Planet» отвечает за эксплуатацию и управление недвижимостью в районе «Минск Мир». Организация обслуживает сданные объекты Dana Holdings, а её бэк-офис для работы с собственниками и арендаторами находится в границах района.';
 const MANAGEMENT_COMPANY = {
   name: 'Happy Planet',
   site: { label: 'dpm.by', url: 'https://dpm.by' },
@@ -1018,12 +1018,17 @@ export function DistrictGuidePage() {
           </div>
           <p className="text-sm text-ink-muted">{MANAGEMENT_COMPANY_DESCRIPTION}</p>
           <div className="flex flex-col gap-1.5 text-sm text-ink-muted">
-            {MANAGEMENT_COMPANY.phones.map((p) => (
-              <a key={p.href} href={p.href} className="flex w-fit items-center gap-2 text-ink hover:underline">
-                <Phone className="h-4 w-4 shrink-0" />
-                {p.label}
-              </a>
-            ))}
+            <div className="flex flex-wrap items-center gap-2">
+              <Phone className="h-4 w-4 shrink-0" />
+              {MANAGEMENT_COMPANY.phones.map((p, i) => (
+                <span key={p.href} className="flex items-center gap-2">
+                  {i > 0 && <span className="text-ink-faint">·</span>}
+                  <a href={p.href} className="text-ink hover:underline">
+                    {p.label}
+                  </a>
+                </span>
+              ))}
+            </div>
             <div className="flex items-start gap-2">
               <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{MANAGEMENT_COMPANY.address}</span>
