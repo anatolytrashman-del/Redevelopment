@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '../../lib/cn';
+import { glassCardShadow } from '../../lib/glass';
 import {
   PRIMARY_MARKET_ROW_ORDER,
   median,
@@ -78,6 +79,17 @@ export function PrimaryMarketProModal({
 }) {
   const [selectedKey, setSelectedKey] = useState(initialCategoryKey);
 
+  // Тот же паттерн, что и у обычной модалки (components/ui/Modal.tsx) —
+  // затемнённый фон исходной страницы + закрытие по клику вне окна и по
+  // Esc. Раньше окно было на весь экран без подложки и почти неотличимо от
+  // перехода на новую страницу — владелец сообщил, что знакомый открыл
+  // Pro-аналитику и не понял, как её закрыть.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   const availableTabs = useMemo(
     () => PRIMARY_MARKET_ROW_ORDER.filter((row) => offers.some(row.filter)),
     [offers],
@@ -105,7 +117,12 @@ export function PrimaryMarketProModal({
   }, [selected, offers]);
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex flex-col bg-bg">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
+      <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
+      <div
+        className="relative flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/80 bg-bg"
+        style={glassCardShadow}
+      >
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-8">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Первичный рынок · Pro</p>
@@ -114,9 +131,10 @@ export function PrimaryMarketProModal({
         <button
           type="button"
           onClick={onClose}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:text-ink"
+          className="flex shrink-0 items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-ink/90"
         >
           <X className="h-4 w-4" />
+          Закрыть
         </button>
       </div>
 
@@ -229,6 +247,7 @@ export function PrimaryMarketProModal({
             </div>
           </>
         )}
+      </div>
       </div>
     </div>,
     document.body,

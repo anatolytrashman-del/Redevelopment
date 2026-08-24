@@ -923,6 +923,30 @@ export function DistrictGuidePage() {
   // открывает панель поверх контента с затемнением фона.
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
+  // Подсветка текущего раздела в боковом оглавлении при скролле (владелец,
+  // со слов друга: "чтобы по мере скрола текущий пункт выделялся жирным").
+  // rootMargin сдвигает зону "активности" в верхнюю треть экрана — иначе
+  // при обычном IntersectionObserver с threshold секция считалась бы активной
+  // только когда видна целиком, а длинные блоки (например "Первичный рынок")
+  // никогда не помещаются в экран целиком.
+  const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting);
+        if (visible.length === 0) return;
+        const topMost = visible.reduce((a, b) => (a.boundingClientRect.top < b.boundingClientRect.top ? a : b));
+        setActiveSectionId(topMost.target.id);
+      },
+      { rootMargin: '-96px 0px -70% 0px', threshold: 0 },
+    );
+    for (const { id } of SECTION_NAV) {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <>
       <div className="min-h-svh bg-bg">
@@ -965,7 +989,10 @@ export function DistrictGuidePage() {
             key={id}
             href={`#${id}`}
             onClick={() => setMobileNavOpen(false)}
-            className="flex items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium text-ink transition-colors hover:text-primary"
+            className={cn(
+              'flex items-center gap-3 rounded-control px-3 py-2.5 text-sm transition-colors hover:text-primary',
+              activeSectionId === id ? 'bg-primary/10 font-bold text-primary' : 'font-medium text-ink',
+            )}
           >
             <Icon className="h-5 w-5 shrink-0" />
             {label}
@@ -1017,7 +1044,12 @@ export function DistrictGuidePage() {
                 <a
                   key={id}
                   href={`#${id}`}
-                  className="flex items-center gap-2 rounded-control px-2 py-1.5 text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
+                  className={cn(
+                    'flex items-center gap-2 rounded-control px-2 py-1.5 transition-colors',
+                    activeSectionId === id
+                      ? 'bg-primary/10 font-bold text-primary'
+                      : 'text-ink-muted hover:bg-surface-muted hover:text-ink',
+                  )}
                 >
                   <Icon className="h-3.5 w-3.5 shrink-0" />
                   {label}
