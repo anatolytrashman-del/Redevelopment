@@ -1370,15 +1370,17 @@ export function DistrictGuidePage() {
             <button
               type="button"
               onClick={() => setPrimaryMarketProKey(buildPrimaryMarketPivot(primaryMarketOffers)[0]?.key ?? null)}
-              className="flex items-center justify-between gap-3 rounded-control bg-primary px-5 py-4 text-left text-white transition-colors hover:bg-primary-hover"
+              className="flex items-center gap-3 rounded-control bg-surface-muted px-5 py-4 text-left transition-colors hover:bg-border"
             >
-              <span className="flex flex-col gap-0.5">
-                <span className="text-sm font-bold">Открыть Pro-аналитику</span>
-                <span className="text-xs text-white/80">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink text-white">
+                <ArrowRight className="h-4 w-4" />
+              </span>
+              <span className="flex flex-1 flex-col gap-0.5">
+                <span className="text-sm font-bold text-ink">Открыть Pro-аналитику</span>
+                <span className="text-xs text-ink-faint">
                   Гистограмма цены, разбивка по домам и сравнение сдано/строится — по каждой категории отдельно
                 </span>
               </span>
-              <ArrowRight className="h-5 w-5 shrink-0" />
             </button>
           )}
 
