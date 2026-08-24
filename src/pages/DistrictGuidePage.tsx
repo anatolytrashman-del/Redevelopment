@@ -201,6 +201,7 @@ const MANAGEMENT_COMPANY = {
     { label: '115 (A1, МТС, life:)', href: 'tel:115' },
   ],
   address: 'г. Минск, ул. Петра Мстиславца, 4, пом. 166',
+  hours: 'Зависит от отдела, точное время — на сайте',
 };
 
 // Портрет аудитории и медицинская инфраструктура — текст от Gemini по брифу,
@@ -1211,6 +1212,10 @@ export function DistrictGuidePage() {
               <span>{MANAGEMENT_COMPANY.address}</span>
             </div>
             <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 shrink-0" />
+              <span>{MANAGEMENT_COMPANY.hours}</span>
+            </div>
+            <div className="flex items-center gap-2">
               <Globe className="h-4 w-4 shrink-0" />
               <a
                 href={MANAGEMENT_COMPANY.site.url}
@@ -1317,9 +1322,9 @@ export function DistrictGuidePage() {
               </div>
             ))}
           </div>
-          <div className="flex items-start gap-2.5 rounded-control bg-warning-bg px-4 py-3">
+          <div className="flex items-start gap-2.5">
             <TriangleAlert className="h-4 w-4 shrink-0 translate-y-0.5 text-warning" />
-            <p className="text-sm text-warning">
+            <p className="text-sm text-ink-muted">
               Высокая плотность — это не только высокая конкуренция, но и доказательство высокого спроса. Каждую
               нишу стоит оценивать отдельно.
             </p>
