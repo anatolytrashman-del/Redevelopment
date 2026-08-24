@@ -114,11 +114,24 @@ const HERO_IMAGES = [
 // предпринимателей/собственников коммерции: не "район для жизни", а
 // "готовая бизнес-среда". Сроки застройки (2015-2027) и историю сознательно
 // убрали — фокус на настоящем, не на прошлом (решение владельца).
+// Расширено с 4 до 8 карточек (владелец, август 2026: "Ключевые цифры" —
+// отдельный блок с заголовком сразу после hero, перед "Застройщиком района").
+// Новые 4 — частично на основе уже посчитанного в этой же сессии (плотность
+// населения, см. `DISTRICT_DENSITY_PER_HECTARE`/`densityVsAvgRatioLabel`
+// ниже — источник тот же, цитата из статьи Onliner), частично из уже
+// собранной фактуры про застройщика (масштаб проекта, см. блок
+// "Застройщик района" ниже — 320 га / ~30 тысяч квартир, t-s.by/naviny.by/
+// Википедия). Значения — литералы, как и у исходных 4 плиток, не завязаны
+// на переменные, объявленные ниже по файлу (statTiles используется раньше).
 const statTiles: { icon: LucideIcon; value: string; label: string }[] = [
-  { icon: Users, value: '25–45', label: 'лет — ядро жителей района: семьи, IT-специалисты' },
+  { icon: Users, value: '80 000', label: 'жителей района Минск Мир' },
+  { icon: Building2, value: '427 чел/га', label: 'плотность населения — в 7,5 раза выше среднего по Минску' },
+  { icon: Briefcase, value: '25–45', label: 'лет — ядро жителей района: семьи, IT-специалисты' },
   { icon: TrainFront, value: '2', label: 'станции метро на территории' },
-  { icon: ShoppingBag, value: '138 200 м²', label: 'площадь Avia Mall — крупнейший ТЦ Минска' },
   { icon: Bus, value: '14', label: 'автобусных и троллейбусных маршрутов' },
+  { icon: ShoppingBag, value: '138 200 м²', label: 'площадь Avia Mall — крупнейший ТЦ Минска' },
+  { icon: Layers, value: '320 га', label: 'заявленный масштаб застройки района' },
+  { icon: BedDouble, value: '~30 000', label: 'квартир по заявленному проекту застройки' },
 ];
 
 // Блок застройщика — владелец знал имя (Dana Holdings), но не располагал
@@ -728,6 +741,7 @@ function AnalyticsMenu() {
 }
 
 const SECTION_NAV: { id: string; label: string; icon: LucideIcon }[] = [
+  { id: 'key-stats', label: 'Ключевые цифры', icon: Sparkles },
   { id: 'developer', label: 'Застройщик', icon: HardHat },
   { id: 'management-company', label: 'Управляющая компания', icon: ShieldCheck },
   { id: 'audience', label: 'Целевая аудитория', icon: Users },
@@ -918,9 +932,11 @@ export function DistrictGuidePage() {
             отдельной рамке; теперь один блок. Колонки не 50/50
             (sm:grid-cols-2), а 3:2 — заголовку описания больше не тесно,
             фото просто пропорционально сузилось вместе со своей колонкой
-            (aspect-[4/5] не трогали). Карточки с цифрами (было четыре
-            плитки прямо тут) убраны с первого экрана — переехали ниже,
-            за карточку застройщика (см. statTiles). */}
+            (aspect-[4/5] не трогали). Карточки с цифрами были ненадолго
+            убраны с первого экрана в параллельном заходе — владелец в этом
+            же диалоге явно попросил вернуть их сюда, отдельным блоком
+            "Ключевые цифры" сразу после hero, перед "Застройщиком района"
+            (см. statTiles, id="key-stats" ниже). */}
         <div
           className={cn('grid grid-cols-1 gap-6 p-6 sm:grid-cols-[3fr_2fr] sm:items-center sm:p-8', glassCardClass)}
           style={glassCardShadow}
@@ -939,6 +955,30 @@ export function DistrictGuidePage() {
           </div>
           <div className="mx-auto w-full max-w-xs sm:max-w-none">
             <HeroImageSlider images={HERO_IMAGES} alt="Аэрофото района Минск Мир" aspectClassName="aspect-[4/5]" />
+          </div>
+        </div>
+
+        <div id="key-stats" className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <Sparkles className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Ключевые цифры</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {statTiles.map(({ icon: Icon, value, label }) => (
+              <div
+                key={label}
+                className="flex flex-col gap-2 rounded-control border border-white bg-white/60 p-4 sm:border-white/50 sm:bg-white/40"
+              >
+                <span
+                  className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)}
+                  style={glassPillShadow}
+                >
+                  <Icon className="h-4 w-4" />
+                </span>
+                <div className="text-lg font-extrabold text-ink">{value}</div>
+                <p className="text-xs leading-snug text-ink-muted">{label}</p>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -1046,23 +1086,6 @@ export function DistrictGuidePage() {
               </a>
             </div>
           </div>
-        </div>
-
-        {/* Переехали с первого экрана (были прямо под hero) — владелец
-            попросил освободить первый экран под чисто главный блок. */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {statTiles.map(({ icon: Icon, value, label }) => (
-            <div key={label} className={cn('flex flex-col gap-2 p-4', glassCardClass)} style={glassCardShadow}>
-              <span
-                className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)}
-                style={glassPillShadow}
-              >
-                <Icon className="h-4 w-4" />
-              </span>
-              <div className="text-lg font-extrabold text-ink">{value}</div>
-              <p className="text-xs leading-snug text-ink-muted">{label}</p>
-            </div>
-          ))}
         </div>
 
         <div id="audience" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
