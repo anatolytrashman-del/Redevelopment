@@ -586,36 +586,58 @@ const trolleyRoutes = ['19', '27', '59', '82'];
 // объявлений на продажу машиномест в Минск Мире, 2769 позиций. Разбиение
 // на два кластера — не произвольное, а по факту данных: цены группируются
 // строго до 9900 € и от 13000 € без единого объявления между ними, то есть
-// граница видна в самих данных, не выдумана. Значения (диапазон/среднее/
-// количество/площадь) — округлённые агрегаты по этому срезу, сырые данные
-// (2769 строк CSV) отправлены владельцу отдельно, здесь не хранятся.
+// граница видна в самих данных, не выдумана.
+// Цены из этого блока убраны (владелец: "будут в другом блоке") — остались
+// только количество мест/паркингов/домов и площадь.
+// Количество паркингов/домов — из уникальных названий "Паркинг X.Y" в
+// данных: у крытых "13.1 1с"/"13.1 2с" — два подъезда ОДНОГО здания (общий
+// адрес ул. Л. Щемелёва, 11 в сырых данных), считаются одним паркингом →
+// 3 паркинга (1.6, 13.1, 21.1). У подземных таких сдвоенных кодов нет —
+// 11 разных кодов = 11 домов; адрес известен только для 4 из них
+// (16.38/16.39/28.4/28.8, все — разные улицы, что и подтверждает: это
+// разные дома, не секции одного) — для остальных 7 (11.1–11.5, 24.2.6,
+// 24.2.7) bir.by не публикует адрес нигде, даже на карточке объекта.
+// Сырые данные (2769 строк CSV) отправлены владельцу отдельно, в
+// репозитории не хранятся — здесь только агрегаты и список названий/
+// адресов паркингов для спойлера.
 const parkingSegments: {
   icon: LucideIcon;
   title: string;
-  priceRange: string;
-  avgPrice: string;
   count: string;
-  share: string;
+  buildingsLabel: string;
   areaRange: string;
 }[] = [
   {
     icon: Car,
     title: 'Крытые наземные паркинги',
-    priceRange: '5 900–9 900 €',
-    avgPrice: '~7 900 €',
     count: '1 658 мест',
-    share: '60% предложения',
+    buildingsLabel: '3 паркинга',
     areaRange: '12,3–19,6 м²',
   },
   {
     icon: CircleParking,
     title: 'Подземные паркинги в домах',
-    priceRange: '13 000–28 000 €',
-    avgPrice: '~19 500 €',
     count: '1 111 мест',
-    share: '40% предложения',
+    buildingsLabel: '11 домов',
     areaRange: '12,0–17,6 м²',
   },
+];
+
+const parkingAddresses: { category: string; house: string; address: string | null }[] = [
+  { category: 'Крытые', house: 'Паркинг 1.6', address: 'ул. Германовская, 7' },
+  { category: 'Крытые', house: 'Паркинг 13.1', address: 'ул. Леонида Щемелёва, 11' },
+  { category: 'Крытые', house: 'Паркинг 21.1', address: null },
+  { category: 'Подземные', house: 'Паркинг 11.1', address: null },
+  { category: 'Подземные', house: 'Паркинг 11.2', address: null },
+  { category: 'Подземные', house: 'Паркинг 11.3', address: null },
+  { category: 'Подземные', house: 'Паркинг 11.4', address: null },
+  { category: 'Подземные', house: 'Паркинг 11.5', address: null },
+  { category: 'Подземные', house: 'Паркинг 16.38', address: 'ул. Жореса Алфёрова, 22' },
+  { category: 'Подземные', house: 'Паркинг 16.39', address: 'ул. Михаила Савицкого, 24' },
+  { category: 'Подземные', house: 'Паркинг 24.2.6', address: null },
+  { category: 'Подземные', house: 'Паркинг 24.2.7', address: null },
+  { category: 'Подземные', house: 'Паркинг 28.4', address: 'ул. Михаила Савицкого, 23' },
+  { category: 'Подземные', house: 'Паркинг 28.8', address: 'ул. Игоря Лученка, 16' },
 ];
 
 // Портрет арендаторов — прислан владельцем (2026-08-22), собственный анализ.
@@ -689,12 +711,12 @@ const districtPropertyTypes: DistrictPropertyType[] = [
   {
     icon: Car,
     title: 'Машиноместа на паркингах',
-    description: 'Крытые наземные паркинги — от 5 900 до 9 900 €, в среднем ~7 900 €. Самый доступный формат, 60% предложения.',
+    description: 'Крытые наземные паркинги — 3 паркинга, 1 658 мест в продаже. Самый доступный формат, 60% предложения.',
   },
   {
     icon: CircleParking,
     title: 'Подземные машиноместа',
-    description: 'Внутри жилых домов — от 13 000 до 28 000 €, в среднем ~19 500 €. Дороже наземных в 2,5 раза за счёт расположения.',
+    description: 'Внутри 11 жилых домов — 1 111 мест в продаже, 40% предложения. Дороже наземных за счёт расположения.',
   },
   { icon: Archive, title: 'Кладовые', description: null },
   { icon: ShoppingBag, title: 'Помещения в ТЦ Avia Mall', description: null },
@@ -811,6 +833,7 @@ const SECTION_NAV: { id: string; label: string; icon: LucideIcon }[] = [
   { id: 'tenant-profiles', label: 'Решения под бизнес', icon: Store },
   { id: 'transport', label: 'Транспорт', icon: TrainFront },
   { id: 'parking', label: 'Паркинги', icon: Car },
+  { id: 'street-parking', label: 'Стихийная парковка', icon: TriangleAlert },
   { id: 'map', label: 'Карта района', icon: MapPin },
   { id: 'faq', label: 'Частые вопросы', icon: CircleHelp },
   { id: 'red-one', label: 'Red One', icon: ArrowRight },
@@ -1683,11 +1706,11 @@ export function DistrictGuidePage() {
             <h2 className="text-lg font-bold text-ink">Паркинги</h2>
           </div>
           <p className="text-sm text-ink-muted">
-            В районе два формата машиномест с заметной разницей в цене — крытые наземные паркинги и подземные внутри
-            жилых домов.
+            В районе два формата машиномест — крытые наземные паркинги и подземные внутри жилых домов. На первичном
+            рынке (bir.by) сейчас в продаже 2 769 мест.
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {parkingSegments.map(({ icon: Icon, title, priceRange, avgPrice, count, share, areaRange }) => (
+            {parkingSegments.map(({ icon: Icon, title, count, buildingsLabel, areaRange }) => (
               <div
                 key={title}
                 className="flex flex-col gap-2 rounded-control border border-white bg-white/60 p-4 sm:border-white/50 sm:bg-white/40"
@@ -1696,17 +1719,54 @@ export function DistrictGuidePage() {
                   <Icon className="h-4 w-4" />
                 </span>
                 <span className="text-sm font-bold text-ink">{title}</span>
-                <div className="text-lg font-extrabold text-ink">{priceRange}</div>
+                <div className="text-lg font-extrabold text-ink">{count}</div>
                 <p className="text-xs text-ink-faint">
-                  В среднем {avgPrice} · {count} ({share}) · {areaRange}
+                  {buildingsLabel} · {areaRange}
                 </p>
               </div>
             ))}
           </div>
+
+          <details className="group">
+            <summary className="cursor-pointer text-sm font-semibold text-ink">Список паркингов и адреса</summary>
+            <div className="mt-2 flex flex-col gap-3">
+              {(['Крытые', 'Подземные'] as const).map((category) => (
+                <div key={category} className="flex flex-col gap-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">{category}</p>
+                  <ul className="flex flex-col gap-1">
+                    {parkingAddresses
+                      .filter((p) => p.category === category)
+                      .map(({ house, address }) => (
+                        <li key={house} className="text-sm text-ink-muted">
+                          <span className="font-medium text-ink">{house}</span>
+                          {' — '}
+                          {address ?? <span className="text-ink-faint">адрес не публикуется</span>}
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </details>
+
           <p className="text-xs text-ink-faint">
             Источник — актуальный срез объявлений bir.by на продажу машиномест в Минск Мире, 2769 позиций (август
             2026).
           </p>
+        </div>
+
+        <div id="street-parking" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <TriangleAlert className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Бесплатная стихийная парковка</h2>
+          </div>
+          <div className="flex items-start gap-2.5 rounded-control bg-warning-bg px-4 py-3">
+            <TriangleAlert className="h-4 w-4 shrink-0 translate-y-0.5 text-warning" />
+            <p className="text-sm text-warning">
+              У домов есть бесплатные места во дворах, но их в резком дефиците — свободное место найти непросто,
+              особенно вечером.
+            </p>
+          </div>
         </div>
 
         {MAP_EMBED_URL && (
