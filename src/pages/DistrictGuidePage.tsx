@@ -610,14 +610,14 @@ const parkingSegments: {
   {
     icon: Car,
     title: 'Крытые наземные паркинги',
-    count: '1 658 мест',
+    count: '1 658',
     buildingsLabel: '3 паркинга',
     areaRange: '12,3–19,6 м²',
   },
   {
     icon: CircleParking,
     title: 'Подземные паркинги в домах',
-    count: '1 111 мест',
+    count: '1 111',
     buildingsLabel: '11 домов',
     areaRange: '12,0–17,6 м²',
   },
@@ -833,7 +833,6 @@ const SECTION_NAV: { id: string; label: string; icon: LucideIcon }[] = [
   { id: 'tenant-profiles', label: 'Решения под бизнес', icon: Store },
   { id: 'transport', label: 'Транспорт', icon: TrainFront },
   { id: 'parking', label: 'Паркинги', icon: Car },
-  { id: 'street-parking', label: 'Стихийная парковка', icon: TriangleAlert },
   { id: 'map', label: 'Карта района', icon: MapPin },
   { id: 'faq', label: 'Частые вопросы', icon: CircleHelp },
   { id: 'red-one', label: 'Red One', icon: ArrowRight },
@@ -1709,7 +1708,7 @@ export function DistrictGuidePage() {
             В районе два формата машиномест — крытые наземные паркинги и подземные внутри жилых домов. На первичном
             рынке (bir.by) сейчас в продаже 2 769 мест.
           </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             {parkingSegments.map(({ icon: Icon, title, count, buildingsLabel, areaRange }) => (
               <div
                 key={title}
@@ -1719,12 +1718,28 @@ export function DistrictGuidePage() {
                   <Icon className="h-4 w-4" />
                 </span>
                 <span className="text-sm font-bold text-ink">{title}</span>
-                <div className="text-lg font-extrabold text-ink">{count}</div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-lg font-extrabold text-ink">{count}</span>
+                  <span className="text-xs text-ink-faint">мест в продаже</span>
+                </div>
                 <p className="text-xs text-ink-faint">
                   {buildingsLabel} · {areaRange}
                 </p>
               </div>
             ))}
+
+            <div className="flex flex-col gap-2 rounded-control border border-white bg-white/60 p-4 sm:border-white/50 sm:bg-white/40">
+              <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)} style={glassPillShadow}>
+                <Car className="h-4 w-4" />
+              </span>
+              <span className="text-sm font-bold text-ink">Бесплатная стихийная парковка</span>
+              <div className="flex items-start gap-1.5">
+                <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+                <p className="text-xs text-ink-muted">
+                  Есть места во дворах, но в резком дефиците — свободное место найти непросто, особенно вечером.
+                </p>
+              </div>
+            </div>
           </div>
 
           <details className="group">
@@ -1740,7 +1755,7 @@ export function DistrictGuidePage() {
                         <li key={house} className="text-sm text-ink-muted">
                           <span className="font-medium text-ink">{house}</span>
                           {' — '}
-                          {address ?? <span className="text-ink-faint">адрес не публикуется</span>}
+                          {address ?? <span className="text-ink-faint">адрес не присвоен</span>}
                         </li>
                       ))}
                   </ul>
@@ -1753,20 +1768,6 @@ export function DistrictGuidePage() {
             Источник — актуальный срез объявлений bir.by на продажу машиномест в Минск Мире, 2769 позиций (август
             2026).
           </p>
-        </div>
-
-        <div id="street-parking" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex items-center gap-3">
-            <TriangleAlert className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Бесплатная стихийная парковка</h2>
-          </div>
-          <div className="flex items-start gap-2.5 rounded-control bg-warning-bg px-4 py-3">
-            <TriangleAlert className="h-4 w-4 shrink-0 translate-y-0.5 text-warning" />
-            <p className="text-sm text-warning">
-              У домов есть бесплатные места во дворах, но их в резком дефиците — свободное место найти непросто,
-              особенно вечером.
-            </p>
-          </div>
         </div>
 
         {MAP_EMBED_URL && (
