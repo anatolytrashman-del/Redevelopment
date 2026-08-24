@@ -62,3 +62,75 @@ export function primaryNetPricePerM2Eur(offer: Pick<PrimaryMarketOffer, 'areaM2'
   const net = primaryNetAreaM2(offer);
   return Math.round((offer.priceTotalEur / net) * 100) / 100;
 }
+
+export function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+export interface PrimaryMarketPivotRow {
+  key: string;
+  label: string;
+  count: number;
+  areaMin: number;
+  areaMax: number;
+  priceMinEur: number;
+  priceAvgEur: number;
+  priceMaxEur: number;
+}
+
+// Порядок строк сводки первичного рынка — обычные квартиры (vid=Квартира)
+// сюда сознательно не входят (владелец: "квартиры не нужны, только апарты
+// и остальная коммерция"). Апартаменты разбиты на "сдано"/"строится" —
+// владелец: "сданные дома фиксируем и выводим отдельно, по ним стоит
+// сравнивать цену с вторичкой". Машиноместа — владелец попросил добавить
+// сюда же то, что уже спарсено для блока "Паркинги" (тот же исходный срез
+// bir.by, дозагружен в primary_market_offers отдельным разовым запуском,
+// не через sync-bir-primary-market.mjs — там нет колонки под крытые/
+// подземные). Цены здесь и есть "другой блок", куда их обещали перенести
+// при чистке "Паркинги" от цен — карточки там остались только с
+// количеством/площадью, сравнение цены за м² — тут.
+//
+// Ключ (key) отдельно от подписи (label) — подпись меняли пару раз в этой
+// сессии (правки формулировок), а key используется как стабильный
+// идентификатор категории между таблицей и Pro-модалкой (выбранная
+// вкладка), завязывать его на текст подписи было бы хрупко.
+export const PRIMARY_MARKET_ROW_ORDER: { key: string; label: string; filter: (o: PrimaryMarketOffer) => boolean }[] = [
+  {
+    key: 'apartments-sdano',
+    label: 'Бизнес-апартаменты — сдано',
+    filter: (o) => o.category === 'Бизнес-апартаменты' && o.stage === 'Сдано',
+  },
+  {
+    key: 'apartments-stroitsya',
+    label: 'Бизнес-апартаменты — строится',
+    filter: (o) => o.category === 'Бизнес-апартаменты' && o.stage === 'Строится',
+  },
+  { key: 'retail', label: 'Торговые помещения', filter: (o) => o.category === 'Торговые помещения' },
+  { key: 'offices', label: 'Офисы', filter: (o) => o.category === 'Офисы' },
+  { key: 'pantry', label: 'Кладовые', filter: (o) => o.category === 'Кладовые' },
+  { key: 'parking-covered', label: 'Машиноместа — крытые', filter: (o) => o.category === 'Машиноместа (крытые)' },
+  { key: 'parking-underground', label: 'Машиноместа — подземные', filter: (o) => o.category === 'Машиноместа (подземные)' },
+];
+
+export function buildPrimaryMarketPivot(offers: PrimaryMarketOffer[]): PrimaryMarketPivotRow[] {
+  const rows: PrimaryMarketPivotRow[] = [];
+  for (const { key, label, filter } of PRIMARY_MARKET_ROW_ORDER) {
+    const matched = offers.filter(filter);
+    if (matched.length === 0) continue;
+    const areas = matched.map(primaryNetAreaM2);
+    const prices = matched.map(primaryNetPricePerM2Eur);
+    rows.push({
+      key,
+      label,
+      count: matched.length,
+      areaMin: Math.round(Math.min(...areas) * 10) / 10,
+      areaMax: Math.round(Math.max(...areas) * 10) / 10,
+      priceMinEur: Math.round(Math.min(...prices)),
+      priceAvgEur: Math.round(prices.reduce((sum, p) => sum + p, 0) / prices.length),
+      priceMaxEur: Math.round(Math.max(...prices)),
+    });
+  }
+  return rows;
+}

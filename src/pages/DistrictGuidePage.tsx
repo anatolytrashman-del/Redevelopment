@@ -58,8 +58,9 @@ import { fetchMarketOffers } from '../lib/marketOffersApi';
 import { AREA_BUCKET_ORDER, areaBucket, MARKET_PROPERTY_TYPES, netSize, netPricePerSqm } from '../data/marketOffers';
 import type { MarketOffer } from '../data/marketOffers';
 import { fetchPrimaryMarketOffers } from '../lib/primaryMarketOffersApi';
-import { primaryNetAreaM2, primaryNetPricePerM2Eur } from '../data/primaryMarketOffers';
+import { buildPrimaryMarketPivot } from '../data/primaryMarketOffers';
 import type { PrimaryMarketOffer } from '../data/primaryMarketOffers';
+import { PrimaryMarketProModal } from '../components/district/PrimaryMarketProModal';
 import { DISTRICTS } from '../data/districts';
 
 // Переехала с /rayon-minsk-mir на /minsk/minsk-mir (см. CLAUDE.md, урл-
@@ -548,56 +549,6 @@ function countSmallFinishedOffices(offers: MarketOffer[], dealType: 'sale' | 're
   ).length;
 }
 
-interface PrimaryMarketPivotRow {
-  label: string;
-  count: number;
-  areaMin: number;
-  areaMax: number;
-  priceMinEur: number;
-  priceAvgEur: number;
-  priceMaxEur: number;
-}
-
-// Порядок строк сводки первичного рынка — обычные квартиры (vid=Квартира)
-// сюда сознательно не входят (владелец: "квартиры не нужны, только апарты
-// и остальная коммерция"). Апартаменты разбиты на "сдано"/"строится" —
-// владелец: "сданные дома фиксируем и выводим отдельно, по ним стоит
-// сравнивать цену с вторичкой". Машиноместа — владелец попросил добавить
-// сюда же то, что уже спарсено для блока "Паркинги" (тот же исходный срез
-// bir.by, дозагружен в primary_market_offers отдельным разовым запуском,
-// не через sync-bir-primary-market.mjs — там нет колонки под крытые/
-// подземные). Цены здесь и есть "другой блок", куда их обещали перенести
-// при чистке "Паркинги" от цен — карточки там остались только с
-// количеством/площадью, сравнение цены за м² — тут.
-const PRIMARY_MARKET_ROW_ORDER: { label: string; filter: (o: PrimaryMarketOffer) => boolean }[] = [
-  { label: 'Бизнес-апартаменты — сдано', filter: (o) => o.category === 'Бизнес-апартаменты' && o.stage === 'Сдано' },
-  { label: 'Бизнес-апартаменты — строится', filter: (o) => o.category === 'Бизнес-апартаменты' && o.stage === 'Строится' },
-  { label: 'Торговые помещения', filter: (o) => o.category === 'Торговые помещения' },
-  { label: 'Офисы', filter: (o) => o.category === 'Офисы' },
-  { label: 'Кладовые', filter: (o) => o.category === 'Кладовые' },
-  { label: 'Машиноместа — крытые', filter: (o) => o.category === 'Машиноместа (крытые)' },
-  { label: 'Машиноместа — подземные', filter: (o) => o.category === 'Машиноместа (подземные)' },
-];
-
-function buildPrimaryMarketPivot(offers: PrimaryMarketOffer[]): PrimaryMarketPivotRow[] {
-  const rows: PrimaryMarketPivotRow[] = [];
-  for (const { label, filter } of PRIMARY_MARKET_ROW_ORDER) {
-    const matched = offers.filter(filter);
-    if (matched.length === 0) continue;
-    const areas = matched.map(primaryNetAreaM2);
-    const prices = matched.map(primaryNetPricePerM2Eur);
-    rows.push({
-      label,
-      count: matched.length,
-      areaMin: Math.round(Math.min(...areas) * 10) / 10,
-      areaMax: Math.round(Math.max(...areas) * 10) / 10,
-      priceMinEur: Math.round(Math.min(...prices)),
-      priceAvgEur: Math.round(prices.reduce((sum, p) => sum + p, 0) / prices.length),
-      priceMaxEur: Math.round(Math.max(...prices)),
-    });
-  }
-  return rows;
-}
 
 const MONTH_NAMES = [
   'январь',
@@ -909,6 +860,7 @@ export function DistrictGuidePage() {
   const [marketDealType, setMarketDealType] = useState<'Продажа' | 'Аренда'>('Продажа');
   const [marketFinish, setMarketFinish] = useState<(typeof MARKET_FINISH_OPTIONS)[number]>('С отделкой');
   const [primaryMarketOffers, setPrimaryMarketOffers] = useState<PrimaryMarketOffer[] | null>(null);
+  const [primaryMarketProKey, setPrimaryMarketProKey] = useState<string | null>(null);
 
   useEffect(() => {
     setGenericPageMeta({ title: TITLE, description: DESCRIPTION, url: PAGE_URL });
@@ -972,7 +924,8 @@ export function DistrictGuidePage() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
-    <div className="min-h-svh bg-bg">
+    <>
+      <div className="min-h-svh bg-bg">
       <button
         type="button"
         onClick={() => setMobileNavOpen(true)}
@@ -1358,13 +1311,24 @@ export function DistrictGuidePage() {
         </div>
 
         <div id="primary-market" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex items-center gap-3">
-            <Banknote className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Первичный рынок коммерческой недвижимости</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <Banknote className="h-5 w-5 shrink-0 text-ink" />
+              <h2 className="text-lg font-bold text-ink">Первичный рынок коммерческой недвижимости</h2>
+            </div>
+            {primaryMarketOffers && primaryMarketOffers.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setPrimaryMarketProKey(buildPrimaryMarketPivot(primaryMarketOffers)[0]?.key ?? null)}
+                className="rounded-full bg-surface-muted px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-border"
+              >
+                Pro-режим ↗
+              </button>
+            )}
           </div>
           <p className="text-sm text-ink-muted">
             Предложения от застройщика (bir.by) — бизнес-апартаменты, торговые помещения, офисы и кладовые. Цена — за
-            чистый м², без учёта террас.
+            чистый м², без учёта террас. Клик по строке открывает подробный разбор.
           </p>
 
           {primaryMarketOffers === null && <p className="text-sm text-ink-faint">Загрузка…</p>}
@@ -1387,7 +1351,11 @@ export function DistrictGuidePage() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {buildPrimaryMarketPivot(primaryMarketOffers).map((row) => (
-                    <tr key={row.label}>
+                    <tr
+                      key={row.key}
+                      onClick={() => setPrimaryMarketProKey(row.key)}
+                      className="cursor-pointer hover:bg-surface-muted"
+                    >
                       <td className="py-2.5 pr-3 font-medium text-ink">{row.label}</td>
                       <td className="py-2.5 px-2 text-right tabular-nums text-ink">{row.count}</td>
                       <td className="py-2.5 px-2 text-right tabular-nums text-ink-faint">
@@ -1935,6 +1903,14 @@ export function DistrictGuidePage() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+      {primaryMarketProKey && primaryMarketOffers && (
+        <PrimaryMarketProModal
+          offers={primaryMarketOffers}
+          initialCategoryKey={primaryMarketProKey}
+          onClose={() => setPrimaryMarketProKey(null)}
+        />
+      )}
+    </>
   );
 }
