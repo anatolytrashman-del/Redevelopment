@@ -819,13 +819,15 @@ export function DistrictGuidePage() {
       </aside>
 
       {/* Шапка выровнена по той же сетке, что и основной контент ниже
-          (lg:grid-cols-[200px_1fr]) — но не общим блоком во второй
-          колонке (так было в прошлом заходе, владелец поправил разметкой
-          на скриншоте: красным обвёл логотип, зелёным — меню). Логотип —
-          в ПЕРВОЙ колонке, там же, где ниже начинается боковое
-          оглавление; меню "Аналитика"/Red One — во ВТОРОЙ, там же, где
-          начинается hero-карточка, прижато к левому краю этой колонки
-          (не justify-between до правого края страницы). Ниже lg обе
+          (lg:grid-cols-[200px_1fr]) — логотип в ПЕРВОЙ колонке (там же,
+          где ниже боковое оглавление), меню — во ВТОРОЙ. У самой
+          hero-карточки ниже есть свой внутренний `mx-auto max-w-3xl`
+          (центрирует контент внутри широкой колонки) — из-за него
+          фактический левый край карточки на 40px правее границы самой
+          колонки. Владелец нарисовал на скриншоте линию ровно по этому
+          факту­ческому краю карточки, не по границе колонки — обёртка
+          меню повторяет тот же `mx-auto max-w-3xl`, чтобы совпасть
+          именно с ним, а не с более левой границей колонки. Ниже lg обе
           колонки становятся одним flex-рядом на всю ширину, как и раньше. */}
       <div className="border-b border-border py-5">
         <div className="mx-auto max-w-6xl px-4 sm:px-8">
@@ -833,12 +835,14 @@ export function DistrictGuidePage() {
             <Link to="/minsk" className="shrink-0 text-lg font-extrabold tracking-wide text-ink">
               <span className="font-black text-primary">RED</span>EVELOPMENT
             </Link>
-            <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted sm:flex">
-              <Link to="/minsk/one" className="transition-colors hover:text-ink">
-                Деловой центр Red One
-              </Link>
-              <AnalyticsMenu />
-            </nav>
+            <div className="lg:mx-auto lg:w-full lg:max-w-3xl">
+              <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted sm:flex">
+                <Link to="/minsk/one" className="transition-colors hover:text-ink">
+                  Деловой центр Red One
+                </Link>
+                <AnalyticsMenu />
+              </nav>
+            </div>
           </div>
         </div>
       </div>
