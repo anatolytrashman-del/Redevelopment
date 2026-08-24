@@ -1,13 +1,25 @@
 import { useEffect, useState } from 'react';
-import { Plus, Loader2, Trash2, Pencil, Phone } from 'lucide-react';
+import { Plus, Loader2, Trash2, Pencil, Send, Phone } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
 import { Modal } from '../ui/Modal';
+import { ToggleGroup } from '../ui/ToggleGroup';
+import { ContactValue } from '../ui/ContactValue';
 import { cn } from '../../lib/cn';
 import { formatPhoneDisplay } from '../../lib/formatPhone';
-import type { ResearchRequest, ResearchOffer } from '../../data/contractorResearch';
+import { currencySymbols, type Currency } from '../../data/transactions';
+import type { ExchangeRate } from '../../data/exchangeRates';
+import { fetchTodayRate } from '../../lib/exchangeRatesApi';
+import { convertToUsd } from '../../lib/currencyConvert';
+import {
+  RESEARCH_CURRENCIES,
+  RESEARCH_CONTACT_METHODS,
+  type ResearchContactMethod,
+  type ResearchRequest,
+  type ResearchOffer,
+} from '../../data/contractorResearch';
 import {
   fetchResearchRequests,
   insertResearchRequest,
@@ -26,27 +38,43 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-function formatPrice(price: number): string {
-  return `$${price.toLocaleString('ru-RU')}`;
+function formatPrice(price: number, currency: Currency): string {
+  const formatted = price.toLocaleString('ru-RU');
+  const symbol = currencySymbols[currency];
+  return currency === 'USD' ? `${symbol}${formatted}` : `${formatted} ${symbol}`;
 }
 
-const emptyOfferForm = { name: '', phone: '', price: '', deadline: '', requirements: '' };
+const emptyOfferForm = {
+  name: '',
+  contactMethod: 'Телефон' as ResearchContactMethod,
+  contact: '',
+  price: '',
+  currency: 'USD' as Currency,
+  deadline: '',
+  requirements: '',
+};
 
 // Сравнение предложений на одну задачу (владелец: "1 запрос — 1 карточка",
 // пример — поиск оценки здания). Внутри карточки — предложения разных
-// исполнителей; дешевле всех — наверх и зелёным (владелец выбирает чаще
-// всего по цене). Предложения без цены (ещё не заполнена) идут в конце,
-// участвовать в сравнении "дешевле всех" не могут — # 0 не должен ложно
-// побеждать как "самая низкая цена".
-function sortOffersByPrice(offers: ResearchOffer[]): ResearchOffer[] {
-  const priced = offers.filter((o) => o.price > 0).sort((a, b) => a.price - b.price);
-  const unpriced = offers.filter((o) => !(o.price > 0));
-  return [...priced, ...unpriced];
+// исполнителей, возможно в разных валютах (владелец: "просто доллары не
+// подойдут") — сравнивать сырые числа напрямую нельзя (500 RUB и 500 USD не
+// одно и то же), поэтому "дешевле всех" считается по курсу на сегодня
+// (convertToUsd, тот же хелпер, что и в отчёте по Транзакциям) — общий
+// знаменатель USD. Предложения без цены или с валютой, для которой курс не
+// подтянулся (rate ещё грузится/недоступен), в сравнении не участвуют и
+// идут в конец — иначе несравнимое (или 0) ложно выигрывало бы как
+// "самая низкая цена".
+function rankOffers(offers: ResearchOffer[], rate: ExchangeRate | undefined): { sorted: ResearchOffer[]; cheapestId: string | undefined } {
+  const withUsd = offers.map((o) => ({ offer: o, usd: o.price > 0 ? convertToUsd(o.price, o.currency, rate) : null }));
+  const priced = withUsd.filter((x) => x.usd != null).sort((a, b) => a.usd! - b.usd!);
+  const unpriced = withUsd.filter((x) => x.usd == null);
+  return { sorted: [...priced, ...unpriced].map((x) => x.offer), cheapestId: priced[0]?.offer.id };
 }
 
 function RequestCard({
   request,
   offers,
+  rate,
   onEditRequest,
   onDeleteRequest,
   onAddOffer,
@@ -56,6 +84,7 @@ function RequestCard({
 }: {
   request: ResearchRequest;
   offers: ResearchOffer[];
+  rate: ExchangeRate | undefined;
   onEditRequest: (r: ResearchRequest) => void;
   onDeleteRequest: (r: ResearchRequest) => void;
   onAddOffer: (requestId: string) => void;
@@ -63,8 +92,7 @@ function RequestCard({
   onDeleteOffer: (o: ResearchOffer) => void;
   deletingOfferId: string | null;
 }) {
-  const sorted = sortOffersByPrice(offers);
-  const cheapestId = sorted.find((o) => o.price > 0)?.id;
+  const { sorted, cheapestId } = rankOffers(offers, rate);
 
   return (
     <Card className="flex flex-col gap-4 p-5">
@@ -101,7 +129,7 @@ function RequestCard({
             <thead>
               <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-ink-faint">
                 <th className="py-2 pr-3 text-left">Название</th>
-                <th className="py-2 px-2 text-left">Телефон</th>
+                <th className="py-2 px-2 text-left">Контакт</th>
                 <th className="py-2 px-2 text-right">Стоимость</th>
                 <th className="py-2 px-2 text-left">Срок</th>
                 <th className="py-2 px-2 text-left">Требования</th>
@@ -122,17 +150,24 @@ function RequestCard({
                       )}
                     </td>
                     <td className="py-2.5 px-2 text-ink-muted">
-                      {o.phone ? (
+                      {o.contact ? (
                         <span className="flex items-center gap-1.5">
-                          <Phone className="h-3.5 w-3.5 shrink-0" />
-                          {formatPhoneDisplay(o.phone)}
+                          {o.contactMethod === 'Telegram' ? (
+                            <Send className="h-3.5 w-3.5 shrink-0" />
+                          ) : (
+                            <Phone className="h-3.5 w-3.5 shrink-0" />
+                          )}
+                          <ContactValue
+                            contact={o.contactMethod === 'Телефон' ? formatPhoneDisplay(o.contact) : o.contact}
+                            contactMethod={o.contactMethod}
+                          />
                         </span>
                       ) : (
                         '—'
                       )}
                     </td>
                     <td className={cn('py-2.5 px-2 text-right tabular-nums font-semibold', isCheapest ? 'text-success' : 'text-ink')}>
-                      {o.price > 0 ? formatPrice(o.price) : '—'}
+                      {o.price > 0 ? formatPrice(o.price, o.currency) : '—'}
                     </td>
                     <td className="py-2.5 px-2 text-ink-muted">{o.deadline || '—'}</td>
                     <td className="max-w-[220px] py-2.5 px-2 text-ink-muted">
@@ -175,6 +210,11 @@ export function ContractorsResearch() {
   const [offers, setOffers] = useState<ResearchOffer[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Курс на сегодня — только для сравнения "дешевле всех" между валютами
+  // (см. rankOffers). Не получилось подтянуть — не блокируем страницу,
+  // просто предложения в других валютах, кроме USD, выпадут из сравнения
+  // (см. convertToUsd: без курса возвращает null).
+  const [rate, setRate] = useState<ExchangeRate | undefined>(undefined);
 
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState<ResearchRequest | null>(null);
@@ -198,6 +238,9 @@ export function ContractorsResearch() {
       })
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить ресерч')))
       .finally(() => setLoading(false));
+    fetchTodayRate()
+      .then(setRate)
+      .catch(() => setRate(undefined));
   }, []);
 
   function openAddRequest() {
@@ -259,8 +302,10 @@ export function ContractorsResearch() {
     setEditingOffer(o);
     setOfferForm({
       name: o.name,
-      phone: o.phone,
+      contactMethod: o.contactMethod,
+      contact: o.contact,
       price: o.price ? String(o.price) : '',
+      currency: o.currency,
       deadline: o.deadline,
       requirements: o.requirements,
     });
@@ -278,8 +323,10 @@ export function ContractorsResearch() {
     const payload = {
       requestId: offerRequestId,
       name: offerForm.name.trim(),
-      phone: offerForm.phone.trim(),
+      contactMethod: offerForm.contactMethod,
+      contact: offerForm.contact.trim(),
       price: Number(offerForm.price),
+      currency: offerForm.currency,
       deadline: offerForm.deadline.trim(),
       requirements: offerForm.requirements.trim(),
     };
@@ -338,6 +385,7 @@ export function ContractorsResearch() {
             key={r.id}
             request={r}
             offers={offers.filter((o) => o.requestId === r.id)}
+            rate={rate}
             onEditRequest={openEditRequest}
             onDeleteRequest={handleDeleteRequest}
             onAddOffer={openAddOffer}
@@ -378,30 +426,49 @@ export function ContractorsResearch() {
             onChange={(e) => setOfferForm((f) => ({ ...f, name: e.target.value }))}
             required
           />
-          <Input
-            label="Контактный телефон"
-            placeholder="+375 29 ..."
-            type="tel"
-            value={offerForm.phone}
-            onChange={(e) => setOfferForm((f) => ({ ...f, phone: e.target.value }))}
-          />
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Input
-              label="Стоимость, $"
-              placeholder="0"
-              type="number"
-              min="0"
-              value={offerForm.price}
-              onChange={(e) => setOfferForm((f) => ({ ...f, price: e.target.value }))}
-              required
-            />
-            <Input
-              label="Срок"
-              placeholder="Например, 5 дней"
-              value={offerForm.deadline}
-              onChange={(e) => setOfferForm((f) => ({ ...f, deadline: e.target.value }))}
-            />
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm text-ink-muted">Контакт</span>
+            <div className="flex gap-2">
+              <ToggleGroup
+                options={[...RESEARCH_CONTACT_METHODS]}
+                value={offerForm.contactMethod}
+                onChange={(v) => setOfferForm((f) => ({ ...f, contactMethod: v as ResearchContactMethod }))}
+              />
+              <Input
+                placeholder={offerForm.contactMethod === 'Telegram' ? '@username' : '+375 29 ...'}
+                type={offerForm.contactMethod === 'Telegram' ? 'text' : 'tel'}
+                value={offerForm.contact}
+                onChange={(e) => setOfferForm((f) => ({ ...f, contact: e.target.value }))}
+                className="flex-1"
+              />
+            </div>
           </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm text-ink-muted">Стоимость</span>
+            <div className="flex gap-2">
+              <Input
+                placeholder="0"
+                type="number"
+                min="0"
+                value={offerForm.price}
+                onChange={(e) => setOfferForm((f) => ({ ...f, price: e.target.value }))}
+                required
+                className="flex-1"
+              />
+              <ToggleGroup
+                options={RESEARCH_CURRENCIES}
+                value={offerForm.currency}
+                onChange={(v) => setOfferForm((f) => ({ ...f, currency: v as Currency }))}
+              />
+            </div>
+          </div>
+
+          <Input
+            label="Срок"
+            placeholder="Например, 5 дней"
+            value={offerForm.deadline}
+            onChange={(e) => setOfferForm((f) => ({ ...f, deadline: e.target.value }))}
+          />
           <Textarea
             label="Требования"
             placeholder="Предоплата, документы, условия..."

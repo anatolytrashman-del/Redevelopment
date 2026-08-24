@@ -1,6 +1,13 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import type { ResearchRequest, ResearchRequestRow, ResearchOffer, ResearchOfferRow } from '../data/contractorResearch';
+import type {
+  ResearchRequest,
+  ResearchRequestRow,
+  ResearchOffer,
+  ResearchOfferRow,
+  ResearchContactMethod,
+} from '../data/contractorResearch';
+import type { Currency } from '../data/transactions';
 
 function requestFromRow(row: ResearchRequestRow): ResearchRequest {
   return { id: row.id, title: row.title, createdAt: row.created_at };
@@ -11,8 +18,10 @@ function offerFromRow(row: ResearchOfferRow): ResearchOffer {
     id: row.id,
     requestId: row.request_id,
     name: row.name,
-    phone: row.phone,
+    contact: row.contact,
+    contactMethod: row.contact_method as ResearchContactMethod,
     price: row.price,
+    currency: row.currency as Currency,
     deadline: row.deadline,
     requirements: row.requirements,
     createdAt: row.created_at,
@@ -74,8 +83,10 @@ export function insertResearchOffer(input: Omit<ResearchOffer, 'id' | 'createdAt
       .insert({
         request_id: input.requestId,
         name: input.name,
-        phone: input.phone,
+        contact: input.contact,
+        contact_method: input.contactMethod,
         price: input.price,
+        currency: input.currency,
         deadline: input.deadline,
         requirements: input.requirements,
       })
@@ -93,8 +104,10 @@ export function updateResearchOffer(id: string, input: Omit<ResearchOffer, 'id' 
       .update({
         request_id: input.requestId,
         name: input.name,
-        phone: input.phone,
+        contact: input.contact,
+        contact_method: input.contactMethod,
         price: input.price,
+        currency: input.currency,
         deadline: input.deadline,
         requirements: input.requirements,
       })
