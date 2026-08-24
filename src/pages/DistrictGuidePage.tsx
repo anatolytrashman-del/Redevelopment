@@ -66,6 +66,7 @@ import { currencySymbols } from '../data/transactions';
 import type { Currency } from '../data/transactions';
 import type { ExchangeRate } from '../data/exchangeRates';
 import { PrimaryMarketProModal } from '../components/district/PrimaryMarketProModal';
+import { AudienceIllustration } from '../components/district/ThemedIllustrations';
 import { DISTRICTS } from '../data/districts';
 
 // Переехала с /rayon-minsk-mir на /minsk/minsk-mir (см. CLAUDE.md, урл-
@@ -1290,18 +1291,21 @@ export function DistrictGuidePage() {
           </div>
         </div>
 
-        <div id="audience" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex items-center gap-3">
-            <Users className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Целевая аудитория и покупательская способность</h2>
+        <div id="audience" className={cn('flex scroll-mt-6 flex-col gap-3 p-6 sm:flex-row sm:gap-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex flex-1 flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <Users className="h-5 w-5 shrink-0 text-ink" />
+              <h2 className="text-lg font-bold text-ink">Целевая аудитория и покупательская способность</h2>
+            </div>
+            <ul className="flex flex-col gap-2">
+              {audienceHighlights.map(({ label, text }) => (
+                <li key={label} className="text-sm text-ink-muted">
+                  <span className="font-semibold text-ink">{label}</span> {text}
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul className="flex flex-col gap-2">
-            {audienceHighlights.map(({ label, text }) => (
-              <li key={label} className="text-sm text-ink-muted">
-                <span className="font-semibold text-ink">{label}</span> {text}
-              </li>
-            ))}
-          </ul>
+          <AudienceIllustration className="hidden h-auto w-32 shrink-0 self-center text-ink sm:block" />
         </div>
 
         <div id="traffic" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
