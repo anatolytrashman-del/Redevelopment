@@ -64,11 +64,28 @@ const emptyOfferForm = {
 // подтянулся (rate ещё грузится/недоступен), в сравнении не участвуют и
 // идут в конец — иначе несравнимое (или 0) ложно выигрывало бы как
 // "самая низкая цена".
-function rankOffers(offers: ResearchOffer[], rate: ExchangeRate | undefined): { sorted: ResearchOffer[]; cheapestId: string | undefined } {
-  const withUsd = offers.map((o) => ({ offer: o, usd: o.price > 0 ? convertToUsd(o.price, o.currency, rate) : null }));
+//
+// Лидеров может быть несколько (владелец: "два подрядчика с одинаковой
+// ценой... надо подсвечивать, что тут не 1 лидер, а два одинаковых") —
+// cheapestIds поэтому набор, а не одно id: помечаем ВСЕ предложения с
+// минимальной ценой, не только первое по сортировке. Округление до цента
+// перед сравнением — иначе конвертация через курс (умножение/деление)
+// может дать 549.999999 вместо 550 и ложно не засчитать равенство.
+function rankOffers(
+  offers: ResearchOffer[],
+  rate: ExchangeRate | undefined,
+): { sorted: ResearchOffer[]; cheapestIds: Set<string> } {
+  const withUsd = offers.map((o) => ({
+    offer: o,
+    usd: o.price > 0 ? convertToUsd(o.price, o.currency, rate) : null,
+  }));
   const priced = withUsd.filter((x) => x.usd != null).sort((a, b) => a.usd! - b.usd!);
   const unpriced = withUsd.filter((x) => x.usd == null);
-  return { sorted: [...priced, ...unpriced].map((x) => x.offer), cheapestId: priced[0]?.offer.id };
+  const minUsd = priced[0] ? Math.round(priced[0].usd! * 100) : null;
+  const cheapestIds = new Set(
+    minUsd == null ? [] : priced.filter((x) => Math.round(x.usd! * 100) === minUsd).map((x) => x.offer.id),
+  );
+  return { sorted: [...priced, ...unpriced].map((x) => x.offer), cheapestIds };
 }
 
 function RequestCard({
@@ -92,7 +109,7 @@ function RequestCard({
   onDeleteOffer: (o: ResearchOffer) => void;
   deletingOfferId: string | null;
 }) {
-  const { sorted, cheapestId } = rankOffers(offers, rate);
+  const { sorted, cheapestIds } = rankOffers(offers, rate);
 
   return (
     <Card className="flex flex-col gap-4 p-5">
@@ -138,7 +155,7 @@ function RequestCard({
             </thead>
             <tbody className="divide-y divide-border">
               {sorted.map((o) => {
-                const isCheapest = o.id === cheapestId;
+                const isCheapest = cheapestIds.has(o.id);
                 return (
                   <tr key={o.id} className={isCheapest ? 'bg-success-bg' : undefined}>
                     <td className="py-2.5 pr-3 font-medium text-ink">
