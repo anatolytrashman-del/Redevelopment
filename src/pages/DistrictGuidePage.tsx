@@ -1487,11 +1487,9 @@ export function DistrictGuidePage() {
         </div>
 
         <div id="business-analytics" className={cn('flex scroll-mt-6 flex-col', glassCardClass)} style={glassCardShadow}>
-          <div className="flex items-center gap-2 border-b border-border px-6 py-4">
-            <LayoutGrid className="h-4 w-4 shrink-0 text-ink-faint" />
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
-              Аналитика по сферам бизнеса
-            </h2>
+          <div className="flex items-center gap-3 px-6 pt-6">
+            <LayoutGrid className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Аналитика по сферам бизнеса</h2>
           </div>
           <div className="flex flex-col divide-y divide-border">
         <div className="flex flex-col gap-3 px-6 py-6">
