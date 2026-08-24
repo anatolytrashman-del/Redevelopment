@@ -574,8 +574,14 @@ const MARKET_FINISH_TO_DB: Record<(typeof MARKET_FINISH_OPTIONS)[number], string
 };
 
 const metroStations = ['Ковальская Слобода', 'Аэродромная'];
-const busRoutes = ['4', '47с', '53', '56', '73', '84', '100', '107', '124', '172'];
-const trolleyRoutes = ['19', '27', '59', '82'];
+// Автобусы/троллейбусы — список дополнен владельцем 2026-08-24 (озвучил
+// новые номера, часть повторяла уже внесённые — объединено с прежним
+// списком через Set, отсортировано по возрастанию номера; суффиксы вроде
+// "47с" сортируются по ведущему числу). Маршрутки и электричка (новые
+// категории) — тоже от владельца, тем же заходом.
+const busRoutes = ['4', '40', '47с', '53', '56', '65', '73', '84', '93', '100', '102', '107', '124', '172'];
+const trolleyRoutes = ['6', '19', '20', '24', '27', '59', '82', '124'];
+const minibusRoutes = ['1056ТК', '1064ТК', '1076ТК', '1146ТК', '1211ТК', '1212ТК', '1346ТК', '1547ТК'];
 
 // Рынок машиномест — владелец рассказал про два ценовых сегмента ("дешёвые
 // в районе 6-9 тысяч евро — крытые паркинги, дорогие — подземные внутри
@@ -1694,6 +1700,30 @@ export function DistrictGuidePage() {
                     {r}
                   </span>
                 ))}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-start gap-2">
+              <span className="flex shrink-0 items-center gap-1.5 pt-0.5 text-xs font-semibold text-ink-muted">
+                <Car className="h-3.5 w-3.5" />
+                Маршрутки:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {minibusRoutes.map((r) => (
+                  <span key={r} className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink">
+                    {r}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-start gap-2">
+              <span className="flex shrink-0 items-center gap-1.5 pt-0.5 text-xs font-semibold text-ink-muted">
+                <TrainFront className="h-3.5 w-3.5" />
+                Электричка:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink">
+                  До станции Минск-Южный
+                </span>
               </div>
             </div>
           </div>
