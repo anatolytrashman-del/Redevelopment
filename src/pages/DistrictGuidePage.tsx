@@ -20,6 +20,7 @@ import {
   Dumbbell,
   ExternalLink,
   Flower2,
+  Globe,
   Grid2x2,
   HardHat,
   Landmark,
@@ -137,6 +138,11 @@ const statTiles: { icon: LucideIcon; value: string; label: string }[] = [
 // цвета) — не смог найти логотип с уже прозрачным фоном официально,
 // пришлось вырезать вручную, как и просил владелец.
 const DEVELOPER_LOGO_URL = '/images/district/dana-holdings-logo.png';
+// Тот же файл, что и MINSK_MIR_LOGO_URL в ObjectLandingPage.tsx (страница
+// Red One) — владелец попросил показать его рядом с логотипом застройщика
+// и тут же (см. комментарий там про перезаливку с ibb.co в собственное
+// хранилище — сделано заодно с этой правкой).
+const MINSK_MIR_LOGO_URL = '/images/district/minsk-mir-logo.png';
 const DEVELOPER_LINKS = [
   { label: 'minskworld.by', url: 'https://minskworld.by' },
   { label: 'bir.by', url: 'https://bir.by' },
@@ -145,7 +151,7 @@ const DEVELOPER_CONTACTS = {
   phone: '7675',
   phoneHref: 'tel:7675',
   address: 'Отдел продаж: ул. П. Мстиславца, 9, «Дана Центр», 1 этаж',
-  hours: 'Пн–Пт: 8:30–20:30, Сб–Вс: 9:00–20:00',
+  hours: 'Будни: 8:30–20:30. Выходные: 9:00–20:00',
 };
 
 // Портрет аудитории и медицинская инфраструктура — текст от Gemini по брифу,
@@ -916,22 +922,16 @@ export function DistrictGuidePage() {
             <HardHat className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Застройщик района</h2>
           </div>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          {/* Оба логотипа прижаты вправо (owner: "перенеси логотип
+              застройщика вправо"), Минск Мир — тот же файл, что и на
+              лендинге Red One (см. MINSK_MIR_LOGO_URL там). Ссылки на
+              сайты переехали вниз, в блок контактов (owner: "ссылку на
+              сайт перенеси вниз, где контакты") — вместо отдельных pill-
+              кнопок теперь строка в общем стиле телефона/адреса/часов
+              работы (иконка + текст). */}
+          <div className="flex items-center justify-end gap-4">
             <img src={DEVELOPER_LOGO_URL} alt="Dana Holdings" className="h-9 w-auto object-contain" />
-            <div className="flex flex-wrap gap-2">
-              {DEVELOPER_LINKS.map(({ label, url }) => (
-                <a
-                  key={url}
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 rounded-full bg-surface-muted px-3 py-1.5 text-xs font-medium text-ink hover:bg-border"
-                >
-                  {label}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              ))}
-            </div>
+            <img src={MINSK_MIR_LOGO_URL} alt="Минск Мир" className="h-9 w-auto object-contain" />
           </div>
           <p className="text-sm text-ink-muted">
             <span className="font-semibold text-ink">Dana Holdings</span> — международная группа компаний со штаб-квартирой
@@ -951,6 +951,23 @@ export function DistrictGuidePage() {
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 shrink-0" />
               <span>{DEVELOPER_CONTACTS.hours}</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Globe className="h-4 w-4 shrink-0" />
+              {DEVELOPER_LINKS.map(({ label, url }, i) => (
+                <span key={url} className="flex items-center gap-2">
+                  {i > 0 && <span className="text-ink-faint">·</span>}
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-ink hover:underline"
+                  >
+                    {label}
+                    <ExternalLink className="h-3 w-3 shrink-0" />
+                  </a>
+                </span>
+              ))}
             </div>
           </div>
         </div>
