@@ -1305,7 +1305,7 @@ export function DistrictGuidePage() {
             </ul>
           </div>
           <img
-            src="/images/district/audience-family.svg"
+            src="/images/district/audience-target-audience.svg"
             alt=""
             className="hidden h-auto w-36 shrink-0 self-center sm:block"
           />
@@ -1326,7 +1326,7 @@ export function DistrictGuidePage() {
             </ul>
           </div>
           <img
-            src="/images/district/traffic-neighborhood.svg"
+            src="/images/district/traffic-quiet-street.svg"
             alt=""
             className="hidden h-auto w-36 shrink-0 self-center sm:block"
           />
@@ -1406,9 +1406,16 @@ export function DistrictGuidePage() {
         </div>
 
         <div id="property-types" className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex items-center gap-3">
-            <Layers className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Виды коммерческой недвижимости в Минск Мире</h2>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <Layers className="h-5 w-5 shrink-0 text-ink" />
+              <h2 className="text-lg font-bold text-ink">Виды коммерческой недвижимости в Минск Мире</h2>
+            </div>
+            <img
+              src="/images/district/property-types-select-house.svg"
+              alt=""
+              className="hidden h-16 w-auto shrink-0 sm:block"
+            />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {districtPropertyTypes.map(({ icon: Icon, title, description }) => (
@@ -1831,7 +1838,8 @@ export function DistrictGuidePage() {
           </div>
         </div>
 
-        <div id="transport" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+        <div id="transport" className={cn('flex scroll-mt-6 flex-col gap-3 p-6 sm:flex-row sm:gap-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex flex-1 flex-col gap-3">
           <div className="flex items-center gap-3">
             <TrainFront className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Транспорт</h2>
@@ -1901,17 +1909,32 @@ export function DistrictGuidePage() {
               </div>
             </div>
           </div>
+          </div>
+          <img
+            src="/images/district/transport-subway.svg"
+            alt=""
+            className="hidden h-auto w-36 shrink-0 self-center sm:block"
+          />
         </div>
 
         <div id="parking" className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex items-center gap-3">
-            <Car className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Паркинги</h2>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+            <div className="flex flex-1 flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <Car className="h-5 w-5 shrink-0 text-ink" />
+                <h2 className="text-lg font-bold text-ink">Паркинги</h2>
+              </div>
+              <p className="text-sm text-ink-muted">
+                В районе два формата машиномест — крытые наземные паркинги и подземные внутри жилых домов. На
+                первичном рынке (bir.by) сейчас в продаже 2 769 мест.
+              </p>
+            </div>
+            <img
+              src="/images/district/parking-electric-car.svg"
+              alt=""
+              className="hidden h-auto w-36 shrink-0 self-center sm:block"
+            />
           </div>
-          <p className="text-sm text-ink-muted">
-            В районе два формата машиномест — крытые наземные паркинги и подземные внутри жилых домов. На первичном
-            рынке (bir.by) сейчас в продаже 2 769 мест.
-          </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             {parkingSegments.map(({ icon: Icon, title, count, buildingsLabel, areaRange }) => (
               <div
