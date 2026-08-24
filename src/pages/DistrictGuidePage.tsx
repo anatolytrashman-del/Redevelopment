@@ -805,7 +805,8 @@ const SECTION_NAV: { id: string; label: string; icon: LucideIcon }[] = [
   { id: 'population-density', label: 'Плотность населения', icon: Building2 },
   { id: 'business-density', label: 'Плотность бизнеса', icon: Grid2x2 },
   { id: 'property-types', label: 'Виды недвижимости', icon: Layers },
-  { id: 'market', label: 'Рынок недвижимости', icon: TrendingUp },
+  { id: 'primary-market', label: 'Первичный рынок', icon: Banknote },
+  { id: 'market', label: 'Вторичный рынок', icon: TrendingUp },
   { id: 'business-analytics', label: 'Аналитика по сферам бизнеса', icon: LayoutGrid },
   { id: 'tenant-profiles', label: 'Решения под бизнес', icon: Store },
   { id: 'transport', label: 'Транспорт', icon: TrainFront },
@@ -1267,11 +1268,19 @@ export function DistrictGuidePage() {
           </div>
         </div>
 
+        <div id="primary-market" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <Banknote className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Первичный рынок коммерческой недвижимости</h2>
+          </div>
+          <p className="text-sm text-ink-faint">Информацию добавим отдельно.</p>
+        </div>
+
         <div id="market" className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-3">
               <TrendingUp className="h-5 w-5 shrink-0 text-ink" />
-              <h2 className="text-lg font-bold text-ink">Рынок коммерческой недвижимости</h2>
+              <h2 className="text-lg font-bold text-ink">Вторичный рынок коммерческой недвижимости</h2>
             </div>
             {marketOffers && marketOffers.length > 0 && (
               <span className="text-xs text-ink-faint">Kufar · {formatLatestUpdate(marketOffers)}</span>
