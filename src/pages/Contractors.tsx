@@ -8,9 +8,11 @@ import { AddableSelect } from '../components/ui/AddableSelect';
 import { Textarea } from '../components/ui/Textarea';
 import { Modal } from '../components/ui/Modal';
 import { SearchInput } from '../components/ui/SearchInput';
+import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { ContactValue } from '../components/ui/ContactValue';
 import { ContractorAvatar } from '../components/contractors/ContractorAvatar';
 import { ContractorDetailModal } from '../components/contractors/ContractorDetailModal';
+import { ContractorsResearch } from '../components/contractors/ContractorsResearch';
 import {
   contractorSpecialties,
   contractorContactMethods,
@@ -130,7 +132,11 @@ function ContractorCard({ contractor, onOpen }: { contractor: Contractor; onOpen
   );
 }
 
+const TABS = ['Подрядчики', 'Ресерч'] as const;
+type Tab = (typeof TABS)[number];
+
 export function Contractors() {
+  const [tab, setTab] = useState<Tab>('Подрядчики');
   const [contractors, setContractors] = useState<Contractor[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -347,21 +353,29 @@ export function Contractors() {
       <PageHeader
         title="Подрядчики"
         action={
-          <Button icon={<Plus className="h-4 w-4" />} onClick={openAddModal}>
-            Добавить подрядчика
-          </Button>
+          tab === 'Подрядчики' ? (
+            <Button icon={<Plus className="h-4 w-4" />} onClick={openAddModal}>
+              Добавить подрядчика
+            </Button>
+          ) : undefined
         }
       />
 
-      {loading && (
+      <ToggleGroup options={[...TABS]} value={tab} onChange={(v) => setTab(v as Tab)} />
+
+      {tab === 'Ресерч' && <ContractorsResearch />}
+
+      {tab === 'Подрядчики' && loading && (
         <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
           <Loader2 className="h-4 w-4 animate-spin" />
           Загружаем подрядчиков...
         </Card>
       )}
-      {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
+      {tab === 'Подрядчики' && !loading && loadError && (
+        <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>
+      )}
 
-      {!loading && !loadError && (
+      {tab === 'Подрядчики' && !loading && !loadError && (
         <div className="flex flex-col gap-8">
           {tierGroups.map((group) => (
             <div key={group.tier} className="flex flex-col gap-4">
