@@ -553,20 +553,30 @@ interface PrimaryMarketPivotRow {
   count: number;
   areaMin: number;
   areaMax: number;
-  medianPricePerM2Eur: number;
+  priceMinEur: number;
+  priceAvgEur: number;
+  priceMaxEur: number;
 }
 
 // Порядок строк сводки первичного рынка — обычные квартиры (vid=Квартира)
 // сюда сознательно не входят (владелец: "квартиры не нужны, только апарты
 // и остальная коммерция"). Апартаменты разбиты на "сдано"/"строится" —
 // владелец: "сданные дома фиксируем и выводим отдельно, по ним стоит
-// сравнивать цену с вторичкой".
+// сравнивать цену с вторичкой". Машиноместа — владелец попросил добавить
+// сюда же то, что уже спарсено для блока "Паркинги" (тот же исходный срез
+// bir.by, дозагружен в primary_market_offers отдельным разовым запуском,
+// не через sync-bir-primary-market.mjs — там нет колонки под крытые/
+// подземные). Цены здесь и есть "другой блок", куда их обещали перенести
+// при чистке "Паркинги" от цен — карточки там остались только с
+// количеством/площадью, сравнение цены за м² — тут.
 const PRIMARY_MARKET_ROW_ORDER: { label: string; filter: (o: PrimaryMarketOffer) => boolean }[] = [
   { label: 'Бизнес-апартаменты — сдано', filter: (o) => o.category === 'Бизнес-апартаменты' && o.stage === 'Сдано' },
   { label: 'Бизнес-апартаменты — строится', filter: (o) => o.category === 'Бизнес-апартаменты' && o.stage === 'Строится' },
   { label: 'Торговые помещения', filter: (o) => o.category === 'Торговые помещения' },
   { label: 'Офисы', filter: (o) => o.category === 'Офисы' },
   { label: 'Кладовые', filter: (o) => o.category === 'Кладовые' },
+  { label: 'Машиноместа — крытые', filter: (o) => o.category === 'Машиноместа (крытые)' },
+  { label: 'Машиноместа — подземные', filter: (o) => o.category === 'Машиноместа (подземные)' },
 ];
 
 function buildPrimaryMarketPivot(offers: PrimaryMarketOffer[]): PrimaryMarketPivotRow[] {
@@ -581,7 +591,9 @@ function buildPrimaryMarketPivot(offers: PrimaryMarketOffer[]): PrimaryMarketPiv
       count: matched.length,
       areaMin: Math.round(Math.min(...areas) * 10) / 10,
       areaMax: Math.round(Math.max(...areas) * 10) / 10,
-      medianPricePerM2Eur: Math.round(median(prices)),
+      priceMinEur: Math.round(Math.min(...prices)),
+      priceAvgEur: Math.round(prices.reduce((sum, p) => sum + p, 0) / prices.length),
+      priceMaxEur: Math.round(Math.max(...prices)),
     });
   }
   return rows;
@@ -1362,13 +1374,15 @@ export function DistrictGuidePage() {
 
           {primaryMarketOffers && primaryMarketOffers.length > 0 && (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[480px] border-collapse text-sm">
+              <table className="w-full min-w-[640px] border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-ink-faint">
                     <th className="py-2 pr-3 text-left">Категория</th>
                     <th className="py-2 px-2 text-right font-semibold">Предложений</th>
                     <th className="py-2 px-2 text-right font-semibold">Площадь</th>
-                    <th className="py-2 pl-2 text-right font-semibold">Цена за м²</th>
+                    <th className="py-2 px-2 text-right font-semibold">Мин, €/м²</th>
+                    <th className="py-2 px-2 text-right font-semibold">Средняя, €/м²</th>
+                    <th className="py-2 pl-2 text-right font-semibold">Макс, €/м²</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -1379,8 +1393,14 @@ export function DistrictGuidePage() {
                       <td className="py-2.5 px-2 text-right tabular-nums text-ink-faint">
                         {row.areaMin === row.areaMax ? `${row.areaMin}` : `${row.areaMin}–${row.areaMax}`} м²
                       </td>
-                      <td className="py-2.5 pl-2 text-right tabular-nums font-semibold text-ink">
-                        {row.medianPricePerM2Eur.toLocaleString('ru-RU')} €
+                      <td className="py-2.5 px-2 text-right tabular-nums text-ink-faint">
+                        {row.priceMinEur.toLocaleString('ru-RU')} €
+                      </td>
+                      <td className="py-2.5 px-2 text-right tabular-nums font-semibold text-ink">
+                        {row.priceAvgEur.toLocaleString('ru-RU')} €
+                      </td>
+                      <td className="py-2.5 pl-2 text-right tabular-nums text-ink-faint">
+                        {row.priceMaxEur.toLocaleString('ru-RU')} €
                       </td>
                     </tr>
                   ))}
