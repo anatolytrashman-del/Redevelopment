@@ -9,6 +9,7 @@ import {
   Bus,
   Building2,
   Car,
+  ChevronDown,
   Cigarette,
   CircleHelp,
   CircleParking,
@@ -53,6 +54,7 @@ import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { fetchMarketOffers } from '../lib/marketOffersApi';
 import { AREA_BUCKET_ORDER, areaBucket, MARKET_PROPERTY_TYPES, netSize, netPricePerSqm } from '../data/marketOffers';
 import type { MarketOffer } from '../data/marketOffers';
+import { DISTRICTS } from '../data/districts';
 
 // Переехала с /rayon-minsk-mir на /minsk/minsk-mir (см. CLAUDE.md, урл-
 // структура /minsk/...) — старый адрес редиректит сюда (App.tsx).
@@ -640,6 +642,49 @@ const districtFaq: FaqItem[] = [
 // У "Частые вопросы"/"Red One" своей иконки в заголовке секции нет (FAQ —
 // просто текст, Red One — CTA-блок без иконки), для меню всё равно нужна
 // своя — CircleHelp/ArrowRight не заняты нигде на странице.
+// Верхнее меню страницы (шапка) — отдельно от бокового оглавления
+// SECTION_NAV ниже: то список якорей внутри ЭТОЙ страницы, а тут —
+// переходы на другие страницы сайта (лендинг Red One, аналитика по
+// районам). Выпадающий список закрывается кликом вне себя — тот же приём,
+// что и mobileNavOpen ниже, только без затемнения (мелкий дропдаун, не
+// полноэкранная шторка).
+function AnalyticsMenu() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen((v) => !v)} className="flex items-center gap-1 hover:text-ink">
+        Аналитика
+        <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-20 mt-2 flex w-52 flex-col gap-0.5 rounded-control border border-border bg-surface p-2 shadow-card">
+          {DISTRICTS.map((d) => (
+            <Link
+              key={d.slug}
+              to={`/minsk/analytics/${d.slug}`}
+              onClick={() => setOpen(false)}
+              className="rounded-control px-3 py-2 text-sm text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
+            >
+              {d.name}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const SECTION_NAV: { id: string; label: string; icon: LucideIcon }[] = [
   { id: 'developer', label: 'Застройщик', icon: HardHat },
   { id: 'audience', label: 'Целевая аудитория', icon: Users },
@@ -772,10 +817,16 @@ export function DistrictGuidePage() {
       </aside>
 
       <div className="border-b border-border py-5">
-        <div className="mx-auto flex max-w-3xl items-center justify-center px-4 sm:px-8">
-          <span className="text-lg font-extrabold tracking-wide text-ink">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-8">
+          <Link to="/minsk" className="shrink-0 text-lg font-extrabold tracking-wide text-ink">
             <span className="font-black text-primary">RED</span>EVELOPMENT
-          </span>
+          </Link>
+          <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted sm:flex">
+            <Link to="/minsk/one" className="transition-colors hover:text-ink">
+              Деловой центр Red One
+            </Link>
+            <AnalyticsMenu />
+          </nav>
         </div>
       </div>
 
@@ -804,7 +855,18 @@ export function DistrictGuidePage() {
           </aside>
 
           <div className="mx-auto flex max-w-3xl flex-col gap-6">
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:items-center">
+        {/* Единая liquid-glass подложка под заголовком/подзаголовком и фото —
+            раньше текст стоял прямо на фоне страницы, а фото было в своей
+            отдельной рамке; теперь один блок. Колонки не 50/50
+            (sm:grid-cols-2), а 3:2 — заголовку описания больше не тесно,
+            фото просто пропорционально сузилось вместе со своей колонкой
+            (aspect-[4/5] не трогали). Карточки с цифрами (было четыре
+            плитки прямо тут) убраны с первого экрана — переехали ниже,
+            за карточку застройщика (см. statTiles). */}
+        <div
+          className={cn('grid grid-cols-1 gap-6 p-6 sm:grid-cols-[3fr_2fr] sm:items-center sm:p-8', glassCardClass)}
+          style={glassCardShadow}
+        >
           <div className="flex flex-col gap-3">
             <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">{PAGE_H1}</h1>
             <p className="text-base text-ink-muted">{INTRO_TEXT}</p>
@@ -813,21 +875,6 @@ export function DistrictGuidePage() {
           <div className="mx-auto w-full max-w-xs sm:max-w-none">
             <HeroImageSlider images={HERO_IMAGES} alt="Аэрофото района Минск Мир" aspectClassName="aspect-[4/5]" />
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 pt-4 sm:grid-cols-4 sm:pt-6">
-          {statTiles.map(({ icon: Icon, value, label }) => (
-            <div key={label} className={cn('flex flex-col gap-2 p-4', glassCardClass)} style={glassCardShadow}>
-              <span
-                className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)}
-                style={glassPillShadow}
-              >
-                <Icon className="h-4 w-4" />
-              </span>
-              <div className="text-lg font-extrabold text-ink">{value}</div>
-              <p className="text-xs leading-snug text-ink-muted">{label}</p>
-            </div>
-          ))}
         </div>
 
         <div id="developer" className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
@@ -872,6 +919,23 @@ export function DistrictGuidePage() {
               <span>{DEVELOPER_CONTACTS.hours}</span>
             </div>
           </div>
+        </div>
+
+        {/* Переехали с первого экрана (были прямо под hero) — владелец
+            попросил освободить первый экран под чисто главный блок. */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {statTiles.map(({ icon: Icon, value, label }) => (
+            <div key={label} className={cn('flex flex-col gap-2 p-4', glassCardClass)} style={glassCardShadow}>
+              <span
+                className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)}
+                style={glassPillShadow}
+              >
+                <Icon className="h-4 w-4" />
+              </span>
+              <div className="text-lg font-extrabold text-ink">{value}</div>
+              <p className="text-xs leading-snug text-ink-muted">{label}</p>
+            </div>
+          ))}
         </div>
 
         <div id="audience" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
