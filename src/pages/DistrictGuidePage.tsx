@@ -752,7 +752,8 @@ const SECTION_NAV: { id: string; label: string; icon: LucideIcon }[] = [
   { id: 'market', label: 'Рынок недвижимости', icon: TrendingUp },
   { id: 'business-analytics', label: 'Аналитика по сферам бизнеса', icon: LayoutGrid },
   { id: 'tenant-profiles', label: 'Решения под бизнес', icon: Store },
-  { id: 'transport', label: 'Транспорт и парковка', icon: TrainFront },
+  { id: 'transport', label: 'Транспорт', icon: TrainFront },
+  { id: 'parking', label: 'Паркинги', icon: Car },
   { id: 'map', label: 'Карта района', icon: MapPin },
   { id: 'faq', label: 'Частые вопросы', icon: CircleHelp },
   { id: 'red-one', label: 'Red One', icon: ArrowRight },
@@ -1566,11 +1567,8 @@ export function DistrictGuidePage() {
         <div id="transport" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
           <div className="flex items-center gap-3">
             <TrainFront className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Транспорт и парковка</h2>
+            <h2 className="text-lg font-bold text-ink">Транспорт</h2>
           </div>
-          <p className="text-sm text-ink-muted">
-            Рядом — Национальный аэропорт Минск и Южная магистраль, удобный выезд на кольцевую.
-          </p>
           <div className="flex flex-col gap-2 pt-1">
             <div className="flex flex-wrap items-start gap-2">
               <span className="flex shrink-0 items-center gap-1.5 pt-0.5 text-xs font-semibold text-ink-muted">
@@ -1612,10 +1610,14 @@ export function DistrictGuidePage() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2 pt-1">
-            <Car className="h-4 w-4 shrink-0 text-ink-muted" />
-            <p className="text-sm text-ink-muted">Многоуровневые и подземные паркинги в жилых домах района.</p>
+        </div>
+
+        <div id="parking" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <Car className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Паркинги</h2>
           </div>
+          <p className="text-sm text-ink-faint">Информацию по паркингам добавим отдельно.</p>
         </div>
 
         {MAP_EMBED_URL && (
