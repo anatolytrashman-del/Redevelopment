@@ -670,17 +670,27 @@ function AnalyticsMenu() {
         <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 transition-transform', open && 'rotate-180')} />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-20 mt-2 flex w-52 flex-col gap-0.5 rounded-control border border-border bg-surface p-2 shadow-card">
-          {DISTRICTS.map((d) => (
-            <Link
-              key={d.slug}
-              to={`/minsk/analytics/${d.slug}`}
-              onClick={() => setOpen(false)}
-              className="rounded-control px-3 py-2 text-sm text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
-            >
-              {d.name}
-            </Link>
-          ))}
+        // Между кнопкой и панелью раньше был реальный зазор (top-full + mt-2) —
+        // курсор при движении вниз к пункту меню проходил через эту "мёртвую
+        // зону", не покрытую ни одним потомком блока с onMouseEnter/Leave, и
+        // браузер честно засчитывал mouseleave, закрывая меню ДО того, как
+        // курсор доходил до пунктов (owner: "выпадает, но при наведении на
+        // пункт пропадает"). Зазор перенесён внутрь этого же обёрточного
+        // блока (padding, не margin) — теперь он часть наведённой области,
+        // а не дыра между ней и панелью.
+        <div className="absolute right-0 top-full z-20 pt-2">
+          <div className="flex w-52 flex-col gap-0.5 rounded-control border border-border bg-surface p-2 shadow-card">
+            {DISTRICTS.map((d) => (
+              <Link
+                key={d.slug}
+                to={`/minsk/analytics/${d.slug}`}
+                onClick={() => setOpen(false)}
+                className="rounded-control px-3 py-2 text-sm text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
+              >
+                {d.name}
+              </Link>
+            ))}
+          </div>
         </div>
       )}
     </div>
