@@ -577,6 +577,47 @@ const metroStations = ['Ковальская Слобода', 'Аэродром�
 const busRoutes = ['4', '47с', '53', '56', '73', '84', '100', '107', '124', '172'];
 const trolleyRoutes = ['19', '27', '59', '82'];
 
+// Рынок машиномест — владелец рассказал про два ценовых сегмента ("дешёвые
+// в районе 6-9 тысяч евро — крытые паркинги, дорогие — подземные внутри
+// домов"), точные цифры собраны прямым парсингом bir.by (2026-08-24):
+// AJAX-эндпоинт страницы поиска (POST bir.by/ajax/get-search-objects-car/,
+// найден в инлайновом <script> на самой странице) отдаёт все объявления
+// одним запросом вместо ручного пролистывания по 15 — снят полный срез
+// объявлений на продажу машиномест в Минск Мире, 2769 позиций. Разбиение
+// на два кластера — не произвольное, а по факту данных: цены группируются
+// строго до 9900 € и от 13000 € без единого объявления между ними, то есть
+// граница видна в самих данных, не выдумана. Значения (диапазон/среднее/
+// количество/площадь) — округлённые агрегаты по этому срезу, сырые данные
+// (2769 строк CSV) отправлены владельцу отдельно, здесь не хранятся.
+const parkingSegments: {
+  icon: LucideIcon;
+  title: string;
+  priceRange: string;
+  avgPrice: string;
+  count: string;
+  share: string;
+  areaRange: string;
+}[] = [
+  {
+    icon: Car,
+    title: 'Крытые наземные паркинги',
+    priceRange: '5 900–9 900 €',
+    avgPrice: '~7 900 €',
+    count: '1 658 мест',
+    share: '60% предложения',
+    areaRange: '12,3–19,6 м²',
+  },
+  {
+    icon: CircleParking,
+    title: 'Подземные паркинги в домах',
+    priceRange: '13 000–28 000 €',
+    avgPrice: '~19 500 €',
+    count: '1 111 мест',
+    share: '40% предложения',
+    areaRange: '12,0–17,6 м²',
+  },
+];
+
 // Портрет арендаторов — прислан владельцем (2026-08-22), собственный анализ.
 // Перегруппирован через Gemini под технические маркеры формата помещения
 // (метраж + факторы успеха) вместо оригинального деления "сферы/критерии" —
@@ -628,6 +669,13 @@ const tenantProfiles: { icon: LucideIcon; title: string; examples: string; foota
 // сводной таблицы цен, здесь же более широкий описательный список,
 // включающий форматы, которых в парсинге нет вовсе (бизнес-апартаменты,
 // машиноместа, площади в Avia Mall и МФЦ).
+// Машиноместа (2026-08-24) — владелец: "два вида машиномест, дешёвые в
+// районе 6-9 тысяч евро — крытые паркинги, дорогие — подземные внутри
+// домов". Цифры — не с чужих слов, а прямой парсинг bir.by (см. секцию
+// "Паркинги" ниже, id="parking", там же подробный источник) — 2769
+// актуальных объявлений на продажу, разбиты на два кластера строго по
+// цене (разрыв 9900 → 13000 €, без пересечений) — подтверждает слова
+// владельца количественно, не просто повторяет их.
 interface DistrictPropertyType {
   icon: LucideIcon;
   title: string;
@@ -638,8 +686,16 @@ const districtPropertyTypes: DistrictPropertyType[] = [
   { icon: Store, title: 'Торговые помещения', description: null },
   { icon: BedDouble, title: 'Бизнес-апартаменты', description: null },
   { icon: Briefcase, title: 'Офисные помещения', description: null },
-  { icon: Car, title: 'Машиноместа на паркингах', description: null },
-  { icon: CircleParking, title: 'Подземные машиноместа', description: null },
+  {
+    icon: Car,
+    title: 'Машиноместа на паркингах',
+    description: 'Крытые наземные паркинги — от 5 900 до 9 900 €, в среднем ~7 900 €. Самый доступный формат, 60% предложения.',
+  },
+  {
+    icon: CircleParking,
+    title: 'Подземные машиноместа',
+    description: 'Внутри жилых домов — от 13 000 до 28 000 €, в среднем ~19 500 €. Дороже наземных в 2,5 раза за счёт расположения.',
+  },
   { icon: Archive, title: 'Кладовые', description: null },
   { icon: ShoppingBag, title: 'Помещения в ТЦ Avia Mall', description: null },
   { icon: Landmark, title: 'Офисы в Минском международном финансовом центре', description: null },
@@ -1612,12 +1668,36 @@ export function DistrictGuidePage() {
           </div>
         </div>
 
-        <div id="parking" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+        <div id="parking" className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
           <div className="flex items-center gap-3">
             <Car className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Паркинги</h2>
           </div>
-          <p className="text-sm text-ink-faint">Информацию по паркингам добавим отдельно.</p>
+          <p className="text-sm text-ink-muted">
+            В районе два формата машиномест с заметной разницей в цене — крытые наземные паркинги и подземные внутри
+            жилых домов.
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {parkingSegments.map(({ icon: Icon, title, priceRange, avgPrice, count, share, areaRange }) => (
+              <div
+                key={title}
+                className="flex flex-col gap-2 rounded-control border border-white bg-white/60 p-4 sm:border-white/50 sm:bg-white/40"
+              >
+                <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)} style={glassPillShadow}>
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="text-sm font-bold text-ink">{title}</span>
+                <div className="text-lg font-extrabold text-ink">{priceRange}</div>
+                <p className="text-xs text-ink-faint">
+                  В среднем {avgPrice} · {count} ({share}) · {areaRange}
+                </p>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-ink-faint">
+            Источник — актуальный срез объявлений bir.by на продажу машиномест в Минск Мире, 2769 позиций (август
+            2026).
+          </p>
         </div>
 
         {MAP_EMBED_URL && (
