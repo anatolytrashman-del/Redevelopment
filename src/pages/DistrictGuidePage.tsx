@@ -32,6 +32,7 @@ import {
   Phone,
   Pill,
   Scissors,
+  ShieldCheck,
   ShoppingBag,
   ShoppingBasket,
   Sparkles,
@@ -152,6 +153,27 @@ const DEVELOPER_CONTACTS = {
   phoneHref: 'tel:7675',
   address: 'Отдел продаж: ул. П. Мстиславца, 9, «Дана Центр», 1 этаж',
   hours: 'Будни: 8:30–20:30. Выходные: 9:00–20:00',
+};
+
+// Управляющая компания района (эксплуатация, а не застройка — отдельная
+// карточка от Dana Holdings выше). Факты и логотип — от владельца
+// (логотип прислан готовым PNG с уже прозрачным фоном, ibb.co — не
+// понадобилось вырезать фон вручную, как у остальных двух). Описание
+// компании — то, что придёт от владельца после согласования текста через
+// Gemini (см. промт в чате/CLAUDE.md), пока карточка без него: только
+// название/лого/сайт/контакты, ничего не выдумываю за компанию сам.
+// Второй телефон (115) — короткий номер, работает только с мобильных
+// трёх операторов (владелец: "115 (A1, MTC, Life)"), это отражено в
+// подписи, не в самом номере (tel:115 одинаково валиден для всех).
+const MANAGEMENT_COMPANY_LOGO_URL = '/images/district/happy-planet-logo.png';
+const MANAGEMENT_COMPANY = {
+  name: 'Happy Planet',
+  site: { label: 'dpm.by', url: 'https://dpm.by' },
+  phones: [
+    { label: '7560', href: 'tel:7560' },
+    { label: '115 (A1, МТС, life:)', href: 'tel:115' },
+  ],
+  address: 'г. Минск, ул. Петра Мстиславца, 4, пом. 166',
 };
 
 // Портрет аудитории и медицинская инфраструктура — текст от Gemini по брифу,
@@ -705,6 +727,7 @@ function AnalyticsMenu() {
 
 const SECTION_NAV: { id: string; label: string; icon: LucideIcon }[] = [
   { id: 'developer', label: 'Застройщик', icon: HardHat },
+  { id: 'management-company', label: 'Управляющая компания', icon: ShieldCheck },
   { id: 'audience', label: 'Целевая аудитория', icon: Users },
   { id: 'traffic', label: 'Генераторы трафика', icon: Landmark },
   { id: 'population-density', label: 'Плотность населения', icon: Building2 },
@@ -918,20 +941,23 @@ export function DistrictGuidePage() {
         </div>
 
         <div id="developer" className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex items-center gap-3">
-            <HardHat className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Застройщик района</h2>
-          </div>
-          {/* Оба логотипа прижаты вправо (owner: "перенеси логотип
-              застройщика вправо"), Минск Мир — тот же файл, что и на
-              лендинге Red One (см. MINSK_MIR_LOGO_URL там). Ссылки на
-              сайты переехали вниз, в блок контактов (owner: "ссылку на
-              сайт перенеси вниз, где контакты") — вместо отдельных pill-
-              кнопок теперь строка в общем стиле телефона/адреса/часов
-              работы (иконка + текст). */}
-          <div className="flex items-center justify-end gap-4">
-            <img src={DEVELOPER_LOGO_URL} alt="Dana Holdings" className="h-9 w-auto object-contain" />
-            <img src={MINSK_MIR_LOGO_URL} alt="Минск Мир" className="h-9 w-auto object-contain" />
+          {/* Логотипы на одном уровне с заголовком, справа (owner: сначала
+              "перенеси логотип застройщика вправо" отдельной строкой, потом
+              "логотипы можно располагать выше, на одном уровне с
+              заголовком") — Минск Мир тот же файл, что и на лендинге
+              Red One (см. MINSK_MIR_LOGO_URL там). Ссылки на сайты — в
+              блоке контактов ниже (owner: "ссылку на сайт перенеси вниз,
+              где контакты"), вместо отдельных pill-кнопок строка в общем
+              стиле телефона/адреса/часов работы (иконка + текст). */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <HardHat className="h-5 w-5 shrink-0 text-ink" />
+              <h2 className="text-lg font-bold text-ink">Застройщик района</h2>
+            </div>
+            <div className="flex items-center gap-4">
+              <img src={DEVELOPER_LOGO_URL} alt="Dana Holdings" className="h-9 w-auto object-contain" />
+              <img src={MINSK_MIR_LOGO_URL} alt="Минск Мир" className="h-9 w-auto object-contain" />
+            </div>
           </div>
           <p className="text-sm text-ink-muted">
             <span className="font-semibold text-ink">Dana Holdings</span> — международная группа компаний со штаб-квартирой
@@ -968,6 +994,51 @@ export function DistrictGuidePage() {
                   </a>
                 </span>
               ))}
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="management-company"
+          className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)}
+          style={glassCardShadow}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="h-5 w-5 shrink-0 text-ink" />
+              <h2 className="text-lg font-bold text-ink">Управляющая компания</h2>
+            </div>
+            <img
+              src={MANAGEMENT_COMPANY_LOGO_URL}
+              alt={MANAGEMENT_COMPANY.name}
+              className="h-12 w-auto object-contain"
+            />
+          </div>
+          {/* Описание компании — ждёт текста от владельца (промт для
+              Gemini передан в чате), пока намеренно без абзаца: не
+              выдумываю формулировки за Happy Planet сам. */}
+          <div className="flex flex-col gap-1.5 text-sm text-ink-muted">
+            {MANAGEMENT_COMPANY.phones.map((p) => (
+              <a key={p.href} href={p.href} className="flex w-fit items-center gap-2 text-ink hover:underline">
+                <Phone className="h-4 w-4 shrink-0" />
+                {p.label}
+              </a>
+            ))}
+            <div className="flex items-start gap-2">
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{MANAGEMENT_COMPANY.address}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Globe className="h-4 w-4 shrink-0" />
+              <a
+                href={MANAGEMENT_COMPANY.site.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-ink hover:underline"
+              >
+                {MANAGEMENT_COMPANY.site.label}
+                <ExternalLink className="h-3 w-3 shrink-0" />
+              </a>
             </div>
           </div>
         </div>
