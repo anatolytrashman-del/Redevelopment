@@ -197,18 +197,41 @@ const trafficHighlights: { label: string; text: string }[] = [
 // Плотность населения — отдельный блок ("population-density") прямо перед
 // "Плотность бизнеса по нишам" (владелец: "пусть он будет отдельным, как
 // раз перед блоком плотности бизнеса" — раньше жил внутри карточки
-// "Генераторы трафика"). Цифры — цитата из статьи Onliner, прислана
-// владельцем 2026-08-24 (доступ к самому домену realt.onliner.by из этой
-// среды заблокирован прокси, поэтому цифры не перепроверить самостоятельно,
-// взяты как есть из присланного текста): "по регламентам генплана
-// высокоплотной многоквартирной застройкой в Минске считается застройка
-// с... плотностью населения в пределах 231—290 человек на 1 гектар. В
-// «Минск-Мире» же... плотность населения — 427 человек на гектар". Базой
-// для сравнения берём верхнюю границу норматива (290) — это потолок того,
-// что в Минске вообще считается «высокоплотным», Минск Мир выше даже его.
+// "Генераторы трафика"). Первая версия (только норматив 290 vs 427) — цитата
+// из статьи Onliner, прислана владельцем 2026-08-24 (доступ к самому домену
+// realt.onliner.by из этой среды заблокирован прокси, не перепроверить
+// самостоятельно): "по регламентам генплана высокоплотной многоквартирной
+// застройкой в Минске считается застройка с... плотностью населения в
+// пределах 231—290 человек на 1 гектар. В «Минск-Мире» же... плотность
+// населения — 427 человек на гектар".
+// Вдогонку владелец прислал ещё подборку цифр (AI-обзор с разномастными
+// источниками, не прямая цитата одной статьи) — из неё сознательно НЕ взят
+// повторный вариант норматива "60–76 человек/га", хотя он там тоже подписан
+// как тот же регламент "Минскградо" с теми же 6000–7600 м²/га: это
+// арифметически не бьётся с уже проверенной цитатой (231–290) при типичной
+// жилой обеспеченности ~26–30 м² на человека — 6000/28≈214, 7600/28≈271,
+// то есть верна цитата с 231–290, а "60–76" похоже на ошибку конкретно
+// этого ответа. Взяты значения, которые не противоречат друг другу и
+// заодно точнее ложатся в тезис "самая плотная застройка Минска" —
+// среднегородская плотность (57 чел/га, сходится с независимым расчётом
+// из Википедии о населении Минска, см. более ранний WebSearch этой сессии)
+// и самые плотные существующие районы города, Фрунзенский и Московский
+// (~100 чел/га, со ссылкой на Главное статистическое управление Минска).
+// Усадебную/частную застройку владелец явно попросил не включать — тезис
+// про многоквартирную плотность, а не про диапазон города целиком.
 const DISTRICT_DENSITY_PER_HECTARE = 427;
 const MINSK_HIGH_DENSITY_NORM_MAX = 290;
-const densityNormBarPct = Math.round((MINSK_HIGH_DENSITY_NORM_MAX / DISTRICT_DENSITY_PER_HECTARE) * 100);
+const MINSK_CITY_AVG_DENSITY = 57;
+const MINSK_DENSEST_DISTRICTS_DENSITY = 100;
+
+const densityComparisons: { label: string; value: number }[] = [
+  { label: 'Минск, в среднем по городу', value: MINSK_CITY_AVG_DENSITY },
+  { label: 'Фрунзенский и Московский районы (плотнее всех в городе)', value: MINSK_DENSEST_DISTRICTS_DENSITY },
+  { label: 'Норматив «высокоплотная застройка» (максимум)', value: MINSK_HIGH_DENSITY_NORM_MAX },
+  { label: 'Минск Мир', value: DISTRICT_DENSITY_PER_HECTARE },
+];
+
+const densityVsAvgRatioLabel = (DISTRICT_DENSITY_PER_HECTARE / MINSK_CITY_AVG_DENSITY).toFixed(1).replace('.', ',');
 const densityRatioLabel = (DISTRICT_DENSITY_PER_HECTARE / MINSK_HIGH_DENSITY_NORM_MAX).toFixed(1).replace('.', ',');
 
 const pharmacyTotal = 22;
@@ -882,31 +905,29 @@ export function DistrictGuidePage() {
             <Building2 className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Плотность населения</h2>
           </div>
-          <div className="flex flex-col gap-1">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-sm text-ink-muted">Норматив «высокоплотная застройка» в Минске (максимум)</span>
-              <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">
-                {MINSK_HIGH_DENSITY_NORM_MAX} чел/га
-              </span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-surface-muted">
-              <div className="h-full rounded-full bg-ink/30" style={{ width: `${densityNormBarPct}%` }} />
-            </div>
-          </div>
-          <div className="flex flex-col gap-1">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-sm font-semibold text-ink">Минск Мир</span>
-              <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">
-                {DISTRICT_DENSITY_PER_HECTARE} чел/га
-              </span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-surface-muted">
-              <div className="h-full rounded-full bg-primary" style={{ width: '100%' }} />
-            </div>
-          </div>
+          {densityComparisons.map(({ label, value }) => {
+            const isDistrict = value === DISTRICT_DENSITY_PER_HECTARE;
+            return (
+              <div key={label} className="flex flex-col gap-1">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className={cn('text-sm', isDistrict ? 'font-semibold text-ink' : 'text-ink-muted')}>
+                    {label}
+                  </span>
+                  <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">{value} чел/га</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-surface-muted">
+                  <div
+                    className={cn('h-full rounded-full', isDistrict ? 'bg-primary' : 'bg-ink/30')}
+                    style={{ width: `${Math.round((value / DISTRICT_DENSITY_PER_HECTARE) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
           <p className="text-sm text-ink-muted">
-            Почти в {densityRatioLabel} раза выше верхней границы «высокоплотной застройки» по регламенту генплана
-            Минска — высокая концентрация потенциальных клиентов прямо внутри жилых кварталов.
+            Почти в {densityVsAvgRatioLabel} раза плотнее, чем в среднем по Минску, и почти в {densityRatioLabel} раза
+            выше верхней границы норматива «высокоплотной» застройки — высокая концентрация потенциальных клиентов
+            прямо внутри жилых кварталов.
           </p>
         </div>
 
