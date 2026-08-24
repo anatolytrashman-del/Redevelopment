@@ -1311,24 +1311,13 @@ export function DistrictGuidePage() {
         </div>
 
         <div id="primary-market" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-3">
-              <Banknote className="h-5 w-5 shrink-0 text-ink" />
-              <h2 className="text-lg font-bold text-ink">Первичный рынок коммерческой недвижимости</h2>
-            </div>
-            {primaryMarketOffers && primaryMarketOffers.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setPrimaryMarketProKey(buildPrimaryMarketPivot(primaryMarketOffers)[0]?.key ?? null)}
-                className="rounded-full bg-surface-muted px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-border"
-              >
-                Pro-режим ↗
-              </button>
-            )}
+          <div className="flex items-center gap-3">
+            <Banknote className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Первичный рынок коммерческой недвижимости</h2>
           </div>
           <p className="text-sm text-ink-muted">
             Предложения от застройщика (bir.by) — бизнес-апартаменты, торговые помещения, офисы и кладовые. Цена — за
-            чистый м², без учёта террас. Клик по строке открывает подробный разбор.
+            чистый м², без учёта террас.
           </p>
 
           {primaryMarketOffers === null && <p className="text-sm text-ink-faint">Загрузка…</p>}
@@ -1376,6 +1365,23 @@ export function DistrictGuidePage() {
               </table>
             </div>
           )}
+
+          {primaryMarketOffers && primaryMarketOffers.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setPrimaryMarketProKey(buildPrimaryMarketPivot(primaryMarketOffers)[0]?.key ?? null)}
+              className="flex items-center justify-between gap-3 rounded-control bg-primary px-5 py-4 text-left text-white transition-colors hover:bg-primary-hover"
+            >
+              <span className="flex flex-col gap-0.5">
+                <span className="text-sm font-bold">Открыть Pro-аналитику</span>
+                <span className="text-xs text-white/80">
+                  Гистограмма цены, разбивка по домам и сравнение сдано/строится — по каждой категории отдельно
+                </span>
+              </span>
+              <ArrowRight className="h-5 w-5 shrink-0" />
+            </button>
+          )}
+
           <p className="text-xs text-ink-faint">Источник — bir.by, объявления Dana Holdings в Минск Мире.</p>
         </div>
 
