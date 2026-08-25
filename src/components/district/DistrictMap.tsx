@@ -104,6 +104,19 @@ export function DistrictMap() {
 
   return (
     <div className="flex flex-col gap-3">
+      <div className="relative overflow-hidden rounded-control border border-border">
+        {status === 'error' && (
+          <div className="flex h-80 items-center justify-center text-sm text-ink-faint">
+            Не удалось загрузить карту
+          </div>
+        )}
+        {status === 'loading' && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface text-sm text-ink-faint">
+            Загрузка карты…
+          </div>
+        )}
+        <div ref={containerRef} className="h-80 w-full" />
+      </div>
       <div className="flex flex-wrap gap-1.5">
         {DISTRICT_PLACE_CATEGORIES.map((category) => {
           const active = activeKeys.has(category.key);
@@ -136,19 +149,6 @@ export function DistrictMap() {
         })}
       </div>
       <p className="text-xs text-ink-faint">Нажмите на категорию, чтобы показать или скрыть её метки на карте.</p>
-      <div className="relative overflow-hidden rounded-control border border-border">
-        {status === 'error' && (
-          <div className="flex h-80 items-center justify-center text-sm text-ink-faint">
-            Не удалось загрузить карту
-          </div>
-        )}
-        {status === 'loading' && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface text-sm text-ink-faint">
-            Загрузка карты…
-          </div>
-        )}
-        <div ref={containerRef} className="h-80 w-full" />
-      </div>
     </div>
   );
 }
