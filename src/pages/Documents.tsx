@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Plus,
   Loader2,
@@ -14,6 +15,7 @@ import {
   Building2,
   Handshake,
   Scale,
+  Landmark,
 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -30,6 +32,7 @@ import type { RealtyObject } from '../data/objects';
 import type { Contractor } from '../data/contractors';
 import type { ContractorDocument } from '../data/contractorDocuments';
 import type { LegalDocument } from '../data/legalDocuments';
+import type { LegalEntity } from '../data/legalEntities';
 import type { Pledge } from '../data/pledges';
 import { fetchDocumentTemplates, insertDocumentTemplate, updateDocumentTemplate } from '../lib/documentTemplatesApi';
 import { fetchLeads } from '../lib/leadsApi';
@@ -43,6 +46,7 @@ import {
   deleteContractorDocument,
 } from '../lib/contractorDocumentsApi';
 import { fetchLegalDocuments, insertLegalDocument, deleteLegalDocument } from '../lib/legalDocumentsApi';
+import { fetchLegalEntities, insertLegalEntity, deleteLegalEntity } from '../lib/legalEntitiesApi';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -73,6 +77,7 @@ function templateToForm(t: DocumentTemplate) {
 }
 
 export function Documents() {
+  const navigate = useNavigate();
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
@@ -136,6 +141,18 @@ export function Documents() {
   const [legalDocSubmitError, setLegalDocSubmitError] = useState<string | null>(null);
   const [deletingLegalDocId, setDeletingLegalDocId] = useState<string | null>(null);
 
+  // Юрлица (ЧУП/ООО и т.п.) — сама вкладка только список карточек-ссылок,
+  // документы каждого юрлица (налоговые декларации и будущие группы) живут
+  // на отдельной странице (LegalEntityDetail.tsx, /admin/documents/legal-entities/:id).
+  const [legalEntities, setLegalEntities] = useState<LegalEntity[]>([]);
+  const [legalEntitiesLoading, setLegalEntitiesLoading] = useState(true);
+  const [legalEntitiesError, setLegalEntitiesError] = useState<string | null>(null);
+  const [legalEntityModalOpen, setLegalEntityModalOpen] = useState(false);
+  const [legalEntityName, setLegalEntityName] = useState('');
+  const [legalEntitySubmitting, setLegalEntitySubmitting] = useState(false);
+  const [legalEntitySubmitError, setLegalEntitySubmitError] = useState<string | null>(null);
+  const [deletingLegalEntityId, setDeletingLegalEntityId] = useState<string | null>(null);
+
   // Общая модалка предпросмотра (PDF/картинки/.docx) — одна на всю
   // страницу, используется всеми секциями ниже.
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null);
@@ -143,7 +160,9 @@ export function Documents() {
   // Вкладки вместо длинной вертикальной портянки разделов — переключают
   // видимость блока, все данные при этом всё равно грузятся сразу
   // (см. useEffect ниже), просто не рендерятся, пока не открыта вкладка.
-  const [activeTab, setActiveTab] = useState<'signed' | 'objects' | 'contractors' | 'legal' | 'templates'>('signed');
+  const [activeTab, setActiveTab] = useState<
+    'signed' | 'objects' | 'contractors' | 'legal' | 'legalEntities' | 'templates'
+  >('signed');
 
   useEffect(() => {
     fetchDocumentTemplates()
@@ -172,6 +191,10 @@ export function Documents() {
       .then(setLegalDocs)
       .catch((err) => setLegalDocsError(errorMessage(err, 'Не удалось загрузить документы от юристов')))
       .finally(() => setLegalDocsLoading(false));
+    fetchLegalEntities()
+      .then(setLegalEntities)
+      .catch((err) => setLegalEntitiesError(errorMessage(err, 'Не удалось загрузить юрлица')))
+      .finally(() => setLegalEntitiesLoading(false));
     fetchLeads()
       .then(setLeads)
       .catch(() => setLeads([]));
@@ -280,6 +303,43 @@ export function Documents() {
     }
   }
 
+  function openLegalEntityModal() {
+    setLegalEntityName('');
+    setLegalEntitySubmitError(null);
+    setLegalEntityModalOpen(true);
+  }
+
+  async function handleLegalEntitySubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!legalEntityName.trim() || legalEntitySubmitting) return;
+    setLegalEntitySubmitting(true);
+    setLegalEntitySubmitError(null);
+    try {
+      const created = await insertLegalEntity(legalEntityName.trim());
+      setLegalEntities((prev) => [...prev, created]);
+      setLegalEntityModalOpen(false);
+    } catch (err) {
+      setLegalEntitySubmitError(errorMessage(err, 'Не удалось добавить юрлицо'));
+    } finally {
+      setLegalEntitySubmitting(false);
+    }
+  }
+
+  async function handleDeleteLegalEntity(entity: LegalEntity, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!window.confirm(`Удалить «${entity.name}» вместе со всеми его документами?`)) return;
+    setDeletingLegalEntityId(entity.id);
+    setLegalEntitiesError(null);
+    try {
+      await deleteLegalEntity(entity.id);
+      setLegalEntities((prev) => prev.filter((x) => x.id !== entity.id));
+    } catch (err) {
+      setLegalEntitiesError(errorMessage(err, 'Не удалось удалить'));
+    } finally {
+      setDeletingLegalEntityId(null);
+    }
+  }
+
   const canSubmitTemplate =
     templateForm.name.trim() &&
     templateForm.url.trim() &&
@@ -357,6 +417,7 @@ export function Documents() {
             ['objects', 'Объекты (БРТИ)', pledges.length],
             ['contractors', 'Подрядчики', contractorDocs.length],
             ['legal', 'Нормативка', legalDocs.length],
+            ['legalEntities', 'Юрлица', legalEntities.length],
             ['templates', 'Шаблоны', templates.length],
           ] as const
         ).map(([key, label, count]) => (
@@ -599,6 +660,49 @@ export function Documents() {
         {!legalDocsLoading && legalDocsError && <Card className="py-10 text-center text-sm text-danger">{legalDocsError}</Card>}
         {!legalDocsLoading && !legalDocsError && legalDocs.length === 0 && (
           <Card className="py-10 text-center text-sm text-ink-muted">Документов пока нет</Card>
+        )}
+      </div>
+      )}
+
+      {activeTab === 'legalEntities' && (
+      <div className="flex flex-col gap-4">
+        <div className="flex justify-end">
+          <Button icon={<Plus className="h-4 w-4" />} onClick={openLegalEntityModal}>
+            Добавить юрлицо
+          </Button>
+        </div>
+        {legalEntities.map((entity) => (
+          <Card
+            key={entity.id}
+            onClick={() => navigate(`/admin/documents/legal-entities/${entity.id}`)}
+            className="flex cursor-pointer items-center gap-4 p-5 transition-colors hover:border-primary/40"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
+              <Landmark className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1 truncate font-semibold text-ink">{entity.name}</div>
+            <button
+              type="button"
+              onClick={(e) => handleDeleteLegalEntity(entity, e)}
+              disabled={deletingLegalEntityId === entity.id}
+              aria-label="Удалить юрлицо"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-danger hover:text-danger disabled:opacity-50"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </Card>
+        ))}
+        {legalEntitiesLoading && (
+          <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Загружаем юрлица...
+          </Card>
+        )}
+        {!legalEntitiesLoading && legalEntitiesError && (
+          <Card className="py-10 text-center text-sm text-danger">{legalEntitiesError}</Card>
+        )}
+        {!legalEntitiesLoading && !legalEntitiesError && legalEntities.length === 0 && (
+          <Card className="py-10 text-center text-sm text-ink-muted">Юрлиц пока нет</Card>
         )}
       </div>
       )}
@@ -906,6 +1010,27 @@ export function Documents() {
               disabled={!legalDocForm.title.trim() || legalDocForm.files.length === 0 || legalDocSubmitting}
             >
               {legalDocSubmitting ? 'Загружаем...' : 'Добавить'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={legalEntityModalOpen} onClose={() => setLegalEntityModalOpen(false)} title="Новое юрлицо">
+        <form onSubmit={handleLegalEntitySubmit} className="flex flex-col gap-4">
+          <Input
+            label="Название"
+            placeholder="Например, ЧУП «Лавэ Драйв»"
+            value={legalEntityName}
+            onChange={(e) => setLegalEntityName(e.target.value)}
+            required
+          />
+          {legalEntitySubmitError && <p className="text-sm text-danger">{legalEntitySubmitError}</p>}
+          <div className="mt-2 flex justify-end gap-3">
+            <Button type="button" variant="secondary" onClick={() => setLegalEntityModalOpen(false)}>
+              Отмена
+            </Button>
+            <Button type="submit" disabled={!legalEntityName.trim() || legalEntitySubmitting}>
+              {legalEntitySubmitting ? 'Сохраняем...' : 'Добавить'}
             </Button>
           </div>
         </form>

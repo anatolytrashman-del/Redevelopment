@@ -14,6 +14,9 @@ function fromRow(row: MarketOfferRow): MarketOffer {
     finishStatus: row.finish_status,
     reviewed: row.reviewed,
     rejected: row.rejected,
+    flaggedForDiscussion: row.flagged_for_discussion,
+    discussionNote: row.discussion_note,
+    ownerNote: row.owner_note,
     floor: row.floor,
     hasTerrace: row.has_terrace,
     terraceArea: row.terrace_area,
@@ -78,7 +81,10 @@ export interface MarketOfferEditPatch {
 }
 
 // Полное редактирование строки (цена/тип/площадь/сделка/отделка/этаж/
-// терраса/адрес) — тоже считается обработкой.
+// терраса/адрес) — тоже считается обработкой. Заодно закрывает обсуждение
+// (см. MarketOffer.flaggedForDiscussion) — обычное сохранение и есть
+// финальная обработка вопроса, комментарии Светланы/владельца своё
+// отслужили и очищаются.
 export function updateMarketOffer(id: number, patch: MarketOfferEditPatch): Promise<void> {
   return withRetry(async () => {
     const { error } = await supabase
@@ -94,8 +100,43 @@ export function updateMarketOffer(id: number, patch: MarketOfferEditPatch): Prom
         terrace_area: patch.hasTerrace ? patch.terraceArea : null,
         address: patch.address || null,
         reviewed: true,
+        flagged_for_discussion: false,
+        discussion_note: null,
+        owner_note: null,
       })
       .eq('id', id);
+    if (error) throw error;
+  });
+}
+
+// "Обсудить с Анатолием" — Светлана флагует одну карточку или сразу целую
+// группу дублей (ids.length > 1, один и тот же комментарий на все).
+// reviewed НЕ трогаем: объявление по сути так и остаётся непроверенным,
+// просто временно скрыто из очереди — см. комментарий у
+// MarketOffer.flaggedForDiscussion. ownerNote на всякий случай обнуляем —
+// это начало нового раунда обсуждения, старый ответ владельца (если
+// вопрос уже поднимали раньше и он был закрыт обычным сохранением) тут
+// быть не должен, но на случай гонки данных явно перезаписываем.
+export function flagMarketOffersForDiscussion(ids: number[], note: string): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase
+      .from('market_offers')
+      .update({ flagged_for_discussion: true, discussion_note: note, owner_note: null })
+      .in('id', ids);
+    if (error) throw error;
+  });
+}
+
+// "Вернуть на доработку" — снимает флаг обсуждения (карточка(и) снова
+// попадают в обычную очередь Светланы), сохраняет ответ владельца рядом с
+// исходным вопросом — Светлана увидит оба текста при следующей проверке
+// (см. рендер в MarketOffersReview.tsx).
+export function resolveMarketOfferDiscussion(ids: number[], ownerNote: string): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase
+      .from('market_offers')
+      .update({ flagged_for_discussion: false, owner_note: ownerNote })
+      .in('id', ids);
     if (error) throw error;
   });
 }

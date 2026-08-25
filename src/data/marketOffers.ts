@@ -29,6 +29,20 @@ export interface MarketOffer {
   // статистики. Устанавливается вместе с reviewed=true (отклонение —
   // тоже форма обработки).
   rejected: boolean;
+  // У Светланы возник вопрос по объявлению (или целой группе дублей —
+  // тогда все её карточки получают одинаковый discussionNote и флагуются
+  // разом), который нужно обсудить с владельцем, прежде чем обрабатывать
+  // дальше. reviewed НЕ выставляется (объявление остаётся непроверенным
+  // по сути), но карточка прячется из очереди верификации, чтобы Светлана
+  // могла двигаться дальше — см. MarketOffersReview.tsx, вкладка
+  // "Обсуждение". Когда владелец жмёт "Вернуть на доработку", флаг
+  // снимается (карточка снова попадает в обычную очередь), а комментарии
+  // остаются — Светлана видит их в карточке редактирования при следующей
+  // проверке. Оба текстовых поля очищаются при обычном сохранении формы
+  // редактирования (updateMarketOffer) — вопрос считается закрытым.
+  flaggedForDiscussion: boolean;
+  discussionNote: string | null;
+  ownerNote: string | null;
   // Не у всех объявлений заполнен — используется только как доп. сигнал
   // при поиске дублей (dedupKey), в остальном не критичен.
   floor: number | null;
@@ -55,6 +69,9 @@ export interface MarketOfferRow {
   finish_status: string;
   reviewed: boolean;
   rejected: boolean;
+  flagged_for_discussion: boolean;
+  discussion_note: string | null;
+  owner_note: string | null;
   floor: number | null;
   has_terrace: boolean;
   terrace_area: number | null;

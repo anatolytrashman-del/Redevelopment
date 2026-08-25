@@ -1,11 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Ban, Check, CheckCircle2, ExternalLink, Loader2, Pencil, Play, Trash2, Undo2 } from 'lucide-react';
+import {
+  Ban,
+  Check,
+  CheckCircle2,
+  ExternalLink,
+  Loader2,
+  MessageCircleQuestion,
+  Pencil,
+  Play,
+  Trash2,
+  Undo2,
+} from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { SearchInput } from '../components/ui/SearchInput';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
+import { Textarea } from '../components/ui/Textarea';
 import { Select } from '../components/ui/Select';
 import { Button } from '../components/ui/Button';
 import { cn } from '../lib/cn';
@@ -15,6 +27,8 @@ import {
   updateMarketOffer,
   deleteMarketOffer,
   setMarketOfferRejected,
+  flagMarketOffersForDiscussion,
+  resolveMarketOfferDiscussion,
   fetchDismissedDedupKeys,
   dismissDuplicateGroup,
 } from '../lib/marketOffersApi';
@@ -68,6 +82,17 @@ import type { MarketOffer, FinishStatus } from '../data/marketOffers';
 // buildMarketPivot/countSmallFinishedOffices там и в DistrictAnalyticsPage.tsx),
 // но остаётся видна на этой странице через фильтр "Не подходит" — на случай,
 // если решение нужно будет отменить ("Восстановить").
+//
+// "Обсудить с Анатолием" — у Светланы в ходе проверки возник вопрос по
+// карточке (или сразу по целой группе дублей — тогда комментарий один на
+// всю группу). reviewed НЕ выставляется (по сути объявление остаётся
+// непроверенным), но карточка прячется из очереди верификации, чтобы
+// Светлана могла двигаться дальше — см. вкладку "Обсуждение" ниже, где
+// владелец видит список таких карточек с её комментарием, добавляет свой
+// и жмёт "Вернуть на доработку" (снимает флаг — карточка снова попадает в
+// обычную очередь). Оба комментария видны в карточке редактирования при
+// следующей проверке и очищаются, когда Светлана обычным образом
+// сохраняет карточку (см. updateMarketOffer) — вопрос закрыт.
 
 const FINISH_FILTER_OPTIONS = ['Все', 'Не указано', 'С отделкой', 'Без отделки'] as const;
 type FinishFilter = (typeof FINISH_FILTER_OPTIONS)[number];
@@ -82,7 +107,7 @@ const FINISH_FILTER_TO_DB: Record<FinishFilter, FinishStatus | null> = {
 const DEAL_FILTER_OPTIONS = ['Все', 'Продажа', 'Аренда'] as const;
 type DealFilter = (typeof DEAL_FILTER_OPTIONS)[number];
 
-const REVIEW_FILTER_OPTIONS = ['Все', 'Не обработано', 'Проверено', 'Не подходит'] as const;
+const REVIEW_FILTER_OPTIONS = ['Все', 'Не обработано', 'Проверено', 'Не подходит', 'Обсуждается'] as const;
 type ReviewFilter = (typeof REVIEW_FILTER_OPTIONS)[number];
 
 const SOURCE_FILTER_OPTIONS = ['Все', 'Kufar', 'Realt'] as const;
@@ -136,7 +161,22 @@ function FinishBadge({ status }: { status: FinishStatus }) {
   );
 }
 
-function ReviewedBadge({ reviewed, rejected }: { reviewed: boolean; rejected: boolean }) {
+function ReviewedBadge({
+  reviewed,
+  rejected,
+  flaggedForDiscussion,
+}: {
+  reviewed: boolean;
+  rejected: boolean;
+  flaggedForDiscussion: boolean;
+}) {
+  if (flaggedForDiscussion) {
+    return (
+      <span className="whitespace-nowrap rounded-full bg-info-bg px-2.5 py-0.5 text-xs font-medium text-info-text">
+        На обсуждении
+      </span>
+    );
+  }
   if (rejected) {
     return (
       <span className="whitespace-nowrap rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-medium text-ink-faint">
@@ -182,6 +222,10 @@ function offerToForm(offer: MarketOffer): EditFormState {
   };
 }
 
+function discussLabel(offer: MarketOffer): string {
+  return `${offer.address ?? 'без адреса'} · ${offer.size} м²`;
+}
+
 // Одна строка объявления — переиспользуется и в обычной таблице, и внутри
 // карточек групп дублей (там сравнение построено вокруг компактной
 // мини-таблицы на каждую группу, чтобы Kufar/Realt-варианты одного
@@ -192,12 +236,19 @@ function OfferRow({
   onEdit,
   onDelete,
   onToggleReject,
+  onDiscuss,
+  showActions = true,
 }: {
   offer: MarketOffer;
   pending: boolean;
   onEdit: (offer: MarketOffer) => void;
   onDelete: (offer: MarketOffer) => void;
   onToggleReject: (offer: MarketOffer) => void;
+  onDiscuss: (offer: MarketOffer) => void;
+  // false — на вкладке "Обсуждение" (см. MarketOffersReview ниже): там
+  // строка только информационная, решения принимаются в блоке
+  // комментария под таблицей, а не кнопками в строке.
+  showActions?: boolean;
 }) {
   return (
     <tr className={pending ? 'opacity-50' : undefined}>
@@ -240,39 +291,49 @@ function OfferRow({
         <FinishBadge status={offer.finishStatus as FinishStatus} />
       </td>
       <td className="whitespace-nowrap py-2.5 px-2">
-        <ReviewedBadge reviewed={offer.reviewed} rejected={offer.rejected} />
+        <ReviewedBadge reviewed={offer.reviewed} rejected={offer.rejected} flaggedForDiscussion={offer.flaggedForDiscussion} />
       </td>
       <td className="whitespace-nowrap py-2.5 pl-2">
-        <div className="flex items-center justify-end gap-1.5">
-          <button
-            type="button"
-            onClick={() => onEdit(offer)}
-            className="flex items-center gap-1 rounded-full border border-border px-2 py-1 text-xs font-medium text-ink hover:border-border-strong hover:bg-surface-muted"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            Редактировать
-          </button>
-          <button
-            type="button"
-            onClick={() => onToggleReject(offer)}
-            className="flex items-center gap-1 rounded-full border border-border px-2 py-1 text-xs font-medium text-ink-muted hover:border-border-strong hover:bg-surface-muted"
-          >
-            {offer.rejected ? (
-              <>
-                <Undo2 className="h-3.5 w-3.5" />
-                Восстановить
-              </>
-            ) : (
-              <>
-                <Ban className="h-3.5 w-3.5" />
-                Не подходит
-              </>
-            )}
-          </button>
-          <button type="button" onClick={() => onDelete(offer)} aria-label="Удалить объявление" className="p-1 text-ink-faint hover:text-danger">
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
+        {showActions && (
+          <div className="flex items-center justify-end gap-1.5">
+            <button
+              type="button"
+              onClick={() => onEdit(offer)}
+              className="flex items-center gap-1 rounded-full border border-border px-2 py-1 text-xs font-medium text-ink hover:border-border-strong hover:bg-surface-muted"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Редактировать
+            </button>
+            <button
+              type="button"
+              onClick={() => onDiscuss(offer)}
+              className="flex items-center gap-1 rounded-full border border-border px-2 py-1 text-xs font-medium text-ink-muted hover:border-border-strong hover:bg-surface-muted"
+            >
+              <MessageCircleQuestion className="h-3.5 w-3.5" />
+              Обсудить
+            </button>
+            <button
+              type="button"
+              onClick={() => onToggleReject(offer)}
+              className="flex items-center gap-1 rounded-full border border-border px-2 py-1 text-xs font-medium text-ink-muted hover:border-border-strong hover:bg-surface-muted"
+            >
+              {offer.rejected ? (
+                <>
+                  <Undo2 className="h-3.5 w-3.5" />
+                  Восстановить
+                </>
+              ) : (
+                <>
+                  <Ban className="h-3.5 w-3.5" />
+                  Не подходит
+                </>
+              )}
+            </button>
+            <button type="button" onClick={() => onDelete(offer)} aria-label="Удалить объявление" className="p-1 text-ink-faint hover:text-danger">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </td>
     </tr>
   );
@@ -296,7 +357,11 @@ function OfferTableHead() {
   );
 }
 
+const PAGE_TABS = ['Верификация', 'Обсуждение'] as const;
+type PageTab = (typeof PAGE_TABS)[number];
+
 export function MarketOffersReview() {
+  const [tab, setTab] = useState<PageTab>('Верификация');
   const [offers, setOffers] = useState<MarketOffer[] | null>(null);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -313,6 +378,15 @@ export function MarketOffersReview() {
   const [verifying, setVerifying] = useState(false);
   const [skippedGroupKeys, setSkippedGroupKeys] = useState<Set<string>>(new Set());
   const [skippedSingleIds, setSkippedSingleIds] = useState<Set<number>>(new Set());
+  // "Обсудить с Анатолием" — модалка с комментарием, общая для строки,
+  // группы дублей и кнопки внутри карточки редактирования (см. ниже).
+  const [discussTarget, setDiscussTarget] = useState<{ ids: number[]; label: string } | null>(null);
+  const [discussComment, setDiscussComment] = useState('');
+  const [discussSaving, setDiscussSaving] = useState(false);
+  // Черновики ответа владельца на вкладке "Обсуждение", по одному на
+  // группу/карточку (ключ — тот же, что и в discussingGroups ниже).
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [resolvingKey, setResolvingKey] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMarketOffers()
@@ -333,7 +407,7 @@ export function MarketOffersReview() {
     if (!offers) return new Map<string, MarketOffer[]>();
     const groups = new Map<string, MarketOffer[]>();
     for (const offer of offers) {
-      if (offer.rejected) continue;
+      if (offer.rejected || offer.flaggedForDiscussion) continue;
       const key = dedupKey(offer);
       if (!key || dismissedKeys.has(key)) continue;
       if (!groups.has(key)) groups.set(key, []);
@@ -364,9 +438,26 @@ export function MarketOffersReview() {
       unknown: offers.filter((o) => o.finishStatus === 'не указано').length,
       reviewed: offers.filter((o) => o.reviewed && !o.rejected).length,
       rejected: offers.filter((o) => o.rejected).length,
+      discussing: offers.filter((o) => o.flaggedForDiscussion).length,
       duplicates: [...duplicateGroups.values()].reduce((sum, g) => sum + g.length, 0),
     };
   }, [offers, duplicateGroups]);
+
+  // Карточки/группы на обсуждении — для вкладки "Обсуждение". Группируем
+  // по dedupKey (та же логика, что и у duplicateGroups) — так как
+  // "Обсудить с Анатолием" на группе дублей флагует все её карточки одним
+  // комментарием, они и тут показываются вместе; одиночные карточки без
+  // dedupKey — сами по себе (ключ "single-<id>").
+  const discussingGroups = useMemo(() => {
+    const flagged = (offers ?? []).filter((o) => o.flaggedForDiscussion);
+    const map = new Map<string, MarketOffer[]>();
+    for (const offer of flagged) {
+      const key = dedupKey(offer) ?? `single-${offer.id}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(offer);
+    }
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [offers]);
 
   // Одиночные объявления — таблица под секцией дублей (см. рендер ниже).
   // Дублей в ней не показываем: они уже разобраны отдельными карточками
@@ -381,9 +472,10 @@ export function MarketOffersReview() {
         if (wantedFinish && o.finishStatus !== wantedFinish) return false;
         if (dealFilter === 'Продажа' && o.dealType !== 'sale') return false;
         if (dealFilter === 'Аренда' && o.dealType !== 'rent') return false;
-        if (reviewFilter === 'Не обработано' && o.reviewed) return false;
+        if (reviewFilter === 'Не обработано' && (o.reviewed || o.flaggedForDiscussion)) return false;
         if (reviewFilter === 'Проверено' && (!o.reviewed || o.rejected)) return false;
         if (reviewFilter === 'Не подходит' && !o.rejected) return false;
+        if (reviewFilter === 'Обсуждается' && !o.flaggedForDiscussion) return false;
         if (sourceFilter !== 'Все' && o.source !== sourceFilter) return false;
         if (query && !(o.address ?? '').toLowerCase().includes(query) && !o.propertyType.toLowerCase().includes(query)) {
           return false;
@@ -409,7 +501,10 @@ export function MarketOffersReview() {
   );
 
   const ungroupedUnreviewed = useMemo(
-    () => (offers ?? []).filter((o) => !o.reviewed && !duplicateKeyByOfferId.has(o.id)).sort((a, b) => a.size - b.size),
+    () =>
+      (offers ?? [])
+        .filter((o) => !o.reviewed && !o.flaggedForDiscussion && !duplicateKeyByOfferId.has(o.id))
+        .sort((a, b) => a.size - b.size),
     [offers, duplicateKeyByOfferId],
   );
 
@@ -484,6 +579,65 @@ export function MarketOffersReview() {
   function openEdit(offer: MarketOffer) {
     setEditingOffer(offer);
     setEditForm(offerToForm(offer));
+  }
+
+  function openDiscussModal(ids: number[], label: string) {
+    setDiscussComment('');
+    setDiscussTarget({ ids, label });
+  }
+
+  // Кнопка "Обсудить" внутри карточки редактирования — закрываем карточку
+  // сразу (см. комментарий в top-of-file про то, что объявление уходит из
+  // очереди), а не держим обе модалки открытыми одновременно.
+  function openDiscussFromEdit(offer: MarketOffer) {
+    setEditingOffer(null);
+    setEditForm(null);
+    openDiscussModal([offer.id], `${offer.address ?? 'без адреса'} · ${offer.size} м²`);
+  }
+
+  async function submitDiscuss() {
+    if (!discussTarget || !discussComment.trim() || discussSaving) return;
+    const note = discussComment.trim();
+    setDiscussSaving(true);
+    try {
+      await flagMarketOffersForDiscussion(discussTarget.ids, note);
+      setOffers((prev) =>
+        (prev ?? []).map((o) =>
+          discussTarget.ids.includes(o.id)
+            ? { ...o, flaggedForDiscussion: true, discussionNote: note, ownerNote: null }
+            : o,
+        ),
+      );
+      logActivity('market_offer_flagged_for_discussion');
+      setDiscussTarget(null);
+      setDiscussComment('');
+    } catch {
+      setError('Не удалось отправить на обсуждение — попробуйте ещё раз.');
+    } finally {
+      setDiscussSaving(false);
+    }
+  }
+
+  async function handleResolveDiscussion(key: string, ids: number[]) {
+    const note = (replyDrafts[key] ?? '').trim();
+    if (!note || resolvingKey) return;
+    setResolvingKey(key);
+    try {
+      await resolveMarketOfferDiscussion(ids, note);
+      setOffers((prev) =>
+        (prev ?? []).map((o) => (ids.includes(o.id) ? { ...o, flaggedForDiscussion: false, ownerNote: note } : o)),
+      );
+      setReplyDrafts((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      logActivity('market_offer_discussion_resolved');
+    } catch {
+      setError('Не удалось сохранить ответ — попробуйте ещё раз.');
+    } finally {
+      setResolvingKey(null);
+    }
   }
 
   function startVerification() {
@@ -563,7 +717,14 @@ export function MarketOffersReview() {
         address: editForm.address,
       };
       await updateMarketOffer(editingOffer.id, patch);
-      patchOffer(editingOffer.id, { ...patch, address: editForm.address || null, reviewed: true });
+      patchOffer(editingOffer.id, {
+        ...patch,
+        address: editForm.address || null,
+        reviewed: true,
+        flaggedForDiscussion: false,
+        discussionNote: null,
+        ownerNote: null,
+      });
       logActivity('market_offer_verified');
       setEditingOffer(null);
       setEditForm(null);
@@ -578,6 +739,15 @@ export function MarketOffersReview() {
     <>
       <PageHeader title="Аналитика рынка" />
 
+      <div className="flex flex-wrap items-center gap-3">
+        <ToggleGroup options={[...PAGE_TABS]} value={tab} onChange={(v) => setTab(v as PageTab)} />
+        {discussingGroups.length > 0 && (
+          <span className="whitespace-nowrap rounded-full bg-info-bg px-3 py-1.5 text-xs font-semibold text-info-text">
+            {discussingGroups.length} на обсуждении
+          </span>
+        )}
+      </div>
+
       {error && <p className="text-sm text-danger">{error}</p>}
 
       {offers === null && !error && (
@@ -587,7 +757,7 @@ export function MarketOffersReview() {
         </div>
       )}
 
-      {offers !== null && (
+      {offers !== null && tab === 'Верификация' && (
         <div className="flex flex-col gap-4">
           {counts && (
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -596,6 +766,7 @@ export function MarketOffersReview() {
                 {counts.finished} · без отделки {counts.unfinished} · не указано {counts.unknown} · обработано{' '}
                 {counts.reviewed} из {counts.total}
                 {counts.rejected > 0 && <> · не подходит {counts.rejected}</>}
+                {counts.discussing > 0 && <> · на обсуждении {counts.discussing}</>}
                 {counts.duplicates > 0 && (
                   <>
                     {' '}
@@ -636,14 +807,28 @@ export function MarketOffersReview() {
                       {verifyGroupTarget[1][0].size} м² · этаж {verifyGroupTarget[1][0].floor ?? '?'} ·{' '}
                       {verifyGroupTarget[1].length} объявления похожи друг на друга
                     </p>
-                    <Button
-                      variant="secondary"
-                      icon={<Check className="h-4 w-4" />}
-                      disabled={pendingGroupKey === verifyGroupTarget[0]}
-                      onClick={() => handleDismissGroup(verifyGroupTarget[0])}
-                    >
-                      Это разные помещения
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="secondary"
+                        icon={<MessageCircleQuestion className="h-4 w-4" />}
+                        onClick={() =>
+                          openDiscussModal(
+                            verifyGroupTarget[1].map((o) => o.id),
+                            discussLabel(verifyGroupTarget[1][0]),
+                          )
+                        }
+                      >
+                        Обсудить с Анатолием
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        icon={<Check className="h-4 w-4" />}
+                        disabled={pendingGroupKey === verifyGroupTarget[0]}
+                        onClick={() => handleDismissGroup(verifyGroupTarget[0])}
+                      >
+                        Это разные помещения
+                      </Button>
+                    </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[900px] border-collapse text-sm">
@@ -657,6 +842,7 @@ export function MarketOffersReview() {
                             onEdit={openEdit}
                             onDelete={handleDelete}
                             onToggleReject={handleToggleReject}
+                            onDiscuss={(o) => openDiscussModal([o.id], discussLabel(o))}
                           />
                         ))}
                       </tbody>
@@ -715,14 +901,23 @@ export function MarketOffersReview() {
                           {group[0].size} м² · этаж {group[0].floor ?? '?'} · {group.length} объявления похожи друг
                           на друга
                         </p>
-                        <Button
-                          variant="secondary"
-                          icon={<Check className="h-4 w-4" />}
-                          disabled={pendingGroupKey === key}
-                          onClick={() => handleDismissGroup(key)}
-                        >
-                          Это разные помещения
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="secondary"
+                            icon={<MessageCircleQuestion className="h-4 w-4" />}
+                            onClick={() => openDiscussModal(group.map((o) => o.id), discussLabel(group[0]))}
+                          >
+                            Обсудить с Анатолием
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            icon={<Check className="h-4 w-4" />}
+                            disabled={pendingGroupKey === key}
+                            onClick={() => handleDismissGroup(key)}
+                          >
+                            Это разные помещения
+                          </Button>
+                        </div>
                       </div>
                       <div className="overflow-x-auto">
                         <table className="w-full min-w-[900px] border-collapse text-sm">
@@ -736,6 +931,7 @@ export function MarketOffersReview() {
                                 onEdit={openEdit}
                                 onDelete={handleDelete}
                                 onToggleReject={handleToggleReject}
+                                onDiscuss={(o) => openDiscussModal([o.id], discussLabel(o))}
                               />
                             ))}
                           </tbody>
@@ -789,6 +985,7 @@ export function MarketOffersReview() {
                           onEdit={openEdit}
                           onDelete={handleDelete}
                           onToggleReject={handleToggleReject}
+                          onDiscuss={(o) => openDiscussModal([o.id], discussLabel(o))}
                         />
                       ))}
                     </tbody>
@@ -803,9 +1000,115 @@ export function MarketOffersReview() {
         </div>
       )}
 
+      {offers !== null && tab === 'Обсуждение' && (
+        <div className="flex flex-col gap-4">
+          <p className="text-xs text-ink-faint">
+            Карточки, которые Светлана отметила "Обсудить с Анатолием" во время проверки — они остались
+            непроверенными и не показываются ей в очереди, пока вы не вернёте их с ответом.
+          </p>
+          {discussingGroups.length === 0 ? (
+            <div className={cn('py-10 text-center text-sm text-ink-muted', glassCardClass)} style={glassCardShadow}>
+              Сейчас ничего не ждёт обсуждения.
+            </div>
+          ) : (
+            discussingGroups.map(([key, group]) => {
+              const ids = group.map((o) => o.id);
+              const draft = replyDrafts[key] ?? '';
+              return (
+                <div key={key} className={cn('flex flex-col gap-3 p-4', glassCardClass)} style={glassCardShadow}>
+                  <p className="text-sm text-ink-muted">
+                    <span className="font-semibold text-ink">{group[0].address ?? 'без адреса'}</span> ·{' '}
+                    {group[0].size} м²
+                    {group.length > 1 && <> · {group.length} объявления в группе</>}
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[900px] border-collapse text-sm">
+                      <OfferTableHead />
+                      <tbody className="divide-y divide-border">
+                        {group.map((offer) => (
+                          <OfferRow
+                            key={offer.id}
+                            offer={offer}
+                            pending={false}
+                            onEdit={openEdit}
+                            onDelete={handleDelete}
+                            onToggleReject={handleToggleReject}
+                            onDiscuss={() => {}}
+                            showActions={false}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="flex flex-col gap-1.5 rounded-control bg-info-bg/60 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-info-text">Вопрос Светланы</p>
+                    <p className="whitespace-pre-wrap text-sm text-ink">{group[0].discussionNote}</p>
+                  </div>
+                  <Textarea
+                    label="Ваш комментарий"
+                    placeholder="Что решили, что нужно уточнить у Светланы..."
+                    rows={2}
+                    value={draft}
+                    onChange={(e) => setReplyDrafts((prev) => ({ ...prev, [key]: e.target.value }))}
+                  />
+                  <Button
+                    className="self-end"
+                    disabled={!draft.trim() || resolvingKey === key}
+                    onClick={() => handleResolveDiscussion(key, ids)}
+                  >
+                    {resolvingKey === key ? 'Сохраняем…' : 'Вернуть на доработку'}
+                  </Button>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      <Modal
+        open={!!discussTarget}
+        onClose={() => (discussSaving ? undefined : setDiscussTarget(null))}
+        title="Обсудить с Анатолием"
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-ink-muted">{discussTarget?.label}</p>
+          <Textarea
+            label="Что нужно обсудить?"
+            placeholder="Опишите, что вызывает вопрос..."
+            rows={4}
+            value={discussComment}
+            onChange={(e) => setDiscussComment(e.target.value)}
+          />
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="secondary" onClick={() => setDiscussTarget(null)} disabled={discussSaving}>
+              Отмена
+            </Button>
+            <Button type="button" disabled={!discussComment.trim() || discussSaving} onClick={submitDiscuss}>
+              {discussSaving ? 'Отправляем…' : 'Отправить'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       <Modal open={!!editingOffer} onClose={closeOrSkipEdit} title="Редактировать объявление">
         {editForm && (
           <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
+            {(editingOffer?.discussionNote || editingOffer?.ownerNote) && (
+              <div className="flex flex-col gap-2 rounded-control bg-info-bg/60 p-3">
+                {editingOffer.discussionNote && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-info-text">Вопрос Светланы</p>
+                    <p className="whitespace-pre-wrap text-sm text-ink">{editingOffer.discussionNote}</p>
+                  </div>
+                )}
+                {editingOffer.ownerNote && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-info-text">Ответ Анатолия</p>
+                    <p className="whitespace-pre-wrap text-sm text-ink">{editingOffer.ownerNote}</p>
+                  </div>
+                )}
+              </div>
+            )}
             <Select
               label="Тип помещения"
               options={MARKET_PROPERTY_TYPES}
@@ -894,11 +1197,21 @@ export function MarketOffersReview() {
               onChange={(e) => setEditForm((f) => f && { ...f, address: e.target.value })}
             />
             <div className="flex items-center justify-between gap-3">
-              {verifying && (
-                <button type="button" onClick={stopVerification} className="text-xs text-ink-faint underline hover:text-ink">
-                  Завершить проверку
+              <div className="flex items-center gap-3">
+                {verifying && (
+                  <button type="button" onClick={stopVerification} className="text-xs text-ink-faint underline hover:text-ink">
+                    Завершить проверку
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => editingOffer && openDiscussFromEdit(editingOffer)}
+                  className="flex items-center gap-1 text-xs text-ink-faint underline hover:text-ink"
+                >
+                  <MessageCircleQuestion className="h-3.5 w-3.5" />
+                  Обсудить с Анатолием
                 </button>
-              )}
+              </div>
               <div className="flex flex-1 justify-end gap-3">
                 <Button type="button" variant="secondary" onClick={closeOrSkipEdit}>
                   {verifying ? 'Пропустить' : 'Отмена'}

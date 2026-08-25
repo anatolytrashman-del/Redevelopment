@@ -32,6 +32,9 @@ const Contractors = lazy(() => import('./pages/Contractors').then((m) => ({ defa
 const Objects = lazy(() => import('./pages/Objects').then((m) => ({ default: m.Objects })));
 const ObjectDetail = lazy(() => import('./pages/ObjectDetail').then((m) => ({ default: m.ObjectDetail })));
 const Documents = lazy(() => import('./pages/Documents').then((m) => ({ default: m.Documents })));
+const LegalEntityDetail = lazy(() =>
+  import('./pages/LegalEntityDetail').then((m) => ({ default: m.LegalEntityDetail })),
+);
 const Tasks = lazy(() => import('./pages/Tasks').then((m) => ({ default: m.Tasks })));
 const Backlog = lazy(() => import('./pages/Backlog').then((m) => ({ default: m.Backlog })));
 const Briefs = lazy(() => import('./pages/Briefs').then((m) => ({ default: m.Briefs })));
@@ -205,6 +208,14 @@ export default function App() {
           }
         />
         <Route path="documents" element={<RequirePage page="documents"><Documents /></RequirePage>} />
+        <Route
+          path="documents/legal-entities/:id"
+          element={
+            <RequirePage page="documents">
+              <LegalEntityDetail />
+            </RequirePage>
+          }
+        />
         <Route
           path="meeting-summaries"
           element={
