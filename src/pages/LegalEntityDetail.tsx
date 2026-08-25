@@ -68,8 +68,13 @@ export function LegalEntityDetail() {
       .finally(() => setDeclarationsLoading(false));
   }, [id]);
 
+  // По возрастанию — старые периоды выше (владелец: "2025 год раньше, чем
+  // 2026, 1 квартал выше, чем 2 квартал"), не по дате загрузки файла.
   const entityDeclarations = useMemo(
-    () => declarations.filter((d) => d.legalEntityId === id),
+    () =>
+      declarations
+        .filter((d) => d.legalEntityId === id)
+        .sort((a, b) => a.year - b.year || a.quarter - b.quarter),
     [declarations, id],
   );
 
@@ -149,7 +154,7 @@ export function LegalEntityDetail() {
 
           {declarationsError && <p className="text-sm text-danger">{declarationsError}</p>}
 
-          <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {entityDeclarations.map((d) => (
               <Card key={d.id} className="flex flex-col gap-3 p-5">
                 <div className="flex items-center gap-4">
