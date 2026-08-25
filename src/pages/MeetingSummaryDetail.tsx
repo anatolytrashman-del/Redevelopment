@@ -59,9 +59,8 @@ export function MeetingSummaryDetail() {
   const [progress, setProgress] = useState<TranscribeProgress | null>(null);
   const [transcribeError, setTranscribeError] = useState<string | null>(null);
   // Секундомер поверх progress — единственный сигнал владельцу, что процесс
-  // не завис, пока ждём первый кусок (запросы к Whisper через ProxyAPI
-  // бывают медленными, а обновлений от progress между кусками может не
-  // быть минутами).
+  // не завис, пока идёт асинхронное распознавание на стороне speech2text.ru
+  // (обновлений от progress между стадиями может не быть минутами).
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   useEffect(() => {
     if (!transcribing) return;
@@ -153,12 +152,11 @@ export function MeetingSummaryDetail() {
     }
   }
 
-  // Временный обходной путь, пока расшифровка через ProxyAPI неприемлемо
-  // медленная (и до одобрения заявки на API speech2text.ru): расшифровка,
-  // сделанная где угодно вручную, подхватывается загрузкой .txt-файла — тот
-  // же немедленный save, что и у расшифровки из аудио, чтобы не потерять
-  // результат забытым кликом. Дальше саммери/задачи работают одинаково,
-  // независимо от источника текста.
+  // Альтернативный путь ввода расшифровки — оставлен насовсем (не только
+  // как временный костыль): расшифровка, сделанная где угодно вручную,
+  // подхватывается загрузкой .txt-файла — тот же немедленный save, что и у
+  // расшифровки из аудио, чтобы не потерять результат забытым кликом.
+  // Дальше саммери/задачи работают одинаково, независимо от источника текста.
   async function handleTranscriptFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (transcriptFileInputRef.current) transcriptFileInputRef.current.value = '';
@@ -341,11 +339,9 @@ export function MeetingSummaryDetail() {
               disabled={transcribing}
             >
               {transcribing
-                ? progress?.stage === 'preparing'
-                  ? 'Готовим аудио...'
-                  : progress && progress.chunkCount > 1
-                    ? `Расшифровка: часть ${progress.chunkIndex} из ${progress.chunkCount}... (${elapsedSeconds}с)`
-                    : `Расшифровка... (${elapsedSeconds}с)`
+                ? progress?.stage === 'uploading'
+                  ? 'Загружаем аудио...'
+                  : `Распознаём речь... (${elapsedSeconds}с)`
                 : transcript.trim()
                   ? 'Расшифровать другую запись'
                   : 'Загрузить запись и расшифровать'}
