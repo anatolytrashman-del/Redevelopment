@@ -68,7 +68,6 @@ import type { ExchangeRate } from '../data/exchangeRates';
 import { PrimaryMarketProModal } from '../components/district/PrimaryMarketProModal';
 import { DistrictMap } from '../components/district/DistrictMap';
 import { DistrictQuarterMap } from '../components/district/DistrictQuarterMap';
-import { DISTRICTS } from '../data/districts';
 
 // Переехала с /rayon-minsk-mir на /minsk/minsk-mir (см. CLAUDE.md, урл-
 // структура /minsk/...) — старый адрес редиректит сюда (App.tsx).
@@ -139,7 +138,7 @@ const statTiles: { icon: LucideIcon; value: string; label: string }[] = [
   { icon: Building2, value: '427 чел/га', label: 'плотность населения — в 7,5 раза выше среднего по Минску' },
   { icon: Briefcase, value: '25–45', label: 'лет — ядро жителей района: семьи, IT-специалисты' },
   { icon: TrainFront, value: '2', label: 'станции метро на территории' },
-  { icon: Bus, value: '30', label: 'автобусных, троллейбусных маршрутов и маршруток' },
+  { icon: Bus, value: '30', label: 'маршрутов автобусов, троллейбусов и маршруток' },
   { icon: ShoppingBag, value: '138 200 м²', label: 'площадь Avia Mall — крупнейший ТЦ Минска' },
   { icon: Layers, value: '320 га', label: 'заявленный масштаб застройки района' },
   { icon: BedDouble, value: '~30 000', label: 'квартир по заявленному проекту застройки' },
@@ -626,7 +625,7 @@ const CURRENCY_OPTIONS: Currency[] = ['BYN', 'EUR', 'USD', 'RUB'];
 // Было 4 кнопки в ряд (EUR/USD/BYN/RUB) — при длинном заголовке блока
 // переставало помещаться в одну строку (владелец, скриншот). Переделано в
 // выпадашку: видна только текущая валюта + стрелка, остальные — по клику
-// (тот же паттерн, что и у AnalyticsMenu выше — клик вне закрывает).
+// (клик вне закрывает — тот же приём, что и у mobileNavOpen ниже).
 // БЕЛ по умолчанию — не эстетика, а требование владельца ("так по
 // закону"): цены на публичной странице должны показываться в белорусских
 // рублях, остальные валюты — опция для удобства, не основной вид.
@@ -989,61 +988,6 @@ const districtFaq: FaqItem[] = [
 // У "Частые вопросы"/"Red One" своей иконки в заголовке секции нет (FAQ —
 // просто текст, Red One — CTA-блок без иконки), для меню всё равно нужна
 // своя — CircleHelp/ArrowRight не заняты нигде на странице.
-// Верхнее меню страницы (шапка) — отдельно от бокового оглавления
-// SECTION_NAV ниже: то список якорей внутри ЭТОЙ страницы, а тут —
-// переходы на другие страницы сайта (лендинг Red One, аналитика по
-// районам). Раскрывается и наведением (owner: "должно автоматически
-// раскрываться при наведении"), и кликом (совместимость с touch — там
-// hover не срабатывает надёжно); закрывается кликом вне себя — тот же
-// приём, что и mobileNavOpen ниже, только без затемнения (мелкий
-// дропдаун, не полноэкранная шторка).
-function AnalyticsMenu() {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, [open]);
-
-  return (
-    <div ref={ref} className="relative" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
-      <button type="button" onClick={() => setOpen((v) => !v)} className="flex items-center gap-1 hover:text-ink">
-        Аналитика
-        <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 transition-transform', open && 'rotate-180')} />
-      </button>
-      {open && (
-        // Между кнопкой и панелью раньше был реальный зазор (top-full + mt-2) —
-        // курсор при движении вниз к пункту меню проходил через эту "мёртвую
-        // зону", не покрытую ни одним потомком блока с onMouseEnter/Leave, и
-        // браузер честно засчитывал mouseleave, закрывая меню ДО того, как
-        // курсор доходил до пунктов (owner: "выпадает, но при наведении на
-        // пункт пропадает"). Зазор перенесён внутрь этого же обёрточного
-        // блока (padding, не margin) — теперь он часть наведённой области,
-        // а не дыра между ней и панелью.
-        <div className="absolute right-0 top-full z-20 pt-2">
-          <div className="flex w-52 flex-col gap-0.5 rounded-control border border-border bg-surface p-2 shadow-card">
-            {DISTRICTS.map((d) => (
-              <Link
-                key={d.slug}
-                to={`/minsk/analytics/${d.slug}`}
-                onClick={() => setOpen(false)}
-                className="rounded-control px-3 py-2 text-sm text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
-              >
-                {d.name}
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 const SECTION_NAV: { id: string; label: string; icon: LucideIcon }[] = [
   { id: 'key-stats', label: 'Ключевые цифры', icon: Sparkles },
   { id: 'developer', label: 'Застройщик', icon: HardHat },
@@ -1284,7 +1228,6 @@ export function DistrictGuidePage() {
                 <Link to="/minsk/one" className="transition-colors hover:text-ink">
                   Деловой центр Red One
                 </Link>
-                <AnalyticsMenu />
               </nav>
             </div>
           </div>

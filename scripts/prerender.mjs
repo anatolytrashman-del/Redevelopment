@@ -41,9 +41,10 @@ const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_
 // структура) — переменная переименована из STATIC_SLUGS в STATIC_PATHS:
 // это уже полные пути от корня, не голые слаги (у хабов их и не может
 // быть, они не привязаны к одному сегменту). Добавлять сюда каждую новую
-// контентную страницу вне сущности "объект" (гиды, аналитика — Э3-1/Э3-3
-// в SEO_PLAN.md).
-const STATIC_PATHS = ['minsk', 'minsk/minsk-mir', 'minsk/analytics', 'minsk/analytics/minsk-mir'];
+// контентную страницу вне сущности "объект" (гиды — Э3-1 в SEO_PLAN.md).
+// /minsk/analytics и /minsk/analytics/minsk-mir были в списке — раздел
+// аналитики по районам целиком удалён владельцем 2026-08-25.
+const STATIC_PATHS = ['minsk', 'minsk/minsk-mir'];
 
 async function fetchLandingPaths() {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/objects?select=landing_slug&landing_slug=not.is.null`, {

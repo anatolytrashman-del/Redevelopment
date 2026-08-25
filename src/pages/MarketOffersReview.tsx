@@ -79,7 +79,7 @@ import type { MarketOffer, FinishStatus } from '../data/marketOffers';
 // есть у источника) и появилась бы в очереди верификации заново; оставленная
 // в базе с rejected=true не показывается ни в очереди верификации, ни в
 // группах дублей, ни в сводной статистике на /minsk/minsk-mir (см.
-// buildMarketPivot/countSmallFinishedOffices там и в DistrictAnalyticsPage.tsx),
+// buildMarketPivot/countSmallFinishedOffices в DistrictGuidePage.tsx),
 // но остаётся видна на этой странице через фильтр "Не подходит" — на случай,
 // если решение нужно будет отменить ("Восстановить").
 //

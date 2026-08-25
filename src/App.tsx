@@ -8,8 +8,6 @@ import { PublicBuildingPlan } from './pages/PublicBuildingPlan';
 import { ObjectLandingPage } from './pages/ObjectLandingPage';
 import { DistrictGuidePage } from './pages/DistrictGuidePage';
 import { MinskHub } from './pages/MinskHub';
-import { MinskAnalyticsHub } from './pages/MinskAnalyticsHub';
-import { DistrictAnalyticsPage } from './pages/DistrictAnalyticsPage';
 import { BriefPublicPage } from './pages/BriefPublicPage';
 import { MeetingSummaryPublicPage } from './pages/MeetingSummaryPublicPage';
 import { NotFound } from './pages/NotFound';
@@ -100,16 +98,14 @@ export default function App() {
     <Routes>
       {/* Публичная часть — без AppLayout и без пароля, для клиентов и рекламы.
           Пока нет отдельного лендинга компании (см. SEO_PLAN.md, Э2-4), корень
-          временно ведёт на /minsk — city-scoped раздел (комплексы, гиды по
-          районам, аналитика), готовый к появлению других городов рядом без
+          временно ведёт на /minsk — city-scoped раздел (гиды по районам),
+          готовый к появлению других городов рядом без
           переезда уже проиндексированных ссылок под /minsk. Импортированы
           статически (не lazy) — это ровно те страницы, ради которых существует
           бандл-сплиттинг выше: им нельзя добавлять лишний сетевой перелёт на
           догрузку чанка. */}
       <Route path="/" element={<Navigate to="/minsk" replace />} />
       <Route path="/minsk" element={<MinskHub />} />
-      <Route path="/minsk/analytics" element={<MinskAnalyticsHub />} />
-      <Route path="/minsk/analytics/:district" element={<DistrictAnalyticsPage />} />
       <Route path="/minsk/minsk-mir" element={<DistrictGuidePage />} />
       <Route path="/plan/:token" element={<PublicBuildingPlan />} />
       <Route path="/tz/:token" element={<BriefPublicPage />} />
