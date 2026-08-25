@@ -2012,10 +2012,6 @@ export function DistrictGuidePage() {
         </div>
 
         <div id="map" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex items-center gap-3">
-            <MapPin className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Карта района</h2>
-          </div>
           <DistrictMap />
         </div>
 

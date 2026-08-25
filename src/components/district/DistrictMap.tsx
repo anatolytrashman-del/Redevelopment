@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Maximize2, X } from 'lucide-react';
+import { Check, Maximize2, MapPin, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardShadow } from '../../lib/glass';
 import { DISTRICT_PLACE_CATEGORIES } from '../../data/districtPlaces';
@@ -15,22 +15,16 @@ import { DISTRICT_PLACE_CATEGORIES } from '../../data/districtPlaces';
 
 const YANDEX_MAPS_API_KEY = import.meta.env.VITE_YANDEX_MAPS_API_KEY ?? 'a7182a37-1597-4b71-9bc0-aaa154b92d13';
 
-// Границы — не center+zoom, а bounds по факту собранных точек (с небольшим
-// отступом) — владелец: "на лендинге в карту не влезает весь район".
-// Пересчитано по data/districtPlaces.ts после чистки от адресов за
-// пределами района (2026-08-25, см. журнал CLAUDE.md — три раунда правок
-// от владельца: севернее Аэродромной, кластер Брилевская/Чкалова/
-// Короткевича, всё южнее Кижеватова кроме автосервисов). Категория 'auto'
-// сознательно ИСКЛЮЧЕНА из расчёта границ — большая часть её точек это
-// известный "рядом, но за пределами района" автосервисный кластер на
-// Казинца/Брестской/Бородинской/Брилевском тупике (см. autoServiceCluster*
-// в DistrictGuidePage.tsx), который остаётся на карте, но не должен
-// растягивать стартовый вид. Пересчитывать при заметном расширении набора
-// точек за эти границы.
-const DEFAULT_BOUNDS: [[number, number], [number, number]] = [
-  [53.857, 27.523],
-  [53.875, 27.564],
-];
+// Центр района — по факту собранных точек (см. data/districtPlaces.ts,
+// чистка от адресов за пределами района 2026-08-25). Раньше карта
+// стартовала через bounds (fit по границам всех точек), но у широкого
+// контейнера карточки (намного шире, чем выше) Яндекс.Карты подбирают
+// zoom по стороне, которая раньше упирается в контейнер — получается
+// сильно отдалённый вид по горизонтали, — владелец: "ты слишком сильно
+// отдаляешь". Явные center+zoom вместо bounds — контролируем плотность
+// вида напрямую, не завися от aspect ratio контейнера.
+const DEFAULT_CENTER: [number, number] = [53.866, 27.5435];
+const DEFAULT_ZOOM = 15;
 
 // Загружаем API Яндекс.Карт один раз на всё приложение (модульный синглтон
 // промиса) — компонент может размонтироваться/монтироваться повторно
@@ -77,7 +71,8 @@ function DistrictMapCanvas({ mapHeightClassName }: { mapHeightClassName: string 
         if (cancelled || !containerRef.current) return;
 
         const map = new ymaps.Map(containerRef.current, {
-          bounds: DEFAULT_BOUNDS,
+          center: DEFAULT_CENTER,
+          zoom: DEFAULT_ZOOM,
           controls: ['zoomControl', 'fullscreenControl'],
         });
         mapRef.current = map;
@@ -195,20 +190,21 @@ export function DistrictMap() {
 
   return (
     <div className="flex flex-col gap-3">
-      <DistrictMapCanvas mapHeightClassName="h-80" />
-      <button
-        type="button"
-        onClick={() => setFullscreen(true)}
-        className="flex items-center gap-3 rounded-control bg-surface-muted px-5 py-4 text-left transition-colors hover:bg-border"
-      >
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink text-white">
-          <Maximize2 className="h-4 w-4" />
-        </span>
-        <span className="flex flex-1 flex-col gap-0.5">
-          <span className="text-sm font-bold text-ink">Открыть на весь экран</span>
-          <span className="text-xs text-ink-faint">Крупная карта района со всеми метками и фильтром по категориям</span>
-        </span>
-      </button>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <MapPin className="h-5 w-5 shrink-0 text-ink" />
+          <h2 className="text-lg font-bold text-ink">Карта района</h2>
+        </div>
+        <button
+          type="button"
+          onClick={() => setFullscreen(true)}
+          className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-surface-muted px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-border"
+        >
+          <Maximize2 className="h-3.5 w-3.5 shrink-0" />
+          Открыть на весь экран
+        </button>
+      </div>
+      <DistrictMapCanvas mapHeightClassName="h-[420px]" />
 
       {fullscreen &&
         createPortal(
