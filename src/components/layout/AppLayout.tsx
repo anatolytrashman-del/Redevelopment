@@ -4,6 +4,7 @@ import { Menu } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { cn } from '../../lib/cn';
 import { glassPillClass, glassPillShadow } from '../../lib/glass';
+import { useMarketOfferDiscussionWatcher } from '../../lib/marketOfferDiscussionWatcher';
 
 // index.html — общий статический файл на все роуты (публичный SPA-фолбэк),
 // его <title> заточен под OG-превью продающей страницы (см. index.html).
@@ -15,6 +16,9 @@ const ADMIN_TITLE = 'Админка Redevelopment';
 export function AppLayout() {
   const [navOpen, setNavOpen] = useState(false);
   const location = useLocation();
+
+  // Один опрос на всё приложение, не с каждой страницы — см. сам хук.
+  useMarketOfferDiscussionWatcher();
 
   useEffect(() => {
     const previousTitle = document.title;
