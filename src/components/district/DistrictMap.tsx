@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Check } from 'lucide-react';
 import { DISTRICT_PLACE_CATEGORIES } from '../../data/districtPlaces';
 
 // Интерактивная карта района с переключаемыми по категориям метками —
@@ -111,20 +112,30 @@ export function DistrictMap() {
               key={category.key}
               type="button"
               onClick={() => toggleCategory(category.key)}
-              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-                active ? 'border-border bg-surface-muted text-ink' : 'border-border/60 text-ink-faint'
+              aria-pressed={active}
+              className={`flex items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                active
+                  ? 'border-border bg-surface-muted text-ink hover:bg-border'
+                  : 'border-border/60 text-ink-faint hover:border-border hover:text-ink-muted'
               }`}
             >
               <span
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: active ? category.color : '#d8d6d2' }}
-              />
-              {category.label}
+                className="flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors"
+                style={
+                  active
+                    ? { backgroundColor: category.color, borderColor: category.color }
+                    : { borderColor: '#d8d6d2' }
+                }
+              >
+                {active && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+              </span>
+              <span className={active ? '' : 'line-through decoration-ink-faint'}>{category.label}</span>
               <span className="text-ink-faint">{category.places.length}</span>
             </button>
           );
         })}
       </div>
+      <p className="text-xs text-ink-faint">Нажмите на категорию, чтобы показать или скрыть её метки на карте.</p>
       <div className="relative overflow-hidden rounded-control border border-border">
         {status === 'error' && (
           <div className="flex h-80 items-center justify-center text-sm text-ink-faint">
