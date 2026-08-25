@@ -88,22 +88,41 @@ export default async function handler(req, res) {
     }
     const task = await statusResp.json();
     const statusValue = task?.status?.value;
+    const description = task?.status?.description;
 
-    if (statusValue === 'processing' || statusValue === 'new' || statusValue === 'pending') {
+    // Официальная таблица статусов (из документации speech2text.ru):
+    // value       code  описание
+    // queued      0/30  задание создано / бот присоединился / ведёт запись
+    // (без value) 80    контент получен (промежуточный шаг file-флоу)
+    // (без value) 100   распознавание речи — этот и был единственный
+    //                   "processing"-статус, реально увиденный вживую
+    // paused      102   ПРИОСТАНОВЛЕНО — в аккаунте закончились доступные
+    //                   минуты; результата не будет, пока не пополнят —
+    //                   не то же самое, что "ещё считает", нельзя опрашивать
+    //                   бесконечно как processing
+    // done        200   успешно, есть результат
+    // done        204   завершено, но речь не обнаружена — result: null
+    // error       404/406/407/501/502  разные причины сбоя
+    if (statusValue === 'queued' || statusValue === 'processing' || task?.status?.code === 80 || task?.status?.code === 100) {
       res.status(200).json({ status: 'processing' });
       return;
     }
+    if (statusValue === 'paused') {
+      res.status(200).json({ status: 'error', error: description || 'В аккаунте speech2text.ru закончились доступные минуты распознавания' });
+      return;
+    }
+    if (statusValue === 'error') {
+      res.status(200).json({ status: 'error', error: description || 'Не удалось расшифровать запись' });
+      return;
+    }
 
-    // Любое нетерминальное-"processing" состояние трактуем как "готово,
-    // пробуем забрать результат" — так код не зависит от точного набора
-    // значений value, который speech2text может расширить.
+    // value === 'done' (или неизвестное будущее значение) — пробуем забрать
+    // результат; code 204 ("речь не обнаружена") придёт сюда же и получит
+    // понятное сообщение из description, а не свалится в общую ошибку.
     const resultResp = await fetch(`${SPEECH2TEXT_BASE}/api/recognitions/${taskId}/result/srt?api-key=${apiKey}`);
     if (!resultResp.ok) {
       const body = await resultResp.json().catch(() => ({}));
-      // Наблюдалось живьём: пустая/тихая запись — result: null, статус
-      // всё равно "done" — считаем это не ошибкой сервиса, а понятным
-      // исходом "речь не распознана", а не мешаем его с реальным сбоем.
-      const message = body.message || task?.status?.description || 'Распознавание не обнаружило речь в записи';
+      const message = body.message || description || 'Распознавание не обнаружило речь в записи';
       res.status(200).json({ status: 'error', error: message });
       return;
     }
@@ -111,7 +130,7 @@ export default async function handler(req, res) {
     const srt = await resultResp.text();
     const cues = parseSrtCues(srt);
     if (cues.length === 0) {
-      res.status(200).json({ status: 'error', error: 'Распознавание не обнаружило речь в записи' });
+      res.status(200).json({ status: 'error', error: description || 'Распознавание не обнаружило речь в записи' });
       return;
     }
 
