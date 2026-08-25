@@ -34,6 +34,17 @@ export function fetchMarketOffers(): Promise<MarketOffer[]> {
   });
 }
 
+// Узкая выборка только для фонового опроса "не появилась ли новая карточка
+// на обсуждение" (см. lib/marketOfferDiscussionWatcher.ts) — не весь
+// market_offers (сотни-тысячи строк), только id/адрес уже отфлагованных.
+export function fetchFlaggedForDiscussionOffers(): Promise<{ id: number; address: string | null }[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('market_offers').select('id, address').eq('flagged_for_discussion', true);
+    if (error) throw error;
+    return data as { id: number; address: string | null }[];
+  });
+}
+
 // Быстрая простановка статуса отделки прямо из таблицы — считается
 // обработкой строки (reviewed=true), чтобы следующий месячный синк её не
 // перезаписал (см. scripts/sync-kufar-market-offers.mjs).
