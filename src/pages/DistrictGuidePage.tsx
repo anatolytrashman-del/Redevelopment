@@ -66,6 +66,7 @@ import { currencySymbols } from '../data/transactions';
 import type { Currency } from '../data/transactions';
 import type { ExchangeRate } from '../data/exchangeRates';
 import { PrimaryMarketProModal } from '../components/district/PrimaryMarketProModal';
+import { DistrictMap } from '../components/district/DistrictMap';
 import { DISTRICTS } from '../data/districts';
 
 // Переехала с /rayon-minsk-mir на /minsk/minsk-mir (см. CLAUDE.md, урл-
@@ -85,14 +86,6 @@ const INTRO_TEXT = 'Экспертный разбор коммерческой �
 // Обновлять вручную при каждом квартальном пересмотре текста (см. SEO_PLAN.md, Э3-1).
 const DATE_MODIFIED = '2026-08-22';
 
-// Ссылка от владельца пришла в двух нерабочих как iframe src форматах
-// (страница yandex.ru/maps/?um=... и <script src="api-maps.yandex.ru/...">
-// — оба не работают как src, см. предупреждение в ObjectMapWidget.tsx и
-// CLAUDE.md). Собрано вручную по id конструктора из присланной ссылки в
-// рабочий формат — тот же самый, что реально используется в mapEmbedUrl
-// объекта Red One (проверено запросом к Supabase).
-const MAP_EMBED_URL =
-  'https://yandex.ru/map-widget/v1/?um=constructor%3A1d794325dcda320ce9255c449e982037d1332cf776404d4a207b9a3e8bf2f307&source=constructorLink';
 
 // 6 аэрофото района от владельца (ссылки на ibb.co) — скачаны и
 // самостоятельно захостены в public/images/district/ (тот же принцип,
@@ -1998,17 +1991,13 @@ export function DistrictGuidePage() {
           </p>
         </div>
 
-        {MAP_EMBED_URL && (
-          <div id="map" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
-            <div className="flex items-center gap-3">
-              <MapPin className="h-5 w-5 shrink-0 text-ink" />
-              <h2 className="text-lg font-bold text-ink">Карта района</h2>
-            </div>
-            <div className="overflow-hidden rounded-control border border-border">
-              <iframe src={MAP_EMBED_URL} title="Карта района Минск Мир" className="h-80 w-full" loading="lazy" />
-            </div>
+        <div id="map" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <MapPin className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Карта района</h2>
           </div>
-        )}
+          <DistrictMap />
+        </div>
 
         <FaqAccordion id="faq" title="Частые вопросы о районе" items={districtFaq} />
 
