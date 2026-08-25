@@ -590,29 +590,60 @@ const MARKET_FINISH_OPTIONS = ['С отделкой', 'Без отделки', '
 // Порядок валют в переключателях "Первичный"/"Вторичный рынок" — EUR
 // по умолчанию первой (владелец), не общий порядок currencies из
 // data/transactions.ts (там RUB первым, для админской формы транзакций).
-const CURRENCY_OPTIONS: Currency[] = ['EUR', 'USD', 'BYN', 'RUB'];
+const CURRENCY_OPTIONS: Currency[] = ['BYN', 'EUR', 'USD', 'RUB'];
 
-// Компактный вариант ToggleGroup (components/ui/ToggleGroup.tsx) специально
-// для этого переключателя — обычный ToggleGroup (px-4 py-2) с 4 опциями не
-// помещался в одну строку рядом с длинным заголовком блока на ширине
-// колонки контента (max-w-3xl), переносился на новую строку и терял
-// заявленное "справа от заголовка" позиционирование.
+// Было 4 кнопки в ряд (EUR/USD/BYN/RUB) — при длинном заголовке блока
+// переставало помещаться в одну строку (владелец, скриншот). Переделано в
+// выпадашку: видна только текущая валюта + стрелка, остальные — по клику
+// (тот же паттерн, что и у AnalyticsMenu выше — клик вне закрывает).
+// БЕЛ по умолчанию — не эстетика, а требование владельца ("так по
+// закону"): цены на публичной странице должны показываться в белорусских
+// рублях, остальные валюты — опция для удобства, не основной вид.
 function CurrencyToggle({ value, onChange }: { value: Currency; onChange: (currency: Currency) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
   return (
-    <div className="flex w-fit shrink-0 gap-0.5 rounded-full border border-border bg-surface-muted p-0.5">
-      {CURRENCY_OPTIONS.map((option) => (
-        <button
-          key={option}
-          type="button"
-          onClick={() => onChange(option)}
-          className={cn(
-            'rounded-full px-2.5 py-1 text-xs font-semibold transition-colors',
-            value === option ? 'bg-surface text-primary shadow-card' : 'text-ink-muted',
-          )}
-        >
-          {option}
-        </button>
-      ))}
+    <div ref={ref} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 rounded-full border border-border bg-surface-muted px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-border"
+      >
+        {value}
+        <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-20 pt-2">
+          <div className="flex w-24 flex-col gap-0.5 rounded-control border border-border bg-surface p-1.5 shadow-card">
+            {CURRENCY_OPTIONS.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => {
+                  onChange(option);
+                  setOpen(false);
+                }}
+                className={cn(
+                  'rounded-control px-3 py-1.5 text-left text-xs font-semibold transition-colors',
+                  value === option ? 'bg-surface-muted text-primary' : 'text-ink-muted hover:bg-surface-muted hover:text-ink',
+                )}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -893,8 +924,8 @@ export function DistrictGuidePage() {
   // Курс — тот же api/exchange-rate.js (bnb.by), что уже используют
   // Транзакции/Ресерч подрядчиков, один запрос на всю страницу.
   const [exchangeRate, setExchangeRate] = useState<ExchangeRate | null>(null);
-  const [primaryMarketCurrency, setPrimaryMarketCurrency] = useState<Currency>('EUR');
-  const [marketCurrency, setMarketCurrency] = useState<Currency>('EUR');
+  const [primaryMarketCurrency, setPrimaryMarketCurrency] = useState<Currency>('BYN');
+  const [marketCurrency, setMarketCurrency] = useState<Currency>('BYN');
 
   useEffect(() => {
     fetchTodayRate()
