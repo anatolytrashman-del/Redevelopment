@@ -31,6 +31,15 @@ function extractNextStepsSection(summary: string): string | null {
   return idx === -1 ? null : summary.slice(idx).trim();
 }
 
+// мм:сс — для обратного отсчёта расшифровки, короче полного formatTimestamp
+// из api/transcribe-poll.js (там нужны и часы для длинных встреч в тексте).
+function formatCountdown(totalSeconds: number): string {
+  const s = Math.max(0, Math.round(totalSeconds));
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${String(sec).padStart(2, '0')}`;
+}
+
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
     return (err as { message: string }).message;
@@ -341,7 +350,11 @@ export function MeetingSummaryDetail() {
               {transcribing
                 ? progress?.stage === 'uploading'
                   ? 'Загружаем аудио...'
-                  : `Распознаём речь... (${elapsedSeconds}с)`
+                  : progress?.estimatedSeconds != null
+                    ? elapsedSeconds < progress.estimatedSeconds
+                      ? `Распознаём речь... осталось ~${formatCountdown(progress.estimatedSeconds - elapsedSeconds)}`
+                      : `Распознаём речь... уже дольше обычного (${elapsedSeconds}с)`
+                    : `Распознаём речь... (${elapsedSeconds}с)`
                 : transcript.trim()
                   ? 'Расшифровать другую запись'
                   : 'Загрузить запись и расшифровать'}
