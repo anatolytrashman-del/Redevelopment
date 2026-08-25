@@ -89,14 +89,26 @@ export async function transcribeAudioFile(
   const taskId = await startTranscription(path);
 
   onProgress({ stage: 'processing' });
+  // Подряд идущие сбои опроса (не "processing", а реальная ошибка запроса —
+  // например, сеть или баг на нашей стороне) не должны молча повторяться до
+  // POLL_MAX_ATTEMPTS: это ровно то, что маскировало реальный баг валидации
+  // id — клиент 12+ минут показывал "processing", хотя каждый опрос падал
+  // с 400 (см. журнал CLAUDE.md). Отдельная одиночная сетевая икота — не
+  // повод обрывать уже запущенную расшифровку, поэтому порог не 1, а
+  // с запасом; но не бесконечность.
+  const MAX_CONSECUTIVE_POLL_ERRORS = 5;
+  let consecutiveErrors = 0;
   for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
     if (attempt > 0) await sleep(POLL_INTERVAL_MS);
     let result: PollResult;
     try {
       result = await pollOnce(taskId);
-    } catch {
-      // Отдельная сетевая икота посреди долгого опроса — не повод обрывать
-      // уже запущенную (и оплаченную) расшифровку, пробуем ещё раз.
+      consecutiveErrors = 0;
+    } catch (err) {
+      consecutiveErrors++;
+      if (consecutiveErrors >= MAX_CONSECUTIVE_POLL_ERRORS) {
+        throw err instanceof Error ? err : new Error('Не удалось проверить статус расшифровки');
+      }
       continue;
     }
     if (result.status === 'processing') continue;

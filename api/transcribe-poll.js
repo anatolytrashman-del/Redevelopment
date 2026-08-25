@@ -69,7 +69,12 @@ export default async function handler(req, res) {
   }
 
   const taskId = typeof req.query?.taskId === 'string' ? req.query.taskId : '';
-  if (!/^[a-zA-Z0-9-]+$/.test(taskId)) {
+  // Реальные id speech2text.ru содержат и подчёркивание, не только дефис
+  // (пример: "RfZogu6P6sN2UfoeP-6sSIy_dfnE-335") — более узкая проверка без
+  // "_" отбрасывала каждый такой id как "некорректный", из-за чего опрос
+  // статуса всегда падал с 400 и клиент бесконечно молча повторял попытку,
+  // никогда не добираясь до готового результата (см. журнал CLAUDE.md).
+  if (!/^[a-zA-Z0-9_-]+$/.test(taskId)) {
     res.status(400).json({ error: 'Некорректный id задачи' });
     return;
   }
