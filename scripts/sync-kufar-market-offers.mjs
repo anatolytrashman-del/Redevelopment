@@ -204,7 +204,19 @@ function extractOffers(ads, dealType, excluded) {
 
     const propertyType = normalizePropertyType(getAdParam(ad, 'property_type')?.vl || 'Не указано');
     const size = getAdParam(ad, 'size')?.v ?? null;
-    const pricePerSqm = getAdParam(ad, 'square_meter')?.v ?? null;
+    // НЕ ad_parameters.square_meter — это "Цена за м²" В ВАЛЮТЕ ПРОДАВЦА
+    // (ad.currency: BYR/USD/EUR), не всегда USD (владелец поймал живой
+    // случай: Жореса Алфёрова 16 — 35 БЕЛ.РУБ/м², платформа показывала как
+    // $35/м², реально ≈$11.7/м² — тот же дубль на Realt честно показывал
+    // $12/м²). Kufar сам отдаёт готовую конвертацию в USD на каждом
+    // объявлении — price_usd (в центах, не рублях/долларах) — тот же приём,
+    // что и в Realt-скрипте (priceRatesPerM2['840']), просто без готового
+    // "за м²": делим сами на площадь. price_usd на листинговом эндпоинте
+    // приходит СТРОКОЙ ("93897", не 93897 — проверено на живом ответе),
+    // поэтому Number(), не typeof-проверка на number.
+    const priceUsdCents = ad.price_usd != null ? Number(ad.price_usd) : NaN;
+    const pricePerSqm =
+      Number.isFinite(priceUsdCents) && size ? Math.round((priceUsdCents / 100 / size) * 100) / 100 : null;
     if (size == null || pricePerSqm == null) continue; // без площади/цены за м² в сводку не берём
 
     const adLink = `https://re.kufar.by/vi/${ad.ad_id}`;
