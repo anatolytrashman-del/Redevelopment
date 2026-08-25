@@ -34,3 +34,25 @@ export async function fetchTodayRate(): Promise<ExchangeRate> {
   }
   return res.json();
 }
+
+// Для ПУБЛИЧНЫХ страниц (гид района): как fetchTodayRate, но при недоступном
+// /api/exchange-rate падает не в ошибку, а на последний закэшированный курс
+// из Supabase. Две причины: (1) build-time пререндер (scripts/prerender.mjs)
+// гоняет страницу через `vite preview`, где Vercel-функций нет вовсе — без
+// фолбэка цены в снапшоте для поисковиков навсегда оставались бы «—»;
+// (2) живому посетителю лучше вчерашний курс, чем прочерки. В админских
+// потоках (Транзакции — фиксация курса на дату сохранения) НЕ использовать:
+// там подмена сегодняшнего курса вчерашним молча исказила бы данные.
+export async function fetchTodayRateOrLatestCached(): Promise<ExchangeRate> {
+  try {
+    return await fetchTodayRate();
+  } catch (apiError) {
+    const { data, error } = await supabase
+      .from('exchange_rates')
+      .select('*')
+      .order('date', { ascending: false })
+      .limit(1);
+    if (error || !data || data.length === 0) throw apiError;
+    return fromRow(data[0] as ExchangeRateRow);
+  }
+}

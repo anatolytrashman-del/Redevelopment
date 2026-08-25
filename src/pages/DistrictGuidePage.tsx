@@ -49,7 +49,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
-import { setGenericPageMeta, setArticleJsonLd, setFaqJsonLd } from '../lib/pageMeta';
+import { setGenericPageMeta, setArticleJsonLd, setFaqJsonLd, setBreadcrumbJsonLd } from '../lib/pageMeta';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
 import type { FaqItem } from '../components/ui/FaqAccordion';
@@ -60,7 +60,7 @@ import type { MarketOffer } from '../data/marketOffers';
 import { fetchPrimaryMarketOffers } from '../lib/primaryMarketOffersApi';
 import { buildPrimaryMarketPivot } from '../data/primaryMarketOffers';
 import type { PrimaryMarketOffer } from '../data/primaryMarketOffers';
-import { fetchTodayRate } from '../lib/exchangeRatesApi';
+import { fetchTodayRateOrLatestCached } from '../lib/exchangeRatesApi';
 import { convertToEur, convertFromEur } from '../lib/currencyConvert';
 import { currencySymbols } from '../data/transactions';
 import type { Currency } from '../data/transactions';
@@ -83,8 +83,16 @@ const PAGE_H1 = 'Коммерческая недвижимость Минск М
 const DESCRIPTION =
   'Коммерческая недвижимость в районе Минск Мир: готовая аудитория, транспорт, банки и МФЦ, медицина, форматы помещений под любой бизнес. Гид для арендаторов и собственников.';
 const INTRO_TEXT = 'Экспертный разбор коммерческой недвижимости в Минск Мире для инвесторов, собственников и арендаторов.';
-// Обновлять вручную при каждом квартальном пересмотре текста (см. SEO_PLAN.md, Э3-1).
-const DATE_MODIFIED = '2026-08-22';
+// Обновлять вручную при каждом квартальном пересмотре текста (см. SEO_PLAN.md,
+// Э3-1) И при крупных содержательных дополнениях страницы (как 2026-08-25:
+// расширение FAQ до 28 вопросов, карта кварталов, тексты видов недвижимости).
+const DATE_MODIFIED = '2026-08-25';
+// Собственное превью для соцсетей/мессенджеров (og:image) — кадр из
+// hero-фото района (public/images/district/og-minsk-mir.jpg, 1200×630 —
+// рекомендованный Google/OG размер, полоса скайлайна из hero-2, апскейл
+// LANCZOS с 512px исходника) вместо общей заглушки Red One, которая
+// не имеет отношения к контентной странице района.
+const OG_IMAGE = 'https://redevelopment.pro/images/district/og-minsk-mir.jpg';
 
 
 // 6 аэрофото района от владельца (ссылки на ibb.co) — скачаны и
@@ -1088,20 +1096,26 @@ export function DistrictGuidePage() {
   const [marketCurrency, setMarketCurrency] = useState<Currency>('BYN');
 
   useEffect(() => {
-    fetchTodayRate()
+    fetchTodayRateOrLatestCached()
       .then(setExchangeRate)
       .catch(() => setExchangeRate(null));
   }, []);
 
   useEffect(() => {
-    setGenericPageMeta({ title: TITLE, description: DESCRIPTION, url: PAGE_URL });
+    setGenericPageMeta({ title: TITLE, description: DESCRIPTION, url: PAGE_URL, image: OG_IMAGE, ogType: 'article' });
     setArticleJsonLd({
       headline: TITLE,
       description: DESCRIPTION,
       url: PAGE_URL,
       datePublished: '2026-08-22',
       dateModified: DATE_MODIFIED,
+      image: OG_IMAGE,
     });
+    // После setGenericPageMeta (тот сбрасывает крошки) — порядок важен.
+    setBreadcrumbJsonLd([
+      { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
+      { name: 'Район Минск Мир' },
+    ]);
     setFaqJsonLd(districtFaq);
   }, []);
 
@@ -1605,7 +1619,11 @@ export function DistrictGuidePage() {
                     <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)} style={glassPillShadow}>
                       <Icon className="h-4 w-4" />
                     </span>
-                    <span className="text-base font-bold text-ink">{title}</span>
+                    {/* h3, не span — виды недвижимости это ключевые подтемы
+                        страницы, им место в иерархии заголовков (h2 секции →
+                        h3 карточки); вёрстка не меняется (flex-элемент,
+                        preflight обнуляет свои стили заголовков). */}
+                    <h3 className="text-base font-bold text-ink">{title}</h3>
                   </div>
                   <p className="text-sm leading-relaxed text-ink-muted">{description}</p>
                 </>
@@ -1671,16 +1689,23 @@ export function DistrictGuidePage() {
           {primaryMarketOffers && primaryMarketOffers.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] border-collapse text-sm">
+                {/* caption/scope — машиночитаемая семантика таблицы для
+                    поисковиков (Google читает таблицы для сниппетов);
+                    sr-only — визуально ничего не добавляет. */}
+                <caption className="sr-only">
+                  Первичный рынок коммерческой недвижимости Минск Мира: количество предложений и цены за м² по
+                  категориям (данные bir.by)
+                </caption>
                 <thead>
                   <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-ink-faint">
-                    <th className="py-2 pr-3 text-left">Категория</th>
-                    <th className="py-2 px-2 text-right font-semibold">Предложений</th>
-                    <th className="py-2 px-2 text-right font-semibold">Площадь</th>
-                    <th className="py-2 px-2 text-right font-semibold">Мин, {currencySymbols[primaryMarketCurrency]}/м²</th>
-                    <th className="py-2 px-2 text-right font-semibold">
+                    <th scope="col" className="py-2 pr-3 text-left">Категория</th>
+                    <th scope="col" className="py-2 px-2 text-right font-semibold">Предложений</th>
+                    <th scope="col" className="py-2 px-2 text-right font-semibold">Площадь</th>
+                    <th scope="col" className="py-2 px-2 text-right font-semibold">Мин, {currencySymbols[primaryMarketCurrency]}/м²</th>
+                    <th scope="col" className="py-2 px-2 text-right font-semibold">
                       Средняя, {currencySymbols[primaryMarketCurrency]}/м²
                     </th>
-                    <th className="py-2 pl-2 text-right font-semibold">Макс, {currencySymbols[primaryMarketCurrency]}/м²</th>
+                    <th scope="col" className="py-2 pl-2 text-right font-semibold">Макс, {currencySymbols[primaryMarketCurrency]}/м²</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -1690,7 +1715,7 @@ export function DistrictGuidePage() {
                       onClick={() => setPrimaryMarketProKey(row.key)}
                       className="cursor-pointer hover:bg-surface-muted"
                     >
-                      <td className="py-2.5 pr-3 font-medium text-ink">{row.label}</td>
+                      <th scope="row" className="py-2.5 pr-3 text-left font-medium text-ink">{row.label}</th>
                       <td className="py-2.5 px-2 text-right tabular-nums text-ink">{row.count}</td>
                       <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-faint">
                         {row.areaMin === row.areaMax ? `${row.areaMin}` : `${row.areaMin}–${row.areaMax}`} м²
@@ -1771,11 +1796,15 @@ export function DistrictGuidePage() {
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[520px] border-collapse text-sm">
+                  <caption className="sr-only">
+                    Вторичный рынок коммерческой недвижимости Минск Мира: количество предложений и медианная цена
+                    за м² по типу помещения и площади (данные Kufar)
+                  </caption>
                   <thead>
                     <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-ink-faint">
-                      <th className="py-2 pr-3 text-left">Тип помещения</th>
+                      <th scope="col" className="py-2 pr-3 text-left">Тип помещения</th>
                       {AREA_BUCKET_ORDER.map((bucket) => (
-                        <th key={bucket} className="py-2 px-2 text-right font-semibold">
+                        <th scope="col" key={bucket} className="py-2 px-2 text-right font-semibold">
                           {bucket}
                         </th>
                       ))}
@@ -1788,7 +1817,7 @@ export function DistrictGuidePage() {
                       MARKET_FINISH_TO_DB[marketFinish],
                     ).map((row) => (
                       <tr key={row.propertyType}>
-                        <td className="py-2.5 pr-3 font-medium text-ink">{row.propertyType}</td>
+                        <th scope="row" className="py-2.5 pr-3 text-left font-medium text-ink">{row.propertyType}</th>
                         {row.cells.map((cell, i) => (
                           <td key={i} className="py-2.5 px-2 text-right tabular-nums">
                             {cell ? (
@@ -2145,7 +2174,8 @@ export function DistrictGuidePage() {
                 <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)} style={glassPillShadow}>
                   <Icon className="h-4 w-4" />
                 </span>
-                <span className="text-sm font-bold text-ink">{title}</span>
+                {/* h3 — тот же принцип, что у карточек видов недвижимости. */}
+                <h3 className="text-sm font-bold text-ink">{title}</h3>
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-lg font-extrabold text-ink">{count}</span>
                   <span className="text-xs text-ink-faint">мест в продаже</span>
@@ -2160,7 +2190,7 @@ export function DistrictGuidePage() {
               <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)} style={glassPillShadow}>
                 <Car className="h-4 w-4" />
               </span>
-              <span className="text-sm font-bold text-ink">Бесплатная стихийная парковка</span>
+              <h3 className="text-sm font-bold text-ink">Бесплатная стихийная парковка</h3>
               <div className="flex items-start gap-1.5">
                 <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
                 <p className="text-xs text-ink-muted">

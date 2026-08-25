@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useRef } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { RequirePage } from './components/layout/RequirePage';
 import { RequireSuperAdmin } from './components/layout/RequireSuperAdmin';
@@ -72,6 +72,29 @@ function usePreventPageZoom() {
   }, []);
 }
 
+// Яндекс.Метрика (index.html) сама считает только ПЕРВУЮ загрузку страницы —
+// SPA-переходы react-router не порождают новых просмотров, внутренняя
+// навигация (в т.ч. конверсионный переход гид района → /minsk/one) была
+// невидима в статистике. Штатный для SPA способ от Яндекса — вручную слать
+// hit на каждую смену маршрута; первую загрузку пропускаем, её уже засчитал
+// init. window.ym может отсутствовать (пререндер с ?prerender=1, блокировщик
+// рекламы) — опциональный вызов, без падений.
+function useMetrikaSpaHits() {
+  const location = useLocation();
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    (window as unknown as { ym?: (id: number, action: string, url: string) => void }).ym?.(
+      111858495,
+      'hit',
+      location.pathname + location.search,
+    );
+  }, [location.pathname, location.search]);
+}
+
 // Старые ссылки без /minsk (индексировались недолго, до переезда на
 // city-scoped структуру урлов — см. CLAUDE.md) — /one, /redstorage и любой
 // будущий объект по тому же паттерну автоматически редиректятся на новый
@@ -94,6 +117,7 @@ function AdminChunkFallback() {
 
 export default function App() {
   usePreventPageZoom();
+  useMetrikaSpaHits();
   return (
     <Routes>
       {/* Публичная часть — без AppLayout и без пароля, для клиентов и рекламы.

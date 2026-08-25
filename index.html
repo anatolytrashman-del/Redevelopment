@@ -9,14 +9,21 @@
     <title>Офисы и помещения в Минск Мире — деловой центр Red One</title>
     <meta name="description" content="Офисы и помещения в Минск Мире: приватные кабинеты и фиксированные рабочие места от $12 000 в клубном деловом центре Red One" />
     <meta name="robots" content="index, follow" />
-    <link rel="canonical" href="https://redevelopment.pro/one" />
+    <!-- Статический canonical — /minsk/one (актуальный адрес после переезда
+         урлов на /minsk/..., старый /one отдаёт 308 — canonical на редирект
+         был бы противоречивым сигналом). Для остальных страниц canonical
+         подменяет JS (pageMeta.ts) при монтировании, и в пререндер-снапшоты
+         попадает уже подменённый. -->
+    <link rel="canonical" href="https://redevelopment.pro/minsk/one" />
     <meta name="yandex-verification" content="0ac24df252ca3634" />
 
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Redevelopment" />
+    <meta property="og:locale" content="ru_RU" />
     <meta property="og:title" content="Офисы и помещения в Минск Мире — деловой центр Red One" />
     <meta property="og:description" content="Приватные кабинеты и фиксированные рабочие места от $12 000 в клубном деловом центре Red One рядом с Минск Миром" />
     <meta property="og:image" content="https://redevelopment.pro/og-image.png" />
-    <meta property="og:url" content="https://redevelopment.pro/one" />
+    <meta property="og:url" content="https://redevelopment.pro/minsk/one" />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Офисы и помещения в Минск Мире — деловой центр Red One" />
@@ -29,7 +36,7 @@
         "@type": "RealEstateListing",
         "name": "Офисы и помещения в Минск Мире — Red One",
         "description": "Приватные кабинеты и фиксированные рабочие места от $12 000 в клубном деловом центре Red One рядом с Минск Миром",
-        "url": "https://redevelopment.pro/one",
+        "url": "https://redevelopment.pro/minsk/one",
         "image": "https://redevelopment.pro/og-image.png",
         "address": {
           "@type": "PostalAddress",
@@ -47,6 +54,7 @@
     </script>
     <script type="application/ld+json" id="faq-json-ld"></script>
     <script type="application/ld+json" id="article-json-ld"></script>
+    <script type="application/ld+json" id="breadcrumb-json-ld"></script>
 
     <!-- Yandex.Metrika counter — ?prerender=1 в URL ставит только
          scripts/prerender.mjs при снятии build-time снапшота (SEO_PLAN.md,

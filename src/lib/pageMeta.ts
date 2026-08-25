@@ -67,47 +67,101 @@ export function setFaqJsonLd(items: { question: string; answer: string }[]) {
   });
 }
 
+// Общая og/twitter-заглушка (см. index.html) — на неё сбрасываем og:image,
+// когда у страницы нет собственной картинки, чтобы при SPA-переходах не
+// оставалась картинка предыдущей страницы.
+const DEFAULT_OG_IMAGE = 'https://redevelopment.pro/og-image.png';
+
 // Для контентных страниц вне сущности "объект" (гиды, будущий кластер
 // поддержки — Э3-1/Э3-3 в SEO_PLAN.md) — та же подмена тегов, что у
 // setObjectPageMeta, но без RealEstateListing/offers, которых у гида нет.
 // object-json-ld при этом очищается — иначе на гиде осталась бы разметка
-// последнего открытого объекта.
-export function setGenericPageMeta(meta: PageMeta & { url: string }) {
+// последнего открытого объекта. image/ogType — опциональны: гид передаёт
+// собственное превью (иначе в соцсетях/мессенджерах уходит заглушка
+// Red One, нерелевантная контентной странице) и og:type='article'.
+export function setGenericPageMeta(meta: PageMeta & { url: string; image?: string; ogType?: 'website' | 'article' }) {
   document.title = meta.title;
   setMetaContent('meta[name="description"]', meta.description);
   setLinkHref('link[rel="canonical"]', meta.url);
 
+  setMetaContent('meta[property="og:type"]', meta.ogType ?? 'website');
   setMetaContent('meta[property="og:title"]', meta.title);
   setMetaContent('meta[property="og:description"]', meta.description);
   setMetaContent('meta[property="og:url"]', meta.url);
+  setMetaContent('meta[property="og:image"]', meta.image ?? DEFAULT_OG_IMAGE);
   setMetaContent('meta[name="twitter:title"]', meta.title);
   setMetaContent('meta[name="twitter:description"]', meta.description);
+  setMetaContent('meta[name="twitter:image"]', meta.image ?? DEFAULT_OG_IMAGE);
   setMetaContent('meta[name="robots"]', 'index, follow');
 
   const objectLd = document.getElementById('object-json-ld');
   if (objectLd) objectLd.textContent = '';
+  // Страничные JSON-LD (крошки/Article/FAQ) страница задаёт сама ПОСЛЕ этого
+  // вызова — здесь сбрасываем, чтобы при SPA-переходе на страницу без
+  // собственной разметки не остались данные предыдущей (например, FAQ гида
+  // на хабе /minsk).
+  setBreadcrumbJsonLd(null);
+  clearPageJsonLd();
+}
+
+function clearPageJsonLd() {
+  for (const id of ['article-json-ld', 'faq-json-ld']) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '';
+  }
+}
+
+// BreadcrumbList — цепочка "Минск → страница" для сниппетов Google/Яндекса
+// (оба поддерживают; Яндексу помогает и с пониманием структуры сайта).
+// Последний элемент по спецификации может быть без item (текущая страница).
+export function setBreadcrumbJsonLd(items: { name: string; url?: string }[] | null) {
+  const ld = document.getElementById('breadcrumb-json-ld');
+  if (!ld) return;
+  if (!items || items.length === 0) {
+    ld.textContent = '';
+    return;
+  }
+  ld.textContent = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((item, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: item.name,
+      ...(item.url ? { item: item.url } : {}),
+    })),
+  });
 }
 
 // Свежесть страницы — часть смысла гидов (Э3-1): датированный контент
 // весомее для цитирования AI-системами. dateModified обновлять вручную
-// при каждом квартальном пересмотре текста.
+// при каждом квартальном пересмотре текста. publisher/author — Organization
+// Redevelopment (Google просит их у Article для полного сниппета; отдельной
+// страницы компании пока нет — url ведёт на корень, этого достаточно).
 export function setArticleJsonLd(article: {
   headline: string;
   description: string;
   url: string;
   datePublished: string;
   dateModified: string;
+  image?: string;
 }) {
   const ld = document.getElementById('article-json-ld');
   if (!ld) return;
+  const org = { '@type': 'Organization', name: 'Redevelopment', url: 'https://redevelopment.pro' };
   ld.textContent = JSON.stringify({
     '@context': 'https://schema.org',
     '@type': 'Article',
     headline: article.headline,
     description: article.description,
     url: article.url,
+    mainEntityOfPage: { '@type': 'WebPage', '@id': article.url },
+    inLanguage: 'ru',
     datePublished: article.datePublished,
     dateModified: article.dateModified,
+    ...(article.image ? { image: [article.image] } : {}),
+    author: org,
+    publisher: org,
   });
 }
 
@@ -141,10 +195,13 @@ export function setObjectPageMeta(
   setMetaContent('meta[property="og:url"]', url);
   setMetaContent('meta[name="twitter:title"]', meta.title);
   setMetaContent('meta[name="twitter:description"]', meta.description);
-  if (image) {
-    setMetaContent('meta[property="og:image"]', image);
-    setMetaContent('meta[name="twitter:image"]', image);
-  }
+  setMetaContent('meta[property="og:type"]', 'website');
+  setMetaContent('meta[property="og:image"]', image ?? DEFAULT_OG_IMAGE);
+  setMetaContent('meta[name="twitter:image"]', image ?? DEFAULT_OG_IMAGE);
+  setBreadcrumbJsonLd(null);
+  // ObjectLandingPage задаёт свой FAQ (setFaqJsonLd) сразу после этого
+  // вызова — а Article-разметка гида на странице объекта неуместна всегда.
+  clearPageJsonLd();
 
   // Публичная страница объекта найдена — сбрасываем возможный noindex,
   // оставшийся от предыдущего слага, если это не полный remount компонента
