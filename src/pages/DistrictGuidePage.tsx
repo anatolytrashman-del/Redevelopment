@@ -23,6 +23,7 @@ import {
   Globe,
   Grid2x2,
   HardHat,
+  Image as ImageIcon,
   Landmark,
   LayoutGrid,
   Layers,
@@ -776,10 +777,21 @@ const parkingAddresses: { category: string; house: string; address: string | nul
 ];
 
 // "Виды коммерческой недвижимости в Минск Мире" (владелец, август 2026) —
-// список типов задан явно, тексты по каждому владелец даст отдельно
-// ("дам разные вводные, пока заложи блок"), поэтому description пока null
-// и рендерится плейсхолдером (см. ниже) — НЕ придумывать формулировки
-// заранее, только по факту присланных данных.
+// список типов задан явно. Первая версия держала description: null почти
+// у всех карточек ("тексты дам отдельно, пока заложи блок") — 2026-08-25
+// владелец увидел блок вживую, решил, что карточки слишком мелкие для
+// такого важного раздела, попросил переверстать в 2 колонки по 4 строки
+// (крупнее) и добавить фото по каждому формату — сам подберёт фото
+// отдельно, а тексты предложил написать мне ("попроси Gemini помочь, я
+// поправлю") — тот же принцип "черновик от меня → правки владельца", что
+// и у остальных Gemini-текстов на этой странице (застройщик, УК), только
+// тут не фактура конкретного контрагента, а объяснение самих форматов
+// недвижимости — общие определения, не выдуманная статистика. Цифры по
+// машиноместам не трогал, они были и остаются проверенными (см. ниже).
+// photoUrl — пока везде null, рендерится плейсхолдером (см. ниже) —
+// владелец пришлёт фото в следующем заходе, тогда проставить пути (тот же
+// паттерн, что и у остальных изображений страницы — заливать в
+// public/images/district/, не хранить внешние ссылки).
 // Отдельно от MARKET_PROPERTY_TYPES (data/marketOffers.ts, Офисы/Торговые
 // помещения/Кладовые) — та тройка про сырые объявления с Kufar/Realt для
 // сводной таблицы цен, здесь же более широкий описательный список,
@@ -792,29 +804,79 @@ const parkingAddresses: { category: string; house: string; address: string | nul
 // актуальных объявлений на продажу, разбиты на два кластера строго по
 // цене (разрыв 9900 → 13000 €, без пересечений) — подтверждает слова
 // владельца количественно, не просто повторяет их.
+// Бизнес-апартаменты — описание тут короткое и специально не пытается
+// объяснить сам формат (см. отдельный раздел id="business-apartments"
+// ниже, где владелец явно попросил заглушку "требует отдельного
+// пояснения") — карточка просто указывает на тот раздел, не дублирует и
+// не забегает вперёд с невыверенными фактами.
 interface DistrictPropertyType {
   icon: LucideIcon;
   title: string;
-  description: string | null;
+  description: string;
+  photoUrl: string | null;
+  // Якорь на другой раздел этой же страницы — сейчас только у "Бизнес-
+  // апартаментов" (ведёт на id="business-apartments" ниже, где заглушка
+  // с более развёрнутым пояснением, чтобы не дублировать текст в двух
+  // местах).
+  anchor?: string;
 }
 
 const districtPropertyTypes: DistrictPropertyType[] = [
-  { icon: Store, title: 'Торговые помещения', description: null },
-  { icon: BedDouble, title: 'Бизнес-апартаменты', description: null },
-  { icon: Briefcase, title: 'Офисные помещения', description: null },
+  {
+    icon: Store,
+    title: 'Торговые помещения',
+    description:
+      'Помещения на первых этажах жилых домов и в стрит-ритейле района — с отдельным входом и витриной на пешеходный поток. Именно они сейчас заняты магазинами, аптеками, салонами красоты и общепитом, которые формируют плотную коммерческую инфраструктуру Минск Мира.',
+    photoUrl: null,
+  },
+  {
+    icon: BedDouble,
+    title: 'Бизнес-апартаменты',
+    description:
+      'Новый для района формат, отличный и от офиса, и от жилых апартаментов — требует отдельного разбора, который мы готовим в разделе «Бизнес-апартаменты» ниже.',
+    photoUrl: null,
+    anchor: 'business-apartments',
+  },
+  {
+    icon: Briefcase,
+    title: 'Офисные помещения',
+    description:
+      'Классические офисные площади под кабинеты, представительства и небольшие команды. В районе особенно не хватает готовых компактных офисов с отделкой — этот дефицит закрывает деловой центр Red One по соседству.',
+    photoUrl: null,
+  },
   {
     icon: Car,
     title: 'Машиноместа на паркингах',
     description: 'Крытые наземные паркинги — 3 паркинга, 1 658 мест в продаже. Самый доступный формат, 60% предложения.',
+    photoUrl: null,
   },
   {
     icon: CircleParking,
     title: 'Подземные машиноместа',
     description: 'Внутри 11 жилых домов — 1 111 мест в продаже, 40% предложения. Дороже наземных за счёт расположения.',
+    photoUrl: null,
   },
-  { icon: Archive, title: 'Кладовые', description: null },
-  { icon: ShoppingBag, title: 'Помещения в ТЦ Avia Mall', description: null },
-  { icon: Landmark, title: 'Офисы в Минском международном финансовом центре', description: null },
+  {
+    icon: Archive,
+    title: 'Кладовые',
+    description:
+      'Отдельные складские помещения при жилых домах — под хранение личных вещей или небольшой товарный запас для локального бизнеса: интернет-магазина, мастерской, пункта выдачи заказов.',
+    photoUrl: null,
+  },
+  {
+    icon: ShoppingBag,
+    title: 'Помещения в ТЦ Avia Mall',
+    description:
+      'Торговые площади в крупнейшем торговом центре Минска (138 200 м²) — Avia Mall уже открыт и работает, но продолжает заселяться арендаторами, часть площадей ещё доступна.',
+    photoUrl: null,
+  },
+  {
+    icon: Landmark,
+    title: 'Офисы в Минском международном финансовом центре',
+    description:
+      'Будущие офисные площади в Международном финансовом центре — сам центр пока строится и не введён в эксплуатацию, но после запуска станет ещё одной точкой притяжения бизнеса в районе.',
+    photoUrl: null,
+  },
 ];
 
 // FAQ — расширен владельцем (2026-08-25) в полноценный сеошный блок,
@@ -1544,19 +1606,43 @@ export function DistrictGuidePage() {
             <Layers className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Виды коммерческой недвижимости в Минск Мире</h2>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {districtPropertyTypes.map(({ icon: Icon, title, description }) => (
-              <div
-                key={title}
-                className="flex flex-col gap-2 rounded-control border border-white bg-white/60 p-4 sm:border-white/50 sm:bg-white/40"
-              >
-                <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)} style={glassPillShadow}>
-                  <Icon className="h-4 w-4" />
-                </span>
-                <span className="text-sm font-bold text-ink">{title}</span>
-                <p className="text-xs text-ink-faint">{description ?? 'Текст добавим отдельно'}</p>
-              </div>
-            ))}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {districtPropertyTypes.map(({ icon: Icon, title, description, photoUrl, anchor }) => {
+              const card = (
+                <>
+                  <div className="relative aspect-video w-full overflow-hidden rounded-control bg-surface-muted">
+                    {photoUrl ? (
+                      <img src={photoUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-ink-faint">
+                        <ImageIcon className="h-6 w-6" />
+                        <span className="text-xs">Фото добавим отдельно</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)} style={glassPillShadow}>
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="text-base font-bold text-ink">{title}</span>
+                  </div>
+                  <p className="text-sm leading-relaxed text-ink-muted">{description}</p>
+                </>
+              );
+              const className = cn(
+                'flex flex-col gap-3 rounded-control border border-white bg-white/60 p-5 sm:border-white/50 sm:bg-white/40',
+                anchor && 'transition-colors hover:border-primary/40',
+              );
+              return anchor ? (
+                <a key={title} href={`#${anchor}`} className={className}>
+                  {card}
+                </a>
+              ) : (
+                <div key={title} className={className}>
+                  {card}
+                </div>
+              );
+            })}
           </div>
         </div>
 
