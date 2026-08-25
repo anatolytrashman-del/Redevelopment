@@ -608,7 +608,15 @@ function formatLatestUpdate(offers: MarketOffer[]): string {
   return `${MONTH_NAMES[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
 }
 
-const MARKET_FINISH_OPTIONS = ['С отделкой', 'Без отделки', 'Не указано'] as const;
+// "Не указано" убрано из переключателя (владелец, 2026-08-25: "убирай
+// категорию 'Не указано', у меня всё будет указано") — предполагается,
+// что владелец сам доведёт finish_status до одного из двух реальных
+// значений у всех объявлений на /admin/market-offers. Если у объявления
+// в базе останется что-то третье (пустое/старое "не указано") — оно
+// просто не попадёт ни в одну из двух колонок ниже (buildMarketPivot
+// фильтрует по точному совпадению marketFinish), не будет отображаться
+// как ошибка, а тихо выпадет из сводки, пока владелец его не поправит.
+const MARKET_FINISH_OPTIONS = ['С отделкой', 'Без отделки'] as const;
 
 // Порядок валют в переключателях "Первичный"/"Вторичный рынок" — EUR
 // по умолчанию первой (владелец), не общий порядок currencies из
@@ -693,7 +701,6 @@ function formatMedianPriceLabel(amountUsd: number, currency: Currency, rate: Exc
 const MARKET_FINISH_TO_DB: Record<(typeof MARKET_FINISH_OPTIONS)[number], string> = {
   'С отделкой': 'с отделкой',
   'Без отделки': 'без отделки',
-  'Не указано': 'не указано',
 };
 
 const metroStations = ['Ковальская Слобода', 'Аэродромная'];

@@ -84,11 +84,14 @@ function formatLatestUpdate(offers: MarketOffer[]): string {
   return `${MONTH_NAMES[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
 }
 
-const MARKET_FINISH_OPTIONS = ['С отделкой', 'Без отделки', 'Не указано'] as const;
+// "Не указано" убрано (см. тот же комментарий и решение владельца в
+// DistrictGuidePage.tsx, 2026-08-25) — эта копия продублирована оттуда
+// сознательно (см. журнал CLAUDE.md про DistrictAnalyticsPage.tsx),
+// правку синхронизируем вручную.
+const MARKET_FINISH_OPTIONS = ['С отделкой', 'Без отделки'] as const;
 const MARKET_FINISH_TO_DB: Record<(typeof MARKET_FINISH_OPTIONS)[number], string> = {
   'С отделкой': 'с отделкой',
   'Без отделки': 'без отделки',
-  'Не указано': 'не указано',
 };
 
 export function DistrictAnalyticsPage() {
