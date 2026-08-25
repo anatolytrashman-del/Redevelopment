@@ -67,6 +67,7 @@ import type { Currency } from '../data/transactions';
 import type { ExchangeRate } from '../data/exchangeRates';
 import { PrimaryMarketProModal } from '../components/district/PrimaryMarketProModal';
 import { DistrictMap } from '../components/district/DistrictMap';
+import { DistrictQuarterMap } from '../components/district/DistrictQuarterMap';
 import { DISTRICTS } from '../data/districts';
 
 // Переехала с /rayon-minsk-mir на /minsk/minsk-mir (см. CLAUDE.md, урл-
@@ -320,9 +321,11 @@ const medicinePrivateList: { label: string; text: string }[] = [
 // 60 из них с категорией "кафе" и/или "кофейня" (объединено, чтобы не
 // считать дважды заведения с обеими метками). Полный список владельцу не
 // нужен, только сводная статистика по типам — см. журнал SEO_PLAN.md.
-// 2026-08-25: 3 точки за пределами района (Брилевская/Брестская, см.
-// комментарий в districtPlaces.ts) убраны из списка карты и отсюда — было 73.
-const foodServiceTotal = 70;
+// 2026-08-25: 1 точка за пределами района (Брестская, см. комментарий в
+// districtPlaces.ts) убрана из списка карты и отсюда — было 73. Брилевская
+// изначально тоже убиралась, но это ошибка (см. districtPlaces.ts,
+// "ИСПРАВЛЕНА ошибка") — восстановлена, поэтому не 71, а 72.
+const foodServiceTotal = 72;
 const foodServiceBreakdown: { label: string; count: number }[] = [
   { label: 'Кафе / кофейни', count: 60 },
   { label: 'Рестораны', count: 13 },
@@ -397,10 +400,12 @@ const autoServiceClusterStreets = 'Казинца, Брестской, Боро�
 // tenantProfiles ниже). Показаны только специализации с заметным числом
 // точек, у остальных (пирсинг, шугаринг и т.п.) по 1-2 точки — не
 // перегружаем блок длинным хвостом.
-// 2026-08-25: 15 точек убраны как ошибочно попавшие за пределы района
-// (Аэродромная 119, кластер на Левкова/Володько, Брилевская, Брестская —
-// см. districtPlaces.ts) — было 88.
-const beautyTotal = 73;
+// 2026-08-25: 14 точек убраны как ошибочно попавшие за пределы района
+// (Аэродромная 119, кластер на Левкова/Володько, Брестская — см.
+// districtPlaces.ts) — было 88. Брилевская (Семь Образов) изначально тоже
+// убиралась, но это ошибка (см. "ИСПРАВЛЕНА ошибка" в districtPlaces.ts) —
+// восстановлена, поэтому не 73, а 74.
+const beautyTotal = 74;
 const beautyBreakdown: { label: string; count: number }[] = [
   { label: 'Ногтевые студии', count: 13 },
   { label: 'Парикмахерские', count: 4 },
@@ -414,16 +419,18 @@ const beautyBreakdown: { label: string; count: number }[] = [
 // все уникальны (категории у выдачи почти всегда пустые — считаем по
 // названиям). Отдельно посчитаны специализированные лавки (мясные/
 // овощные/фермерские — по ключевым словам в названии), не только сети.
-// 2026-08-25: 6 точек убраны как ошибочно попавшие за пределы района
-// (Аэродромная 125, ул. Чкалова, Брилевская, Брестская, Кижеватова 32 —
-// см. districtPlaces.ts) — было 44.
-const groceryTotal = 38;
+// 2026-08-25: 5 точек убраны как ошибочно попавшие за пределы района
+// (Аэродромная 125, ул. Чкалова, Брестская, Кижеватова 32 — см.
+// districtPlaces.ts) — было 44. Брилевская (Знічка) изначально тоже
+// убиралась, но это ошибка (см. "ИСПРАВЛЕНА ошибка" в districtPlaces.ts) —
+// восстановлена, поэтому не 38, а 39.
+const groceryTotal = 39;
 const groceryBreakdown: { label: string; count: number }[] = [
   { label: 'Копеечка', count: 6 },
   { label: 'Соседи / Соседи Экспресс', count: 3 },
   { label: 'Санта', count: 2 },
   { label: 'Евроопт Market', count: 2 },
-  { label: 'Знічка', count: 1 },
+  { label: 'Знічка', count: 2 },
   { label: 'Остров', count: 2 },
   { label: 'Специализированные (мясо, овощи, фермерское)', count: 8 },
 ];
@@ -433,16 +440,19 @@ const groceryMax = Math.max(...groceryBreakdown.map((b) => b.count));
 // попросил учитывать только Ozon и Wildberries — в выдачу попали лишние
 // организации (Emall.by, Lamoda и другие агрегаторы/магазины с похожей
 // категорией, не относящиеся к запросу).
-// 2026-08-25: по 1 точке Ozon и Wildberries убраны как ошибочно попавшие
-// за пределы района (Брилевская ул., 27/31 — см. districtPlaces.ts).
-const pvzOzonCount = 10;
-const pvzWildberriesCount = 19;
+// 2026-08-25: Ozon/Wildberries на Брилевская, 27/31 сначала убирались как
+// ошибочно попавшие за пределы района, но это была ошибка (см.
+// "ИСПРАВЛЕНА ошибка" в districtPlaces.ts) — восстановлены.
+const pvzOzonCount = 11;
+const pvzWildberriesCount = 20;
 const pvzTotal = pvzOzonCount + pvzWildberriesCount;
 
 // Цветочные магазины — webarchive, поиск "цветы", 36 строк, все уникальны.
-// 2026-08-25: 5 точек убраны как ошибочно попавшие за пределы района
-// (весь куст на Брилевская ул. — см. districtPlaces.ts) — было 36.
-const flowerTotal = 31;
+// 2026-08-25: куст на Брилевская ул. сначала убирался целиком как
+// ошибочно попавший за пределы района, но это была ошибка (см.
+// "ИСПРАВЛЕНА ошибка" в districtPlaces.ts) — восстановлен, было и снова
+// осталось 36.
+const flowerTotal = 36;
 const flowerDeliveryCount = 7;
 
 // Табак и вейп-шопы — владелец объединил два отдельных поиска ("табак" и
@@ -904,6 +914,7 @@ const SECTION_NAV: { id: string; label: string; icon: LucideIcon }[] = [
   { id: 'traffic', label: 'Генераторы трафика', icon: Landmark },
   { id: 'population-density', label: 'Плотность населения', icon: Building2 },
   { id: 'business-density', label: 'Плотность бизнеса', icon: Grid2x2 },
+  { id: 'quarter-map', label: 'Конкуренция по кварталам', icon: Grid2x2 },
   { id: 'property-types', label: 'Виды недвижимости', icon: Layers },
   { id: 'primary-market', label: 'Первичный рынок', icon: Banknote },
   { id: 'market', label: 'Вторичный рынок', icon: TrendingUp },
@@ -1440,6 +1451,10 @@ export function DistrictGuidePage() {
               нишу стоит оценивать отдельно.
             </p>
           </div>
+        </div>
+
+        <div id="quarter-map" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <DistrictQuarterMap />
         </div>
 
         <div id="property-types" className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>

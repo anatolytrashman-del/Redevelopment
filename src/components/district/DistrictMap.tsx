@@ -4,6 +4,7 @@ import { Check, Maximize2, MapPin, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardShadow } from '../../lib/glass';
 import { DISTRICT_PLACE_CATEGORIES } from '../../data/districtPlaces';
+import { loadYmaps } from '../../lib/yandexMaps';
 
 // Интерактивная карта района с переключаемыми по категориям метками —
 // владелец: "типо это аптеки, а это барбершопы, и можно что-то выключить,
@@ -12,8 +13,6 @@ import { DISTRICT_PLACE_CATEGORIES } from '../../data/districtPlaces';
 // не хранит цвет по категориям при импорте — см. журнал CLAUDE.md).
 // Данные — DISTRICT_PLACE_CATEGORIES (data/districtPlaces.ts), пополняется
 // по мере присылки владельцем адресов по новым категориям.
-
-const YANDEX_MAPS_API_KEY = import.meta.env.VITE_YANDEX_MAPS_API_KEY ?? 'a7182a37-1597-4b71-9bc0-aaa154b92d13';
 
 // Центр района — по факту собранных точек (см. data/districtPlaces.ts,
 // чистка от адресов за пределами района 2026-08-25). Раньше карта
@@ -25,29 +24,6 @@ const YANDEX_MAPS_API_KEY = import.meta.env.VITE_YANDEX_MAPS_API_KEY ?? 'a7182a3
 // вида напрямую, не завися от aspect ratio контейнера.
 const DEFAULT_CENTER: [number, number] = [53.866, 27.5435];
 const DEFAULT_ZOOM = 15;
-
-// Загружаем API Яндекс.Карт один раз на всё приложение (модульный синглтон
-// промиса) — компонент может размонтироваться/монтироваться повторно
-// (например при навигации, или при открытии модалки на весь экран — там
-// свой экземпляр карты, но скрипт API общий), повторная загрузка скрипта
-// не нужна и ломает повторный вызов ymaps.ready.
-let ymapsLoadPromise: Promise<typeof window.ymaps> | null = null;
-function loadYmaps(): Promise<typeof window.ymaps> {
-  if (ymapsLoadPromise) return ymapsLoadPromise;
-  ymapsLoadPromise = new Promise((resolve, reject) => {
-    if (window.ymaps) {
-      window.ymaps.ready(() => resolve(window.ymaps));
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = `https://api-maps.yandex.ru/2.1/?apikey=${YANDEX_MAPS_API_KEY}&lang=ru_RU`;
-    script.async = true;
-    script.onload = () => window.ymaps.ready(() => resolve(window.ymaps));
-    script.onerror = () => reject(new Error('Не удалось загрузить API Яндекс.Карт'));
-    document.head.appendChild(script);
-  });
-  return ymapsLoadPromise;
-}
 
 // Карта + легенда — самостоятельный блок, использован дважды (компактно
 // на странице и крупно в полноэкранной модалке). Каждый экземпляр — своя
@@ -232,10 +208,4 @@ export function DistrictMap() {
         )}
     </div>
   );
-}
-
-declare global {
-  interface Window {
-    ymaps: any;
-  }
 }
