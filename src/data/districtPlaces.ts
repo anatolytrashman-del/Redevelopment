@@ -424,8 +424,6 @@ export const DISTRICT_PLACE_CATEGORIES: DistrictPlaceCategory[] = [
       { name: 'Twinkle Studio', address: 'ул. Леонида Левина, 7', lat: 53.868637, lon: 27.534262 },
       { name: 'Центр доктора Бубновского', address: 'ул. Короткевича, 11, помещение 1Н', lat: 53.873983, lon: 27.530228 },
       { name: 'Гималайская йога', address: 'ул. Николы Теслы, 1', lat: 53.870782, lon: 27.526527 },
-      { name: 'КосмосФит', address: 'Брилевский тупик, 55, этаж 2', lat: 53.868881, lon: 27.52226 },
-      { name: 'Тренажерный зал Za Gym', address: 'ул. Авакяна, 21, этаж 2', lat: 53.87721, lon: 27.544431 },
     ],
   },
   {
