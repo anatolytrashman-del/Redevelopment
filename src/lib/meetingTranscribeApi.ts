@@ -36,12 +36,48 @@ const POLL_MAX_ATTEMPTS = 600; // 600 × 5с = 50 минут
 
 export interface TranscribeProgress {
   stage: 'uploading' | 'processing';
+  // Ориентир для обратного отсчёта на UI — сколько всего должна занять
+  // расшифровка, секунд. Известен только на стадии 'processing' (нужна
+  // длительность аудио) и только если её удалось прочитать из метаданных.
+  estimatedSeconds?: number;
 }
+
+// Владелец на живых записях (30 мин ≈ 150с, 60 мин ≈ 300с) — соотношение
+// стабильно держится около 1 к 12 (час записи — 5 минут распознавания).
+// Это не гарантия speech2text.ru, просто наблюдаемая скорость их сервиса —
+// ориентир для UI, а не таймаут: если реально дольше, опрос продолжается
+// как обычно (см. transcribeAudioFile), просто счётчик перестаёт убывать.
+const PROCESSING_RATIO = 1 / 12;
+const MIN_ESTIMATE_SECONDS = 5;
 
 // Расширение — по нему speech2text.ru определяет контейнер файла.
 function fileExt(file: File): string {
   const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
   return /^[a-z0-9]{1,5}$/.test(ext) ? ext : 'mp3';
+}
+
+// Длительность через метаданные <audio> — без декодирования всего файла
+// (тот же приём, что был в прежней chunking-версии, см. журнал CLAUDE.md).
+// Best-effort: если браузер не смог прочитать метаданные (формат/кодек),
+// просто нет оценки — счётчик на UI покажет обычные секунды без отсчёта.
+function getAudioDuration(file: File): Promise<number | null> {
+  return new Promise((resolve) => {
+    const audio = document.createElement('audio');
+    const url = URL.createObjectURL(file);
+    let settled = false;
+    const finish = (value: number | null) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      URL.revokeObjectURL(url);
+      resolve(value);
+    };
+    const timer = window.setTimeout(() => finish(null), 8000);
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () => finish(Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : null);
+    audio.onerror = () => finish(null);
+    audio.src = url;
+  });
 }
 
 async function uploadFile(file: File): Promise<string> {
@@ -84,11 +120,17 @@ export async function transcribeAudioFile(
   file: File,
   onProgress: (p: TranscribeProgress) => void,
 ): Promise<string> {
+  // Параллельно с загрузкой — не блокирует её, метаданные читаются локально.
+  const durationPromise = getAudioDuration(file);
+
   onProgress({ stage: 'uploading' });
   const path = await uploadFile(file);
   const taskId = await startTranscription(path);
 
-  onProgress({ stage: 'processing' });
+  const duration = await durationPromise;
+  const estimatedSeconds = duration != null ? Math.max(MIN_ESTIMATE_SECONDS, Math.round(duration * PROCESSING_RATIO)) : undefined;
+
+  onProgress({ stage: 'processing', estimatedSeconds });
   // Подряд идущие сбои опроса (не "processing", а реальная ошибка запроса —
   // например, сеть или баг на нашей стороне) не должны молча повторяться до
   // POLL_MAX_ATTEMPTS: это ровно то, что маскировало реальный баг валидации

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Copy, Check, Eye, Pencil, Mic, Upload, Sparkles, ListChecks, X } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
+import { InfoBanner } from '../components/layout/InfoBanner';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -16,6 +17,7 @@ import {
   suggestTasksFromTranscript,
   type TranscribeProgress,
 } from '../lib/meetingTranscribeApi';
+import { addNotification, ensureNotificationPermission } from '../lib/notifications';
 import { fetchPeople } from '../lib/peopleApi';
 import { insertTask } from '../lib/tasksApi';
 import { cn } from '../lib/cn';
@@ -29,6 +31,29 @@ import { cn } from '../lib/cn';
 function extractNextStepsSection(summary: string): string | null {
   const idx = summary.indexOf('## Следующие шаги');
   return idx === -1 ? null : summary.slice(idx).trim();
+}
+
+// мм:сс — для обратного отсчёта расшифровки, короче полного formatTimestamp
+// из api/transcribe-poll.js (там нужны и часы для длинных встреч в тексте).
+function formatCountdown(totalSeconds: number): string {
+  const s = Math.max(0, Math.round(totalSeconds));
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${String(sec).padStart(2, '0')}`;
+}
+
+function pluralMinutes(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'минуту';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'минуты';
+  return 'минут';
+}
+
+function formatEstimateMinutes(totalSeconds: number): string {
+  const minutes = Math.round(totalSeconds / 60);
+  if (minutes <= 0) return 'меньше минуты';
+  return `~${minutes} ${pluralMinutes(minutes)}`;
 }
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -144,8 +169,14 @@ export function MeetingSummaryDetail() {
       setShowTranscript(true);
       const updated = await updateMeetingSummary(summary.id, { title: summary.title, content: summary.content, transcript: text });
       setSummary(updated);
+      // Реальное уведомление (браузерное + в колокольчике) — весь смысл
+      // оценки времени на кнопке выше в том, чтобы можно было уйти в другую
+      // вкладку и не проверять эту руками (см. журнал CLAUDE.md).
+      addNotification({ title: 'Расшифровка готова', body: summary.title });
     } catch (err) {
-      setTranscribeError(errorMessage(err, 'Не удалось расшифровать запись'));
+      const message = errorMessage(err, 'Не удалось расшифровать запись');
+      setTranscribeError(message);
+      addNotification({ title: 'Не удалось расшифровать запись', body: `${summary.title}: ${message}` });
     } finally {
       setTranscribing(false);
       setProgress(null);
@@ -335,13 +366,22 @@ export function MeetingSummaryDetail() {
               type="button"
               variant="secondary"
               icon={transcribing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
-              onClick={() => audioInputRef.current?.click()}
+              onClick={() => {
+                // Разрешение браузер спрашивает только по прямому клику —
+                // здесь он есть, дальше в колбэке загрузки его уже не будет.
+                ensureNotificationPermission();
+                audioInputRef.current?.click();
+              }}
               disabled={transcribing}
             >
               {transcribing
                 ? progress?.stage === 'uploading'
                   ? 'Загружаем аудио...'
-                  : `Распознаём речь... (${elapsedSeconds}с)`
+                  : progress?.estimatedSeconds != null
+                    ? elapsedSeconds < progress.estimatedSeconds
+                      ? `Распознаём речь... осталось ~${formatCountdown(progress.estimatedSeconds - elapsedSeconds)}`
+                      : `Распознаём речь... уже дольше обычного (${elapsedSeconds}с)`
+                    : `Распознаём речь... (${elapsedSeconds}с)`
                 : transcript.trim()
                   ? 'Расшифровать другую запись'
                   : 'Загрузить запись и расшифровать'}
@@ -371,6 +411,12 @@ export function MeetingSummaryDetail() {
               {summarizing ? 'Генерируем саммери...' : 'Сделать саммери из расшифровки'}
             </Button>
           </div>
+          {transcribing && progress?.estimatedSeconds != null && (
+            <InfoBanner>
+              Расшифровка займёт примерно {formatEstimateMinutes(progress.estimatedSeconds)}. Можно продолжать работать в
+              других вкладках — когда будет готово, пришлём уведомление.
+            </InfoBanner>
+          )}
           {transcribeError && <p className="text-sm text-danger">{transcribeError}</p>}
           <div className="flex flex-col gap-2">
             <button
