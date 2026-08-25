@@ -1054,6 +1054,7 @@ const SECTION_NAV: { id: string; label: string; icon: LucideIcon }[] = [
   { id: 'business-density', label: 'Плотность бизнеса', icon: Grid2x2 },
   { id: 'quarter-map', label: 'Конкуренция по кварталам', icon: Grid2x2 },
   { id: 'property-types', label: 'Виды недвижимости', icon: Layers },
+  { id: 'business-apartments', label: 'Бизнес-апартаменты', icon: BedDouble },
   { id: 'primary-market', label: 'Первичный рынок', icon: Banknote },
   { id: 'market', label: 'Вторичный рынок', icon: TrendingUp },
   { id: 'business-analytics', label: 'Аналитика по сферам бизнеса', icon: LayoutGrid },
@@ -1613,6 +1614,29 @@ export function DistrictGuidePage() {
                 <p className="text-xs text-ink-faint">{description ?? 'Текст добавим отдельно'}</p>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Заглушка (владелец, 2026-08-25): бизнес-апартаменты — новый для
+            владельца формат, требует отдельного пояснения (в отличие от
+            остальных карточек property-types, где просто нет текста, но
+            сам факт формата уже понятен) и, возможно, отдельного лендинга —
+            владелец сам сказал "как будто отдельной посадочной страницы".
+            Раздел свой, не просто карточка в сетке districtPropertyTypes
+            выше, — чтобы было куда добавить полноценный текст/лендинг
+            позже, не трогая структуру districtPropertyTypes. */}
+        <div id="business-apartments" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <BedDouble className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Бизнес-апартаменты</h2>
+          </div>
+          <div className="flex items-start gap-2.5 rounded-control border border-dashed border-border p-4">
+            <TriangleAlert className="h-4 w-4 shrink-0 translate-y-0.5 text-warning" />
+            <p className="text-sm text-ink-muted">
+              Новый для района формат коммерческой недвижимости — отличается и от офиса, и от жилых апартаментов,
+              нужен отдельный разбор: что это такое, как оформляется, кому подходит и в чём разница с другими
+              форматами. Раздел в разработке, возможно — с отдельной посадочной страницей.
+            </p>
           </div>
         </div>
 
