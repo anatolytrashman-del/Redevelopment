@@ -101,6 +101,14 @@ function CategoryToggle({ value, onChange }: { value: string; onChange: (key: st
   );
 }
 
+// ВРЕМЕННО — проверяем координаты от Gemini на одном квартале (владелец:
+// "давай подсветим этот квартал на карте, а всё остальное с карты пока
+// скроем"), остальные 15 скрыты из отрисовки. Убрать фильтр (вернуть
+// DISTRICT_QUARTERS как есть), когда подтвердит, что контур совпадает с
+// дорогами на реальной карте.
+const TEST_ONLY_QUARTER_ID = 'south-america';
+const VISIBLE_QUARTERS = DISTRICT_QUARTERS.filter((q) => q.id === TEST_ONLY_QUARTER_ID);
+
 export function DistrictQuarterMap() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -115,7 +123,7 @@ export function DistrictQuarterMap() {
 
   const rankedQuarters = useMemo(
     () =>
-      DISTRICT_QUARTERS.map((q) => ({ ...q, count: counts[q.id] ?? 0 })).sort((a, b) => b.count - a.count),
+      VISIBLE_QUARTERS.map((q) => ({ ...q, count: counts[q.id] ?? 0 })).sort((a, b) => b.count - a.count),
     [counts],
   );
 
@@ -153,7 +161,7 @@ export function DistrictQuarterMap() {
       map.geoObjects.remove(layerRef.current);
     }
     const layer = new ymaps.GeoObjectCollection();
-    for (const quarter of DISTRICT_QUARTERS) {
+    for (const quarter of VISIBLE_QUARTERS) {
       const count = counts[quarter.id] ?? 0;
       const ratio = count / maxCount;
       const fillColor = heatColor(count > 0 ? Math.max(ratio, 0.12) : 0);
