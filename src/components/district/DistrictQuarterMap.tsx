@@ -113,7 +113,7 @@ export function DistrictQuarterMap() {
   const mapRef = useRef<any>(null);
   const layerRef = useRef<any>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [categoryKey, setCategoryKey] = useState('food');
+  const [categoryKey, setCategoryKey] = useState('quarter-test-full');
 
   const counts = useMemo(() => countsByQuarter(categoryKey), [categoryKey]);
   const maxCount = useMemo(() => Math.max(1, ...Object.values(counts)), [counts]);
@@ -164,7 +164,7 @@ export function DistrictQuarterMap() {
       const count = counts[quarter.id] ?? 0;
       const ratio = count / maxCount;
       const fillColor = heatColor(count > 0 ? Math.max(ratio, 0.12) : 0);
-      const balloonBody = `${count} точек категории «${DISTRICT_PLACE_CATEGORIES.find((c) => c.key === categoryKey)?.label}» из справочника застройщика`;
+      const balloonBody = `${count} точек категории «${DISTRICT_PLACE_CATEGORIES.find((c) => c.key === categoryKey)?.label}»`;
 
       // Квартал может состоять из нескольких отдельных фигур (см. комментарий
       // в data/districtQuarters.ts) — рисуем каждую тем же цветом, подпись с

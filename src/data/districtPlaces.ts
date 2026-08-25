@@ -57,6 +57,11 @@ export interface DistrictPlace {
   address: string;
   lat: number;
   lon: number;
+  // Явная привязка к кварталу — обходит адресный индекс QUARTER_HOUSE_INDEX
+  // (lib/districtQuarterMatch.ts). Нужна, когда квартал подтверждён
+  // геометрией (полигоном), а не адресной таблицей застройщика — см.
+  // категорию 'quarter-test-full' ниже и комментарий у неё.
+  quarterId?: string;
 }
 
 export interface DistrictPlaceCategory {
@@ -588,6 +593,51 @@ export const DISTRICT_PLACE_CATEGORIES: DistrictPlaceCategory[] = [
       { name: 'Детский сад № 582', address: 'Белградская ул., 13', lat: 53.863131, lon: 27.537343 },
       { name: 'Детский сад № 578', address: 'Аэродромная ул., 20А', lat: 53.872003, lon: 27.539867 },
       { name: 'Детский сад № 49 Мир на ладошке', address: 'Аэродромная ул., 32А', lat: 53.870808, lon: 27.555974 },
+    ],
+  },
+  {
+    // ТЕСТ, 2026-08-25 — полный список организаций по 12 домам квартала
+    // "Мировые танцы" (владелец прислал webarchive поиска по каждому конкретному
+    // адресу, не по категории бизнеса — так находятся ВСЕ организации здания,
+    // а не только те, что попадают в одну из категорий выше). 28 точек против
+    // 2 (Wildberries/Belklubnika на Брилевская,31), что были у квартала раньше в
+    // общих категориях — подтверждает: наш список по категориям сильно неполный.
+    // quarterId проставлен напрямую (не через QUARTER_HOUSE_INDEX) — эти 12 домов
+    // подтверждены владельцем как реально входящие в квартал по его полигону
+    // (data/districtQuarters.ts), а не по таблице застройщика (та даёт для
+    // некоторых из этих домов другой квартал — см. журнал).
+    key: 'quarter-test-full',
+    label: 'Полный список домов (тест)',
+    color: '#B33DC6',
+    places: [
+      { name: 'AeroPod (Подология)', address: 'Аэродромная ул., 16', lat: 53.8717, lon: 27.532645, quarterId: 'world-dances' },
+      { name: '7 Этажей (Агентство недвижимости)', address: 'Аэродромная ул., 16', lat: 53.8717, lon: 27.532645, quarterId: 'world-dances' },
+      { name: 'MyDay (Салон красоты)', address: 'Аэродромная ул., 16', lat: 53.8717, lon: 27.532645, quarterId: 'world-dances' },
+      { name: 'Furnifusion (Мебель для кухни)', address: 'Брилевская ул., 25, Отдельный вход со стороны детской площадки', lat: 53.872491, lon: 27.528611, quarterId: 'world-dances' },
+      { name: 'Wildberries (Пункт выдачи)', address: 'Брилевская ул., 27', lat: 53.872937, lon: 27.527983, quarterId: 'world-dances' },
+      { name: 'Artstretch Space (Стретчинг)', address: 'Брилевская ул., 25', lat: 53.872491, lon: 27.528611, quarterId: 'world-dances' },
+      { name: 'Семь Образов (Салон красоты)', address: 'Брилевская ул., 27, этаж 1', lat: 53.872937, lon: 27.527983, quarterId: 'world-dances' },
+      { name: 'Inside Bike (Ремонт велосипедов)', address: 'Брилевская ул., 27', lat: 53.872937, lon: 27.527983, quarterId: 'world-dances' },
+      { name: 'Pure Pilates Studio (Пилатес)', address: 'Брилевская ул., 29', lat: 53.872486, lon: 27.527408, quarterId: 'world-dances' },
+      { name: 'Community Coffeeshop (Кофейня)', address: 'Брилевская ул., 27', lat: 53.872937, lon: 27.527983, quarterId: 'world-dances' },
+      { name: 'Skin To Soul (Массажный салон)', address: 'Брилевская ул., 31, 1', lat: 53.871785, lon: 27.526464, quarterId: 'world-dances' },
+      { name: 'Wildberries (Пункт выдачи)', address: 'Брилевская ул., 31', lat: 53.871785, lon: 27.526464, quarterId: 'world-dances' },
+      { name: 'Belklubnika (Питомник растений)', address: 'Брилевская ул., 31', lat: 53.871785, lon: 27.526464, quarterId: 'world-dances' },
+      { name: 'Аптека № 32 Мелисса (Не указано)', address: 'ул. Николы Теслы, 1, помещение 249', lat: 53.870782, lon: 27.526527, quarterId: 'world-dances' },
+      { name: 'Орсо (Косметология)', address: 'ул. Николы Теслы, 1', lat: 53.870782, lon: 27.526527, quarterId: 'world-dances' },
+      { name: 'Гималайская йога (Йога)', address: 'ул. Николы Теслы, 1', lat: 53.870782, lon: 27.526527, quarterId: 'world-dances' },
+      { name: 'Средняя школа № 227 (Общеобразовательная школа)', address: 'ул. Николы Теслы, 3', lat: 53.871838, lon: 27.528018, quarterId: 'world-dances' },
+      { name: 'Red Education (Компьютерные курсы)', address: 'ул. Николы Теслы, 3', lat: 53.871838, lon: 27.528018, quarterId: 'world-dances' },
+      { name: 'Бассейн (Бассейн)', address: 'ул. Николы Теслы, 3, корп. 1', lat: 53.871838, lon: 27.528018, quarterId: 'world-dances' },
+      { name: 'Аренда строительной и спецтехники (Аренда строительной и спецтехники)', address: 'ул. Николы Теслы, 7', lat: 53.870925, lon: 27.528486, quarterId: 'world-dances' },
+      { name: 'Red education (Дополнительное образование)', address: 'ул. Николы Теслы, 11', lat: 53.870978, lon: 27.530345, quarterId: 'world-dances' },
+      { name: 'Дело строителя (Строительные и отделочные работы)', address: 'ул. Николы Теслы, 11', lat: 53.870978, lon: 27.530345, quarterId: 'world-dances' },
+      { name: 'Живая вода (Водомат)', address: 'ул. Николы Теслы, 11', lat: 53.870978, lon: 27.530345, quarterId: 'world-dances' },
+      { name: 'Art Dance (Школа танцев)', address: 'ул. Николы Теслы, 17', lat: 53.871122, lon: 27.531755, quarterId: 'world-dances' },
+      { name: 'Соседи Экспресс (Магазин продуктов)', address: 'ул. Николы Теслы, 17', lat: 53.871122, lon: 27.531755, quarterId: 'world-dances' },
+      { name: 'Фабрика сна (Матрасы)', address: 'ул. Николы Теслы, 19', lat: 53.871137, lon: 27.532869, quarterId: 'world-dances' },
+      { name: 'Thm.by (Пункт выдачи)', address: 'ул. Николы Теслы, 19, По предварительной договорённости', lat: 53.871137, lon: 27.532869, quarterId: 'world-dances' },
+      { name: 'Три цены (Торговый центр)', address: 'ул. Николы Теслы, 19', lat: 53.871137, lon: 27.532869, quarterId: 'world-dances' },
     ],
   },
 ];
