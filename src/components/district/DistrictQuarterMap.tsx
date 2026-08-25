@@ -34,6 +34,20 @@ function polygonCentroid(polygon: [number, number][]): [number, number] {
   return [lat, lon];
 }
 
+// Грубая оценка площади в градусах² — только чтобы выбрать САМЫЙ большой
+// под-полигон квартала под единственную подпись-число (у квартала может
+// быть несколько отдельных фигур, см. комментарий в data/districtQuarters.ts
+// — цифра на карте не должна дублироваться на каждом кусочке).
+function polygonArea(polygon: [number, number][]): number {
+  let area = 0;
+  for (let i = 0; i < polygon.length; i++) {
+    const [lat1, lon1] = polygon[i];
+    const [lat2, lon2] = polygon[(i + 1) % polygon.length];
+    area += lat1 * lon2 - lat2 * lon1;
+  }
+  return Math.abs(area / 2);
+}
+
 const DEFAULT_CENTER: [number, number] = [53.866, 27.5435];
 const DEFAULT_ZOOM = 15;
 
@@ -143,30 +157,49 @@ export function DistrictQuarterMap() {
       const count = counts[quarter.id] ?? 0;
       const ratio = count / maxCount;
       const fillColor = heatColor(count > 0 ? Math.max(ratio, 0.12) : 0);
-      const polygon = new ymaps.Polygon(
-        [quarter.polygon],
-        {
-          balloonContentHeader: quarter.label,
-          balloonContentBody: `${count} точек категории «${DISTRICT_PLACE_CATEGORIES.find((c) => c.key === categoryKey)?.label}» из справочника застройщика`,
-          hintContent: `${quarter.label}: ${count}`,
-        },
-        {
-          fillColor,
-          fillOpacity: count > 0 ? 0.75 : 0.35,
-          strokeColor: '#ffffff',
-          strokeWidth: 2,
-          strokeOpacity: 0.9,
-        },
-      );
-      layer.add(polygon);
+      const balloonBody = `${count} точек категории «${DISTRICT_PLACE_CATEGORIES.find((c) => c.key === categoryKey)?.label}» из справочника застройщика`;
 
-      const [lat, lon] = polygonCentroid(quarter.polygon);
-      const label = new ymaps.Placemark(
-        [lat, lon],
-        { iconContent: String(count) },
-        { preset: 'islands#blackStretchyIcon' },
-      );
-      layer.add(label);
+      // Квартал может состоять из нескольких отдельных фигур (см. комментарий
+      // в data/districtQuarters.ts) — рисуем каждую тем же цветом, подпись с
+      // числом ставим только на самой крупной, чтобы не дублировать цифру.
+      let largestIndex = 0;
+      let largestArea = -1;
+      quarter.polygons.forEach((poly, i) => {
+        const area = polygonArea(poly);
+        if (area > largestArea) {
+          largestArea = area;
+          largestIndex = i;
+        }
+      });
+
+      quarter.polygons.forEach((poly, i) => {
+        const polygon = new ymaps.Polygon(
+          [poly],
+          {
+            balloonContentHeader: quarter.label,
+            balloonContentBody: balloonBody,
+            hintContent: `${quarter.label}: ${count}`,
+          },
+          {
+            fillColor,
+            fillOpacity: count > 0 ? 0.75 : 0.35,
+            strokeColor: '#ffffff',
+            strokeWidth: 2,
+            strokeOpacity: 0.9,
+          },
+        );
+        layer.add(polygon);
+
+        if (i === largestIndex) {
+          const [lat, lon] = polygonCentroid(poly);
+          const label = new ymaps.Placemark(
+            [lat, lon],
+            { iconContent: String(count) },
+            { preset: 'islands#blackStretchyIcon' },
+          );
+          layer.add(label);
+        }
+      });
     }
     map.geoObjects.add(layer);
     layerRef.current = layer;
