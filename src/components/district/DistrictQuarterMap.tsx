@@ -101,12 +101,11 @@ function CategoryToggle({ value, onChange }: { value: string; onChange: (key: st
   );
 }
 
-// ВРЕМЕННО — проверяем координаты от Gemini на одном квартале (владелец:
-// "давай подсветим этот квартал на карте, а всё остальное с карты пока
-// скроем"), остальные 15 скрыты из отрисовки. Убрать фильтр (вернуть
-// DISTRICT_QUARTERS как есть), когда подтвердит, что контур совпадает с
-// дорогами на реальной карте.
-const TEST_ONLY_QUARTER_ID = 'south-america';
+// ВРЕМЕННО — проверяем контур по точкам, снятым владельцем своим
+// инструментом (клики по углам квартала на живой карте), остальные 15
+// скрыты из отрисовки. Убрать фильтр (вернуть DISTRICT_QUARTERS как есть),
+// когда подтвердит, что контур совпадает с дорогами на реальной карте.
+const TEST_ONLY_QUARTER_ID = 'world-dances';
 const VISIBLE_QUARTERS = DISTRICT_QUARTERS.filter((q) => q.id === TEST_ONLY_QUARTER_ID);
 
 export function DistrictQuarterMap() {
