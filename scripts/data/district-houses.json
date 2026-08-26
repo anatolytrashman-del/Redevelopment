@@ -6,7 +6,17 @@
   },
   {
     "street": "аэродромная",
+    "house": "18",
+    "quarterId": "south-europe"
+  },
+  {
+    "street": "аэродромная",
     "house": "20",
+    "quarterId": "south-europe"
+  },
+  {
+    "street": "аэродромная",
+    "house": "20А",
     "quarterId": "south-europe"
   },
   {
@@ -58,6 +68,16 @@
     "street": "белградская",
     "house": "1Нк8",
     "quarterId": "champions"
+  },
+  {
+    "street": "белградская",
+    "house": "2",
+    "quarterId": "south-europe"
+  },
+  {
+    "street": "белградская",
+    "house": "4",
+    "quarterId": "south-europe"
   },
   {
     "street": "белградская",
@@ -193,16 +213,6 @@
     "street": "братская",
     "house": "9",
     "quarterId": "mediterranean"
-  },
-  {
-    "street": "брилевская",
-    "house": "21",
-    "quarterId": "south-europe"
-  },
-  {
-    "street": "брилевская",
-    "house": "23",
-    "quarterId": "south-europe"
   },
   {
     "street": "брилевская",
@@ -758,6 +768,16 @@
     "street": "николы теслы",
     "house": "20",
     "quarterId": "central-europe"
+  },
+  {
+    "street": "николы теслы",
+    "house": "21",
+    "quarterId": "south-europe"
+  },
+  {
+    "street": "николы теслы",
+    "house": "23",
+    "quarterId": "south-europe"
   },
   {
     "street": "николы теслы",
