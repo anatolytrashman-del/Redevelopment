@@ -193,13 +193,13 @@ function LocationQuotientPanel({ quarterId, quarterLabel }: { quarterId: string;
   );
 }
 
-// Показываем контуры всех кварталов сразу, не дожидаясь, пока владелец
-// разметит их все своим инструментом (клики по углам на живой карте) —
-// часть кварталов пока на приблизительных cluster-hull/yandex-envelope
-// полигонах (см. комментарии в data/districtQuarters.ts), заливка для них
-// просто покажет 0 или неполные данные, это нормально — контур важнее,
-// чем ждать полного набора точек конкуренции.
-const VISIBLE_QUARTERS = DISTRICT_QUARTERS;
+// Показываем только кварталы, которые владелец лично разметил своим
+// инструментом (клики по углам на живой карте) — остальные всё ещё на
+// приблизительных cluster-hull/yandex-envelope полигонах (см. комментарии
+// в data/districtQuarters.ts) и путают карту, если рисовать их вперемешку
+// с точными. Список пополняется по мере присылки новых кварталов.
+const VERIFIED_QUARTER_IDS = new Set(['world-dances', 'asia', 'africa', 'eurasia', 'happy-planet']);
+const VISIBLE_QUARTERS = DISTRICT_QUARTERS.filter((q) => VERIFIED_QUARTER_IDS.has(q.id));
 
 export function DistrictQuarterMap() {
   const containerRef = useRef<HTMLDivElement>(null);
