@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
   Ban,
@@ -60,19 +60,25 @@ import type { MarketOffer, FinishStatus } from '../data/marketOffers';
 //
 // "Начать верификацию" — пошаговый режим поверх того же порядка: по одной
 // показывает либо ближайшую нерешённую группу дублей, либо (когда группы
-// кончились) ближайшее непроверенное одиночное объявление. Оба случая
-// выглядят одинаково — карточка с адресом/площадью/этажом и мини-таблицей
-// (у группы — несколько строк-объявлений, у одиночного — одна), кнопка
-// "Обсудить с Анатолием" сверху, "Редактировать"/"Удалить"/"Не подходит" в
-// самой строке (открывают тот же общий модал редактирования, что и вне
-// верификации — не открывается автоматически, только по клику). После
-// решения группы/сохранения карточки подставляется следующее автоматически
-// (см. verifyGroupTarget/verifySingleTarget ниже — оба выводятся реактивно
-// из текущих данных, без отдельной очереди с индексом, поэтому переживают
-// удаления/отклонения прямо во время прохода). "Пропустить" откладывает
-// текущее до конца ЭТОЙ сессии верификации (skippedGroupKeys/
-// skippedSingleIds — сбрасываются каждый раз при новом запуске), не путать
-// с "Это разные помещения" (постоянное решение в БД).
+// кончились) ближайшее непроверенное одиночное объявление. Минимум кликов
+// (владелец: "начал верификацию — открылось окно первого объявления и его
+// карточка, перешёл к следующему — тут же открылась ссылка и сбоку
+// редактирование") — как только цель меняется, само открывается: для
+// одиночного объявления — и ссылка источника (позиционированное окно, см.
+// openAdWindow), и карточка редактирования (см. эффект в компоненте, ищет
+// по editingOffer?.id !== verifySingleTarget.id); для группы дублей —
+// только ссылка ПЕРВОГО объявления (открыть сразу обе ссылки одним окном
+// нельзя, сравнение — весь смысл шага), карточка не открывается — обычное
+// решение тут "Это разные помещения"/"Обсудить", а не правка полей. Ссылка
+// источника переиспользует одно и то же окно (см. window.open с именем
+// 'market-offer-check' в openAdWindow) — не плодит окна при переходе между
+// объявлениями. После решения группы/сохранения карточки подставляется
+// следующее автоматически (см. verifyGroupTarget/verifySingleTarget ниже —
+// оба выводятся реактивно из текущих данных, без отдельной очереди с
+// индексом, поэтому переживают удаления/отклонения прямо во время прохода).
+// "Пропустить" откладывает текущее до конца ЭТОЙ сессии верификации
+// (skippedGroupKeys/skippedSingleIds — сбрасываются каждый раз при новом
+// запуске), не путать с "Это разные помещения" (постоянное решение в БД).
 //
 // "Не подходит" (кнопка в строке) — для объявлений, которые Светлана
 // разобрала, но которые не годятся для сводки (не тот сегмент, явный
@@ -695,6 +701,32 @@ export function MarketOffersReview() {
     setEditForm(null);
   }
 
+  // Минимум кликов во время верификации (владелец: "начал верификацию — у
+  // тебя открылось окно первого объявления и его карточка, перешёл к
+  // следующему — тут же открылась вкладка... и сбоку редактирование") —
+  // как только цель меняется, сами открываем ссылку источника
+  // (позиционированное окно, см. openAdWindow) и, для одиночных объявлений,
+  // карточку редактирования — Светлане не нужно искать глазами ни ссылку,
+  // ни кнопку "Редактировать". Для группы дублей открываем ссылку только
+  // первого объявления (сравнение — это и есть смысл шага, открыть сразу
+  // обе ссылки в одном окне невозможно), карточку не открываем — решение
+  // там обычно "Это разные помещения"/"Обсудить", а не правка полей.
+  const lastAutoOpenedGroupKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!verifying) return;
+    if (verifyGroupTarget) {
+      const [key, group] = verifyGroupTarget;
+      if (lastAutoOpenedGroupKeyRef.current === key) return;
+      lastAutoOpenedGroupKeyRef.current = key;
+      if (group[0]?.adLink) openAdWindow(group[0].adLink);
+      return;
+    }
+    if (verifySingleTarget && editingOffer?.id !== verifySingleTarget.id) {
+      openEdit(verifySingleTarget);
+      if (verifySingleTarget.adLink) openAdWindow(verifySingleTarget.adLink);
+    }
+  }, [verifying, verifyGroupTarget, verifySingleTarget, editingOffer]);
+
   async function handleEditSubmit(e: FormEvent) {
     e.preventDefault();
     if (!editingOffer || !editForm) return;
@@ -865,38 +897,10 @@ export function MarketOffersReview() {
                   </div>
                 </div>
               ) : verifySingleTarget ? (
-                <div className={cn('flex flex-col gap-3 p-4', glassCardClass)} style={glassCardShadow}>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm text-ink-muted">
-                      <span className="font-semibold text-ink">{verifySingleTarget.address ?? 'без адреса'}</span> ·{' '}
-                      {verifySingleTarget.size} м² · этаж {verifySingleTarget.floor ?? '?'}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="secondary"
-                        icon={<MessageCircleQuestion className="h-4 w-4" />}
-                        onClick={() => openDiscussModal([verifySingleTarget.id], discussLabel(verifySingleTarget))}
-                      >
-                        Обсудить с Анатолием
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[900px] border-collapse text-sm">
-                      <OfferTableHead />
-                      <tbody className="divide-y divide-border">
-                        <OfferRow
-                          offer={verifySingleTarget}
-                          pending={pendingId === verifySingleTarget.id}
-                          onEdit={openEdit}
-                          onDelete={handleDelete}
-                          onToggleReject={handleToggleReject}
-                          onDiscuss={(o) => openDiscussModal([o.id], discussLabel(o))}
-                        />
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                <p className="py-10 text-center text-sm text-ink-faint">
+                  Ссылка на источник и карточка редактирования открылись сами — заполните и сохраните, следующее
+                  объявление откроется точно так же.
+                </p>
               ) : (
                 <div className={cn('flex flex-col items-center gap-2 p-8 text-center', glassCardClass)} style={glassCardShadow}>
                   <CheckCircle2 className="h-8 w-8 text-success" />
