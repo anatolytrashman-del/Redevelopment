@@ -61,6 +61,11 @@
   },
   {
     "street": "белградская",
+    "house": "14",
+    "quarterId": "north-america"
+  },
+  {
+    "street": "белградская",
     "house": "16",
     "quarterId": "north-america"
   },
@@ -316,11 +321,6 @@
   },
   {
     "street": "игоря лученка",
-    "house": "17",
-    "quarterId": "north-america"
-  },
-  {
-    "street": "игоря лученка",
     "house": "18",
     "quarterId": "australia-oceania"
   },
@@ -441,12 +441,27 @@
   },
   {
     "street": "кижеватова",
+    "house": "3А",
+    "quarterId": "north-america"
+  },
+  {
+    "street": "кижеватова",
     "house": "3Б",
     "quarterId": "north-america"
   },
   {
     "street": "кижеватова",
-    "house": "5Б",
+    "house": "3В",
+    "quarterId": "north-america"
+  },
+  {
+    "street": "кижеватова",
+    "house": "3Г",
+    "quarterId": "north-america"
+  },
+  {
+    "street": "кижеватова",
+    "house": "3Д",
     "quarterId": "north-america"
   },
   {
@@ -461,6 +476,16 @@
   },
   {
     "street": "леонида левина",
+    "house": "11",
+    "quarterId": "north-america"
+  },
+  {
+    "street": "леонида левина",
+    "house": "13",
+    "quarterId": "north-america"
+  },
+  {
+    "street": "леонида левина",
     "house": "2",
     "quarterId": "africa"
   },
@@ -468,6 +493,11 @@
     "street": "леонида левина",
     "house": "8",
     "quarterId": "asia"
+  },
+  {
+    "street": "леонида левина",
+    "house": "9",
+    "quarterId": "north-america"
   },
   {
     "street": "леонида щемелёва",
@@ -531,8 +561,23 @@
   },
   {
     "street": "михаила савицкого",
+    "house": "14",
+    "quarterId": "north-america"
+  },
+  {
+    "street": "михаила савицкого",
     "house": "2",
     "quarterId": "asia"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "20",
+    "quarterId": "north-america"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "22",
+    "quarterId": "north-america"
   },
   {
     "street": "михаила савицкого",
@@ -643,11 +688,6 @@
     "street": "николы теслы",
     "house": "20",
     "quarterId": "central-europe"
-  },
-  {
-    "street": "николы теслы",
-    "house": "2",
-    "quarterId": "north-america"
   },
   {
     "street": "николы теслы",
