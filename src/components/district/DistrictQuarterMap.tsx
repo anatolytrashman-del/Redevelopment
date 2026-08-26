@@ -198,7 +198,7 @@ function LocationQuotientPanel({ quarterId, quarterLabel }: { quarterId: string;
 // приблизительных cluster-hull/yandex-envelope полигонах (см. комментарии
 // в data/districtQuarters.ts) и путают карту, если рисовать их вперемешку
 // с точными. Список пополняется по мере присылки новых кварталов.
-const VERIFIED_QUARTER_IDS = new Set(['world-dances', 'asia', 'africa', 'eurasia', 'happy-planet']);
+const VERIFIED_QUARTER_IDS = new Set(['world-dances', 'asia', 'africa', 'eurasia', 'happy-planet', 'central-europe']);
 const VISIBLE_QUARTERS = DISTRICT_QUARTERS.filter((q) => VERIFIED_QUARTER_IDS.has(q.id));
 
 export function DistrictQuarterMap() {
