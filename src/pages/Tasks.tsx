@@ -49,6 +49,33 @@ const emptyForm = {
   isPriority: false,
 };
 
+// Длинное описание задачи (частый случай — вставленное ТЗ на несколько
+// абзацев) сворачиваем до первого абзаца, остальное — под спойлер, чтобы
+// карточка не растягивала список. Абзац — блок между пустыми строками.
+function TaskDescription({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const paragraphs = text.split(/\n\s*\n/);
+  const rest = paragraphs.slice(1).join('\n\n');
+
+  if (!rest) {
+    return <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{text}</p>;
+  }
+
+  return (
+    <div className="mt-1 text-sm leading-relaxed text-ink-muted">
+      <p className="whitespace-pre-wrap">{paragraphs[0]}</p>
+      {expanded && <p className="mt-2 whitespace-pre-wrap">{rest}</p>}
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="mt-1 text-xs font-semibold text-primary hover:underline"
+      >
+        {expanded ? 'Свернуть' : 'Показать полностью'}
+      </button>
+    </div>
+  );
+}
+
 function AssigneeBadges({ assignees }: { assignees: TaskAssignee[] }) {
   return (
     <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
@@ -121,9 +148,7 @@ function ActiveTaskCard({
             )}
             <div className="font-bold text-ink">{task.title}</div>
           </div>
-          {task.description && (
-            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{task.description}</p>
-          )}
+          {task.description && <TaskDescription text={task.description} />}
         </div>
         <AssigneeBadges assignees={task.assignees} />
       </div>
@@ -185,9 +210,7 @@ function ArchivedTaskCard({
             )}
             <div className="font-bold text-ink line-through decoration-ink-faint">{task.title}</div>
           </div>
-          {task.description && (
-            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{task.description}</p>
-          )}
+          {task.description && <TaskDescription text={task.description} />}
         </div>
         <AssigneeBadges assignees={task.assignees} />
       </div>

@@ -133,7 +133,7 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
       const updated = await updateZone(zone.id, {
         zoneType,
         label: label.trim(),
-        area: isRoomEdit && area.trim() ? Number(area) : null,
+        area: isRoomEdit && area.trim() ? Number(area.trim().replace(',', '.')) : null,
         // Пока включены рабочие места, статус кабинета считается по остатку
         // мест (см. workstationsRemaining), а не выбирается вручную — иначе
         // цветовая маркировка на плане (zoneFillClass) разойдётся с фактом.
@@ -351,7 +351,13 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
 
             {isRoomEdit && (
               <>
-                <Input label="Площадь, м²" type="number" step="0.1" value={area} onChange={(e) => setArea(e.target.value)} />
+                <Input
+                  label="Площадь, м²"
+                  type="text"
+                  inputMode="decimal"
+                  value={area}
+                  onChange={(e) => setArea(e.target.value)}
+                />
 
                 <Input
                   label="Количество окон"

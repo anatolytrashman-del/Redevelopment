@@ -73,7 +73,14 @@ function NewZoneForm({ onCancel, onSave, saving }: NewZoneFormProps) {
         onChange={(e) => setLabel(e.target.value)}
       />
       {isRoom && (
-        <Input label="Площадь, м²" type="number" step="0.1" placeholder="0" value={area} onChange={(e) => setArea(e.target.value)} />
+        <Input
+          label="Площадь, м²"
+          type="text"
+          inputMode="decimal"
+          placeholder="0"
+          value={area}
+          onChange={(e) => setArea(e.target.value)}
+        />
       )}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="secondary" onClick={onCancel}>
@@ -81,7 +88,13 @@ function NewZoneForm({ onCancel, onSave, saving }: NewZoneFormProps) {
         </Button>
         <Button
           type="button"
-          onClick={() => onSave({ zoneType, label: label.trim(), area: isRoom && area.trim() ? Number(area) : null })}
+          onClick={() =>
+            onSave({
+              zoneType,
+              label: label.trim(),
+              area: isRoom && area.trim() ? Number(area.trim().replace(',', '.')) : null,
+            })
+          }
           disabled={!canSave || saving}
         >
           {saving ? 'Сохраняем...' : 'Сохранить зону'}
