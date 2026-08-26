@@ -41,11 +41,6 @@
   },
   {
     "street": "белградская",
-    "house": "11",
-    "quarterId": "western-europe"
-  },
-  {
-    "street": "белградская",
     "house": "16",
     "quarterId": "motherland"
   },
@@ -58,16 +53,6 @@
     "street": "белградская",
     "house": "3",
     "quarterId": "central-europe"
-  },
-  {
-    "street": "белградская",
-    "house": "7",
-    "quarterId": "western-europe"
-  },
-  {
-    "street": "белградская",
-    "house": "9",
-    "quarterId": "western-europe"
   },
   {
     "street": "братская",
@@ -186,11 +171,6 @@
   },
   {
     "street": "жореса алфёрова",
-    "house": "15",
-    "quarterId": "western-europe"
-  },
-  {
-    "street": "жореса алфёрова",
     "house": "3",
     "quarterId": "south-america"
   },
@@ -202,7 +182,12 @@
   {
     "street": "жореса алфёрова",
     "house": "7",
-    "quarterId": "south-america"
+    "quarterId": "western-europe"
+  },
+  {
+    "street": "жореса алфёрова",
+    "house": "9",
+    "quarterId": "western-europe"
   },
   {
     "street": "игоря лученка",
@@ -266,6 +251,11 @@
   },
   {
     "street": "игоря лученка",
+    "house": "28",
+    "quarterId": "western-europe"
+  },
+  {
+    "street": "игоря лученка",
     "house": "29",
     "quarterId": "south-america"
   },
@@ -276,8 +266,18 @@
   },
   {
     "street": "игоря лученка",
+    "house": "30",
+    "quarterId": "western-europe"
+  },
+  {
+    "street": "игоря лученка",
     "house": "31",
     "quarterId": "south-america"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "32",
+    "quarterId": "western-europe"
   },
   {
     "street": "игоря лученка",
@@ -330,6 +330,26 @@
     "quarterId": "tropical-islands"
   },
   {
+    "street": "леонида щемелёва",
+    "house": "18",
+    "quarterId": "western-europe"
+  },
+  {
+    "street": "леонида щемелёва",
+    "house": "26",
+    "quarterId": "western-europe"
+  },
+  {
+    "street": "леонида щемелёва",
+    "house": "28",
+    "quarterId": "western-europe"
+  },
+  {
+    "street": "леонида щемелёва",
+    "house": "30",
+    "quarterId": "western-europe"
+  },
+  {
     "street": "мира",
     "house": "1",
     "quarterId": "emirates"
@@ -358,6 +378,16 @@
     "street": "михаила савицкого",
     "house": "3",
     "quarterId": "asia"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "35",
+    "quarterId": "western-europe"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "37",
+    "quarterId": "western-europe"
   },
   {
     "street": "михаила савицкого",
@@ -471,13 +501,13 @@
   },
   {
     "street": "николы теслы",
-    "house": "31",
-    "quarterId": "happy-planet"
+    "house": "30",
+    "quarterId": "south-america"
   },
   {
     "street": "николы теслы",
-    "house": "32",
-    "quarterId": "south-america"
+    "house": "31",
+    "quarterId": "happy-planet"
   },
   {
     "street": "николы теслы",
