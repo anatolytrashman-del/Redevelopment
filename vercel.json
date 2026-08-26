@@ -3,8 +3,7 @@
     "api/transcribe-start.js": { "maxDuration": 300 },
     "api/transcribe-poll.js": { "maxDuration": 60 },
     "api/summarize-meeting.js": { "maxDuration": 300 },
-    "api/suggest-tasks.js": { "maxDuration": 300 },
-    "api/debug-yandex-business.js": { "maxDuration": 60 }
+    "api/suggest-tasks.js": { "maxDuration": 300 }
   },
   "redirects": [
     { "source": "/", "destination": "/minsk", "permanent": false },
