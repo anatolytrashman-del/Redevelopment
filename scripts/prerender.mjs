@@ -41,9 +41,10 @@ const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_
 // структура) — переменная переименована из STATIC_SLUGS в STATIC_PATHS:
 // это уже полные пути от корня, не голые слаги (у хабов их и не может
 // быть, они не привязаны к одному сегменту). Добавлять сюда каждую новую
-// контентную страницу вне сущности "объект" (гиды, аналитика — Э3-1/Э3-3
-// в SEO_PLAN.md).
-const STATIC_PATHS = ['minsk', 'minsk/minsk-mir', 'minsk/analytics', 'minsk/analytics/minsk-mir'];
+// контентную страницу вне сущности "объект" (гиды — Э3-1 в SEO_PLAN.md).
+// /minsk/analytics и /minsk/analytics/minsk-mir были в списке — раздел
+// аналитики по районам целиком удалён владельцем 2026-08-25.
+const STATIC_PATHS = ['minsk', 'minsk/minsk-mir'];
 
 async function fetchLandingPaths() {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/objects?select=landing_slug&landing_slug=not.is.null`, {
@@ -140,6 +141,17 @@ async function main() {
           // только у реального контента, это и есть сигнал готовности
           // (для статических страниц вроде DistrictGuidePage h1 есть сразу).
           await page.waitForSelector('h1', { timeout: 20_000 });
+          // У гида района h1 статический и появляется ДО прихода данных из
+          // Supabase — таблицы первичного/вторичного рынка в этот момент ещё
+          // показывают плейсхолдер «Загрузка…», и он попадал в снапшот
+          // (проверено на проде 2026-08-25: обе таблицы отсутствовали в
+          // сохранённом HTML). Дожидаемся, пока на странице не останется ни
+          // одного «Загрузка…» (данные пришли ИЛИ отрисовался терминальный
+          // «Данные пока не собраны»). Не фатально: по таймауту снимаем как
+          // есть — хуже прежнего поведения не станет.
+          await page
+            .waitForFunction(() => !document.body.innerText.includes('Загрузка…'), { timeout: 15_000 })
+            .catch(() => console.warn(`[prerender] /${path}: «Загрузка…» не исчезла за 15с — снапшот с плейсхолдером`));
           const html = await page.content();
           const dir = join(DIST_DIR, path);
           mkdirSync(dir, { recursive: true });

@@ -18,7 +18,16 @@ export function FaqAccordion({ title, items, id }: { title: string; items: FaqIt
       <div className="flex flex-col divide-y divide-border">
         {items.map((item) => (
           <details key={item.question} className="py-3 first:pt-0 last:pb-0">
-            <summary className="cursor-pointer text-sm font-semibold text-ink">{item.question}</summary>
+            {/* h3 внутри summary — валидный HTML5, вопросы попадают в
+                иерархию заголовков документа (h2 блока → h3 вопроса), а не
+                остаются "плоским" текстом: блок писался в первую очередь
+                под поисковые алгоритмы (см. districtFaq в DistrictGuidePage).
+                inline — чтобы маркер-треугольник summary остался на одной
+                строке с текстом; размер/жирность h3 наследует от summary
+                (preflight Tailwind сбрасывает свои у заголовков). */}
+            <summary className="cursor-pointer text-sm font-semibold text-ink">
+              <h3 className="inline">{item.question}</h3>
+            </summary>
             <p className="mt-2 text-sm text-ink-muted">{item.answer}</p>
           </details>
         ))}

@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useRef } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { RequirePage } from './components/layout/RequirePage';
 import { RequireSuperAdmin } from './components/layout/RequireSuperAdmin';
@@ -8,8 +8,6 @@ import { PublicBuildingPlan } from './pages/PublicBuildingPlan';
 import { ObjectLandingPage } from './pages/ObjectLandingPage';
 import { DistrictGuidePage } from './pages/DistrictGuidePage';
 import { MinskHub } from './pages/MinskHub';
-import { MinskAnalyticsHub } from './pages/MinskAnalyticsHub';
-import { DistrictAnalyticsPage } from './pages/DistrictAnalyticsPage';
 import { BriefPublicPage } from './pages/BriefPublicPage';
 import { MeetingSummaryPublicPage } from './pages/MeetingSummaryPublicPage';
 import { NotFound } from './pages/NotFound';
@@ -74,6 +72,29 @@ function usePreventPageZoom() {
   }, []);
 }
 
+// Яндекс.Метрика (index.html) сама считает только ПЕРВУЮ загрузку страницы —
+// SPA-переходы react-router не порождают новых просмотров, внутренняя
+// навигация (в т.ч. конверсионный переход гид района → /minsk/one) была
+// невидима в статистике. Штатный для SPA способ от Яндекса — вручную слать
+// hit на каждую смену маршрута; первую загрузку пропускаем, её уже засчитал
+// init. window.ym может отсутствовать (пререндер с ?prerender=1, блокировщик
+// рекламы) — опциональный вызов, без падений.
+function useMetrikaSpaHits() {
+  const location = useLocation();
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    (window as unknown as { ym?: (id: number, action: string, url: string) => void }).ym?.(
+      111858495,
+      'hit',
+      location.pathname + location.search,
+    );
+  }, [location.pathname, location.search]);
+}
+
 // Старые ссылки без /minsk (индексировались недолго, до переезда на
 // city-scoped структуру урлов — см. CLAUDE.md) — /one, /redstorage и любой
 // будущий объект по тому же паттерну автоматически редиректятся на новый
@@ -96,20 +117,19 @@ function AdminChunkFallback() {
 
 export default function App() {
   usePreventPageZoom();
+  useMetrikaSpaHits();
   return (
     <Routes>
       {/* Публичная часть — без AppLayout и без пароля, для клиентов и рекламы.
           Пока нет отдельного лендинга компании (см. SEO_PLAN.md, Э2-4), корень
-          временно ведёт на /minsk — city-scoped раздел (комплексы, гиды по
-          районам, аналитика), готовый к появлению других городов рядом без
+          временно ведёт на /minsk — city-scoped раздел (гиды по районам),
+          готовый к появлению других городов рядом без
           переезда уже проиндексированных ссылок под /minsk. Импортированы
           статически (не lazy) — это ровно те страницы, ради которых существует
           бандл-сплиттинг выше: им нельзя добавлять лишний сетевой перелёт на
           догрузку чанка. */}
       <Route path="/" element={<Navigate to="/minsk" replace />} />
       <Route path="/minsk" element={<MinskHub />} />
-      <Route path="/minsk/analytics" element={<MinskAnalyticsHub />} />
-      <Route path="/minsk/analytics/:district" element={<DistrictAnalyticsPage />} />
       <Route path="/minsk/minsk-mir" element={<DistrictGuidePage />} />
       <Route path="/plan/:token" element={<PublicBuildingPlan />} />
       <Route path="/tz/:token" element={<BriefPublicPage />} />

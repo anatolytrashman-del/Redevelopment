@@ -22,6 +22,14 @@ html = html
   .replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${DESCRIPTION}$2`)
   .replace(/(<meta property="og:url" content=")[^"]*(")/, `$1https://redevelopment.pro/tz$2`)
   .replace(/(<meta name="twitter:title" content=")[^"]*(")/, `$1${TITLE}$2`)
-  .replace(/(<meta name="twitter:description" content=")[^"]*(")/, `$1${DESCRIPTION}$2`);
+  .replace(/(<meta name="twitter:description" content=")[^"]*(")/, `$1${DESCRIPTION}$2`)
+  // Токен-страницы ТЗ не должны индексироваться (SEO_PLAN.md, Э1-1) — до
+  // сих пор noindex ставил только клиентский JS (setNoIndex при монтировании),
+  // а статический шелл tz.html наследовал index,follow + canonical на /one
+  // из index.html. Бот без JS видел противоречие: теперь noindex прямо в
+  // статике, canonical убран (canonical вместе с noindex — конфликтующий
+  // сигнал, страница либо каноническая, либо неиндексируемая).
+  .replace(/(<meta name="robots" content=")[^"]*(")/, `$1noindex, nofollow$2`)
+  .replace(/\s*<link rel="canonical"[^>]*>/, '');
 
 writeFileSync('dist/tz.html', html);

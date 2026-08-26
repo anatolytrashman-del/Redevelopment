@@ -5,6 +5,7 @@ import { loadYmaps } from '../../lib/yandexMaps';
 import { DISTRICT_PLACE_CATEGORIES } from '../../data/districtPlaces';
 import { DISTRICT_QUARTERS } from '../../data/districtQuarters';
 import { countsByQuarter } from '../../lib/districtQuarterMatch';
+import { computeLocationQuotients } from '../../lib/locationQuotient';
 
 // Карта конкуренции бизнеса по кварталам — владелец: "плотность ниш по
 // конкретным кварталам минск мира, чтобы было похоже на аналитику best
@@ -97,6 +98,84 @@ function CategoryToggle({ value, onChange }: { value: string; onChange: (key: st
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// LQ (location quotient) > этого порога — категория заметно
+// переконцентрирована в квартале относительно района ("выше среднего"),
+// < обратного порога — недопредставлена ("ниже среднего"). Пороги —
+// стандартная практика ритейл-аналитики (обычно 1.25/0.75), взяли чуть
+// шире (1.3/0.7), чтобы не дёргаться на пограничных значениях при малой
+// выборке (28 точек на квартал — это мало для строгой статистики).
+const LQ_HIGH_THRESHOLD = 1.3;
+const LQ_LOW_THRESHOLD = 0.7;
+
+function lqColor(lq: number | null): string {
+  if (lq === null) return 'var(--color-ink-faint)';
+  if (lq >= LQ_HIGH_THRESHOLD) return 'var(--color-primary)';
+  if (lq <= LQ_LOW_THRESHOLD) return '#4B7BEC';
+  return 'var(--color-ink-faint)';
+}
+
+function lqLabel(lq: number | null): string {
+  if (lq === null) return 'нет данных по району';
+  if (lq >= LQ_HIGH_THRESHOLD) return 'выше среднего по району';
+  if (lq <= LQ_LOW_THRESHOLD) return 'ниже среднего — возможна ниша';
+  return 'типично для района';
+}
+
+// Разбивка по укрупнённым "корзинам" бизнеса (lib/businessBuckets.ts) с
+// location quotient — владелец: "предложи формат определения плотности
+// бизнесов", ответ — LQ вместо сырого счётчика (см. комментарий в
+// lib/locationQuotient.ts). Показывается только для кварталов, у которых
+// есть исчерпывающие поквартирные данные (сейчас — только "Мировые
+// танцы", категория 'quarter-test-full' в data/districtPlaces.ts).
+function LocationQuotientPanel({ quarterId, quarterLabel }: { quarterId: string; quarterLabel: string }) {
+  const rows = useMemo(() => computeLocationQuotients(quarterId), [quarterId]);
+  if (rows.length === 0) return null;
+
+  const sorted = [...rows].sort((a, b) => (b.lq ?? 0) - (a.lq ?? 0));
+  const maxAbsLog = Math.max(1, ...sorted.map((r) => (r.lq ? Math.abs(Math.log2(r.lq)) : 0)));
+
+  return (
+    <div className="flex flex-col gap-2 rounded-control border border-border p-4">
+      <h3 className="text-sm font-bold text-ink">Индекс концентрации по нишам — {quarterLabel}</h3>
+      <p className="text-xs text-ink-muted">
+        Location quotient — доля ниши в квартале относительно её доли по всему району. Больше 1 — ниша
+        переконцентрирована здесь (высокая конкуренция), меньше 1 — недопредставлена (возможная свободная ниша).
+      </p>
+      <div className="flex flex-col gap-1.5 pt-1">
+        {sorted.map((row) => {
+          const barRatio = row.lq ? Math.abs(Math.log2(row.lq)) / maxAbsLog : 0;
+          const color = lqColor(row.lq);
+          return (
+            <div key={row.bucketId} className="flex items-center gap-3">
+              <span className="w-40 shrink-0 truncate text-xs text-ink-muted">{row.label}</span>
+              <div className="relative h-5 flex-1 rounded-full bg-surface-muted">
+                <div
+                  className="absolute inset-y-0 rounded-full"
+                  style={
+                    row.lq !== null && row.lq < 1
+                      ? { right: '50%', width: `${barRatio * 50}%`, backgroundColor: color }
+                      : { left: '50%', width: `${barRatio * 50}%`, backgroundColor: color }
+                  }
+                />
+                <div className="absolute inset-y-0 left-1/2 w-px bg-border" />
+              </div>
+              <span className="w-14 shrink-0 text-right text-xs font-bold" style={{ color }}>
+                {row.lq !== null ? `×${row.lq.toFixed(1)}` : '—'}
+              </span>
+              <span className="w-10 shrink-0 text-right text-xs text-ink-faint">{row.localCount} шт.</span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-xs text-ink-faint">
+        Красным — {lqLabel(LQ_HIGH_THRESHOLD)}, синим — {lqLabel(LQ_LOW_THRESHOLD)}. Один квартал с полными данными —
+        район как база сравнения посчитан по нашим текущим (неполным) категориям, точность вырастет по мере сбора
+        исчерпывающих списков по остальным кварталам.
+      </p>
     </div>
   );
 }
@@ -257,6 +336,10 @@ export function DistrictQuarterMap() {
         — справочник застройщика покрывает не все дома района (например, паркинги и часть коммерческих зданий вне
         жилых кварталов в него не входят).
       </p>
+
+      {VISIBLE_QUARTERS.map((q) => (
+        <LocationQuotientPanel key={q.id} quarterId={q.id} quarterLabel={q.label} />
+      ))}
     </div>
   );
 }
