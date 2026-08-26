@@ -128,9 +128,11 @@ function lqLabel(lq: number | null): string {
 // Разбивка по укрупнённым "корзинам" бизнеса (lib/businessBuckets.ts) с
 // location quotient — владелец: "предложи формат определения плотности
 // бизнесов", ответ — LQ вместо сырого счётчика (см. комментарий в
-// lib/locationQuotient.ts). Показывается только для кварталов, у которых
-// есть исчерпывающие поквартирные данные (сейчас — только "Мировые
-// танцы", категория 'quarter-test-full' в data/districtPlaces.ts).
+// lib/locationQuotient.ts). Показывается для кварталов, у которых есть
+// исчерпывающие поквартирные данные (data/districtBusinessCategories.ts —
+// 17 из 20 на 2026-08-26, было только "Мировые танцы" до этой даты) —
+// для остальных computeLocationQuotients вернёт пустой массив, панель не
+// рендерится вовсе (rows.length === 0 ниже).
 function LocationQuotientPanel({ quarterId, quarterLabel }: { quarterId: string; quarterLabel: string }) {
   const rows = useMemo(() => computeLocationQuotients(quarterId), [quarterId]);
   if (rows.length === 0) return null;
@@ -185,9 +187,9 @@ function LocationQuotientPanel({ quarterId, quarterLabel }: { quarterId: string;
         })}
       </div>
       <p className="text-xs text-ink-faint">
-        Красным — {lqLabel(LQ_HIGH_THRESHOLD)}, синим — {lqLabel(LQ_LOW_THRESHOLD)}. Один квартал с полными данными —
-        район как база сравнения посчитан по нашим текущим (неполным) категориям, точность вырастет по мере сбора
-        исчерпывающих списков по остальным кварталам.
+        Красным — {lqLabel(LQ_HIGH_THRESHOLD)}, синим — {lqLabel(LQ_LOW_THRESHOLD)}. Район как база сравнения
+        считается по всем собранным кварталам разом — точность вырастет по мере сбора исчерпывающих списков по
+        оставшимся.
       </p>
     </div>
   );

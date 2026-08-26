@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -69,7 +69,15 @@ import type { Currency } from '../data/transactions';
 import type { ExchangeRate } from '../data/exchangeRates';
 import { PrimaryMarketProModal } from '../components/district/PrimaryMarketProModal';
 import { DistrictMap } from '../components/district/DistrictMap';
-import { DistrictQuarterMap } from '../components/district/DistrictQuarterMap';
+// lazy() — эта карта тянет за собой исчерпывающий снепшот организаций
+// (data/districtBusinessCategories.ts, 883 точки, ~80 КБ) для индекса
+// концентрации по нишам. Обычный статический импорт зашил бы этот вес в
+// главный чанк лендинга для КАЖДОГО посетителя, даже если он не долистает
+// до карты — тот же принцип, по которому в App.tsx лениво грузится вся
+// админка (см. комментарий там).
+const DistrictQuarterMap = lazy(() =>
+  import('../components/district/DistrictQuarterMap').then((m) => ({ default: m.DistrictQuarterMap })),
+);
 
 // Переехала с /rayon-minsk-mir на /minsk/minsk-mir (см. CLAUDE.md, урл-
 // структура /minsk/...) — старый адрес редиректит сюда (App.tsx).
@@ -1651,7 +1659,9 @@ export function DistrictGuidePage() {
         </div>
 
         <div id="quarter-map" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
-          <DistrictQuarterMap />
+          <Suspense fallback={<div className="flex h-64 items-center justify-center text-sm text-ink-faint">Загрузка карты…</div>}>
+            <DistrictQuarterMap />
+          </Suspense>
         </div>
 
         <div id="property-types" className={cn('flex scroll-mt-6 flex-col', glassCardClass)} style={glassCardShadow}>

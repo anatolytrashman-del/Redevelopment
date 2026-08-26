@@ -1,5 +1,5 @@
-import { DISTRICT_PLACE_CATEGORIES } from '../data/districtPlaces';
-import { BUSINESS_BUCKETS, bucketForCategoryKey, bucketForRawCategory } from './businessBuckets';
+import { DISTRICT_BUSINESS_CATEGORIES } from '../data/districtBusinessCategories';
+import { BUSINESS_BUCKETS, bucketForRawCategory } from './businessBuckets';
 
 export interface BucketLocationQuotient {
   bucketId: string;
@@ -18,36 +18,29 @@ export interface BucketLocationQuotient {
 // может быть несколько даже в одном доме") — сравнение всегда идёт с
 // собственной районной базой категории, не с абсолютным числом точек.
 //
-// citywide (районная база) — считается по DISTRICT_PLACE_CATEGORIES
-// целиком (все точки района, а не только привязанные к какому-то кварталу
-// — так база устойчивее и не зависит от того, сколько кварталов уже
-// размечено полигонами). local (числитель) — по местам с explicit
-// quarterId === quarterId, ТОЛЬКО из исчерпывающих поквартирных сборов
-// (см. 'quarter-test-full' в data/districtPlaces.ts) — старые фрагментарные
-// точки по категориям для того же квартала сознательно не подмешиваются,
-// иначе задвоился бы счёт (Wildberries/Belklubnika и так уже входят в
-// исчерпывающий список).
+// citywide (районная база) — по district_business_points ЦЕЛИКОМ (все
+// точки района, 17 из 20 кварталов на 2026-08-26, см. журнал CLAUDE.md —
+// раньше считалась по DISTRICT_PLACE_CATEGORIES, куда пины заносятся
+// вручную по одной категории за раз и покрытие сильно отставало).
+// local (числитель) — тот же датасет, отфильтрованный по нужному
+// кварталу. Оба берутся из DISTRICT_BUSINESS_CATEGORIES
+// (data/districtBusinessCategories.ts) — единый источник, поэтому больше
+// нет риска задвоить счёт старыми фрагментарными точками по категориям.
 export function computeLocationQuotients(quarterId: string): BucketLocationQuotient[] {
   const citywideByBucket: Record<string, number> = {};
   let citywideTotal = 0;
   const localByBucket: Record<string, number> = {};
   let localTotal = 0;
 
-  for (const category of DISTRICT_PLACE_CATEGORIES) {
-    if (category.key === 'quarter-test-full') continue; // исчерпывающий тест — не часть районной базы
-    const bucketId = bucketForCategoryKey(category.key);
-    if (!bucketId) continue; // категория вне корзин (паркинги и т.п.) — не участвует в LQ
-    citywideByBucket[bucketId] = (citywideByBucket[bucketId] ?? 0) + category.places.length;
-    citywideTotal += category.places.length;
-  }
-
-  const testCategory = DISTRICT_PLACE_CATEGORIES.find((c) => c.key === 'quarter-test-full');
-  for (const place of testCategory?.places ?? []) {
-    if (place.quarterId !== quarterId) continue;
-    const bucketId = place.rawCategory ? bucketForRawCategory(place.rawCategory) : null;
+  for (const entry of DISTRICT_BUSINESS_CATEGORIES) {
+    const bucketId = entry.rawCategory ? bucketForRawCategory(entry.rawCategory) : null;
     if (!bucketId) continue;
-    localByBucket[bucketId] = (localByBucket[bucketId] ?? 0) + 1;
-    localTotal += 1;
+    citywideByBucket[bucketId] = (citywideByBucket[bucketId] ?? 0) + 1;
+    citywideTotal += 1;
+    if (entry.quarterId === quarterId) {
+      localByBucket[bucketId] = (localByBucket[bucketId] ?? 0) + 1;
+      localTotal += 1;
+    }
   }
 
   return BUSINESS_BUCKETS.map((bucket) => {
