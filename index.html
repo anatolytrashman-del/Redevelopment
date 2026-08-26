@@ -3,6 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- favicon.ico — на классический путь /favicon.ico (без него самого
+         файла) SPA-рерайт vercel.json ("/(.*)" → index.html) отдавал 200 с
+         html вместо иконки; часть краулеров (в т.ч. Яндекс — "Файл favicon
+         не найден" в рекомендациях Вебмастера, 2026-08-26) запрашивает
+         именно этот путь напрямую, не читая <link rel="icon"> тут. -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
