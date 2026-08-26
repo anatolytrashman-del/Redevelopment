@@ -62,10 +62,18 @@ const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m
 // Единственный рабочий способ — как и в зуме планировки (BuildingPlanCanvas) —
 // перехватывать многопальцевый touchmove на уровне всего документа. Двойной
 // тап (зум планировки) не задет: там всегда одно касание за раз.
+// 2026-08-26 (мобильная оптимизация /minsk/minsk-mir) — этот же перехват
+// глушил щипок ВНУТРИ виджетов Яндекс.Карт (DistrictMap/DistrictQuarterMap —
+// единственные потребители ymaps в приложении), их собственный зум карты
+// тоже двупальцевый жест. closest('[data-allow-pinch-zoom]') — явное
+// исключение: элемент с этим атрибутом сам управляет своим содержимым
+// (карта), глобальная защита от зума СТРАНИЦЫ ему не нужна и мешает.
 function usePreventPageZoom() {
   useEffect(() => {
     function onTouchMove(e: TouchEvent) {
-      if (e.touches.length > 1) e.preventDefault();
+      if (e.touches.length <= 1) return;
+      if ((e.target as Element | null)?.closest('[data-allow-pinch-zoom]')) return;
+      e.preventDefault();
     }
     document.addEventListener('touchmove', onTouchMove, { passive: false });
     return () => document.removeEventListener('touchmove', onTouchMove);
