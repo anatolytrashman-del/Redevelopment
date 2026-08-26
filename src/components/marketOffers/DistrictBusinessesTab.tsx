@@ -134,12 +134,18 @@ export function DistrictBusinessesTab() {
       map.set(h.quarterId, arr);
     }
     const entries = [...map.entries()];
-    entries.sort((a, b) => (QUARTER_ORDER[a[0]] ?? 999) - (QUARTER_ORDER[b[0]] ?? 999));
+    // Верифицированные кварталы — вниз списка (владелец, 2026-08-26): наверху
+    // всегда то, над чем ещё идёт работа, а не то, что уже сверено.
+    entries.sort((a, b) => {
+      const verifiedDiff = Number(verifiedQuarterIds.has(a[0])) - Number(verifiedQuarterIds.has(b[0]));
+      if (verifiedDiff !== 0) return verifiedDiff;
+      return (QUARTER_ORDER[a[0]] ?? 999) - (QUARTER_ORDER[b[0]] ?? 999);
+    });
     for (const [, hs] of entries) {
       hs.sort((a, b) => titleCase(a.street).localeCompare(titleCase(b.street)) || Number(a.house) - Number(b.house));
     }
     return entries;
-  }, [filteredHouses]);
+  }, [filteredHouses, verifiedQuarterIds]);
 
   // Несданные — две отдельные причины (см. комментарий у getNotDeliveredHouses
   // в districtQuarters.ts): целиком несданные кварталы (структурно, из
