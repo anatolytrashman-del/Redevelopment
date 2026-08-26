@@ -23,6 +23,19 @@ import type { ParsedBusinessEntry } from './districtBusinessPointsApi';
 // отфильтруются, владелец в курсе и решил, что для этой задачи это ок.
 const MIN_REVIEW_COUNT = 5;
 
+// Реальный баг (найден на живой выгрузке владельца, Николы Теслы 30,
+// 2026-08-26): блок оценок в списке иногда не успевает отрендериться к
+// моменту сохранения страницы даже у настоящего верифицированного бизнеса
+// ("Добрыя лекi" — 29 оценок на СВОЕЙ странице, но 0/null в этой конкретной
+// выгрузке списка) — MIN_REVIEW_COUNT тогда ошибочно принимал его за
+// "точку жителя" и тихо выбрасывал, без всякого следа в результате разбора.
+// Синий значок "Верифицировано" (Яндекс подтвердил бизнес) — надёжный
+// сигнал "это настоящая организация" сам по себе, точки жителей его не
+// получают (проверено на том же файле — "Природа чистой воды" без
+// значка и без оценок отфильтрована верно). Поэтому верифицированные
+// карточки не отсекаются по числу оценок вовсе, даже если оно 0/не найдено.
+const VERIFIED_BADGE_SELECTOR = '.business-verified-badge';
+
 export function parseWebarchiveOrgList(buffer: ArrayBuffer): ParsedBusinessEntry[] {
   const root = parseBplist(buffer) as { WebMainResource?: { WebResourceData?: Uint8Array } };
   const htmlBytes = root?.WebMainResource?.WebResourceData;
@@ -73,7 +86,8 @@ function extractOrgsFromHtml(html: string): ParsedBusinessEntry[] {
     const countMatch = countEl?.textContent?.match(/\d+/);
     const reviewCount = countMatch ? Number(countMatch[0]) : null;
 
-    if ((reviewCount ?? 0) < MIN_REVIEW_COUNT) continue;
+    const verified = !!card.querySelector(VERIFIED_BADGE_SELECTOR);
+    if (!verified && (reviewCount ?? 0) < MIN_REVIEW_COUNT) continue;
 
     entries.push({ title, rawCategory, reviewCount });
   }
