@@ -679,6 +679,12 @@ export function MarketOffersReview() {
   function startVerification() {
     setSkippedGroupKeys(new Set());
     setSkippedSingleIds(new Set());
+    // Сбрасываем "уже открывали" — иначе если первая цель НОВОЙ сессии
+    // верификации совпадает с той, на которой закончилась предыдущая (тот
+    // же id/key всё ещё не разобран), эффект ниже решит, что уже открывал
+    // её, и не откроет автоматически.
+    lastAutoOpenedGroupKeyRef.current = null;
+    lastAutoOpenedSingleIdRef.current = null;
     setVerifying(true);
   }
 
@@ -697,6 +703,18 @@ export function MarketOffersReview() {
   }
 
   function closeEdit() {
+    // Во время верификации карточка одиночного объявления открывается САМА
+    // (см. эффект ниже), а не по клику — значит "Отмена"/крестик здесь
+    // означает не "я передумал редактировать", а "хочу пропустить это
+    // объявление": иначе цель верификации не менялась бы, эффект тут же
+    // открыл бы ту же карточку и то же окно заново — Светлана не смогла бы
+    // ничего закрыть (см. баг: "нажимаю Отмена, а у меня открываются новые
+    // вкладки и окно не закрывается"). Для строки внутри группы дублей
+    // карточка открывается вручную (не авто), там отмена — просто отмена,
+    // group это не задевает.
+    if (verifying && !verifyGroupTarget && editingOffer && verifySingleTarget?.id === editingOffer.id) {
+      skipCurrentVerification();
+    }
     setEditingOffer(null);
     setEditForm(null);
   }
@@ -711,7 +729,13 @@ export function MarketOffersReview() {
   // первого объявления (сравнение — это и есть смысл шага, открыть сразу
   // обе ссылки в одном окне невозможно), карточку не открываем — решение
   // там обычно "Это разные помещения"/"Обсудить", а не правка полей.
+  //
+  // ВАЖНО: гварды — по РЕФАМ (id/key), а не по editingOffer — иначе
+  // закрытие карточки без смены цели (тот самый Cancel) тут же открывало бы
+  // её заново на каждый ре-рендер (editingOffer менялся на null → эффект
+  // видел "цель ещё не открыта" → переоткрывал), см. баг выше.
   const lastAutoOpenedGroupKeyRef = useRef<string | null>(null);
+  const lastAutoOpenedSingleIdRef = useRef<number | null>(null);
   useEffect(() => {
     if (!verifying) return;
     if (verifyGroupTarget) {
@@ -721,11 +745,12 @@ export function MarketOffersReview() {
       if (group[0]?.adLink) openAdWindow(group[0].adLink);
       return;
     }
-    if (verifySingleTarget && editingOffer?.id !== verifySingleTarget.id) {
+    if (verifySingleTarget && lastAutoOpenedSingleIdRef.current !== verifySingleTarget.id) {
+      lastAutoOpenedSingleIdRef.current = verifySingleTarget.id;
       openEdit(verifySingleTarget);
       if (verifySingleTarget.adLink) openAdWindow(verifySingleTarget.adLink);
     }
-  }, [verifying, verifyGroupTarget, verifySingleTarget, editingOffer]);
+  }, [verifying, verifyGroupTarget, verifySingleTarget]);
 
   async function handleEditSubmit(e: FormEvent) {
     e.preventDefault();
