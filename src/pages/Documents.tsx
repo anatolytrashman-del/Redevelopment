@@ -16,6 +16,7 @@ import {
   Handshake,
   Scale,
   Landmark,
+  Flag,
 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -32,6 +33,7 @@ import type { RealtyObject } from '../data/objects';
 import type { Contractor } from '../data/contractors';
 import type { ContractorDocument } from '../data/contractorDocuments';
 import type { LegalDocument } from '../data/legalDocuments';
+import type { AvangardDocument } from '../data/avangardDocuments';
 import type { LegalEntity } from '../data/legalEntities';
 import type { Pledge } from '../data/pledges';
 import { fetchDocumentTemplates, insertDocumentTemplate, updateDocumentTemplate } from '../lib/documentTemplatesApi';
@@ -46,6 +48,7 @@ import {
   deleteContractorDocument,
 } from '../lib/contractorDocumentsApi';
 import { fetchLegalDocuments, insertLegalDocument, deleteLegalDocument } from '../lib/legalDocumentsApi';
+import { fetchAvangardDocuments, insertAvangardDocument, deleteAvangardDocument } from '../lib/avangardDocumentsApi';
 import { fetchLegalEntities, insertLegalEntity, deleteLegalEntity } from '../lib/legalEntitiesApi';
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -141,6 +144,18 @@ export function Documents() {
   const [legalDocSubmitError, setLegalDocSubmitError] = useState<string | null>(null);
   const [deletingLegalDocId, setDeletingLegalDocId] = useState<string | null>(null);
 
+  // Документы по "Авангарду" — своя вкладка, тот же паттерн, что и у
+  // "Документов от юристов" выше (свободная подборка title+files, без
+  // привязки к другим сущностям).
+  const [avangardDocs, setAvangardDocs] = useState<AvangardDocument[]>([]);
+  const [avangardDocsLoading, setAvangardDocsLoading] = useState(true);
+  const [avangardDocsError, setAvangardDocsError] = useState<string | null>(null);
+  const [avangardDocModalOpen, setAvangardDocModalOpen] = useState(false);
+  const [avangardDocForm, setAvangardDocForm] = useState({ title: '', files: [] as File[] });
+  const [avangardDocSubmitting, setAvangardDocSubmitting] = useState(false);
+  const [avangardDocSubmitError, setAvangardDocSubmitError] = useState<string | null>(null);
+  const [deletingAvangardDocId, setDeletingAvangardDocId] = useState<string | null>(null);
+
   // Юрлица (ЧУП/ООО и т.п.) — сама вкладка только список карточек-ссылок,
   // документы каждого юрлица (налоговые декларации и будущие группы) живут
   // на отдельной странице (LegalEntityDetail.tsx, /admin/documents/legal-entities/:id).
@@ -161,7 +176,7 @@ export function Documents() {
   // видимость блока, все данные при этом всё равно грузятся сразу
   // (см. useEffect ниже), просто не рендерятся, пока не открыта вкладка.
   const [activeTab, setActiveTab] = useState<
-    'signed' | 'objects' | 'contractors' | 'legal' | 'legalEntities' | 'templates'
+    'signed' | 'objects' | 'contractors' | 'legal' | 'avangard' | 'legalEntities' | 'templates'
   >('signed');
 
   useEffect(() => {
@@ -191,6 +206,10 @@ export function Documents() {
       .then(setLegalDocs)
       .catch((err) => setLegalDocsError(errorMessage(err, 'Не удалось загрузить документы от юристов')))
       .finally(() => setLegalDocsLoading(false));
+    fetchAvangardDocuments()
+      .then(setAvangardDocs)
+      .catch((err) => setAvangardDocsError(errorMessage(err, 'Не удалось загрузить документы Авангарда')))
+      .finally(() => setAvangardDocsLoading(false));
     fetchLegalEntities()
       .then(setLegalEntities)
       .catch((err) => setLegalEntitiesError(errorMessage(err, 'Не удалось загрузить юрлица')))
@@ -300,6 +319,46 @@ export function Documents() {
       setLegalDocsError(errorMessage(err, 'Не удалось удалить'));
     } finally {
       setDeletingLegalDocId(null);
+    }
+  }
+
+  function openAvangardDocModal() {
+    setAvangardDocForm({ title: '', files: [] });
+    setAvangardDocSubmitError(null);
+    setAvangardDocModalOpen(true);
+  }
+
+  async function handleAvangardDocSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!avangardDocForm.title.trim() || avangardDocForm.files.length === 0 || avangardDocSubmitting) return;
+    setAvangardDocSubmitting(true);
+    setAvangardDocSubmitError(null);
+    try {
+      const uploaded = await Promise.all(avangardDocForm.files.map(uploadObjectDocument));
+      const created = await insertAvangardDocument({
+        title: avangardDocForm.title.trim(),
+        files: uploaded,
+      });
+      setAvangardDocs((prev) => [created, ...prev]);
+      setAvangardDocModalOpen(false);
+    } catch (err) {
+      setAvangardDocSubmitError(errorMessage(err, 'Не удалось загрузить документ'));
+    } finally {
+      setAvangardDocSubmitting(false);
+    }
+  }
+
+  async function handleDeleteAvangardDoc(doc: AvangardDocument) {
+    if (!window.confirm(`Удалить «${doc.title}» из списка?`)) return;
+    setDeletingAvangardDocId(doc.id);
+    setAvangardDocsError(null);
+    try {
+      await deleteAvangardDocument(doc.id);
+      setAvangardDocs((prev) => prev.filter((d) => d.id !== doc.id));
+    } catch (err) {
+      setAvangardDocsError(errorMessage(err, 'Не удалось удалить'));
+    } finally {
+      setDeletingAvangardDocId(null);
     }
   }
 
@@ -417,6 +476,7 @@ export function Documents() {
             ['objects', 'Объекты (БРТИ)', pledges.length],
             ['contractors', 'Подрядчики', contractorDocs.length],
             ['legal', 'Нормативка', legalDocs.length],
+            ['avangard', 'Авангард', avangardDocs.length],
             ['legalEntities', 'Юрлица', legalEntities.length],
             ['templates', 'Шаблоны', templates.length],
           ] as const
@@ -664,6 +724,73 @@ export function Documents() {
       </div>
       )}
 
+      {activeTab === 'avangard' && (
+      <div className="flex flex-col gap-4">
+        {avangardDocs.map((d) => (
+          <Card key={d.id} className="flex flex-col gap-3 p-5">
+            <div className="flex items-center gap-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-muted text-ink-muted">
+                <Flag className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-semibold text-ink">{d.title}</div>
+                <div className="truncate text-sm text-ink-muted">
+                  {d.files.length} {pluralFiles(d.files.length)} · {formatDate(d.uploadedAt)}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleDeleteAvangardDoc(d)}
+                disabled={deletingAvangardDocId === d.id}
+                aria-label="Удалить пакет"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-danger hover:text-danger disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex flex-col gap-1.5 pl-15">
+              {d.files.map((f, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-control bg-surface-muted px-3 py-2">
+                  <span className="min-w-0 flex-1 truncate text-sm text-ink">{f.fileName}</span>
+                  {isPreviewable(f.fileName) && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewFile(f)}
+                      aria-label="Просмотреть"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-muted hover:text-primary"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                  )}
+                  <a
+                    href={f.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Скачать"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-muted hover:text-primary"
+                  >
+                    <Download className="h-4 w-4" />
+                  </a>
+                </div>
+              ))}
+            </div>
+          </Card>
+        ))}
+        {avangardDocsLoading && (
+          <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Загружаем документы...
+          </Card>
+        )}
+        {!avangardDocsLoading && avangardDocsError && (
+          <Card className="py-10 text-center text-sm text-danger">{avangardDocsError}</Card>
+        )}
+        {!avangardDocsLoading && !avangardDocsError && avangardDocs.length === 0 && (
+          <Card className="py-10 text-center text-sm text-ink-muted">Документов пока нет</Card>
+        )}
+      </div>
+      )}
+
       {activeTab === 'legalEntities' && (
       <div className="flex flex-col gap-4">
         <div className="flex justify-end">
@@ -773,6 +900,15 @@ export function Documents() {
                 () => {
                   setActiveTab('legal');
                   openLegalDocModal();
+                },
+              ],
+              [
+                Flag,
+                'Документ — Авангард',
+                'bg-surface-muted text-ink-muted',
+                () => {
+                  setActiveTab('avangard');
+                  openAvangardDocModal();
                 },
               ],
               [
@@ -1010,6 +1146,63 @@ export function Documents() {
               disabled={!legalDocForm.title.trim() || legalDocForm.files.length === 0 || legalDocSubmitting}
             >
               {legalDocSubmitting ? 'Загружаем...' : 'Добавить'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={avangardDocModalOpen} onClose={() => setAvangardDocModalOpen(false)} title="Документ — Авангард">
+        <form onSubmit={handleAvangardDocSubmit} className="flex flex-col gap-4">
+          <Input
+            label="Название"
+            placeholder="Например, Договор аренды"
+            value={avangardDocForm.title}
+            onChange={(e) => setAvangardDocForm((f) => ({ ...f, title: e.target.value }))}
+            required
+          />
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm text-ink-muted">Файлы — под одним названием может быть несколько файлов</span>
+            {avangardDocForm.files.map((file, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-2 rounded-control border border-border px-3 py-2 text-sm text-ink"
+              >
+                <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setAvangardDocForm((f) => ({ ...f, files: f.files.filter((_, idx) => idx !== i) }))}
+                  aria-label="Убрать файл"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center text-ink-faint hover:text-danger"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+            <label className="flex w-fit cursor-pointer items-center gap-2 rounded-control border border-dashed border-border px-4 py-2.5 text-sm text-ink-muted hover:border-border-strong">
+              <Upload className="h-4 w-4" />
+              Добавить файлы
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const picked = Array.from(e.target.files ?? []);
+                  e.target.value = '';
+                  if (picked.length) setAvangardDocForm((f) => ({ ...f, files: [...f.files, ...picked] }));
+                }}
+              />
+            </label>
+          </div>
+          {avangardDocSubmitError && <p className="text-sm text-danger">{avangardDocSubmitError}</p>}
+          <div className="mt-2 flex justify-end gap-3">
+            <Button type="button" variant="secondary" onClick={() => setAvangardDocModalOpen(false)}>
+              Отмена
+            </Button>
+            <Button
+              type="submit"
+              disabled={!avangardDocForm.title.trim() || avangardDocForm.files.length === 0 || avangardDocSubmitting}
+            >
+              {avangardDocSubmitting ? 'Загружаем...' : 'Добавить'}
             </Button>
           </div>
         </form>
