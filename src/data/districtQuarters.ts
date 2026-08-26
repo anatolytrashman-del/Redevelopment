@@ -66,9 +66,13 @@ export const QUARTER_HOUSE_INDEX: Record<string, string> = {
   "аэродромная|22": 'south-europe',
   "аэродромная|24": 'south-europe',
   "аэродромная|26": 'champions',
-  "аэродромная|28": 'champions',
-  "аэродромная|30": 'africa',
+  // "28"/"30" были champions/africa — по факту квартал "Эмиратс" (владелец
+  // сверил вживую, 2026-08-26). "32А" — детский сад, без организаций (см.
+  // NO_ORGANIZATIONS_HOUSES ниже) — учитываем дом, но не в очереди на сбор.
+  "аэродромная|28": 'emirates',
+  "аэродромная|30": 'emirates',
   "аэродромная|32": 'emirates',
+  "аэродромная|32А": 'emirates',
   "белградская|1": 'central-europe',
   "белградская|16": 'motherland',
   "белградская|18": 'motherland',
@@ -77,12 +81,17 @@ export const QUARTER_HOUSE_INDEX: Record<string, string> = {
   "братская|12": 'emirates',
   "братская|14": 'emirates',
   "братская|16": 'emirates',
+  // "18" — не было в списке, который прислал владелец 2026-08-26, но НЕ
+  // убрано: там уже 35 реальных организаций в базе (Авиа Молл целиком —
+  // DeFacto, Sela, Zarina, банки и т.п.), явно настоящий адрес. Скорее
+  // владелец просто не упомянул его в списке заново — уточнить, не опечатка
+  // ли в его памяти. "20" убрано — организаций под ним не было.
   "братская|18": 'emirates',
   "братская|2": 'emirates',
-  "братская|20": 'emirates',
   "братская|24": 'australia-oceania',
   "братская|4": 'emirates',
   "братская|6": 'emirates',
+  "братская|6А": 'emirates',
   "братская|8": 'emirates',
   "брилевская|21": 'south-europe',
   "брилевская|23": 'south-europe',
@@ -93,6 +102,8 @@ export const QUARTER_HOUSE_INDEX: Record<string, string> = {
   "брилевская|33": 'world-dances',
   "брилевская|35": 'world-dances',
   "брилевская|54": 'zapadny',
+  // Паркинг, без организаций (владелец, 2026-08-26) — см. NO_ORGANIZATIONS_HOUSES.
+  "германовская|7": 'emirates',
   "жореса алфёрова|10": 'tropical-islands',
   "жореса алфёрова|11": 'western-europe',
   "жореса алфёрова|12": 'tropical-islands',
@@ -205,6 +216,15 @@ export const QUARTER_HOUSE_INDEX: Record<string, string> = {
 // пока нет адресом — добавить отдельно, когда появится.
 export const NOT_DELIVERED_QUARTER_IDS = new Set(['australia-oceania', 'zapadny', 'zvezdny', 'everest']);
 
+// Дома, где организаций в принципе не будет — паркинг, детский сад и т.п.
+// (владелец про квартал "Эмиратс", 2026-08-26: "по паркингу и детскому саду
+// организаций не будет, но просто знай, что они там есть"). Ключ — тот же
+// формат "улица|дом", что и в QUARTER_HOUSE_INDEX. Такие дома ОСТАЮТСЯ в
+// самом справочнике (считаются в "N домов" квартала), но не попадают в
+// getDeliveredHouses() — незачем гонять Светлану проверять точку, где
+// организаций заведомо нет.
+export const NO_ORGANIZATIONS_HOUSES = new Set(['германовская|7', 'аэродромная|32А']);
+
 export interface DeliveredHouse {
   street: string;
   house: string;
@@ -212,14 +232,15 @@ export interface DeliveredHouse {
 }
 
 // Список домов для сбора организаций (см. MarketOffersReview.tsx, вкладка
-// "Дома") — все дома справочника застройщика минус несданные кварталы.
-// Единый источник и для этого списка, и для будущей регенерации
+// "Дома") — все дома справочника застройщика минус несданные кварталы и
+// минус дома без организаций (см. NO_ORGANIZATIONS_HOUSES выше). Единый
+// источник и для этого списка, и для будущей регенерации
 // scripts/data/district-houses.json (используется в дремлющем
 // scripts/sync-district-business-points.mjs, см. журнал CLAUDE.md
 // 2026-08-26 про блокировку по IP на GitHub Actions).
 export function getDeliveredHouses(): DeliveredHouse[] {
   return Object.entries(QUARTER_HOUSE_INDEX)
-    .filter(([, quarterId]) => !NOT_DELIVERED_QUARTER_IDS.has(quarterId))
+    .filter(([key, quarterId]) => !NOT_DELIVERED_QUARTER_IDS.has(quarterId) && !NO_ORGANIZATIONS_HOUSES.has(key))
     .map(([key, quarterId]) => {
       const [street, house] = key.split('|');
       return { street, house, quarterId };

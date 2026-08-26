@@ -22,16 +22,21 @@
   {
     "street": "аэродромная",
     "house": "28",
-    "quarterId": "champions"
+    "quarterId": "emirates"
   },
   {
     "street": "аэродромная",
     "house": "30",
-    "quarterId": "africa"
+    "quarterId": "emirates"
   },
   {
     "street": "аэродромная",
     "house": "32",
+    "quarterId": "emirates"
+  },
+  {
+    "street": "аэродромная",
+    "house": "32А",
     "quarterId": "emirates"
   },
   {
@@ -86,8 +91,8 @@
   },
   {
     "street": "братская",
-    "house": "20",
-    "quarterId": "emirates"
+    "house": "24",
+    "quarterId": "australia-oceania"
   },
   {
     "street": "братская",
@@ -97,6 +102,11 @@
   {
     "street": "братская",
     "house": "6",
+    "quarterId": "emirates"
+  },
+  {
+    "street": "братская",
+    "house": "6А",
     "quarterId": "emirates"
   },
   {
@@ -143,6 +153,16 @@
     "street": "брилевская",
     "house": "35",
     "quarterId": "world-dances"
+  },
+  {
+    "street": "брилевская",
+    "house": "54",
+    "quarterId": "zapadny"
+  },
+  {
+    "street": "германовская",
+    "house": "7",
+    "quarterId": "emirates"
   },
   {
     "street": "жореса алфёрова",
@@ -216,6 +236,11 @@
   },
   {
     "street": "игоря лученка",
+    "house": "18",
+    "quarterId": "australia-oceania"
+  },
+  {
+    "street": "игоря лученка",
     "house": "19",
     "quarterId": "north-america"
   },
@@ -223,6 +248,16 @@
     "street": "игоря лученка",
     "house": "2",
     "quarterId": "eurasia"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "20",
+    "quarterId": "australia-oceania"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "22",
+    "quarterId": "australia-oceania"
   },
   {
     "street": "игоря лученка",
@@ -376,6 +411,16 @@
   },
   {
     "street": "михаила савицкого",
+    "house": "25",
+    "quarterId": "australia-oceania"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "27",
+    "quarterId": "australia-oceania"
+  },
+  {
+    "street": "михаила савицкого",
     "house": "3",
     "quarterId": "asia"
   },
@@ -511,6 +556,11 @@
   },
   {
     "street": "николы теслы",
+    "house": "33",
+    "quarterId": "everest"
+  },
+  {
+    "street": "николы теслы",
     "house": "4",
     "quarterId": "north-america"
   },
@@ -533,5 +583,10 @@
     "street": "николы теслы",
     "house": "9",
     "quarterId": "north-europe"
+  },
+  {
+    "street": "площадь старый аэропорт",
+    "house": "2",
+    "quarterId": "zvezdny"
   }
 ]

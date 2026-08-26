@@ -26,6 +26,12 @@ import {
   insertDistrictHouseFlag,
   deleteDistrictHouseFlag,
 } from '../../lib/districtHouseFlagsApi';
+import type { DistrictQuarterFlag } from '../../data/districtQuarterFlags';
+import {
+  fetchDistrictQuarterFlags,
+  insertDistrictQuarterFlag,
+  deleteDistrictQuarterFlag,
+} from '../../lib/districtQuarterFlagsApi';
 
 // Вкладка "Дома" на /admin/market-offers — список организаций по каждому
 // сданному дому Минск Мира. Заменяет ручную пересылку списков от Светланы
@@ -57,6 +63,8 @@ export function DistrictBusinessesTab() {
   const [subTab, setSubTab] = useState<SubTab>('Дома');
   const [points, setPoints] = useState<DistrictBusinessPoint[] | null>(null);
   const [flags, setFlags] = useState<DistrictHouseFlag[]>([]);
+  const [quarterFlags, setQuarterFlags] = useState<DistrictQuarterFlag[]>([]);
+  const [savingQuarterId, setSavingQuarterId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [openHouse, setOpenHouse] = useState<DeliveredHouse | null>(null);
@@ -68,7 +76,30 @@ export function DistrictBusinessesTab() {
     fetchDistrictHouseFlags()
       .then(setFlags)
       .catch(() => {});
+    fetchDistrictQuarterFlags()
+      .then(setQuarterFlags)
+      .catch(() => {});
   }, []);
+
+  const verifiedQuarterIds = useMemo(() => new Set(quarterFlags.map((f) => f.quarterId)), [quarterFlags]);
+
+  async function toggleQuarterVerified(quarterId: string) {
+    if (savingQuarterId) return;
+    setSavingQuarterId(quarterId);
+    try {
+      if (verifiedQuarterIds.has(quarterId)) {
+        await deleteDistrictQuarterFlag(quarterId);
+        setQuarterFlags((prev) => prev.filter((f) => f.quarterId !== quarterId));
+      } else {
+        const created = await insertDistrictQuarterFlag(quarterId);
+        setQuarterFlags((prev) => [...prev, created]);
+      }
+    } catch {
+      setError('Не удалось изменить отметку верификации — попробуйте ещё раз.');
+    } finally {
+      setSavingQuarterId(null);
+    }
+  }
 
   const pointsByHouse = useMemo(() => {
     const map = new Map<string, DistrictBusinessPoint[]>();
@@ -184,6 +215,16 @@ export function DistrictBusinessesTab() {
                 <Building2 className="h-4 w-4 shrink-0 text-ink-faint" />
                 <h3 className="text-sm font-bold text-ink">{QUARTER_LABELS[quarterId] ?? quarterId}</h3>
                 <span className="text-xs text-ink-faint">{hs.length} домов</span>
+                <label className="ml-auto flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted">
+                  <input
+                    type="checkbox"
+                    checked={verifiedQuarterIds.has(quarterId)}
+                    disabled={savingQuarterId === quarterId}
+                    onChange={() => toggleQuarterVerified(quarterId)}
+                    className="h-3.5 w-3.5 rounded border-border-strong text-primary focus:ring-primary"
+                  />
+                  Верифицировано
+                </label>
               </div>
               {hs.map((h) => {
                 const list = pointsByHouse.get(houseKey(h.street, h.house)) ?? [];
