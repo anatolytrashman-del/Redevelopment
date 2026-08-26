@@ -18,6 +18,7 @@ import {
   deleteDistrictBusinessPoint,
 } from '../../lib/districtBusinessPointsApi';
 import type { HouseDiff } from '../../lib/districtBusinessPointsApi';
+import { parseWebarchiveOrgList, looksLikeBplist } from '../../lib/webarchiveOrgParser';
 
 // Вкладка "Дома" на /admin/market-offers — список организаций по каждому
 // сданному дому Минск Мира. Заменяет ручную пересылку списков от Светланы
@@ -188,13 +189,17 @@ function HouseModal({
   async function handleFile(file: File) {
     setFileError('');
     setPendingDiff(null);
-    const text = await file.text();
-    const parsed = parseBusinessListText(text);
-    if (parsed.length === 0) {
-      setFileError('Не нашёл в файле ни одной строки с названием — проверьте, что скопировали список целиком.');
-      return;
+    try {
+      const buffer = await file.arrayBuffer();
+      const parsed = looksLikeBplist(buffer) ? parseWebarchiveOrgList(buffer) : parseBusinessListText(new TextDecoder('utf-8').decode(buffer));
+      if (parsed.length === 0) {
+        setFileError('Не нашёл в файле ни одной организации — проверьте, что сохранили страницу целиком (со списком организаций).');
+        return;
+      }
+      setPendingDiff(diffHouseBusinesses(current, parsed));
+    } catch (err) {
+      setFileError(err instanceof Error ? err.message : 'Не удалось разобрать файл.');
     }
-    setPendingDiff(diffHouseBusinesses(current, parsed));
   }
 
   async function confirmDiff() {
@@ -303,12 +308,17 @@ function HouseModal({
           </div>
         ) : (
           <>
-            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-control border-2 border-dashed border-border px-4 py-6 text-sm font-semibold text-ink-muted hover:border-primary hover:text-ink">
-              <Upload className="h-4 w-4 shrink-0" />
-              Загрузить файл выгрузки (.txt)
+            <label className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-control border-2 border-dashed border-border px-4 py-6 text-center hover:border-primary">
+              <span className="flex items-center gap-2 text-sm font-semibold text-ink-muted hover:text-ink">
+                <Upload className="h-4 w-4 shrink-0" />
+                Загрузить файл выгрузки
+              </span>
+              <span className="text-xs text-ink-faint">
+                Карточка дома на Яндекс.Картах, вкладка «Организации внутри» → Cmd+S → веб-архив (.webarchive)
+              </span>
               <input
                 type="file"
-                accept=".txt,.md,text/plain"
+                accept=".webarchive,.txt,.md,text/plain"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
