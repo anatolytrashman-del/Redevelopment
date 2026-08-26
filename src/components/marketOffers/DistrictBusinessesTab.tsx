@@ -252,6 +252,7 @@ function HouseModal({
         })),
       );
       setPendingDiff(null);
+      onClose();
     } catch {
       setFileError('Не удалось сохранить изменения — попробуйте ещё раз.');
     } finally {
