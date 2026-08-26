@@ -477,9 +477,6 @@ export function MarketOffersReview() {
       total: offers.length,
       kufar: offers.filter((o) => o.source === 'Kufar').length,
       realt: offers.filter((o) => o.source === 'Realt').length,
-      finished: offers.filter((o) => o.finishStatus === 'с отделкой').length,
-      unfinished: offers.filter((o) => o.finishStatus === 'без отделки').length,
-      unknown: offers.filter((o) => o.finishStatus === 'не указано').length,
       reviewed: offers.filter((o) => o.reviewed && !o.rejected).length,
       rejected: offers.filter((o) => o.rejected).length,
       discussing: offers.filter((o) => o.flaggedForDiscussion).length,
@@ -844,8 +841,7 @@ export function MarketOffersReview() {
           {counts && (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-ink-muted">
-                Всего {counts.total} объявлений (Kufar {counts.kufar} · Realt {counts.realt}) · с отделкой{' '}
-                {counts.finished} · без отделки {counts.unfinished} · не указано {counts.unknown} · обработано{' '}
+                Всего {counts.total} объявлений (Kufar {counts.kufar} · Realt {counts.realt}) · обработано{' '}
                 {counts.reviewed} из {counts.total}
                 {counts.rejected > 0 && <> · не подходит {counts.rejected}</>}
                 {counts.discussing > 0 && <> · на обсуждении {counts.discussing}</>}
