@@ -150,23 +150,36 @@ function LocationQuotientPanel({ quarterId, quarterLabel }: { quarterId: string;
           const barRatio = row.lq ? Math.abs(Math.log2(row.lq)) / maxAbsLog : 0;
           const color = lqColor(row.lq);
           return (
-            <div key={row.bucketId} className="flex items-center gap-3">
-              <span className="w-40 shrink-0 truncate text-xs text-ink-muted">{row.label}</span>
-              <div className="relative h-5 flex-1 rounded-full bg-surface-muted">
-                <div
-                  className="absolute inset-y-0 rounded-full"
-                  style={
-                    row.lq !== null && row.lq < 1
-                      ? { right: '50%', width: `${barRatio * 50}%`, backgroundColor: color }
-                      : { left: '50%', width: `${barRatio * 50}%`, backgroundColor: color }
-                  }
-                />
-                <div className="absolute inset-y-0 left-1/2 w-px bg-border" />
+            // flex-col на мобильном — метка ("Услуги для дома и техники",
+            // "Недвижимость и бизнес-услуги") + полоса + значение + счётчик
+            // в одну строку с фиксированной шириной метки (w-40) не
+            // помещались на 375px, метка обрезалась посреди слова.
+            // Название на своей строке (без truncate/фикс. ширины на
+            // мобильном) решает это, не трогая компактный вид на sm+.
+            <div key={row.bucketId} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+              {/* sm:w-56 (224px), не w-40 (160px) — самая длинная метка
+                  ("Недвижимость и бизнес-услуги") рендерится ~200px реальным
+                  шрифтом страницы (замерено на живой странице, не
+                  синтетическим sans-serif — тот давал заниженную оценку
+                  ~174px), в w-40 и даже в w-48 обрезалась бы посреди слова. */}
+              <span className="text-xs text-ink-muted sm:w-56 sm:shrink-0 sm:truncate">{row.label}</span>
+              <div className="flex items-center gap-3">
+                <div className="relative h-5 flex-1 rounded-full bg-surface-muted">
+                  <div
+                    className="absolute inset-y-0 rounded-full"
+                    style={
+                      row.lq !== null && row.lq < 1
+                        ? { right: '50%', width: `${barRatio * 50}%`, backgroundColor: color }
+                        : { left: '50%', width: `${barRatio * 50}%`, backgroundColor: color }
+                    }
+                  />
+                  <div className="absolute inset-y-0 left-1/2 w-px bg-border" />
+                </div>
+                <span className="w-14 shrink-0 text-right text-xs font-bold" style={{ color }}>
+                  {row.lq !== null ? `×${row.lq.toFixed(1)}` : '—'}
+                </span>
+                <span className="w-10 shrink-0 text-right text-xs text-ink-faint">{row.localCount} шт.</span>
               </div>
-              <span className="w-14 shrink-0 text-right text-xs font-bold" style={{ color }}>
-                {row.lq !== null ? `×${row.lq.toFixed(1)}` : '—'}
-              </span>
-              <span className="w-10 shrink-0 text-right text-xs text-ink-faint">{row.localCount} шт.</span>
             </div>
           );
         })}
@@ -180,12 +193,10 @@ function LocationQuotientPanel({ quarterId, quarterLabel }: { quarterId: string;
   );
 }
 
-// ВРЕМЕННО — проверяем контур по точкам, снятым владельцем своим
-// инструментом (клики по углам квартала на живой карте), остальные 15
-// скрыты из отрисовки. Убрать фильтр (вернуть DISTRICT_QUARTERS как есть),
-// когда подтвердит, что контур совпадает с дорогами на реальной карте.
-const TEST_ONLY_QUARTER_ID = 'world-dances';
-const VISIBLE_QUARTERS = DISTRICT_QUARTERS.filter((q) => q.id === TEST_ONLY_QUARTER_ID);
+// Все кварталы в DISTRICT_QUARTERS теперь размечены владельцем лично своим
+// инструментом (клики по углам на живой карте) — фильтр на "только
+// проверенные" (был здесь раньше, см. историю) больше не нужен.
+const VISIBLE_QUARTERS = DISTRICT_QUARTERS;
 
 export function DistrictQuarterMap() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -293,7 +304,11 @@ export function DistrictQuarterMap() {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
+      {/* flex-col на мобильном — заголовок длинный ("Конкуренция бизнеса по
+          кварталам") и в одну строку с CategoryToggle (тоже может быть
+          длинным — выбранная категория) не помещались, оба сжимались и
+          переносились некрасиво (проверено на 375px). */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <Grid2x2 className="h-5 w-5 shrink-0 text-ink" />
           <h2 className="text-lg font-bold text-ink">Конкуренция бизнеса по кварталам</h2>
@@ -304,7 +319,10 @@ export function DistrictQuarterMap() {
         Плотность выбранной категории по официальным кварталам застройки Минск Мира — чем темнее квартал, тем выше
         концентрация точек этой категории.
       </p>
-      <div className="relative h-[420px] overflow-hidden rounded-control border border-border">
+      {/* data-allow-pinch-zoom — см. комментарий в App.tsx (usePreventPageZoom)
+          и в DistrictMap.tsx — исключает эту карту из глобальной блокировки
+          двупальцевого touchmove, иначе щипок для зума карты не работал. */}
+      <div data-allow-pinch-zoom className="relative h-[420px] overflow-hidden rounded-control border border-border">
         {status === 'error' && (
           <div className="flex h-full items-center justify-center text-sm text-ink-faint">Не удалось загрузить карту</div>
         )}
@@ -322,7 +340,10 @@ export function DistrictQuarterMap() {
         <span className="text-xs font-medium text-ink-faint">Больше</span>
       </div>
 
-      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+      {/* grid-cols-1 на мобильном — при 2 колонках длинные названия
+          кварталов ("Мировые танцы", "Тропические острова" и т.п.)
+          обрезались посередине слова (truncate на слишком узкой ячейке). */}
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
         {rankedQuarters.map((q) => (
           <div key={q.id} className="flex items-center justify-between gap-2 rounded-control bg-surface-muted px-2.5 py-1.5">
             <span className="truncate text-xs text-ink-muted">{q.label}</span>

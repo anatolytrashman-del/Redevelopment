@@ -54,6 +54,15 @@ const MeetingSummaries = lazy(() => import('./pages/MeetingSummaries').then((m) 
 const MeetingSummaryDetail = lazy(() => import('./pages/MeetingSummaryDetail').then((m) => ({ default: m.MeetingSummaryDetail })));
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })));
 
+// Публичная (без PasswordGate) страница для фрилансера — см. её же
+// комментарий. lazy(), а не статический импорт как у остальных публичных
+// страниц выше: она тянет за собой разбор .webarchive/bplist, этот код не
+// должен попадать в основной бандл продающих лендингов ради одной
+// рабочей ссылки для одного исполнителя.
+const BusinessUploadPublicPage = lazy(() =>
+  import('./pages/BusinessUploadPublicPage').then((m) => ({ default: m.BusinessUploadPublicPage })),
+);
+
 // Случайный щипок двумя пальцами (обычный жест при скролле телефоном,
 // держа его двумя руками) зумит всю страницу нативным зумом Safari — и этот
 // зум остаётся, пока клиент не сведёт пальцы обратно вручную, а верстка
@@ -62,10 +71,18 @@ const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m
 // Единственный рабочий способ — как и в зуме планировки (BuildingPlanCanvas) —
 // перехватывать многопальцевый touchmove на уровне всего документа. Двойной
 // тап (зум планировки) не задет: там всегда одно касание за раз.
+// 2026-08-26 (мобильная оптимизация /minsk/minsk-mir) — этот же перехват
+// глушил щипок ВНУТРИ виджетов Яндекс.Карт (DistrictMap/DistrictQuarterMap —
+// единственные потребители ymaps в приложении), их собственный зум карты
+// тоже двупальцевый жест. closest('[data-allow-pinch-zoom]') — явное
+// исключение: элемент с этим атрибутом сам управляет своим содержимым
+// (карта), глобальная защита от зума СТРАНИЦЫ ему не нужна и мешает.
 function usePreventPageZoom() {
   useEffect(() => {
     function onTouchMove(e: TouchEvent) {
-      if (e.touches.length > 1) e.preventDefault();
+      if (e.touches.length <= 1) return;
+      if ((e.target as Element | null)?.closest('[data-allow-pinch-zoom]')) return;
+      e.preventDefault();
     }
     document.addEventListener('touchmove', onTouchMove, { passive: false });
     return () => document.removeEventListener('touchmove', onTouchMove);
@@ -134,6 +151,14 @@ export default function App() {
       <Route path="/plan/:token" element={<PublicBuildingPlan />} />
       <Route path="/tz/:token" element={<BriefPublicPage />} />
       <Route path="/summary/:token" element={<MeetingSummaryPublicPage />} />
+      <Route
+        path="/business-upload"
+        element={
+          <Suspense fallback={<AdminChunkFallback />}>
+            <BusinessUploadPublicPage />
+          </Suspense>
+        }
+      />
       <Route path="/minsk/:slug" element={<ObjectLandingPage />} />
       {/* Старые адреса без /minsk — см. LegacySlugRedirect выше. */}
       <Route path="/rayon-minsk-mir" element={<Navigate to="/minsk/minsk-mir" replace />} />

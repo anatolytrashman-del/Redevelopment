@@ -105,7 +105,14 @@ function DistrictMapCanvas({ mapHeightClassName }: { mapHeightClassName: string 
 
   return (
     <div className="flex flex-1 flex-col gap-3">
-      <div className={cn('relative overflow-hidden rounded-control border border-border', mapHeightClassName)}>
+      {/* data-allow-pinch-zoom — App.tsx блокирует двупальцевый touchmove
+          document-wide (usePreventPageZoom, защита от случайного зума
+          страницы), но это же ломало щипок для зума самой карты. Атрибут —
+          явное исключение из этого перехвата, см. комментарий в App.tsx. */}
+      <div
+        data-allow-pinch-zoom
+        className={cn('relative overflow-hidden rounded-control border border-border', mapHeightClassName)}
+      >
         {status === 'error' && (
           <div className="flex h-full items-center justify-center text-sm text-ink-faint">
             Не удалось загрузить карту

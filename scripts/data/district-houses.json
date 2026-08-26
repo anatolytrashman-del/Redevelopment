@@ -1,0 +1,507 @@
+[
+  {
+    "street": "аэродромная",
+    "house": "20",
+    "quarterId": "south-europe"
+  },
+  {
+    "street": "аэродромная",
+    "house": "22",
+    "quarterId": "south-europe"
+  },
+  {
+    "street": "аэродромная",
+    "house": "24",
+    "quarterId": "south-europe"
+  },
+  {
+    "street": "аэродромная",
+    "house": "26",
+    "quarterId": "champions"
+  },
+  {
+    "street": "аэродромная",
+    "house": "28",
+    "quarterId": "champions"
+  },
+  {
+    "street": "аэродромная",
+    "house": "30",
+    "quarterId": "africa"
+  },
+  {
+    "street": "аэродромная",
+    "house": "32",
+    "quarterId": "emirates"
+  },
+  {
+    "street": "белградская",
+    "house": "1",
+    "quarterId": "central-europe"
+  },
+  {
+    "street": "белградская",
+    "house": "11",
+    "quarterId": "western-europe"
+  },
+  {
+    "street": "белградская",
+    "house": "16",
+    "quarterId": "motherland"
+  },
+  {
+    "street": "белградская",
+    "house": "18",
+    "quarterId": "motherland"
+  },
+  {
+    "street": "белградская",
+    "house": "3",
+    "quarterId": "central-europe"
+  },
+  {
+    "street": "белградская",
+    "house": "7",
+    "quarterId": "western-europe"
+  },
+  {
+    "street": "белградская",
+    "house": "9",
+    "quarterId": "western-europe"
+  },
+  {
+    "street": "братская",
+    "house": "10",
+    "quarterId": "emirates"
+  },
+  {
+    "street": "братская",
+    "house": "12",
+    "quarterId": "emirates"
+  },
+  {
+    "street": "братская",
+    "house": "14",
+    "quarterId": "emirates"
+  },
+  {
+    "street": "братская",
+    "house": "16",
+    "quarterId": "emirates"
+  },
+  {
+    "street": "братская",
+    "house": "18",
+    "quarterId": "emirates"
+  },
+  {
+    "street": "братская",
+    "house": "2",
+    "quarterId": "emirates"
+  },
+  {
+    "street": "братская",
+    "house": "20",
+    "quarterId": "emirates"
+  },
+  {
+    "street": "братская",
+    "house": "4",
+    "quarterId": "emirates"
+  },
+  {
+    "street": "братская",
+    "house": "6",
+    "quarterId": "emirates"
+  },
+  {
+    "street": "братская",
+    "house": "8",
+    "quarterId": "emirates"
+  },
+  {
+    "street": "брилевская",
+    "house": "21",
+    "quarterId": "south-europe"
+  },
+  {
+    "street": "брилевская",
+    "house": "23",
+    "quarterId": "south-europe"
+  },
+  {
+    "street": "брилевская",
+    "house": "25",
+    "quarterId": "champions"
+  },
+  {
+    "street": "брилевская",
+    "house": "27",
+    "quarterId": "champions"
+  },
+  {
+    "street": "брилевская",
+    "house": "29",
+    "quarterId": "champions"
+  },
+  {
+    "street": "брилевская",
+    "house": "31",
+    "quarterId": "world-dances"
+  },
+  {
+    "street": "брилевская",
+    "house": "33",
+    "quarterId": "world-dances"
+  },
+  {
+    "street": "брилевская",
+    "house": "35",
+    "quarterId": "world-dances"
+  },
+  {
+    "street": "жореса алфёрова",
+    "house": "10",
+    "quarterId": "tropical-islands"
+  },
+  {
+    "street": "жореса алфёрова",
+    "house": "11",
+    "quarterId": "western-europe"
+  },
+  {
+    "street": "жореса алфёрова",
+    "house": "12",
+    "quarterId": "tropical-islands"
+  },
+  {
+    "street": "жореса алфёрова",
+    "house": "13",
+    "quarterId": "western-europe"
+  },
+  {
+    "street": "жореса алфёрова",
+    "house": "14",
+    "quarterId": "tropical-islands"
+  },
+  {
+    "street": "жореса алфёрова",
+    "house": "15",
+    "quarterId": "western-europe"
+  },
+  {
+    "street": "жореса алфёрова",
+    "house": "3",
+    "quarterId": "south-america"
+  },
+  {
+    "street": "жореса алфёрова",
+    "house": "5",
+    "quarterId": "south-america"
+  },
+  {
+    "street": "жореса алфёрова",
+    "house": "7",
+    "quarterId": "south-america"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "1",
+    "quarterId": "north-europe"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "11",
+    "quarterId": "asia"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "13",
+    "quarterId": "asia"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "15",
+    "quarterId": "north-america"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "17",
+    "quarterId": "north-america"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "19",
+    "quarterId": "north-america"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "2",
+    "quarterId": "eurasia"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "23",
+    "quarterId": "world-dances"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "24",
+    "quarterId": "africa"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "25",
+    "quarterId": "world-dances"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "26",
+    "quarterId": "africa"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "27",
+    "quarterId": "world-dances"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "29",
+    "quarterId": "south-america"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "3",
+    "quarterId": "north-europe"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "31",
+    "quarterId": "south-america"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "4",
+    "quarterId": "eurasia"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "6",
+    "quarterId": "eurasia"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "7",
+    "quarterId": "asia"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "9",
+    "quarterId": "asia"
+  },
+  {
+    "street": "кижеватова",
+    "house": "1Б",
+    "quarterId": "north-america"
+  },
+  {
+    "street": "кижеватова",
+    "house": "3Б",
+    "quarterId": "north-america"
+  },
+  {
+    "street": "кижеватова",
+    "house": "5Б",
+    "quarterId": "north-america"
+  },
+  {
+    "street": "корш-ситникова",
+    "house": "3",
+    "quarterId": "north-europe"
+  },
+  {
+    "street": "корш-ситникова",
+    "house": "5",
+    "quarterId": "north-europe"
+  },
+  {
+    "street": "левкова",
+    "house": "45",
+    "quarterId": "tropical-islands"
+  },
+  {
+    "street": "мира",
+    "house": "1",
+    "quarterId": "emirates"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "10",
+    "quarterId": "africa"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "12",
+    "quarterId": "africa"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "14",
+    "quarterId": "africa"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "2",
+    "quarterId": "tropical-islands"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "3",
+    "quarterId": "asia"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "4",
+    "quarterId": "tropical-islands"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "5",
+    "quarterId": "asia"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "7",
+    "quarterId": "asia"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "8",
+    "quarterId": "tropical-islands"
+  },
+  {
+    "street": "николы теслы",
+    "house": "1",
+    "quarterId": "eurasia"
+  },
+  {
+    "street": "николы теслы",
+    "house": "10",
+    "quarterId": "south-europe"
+  },
+  {
+    "street": "николы теслы",
+    "house": "11",
+    "quarterId": "north-europe"
+  },
+  {
+    "street": "николы теслы",
+    "house": "12",
+    "quarterId": "south-europe"
+  },
+  {
+    "street": "николы теслы",
+    "house": "14",
+    "quarterId": "south-europe"
+  },
+  {
+    "street": "николы теслы",
+    "house": "15",
+    "quarterId": "mediterranean"
+  },
+  {
+    "street": "николы теслы",
+    "house": "16",
+    "quarterId": "central-europe"
+  },
+  {
+    "street": "николы теслы",
+    "house": "17",
+    "quarterId": "mediterranean"
+  },
+  {
+    "street": "николы теслы",
+    "house": "18",
+    "quarterId": "central-europe"
+  },
+  {
+    "street": "николы теслы",
+    "house": "19",
+    "quarterId": "mediterranean"
+  },
+  {
+    "street": "николы теслы",
+    "house": "2",
+    "quarterId": "north-america"
+  },
+  {
+    "street": "николы теслы",
+    "house": "24",
+    "quarterId": "mediterranean"
+  },
+  {
+    "street": "николы теслы",
+    "house": "25",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "николы теслы",
+    "house": "26",
+    "quarterId": "mediterranean"
+  },
+  {
+    "street": "николы теслы",
+    "house": "27",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "николы теслы",
+    "house": "28",
+    "quarterId": "south-america"
+  },
+  {
+    "street": "николы теслы",
+    "house": "29",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "николы теслы",
+    "house": "3",
+    "quarterId": "eurasia"
+  },
+  {
+    "street": "николы теслы",
+    "house": "31",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "николы теслы",
+    "house": "32",
+    "quarterId": "south-america"
+  },
+  {
+    "street": "николы теслы",
+    "house": "4",
+    "quarterId": "north-america"
+  },
+  {
+    "street": "николы теслы",
+    "house": "6",
+    "quarterId": "north-america"
+  },
+  {
+    "street": "николы теслы",
+    "house": "7",
+    "quarterId": "eurasia"
+  },
+  {
+    "street": "николы теслы",
+    "house": "8",
+    "quarterId": "south-europe"
+  },
+  {
+    "street": "николы теслы",
+    "house": "9",
+    "quarterId": "north-europe"
+  }
+]

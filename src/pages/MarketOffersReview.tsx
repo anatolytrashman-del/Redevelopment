@@ -33,6 +33,7 @@ import {
   dismissDuplicateGroup,
 } from '../lib/marketOffersApi';
 import { logActivity } from '../lib/activityLogApi';
+import { DistrictBusinessesTab } from '../components/marketOffers/DistrictBusinessesTab';
 import { FINISH_STATUSES, MARKET_PROPERTY_TYPES, areaBucket, dedupKey, netSize, netPricePerSqm } from '../data/marketOffers';
 import type { MarketOffer, FinishStatus } from '../data/marketOffers';
 
@@ -416,7 +417,7 @@ function OfferTableHead() {
   );
 }
 
-const PAGE_TABS = ['Верификация', 'Обсуждение'] as const;
+const PAGE_TABS = ['Верификация', 'Обсуждение', 'Дома'] as const;
 type PageTab = (typeof PAGE_TABS)[number];
 
 export function MarketOffersReview() {
@@ -1158,6 +1159,8 @@ export function MarketOffersReview() {
           )}
         </div>
       )}
+
+      {tab === 'Дома' && <DistrictBusinessesTab />}
 
       <Modal
         open={!!discussTarget}

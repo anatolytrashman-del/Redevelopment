@@ -1,0 +1,30 @@
+name: Sync district business points (Yandex Maps)
+
+on:
+  schedule:
+    # Раз в месяц, 2-го числа — та же логика, что и у sync-market-offers-
+    # stats.yml (список организаций по дому не меняется настолько быстро,
+    # чтобы собирать чаще). Сдвинут на день от market-offers, чтобы не
+    # запускаться одновременно.
+    - cron: '0 3 2 * *'
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Ограничить число домов (для теста, пусто = все)'
+        required: false
+        default: ''
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/sync-district-business-points.mjs ${{ github.event.inputs.limit && format('--limit={0}', github.event.inputs.limit) || '' }}
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          YANDEX_MAPS_COOKIE: ${{ secrets.YANDEX_MAPS_COOKIE }}

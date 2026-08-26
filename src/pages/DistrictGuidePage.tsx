@@ -1742,7 +1742,11 @@ export function DistrictGuidePage() {
         </div>
 
         <div id="primary-market" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex items-center justify-between gap-3">
+          {/* flex-col на мобильном — длинный заголовок + пилюля валюты в
+              одну строку не помещались на 375px, заголовок вылезал в 4
+              строки, сжатый пилюлей (тот же фикс, что и у заголовка карты
+              конкуренции по кварталам выше). */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-center gap-3">
               <Banknote className="h-5 w-5 shrink-0 text-ink" />
               <h2 className="text-lg font-bold text-ink">Первичный рынок коммерческой недвижимости</h2>
@@ -1829,7 +1833,10 @@ export function DistrictGuidePage() {
         </div>
 
         <div id="market" className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex items-center justify-between gap-3">
+          {/* flex-col на мобильном — тот же фикс, что и у "Первичного рынка"
+              выше (длинный заголовок + пилюля валюты не помещались в одну
+              строку на 375px). */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-center gap-3">
               <TrendingUp className="h-5 w-5 shrink-0 text-ink" />
               <h2 className="text-lg font-bold text-ink">Вторичный рынок коммерческой недвижимости</h2>
