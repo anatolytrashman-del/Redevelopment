@@ -25,12 +25,22 @@ async function fetchWithTimeout(url, options = {}) {
 function yandexHeaders() {
   const cookie = process.env.YANDEX_MAPS_COOKIE;
   if (!cookie) throw new Error('YANDEX_MAPS_COOKIE не задан в env');
+  // Первые попытки без этих заголовков поймали HTTP 400 — похоже на
+  // anti-bot по неполному набору заголовков реального Chrome (см. HAR:
+  // sec-ch-ua/sec-fetch-* там были у каждого запроса). Добавлены как есть,
+  // из реального запроса владельца.
   return {
     'User-Agent': UA,
     Accept: '*/*',
     'Accept-Language': 'ru-RU,ru;q=0.9',
     Referer: 'https://yandex.ru/maps/157/minsk/',
     Cookie: cookie,
+    'sec-ch-ua': '"Not=A?Brand";v="99", "Google Chrome";v="151", "Chromium";v="151"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"macOS"',
+    'sec-fetch-dest': 'empty',
+    'sec-fetch-mode': 'cors',
+    'sec-fetch-site': 'same-origin',
   };
 }
 
