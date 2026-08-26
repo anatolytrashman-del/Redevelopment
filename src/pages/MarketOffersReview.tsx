@@ -60,15 +60,19 @@ import type { MarketOffer, FinishStatus } from '../data/marketOffers';
 //
 // "Начать верификацию" — пошаговый режим поверх того же порядка: по одной
 // показывает либо ближайшую нерешённую группу дублей, либо (когда группы
-// кончились) ближайшее непроверенное одиночное объявление — сразу в
-// карточке редактирования. После решения группы/сохранения карточки
-// подставляется следующее автоматически (см. verifyGroupTarget/
-// verifySingleTarget ниже — оба выводятся реактивно из текущих данных, без
-// отдельной очереди с индексом, поэтому переживают удаления/отклонения
-// прямо во время прохода). "Пропустить" откладывает текущее до конца ЭТОЙ
-// сессии верификации (skippedGroupKeys/skippedSingleIds — сбрасываются
-// каждый раз при новом запуске), не путать с "Это разные помещения"
-// (постоянное решение в БД).
+// кончились) ближайшее непроверенное одиночное объявление. Оба случая
+// выглядят одинаково — карточка с адресом/площадью/этажом и мини-таблицей
+// (у группы — несколько строк-объявлений, у одиночного — одна), кнопка
+// "Обсудить с Анатолием" сверху, "Редактировать"/"Удалить"/"Не подходит" в
+// самой строке (открывают тот же общий модал редактирования, что и вне
+// верификации — не открывается автоматически, только по клику). После
+// решения группы/сохранения карточки подставляется следующее автоматически
+// (см. verifyGroupTarget/verifySingleTarget ниже — оба выводятся реактивно
+// из текущих данных, без отдельной очереди с индексом, поэтому переживают
+// удаления/отклонения прямо во время прохода). "Пропустить" откладывает
+// текущее до конца ЭТОЙ сессии верификации (skippedGroupKeys/
+// skippedSingleIds — сбрасываются каждый раз при новом запуске), не путать
+// с "Это разные помещения" (постоянное решение в БД).
 //
 // "Не подходит" (кнопка в строке) — для объявлений, которые Светлана
 // разобрала, но которые не годятся для сводки (не тот сегмент, явный
@@ -660,25 +664,10 @@ export function MarketOffersReview() {
     }
   }
 
-  // Во время верификации закрытие карточки (крестик/фон/"Пропустить") — это
-  // тоже пропуск текущего одиночного объявления, а не просто закрытие: иначе
-  // эффект ниже тут же открыл бы ту же карточку заново (цель не изменилась).
-  function closeOrSkipEdit() {
-    if (verifying && editingOffer) {
-      setSkippedSingleIds((prev) => new Set(prev).add(editingOffer.id));
-    }
+  function closeEdit() {
     setEditingOffer(null);
     setEditForm(null);
   }
-
-  // Подставляет карточку редактирования для текущей цели-одиночки во время
-  // верификации — как только сохранение/пропуск меняют verifySingleTarget,
-  // здесь открывается следующая.
-  useEffect(() => {
-    if (verifySingleTarget && editingOffer?.id !== verifySingleTarget.id) {
-      openEdit(verifySingleTarget);
-    }
-  }, [verifySingleTarget, editingOffer]);
 
   async function handleEditSubmit(e: FormEvent) {
     e.preventDefault();
@@ -850,9 +839,38 @@ export function MarketOffersReview() {
                   </div>
                 </div>
               ) : verifySingleTarget ? (
-                <p className="py-10 text-center text-sm text-ink-faint">
-                  Заполните карточку редактирования и сохраните — следующее объявление откроется само.
-                </p>
+                <div className={cn('flex flex-col gap-3 p-4', glassCardClass)} style={glassCardShadow}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm text-ink-muted">
+                      <span className="font-semibold text-ink">{verifySingleTarget.address ?? 'без адреса'}</span> ·{' '}
+                      {verifySingleTarget.size} м² · этаж {verifySingleTarget.floor ?? '?'}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="secondary"
+                        icon={<MessageCircleQuestion className="h-4 w-4" />}
+                        onClick={() => openDiscussModal([verifySingleTarget.id], discussLabel(verifySingleTarget))}
+                      >
+                        Обсудить с Анатолием
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[900px] border-collapse text-sm">
+                      <OfferTableHead />
+                      <tbody className="divide-y divide-border">
+                        <OfferRow
+                          offer={verifySingleTarget}
+                          pending={pendingId === verifySingleTarget.id}
+                          onEdit={openEdit}
+                          onDelete={handleDelete}
+                          onToggleReject={handleToggleReject}
+                          onDiscuss={(o) => openDiscussModal([o.id], discussLabel(o))}
+                        />
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               ) : (
                 <div className={cn('flex flex-col items-center gap-2 p-8 text-center', glassCardClass)} style={glassCardShadow}>
                   <CheckCircle2 className="h-8 w-8 text-success" />
@@ -1090,7 +1108,7 @@ export function MarketOffersReview() {
         </div>
       </Modal>
 
-      <Modal open={!!editingOffer} onClose={closeOrSkipEdit} title="Редактировать объявление">
+      <Modal open={!!editingOffer} onClose={closeEdit} title="Редактировать объявление">
         {editForm && (
           <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
             {(editingOffer?.discussionNote || editingOffer?.ownerNote) && (
@@ -1213,8 +1231,8 @@ export function MarketOffersReview() {
                 </button>
               </div>
               <div className="flex flex-1 justify-end gap-3">
-                <Button type="button" variant="secondary" onClick={closeOrSkipEdit}>
-                  {verifying ? 'Пропустить' : 'Отмена'}
+                <Button type="button" variant="secondary" onClick={closeEdit}>
+                  Отмена
                 </Button>
                 <Button type="submit" disabled={saving}>
                   {saving ? 'Сохраняем…' : 'Сохранить'}
