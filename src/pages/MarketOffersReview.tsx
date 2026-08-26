@@ -226,6 +226,23 @@ function offerToForm(offer: MarketOffer): EditFormState {
   };
 }
 
+// Открывает объявление источника (Kufar/Realt) в отдельном окне на
+// половину экрана, а не просто в новой вкладке — Светлане больше не нужно
+// переключаться между вкладками с CRM и с источником: окно вылезает сразу
+// нужного размера/позиции. Встроить сам сайт источника в iframe нельзя —
+// такие площадки блокируют встраивание через X-Frame-Options/CSP, поэтому
+// это отдельное окно, не разбитая на две части страница. Размер и позиция
+// считаются от РЕАЛЬНОГО экрана в момент клика (window.screen), а не
+// зашиты заранее — подстраивается под любой монитор. Одно и то же имя окна
+// ('market-offer-check') — повторный клик по другому объявлению переиспользует
+// то же окно (просто переходит на новый адрес), а не плодит новые окна.
+function openAdWindow(url: string) {
+  const width = Math.round(window.screen.availWidth / 2);
+  const height = window.screen.availHeight;
+  const left = window.screen.availWidth - width;
+  window.open(url, 'market-offer-check', `width=${width},height=${height},left=${left},top=0`);
+}
+
 function discussLabel(offer: MarketOffer): string {
   return `${offer.address ?? 'без адреса'} · ${offer.size} м²`;
 }
@@ -262,6 +279,15 @@ function OfferRow({
             href={offer.adLink}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={(e) => {
+              // Обычный клик — открываем позиционированное окно (см.
+              // openAdWindow). Ctrl/Cmd/Shift/средняя кнопка — оставляем
+              // браузеру штатное поведение (открыть в новой вкладке и т.п.),
+              // не мешаем привычным жестам.
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+              e.preventDefault();
+              openAdWindow(offer.adLink!);
+            }}
             className="flex min-w-0 items-center gap-1 text-ink hover:underline"
           >
             <span className="truncate">{offer.address ?? '—'}</span>
