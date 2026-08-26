@@ -176,3 +176,35 @@ export const QUARTER_HOUSE_INDEX: Record<string, string> = {
   // пока без адреса — добавить, когда владелец пришлёт.
   "площадь старый аэропорт|2": 'zvezdny',
 };
+
+// Кварталы, которые на 2026-08-26 ещё НЕ сданы (владелец: "Австралия и
+// Океания, кроме Avia Mall, он сдан / Звёздный / Западный / улица Игоря
+// Лученка 10,12,14 / улица Михаила Савицкого 21,19,15,11 / улица Николы
+// Теслы 33 / Остальное сдано") — в QUARTER_HOUSE_INDEX эти конкретные
+// не сданные адреса ещё не встречались вовсе, поэтому исключить хватает
+// на уровне целых кварталов: 'everest' целиком — это как раз только дом
+// Николы Теслы 33, 'zvezdny' — только Лира, обе ещё не сданы. Avia Mall
+// (сдан, но входит в несданный квартал 'australia-oceania') в справочнике
+// пока нет адресом — добавить отдельно, когда появится.
+export const NOT_DELIVERED_QUARTER_IDS = new Set(['australia-oceania', 'zapadny', 'zvezdny', 'everest']);
+
+export interface DeliveredHouse {
+  street: string;
+  house: string;
+  quarterId: string;
+}
+
+// Список домов для сбора организаций (см. MarketOffersReview.tsx, вкладка
+// "Дома") — все дома справочника застройщика минус несданные кварталы.
+// Единый источник и для этого списка, и для будущей регенерации
+// scripts/data/district-houses.json (используется в дремлющем
+// scripts/sync-district-business-points.mjs, см. журнал CLAUDE.md
+// 2026-08-26 про блокировку по IP на GitHub Actions).
+export function getDeliveredHouses(): DeliveredHouse[] {
+  return Object.entries(QUARTER_HOUSE_INDEX)
+    .filter(([, quarterId]) => !NOT_DELIVERED_QUARTER_IDS.has(quarterId))
+    .map(([key, quarterId]) => {
+      const [street, house] = key.split('|');
+      return { street, house, quarterId };
+    });
+}
