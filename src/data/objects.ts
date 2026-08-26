@@ -14,6 +14,21 @@ export interface DemandLink {
   url: string;
 }
 
+// Дополнительный контакт собственника — тот же набор полей, что и у
+// основного (owner/ownerContact/contactName/contactPosition/contactChannel),
+// но независимая карточка ("плитка"): у собственника бывает несколько
+// контактных лиц (юрист, представитель по лизингу и т.п.), каждое со своим
+// именем/должностью/каналом связи. Основной контакт остаётся отдельными
+// полями (обязателен для сохранения объекта), эти — открытый список сверху.
+export interface OwnerContact {
+  contact: string;
+  name: string;
+  position: string;
+  channel: ContactChannel | '';
+}
+
+export const emptyOwnerContact: OwnerContact = { contact: '', name: '', position: '', channel: '' };
+
 // Технический паспорт здания — необязательный блок, заполняется отдельно
 // от основной формы объекта (см. BuildingSpecsModal). Числовые поля — null,
 // если значение неизвестно; хранится единым JSONB-полем, поэтому ключи здесь
@@ -122,6 +137,8 @@ export interface RealtyObject {
   contactName: string;
   contactPosition: string;
   contactChannel: ContactChannel | '';
+  // Дополнительные контакты собственника сверх основного — см. OwnerContact.
+  additionalContacts: OwnerContact[];
   notes: string;
   concept: string;
   demandLinks: DemandLink[];
@@ -178,6 +195,7 @@ export interface RealtyObjectRow {
   contact_name: string | null;
   contact_position: string | null;
   contact_channel: string | null;
+  additional_contacts: OwnerContact[] | null;
   notes: string;
   concept: string | null;
   demand_links: DemandLink[] | null;

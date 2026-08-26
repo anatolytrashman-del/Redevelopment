@@ -15,6 +15,8 @@ import {
   zonePrice,
   workstationsRemaining,
   WORKSTATION_PRICE,
+  BATHROOM_ADDON_PRICE,
+  BATHROOM_ADDON_LABEL,
   type BuildingPlanZone,
   type ZoneStatus,
   type ZoneType,
@@ -249,12 +251,18 @@ export function ZoneDetailModal({ zone, leads, documents, onClose, onUpdated, on
                       <>
                         <div className="flex items-center gap-1.5">
                           <span className="text-ink-muted">Общая стоимость</span>
-                          <span className="font-medium text-ink">{formatMoney(zonePrice(zone.area))}</span>
+                          <span className="font-medium text-ink">{formatMoney(zonePrice(zone.area, zone.features))}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <span className="text-ink-muted">Первый взнос</span>
-                          <span className="font-medium text-ink">{formatMoney(zoneDownPayment(zone.area))}</span>
+                          <span className="font-medium text-ink">{formatMoney(zoneDownPayment(zone.area, zone.features))}</span>
                         </div>
+                        {zone.features.includes('Свой санузел') && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-ink-muted">{BATHROOM_ADDON_LABEL}</span>
+                            <span className="font-medium text-ink">+{formatMoney(BATHROOM_ADDON_PRICE)}</span>
+                          </div>
+                        )}
                       </>
                     )}
                     <div className="flex items-center gap-1.5">

@@ -452,8 +452,12 @@ export function BuildingPlanCanvas({
                   </span>
                   {!hidePricing && hoverZone.zone.area != null && (
                     <>
-                      <span className="text-ink-muted">Стоимость: {formatMoney(zonePrice(hoverZone.zone.area))}</span>
-                      <span className="text-ink-muted">Первый взнос: {formatMoney(zoneDownPayment(hoverZone.zone.area))}</span>
+                      <span className="text-ink-muted">
+                        Стоимость: {formatMoney(zonePrice(hoverZone.zone.area, hoverZone.zone.features))}
+                      </span>
+                      <span className="text-ink-muted">
+                        Первый взнос: {formatMoney(zoneDownPayment(hoverZone.zone.area, hoverZone.zone.features))}
+                      </span>
                     </>
                   )}
                   {hoverZone.zone.features.length > 0 && (

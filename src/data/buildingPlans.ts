@@ -36,12 +36,20 @@ export interface ZonePoint {
 export const PRICE_PER_METER = 2100;
 export const DOWN_PAYMENT_RATE = 0.1;
 
-export function zonePrice(area: number): number {
-  return area * PRICE_PER_METER;
+// Наценка за кабинет со своим санузлом (feature 'Свой санузел') — фиксированная
+// добавка к цене, не зависит от площади. Не путать с WET_POINT_ADDON_PRICE в
+// PublicPlanAndUnits.tsx — та опциональная доплата, которую клиент выбирает сам
+// при бронировании ("можно сделать мокрую точку"), эта же — постоянная часть
+// цены кабинета, у которого санузел уже есть.
+export const BATHROOM_ADDON_PRICE = 3500;
+export const BATHROOM_ADDON_LABEL = 'Отдельный санузел';
+
+export function zonePrice(area: number, features: string[] = []): number {
+  return area * PRICE_PER_METER + (features.includes('Свой санузел') ? BATHROOM_ADDON_PRICE : 0);
 }
 
-export function zoneDownPayment(area: number): number {
-  return zonePrice(area) * DOWN_PAYMENT_RATE;
+export function zoneDownPayment(area: number, features: string[] = []): number {
+  return zonePrice(area, features) * DOWN_PAYMENT_RATE;
 }
 
 // Фиксированное рабочее место — отдельный формат лота внутри зоны-кабинета:

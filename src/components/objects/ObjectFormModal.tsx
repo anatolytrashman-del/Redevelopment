@@ -6,7 +6,15 @@ import { Select } from '../ui/Select';
 import { AddableSelect } from '../ui/AddableSelect';
 import { Textarea } from '../ui/Textarea';
 import { Modal } from '../ui/Modal';
-import { contactChannels, pricePerMeter, type ContactChannel, type ObjectDocumentFile, type RealtyObject } from '../../data/objects';
+import {
+  contactChannels,
+  pricePerMeter,
+  emptyOwnerContact,
+  type ContactChannel,
+  type ObjectDocumentFile,
+  type OwnerContact,
+  type RealtyObject,
+} from '../../data/objects';
 import { insertObject, updateObject, uploadObjectDocument, uploadObjectImage } from '../../lib/objectsApi';
 
 const MAX_PHOTOS = 10;
@@ -38,6 +46,7 @@ const emptyForm = {
   contactName: '',
   contactPosition: '',
   contactChannel: '' as ContactChannel | '',
+  additionalContacts: [] as OwnerContact[],
   notes: '',
   landingSlug: '',
   renderImageUrls: [] as string[],
@@ -61,6 +70,7 @@ function objectToForm(o: RealtyObject) {
     contactName: o.contactName,
     contactPosition: o.contactPosition,
     contactChannel: o.contactChannel,
+    additionalContacts: o.additionalContacts,
     notes: o.notes,
     landingSlug: o.landingSlug,
     renderImageUrls: o.renderImageUrls,
@@ -203,6 +213,21 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
     setForm((f) => ({ ...f, renderImageUrls: f.renderImageUrls.filter((_, i) => i !== index) }));
   }
 
+  function addAdditionalContact() {
+    setForm((f) => ({ ...f, additionalContacts: [...f.additionalContacts, { ...emptyOwnerContact }] }));
+  }
+
+  function updateAdditionalContact(index: number, patch: Partial<OwnerContact>) {
+    setForm((f) => ({
+      ...f,
+      additionalContacts: f.additionalContacts.map((c, i) => (i === index ? { ...c, ...patch } : c)),
+    }));
+  }
+
+  function removeAdditionalContact(index: number) {
+    setForm((f) => ({ ...f, additionalContacts: f.additionalContacts.filter((_, i) => i !== index) }));
+  }
+
   async function handleAgreementSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -243,6 +268,7 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
       contactName: form.contactName,
       contactPosition: form.contactPosition,
       contactChannel: form.contactChannel,
+      additionalContacts: form.additionalContacts,
       notes: form.notes,
       landingSlug: form.landingSlug.trim(),
       concept: editing?.concept ?? '',
@@ -566,6 +592,61 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
           value={form.contactChannel}
           onChange={(v) => setForm((f) => ({ ...f, contactChannel: v as ContactChannel }))}
         />
+
+        {form.additionalContacts.length > 0 && (
+          <div className="flex flex-col gap-3">
+            {form.additionalContacts.map((contact, i) => (
+              <div key={i} className="flex flex-col gap-3 rounded-control border border-border p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold text-ink">Ещё контакт</span>
+                  <button
+                    type="button"
+                    onClick={() => removeAdditionalContact(i)}
+                    aria-label="Удалить контакт"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-danger"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Input
+                    label="Контакт"
+                    placeholder="Телефон, Telegram..."
+                    value={contact.contact}
+                    onChange={(e) => updateAdditionalContact(i, { contact: e.target.value })}
+                  />
+                  <Input
+                    label="Имя"
+                    placeholder="Имя контактного лица"
+                    value={contact.name}
+                    onChange={(e) => updateAdditionalContact(i, { name: e.target.value })}
+                  />
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Input
+                    label="Должность"
+                    placeholder="Например, Юрист"
+                    value={contact.position}
+                    onChange={(e) => updateAdditionalContact(i, { position: e.target.value })}
+                  />
+                  <Select
+                    label="Где общаемся"
+                    options={[...contactChannels]}
+                    value={contact.channel}
+                    onChange={(v) => updateAdditionalContact(i, { channel: v as ContactChannel })}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={addAdditionalContact}
+          className="flex w-fit items-center gap-2 text-sm font-medium text-ink-muted hover:text-primary"
+        >
+          + Ещё контакт собственника
+        </button>
 
         <Textarea
           label="Заметки по объекту"

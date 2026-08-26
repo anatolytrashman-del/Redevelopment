@@ -75,7 +75,7 @@ export function AvailableUnitsTable({
         zone: z,
         isWorkstation,
         area: isWorkstation ? null : (z.area as number),
-        price: isWorkstation ? WORKSTATION_PRICE : zonePrice(z.area as number),
+        price: isWorkstation ? WORKSTATION_PRICE : zonePrice(z.area as number, z.features),
         floor: planNameById.get(z.buildingPlanId) ?? '—',
         remaining: isWorkstation ? workstationsRemaining(z) : null,
         total: isWorkstation ? z.workstationCount : null,

@@ -380,11 +380,15 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
                         </div>
                         <div className="flex items-center justify-between gap-3 py-2">
                           <span className="text-ink-muted">Общая стоимость</span>
-                          <span className="font-medium text-ink">{formatMoney(zonePrice(selectedZone.area))}</span>
+                          <span className="font-medium text-ink">
+                            {formatMoney(zonePrice(selectedZone.area, selectedZone.features))}
+                          </span>
                         </div>
                         <div className="flex items-center justify-between gap-3 py-2">
                           <span className="text-ink-muted">Первый взнос</span>
-                          <span className="font-medium text-ink">{formatMoney(zoneDownPayment(selectedZone.area))}</span>
+                          <span className="font-medium text-ink">
+                            {formatMoney(zoneDownPayment(selectedZone.area, selectedZone.features))}
+                          </span>
                         </div>
                       </>
                     )}
@@ -462,7 +466,8 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
                             </label>
                             {wetPointAddon && selectedZone.area != null && (
                               <p className="pl-6 text-xs text-ink-muted">
-                                Итого с допоплатой: {formatMoney(zonePrice(selectedZone.area) + WET_POINT_ADDON_PRICE)}
+                                Итого с допоплатой:{' '}
+                                {formatMoney(zonePrice(selectedZone.area, selectedZone.features) + WET_POINT_ADDON_PRICE)}
                               </p>
                             )}
                           </div>

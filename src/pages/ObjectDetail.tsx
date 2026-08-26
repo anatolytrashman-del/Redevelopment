@@ -53,6 +53,48 @@ function formatNum(value: number) {
   return value.toLocaleString('ru-RU', { maximumFractionDigits: 4 });
 }
 
+// Один контакт собственника — "плитка" (см. ObjectFormModal, где список таких
+// контактов растёт кнопкой "+ Ещё контакт"). Основной контакт и все
+// дополнительные рендерятся этим же компонентом, чтобы выглядели одинаково.
+function OwnerContactTile({
+  contact,
+  name,
+  position,
+  channel,
+}: {
+  contact: string;
+  name: string;
+  position: string;
+  channel: string;
+}) {
+  return (
+    <div className="flex flex-col gap-2 rounded-control bg-surface-muted px-3 py-2.5">
+      <div>
+        <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Контакт</div>
+        <div className="font-semibold text-ink">{contact}</div>
+      </div>
+      {name && (
+        <div>
+          <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Имя</div>
+          <div className="font-semibold text-ink">{name}</div>
+        </div>
+      )}
+      {position && (
+        <div>
+          <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Должность</div>
+          <div className="font-semibold text-ink">{position}</div>
+        </div>
+      )}
+      {channel && (
+        <div>
+          <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Где общаемся</div>
+          <div className="font-semibold text-ink">{channel}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ObjectDetail() {
   const { id } = useParams();
   const [object, setObject] = useState<RealtyObject | null>(null);
@@ -451,28 +493,17 @@ export function ObjectDetail() {
                 <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Собственник</div>
                 <div className="font-semibold text-ink">{object.owner}</div>
               </div>
-              <div>
-                <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Контакт</div>
-                <div className="font-semibold text-ink">{object.ownerContact}</div>
+              <div className="flex flex-col gap-3">
+                <OwnerContactTile
+                  contact={object.ownerContact}
+                  name={object.contactName}
+                  position={object.contactPosition}
+                  channel={object.contactChannel}
+                />
+                {object.additionalContacts.map((c, i) => (
+                  <OwnerContactTile key={i} contact={c.contact} name={c.name} position={c.position} channel={c.channel} />
+                ))}
               </div>
-              {object.contactName && (
-                <div>
-                  <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Имя</div>
-                  <div className="font-semibold text-ink">{object.contactName}</div>
-                </div>
-              )}
-              {object.contactPosition && (
-                <div>
-                  <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Должность</div>
-                  <div className="font-semibold text-ink">{object.contactPosition}</div>
-                </div>
-              )}
-              {object.contactChannel && (
-                <div>
-                  <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Где общаемся</div>
-                  <div className="font-semibold text-ink">{object.contactChannel}</div>
-                </div>
-              )}
             </Card>
           </div>
 
