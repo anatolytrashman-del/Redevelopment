@@ -425,11 +425,6 @@
     "quarterId": "north-europe"
   },
   {
-    "street": "левкова",
-    "house": "45",
-    "quarterId": "tropical-islands"
-  },
-  {
     "street": "леонида щемелёва",
     "house": "10",
     "quarterId": "south-america"
@@ -487,7 +482,7 @@
   {
     "street": "михаила савицкого",
     "house": "2",
-    "quarterId": "tropical-islands"
+    "quarterId": "asia"
   },
   {
     "street": "михаила савицкого",
@@ -517,7 +512,7 @@
   {
     "street": "михаила савицкого",
     "house": "4",
-    "quarterId": "tropical-islands"
+    "quarterId": "asia"
   },
   {
     "street": "михаила савицкого",
@@ -532,7 +527,7 @@
   {
     "street": "михаила савицкого",
     "house": "8",
-    "quarterId": "tropical-islands"
+    "quarterId": "asia"
   },
   {
     "street": "николы теслы",
