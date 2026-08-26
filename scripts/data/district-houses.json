@@ -51,6 +51,21 @@
   },
   {
     "street": "белградская",
+    "house": "9",
+    "quarterId": "north-europe"
+  },
+  {
+    "street": "белградская",
+    "house": "11",
+    "quarterId": "north-europe"
+  },
+  {
+    "street": "белградская",
+    "house": "13",
+    "quarterId": "north-europe"
+  },
+  {
+    "street": "белградская",
     "house": "6",
     "quarterId": "eurasia"
   },
@@ -465,13 +480,13 @@
     "quarterId": "north-america"
   },
   {
-    "street": "корш-ситникова",
-    "house": "3",
+    "street": "кижеватова",
+    "house": "5",
     "quarterId": "north-europe"
   },
   {
-    "street": "корш-ситникова",
-    "house": "5",
+    "street": "кижеватова",
+    "house": "5А",
     "quarterId": "north-europe"
   },
   {
@@ -543,6 +558,31 @@
     "street": "мира",
     "house": "10",
     "quarterId": "central-europe"
+  },
+  {
+    "street": "мира",
+    "house": "12",
+    "quarterId": "north-europe"
+  },
+  {
+    "street": "мира",
+    "house": "14",
+    "quarterId": "north-europe"
+  },
+  {
+    "street": "мира",
+    "house": "16",
+    "quarterId": "north-europe"
+  },
+  {
+    "street": "мира",
+    "house": "18",
+    "quarterId": "north-europe"
+  },
+  {
+    "street": "мира",
+    "house": "20",
+    "quarterId": "north-europe"
   },
   {
     "street": "михаила савицкого",
@@ -753,11 +793,6 @@
     "street": "николы теслы",
     "house": "8",
     "quarterId": "africa"
-  },
-  {
-    "street": "николы теслы",
-    "house": "9",
-    "quarterId": "north-europe"
   },
   {
     "street": "площадь старый аэропорт",
