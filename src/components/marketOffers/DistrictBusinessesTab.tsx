@@ -383,7 +383,11 @@ function HouseModal({
   // само по себе не идеальный сигнал (у реальной сети ПВЗ Ozon в этой же
   // точке тоже 0), поэтому не исключаем автоматически — только подсвечиваем
   // "нет оценок" и даём снять галочку вручную.
-  const [excludedTitles, setExcludedTitles] = useState<Set<string>>(new Set());
+  // Реальный баг (владелец, 2026-08-26): два разных Ozon в одном доме
+  // (разные ПВЗ) делят одно название — исключение по строке title снимало
+  // галочку у ОБОИХ разом. Индекс в pendingDiff.toAdd однозначно определяет
+  // конкретную строку, название может повторяться сколько угодно раз.
+  const [excludedIndexes, setExcludedIndexes] = useState<Set<number>>(new Set());
   const [applying, setApplying] = useState(false);
   const [fileError, setFileError] = useState('');
   const [dragOver, setDragOver] = useState(false);
@@ -391,7 +395,7 @@ function HouseModal({
   async function handleFile(file: File) {
     setFileError('');
     setPendingDiff(null);
-    setExcludedTitles(new Set());
+    setExcludedIndexes(new Set());
     try {
       const buffer = await file.arrayBuffer();
       const text = new TextDecoder('utf-8').decode(buffer);
@@ -420,7 +424,7 @@ function HouseModal({
 
   async function confirmDiff() {
     if (!pendingDiff) return;
-    const toAdd = pendingDiff.toAdd.filter((e) => !excludedTitles.has(e.title));
+    const toAdd = pendingDiff.toAdd.filter((_, i) => !excludedIndexes.has(i));
     const diffToApply: HouseDiff = { ...pendingDiff, toAdd };
     setApplying(true);
     try {
@@ -570,20 +574,20 @@ function HouseModal({
                   Добавятся — сними галочку у тех, что не похожи на настоящий бизнес (например, услуги жителя со
                   своей квартиры)
                 </p>
-                {pendingDiff.toAdd.map((e) => {
-                  const excluded = excludedTitles.has(e.title);
+                {pendingDiff.toAdd.map((e, i) => {
+                  const excluded = excludedIndexes.has(i);
                   const noReviews = e.reviewCount === null;
                   return (
-                    <label key={e.title} className="flex items-start gap-2 text-sm">
+                    <label key={`${e.title}-${i}`} className="flex items-start gap-2 text-sm">
                       <input
                         type="checkbox"
                         className="mt-1 shrink-0"
                         checked={!excluded}
                         onChange={() =>
-                          setExcludedTitles((prev) => {
+                          setExcludedIndexes((prev) => {
                             const next = new Set(prev);
-                            if (next.has(e.title)) next.delete(e.title);
-                            else next.add(e.title);
+                            if (next.has(i)) next.delete(i);
+                            else next.add(i);
                             return next;
                           })
                         }
@@ -621,7 +625,7 @@ function HouseModal({
               <Button type="button" onClick={confirmDiff} disabled={applying}>
                 {applying
                   ? 'Применяем…'
-                  : `Применить (добавится ${pendingDiff.toAdd.length - excludedTitles.size})`}
+                  : `Применить (добавится ${pendingDiff.toAdd.length - excludedIndexes.size})`}
               </Button>
             </div>
           </div>
