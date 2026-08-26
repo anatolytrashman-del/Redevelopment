@@ -46,6 +46,16 @@
   },
   {
     "street": "белградская",
+    "house": "6",
+    "quarterId": "eurasia"
+  },
+  {
+    "street": "белградская",
+    "house": "8",
+    "quarterId": "eurasia"
+  },
+  {
+    "street": "белградская",
     "house": "16",
     "quarterId": "north-america"
   },
@@ -277,7 +287,7 @@
   {
     "street": "игоря лученка",
     "house": "1",
-    "quarterId": "north-europe"
+    "quarterId": "eurasia"
   },
   {
     "street": "игоря лученка",
@@ -362,7 +372,7 @@
   {
     "street": "игоря лученка",
     "house": "3",
-    "quarterId": "north-europe"
+    "quarterId": "eurasia"
   },
   {
     "street": "игоря лученка",
@@ -386,18 +396,23 @@
   },
   {
     "street": "игоря лученка",
+    "house": "5",
+    "quarterId": "eurasia"
+  },
+  {
+    "street": "игоря лученка",
     "house": "6",
     "quarterId": "eurasia"
   },
   {
     "street": "игоря лученка",
     "house": "7",
-    "quarterId": "asia"
+    "quarterId": "eurasia"
   },
   {
     "street": "игоря лученка",
     "house": "9",
-    "quarterId": "asia"
+    "quarterId": "eurasia"
   },
   {
     "street": "кижеватова",
@@ -547,7 +562,7 @@
   {
     "street": "николы теслы",
     "house": "10",
-    "quarterId": "south-europe"
+    "quarterId": "eurasia"
   },
   {
     "street": "николы теслы",
@@ -557,12 +572,12 @@
   {
     "street": "николы теслы",
     "house": "12",
-    "quarterId": "south-europe"
+    "quarterId": "eurasia"
   },
   {
     "street": "николы теслы",
     "house": "14",
-    "quarterId": "south-europe"
+    "quarterId": "eurasia"
   },
   {
     "street": "николы теслы",
@@ -653,11 +668,6 @@
     "street": "николы теслы",
     "house": "6",
     "quarterId": "north-america"
-  },
-  {
-    "street": "николы теслы",
-    "house": "7",
-    "quarterId": "eurasia"
   },
   {
     "street": "николы теслы",
