@@ -71,8 +71,18 @@
   },
   {
     "street": "братская",
+    "house": "11",
+    "quarterId": "tropical-islands"
+  },
+  {
+    "street": "братская",
     "house": "12",
     "quarterId": "emirates"
+  },
+  {
+    "street": "братская",
+    "house": "13",
+    "quarterId": "tropical-islands"
   },
   {
     "street": "братская",
@@ -81,8 +91,18 @@
   },
   {
     "street": "братская",
+    "house": "15",
+    "quarterId": "tropical-islands"
+  },
+  {
+    "street": "братская",
     "house": "16",
     "quarterId": "emirates"
+  },
+  {
+    "street": "братская",
+    "house": "17",
+    "quarterId": "tropical-islands"
   },
   {
     "street": "братская",
@@ -216,6 +236,11 @@
   },
   {
     "street": "жореса алфёрова",
+    "house": "16",
+    "quarterId": "tropical-islands"
+  },
+  {
+    "street": "жореса алфёрова",
     "house": "2",
     "quarterId": "mediterranean"
   },
@@ -307,7 +332,7 @@
   {
     "street": "игоря лученка",
     "house": "24",
-    "quarterId": "africa"
+    "quarterId": "tropical-islands"
   },
   {
     "street": "игоря лученка",
@@ -317,7 +342,7 @@
   {
     "street": "игоря лученка",
     "house": "26",
-    "quarterId": "africa"
+    "quarterId": "tropical-islands"
   },
   {
     "street": "игоря лученка",
