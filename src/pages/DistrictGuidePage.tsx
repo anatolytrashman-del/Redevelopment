@@ -1788,7 +1788,7 @@ export function DistrictGuidePage() {
                       onClick={() => setPrimaryMarketProKey(row.key)}
                       className="cursor-pointer hover:bg-surface-muted"
                     >
-                      <th scope="row" className="py-2.5 pr-3 text-left font-medium text-ink">{row.label}</th>
+                      <th scope="row" className="whitespace-nowrap py-2.5 pr-3 text-left font-medium text-ink">{row.label}</th>
                       <td className="py-2.5 px-2 text-right tabular-nums text-ink">{row.count}</td>
                       <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-faint">
                         {row.areaMin === row.areaMax ? `${row.areaMin}` : `${row.areaMin}–${row.areaMax}`} м²
