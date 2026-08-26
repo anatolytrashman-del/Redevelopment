@@ -440,8 +440,16 @@ function HouseModal({
       );
       setPendingDiff(null);
       onClose();
-    } catch {
-      setFileError('Не удалось сохранить изменения — попробуйте ещё раз.');
+    } catch (err) {
+      // Реальная причина сюда попадала не всегда — раньше catch без параметра
+      // всегда показывал один и тот же generic текст, даже когда Supabase
+      // вернул конкретную ошибку (RLS/схема/сеть). Теперь настоящее сообщение
+      // дописывается рядом — так можно отличить холодный старт (см. withRetry
+      // в CLAUDE.md) от реальной проблемы, не гадая вслепую.
+      const detail = err instanceof Error ? err.message : typeof err === 'string' ? err : null;
+      setFileError(
+        `Не удалось сохранить изменения — попробуйте ещё раз.${detail ? ` (${detail})` : ''}`,
+      );
     } finally {
       setApplying(false);
     }
