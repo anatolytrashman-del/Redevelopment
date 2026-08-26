@@ -456,6 +456,11 @@
   },
   {
     "street": "леонида левина",
+    "house": "2",
+    "quarterId": "africa"
+  },
+  {
+    "street": "леонида левина",
     "house": "8",
     "quarterId": "asia"
   },
@@ -511,13 +516,13 @@
   },
   {
     "street": "михаила савицкого",
-    "house": "12",
-    "quarterId": "asia"
+    "house": "1",
+    "quarterId": "africa"
   },
   {
     "street": "михаила савицкого",
-    "house": "14",
-    "quarterId": "africa"
+    "house": "12",
+    "quarterId": "asia"
   },
   {
     "street": "михаила савицкого",
@@ -541,6 +546,11 @@
   },
   {
     "street": "михаила савицкого",
+    "house": "3",
+    "quarterId": "africa"
+  },
+  {
+    "street": "михаила савицкого",
     "house": "35",
     "quarterId": "western-europe"
   },
@@ -553,6 +563,11 @@
     "street": "михаила савицкого",
     "house": "4",
     "quarterId": "asia"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "5",
+    "quarterId": "africa"
   },
   {
     "street": "михаила савицкого",
@@ -667,17 +682,17 @@
   {
     "street": "николы теслы",
     "house": "4",
-    "quarterId": "north-america"
+    "quarterId": "africa"
   },
   {
     "street": "николы теслы",
     "house": "6",
-    "quarterId": "north-america"
+    "quarterId": "africa"
   },
   {
     "street": "николы теслы",
     "house": "8",
-    "quarterId": "south-europe"
+    "quarterId": "africa"
   },
   {
     "street": "николы теслы",
