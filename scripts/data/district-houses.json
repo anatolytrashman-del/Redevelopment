@@ -371,7 +371,37 @@
   },
   {
     "street": "игоря лученка",
+    "house": "10",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "12",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "14",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "16",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "игоря лученка",
     "house": "2",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "2А",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "2Б",
     "quarterId": "happy-planet"
   },
   {
@@ -461,6 +491,11 @@
   },
   {
     "street": "игоря лученка",
+    "house": "8",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "игоря лученка",
     "house": "9",
     "quarterId": "eurasia"
   },
@@ -516,6 +551,11 @@
   },
   {
     "street": "леонида левина",
+    "house": "1",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "леонида левина",
     "house": "11",
     "quarterId": "north-america"
   },
@@ -526,8 +566,33 @@
   },
   {
     "street": "леонида левина",
+    "house": "1А",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "леонида левина",
+    "house": "1Б",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "леонида левина",
     "house": "2",
     "quarterId": "africa"
+  },
+  {
+    "street": "леонида левина",
+    "house": "3",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "леонида левина",
+    "house": "5",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "леонида левина",
+    "house": "7",
+    "quarterId": "happy-planet"
   },
   {
     "street": "леонида левина",
@@ -636,13 +701,43 @@
   },
   {
     "street": "михаила савицкого",
+    "house": "9",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "11",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "михаила савицкого",
     "house": "12",
     "quarterId": "asia"
   },
   {
     "street": "михаила савицкого",
+    "house": "13",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "михаила савицкого",
     "house": "14",
     "quarterId": "north-america"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "15",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "17",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "19",
+    "quarterId": "happy-planet"
   },
   {
     "street": "михаила савицкого",
@@ -656,8 +751,18 @@
   },
   {
     "street": "михаила савицкого",
+    "house": "21",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "михаила савицкого",
     "house": "22",
     "quarterId": "north-america"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "23",
+    "quarterId": "happy-planet"
   },
   {
     "street": "михаила савицкого",
@@ -786,18 +891,8 @@
   },
   {
     "street": "николы теслы",
-    "house": "25",
-    "quarterId": "happy-planet"
-  },
-  {
-    "street": "николы теслы",
     "house": "26",
     "quarterId": "mediterranean"
-  },
-  {
-    "street": "николы теслы",
-    "house": "27",
-    "quarterId": "happy-planet"
   },
   {
     "street": "николы теслы",
