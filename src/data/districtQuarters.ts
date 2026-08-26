@@ -208,3 +208,18 @@ export function getDeliveredHouses(): DeliveredHouse[] {
       return { street, house, quarterId };
     });
 }
+
+// Обратный список — дома целых несданных кварталов (см.
+// NOT_DELIVERED_QUARTER_IDS выше). Отдельно от district_house_flags
+// (Supabase) — там дома, отмеченные как несданные ВРУЧНУЮ по одному, здесь —
+// дома, несданные структурно (весь квартал). См. вкладку "Несданные" в
+// DistrictBusinessesTab.tsx, где оба списка сведены в одно место, чтобы
+// владелец не терял из виду ни те, ни другие.
+export function getNotDeliveredHouses(): DeliveredHouse[] {
+  return Object.entries(QUARTER_HOUSE_INDEX)
+    .filter(([, quarterId]) => NOT_DELIVERED_QUARTER_IDS.has(quarterId))
+    .map(([key, quarterId]) => {
+      const [street, house] = key.split('|');
+      return { street, house, quarterId };
+    });
+}
