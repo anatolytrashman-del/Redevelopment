@@ -796,113 +796,119 @@ const parkingAddresses: { category: string; house: string; address: string | nul
 ];
 
 // "Виды коммерческой недвижимости в Минск Мире" (владелец, август 2026) —
-// список типов задан явно. Первая версия держала description: null почти
-// у всех карточек ("тексты дам отдельно, пока заложи блок") — 2026-08-25
-// владелец увидел блок вживую, решил, что карточки слишком мелкие для
-// такого важного раздела, попросил переверстать в 2 колонки по 4 строки
-// (крупнее), а тексты предложил написать мне ("попроси Gemini помочь, я
-// поправлю") — тот же принцип "черновик от меня → правки владельца", что
-// и у остальных Gemini-текстов на этой странице (застройщик, УК), только
-// тут не фактура конкретного контрагента, а объяснение самих форматов
-// недвижимости — общие определения, не выдуманная статистика. Цифры по
-// машиноместам не трогал, они были и остаются проверенными (см. ниже).
-// Фото — заходили и откатили в том же заходе: сначала владелец попросил
-// слоты под фото (сам подберёт отдельно), затестили одно реальное фото
-// («Торговые помещения», см. git-историю правки) и тут же решил, что
-// фото в этом блоке вообще не нужны — карточки вернулись к чисто
-// текстовому виду. Если понадобится добавить фото позже — паттерн для
-// этого уже есть на странице (см. HERO_IMAGES выше, public/images/district/).
+// список типов задан явно, тексты написаны мной по брифу владельца (тот же
+// принцип "черновик от меня → правки владельца", что и у остальных
+// "Gemini"-текстов на этой странице — застройщик, УК). Цифры по
+// машиноместам не трогать, они проверены (см. секцию "Паркинги" ниже,
+// id="parking", подробный источник — bir.by, 2769 объявлений).
 // Отдельно от MARKET_PROPERTY_TYPES (data/marketOffers.ts, Офисы/Торговые
 // помещения/Кладовые) — та тройка про сырые объявления с Kufar/Realt для
 // сводной таблицы цен, здесь же более широкий описательный список,
 // включающий форматы, которых в парсинге нет вовсе (бизнес-апартаменты,
 // машиноместа, площади в Avia Mall и МФЦ).
-// Машиноместа (2026-08-24) — владелец: "два вида машиномест, дешёвые в
-// районе 6-9 тысяч евро — крытые паркинги, дорогие — подземные внутри
-// домов". Цифры — не с чужих слов, а прямой парсинг bir.by (см. секцию
-// "Паркинги" ниже, id="parking", там же подробный источник) — 2769
-// актуальных объявлений на продажу, разбиты на два кластера строго по
-// цене (разрыв 9900 → 13000 €, без пересечений) — подтверждает слова
-// владельца количественно, не просто повторяет их.
-// Бизнес-апартаменты — описание тут короткое и специально не пытается
-// объяснить сам формат (см. отдельный раздел id="business-apartments"
-// ниже, где владелец явно попросил заглушку "требует отдельного
-// пояснения") — карточка просто указывает на тот раздел, не дублирует и
-// не забегает вперёд с невыверенными фактами.
+//
+// 2026-08-26 (третий заход по этому блоку) — владелец увидел вживую сетку
+// 2×4 одинаковых бордеровых карточек: "он огромный, там много всего надо
+// читать, может вообще его убрать?". Сравнил с отдельным блоком "Бизнес-
+// апартаменты" ниже по странице ("когда выделены в отдельный блок,
+// воспринимаются намного легче, чем когда они как карточка") и предложил
+// сделать этот раздел похожим на уже существующий "Аналитика по сферам
+// бизнеса" (тот же файл, id="business-analytics") — общий glassCard +
+// `divide-y divide-border` вместо сетки отдельных бордеровых карточек,
+// но с переменной "шириной" пункта: "бизнес-апартаменты заслуживают много
+// текста, а парковкам столько не нужно, можно уместить два блока в одной
+// строке — плиточная вёрстка". Реализовано именно так — см. рендер ниже:
+// раздел "Бизнес-апартаменты" (раньше отдельная секция id="business-
+// apartments" со своим пунктом в SECTION_NAV) СЛИТ сюда как одна из строк
+// (полноширинная, с полным блоком плюсов/минусов) — до этого он и так
+// был искусственно разделён на короткий тизер-карточку здесь + отдельный
+// H2-раздел ниже, что и создавало ощущение "то мелкая карточка, то что-то
+// подробное отдельно". id="business-apartments" сохранён на самой строке
+// (не привязан к SECTION_NAV) — на случай внешних ссылок на этот якорь.
+// Машиноместа (2 вида) и Avia Mall/МФЦ (2 крупных объекта) — тематически
+// парные и по объёму короткие, сведены в строки по 2 колонки; Торговые/
+// Офисные/Кладовые — полноширинные строки, текста на них хватает под всю
+// ширину без пустот.
 interface DistrictPropertyType {
   icon: LucideIcon;
   title: string;
   // ReactNode, не string — карточке "Офисные помещения" нужна внутренняя
   // ссылка на /minsk/one прямо в тексте (аудит 2026-08-26: упоминание
   // "деловой центр Red One" было голым текстом — упущенный внутренний линк
-  // из самого релевантного контекста страницы). ВАЖНО: ссылку в description
-  // можно класть только карточкам БЕЗ anchor — карточка с anchor целиком
-  // обёрнута в <a>, вложенный <a> невалиден в HTML.
+  // из самого релевантного контекста страницы).
   description: ReactNode;
-  // Якорь на другой раздел этой же страницы — сейчас только у "Бизнес-
-  // апартаментов" (ведёт на id="business-apartments" ниже, где заглушка
-  // с более развёрнутым пояснением, чтобы не дублировать текст в двух
-  // местах).
-  anchor?: string;
 }
 
-const districtPropertyTypes: DistrictPropertyType[] = [
-  {
-    icon: Store,
-    title: 'Торговые помещения',
-    description:
-      'Помещения на первых этажах жилых домов и в стрит-ритейле района — с отдельным входом и витриной на пешеходный поток. Именно они сейчас заняты магазинами, аптеками, салонами красоты и общепитом, которые формируют плотную коммерческую инфраструктуру Минск Мира.',
-  },
-  {
-    icon: BedDouble,
-    title: 'Бизнес-апартаменты',
-    description:
-      'Юридически нежилой формат с правом регистрации по месту жительства и регистрации бизнеса по тому же адресу — подробный разбор статуса, инфраструктуры и тарифов ЖКУ в разделе «Бизнес-апартаменты» ниже.',
-    anchor: 'business-apartments',
-  },
-  {
-    icon: Briefcase,
-    title: 'Офисные помещения',
-    description: (
-      <>
-        Классические офисные площади под кабинеты, представительства и небольшие команды. В районе особенно не
-        хватает готовых компактных офисов с отделкой — этот дефицит закрывает{' '}
-        <Link to="/minsk/one" className="font-semibold text-primary hover:underline">
-          деловой центр Red One
-        </Link>{' '}
-        по соседству.
-      </>
-    ),
-  },
-  {
-    icon: Car,
-    title: 'Машиноместа на паркингах',
-    description: 'Крытые наземные паркинги — 3 паркинга, 1 658 мест в продаже. Самый доступный формат, 60% предложения.',
-  },
-  {
-    icon: CircleParking,
-    title: 'Подземные машиноместа',
-    description: 'Внутри 11 жилых домов — 1 111 мест в продаже, 40% предложения. Дороже наземных за счёт расположения.',
-  },
-  {
-    icon: Archive,
-    title: 'Кладовые',
-    description:
-      'Отдельные складские помещения при жилых домах — под хранение личных вещей или небольшой товарный запас для локального бизнеса: интернет-магазина, мастерской, пункта выдачи заказов.',
-  },
-  {
-    icon: ShoppingBag,
-    title: 'Помещения в ТЦ Avia Mall',
-    description:
-      'Торговые площади в крупнейшем торговом центре Минска (138 200 м²) — Avia Mall уже открыт и работает, но продолжает заселяться арендаторами, часть площадей ещё доступна.',
-  },
-  {
-    icon: Landmark,
-    title: 'Офисы в Минском международном финансовом центре',
-    description:
-      'Будущие офисные площади в Международном финансовом центре — сам центр пока строится и не введён в эксплуатацию, но после запуска станет ещё одной точкой притяжения бизнеса в районе.',
-  },
-];
+// Общий рендер строки "иконка + h3 + текст" — используется и для
+// полноширинных, и для парных (двухколоночных) видов недвижимости; сама
+// разбивка на full/paired строки — в JSX ниже, не в этом массиве (вёрстка
+// намеренно неоднородная, "плиточная", а не единый .map() по сетке).
+function PropertyType({ icon: Icon, title, description }: DistrictPropertyType) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-3">
+        <Icon className="h-5 w-5 shrink-0 text-ink" />
+        <h3 className="text-base font-bold text-ink">{title}</h3>
+      </div>
+      <p className="text-sm leading-relaxed text-ink-muted">{description}</p>
+    </div>
+  );
+}
+
+const PROPERTY_TYPE_TRADE: DistrictPropertyType = {
+  icon: Store,
+  title: 'Торговые помещения',
+  description:
+    'Помещения на первых этажах жилых домов и в стрит-ритейле района — с отдельным входом и витриной на пешеходный поток. Именно они сейчас заняты магазинами, аптеками, салонами красоты и общепитом, которые формируют плотную коммерческую инфраструктуру Минск Мира.',
+};
+
+const PROPERTY_TYPE_OFFICE: DistrictPropertyType = {
+  icon: Briefcase,
+  title: 'Офисные помещения',
+  description: (
+    <>
+      Классические офисные площади под кабинеты, представительства и небольшие команды. В районе особенно не
+      хватает готовых компактных офисов с отделкой — этот дефицит закрывает{' '}
+      <Link to="/minsk/one" className="font-semibold text-primary hover:underline">
+        деловой центр Red One
+      </Link>{' '}
+      по соседству.
+    </>
+  ),
+};
+
+const PROPERTY_TYPE_STORAGE: DistrictPropertyType = {
+  icon: Archive,
+  title: 'Кладовые',
+  description:
+    'Отдельные складские помещения при жилых домах — под хранение личных вещей или небольшой товарный запас для локального бизнеса: интернет-магазина, мастерской, пункта выдачи заказов.',
+};
+
+const PROPERTY_TYPE_PARKING_COVERED: DistrictPropertyType = {
+  icon: Car,
+  title: 'Машиноместа на паркингах',
+  description: 'Крытые наземные паркинги — 3 паркинга, 1 658 мест в продаже. Самый доступный формат, 60% предложения.',
+};
+
+const PROPERTY_TYPE_PARKING_UNDERGROUND: DistrictPropertyType = {
+  icon: CircleParking,
+  title: 'Подземные машиноместа',
+  description: 'Внутри 11 жилых домов — 1 111 мест в продаже, 40% предложения. Дороже наземных за счёт расположения.',
+};
+
+const PROPERTY_TYPE_AVIA_MALL: DistrictPropertyType = {
+  icon: ShoppingBag,
+  title: 'Помещения в ТЦ Avia Mall',
+  description:
+    'Торговые площади в крупнейшем торговом центре Минска (138 200 м²) — Avia Mall уже открыт и работает, но продолжает заселяться арендаторами, часть площадей ещё доступна.',
+};
+
+const PROPERTY_TYPE_MFC: DistrictPropertyType = {
+  icon: Landmark,
+  title: 'Офисы в Минском международном финансовом центре',
+  description:
+    'Будущие офисные площади в Международном финансовом центре — сам центр пока строится и не введён в эксплуатацию, но после запуска станет ещё одной точкой притяжения бизнеса в районе.',
+};
 
 // FAQ — расширен владельцем (2026-08-25) в полноценный сеошный блок,
 // закрывающий вопросы по каждой секции страницы (см. SECTION_NAV) —
@@ -1102,7 +1108,6 @@ const SECTION_NAV: { id: string; label: string; icon: LucideIcon }[] = [
   { id: 'business-density', label: 'Плотность бизнеса', icon: Grid2x2 },
   { id: 'quarter-map', label: 'Конкуренция по кварталам', icon: Grid2x2 },
   { id: 'property-types', label: 'Виды недвижимости', icon: Layers },
-  { id: 'business-apartments', label: 'Бизнес-апартаменты', icon: BedDouble },
   { id: 'primary-market', label: 'Первичный рынок', icon: Banknote },
   { id: 'market', label: 'Вторичный рынок', icon: TrendingUp },
   { id: 'business-analytics', label: 'Аналитика по сферам бизнеса', icon: LayoutGrid },
@@ -1649,128 +1654,91 @@ export function DistrictGuidePage() {
           <DistrictQuarterMap />
         </div>
 
-        <div id="property-types" className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex items-center gap-3">
+        <div id="property-types" className={cn('flex scroll-mt-6 flex-col', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3 px-6 pt-6">
             <Layers className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Виды коммерческой недвижимости в Минск Мире</h2>
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {districtPropertyTypes.map(({ icon: Icon, title, description, anchor }) => {
-              const card = (
-                <>
-                  <div className="flex items-center gap-2.5">
-                    <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center text-ink', glassPillClass)} style={glassPillShadow}>
-                      <Icon className="h-4 w-4" />
-                    </span>
-                    {/* h3, не span — виды недвижимости это ключевые подтемы
-                        страницы, им место в иерархии заголовков (h2 секции →
-                        h3 карточки); вёрстка не меняется (flex-элемент,
-                        preflight обнуляет свои стили заголовков). */}
-                    <h3 className="text-base font-bold text-ink">{title}</h3>
-                  </div>
-                  <p className="text-sm leading-relaxed text-ink-muted">{description}</p>
-                </>
-              );
-              const className = cn(
-                'flex flex-col gap-3 rounded-control border border-white bg-white/60 p-5 sm:border-white/50 sm:bg-white/40',
-                anchor && 'transition-colors hover:border-primary/40',
-              );
-              return anchor ? (
-                <a key={title} href={`#${anchor}`} className={className}>
-                  {card}
-                </a>
-              ) : (
-                <div key={title} className={className}>
-                  {card}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+          <div className="flex flex-col divide-y divide-border">
+            <div className="px-6 py-6">
+              <PropertyType {...PROPERTY_TYPE_TRADE} />
+            </div>
 
-        {/* Раздел заполнен фактурой (владелец, 2026-08-26: "попроси Gemini
-            помочь, мне нужно пару абзацев конкретной и верифицированной
-            информации про бизнес-апартаменты; отдельной статьи пока не
-            будет, на неё ссылку не давай") — та же схема, что и у "Gemini"-
-            текстов Застройщика/УК выше: собрал факты веб-поиском (домены
-            realt.onliner.by/domovita.by/prometr.by/bir.by/zerkalo.io из
-            песочницы недоступны — прокси блокирует, опирался на сниппеты
-            WebSearch), написал черновик, владелец правит сам при желании.
-            Источник фактуры — предпринимательский портал prometr.by
-            (заголовок статьи прямо называет Указ №456 и №370) + коммунальный
-            кейс (Onliner, "Зеркало", середина 2026) — те же источники и
-            факты, что и в первой версии абзацами, просто владелец увидел
-            вживую и попросил короче: "херня, мне нужен короткий блок, давай
-            снипеты про плюсы и минусы" — сплошной текст на всю карточку не
-            читался, ужат в две колонки с короткими пунктами (по 3 в каждой)
-            + одна строка юридической базы мелким текстом внизу. Указ №456 от
-            22.09.2014 — ТОТ ЖЕ указ, которым выделили землю под Минск Мир
-            целиком (см. блок "Застройщик района" выше, та же дата), дополнен
-            указом №370 от 20.10.2020.
-            Третий плюс правился дважды после публикации, оба раза по
-            фидбеку владельца, а не превентивно:
-            (1) "Гостиничный сервис: ресепшен, охрана, консьерж, отделка под
-            ключ" (взято из позиционирования на bir.by) — владелец лично
-            подтвердил, что это неправда для реальных МБА в Минск Мире, снял
-            без замены своей формулировкой ("вранье, предложи другой плюс");
-            предложил 2-в-1 (можно оставить только 2 проверенных плюса ИЛИ
-            переформулировать через гибкость использования), владелец выбрал
-            третий свой вариант через "Скажу сам" — "На старте продавались
-            значительно дешевле квартир" (личное знание рынка, не
-            перепроверено веб-поиском отдельно — WebSearch нашёл только
-            стартовую цену $1694/м² без цифры для сравнения, прямого
-            подтверждения "дешевле квартир" не нашёл, но это утверждение
-            владельца о своём же рынке, не веб-находка). (2) Из минусов
-            владелец тем же заходом попросил убрать конкретную цифру жалоб
-            ("были жалобы на 300–400 руб/мес") — сам факт "тариф для юрлиц,
-            дороже квартиры" остался, просто без конкретной суммы. Лендинга
-            под раздел по-прежнему нет — ссылку никуда не даю, только якорь
-            с карточки в сетке выше. */}
-        <div id="business-apartments" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex items-center gap-3">
-            <BedDouble className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Бизнес-апартаменты</h2>
-          </div>
-          <p className="text-sm text-ink-muted">
-            Юридически нежилой формат с необычным правом: можно прописаться самому (и близким родственникам) и
-            одновременно зарегистрировать по этому же адресу бизнес.
-          </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-2 rounded-control border border-white bg-white/60 p-4 sm:border-white/50 sm:bg-white/40">
-              <p className="text-xs font-semibold uppercase tracking-wide text-primary">Плюсы</p>
-              <ul className="flex flex-col gap-1.5">
-                {[
-                  'Прописка владельца и близких родственников — редкость для нежилого помещения',
-                  'Юрлицо можно зарегистрировать по этому же адресу',
-                  'На старте продаж стоили значительно дешевле квартир',
-                ].map((text) => (
-                  <li key={text} className="flex items-start gap-2 text-sm text-ink-muted">
-                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-                    {text}
-                  </li>
-                ))}
-              </ul>
+            {/* Бизнес-апартаменты — раньше отдельная секция id="business-
+                apartments" со своим пунктом в SECTION_NAV, слита сюда одной
+                строкой (владелец, 2026-08-26: "получится такая плиточная
+                вёрстка" — см. большой комментарий над PropertyType/PROPERTY_TYPE_*
+                выше). Текст плюсов/минусов и правовая база не менялись,
+                только h2→h3 (это теперь подраздел property-types, не
+                отдельная H2-секция) и убрана внешняя обёртка glassCard —
+                разделитель между строками уже даёт divide-y родителя.
+                id="business-apartments" сохранён на случай внешних ссылок
+                на этот якорь, просто больше не значится в SECTION_NAV. */}
+            <div id="business-apartments" className="flex scroll-mt-6 flex-col gap-3 px-6 py-6">
+              <div className="flex items-center gap-3">
+                <BedDouble className="h-5 w-5 shrink-0 text-ink" />
+                <h3 className="text-base font-bold text-ink">Бизнес-апартаменты</h3>
+              </div>
+              <p className="text-sm text-ink-muted">
+                Юридически нежилой формат с необычным правом: можно прописаться самому (и близким родственникам) и
+                одновременно зарегистрировать по этому же адресу бизнес.
+              </p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="flex flex-col gap-2 rounded-control border border-white bg-white/60 p-4 sm:border-white/50 sm:bg-white/40">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-primary">Плюсы</p>
+                  <ul className="flex flex-col gap-1.5">
+                    {[
+                      'Прописка владельца и близких родственников — редкость для нежилого помещения',
+                      'Юрлицо можно зарегистрировать по этому же адресу',
+                      'На старте продаж стоили значительно дешевле квартир',
+                    ].map((text) => (
+                      <li key={text} className="flex items-start gap-2 text-sm text-ink-muted">
+                        <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                        {text}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="flex flex-col gap-1 rounded-control border border-dashed border-border p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Минусы</p>
+                  <ul className="flex flex-col gap-1.5">
+                    {[
+                      'Юридически нежилое помещение, не полноценное жильё',
+                      'Нет обычных жилищных льгот и субсидий на ЖКУ',
+                      'Коммуналка по тарифу для юрлиц — заметно дороже квартиры',
+                    ].map((text) => (
+                      <li key={text} className="flex items-start gap-2 text-sm text-ink-muted">
+                        <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+                        {text}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+              <p className="text-xs text-ink-faint">
+                Правовой режим — указ Президента № 456 от 22.09.2014 (тот же, что выделил землю под Минск Мир),
+                дополнен указом № 370 от 20.10.2020.
+              </p>
             </div>
-            <div className="flex flex-col gap-1 rounded-control border border-dashed border-border p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Минусы</p>
-              <ul className="flex flex-col gap-1.5">
-                {[
-                  'Юридически нежилое помещение, не полноценное жильё',
-                  'Нет обычных жилищных льгот и субсидий на ЖКУ',
-                  'Коммуналка по тарифу для юрлиц — заметно дороже квартиры',
-                ].map((text) => (
-                  <li key={text} className="flex items-start gap-2 text-sm text-ink-muted">
-                    <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
-                    {text}
-                  </li>
-                ))}
-              </ul>
+
+            <div className="px-6 py-6">
+              <PropertyType {...PROPERTY_TYPE_OFFICE} />
+            </div>
+
+            <div className="px-6 py-6">
+              <PropertyType {...PROPERTY_TYPE_STORAGE} />
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 px-6 py-6 sm:grid-cols-2">
+              <PropertyType {...PROPERTY_TYPE_PARKING_COVERED} />
+              <PropertyType {...PROPERTY_TYPE_PARKING_UNDERGROUND} />
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 px-6 py-6 sm:grid-cols-2">
+              <PropertyType {...PROPERTY_TYPE_AVIA_MALL} />
+              <PropertyType {...PROPERTY_TYPE_MFC} />
             </div>
           </div>
-          <p className="text-xs text-ink-faint">
-            Правовой режим — указ Президента № 456 от 22.09.2014 (тот же, что выделил землю под Минск Мир), дополнен
-            указом № 370 от 20.10.2020.
-          </p>
         </div>
 
         <div id="primary-market" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
