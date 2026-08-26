@@ -187,12 +187,17 @@
   {
     "street": "брилевская",
     "house": "33",
-    "quarterId": "world-dances"
+    "quarterId": "asia"
   },
   {
     "street": "брилевская",
     "house": "35",
-    "quarterId": "world-dances"
+    "quarterId": "asia"
+  },
+  {
+    "street": "брилевская",
+    "house": "37",
+    "quarterId": "asia"
   },
   {
     "street": "брилевская",
@@ -416,8 +421,18 @@
   },
   {
     "street": "кижеватова",
+    "house": "1",
+    "quarterId": "asia"
+  },
+  {
+    "street": "кижеватова",
+    "house": "1А",
+    "quarterId": "asia"
+  },
+  {
+    "street": "кижеватова",
     "house": "1Б",
-    "quarterId": "north-america"
+    "quarterId": "asia"
   },
   {
     "street": "кижеватова",
@@ -438,6 +453,11 @@
     "street": "корш-ситникова",
     "house": "5",
     "quarterId": "north-europe"
+  },
+  {
+    "street": "леонида левина",
+    "house": "8",
+    "quarterId": "asia"
   },
   {
     "street": "леонида щемелёва",
@@ -487,12 +507,12 @@
   {
     "street": "михаила савицкого",
     "house": "10",
-    "quarterId": "africa"
+    "quarterId": "asia"
   },
   {
     "street": "михаила савицкого",
     "house": "12",
-    "quarterId": "africa"
+    "quarterId": "asia"
   },
   {
     "street": "михаила савицкого",
@@ -521,11 +541,6 @@
   },
   {
     "street": "михаила савицкого",
-    "house": "3",
-    "quarterId": "asia"
-  },
-  {
-    "street": "михаила савицкого",
     "house": "35",
     "quarterId": "western-europe"
   },
@@ -537,16 +552,6 @@
   {
     "street": "михаила савицкого",
     "house": "4",
-    "quarterId": "asia"
-  },
-  {
-    "street": "михаила савицкого",
-    "house": "5",
-    "quarterId": "asia"
-  },
-  {
-    "street": "михаила савицкого",
-    "house": "7",
     "quarterId": "asia"
   },
   {
