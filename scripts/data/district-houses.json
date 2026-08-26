@@ -26,6 +26,11 @@
   },
   {
     "street": "аэродромная",
+    "house": "26А",
+    "quarterId": "champions"
+  },
+  {
+    "street": "аэродромная",
     "house": "28",
     "quarterId": "emirates"
   },
@@ -47,6 +52,16 @@
   {
     "street": "белградская",
     "house": "1",
+    "quarterId": "champions"
+  },
+  {
+    "street": "белградская",
+    "house": "1Нк8",
+    "quarterId": "champions"
+  },
+  {
+    "street": "белградская",
+    "house": "5",
     "quarterId": "champions"
   },
   {
@@ -556,6 +571,21 @@
   },
   {
     "street": "мира",
+    "house": "2",
+    "quarterId": "champions"
+  },
+  {
+    "street": "мира",
+    "house": "4",
+    "quarterId": "champions"
+  },
+  {
+    "street": "мира",
+    "house": "6",
+    "quarterId": "champions"
+  },
+  {
+    "street": "мира",
     "house": "10",
     "quarterId": "central-europe"
   },
@@ -757,7 +787,7 @@
   {
     "street": "николы теслы",
     "house": "29",
-    "quarterId": "happy-planet"
+    "quarterId": "champions"
   },
   {
     "street": "николы теслы",
@@ -772,7 +802,7 @@
   {
     "street": "николы теслы",
     "house": "31",
-    "quarterId": "happy-planet"
+    "quarterId": "champions"
   },
   {
     "street": "николы теслы",
