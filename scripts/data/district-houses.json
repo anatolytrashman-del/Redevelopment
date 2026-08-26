@@ -50,11 +50,6 @@
     "quarterId": "motherland"
   },
   {
-    "street": "белградская",
-    "house": "18",
-    "quarterId": "motherland"
-  },
-  {
     "street": "братская",
     "house": "1",
     "quarterId": "mediterranean"
@@ -238,6 +233,16 @@
     "street": "жореса алфёрова",
     "house": "2",
     "quarterId": "mediterranean"
+  },
+  {
+    "street": "жореса алфёрова",
+    "house": "20",
+    "quarterId": "motherland"
+  },
+  {
+    "street": "жореса алфёрова",
+    "house": "22",
+    "quarterId": "motherland"
   },
   {
     "street": "жореса алфёрова",
@@ -483,6 +488,11 @@
     "street": "михаила савицкого",
     "house": "2",
     "quarterId": "asia"
+  },
+  {
+    "street": "михаила савицкого",
+    "house": "24",
+    "quarterId": "motherland"
   },
   {
     "street": "михаила савицкого",
