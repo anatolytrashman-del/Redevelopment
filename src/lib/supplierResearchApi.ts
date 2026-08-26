@@ -1,0 +1,162 @@
+import { supabase } from './supabase';
+import { withRetry, UPLOAD_TIMEOUT_MS } from './withRetry';
+import type {
+  SupplierRequest,
+  SupplierRequestRow,
+  SupplierOffer,
+  SupplierOfferRow,
+  ResearchContactMethod,
+} from '../data/supplierResearch';
+import type { DocumentFile } from '../data/contractorDocuments';
+import type { Currency } from '../data/transactions';
+
+function requestFromRow(row: SupplierRequestRow): SupplierRequest {
+  return { id: row.id, title: row.title, createdAt: row.created_at };
+}
+
+function offerFromRow(row: SupplierOfferRow): SupplierOffer {
+  return {
+    id: row.id,
+    requestId: row.request_id,
+    name: row.name,
+    contact: row.contact,
+    contactMethod: row.contact_method as ResearchContactMethod,
+    websiteUrl: row.website_url,
+    catalogModelName: row.catalog_model_name,
+    catalogModelPhoto: row.catalog_model_photo,
+    communicationStatus: row.communication_status,
+    price: row.price,
+    currency: row.currency as Currency,
+    deadline: row.deadline,
+    requirements: row.requirements,
+    files: row.files ?? [],
+    createdAt: row.created_at,
+  };
+}
+
+export function fetchSupplierRequests(): Promise<SupplierRequest[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('supplier_research_requests').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data as SupplierRequestRow[]).map(requestFromRow);
+  });
+}
+
+export function insertSupplierRequest(title: string): Promise<SupplierRequest> {
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('supplier_research_requests').insert({ title }).select().single();
+    if (error) throw error;
+    return requestFromRow(data as SupplierRequestRow);
+  });
+}
+
+export function updateSupplierRequest(id: string, title: string): Promise<SupplierRequest> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('supplier_research_requests')
+      .update({ title })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return requestFromRow(data as SupplierRequestRow);
+  });
+}
+
+// Каскад на request_id (см. миграцию) сам чистит предложения этого запроса.
+export function deleteSupplierRequest(id: string): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase.from('supplier_research_requests').delete().eq('id', id);
+    if (error) throw error;
+  });
+}
+
+// Все предложения сразу, группировка по requestId на клиенте — тот же
+// принцип, что и у fetchResearchOffers (contractorResearchApi.ts).
+export function fetchSupplierOffers(): Promise<SupplierOffer[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('supplier_research_offers').select('*').order('created_at', { ascending: true });
+    if (error) throw error;
+    return (data as SupplierOfferRow[]).map(offerFromRow);
+  });
+}
+
+export function insertSupplierOffer(input: Omit<SupplierOffer, 'id' | 'createdAt'>): Promise<SupplierOffer> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('supplier_research_offers')
+      .insert({
+        request_id: input.requestId,
+        name: input.name,
+        contact: input.contact,
+        contact_method: input.contactMethod,
+        website_url: input.websiteUrl,
+        catalog_model_name: input.catalogModelName,
+        catalog_model_photo: input.catalogModelPhoto,
+        communication_status: input.communicationStatus,
+        price: input.price,
+        currency: input.currency,
+        deadline: input.deadline,
+        requirements: input.requirements,
+        files: input.files,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return offerFromRow(data as SupplierOfferRow);
+  });
+}
+
+export function updateSupplierOffer(id: string, input: Omit<SupplierOffer, 'id' | 'createdAt'>): Promise<SupplierOffer> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('supplier_research_offers')
+      .update({
+        request_id: input.requestId,
+        name: input.name,
+        contact: input.contact,
+        contact_method: input.contactMethod,
+        website_url: input.websiteUrl,
+        catalog_model_name: input.catalogModelName,
+        catalog_model_photo: input.catalogModelPhoto,
+        communication_status: input.communicationStatus,
+        price: input.price,
+        currency: input.currency,
+        deadline: input.deadline,
+        requirements: input.requirements,
+        files: input.files,
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return offerFromRow(data as SupplierOfferRow);
+  });
+}
+
+export function deleteSupplierOffer(id: string): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase.from('supplier_research_offers').delete().eq('id', id);
+    if (error) throw error;
+  });
+}
+
+// Файлы (модель в каталоге — фото, область для прикреплённых файлов) —
+// тот же бакет и приём, что и у uploadObjectDocument (объекты, юрлица,
+// "Авангард" и т.п.): один общий публичный бакет под произвольные файлы
+// админки, заводить отдельный под поставщиков незачем.
+export function uploadSupplierFile(file: File): Promise<DocumentFile> {
+  return withRetry(
+    async () => {
+      const ext = file.name.split('.').pop() ?? 'bin';
+      const path = `${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from('object-documents').upload(path, file);
+      if (error) throw error;
+      const { data } = supabase.storage.from('object-documents').getPublicUrl(path);
+      return { url: data.publicUrl, fileName: file.name };
+    },
+    1500,
+    UPLOAD_TIMEOUT_MS,
+    3,
+  );
+}
