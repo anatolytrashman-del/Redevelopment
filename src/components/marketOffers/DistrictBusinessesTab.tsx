@@ -18,7 +18,7 @@ import {
   deleteDistrictBusinessPoint,
 } from '../../lib/districtBusinessPointsApi';
 import type { HouseDiff } from '../../lib/districtBusinessPointsApi';
-import { parseWebarchiveOrgList, looksLikeBplist } from '../../lib/webarchiveOrgParser';
+import { parseWebarchiveOrgList, parseHtmlSnapshotOrgList, looksLikeBplist } from '../../lib/webarchiveOrgParser';
 
 // Вкладка "Дома" на /admin/market-offers — список организаций по каждому
 // сданному дому Минск Мира. Заменяет ручную пересылку списков от Светланы
@@ -193,6 +193,7 @@ function HouseModal({
   const [excludedTitles, setExcludedTitles] = useState<Set<string>>(new Set());
   const [applying, setApplying] = useState(false);
   const [fileError, setFileError] = useState('');
+  const [dragOver, setDragOver] = useState(false);
 
   async function handleFile(file: File) {
     setFileError('');
@@ -200,7 +201,20 @@ function HouseModal({
     setExcludedTitles(new Set());
     try {
       const buffer = await file.arrayBuffer();
-      const parsed = looksLikeBplist(buffer) ? parseWebarchiveOrgList(buffer) : parseBusinessListText(new TextDecoder('utf-8').decode(buffer));
+      const text = new TextDecoder('utf-8').decode(buffer);
+      // .webarchive (Safari, Mac) — бинарный plist; обычный сохранённый
+      // HTML (Chrome/Edge/Firefox, "Страница целиком"/"Только HTML") —
+      // текст, начинающийся с <!doctype/<html; иначе — просто список
+      // текстом (ручной .txt-разбор). Не знаем заранее, чем будет
+      // пользоваться фрилансер, поддерживаем все три.
+      let parsed;
+      if (looksLikeBplist(buffer)) {
+        parsed = parseWebarchiveOrgList(buffer);
+      } else if (/^\s*<(!doctype|html)/i.test(text)) {
+        parsed = parseHtmlSnapshotOrgList(text);
+      } else {
+        parsed = parseBusinessListText(text);
+      }
       if (parsed.length === 0) {
         setFileError('Не нашёл в файле ни одной организации — проверьте, что сохранили страницу целиком (со списком организаций).');
         return;
@@ -351,17 +365,41 @@ function HouseModal({
           </div>
         ) : (
           <>
-            <label className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-control border-2 border-dashed border-border px-4 py-6 text-center hover:border-primary">
+            <label
+              className={cn(
+                'flex cursor-pointer flex-col items-center justify-center gap-1 rounded-control border-2 border-dashed px-4 py-6 text-center',
+                dragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary',
+              )}
+              onDragOver={(e) => {
+                // Без preventDefault браузер по умолчанию не разрешает drop
+                // на произвольный элемент — событие drop вообще не приходит.
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                // <input type="file"> у нас скрыт (hidden) специально —
+                // скрытый элемент не может быть целью drag-and-drop
+                // (браузер не показывает его как drop-зону), поэтому файл
+                // из DataTransfer передаём в handleFile напрямую, а не
+                // полагаемся на нативное поведение инпута.
+                e.preventDefault();
+                setDragOver(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file) handleFile(file);
+              }}
+            >
               <span className="flex items-center gap-2 text-sm font-semibold text-ink-muted hover:text-ink">
                 <Upload className="h-4 w-4 shrink-0" />
-                Загрузить файл выгрузки
+                Загрузить файл выгрузки — выберите или перетащите сюда
               </span>
               <span className="text-xs text-ink-faint">
-                Карточка дома на Яндекс.Картах, вкладка «Организации внутри» → Cmd+S → веб-архив (.webarchive)
+                Карточка дома на Яндекс.Картах, вкладка «Организации внутри» → сохранить страницу (Cmd/Ctrl+S) —
+                .webarchive (Safari) или .html (Chrome/Edge/Firefox)
               </span>
               <input
                 type="file"
-                accept=".webarchive,.txt,.md,text/plain"
+                accept=".webarchive,.html,.htm,.txt,.md,text/plain,text/html"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];

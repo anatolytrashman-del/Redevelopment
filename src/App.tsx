@@ -54,6 +54,15 @@ const MeetingSummaries = lazy(() => import('./pages/MeetingSummaries').then((m) 
 const MeetingSummaryDetail = lazy(() => import('./pages/MeetingSummaryDetail').then((m) => ({ default: m.MeetingSummaryDetail })));
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })));
 
+// Публичная (без PasswordGate) страница для фрилансера — см. её же
+// комментарий. lazy(), а не статический импорт как у остальных публичных
+// страниц выше: она тянет за собой разбор .webarchive/bplist, этот код не
+// должен попадать в основной бандл продающих лендингов ради одной
+// рабочей ссылки для одного исполнителя.
+const BusinessUploadPublicPage = lazy(() =>
+  import('./pages/BusinessUploadPublicPage').then((m) => ({ default: m.BusinessUploadPublicPage })),
+);
+
 // Случайный щипок двумя пальцами (обычный жест при скролле телефоном,
 // держа его двумя руками) зумит всю страницу нативным зумом Safari — и этот
 // зум остаётся, пока клиент не сведёт пальцы обратно вручную, а верстка
@@ -142,6 +151,14 @@ export default function App() {
       <Route path="/plan/:token" element={<PublicBuildingPlan />} />
       <Route path="/tz/:token" element={<BriefPublicPage />} />
       <Route path="/summary/:token" element={<MeetingSummaryPublicPage />} />
+      <Route
+        path="/business-upload"
+        element={
+          <Suspense fallback={<AdminChunkFallback />}>
+            <BusinessUploadPublicPage />
+          </Suspense>
+        }
+      />
       <Route path="/minsk/:slug" element={<ObjectLandingPage />} />
       {/* Старые адреса без /minsk — см. LegacySlugRedirect выше. */}
       <Route path="/rayon-minsk-mir" element={<Navigate to="/minsk/minsk-mir" replace />} />

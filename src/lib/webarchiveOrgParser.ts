@@ -29,6 +29,19 @@ export function parseWebarchiveOrgList(buffer: ArrayBuffer): ParsedBusinessEntry
   if (!htmlBytes) throw new Error('В файле не нашлось WebMainResource — это точно .webarchive от Safari?');
 
   const html = new TextDecoder('utf-8').decode(htmlBytes);
+  return extractOrgsFromHtml(html);
+}
+
+// Тот же разбор, но для сохранённой страницы в виде обычного HTML — Chrome/
+// Edge/Firefox сохраняют так по Ctrl+S → "Страница целиком"/"Только HTML"
+// (.html), не .webarchive (это формат только Safari/macOS). Не знаем
+// заранее, на чём будет работать фрилансер — поддерживаем оба, разбор
+// самого списка организаций один и тот же (см. extractOrgsFromHtml).
+export function parseHtmlSnapshotOrgList(html: string): ParsedBusinessEntry[] {
+  return extractOrgsFromHtml(html);
+}
+
+function extractOrgsFromHtml(html: string): ParsedBusinessEntry[] {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const cards = doc.querySelectorAll('.search-business-snippet-view');
 
