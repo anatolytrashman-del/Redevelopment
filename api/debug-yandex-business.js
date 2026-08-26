@@ -34,55 +34,66 @@ function yandexHeaders() {
   };
 }
 
+// Яндекс использует double-submit csrfToken: запрос без токена (или с
+// протухшим) не отдаёт данные, а просто возвращает {"csrfToken": "..."} —
+// этот токен нужно подставить в повторный запрос с теми же параметрами.
+// Токен, судя по HAR-логу владельца, живёт минимум на всю сессию браузера
+// (одно и то же значение на нескольких последовательных запросах) —
+// получаем один раз за вызов функции и переиспользуем дальше.
+async function yandexSearchGet(params) {
+  const doFetch = async (csrfToken) => {
+    const url = new URL('https://yandex.ru/maps/api/search');
+    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+    if (csrfToken) url.searchParams.set('csrfToken', csrfToken);
+    const resp = await fetchWithTimeout(url.toString(), { headers: yandexHeaders() });
+    const text = await resp.text();
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${text.slice(0, 500)}`);
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(`не JSON: ${text.slice(0, 500)}`);
+    }
+  };
+
+  let json = await doFetch(null);
+  if (!json?.data && json?.csrfToken) {
+    // первый ответ — только свежий токен, повторяем с ним же
+    json = await doFetch(json.csrfToken);
+  }
+  if (!json?.data) throw new Error(`нет data в ответе даже после csrfToken: ${JSON.stringify(json).slice(0, 500)}`);
+  return json.data;
+}
+
 // Шаг 1: превращаем текст адреса в координаты дома (requestGeoWhere) —
 // тот же запрос, что уходит при вводе адреса в поиск на Яндекс.Картах.
 async function resolveAddress(address) {
-  const url = new URL('https://yandex.ru/maps/api/search');
-  url.searchParams.set('ajax', '1');
-  url.searchParams.set('add_type', 'direct');
-  url.searchParams.set('lang', 'ru_RU');
-  url.searchParams.set('results', '25');
-  url.searchParams.set('text', address);
-  url.searchParams.set('origin', 'maps-form');
-
-  const resp = await fetchWithTimeout(url.toString(), { headers: yandexHeaders() });
-  const text = await resp.text();
-  if (!resp.ok) throw new Error(`resolveAddress: HTTP ${resp.status}: ${text.slice(0, 500)}`);
-  let json;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    throw new Error(`resolveAddress: не JSON: ${text.slice(0, 500)}`);
-  }
-  const geoWhere = json?.data?.requestGeoWhere;
-  if (!geoWhere?.coordinates) throw new Error(`resolveAddress: нет requestGeoWhere в ответе: ${JSON.stringify(json).slice(0, 500)}`);
+  const data = await yandexSearchGet({
+    ajax: '1',
+    add_type: 'direct',
+    lang: 'ru_RU',
+    results: '25',
+    text: address,
+    origin: 'maps-form',
+  });
+  const geoWhere = data?.requestGeoWhere;
+  if (!geoWhere?.coordinates) throw new Error(`resolveAddress: нет requestGeoWhere в ответе: ${JSON.stringify(data).slice(0, 500)}`);
   return geoWhere; // { coordinates: [lon, lat], kind, encodedCoordinates, ... }
 }
 
 // Шаг 2: список организаций строго в этой точке (дом), постранично.
 async function fetchBusinessPage(lat, lon, skip) {
-  const url = new URL('https://yandex.ru/maps/api/search');
-  url.searchParams.set('ajax', '1');
-  url.searchParams.set('type', 'biz');
-  url.searchParams.set('business_mode', 'exact');
-  url.searchParams.set('business_show_closed', '0');
-  url.searchParams.set('lang', 'ru_RU');
-  url.searchParams.set('origin', 'maps-toponym-orgs');
-  url.searchParams.set('results', '25');
-  url.searchParams.set('skip', String(skip));
-  url.searchParams.set('text', '');
-  url.searchParams.set('geowhere', `${lat},${lon}`);
-
-  const resp = await fetchWithTimeout(url.toString(), { headers: yandexHeaders() });
-  const text = await resp.text();
-  if (!resp.ok) throw new Error(`fetchBusinessPage(skip=${skip}): HTTP ${resp.status}: ${text.slice(0, 500)}`);
-  let json;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    throw new Error(`fetchBusinessPage(skip=${skip}): не JSON: ${text.slice(0, 500)}`);
-  }
-  return json?.data;
+  return yandexSearchGet({
+    ajax: '1',
+    type: 'biz',
+    business_mode: 'exact',
+    business_show_closed: '0',
+    lang: 'ru_RU',
+    origin: 'maps-toponym-orgs',
+    results: '25',
+    skip: String(skip),
+    text: '',
+    geowhere: `${lat},${lon}`,
+  });
 }
 
 export default async function handler(req, res) {
