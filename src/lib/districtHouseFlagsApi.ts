@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import type { DistrictHouseFlag, DistrictHouseFlagRow } from '../data/districtHouseFlags';
+import type { DistrictHouseFlag, DistrictHouseFlagRow, DistrictHouseFlagStatus } from '../data/districtHouseFlags';
 
 function fromRow(row: DistrictHouseFlagRow): DistrictHouseFlag {
   return {
@@ -8,6 +8,7 @@ function fromRow(row: DistrictHouseFlagRow): DistrictHouseFlag {
     street: row.street,
     house: row.house,
     quarterId: row.quarter_id,
+    status: (row.status as DistrictHouseFlagStatus) || 'not_commissioned',
     createdAt: row.created_at,
   };
 }
@@ -24,11 +25,12 @@ export function insertDistrictHouseFlag(input: {
   street: string;
   house: string;
   quarterId: string;
+  status: DistrictHouseFlagStatus;
 }): Promise<DistrictHouseFlag> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('district_house_flags')
-      .insert({ street: input.street, house: input.house, quarter_id: input.quarterId })
+      .insert({ street: input.street, house: input.house, quarter_id: input.quarterId, status: input.status })
       .select()
       .single();
     if (error) throw error;

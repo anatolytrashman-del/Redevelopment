@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, Loader2, Trash2, Upload, Ban, RotateCcw } from 'lucide-react';
+import { Building2, Loader2, Trash2, Upload, Ban, RotateCcw, Store } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import { SearchInput } from '../ui/SearchInput';
@@ -20,7 +20,7 @@ import {
 } from '../../lib/districtBusinessPointsApi';
 import type { HouseDiff } from '../../lib/districtBusinessPointsApi';
 import { parseWebarchiveOrgList, parseHtmlSnapshotOrgList, looksLikeBplist } from '../../lib/webarchiveOrgParser';
-import type { DistrictHouseFlag } from '../../data/districtHouseFlags';
+import type { DistrictHouseFlag, DistrictHouseFlagStatus } from '../../data/districtHouseFlags';
 import {
   fetchDistrictHouseFlags,
   insertDistrictHouseFlag,
@@ -177,9 +177,12 @@ export function DistrictBusinessesTab() {
 
   const filteredFlags = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const sorted = [...flags].sort(
-      (a, b) => titleCase(a.street).localeCompare(titleCase(b.street)) || Number(a.house) - Number(b.house),
-    );
+    // "Несданные" — про недоступность дома целиком, поэтому сюда попадают
+    // только not_commissioned. no_commerce_yet — дом сдан, просто пока нет
+    // открытых помещений, он остаётся видимым на вкладке "Дома" как обычно.
+    const sorted = [...flags]
+      .filter((f) => f.status === 'not_commissioned')
+      .sort((a, b) => titleCase(a.street).localeCompare(titleCase(b.street)) || Number(a.house) - Number(b.house));
     if (!q) return sorted;
     return sorted.filter((f) => `${f.street} ${f.house}`.toLowerCase().includes(q));
   }, [flags, search]);
@@ -234,7 +237,7 @@ export function DistrictBusinessesTab() {
               </div>
               {hs.map((h) => {
                 const list = pointsByHouse.get(houseKey(h.street, h.house)) ?? [];
-                const flagged = flagByHouse.has(houseKey(h.street, h.house));
+                const flag = flagByHouse.get(houseKey(h.street, h.house));
                 return (
                   <button
                     key={houseKey(h.street, h.house)}
@@ -242,10 +245,15 @@ export function DistrictBusinessesTab() {
                     onClick={() => setOpenHouse(h)}
                     className="flex items-center justify-between gap-3 px-4 py-2.5 text-left text-sm hover:bg-surface-muted"
                   >
-                    <span className={cn('text-ink', flagged && 'text-ink-faint')}>
+                    <span className={cn('text-ink', flag && 'text-ink-faint')}>
                       {titleCase(h.street)}, {h.house}
                     </span>
-                    {flagged ? (
+                    {flag?.status === 'no_commerce_yet' ? (
+                      <span className="flex shrink-0 items-center gap-1 rounded-full bg-info-bg px-2 py-0.5 text-xs font-semibold text-info">
+                        <Store className="h-3 w-3 shrink-0" />
+                        пока нет коммерции
+                      </span>
+                    ) : flag ? (
                       <span className="flex shrink-0 items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 text-xs font-semibold text-warning">
                         <Ban className="h-3 w-3 shrink-0" />
                         не введён в эксплуатацию
@@ -465,11 +473,11 @@ function HouseModal({
     }
   }
 
-  async function handleFlagOn() {
+  async function handleFlagOn(status: DistrictHouseFlagStatus) {
     setFlagSaving(true);
     setFileError('');
     try {
-      const created = await insertDistrictHouseFlag({ street: house.street, house: house.house, quarterId: house.quarterId });
+      const created = await insertDistrictHouseFlag({ street: house.street, house: house.house, quarterId: house.quarterId, status });
       onFlagAdded(created);
     } catch {
       setFileError('Не удалось поставить отметку — попробуйте ещё раз.');
@@ -528,14 +536,29 @@ function HouseModal({
         {fileError && <p className="text-sm text-danger">{fileError}</p>}
 
         {flag ? (
-          <div className="flex flex-col gap-3 rounded-control bg-warning-bg p-3">
-            <p className="flex items-center gap-1.5 text-sm font-semibold text-warning">
-              <Ban className="h-4 w-4 shrink-0" />
-              Дом не введён в эксплуатацию
+          <div
+            className={cn(
+              'flex flex-col gap-3 rounded-control p-3',
+              flag.status === 'no_commerce_yet' ? 'bg-info-bg' : 'bg-warning-bg',
+            )}
+          >
+            <p
+              className={cn(
+                'flex items-center gap-1.5 text-sm font-semibold',
+                flag.status === 'no_commerce_yet' ? 'text-info' : 'text-warning',
+              )}
+            >
+              {flag.status === 'no_commerce_yet' ? (
+                <Store className="h-4 w-4 shrink-0" />
+              ) : (
+                <Ban className="h-4 w-4 shrink-0" />
+              )}
+              {flag.status === 'no_commerce_yet' ? 'Пока нет коммерции' : 'Дом не введён в эксплуатацию'}
             </p>
             <p className="text-sm text-ink-muted">
-              Отмечено сознательно — дом ещё пустует, поэтому организаций пока нет. Когда дом заселят, снимите
-              отметку и загрузите список организаций как обычно.
+              {flag.status === 'no_commerce_yet'
+                ? 'Дом сдан и заселён, но открытых коммерческих помещений пока нет. Периодически проверяйте выгрузкой ниже — как только что-то откроется, оно попадёт в список.'
+                : 'Отмечено сознательно — дом ещё пустует, поэтому организаций пока нет. Когда дом заселят, снимите отметку и загрузите список организаций как обычно.'}
             </p>
             <Button
               type="button"
@@ -549,18 +572,29 @@ function HouseModal({
             </Button>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={handleFlagOn}
-            disabled={flagSaving}
-            className="flex w-fit items-center gap-1.5 text-xs font-medium text-ink-faint hover:text-warning disabled:opacity-50"
-          >
-            <Ban className="h-3.5 w-3.5 shrink-0" />
-            {flagSaving ? 'Отмечаем...' : 'Отметить: дом не введён в эксплуатацию'}
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => handleFlagOn('not_commissioned')}
+              disabled={flagSaving}
+              className="flex w-fit items-center gap-1.5 text-xs font-medium text-ink-faint hover:text-warning disabled:opacity-50"
+            >
+              <Ban className="h-3.5 w-3.5 shrink-0" />
+              {flagSaving ? 'Отмечаем...' : 'Отметить: дом не введён в эксплуатацию'}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleFlagOn('no_commerce_yet')}
+              disabled={flagSaving}
+              className="flex w-fit items-center gap-1.5 text-xs font-medium text-ink-faint hover:text-info disabled:opacity-50"
+            >
+              <Store className="h-3.5 w-3.5 shrink-0" />
+              {flagSaving ? 'Отмечаем...' : 'Отметить: пока нет коммерции'}
+            </button>
+          </div>
         )}
 
-        {!flag && (pendingDiff ? (
+        {flag?.status !== 'not_commissioned' && (pendingDiff ? (
           <div className="flex flex-col gap-3">
             <p className="text-sm text-ink-muted">
               В файле {pendingDiff.toAdd.length + pendingDiff.unchanged.length} организаций. Новых —{' '}
