@@ -193,25 +193,10 @@ function LocationQuotientPanel({ quarterId, quarterLabel }: { quarterId: string;
   );
 }
 
-// Показываем только кварталы, которые владелец лично разметил своим
-// инструментом (клики по углам на живой карте) — остальные всё ещё на
-// приблизительных cluster-hull/yandex-envelope полигонах (см. комментарии
-// в data/districtQuarters.ts) и путают карту, если рисовать их вперемешку
-// с точными. Список пополняется по мере присылки новых кварталов.
-const VERIFIED_QUARTER_IDS = new Set([
-  'world-dances',
-  'asia',
-  'africa',
-  'eurasia',
-  'happy-planet',
-  'central-europe',
-  'champions',
-  'emirates',
-  'australia-oceania',
-  'motherland',
-  'north-europe',
-]);
-const VISIBLE_QUARTERS = DISTRICT_QUARTERS.filter((q) => VERIFIED_QUARTER_IDS.has(q.id));
+// Все кварталы в DISTRICT_QUARTERS теперь размечены владельцем лично своим
+// инструментом (клики по углам на живой карте) — фильтр на "только
+// проверенные" (был здесь раньше, см. историю) больше не нужен.
+const VISIBLE_QUARTERS = DISTRICT_QUARTERS;
 
 export function DistrictQuarterMap() {
   const containerRef = useRef<HTMLDivElement>(null);
