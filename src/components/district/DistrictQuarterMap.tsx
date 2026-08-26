@@ -209,6 +209,7 @@ const VERIFIED_QUARTER_IDS = new Set([
   'emirates',
   'australia-oceania',
   'motherland',
+  'north-europe',
 ]);
 const VISIBLE_QUARTERS = DISTRICT_QUARTERS.filter((q) => VERIFIED_QUARTER_IDS.has(q.id));
 
