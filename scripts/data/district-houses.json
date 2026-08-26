@@ -61,6 +61,11 @@
   },
   {
     "street": "братская",
+    "house": "1",
+    "quarterId": "mediterranean"
+  },
+  {
+    "street": "братская",
     "house": "10",
     "quarterId": "emirates"
   },
@@ -101,6 +106,11 @@
   },
   {
     "street": "братская",
+    "house": "5",
+    "quarterId": "mediterranean"
+  },
+  {
+    "street": "братская",
     "house": "6",
     "quarterId": "emirates"
   },
@@ -111,8 +121,18 @@
   },
   {
     "street": "братская",
+    "house": "7",
+    "quarterId": "mediterranean"
+  },
+  {
+    "street": "братская",
     "house": "8",
     "quarterId": "emirates"
+  },
+  {
+    "street": "братская",
+    "house": "9",
+    "quarterId": "mediterranean"
   },
   {
     "street": "брилевская",
@@ -191,8 +211,18 @@
   },
   {
     "street": "жореса алфёрова",
+    "house": "2",
+    "quarterId": "mediterranean"
+  },
+  {
+    "street": "жореса алфёрова",
     "house": "3",
     "quarterId": "south-america"
+  },
+  {
+    "street": "жореса алфёрова",
+    "house": "4",
+    "quarterId": "mediterranean"
   },
   {
     "street": "жореса алфёрова",
@@ -203,6 +233,11 @@
     "street": "жореса алфёрова",
     "house": "7",
     "quarterId": "western-europe"
+  },
+  {
+    "street": "жореса алфёрова",
+    "house": "8",
+    "quarterId": "mediterranean"
   },
   {
     "street": "жореса алфёрова",
@@ -242,7 +277,7 @@
   {
     "street": "игоря лученка",
     "house": "19",
-    "quarterId": "north-america"
+    "quarterId": "mediterranean"
   },
   {
     "street": "игоря лученка",
@@ -262,7 +297,7 @@
   {
     "street": "игоря лученка",
     "house": "23",
-    "quarterId": "world-dances"
+    "quarterId": "mediterranean"
   },
   {
     "street": "игоря лученка",
@@ -272,7 +307,7 @@
   {
     "street": "игоря лученка",
     "house": "25",
-    "quarterId": "world-dances"
+    "quarterId": "mediterranean"
   },
   {
     "street": "игоря лученка",
@@ -478,11 +513,6 @@
     "street": "николы теслы",
     "house": "14",
     "quarterId": "south-europe"
-  },
-  {
-    "street": "николы теслы",
-    "house": "15",
-    "quarterId": "mediterranean"
   },
   {
     "street": "николы теслы",

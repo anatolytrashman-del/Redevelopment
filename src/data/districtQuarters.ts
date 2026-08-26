@@ -77,6 +77,7 @@ export const QUARTER_HOUSE_INDEX: Record<string, string> = {
   "белградская|16": 'motherland',
   "белградская|18": 'motherland',
   "белградская|3": 'central-europe',
+  "братская|1": 'mediterranean',
   "братская|10": 'emirates',
   "братская|12": 'emirates',
   "братская|14": 'emirates',
@@ -90,9 +91,12 @@ export const QUARTER_HOUSE_INDEX: Record<string, string> = {
   "братская|2": 'emirates',
   "братская|24": 'australia-oceania',
   "братская|4": 'emirates',
+  "братская|5": 'mediterranean',
   "братская|6": 'emirates',
   "братская|6А": 'emirates',
+  "братская|7": 'mediterranean',
   "братская|8": 'emirates',
+  "братская|9": 'mediterranean',
   "брилевская|21": 'south-europe',
   "брилевская|23": 'south-europe',
   "брилевская|25": 'champions',
@@ -109,12 +113,17 @@ export const QUARTER_HOUSE_INDEX: Record<string, string> = {
   "жореса алфёрова|12": 'tropical-islands',
   "жореса алфёрова|13": 'western-europe',
   "жореса алфёрова|14": 'tropical-islands',
+  // "2" — не введён в эксплуатацию (владелец, 2026-08-26, отмечено флагом
+  // в district_house_flags — организаций пока не будет).
+  "жореса алфёрова|2": 'mediterranean',
   "жореса алфёрова|3": 'south-america',
+  "жореса алфёрова|4": 'mediterranean',
   "жореса алфёрова|5": 'south-america',
   // "7" был south-america — по факту это дом квартала "Западная Европа"
   // (владелец сверил вживую, 2026-08-26); "9" не встречался в справочнике
   // вовсе.
   "жореса алфёрова|7": 'western-europe',
+  "жореса алфёрова|8": 'mediterranean',
   "жореса алфёрова|9": 'western-europe',
   "игоря лученка|1": 'north-europe',
   "игоря лученка|11": 'asia',
@@ -122,13 +131,16 @@ export const QUARTER_HOUSE_INDEX: Record<string, string> = {
   "игоря лученка|15": 'north-america',
   "игоря лученка|17": 'north-america',
   "игоря лученка|18": 'australia-oceania',
-  "игоря лученка|19": 'north-america',
+  // "19"/"23"/"25" были north-america/world-dances/world-dances — по факту
+  // квартал "Средиземноморский" (владелец сверил вживую, 2026-08-26);
+  // существующие организации по этим адресам перетегированы туда же.
+  "игоря лученка|19": 'mediterranean',
   "игоря лученка|2": 'eurasia',
   "игоря лученка|20": 'australia-oceania',
   "игоря лученка|22": 'australia-oceania',
-  "игоря лученка|23": 'world-dances',
+  "игоря лученка|23": 'mediterranean',
   "игоря лученка|24": 'africa',
-  "игоря лученка|25": 'world-dances',
+  "игоря лученка|25": 'mediterranean',
   "игоря лученка|26": 'africa',
   "игоря лученка|27": 'world-dances',
   "игоря лученка|28": 'western-europe',
@@ -175,7 +187,10 @@ export const QUARTER_HOUSE_INDEX: Record<string, string> = {
   "николы теслы|11": 'north-europe',
   "николы теслы|12": 'south-europe',
   "николы теслы|14": 'south-europe',
-  "николы теслы|15": 'mediterranean',
+  // "15" убрана — не было в списке от владельца 2026-08-26, организаций
+  // под ней не было. "17"/"19" НЕ убраны, хотя тоже не названы заново —
+  // там уже 2 и 3 реальные организации в базе, уточнить у владельца, не
+  // опечатка ли (тот же случай, что и с "Братская, 18" в Эмиратс).
   "николы теслы|16": 'central-europe',
   "николы теслы|17": 'mediterranean',
   "николы теслы|18": 'central-europe',
