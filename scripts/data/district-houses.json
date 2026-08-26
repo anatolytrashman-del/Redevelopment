@@ -41,11 +41,6 @@
   },
   {
     "street": "белградская",
-    "house": "1",
-    "quarterId": "central-europe"
-  },
-  {
-    "street": "белградская",
     "house": "6",
     "quarterId": "eurasia"
   },
@@ -103,11 +98,6 @@
     "street": "братская",
     "house": "17",
     "quarterId": "tropical-islands"
-  },
-  {
-    "street": "братская",
-    "house": "18",
-    "quarterId": "emirates"
   },
   {
     "street": "братская",
@@ -321,11 +311,6 @@
   },
   {
     "street": "игоря лученка",
-    "house": "2",
-    "quarterId": "eurasia"
-  },
-  {
-    "street": "игоря лученка",
     "house": "20",
     "quarterId": "australia-oceania"
   },
@@ -391,17 +376,7 @@
   },
   {
     "street": "игоря лученка",
-    "house": "4",
-    "quarterId": "eurasia"
-  },
-  {
-    "street": "игоря лученка",
     "house": "5",
-    "quarterId": "eurasia"
-  },
-  {
-    "street": "игоря лученка",
-    "house": "6",
     "quarterId": "eurasia"
   },
   {
@@ -556,11 +531,6 @@
   },
   {
     "street": "николы теслы",
-    "house": "1",
-    "quarterId": "eurasia"
-  },
-  {
-    "street": "николы теслы",
     "house": "10",
     "quarterId": "eurasia"
   },
@@ -586,18 +556,8 @@
   },
   {
     "street": "николы теслы",
-    "house": "17",
-    "quarterId": "mediterranean"
-  },
-  {
-    "street": "николы теслы",
     "house": "18",
     "quarterId": "central-europe"
-  },
-  {
-    "street": "николы теслы",
-    "house": "19",
-    "quarterId": "mediterranean"
   },
   {
     "street": "николы теслы",
@@ -638,11 +598,6 @@
     "street": "николы теслы",
     "house": "29",
     "quarterId": "happy-planet"
-  },
-  {
-    "street": "николы теслы",
-    "house": "3",
-    "quarterId": "eurasia"
   },
   {
     "street": "николы теслы",
