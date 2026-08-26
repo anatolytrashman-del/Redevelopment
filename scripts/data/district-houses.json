@@ -55,11 +55,6 @@
     "quarterId": "motherland"
   },
   {
-    "street": "белградская",
-    "house": "3",
-    "quarterId": "central-europe"
-  },
-  {
     "street": "братская",
     "house": "1",
     "quarterId": "mediterranean"
@@ -282,17 +277,17 @@
   {
     "street": "игоря лученка",
     "house": "11",
-    "quarterId": "asia"
+    "quarterId": "central-europe"
   },
   {
     "street": "игоря лученка",
     "house": "13",
-    "quarterId": "asia"
+    "quarterId": "central-europe"
   },
   {
     "street": "игоря лученка",
     "house": "15",
-    "quarterId": "north-america"
+    "quarterId": "central-europe"
   },
   {
     "street": "игоря лученка",
@@ -465,6 +460,11 @@
     "quarterId": "emirates"
   },
   {
+    "street": "мира",
+    "house": "10",
+    "quarterId": "central-europe"
+  },
+  {
     "street": "михаила савицкого",
     "house": "10",
     "quarterId": "africa"
@@ -573,6 +573,11 @@
     "street": "николы теслы",
     "house": "19",
     "quarterId": "mediterranean"
+  },
+  {
+    "street": "николы теслы",
+    "house": "20",
+    "quarterId": "central-europe"
   },
   {
     "street": "николы теслы",
