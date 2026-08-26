@@ -70,12 +70,9 @@ export const QUARTER_HOUSE_INDEX: Record<string, string> = {
   "аэродромная|30": 'africa',
   "аэродромная|32": 'emirates',
   "белградская|1": 'central-europe',
-  "белградская|11": 'western-europe',
   "белградская|16": 'motherland',
   "белградская|18": 'motherland',
   "белградская|3": 'central-europe',
-  "белградская|7": 'western-europe',
-  "белградская|9": 'western-europe',
   "братская|10": 'emirates',
   "братская|12": 'emirates',
   "братская|14": 'emirates',
@@ -101,10 +98,13 @@ export const QUARTER_HOUSE_INDEX: Record<string, string> = {
   "жореса алфёрова|12": 'tropical-islands',
   "жореса алфёрова|13": 'western-europe',
   "жореса алфёрова|14": 'tropical-islands',
-  "жореса алфёрова|15": 'western-europe',
   "жореса алфёрова|3": 'south-america',
   "жореса алфёрова|5": 'south-america',
-  "жореса алфёрова|7": 'south-america',
+  // "7" был south-america — по факту это дом квартала "Западная Европа"
+  // (владелец сверил вживую, 2026-08-26); "9" не встречался в справочнике
+  // вовсе.
+  "жореса алфёрова|7": 'western-europe',
+  "жореса алфёрова|9": 'western-europe',
   "игоря лученка|1": 'north-europe',
   "игоря лученка|11": 'asia',
   "игоря лученка|13": 'asia',
@@ -120,9 +120,12 @@ export const QUARTER_HOUSE_INDEX: Record<string, string> = {
   "игоря лученка|25": 'world-dances',
   "игоря лученка|26": 'africa',
   "игоря лученка|27": 'world-dances',
+  "игоря лученка|28": 'western-europe',
   "игоря лученка|29": 'south-america',
   "игоря лученка|3": 'north-europe',
+  "игоря лученка|30": 'western-europe',
   "игоря лученка|31": 'south-america',
+  "игоря лученка|32": 'western-europe',
   "игоря лученка|4": 'eurasia',
   "игоря лученка|6": 'eurasia',
   "игоря лученка|7": 'asia',
@@ -133,6 +136,15 @@ export const QUARTER_HOUSE_INDEX: Record<string, string> = {
   "корш-ситникова|3": 'north-europe',
   "корш-ситникова|5": 'north-europe',
   "левкова|45": 'tropical-islands',
+  // Квартал "Западная Европа" целиком пересверен с владельцем 2026-08-26 —
+  // исходный справочник был неверным (улица Белградская тут не при чём
+  // вовсе, была ошибочно). Ещё одно здание квартала — "Лондон" (координаты
+  // 53.859542, 27.552616) — на 2026-08-26 строится, в справочник не
+  // добавлено намеренно (нет адреса дома, не сдано).
+  "леонида щемелёва|18": 'western-europe',
+  "леонида щемелёва|26": 'western-europe',
+  "леонида щемелёва|28": 'western-europe',
+  "леонида щемелёва|30": 'western-europe',
   "мира|1": 'emirates',
   "михаила савицкого|10": 'africa',
   "михаила савицкого|12": 'africa',
@@ -141,6 +153,8 @@ export const QUARTER_HOUSE_INDEX: Record<string, string> = {
   "михаила савицкого|25": 'australia-oceania',
   "михаила савицкого|27": 'australia-oceania',
   "михаила савицкого|3": 'asia',
+  "михаила савицкого|35": 'western-europe',
+  "михаила савицкого|37": 'western-europe',
   "михаила савицкого|4": 'tropical-islands',
   "михаила савицкого|5": 'asia',
   "михаила савицкого|7": 'asia',
