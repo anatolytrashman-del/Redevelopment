@@ -41,6 +41,11 @@
   },
   {
     "street": "белградская",
+    "house": "1",
+    "quarterId": "champions"
+  },
+  {
+    "street": "белградская",
     "house": "6",
     "quarterId": "eurasia"
   },
@@ -98,6 +103,11 @@
     "street": "братская",
     "house": "17",
     "quarterId": "tropical-islands"
+  },
+  {
+    "street": "братская",
+    "house": "18",
+    "quarterId": "australia-oceania"
   },
   {
     "street": "братская",
@@ -311,6 +321,11 @@
   },
   {
     "street": "игоря лученка",
+    "house": "2",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "игоря лученка",
     "house": "20",
     "quarterId": "australia-oceania"
   },
@@ -376,8 +391,18 @@
   },
   {
     "street": "игоря лученка",
+    "house": "4",
+    "quarterId": "happy-planet"
+  },
+  {
+    "street": "игоря лученка",
     "house": "5",
     "quarterId": "eurasia"
+  },
+  {
+    "street": "игоря лученка",
+    "house": "6",
+    "quarterId": "happy-planet"
   },
   {
     "street": "игоря лученка",
@@ -531,6 +556,11 @@
   },
   {
     "street": "николы теслы",
+    "house": "1",
+    "quarterId": "world-dances"
+  },
+  {
+    "street": "николы теслы",
     "house": "10",
     "quarterId": "eurasia"
   },
@@ -556,8 +586,18 @@
   },
   {
     "street": "николы теслы",
+    "house": "17",
+    "quarterId": "world-dances"
+  },
+  {
+    "street": "николы теслы",
     "house": "18",
     "quarterId": "central-europe"
+  },
+  {
+    "street": "николы теслы",
+    "house": "19",
+    "quarterId": "world-dances"
   },
   {
     "street": "николы теслы",
@@ -598,6 +638,11 @@
     "street": "николы теслы",
     "house": "29",
     "quarterId": "happy-planet"
+  },
+  {
+    "street": "николы теслы",
+    "house": "3",
+    "quarterId": "world-dances"
   },
   {
     "street": "николы теслы",
