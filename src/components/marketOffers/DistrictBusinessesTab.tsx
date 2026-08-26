@@ -183,12 +183,21 @@ function HouseModal({
   const [addCategory, setAddCategory] = useState('');
   const [adding, setAdding] = useState(false);
   const [pendingDiff, setPendingDiff] = useState<HouseDiff | null>(null);
+  // Названия из toAdd, которые человек снял галочкой перед применением —
+  // владелец: "у меня в выгрузке два типа мест — полноценный бизнес... и
+  // точки самих жителей об их услугах" (пример — "Seo", "Механизированная
+  // шпаклевка", ни у одной нет блока оценок на Яндекс.Картах). Число оценок
+  // само по себе не идеальный сигнал (у реальной сети ПВЗ Ozon в этой же
+  // точке тоже 0), поэтому не исключаем автоматически — только подсвечиваем
+  // "нет оценок" и даём снять галочку вручную.
+  const [excludedTitles, setExcludedTitles] = useState<Set<string>>(new Set());
   const [applying, setApplying] = useState(false);
   const [fileError, setFileError] = useState('');
 
   async function handleFile(file: File) {
     setFileError('');
     setPendingDiff(null);
+    setExcludedTitles(new Set());
     try {
       const buffer = await file.arrayBuffer();
       const parsed = looksLikeBplist(buffer) ? parseWebarchiveOrgList(buffer) : parseBusinessListText(new TextDecoder('utf-8').decode(buffer));
@@ -204,12 +213,14 @@ function HouseModal({
 
   async function confirmDiff() {
     if (!pendingDiff) return;
+    const toAdd = pendingDiff.toAdd.filter((e) => !excludedTitles.has(e.title));
+    const diffToApply: HouseDiff = { ...pendingDiff, toAdd };
     setApplying(true);
     try {
-      await applyHouseDiff(house, pendingDiff);
+      await applyHouseDiff(house, diffToApply);
       onDiffApplied(
         pendingDiff.toRemove.map((r) => r.id),
-        pendingDiff.toAdd.map((entry, i) => ({
+        toAdd.map((entry, i) => ({
           id: `pending-${i}-${entry.title}`,
           externalId: null,
           title: entry.title,
@@ -221,6 +232,7 @@ function HouseModal({
           lat: null,
           lon: null,
           status: null,
+          reviewCount: entry.reviewCount,
           lastSeenAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),
         })),
@@ -277,14 +289,43 @@ function HouseModal({
               изменений — {pendingDiff.unchanged.length}.
             </p>
             {pendingDiff.toAdd.length > 0 && (
-              <div className="flex flex-col gap-1 rounded-control bg-success-bg/60 p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-success">Добавятся</p>
-                {pendingDiff.toAdd.map((e) => (
-                  <p key={e.title} className="text-sm text-ink">
-                    {e.title}
-                    {e.rawCategory && <span className="text-ink-faint"> — {e.rawCategory}</span>}
-                  </p>
-                ))}
+              <div className="flex flex-col gap-1.5 rounded-control bg-success-bg/60 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-success">
+                  Добавятся — сними галочку у тех, что не похожи на настоящий бизнес (например, услуги жителя со
+                  своей квартиры)
+                </p>
+                {pendingDiff.toAdd.map((e) => {
+                  const excluded = excludedTitles.has(e.title);
+                  const noReviews = e.reviewCount === null;
+                  return (
+                    <label key={e.title} className="flex items-start gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-1 shrink-0"
+                        checked={!excluded}
+                        onChange={() =>
+                          setExcludedTitles((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(e.title)) next.delete(e.title);
+                            else next.add(e.title);
+                            return next;
+                          })
+                        }
+                      />
+                      <span className={cn(excluded && 'text-ink-faint line-through')}>
+                        {e.title}
+                        {e.rawCategory && <span className="text-ink-faint"> — {e.rawCategory}</span>}
+                        {noReviews ? (
+                          <span className="ml-1.5 rounded-full bg-warning-bg px-1.5 py-0.5 text-xs font-semibold text-warning">
+                            нет оценок
+                          </span>
+                        ) : (
+                          <span className="text-ink-faint"> · {e.reviewCount} оценок</span>
+                        )}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
             )}
             {pendingDiff.toRemove.length > 0 && (
@@ -302,7 +343,9 @@ function HouseModal({
                 Отмена
               </Button>
               <Button type="button" onClick={confirmDiff} disabled={applying}>
-                {applying ? 'Применяем…' : 'Применить'}
+                {applying
+                  ? 'Применяем…'
+                  : `Применить (добавится ${pendingDiff.toAdd.length - excludedTitles.size})`}
               </Button>
             </div>
           </div>
@@ -341,6 +384,13 @@ function HouseModal({
                       <span className="text-sm text-ink">
                         {p.title}
                         {p.rawCategory && <span className="text-ink-faint"> — {p.rawCategory}</span>}
+                        {p.reviewCount === null ? (
+                          <span className="ml-1.5 rounded-full bg-warning-bg px-1.5 py-0.5 text-xs font-semibold text-warning">
+                            нет оценок
+                          </span>
+                        ) : (
+                          <span className="text-ink-faint"> · {p.reviewCount} оценок</span>
+                        )}
                       </span>
                       <button
                         type="button"

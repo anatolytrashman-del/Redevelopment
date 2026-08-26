@@ -13,6 +13,16 @@ import type { ParsedBusinessEntry } from './districtBusinessPointsApi';
 // дублируются вторым блоком на странице (какой-то "похожие"/pinned виджет
 // с тем же компонентом) — дедуп по числовому id организации из ссылки на
 // её карточку (/maps/org/.../<id>/...).
+//
+// MIN_REVIEW_COUNT — владелец: "в выгрузке два типа мест: полноценный
+// бизнес... и точки самих жителей об их услугах" (пример — "Seo",
+// "Механизированная шпаклевка", у обеих нет блока оценок вовсе), явно
+// попросил не включать в выборку вообще всё с меньше чем 5 оценками.
+// Осознанный компромисс: у Ozon (реальный общесетевой ПВЗ) в том же
+// примере тоже было 0 оценок именно в этой точке — такие ложно
+// отфильтруются, владелец в курсе и решил, что для этой задачи это ок.
+const MIN_REVIEW_COUNT = 5;
+
 export function parseWebarchiveOrgList(buffer: ArrayBuffer): ParsedBusinessEntry[] {
   const root = parseBplist(buffer) as { WebMainResource?: { WebResourceData?: Uint8Array } };
   const htmlBytes = root?.WebMainResource?.WebResourceData;
@@ -44,7 +54,15 @@ export function parseWebarchiveOrgList(buffer: ArrayBuffer): ParsedBusinessEntry
     const categoryEl = card.querySelector('.search-business-snippet-view__categories');
     const rawCategory = categoryEl?.textContent?.trim() || null;
 
-    entries.push({ title, rawCategory });
+    // "25 оценок" / "3 оценки" / "1 оценка" — берём число целиком; нет
+    // блока оценок вовсе считаем как 0.
+    const countEl = card.querySelector('.business-rating-amount-view');
+    const countMatch = countEl?.textContent?.match(/\d+/);
+    const reviewCount = countMatch ? Number(countMatch[0]) : null;
+
+    if ((reviewCount ?? 0) < MIN_REVIEW_COUNT) continue;
+
+    entries.push({ title, rawCategory, reviewCount });
   }
 
   return entries;

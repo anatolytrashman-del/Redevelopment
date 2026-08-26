@@ -24,6 +24,18 @@ export interface DistrictBusinessPoint {
   lat: number | null;
   lon: number | null;
   status: string | null;
+  // Число оценок на Яндекс.Картах (не отзывов — то же число, что у Яндекса
+  // подписано "N оценок") — владелец: "как бы нам фильтровать" настоящий
+  // бизнес от точек жителей, предлагающих услуги прямо со своей квартиры
+  // ("Seo", "Механизированная шпаклевка" — ни у одной из явно домашних
+  // точек в примере не было блока с оценками вовсе, в отличие от English
+  // VIP/Wildberries и т.п.). При разборе .webarchive (lib/webarchiveOrgParser.ts)
+  // всё с меньше чем 5 оценками в выборку вообще не попадает — прямое
+  // решение владельца, осознанный компромисс (у Ozon, реального
+  // общесетевого ПВЗ, в примере тоже было 0 оценок именно в этой точке —
+  // такие тоже отфильтруются). У ручного .txt-разбора и уже сохранённых
+  // вручную записей число всегда null — фильтр их не касается.
+  reviewCount: number | null;
   lastSeenAt: string;
   createdAt: string;
 }
@@ -40,6 +52,7 @@ export interface DistrictBusinessPointRow {
   lat: number | null;
   lon: number | null;
   status: string | null;
+  review_count: number | null;
   last_seen_at: string;
   created_at: string;
 }

@@ -15,6 +15,7 @@ function fromRow(row: DistrictBusinessPointRow): DistrictBusinessPoint {
     lat: row.lat,
     lon: row.lon,
     status: row.status,
+    reviewCount: row.review_count,
     lastSeenAt: row.last_seen_at,
     createdAt: row.created_at,
   };
@@ -31,6 +32,9 @@ export function fetchDistrictBusinessPoints(): Promise<DistrictBusinessPoint[]> 
 export interface ParsedBusinessEntry {
   title: string;
   rawCategory: string | null;
+  // Число оценок на Яндекс.Картах — есть только из .webarchive-выгрузки
+  // (см. lib/webarchiveOrgParser.ts), у ручного .txt-разбора всегда null.
+  reviewCount: number | null;
 }
 
 // Разбор текстового файла, который Светлана выгружает с Яндекс.Карт
@@ -55,10 +59,10 @@ export function parseBusinessListText(raw: string): ParsedBusinessEntry[] {
     if (HOURS_HINT.test(line)) continue; // это строка категории, а не название — уже подхвачена на предыдущем шаге
     const next = lines[i + 1];
     if (next && HOURS_HINT.test(next)) {
-      entries.push({ title: line, rawCategory: next });
+      entries.push({ title: line, rawCategory: next, reviewCount: null });
       i++; // следующую строку уже использовали как категорию
     } else {
-      entries.push({ title: line, rawCategory: null });
+      entries.push({ title: line, rawCategory: null, reviewCount: null });
     }
   }
   return entries;
@@ -96,6 +100,7 @@ export function applyHouseDiff(
         diff.toAdd.map((entry) => ({
           title: entry.title,
           raw_category: entry.rawCategory,
+          review_count: entry.reviewCount,
           street: house.street,
           house: house.house,
           quarter_id: house.quarterId,
