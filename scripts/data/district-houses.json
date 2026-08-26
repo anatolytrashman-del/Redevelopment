@@ -1,6 +1,11 @@
 [
   {
     "street": "аэродромная",
+    "house": "16",
+    "quarterId": "world-dances"
+  },
+  {
+    "street": "аэродромная",
     "house": "20",
     "quarterId": "south-europe"
   },
@@ -167,17 +172,17 @@
   {
     "street": "брилевская",
     "house": "25",
-    "quarterId": "champions"
+    "quarterId": "world-dances"
   },
   {
     "street": "брилевская",
     "house": "27",
-    "quarterId": "champions"
+    "quarterId": "world-dances"
   },
   {
     "street": "брилевская",
     "house": "29",
-    "quarterId": "champions"
+    "quarterId": "world-dances"
   },
   {
     "street": "брилевская",
@@ -587,7 +592,7 @@
   {
     "street": "николы теслы",
     "house": "11",
-    "quarterId": "north-europe"
+    "quarterId": "world-dances"
   },
   {
     "street": "николы теслы",
@@ -598,6 +603,21 @@
     "street": "николы теслы",
     "house": "14",
     "quarterId": "eurasia"
+  },
+  {
+    "street": "николы теслы",
+    "house": "15",
+    "quarterId": "world-dances"
+  },
+  {
+    "street": "николы теслы",
+    "house": "3к1",
+    "quarterId": "world-dances"
+  },
+  {
+    "street": "николы теслы",
+    "house": "7",
+    "quarterId": "world-dances"
   },
   {
     "street": "николы теслы",
