@@ -257,8 +257,21 @@ function openAdWindow(url: string) {
   window.open(url, 'market-offer-check', `width=${width},height=${height},left=${left},top=0`);
 }
 
+// Отображение площади/цены округляем на выводе, а не в самих данных
+// (netSize/netPricePerSqm в data/marketOffers.ts используются ещё и для
+// медианы на /minsk/minsk-mir — там точность важна). Площадь — до 0.1 м²
+// (иначе вычитание террасы иногда даёт "70.19999999999999" из-за плавающей
+// запятой), цена — до целого доллара.
+function formatArea(size: number): string {
+  return size.toFixed(1);
+}
+
+function formatPrice(pricePerSqm: number): string {
+  return String(Math.round(pricePerSqm));
+}
+
 function discussLabel(offer: MarketOffer): string {
-  return `${offer.address ?? 'без адреса'} · ${offer.size} м²`;
+  return `${offer.address ?? 'без адреса'} · ${formatArea(offer.size)} м²`;
 }
 
 // Одна строка объявления — переиспользуется и в обычной таблице, и внутри
@@ -316,19 +329,21 @@ function OfferRow({
       <td className="whitespace-nowrap py-2.5 px-2 text-ink-muted">{offer.dealType === 'sale' ? 'Продажа' : 'Аренда'}</td>
       <td className="max-w-[140px] py-2.5 px-2 text-right tabular-nums text-ink-muted">
         <span className="whitespace-nowrap">
-          {offer.size} м² <span className="text-ink-faint">({areaBucket(netSize(offer))})</span>
+          {formatArea(offer.size)} м² <span className="text-ink-faint">({areaBucket(netSize(offer))})</span>
         </span>
         {offer.hasTerrace && (
-          <div className="text-xs text-warning">терраса {offer.terraceArea ?? '?'} · чисто {netSize(offer)} м²</div>
+          <div className="text-xs text-warning">
+            терраса {offer.terraceArea ?? '?'} · чисто {formatArea(netSize(offer))} м²
+          </div>
         )}
       </td>
       <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-muted">{offer.floor ?? '—'}</td>
       <td className="max-w-[150px] py-2.5 px-2 text-right tabular-nums text-ink-muted">
         <span className="whitespace-nowrap">
-          {offer.pricePerSqm} $/м²{offer.dealType === 'rent' ? '/мес' : ''}
+          {formatPrice(offer.pricePerSqm)} $/м²{offer.dealType === 'rent' ? '/мес' : ''}
         </span>
         {offer.hasTerrace && (
-          <div className="text-xs text-warning">на чистую — {netPricePerSqm(offer)} $/м²</div>
+          <div className="text-xs text-warning">на чистую — {formatPrice(netPricePerSqm(offer))} $/м²</div>
         )}
       </td>
       <td className="whitespace-nowrap py-2.5 px-2">
@@ -633,7 +648,7 @@ export function MarketOffersReview() {
   function openDiscussFromEdit(offer: MarketOffer) {
     setEditingOffer(null);
     setEditForm(null);
-    openDiscussModal([offer.id], `${offer.address ?? 'без адреса'} · ${offer.size} м²`);
+    openDiscussModal([offer.id], `${offer.address ?? 'без адреса'} · ${formatArea(offer.size)} м²`);
   }
 
   async function submitDiscuss() {
@@ -882,7 +897,7 @@ export function MarketOffersReview() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-sm text-ink-muted">
                       <span className="font-semibold text-ink">{verifyGroupTarget[1][0].address ?? 'без адреса'}</span> ·{' '}
-                      {verifyGroupTarget[1][0].size} м² · этаж {verifyGroupTarget[1][0].floor ?? '?'} ·{' '}
+                      {formatArea(verifyGroupTarget[1][0].size)} м² · этаж {verifyGroupTarget[1][0].floor ?? '?'} ·{' '}
                       {verifyGroupTarget[1].length} объявления похожи друг на друга
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -977,7 +992,7 @@ export function MarketOffersReview() {
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm text-ink-muted">
                           <span className="font-semibold text-ink">{group[0].address ?? 'без адреса'}</span> ·{' '}
-                          {group[0].size} м² · этаж {group[0].floor ?? '?'} · {group.length} объявления похожи друг
+                          {formatArea(group[0].size)} м² · этаж {group[0].floor ?? '?'} · {group.length} объявления похожи друг
                           на друга
                         </p>
                         <div className="flex flex-wrap gap-2">
@@ -1097,7 +1112,7 @@ export function MarketOffersReview() {
                 <div key={key} className={cn('flex flex-col gap-3 p-4', glassCardClass)} style={glassCardShadow}>
                   <p className="text-sm text-ink-muted">
                     <span className="font-semibold text-ink">{group[0].address ?? 'без адреса'}</span> ·{' '}
-                    {group[0].size} м²
+                    {formatArea(group[0].size)} м²
                     {group.length > 1 && <> · {group.length} объявления в группе</>}
                   </p>
                   <div className="overflow-x-auto">
@@ -1275,7 +1290,7 @@ export function MarketOffersReview() {
                         const terrace = Number(editForm.terraceArea.replace(',', '.'));
                         if (!Number.isFinite(total) || !Number.isFinite(terrace) || terrace <= 0) return '—';
                         const net = total - terrace;
-                        return net > 0 ? `${Math.round(net * 100) / 100} м²` : '—';
+                        return net > 0 ? `${formatArea(net)} м²` : '—';
                       })()}
                     </span>
                   </p>
