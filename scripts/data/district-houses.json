@@ -186,6 +186,11 @@
   },
   {
     "street": "жореса алфёрова",
+    "house": "1",
+    "quarterId": "south-america"
+  },
+  {
+    "street": "жореса алфёрова",
     "house": "10",
     "quarterId": "tropical-islands"
   },
@@ -317,7 +322,7 @@
   {
     "street": "игоря лученка",
     "house": "27",
-    "quarterId": "world-dances"
+    "quarterId": "south-america"
   },
   {
     "street": "игоря лученка",
@@ -398,6 +403,21 @@
     "street": "левкова",
     "house": "45",
     "quarterId": "tropical-islands"
+  },
+  {
+    "street": "леонида щемелёва",
+    "house": "10",
+    "quarterId": "south-america"
+  },
+  {
+    "street": "леонида щемелёва",
+    "house": "14",
+    "quarterId": "south-america"
+  },
+  {
+    "street": "леонида щемелёва",
+    "house": "16",
+    "quarterId": "south-america"
   },
   {
     "street": "леонида щемелёва",
