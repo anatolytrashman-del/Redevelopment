@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2, Check } from 'lucide-react';
 import { Card } from '../components/ui/Card';
@@ -291,9 +291,9 @@ export function EstimatePublicPage() {
   const logisticsSections = estimate.sections.filter((s) => s.title.trim() === 'Организация и логистика');
   const mainSections = estimate.sections.filter((s) => s.title.trim() !== 'Организация и логистика');
 
-  function renderSectionCard(section: EstimateSection) {
+  function renderSectionBody(section: EstimateSection) {
     return (
-      <Card key={section.id} className="flex flex-col gap-4 p-5">
+      <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-3">
           <div className="font-bold text-ink">{formatZone(section.title)}</div>
           <button
@@ -331,9 +331,48 @@ export function EstimatePublicPage() {
             onListFilesChange={(files) => saveMaterialListFiles(section.id, files)}
           />
         </div>
+      </div>
+    );
+  }
+
+  function renderSectionCard(section: EstimateSection) {
+    return (
+      <Card key={section.id} className="p-5">
+        {renderSectionBody(section)}
       </Card>
     );
   }
+
+  // "Общие зоны - 1 этаж" и т.п. (владелец, 2026-08-27: "Общие зоны - это
+  // типо заголовок, а коридоры и санузлы — уже части этого блока") — раздел,
+  // чьё название начинается с "Общие зоны", в данных остаётся обычным
+  // EstimateSection (жить своей строкой в jsonb ему ничего не мешает), но на
+  // экране рендерится не отдельной карточкой, а ЗАГОЛОВКОМ общей карточки,
+  // внутрь которой попадают все следующие по порядку разделы — вплоть до
+  // следующего такого же заголовка или конца списка. Своей построчной сметы
+  // /материалов у самого заголовка нет (он для этого и не предназначен —
+  // "типо заголовок"), только группирует то, что идёт следом.
+  interface SectionGroup {
+    header: EstimateSection | null;
+    items: EstimateSection[];
+  }
+
+  function groupMainSections(list: EstimateSection[]): SectionGroup[] {
+    const groups: SectionGroup[] = [];
+    let current: SectionGroup = { header: null, items: [] };
+    for (const s of list) {
+      if (/^общие\s+зоны/i.test(s.title.trim())) {
+        if (current.header || current.items.length > 0) groups.push(current);
+        current = { header: s, items: [] };
+      } else {
+        current.items.push(s);
+      }
+    }
+    if (current.header || current.items.length > 0) groups.push(current);
+    return groups;
+  }
+
+  const sectionGroups = groupMainSections(mainSections);
 
   return (
     <div className="min-h-svh bg-bg px-4 py-8 sm:px-8">
@@ -351,7 +390,24 @@ export function EstimatePublicPage() {
           <span className="text-sm text-ink-muted">Можно добавлять, редактировать и удалять строки, оставлять комментарии.</span>
         </Card>
 
-        {mainSections.map(renderSectionCard)}
+        {sectionGroups.map((group, i) =>
+          group.header ? (
+            <Card key={group.header.id} className="flex flex-col gap-5 p-5">
+              <div className="text-lg font-bold text-ink">{formatZone(group.header.title)}</div>
+              {group.items.length === 0 ? (
+                <p className="text-sm text-ink-faint">Пока нет разделов внутри.</p>
+              ) : (
+                group.items.map((section, j) => (
+                  <div key={section.id} className={cn(j > 0 && 'border-t border-border pt-5')}>
+                    {renderSectionBody(section)}
+                  </div>
+                ))
+              )}
+            </Card>
+          ) : (
+            <Fragment key={`ungrouped-${i}`}>{group.items.map(renderSectionCard)}</Fragment>
+          ),
+        )}
 
         {floor1Total > 0 && (
           <Card className="flex flex-col gap-3 p-5">
