@@ -11,7 +11,7 @@ import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { CatalogPickerModal } from '../components/estimates/CatalogPickerModal';
 import { EstimatePositionCard } from '../components/estimates/EstimatePositionCard';
 import { EstimatePositionFormModal } from '../components/estimates/EstimatePositionFormModal';
-import { EstimateLineItemsTable, formatUsd } from '../components/estimates/EstimateLineItemsTable';
+import { EstimateLineItemsTable, formatUsd, formatZone } from '../components/estimates/EstimateLineItemsTable';
 import { EstimateLineItemFormModal } from '../components/estimates/EstimateLineItemFormModal';
 import { EstimateLineItemCommentsModal } from '../components/estimates/EstimateLineItemCommentsModal';
 import { EstimateMaterialsPanel } from '../components/estimates/EstimateMaterialsPanel';
@@ -630,7 +630,7 @@ export function EstimateDetail() {
               ) : (
                 <>
                   <div className="flex items-center justify-between gap-3">
-                    <div className="font-bold text-ink">{section.title}</div>
+                    <div className="font-bold text-ink">{formatZone(section.title)}</div>
                     <div className="flex shrink-0 items-center gap-3">
                       <button
                         type="button"

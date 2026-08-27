@@ -29,11 +29,14 @@ function formatQty(item: EstimateLineItem): string {
   return `${item.quantity.toLocaleString('ru-RU')}${item.unit ? ` ${item.unit}` : ''}`;
 }
 
-// Исходные зоны — буквально КАПСОМ из xlsx подрядчика (см. комментарий у
-// EstimateLineItem.zone) — так и хранится, для сверки с оригиналом. Для
-// показа приводим к обычному виду: "НАРУЖНАЯ ОТДЕЛКА ФАСАДА" → "Наружная
-// отделка фасада". Только отображение, сохранённое значение не трогает.
-function formatZone(zone: string): string {
+// Исходные зоны/названия разделов — буквально КАПСОМ из xlsx подрядчика (см.
+// комментарий у EstimateLineItem.zone) — так и хранится, для сверки с
+// оригиналом. Для показа приводим к обычному виду: "НАРУЖНАЯ ОТДЕЛКА ФАСАДА"
+// → "Наружная отделка фасада". Только отображение, сохранённое значение не
+// трогает. Экспортирован — тем же способом форматируют заголовок раздела
+// EstimateDetail.tsx/EstimatePublicPage.tsx (раньше применялось только к
+// зоне строки, не к самому заголовку раздела — тот и оставался капсом).
+export function formatZone(zone: string): string {
   const trimmed = zone.trim();
   if (!trimmed) return trimmed;
   const lower = trimmed.toLowerCase();

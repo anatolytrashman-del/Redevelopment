@@ -1,11 +1,21 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Check } from 'lucide-react';
 import { Card } from '../components/ui/Card';
-import { EstimateLineItemsTable, formatUsd } from '../components/estimates/EstimateLineItemsTable';
+import { EstimateLineItemsTable, formatUsd, formatZone } from '../components/estimates/EstimateLineItemsTable';
 import { EstimateLineItemFormModal } from '../components/estimates/EstimateLineItemFormModal';
 import { EstimateLineItemCommentsModal } from '../components/estimates/EstimateLineItemCommentsModal';
-import { estimateLineItemsTotals, type Estimate, type EstimateLineItem } from '../data/estimates';
+import { EstimateMaterialsPanel } from '../components/estimates/EstimateMaterialsPanel';
+import { EstimateMaterialFormModal } from '../components/estimates/EstimateMaterialFormModal';
+import { cn } from '../lib/cn';
+import {
+  estimateLineItemsTotals,
+  sectionLineItemsTotals,
+  type Estimate,
+  type EstimateLineItem,
+  type EstimateMaterial,
+} from '../data/estimates';
+import type { DocumentFile } from '../data/contractorDocuments';
 import type { ExchangeRate } from '../data/exchangeRates';
 import { fetchEstimateByToken, updateEstimate } from '../lib/estimatesApi';
 import { fetchTodayRateOrLatestCached } from '../lib/exchangeRatesApi';
@@ -30,12 +40,15 @@ function formatBynUsd(value: number, rate: ExchangeRate | null): string {
 const ESTIMATE_PUBLIC_TITLE = 'Построчная смета';
 
 // Публичная ссылка для строителя (Артём и т.п.) — по shareToken, без пароля
-// админки. Показывает и позволяет редактировать ТОЛЬКО построчную смету
-// каждого раздела (EstimateLineItemsTable/FormModal/CommentsModal —
-// переиспользованы как есть из EstimateDetail.tsx, у них нет своей
-// зависимости от PasswordGate/профиля). Текст разделов, позиции-ТЗ,
-// список материалов и открытые вопросы — внутренняя часть, сюда
-// сознательно не попадают: подрядчику нужна только таблица цен.
+// админки. Показывает и позволяет редактировать построчную смету и список
+// материалов/снабжение каждого раздела (EstimateLineItemsTable/
+// EstimateMaterialsPanel и их модалки переиспользованы как есть из
+// EstimateDetail.tsx, у них нет своей зависимости от PasswordGate/профиля).
+// Текст разделов, позиции-ТЗ и открытые вопросы (внутренняя переписка
+// команды) сюда сознательно не попадают. Владелец, 2026-08-27: держать эту
+// страницу в паритете со страницей внутри админки по всем правкам построчной
+// сметы — "Можно сделать позже" на уровне раздела и карточку "Второй этаж"
+// сюда тоже перенести (раньше были только в EstimateDetail.tsx).
 export function EstimatePublicPage() {
   const { token } = useParams();
   const [estimate, setEstimate] = useState<Estimate | null>(null);
@@ -49,6 +62,10 @@ export function EstimatePublicPage() {
 
   const [commentsSectionId, setCommentsSectionId] = useState<string | null>(null);
   const [commentsLineItem, setCommentsLineItem] = useState<EstimateLineItem | null>(null);
+
+  const [materialModalOpen, setMaterialModalOpen] = useState(false);
+  const [materialSectionId, setMaterialSectionId] = useState<string | null>(null);
+  const [editingMaterial, setEditingMaterial] = useState<EstimateMaterial | null>(null);
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -150,6 +167,57 @@ export function EstimatePublicPage() {
     }
   }
 
+  async function toggleSectionDeferred(sectionId: string) {
+    if (!estimate) return;
+    const sections = estimate.sections.map((s) => (s.id === sectionId ? { ...s, deferred: !s.deferred } : s));
+    try {
+      await savePatch(sections);
+    } catch (err) {
+      setLoadError(errorMessage(err, 'Не удалось изменить отметку'));
+    }
+  }
+
+  function openAddMaterial(sectionId: string) {
+    setMaterialSectionId(sectionId);
+    setEditingMaterial(null);
+    setMaterialModalOpen(true);
+  }
+
+  function openEditMaterial(sectionId: string, material: EstimateMaterial) {
+    setMaterialSectionId(sectionId);
+    setEditingMaterial(material);
+    setMaterialModalOpen(true);
+  }
+
+  async function saveMaterial(saved: EstimateMaterial) {
+    if (!estimate || !materialSectionId) return;
+    const sections = estimate.sections.map((s) => {
+      if (s.id !== materialSectionId) return s;
+      const exists = s.materials.some((m) => m.id === saved.id);
+      return { ...s, materials: exists ? s.materials.map((m) => (m.id === saved.id ? saved : m)) : [...s.materials, saved] };
+    });
+    await savePatch(sections);
+  }
+
+  async function deleteMaterial(sectionId: string, materialId: string) {
+    if (!estimate) return;
+    if (!window.confirm('Удалить материал?')) return;
+    const sections = estimate.sections.map((s) =>
+      s.id === sectionId ? { ...s, materials: s.materials.filter((m) => m.id !== materialId) } : s,
+    );
+    try {
+      await savePatch(sections);
+    } catch (err) {
+      setLoadError(errorMessage(err, 'Не удалось удалить материал'));
+    }
+  }
+
+  async function saveMaterialFiles(sectionId: string, files: DocumentFile[]) {
+    if (!estimate) return;
+    const sections = estimate.sections.map((s) => (s.id === sectionId ? { ...s, materialFiles: files } : s));
+    await savePatch(sections);
+  }
+
   if (loading || loadError || !estimate) {
     return (
       <div className="min-h-svh bg-bg px-4 py-8 sm:px-8">
@@ -173,6 +241,18 @@ export function EstimatePublicPage() {
 
   const totals = estimateLineItemsTotals(estimate, rate);
   const grandTotal = totals.now.total + totals.later.total;
+
+  // "Второй этаж" — та же оценка, что и в EstimateDetail.tsx (см. её же
+  // комментарий): сумма всех разделов кроме "Фасад" зеркалится как оценка
+  // 2-го этажа.
+  const floor1Total = estimate.sections
+    .filter((s) => s.title.trim() !== 'Фасад')
+    .reduce((sum, s) => {
+      const t = sectionLineItemsTotals(s, rate);
+      return sum + t.now.total + t.later.total;
+    }, 0);
+  const floor2Estimate = floor1Total;
+  const grandTotalWithFloor2 = grandTotal + floor2Estimate;
 
   return (
     <div className="min-h-svh bg-bg px-4 py-8 sm:px-8">
@@ -203,9 +283,50 @@ export function EstimatePublicPage() {
           </Card>
         )}
 
+        {floor1Total > 0 && (
+          <Card className="flex flex-col gap-3 p-5">
+            <span className="font-bold text-ink">Второй этаж</span>
+            <p className="text-sm text-ink-faint">
+              Расчёт только по 1-му этажу — 2-й пока условно считаем той же суммой, что 1-й этаж и общие зоны вместе
+              (без фасада — фасадные работы не дублируются по этажам).
+            </p>
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">1-й этаж + общие зоны (без фасада)</div>
+                <div className="text-sm font-semibold text-ink">{formatBynUsd(floor1Total, rate)}</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">2-й этаж (оценочно, столько же)</div>
+                <div className="text-sm font-semibold text-ink">{formatBynUsd(floor2Estimate, rate)}</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Итого по смете с учётом 2-го этажа</div>
+                <div className="text-sm font-semibold text-ink">{formatBynUsd(grandTotalWithFloor2, rate)}</div>
+              </div>
+            </div>
+          </Card>
+        )}
+
         {estimate.sections.map((section) => (
-          <Card key={section.id} className="flex flex-col gap-3 p-5">
-            <div className="font-bold text-ink">{section.title}</div>
+          <Card key={section.id} className="flex flex-col gap-4 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="font-bold text-ink">{formatZone(section.title)}</div>
+              <button
+                type="button"
+                onClick={() => toggleSectionDeferred(section.id)}
+                className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted"
+              >
+                <span
+                  className={cn(
+                    'flex h-4 w-4 items-center justify-center rounded border',
+                    section.deferred ? 'border-primary bg-primary text-white' : 'border-border text-transparent',
+                  )}
+                >
+                  <Check className="h-3 w-3" />
+                </span>
+                Можно сделать позже
+              </button>
+            </div>
             <EstimateLineItemsTable
               section={section}
               rate={rate}
@@ -215,6 +336,15 @@ export function EstimatePublicPage() {
               onOpenComments={(item) => openLineItemComments(section.id, item)}
               onToggleDeferred={(item) => toggleLineItemDeferred(section.id, item)}
             />
+            <div className="border-t border-border pt-4">
+              <EstimateMaterialsPanel
+                section={section}
+                onAdd={() => openAddMaterial(section.id)}
+                onEdit={(m) => openEditMaterial(section.id, m)}
+                onDelete={(m) => deleteMaterial(section.id, m.id)}
+                onFilesChange={(files) => saveMaterialFiles(section.id, files)}
+              />
+            </div>
           </Card>
         ))}
       </div>
@@ -233,6 +363,13 @@ export function EstimatePublicPage() {
           setCommentsLineItem(null);
         }}
         onSave={saveLineItemComments}
+      />
+
+      <EstimateMaterialFormModal
+        open={materialModalOpen}
+        material={editingMaterial}
+        onClose={() => setMaterialModalOpen(false)}
+        onSaved={saveMaterial}
       />
     </div>
   );
