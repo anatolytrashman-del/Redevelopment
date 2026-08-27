@@ -13,6 +13,8 @@ function fromRow(row: EstimateRow): Estimate {
     sections: (row.sections ?? []).map((s) => ({
       ...s,
       lineItems: (s.lineItems ?? []).map((li) => ({ ...li, comments: li.comments ?? [] })),
+      materials: s.materials ?? [],
+      materialFiles: s.materialFiles ?? [],
       positions: (s.positions ?? []).map((p) => ({
         ...p,
         colors: p.colors ?? [],
@@ -32,6 +34,7 @@ function fromRow(row: EstimateRow): Estimate {
     })),
     questions: row.questions ?? [],
     status: row.status ?? estimateStatuses[0],
+    shareToken: row.share_token,
     createdAt: row.created_at,
   };
 }
@@ -47,6 +50,16 @@ export function fetchEstimates(): Promise<Estimate[]> {
 export function fetchEstimate(id: string): Promise<Estimate> {
   return withRetry(async () => {
     const { data, error } = await supabase.from('estimates').select('*').eq('id', id).single();
+    if (error) throw error;
+    return fromRow(data as EstimateRow);
+  });
+}
+
+// Публичная страница /estimate/:token (EstimatePublicPage.tsx) — по
+// share_token, не по внутреннему id, тот же паттерн, что fetchBriefByToken.
+export function fetchEstimateByToken(token: string): Promise<Estimate> {
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('estimates').select('*').eq('share_token', token).single();
     if (error) throw error;
     return fromRow(data as EstimateRow);
   });

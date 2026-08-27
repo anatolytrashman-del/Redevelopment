@@ -1,7 +1,13 @@
+import type { DocumentFile } from './contractorDocuments';
+
 // Смета реновации — привязана к объекту (RealtyObject), живёт отдельной
-// вкладкой в админке (Estimates.tsx/EstimateDetail.tsx), в отличие от
-// техзадания (Brief) не публикуется наружу — только для внутренней работы
-// (руководитель строительства, потом тендер подрядчикам).
+// вкладкой в админке (Estimates.tsx/EstimateDetail.tsx). Построчная смета
+// (см. EstimateLineItem ниже) ДОПОЛНИТЕЛЬНО публикуется наружу по
+// shareToken (см. Estimate.shareToken, /estimate/:token,
+// EstimatePublicPage.tsx) — владелец отправляет ссылку строителю
+// (Артём) для правки строк напрямую, без доступа к остальной CRM
+// (тексту разделов, материалам, вопросам — та часть остаётся закрытой).
+// Техзадание (Brief) для сравнения — публикуется целиком с самого начала.
 //
 // Контент — разделы свободного текста (Фасад/Кабинеты/...), а не жёстко
 // структурированные позиции с полями: состав работ ещё меняется по ходу
@@ -156,12 +162,31 @@ export function estimateLineItemsTotals(estimate: Pick<Estimate, 'sections'>): E
   }, zeroTotals);
 }
 
+// Позиция списка материалов — отдельно от EstimateLineItem: там цена
+// (сколько это стоит по расчёту подрядчика), здесь — снабжение (что нужно
+// закупить и сколько). Один материал может относиться сразу к нескольким
+// строкам работ раздела, поэтому список не строка-в-строку с lineItems, а
+// отдельный на весь раздел ("блок работ" целиком — так решил владелец).
+export interface EstimateMaterial {
+  id: string;
+  name: string;
+  unit: string;
+  quantity: number | null;
+  note: string;
+}
+
 export interface EstimateSection {
   id: string;
   title: string;
   body: string;
   positions: EstimatePosition[];
   lineItems: EstimateLineItem[];
+  materials: EstimateMaterial[];
+  // Счета и КП от поставщиков на материалы этого раздела — отдельно от
+  // самого списка материалов (владелец специально просил "отдельно"): один
+  // файл обычно перекрывает сразу несколько позиций списка, привязывать
+  // каждый файл к одной конкретной строке было бы искусственно.
+  materialFiles: DocumentFile[];
 }
 
 export interface EstimateQuestion {
@@ -181,6 +206,10 @@ export interface Estimate {
   sections: EstimateSection[];
   questions: EstimateQuestion[];
   status: string;
+  // Токен публичной ссылки на построчную смету (/estimate/:token) — на
+  // редактирование, не на просмотр (см. EstimatePublicPage.tsx). Генерится
+  // в базе автоматически при создании, в форме не редактируется.
+  shareToken: string;
   createdAt: string;
 }
 
@@ -191,6 +220,7 @@ export interface EstimateRow {
   sections: EstimateSection[] | null;
   questions: EstimateQuestion[] | null;
   status: string;
+  share_token: string;
   created_at: string;
 }
 
@@ -198,9 +228,17 @@ export interface EstimateRow {
 // переименовывать, удалять и добавлять свои прямо на странице сметы.
 export function defaultEstimateSections(): EstimateSection[] {
   return [
-    { id: crypto.randomUUID(), title: 'Фасад', body: '', positions: [], lineItems: [] },
-    { id: crypto.randomUUID(), title: 'Кабинеты', body: '', positions: [], lineItems: [] },
-    { id: crypto.randomUUID(), title: 'Общие зоны', body: '', positions: [], lineItems: [] },
-    { id: crypto.randomUUID(), title: 'Организация и логистика', body: '', positions: [], lineItems: [] },
+    { id: crypto.randomUUID(), title: 'Фасад', body: '', positions: [], lineItems: [], materials: [], materialFiles: [] },
+    { id: crypto.randomUUID(), title: 'Кабинеты', body: '', positions: [], lineItems: [], materials: [], materialFiles: [] },
+    { id: crypto.randomUUID(), title: 'Общие зоны', body: '', positions: [], lineItems: [], materials: [], materialFiles: [] },
+    {
+      id: crypto.randomUUID(),
+      title: 'Организация и логистика',
+      body: '',
+      positions: [],
+      lineItems: [],
+      materials: [],
+      materialFiles: [],
+    },
   ];
 }

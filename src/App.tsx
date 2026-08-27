@@ -64,6 +64,15 @@ const BusinessUploadPublicPage = lazy(() =>
   import('./pages/BusinessUploadPublicPage').then((m) => ({ default: m.BusinessUploadPublicPage })),
 );
 
+// Публичная ссылка на построчную смету для строителя (Артём и т.п.) — тот
+// же принцип, что и у BusinessUploadPublicPage выше: lazy(), а не статический
+// импорт, потому что тянет за собой EstimateLineItemsTable/FormModal/
+// CommentsModal (иначе те же компоненты дублировались бы в основной бандл
+// продающих лендингов, хотя уже есть в чанке /admin/estimates).
+const EstimatePublicPage = lazy(() =>
+  import('./pages/EstimatePublicPage').then((m) => ({ default: m.EstimatePublicPage })),
+);
+
 // Случайный щипок двумя пальцами (обычный жест при скролле телефоном,
 // держа его двумя руками) зумит всю страницу нативным зумом Safari — и этот
 // зум остаётся, пока клиент не сведёт пальцы обратно вручную, а верстка
@@ -157,6 +166,14 @@ export default function App() {
         element={
           <Suspense fallback={<AdminChunkFallback />}>
             <BusinessUploadPublicPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/estimate/:token"
+        element={
+          <Suspense fallback={<AdminChunkFallback />}>
+            <EstimatePublicPage />
           </Suspense>
         }
       />

@@ -1,29 +1,34 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Pencil, Plus, Trash2, X, Check, LibraryBig } from 'lucide-react';
+import { ArrowLeft, Loader2, Pencil, Plus, Trash2, X, Check, LibraryBig, Share2 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
 import { AddableSelect } from '../components/ui/AddableSelect';
+import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { CatalogPickerModal } from '../components/estimates/CatalogPickerModal';
 import { EstimatePositionCard } from '../components/estimates/EstimatePositionCard';
 import { EstimatePositionFormModal } from '../components/estimates/EstimatePositionFormModal';
 import { EstimateLineItemsTable, formatUsd } from '../components/estimates/EstimateLineItemsTable';
 import { EstimateLineItemFormModal } from '../components/estimates/EstimateLineItemFormModal';
 import { EstimateLineItemCommentsModal } from '../components/estimates/EstimateLineItemCommentsModal';
+import { EstimateMaterialsPanel } from '../components/estimates/EstimateMaterialsPanel';
+import { EstimateMaterialFormModal } from '../components/estimates/EstimateMaterialFormModal';
 import { cn } from '../lib/cn';
 import {
   estimateStatuses,
   estimateLineItemsTotals,
   type Estimate,
   type EstimateLineItem,
+  type EstimateMaterial,
   type EstimatePosition,
   type EstimateQuestion,
   type EstimateSection,
 } from '../data/estimates';
 import { formatCatalogItemForInsert, type EstimateCatalogItem } from '../data/estimateCatalog';
+import type { DocumentFile } from '../data/contractorDocuments';
 import type { RealtyObject } from '../data/objects';
 import type { BuildingPlanZone } from '../data/buildingPlans';
 import type { ExchangeRate } from '../data/exchangeRates';
@@ -32,6 +37,9 @@ import { fetchEstimateCatalogItems } from '../lib/estimateCatalogApi';
 import { fetchObject } from '../lib/objectsApi';
 import { fetchTodayRateOrLatestCached } from '../lib/exchangeRatesApi';
 import { fetchZonesForPlan } from '../lib/buildingPlansApi';
+
+const SECTION_TABS = ['Текст', 'Смета', 'Материалы'] as const;
+type SectionTab = (typeof SECTION_TABS)[number];
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -97,6 +105,17 @@ export function EstimateDetail() {
   // + "в каком разделе она лежит" (нужно для saveLineItemComments).
   const [commentsSectionId, setCommentsSectionId] = useState<string | null>(null);
   const [commentsLineItem, setCommentsLineItem] = useState<EstimateLineItem | null>(null);
+
+  // Текст/смета/материалы — три вкладки внутри каждого раздела (владелец:
+  // держать текстовую часть и построчную смету раздельно). Не персистится —
+  // просто UI-состояние на время сессии, по умолчанию всегда "Текст".
+  const [sectionTab, setSectionTab] = useState<Record<string, SectionTab>>({});
+
+  const [materialModalOpen, setMaterialModalOpen] = useState(false);
+  const [materialSectionId, setMaterialSectionId] = useState<string | null>(null);
+  const [editingMaterial, setEditingMaterial] = useState<EstimateMaterial | null>(null);
+
+  const [linkCopied, setLinkCopied] = useState(false);
 
   // Курс для отображения итога построчной сметы в USD рядом с BYN — только
   // для показа, ни на что не влияет и никуда не сохраняется, поэтому
@@ -190,7 +209,15 @@ export function EstimateDetail() {
 
   async function addSection() {
     if (!estimate) return;
-    const section: EstimateSection = { id: crypto.randomUUID(), title: 'Новый раздел', body: '', positions: [], lineItems: [] };
+    const section: EstimateSection = {
+      id: crypto.randomUUID(),
+      title: 'Новый раздел',
+      body: '',
+      positions: [],
+      lineItems: [],
+      materials: [],
+      materialFiles: [],
+    };
     try {
       await saveEstimatePatch({ sections: [...estimate.sections, section] });
       startEditSection(section);
@@ -358,6 +385,56 @@ export function EstimateDetail() {
     setCommentsLineItem(savedItem);
   }
 
+  function openAddMaterial(sectionId: string) {
+    setMaterialSectionId(sectionId);
+    setEditingMaterial(null);
+    setMaterialModalOpen(true);
+  }
+
+  function openEditMaterial(sectionId: string, material: EstimateMaterial) {
+    setMaterialSectionId(sectionId);
+    setEditingMaterial(material);
+    setMaterialModalOpen(true);
+  }
+
+  async function saveMaterial(saved: EstimateMaterial) {
+    if (!estimate || !materialSectionId) return;
+    const sections = estimate.sections.map((s) => {
+      if (s.id !== materialSectionId) return s;
+      const exists = s.materials.some((m) => m.id === saved.id);
+      return { ...s, materials: exists ? s.materials.map((m) => (m.id === saved.id ? saved : m)) : [...s.materials, saved] };
+    });
+    await saveEstimatePatch({ sections });
+  }
+
+  async function deleteMaterial(sectionId: string, materialId: string) {
+    if (!estimate) return;
+    if (!window.confirm('Удалить материал?')) return;
+    const sections = estimate.sections.map((s) =>
+      s.id === sectionId ? { ...s, materials: s.materials.filter((m) => m.id !== materialId) } : s,
+    );
+    try {
+      await saveEstimatePatch({ sections });
+    } catch (err) {
+      setSectionError(errorMessage(err, 'Не удалось удалить материал'));
+    }
+  }
+
+  async function saveMaterialFiles(sectionId: string, files: DocumentFile[]) {
+    if (!estimate) return;
+    const sections = estimate.sections.map((s) => (s.id === sectionId ? { ...s, materialFiles: files } : s));
+    await saveEstimatePatch({ sections });
+  }
+
+  function copyShareLink() {
+    if (!estimate) return;
+    const url = `${window.location.origin}/estimate/${estimate.shareToken}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    });
+  }
+
   async function deleteQuestion(questionId: string) {
     if (!estimate) return;
     setQuestionsError(null);
@@ -373,7 +450,16 @@ export function EstimateDetail() {
 
   return (
     <>
-      <PageHeader title="Смета" />
+      <PageHeader
+        title="Смета"
+        action={
+          estimate ? (
+            <Button type="button" variant="secondary" icon={<Share2 className="h-4 w-4" />} onClick={copyShareLink}>
+              {linkCopied ? 'Ссылка скопирована' : 'Ссылка для строителя'}
+            </Button>
+          ) : undefined
+        }
+      />
 
       <Link to="/admin/estimates" className="inline-flex w-fit items-center gap-2 text-sm font-medium text-ink hover:text-primary">
         <ArrowLeft className="h-4 w-4" />
@@ -508,41 +594,51 @@ export function EstimateDetail() {
                       </button>
                     </div>
                   </div>
-                  {section.body && (
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{section.body}</p>
-                  )}
-                  {section.positions.length === 0 && !section.body && (
-                    <p className="text-sm text-ink-faint">Раздел пока пустой — нажмите на карандаш или добавьте позицию.</p>
+                  <ToggleGroup
+                    options={[...SECTION_TABS]}
+                    value={sectionTab[section.id] ?? 'Текст'}
+                    onChange={(v) => setSectionTab((prev) => ({ ...prev, [section.id]: v as SectionTab }))}
+                  />
+
+                  {(sectionTab[section.id] ?? 'Текст') === 'Текст' && (
+                    <>
+                      {section.body && (
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{section.body}</p>
+                      )}
+                      {section.positions.length === 0 && !section.body && (
+                        <p className="text-sm text-ink-faint">Раздел пока пустой — нажмите на карандаш или добавьте позицию.</p>
+                      )}
+
+                      {section.positions.length > 0 && (
+                        <div className="flex flex-col gap-3">
+                          {section.positions.map((p, i) => (
+                            <EstimatePositionCard
+                              key={p.id}
+                              position={p}
+                              onEdit={() => openEditPosition(section.id, p)}
+                              onDelete={() => deletePosition(section.id, p.id)}
+                              onMoveUp={() => movePosition(section.id, p.id, 'up')}
+                              onMoveDown={() => movePosition(section.id, p.id, 'down')}
+                              canMoveUp={i > 0}
+                              canMoveDown={i < section.positions.length - 1}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        icon={<Plus className="h-4 w-4" />}
+                        className="w-fit"
+                        onClick={() => openAddPosition(section.id)}
+                      >
+                        Добавить позицию
+                      </Button>
+                    </>
                   )}
 
-                  {section.positions.length > 0 && (
-                    <div className="flex flex-col gap-3">
-                      {section.positions.map((p, i) => (
-                        <EstimatePositionCard
-                          key={p.id}
-                          position={p}
-                          onEdit={() => openEditPosition(section.id, p)}
-                          onDelete={() => deletePosition(section.id, p.id)}
-                          onMoveUp={() => movePosition(section.id, p.id, 'up')}
-                          onMoveDown={() => movePosition(section.id, p.id, 'down')}
-                          canMoveUp={i > 0}
-                          canMoveDown={i < section.positions.length - 1}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    icon={<Plus className="h-4 w-4" />}
-                    className="w-fit"
-                    onClick={() => openAddPosition(section.id)}
-                  >
-                    Добавить позицию
-                  </Button>
-
-                  <div className="border-t border-border pt-3">
+                  {(sectionTab[section.id] ?? 'Текст') === 'Смета' && (
                     <EstimateLineItemsTable
                       section={section}
                       rate={rate}
@@ -551,7 +647,17 @@ export function EstimateDetail() {
                       onDelete={(item) => deleteLineItem(section.id, item.id)}
                       onOpenComments={(item) => openLineItemComments(section.id, item)}
                     />
-                  </div>
+                  )}
+
+                  {(sectionTab[section.id] ?? 'Текст') === 'Материалы' && (
+                    <EstimateMaterialsPanel
+                      section={section}
+                      onAdd={() => openAddMaterial(section.id)}
+                      onEdit={(m) => openEditMaterial(section.id, m)}
+                      onDelete={(m) => deleteMaterial(section.id, m.id)}
+                      onFilesChange={(files) => saveMaterialFiles(section.id, files)}
+                    />
+                  )}
                 </>
               )}
             </Card>
@@ -640,6 +746,13 @@ export function EstimateDetail() {
           setCommentsLineItem(null);
         }}
         onSave={saveLineItemComments}
+      />
+
+      <EstimateMaterialFormModal
+        open={materialModalOpen}
+        material={editingMaterial}
+        onClose={() => setMaterialModalOpen(false)}
+        onSaved={saveMaterial}
       />
     </>
   );
