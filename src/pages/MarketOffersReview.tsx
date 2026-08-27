@@ -29,6 +29,7 @@ import {
   setMarketOfferRejected,
   flagMarketOffersForDiscussion,
   resolveMarketOfferDiscussion,
+  rejectMarketOfferDiscussion,
   fetchDismissedDedupKeys,
   dismissDuplicateGroup,
 } from '../lib/marketOffersApi';
@@ -447,6 +448,7 @@ export function MarketOffersReview() {
   // группу/карточку (ключ — тот же, что и в discussingGroups ниже).
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [resolvingKey, setResolvingKey] = useState<string | null>(null);
+  const [rejectingKey, setRejectingKey] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMarketOffers()
@@ -694,6 +696,33 @@ export function MarketOffersReview() {
       setError('Не удалось сохранить ответ — попробуйте ещё раз.');
     } finally {
       setResolvingKey(null);
+    }
+  }
+
+  // "Не подходит" прямо из карточки обсуждения (владелец, 2026-08-27) —
+  // комментарий необязателен, в отличие от "Вернуть на доработку": если
+  // сразу понятно, что объявление не годится, не нужно ничего писать.
+  async function handleRejectDiscussion(key: string, ids: number[]) {
+    if (rejectingKey) return;
+    const note = (replyDrafts[key] ?? '').trim() || null;
+    setRejectingKey(key);
+    try {
+      await rejectMarketOfferDiscussion(ids, note);
+      setOffers((prev) =>
+        (prev ?? []).map((o) =>
+          ids.includes(o.id) ? { ...o, rejected: true, reviewed: true, flaggedForDiscussion: false, ownerNote: note } : o,
+        ),
+      );
+      setReplyDrafts((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      logActivity('market_offer_rejected_from_discussion');
+    } catch {
+      setError('Не удалось отклонить — попробуйте ещё раз.');
+    } finally {
+      setRejectingKey(null);
     }
   }
 
@@ -1146,13 +1175,21 @@ export function MarketOffersReview() {
                     value={draft}
                     onChange={(e) => setReplyDrafts((prev) => ({ ...prev, [key]: e.target.value }))}
                   />
-                  <Button
-                    className="self-end"
-                    disabled={!draft.trim() || resolvingKey === key}
-                    onClick={() => handleResolveDiscussion(key, ids)}
-                  >
-                    {resolvingKey === key ? 'Сохраняем…' : 'Вернуть на доработку'}
-                  </Button>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="secondary"
+                      disabled={rejectingKey === key || resolvingKey === key}
+                      onClick={() => handleRejectDiscussion(key, ids)}
+                    >
+                      {rejectingKey === key ? 'Отклоняем…' : 'Не подходит'}
+                    </Button>
+                    <Button
+                      disabled={!draft.trim() || resolvingKey === key || rejectingKey === key}
+                      onClick={() => handleResolveDiscussion(key, ids)}
+                    >
+                      {resolvingKey === key ? 'Сохраняем…' : 'Вернуть на доработку'}
+                    </Button>
+                  </div>
                 </div>
               );
             })

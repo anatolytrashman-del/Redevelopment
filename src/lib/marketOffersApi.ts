@@ -152,6 +152,24 @@ export function resolveMarketOfferDiscussion(ids: number[], ownerNote: string): 
   });
 }
 
+// "Не подходит" прямо из карточки обсуждения (владелец, 2026-08-27: чтобы
+// не гонять туда-обратно на "Вернуть на доработку", если объявление сразу
+// понятно, что не годится) — в отличие от resolveMarketOfferDiscussion
+// закрывает вопрос отклонением объявления(й) целиком, а не просто снятием
+// флага. Комментарий необязателен — тот же принцип, что и у обычного
+// "Не подходит" в таблице (setMarketOfferRejected), просто групповая версия
+// (карточка обсуждения может быть целой группой дублей) и заодно снимает
+// flagged_for_discussion.
+export function rejectMarketOfferDiscussion(ids: number[], ownerNote: string | null): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase
+      .from('market_offers')
+      .update({ rejected: true, reviewed: true, flagged_for_discussion: false, owner_note: ownerNote })
+      .in('id', ids);
+    if (error) throw error;
+  });
+}
+
 export function deleteMarketOffer(id: number): Promise<void> {
   return withRetry(async () => {
     const { error } = await supabase.from('market_offers').delete().eq('id', id);
