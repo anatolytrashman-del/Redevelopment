@@ -264,17 +264,22 @@ export function EstimatePublicPage() {
   const totals = estimateLineItemsTotals(estimate, rate);
   const grandTotal = totals.now.total + totals.later.total;
 
-  // "Второй этаж" — та же оценка, что и в EstimateDetail.tsx (см. её же
-  // комментарий): сумма всех разделов кроме "Фасад" зеркалится как оценка
-  // 2-го этажа.
-  const floor1Total = estimate.sections
-    .filter((s) => s.title.trim() !== 'Фасад')
-    .reduce((sum, s) => {
+  function sectionsSum(sections: Estimate['sections']): number {
+    return sections.reduce((sum, s) => {
       const t = sectionLineItemsTotals(s, rate);
       return sum + t.now.total + t.later.total;
     }, 0);
+  }
+
+  // Владелец, 2026-08-27: разделы теперь явно помечены этажом в названии
+  // ("Кабинеты 1 этаж", "Санузлы 1 этаж"...) — считаем сумму этажа по этому
+  // признаку, а не "всё кроме Фасада" (старое правило задевало и не
+  // относящиеся к этажам разделы вроде "Организация и логистика"). "Второй
+  // этаж" — та же оценка-зеркало, что и раньше: реальных данных по 2-му
+  // этажу ещё нет, условно считаем той же суммой, что 1-й этаж.
+  const facadeSum = sectionsSum(estimate.sections.filter((s) => s.title.trim() === 'Фасад'));
+  const floor1Total = sectionsSum(estimate.sections.filter((s) => /1\s*этаж/i.test(s.title)));
   const floor2Estimate = floor1Total;
-  const grandTotalWithFloor2 = grandTotal + floor2Estimate;
 
   return (
     <div className="min-h-svh bg-bg px-4 py-8 sm:px-8">
@@ -286,45 +291,22 @@ export function EstimatePublicPage() {
         </div>
 
         <Card className="flex flex-col gap-1 p-5">
-          <span className="text-lg font-bold text-ink">Построчная смета</span>
+          <span className="text-lg font-bold text-ink">
+            {object ? `Смета реновации ${object.name || object.address}` : ESTIMATE_PUBLIC_TITLE}
+          </span>
           <span className="text-sm text-ink-muted">Можно добавлять, редактировать и удалять строки, оставлять комментарии.</span>
         </Card>
-
-        {grandTotal > 0 && (
-          <Card className="flex flex-col gap-1 p-5 text-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <span className="font-bold text-ink">Сейчас</span>
-              <span className="font-semibold text-ink">{formatBynUsd(totals.now.total, rate)}</span>
-            </div>
-            {totals.later.total > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-3 text-ink-muted">
-                <span>Можно позже</span>
-                <span>{formatBynUsd(totals.later.total, rate)}</span>
-              </div>
-            )}
-          </Card>
-        )}
 
         {floor1Total > 0 && (
           <Card className="flex flex-col gap-3 p-5">
             <span className="font-bold text-ink">Второй этаж</span>
             <p className="text-sm text-ink-faint">
-              Расчёт только по 1-му этажу — 2-й пока условно считаем той же суммой, что 1-й этаж и общие зоны вместе
-              (без фасада — фасадные работы не дублируются по этажам).
+              Расчёт есть только по 1-му этажу — 2-й пока условно считаем той же суммой (кабинеты, коридоры и
+              санузлы), без фасада и организационных расходов — те не дублируются по этажам.
             </p>
-            <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-              <div>
-                <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">1-й этаж + общие зоны (без фасада)</div>
-                <div className="text-sm font-semibold text-ink">{formatBynUsd(floor1Total, rate)}</div>
-              </div>
-              <div>
-                <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">2-й этаж (оценочно, столько же)</div>
-                <div className="text-sm font-semibold text-ink">{formatBynUsd(floor2Estimate, rate)}</div>
-              </div>
-              <div>
-                <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Итого по смете с учётом 2-го этажа</div>
-                <div className="text-sm font-semibold text-ink">{formatBynUsd(grandTotalWithFloor2, rate)}</div>
-              </div>
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">2-й этаж (оценочно)</div>
+              <div className="text-sm font-semibold text-ink">{formatBynUsd(floor2Estimate, rate)}</div>
             </div>
           </Card>
         )}
@@ -370,6 +352,34 @@ export function EstimatePublicPage() {
             </div>
           </Card>
         ))}
+
+        {grandTotal > 0 && (
+          <Card className="flex flex-col gap-4 p-5">
+            <span className="font-bold text-ink">Итого планируемые расходы</span>
+            <div className="flex flex-col gap-3 text-sm">
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Общая сумма</div>
+                <div className="text-base font-semibold text-ink">{formatBynUsd(grandTotal, rate)}</div>
+                <div className="text-xs text-ink-faint">По всем разделам сметы, включая отложенные на потом.</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Фасад</div>
+                <div className="text-base font-semibold text-ink">{formatBynUsd(facadeSum, rate)}</div>
+                <div className="text-xs text-ink-faint">Наружная отделка — не дублируется по этажам.</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">1-й этаж + санузлы 1-го этажа</div>
+                <div className="text-base font-semibold text-ink">{formatBynUsd(floor1Total, rate)}</div>
+                <div className="text-xs text-ink-faint">Кабинеты, коридоры и санузлы 1-го этажа.</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">2-й этаж + санузел</div>
+                <div className="text-base font-semibold text-ink">{formatBynUsd(floor2Estimate, rate)}</div>
+                <div className="text-xs text-ink-faint">Оценочно — пока условно считаем той же суммой, что 1-й этаж.</div>
+              </div>
+            </div>
+          </Card>
+        )}
       </div>
 
       <EstimateLineItemFormModal
