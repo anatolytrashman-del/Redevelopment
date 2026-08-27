@@ -444,6 +444,12 @@ export function EstimateDetail() {
     await saveEstimatePatch({ sections });
   }
 
+  async function saveMaterialListFiles(sectionId: string, files: DocumentFile[]) {
+    if (!estimate) return;
+    const sections = estimate.sections.map((s) => (s.id === sectionId ? { ...s, materialListFiles: files } : s));
+    await saveEstimatePatch({ sections });
+  }
+
   function copyShareLink() {
     if (!estimate) return;
     const url = `${window.location.origin}/estimate/${estimate.shareToken}`;
@@ -730,6 +736,7 @@ export function EstimateDetail() {
                       onEdit={(m) => openEditMaterial(section.id, m)}
                       onDelete={(m) => deleteMaterial(section.id, m.id)}
                       onFilesChange={(files) => saveMaterialFiles(section.id, files)}
+                      onListFilesChange={(files) => saveMaterialListFiles(section.id, files)}
                     />
                   )}
                 </>

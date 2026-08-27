@@ -23,6 +23,7 @@ function fromRow(row: EstimateRow): Estimate {
         currency: li.currency ?? 'BYN',
       })),
       materials: s.materials ?? [],
+      materialListFiles: s.materialListFiles ?? [],
       materialFiles: s.materialFiles ?? [],
       positions: (s.positions ?? []).map((p) => ({
         ...p,

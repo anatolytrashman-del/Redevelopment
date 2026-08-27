@@ -16,8 +16,10 @@ import {
   type EstimateMaterial,
 } from '../data/estimates';
 import type { DocumentFile } from '../data/contractorDocuments';
+import type { RealtyObject } from '../data/objects';
 import type { ExchangeRate } from '../data/exchangeRates';
 import { fetchEstimateByToken, updateEstimate } from '../lib/estimatesApi';
+import { fetchObject } from '../lib/objectsApi';
 import { fetchTodayRateOrLatestCached } from '../lib/exchangeRatesApi';
 import { setNoIndex, clearNoIndex } from '../lib/pageMeta';
 
@@ -52,6 +54,7 @@ const ESTIMATE_PUBLIC_TITLE = 'Построчная смета';
 export function EstimatePublicPage() {
   const { token } = useParams();
   const [estimate, setEstimate] = useState<Estimate | null>(null);
+  const [object, setObject] = useState<RealtyObject | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [rate, setRate] = useState<ExchangeRate | null>(null);
@@ -67,13 +70,22 @@ export function EstimatePublicPage() {
   const [materialSectionId, setMaterialSectionId] = useState<string | null>(null);
   const [editingMaterial, setEditingMaterial] = useState<EstimateMaterial | null>(null);
 
+  // Заголовок вкладки браузера — по умолчанию общий (ESTIMATE_PUBLIC_TITLE,
+  // пока объект ещё не загрузился), затем "Смета реновации <адрес/название
+  // объекта>" (владелец, 2026-08-27). Восстановление исходного заголовка
+  // страницы — отдельным эффектом с []-зависимостями, чтобы захватить и
+  // вернуть именно тот заголовок, что был ДО монтирования этой страницы, а
+  // не промежуточное значение с предыдущего рендера этого же эффекта.
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = ESTIMATE_PUBLIC_TITLE;
     return () => {
       document.title = previousTitle;
     };
   }, []);
+
+  useEffect(() => {
+    document.title = object ? `Смета реновации ${object.name || object.address}` : ESTIMATE_PUBLIC_TITLE;
+  }, [object]);
 
   useEffect(() => {
     setNoIndex();
@@ -85,7 +97,11 @@ export function EstimatePublicPage() {
     setLoading(true);
     setLoadError(null);
     fetchEstimateByToken(token)
-      .then(setEstimate)
+      .then((e) => {
+        setEstimate(e);
+        return fetchObject(e.objectId);
+      })
+      .then(setObject)
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить смету')))
       .finally(() => setLoading(false));
     fetchTodayRateOrLatestCached()
@@ -218,6 +234,12 @@ export function EstimatePublicPage() {
     await savePatch(sections);
   }
 
+  async function saveMaterialListFiles(sectionId: string, files: DocumentFile[]) {
+    if (!estimate) return;
+    const sections = estimate.sections.map((s) => (s.id === sectionId ? { ...s, materialListFiles: files } : s));
+    await savePatch(sections);
+  }
+
   if (loading || loadError || !estimate) {
     return (
       <div className="min-h-svh bg-bg px-4 py-8 sm:px-8">
@@ -343,6 +365,7 @@ export function EstimatePublicPage() {
                 onEdit={(m) => openEditMaterial(section.id, m)}
                 onDelete={(m) => deleteMaterial(section.id, m.id)}
                 onFilesChange={(files) => saveMaterialFiles(section.id, files)}
+                onListFilesChange={(files) => saveMaterialListFiles(section.id, files)}
               />
             </div>
           </Card>
