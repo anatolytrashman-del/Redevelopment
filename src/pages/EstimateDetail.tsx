@@ -10,8 +10,18 @@ import { AddableSelect } from '../components/ui/AddableSelect';
 import { CatalogPickerModal } from '../components/estimates/CatalogPickerModal';
 import { EstimatePositionCard } from '../components/estimates/EstimatePositionCard';
 import { EstimatePositionFormModal } from '../components/estimates/EstimatePositionFormModal';
+import { EstimateLineItemsTable } from '../components/estimates/EstimateLineItemsTable';
+import { EstimateLineItemFormModal } from '../components/estimates/EstimateLineItemFormModal';
 import { cn } from '../lib/cn';
-import { estimateStatuses, type Estimate, type EstimatePosition, type EstimateQuestion, type EstimateSection } from '../data/estimates';
+import {
+  estimateStatuses,
+  estimateLineItemsTotals,
+  type Estimate,
+  type EstimateLineItem,
+  type EstimatePosition,
+  type EstimateQuestion,
+  type EstimateSection,
+} from '../data/estimates';
 import { formatCatalogItemForInsert, type EstimateCatalogItem } from '../data/estimateCatalog';
 import type { RealtyObject } from '../data/objects';
 import type { BuildingPlanZone } from '../data/buildingPlans';
@@ -29,6 +39,10 @@ function errorMessage(err: unknown, fallback: string): string {
 
 function formatArea(value: number): string {
   return value.toLocaleString('ru-RU', { maximumFractionDigits: 1 });
+}
+
+function formatMoney(value: number): string {
+  return value.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
 }
 
 export function EstimateDetail() {
@@ -64,6 +78,10 @@ export function EstimateDetail() {
   const [positionModalOpen, setPositionModalOpen] = useState(false);
   const [positionSectionId, setPositionSectionId] = useState<string | null>(null);
   const [editingPosition, setEditingPosition] = useState<EstimatePosition | null>(null);
+
+  const [lineItemModalOpen, setLineItemModalOpen] = useState(false);
+  const [lineItemSectionId, setLineItemSectionId] = useState<string | null>(null);
+  const [editingLineItem, setEditingLineItem] = useState<EstimateLineItem | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -145,7 +163,7 @@ export function EstimateDetail() {
 
   async function addSection() {
     if (!estimate) return;
-    const section: EstimateSection = { id: crypto.randomUUID(), title: 'Новый раздел', body: '', positions: [] };
+    const section: EstimateSection = { id: crypto.randomUUID(), title: 'Новый раздел', body: '', positions: [], lineItems: [] };
     try {
       await saveEstimatePatch({ sections: [...estimate.sections, section] });
       startEditSection(section);
@@ -252,6 +270,47 @@ export function EstimateDetail() {
     }
   }
 
+  function openAddLineItem(sectionId: string) {
+    setLineItemSectionId(sectionId);
+    setEditingLineItem(null);
+    setLineItemModalOpen(true);
+  }
+
+  function openEditLineItem(sectionId: string, item: EstimateLineItem) {
+    setLineItemSectionId(sectionId);
+    setEditingLineItem(item);
+    setLineItemModalOpen(true);
+  }
+
+  // Та же логика проброса ошибки наверх (в EstimateLineItemFormModal), что и
+  // у savePosition — форма не закрывается сама при сбое сети, показывает
+  // ошибку внутри себя.
+  async function saveLineItem(saved: EstimateLineItem) {
+    if (!estimate || !lineItemSectionId) return;
+    const sections = estimate.sections.map((s) => {
+      if (s.id !== lineItemSectionId) return s;
+      const exists = s.lineItems.some((li) => li.id === saved.id);
+      return {
+        ...s,
+        lineItems: exists ? s.lineItems.map((li) => (li.id === saved.id ? saved : li)) : [...s.lineItems, saved],
+      };
+    });
+    await saveEstimatePatch({ sections });
+  }
+
+  async function deleteLineItem(sectionId: string, itemId: string) {
+    if (!estimate) return;
+    if (!window.confirm('Удалить строку сметы?')) return;
+    const sections = estimate.sections.map((s) =>
+      s.id === sectionId ? { ...s, lineItems: s.lineItems.filter((li) => li.id !== itemId) } : s,
+    );
+    try {
+      await saveEstimatePatch({ sections });
+    } catch (err) {
+      setSectionError(errorMessage(err, 'Не удалось удалить строку'));
+    }
+  }
+
   async function deleteQuestion(questionId: string) {
     if (!estimate) return;
     setQuestionsError(null);
@@ -263,6 +322,7 @@ export function EstimateDetail() {
   }
 
   const specs = object?.buildingSpecs;
+  const lineItemsTotals = estimate ? estimateLineItemsTotals(estimate) : { work: 0, material: 0, total: 0 };
 
   return (
     <>
@@ -332,6 +392,17 @@ export function EstimateDetail() {
               Резерв на скрытые условия существующего здания — закладывать 25–30% сверх итога сметы.
             </p>
           </Card>
+
+          {lineItemsTotals.total > 0 && (
+            <Card className="flex flex-wrap items-center justify-between gap-4 p-5">
+              <span className="font-bold text-ink">Итого по построчной смете</span>
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                <Stat label="Стоимость работ" value={`${formatMoney(lineItemsTotals.work)} Br`} />
+                <Stat label="Стоимость материалов" value={`${formatMoney(lineItemsTotals.material)} Br`} />
+                <Stat label="Итого" value={`${formatMoney(lineItemsTotals.total)} Br`} />
+              </div>
+            </Card>
+          )}
 
           {estimate.sections.map((section) => (
             <Card key={section.id} className="flex flex-col gap-3 p-5">
@@ -423,6 +494,15 @@ export function EstimateDetail() {
                   >
                     Добавить позицию
                   </Button>
+
+                  <div className="border-t border-border pt-3">
+                    <EstimateLineItemsTable
+                      section={section}
+                      onAdd={() => openAddLineItem(section.id)}
+                      onEdit={(item) => openEditLineItem(section.id, item)}
+                      onDelete={(item) => deleteLineItem(section.id, item.id)}
+                    />
+                  </div>
                 </>
               )}
             </Card>
@@ -495,6 +575,13 @@ export function EstimateDetail() {
         onClose={() => setPositionModalOpen(false)}
         onSaved={savePosition}
         onCatalogItemCreated={(item) => setCatalogItems((prev) => [...prev, item].sort((a, b) => a.title.localeCompare(b.title, 'ru')))}
+      />
+
+      <EstimateLineItemFormModal
+        open={lineItemModalOpen}
+        item={editingLineItem}
+        onClose={() => setLineItemModalOpen(false)}
+        onSaved={saveLineItem}
       />
     </>
   );

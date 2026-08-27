@@ -78,11 +78,76 @@ export const POSITION_OPS_INTRO = 'Цена за работу включает �
 export const POSITION_OPS_CATCHALL =
   'В том числе все прочие работы, предполагающие выполнение работы, но не включенные в перечень';
 
+// Построчная (количественная) смета от подрядчика — вид работ с объёмом,
+// единицей измерения и ценой работ/материалов за единицу; обычно приходит
+// отдельным xlsx-просчётом по зонам (см. интеграцию 2026-08-27, смета
+// Полтавская/Red One). В отличие от EstimatePosition (состав работ текстом
+// + референсы товаров — для этапа "ещё не посчитано, только описываем
+// ТЗ") — здесь уже есть конкретная стоимость по каждой строке. Раздел
+// сметы может держать оба слоя одновременно: positions/body описывают, ЧТО
+// делаем и зачем, lineItems — сколько это стоит по расчёту подрядчика.
+// zone — исходная группа подрядчика (например, "1 этаж — Кабинеты"), если
+// один раздел платформы объединяет несколько групп присланного файла —
+// не участвует в расчётах, только для сверки с оригиналом.
+export interface EstimateLineItem {
+  id: string;
+  zone: string;
+  workType: string;
+  unit: string;
+  length: number | null;
+  width: number | null;
+  height: number | null;
+  volume: number | null;
+  quantity: number | null;
+  workUnitPrice: number | null;
+  materialUnitPrice: number | null;
+  note: string;
+}
+
+export function lineItemWorkTotal(item: EstimateLineItem): number {
+  return (item.quantity ?? 0) * (item.workUnitPrice ?? 0);
+}
+
+export function lineItemMaterialTotal(item: EstimateLineItem): number {
+  return (item.quantity ?? 0) * (item.materialUnitPrice ?? 0);
+}
+
+export function lineItemTotal(item: EstimateLineItem): number {
+  return lineItemWorkTotal(item) + lineItemMaterialTotal(item);
+}
+
+export interface EstimateCostTotals {
+  work: number;
+  material: number;
+  total: number;
+}
+
+const zeroTotals: EstimateCostTotals = { work: 0, material: 0, total: 0 };
+
+export function sectionLineItemsTotals(section: Pick<EstimateSection, 'lineItems'>): EstimateCostTotals {
+  return section.lineItems.reduce(
+    (sum, item) => ({
+      work: sum.work + lineItemWorkTotal(item),
+      material: sum.material + lineItemMaterialTotal(item),
+      total: sum.total + lineItemTotal(item),
+    }),
+    zeroTotals,
+  );
+}
+
+export function estimateLineItemsTotals(estimate: Pick<Estimate, 'sections'>): EstimateCostTotals {
+  return estimate.sections.reduce((sum, s) => {
+    const t = sectionLineItemsTotals(s);
+    return { work: sum.work + t.work, material: sum.material + t.material, total: sum.total + t.total };
+  }, zeroTotals);
+}
+
 export interface EstimateSection {
   id: string;
   title: string;
   body: string;
   positions: EstimatePosition[];
+  lineItems: EstimateLineItem[];
 }
 
 export interface EstimateQuestion {
@@ -119,9 +184,9 @@ export interface EstimateRow {
 // переименовывать, удалять и добавлять свои прямо на странице сметы.
 export function defaultEstimateSections(): EstimateSection[] {
   return [
-    { id: crypto.randomUUID(), title: 'Фасад', body: '', positions: [] },
-    { id: crypto.randomUUID(), title: 'Кабинеты', body: '', positions: [] },
-    { id: crypto.randomUUID(), title: 'Общие зоны', body: '', positions: [] },
-    { id: crypto.randomUUID(), title: 'Организация и логистика', body: '', positions: [] },
+    { id: crypto.randomUUID(), title: 'Фасад', body: '', positions: [], lineItems: [] },
+    { id: crypto.randomUUID(), title: 'Кабинеты', body: '', positions: [], lineItems: [] },
+    { id: crypto.randomUUID(), title: 'Общие зоны', body: '', positions: [], lineItems: [] },
+    { id: crypto.randomUUID(), title: 'Организация и логистика', body: '', positions: [], lineItems: [] },
   ];
 }
