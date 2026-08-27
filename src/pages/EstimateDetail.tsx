@@ -14,7 +14,6 @@ import { EstimatePositionFormModal } from '../components/estimates/EstimatePosit
 import { EstimateLineItemsTable, formatUsd } from '../components/estimates/EstimateLineItemsTable';
 import { EstimateLineItemFormModal } from '../components/estimates/EstimateLineItemFormModal';
 import { EstimateLineItemCommentsModal } from '../components/estimates/EstimateLineItemCommentsModal';
-import { EstimateLineItemFilesModal } from '../components/estimates/EstimateLineItemFilesModal';
 import { EstimateMaterialsPanel } from '../components/estimates/EstimateMaterialsPanel';
 import { EstimateMaterialFormModal } from '../components/estimates/EstimateMaterialFormModal';
 import { cn } from '../lib/cn';
@@ -108,11 +107,6 @@ export function EstimateDetail() {
   // + "в каком разделе она лежит" (нужно для saveLineItemComments).
   const [commentsSectionId, setCommentsSectionId] = useState<string | null>(null);
   const [commentsLineItem, setCommentsLineItem] = useState<EstimateLineItem | null>(null);
-
-  // Спецификации/счета к строке — тот же принцип состояния, что и у
-  // комментариев выше, отдельная модалка (см. EstimateLineItemFilesModal).
-  const [filesSectionId, setFilesSectionId] = useState<string | null>(null);
-  const [filesLineItem, setFilesLineItem] = useState<EstimateLineItem | null>(null);
 
   // Текст/смета/материалы — три вкладки внутри каждого раздела (владелец:
   // держать текстовую часть и построчную смету раздельно). Не персистится —
@@ -383,21 +377,6 @@ export function EstimateDetail() {
     const savedSection = saved.sections.find((s) => s.id === commentsSectionId);
     const savedItem = savedSection?.lineItems.find((li) => li.id === updated.id) ?? null;
     setCommentsLineItem(savedItem);
-  }
-
-  function openLineItemFiles(sectionId: string, item: EstimateLineItem) {
-    setFilesSectionId(sectionId);
-    setFilesLineItem(item);
-  }
-
-  async function saveLineItemFiles(updated: EstimateLineItem) {
-    if (!estimate || !filesSectionId) return;
-    const sections = estimate.sections.map((s) =>
-      s.id === filesSectionId ? { ...s, lineItems: s.lineItems.map((li) => (li.id === updated.id ? updated : li)) } : s,
-    );
-    const saved = await saveEstimatePatch({ sections });
-    const savedSection = saved.sections.find((s) => s.id === filesSectionId);
-    setFilesLineItem(savedSection?.lineItems.find((li) => li.id === updated.id) ?? null);
   }
 
   async function toggleLineItemDeferred(sectionId: string, item: EstimateLineItem) {
@@ -740,7 +719,6 @@ export function EstimateDetail() {
                       onEdit={(item) => openEditLineItem(section.id, item)}
                       onDelete={(item) => deleteLineItem(section.id, item.id)}
                       onOpenComments={(item) => openLineItemComments(section.id, item)}
-                      onOpenFiles={(item) => openLineItemFiles(section.id, item)}
                       onToggleDeferred={(item) => toggleLineItemDeferred(section.id, item)}
                     />
                   )}
@@ -842,15 +820,6 @@ export function EstimateDetail() {
           setCommentsLineItem(null);
         }}
         onSave={saveLineItemComments}
-      />
-
-      <EstimateLineItemFilesModal
-        item={filesLineItem}
-        onClose={() => {
-          setFilesSectionId(null);
-          setFilesLineItem(null);
-        }}
-        onSave={saveLineItemFiles}
       />
 
       <EstimateMaterialFormModal

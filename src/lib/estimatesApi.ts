@@ -16,7 +16,6 @@ function fromRow(row: EstimateRow): Estimate {
       lineItems: (s.lineItems ?? []).map((li) => ({
         ...li,
         comments: li.comments ?? [],
-        files: li.files ?? [],
         deferred: li.deferred ?? false,
         // Все строки, сохранённые до появления currency (в т.ч. импорт из
         // xlsx подрядчика), считались в BYN — это единственная валюта,

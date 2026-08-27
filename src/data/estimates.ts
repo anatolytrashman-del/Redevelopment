@@ -135,11 +135,6 @@ export interface EstimateLineItem {
   materialUnitPrice: number | null;
   note: string;
   comments: EstimateLineItemComment[];
-  // Спецификации материалов и счета/КП от поставщиков конкретно на эту
-  // строку работ — отдельно от EstimateSection.materials/materialFiles
-  // (те — общий список снабжения на весь раздел, эти — прицельно к одной
-  // строке, когда уже понятно, какой именно материал/поставщик).
-  files: DocumentFile[];
   // "Можно сделать позже" — не убирает строку из таблицы (владелец явно
   // просил не прятать), только помечает, что её стоимость считается
   // отдельно от бюджета "сейчас" (см. EstimateCostSplitTotals). У раздела

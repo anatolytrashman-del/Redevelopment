@@ -1,4 +1,4 @@
-import { Pencil, Trash2, Plus, MessageSquare, Paperclip, Check } from 'lucide-react';
+import { Pencil, Trash2, Plus, MessageSquare, Check } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { cn } from '../../lib/cn';
 import {
@@ -47,7 +47,6 @@ interface EstimateLineItemsTableProps {
   onEdit: (item: EstimateLineItem) => void;
   onDelete: (item: EstimateLineItem) => void;
   onOpenComments: (item: EstimateLineItem) => void;
-  onOpenFiles: (item: EstimateLineItem) => void;
   onToggleDeferred: (item: EstimateLineItem) => void;
 }
 
@@ -65,7 +64,6 @@ export function EstimateLineItemsTable({
   onEdit,
   onDelete,
   onOpenComments,
-  onOpenFiles,
   onToggleDeferred,
 }: EstimateLineItemsTableProps) {
   const totals = sectionLineItemsTotals(section, rate);
@@ -76,7 +74,7 @@ export function EstimateLineItemsTable({
 
       {section.lineItems.length > 0 && (
         <div className="overflow-x-auto rounded-control border border-border">
-          <table className="w-full min-w-[980px] border-collapse text-sm">
+          <table className="w-full min-w-[900px] border-collapse text-sm">
             <thead>
               <tr className="bg-surface-muted text-left text-xs font-medium uppercase tracking-wide text-ink-faint">
                 <th className="px-3 py-2">Зона</th>
@@ -86,7 +84,6 @@ export function EstimateLineItemsTable({
                 <th className="px-3 py-2 text-right">Материалы</th>
                 <th className="px-3 py-2 text-right">Итого</th>
                 <th className="px-3 py-2 text-center">Позже</th>
-                <th className="px-3 py-2" />
                 <th className="px-3 py-2" />
               </tr>
             </thead>
@@ -132,19 +129,6 @@ export function EstimateLineItemsTable({
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          onClick={() => onOpenFiles(item)}
-                          aria-label="Спецификации и счета"
-                          className="relative flex h-7 w-7 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                        >
-                          <Paperclip className="h-3 w-3" />
-                          {item.files.length > 0 && (
-                            <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-0.5 text-[9px] font-semibold text-white">
-                              {item.files.length}
-                            </span>
-                          )}
-                        </button>
-                        <button
-                          type="button"
                           onClick={() => onOpenComments(item)}
                           aria-label="Комментарии к строке"
                           className="relative flex h-7 w-7 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
@@ -156,10 +140,6 @@ export function EstimateLineItemsTable({
                             </span>
                           )}
                         </button>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
                           onClick={() => onEdit(item)}

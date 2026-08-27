@@ -22,15 +22,15 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-// Комментарии и файлы строки (см. EstimateLineItem.comments/files)
-// редактируются не здесь, а прямо в таблице (EstimateLineItemsTable) — эта
-// форма только про числа/цены, поэтому исключены из формы и сохраняются как есть.
+// Комментарии строки (см. EstimateLineItem.comments) редактируются не
+// здесь, а прямо в таблице (EstimateLineItemsTable) — эта форма только про
+// числа/цены, поэтому исключены из формы и сохраняются как есть.
 function itemToForm(item: EstimateLineItem) {
-  const { comments: _comments, files: _files, ...rest } = item;
+  const { comments: _comments, ...rest } = item;
   return rest;
 }
 
-const emptyForm: Omit<EstimateLineItem, 'id' | 'comments' | 'files'> = {
+const emptyForm: Omit<EstimateLineItem, 'id' | 'comments'> = {
   zone: '',
   workType: '',
   unit: '',
@@ -94,7 +94,6 @@ export function EstimateLineItemFormModal({ open, item, onClose, onSaved }: Esti
       unit: form.unit.trim(),
       note: form.note.trim(),
       comments: item?.comments ?? [],
-      files: item?.files ?? [],
     };
     try {
       await onSaved(saved);
