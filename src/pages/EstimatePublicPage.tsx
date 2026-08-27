@@ -14,6 +14,7 @@ import {
   type Estimate,
   type EstimateLineItem,
   type EstimateMaterial,
+  type EstimateSection,
 } from '../data/estimates';
 import type { DocumentFile } from '../data/contractorDocuments';
 import type { RealtyObject } from '../data/objects';
@@ -281,6 +282,59 @@ export function EstimatePublicPage() {
   const floor1Total = sectionsSum(estimate.sections.filter((s) => /1\s*этаж/i.test(s.title)));
   const floor2Estimate = floor1Total;
 
+  // Порядок блоков (владелец, 2026-08-27): все разделы этажей подряд, карточка
+  // "Второй этаж" — после них, и только затем "Организация и логистика" (она
+  // не привязана к этажу, идёт последней). "Второй этаж" — не настоящий
+  // раздел (нет своих строк/материалов), а расчётная карточка-оценка, поэтому
+  // список разделов делим на "до" и "после" по названию, а не храним отдельным
+  // индексом — переживёт любой будущий порядок реальных разделов в базе.
+  const logisticsSections = estimate.sections.filter((s) => s.title.trim() === 'Организация и логистика');
+  const mainSections = estimate.sections.filter((s) => s.title.trim() !== 'Организация и логистика');
+
+  function renderSectionCard(section: EstimateSection) {
+    return (
+      <Card key={section.id} className="flex flex-col gap-4 p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="font-bold text-ink">{formatZone(section.title)}</div>
+          <button
+            type="button"
+            onClick={() => toggleSectionDeferred(section.id)}
+            className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted"
+          >
+            <span
+              className={cn(
+                'flex h-4 w-4 items-center justify-center rounded border',
+                section.deferred ? 'border-primary bg-primary text-white' : 'border-border text-transparent',
+              )}
+            >
+              <Check className="h-3 w-3" />
+            </span>
+            Можно сделать позже
+          </button>
+        </div>
+        <EstimateLineItemsTable
+          section={section}
+          rate={rate}
+          onAdd={() => openAddLineItem(section.id)}
+          onEdit={(item) => openEditLineItem(section.id, item)}
+          onDelete={(item) => deleteLineItem(section.id, item.id)}
+          onOpenComments={(item) => openLineItemComments(section.id, item)}
+          onToggleDeferred={(item) => toggleLineItemDeferred(section.id, item)}
+        />
+        <div className="border-t border-border pt-4">
+          <EstimateMaterialsPanel
+            section={section}
+            onAdd={() => openAddMaterial(section.id)}
+            onEdit={(m) => openEditMaterial(section.id, m)}
+            onDelete={(m) => deleteMaterial(section.id, m.id)}
+            onFilesChange={(files) => saveMaterialFiles(section.id, files)}
+            onListFilesChange={(files) => saveMaterialListFiles(section.id, files)}
+          />
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <div className="min-h-svh bg-bg px-4 py-8 sm:px-8">
       <div className="mx-auto flex max-w-4xl flex-col gap-5">
@@ -297,6 +351,8 @@ export function EstimatePublicPage() {
           <span className="text-sm text-ink-muted">Можно добавлять, редактировать и удалять строки, оставлять комментарии.</span>
         </Card>
 
+        {mainSections.map(renderSectionCard)}
+
         {floor1Total > 0 && (
           <Card className="flex flex-col gap-3 p-5">
             <span className="font-bold text-ink">Второй этаж</span>
@@ -311,47 +367,7 @@ export function EstimatePublicPage() {
           </Card>
         )}
 
-        {estimate.sections.map((section) => (
-          <Card key={section.id} className="flex flex-col gap-4 p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="font-bold text-ink">{formatZone(section.title)}</div>
-              <button
-                type="button"
-                onClick={() => toggleSectionDeferred(section.id)}
-                className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted"
-              >
-                <span
-                  className={cn(
-                    'flex h-4 w-4 items-center justify-center rounded border',
-                    section.deferred ? 'border-primary bg-primary text-white' : 'border-border text-transparent',
-                  )}
-                >
-                  <Check className="h-3 w-3" />
-                </span>
-                Можно сделать позже
-              </button>
-            </div>
-            <EstimateLineItemsTable
-              section={section}
-              rate={rate}
-              onAdd={() => openAddLineItem(section.id)}
-              onEdit={(item) => openEditLineItem(section.id, item)}
-              onDelete={(item) => deleteLineItem(section.id, item.id)}
-              onOpenComments={(item) => openLineItemComments(section.id, item)}
-              onToggleDeferred={(item) => toggleLineItemDeferred(section.id, item)}
-            />
-            <div className="border-t border-border pt-4">
-              <EstimateMaterialsPanel
-                section={section}
-                onAdd={() => openAddMaterial(section.id)}
-                onEdit={(m) => openEditMaterial(section.id, m)}
-                onDelete={(m) => deleteMaterial(section.id, m.id)}
-                onFilesChange={(files) => saveMaterialFiles(section.id, files)}
-                onListFilesChange={(files) => saveMaterialListFiles(section.id, files)}
-              />
-            </div>
-          </Card>
-        ))}
+        {logisticsSections.map(renderSectionCard)}
 
         {grandTotal > 0 && (
           <Card className="flex flex-col gap-4 p-5">
