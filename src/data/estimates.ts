@@ -1,4 +1,12 @@
 import type { DocumentFile } from './contractorDocuments';
+import type { Currency } from './transactions';
+import { RESEARCH_CURRENCIES } from './supplierResearch';
+import type { ExchangeRate } from './exchangeRates';
+import { convertToByn } from '../lib/currencyConvert';
+
+// BYN/USD/RUB — тот же набор, что и у "Поставщики"/"Подрядчики → Ресерч"
+// (без EUR, владелец явно ограничил список именно этими тремя для сметы).
+export const LINE_ITEM_CURRENCIES = RESEARCH_CURRENCIES;
 
 // Смета реновации — привязана к объекту (RealtyObject), живёт отдельной
 // вкладкой в админке (Estimates.tsx/EstimateDetail.tsx). Построчная смета
@@ -118,10 +126,26 @@ export interface EstimateLineItem {
   height: number | null;
   volume: number | null;
   quantity: number | null;
+  // Валюта, в которой заданы обе цены ниже (см. LINE_ITEM_CURRENCIES) — у
+  // разных строк она может отличаться (подрядчик считал часть в BYN, часть
+  // ориентировался на доллар), поэтому не единая на весь раздел/смету, а у
+  // каждой строки своя. Для сложения строк в общий итог см. lineItemWorkTotalByn и т.п.
+  currency: Currency;
   workUnitPrice: number | null;
   materialUnitPrice: number | null;
   note: string;
   comments: EstimateLineItemComment[];
+  // Спецификации материалов и счета/КП от поставщиков конкретно на эту
+  // строку работ — отдельно от EstimateSection.materials/materialFiles
+  // (те — общий список снабжения на весь раздел, эти — прицельно к одной
+  // строке, когда уже понятно, какой именно материал/поставщик).
+  files: DocumentFile[];
+  // "Можно сделать позже" — не убирает строку из таблицы (владелец явно
+  // просил не прятать), только помечает, что её стоимость считается
+  // отдельно от бюджета "сейчас" (см. EstimateCostSplitTotals). У раздела
+  // есть свой отдельный флаг (EstimateSection.deferred) — раздел целиком
+  // "на потом" перекрывает флаги отдельных строк (см. sectionLineItemsTotals).
+  deferred: boolean;
 }
 
 export function lineItemWorkTotal(item: EstimateLineItem): number {
@@ -142,24 +166,44 @@ export interface EstimateCostTotals {
   total: number;
 }
 
-const zeroTotals: EstimateCostTotals = { work: 0, material: 0, total: 0 };
-
-export function sectionLineItemsTotals(section: Pick<EstimateSection, 'lineItems'>): EstimateCostTotals {
-  return section.lineItems.reduce(
-    (sum, item) => ({
-      work: sum.work + lineItemWorkTotal(item),
-      material: sum.material + lineItemMaterialTotal(item),
-      total: sum.total + lineItemTotal(item),
-    }),
-    zeroTotals,
-  );
+// "Сейчас" — строки, не отмеченные "можно позже" (и не в разделе,
+// отмеченном "можно позже" целиком); "later" — всё остальное. Обе суммы
+// всегда в BYN (конвертация построчная, каждая строка — по своей валюте) —
+// null-конвертация (курс ещё не загружен) считается за 0, чтобы не уронить
+// весь подсчёт, но реальные суммы в этот момент временно занижены.
+export interface EstimateCostSplitTotals {
+  now: EstimateCostTotals;
+  later: EstimateCostTotals;
 }
 
-export function estimateLineItemsTotals(estimate: Pick<Estimate, 'sections'>): EstimateCostTotals {
+const zeroTotals: EstimateCostTotals = { work: 0, material: 0, total: 0 };
+const zeroSplitTotals: EstimateCostSplitTotals = { now: zeroTotals, later: zeroTotals };
+
+function addTotals(a: EstimateCostTotals, b: EstimateCostTotals): EstimateCostTotals {
+  return { work: a.work + b.work, material: a.material + b.material, total: a.total + b.total };
+}
+
+export function sectionLineItemsTotals(
+  section: Pick<EstimateSection, 'lineItems' | 'deferred'>,
+  rate: ExchangeRate | null,
+): EstimateCostSplitTotals {
+  return section.lineItems.reduce((sum, item) => {
+    const work = convertToByn(lineItemWorkTotal(item), item.currency, rate) ?? 0;
+    const material = convertToByn(lineItemMaterialTotal(item), item.currency, rate) ?? 0;
+    const itemTotals: EstimateCostTotals = { work, material, total: work + material };
+    const isLater = section.deferred || item.deferred;
+    return {
+      now: isLater ? sum.now : addTotals(sum.now, itemTotals),
+      later: isLater ? addTotals(sum.later, itemTotals) : sum.later,
+    };
+  }, zeroSplitTotals);
+}
+
+export function estimateLineItemsTotals(estimate: Pick<Estimate, 'sections'>, rate: ExchangeRate | null): EstimateCostSplitTotals {
   return estimate.sections.reduce((sum, s) => {
-    const t = sectionLineItemsTotals(s);
-    return { work: sum.work + t.work, material: sum.material + t.material, total: sum.total + t.total };
-  }, zeroTotals);
+    const t = sectionLineItemsTotals(s, rate);
+    return { now: addTotals(sum.now, t.now), later: addTotals(sum.later, t.later) };
+  }, zeroSplitTotals);
 }
 
 // Позиция списка материалов — отдельно от EstimateLineItem: там цена
@@ -187,6 +231,11 @@ export interface EstimateSection {
   // файл обычно перекрывает сразу несколько позиций списка, привязывать
   // каждый файл к одной конкретной строке было бы искусственно.
   materialFiles: DocumentFile[];
+  // "Можно сделать позже" для раздела целиком — перекрывает такой же флаг
+  // отдельных строк (см. EstimateLineItem.deferred и sectionLineItemsTotals):
+  // раздел остаётся на экране как есть, просто вся его сумма считается в
+  // "later", а не "now".
+  deferred: boolean;
 }
 
 export interface EstimateQuestion {
@@ -226,19 +275,24 @@ export interface EstimateRow {
 
 // Стартовый набор разделов для новой сметы — по мере работы разделы можно
 // переименовывать, удалять и добавлять свои прямо на странице сметы.
+export function emptySection(title: string): EstimateSection {
+  return {
+    id: crypto.randomUUID(),
+    title,
+    body: '',
+    positions: [],
+    lineItems: [],
+    materials: [],
+    materialFiles: [],
+    deferred: false,
+  };
+}
+
 export function defaultEstimateSections(): EstimateSection[] {
   return [
-    { id: crypto.randomUUID(), title: 'Фасад', body: '', positions: [], lineItems: [], materials: [], materialFiles: [] },
-    { id: crypto.randomUUID(), title: 'Кабинеты', body: '', positions: [], lineItems: [], materials: [], materialFiles: [] },
-    { id: crypto.randomUUID(), title: 'Общие зоны', body: '', positions: [], lineItems: [], materials: [], materialFiles: [] },
-    {
-      id: crypto.randomUUID(),
-      title: 'Организация и логистика',
-      body: '',
-      positions: [],
-      lineItems: [],
-      materials: [],
-      materialFiles: [],
-    },
+    emptySection('Фасад'),
+    emptySection('Кабинеты'),
+    emptySection('Общие зоны'),
+    emptySection('Организация и логистика'),
   ];
 }

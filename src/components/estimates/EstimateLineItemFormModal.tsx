@@ -1,10 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Check } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
-import { lineItemMaterialTotal, lineItemTotal, lineItemWorkTotal, type EstimateLineItem } from '../../data/estimates';
+import { ToggleGroup } from '../ui/ToggleGroup';
+import { cn } from '../../lib/cn';
+import {
+  LINE_ITEM_CURRENCIES,
+  lineItemMaterialTotal,
+  lineItemTotal,
+  lineItemWorkTotal,
+  type EstimateLineItem,
+} from '../../data/estimates';
+import { currencySymbols } from '../../data/transactions';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -13,15 +22,15 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-// Комментарии к строке (см. EstimateLineItem.comments) редактируются не
-// здесь, а прямо в таблице (EstimateLineItemsTable) — эта форма только про
-// числа/цены, поэтому исключены из формы и сохраняются как есть.
+// Комментарии и файлы строки (см. EstimateLineItem.comments/files)
+// редактируются не здесь, а прямо в таблице (EstimateLineItemsTable) — эта
+// форма только про числа/цены, поэтому исключены из формы и сохраняются как есть.
 function itemToForm(item: EstimateLineItem) {
-  const { comments: _comments, ...rest } = item;
+  const { comments: _comments, files: _files, ...rest } = item;
   return rest;
 }
 
-const emptyForm: Omit<EstimateLineItem, 'id' | 'comments'> = {
+const emptyForm: Omit<EstimateLineItem, 'id' | 'comments' | 'files'> = {
   zone: '',
   workType: '',
   unit: '',
@@ -30,9 +39,11 @@ const emptyForm: Omit<EstimateLineItem, 'id' | 'comments'> = {
   height: null,
   volume: null,
   quantity: null,
+  currency: 'BYN',
   workUnitPrice: null,
   materialUnitPrice: null,
   note: '',
+  deferred: false,
 };
 
 function formatMoney(value: number): string {
@@ -68,6 +79,7 @@ export function EstimateLineItemFormModal({ open, item, onClose, onSaved }: Esti
   const previewWork = lineItemWorkTotal(form as EstimateLineItem);
   const previewMaterial = lineItemMaterialTotal(form as EstimateLineItem);
   const previewTotal = lineItemTotal(form as EstimateLineItem);
+  const symbol = currencySymbols[form.currency];
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -82,6 +94,7 @@ export function EstimateLineItemFormModal({ open, item, onClose, onSaved }: Esti
       unit: form.unit.trim(),
       note: form.note.trim(),
       comments: item?.comments ?? [],
+      files: item?.files ?? [],
     };
     try {
       await onSaved(saved);
@@ -136,25 +149,53 @@ export function EstimateLineItemFormModal({ open, item, onClose, onSaved }: Esti
           <Input label="Кол-во (для расчёта)" type="number" {...numField('quantity')} />
         </div>
 
+        <ToggleGroup
+          label="Валюта"
+          options={[...LINE_ITEM_CURRENCIES]}
+          value={form.currency}
+          onChange={(v) => setForm((f) => ({ ...f, currency: v as typeof f.currency }))}
+        />
         <div className="grid grid-cols-2 gap-3">
-          <Input label="Цена работ за ед., BYN" type="number" {...numField('workUnitPrice')} />
-          <Input label="Цена материалов за ед., BYN" type="number" {...numField('materialUnitPrice')} />
+          <Input label={`Цена работ за ед., ${symbol}`} type="number" {...numField('workUnitPrice')} />
+          <Input label={`Цена материалов за ед., ${symbol}`} type="number" {...numField('materialUnitPrice')} />
         </div>
 
         <div className="flex flex-col gap-1 rounded-control border border-border bg-surface-muted p-3 text-sm">
           <div className="flex items-center justify-between text-ink-muted">
             <span>Стоимость работ</span>
-            <span className="font-medium text-ink">{formatMoney(previewWork)} Br</span>
+            <span className="font-medium text-ink">
+              {formatMoney(previewWork)} {symbol}
+            </span>
           </div>
           <div className="flex items-center justify-between text-ink-muted">
             <span>Стоимость материалов</span>
-            <span className="font-medium text-ink">{formatMoney(previewMaterial)} Br</span>
+            <span className="font-medium text-ink">
+              {formatMoney(previewMaterial)} {symbol}
+            </span>
           </div>
           <div className="flex items-center justify-between border-t border-border pt-1 font-semibold text-ink">
             <span>Итого</span>
-            <span>{formatMoney(previewTotal)} Br</span>
+            <span>
+              {formatMoney(previewTotal)} {symbol}
+            </span>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setForm((f) => ({ ...f, deferred: !f.deferred }))}
+          className="flex items-center gap-2.5 text-sm text-ink"
+        >
+          <span
+            className={cn(
+              'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border',
+              form.deferred ? 'border-primary bg-primary text-white' : 'border-border text-transparent',
+            )}
+          >
+            <Check className="h-3.5 w-3.5" />
+          </span>
+          Можно сделать позже
+        </button>
 
         <Textarea
           label="Примечание"

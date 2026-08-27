@@ -14,12 +14,15 @@ import { EstimatePositionFormModal } from '../components/estimates/EstimatePosit
 import { EstimateLineItemsTable, formatUsd } from '../components/estimates/EstimateLineItemsTable';
 import { EstimateLineItemFormModal } from '../components/estimates/EstimateLineItemFormModal';
 import { EstimateLineItemCommentsModal } from '../components/estimates/EstimateLineItemCommentsModal';
+import { EstimateLineItemFilesModal } from '../components/estimates/EstimateLineItemFilesModal';
 import { EstimateMaterialsPanel } from '../components/estimates/EstimateMaterialsPanel';
 import { EstimateMaterialFormModal } from '../components/estimates/EstimateMaterialFormModal';
 import { cn } from '../lib/cn';
 import {
   estimateStatuses,
   estimateLineItemsTotals,
+  sectionLineItemsTotals,
+  emptySection,
   type Estimate,
   type EstimateLineItem,
   type EstimateMaterial,
@@ -105,6 +108,11 @@ export function EstimateDetail() {
   // + "в каком разделе она лежит" (нужно для saveLineItemComments).
   const [commentsSectionId, setCommentsSectionId] = useState<string | null>(null);
   const [commentsLineItem, setCommentsLineItem] = useState<EstimateLineItem | null>(null);
+
+  // Спецификации/счета к строке — тот же принцип состояния, что и у
+  // комментариев выше, отдельная модалка (см. EstimateLineItemFilesModal).
+  const [filesSectionId, setFilesSectionId] = useState<string | null>(null);
+  const [filesLineItem, setFilesLineItem] = useState<EstimateLineItem | null>(null);
 
   // Текст/смета/материалы — три вкладки внутри каждого раздела (владелец:
   // держать текстовую часть и построчную смету раздельно). Не персистится —
@@ -209,15 +217,7 @@ export function EstimateDetail() {
 
   async function addSection() {
     if (!estimate) return;
-    const section: EstimateSection = {
-      id: crypto.randomUUID(),
-      title: 'Новый раздел',
-      body: '',
-      positions: [],
-      lineItems: [],
-      materials: [],
-      materialFiles: [],
-    };
+    const section: EstimateSection = emptySection('Новый раздел');
     try {
       await saveEstimatePatch({ sections: [...estimate.sections, section] });
       startEditSection(section);
@@ -385,6 +385,45 @@ export function EstimateDetail() {
     setCommentsLineItem(savedItem);
   }
 
+  function openLineItemFiles(sectionId: string, item: EstimateLineItem) {
+    setFilesSectionId(sectionId);
+    setFilesLineItem(item);
+  }
+
+  async function saveLineItemFiles(updated: EstimateLineItem) {
+    if (!estimate || !filesSectionId) return;
+    const sections = estimate.sections.map((s) =>
+      s.id === filesSectionId ? { ...s, lineItems: s.lineItems.map((li) => (li.id === updated.id ? updated : li)) } : s,
+    );
+    const saved = await saveEstimatePatch({ sections });
+    const savedSection = saved.sections.find((s) => s.id === filesSectionId);
+    setFilesLineItem(savedSection?.lineItems.find((li) => li.id === updated.id) ?? null);
+  }
+
+  async function toggleLineItemDeferred(sectionId: string, item: EstimateLineItem) {
+    if (!estimate) return;
+    const sections = estimate.sections.map((s) =>
+      s.id === sectionId
+        ? { ...s, lineItems: s.lineItems.map((li) => (li.id === item.id ? { ...li, deferred: !li.deferred } : li)) }
+        : s,
+    );
+    try {
+      await saveEstimatePatch({ sections });
+    } catch (err) {
+      setSectionError(errorMessage(err, 'Не удалось изменить отметку'));
+    }
+  }
+
+  async function toggleSectionDeferred(sectionId: string) {
+    if (!estimate) return;
+    const sections = estimate.sections.map((s) => (s.id === sectionId ? { ...s, deferred: !s.deferred } : s));
+    try {
+      await saveEstimatePatch({ sections });
+    } catch (err) {
+      setSectionError(errorMessage(err, 'Не удалось изменить отметку'));
+    }
+  }
+
   function openAddMaterial(sectionId: string) {
     setMaterialSectionId(sectionId);
     setEditingMaterial(null);
@@ -446,7 +485,28 @@ export function EstimateDetail() {
   }
 
   const specs = object?.buildingSpecs;
-  const lineItemsTotals = estimate ? estimateLineItemsTotals(estimate) : { work: 0, material: 0, total: 0 };
+  const lineItemsTotals = estimate
+    ? estimateLineItemsTotals(estimate, rate)
+    : { now: { work: 0, material: 0, total: 0 }, later: { work: 0, material: 0, total: 0 } };
+  const grandTotal = lineItemsTotals.now.total + lineItemsTotals.later.total;
+
+  // "Второй этаж" — карточка-заглушка (владелец: контрагент прислал только
+  // 1-й этаж, 2-й пока условно считаем ×2 от "1-й этаж + общие зоны", см.
+  // открытый вопрос про 2-й этаж). "Всё, кроме фасада" — раздел с фасадом
+  // исключается по названию (фасадные работы делаются на всё здание разом,
+  // не дублируются по этажам). Не строка в самой смете (не настоящие
+  // данные, не от подрядчика) — отдельная карточка, прибавляется к общему
+  // итогу отдельно.
+  const floor1Total = estimate
+    ? estimate.sections
+        .filter((s) => s.title.trim() !== 'Фасад')
+        .reduce((sum, s) => {
+          const t = sectionLineItemsTotals(s, rate);
+          return sum + t.now.total + t.later.total;
+        }, 0)
+    : 0;
+  const floor2Estimate = floor1Total;
+  const grandTotalWithFloor2 = grandTotal + floor2Estimate;
 
   return (
     <>
@@ -526,13 +586,30 @@ export function EstimateDetail() {
             </p>
           </Card>
 
-          {lineItemsTotals.total > 0 && (
-            <Card className="flex flex-wrap items-center justify-between gap-4 p-5">
+          {grandTotal > 0 && (
+            <Card className="flex flex-col gap-3 p-5">
               <span className="font-bold text-ink">Итого по построчной смете</span>
               <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-                <Stat label="Стоимость работ" value={formatBynUsd(lineItemsTotals.work, rate)} />
-                <Stat label="Стоимость материалов" value={formatBynUsd(lineItemsTotals.material, rate)} />
-                <Stat label="Итого" value={formatBynUsd(lineItemsTotals.total, rate)} />
+                <Stat label="Сейчас" value={formatBynUsd(lineItemsTotals.now.total, rate)} />
+                {lineItemsTotals.later.total > 0 && (
+                  <Stat label="Можно позже" value={formatBynUsd(lineItemsTotals.later.total, rate)} />
+                )}
+                <Stat label="Итого (сейчас + позже)" value={formatBynUsd(grandTotal, rate)} />
+              </div>
+            </Card>
+          )}
+
+          {floor1Total > 0 && (
+            <Card className="flex flex-col gap-3 p-5">
+              <span className="font-bold text-ink">Второй этаж</span>
+              <p className="text-sm text-ink-faint">
+                Подрядчик прислал расчёт только по 1-му этажу — 2-й пока условно считаем той же суммой, что 1-й этаж
+                и общие зоны вместе (без фасада — фасадные работы не дублируются по этажам).
+              </p>
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                <Stat label="1-й этаж + общие зоны (без фасада)" value={formatBynUsd(floor1Total, rate)} />
+                <Stat label="2-й этаж (оценочно, столько же)" value={formatBynUsd(floor2Estimate, rate)} />
+                <Stat label="Итого по смете с учётом 2-го этажа" value={formatBynUsd(grandTotalWithFloor2, rate)} />
               </div>
             </Card>
           )}
@@ -575,23 +652,40 @@ export function EstimateDetail() {
                 <>
                   <div className="flex items-center justify-between gap-3">
                     <div className="font-bold text-ink">{section.title}</div>
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-3">
                       <button
                         type="button"
-                        onClick={() => startEditSection(section)}
-                        aria-label="Редактировать раздел"
-                        className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                        onClick={() => toggleSectionDeferred(section.id)}
+                        className="flex items-center gap-1.5 text-xs font-medium text-ink-muted"
                       >
-                        <Pencil className="h-3.5 w-3.5" />
+                        <span
+                          className={cn(
+                            'flex h-4 w-4 items-center justify-center rounded border',
+                            section.deferred ? 'border-primary bg-primary text-white' : 'border-border text-transparent',
+                          )}
+                        >
+                          <Check className="h-3 w-3" />
+                        </span>
+                        Можно сделать позже
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteSection(section.id)}
-                        aria-label="Удалить раздел"
-                        className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint hover:text-danger"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => startEditSection(section)}
+                          aria-label="Редактировать раздел"
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteSection(section.id)}
+                          aria-label="Удалить раздел"
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint hover:text-danger"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <ToggleGroup
@@ -646,6 +740,8 @@ export function EstimateDetail() {
                       onEdit={(item) => openEditLineItem(section.id, item)}
                       onDelete={(item) => deleteLineItem(section.id, item.id)}
                       onOpenComments={(item) => openLineItemComments(section.id, item)}
+                      onOpenFiles={(item) => openLineItemFiles(section.id, item)}
+                      onToggleDeferred={(item) => toggleLineItemDeferred(section.id, item)}
                     />
                   )}
 
@@ -746,6 +842,15 @@ export function EstimateDetail() {
           setCommentsLineItem(null);
         }}
         onSave={saveLineItemComments}
+      />
+
+      <EstimateLineItemFilesModal
+        item={filesLineItem}
+        onClose={() => {
+          setFilesSectionId(null);
+          setFilesLineItem(null);
+        }}
+        onSave={saveLineItemFiles}
       />
 
       <EstimateMaterialFormModal

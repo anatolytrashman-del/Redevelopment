@@ -34,3 +34,14 @@ export function convertFromEur(amountEur: number, target: Currency, rate: Exchan
   if (target === 'BYN') return amountByn;
   return amountByn / (target === 'USD' ? rate.usdByn : rate.rubByn);
 }
+
+// Сумма в BYN как общий знаменатель для сложения разновалютных строк (см.
+// построчную смету — у каждой строки своя валюта, EstimateLineItem.currency).
+// BYN не требует курса вовсе, остальные — по курсу того же дня.
+export function convertToByn(amount: number, currency: Currency, rate: ExchangeRate | null | undefined): number | null {
+  if (currency === 'BYN') return amount;
+  if (!rate) return null;
+  if (currency === 'USD') return amount * rate.usdByn;
+  if (currency === 'EUR') return amount * rate.eurByn;
+  return amount * rate.rubByn;
+}

@@ -5,6 +5,7 @@ import { Card } from '../components/ui/Card';
 import { EstimateLineItemsTable, formatUsd } from '../components/estimates/EstimateLineItemsTable';
 import { EstimateLineItemFormModal } from '../components/estimates/EstimateLineItemFormModal';
 import { EstimateLineItemCommentsModal } from '../components/estimates/EstimateLineItemCommentsModal';
+import { EstimateLineItemFilesModal } from '../components/estimates/EstimateLineItemFilesModal';
 import { estimateLineItemsTotals, type Estimate, type EstimateLineItem } from '../data/estimates';
 import type { ExchangeRate } from '../data/exchangeRates';
 import { fetchEstimateByToken, updateEstimate } from '../lib/estimatesApi';
@@ -49,6 +50,9 @@ export function EstimatePublicPage() {
 
   const [commentsSectionId, setCommentsSectionId] = useState<string | null>(null);
   const [commentsLineItem, setCommentsLineItem] = useState<EstimateLineItem | null>(null);
+
+  const [filesSectionId, setFilesSectionId] = useState<string | null>(null);
+  const [filesLineItem, setFilesLineItem] = useState<EstimateLineItem | null>(null);
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -136,6 +140,35 @@ export function EstimatePublicPage() {
     setCommentsLineItem(savedSection?.lineItems.find((li) => li.id === updated.id) ?? null);
   }
 
+  function openLineItemFiles(sectionId: string, item: EstimateLineItem) {
+    setFilesSectionId(sectionId);
+    setFilesLineItem(item);
+  }
+
+  async function saveLineItemFiles(updated: EstimateLineItem) {
+    if (!estimate || !filesSectionId) return;
+    const sections = estimate.sections.map((s) =>
+      s.id === filesSectionId ? { ...s, lineItems: s.lineItems.map((li) => (li.id === updated.id ? updated : li)) } : s,
+    );
+    const saved = await savePatch(sections);
+    const savedSection = saved.sections.find((s) => s.id === filesSectionId);
+    setFilesLineItem(savedSection?.lineItems.find((li) => li.id === updated.id) ?? null);
+  }
+
+  async function toggleLineItemDeferred(sectionId: string, item: EstimateLineItem) {
+    if (!estimate) return;
+    const sections = estimate.sections.map((s) =>
+      s.id === sectionId
+        ? { ...s, lineItems: s.lineItems.map((li) => (li.id === item.id ? { ...li, deferred: !li.deferred } : li)) }
+        : s,
+    );
+    try {
+      await savePatch(sections);
+    } catch (err) {
+      setLoadError(errorMessage(err, 'Не удалось изменить отметку'));
+    }
+  }
+
   if (loading || loadError || !estimate) {
     return (
       <div className="min-h-svh bg-bg px-4 py-8 sm:px-8">
@@ -157,7 +190,8 @@ export function EstimatePublicPage() {
     );
   }
 
-  const totals = estimateLineItemsTotals(estimate);
+  const totals = estimateLineItemsTotals(estimate, rate);
+  const grandTotal = totals.now.total + totals.later.total;
 
   return (
     <div className="min-h-svh bg-bg px-4 py-8 sm:px-8">
@@ -173,10 +207,18 @@ export function EstimatePublicPage() {
           <span className="text-sm text-ink-muted">Можно добавлять, редактировать и удалять строки, оставлять комментарии.</span>
         </Card>
 
-        {totals.total > 0 && (
-          <Card className="flex flex-wrap items-center justify-between gap-4 p-5 text-sm">
-            <span className="font-bold text-ink">Итого по смете</span>
-            <span className="font-semibold text-ink">{formatBynUsd(totals.total, rate)}</span>
+        {grandTotal > 0 && (
+          <Card className="flex flex-col gap-1 p-5 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="font-bold text-ink">Сейчас</span>
+              <span className="font-semibold text-ink">{formatBynUsd(totals.now.total, rate)}</span>
+            </div>
+            {totals.later.total > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 text-ink-muted">
+                <span>Можно позже</span>
+                <span>{formatBynUsd(totals.later.total, rate)}</span>
+              </div>
+            )}
           </Card>
         )}
 
@@ -190,6 +232,8 @@ export function EstimatePublicPage() {
               onEdit={(item) => openEditLineItem(section.id, item)}
               onDelete={(item) => deleteLineItem(section.id, item.id)}
               onOpenComments={(item) => openLineItemComments(section.id, item)}
+              onOpenFiles={(item) => openLineItemFiles(section.id, item)}
+              onToggleDeferred={(item) => toggleLineItemDeferred(section.id, item)}
             />
           </Card>
         ))}
@@ -209,6 +253,15 @@ export function EstimatePublicPage() {
           setCommentsLineItem(null);
         }}
         onSave={saveLineItemComments}
+      />
+
+      <EstimateLineItemFilesModal
+        item={filesLineItem}
+        onClose={() => {
+          setFilesSectionId(null);
+          setFilesLineItem(null);
+        }}
+        onSave={saveLineItemFiles}
       />
     </div>
   );
