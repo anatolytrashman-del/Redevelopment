@@ -2,10 +2,55 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Grid2x2 } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { loadYmaps } from '../../lib/yandexMaps';
-import { DISTRICT_PLACE_CATEGORIES } from '../../data/districtPlaces';
+import { DISTRICT_PLACE_CATEGORIES, MAP_HIDDEN_CATEGORY_KEYS } from '../../data/districtPlaces';
 import { DISTRICT_QUARTERS } from '../../data/districtQuarters';
-import { countsByQuarter } from '../../lib/districtQuarterMatch';
-import { computeLocationQuotients } from '../../lib/locationQuotient';
+import { DISTRICT_BUSINESS_CATEGORIES } from '../../data/districtBusinessCategories';
+import { countsByQuarter, quarterIdForAddress } from '../../lib/districtQuarterMatch';
+
+// Псевдо-категория поверх исчерпывающего снепшота (district_business_points →
+// data/districtBusinessCategories.ts, тот же датасет, что и у location
+// quotient — см. lib/locationQuotient.ts) — владелец: "подтяни вообще все
+// организации из домов на эту карту". В отличие от остальных пунктов
+// CategoryToggle (старые фрагментарные DISTRICT_PLACE_CATEGORIES, где пины
+// заносятся вручную по одной категории), эта считается по факту — сколько
+// организаций реально собрано в каждом квартале, независимо от корзины.
+const LIVE_ALL_KEY = 'live-all';
+const LIVE_ALL_LABEL = 'Все организации (исчерпывающий сбор)';
+
+interface QuarterOrg {
+  title: string;
+  address: string;
+}
+
+// Приводит "николы теслы" к "Николы Теслы" — тот же приём, что и titleCase
+// в DistrictBusinessesTab.tsx (не общий хелпер — раньше эта карта и та
+// вкладка не пересекались по нуждам форматирования, дублировать проще,
+// чем заводить общий модуль ради одной строчки).
+function titleCaseStreet(street: string): string {
+  return street.replace(/(^|[\s-])([а-яё])/g, (_, sep: string, ch: string) => sep + ch.toUpperCase());
+}
+
+function formatStreetHouse(street: string, house: string): string {
+  return `${titleCaseStreet(street)}, ${house}`;
+}
+
+// Считаем один раз при загрузке модуля — DISTRICT_BUSINESS_CATEGORIES
+// статический импорт, пересчитывать на каждый рендер незачем. Помимо
+// счётчика — сразу и список организаций по кварталу (владелец: "мне бы
+// при клике полный список: номер, название, адрес" — балун полигона на
+// клик должен показывать не просто число, а сами организации).
+const LIVE_ALL_COUNTS_BY_QUARTER: Record<string, number> = {};
+const LIVE_ALL_ORGS_BY_QUARTER: Record<string, QuarterOrg[]> = {};
+for (const entry of DISTRICT_BUSINESS_CATEGORIES) {
+  LIVE_ALL_COUNTS_BY_QUARTER[entry.quarterId] = (LIVE_ALL_COUNTS_BY_QUARTER[entry.quarterId] ?? 0) + 1;
+  (LIVE_ALL_ORGS_BY_QUARTER[entry.quarterId] ??= []).push({
+    title: entry.title,
+    address: formatStreetHouse(entry.street, entry.house),
+  });
+}
+for (const orgs of Object.values(LIVE_ALL_ORGS_BY_QUARTER)) {
+  orgs.sort((a, b) => a.title.localeCompare(b.title, 'ru'));
+}
 
 // Карта конкуренции бизнеса по кварталам — владелец: "плотность ниш по
 // конкретным кварталам минск мира, чтобы было похоже на аналитику best
@@ -52,10 +97,57 @@ function polygonArea(polygon: [number, number][]): number {
 const DEFAULT_CENTER: [number, number] = [53.866, 27.5435];
 const DEFAULT_ZOOM = 15;
 
-function CategoryToggle({ value, onChange }: { value: string; onChange: (key: string) => void }) {
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Балун полигона квартала на клик — владелец: "мне бы при клике полный
+// список: номер, название, адрес" (было — просто "N точек категории").
+// max-height+overflow — у некоторых кварталов больше сотни организаций
+// (Тропические острова — 113), без прокрутки балун растянулся бы на весь
+// экран.
+function buildOrgListBalloonHtml(orgs: QuarterOrg[]): string {
+  const rows = orgs
+    .map(
+      (org, i) => `
+        <tr>
+          <td style="padding:2px 6px 2px 0;color:#9a9691;vertical-align:top;">${i + 1}</td>
+          <td style="padding:2px 6px 2px 0;font-weight:600;vertical-align:top;">${escapeHtml(org.title)}</td>
+          <td style="padding:2px 0;color:#6b6660;vertical-align:top;">${escapeHtml(org.address)}</td>
+        </tr>`,
+    )
+    .join('');
+  return `
+    <div style="max-height:280px;overflow-y:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+// "53 организации", не "53 организаций" — числительное 53 требует
+// родительного падежа единственного числа, не множественного.
+function pluralOrganizations(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'организация';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'организации';
+  return 'организаций';
+}
+
+function CategoryToggle({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: { key: string; label: string }[];
+  onChange: (key: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const current = DISTRICT_PLACE_CATEGORIES.find((c) => c.key === value);
+  const current = options.find((c) => c.key === value);
 
   useEffect(() => {
     if (!open) return;
@@ -79,7 +171,7 @@ function CategoryToggle({ value, onChange }: { value: string; onChange: (key: st
       {open && (
         <div className="absolute right-0 top-full z-20 pt-2">
           <div className="flex max-h-80 w-56 flex-col gap-0.5 overflow-y-auto rounded-control border border-border bg-surface p-1.5 shadow-card">
-            {DISTRICT_PLACE_CATEGORIES.map((category) => (
+            {options.map((category) => (
               <button
                 key={category.key}
                 type="button"
@@ -102,121 +194,71 @@ function CategoryToggle({ value, onChange }: { value: string; onChange: (key: st
   );
 }
 
-// LQ (location quotient) > этого порога — категория заметно
-// переконцентрирована в квартале относительно района ("выше среднего"),
-// < обратного порога — недопредставлена ("ниже среднего"). Пороги —
-// стандартная практика ритейл-аналитики (обычно 1.25/0.75), взяли чуть
-// шире (1.3/0.7), чтобы не дёргаться на пограничных значениях при малой
-// выборке (28 точек на квартал — это мало для строгой статистики).
-const LQ_HIGH_THRESHOLD = 1.3;
-const LQ_LOW_THRESHOLD = 0.7;
-
-function lqColor(lq: number | null): string {
-  if (lq === null) return 'var(--color-ink-faint)';
-  if (lq >= LQ_HIGH_THRESHOLD) return 'var(--color-primary)';
-  if (lq <= LQ_LOW_THRESHOLD) return '#4B7BEC';
-  return 'var(--color-ink-faint)';
-}
-
-function lqLabel(lq: number | null): string {
-  if (lq === null) return 'нет данных по району';
-  if (lq >= LQ_HIGH_THRESHOLD) return 'выше среднего по району';
-  if (lq <= LQ_LOW_THRESHOLD) return 'ниже среднего — возможна ниша';
-  return 'типично для района';
-}
-
-// Разбивка по укрупнённым "корзинам" бизнеса (lib/businessBuckets.ts) с
-// location quotient — владелец: "предложи формат определения плотности
-// бизнесов", ответ — LQ вместо сырого счётчика (см. комментарий в
-// lib/locationQuotient.ts). Показывается для кварталов, у которых есть
-// исчерпывающие поквартирные данные (data/districtBusinessCategories.ts —
-// 17 из 20 на 2026-08-26, было только "Мировые танцы" до этой даты) —
-// для остальных computeLocationQuotients вернёт пустой массив, панель не
-// рендерится вовсе (rows.length === 0 ниже).
-function LocationQuotientPanel({ quarterId, quarterLabel }: { quarterId: string; quarterLabel: string }) {
-  const rows = useMemo(() => computeLocationQuotients(quarterId), [quarterId]);
-  if (rows.length === 0) return null;
-
-  const sorted = [...rows].sort((a, b) => (b.lq ?? 0) - (a.lq ?? 0));
-  const maxAbsLog = Math.max(1, ...sorted.map((r) => (r.lq ? Math.abs(Math.log2(r.lq)) : 0)));
-
-  return (
-    <div className="flex flex-col gap-2 rounded-control border border-border p-4">
-      <h3 className="text-sm font-bold text-ink">Индекс концентрации по нишам — {quarterLabel}</h3>
-      <p className="text-xs text-ink-muted">
-        Location quotient — доля ниши в квартале относительно её доли по всему району. Больше 1 — ниша
-        переконцентрирована здесь (высокая конкуренция), меньше 1 — недопредставлена (возможная свободная ниша).
-      </p>
-      <div className="flex flex-col gap-1.5 pt-1">
-        {sorted.map((row) => {
-          const barRatio = row.lq ? Math.abs(Math.log2(row.lq)) / maxAbsLog : 0;
-          const color = lqColor(row.lq);
-          return (
-            // flex-col на мобильном — метка ("Услуги для дома и техники",
-            // "Недвижимость и бизнес-услуги") + полоса + значение + счётчик
-            // в одну строку с фиксированной шириной метки (w-40) не
-            // помещались на 375px, метка обрезалась посреди слова.
-            // Название на своей строке (без truncate/фикс. ширины на
-            // мобильном) решает это, не трогая компактный вид на sm+.
-            <div key={row.bucketId} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-              {/* sm:w-56 (224px), не w-40 (160px) — самая длинная метка
-                  ("Недвижимость и бизнес-услуги") рендерится ~200px реальным
-                  шрифтом страницы (замерено на живой странице, не
-                  синтетическим sans-serif — тот давал заниженную оценку
-                  ~174px), в w-40 и даже в w-48 обрезалась бы посреди слова. */}
-              <span className="text-xs text-ink-muted sm:w-56 sm:shrink-0 sm:truncate">{row.label}</span>
-              <div className="flex items-center gap-3">
-                <div className="relative h-5 flex-1 rounded-full bg-surface-muted">
-                  <div
-                    className="absolute inset-y-0 rounded-full"
-                    style={
-                      row.lq !== null && row.lq < 1
-                        ? { right: '50%', width: `${barRatio * 50}%`, backgroundColor: color }
-                        : { left: '50%', width: `${barRatio * 50}%`, backgroundColor: color }
-                    }
-                  />
-                  <div className="absolute inset-y-0 left-1/2 w-px bg-border" />
-                </div>
-                <span className="w-14 shrink-0 text-right text-xs font-bold" style={{ color }}>
-                  {row.lq !== null ? `×${row.lq.toFixed(1)}` : '—'}
-                </span>
-                <span className="w-10 shrink-0 text-right text-xs text-ink-faint">{row.localCount} шт.</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      <p className="text-xs text-ink-faint">
-        Красным — {lqLabel(LQ_HIGH_THRESHOLD)}, синим — {lqLabel(LQ_LOW_THRESHOLD)}. Район как база сравнения
-        считается по всем собранным кварталам разом — точность вырастет по мере сбора исчерпывающих списков по
-        оставшимся.
-      </p>
-    </div>
-  );
-}
-
 // Все кварталы в DISTRICT_QUARTERS теперь размечены владельцем лично своим
 // инструментом (клики по углам на живой карте) — фильтр на "только
 // проверенные" (был здесь раньше, см. историю) больше не нужен.
 const VISIBLE_QUARTERS = DISTRICT_QUARTERS;
+
+// Опции селектора категории — живая псевдо-категория первой (она же
+// дефолт), дальше старые фрагментарные категории застройщика как раньше.
+const CATEGORY_OPTIONS = [
+  { key: LIVE_ALL_KEY, label: LIVE_ALL_LABEL },
+  ...DISTRICT_PLACE_CATEGORIES.filter((c) => !MAP_HIDDEN_CATEGORY_KEYS.has(c.key)).map((c) => ({ key: c.key, label: c.label })),
+];
+
+// Опции селектора квартала — "Весь район" (дефолт, прежнее поведение карты
+// целиком) + каждый квартал отдельно (для фокуса на одном).
+const ALL_QUARTERS_KEY = 'all';
+const QUARTER_OPTIONS = [
+  { key: ALL_QUARTERS_KEY, label: 'Весь район' },
+  ...VISIBLE_QUARTERS.map((q) => ({ key: q.id, label: q.label })),
+];
+
+// Грубый bounding box квартала (может состоять из нескольких отдельных
+// фигур, см. комментарий в data/districtQuarters.ts) — используется, чтобы
+// при выборе конкретного квартала подстроить под него зум/центр карты.
+function quarterBounds(quarter: (typeof VISIBLE_QUARTERS)[number]): [[number, number], [number, number]] {
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  let minLon = Infinity;
+  let maxLon = -Infinity;
+  for (const poly of quarter.polygons) {
+    for (const [lat, lon] of poly) {
+      minLat = Math.min(minLat, lat);
+      maxLat = Math.max(maxLat, lat);
+      minLon = Math.min(minLon, lon);
+      maxLon = Math.max(maxLon, lon);
+    }
+  }
+  return [
+    [minLat, minLon],
+    [maxLat, maxLon],
+  ];
+}
 
 export function DistrictQuarterMap() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const layerRef = useRef<any>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [categoryKey, setCategoryKey] = useState('quarter-test-full');
+  const [categoryKey, setCategoryKey] = useState(LIVE_ALL_KEY);
+  const [quarterKey, setQuarterKey] = useState(ALL_QUARTERS_KEY);
 
-  const counts = useMemo(() => countsByQuarter(categoryKey), [categoryKey]);
+  const counts = useMemo(
+    () => (categoryKey === LIVE_ALL_KEY ? LIVE_ALL_COUNTS_BY_QUARTER : countsByQuarter(categoryKey)),
+    [categoryKey],
+  );
   const maxCount = useMemo(() => Math.max(1, ...Object.values(counts)), [counts]);
   const matchedTotal = useMemo(() => Object.values(counts).reduce((sum, n) => sum + n, 0), [counts]);
-  const categoryTotal = DISTRICT_PLACE_CATEGORIES.find((c) => c.key === categoryKey)?.places.length ?? 0;
+  const categoryTotal =
+    categoryKey === LIVE_ALL_KEY ? DISTRICT_BUSINESS_CATEGORIES.length : DISTRICT_PLACE_CATEGORIES.find((c) => c.key === categoryKey)?.places.length ?? 0;
+  const categoryLabel = categoryKey === LIVE_ALL_KEY ? LIVE_ALL_LABEL : DISTRICT_PLACE_CATEGORIES.find((c) => c.key === categoryKey)?.label;
 
-  const rankedQuarters = useMemo(
-    () =>
-      VISIBLE_QUARTERS.map((q) => ({ ...q, count: counts[q.id] ?? 0 })).sort((a, b) => b.count - a.count),
-    [counts],
-  );
+  const selectedQuarter = quarterKey === ALL_QUARTERS_KEY ? null : VISIBLE_QUARTERS.find((q) => q.id === quarterKey) ?? null;
+  // useMemo — не просто инлайн-тернарник, иначе [selectedQuarter] был бы
+  // новым массивом на каждый рендер и ниже effect (deps: quartersToDraw)
+  // перерисовывал бы слой карты чаще, чем реально меняется выбор квартала.
+  const quartersToDraw = useMemo(() => (selectedQuarter ? [selectedQuarter] : VISIBLE_QUARTERS), [selectedQuarter]);
 
   useEffect(() => {
     let cancelled = false;
@@ -241,8 +283,9 @@ export function DistrictQuarterMap() {
     };
   }, []);
 
-  // Перерисовываем заливку кварталов при смене категории — не пересоздаём
-  // саму карту (центр/зум/скрипт API не меняются, только цвет/подписи).
+  // Перерисовываем заливку кварталов при смене категории или квартала — не
+  // пересоздаём саму карту (скрипт API не меняется), только цвет/подписи и
+  // набор нарисованных полигонов (весь район или один выбранный квартал).
   useEffect(() => {
     const map = mapRef.current;
     if (status !== 'ready' || !map || !window.ymaps) return;
@@ -252,11 +295,19 @@ export function DistrictQuarterMap() {
       map.geoObjects.remove(layerRef.current);
     }
     const layer = new ymaps.GeoObjectCollection();
-    for (const quarter of VISIBLE_QUARTERS) {
+    for (const quarter of quartersToDraw) {
       const count = counts[quarter.id] ?? 0;
       const ratio = count / maxCount;
       const fillColor = heatColor(count > 0 ? Math.max(ratio, 0.12) : 0);
-      const balloonBody = `${count} точек категории «${DISTRICT_PLACE_CATEGORIES.find((c) => c.key === categoryKey)?.label}»`;
+
+      const orgs: QuarterOrg[] =
+        categoryKey === LIVE_ALL_KEY
+          ? LIVE_ALL_ORGS_BY_QUARTER[quarter.id] ?? []
+          : (DISTRICT_PLACE_CATEGORIES.find((c) => c.key === categoryKey)?.places ?? [])
+              .filter((place) => quarterIdForAddress(place.address) === quarter.id)
+              .map((place) => ({ title: place.name, address: place.address }))
+              .sort((a, b) => a.title.localeCompare(b.title, 'ru'));
+      const balloonBody = orgs.length > 0 ? buildOrgListBalloonHtml(orgs) : `0 точек категории «${categoryLabel}»`;
 
       // Квартал может состоять из нескольких отдельных фигур (см. комментарий
       // в data/districtQuarters.ts) — рисуем каждую тем же цветом, подпись с
@@ -302,25 +353,45 @@ export function DistrictQuarterMap() {
     }
     map.geoObjects.add(layer);
     layerRef.current = layer;
-  }, [status, counts, maxCount, categoryKey]);
+  }, [status, counts, maxCount, categoryKey, categoryLabel, quartersToDraw]);
+
+  // Зум/центр карты подстраивается под выбранный квартал (селектор
+  // "Квартал"), отдельно от перерисовки заливки выше — "Весь район"
+  // возвращает карту к обзору всего района.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (status !== 'ready' || !map) return;
+    if (!selectedQuarter) {
+      map.setCenter(DEFAULT_CENTER, DEFAULT_ZOOM);
+      return;
+    }
+    map.setBounds(quarterBounds(selectedQuarter), { checkZoomRange: true, zoomMargin: 40 });
+  }, [status, selectedQuarter]);
 
   return (
     <div className="flex flex-col gap-3">
-      {/* flex-col на мобильном — заголовок длинный ("Конкуренция бизнеса по
-          кварталам") и в одну строку с CategoryToggle (тоже может быть
-          длинным — выбранная категория) не помещались, оба сжимались и
-          переносились некрасиво (проверено на 375px). */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <Grid2x2 className="h-5 w-5 shrink-0 text-ink" />
-          <h2 className="text-lg font-bold text-ink">Конкуренция бизнеса по кварталам</h2>
-        </div>
-        <CategoryToggle value={categoryKey} onChange={setCategoryKey} />
+      <div className="flex min-w-0 items-center gap-3">
+        <Grid2x2 className="h-5 w-5 shrink-0 text-ink" />
+        <h2 className="text-lg font-bold text-ink">Конкуренция бизнеса по кварталам</h2>
       </div>
       <p className="text-sm text-ink-muted">
         Плотность выбранной категории по официальным кварталам застройки Минск Мира — чем темнее квартал, тем выше
         концентрация точек этой категории.
       </p>
+
+      {/* flex-col на мобильном — два селектора рядом не помещались на
+          375px, каждый сжимался до нечитаемого. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-semibold text-ink-faint">Категория бизнеса</span>
+          <CategoryToggle value={categoryKey} options={CATEGORY_OPTIONS} onChange={setCategoryKey} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-semibold text-ink-faint">Квартал</span>
+          <CategoryToggle value={quarterKey} options={QUARTER_OPTIONS} onChange={setQuarterKey} />
+        </div>
+      </div>
+
       {/* data-allow-pinch-zoom — см. комментарий в App.tsx (usePreventPageZoom)
           и в DistrictMap.tsx — исключает эту карту из глобальной блокировки
           двупальцевого touchmove, иначе щипок для зума карты не работал. */}
@@ -342,27 +413,26 @@ export function DistrictQuarterMap() {
         <span className="text-xs font-medium text-ink-faint">Больше</span>
       </div>
 
-      {/* grid-cols-1 на мобильном — при 2 колонках длинные названия
-          кварталов ("Мировые танцы", "Тропические острова" и т.п.)
-          обрезались посередине слова (truncate на слишком узкой ячейке). */}
-      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
-        {rankedQuarters.map((q) => (
-          <div key={q.id} className="flex items-center justify-between gap-2 rounded-control bg-surface-muted px-2.5 py-1.5">
-            <span className="truncate text-xs text-ink-muted">{q.label}</span>
-            <span className="shrink-0 text-xs font-bold text-ink">{q.count}</span>
-          </div>
-        ))}
-      </div>
-
-      <p className="text-xs text-ink-faint">
-        Учтено {matchedTotal} из {categoryTotal} точек категории «{DISTRICT_PLACE_CATEGORIES.find((c) => c.key === categoryKey)?.label}»
-        — справочник застройщика покрывает не все дома района (например, паркинги и часть коммерческих зданий вне
-        жилых кварталов в него не входят).
-      </p>
-
-      {VISIBLE_QUARTERS.map((q) => (
-        <LocationQuotientPanel key={q.id} quarterId={q.id} quarterLabel={q.label} />
-      ))}
+      {selectedQuarter ? (
+        <p className="text-xs text-ink-faint">
+          В квартале «{selectedQuarter.label}» — {counts[selectedQuarter.id] ?? 0}{' '}
+          {categoryKey === LIVE_ALL_KEY
+            ? pluralOrganizations(counts[selectedQuarter.id] ?? 0)
+            : `точек категории «${categoryLabel}»`}
+          .
+        </p>
+      ) : categoryKey === LIVE_ALL_KEY ? (
+        <p className="text-xs text-ink-faint">
+          Учтено {matchedTotal} {pluralOrganizations(matchedTotal)} — исчерпывающий поквартирный сбор (вкладка "Дома"
+          на /admin/market-offers), собирается постепенно, не все дома района ещё загружены.
+        </p>
+      ) : (
+        <p className="text-xs text-ink-faint">
+          Учтено {matchedTotal} из {categoryTotal} точек категории «{categoryLabel}» — справочник застройщика
+          покрывает не все дома района (например, паркинги и часть коммерческих зданий вне жилых кварталов в него не
+          входят).
+        </p>
+      )}
     </div>
   );
 }

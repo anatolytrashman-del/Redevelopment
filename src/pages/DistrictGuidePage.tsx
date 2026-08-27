@@ -1876,7 +1876,7 @@ export function DistrictGuidePage() {
             <CurrencyToggle value={marketCurrency} onChange={setMarketCurrency} />
           </div>
           {marketOffers && marketOffers.length > 0 && (
-            <span className="-mt-2 text-xs text-ink-faint">Kufar · {formatLatestUpdate(marketOffers)}</span>
+            <span className="-mt-2 text-xs text-ink-faint">Kufar, Realt · {formatLatestUpdate(marketOffers)}</span>
           )}
           <p className="text-sm text-ink-muted">
             Действующие предложения продажи и аренды коммерческих помещений в Минск Мире — количество и медианная
@@ -1910,7 +1910,7 @@ export function DistrictGuidePage() {
                 <table className="w-full min-w-[520px] border-collapse text-sm">
                   <caption className="sr-only">
                     Вторичный рынок коммерческой недвижимости Минск Мира: количество предложений и медианная цена
-                    за м² по типу помещения и площади (данные Kufar)
+                    за м² по типу помещения и площади (данные Kufar, Realt)
                   </caption>
                   <thead>
                     <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-ink-faint">
