@@ -53,6 +53,7 @@ const emptyForm = {
   intentAgreementFile: null as ObjectDocumentFile | null,
   mapEmbedUrl: '',
   priority: false,
+  paused: false,
 };
 
 function objectToForm(o: RealtyObject) {
@@ -77,6 +78,7 @@ function objectToForm(o: RealtyObject) {
     intentAgreementFile: o.intentAgreementFile,
     mapEmbedUrl: o.mapEmbedUrl,
     priority: o.priority,
+    paused: o.paused,
   };
 }
 
@@ -281,6 +283,7 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
       intentAgreementFile: form.intentAgreementFile,
       mapEmbedUrl: form.mapEmbedUrl,
       priority: form.priority,
+      paused: form.paused,
     };
     try {
       const saved = editing ? await updateObject(editing.id, payload) : await insertObject(payload);
@@ -484,6 +487,16 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
             className="h-4 w-4 rounded border-border accent-primary"
           />
           🔥 Приоритет (первым в списке, с бейджем на превью)
+        </label>
+
+        <label className="flex w-fit items-center gap-2 text-sm font-medium text-ink">
+          <input
+            type="checkbox"
+            checked={form.paused}
+            onChange={(e) => setForm((f) => ({ ...f, paused: e.target.checked }))}
+            className="h-4 w-4 rounded border-border accent-primary"
+          />
+          ⏸ На паузе (превью в списке блюрится с подписью "На паузе")
         </label>
 
         <Input

@@ -42,6 +42,7 @@ function fromRow(row: RealtyObjectRow): RealtyObject {
     intentAgreementFile: row.intent_agreement_file ?? null,
     mapEmbedUrl: row.map_embed_url ?? '',
     priority: row.priority ?? false,
+    paused: row.paused ?? false,
   };
 }
 
@@ -130,6 +131,7 @@ export function insertObject(input: Omit<RealtyObject, 'id' | 'shareToken'>): Pr
         intent_agreement_file: input.intentAgreementFile,
         map_embed_url: input.mapEmbedUrl.trim() || null,
         priority: input.priority,
+        paused: input.paused,
       })
       .select()
       .single();
@@ -171,6 +173,7 @@ export function updateObject(id: string, input: Omit<RealtyObject, 'id' | 'share
         intent_agreement_file: input.intentAgreementFile,
         map_embed_url: input.mapEmbedUrl.trim() || null,
         priority: input.priority,
+        paused: input.paused,
       })
       .eq('id', id)
       .select()

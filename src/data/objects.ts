@@ -174,6 +174,11 @@ export interface RealtyObject {
   // получают бейдж "🔥 Приоритет" на превью — ручная отметка, не связана
   // со статусом/датой создания.
   priority: boolean;
+  // "На паузе" — объект временно не в активной работе (владелец, 2026-08-27):
+  // превью в списке блюрится с подписью "На паузе" поверх, сам объект при
+  // этом остаётся полностью доступен (карточка открывается как обычно) —
+  // это просто визуальная отметка в списке, не блокировка.
+  paused: boolean;
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/objectsApi.ts
@@ -209,6 +214,7 @@ export interface RealtyObjectRow {
   intent_agreement_file: ObjectDocumentFile | null;
   map_embed_url: string | null;
   priority: boolean | null;
+  paused: boolean | null;
 }
 
 export function pricePerMeter(area: number, startPrice: number): number | null {

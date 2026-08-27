@@ -183,7 +183,18 @@ export function Objects() {
                 style={glassCardShadow}
               >
                 <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden bg-surface-muted">
-                  <PhotoCarousel images={o.photoUrls} alt={o.name || o.address} imgClassName="transition-transform duration-300 sm:group-hover:scale-105" />
+                  <PhotoCarousel
+                    images={o.photoUrls}
+                    alt={o.name || o.address}
+                    imgClassName={cn('transition-transform duration-300 sm:group-hover:scale-105', o.paused && 'blur-md scale-105')}
+                  />
+                  {o.paused && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-ink/30">
+                      <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink shadow-sm">
+                        На паузе
+                      </span>
+                    </div>
+                  )}
                   {(o.status || o.priority) && (
                     <div className="absolute inset-x-2 top-2 flex flex-wrap items-start gap-1">
                       {o.status && (
