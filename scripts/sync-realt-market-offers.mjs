@@ -98,6 +98,57 @@ function isPlausiblePrice(dealType, pricePerSqm) {
   return pricePerSqm >= bounds.min && pricePerSqm <= bounds.max;
 }
 
+// 2026-08-27: см. тот же комментарий в sync-kufar-market-offers.mjs —
+// одинаковая проблема и одинаковое решение для обоих источников. Разовая
+// чистка (33 мёртвые ссылки, 26 из них — Realt) сделана вручную, здесь —
+// постоянная защита на будущее.
+async function checkLinkAlive(url) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': USER_AGENT } });
+      return res.status !== 404;
+    } catch {
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+  return null; // сеть не ответила дважды подряд — не судим, пропускаем строку
+}
+
+async function pruneDeadOffers(adIdsThisRun) {
+  const { data: candidates, error } = await supabase
+    .from('market_offers')
+    .select('id, ad_id, ad_link')
+    .eq('source', 'Realt')
+    .eq('reviewed', false)
+    .eq('rejected', false)
+    .eq('flagged_for_discussion', false)
+    .not('ad_id', 'in', `(${adIdsThisRun.length ? adIdsThisRun.map((id) => `"${id}"`).join(',') : '""'})`);
+  if (error) throw error;
+  if (!candidates || candidates.length === 0) return;
+
+  console.log(`Realt: ${candidates.length} необработанных строк пропали из свежего скрейпа — проверяю ссылки...`);
+  const deadIds = [];
+  for (const c of candidates) {
+    const alive = await checkLinkAlive(c.ad_link);
+    if (alive === false) deadIds.push(c.id);
+    await new Promise((r) => setTimeout(r, 300)); // не спамить источник частыми запросами подряд
+  }
+
+  if (deadIds.length === 0) {
+    console.log('Realt: подтверждённо мёртвых ссылок не найдено.');
+    return;
+  }
+
+  const note = `Ссылка недоступна на источнике (проверено автоматически ${new Date().toLocaleDateString('ru-RU')} — HTTP 404 после редиректа)`;
+  const { error: updateError } = await supabase
+    .from('market_offers')
+    .update({ rejected: true, reviewed: true, owner_note: note })
+    .in('id', deadIds);
+  if (updateError) throw updateError;
+
+  console.log(`Realt: ${deadIds.length} из ${candidates.length} пропавших строк подтверждённо мертвы — помечены "Не подходит".`);
+}
+
 function classifyFinishStatus(repairState) {
   if (repairState == null) return 'не указано';
   if (repairState <= 3) return 'с отделкой';
@@ -244,6 +295,8 @@ async function main() {
   if (error) throw error;
 
   console.log(`Сохранено ${payload.length} объявлений в market_offers (${reviewedByAdId.size} проверенных вручную — не тронуты).`);
+
+  await pruneDeadOffers(adIds);
 }
 
 main().catch((err) => {

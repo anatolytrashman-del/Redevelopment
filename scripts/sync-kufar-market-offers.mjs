@@ -123,6 +123,65 @@ function isPlausiblePrice(dealType, pricePerSqm) {
   return pricePerSqm >= bounds.min && pricePerSqm <= bounds.max;
 }
 
+// 2026-08-27: Светлана обнаружила, что в очереди верификации 9 из 10 ссылок
+// не открываются ("Объявление уже не активно") — расследование (см. журнал
+// CLAUDE.md) показало не баг импорта, а то, что синк никогда не проверял,
+// пропали ли уже известные необработанные объявления с источника: если
+// ad_id не попал в свежий скрейп (продавец снял объявление), строка так и
+// оставалась в очереди навечно, реального объявления по ссылке уже не было.
+// Разовая чистка сделана вручную; здесь — постоянное решение: на каждом
+// синке проверяем реальным HTTP-запросом (не просто "не нашли в свежем
+// скрейпе" — это могло быть и попаданием за MAX_PAGES/фильтр цены, а не
+// реальным снятием) те необработанные строки, которых нет в этом прогоне —
+// и то, что подтверждённо отдаёт 404, помечаем "Не подходит" с пояснением,
+// не оставляя мёртвую ссылку в очереди Светланы.
+async function checkLinkAlive(url) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': GOOGLEBOT_UA } });
+      return res.status !== 404;
+    } catch {
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+  return null; // сеть не ответила дважды подряд — не судим, пропускаем строку
+}
+
+async function pruneDeadOffers(adIdsThisRun) {
+  const { data: candidates, error } = await supabase
+    .from('market_offers')
+    .select('id, ad_id, ad_link')
+    .eq('source', 'Kufar')
+    .eq('reviewed', false)
+    .eq('rejected', false)
+    .eq('flagged_for_discussion', false)
+    .not('ad_id', 'in', `(${adIdsThisRun.length ? adIdsThisRun.map((id) => `"${id}"`).join(',') : '""'})`);
+  if (error) throw error;
+  if (!candidates || candidates.length === 0) return;
+
+  console.log(`Kufar: ${candidates.length} необработанных строк пропали из свежего скрейпа — проверяю ссылки...`);
+  const deadIds = [];
+  for (const c of candidates) {
+    const alive = await checkLinkAlive(c.ad_link);
+    if (alive === false) deadIds.push(c.id);
+    await new Promise((r) => setTimeout(r, 300)); // не спамить источник частыми запросами подряд
+  }
+
+  if (deadIds.length === 0) {
+    console.log('Kufar: подтверждённо мёртвых ссылок не найдено.');
+    return;
+  }
+
+  const note = `Ссылка недоступна на источнике (проверено автоматически ${new Date().toLocaleDateString('ru-RU')} — HTTP 404 после редиректа)`;
+  const { error: updateError } = await supabase
+    .from('market_offers')
+    .update({ rejected: true, reviewed: true, owner_note: note })
+    .in('id', deadIds);
+  if (updateError) throw updateError;
+
+  console.log(`Kufar: ${deadIds.length} из ${candidates.length} пропавших строк подтверждённо мертвы — помечены "Не подходит".`);
+}
+
 // Сокращённый набор категорий (владелец, август 2026) — полное обоснование
 // в комментарии над MARKET_PROPERTY_TYPES (src/data/marketOffers.ts).
 // Kufar отдаёт property_type одной строкой из своего словаря на весь
@@ -309,6 +368,8 @@ async function main() {
   if (error) throw error;
 
   console.log(`Сохранено ${payload.length} объявлений в market_offers (${reviewedByAdId.size} проверенных вручную — не тронуты).`);
+
+  await pruneDeadOffers(adIds);
 }
 
 main().catch((err) => {
