@@ -77,10 +77,9 @@ export function EstimateLineItemsTable({
 
       {section.lineItems.length > 0 && (
         <div className="overflow-x-auto rounded-control border border-border">
-          <table className="w-full min-w-[900px] border-collapse text-sm">
+          <table className="w-full min-w-[820px] border-collapse text-sm">
             <thead>
               <tr className="bg-surface-muted text-left text-xs font-medium uppercase tracking-wide text-ink-faint">
-                <th className="px-3 py-2">Зона</th>
                 <th className="px-3 py-2">Вид работ</th>
                 <th className="px-3 py-2 text-right">Кол-во</th>
                 <th className="px-3 py-2 text-right">Работы</th>
@@ -96,7 +95,6 @@ export function EstimateLineItemsTable({
                 const isLater = section.deferred || item.deferred;
                 return (
                   <tr key={item.id} className={cn('border-t border-border align-top', isLater && 'bg-surface-muted/60')}>
-                    <td className="px-3 py-2 text-ink-muted">{formatZone(item.zone) || '—'}</td>
                     <td className={cn('px-3 py-2 text-ink', isLater && 'text-ink-muted')}>
                       {item.workType}
                       {item.note && <div className="text-xs text-ink-faint">{item.note}</div>}

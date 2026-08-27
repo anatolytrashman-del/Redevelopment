@@ -263,7 +263,11 @@ export function EstimatePublicPage() {
   }
 
   const totals = estimateLineItemsTotals(estimate, rate);
-  const grandTotal = totals.now.total + totals.later.total;
+  // Сумма только по реальным разделам — БЕЗ 2-го этажа (тот не хранится
+  // строками, только оценка-зеркало ниже). "Общая сумма" в карточке "Итого"
+  // должна включать и его тоже — владелец, 2026-08-27: "у тебя общая сумма
+  // считается без учёта второго этажа".
+  const realTotal = totals.now.total + totals.later.total;
 
   function sectionsSum(sections: Estimate['sections']): number {
     return sections.reduce((sum, s) => {
@@ -281,6 +285,7 @@ export function EstimatePublicPage() {
   const facadeSum = sectionsSum(estimate.sections.filter((s) => s.title.trim() === 'Фасад'));
   const floor1Total = sectionsSum(estimate.sections.filter((s) => /1\s*этаж/i.test(s.title)));
   const floor2Estimate = floor1Total;
+  const grandTotal = realTotal + floor2Estimate;
 
   // Порядок блоков (владелец, 2026-08-27): все разделы этажей подряд, карточка
   // "Второй этаж" — после них, и только затем "Организация и логистика" (она
