@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Grid2x2 } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { loadYmaps } from '../../lib/yandexMaps';
-import { DISTRICT_PLACE_CATEGORIES } from '../../data/districtPlaces';
+import { DISTRICT_PLACE_CATEGORIES, MAP_HIDDEN_CATEGORY_KEYS } from '../../data/districtPlaces';
 import { DISTRICT_QUARTERS } from '../../data/districtQuarters';
 import { DISTRICT_BUSINESS_CATEGORIES } from '../../data/districtBusinessCategories';
-import { countsByQuarter } from '../../lib/districtQuarterMatch';
+import { countsByQuarter, quarterIdForAddress } from '../../lib/districtQuarterMatch';
 
 // Псевдо-категория поверх исчерпывающего снепшота (district_business_points →
 // data/districtBusinessCategories.ts, тот же датасет, что и у location
@@ -17,11 +17,39 @@ import { countsByQuarter } from '../../lib/districtQuarterMatch';
 const LIVE_ALL_KEY = 'live-all';
 const LIVE_ALL_LABEL = 'Все организации (исчерпывающий сбор)';
 
+interface QuarterOrg {
+  title: string;
+  address: string;
+}
+
+// Приводит "николы теслы" к "Николы Теслы" — тот же приём, что и titleCase
+// в DistrictBusinessesTab.tsx (не общий хелпер — раньше эта карта и та
+// вкладка не пересекались по нуждам форматирования, дублировать проще,
+// чем заводить общий модуль ради одной строчки).
+function titleCaseStreet(street: string): string {
+  return street.replace(/(^|[\s-])([а-яё])/g, (_, sep: string, ch: string) => sep + ch.toUpperCase());
+}
+
+function formatStreetHouse(street: string, house: string): string {
+  return `${titleCaseStreet(street)}, ${house}`;
+}
+
 // Считаем один раз при загрузке модуля — DISTRICT_BUSINESS_CATEGORIES
-// статический импорт, пересчитывать на каждый рендер незачем.
+// статический импорт, пересчитывать на каждый рендер незачем. Помимо
+// счётчика — сразу и список организаций по кварталу (владелец: "мне бы
+// при клике полный список: номер, название, адрес" — балун полигона на
+// клик должен показывать не просто число, а сами организации).
 const LIVE_ALL_COUNTS_BY_QUARTER: Record<string, number> = {};
+const LIVE_ALL_ORGS_BY_QUARTER: Record<string, QuarterOrg[]> = {};
 for (const entry of DISTRICT_BUSINESS_CATEGORIES) {
   LIVE_ALL_COUNTS_BY_QUARTER[entry.quarterId] = (LIVE_ALL_COUNTS_BY_QUARTER[entry.quarterId] ?? 0) + 1;
+  (LIVE_ALL_ORGS_BY_QUARTER[entry.quarterId] ??= []).push({
+    title: entry.title,
+    address: formatStreetHouse(entry.street, entry.house),
+  });
+}
+for (const orgs of Object.values(LIVE_ALL_ORGS_BY_QUARTER)) {
+  orgs.sort((a, b) => a.title.localeCompare(b.title, 'ru'));
 }
 
 // Карта конкуренции бизнеса по кварталам — владелец: "плотность ниш по
@@ -68,6 +96,35 @@ function polygonArea(polygon: [number, number][]): number {
 
 const DEFAULT_CENTER: [number, number] = [53.866, 27.5435];
 const DEFAULT_ZOOM = 15;
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Балун полигона квартала на клик — владелец: "мне бы при клике полный
+// список: номер, название, адрес" (было — просто "N точек категории").
+// max-height+overflow — у некоторых кварталов больше сотни организаций
+// (Тропические острова — 113), без прокрутки балун растянулся бы на весь
+// экран.
+function buildOrgListBalloonHtml(orgs: QuarterOrg[]): string {
+  const rows = orgs
+    .map(
+      (org, i) => `
+        <tr>
+          <td style="padding:2px 6px 2px 0;color:#9a9691;vertical-align:top;">${i + 1}</td>
+          <td style="padding:2px 6px 2px 0;font-weight:600;vertical-align:top;">${escapeHtml(org.title)}</td>
+          <td style="padding:2px 0;color:#6b6660;vertical-align:top;">${escapeHtml(org.address)}</td>
+        </tr>`,
+    )
+    .join('');
+  return `
+    <div style="max-height:280px;overflow-y:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
 
 // "53 организации", не "53 организаций" — числительное 53 требует
 // родительного падежа единственного числа, не множественного.
@@ -146,7 +203,7 @@ const VISIBLE_QUARTERS = DISTRICT_QUARTERS;
 // дефолт), дальше старые фрагментарные категории застройщика как раньше.
 const CATEGORY_OPTIONS = [
   { key: LIVE_ALL_KEY, label: LIVE_ALL_LABEL },
-  ...DISTRICT_PLACE_CATEGORIES.map((c) => ({ key: c.key, label: c.label })),
+  ...DISTRICT_PLACE_CATEGORIES.filter((c) => !MAP_HIDDEN_CATEGORY_KEYS.has(c.key)).map((c) => ({ key: c.key, label: c.label })),
 ];
 
 // Опции селектора квартала — "Весь район" (дефолт, прежнее поведение карты
@@ -242,7 +299,15 @@ export function DistrictQuarterMap() {
       const count = counts[quarter.id] ?? 0;
       const ratio = count / maxCount;
       const fillColor = heatColor(count > 0 ? Math.max(ratio, 0.12) : 0);
-      const balloonBody = `${count} точек категории «${categoryLabel}»`;
+
+      const orgs: QuarterOrg[] =
+        categoryKey === LIVE_ALL_KEY
+          ? LIVE_ALL_ORGS_BY_QUARTER[quarter.id] ?? []
+          : (DISTRICT_PLACE_CATEGORIES.find((c) => c.key === categoryKey)?.places ?? [])
+              .filter((place) => quarterIdForAddress(place.address) === quarter.id)
+              .map((place) => ({ title: place.name, address: place.address }))
+              .sort((a, b) => a.title.localeCompare(b.title, 'ru'));
+      const balloonBody = orgs.length > 0 ? buildOrgListBalloonHtml(orgs) : `0 точек категории «${categoryLabel}»`;
 
       // Квартал может состоять из нескольких отдельных фигур (см. комментарий
       // в data/districtQuarters.ts) — рисуем каждую тем же цветом, подпись с

@@ -3,8 +3,12 @@ import { createPortal } from 'react-dom';
 import { Check, Maximize2, MapPin, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardShadow } from '../../lib/glass';
-import { DISTRICT_PLACE_CATEGORIES } from '../../data/districtPlaces';
+import { DISTRICT_PLACE_CATEGORIES, MAP_HIDDEN_CATEGORY_KEYS } from '../../data/districtPlaces';
 import { loadYmaps } from '../../lib/yandexMaps';
+
+// Категории вроде 'auto' (см. комментарий у MAP_HIDDEN_CATEGORY_KEYS) есть
+// в данных, но не показываются на этой карте как слой/переключатель.
+const VISIBLE_CATEGORIES = DISTRICT_PLACE_CATEGORIES.filter((c) => !MAP_HIDDEN_CATEGORY_KEYS.has(c.key));
 
 // Интерактивная карта района с переключаемыми по категориям метками —
 // владелец: "типо это аптеки, а это барбершопы, и можно что-то выключить,
@@ -36,7 +40,7 @@ function DistrictMapCanvas({ mapHeightClassName }: { mapHeightClassName: string 
   const collectionsRef = useRef<Record<string, any>>({});
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [activeKeys, setActiveKeys] = useState<Set<string>>(
-    () => new Set(DISTRICT_PLACE_CATEGORIES.map((c) => c.key)),
+    () => new Set(VISIBLE_CATEGORIES.map((c) => c.key)),
   );
 
   useEffect(() => {
@@ -53,7 +57,7 @@ function DistrictMapCanvas({ mapHeightClassName }: { mapHeightClassName: string 
         });
         mapRef.current = map;
 
-        for (const category of DISTRICT_PLACE_CATEGORIES) {
+        for (const category of VISIBLE_CATEGORIES) {
           const collection = new ymaps.GeoObjectCollection();
           for (const place of category.places) {
             collection.add(
@@ -126,7 +130,7 @@ function DistrictMapCanvas({ mapHeightClassName }: { mapHeightClassName: string 
         <div ref={containerRef} className="h-full w-full" />
       </div>
       <div className="flex flex-wrap gap-1.5">
-        {DISTRICT_PLACE_CATEGORIES.map((category) => {
+        {VISIBLE_CATEGORIES.map((category) => {
           const active = activeKeys.has(category.key);
           return (
             <button

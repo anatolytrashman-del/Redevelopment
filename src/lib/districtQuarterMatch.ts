@@ -1,4 +1,3 @@
-import type { DistrictPlace } from '../data/districtPlaces';
 import { DISTRICT_PLACE_CATEGORIES } from '../data/districtPlaces';
 import { QUARTER_HOUSE_INDEX } from '../data/districtQuarters';
 
@@ -39,26 +38,18 @@ export function quarterIdForAddress(address: string): string | null {
   return QUARTER_HOUSE_INDEX[key] ?? null;
 }
 
-// place.quarterId (если задан) — явная привязка к кварталу, подтверждённая
-// геометрией полигона, а не адресной таблицей застройщика (см. комментарий
-// у DistrictPlace.quarterId в data/districtPlaces.ts и у категории
-// 'quarter-test-full' там же). Приоритетнее адресного индекса.
-function quarterIdForPlace(place: DistrictPlace): string | null {
-  return place.quarterId ?? quarterIdForAddress(place.address);
-}
-
 // Плотность выбранной категории по кварталам — сколько точек этой категории
 // физически находится в каждом квартале. Точки, чей адрес не нашёлся в
 // QUARTER_HOUSE_INDEX (дом не из справочника застройщика — см. комментарий в
-// districtQuarters.ts) и без явного quarterId, в подсчёт не попадают ни в
-// одном квартале, не только в выбранной категории — это ожидаемое
-// ограничение справочника, не баг.
+// districtQuarters.ts), в подсчёт не попадают ни в одном квартале, не
+// только в выбранной категории — это ожидаемое ограничение справочника,
+// не баг.
 export function countsByQuarter(categoryKey: string): Record<string, number> {
   const category = DISTRICT_PLACE_CATEGORIES.find((c) => c.key === categoryKey);
   const counts: Record<string, number> = {};
   if (!category) return counts;
   for (const place of category.places) {
-    const quarterId = quarterIdForPlace(place);
+    const quarterId = quarterIdForAddress(place.address);
     if (!quarterId) continue;
     counts[quarterId] = (counts[quarterId] ?? 0) + 1;
   }

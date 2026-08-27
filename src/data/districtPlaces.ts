@@ -57,16 +57,6 @@ export interface DistrictPlace {
   address: string;
   lat: number;
   lon: number;
-  // Явная привязка к кварталу — обходит адресный индекс QUARTER_HOUSE_INDEX
-  // (lib/districtQuarterMatch.ts). Нужна, когда квартал подтверждён
-  // геометрией (полигоном), а не адресной таблицей застройщика — см.
-  // категорию 'quarter-test-full' ниже и комментарий у неё.
-  quarterId?: string;
-  // Исходная категория бизнеса с Яндекс.Карт (например "Массажный салон",
-  // "Пункт выдачи") — точнее наших 14 укрупнённых категорий выше. Нужна
-  // для location quotient (lib/locationQuotient.ts) — там свои, ещё более
-  // крупные "корзины" бизнеса, см. lib/businessBuckets.ts.
-  rawCategory?: string;
 }
 
 export interface DistrictPlaceCategory {
@@ -75,6 +65,19 @@ export interface DistrictPlaceCategory {
   color: string;
   places: DistrictPlace[];
 }
+
+// Категории, которые есть в DISTRICT_PLACE_CATEGORIES (как данные — для
+// текстового блока "СТО в районе vs по соседству", DistrictGuidePage.tsx),
+// но не показываются как слой/пункт селектора ни на одной из карт —
+// владелец: "СТО и автосервисы оставим в текстовой инфе и в базе данных,
+// но не будем выводить это как слой на карте". Причина для 'auto' — весь
+// её смысл в кластере ЗА пределами района (см. комментарий у категории
+// ниже), на карте по кварталам (DistrictQuarterMap.tsx) она физически не
+// даёт ни одного совпадения ни в одном квартале (адреса не из Минск Мира),
+// а на карте района (DistrictMap.tsx) пины вне границ района сбивают с
+// толку. Потребители — DistrictMap.tsx и DistrictQuarterMap.tsx, оба
+// фильтруют DISTRICT_PLACE_CATEGORIES через этот набор перед отображением.
+export const MAP_HIDDEN_CATEGORY_KEYS = new Set(['auto']);
 
 export const DISTRICT_PLACE_CATEGORIES: DistrictPlaceCategory[] = [
   {
@@ -598,60 +601,6 @@ export const DISTRICT_PLACE_CATEGORIES: DistrictPlaceCategory[] = [
       { name: 'Детский сад № 582', address: 'Белградская ул., 13', lat: 53.863131, lon: 27.537343 },
       { name: 'Детский сад № 578', address: 'Аэродромная ул., 20А', lat: 53.872003, lon: 27.539867 },
       { name: 'Детский сад № 49 Мир на ладошке', address: 'Аэродромная ул., 32А', lat: 53.870808, lon: 27.555974 },
-    ],
-  },
-  {
-    // ТЕСТ, 2026-08-25 — первые 28 организаций по 12 домам квартала
-    // "Мировые танцы" (владелец прислал webarchive поиска по каждому конкретному
-    // адресу, не по категории бизнеса — так находятся ВСЕ организации здания,
-    // а не только те, что попадают в одну из категорий выше), с реальными
-    // координатами — единственная категория здесь, где пины на карте не
-    // привязаны к одной из 14 бизнес-категорий выше.
-    // quarterId проставлен напрямую (не через QUARTER_HOUSE_INDEX) — эти 12 домов
-    // подтверждены владельцем как реально входящие в квартал по его полигону
-    // (data/districtQuarters.ts), а не по таблице застройщика (та даёт для
-    // некоторых из этих домов другой квартал — см. журнал).
-    // 2026-08-26 — исчерпывающий сбор с тех пор вырос до 883 организаций по
-    // 17 из 20 кварталов (district_business_points), но у него нет координат
-    // (см. комментарий у DistrictPlace выше) — расширить эту категорию новыми
-    // домами напрямую нельзя, для этого нужна геокодировка каждого нового
-    // адреса. Для статистики (LQ, "Аналитика по сферам бизнеса") это больше
-    // не единственный источник — см. data/districtBusinessCategories.ts,
-    // отдельный лёгкий снепшот без координат специально под эту задачу. Эти
-    // 28 точек остаются на карте как есть (реальные, просто больше не
-    // единственный "образцовый" квартал).
-    key: 'quarter-test-full',
-    label: 'Полный список домов (тест)',
-    color: '#B33DC6',
-    places: [
-      { name: 'AeroPod', rawCategory: 'Подология', address: 'Аэродромная ул., 16', lat: 53.8717, lon: 27.532645, quarterId: 'world-dances' },
-      { name: '7 Этажей', rawCategory: 'Агентство недвижимости', address: 'Аэродромная ул., 16', lat: 53.8717, lon: 27.532645, quarterId: 'world-dances' },
-      { name: 'MyDay', rawCategory: 'Салон красоты', address: 'Аэродромная ул., 16', lat: 53.8717, lon: 27.532645, quarterId: 'world-dances' },
-      { name: 'Furnifusion', rawCategory: 'Мебель для кухни', address: 'Брилевская ул., 25, Отдельный вход со стороны детской площадки', lat: 53.872491, lon: 27.528611, quarterId: 'world-dances' },
-      { name: 'Wildberries', rawCategory: 'Пункт выдачи', address: 'Брилевская ул., 27', lat: 53.872937, lon: 27.527983, quarterId: 'world-dances' },
-      { name: 'Artstretch Space', rawCategory: 'Стретчинг', address: 'Брилевская ул., 25', lat: 53.872491, lon: 27.528611, quarterId: 'world-dances' },
-      { name: 'Семь Образов', rawCategory: 'Салон красоты', address: 'Брилевская ул., 27, этаж 1', lat: 53.872937, lon: 27.527983, quarterId: 'world-dances' },
-      { name: 'Inside Bike', rawCategory: 'Ремонт велосипедов', address: 'Брилевская ул., 27', lat: 53.872937, lon: 27.527983, quarterId: 'world-dances' },
-      { name: 'Pure Pilates Studio', rawCategory: 'Пилатес', address: 'Брилевская ул., 29', lat: 53.872486, lon: 27.527408, quarterId: 'world-dances' },
-      { name: 'Community Coffeeshop', rawCategory: 'Кофейня', address: 'Брилевская ул., 27', lat: 53.872937, lon: 27.527983, quarterId: 'world-dances' },
-      { name: 'Skin To Soul', rawCategory: 'Массажный салон', address: 'Брилевская ул., 31, 1', lat: 53.871785, lon: 27.526464, quarterId: 'world-dances' },
-      { name: 'Wildberries', rawCategory: 'Пункт выдачи', address: 'Брилевская ул., 31', lat: 53.871785, lon: 27.526464, quarterId: 'world-dances' },
-      { name: 'Belklubnika', rawCategory: 'Питомник растений', address: 'Брилевская ул., 31', lat: 53.871785, lon: 27.526464, quarterId: 'world-dances' },
-      { name: 'Аптека № 32 Мелисса', rawCategory: 'Аптека', address: 'ул. Николы Теслы, 1, помещение 249', lat: 53.870782, lon: 27.526527, quarterId: 'world-dances' },
-      { name: 'Орсо', rawCategory: 'Косметология', address: 'ул. Николы Теслы, 1', lat: 53.870782, lon: 27.526527, quarterId: 'world-dances' },
-      { name: 'Гималайская йога', rawCategory: 'Йога', address: 'ул. Николы Теслы, 1', lat: 53.870782, lon: 27.526527, quarterId: 'world-dances' },
-      { name: 'Средняя школа № 227', rawCategory: 'Общеобразовательная школа', address: 'ул. Николы Теслы, 3', lat: 53.871838, lon: 27.528018, quarterId: 'world-dances' },
-      { name: 'Red Education', rawCategory: 'Компьютерные курсы', address: 'ул. Николы Теслы, 3', lat: 53.871838, lon: 27.528018, quarterId: 'world-dances' },
-      { name: 'Бассейн', rawCategory: 'Бассейн', address: 'ул. Николы Теслы, 3, корп. 1', lat: 53.871838, lon: 27.528018, quarterId: 'world-dances' },
-      { name: 'Аренда строительной и спецтехники', rawCategory: 'Аренда строительной и спецтехники', address: 'ул. Николы Теслы, 7', lat: 53.870925, lon: 27.528486, quarterId: 'world-dances' },
-      { name: 'Red education', rawCategory: 'Дополнительное образование', address: 'ул. Николы Теслы, 11', lat: 53.870978, lon: 27.530345, quarterId: 'world-dances' },
-      { name: 'Дело строителя', rawCategory: 'Строительные и отделочные работы', address: 'ул. Николы Теслы, 11', lat: 53.870978, lon: 27.530345, quarterId: 'world-dances' },
-      { name: 'Живая вода', rawCategory: 'Водомат', address: 'ул. Николы Теслы, 11', lat: 53.870978, lon: 27.530345, quarterId: 'world-dances' },
-      { name: 'Art Dance', rawCategory: 'Школа танцев', address: 'ул. Николы Теслы, 17', lat: 53.871122, lon: 27.531755, quarterId: 'world-dances' },
-      { name: 'Соседи Экспресс', rawCategory: 'Магазин продуктов', address: 'ул. Николы Теслы, 17', lat: 53.871122, lon: 27.531755, quarterId: 'world-dances' },
-      { name: 'Фабрика сна', rawCategory: 'Матрасы', address: 'ул. Николы Теслы, 19', lat: 53.871137, lon: 27.532869, quarterId: 'world-dances' },
-      { name: 'Thm.by', rawCategory: 'Пункт выдачи', address: 'ул. Николы Теслы, 19, По предварительной договорённости', lat: 53.871137, lon: 27.532869, quarterId: 'world-dances' },
-      { name: 'Три цены', rawCategory: 'Торговый центр', address: 'ул. Николы Теслы, 19', lat: 53.871137, lon: 27.532869, quarterId: 'world-dances' },
     ],
   },
 ];
