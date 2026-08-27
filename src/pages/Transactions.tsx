@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Loader2, Pencil, FileBarChart } from 'lucide-react';
+import { Plus, Loader2, Pencil, FileBarChart, MessageSquare } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -10,6 +10,7 @@ import { Select } from '../components/ui/Select';
 import { AddableSelect } from '../components/ui/AddableSelect';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Modal } from '../components/ui/Modal';
+import { TransactionCommentsModal } from '../components/transactions/TransactionCommentsModal';
 import {
   currencies,
   currencySymbols,
@@ -23,9 +24,11 @@ import {
   type Category,
 } from '../data/transactions';
 import type { Person } from '../data/people';
+import type { TransactionComment } from '../data/transactionComments';
 import { fetchTransactions, insertTransaction, updateTransaction } from '../lib/transactionsApi';
 import { fetchTodayRate } from '../lib/exchangeRatesApi';
 import { fetchPeople } from '../lib/peopleApi';
+import { fetchTransactionComments } from '../lib/transactionCommentsApi';
 
 // Ошибки Supabase (PostgrestError) — обычные объекты с полем message,
 // а не экземпляры Error, поэтому `instanceof Error` их не ловит.
@@ -176,6 +179,21 @@ export function Transactions() {
   // Кто платит/получает деньги — из общей таблицы people (data/people.ts),
   // не из захардкоженных списков (см. комментарий у Payer в data/transactions.ts).
   const [people, setPeople] = useState<Person[]>([]);
+
+  // Комментарии ко всем транзакциям разом (см. комментарий у
+  // fetchTransactionComments) — группировка по transactionId на клиенте,
+  // модалка открывается по клику на строку.
+  const [comments, setComments] = useState<TransactionComment[]>([]);
+  const [commentsTransaction, setCommentsTransaction] = useState<Transaction | null>(null);
+  const commentsByTransaction = useMemo(() => {
+    const map = new Map<string, TransactionComment[]>();
+    comments.forEach((c) => {
+      const list = map.get(c.transactionId) ?? [];
+      list.push(c);
+      map.set(c.transactionId, list);
+    });
+    return map;
+  }, [comments]);
   const splitPayers = useMemo(() => people.filter((p) => p.isSplitPayer).map((p) => p.name), [people]);
   const soloPayers = useMemo(() => people.filter((p) => p.isSoloPayer).map((p) => p.name), [people]);
   const incomePayers = useMemo(() => people.filter((p) => p.isIncomePayer).map((p) => p.name), [people]);
@@ -248,6 +266,9 @@ export function Transactions() {
     fetchPeople()
       .then(setPeople)
       .catch(() => setPeople([]));
+    fetchTransactionComments()
+      .then(setComments)
+      .catch(() => {});
   }, []);
 
   const canSubmit = form.date && form.amount && form.purpose && form.category && form.paidBy && form.paidFrom;
@@ -352,7 +373,7 @@ export function Transactions() {
       <Card className="flex flex-col gap-4 p-0">
         {/* От md и шире — таблица-грид. Ниже md — карточки (см. блок md:hidden). */}
         <div className="hidden overflow-x-auto md:block">
-          <div className="grid min-w-[1050px] grid-cols-[100px_120px_1.6fr_1fr_1fr_1fr_110px_44px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
+          <div className="grid min-w-[1050px] grid-cols-[100px_120px_1.6fr_1fr_1fr_1fr_110px_44px_44px] gap-4 px-6 py-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
             <span>Дата</span>
             <span>Сумма</span>
             <span>Назначение</span>
@@ -361,11 +382,12 @@ export function Transactions() {
             <span>Откуда платил</span>
             <span>В расчете</span>
             <span />
+            <span />
           </div>
           {transactions.map((t) => (
             <div
               key={t.id}
-              className="grid min-w-[1050px] grid-cols-[100px_120px_1.6fr_1fr_1fr_1fr_110px_44px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
+              className="grid min-w-[1050px] grid-cols-[100px_120px_1.6fr_1fr_1fr_1fr_110px_44px_44px] items-center gap-4 border-t border-border px-6 py-4 text-sm"
             >
               <span className="text-ink-muted">{formatDate(t.date)}</span>
               <span className="font-semibold text-ink">{formatAmount(t.amount, t.currency)}</span>
@@ -388,6 +410,19 @@ export function Transactions() {
                   <Badge tone={t.compensated ? 'success' : 'warning'}>{t.compensated ? 'Да' : 'Нет'}</Badge>
                 </button>
               </span>
+              <button
+                type="button"
+                onClick={() => setCommentsTransaction(t)}
+                className="relative flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                aria-label="Комментарии"
+              >
+                <MessageSquare className="h-4 w-4" />
+                {(commentsByTransaction.get(t.id)?.length ?? 0) > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-white">
+                    {commentsByTransaction.get(t.id)!.length}
+                  </span>
+                )}
+              </button>
               <button
                 type="button"
                 onClick={() => openEditModal(t)}
@@ -417,14 +452,29 @@ export function Transactions() {
             <div key={t.id} className="flex flex-col gap-2.5 rounded-control border border-border p-3.5">
               <div className="flex items-start justify-between gap-2">
                 <span className="min-w-0 break-words font-medium text-ink">{t.purpose}</span>
-                <button
-                  type="button"
-                  onClick={() => openEditModal(t)}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-                  aria-label="Редактировать транзакцию"
-                >
-                  <Pencil className="h-4 w-4" />
-                </button>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setCommentsTransaction(t)}
+                    className="relative flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                    aria-label="Комментарии"
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    {(commentsByTransaction.get(t.id)?.length ?? 0) > 0 && (
+                      <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-white">
+                        {commentsByTransaction.get(t.id)!.length}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(t)}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                    aria-label="Редактировать транзакцию"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-muted">
                 <span>{formatDate(t.date)}</span>
@@ -633,6 +683,14 @@ export function Transactions() {
           </div>
         </form>
       </Modal>
+
+      <TransactionCommentsModal
+        transaction={commentsTransaction}
+        comments={commentsTransaction ? (commentsByTransaction.get(commentsTransaction.id) ?? []) : []}
+        onClose={() => setCommentsTransaction(null)}
+        onAdded={(comment) => setComments((prev) => [...prev, comment])}
+        onDeleted={(id) => setComments((prev) => prev.filter((c) => c.id !== id))}
+      />
     </>
   );
 }
