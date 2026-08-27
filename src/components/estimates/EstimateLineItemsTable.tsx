@@ -1,4 +1,4 @@
-import { Pencil, Trash2, Plus } from 'lucide-react';
+import { Pencil, Trash2, Plus, MessageSquare } from 'lucide-react';
 import { Button } from '../ui/Button';
 import {
   lineItemMaterialTotal,
@@ -34,6 +34,7 @@ interface EstimateLineItemsTableProps {
   onAdd: () => void;
   onEdit: (item: EstimateLineItem) => void;
   onDelete: (item: EstimateLineItem) => void;
+  onOpenComments: (item: EstimateLineItem) => void;
 }
 
 // Построчная (количественная) смета внутри раздела — таблица вида работ с
@@ -43,7 +44,7 @@ interface EstimateLineItemsTableProps {
 // страница, не публичная, а таблица с числами плохо читается карточками.
 // Итог — под таблицей, не над ней (владелец: удобнее читать после строк,
 // а не гадать, к чему цифра сверху относится, ещё не увидев ни одной строки).
-export function EstimateLineItemsTable({ section, rate, onAdd, onEdit, onDelete }: EstimateLineItemsTableProps) {
+export function EstimateLineItemsTable({ section, rate, onAdd, onEdit, onDelete, onOpenComments }: EstimateLineItemsTableProps) {
   const totals = sectionLineItemsTotals(section);
   const totalUsd = formatUsd(totals.total, rate);
 
@@ -63,6 +64,7 @@ export function EstimateLineItemsTable({ section, rate, onAdd, onEdit, onDelete 
                 <th className="px-3 py-2 text-right">Материалы</th>
                 <th className="px-3 py-2 text-right">Итого</th>
                 <th className="px-3 py-2" />
+                <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody>
@@ -77,6 +79,21 @@ export function EstimateLineItemsTable({ section, rate, onAdd, onEdit, onDelete 
                   <td className="px-3 py-2 text-right text-ink-muted">{formatMoney(lineItemWorkTotal(item))}</td>
                   <td className="px-3 py-2 text-right text-ink-muted">{formatMoney(lineItemMaterialTotal(item))}</td>
                   <td className="px-3 py-2 text-right font-semibold text-ink">{formatMoney(lineItemTotal(item))}</td>
+                  <td className="px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => onOpenComments(item)}
+                      aria-label="Комментарии к строке"
+                      className="relative flex h-7 w-7 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                    >
+                      <MessageSquare className="h-3 w-3" />
+                      {item.comments.length > 0 && (
+                        <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-0.5 text-[9px] font-semibold text-white">
+                          {item.comments.length}
+                        </span>
+                      )}
+                    </button>
+                  </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center justify-end gap-1">
                       <button

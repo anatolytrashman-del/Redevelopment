@@ -12,7 +12,7 @@ function fromRow(row: EstimateRow): Estimate {
     // priceRub/priceUsd: то, что в ней успели сохранить, переносим в USD.
     sections: (row.sections ?? []).map((s) => ({
       ...s,
-      lineItems: s.lineItems ?? [],
+      lineItems: (s.lineItems ?? []).map((li) => ({ ...li, comments: li.comments ?? [] })),
       positions: (s.positions ?? []).map((p) => ({
         ...p,
         colors: p.colors ?? [],

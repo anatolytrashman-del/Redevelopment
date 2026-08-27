@@ -621,7 +621,11 @@ export function Suppliers() {
     }
   }
 
-  const canSubmitOffer = offerForm.name.trim() && Number(offerForm.price) > 0;
+  // Владелец: чаще всего в моменте есть только название и ссылка на
+  // поставщика, остальное (цена, контакт, срок, требования) заполняется
+  // позже по ходу переговоров — раньше форма требовала ещё и итоговую цену,
+  // из-за чего быстро закинуть найденного поставщика было нельзя.
+  const canSubmitOffer = offerForm.name.trim().length > 0 && offerForm.websiteUrl.trim().length > 0;
 
   async function submitOffer(e: React.FormEvent) {
     e.preventDefault();
@@ -830,6 +834,7 @@ export function Suppliers() {
             placeholder="https://..."
             value={offerForm.websiteUrl}
             onChange={(e) => setOfferForm((f) => ({ ...f, websiteUrl: e.target.value }))}
+            required
           />
 
           <div className="flex flex-col gap-1.5">
@@ -882,7 +887,6 @@ export function Suppliers() {
                 min="0"
                 value={offerForm.price}
                 onChange={(e) => setOfferForm((f) => ({ ...f, price: e.target.value }))}
-                required
                 className="flex-1"
               />
               <ToggleGroup

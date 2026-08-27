@@ -12,6 +12,7 @@ import { EstimatePositionCard } from '../components/estimates/EstimatePositionCa
 import { EstimatePositionFormModal } from '../components/estimates/EstimatePositionFormModal';
 import { EstimateLineItemsTable, formatUsd } from '../components/estimates/EstimateLineItemsTable';
 import { EstimateLineItemFormModal } from '../components/estimates/EstimateLineItemFormModal';
+import { EstimateLineItemCommentsModal } from '../components/estimates/EstimateLineItemCommentsModal';
 import { cn } from '../lib/cn';
 import {
   estimateStatuses,
@@ -89,6 +90,13 @@ export function EstimateDetail() {
   const [lineItemModalOpen, setLineItemModalOpen] = useState(false);
   const [lineItemSectionId, setLineItemSectionId] = useState<string | null>(null);
   const [editingLineItem, setEditingLineItem] = useState<EstimateLineItem | null>(null);
+
+  // Комментарии к строке — своя модалка (не форма правки чисел), но сама
+  // строка комментируется тем же sectionId/itemId, что и правка/удаление,
+  // поэтому держим отдельные "какая строка сейчас открыта для комментариев"
+  // + "в каком разделе она лежит" (нужно для saveLineItemComments).
+  const [commentsSectionId, setCommentsSectionId] = useState<string | null>(null);
+  const [commentsLineItem, setCommentsLineItem] = useState<EstimateLineItem | null>(null);
 
   // Курс для отображения итога построчной сметы в USD рядом с BYN — только
   // для показа, ни на что не влияет и никуда не сохраняется, поэтому
@@ -330,6 +338,26 @@ export function EstimateDetail() {
     }
   }
 
+  function openLineItemComments(sectionId: string, item: EstimateLineItem) {
+    setCommentsSectionId(sectionId);
+    setCommentsLineItem(item);
+  }
+
+  // Комментарии — часть самой строки (см. EstimateLineItem.comments), а не
+  // отдельная сущность, поэтому сохраняются тем же PATCH всей секции, что и
+  // правка полей строки (saveLineItem выше) — просто без завязки на
+  // lineItemSectionId/editingLineItem, у комментариев свой набор состояния.
+  async function saveLineItemComments(updated: EstimateLineItem) {
+    if (!estimate || !commentsSectionId) return;
+    const sections = estimate.sections.map((s) =>
+      s.id === commentsSectionId ? { ...s, lineItems: s.lineItems.map((li) => (li.id === updated.id ? updated : li)) } : s,
+    );
+    const saved = await saveEstimatePatch({ sections });
+    const savedSection = saved.sections.find((s) => s.id === commentsSectionId);
+    const savedItem = savedSection?.lineItems.find((li) => li.id === updated.id) ?? null;
+    setCommentsLineItem(savedItem);
+  }
+
   async function deleteQuestion(questionId: string) {
     if (!estimate) return;
     setQuestionsError(null);
@@ -521,6 +549,7 @@ export function EstimateDetail() {
                       onAdd={() => openAddLineItem(section.id)}
                       onEdit={(item) => openEditLineItem(section.id, item)}
                       onDelete={(item) => deleteLineItem(section.id, item.id)}
+                      onOpenComments={(item) => openLineItemComments(section.id, item)}
                     />
                   </div>
                 </>
@@ -602,6 +631,15 @@ export function EstimateDetail() {
         item={editingLineItem}
         onClose={() => setLineItemModalOpen(false)}
         onSaved={saveLineItem}
+      />
+
+      <EstimateLineItemCommentsModal
+        item={commentsLineItem}
+        onClose={() => {
+          setCommentsSectionId(null);
+          setCommentsLineItem(null);
+        }}
+        onSave={saveLineItemComments}
       />
     </>
   );

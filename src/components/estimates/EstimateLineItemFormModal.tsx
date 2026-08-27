@@ -13,11 +13,15 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
+// Комментарии к строке (см. EstimateLineItem.comments) редактируются не
+// здесь, а прямо в таблице (EstimateLineItemsTable) — эта форма только про
+// числа/цены, поэтому исключены из формы и сохраняются как есть.
 function itemToForm(item: EstimateLineItem) {
-  return { ...item };
+  const { comments: _comments, ...rest } = item;
+  return rest;
 }
 
-const emptyForm: Omit<EstimateLineItem, 'id'> = {
+const emptyForm: Omit<EstimateLineItem, 'id' | 'comments'> = {
   zone: '',
   workType: '',
   unit: '',
@@ -77,6 +81,7 @@ export function EstimateLineItemFormModal({ open, item, onClose, onSaved }: Esti
       workType: form.workType.trim(),
       unit: form.unit.trim(),
       note: form.note.trim(),
+      comments: item?.comments ?? [],
     };
     try {
       await onSaved(saved);

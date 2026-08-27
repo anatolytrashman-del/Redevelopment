@@ -89,6 +89,19 @@ export const POSITION_OPS_CATCHALL =
 // zone — исходная группа подрядчика (например, "1 этаж — Кабинеты"), если
 // один раздел платформы объединяет несколько групп присланного файла —
 // не участвует в расчётах, только для сверки с оригиналом.
+// Комментарий к конкретной строке построчной сметы — свободный текст с
+// датой, несколько на одну строку (см. EstimateLineItem.comments). В
+// отличие от TransactionComment (data/transactionComments.ts, отдельная
+// таблица Supabase) — здесь комментарии просто вложенный массив внутри
+// самой строки: EstimateLineItem и так живёт в jsonb-колонке
+// estimates.sections, отдельная таблица под комментарии тут не нужна —
+// сохраняется тем же PATCH, что и остальные правки строки.
+export interface EstimateLineItemComment {
+  id: string;
+  body: string;
+  createdAt: string;
+}
+
 export interface EstimateLineItem {
   id: string;
   zone: string;
@@ -102,6 +115,7 @@ export interface EstimateLineItem {
   workUnitPrice: number | null;
   materialUnitPrice: number | null;
   note: string;
+  comments: EstimateLineItemComment[];
 }
 
 export function lineItemWorkTotal(item: EstimateLineItem): number {
