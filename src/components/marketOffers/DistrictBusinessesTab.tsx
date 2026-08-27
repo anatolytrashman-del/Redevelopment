@@ -56,11 +56,11 @@ const QUARTER_ORDER: Record<string, number> = Object.fromEntries(
   DISTRICT_QUARTERS.map((q) => [q.id, Math.min(...(q.numbers.length ? q.numbers : [999]))]),
 );
 
-const SUB_TABS = ['Дома', 'Несданные'] as const;
-type SubTab = (typeof SUB_TABS)[number];
+const STATUS_TABS = ['Заселены', 'Не заселены', 'Не сданы'] as const;
+type StatusTab = (typeof STATUS_TABS)[number];
 
 export function DistrictBusinessesTab() {
-  const [subTab, setSubTab] = useState<SubTab>('Дома');
+  const [statusTab, setStatusTab] = useState<StatusTab>('Заселены');
   const [points, setPoints] = useState<DistrictBusinessPoint[] | null>(null);
   const [flags, setFlags] = useState<DistrictHouseFlag[]>([]);
   const [quarterFlags, setQuarterFlags] = useState<DistrictQuarterFlag[]>([]);
@@ -118,74 +118,86 @@ export function DistrictBusinessesTab() {
     return map;
   }, [flags]);
 
-  const houses = useMemo(() => getDeliveredHouses(), []);
+  const allHouses = useMemo(() => getDeliveredHouses(), []);
+  const searchQuery = search.trim().toLowerCase();
 
-  const filteredHouses = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return houses;
-    return houses.filter((h) => `${h.street} ${h.house}`.toLowerCase().includes(q));
-  }, [houses, search]);
+  function matchesSearch(h: DeliveredHouse): boolean {
+    if (!searchQuery) return true;
+    return `${h.street} ${h.house}`.toLowerCase().includes(searchQuery);
+  }
 
-  const housesByQuarter = useMemo(() => {
+  // Три статуса дома (владелец, 2026-08-27) — заменяют прежнее деление
+  // "Дома"/"Несданные" (там "пока нет коммерции" было просто бейджиком
+  // внутри общего списка, а не своим разделом):
+  // - Заселены — дом сдан, отметки нет (обычный случай, независимо от того,
+  //   собран ли уже список организаций — "заселён" про факт сдачи/заселения,
+  //   не про то, дошли ли руки до выгрузки).
+  // - Не заселены — дом сдан, но отмечен "Пока нет коммерции".
+  // - Не сданы — дом физически ещё не сдан: либо весь квартал целиком
+  //   (getNotDeliveredHouses, структурно из справочника застройщика), либо
+  //   отмечен вручную "Не введён в эксплуатацию" — раньше два разных раздела
+  //   на отдельной вкладке "Несданные", теперь один статус, оба сгруппированы
+  //   по кварталам одинаково (владелец, 2026-08-27: "Отмечены вручную" не
+  //   должны идти одним списком без деления на кварталы).
+  const occupiedHouses = useMemo(
+    () => allHouses.filter((h) => !flagByHouse.has(houseKey(h.street, h.house))).filter(matchesSearch),
+    [allHouses, flagByHouse, searchQuery],
+  );
+
+  const vacantHouses = useMemo(
+    () =>
+      allHouses
+        .filter((h) => flagByHouse.get(houseKey(h.street, h.house))?.status === 'no_commerce_yet')
+        .filter(matchesSearch),
+    [allHouses, flagByHouse, searchQuery],
+  );
+
+  const notDeliveredHouses = useMemo(() => {
+    const structural = getNotDeliveredHouses();
+    const manual = flags
+      .filter((f) => f.status === 'not_commissioned')
+      .map((f) => ({ street: f.street, house: f.house, quarterId: f.quarterId }));
+    const seen = new Set<string>();
+    const combined: DeliveredHouse[] = [];
+    for (const h of [...structural, ...manual]) {
+      const key = houseKey(h.street, h.house);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      combined.push(h);
+    }
+    return combined.filter(matchesSearch);
+  }, [flags, searchQuery]);
+
+  function groupByQuarter(list: DeliveredHouse[], sortVerifiedLast: boolean): [string, DeliveredHouse[]][] {
     const map = new Map<string, DeliveredHouse[]>();
-    for (const h of filteredHouses) {
+    for (const h of list) {
       const arr = map.get(h.quarterId) ?? [];
       arr.push(h);
       map.set(h.quarterId, arr);
     }
     const entries = [...map.entries()];
-    // Верифицированные кварталы — вниз списка (владелец, 2026-08-26): наверху
-    // всегда то, над чем ещё идёт работа, а не то, что уже сверено.
     entries.sort((a, b) => {
-      const verifiedDiff = Number(verifiedQuarterIds.has(a[0])) - Number(verifiedQuarterIds.has(b[0]));
-      if (verifiedDiff !== 0) return verifiedDiff;
+      // Верифицированные кварталы — вниз списка (владелец, 2026-08-26): наверху
+      // всегда то, над чем ещё идёт работа, а не то, что уже сверено. Актуально
+      // только на вкладке "Заселены" — там же живёт и сам чекбокс верификации.
+      if (sortVerifiedLast) {
+        const verifiedDiff = Number(verifiedQuarterIds.has(a[0])) - Number(verifiedQuarterIds.has(b[0]));
+        if (verifiedDiff !== 0) return verifiedDiff;
+      }
       return (QUARTER_ORDER[a[0]] ?? 999) - (QUARTER_ORDER[b[0]] ?? 999);
     });
     for (const [, hs] of entries) {
       hs.sort((a, b) => titleCase(a.street).localeCompare(titleCase(b.street)) || Number(a.house) - Number(b.house));
     }
     return entries;
-  }, [filteredHouses, verifiedQuarterIds]);
+  }
 
-  // Несданные — две отдельные причины (см. комментарий у getNotDeliveredHouses
-  // в districtQuarters.ts): целиком несданные кварталы (структурно, из
-  // справочника застройщика) и дома, отмеченные вручную (district_house_flags,
-  // включая те, что владелец называл раньше, но которых нет в справочнике
-  // вовсе — у них quarterId пустой).
-  const notDeliveredHouses = useMemo(() => getNotDeliveredHouses(), []);
+  const occupiedByQuarter = useMemo(() => groupByQuarter(occupiedHouses, true), [occupiedHouses, verifiedQuarterIds]);
+  const vacantByQuarter = useMemo(() => groupByQuarter(vacantHouses, false), [vacantHouses]);
+  const notDeliveredByQuarter = useMemo(() => groupByQuarter(notDeliveredHouses, false), [notDeliveredHouses]);
 
-  const filteredNotDeliveredHouses = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return notDeliveredHouses;
-    return notDeliveredHouses.filter((h) => `${h.street} ${h.house}`.toLowerCase().includes(q));
-  }, [notDeliveredHouses, search]);
-
-  const notDeliveredByQuarter = useMemo(() => {
-    const map = new Map<string, DeliveredHouse[]>();
-    for (const h of filteredNotDeliveredHouses) {
-      const arr = map.get(h.quarterId) ?? [];
-      arr.push(h);
-      map.set(h.quarterId, arr);
-    }
-    const entries = [...map.entries()];
-    entries.sort((a, b) => (QUARTER_ORDER[a[0]] ?? 999) - (QUARTER_ORDER[b[0]] ?? 999));
-    for (const [, hs] of entries) {
-      hs.sort((a, b) => titleCase(a.street).localeCompare(titleCase(b.street)) || Number(a.house) - Number(b.house));
-    }
-    return entries;
-  }, [filteredNotDeliveredHouses]);
-
-  const filteredFlags = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    // "Несданные" — про недоступность дома целиком, поэтому сюда попадают
-    // только not_commissioned. no_commerce_yet — дом сдан, просто пока нет
-    // открытых помещений, он остаётся видимым на вкладке "Дома" как обычно.
-    const sorted = [...flags]
-      .filter((f) => f.status === 'not_commissioned')
-      .sort((a, b) => titleCase(a.street).localeCompare(titleCase(b.street)) || Number(a.house) - Number(b.house));
-    if (!q) return sorted;
-    return sorted.filter((f) => `${f.street} ${f.house}`.toLowerCase().includes(q));
-  }, [flags, search]);
+  const activeGroups =
+    statusTab === 'Заселены' ? occupiedByQuarter : statusTab === 'Не заселены' ? vacantByQuarter : notDeliveredByQuarter;
 
   function refreshPointsLocal(update: (prev: DistrictBusinessPoint[]) => DistrictBusinessPoint[]) {
     setPoints((prev) => (prev ? update(prev) : prev));
@@ -199,7 +211,7 @@ export function DistrictBusinessesTab() {
         сохранённым списком: новые организации добавляет, пропавшие из выгрузки — считает закрывшимися и убирает.
       </p>
 
-      <ToggleGroup options={[...SUB_TABS]} value={subTab} onChange={(v) => setSubTab(v as SubTab)} />
+      <ToggleGroup options={[...STATUS_TABS]} value={statusTab} onChange={(v) => setStatusTab(v as StatusTab)} />
 
       <SearchInput
         placeholder="Поиск по улице или номеру дома..."
@@ -216,126 +228,66 @@ export function DistrictBusinessesTab() {
         </div>
       )}
 
-      {subTab === 'Дома' && points !== null && (
+      {points !== null && (
         <div className="flex flex-col gap-4">
-          {housesByQuarter.map(([quarterId, hs]) => (
-            <div key={quarterId} className={cn('flex flex-col divide-y divide-border', glassCardClass)} style={glassCardShadow}>
-              <div className="flex items-center gap-2 px-4 py-3">
-                <Building2 className="h-4 w-4 shrink-0 text-ink-faint" />
-                <h3 className="text-sm font-bold text-ink">{QUARTER_LABELS[quarterId] ?? quarterId}</h3>
-                <span className="text-xs text-ink-faint">{hs.length} домов</span>
-                <label className="ml-auto flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted">
-                  <input
-                    type="checkbox"
-                    checked={verifiedQuarterIds.has(quarterId)}
-                    disabled={savingQuarterId === quarterId}
-                    onChange={() => toggleQuarterVerified(quarterId)}
-                    className="h-3.5 w-3.5 rounded border-border-strong text-primary focus:ring-primary"
-                  />
-                  Верифицировано
-                </label>
-              </div>
-              {hs.map((h) => {
-                const list = pointsByHouse.get(houseKey(h.street, h.house)) ?? [];
-                const flag = flagByHouse.get(houseKey(h.street, h.house));
-                return (
-                  <button
-                    key={houseKey(h.street, h.house)}
-                    type="button"
-                    onClick={() => setOpenHouse(h)}
-                    className="flex items-center justify-between gap-3 px-4 py-2.5 text-left text-sm hover:bg-surface-muted"
-                  >
-                    <span className={cn('text-ink', flag && 'text-ink-faint')}>
-                      {titleCase(h.street)}, {h.house}
-                    </span>
-                    {flag?.status === 'no_commerce_yet' ? (
-                      <span className="flex shrink-0 items-center gap-1 rounded-full bg-info-bg px-2 py-0.5 text-xs font-semibold text-info">
-                        <Store className="h-3 w-3 shrink-0" />
-                        пока нет коммерции
+          {activeGroups.length === 0 ? (
+            <p className="text-sm text-ink-faint">Ничего не найдено.</p>
+          ) : (
+            activeGroups.map(([quarterId, hs]) => (
+              <div key={quarterId} className={cn('flex flex-col divide-y divide-border', glassCardClass)} style={glassCardShadow}>
+                <div className="flex items-center gap-2 px-4 py-3">
+                  <Building2 className="h-4 w-4 shrink-0 text-ink-faint" />
+                  <h3 className="text-sm font-bold text-ink">{QUARTER_LABELS[quarterId] ?? (quarterId || 'нет в справочнике')}</h3>
+                  <span className="text-xs text-ink-faint">{hs.length} домов</span>
+                  {statusTab === 'Заселены' && (
+                    <label className="ml-auto flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted">
+                      <input
+                        type="checkbox"
+                        checked={verifiedQuarterIds.has(quarterId)}
+                        disabled={savingQuarterId === quarterId}
+                        onChange={() => toggleQuarterVerified(quarterId)}
+                        className="h-3.5 w-3.5 rounded border-border-strong text-primary focus:ring-primary"
+                      />
+                      Верифицировано
+                    </label>
+                  )}
+                </div>
+                {hs.map((h) => {
+                  const list = pointsByHouse.get(houseKey(h.street, h.house)) ?? [];
+                  const flag = flagByHouse.get(houseKey(h.street, h.house));
+                  return (
+                    <button
+                      key={houseKey(h.street, h.house)}
+                      type="button"
+                      onClick={() => setOpenHouse(h)}
+                      className="flex items-center justify-between gap-3 px-4 py-2.5 text-left text-sm hover:bg-surface-muted"
+                    >
+                      <span className="text-ink">
+                        {titleCase(h.street)}, {h.house}
                       </span>
-                    ) : flag ? (
-                      <span className="flex shrink-0 items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 text-xs font-semibold text-warning">
-                        <Ban className="h-3 w-3 shrink-0" />
-                        не введён в эксплуатацию
-                      </span>
-                    ) : (
-                      <span className={cn('shrink-0 text-xs font-semibold', list.length > 0 ? 'text-ink-muted' : 'text-ink-faint')}>
-                        {list.length > 0 ? `${list.length} организаций` : 'ещё не собрано'}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {subTab === 'Несданные' && (
-        <div className="flex flex-col gap-5">
-          <div className="flex flex-col gap-2">
-            <h3 className="text-sm font-bold text-ink">Кварталы не сданы целиком</h3>
-            <p className="text-xs text-ink-faint">
-              Из справочника застройщика — организации по ним не собираем, пока не сдадут весь квартал.
-            </p>
-            {notDeliveredByQuarter.length === 0 ? (
-              <p className="text-sm text-ink-faint">Ничего не найдено.</p>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {notDeliveredByQuarter.map(([quarterId, hs]) => (
-                  <div key={quarterId} className={cn('flex flex-col divide-y divide-border', glassCardClass)} style={glassCardShadow}>
-                    <div className="flex items-center gap-2 px-4 py-3">
-                      <Building2 className="h-4 w-4 shrink-0 text-ink-faint" />
-                      <h3 className="text-sm font-bold text-ink">{QUARTER_LABELS[quarterId] ?? quarterId}</h3>
-                      <span className="text-xs text-ink-faint">{hs.length} домов</span>
-                    </div>
-                    {hs.map((h) => (
-                      <button
-                        key={houseKey(h.street, h.house)}
-                        type="button"
-                        onClick={() => setOpenHouse(h)}
-                        className="flex items-center justify-between gap-3 px-4 py-2.5 text-left text-sm hover:bg-surface-muted"
-                      >
-                        <span className="text-ink">
-                          {titleCase(h.street)}, {h.house}
+                      {statusTab === 'Заселены' && (
+                        <span className={cn('shrink-0 text-xs font-semibold', list.length > 0 ? 'text-ink-muted' : 'text-ink-faint')}>
+                          {list.length > 0 ? `${list.length} организаций` : 'ещё не собрано'}
                         </span>
-                        <span className="shrink-0 text-xs text-ink-faint">проверить</span>
-                      </button>
-                    ))}
-                  </div>
-                ))}
+                      )}
+                      {statusTab === 'Не заселены' && (
+                        <span className="flex shrink-0 items-center gap-1 rounded-full bg-info-bg px-2 py-0.5 text-xs font-semibold text-info">
+                          <Store className="h-3 w-3 shrink-0" />
+                          пока нет коммерции
+                        </span>
+                      )}
+                      {statusTab === 'Не сданы' && (
+                        <span className="flex shrink-0 items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 text-xs font-semibold text-warning">
+                          <Ban className="h-3 w-3 shrink-0" />
+                          {flag?.status === 'not_commissioned' ? 'не введён в эксплуатацию' : 'квартал не сдан'}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <h3 className="text-sm font-bold text-ink">Отмечены вручную</h3>
-            <p className="text-xs text-ink-faint">
-              Дома, отмеченные «не введён в эксплуатацию» из карточки дома — в т.ч. те, что пока вообще не попали в
-              справочник застройщика.
-            </p>
-            {filteredFlags.length === 0 ? (
-              <p className="text-sm text-ink-faint">Ничего не найдено.</p>
-            ) : (
-              <div className={cn('flex flex-col divide-y divide-border', glassCardClass)} style={glassCardShadow}>
-                {filteredFlags.map((f) => (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => setOpenHouse({ street: f.street, house: f.house, quarterId: f.quarterId })}
-                    className="flex items-center justify-between gap-3 px-4 py-2.5 text-left text-sm hover:bg-surface-muted"
-                  >
-                    <span className="text-ink">
-                      {titleCase(f.street)}, {f.house}
-                    </span>
-                    <span className="shrink-0 text-xs text-ink-faint">
-                      {QUARTER_LABELS[f.quarterId] ?? (f.quarterId || 'нет в справочнике')}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+            ))
+          )}
         </div>
       )}
 
