@@ -10,7 +10,7 @@ import { AddableSelect } from '../components/ui/AddableSelect';
 import { CatalogPickerModal } from '../components/estimates/CatalogPickerModal';
 import { EstimatePositionCard } from '../components/estimates/EstimatePositionCard';
 import { EstimatePositionFormModal } from '../components/estimates/EstimatePositionFormModal';
-import { EstimateLineItemsTable } from '../components/estimates/EstimateLineItemsTable';
+import { EstimateLineItemsTable, formatUsd } from '../components/estimates/EstimateLineItemsTable';
 import { EstimateLineItemFormModal } from '../components/estimates/EstimateLineItemFormModal';
 import { cn } from '../lib/cn';
 import {
@@ -25,9 +25,11 @@ import {
 import { formatCatalogItemForInsert, type EstimateCatalogItem } from '../data/estimateCatalog';
 import type { RealtyObject } from '../data/objects';
 import type { BuildingPlanZone } from '../data/buildingPlans';
+import type { ExchangeRate } from '../data/exchangeRates';
 import { fetchEstimate, updateEstimate } from '../lib/estimatesApi';
 import { fetchEstimateCatalogItems } from '../lib/estimateCatalogApi';
 import { fetchObject } from '../lib/objectsApi';
+import { fetchTodayRateOrLatestCached } from '../lib/exchangeRatesApi';
 import { fetchZonesForPlan } from '../lib/buildingPlansApi';
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -43,6 +45,11 @@ function formatArea(value: number): string {
 
 function formatMoney(value: number): string {
   return value.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+}
+
+function formatBynUsd(value: number, rate: ExchangeRate | null): string {
+  const usd = formatUsd(value, rate);
+  return usd ? `${formatMoney(value)} Br · ${usd}` : `${formatMoney(value)} Br`;
 }
 
 export function EstimateDetail() {
@@ -82,6 +89,18 @@ export function EstimateDetail() {
   const [lineItemModalOpen, setLineItemModalOpen] = useState(false);
   const [lineItemSectionId, setLineItemSectionId] = useState<string | null>(null);
   const [editingLineItem, setEditingLineItem] = useState<EstimateLineItem | null>(null);
+
+  // Курс для отображения итога построчной сметы в USD рядом с BYN — только
+  // для показа, ни на что не влияет и никуда не сохраняется, поэтому
+  // "сегодня или последний закэшированный" вместо fetchTodayRate (тот
+  // рассчитан на фиксацию курса в момент сохранения записи, см. Transactions.tsx).
+  const [rate, setRate] = useState<ExchangeRate | null>(null);
+
+  useEffect(() => {
+    fetchTodayRateOrLatestCached()
+      .then(setRate)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -397,9 +416,9 @@ export function EstimateDetail() {
             <Card className="flex flex-wrap items-center justify-between gap-4 p-5">
               <span className="font-bold text-ink">Итого по построчной смете</span>
               <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-                <Stat label="Стоимость работ" value={`${formatMoney(lineItemsTotals.work)} Br`} />
-                <Stat label="Стоимость материалов" value={`${formatMoney(lineItemsTotals.material)} Br`} />
-                <Stat label="Итого" value={`${formatMoney(lineItemsTotals.total)} Br`} />
+                <Stat label="Стоимость работ" value={formatBynUsd(lineItemsTotals.work, rate)} />
+                <Stat label="Стоимость материалов" value={formatBynUsd(lineItemsTotals.material, rate)} />
+                <Stat label="Итого" value={formatBynUsd(lineItemsTotals.total, rate)} />
               </div>
             </Card>
           )}
@@ -498,6 +517,7 @@ export function EstimateDetail() {
                   <div className="border-t border-border pt-3">
                     <EstimateLineItemsTable
                       section={section}
+                      rate={rate}
                       onAdd={() => openAddLineItem(section.id)}
                       onEdit={(item) => openEditLineItem(section.id, item)}
                       onDelete={(item) => deleteLineItem(section.id, item.id)}

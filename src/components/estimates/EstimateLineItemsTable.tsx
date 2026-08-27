@@ -8,9 +8,19 @@ import {
   type EstimateLineItem,
   type EstimateSection,
 } from '../../data/estimates';
+import type { ExchangeRate } from '../../data/exchangeRates';
 
 function formatMoney(value: number): string {
   return value.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+}
+
+// Все суммы построчной сметы уже в BYN (см. EstimateLineItem.workUnitPrice/
+// materialUnitPrice) — переводить в USD в одну сторону через usdByn, без
+// convertToUsd (тот рассчитан на суммы в разных валютах, у нас всегда BYN).
+// Экспортирован — тем же способом считает общий итог по смете EstimateDetail.tsx.
+export function formatUsd(valueByn: number, rate: ExchangeRate | null): string | null {
+  if (!rate || !rate.usdByn) return null;
+  return `$${Math.round(valueByn / rate.usdByn).toLocaleString('ru-RU')}`;
 }
 
 function formatQty(item: EstimateLineItem): string {
@@ -20,6 +30,7 @@ function formatQty(item: EstimateLineItem): string {
 
 interface EstimateLineItemsTableProps {
   section: EstimateSection;
+  rate: ExchangeRate | null;
   onAdd: () => void;
   onEdit: (item: EstimateLineItem) => void;
   onDelete: (item: EstimateLineItem) => void;
@@ -30,22 +41,15 @@ interface EstimateLineItemsTableProps {
 // комментарий у EstimateLineItem в data/estimates.ts). Горизонтальный скролл
 // вместо переверстки в карточки на мобильном — это внутренняя админ-
 // страница, не публичная, а таблица с числами плохо читается карточками.
-export function EstimateLineItemsTable({ section, onAdd, onEdit, onDelete }: EstimateLineItemsTableProps) {
+// Итог — под таблицей, не над ней (владелец: удобнее читать после строк,
+// а не гадать, к чему цифра сверху относится, ещё не увидев ни одной строки).
+export function EstimateLineItemsTable({ section, rate, onAdd, onEdit, onDelete }: EstimateLineItemsTableProps) {
   const totals = sectionLineItemsTotals(section);
+  const totalUsd = formatUsd(totals.total, rate);
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium text-ink">Построчная смета</span>
-        {section.lineItems.length > 0 && (
-          <span className="text-sm font-semibold text-ink">
-            {formatMoney(totals.total)} Br
-            <span className="ml-1.5 font-normal text-ink-faint">
-              (работы {formatMoney(totals.work)} + материалы {formatMoney(totals.material)})
-            </span>
-          </span>
-        )}
-      </div>
+      <span className="text-sm font-medium text-ink">Построчная смета</span>
 
       {section.lineItems.length > 0 && (
         <div className="overflow-x-auto rounded-control border border-border">
@@ -97,6 +101,17 @@ export function EstimateLineItemsTable({ section, onAdd, onEdit, onDelete }: Est
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {section.lineItems.length > 0 && (
+        <div className="flex items-center justify-end gap-3">
+          <span className="text-sm font-semibold text-ink">
+            {formatMoney(totals.total)} Br{totalUsd && <span className="text-ink-muted"> · {totalUsd}</span>}
+            <span className="ml-1.5 font-normal text-ink-faint">
+              (работы {formatMoney(totals.work)} + материалы {formatMoney(totals.material)})
+            </span>
+          </span>
         </div>
       )}
 
