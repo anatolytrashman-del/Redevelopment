@@ -110,11 +110,25 @@ export function EstimatePublicPage() {
       .catch(() => {});
   }, [token]);
 
-  async function savePatch(sections: Estimate['sections']) {
+  async function savePatch(sections: Estimate['sections'], floor2Deferred?: boolean) {
     if (!estimate) throw new Error('Смета не загружена');
-    const updated = await updateEstimate(estimate.id, { sections, questions: estimate.questions, status: estimate.status });
+    const updated = await updateEstimate(estimate.id, {
+      sections,
+      questions: estimate.questions,
+      status: estimate.status,
+      floor2Deferred: floor2Deferred ?? estimate.floor2Deferred,
+    });
     setEstimate(updated);
     return updated;
+  }
+
+  async function toggleFloor2Deferred() {
+    if (!estimate) return;
+    try {
+      await savePatch(estimate.sections, !estimate.floor2Deferred);
+    } catch (err) {
+      setLoadError(errorMessage(err, 'Не удалось изменить отметку'));
+    }
   }
 
   function openAddLineItem(sectionId: string) {
@@ -416,7 +430,24 @@ export function EstimatePublicPage() {
 
         {floor1Total > 0 && (
           <Card className="flex flex-col gap-3 p-5">
-            <span className="font-bold text-ink">Второй этаж</span>
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-bold text-ink">Второй этаж</span>
+              <button
+                type="button"
+                onClick={toggleFloor2Deferred}
+                className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted"
+              >
+                <span
+                  className={cn(
+                    'flex h-4 w-4 items-center justify-center rounded border',
+                    estimate.floor2Deferred ? 'border-primary bg-primary text-white' : 'border-border text-transparent',
+                  )}
+                >
+                  <Check className="h-3 w-3" />
+                </span>
+                Можно сделать позже
+              </button>
+            </div>
             <p className="text-sm text-ink-faint">
               Расчёт есть только по 1-му этажу — 2-й пока условно считаем той же суммой (кабинеты, коридоры и
               санузлы), без фасада и организационных расходов — те не дублируются по этажам.

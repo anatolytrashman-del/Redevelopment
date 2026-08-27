@@ -45,6 +45,7 @@ function fromRow(row: EstimateRow): Estimate {
     questions: row.questions ?? [],
     status: row.status ?? estimateStatuses[0],
     shareToken: row.share_token,
+    floor2Deferred: row.floor2_deferred ?? false,
     createdAt: row.created_at,
   };
 }
@@ -95,12 +96,17 @@ export function insertEstimate(input: {
 
 export function updateEstimate(
   id: string,
-  input: { sections: EstimateSection[]; questions: EstimateQuestion[]; status: string },
+  input: { sections: EstimateSection[]; questions: EstimateQuestion[]; status: string; floor2Deferred: boolean },
 ): Promise<Estimate> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('estimates')
-      .update({ sections: input.sections, questions: input.questions, status: input.status })
+      .update({
+        sections: input.sections,
+        questions: input.questions,
+        status: input.status,
+        floor2_deferred: input.floor2Deferred,
+      })
       .eq('id', id)
       .select()
       .single();

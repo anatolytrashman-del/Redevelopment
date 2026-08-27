@@ -260,6 +260,11 @@ export interface Estimate {
   // редактирование, не на просмотр (см. EstimatePublicPage.tsx). Генерится
   // в базе автоматически при создании, в форме не редактируется.
   shareToken: string;
+  // "Можно сделать позже" для карточки "Второй этаж" (EstimatePublicPage.tsx)
+  // — тот же смысл, что и EstimateSection.deferred, но у 2-го этажа нет
+  // своего настоящего раздела (это расчётная оценка-зеркало 1-го этажа, не
+  // строки из базы), поэтому флаг живёт прямо на смете, а не внутри секции.
+  floor2Deferred: boolean;
   createdAt: string;
 }
 
@@ -271,6 +276,7 @@ export interface EstimateRow {
   questions: EstimateQuestion[] | null;
   status: string;
   share_token: string;
+  floor2_deferred: boolean | null;
   created_at: string;
 }
 

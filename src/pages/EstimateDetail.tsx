@@ -166,6 +166,7 @@ export function EstimateDetail() {
       sections: patch.sections ?? estimate.sections,
       questions: patch.questions ?? estimate.questions,
       status: patch.status ?? estimate.status,
+      floor2Deferred: estimate.floor2Deferred,
     });
     setEstimate(updated);
     return updated;
