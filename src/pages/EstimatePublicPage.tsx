@@ -362,15 +362,17 @@ export function EstimatePublicPage() {
     );
   }
 
-  // "Общие зоны - 1 этаж" и т.п. (владелец, 2026-08-27: "Общие зоны - это
-  // типо заголовок, а коридоры и санузлы — уже части этого блока") — раздел,
-  // чьё название начинается с "Общие зоны", в данных остаётся обычным
-  // EstimateSection (жить своей строкой в jsonb ему ничего не мешает), но на
-  // экране рендерится не отдельной карточкой, а ЗАГОЛОВКОМ общей карточки,
-  // внутрь которой попадают все следующие по порядку разделы — вплоть до
-  // следующего такого же заголовка или конца списка. Своей построчной сметы
-  // /материалов у самого заголовка нет (он для этого и не предназначен —
-  // "типо заголовок"), только группирует то, что идёт следом.
+  // Группировка разделов в одну карточку (владелец, 2026-08-27): сначала
+  // была нужна только для "Общие зоны - N этаж" ("это типо заголовок, а
+  // коридоры и санузлы — уже части этого блока"), затем понадобилась и для
+  // "Кабинеты N этаж" (санузлы — "более самостоятельная карточка... давай
+  // перенесём в блок Кабинеты 1 этаж, но не в ту же таблицу, а в отдельную") —
+  // раздел, чьё название начинается с "Общие зоны" или "Кабинеты", служит
+  // заголовком карточки, внутрь которой попадают все следующие по порядку
+  // разделы вплоть до следующего такого же заголовка или конца списка. В
+  // отличие от "Общие зоны" (обычно пустой ярлык), у "Кабинеты" всегда есть
+  // своя построчная смета — она показывается первой, дети идут ниже с
+  // разделителем (см. hasSectionContent/renderSectionBody).
   interface SectionGroup {
     header: EstimateSection | null;
     items: EstimateSection[];
@@ -380,7 +382,7 @@ export function EstimatePublicPage() {
     const groups: SectionGroup[] = [];
     let current: SectionGroup = { header: null, items: [] };
     for (const s of list) {
-      if (/^общие\s+зоны/i.test(s.title.trim())) {
+      if (/^(общие\s+зоны|кабинеты)/i.test(s.title.trim())) {
         if (current.header || current.items.length > 0) groups.push(current);
         current = { header: s, items: [] };
       } else {
@@ -389,6 +391,10 @@ export function EstimatePublicPage() {
     }
     if (current.header || current.items.length > 0) groups.push(current);
     return groups;
+  }
+
+  function hasSectionContent(s: EstimateSection): boolean {
+    return s.lineItems.length > 0 || s.materials.length > 0 || s.materialFiles.length > 0 || s.materialListFiles.length > 0;
   }
 
   const sectionGroups = groupMainSections(mainSections);
@@ -409,24 +415,26 @@ export function EstimatePublicPage() {
           <span className="text-sm text-ink-muted">Можно добавлять, редактировать и удалять строки, оставлять комментарии.</span>
         </Card>
 
-        {sectionGroups.map((group, i) =>
-          group.header ? (
+        {sectionGroups.map((group, i) => {
+          if (!group.header) {
+            return <Fragment key={`ungrouped-${i}`}>{group.items.map(renderSectionCard)}</Fragment>;
+          }
+          const headerHasContent = hasSectionContent(group.header);
+          return (
             <Card key={group.header.id} className="flex flex-col gap-5 p-5">
-              <div className="text-lg font-bold text-ink">{formatZone(group.header.title)}</div>
-              {group.items.length === 0 ? (
-                <p className="text-sm text-ink-faint">Пока нет разделов внутри.</p>
+              {headerHasContent ? (
+                renderSectionBody(group.header)
               ) : (
-                group.items.map((section, j) => (
-                  <div key={section.id} className={cn(j > 0 && 'border-t border-border pt-5')}>
-                    {renderSectionBody(section)}
-                  </div>
-                ))
+                <div className="text-lg font-bold text-ink">{formatZone(group.header.title)}</div>
               )}
+              {group.items.map((section) => (
+                <div key={section.id} className="border-t border-border pt-5">
+                  {renderSectionBody(section)}
+                </div>
+              ))}
             </Card>
-          ) : (
-            <Fragment key={`ungrouped-${i}`}>{group.items.map(renderSectionCard)}</Fragment>
-          ),
-        )}
+          );
+        })}
 
         {floor1Total > 0 && (
           <Card className="flex flex-col gap-3 p-5">
