@@ -93,6 +93,38 @@ export function insertLead(input: Omit<Lead, 'id' | 'createdAt'>): Promise<Lead>
   });
 }
 
+// Публичная форма бронирования (anon, без логина) не может использовать
+// insertLead — после P0.2-аудита anon не имеет SELECT на leads (там имя/
+// телефон клиента), а .insert().select() требует SELECT-прав для RETURNING.
+// Вместо этого — SECURITY DEFINER RPC create_public_lead в базе: вставляет
+// строку от своего имени (в обход RLS) и отдаёт наружу только id, не всю
+// строку. Используется только на публичном флоу бронирования кабинета/
+// рабочего места (PublicPlanAndUnits.tsx) — админский insertLead (Leads.tsx)
+// не трогать, там уже authenticated со своими правами.
+export function insertPublicLead(input: Omit<Lead, 'id' | 'createdAt'>): Promise<string> {
+  return withRetry(async () => {
+    const { data, error } = await supabase.rpc('create_public_lead', {
+      p_name: input.name,
+      p_source: input.source,
+      p_business_type: input.businessType,
+      p_area: input.area,
+      p_requirement: input.requirement,
+      p_contact: input.contact,
+      p_contact_method: input.contactMethod || null,
+      p_phone: input.phone || null,
+      p_client_type: input.clientType || null,
+      p_status: input.status,
+      p_is_warm: input.isWarm,
+      p_object_id: input.objectId || null,
+      p_photo_path: input.photoPath || null,
+      p_last_contacted_at: input.lastContactedAt || null,
+      p_next_contact_at: input.nextContactAt || null,
+    });
+    if (error) throw error;
+    return data as string;
+  });
+}
+
 export function updateLead(id: string, input: Omit<Lead, 'id' | 'createdAt'>): Promise<Lead> {
   return withRetry(async () => {
     const { data, error } = await supabase

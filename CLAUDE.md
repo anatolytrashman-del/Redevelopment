@@ -189,6 +189,148 @@ curl -sS -X POST "https://api.supabase.com/v1/projects/iohcdylttyuhwovztrbk/data
 Хронологический список, что уже сделано — не дублировать работу, не переспрашивать то,
 что уже решено. Дополнять новыми записями сверху, старые не переписывать.
 
+- **2026-08-28 — P0.1+P0.2 аудита безопасности: Supabase Auth вместо
+  PasswordGate + пересбор RLS на всех 43 таблицах.** Продолжение записи про
+  P0.4 (OTP) от этой же сессии — самый крупный кусок аудита, сделан
+  единым PR как и рекомендовал сам документ ("Auth+RLS неразделимы").
+  **Контекст, если продолжите эту тему:** до этой правки `PasswordGate`
+  сверял пароль в браузере против `access_profiles`, читаемой anon-ключом
+  целиком (пароли открытым текстом) — по факту вся база была доступна
+  anon-ключу из бандла. Теперь:
+  1. **4 реальных Supabase Auth аккаунта** созданы через GoTrue admin API
+     (`sb_secret_...` ключ получен через Management API `api-keys?reveal=true`
+     в памяти одного bash-вызова, никогда не печатался) — email/пароли
+     дал владелец: `trashman@` (супер-админ), `svetlana.backoffice@`,
+     `almira.backoffice@`, `legal@` (Татьяна Гаврис). **Степан — без
+     аккаунта**, владелец попросил отключить. Публичная само-регистрация
+     (`disable_signup`) выключена в конфиге Auth проекта.
+  2. `access_profiles`: колонка `password` дропнута, добавлен `user_id`
+     (FK на `auth.users`, unique, not null) — забэкафилен по display_name
+     на 4 реальных аккаунта, профиль Степана удалён. Helper-функция
+     `is_super_admin()` (SECURITY DEFINER) — база для RLS-политик
+     `access_profiles`/`activity_log`.
+  3. **RLS пересобран на всех 43 таблицах** (не только "включить", у
+     половины таблиц старые permissive-политики реально разрешали anon
+     ВЕСЬ CRUD, не только select — `leads`, `objects`, `briefs`,
+     `estimates`, `meeting_summaries` были такими до этой правки, никто
+     специально это не открывал, просто так исторически сложилось):
+     ~27 приватных таблиц → `authenticated` full CRUD, anon вообще ничего;
+     `activity_log` → select только `is_super_admin()`, insert — любой
+     authenticated; `access_profiles` → select своя строка или супер-админ,
+     update/insert/delete только супер-админ, причём `is_super_admin`/
+     `user_id` не редактируемы даже супер-админом через API (`REVOKE
+     UPDATE` + `GRANT UPDATE` на конкретные колонки, не RLS — RLS не умеет
+     ограничивать по колонкам, только по строкам); `agreement_signatures` →
+     anon вообще ничего (там OTP-хэш), authenticated только select (запись
+     — исключительно `api/*.js` сервисным ключом, как и было);
+     `objects`/`building_plans` → anon select всех строк (осознанно —
+     публичный каталог по дизайну), без записи; `building_plan_zones` →
+     anon select всех строк + **колоночный** `GRANT UPDATE (status,
+     lead_id)` — публичное бронирование кабинета может поменять только эти
+     два поля, физически не может тронуть остальные, даже если руками
+     собрать запрос; `market_offers` → anon select с **колоночным**
+     ограничением (`REVOKE`+`GRANT SELECT` на конкретный список колонок,
+     без `owner_note`/`discussion_note`/`rejected`/`flagged_for_discussion`
+     — эти поля раньше палились в publicly-select('*') на `/minsk/minsk-mir`
+     без всякой задней мысли, просто никто не проверял); `briefs`/
+     `meeting_summaries`/`estimates` → anon select по `share_token IS NOT
+     NULL` (для estimates ещё и update по тому же условию — публичное
+     редактирование сметы); `district_business_points`/`house_flags`/
+     `quarter_flags` → anon full CRUD оставлен как есть (осознанно, страница
+     `/business-upload` без логина), просто добавлен `authenticated` рядом;
+     `leads` → anon **вообще без прямого доступа к таблице** (там имя/
+     телефон клиента) — см. следующий пункт.
+  4. **Реальный баг поймал `scripts/audit-rls.mjs`** (см. ниже) при первом
+     же прогоне после правок: публичное бронирование (`insertLead` в
+     `PublicPlanAndUnits.tsx`) делает `.insert().select().single()` — а
+     `RETURNING` в Postgres требует SELECT-права на таблицу, которых у anon
+     после закрытия `leads` больше не было бы. Решение — не открывать
+     SELECT ради этого (там персональные данные), а завести SECURITY
+     DEFINER RPC `create_public_lead` (вставляет от своего имени, в обход
+     RLS, отдаёт наружу только `id`, не всю строку) — новый
+     `insertPublicLead` в `leadsApi.ts`, `PublicPlanAndUnits.tsx` переведён
+     на него (админский `insertLead` не тронут, ему SELECT не нужен
+     ограничивать, он для `authenticated`). Та же проблема была бы у
+     `insertWorkstationSeatLead`, но её returned-строка вообще нигде не
+     используется вызывающим кодом — проще убрали `.select()` совсем
+     (`workstationSeatLeadsApi.ts`, теперь `Promise<void>`), RPC не
+     понадобился.
+  5. **Storage**: 10 бакетов — `object-photos`/`building-plans`/
+     `financing-logos`/`design-project-photos` → anon select (публичные по
+     дизайну, `bucket.public=true`), запись — authenticated;
+     `object-documents` → anon select + anon **insert** (нужен для
+     публичной загрузки счетов/КП на `/estimate/:token`, `EstimateMaterials
+     Panel` — у файлов нет разделения по путям от приватных юр.документов
+     в том же бакете, той же функцией `uploadSupplierFile`, так что это
+     принятый риск, не отдельно решённый — см. запись про сам бакет от
+     2026-08-25), update/delete — только authenticated; `meeting-audio` →
+     anon-insert убран (админка теперь всегда залогинена), authenticated
+     full; `lead-photos`/`pledge-photos`/`contractor-photos`/
+     `contractor-resumes` → authenticated-only, anon вообще ничего.
+  6. **`scripts/audit-rls.mjs`** (P0.2.6 аудита) — анонимным ключом пробует
+     select/insert по каждой таблице, падает (`exit 1`), если что-то
+     разрешено сверх ожидания; отдельно проверяет, что admin-only колонки
+     `market_offers` не палятся анону, и что RPC `create_public_lead`
+     реально исполняется для anon (без создания настоящей строки — шлёт
+     заведомо невалидный `p_source`, ловит именно check-constraint 23514,
+     не permission-ошибку). `npm run audit:rls`. Не привязан к CI ещё
+     (P1.2, отдельный заход).
+  7. **Клиент**: `PasswordGate.tsx` — форма `email`+`пароль`,
+     `supabase.auth.signInWithPassword`. **Отступление от того, что
+     обсуждали с владельцем** (там речь шла про "выбор профиля + один
+     пароль, без видимого email") — на практике это потребовало бы либо
+     захардкоженной client-side карты имя→email (источник рассинхрона с
+     базой), либо anon SELECT на `access_profiles` ради одного удобства
+     входа (прямое противоречие всей цели этой правки) — выбран обычный
+     email+пароль как более простой и не требующий доп. инфраструктуры;
+     если владелец всё же захочет "выбор профиля", можно вернуться к этому
+     отдельным заходом. `accessProfile.ts` переписан на кэш профилей +
+     `currentUserId` из сессии (не `localStorage`), `signOutAndClearCache()`
+     вместо `lockAccess()`. `Settings.tsx` лишился формы "Добавить профиль"
+     (создать новый Auth-аккаунт с фронта нельзя — нужен service_role) —
+     остались только правка `displayName`/`pages` и удаление уже
+     существующего профиля.
+  **Проверено:**
+  - `scripts/audit-rls.mjs` — все 43 таблицы + RPC зелёные (см. п.6).
+  - Реальный бэкенд-флоу входа — curl'ом (не браузером, см. ниже почему):
+    `POST /auth/v1/token?grant_type=password` для Трэшмена и Светланы —
+    правильные токены, `sub` совпадает с `user_id` профиля; с этим токеном
+    `GET /rest/v1/access_profiles` отдаёт супер-админу все 4 строки, а
+    обычному профилю — только свою.
+  - **Полноценный мок-тест реальных React-компонентов** (Playwright,
+    `page.route()` перехват сети — прямой сетевой доступ к `*.supabase.co`
+    из headless-браузера в этой песочнице не проходит совсем, тот же класс
+    ограничения, что и с Яндекс.Картами/Kufar/Realt раньше в этом же
+    журнале, curl при этом работает: видимо, только он в этой среде идёт
+    через прокси, headless Chromium — нет; проверено отдельно прямым
+    `page.goto()` на `*.supabase.co` — таймаут на уровне соединения, не
+    ответа): неверный пароль → показана ошибка; верный пароль (супер-админ,
+    замоканы `/auth/v1/token`+`/rest/v1/access_profiles`) → полный сайдбар,
+    имя профиля видно, переход на `/admin/tasks`; верный пароль
+    (ограниченный профиль `pages:['objects']`) → сайдбар с серыми
+    замочками на недоступных пунктах (это ожидаемо и НЕ изменилось этой
+    правкой — раздел просто виден, но не открывается, см. коммент в
+    `Settings.tsx`), прямой переход на `/admin/settings` → "Эта страница
+    недоступна для вашего доступа"; кнопка "Выйти" → `supabase.auth.signOut()`
+    → снова форма входа. Дважды поймал баг в самом ТЕСТЕ, не в
+    приложении (`route.fallback()` не вызывался при пропуске условия в
+    catch-all перехватчике — запрос молча висел вечно; `/auth/v1/logout`
+    не был замокан, `signOutAndClearCache()` подвисал на реальном сетевом
+    запросе) — держать в голове на будущее для любых следующих Playwright
+    mock-тестов с несколькими `page.route()` на пересекающиеся паттерны:
+    непойманный случай в catch-all обязан явно звать `route.fallback()`,
+    иначе запрос зависает молча, а не падает с понятной ошибкой.
+  - `npx tsc -b`/`npx vite build` чистые; `grep` по `dist/` на все 4
+    реальных пароля — ничего не находит (сам критерий приёмки из документа
+    аудита).
+  **Не сделано в этом заходе (следующие пункты аудита):** P0.3 (авторизация
+  serverless-функций `api/*.js` через JWT — теперь, когда Auth есть, можно
+  делать), P0.5 (gitleaks по истории git, ротация ключей), P1 (тесты,
+  CI-пайплайн с `audit-rls.mjs`, Sentry), P2 (распил больших файлов,
+  `docs/`, `npm audit`). Не забыть при P0.3: клиентские вызовы `api/*.js` из
+  `src/lib/*Api.ts` должны начать слать `Authorization: Bearer
+  <session.access_token>` — сейчас не шлют вообще ничего.
+
 - **2026-08-28** — Владелец прислал технический аудит безопасности
   (`redevelopmentremediation.md`, приоритеты P0/P1/P2) и попросил внедрять
   поэтапно. За первый заход (30 минут в запасе) сделан пункт **P0.4 —
