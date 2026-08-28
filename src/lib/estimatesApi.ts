@@ -13,6 +13,7 @@ function fromRow(row: EstimateRow): Estimate {
     sections: (row.sections ?? []).map((s) => ({
       ...s,
       deferred: s.deferred ?? false,
+      floor: s.floor ?? null,
       lineItems: (s.lineItems ?? []).map((li) => ({
         ...li,
         comments: li.comments ?? [],
