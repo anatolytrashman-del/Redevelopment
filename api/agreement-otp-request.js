@@ -6,9 +6,35 @@
 // agreement-otp-verify.js, который и генерирует итоговый PDF.
 
 import { randomInt } from 'node:crypto';
+import { hashOtpCode } from './_otp.js';
 
 const OTP_TTL_MINUTES = 10;
 const RESEND_FROM = process.env.RESEND_FROM || 'Redevelopment <signing@redevelopment.pro>';
+// P0.4 аудита: без лимита эндпоинт — бесплатный спамер через Resend-домен
+// (и источник массового перебора email). Пороги умышленно щедрые — это
+// реальный флоу покупателя, не логин: 3 письма/час на email хватает даже
+// на "код не пришёл, жду ещё раз" пару раз подряд, 10/час с одного IP —
+// на случай пары интересантов за одним NAT.
+const MAX_REQUESTS_PER_EMAIL_PER_HOUR = 3;
+const MAX_REQUESTS_PER_IP_PER_HOUR = 10;
+
+async function countRecentRequests(field, value, sinceIso) {
+  const url =
+    `${process.env.SUPABASE_URL}/rest/v1/agreement_signatures?select=id&` +
+    `${field}=eq.${encodeURIComponent(value)}&created_at=gte.${encodeURIComponent(sinceIso)}`;
+  const resp = await fetch(url, {
+    headers: {
+      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      Prefer: 'count=exact',
+      Range: '0-0',
+    },
+  });
+  if (!resp.ok) throw new Error('Не удалось проверить лимит запросов');
+  const contentRange = resp.headers.get('content-range');
+  const total = contentRange ? Number(contentRange.split('/')[1]) : 0;
+  return Number.isFinite(total) ? total : 0;
+}
 
 async function insertSignatureRow(payload) {
   const resp = await fetch(`${process.env.SUPABASE_URL}/rest/v1/agreement_signatures`, {
@@ -153,10 +179,21 @@ export default async function handler(req, res) {
     return;
   }
 
+  const forwardedFor = req.headers['x-forwarded-for'];
+  const ip = Array.isArray(forwardedFor) ? forwardedFor[0] : (forwardedFor ?? '').split(',')[0].trim() || null;
+
   try {
+    const sinceIso = new Date(Date.now() - 60 * 60_000).toISOString();
+    const [emailCount, ipCount] = await Promise.all([
+      countRecentRequests('email', email, sinceIso),
+      ip ? countRecentRequests('ip', ip, sinceIso) : Promise.resolve(0),
+    ]);
+    if (emailCount >= MAX_REQUESTS_PER_EMAIL_PER_HOUR || ipCount >= MAX_REQUESTS_PER_IP_PER_HOUR) {
+      res.status(429).json({ error: 'Слишком много запросов кода. Попробуйте позже.' });
+      return;
+    }
+
     const code = String(randomInt(100000, 1000000));
-    const forwardedFor = req.headers['x-forwarded-for'];
-    const ip = Array.isArray(forwardedFor) ? forwardedFor[0] : (forwardedFor ?? '').split(',')[0].trim() || null;
 
     const row = await insertSignatureRow({
       lead_id: leadId,
@@ -173,7 +210,7 @@ export default async function handler(req, res) {
       buyer_passport_issued: buyerPassportIssued ?? '',
       buyer_address: buyerAddress,
       email,
-      otp_code: code,
+      otp_code_hash: hashOtpCode(code),
       otp_expires_at: new Date(Date.now() + OTP_TTL_MINUTES * 60_000).toISOString(),
       ip,
       user_agent: req.headers['user-agent'] ?? null,

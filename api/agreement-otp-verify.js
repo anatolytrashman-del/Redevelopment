@@ -15,6 +15,7 @@ import {
   fetchDocumentTemplate,
   getGoogleAccessToken,
 } from './_google.js';
+import { OTP_MAX_ATTEMPTS, otpCodeMatches } from './_otp.js';
 
 const MONTHS_GENITIVE = [
   'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
@@ -106,11 +107,16 @@ export default async function handler(req, res) {
       res.status(200).json({ documentUrl: row.document_url });
       return;
     }
+    if (row.otp_attempts >= OTP_MAX_ATTEMPTS) {
+      res.status(400).json({ error: 'Слишком много попыток. Запросите новый код.' });
+      return;
+    }
     if (new Date(row.otp_expires_at).getTime() < Date.now()) {
       res.status(400).json({ error: 'Код истёк, запросите новый' });
       return;
     }
-    if (String(row.otp_code) !== String(code)) {
+    if (!otpCodeMatches(code, row.otp_code_hash)) {
+      await updateSignatureRow(row.id, { otp_attempts: row.otp_attempts + 1 });
       res.status(400).json({ error: 'Неверный код' });
       return;
     }
