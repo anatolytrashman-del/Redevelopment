@@ -17,6 +17,7 @@ import {
   Globe,
   ClipboardCheck,
   Truck,
+  ShoppingCart,
 } from 'lucide-react';
 
 // Единый список страниц админки — здесь и маршрут, и ключ доступа (см.
@@ -37,6 +38,7 @@ export type PageKey =
   | 'tz'
   | 'estimates'
   | 'suppliers'
+  | 'purchases'
   | 'finModels'
   | 'financing'
   | 'designProjects'
@@ -62,6 +64,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   { key: 'tz', to: '/admin/tz', label: 'Техзадания', icon: ClipboardList },
   { key: 'estimates', to: '/admin/estimates', label: 'Сметы', icon: Calculator },
   { key: 'suppliers', to: '/admin/suppliers', label: 'Поставщики', icon: Truck },
+  { key: 'purchases', to: '/admin/purchases', label: 'Закупки', icon: ShoppingCart },
   { key: 'finModels', to: '/admin/finmodels', label: 'Финмодели', icon: TrendingUp },
   { key: 'financing', to: '/admin/financing', label: 'Финансирование', icon: Landmark },
   { key: 'designProjects', to: '/admin/design-projects', label: 'Дизайн-проекты', icon: Palette },
@@ -85,6 +88,7 @@ export const VISIBLE_PAGE_KEYS: PageKey[] = [
   'tz',
   'estimates',
   'suppliers',
+  'purchases',
   'finModels',
   'financing',
   'designProjects',
@@ -108,7 +112,7 @@ export const SIDEBAR_LAYOUT: SidebarEntry[] = [
   { type: 'page', key: 'tasks' },
   { type: 'page', key: 'objects' },
   { type: 'page', key: 'contractors' },
-  { type: 'group', label: 'Стройка', keys: ['tz', 'estimates', 'suppliers', 'designProjects'] },
+  { type: 'group', label: 'Стройка', keys: ['tz', 'estimates', 'suppliers', 'purchases', 'designProjects'] },
   { type: 'group', label: 'Финансы', keys: ['finModels', 'financing', 'transactions', 'documents'] },
   { type: 'group', label: 'Маркетинг', keys: ['landings', 'marketOffers', 'leads'] },
   { type: 'page', key: 'meetingSummaries' },

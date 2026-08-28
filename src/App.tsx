@@ -38,6 +38,7 @@ const Backlog = lazy(() => import('./pages/Backlog').then((m) => ({ default: m.B
 const Briefs = lazy(() => import('./pages/Briefs').then((m) => ({ default: m.Briefs })));
 const Estimates = lazy(() => import('./pages/Estimates').then((m) => ({ default: m.Estimates })));
 const Suppliers = lazy(() => import('./pages/Suppliers').then((m) => ({ default: m.Suppliers })));
+const Purchases = lazy(() => import('./pages/Purchases').then((m) => ({ default: m.Purchases })));
 const EstimateDetail = lazy(() => import('./pages/EstimateDetail').then((m) => ({ default: m.EstimateDetail })));
 const FinModels = lazy(() => import('./pages/FinModels').then((m) => ({ default: m.FinModels })));
 const FinModelDetail = lazy(() => import('./pages/FinModelDetail').then((m) => ({ default: m.FinModelDetail })));
@@ -233,6 +234,7 @@ export default function App() {
         <Route path="tz" element={<RequirePage page="tz"><Briefs /></RequirePage>} />
         <Route path="estimates" element={<RequirePage page="estimates"><Estimates /></RequirePage>} />
         <Route path="suppliers" element={<RequirePage page="suppliers"><Suppliers /></RequirePage>} />
+        <Route path="purchases" element={<RequirePage page="purchases"><Purchases /></RequirePage>} />
         <Route path="estimates/:id" element={<RequirePage page="estimates"><EstimateDetail /></RequirePage>} />
         <Route path="finmodels" element={<RequirePage page="finModels"><FinModels /></RequirePage>} />
         <Route path="finmodels/:id" element={<RequirePage page="finModels"><FinModelDetail /></RequirePage>} />
