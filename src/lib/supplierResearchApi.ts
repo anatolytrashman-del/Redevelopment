@@ -9,9 +9,18 @@ import type {
 } from '../data/supplierResearch';
 import type { DocumentFile } from '../data/contractorDocuments';
 import type { Currency } from '../data/transactions';
+import type { PurchaseItem } from '../data/purchases';
 
 function requestFromRow(row: SupplierRequestRow): SupplierRequest {
-  return { id: row.id, title: row.title, createdAt: row.created_at };
+  return {
+    id: row.id,
+    title: row.title,
+    estimateId: row.estimate_id,
+    sectionId: row.section_id,
+    sectionTitle: row.section_title ?? '',
+    items: row.items ?? [],
+    createdAt: row.created_at,
+  };
 }
 
 function offerFromRow(row: SupplierOfferRow): SupplierOffer {
@@ -21,6 +30,7 @@ function offerFromRow(row: SupplierOfferRow): SupplierOffer {
     name: row.name,
     contact: row.contact,
     contactMethod: row.contact_method as ResearchContactMethod,
+    email: row.email ?? '',
     websiteUrl: row.website_url,
     catalogModelName: row.catalog_model_name,
     catalogModelPhoto: row.catalog_model_photo,
@@ -42,19 +52,43 @@ export function fetchSupplierRequests(): Promise<SupplierRequest[]> {
   });
 }
 
-export function insertSupplierRequest(title: string): Promise<SupplierRequest> {
+export interface SupplierRequestInput {
+  title: string;
+  estimateId: string | null;
+  sectionId: string | null;
+  sectionTitle: string;
+  items: PurchaseItem[];
+}
+
+export function insertSupplierRequest(input: SupplierRequestInput): Promise<SupplierRequest> {
   return withRetry(async () => {
-    const { data, error } = await supabase.from('supplier_research_requests').insert({ title }).select().single();
+    const { data, error } = await supabase
+      .from('supplier_research_requests')
+      .insert({
+        title: input.title,
+        estimate_id: input.estimateId,
+        section_id: input.sectionId,
+        section_title: input.sectionTitle,
+        items: input.items,
+      })
+      .select()
+      .single();
     if (error) throw error;
     return requestFromRow(data as SupplierRequestRow);
   });
 }
 
-export function updateSupplierRequest(id: string, title: string): Promise<SupplierRequest> {
+export function updateSupplierRequest(id: string, input: SupplierRequestInput): Promise<SupplierRequest> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('supplier_research_requests')
-      .update({ title })
+      .update({
+        title: input.title,
+        estimate_id: input.estimateId,
+        section_id: input.sectionId,
+        section_title: input.sectionTitle,
+        items: input.items,
+      })
       .eq('id', id)
       .select()
       .single();
@@ -90,6 +124,7 @@ export function insertSupplierOffer(input: Omit<SupplierOffer, 'id' | 'createdAt
         name: input.name,
         contact: input.contact,
         contact_method: input.contactMethod,
+        email: input.email,
         website_url: input.websiteUrl,
         catalog_model_name: input.catalogModelName,
         catalog_model_photo: input.catalogModelPhoto,
@@ -116,6 +151,7 @@ export function updateSupplierOffer(id: string, input: Omit<SupplierOffer, 'id' 
         name: input.name,
         contact: input.contact,
         contact_method: input.contactMethod,
+        email: input.email,
         website_url: input.websiteUrl,
         catalog_model_name: input.catalogModelName,
         catalog_model_photo: input.catalogModelPhoto,

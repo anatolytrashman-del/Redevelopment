@@ -33,6 +33,7 @@ const CLOSED = [
   'legal_entity_tax_declarations', 'market_offer_dedup_dismissals', 'moodboards',
   'people', 'pledges', 'supplier_research_offers', 'supplier_research_requests',
   'tasks', 'transaction_comments', 'transactions', 'purchases', 'purchase_emails',
+  'supplier_offer_emails',
   // deploy_debounce: чисто служебная метка времени последней пересборки
   // прода (trigger-rebuild.js) — трогает только service_role, ни anon,
   // ни authenticated тут делать нечего (даже read).

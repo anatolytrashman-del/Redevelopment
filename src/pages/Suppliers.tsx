@@ -8,6 +8,7 @@ import { AddableSelect } from '../components/ui/AddableSelect';
 import { Textarea } from '../components/ui/Textarea';
 import { Modal } from '../components/ui/Modal';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
+import { Select } from '../components/ui/Select';
 import { SearchInput } from '../components/ui/SearchInput';
 import { ContactValue } from '../components/ui/ContactValue';
 import { ContractorAvatar } from '../components/contractors/ContractorAvatar';
@@ -46,7 +47,13 @@ import {
   updateSupplierOffer,
   deleteSupplierOffer,
   uploadSupplierFile,
+  type SupplierRequestInput,
 } from '../lib/supplierResearchApi';
+import type { PurchaseItem } from '../data/purchases';
+import type { Estimate, EstimateMaterial } from '../data/estimates';
+import { fetchEstimates } from '../lib/estimatesApi';
+import type { RealtyObject } from '../data/objects';
+import { fetchObjects } from '../lib/objectsApi';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -111,10 +118,29 @@ function catalogToForm(c: Contractor) {
   };
 }
 
+const emptyRequestForm = {
+  title: '',
+  estimateId: '' as string,
+  sectionId: '' as string,
+  sectionTitle: '',
+  items: [] as PurchaseItem[],
+};
+
+function requestToForm(r: SupplierRequest) {
+  return {
+    title: r.title,
+    estimateId: r.estimateId ?? '',
+    sectionId: r.sectionId ?? '',
+    sectionTitle: r.sectionTitle,
+    items: r.items,
+  };
+}
+
 const emptyOfferForm = {
   name: '',
   contactMethod: 'Телефон' as ResearchContactMethod,
   contact: '',
+  email: '',
   websiteUrl: '',
   catalogModelName: '',
   catalogModelPhoto: null as DocumentFile | null,
@@ -173,7 +199,22 @@ function RequestCard({
   return (
     <Card className="flex flex-col gap-4 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-lg font-bold text-ink">{request.title}</div>
+        <div>
+          <div className="text-lg font-bold text-ink">{request.title}</div>
+          {request.items.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {request.items.map((item) => (
+                <span
+                  key={item.id}
+                  className="rounded-full bg-surface-muted px-2.5 py-0.5 text-xs text-ink-muted"
+                >
+                  {item.name}
+                  {item.quantity ? ` · ${item.quantity}${item.unit ? ` ${item.unit}` : ''}` : ''}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} onClick={() => onAddOffer(request.id)}>
             Добавить предложение
@@ -363,9 +404,13 @@ export function Suppliers() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [rate, setRate] = useState<ExchangeRate | undefined>(undefined);
 
+  const [estimates, setEstimates] = useState<Estimate[]>([]);
+  const [objects, setObjects] = useState<RealtyObject[]>([]);
+
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState<SupplierRequest | null>(null);
-  const [requestTitle, setRequestTitle] = useState('');
+  const [requestForm, setRequestForm] = useState(emptyRequestForm);
+  const [manualItemName, setManualItemName] = useState('');
   const [savingRequest, setSavingRequest] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
 
@@ -393,7 +438,60 @@ export function Suppliers() {
       .then(setContractors)
       .catch((err) => setCatalogLoadError(errorMessage(err, 'Не удалось загрузить поставщиков')))
       .finally(() => setCatalogLoading(false));
+    fetchEstimates().then(setEstimates).catch(() => setEstimates([]));
+    fetchObjects().then(setObjects).catch(() => setObjects([]));
   }, []);
+
+  function objectLabel(objectId: string): string {
+    const o = objects.find((x) => x.id === objectId);
+    return o ? o.name || o.address : 'Объект без названия';
+  }
+
+  const estimateOptions = useMemo(
+    () => estimates.map((e) => ({ id: e.id, label: `Смета — ${objectLabel(e.objectId)}` })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [estimates, objects],
+  );
+
+  const selectedRequestEstimate = estimates.find((e) => e.id === requestForm.estimateId) ?? null;
+  const selectedRequestSection = selectedRequestEstimate?.sections.find((s) => s.id === requestForm.sectionId) ?? null;
+
+  function addMaterialToRequestItems(m: EstimateMaterial) {
+    if (requestForm.items.some((i) => i.sourceMaterialId === m.id)) return;
+    const item: PurchaseItem = {
+      id: crypto.randomUUID(),
+      sourceMaterialId: m.id,
+      name: m.name,
+      unit: m.unit,
+      quantity: m.quantity,
+      price: null,
+      note: m.note,
+    };
+    setRequestForm((f) => ({ ...f, items: [...f.items, item] }));
+  }
+
+  function addManualRequestItem() {
+    if (!manualItemName.trim()) return;
+    const item: PurchaseItem = {
+      id: crypto.randomUUID(),
+      sourceMaterialId: null,
+      name: manualItemName.trim(),
+      unit: '',
+      quantity: null,
+      price: null,
+      note: '',
+    };
+    setRequestForm((f) => ({ ...f, items: [...f.items, item] }));
+    setManualItemName('');
+  }
+
+  function updateRequestItem(id: string, patch: Partial<PurchaseItem>) {
+    setRequestForm((f) => ({ ...f, items: f.items.map((i) => (i.id === id ? { ...i, ...patch } : i)) }));
+  }
+
+  function removeRequestItem(id: string) {
+    setRequestForm((f) => ({ ...f, items: f.items.filter((i) => i.id !== id) }));
+  }
 
   // Ровно то же условие, что раньше отбирало "Прочие подрядчики" в
   // Contractors.tsx — контакты без занятости (teamTier).
@@ -531,29 +629,38 @@ export function Suppliers() {
 
   function openAddRequest() {
     setEditingRequest(null);
-    setRequestTitle('');
+    setRequestForm(emptyRequestForm);
+    setManualItemName('');
     setRequestError(null);
     setRequestModalOpen(true);
   }
 
   function openEditRequest(r: SupplierRequest) {
     setEditingRequest(r);
-    setRequestTitle(r.title);
+    setRequestForm(requestToForm(r));
+    setManualItemName('');
     setRequestError(null);
     setRequestModalOpen(true);
   }
 
   async function submitRequest(e: React.FormEvent) {
     e.preventDefault();
-    if (!requestTitle.trim() || savingRequest) return;
+    if (!requestForm.title.trim() || savingRequest) return;
     setSavingRequest(true);
     setRequestError(null);
+    const input: SupplierRequestInput = {
+      title: requestForm.title.trim(),
+      estimateId: requestForm.estimateId || null,
+      sectionId: requestForm.sectionId || null,
+      sectionTitle: requestForm.sectionTitle,
+      items: requestForm.items,
+    };
     try {
       if (editingRequest) {
-        const updated = await updateSupplierRequest(editingRequest.id, requestTitle.trim());
+        const updated = await updateSupplierRequest(editingRequest.id, input);
         setRequests((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
       } else {
-        const created = await insertSupplierRequest(requestTitle.trim());
+        const created = await insertSupplierRequest(input);
         setRequests((prev) => [created, ...prev]);
       }
       setRequestModalOpen(false);
@@ -590,6 +697,7 @@ export function Suppliers() {
       name: o.name,
       contactMethod: o.contactMethod,
       contact: o.contact,
+      email: o.email,
       websiteUrl: o.websiteUrl,
       catalogModelName: o.catalogModelName,
       catalogModelPhoto: o.catalogModelPhoto,
@@ -639,6 +747,7 @@ export function Suppliers() {
         name: offerForm.name.trim(),
         contactMethod: offerForm.contactMethod,
         contact: offerForm.contact.trim(),
+        email: offerForm.email.trim(),
         websiteUrl: offerForm.websiteUrl.trim(),
         catalogModelName: offerForm.catalogModelName.trim(),
         catalogModelPhoto: offerForm.catalogModelPhoto,
@@ -780,22 +889,117 @@ export function Suppliers() {
       </div>
       )}
 
-      <Modal open={requestModalOpen} onClose={() => setRequestModalOpen(false)} title={editingRequest ? 'Переименовать запрос' : 'Новый запрос'}>
+      <Modal open={requestModalOpen} onClose={() => setRequestModalOpen(false)} title={editingRequest ? 'Редактировать запрос' : 'Новый запрос'}>
         <form onSubmit={submitRequest} className="flex flex-col gap-4">
           <Input
             label="Название запроса"
             placeholder="Например, Поиск ЦСП-плит"
-            value={requestTitle}
-            onChange={(e) => setRequestTitle(e.target.value)}
+            value={requestForm.title}
+            onChange={(e) => setRequestForm((f) => ({ ...f, title: e.target.value }))}
             required
             autoFocus
           />
+
+          <Select
+            label="Смета"
+            placeholder="Не выбрана"
+            options={estimateOptions.map((o) => o.label)}
+            value={estimateOptions.find((o) => o.id === requestForm.estimateId)?.label ?? ''}
+            onChange={(label) => {
+              const o = estimateOptions.find((x) => x.label === label);
+              setRequestForm((f) => ({ ...f, estimateId: o?.id ?? '', sectionId: '', sectionTitle: '' }));
+            }}
+          />
+
+          {selectedRequestEstimate && (
+            <Select
+              label="Раздел сметы"
+              placeholder="Не выбран"
+              options={selectedRequestEstimate.sections.map((s) => s.title)}
+              value={selectedRequestSection?.title ?? ''}
+              onChange={(title) => {
+                const s = selectedRequestEstimate.sections.find((x) => x.title === title);
+                setRequestForm((f) => ({ ...f, sectionId: s?.id ?? '', sectionTitle: s?.title ?? '' }));
+              }}
+            />
+          )}
+
+          {selectedRequestSection && selectedRequestSection.materials.length > 0 && (
+            <div className="flex flex-col gap-2 rounded-control bg-surface-muted p-3">
+              <span className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                Материалы раздела «{selectedRequestSection.title}»
+              </span>
+              <div className="flex flex-col gap-1.5">
+                {selectedRequestSection.materials.map((m) => {
+                  const added = requestForm.items.some((i) => i.sourceMaterialId === m.id);
+                  return (
+                    <div key={m.id} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="text-ink">
+                        {m.name}
+                        {m.unit && (
+                          <span className="text-ink-faint">
+                            {' '}
+                            · {m.quantity ?? '—'} {m.unit}
+                          </span>
+                        )}
+                      </span>
+                      <Button type="button" variant="secondary" disabled={added} onClick={() => addMaterialToRequestItems(m)}>
+                        {added ? 'Добавлено' : 'Добавить'}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2">
+            <span className="text-sm text-ink-muted">Что просим оценить у поставщиков</span>
+            {requestForm.items.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                {requestForm.items.map((item) => (
+                  <div key={item.id} className="flex items-center gap-2 rounded-control border border-border px-3 py-2 text-sm">
+                    <span className="flex-1 text-ink">{item.name}</span>
+                    <input
+                      type="number"
+                      placeholder="Кол-во"
+                      value={item.quantity ?? ''}
+                      onChange={(e) =>
+                        updateRequestItem(item.id, { quantity: e.target.value === '' ? null : Number(e.target.value) })
+                      }
+                      className="w-20 rounded-control border border-border bg-surface px-2 py-1 text-right text-sm outline-none focus:border-primary"
+                    />
+                    {item.unit && <span className="w-12 text-ink-faint">{item.unit}</span>}
+                    <button
+                      type="button"
+                      onClick={() => removeRequestItem(item.id)}
+                      aria-label="Удалить позицию"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-danger"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Input
+                placeholder="Добавить позицию вручную"
+                value={manualItemName}
+                onChange={(e) => setManualItemName(e.target.value)}
+              />
+              <Button type="button" variant="secondary" onClick={addManualRequestItem} disabled={!manualItemName.trim()}>
+                Добавить
+              </Button>
+            </div>
+          </div>
+
           {requestError && <p className="text-sm text-danger">{requestError}</p>}
           <div className="mt-2 flex justify-end gap-3">
             <Button type="button" variant="secondary" onClick={() => setRequestModalOpen(false)}>
               Отмена
             </Button>
-            <Button type="submit" disabled={!requestTitle.trim() || savingRequest}>
+            <Button type="submit" disabled={!requestForm.title.trim() || savingRequest}>
               {savingRequest ? 'Сохраняем...' : editingRequest ? 'Сохранить' : 'Создать'}
             </Button>
           </div>
@@ -828,6 +1032,14 @@ export function Suppliers() {
               />
             </div>
           </div>
+
+          <Input
+            label="Email"
+            placeholder="mail@example.com"
+            type="email"
+            value={offerForm.email}
+            onChange={(e) => setOfferForm((f) => ({ ...f, email: e.target.value }))}
+          />
 
           <Input
             label="Адрес сайта"

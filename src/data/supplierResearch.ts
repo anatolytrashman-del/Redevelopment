@@ -1,5 +1,6 @@
 import type { Currency } from './transactions';
 import type { DocumentFile } from './contractorDocuments';
+import type { PurchaseItem } from './purchases';
 import { RESEARCH_CURRENCIES, RESEARCH_CONTACT_METHODS, type ResearchContactMethod } from './contractorResearch';
 
 // Валюты/способы связи — те же самые списки, что и у "Подрядчики → Ресерч"
@@ -16,15 +17,33 @@ export type { ResearchContactMethod };
 // поэтому у предложения дополнительно есть ссылка на сайт, карточка модели
 // в каталоге (название+фото), статус переговоров (свободный текст,
 // владелец вводит вручную) и место для файлов (счета, спецификации и т.п.).
+//
+// Владелец, 2026-08-29: "получим от строителя список материалов... ещё не
+// знаем, у кого закупать, поэтому сначала ресерч, потом рассылка писем,
+// после ответов — сравнение цен". items — то, что мы просим поставщиков
+// оценить (не у каждого предложения свой список — один и тот же список
+// материалов уходит всем в письме одного запроса). Переиспользован тип
+// PurchaseItem из data/purchases.ts — тот же смысл (снимок материала на
+// момент добавления, с опциональной ссылкой sourceMaterialId на
+// EstimateMaterial), просто здесь price/note не обязательны к заполнению —
+// на этапе ресерча цену как раз узнаём у поставщиков, а не фиксируем сами.
 export interface SupplierRequest {
   id: string;
   title: string;
+  estimateId: string | null;
+  sectionId: string | null;
+  sectionTitle: string;
+  items: PurchaseItem[];
   createdAt: string;
 }
 
 export interface SupplierRequestRow {
   id: string;
   title: string;
+  estimate_id: string | null;
+  section_id: string | null;
+  section_title: string | null;
+  items: PurchaseItem[] | null;
   created_at: string;
 }
 
@@ -34,6 +53,10 @@ export interface SupplierOffer {
   name: string;
   contact: string;
   contactMethod: ResearchContactMethod;
+  // Отдельно от contact — тот же принцип, что у Contractor.email:
+  // contact/contactMethod могут быть телефоном/телеграмом, а письмо всегда
+  // уходит именно на email, если он указан (см. api/supplier-offer-send-email.js).
+  email: string;
   websiteUrl: string;
   catalogModelName: string;
   catalogModelPhoto: DocumentFile | null;
@@ -52,6 +75,7 @@ export interface SupplierOfferRow {
   name: string;
   contact: string;
   contact_method: string;
+  email: string | null;
   website_url: string;
   catalog_model_name: string;
   catalog_model_photo: DocumentFile | null;
@@ -62,4 +86,15 @@ export interface SupplierOfferRow {
   requirements: string;
   files: DocumentFile[] | null;
   created_at: string;
+}
+
+// Email-адрес для переписки по конкретному предложению — тот же принцип
+// plus-адресации, что и у purchaseEmailAddress (data/purchases.ts): ответ
+// поставщика матчится на сервере по id предложения в локальной части, без
+// отдельного ящика на каждое предложение. research+, а не zakupki+ — чтобы
+// сервер мог отличить, в какую таблицу (purchase_emails или
+// supplier_offer_emails) класть входящее письмо, см.
+// api/supplier-offer-email-webhook.js.
+export function supplierOfferEmailAddress(offerId: string): string {
+  return `research+${offerId}@redevelopment.pro`;
 }
