@@ -76,11 +76,7 @@ function contractorToForm(c: Contractor) {
 const TABS = ['Команда', 'Ресерч'] as const;
 type Tab = (typeof TABS)[number];
 
-// embedded=true — рендер внутри "Подрядчики и закупки → Работы" (см.
-// WorkAndSupplies.tsx), без собственного PageHeader (у объединяющей
-// страницы уже есть свой). Кнопка "Добавить подрядчика" в этом случае
-// переезжает в обычный ряд над вкладками, а не в шапку.
-export function Contractors({ embedded = false }: { embedded?: boolean } = {}) {
+export function Contractors() {
   const [tab, setTab] = useState<Tab>('Команда');
   const [contractors, setContractors] = useState<Contractor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -309,11 +305,7 @@ export function Contractors({ embedded = false }: { embedded?: boolean } = {}) {
 
   return (
     <>
-      {embedded ? (
-        addButton && <div className="mb-2 flex justify-end">{addButton}</div>
-      ) : (
-        <PageHeader title="Подрядчики" action={addButton} />
-      )}
+      <PageHeader title="Команда" action={addButton} />
 
       <ToggleGroup options={[...TABS]} value={tab} onChange={(v) => setTab(v as Tab)} />
 

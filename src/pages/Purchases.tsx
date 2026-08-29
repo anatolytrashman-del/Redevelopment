@@ -80,8 +80,8 @@ export interface PurchaseDraft {
   currency: Currency;
 }
 
-// embedded=true — рендер внутри "Подрядчики и закупки → Материалы → Закупки"
-// (см. Suppliers.tsx/WorkAndSupplies.tsx), без собственного PageHeader.
+// embedded=true — рендер внутри страницы "Закупки" (см. Suppliers.tsx,
+// вкладка "Закупки"), без собственного PageHeader.
 // initialDraft — открыть форму добавления сразу заполненной этим черновиком
 // (переход "Создать закупку" из Ресерча); onDraftConsumed сообщает
 // родителю, что черновик подхвачен и можно его забыть (иначе форма

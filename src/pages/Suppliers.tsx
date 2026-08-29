@@ -84,13 +84,10 @@ function siteLabel(url: string): string {
   }
 }
 
-// "Закупки" — третья вкладка, добавлена при слиянии Подрядчики/Поставщики/
-// Закупки в одну страницу "Подрядчики и закупки" (владелец, 2026-08-29:
-// "саму идею закупок и подрядчиков можно перемещать на одну страницу,
-// просто разные вкладки — Работы и Материалы"). Содержимое — тот же
-// компонент Purchases, что раньше жил на отдельной странице/маршруте
-// /admin/purchases (см. WorkAndSupplies.tsx — старый маршрут теперь
-// редиректит сюда).
+// "Закупки" — третья вкладка этой же страницы (владелец, 2026-08-29:
+// "всё остальное — это страница Закупки в стройке"). Содержимое — тот же
+// компонент Purchases, встроенный сюда как embedded (свой PageHeader
+// скрыт, кнопка "Добавить закупку" рендерится внутри вкладки).
 const SUPPLIER_TABS = ['Каталог', 'Ресерч', 'Закупки'] as const;
 type SupplierTab = (typeof SUPPLIER_TABS)[number];
 
@@ -412,9 +409,12 @@ function RequestCard({
   );
 }
 
-// embedded=true — рендер внутри "Подрядчики и закупки → Материалы" (см.
-// WorkAndSupplies.tsx), без собственного PageHeader.
-export function Suppliers({ embedded = false }: { embedded?: boolean } = {}) {
+// Владелец, 2026-08-29: "это страница Закупки в стройке" — Каталог
+// поставщиков/Ресерч/Закупки вместе на одной странице (компонент и файл
+// по историческим причинам называется Suppliers — не переименовывал,
+// чтобы не гонять лишний диф ради имени; название страницы для
+// пользователя задаётся через PageHeader/data/pages.ts).
+export function Suppliers() {
   const [tab, setTab] = useState<SupplierTab>('Каталог');
 
   // Каталог — те же карточки-компании, что раньше были "Прочие подрядчики"
@@ -862,11 +862,7 @@ export function Suppliers({ embedded = false }: { embedded?: boolean } = {}) {
 
   return (
     <>
-      {embedded ? (
-        supplierAddButton && <div className="mb-2 flex justify-end">{supplierAddButton}</div>
-      ) : (
-        <PageHeader title="Поставщики" action={supplierAddButton} />
-      )}
+      <PageHeader title="Закупки" action={supplierAddButton} />
 
       <ToggleGroup options={[...SUPPLIER_TABS]} value={tab} onChange={(v) => setTab(v as SupplierTab)} />
 
