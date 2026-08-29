@@ -1,6 +1,17 @@
-// Vercel serverless function: приём входящих писем поставщиков через Resend
-// Inbound Webhook. Домен/MX/webhook уже настроены владельцем (2026-08-28,
-// см. журнал CLAUDE.md) — этот эндпоинт зарегистрирован в кабинете Resend.
+// Vercel serverless function: приём входящих писем через Resend Inbound
+// Webhook. Домен/MX/webhook уже настроены владельцем (2026-08-28, см.
+// журнал CLAUDE.md) — этот эндпоинт зарегистрирован в кабинете Resend как
+// единственный обработчик входящей почты на домене.
+//
+// Несмотря на название файла (осталось от первой версии — переименовывать
+// не стали, чтобы не заставлять владельца ещё раз лезть в кабинет Resend и
+// менять зарегистрированный URL), обрабатывает ДВА разных случая по
+// префиксу адреса в "to": zakupki+<purchaseId>@ — переписка по закупке
+// (purchase_emails), research+<offerId>@ — переписка по предложению в
+// Ресерче поставщиков, ещё до того как оно превратилось в закупку
+// (supplier_offer_emails). Resend не даёт настроить доставку webhook по
+// конкретному адресу получателя — сюда прилетает вообще любое входящее
+// письмо на домене, дальше уже сами решаем, что с ним делать.
 //
 // Resend подписывает вебхуки по протоколу Svix (заголовки svix-id/
 // svix-timestamp/svix-signature, HMAC-SHA256 от "id.timestamp.тело" на
@@ -66,13 +77,14 @@ function verifyResendSignature(rawBody, headers, secret) {
     });
 }
 
-function extractPurchaseId(toAddress) {
-  const match = String(toAddress || '').match(/zakupki\+([0-9a-f-]{36})@/i);
+function extractId(toAddress, prefix) {
+  const re = new RegExp(`${prefix}\\+([0-9a-f-]{36})@`, 'i');
+  const match = String(toAddress || '').match(re);
   return match ? match[1] : null;
 }
 
-async function insertEmailRow(payload) {
-  const resp = await fetch(`${process.env.SUPABASE_URL}/rest/v1/purchase_emails`, {
+async function insertEmailRow(table, payload) {
+  const resp = await fetch(`${process.env.SUPABASE_URL}/rest/v1/${table}`, {
     method: 'POST',
     headers: {
       apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -120,26 +132,40 @@ export default async function handler(req, res) {
     const subject = data.subject ?? '';
     const body = data.text ?? data.html ?? '';
 
-    const purchaseId = extractPurchaseId(toAddress);
-    if (!purchaseId) {
-      // Письмо не на наш plus-адрес закупки — не наша забота, но и не ошибка
-      // самого вебхука (Resend не должен ретраить бесконечно).
+    const purchaseId = extractId(toAddress, 'zakupki');
+    const offerId = purchaseId ? null : extractId(toAddress, 'research');
+
+    if (!purchaseId && !offerId) {
+      // Письмо не на наш plus-адрес (ни закупка, ни предложение) — не наша
+      // забота, но и не ошибка самого вебхука (Resend не должен ретраить
+      // бесконечно).
       res.status(200).json({ skipped: true });
       return;
     }
 
     const files = await extractEmailAttachments(data);
 
-    const row = await insertEmailRow({
-      purchase_id: purchaseId,
-      direction: 'in',
-      from_address: fromAddress,
-      to_address: toAddress || '',
-      subject,
-      body,
-      files,
-      resend_message_id: data.email_id ?? data.id ?? null,
-    });
+    const row = purchaseId
+      ? await insertEmailRow('purchase_emails', {
+          purchase_id: purchaseId,
+          direction: 'in',
+          from_address: fromAddress,
+          to_address: toAddress || '',
+          subject,
+          body,
+          files,
+          resend_message_id: data.email_id ?? data.id ?? null,
+        })
+      : await insertEmailRow('supplier_offer_emails', {
+          offer_id: offerId,
+          direction: 'in',
+          from_address: fromAddress,
+          to_address: toAddress || '',
+          subject,
+          body,
+          files,
+          resend_message_id: data.email_id ?? data.id ?? null,
+        });
 
     res.status(200).json({ email: row });
   } catch (err) {

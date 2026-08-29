@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Trash2, Pencil, Send, Phone, Globe, Paperclip, Upload, X, ImageOff } from 'lucide-react';
+import { Plus, Loader2, Trash2, Pencil, Send, Phone, Globe, Paperclip, Upload, X, ImageOff, Mail } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -36,7 +36,10 @@ import {
   type ResearchContactMethod,
   type SupplierRequest,
   type SupplierOffer,
+  supplierOfferEmailAddress,
 } from '../data/supplierResearch';
+import type { SupplierOfferEmail } from '../data/supplierOfferEmails';
+import { fetchSupplierOfferEmails, sendSupplierOfferEmail } from '../lib/supplierOfferEmailsApi';
 import {
   fetchSupplierRequests,
   insertSupplierRequest,
@@ -182,6 +185,7 @@ function RequestCard({
   onAddOffer,
   onEditOffer,
   onDeleteOffer,
+  onEmailOffer,
   deletingOfferId,
 }: {
   request: SupplierRequest;
@@ -192,6 +196,7 @@ function RequestCard({
   onAddOffer: (requestId: string) => void;
   onEditOffer: (o: SupplierOffer) => void;
   onDeleteOffer: (o: SupplierOffer) => void;
+  onEmailOffer: (o: SupplierOffer) => void;
   deletingOfferId: string | null;
 }) {
   const { sorted, cheapestIds } = rankOffers(offers, rate);
@@ -352,6 +357,14 @@ function RequestCard({
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
+                          onClick={() => onEmailOffer(o)}
+                          aria-label="Переписка по email"
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-primary"
+                        >
+                          <Mail className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => onEditOffer(o)}
                           aria-label="Редактировать предложение"
                           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-primary"
@@ -422,6 +435,7 @@ export function Suppliers() {
   const [offerError, setOfferError] = useState<string | null>(null);
   const [deletingOfferId, setDeletingOfferId] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [emailOfferId, setEmailOfferId] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([fetchSupplierRequests(), fetchSupplierOffers()])
@@ -873,6 +887,7 @@ export function Suppliers() {
               onAddOffer={openAddOffer}
               onEditOffer={openEditOffer}
               onDeleteOffer={handleDeleteOffer}
+              onEmailOffer={(o) => setEmailOfferId(o.id)}
               deletingOfferId={deletingOfferId}
             />
           ))}
@@ -1314,6 +1329,123 @@ export function Suppliers() {
       </Modal>
 
       <ContractorDetailModal contractor={catalogDetail} onClose={() => setCatalogDetailId(null)} onEdit={openEditCatalog} />
+
+      {emailOfferId &&
+        (() => {
+          const offer = offers.find((o) => o.id === emailOfferId);
+          return offer ? <OfferEmailModal offer={offer} onClose={() => setEmailOfferId(null)} /> : null;
+        })()}
     </>
+  );
+}
+
+function OfferEmailModal({ offer, onClose }: { offer: SupplierOffer; onClose: () => void }) {
+  const [emails, setEmails] = useState<SupplierOfferEmail[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [subject, setSubject] = useState(`Запрос цены: ${offer.name}`);
+  const [body, setBody] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchSupplierOfferEmails(offer.id)
+      .then(setEmails)
+      .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить переписку')));
+  }, [offer.id]);
+
+  async function handleSend() {
+    if (!offer.email || !body.trim() || sending) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      const email = await sendSupplierOfferEmail({ offerId: offer.id, toAddress: offer.email, subject, body });
+      setEmails((prev) => [...(prev ?? []), email]);
+      setBody('');
+    } catch (err) {
+      setSendError(errorMessage(err, 'Не удалось отправить письмо'));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title={offer.name}>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1 text-sm text-ink-muted">
+          <span>Email: {offer.email || 'не указан'}</span>
+          <span>Адрес для переписки: {supplierOfferEmailAddress(offer.id)}</span>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-semibold text-ink">Переписка</span>
+          {emails === null && !loadError && (
+            <div className="flex items-center gap-2 text-sm text-ink-faint">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Загрузка...
+            </div>
+          )}
+          {loadError && <p className="text-sm text-danger">{loadError}</p>}
+          {emails && emails.length === 0 && <p className="text-sm text-ink-faint">Писем пока нет.</p>}
+          {emails && emails.length > 0 && (
+            <div className="flex flex-col gap-2">
+              {emails.map((e) => (
+                <div
+                  key={e.id}
+                  className={cn(
+                    'flex flex-col gap-1 rounded-control p-3 text-sm',
+                    e.direction === 'out' ? 'ml-6 bg-primary-soft' : 'mr-6 bg-surface-muted',
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2 text-xs text-ink-faint">
+                    <span className="flex items-center gap-1">
+                      <Mail className="h-3 w-3" />
+                      {e.direction === 'out' ? 'Отправлено' : 'Получено'}
+                    </span>
+                    <span>{new Date(e.createdAt).toLocaleString('ru-RU')}</span>
+                  </div>
+                  {e.subject && <div className="font-semibold text-ink">{e.subject}</div>}
+                  <div className="whitespace-pre-wrap text-ink">{e.body}</div>
+                  {e.files.length > 0 && (
+                    <div className="mt-1 flex flex-col gap-1">
+                      {e.files.map((f, i) => (
+                        <a
+                          key={i}
+                          href={f.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1.5 rounded-control border border-border bg-surface px-2.5 py-1.5 text-xs text-primary hover:underline"
+                        >
+                          <Paperclip className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
+                          <span className="min-w-0 flex-1 truncate">{f.fileName}</span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {!offer.email ? (
+          <p className="text-sm text-ink-faint">У предложения не указан email — добавьте его через «Редактировать», чтобы писать отсюда.</p>
+        ) : (
+          <div className="flex flex-col gap-2 border-t border-border pt-3">
+            <Input label="Тема" value={subject} onChange={(e) => setSubject(e.target.value)} />
+            <Textarea label="Сообщение" rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
+            {sendError && <p className="text-sm text-danger">{sendError}</p>}
+            <Button
+              type="button"
+              icon={<Send className="h-4 w-4" />}
+              className="w-fit self-end"
+              onClick={handleSend}
+              disabled={!body.trim() || sending}
+            >
+              {sending ? 'Отправляем...' : 'Отправить'}
+            </Button>
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }
