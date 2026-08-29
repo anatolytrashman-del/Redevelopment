@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Trash2, Pencil, Send, Phone, Globe, Paperclip, Upload, X, ImageOff, Mail } from 'lucide-react';
+import { Plus, Loader2, Trash2, Pencil, Send, Phone, Globe, Paperclip, Upload, X, ImageOff, Mail, ShoppingCart } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -57,7 +57,7 @@ import type { Estimate, EstimateMaterial } from '../data/estimates';
 import { fetchEstimates } from '../lib/estimatesApi';
 import type { RealtyObject } from '../data/objects';
 import { fetchObjects } from '../lib/objectsApi';
-import { Purchases } from './Purchases';
+import { Purchases, type PurchaseDraft } from './Purchases';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -194,6 +194,7 @@ function RequestCard({
   onEditOffer,
   onDeleteOffer,
   onEmailOffer,
+  onCreatePurchase,
   deletingOfferId,
 }: {
   request: SupplierRequest;
@@ -205,6 +206,7 @@ function RequestCard({
   onEditOffer: (o: SupplierOffer) => void;
   onDeleteOffer: (o: SupplierOffer) => void;
   onEmailOffer: (o: SupplierOffer) => void;
+  onCreatePurchase: (o: SupplierOffer) => void;
   deletingOfferId: string | null;
 }) {
   const { sorted, cheapestIds } = rankOffers(offers, rate);
@@ -365,6 +367,15 @@ function RequestCard({
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
+                          onClick={() => onCreatePurchase(o)}
+                          aria-label="Создать закупку"
+                          title="Создать закупку"
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-success"
+                        >
+                          <ShoppingCart className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => onEmailOffer(o)}
                           aria-label="Переписка по email"
                           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-primary"
@@ -446,6 +457,31 @@ export function Suppliers({ embedded = false }: { embedded?: boolean } = {}) {
   const [deletingOfferId, setDeletingOfferId] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [emailOfferId, setEmailOfferId] = useState<string | null>(null);
+  const [purchaseDraft, setPurchaseDraft] = useState<PurchaseDraft | null>(null);
+
+  // "Создать закупку" из выигравшего предложения (владелец, 2026-08-29:
+  // "у победителя жмёте «Создать закупку» — открывается форма Закупки, уже
+  // с этим поставщиком и материалами из этого же раздела сметы"). Материалы
+  // берём из запроса (SupplierRequest.items — общий список для всех
+  // предложений этого запроса), поставщика пытаемся сматчить по email с
+  // уже существующим в каталоге (supplierContractors) — если такого нет,
+  // оставляем поле пустым, сотрудник выберет/добавит сам.
+  function handleCreatePurchase(offer: SupplierOffer) {
+    const request = requests.find((r) => r.id === offer.requestId);
+    const matchedContractor = offer.email
+      ? supplierContractors.find((c) => c.email && c.email.toLowerCase() === offer.email.toLowerCase())
+      : undefined;
+    setPurchaseDraft({
+      title: request?.title || offer.name,
+      contractorId: matchedContractor?.id ?? null,
+      estimateId: request?.estimateId ?? null,
+      sectionId: request?.sectionId ?? null,
+      sectionTitle: request?.sectionTitle ?? '',
+      items: (request?.items ?? []).map((i) => ({ ...i, id: crypto.randomUUID() })),
+      currency: offer.currency,
+    });
+    setTab('Закупки');
+  }
 
   useEffect(() => {
     Promise.all([fetchSupplierRequests(), fetchSupplierOffers()])
@@ -903,6 +939,7 @@ export function Suppliers({ embedded = false }: { embedded?: boolean } = {}) {
               onEditOffer={openEditOffer}
               onDeleteOffer={handleDeleteOffer}
               onEmailOffer={(o) => setEmailOfferId(o.id)}
+              onCreatePurchase={handleCreatePurchase}
               deletingOfferId={deletingOfferId}
             />
           ))}
@@ -921,7 +958,7 @@ export function Suppliers({ embedded = false }: { embedded?: boolean } = {}) {
 
       {tab === 'Закупки' && (
         <div className="mt-6">
-          <Purchases embedded />
+          <Purchases embedded initialDraft={purchaseDraft} onDraftConsumed={() => setPurchaseDraft(null)} />
         </div>
       )}
 

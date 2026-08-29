@@ -67,9 +67,34 @@ function purchaseToForm(p: Purchase) {
   };
 }
 
+// Черновик новой закупки, приходящий из победившего предложения в
+// Ресерче поставщиков ("Создать закупку" — см. Suppliers.tsx) — тот же
+// набор полей, что и у формы, просто с известными исходными значениями.
+export interface PurchaseDraft {
+  title: string;
+  contractorId: string | null;
+  estimateId: string | null;
+  sectionId: string | null;
+  sectionTitle: string;
+  items: PurchaseItem[];
+  currency: Currency;
+}
+
 // embedded=true — рендер внутри "Подрядчики и закупки → Материалы → Закупки"
 // (см. Suppliers.tsx/WorkAndSupplies.tsx), без собственного PageHeader.
-export function Purchases({ embedded = false }: { embedded?: boolean } = {}) {
+// initialDraft — открыть форму добавления сразу заполненной этим черновиком
+// (переход "Создать закупку" из Ресерча); onDraftConsumed сообщает
+// родителю, что черновик подхвачен и можно его забыть (иначе форма
+// переоткрывалась бы заново на каждый ре-рендер).
+export function Purchases({
+  embedded = false,
+  initialDraft = null,
+  onDraftConsumed,
+}: {
+  embedded?: boolean;
+  initialDraft?: PurchaseDraft | null;
+  onDraftConsumed?: () => void;
+} = {}) {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [contractors, setContractors] = useState<Contractor[]>([]);
   const [estimates, setEstimates] = useState<Estimate[]>([]);
@@ -98,6 +123,26 @@ export function Purchases({ embedded = false }: { embedded?: boolean } = {}) {
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить закупки')))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!initialDraft) return;
+    setEditingId(null);
+    setForm({
+      title: initialDraft.title,
+      status: purchaseStatuses[0] as string,
+      contractorId: initialDraft.contractorId ?? '',
+      estimateId: initialDraft.estimateId ?? '',
+      sectionId: initialDraft.sectionId ?? '',
+      sectionTitle: initialDraft.sectionTitle,
+      items: initialDraft.items,
+      currency: initialDraft.currency,
+    });
+    setFormError(null);
+    setManualItemName('');
+    setModalOpen(true);
+    onDraftConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDraft]);
 
   // Тот же список, что и вкладка "Каталог" на странице Suppliers.tsx —
   // отдельный справочник поставщиков заводить не стали, contractors без
