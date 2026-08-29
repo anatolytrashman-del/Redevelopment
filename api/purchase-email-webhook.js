@@ -19,6 +19,7 @@
 // разбор под фактический payload.
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { extractEmailAttachments } from './_attachments.js';
 
 export const config = {
   api: {
@@ -127,6 +128,8 @@ export default async function handler(req, res) {
       return;
     }
 
+    const files = await extractEmailAttachments(data);
+
     const row = await insertEmailRow({
       purchase_id: purchaseId,
       direction: 'in',
@@ -134,6 +137,7 @@ export default async function handler(req, res) {
       to_address: toAddress || '',
       subject,
       body,
+      files,
       resend_message_id: data.email_id ?? data.id ?? null,
     });
 

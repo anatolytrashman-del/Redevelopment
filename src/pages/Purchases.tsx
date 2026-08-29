@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Trash2, Pencil, Send, Mail } from 'lucide-react';
+import { Plus, Loader2, Trash2, Pencil, Send, Mail, Paperclip } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -539,6 +539,22 @@ function PurchaseDetailModal({
                   </div>
                   {e.subject && <div className="font-semibold text-ink">{e.subject}</div>}
                   <div className="whitespace-pre-wrap text-ink">{e.body}</div>
+                  {e.files.length > 0 && (
+                    <div className="mt-1 flex flex-col gap-1">
+                      {e.files.map((f, i) => (
+                        <a
+                          key={i}
+                          href={f.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1.5 rounded-control border border-border bg-surface px-2.5 py-1.5 text-xs text-primary hover:underline"
+                        >
+                          <Paperclip className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
+                          <span className="min-w-0 flex-1 truncate">{f.fileName}</span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

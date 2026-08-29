@@ -12,6 +12,7 @@ function fromRow(row: PurchaseEmailRow): PurchaseEmail {
     toAddress: row.to_address,
     subject: row.subject ?? '',
     body: row.body ?? '',
+    files: row.files ?? [],
     resendMessageId: row.resend_message_id,
     createdAt: row.created_at,
   };
