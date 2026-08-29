@@ -32,7 +32,7 @@ const CLOSED = [
   'generated_documents', 'lead_notes', 'legal_documents', 'legal_entities',
   'legal_entity_tax_declarations', 'market_offer_dedup_dismissals', 'moodboards',
   'people', 'pledges', 'supplier_research_offers', 'supplier_research_requests',
-  'tasks', 'transaction_comments', 'transactions',
+  'tasks', 'transaction_comments', 'transactions', 'purchases', 'purchase_emails',
   // leads: anon без прямого доступа к таблице вообще (ни select, ни insert) —
   // публичное бронирование идёт через RPC create_public_lead, см. ниже.
   'leads',
