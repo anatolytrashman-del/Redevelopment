@@ -189,6 +189,52 @@ curl -sS -X POST "https://api.supabase.com/v1/projects/iohcdylttyuhwovztrbk/data
 Хронологический список, что уже сделано — не дублировать работу, не переспрашивать то,
 что уже решено. Дополнять новыми записями сверху, старые не переписывать.
 
+- **2026-08-28 — P0.3 аудита безопасности: авторизация serverless-функций
+  (`api/*.js`).** Продолжение P0.1+P0.2 (Auth+RLS) из этой же сессии —
+  теперь, когда есть настоящий Supabase Auth, можно требовать сессию
+  сотрудника на функциях, которые раньше не проверяли вызывающего вообще.
+  Новый `api/_auth.js` — `requireStaffAuth(req, res)`, проверяет JWT из
+  `Authorization: Bearer` через `GET {SUPABASE_URL}/auth/v1/user` (anon-
+  ключ, не секрет), при неудаче сама шлёт 401 и возвращает `null` —
+  вызывающему достаточно `if (!user) return;` сразу после вызова. Требуют
+  вход: `summarize-meeting`, `suggest-tasks`, `transcribe-start`,
+  `transcribe-poll`, `generate-document`, `trigger-rebuild`,
+  `telegram-avatar`. Остаются публичными по своей природе (вызывает
+  покупатель/публичная страница без входа) — `agreement-otp-request`,
+  `agreement-otp-verify`, `exchange-rate`, их не трогал.
+  Клиент: новый `src/lib/authFetch.ts` — обёртка над `fetch`, добавляет
+  `Authorization: Bearer <session.access_token>` текущей Supabase Auth
+  сессии. 4 файла переведены с прямого `fetch` на `authFetch`:
+  `meetingTranscribeApi.ts` (все 4 вызова — start/poll/suggest-tasks/
+  summarize), `objectsApi.ts` (`triggerPublicRebuild`), `telegramAvatarApi.ts`,
+  `generateDocumentApi.ts`.
+  `trigger-rebuild.js` заодно получил дебаунс (P0.3 документа аудита
+  явно просил это отдельным пунктом) — не чаще одной пересборки прода за
+  5 минут, даже если сохранили несколько объектов подряд за одну правку.
+  Новая таблица `deploy_debounce` (id/triggered_at, RLS включён БЕЗ единой
+  политики — доступна только service_role, никому больше даже читать
+  нечего) хранит метку последнего срабатывания; отметка ставится ДО вызова
+  Deploy Hook, не после — минимизирует (не гарантирует абсолютно, не
+  транзакция) окно гонки при двух почти одновременных сохранениях.
+  **Проверено:** сама проверка токена — живым curl на реальный
+  `/auth/v1/user` (без токена/мусорный токен → 403, реальный токен
+  Трэшмена, полученный через `signInWithPassword` → 200, тот же приём, что
+  и в проверке P0.1/P0.2); upsert-логика дебаунса — вживую на
+  `deploy_debounce` (`Prefer: resolution=merge-duplicates`, повторное
+  чтение отдаёт записанное значение); `scripts/audit-rls.mjs` дополнен
+  `deploy_debounce` (46 таблиц теперь), зелёный; `tsc -b`/`vite build`
+  чистые. Сами `api/*.js`-функции целиком (весь HTTP-хендлер) вживую не
+  прогнать — исполняются только на Vercel, не в Vite dev-сервере песочницы;
+  первая проверка реального 401/200 через сам эндпоинт — на проде.
+  Задеплоено в `claude/redevelopment-platform-prototype-oodobu` сразу же
+  (владелец подтвердил явно, отдельно от исходного разрешения на
+  P0.1+P0.2 — это независимая правка с собственным риском, не немой
+  довесок к уже одобренному).
+  **Не сделано из документа:** P0.5 (gitleaks по истории git + ротация
+  ключей, раздел "модель безопасности" в README), P1 (тесты на
+  `finModelCalc`/`currencyConvert`, CI с `audit-rls.mjs`, Sentry), P2
+  (распил больших файлов, `docs/`, `npm audit`) — следующие заходы.
+
 - **2026-08-28 — P0.1+P0.2 аудита безопасности: Supabase Auth вместо
   PasswordGate + пересбор RLS на всех 43 таблицах.** Продолжение записи про
   P0.4 (OTP) от этой же сессии — самый крупный кусок аудита, сделан
