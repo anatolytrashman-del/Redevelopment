@@ -8,7 +8,7 @@ import { fetchLeadsUnreadCount } from '../../lib/leadsApi';
 import { getLeadsLastViewedAt, onLeadsViewed } from '../../lib/leadsSeen';
 import { fetchContractorsWithBirthdayToday } from '../../lib/contractorsApi';
 import { SIDEBAR_LAYOUT, findPage } from '../../data/pages';
-import { getCurrentProfile, isPageAllowed, lockAccess } from '../../lib/accessProfile';
+import { getCurrentProfile, isPageAllowed, signOutAndClearCache } from '../../lib/accessProfile';
 
 const backlogPage = findPage('backlog');
 
@@ -80,8 +80,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     return () => window.removeEventListener('focus', refresh);
   }, [contractorsAllowed]);
 
-  function handleLogout() {
-    lockAccess();
+  async function handleLogout() {
+    await signOutAndClearCache();
     window.location.href = '/admin';
   }
 

@@ -22,7 +22,7 @@ import {
 } from '../../data/buildingPlans';
 import type { RealtyObject } from '../../data/objects';
 import { NEW_BOOKING_LEAD_STATUS } from '../../data/leads';
-import { insertLead } from '../../lib/leadsApi';
+import { insertPublicLead } from '../../lib/leadsApi';
 import { updateZone } from '../../lib/buildingPlansApi';
 import { insertWorkstationSeatLead } from '../../lib/workstationSeatLeadsApi';
 import { cn } from '../../lib/cn';
@@ -214,7 +214,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
       ]
         .filter(Boolean)
         .join('\n\n');
-      const lead = await insertLead({
+      const leadId = await insertPublicLead({
         name: bookingForm.name.trim(),
         source: 'Сайт',
         businessType: '',
@@ -239,7 +239,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
             workstationsSold: selectedZone.workstationsSold + 1,
             status: selectedZone.workstationsSold + 1 >= (selectedZone.workstationCount as number) ? 'Продано' : 'Свободно',
           })
-        : await updateZone(selectedZone.id, { status: 'Забронировано', leadId: lead.id });
+        : await updateZone(selectedZone.id, { status: 'Забронировано', leadId });
       // Привязка конкретного лида к конкретному месту — отдельная таблица,
       // потому что у одной зоны может быть до workstationCount разных лидов
       // (в отличие от обычного кабинета, где zone.leadId — один на всех).
@@ -248,7 +248,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
       // занятое место без лида, который его на самом деле занял.
       if (bookingWorkstation) {
         try {
-          await insertWorkstationSeatLead({ zoneId: selectedZone.id, leadId: lead.id });
+          await insertWorkstationSeatLead({ zoneId: selectedZone.id, leadId });
         } catch (seatErr) {
           await updateZone(selectedZone.id, {
             workstationsSold: selectedZone.workstationsSold,
@@ -259,7 +259,7 @@ export function PublicPlanAndUnits({ object, plans, zones, onZoneUpdated, glass 
       }
       setSelectedZone(updatedZone);
       onZoneUpdated(updatedZone);
-      setBookedLeadId(lead.id);
+      setBookedLeadId(leadId);
       setBookingDone(true);
     } catch (err) {
       setBookingError(errorMessage(err, 'Не удалось отправить заявку'));

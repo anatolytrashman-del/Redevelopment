@@ -1,15 +1,18 @@
 import type { PageKey } from './pages';
 
-// Профили доступа — вместо одного общего пароля админки (см.
-// PasswordGate.tsx) несколько: у каждого свой пароль и свой список
-// открытых страниц. Пароли — не полноценная авторизация (см. предупреждение
-// в PasswordGate.tsx), тот же уровень защиты, что и раньше, просто на
-// несколько "дверей" вместо одной. Живут в таблице access_profiles
-// (см. lib/accessProfilesApi.ts) — редактируются прямо из /admin/settings,
-// без правки кода и деплоя.
+// Профили доступа — привязаны к настоящему Supabase Auth пользователю
+// (см. PasswordGate.tsx, вход через supabase.auth.signInWithPassword).
+// У каждого свой список открытых страниц. Аккаунты заводятся вручную через
+// Supabase Auth Admin API (не из этой формы — /admin/settings редактирует
+// только display_name/pages для УЖЕ существующего аккаунта, создать новый
+// логин отсюда нельзя, см. комментарий в lib/accessProfilesApi.ts). Живут
+// в таблице access_profiles — редактируются прямо из /admin/settings, без
+// правки кода и деплоя.
 export interface AccessProfile {
   id: string;
-  password: string;
+  // auth.users.id — по нему PasswordGate находит "свой" профиль после
+  // входа (см. getCurrentProfile в lib/accessProfile.ts).
+  userId: string;
   // Показывается в сайдбаре ("вы вошли как...") и в /admin/settings.
   displayName: string;
   // 'all' — видит и может открыть все ОБЫЧНЫЕ страницы (см. data/pages.ts).
@@ -29,7 +32,7 @@ export interface AccessProfile {
 // Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/accessProfilesApi.ts
 export interface AccessProfileRow {
   id: string;
-  password: string;
+  user_id: string;
   display_name: string;
   pages: 'all' | PageKey[];
   is_super_admin: boolean;

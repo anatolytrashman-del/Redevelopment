@@ -31,15 +31,17 @@ export function fetchWorkstationSeatLeads(): Promise<WorkstationSeatLead[]> {
   });
 }
 
-export function insertWorkstationSeatLead(input: { zoneId: string; leadId: string }): Promise<WorkstationSeatLead> {
+// Без .select() нарочно: вызывается и с публичной страницы бронирования
+// (anon), которому после P0.2-аудита не открыт SELECT на эту таблицу
+// (там связка зона-лид, не нужно для чтения без логина) — RETURNING
+// потребовал бы SELECT-политику для anon, а вызывающий код нигде не
+// использует возвращённую строку, только факт успеха/ошибки.
+export function insertWorkstationSeatLead(input: { zoneId: string; leadId: string }): Promise<void> {
   return withRetry(async () => {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('workstation_seat_leads')
-      .insert({ zone_id: input.zoneId, lead_id: input.leadId })
-      .select()
-      .single();
+      .insert({ zone_id: input.zoneId, lead_id: input.leadId });
     if (error) throw error;
-    return fromRow(data as WorkstationSeatLeadRow);
   });
 }
 
