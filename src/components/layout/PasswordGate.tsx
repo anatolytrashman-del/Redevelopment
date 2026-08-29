@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { cn } from '../../lib/cn';
@@ -7,6 +7,7 @@ import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import { supabase } from '../../lib/supabase';
 import { setAccessProfilesCache, setCurrentUserId } from '../../lib/accessProfile';
 import { fetchAccessProfiles } from '../../lib/accessProfilesApi';
+import { LOGIN_ACCOUNTS, type LoginAccount } from '../../data/loginAccounts';
 
 // Настоящая авторизация через Supabase Auth (P0.1 аудита безопасности,
 // 2026-08-28) — раньше здесь была клиентская заглушка, сверяющая пароль
@@ -17,6 +18,10 @@ import { fetchAccessProfiles } from '../../lib/accessProfilesApi';
 // лендинги объектов и т.п., см. scripts/audit-rls.mjs). Сессия хранится
 // самим supabase-js (свой localStorage-ключ, не наш) — переживает
 // перезагрузку страницы сама, без ручной работы с localStorage здесь.
+//
+// UX — выбор имени (LOGIN_ACCOUNTS) + один пароль, без видимого поля email:
+// сам email — внутренний логин для Supabase Auth, не реальный ящик, никто
+// его не читает и туда ничего не приходит.
 const LEGACY_LOCALSTORAGE_KEYS = ['redevelopment-unlocked', 'redevelopment-access-profile-id'];
 
 export function PasswordGate({ children }: { children: ReactNode }) {
@@ -25,7 +30,7 @@ export function PasswordGate({ children }: { children: ReactNode }) {
   const [profilesError, setProfilesError] = useState<string | null>(null);
   const [authed, setAuthed] = useState(false);
 
-  const [email, setEmail] = useState('');
+  const [account, setAccount] = useState<LoginAccount | null>(null);
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -69,14 +74,26 @@ export function PasswordGate({ children }: { children: ReactNode }) {
     return () => subscription.subscription.unsubscribe();
   }, []);
 
+  function selectAccount(next: LoginAccount) {
+    setAccount(next);
+    setPassword('');
+    setLoginError(null);
+  }
+
+  function backToAccounts() {
+    setAccount(null);
+    setPassword('');
+    setLoginError(null);
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (submitting) return;
+    if (submitting || !account) return;
     setSubmitting(true);
     setLoginError(null);
-    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email: account.email, password });
     if (error || !data.user) {
-      setLoginError('Неверный email или пароль');
+      setLoginError('Неверный пароль');
       setSubmitting(false);
       return;
     }
@@ -105,44 +122,56 @@ export function PasswordGate({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-svh items-center justify-center bg-bg px-4">
-      <form
-        onSubmit={handleSubmit}
-        className={cn('flex w-full max-w-xs flex-col gap-4 p-6', glassCardClass)}
-        style={glassCardShadow}
-      >
+      <div className={cn('flex w-full max-w-xs flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
         <div className="flex flex-col items-center gap-1 text-center">
           <span className="text-lg font-extrabold tracking-wide text-ink">
             <span className="font-black text-primary">RED</span>EVELOPMENT
           </span>
           <span className="text-xs text-ink-faint">Внутренняя панель — доступ только для сотрудников</span>
         </div>
-        <Input
-          type="email"
-          label="Email"
-          value={email}
-          onChange={(e) => {
-            setEmail(e.target.value);
-            setLoginError(null);
-          }}
-          autoFocus
-          required
-        />
-        <Input
-          type="password"
-          label="Пароль"
-          value={password}
-          onChange={(e) => {
-            setPassword(e.target.value);
-            setLoginError(null);
-          }}
-          state={loginError ? 'error' : 'default'}
-          helperText={loginError ?? undefined}
-          required
-        />
-        <Button type="submit" className="w-full" disabled={submitting}>
-          {submitting ? 'Входим...' : 'Войти'}
-        </Button>
-      </form>
+
+        {!account ? (
+          <div className="flex flex-col gap-2">
+            {LOGIN_ACCOUNTS.map((a) => (
+              <button
+                key={a.email}
+                type="button"
+                onClick={() => selectAccount(a)}
+                className="rounded-control border border-border bg-surface-muted px-4 py-3 text-center text-sm font-semibold text-ink transition-colors hover:border-primary hover:text-primary"
+              >
+                {a.displayName}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <button
+              type="button"
+              onClick={backToAccounts}
+              className="flex items-center gap-1.5 self-start text-sm font-medium text-ink-muted hover:text-primary"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              {account.displayName}
+            </button>
+            <Input
+              type="password"
+              label="Пароль"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setLoginError(null);
+              }}
+              state={loginError ? 'error' : 'default'}
+              helperText={loginError ?? undefined}
+              autoFocus
+              required
+            />
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? 'Входим...' : 'Войти'}
+            </Button>
+          </form>
+        )}
+      </div>
     </div>
   );
 }
