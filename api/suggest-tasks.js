@@ -8,6 +8,7 @@
 // в интерфейсе — эта функция сама задач НЕ создаёт.
 
 import { proxyApiKeyProblem } from './_proxyapi.js';
+import { requireStaffAuth } from './_auth.js';
 
 const MODEL = 'gpt-4o';
 
@@ -39,6 +40,8 @@ export default async function handler(req, res) {
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
+  const user = await requireStaffAuth(req, res);
+  if (!user) return;
   const keyProblem = proxyApiKeyProblem();
   if (keyProblem) {
     res.status(500).json({ error: keyProblem });

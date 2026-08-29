@@ -13,6 +13,8 @@
 // привязка к лиду делает клиент через уже существующий uploadLeadPhoto
 // (см. src/lib/leadsApi.ts, tryAutoFillTelegramAvatar).
 
+import { requireStaffAuth } from './_auth.js';
+
 const HANDLE_RE = /^[a-zA-Z][a-zA-Z0-9_]{4,31}$/;
 const FETCH_TIMEOUT_MS = 8000;
 // t.me отдаёт HTML-превью независимо от User-Agent, но браузерный UA снижает
@@ -46,6 +48,8 @@ export default async function handler(req, res) {
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
+  const user = await requireStaffAuth(req, res);
+  if (!user) return;
 
   const handle = typeof req.query.handle === 'string' ? req.query.handle : '';
   if (!HANDLE_RE.test(handle)) {

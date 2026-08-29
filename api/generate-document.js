@@ -3,6 +3,7 @@
 // Работает только на Vercel-домене — на GitHub Pages бэкенда нет.
 
 import { batchUpdateDoc, copyDoc, extractDocId, fetchDocumentTemplate, getGoogleAccessToken } from './_google.js';
+import { requireStaffAuth } from './_auth.js';
 
 // Родительный падеж месяцев ("13 августа", а не "13 август") — Intl с одним
 // только { month: 'long' } отдаёт именительный, поэтому склоняем вручную.
@@ -37,6 +38,8 @@ export default async function handler(req, res) {
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
+  const user = await requireStaffAuth(req, res);
+  if (!user) return;
 
   const { templateId, values } = req.body ?? {};
   if (!templateId || typeof values !== 'object' || values === null) {

@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
+import { authFetch } from './authFetch';
 
 // Саммери/предложения задач — тоже обычные запросы к нашим Vercel-функциям,
 // подвержены той же сетевой ошибке "Load failed"/"Failed to fetch" ещё до
@@ -88,7 +89,7 @@ async function uploadFile(file: File): Promise<string> {
 }
 
 async function startTranscription(path: string): Promise<string> {
-  const resp = await fetch('/api/transcribe-start', {
+  const resp = await authFetch('/api/transcribe-start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path }),
@@ -106,7 +107,7 @@ interface PollResult {
 }
 
 async function pollOnce(taskId: string): Promise<PollResult> {
-  const resp = await fetch(`/api/transcribe-poll?taskId=${encodeURIComponent(taskId)}`);
+  const resp = await authFetch(`/api/transcribe-poll?taskId=${encodeURIComponent(taskId)}`);
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) throw new Error(data.error || `Ошибка проверки статуса (${resp.status})`);
   return data;
@@ -175,7 +176,7 @@ export async function suggestTasksFromTranscript(
   alreadySuggested: string[],
 ): Promise<SuggestedTask[]> {
   return withRetry(async () => {
-    const resp = await fetch('/api/suggest-tasks', {
+    const resp = await authFetch('/api/suggest-tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ transcript, assignees, alreadySuggested }),
@@ -188,7 +189,7 @@ export async function suggestTasksFromTranscript(
 
 export async function summarizeTranscript(transcript: string): Promise<string> {
   return withRetry(async () => {
-    const resp = await fetch('/api/summarize-meeting', {
+    const resp = await authFetch('/api/summarize-meeting', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ transcript }),

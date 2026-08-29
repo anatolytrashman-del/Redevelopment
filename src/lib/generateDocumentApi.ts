@@ -1,8 +1,10 @@
+import { authFetch } from './authFetch';
+
 export async function generateDocument(
   templateId: string,
   values: Record<string, string>,
 ): Promise<{ url: string; title: string }> {
-  const resp = await fetch('/api/generate-document', {
+  const resp = await authFetch('/api/generate-document', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ templateId, values }),

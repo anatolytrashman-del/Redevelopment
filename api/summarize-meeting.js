@@ -9,6 +9,7 @@
 // не выдуманный. Правки формата — только по просьбе владельца.
 
 import { proxyApiKeyProblem } from './_proxyapi.js';
+import { requireStaffAuth } from './_auth.js';
 
 // gpt-4o, не -mini: часовая встреча со множеством цифр и юридических
 // деталей — mini на таком объёме смазывает конкретику, а разница в цене
@@ -54,6 +55,8 @@ export default async function handler(req, res) {
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
+  const user = await requireStaffAuth(req, res);
+  if (!user) return;
   const keyProblem = proxyApiKeyProblem();
   if (keyProblem) {
     res.status(500).json({ error: keyProblem });

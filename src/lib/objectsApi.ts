@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { withRetry, UPLOAD_TIMEOUT_MS } from './withRetry';
 import { compressImageIfNeeded } from './imageCompress';
+import { authFetch } from './authFetch';
 import type { ContactChannel, RealtyObject, RealtyObjectRow } from '../data/objects';
 
 // Пререндеренный при сборке HTML публичных лендингов (scripts/prerender.mjs,
@@ -9,7 +10,7 @@ import type { ContactChannel, RealtyObject, RealtyObjectRow } from '../data/obje
 // Best-effort, не блокирует сохранение объекта в админке: ошибку/недоступный
 // хук просто глотаем, api/trigger-rebuild.js сам логирует детали.
 function triggerPublicRebuild() {
-  fetch('/api/trigger-rebuild', { method: 'POST' }).catch(() => {});
+  authFetch('/api/trigger-rebuild', { method: 'POST' }).catch(() => {});
 }
 
 function fromRow(row: RealtyObjectRow): RealtyObject {
