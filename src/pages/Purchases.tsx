@@ -25,7 +25,7 @@ import {
 import { fetchPurchases, insertPurchase, updatePurchase, deletePurchase, type PurchaseInput } from '../lib/purchasesApi';
 import type { PurchaseEmail } from '../data/purchaseEmails';
 import { fetchPurchaseEmails, sendPurchaseEmail } from '../lib/purchaseEmailsApi';
-import { fetchContractors } from '../lib/contractorsApi';
+import { fetchContractors, insertContractor } from '../lib/contractorsApi';
 import type { Contractor } from '../data/contractors';
 import { fetchEstimates } from '../lib/estimatesApi';
 import type { Estimate, EstimateMaterial } from '../data/estimates';
@@ -109,6 +109,17 @@ export function Purchases({
   const [formError, setFormError] = useState<string | null>(null);
   const [manualItemName, setManualItemName] = useState('');
 
+  // Быстрое добавление нового поставщика прямо из формы закупки —
+  // владелец: "подрядчик добавляется на одной странице, а потом надо идти
+  // в закупки, это уже со старта неудобно". Минимальная карточка (имя +
+  // email — этого достаточно, чтобы сразу отправить письмо), полную можно
+  // дозаполнить потом на вкладке "Каталог".
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddName, setQuickAddName] = useState('');
+  const [quickAddEmail, setQuickAddEmail] = useState('');
+  const [quickAddSaving, setQuickAddSaving] = useState(false);
+  const [quickAddError, setQuickAddError] = useState<string | null>(null);
+
   const [detailId, setDetailId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -170,6 +181,44 @@ export function Purchases({
     setFormError(null);
     setManualItemName('');
     setModalOpen(true);
+  }
+
+  function openQuickAddSupplier() {
+    setQuickAddName('');
+    setQuickAddEmail('');
+    setQuickAddError(null);
+    setQuickAddOpen(true);
+  }
+
+  async function handleQuickAddSupplier() {
+    if (!quickAddName.trim() || quickAddSaving) return;
+    setQuickAddSaving(true);
+    setQuickAddError(null);
+    try {
+      const created = await insertContractor({
+        name: quickAddName.trim(),
+        specialty: '',
+        contact: quickAddEmail.trim(),
+        contactMethod: quickAddEmail.trim() ? 'Email' : '',
+        phone: '',
+        email: quickAddEmail.trim(),
+        notes: '',
+        paymentTerms: '',
+        teamTier: '',
+        responsibilityZone: '',
+        photoPath: '',
+        birthday: '',
+        resumePath: '',
+        resumeFileName: '',
+      });
+      setContractors((prev) => [...prev, created]);
+      setForm((f) => ({ ...f, contractorId: created.id }));
+      setQuickAddOpen(false);
+    } catch (err) {
+      setQuickAddError(errorMessage(err, 'Не удалось добавить поставщика'));
+    } finally {
+      setQuickAddSaving(false);
+    }
   }
 
   function openEdit(p: Purchase) {
@@ -356,16 +405,23 @@ export function Purchases({
             newPlaceholder="Название статуса"
           />
 
-          <Select
-            label="Поставщик"
-            placeholder="Не выбран"
-            options={supplierContractors.map((c) => c.name)}
-            value={supplierContractors.find((c) => c.id === form.contractorId)?.name ?? ''}
-            onChange={(name) => {
-              const c = supplierContractors.find((x) => x.name === name);
-              setForm((f) => ({ ...f, contractorId: c?.id ?? '' }));
-            }}
-          />
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <Select
+                label="Поставщик"
+                placeholder="Не выбран"
+                options={supplierContractors.map((c) => c.name)}
+                value={supplierContractors.find((c) => c.id === form.contractorId)?.name ?? ''}
+                onChange={(name) => {
+                  const c = supplierContractors.find((x) => x.name === name);
+                  setForm((f) => ({ ...f, contractorId: c?.id ?? '' }));
+                }}
+              />
+            </div>
+            <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} onClick={openQuickAddSupplier}>
+              Новый
+            </Button>
+          </div>
 
           <Select
             label="Смета"
@@ -499,6 +555,25 @@ export function Purchases({
             </Button>
             <Button type="button" onClick={handleSave} disabled={!form.title.trim() || saving}>
               {saving ? 'Сохраняем...' : 'Сохранить'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={quickAddOpen} onClose={() => setQuickAddOpen(false)} title="Новый поставщик">
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-ink-faint">
+            Минимум для старта — имя и email, чтобы сразу отправить письмо. Остальное можно дозаполнить на вкладке «Каталог».
+          </p>
+          <Input label="Название" placeholder="Компания или имя" value={quickAddName} onChange={(e) => setQuickAddName(e.target.value)} required autoFocus />
+          <Input label="Email" placeholder="mail@example.com" type="email" value={quickAddEmail} onChange={(e) => setQuickAddEmail(e.target.value)} />
+          {quickAddError && <p className="text-sm text-danger">{quickAddError}</p>}
+          <div className="mt-2 flex justify-end gap-3">
+            <Button type="button" variant="secondary" onClick={() => setQuickAddOpen(false)}>
+              Отмена
+            </Button>
+            <Button type="button" onClick={handleQuickAddSupplier} disabled={!quickAddName.trim() || quickAddSaving}>
+              {quickAddSaving ? 'Добавляем...' : 'Добавить'}
             </Button>
           </div>
         </div>
