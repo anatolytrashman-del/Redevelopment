@@ -1,20 +1,69 @@
 // Vercel serverless function: приём входящих писем поставщиков через Resend
-// Inbound Webhook. НЕ РАБОТАЕТ САМА ПО СЕБЕ без ручной настройки на стороне
-// владельца (см. журнал CLAUDE.md, запись про "Закупки"):
-//   1. В кабинете Resend включить Inbound для домена redevelopment.pro.
-//   2. Добавить/поменять MX-записи домена так, как укажет Resend.
-//   3. Зарегистрировать в кабинете Resend этот URL как webhook-эндпоинт
-//      (https://redevelopment.pro/api/purchase-email-webhook) для события
-//      "email.received" (или аналогичного — по документации Resend Inbound
-//      на момент настройки).
-//   4. Если Resend подписывает вебхуки (svix-подобная подпись) — добавить
-//      секрет в Vercel env (RESEND_WEBHOOK_SECRET) и проверять подпись
-//      здесь перед обработкой; пока проверка не реализована.
+// Inbound Webhook. Домен/MX/webhook уже настроены владельцем (2026-08-28,
+// см. журнал CLAUDE.md) — этот эндпоинт зарегистрирован в кабинете Resend.
+//
+// Resend подписывает вебхуки по протоколу Svix (заголовки svix-id/
+// svix-timestamp/svix-signature, HMAC-SHA256 от "id.timestamp.тело" на
+// секрете вебхука) — секрет лежит в Vercel env RESEND_WEBHOOK_SECRET.
+// Без проверки подписи любой, кто узнает URL эндпоинта, мог бы подкинуть
+// поддельное "письмо от поставщика" прямо в переписку любой закупки —
+// поэтому bodyParser отключён (нужно именно СЫРОЕ тело запроса байт-в-байт,
+// не пересобранный JSON.stringify, иначе подпись не сойдётся) и подпись
+// проверяется до разбора payload. Если RESEND_WEBHOOK_SECRET ещё не
+// проставлен в Vercel — проверка пропускается с предупреждением в лог,
+// чтобы не сломать приём писем ДО того, как секрет добавят.
 //
 // Формат тела запроса взят из документации Resend Inbound (событие с
-// полем "to"/"from"/"subject"/"text" и т.п.) — не проверен вживую (эндпоинт
-// ещё не зарегистрирован), при первом реальном письме может понадобиться
-// поправить разбор под фактический payload.
+// полем "to"/"from"/"subject"/"text" и т.п.) — не проверен вживую на
+// реальном письме, при первом реальном письме может понадобиться поправить
+// разбор под фактический payload.
+
+import { createHmac, timingSafeEqual } from 'node:crypto';
+
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+const SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
+
+async function readRawBody(req) {
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+function verifyResendSignature(rawBody, headers, secret) {
+  const svixId = headers['svix-id'];
+  const svixTimestamp = headers['svix-timestamp'];
+  const svixSignature = headers['svix-signature'];
+  if (!svixId || !svixTimestamp || !svixSignature) return false;
+
+  const timestampSeconds = Number(svixTimestamp);
+  if (!Number.isFinite(timestampSeconds)) return false;
+  if (Math.abs(Date.now() / 1000 - timestampSeconds) > SIGNATURE_TOLERANCE_SECONDS) return false;
+
+  const secretBytes = Buffer.from(secret.split('_')[1] || '', 'base64');
+  const signedContent = `${svixId}.${svixTimestamp}.${rawBody}`;
+  const expected = createHmac('sha256', secretBytes).update(signedContent).digest();
+
+  return String(svixSignature)
+    .split(' ')
+    .some((part) => {
+      const [version, signature] = part.split(',');
+      if (version !== 'v1' || !signature) return false;
+      let provided;
+      try {
+        provided = Buffer.from(signature, 'base64');
+      } catch {
+        return false;
+      }
+      return provided.length === expected.length && timingSafeEqual(provided, expected);
+    });
+}
 
 function extractPurchaseId(toAddress) {
   const match = String(toAddress || '').match(/zakupki\+([0-9a-f-]{36})@/i);
@@ -46,8 +95,19 @@ export default async function handler(req, res) {
     return;
   }
 
+  const rawBody = await readRawBody(req);
+  const secret = process.env.RESEND_WEBHOOK_SECRET;
+  if (secret) {
+    if (!verifyResendSignature(rawBody, req.headers, secret)) {
+      res.status(401).json({ error: 'Invalid signature' });
+      return;
+    }
+  } else {
+    console.warn('RESEND_WEBHOOK_SECRET не настроен — подпись входящего письма не проверяется');
+  }
+
   try {
-    const payload = req.body ?? {};
+    const payload = JSON.parse(rawBody || '{}');
     // Resend оборачивает событие в { type, data } — data содержит сами
     // поля письма (to/from/subject/text). Поддерживаем и "плоский" вид на
     // случай отличающегося формата.

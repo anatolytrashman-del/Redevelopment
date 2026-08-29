@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
+import { authFetch } from './authFetch';
 import type { PurchaseEmail, PurchaseEmailRow } from '../data/purchaseEmails';
 
 function fromRow(row: PurchaseEmailRow): PurchaseEmail {
@@ -38,7 +39,7 @@ export async function sendPurchaseEmail(input: {
   subject: string;
   body: string;
 }): Promise<PurchaseEmail> {
-  const res = await fetch('/api/purchase-send-email', {
+  const res = await authFetch('/api/purchase-send-email', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

@@ -7,6 +7,11 @@
 // Сама запись в purchase_emails создаётся здесь же сервисным ключом
 // (таблица открыта для anon, но отправка письма — не операция анонимного
 // клиента, ключ Resend не должен быть на фронте).
+//
+// Только для сотрудников (P0.3 аудита безопасности) — requireStaffAuth,
+// как и у остальных приватных api/*.js; клиент вызывает через authFetch.
+
+import { requireStaffAuth } from './_auth.js';
 
 const RESEND_FROM_NAME = 'Redevelopment Закупки';
 
@@ -46,6 +51,9 @@ export default async function handler(req, res) {
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
+
+  const user = await requireStaffAuth(req, res);
+  if (!user) return;
 
   const { purchaseId, toAddress, subject, body } = req.body ?? {};
 
