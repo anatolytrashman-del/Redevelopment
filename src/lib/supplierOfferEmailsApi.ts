@@ -30,15 +30,16 @@ export function fetchSupplierOfferEmails(offerId: string): Promise<SupplierOffer
   });
 }
 
-// Отправка — через api/supplier-offer-send-email.js (сервисный ключ +
-// Resend), тот же паттерн, что и sendPurchaseEmail (purchaseEmailsApi.ts).
+// Отправка — через api/purchase-send-email.js (общий эндпоинт с закупками,
+// см. комментарий в файле — Vercel Hobby ограничен 12 serverless-функциями,
+// отдельный файл на каждую пару send/receive не поместился бы).
 export async function sendSupplierOfferEmail(input: {
   offerId: string;
   toAddress: string;
   subject: string;
   body: string;
 }): Promise<SupplierOfferEmail> {
-  const res = await authFetch('/api/supplier-offer-send-email', {
+  const res = await authFetch('/api/purchase-send-email', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

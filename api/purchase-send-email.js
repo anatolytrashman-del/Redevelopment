@@ -1,12 +1,20 @@
-// Vercel serverless function: отправка письма поставщику из карточки закупки
-// (Purchases.tsx → lib/purchaseEmailsApi.ts → sendPurchaseEmail). Письмо
-// уходит через Resend с адреса-плюс-закупки (purchaseEmailAddress в
-// data/purchases.ts) — благодаря этому ответ поставщика (см.
-// purchase-email-webhook.js) прилетает на этот же адрес и матчится по id
-// закупки в локальной части, без отдельного ящика на каждую закупку.
-// Сама запись в purchase_emails создаётся здесь же сервисным ключом
-// (таблица открыта для anon, но отправка письма — не операция анонимного
-// клиента, ключ Resend не должен быть на фронте).
+// Vercel serverless function: отправка письма поставщику — из карточки
+// закупки (Purchases.tsx → lib/purchaseEmailsApi.ts → sendPurchaseEmail)
+// ИЛИ из предложения в Ресерче поставщиков (Suppliers.tsx →
+// lib/supplierOfferEmailsApi.ts → sendSupplierOfferEmail). Несмотря на имя
+// файла (осталось от первой версии), обрабатывает оба случая — так же, как
+// purchase-email-webhook.js уже объединяет приём входящих писем для обоих:
+// на Hobby-плане Vercel лимит 12 serverless-функций на деплой, отдельный
+// файл под каждую пару send/receive быстро упёрся бы в потолок (реальный
+// инцидент 2026-08-29 — деплой упал с "No more than 12 Serverless
+// Functions", после чего два файла отправки объединили в этот один).
+//
+// Письмо уходит через Resend с адреса-плюс-закупки/предложения
+// (purchaseEmailAddress/supplierOfferEmailAddress) — благодаря этому ответ
+// прилетает на этот же адрес и матчится по id в локальной части, без
+// отдельного ящика на каждую сущность. Запись создаётся здесь же сервисным
+// ключом (таблицы закрыты RLS от anon — отправка письма не операция
+// анонимного клиента, ключ Resend не должен быть на фронте).
 //
 // Только для сотрудников (P0.3 аудита безопасности) — requireStaffAuth,
 // как и у остальных приватных api/*.js; клиент вызывает через authFetch.
@@ -19,8 +27,12 @@ function purchaseEmailAddress(purchaseId) {
   return `zakupki+${purchaseId}@redevelopment.pro`;
 }
 
-async function insertEmailRow(payload) {
-  const resp = await fetch(`${process.env.SUPABASE_URL}/rest/v1/purchase_emails`, {
+function supplierOfferEmailAddress(offerId) {
+  return `research+${offerId}@redevelopment.pro`;
+}
+
+async function insertEmailRow(table, payload) {
+  const resp = await fetch(`${process.env.SUPABASE_URL}/rest/v1/${table}`, {
     method: 'POST',
     headers: {
       apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -55,9 +67,9 @@ export default async function handler(req, res) {
   const user = await requireStaffAuth(req, res);
   if (!user) return;
 
-  const { purchaseId, toAddress, subject, body } = req.body ?? {};
+  const { purchaseId, offerId, toAddress, subject, body } = req.body ?? {};
 
-  if (!purchaseId || !toAddress || !body) {
+  if ((!purchaseId && !offerId) || !toAddress || !body) {
     res.status(400).json({ error: 'Заполните все поля' });
     return;
   }
@@ -67,7 +79,11 @@ export default async function handler(req, res) {
     return;
   }
 
-  const fromAddress = purchaseEmailAddress(purchaseId);
+  const fromAddress = purchaseId ? purchaseEmailAddress(purchaseId) : supplierOfferEmailAddress(offerId);
+  const table = purchaseId ? 'purchase_emails' : 'supplier_offer_emails';
+  const idField = purchaseId ? 'purchase_id' : 'offer_id';
+  const idValue = purchaseId ?? offerId;
+  const defaultSubject = purchaseId ? 'Закупка' : 'Запрос цены';
 
   try {
     const resendResp = await fetch('https://api.resend.com/emails', {
@@ -79,7 +95,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         from: `${RESEND_FROM_NAME} <${fromAddress}>`,
         to: [toAddress],
-        subject: subject || 'Закупка',
+        subject: subject || defaultSubject,
         html: emailHtml(body),
       }),
     });
@@ -90,8 +106,8 @@ export default async function handler(req, res) {
     }
     const resendJson = await resendResp.json();
 
-    const row = await insertEmailRow({
-      purchase_id: purchaseId,
+    const row = await insertEmailRow(table, {
+      [idField]: idValue,
       direction: 'out',
       from_address: fromAddress,
       to_address: toAddress,
