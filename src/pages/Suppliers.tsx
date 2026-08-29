@@ -57,6 +57,7 @@ import type { Estimate, EstimateMaterial } from '../data/estimates';
 import { fetchEstimates } from '../lib/estimatesApi';
 import type { RealtyObject } from '../data/objects';
 import { fetchObjects } from '../lib/objectsApi';
+import { Purchases } from './Purchases';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -83,7 +84,14 @@ function siteLabel(url: string): string {
   }
 }
 
-const SUPPLIER_TABS = ['Каталог', 'Ресерч'] as const;
+// "Закупки" — третья вкладка, добавлена при слиянии Подрядчики/Поставщики/
+// Закупки в одну страницу "Подрядчики и закупки" (владелец, 2026-08-29:
+// "саму идею закупок и подрядчиков можно перемещать на одну страницу,
+// просто разные вкладки — Работы и Материалы"). Содержимое — тот же
+// компонент Purchases, что раньше жил на отдельной странице/маршруте
+// /admin/purchases (см. WorkAndSupplies.tsx — старый маршрут теперь
+// редиректит сюда).
+const SUPPLIER_TABS = ['Каталог', 'Ресерч', 'Закупки'] as const;
 type SupplierTab = (typeof SUPPLIER_TABS)[number];
 
 // Каталог поставщиков — те же карточки-компании, что раньше жили на странице
@@ -393,7 +401,9 @@ function RequestCard({
   );
 }
 
-export function Suppliers() {
+// embedded=true — рендер внутри "Подрядчики и закупки → Материалы" (см.
+// WorkAndSupplies.tsx), без собственного PageHeader.
+export function Suppliers({ embedded = false }: { embedded?: boolean } = {}) {
   const [tab, setTab] = useState<SupplierTab>('Каталог');
 
   // Каталог — те же карточки-компании, что раньше были "Прочие подрядчики"
@@ -800,22 +810,27 @@ export function Suppliers() {
     }
   }
 
+  // На вкладке "Закупки" своей кнопки в шапке нет — Purchases сам рендерит
+  // "Добавить закупку" внутри себя (embedded), как и положено чужому
+  // компоненту со своим состоянием модалки.
+  const supplierAddButton =
+    tab === 'Каталог' ? (
+      <Button icon={<Plus className="h-4 w-4" />} onClick={openAddCatalog}>
+        Добавить поставщика
+      </Button>
+    ) : tab === 'Ресерч' ? (
+      <Button icon={<Plus className="h-4 w-4" />} onClick={openAddRequest}>
+        Новый запрос
+      </Button>
+    ) : undefined;
+
   return (
     <>
-      <PageHeader
-        title="Поставщики"
-        action={
-          tab === 'Каталог' ? (
-            <Button icon={<Plus className="h-4 w-4" />} onClick={openAddCatalog}>
-              Добавить поставщика
-            </Button>
-          ) : (
-            <Button icon={<Plus className="h-4 w-4" />} onClick={openAddRequest}>
-              Новый запрос
-            </Button>
-          )
-        }
-      />
+      {embedded ? (
+        supplierAddButton && <div className="mb-2 flex justify-end">{supplierAddButton}</div>
+      ) : (
+        <PageHeader title="Поставщики" action={supplierAddButton} />
+      )}
 
       <ToggleGroup options={[...SUPPLIER_TABS]} value={tab} onChange={(v) => setTab(v as SupplierTab)} />
 
@@ -902,6 +917,12 @@ export function Suppliers() {
           Новый запрос
         </Button>
       </div>
+      )}
+
+      {tab === 'Закупки' && (
+        <div className="mt-6">
+          <Purchases embedded />
+        </div>
       )}
 
       <Modal open={requestModalOpen} onClose={() => setRequestModalOpen(false)} title={editingRequest ? 'Редактировать запрос' : 'Новый запрос'}>

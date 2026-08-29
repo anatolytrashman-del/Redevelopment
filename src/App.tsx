@@ -26,7 +26,11 @@ const Home = lazy(() => import('./pages/Home').then((m) => ({ default: m.Home })
 const Transactions = lazy(() => import('./pages/Transactions').then((m) => ({ default: m.Transactions })));
 const TransactionsReport = lazy(() => import('./pages/TransactionsReport').then((m) => ({ default: m.TransactionsReport })));
 const Leads = lazy(() => import('./pages/Leads').then((m) => ({ default: m.Leads })));
-const Contractors = lazy(() => import('./pages/Contractors').then((m) => ({ default: m.Contractors })));
+// Подрядчики+Поставщики+Закупки слиты в одну страницу (владелец,
+// 2026-08-29) — Contractors.tsx/Suppliers.tsx/Purchases.tsx больше не
+// отдельные маршруты, WorkAndSupplies.tsx импортирует их напрямую
+// (статически, не lazy — они и так всегда нужны вместе теперь).
+const WorkAndSupplies = lazy(() => import('./pages/WorkAndSupplies').then((m) => ({ default: m.WorkAndSupplies })));
 const Objects = lazy(() => import('./pages/Objects').then((m) => ({ default: m.Objects })));
 const ObjectDetail = lazy(() => import('./pages/ObjectDetail').then((m) => ({ default: m.ObjectDetail })));
 const Documents = lazy(() => import('./pages/Documents').then((m) => ({ default: m.Documents })));
@@ -37,8 +41,6 @@ const Tasks = lazy(() => import('./pages/Tasks').then((m) => ({ default: m.Tasks
 const Backlog = lazy(() => import('./pages/Backlog').then((m) => ({ default: m.Backlog })));
 const Briefs = lazy(() => import('./pages/Briefs').then((m) => ({ default: m.Briefs })));
 const Estimates = lazy(() => import('./pages/Estimates').then((m) => ({ default: m.Estimates })));
-const Suppliers = lazy(() => import('./pages/Suppliers').then((m) => ({ default: m.Suppliers })));
-const Purchases = lazy(() => import('./pages/Purchases').then((m) => ({ default: m.Purchases })));
 const EstimateDetail = lazy(() => import('./pages/EstimateDetail').then((m) => ({ default: m.EstimateDetail })));
 const FinModels = lazy(() => import('./pages/FinModels').then((m) => ({ default: m.FinModels })));
 const FinModelDetail = lazy(() => import('./pages/FinModelDetail').then((m) => ({ default: m.FinModelDetail })));
@@ -228,13 +230,17 @@ export default function App() {
             </RequireSuperAdmin>
           }
         />
-        <Route path="contractors" element={<RequirePage page="contractors"><Contractors /></RequirePage>} />
+        {/* Подрядчики+Поставщики+Закупки слиты в одну страницу (владелец,
+            2026-08-29) — старые адреса редиректят, чтобы не сломать
+            сохранённые ссылки/историю браузера. */}
+        <Route path="work-and-supplies" element={<RequirePage page="contractors"><WorkAndSupplies /></RequirePage>} />
+        <Route path="contractors" element={<Navigate to="/admin/work-and-supplies" replace />} />
+        <Route path="suppliers" element={<Navigate to="/admin/work-and-supplies" replace />} />
+        <Route path="purchases" element={<Navigate to="/admin/work-and-supplies" replace />} />
         <Route path="objects" element={<RequirePage page="objects"><Objects /></RequirePage>} />
         <Route path="objects/:id" element={<RequirePage page="objects"><ObjectDetail /></RequirePage>} />
         <Route path="tz" element={<RequirePage page="tz"><Briefs /></RequirePage>} />
         <Route path="estimates" element={<RequirePage page="estimates"><Estimates /></RequirePage>} />
-        <Route path="suppliers" element={<RequirePage page="suppliers"><Suppliers /></RequirePage>} />
-        <Route path="purchases" element={<RequirePage page="purchases"><Purchases /></RequirePage>} />
         <Route path="estimates/:id" element={<RequirePage page="estimates"><EstimateDetail /></RequirePage>} />
         <Route path="finmodels" element={<RequirePage page="finModels"><FinModels /></RequirePage>} />
         <Route path="finmodels/:id" element={<RequirePage page="finModels"><FinModelDetail /></RequirePage>} />

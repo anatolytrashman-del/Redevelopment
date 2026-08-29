@@ -16,8 +16,6 @@ import {
   Palette,
   Globe,
   ClipboardCheck,
-  Truck,
-  ShoppingCart,
 } from 'lucide-react';
 
 // Единый список страниц админки — здесь и маршрут, и ключ доступа (см.
@@ -37,8 +35,6 @@ export type PageKey =
   | 'objects'
   | 'tz'
   | 'estimates'
-  | 'suppliers'
-  | 'purchases'
   | 'finModels'
   | 'financing'
   | 'designProjects'
@@ -63,15 +59,18 @@ export const ADMIN_PAGES: AdminPage[] = [
   { key: 'objects', to: '/admin/objects', label: 'Объекты', icon: Building2 },
   { key: 'tz', to: '/admin/tz', label: 'Техзадания', icon: ClipboardList },
   { key: 'estimates', to: '/admin/estimates', label: 'Сметы', icon: Calculator },
-  { key: 'suppliers', to: '/admin/suppliers', label: 'Поставщики', icon: Truck },
-  { key: 'purchases', to: '/admin/purchases', label: 'Закупки', icon: ShoppingCart },
   { key: 'finModels', to: '/admin/finmodels', label: 'Финмодели', icon: TrendingUp },
   { key: 'financing', to: '/admin/financing', label: 'Финансирование', icon: Landmark },
   { key: 'designProjects', to: '/admin/design-projects', label: 'Дизайн-проекты', icon: Palette },
   { key: 'leads', to: '/admin/leads', label: 'Лиды', icon: Users },
   { key: 'landings', to: '/admin/landings', label: 'Лендинги', icon: Globe },
   { key: 'marketOffers', to: '/admin/market-offers', label: 'Аналитика рынка', icon: ClipboardCheck },
-  { key: 'contractors', to: '/admin/contractors', label: 'Подрядчики', icon: HardHat },
+  // Слияние Подрядчики/Поставщики/Закупки в одну страницу (владелец,
+  // 2026-08-29) — ключ 'contractors' сохранён как есть (не заводили новый),
+  // чтобы не трогать уже сохранённые access_profiles.pages (Светлана, у
+  // неё в профиле именно 'contractors') и логику бейджа дней рождения в
+  // Sidebar.tsx, завязанную на этот ключ.
+  { key: 'contractors', to: '/admin/work-and-supplies', label: 'Подрядчики и закупки', icon: HardHat },
   { key: 'transactions', to: '/admin/transactions', label: 'Транзакции', icon: Receipt },
   { key: 'documents', to: '/admin/documents', label: 'Документы', icon: FileStack },
   { key: 'meetingSummaries', to: '/admin/meeting-summaries', label: 'Саммери встреч', icon: MessageSquareText },
@@ -87,8 +86,6 @@ export const VISIBLE_PAGE_KEYS: PageKey[] = [
   'contractors',
   'tz',
   'estimates',
-  'suppliers',
-  'purchases',
   'finModels',
   'financing',
   'designProjects',
@@ -112,7 +109,7 @@ export const SIDEBAR_LAYOUT: SidebarEntry[] = [
   { type: 'page', key: 'tasks' },
   { type: 'page', key: 'objects' },
   { type: 'page', key: 'contractors' },
-  { type: 'group', label: 'Стройка', keys: ['tz', 'estimates', 'suppliers', 'purchases', 'designProjects'] },
+  { type: 'group', label: 'Стройка', keys: ['tz', 'estimates', 'designProjects'] },
   { type: 'group', label: 'Финансы', keys: ['finModels', 'financing', 'transactions', 'documents'] },
   { type: 'group', label: 'Маркетинг', keys: ['landings', 'marketOffers', 'leads'] },
   { type: 'page', key: 'meetingSummaries' },

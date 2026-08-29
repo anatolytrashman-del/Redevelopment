@@ -67,7 +67,9 @@ function purchaseToForm(p: Purchase) {
   };
 }
 
-export function Purchases() {
+// embedded=true — рендер внутри "Подрядчики и закупки → Материалы → Закупки"
+// (см. Suppliers.tsx/WorkAndSupplies.tsx), без собственного PageHeader.
+export function Purchases({ embedded = false }: { embedded?: boolean } = {}) {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [contractors, setContractors] = useState<Contractor[]>([]);
   const [estimates, setEstimates] = useState<Estimate[]>([]);
@@ -211,16 +213,19 @@ export function Purchases() {
 
   const detailPurchase = detailId ? (purchases.find((p) => p.id === detailId) ?? null) : null;
 
+  const addButton = (
+    <Button icon={<Plus className="h-4 w-4" />} onClick={openAdd}>
+      Добавить закупку
+    </Button>
+  );
+
   return (
     <>
-      <PageHeader
-        title="Закупки"
-        action={
-          <Button icon={<Plus className="h-4 w-4" />} onClick={openAdd}>
-            Добавить закупку
-          </Button>
-        }
-      />
+      {embedded ? (
+        <div className="mb-2 flex justify-end">{addButton}</div>
+      ) : (
+        <PageHeader title="Закупки" action={addButton} />
+      )}
 
       <div className="flex flex-col gap-4">
         {loading && (

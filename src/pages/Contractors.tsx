@@ -69,11 +69,19 @@ function contractorToForm(c: Contractor) {
   };
 }
 
-const TABS = ['Подрядчики', 'Ресерч'] as const;
+// "Подрядчики" переименована в "Команда" (владелец, 2026-08-29: "текущую
+// вкладку 'Подрядчики' переименовывать в 'Команда' и оставлять там только
+// Part-time и проверенных") — сама фильтрация не поменялась, вкладка и
+// сейчас показывает только teamTier-заполненных (см. tierGroups ниже).
+const TABS = ['Команда', 'Ресерч'] as const;
 type Tab = (typeof TABS)[number];
 
-export function Contractors() {
-  const [tab, setTab] = useState<Tab>('Подрядчики');
+// embedded=true — рендер внутри "Подрядчики и закупки → Работы" (см.
+// WorkAndSupplies.tsx), без собственного PageHeader (у объединяющей
+// страницы уже есть свой). Кнопка "Добавить подрядчика" в этом случае
+// переезжает в обычный ряд над вкладками, а не в шапку.
+export function Contractors({ embedded = false }: { embedded?: boolean } = {}) {
+  const [tab, setTab] = useState<Tab>('Команда');
   const [contractors, setContractors] = useState<Contractor[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -292,34 +300,36 @@ export function Contractors() {
     }
   }
 
+  const addButton =
+    tab === 'Команда' ? (
+      <Button icon={<Plus className="h-4 w-4" />} onClick={openAddModal}>
+        Добавить подрядчика
+      </Button>
+    ) : undefined;
+
   return (
     <>
-      <PageHeader
-        title="Подрядчики"
-        action={
-          tab === 'Подрядчики' ? (
-            <Button icon={<Plus className="h-4 w-4" />} onClick={openAddModal}>
-              Добавить подрядчика
-            </Button>
-          ) : undefined
-        }
-      />
+      {embedded ? (
+        addButton && <div className="mb-2 flex justify-end">{addButton}</div>
+      ) : (
+        <PageHeader title="Подрядчики" action={addButton} />
+      )}
 
       <ToggleGroup options={[...TABS]} value={tab} onChange={(v) => setTab(v as Tab)} />
 
       {tab === 'Ресерч' && <ContractorsResearch />}
 
-      {tab === 'Подрядчики' && loading && (
+      {tab === 'Команда' && loading && (
         <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
           <Loader2 className="h-4 w-4 animate-spin" />
           Загружаем подрядчиков...
         </Card>
       )}
-      {tab === 'Подрядчики' && !loading && loadError && (
+      {tab === 'Команда' && !loading && loadError && (
         <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>
       )}
 
-      {tab === 'Подрядчики' && !loading && !loadError && (
+      {tab === 'Команда' && !loading && !loadError && (
         <div className="flex flex-col gap-8">
           {tierGroups.length === 0 && <Card className="py-10 text-center text-sm text-ink-muted">Подрядчиков пока нет</Card>}
           {tierGroups.map((group) => (
