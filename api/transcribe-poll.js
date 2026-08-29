@@ -9,6 +9,7 @@
 // детерминированно без знания их внутренней схемы сегментов/спикеров.
 
 import { SPEECH2TEXT_BASE, speech2TextKeyProblem } from './_speech2text.js';
+import { requireStaffAuth } from './_auth.js';
 
 // [мм:сс] до часа, [ч:мм:сс] после — как в саммери владельца.
 function formatTimestamp(totalSeconds) {
@@ -62,6 +63,8 @@ export default async function handler(req, res) {
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
+  const user = await requireStaffAuth(req, res);
+  if (!user) return;
   const keyProblem = speech2TextKeyProblem();
   if (keyProblem) {
     res.status(500).json({ error: keyProblem });
