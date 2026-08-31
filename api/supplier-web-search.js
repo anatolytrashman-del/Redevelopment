@@ -1,27 +1,41 @@
 // Vercel serverless function: веб-поиск реальных поставщиков под список
-// материалов запроса на вкладке "Ресерч" (Suppliers.tsx) — владелец,
-// 2026-08-31: "веб-поиск поставщиков делай через клод, модель sonnet5".
+// материалов запроса на вкладке "Ресерч" (Suppliers.tsx).
 //
-// Ходит не в OpenAI-совместимый путь ProxyAPI (как meeting-ai.js), а в
-// отдельный Anthropic-совместимый путь того же шлюза (тот же PROXYAPI_KEY,
-// другой заголовок — x-api-key вместо Authorization: Bearer, и другой base
-// path). Подтверждено вживую: GET /anthropic/v1/models с этим ключом отдаёт
-// список моделей Claude, включая claude-sonnet-5.
+// 2026-08-31, дважды за день. Первая версия (claude-sonnet-5, Anthropic-путь
+// ProxyAPI) обошлась в 358 ₽ за 4 запроса (~90 ₽/запрос) — владелец увидел
+// это в отчёте расходов ProxyAPI и попросил модель подешевле. Первая
+// попытка чинить — перевести на gpt-4o-mini-search-preview
+// (OpenAI-совместимый путь) — не сработала: ProxyAPI отдаёт на этот
+// эндпоинт `400 Model not supported`, хотя модель числится в каталоге
+// `/openai/v1/models` (то же самое для gpt-4o-search-preview и
+// gpt-5-search-api — проверено вживую curl'ом, ни одна search-модель
+// OpenAI через этот шлюз не работает, каталог не значит поддержку).
 //
-// Модель сама вызывает свой инструмент web_search (server-side, реальный
-// поиск, не выдумывает) несколько раз и в конце возвращает JSON-массив
-// найденных компаний. Это медленно — на 1-2 реальных поисковых запроса
-// модели уходит 20-120+ секунд (проверено вживую curl'ом), поэтому
-// maxDuration функции поднят до 300 (см. vercel.json, тот же приём, что и у
-// transcribe-start.js/meeting-ai.js на Hobby-плане с fluid compute).
+// Настоящая причина дороговизны Sonnet 5 — не сама модель, а то, что она
+// без явного указания заворачивает вызов web_search в "программный вызов
+// инструмента" (пишет и исполняет код, который сам зовёт web_search) —
+// это видно в сыром ответе API как отдельный блок `code_execution`
+// server_tool_use РЯДОМ с `web_search`, и именно эта обвязка раздувала
+// input_tokens до 41-45 тысяч на тривиальный запрос. Найдено случайно:
+// claude-haiku-4-5 без явного `allowed_callers` на web_search вообще
+// отказывается работать с ошибкой "does not support programmatic tool
+// calling... explicitly set allowed_callers=['direct']" — то есть сама
+// Anthropic считает эту обвязку побочным поведением, которое не все
+// модели готовы включать молча. Добавление `allowed_callers: ['direct']`
+// на инструмент запрещает эту обвязку и модели, которые её поддерживают
+// (Sonnet 5) — тоже. Живой прогон claude-haiku-4-5 + allowed_callers:
+// input_tokens 13 943 (было 41-45 тыс.), 8 секунд (было 20-115 с.),
+// нашёл реальные телефоны/email 5 поставщиков. И модель дешевле яруса
+// Haiku, и токенов на порядок меньше — комбинированная экономия в разы
+// больше, чем просто смена модели.
 import { proxyApiKeyProblem } from './_proxyapi.js';
 import { requireStaffAuth } from './_auth.js';
 
-const MODEL = 'claude-sonnet-5';
+const MODEL = 'claude-haiku-4-5-20251001';
 
 // Ограничиваем число реальных поисковых запросов модели — не только ради
-// скорости: неограниченный поиск легко утягивает функцию за maxDuration
-// без единого ответа клиенту.
+// скорости/цены: неограниченный поиск легко утягивает функцию за
+// maxDuration без единого ответа клиенту.
 const MAX_SEARCHES = 3;
 
 const SYSTEM_PROMPT = `Ты помогаешь найти реальных поставщиков строительных материалов в Беларуси
@@ -114,7 +128,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 2000,
-        tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: MAX_SEARCHES }],
+        tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: MAX_SEARCHES, allowed_callers: ['direct'] }],
         system: SYSTEM_PROMPT,
         messages: [
           {
@@ -134,8 +148,7 @@ export default async function handler(req, res) {
       // 402 — недостаточно средств на балансе ProxyAPI. Проверено вживую:
       // тот же баланс общий для OpenAI- и Anthropic-путей шлюза (meeting-ai.js
       // на gpt-4o упадёт с той же ошибкой) — не проблема конкретно этого
-      // эндпоинта или веб-поиска, а нужно пополнить счёт в личном кабинете
-      // ProxyAPI.
+      // эндпоинта, а нужно пополнить счёт в личном кабинете ProxyAPI.
       if (resp.status === 402) {
         throw new Error('Недостаточно средств на балансе ProxyAPI — пополните счёт в личном кабинете ProxyAPI (тот же баланс используют и остальные AI-функции проекта).');
       }
