@@ -25,10 +25,16 @@ import {
 } from '../data/transactions';
 import type { Person } from '../data/people';
 import type { TransactionComment } from '../data/transactionComments';
+import type { TransactionBalanceAdjustment } from '../data/transactionBalanceAdjustments';
 import { fetchTransactions, insertTransaction, updateTransaction } from '../lib/transactionsApi';
 import { fetchTodayRate } from '../lib/exchangeRatesApi';
 import { fetchPeople } from '../lib/peopleApi';
 import { fetchTransactionComments } from '../lib/transactionCommentsApi';
+import {
+  fetchTransactionBalanceAdjustments,
+  upsertTransactionBalanceAdjustment,
+  deleteTransactionBalanceAdjustment,
+} from '../lib/transactionBalanceAdjustmentsApi';
 
 // Ошибки Supabase (PostgrestError) — обычные объекты с полем message,
 // а не экземпляры Error, поэтому `instanceof Error` их не ловит.
@@ -103,12 +109,27 @@ function calculateBalances(transactions: Transaction[], splitPayers: string[]) {
   });
 }
 
-// Непогашенные траты плательщиков вне пары (например, Татьяна Давыдчик,
+// Непогашенный остаток плательщиков вне пары (например, Татьяна Давыдчик,
 // Влад Ждонец) — в отличие от calculateBalances здесь ничего не делится
-// пополам, вся сумма просто числится долгом перед ними. Только расходы
-// (amount < 0): у Влада Ждонца отдельно бывают ещё и доходные операции
-// (isIncomePayer) — те тут ни при чём, это разные, не связанные долги.
-function calculateSoloDebts(transactions: Transaction[], soloPayers: string[]) {
+// пополам, вся сумма просто числится долгом. Только расходы (amount < 0):
+// у Влада Ждонца отдельно бывают ещё и доходные операции (isIncomePayer) —
+// те тут ни при чём, это разные, не связанные долги.
+//
+// Владелец, 2026-08-31: "пометил все транзакции с Татьяной Давыдчик как
+// зачтённые, но остался остаток — Татьяна Давыдчик должна мне $125, чтобы
+// следующие транзакции шли в перезачёт с ней". Пометка "В расчете" снимает
+// старые транзакции с расчёта насовсем — остаток от сверки, который они не
+// покрывают, хранится отдельно (adjustments, см.
+// transactionBalanceAdjustmentsApi.ts) и НЕТТО суммируется с новыми
+// непогашенными тратами того же плательщика — знак adjustments такой же,
+// как у amount ниже (положительное — мы должны плательщику, отрицательное —
+// плательщик должен нам), поэтому дальнейшие траты автоматически сокращают
+// остаток корректировки, ничего пересчитывать вручную не нужно.
+function calculateSoloBalances(
+  transactions: Transaction[],
+  soloPayers: string[],
+  adjustments: TransactionBalanceAdjustment[],
+) {
   const result: { payer: string; currency: Currency; amount: number }[] = [];
   for (const payer of soloPayers) {
     const byCurrency = new Map<Currency, number>();
@@ -116,8 +137,13 @@ function calculateSoloDebts(transactions: Transaction[], soloPayers: string[]) {
       if (t.compensated || t.paidBy !== payer || t.amount >= 0) continue;
       byCurrency.set(t.currency, (byCurrency.get(t.currency) ?? 0) + Math.abs(t.amount));
     }
+    for (const adj of adjustments) {
+      if (adj.payer !== payer) continue;
+      byCurrency.set(adj.currency, (byCurrency.get(adj.currency) ?? 0) + adj.amount);
+    }
     for (const [currency, amount] of byCurrency) {
-      if (amount > 0) result.push({ payer, currency, amount });
+      const rounded = Math.round(amount * 100) / 100;
+      if (rounded !== 0) result.push({ payer, currency, amount: rounded });
     }
   }
   return result;
@@ -180,6 +206,20 @@ export function Transactions() {
   // не из захардкоженных списков (см. комментарий у Payer в data/transactions.ts).
   const [people, setPeople] = useState<Person[]>([]);
 
+  // Ручные корректировки "непогашенного остатка" соло-плательщиков — см.
+  // calculateSoloBalances выше.
+  const [adjustments, setAdjustments] = useState<TransactionBalanceAdjustment[]>([]);
+  const [adjustModalOpen, setAdjustModalOpen] = useState(false);
+  const [adjustForm, setAdjustForm] = useState({
+    payer: '',
+    currency: 'USD' as Currency,
+    direction: 'theyOweUs' as 'weOwe' | 'theyOweUs',
+    amount: '',
+    note: '',
+  });
+  const [savingAdjustment, setSavingAdjustment] = useState(false);
+  const [adjustmentError, setAdjustmentError] = useState<string | null>(null);
+
   // Комментарии ко всем транзакциям разом (см. комментарий у
   // fetchTransactionComments) — группировка по transactionId на клиенте,
   // модалка открывается по клику на строку.
@@ -229,7 +269,7 @@ export function Transactions() {
   // источники выше: стартовый набор (payers/incomePayers из people) + все
   // значения, уже встречавшиеся в транзакциях. Человек, добавленный так
   // через форму (а не через флаги в таблице people), не попадает в раздел
-  // "Непогашенный остаток" — calculateBalances/calculateSoloDebts завязаны
+  // "Непогашенный остаток" — calculateBalances/calculateSoloBalances завязаны
   // на people-списки, а не на все значения paidBy.
   const knownPayers = useMemo(() => {
     const set = new Set<string>(payers);
@@ -269,6 +309,9 @@ export function Transactions() {
     fetchTransactionComments()
       .then(setComments)
       .catch(() => {});
+    fetchTransactionBalanceAdjustments()
+      .then(setAdjustments)
+      .catch(() => setAdjustments([]));
   }, []);
 
   const canSubmit = form.date && form.amount && form.purpose && form.category && form.paidBy && form.paidFrom;
@@ -345,6 +388,64 @@ export function Transactions() {
       setToggleError(errorMessage(err, 'Не удалось изменить статус'));
     } finally {
       setTogglingId(null);
+    }
+  }
+
+  // Открыть корректировку остатка — либо для конкретной валюты, в которой
+  // уже есть остаток (пенсил у строки), либо "с нуля" (кнопка в шапке
+  // карточки, по умолчанию первый соло-плательщик и его валюта в текущем
+  // остатке, если она уже была нулевой — например, только что зачли всё).
+  function openAdjustModal(payer: string, currency: Currency) {
+    const existing = adjustments.find((a) => a.payer === payer && a.currency === currency);
+    setAdjustForm({
+      payer,
+      currency,
+      direction: (existing?.amount ?? 0) < 0 ? 'theyOweUs' : 'weOwe',
+      amount: existing ? String(Math.abs(existing.amount)) : '',
+      note: existing?.note ?? '',
+    });
+    setAdjustmentError(null);
+    setAdjustModalOpen(true);
+  }
+
+  async function submitAdjustment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!adjustForm.payer || !adjustForm.amount || savingAdjustment) return;
+    setSavingAdjustment(true);
+    setAdjustmentError(null);
+    try {
+      const signedAmount = adjustForm.direction === 'weOwe' ? Math.abs(Number(adjustForm.amount)) : -Math.abs(Number(adjustForm.amount));
+      const saved = await upsertTransactionBalanceAdjustment({
+        payer: adjustForm.payer,
+        currency: adjustForm.currency,
+        amount: signedAmount,
+        note: adjustForm.note.trim(),
+      });
+      setAdjustments((prev) => [...prev.filter((a) => !(a.payer === saved.payer && a.currency === saved.currency)), saved]);
+      setAdjustModalOpen(false);
+    } catch (err) {
+      setAdjustmentError(errorMessage(err, 'Не удалось сохранить остаток'));
+    } finally {
+      setSavingAdjustment(false);
+    }
+  }
+
+  async function handleDeleteAdjustment() {
+    const existing = adjustments.find((a) => a.payer === adjustForm.payer && a.currency === adjustForm.currency);
+    if (!existing) {
+      setAdjustModalOpen(false);
+      return;
+    }
+    setSavingAdjustment(true);
+    setAdjustmentError(null);
+    try {
+      await deleteTransactionBalanceAdjustment(existing.id);
+      setAdjustments((prev) => prev.filter((a) => a.id !== existing.id));
+      setAdjustModalOpen(false);
+    } catch (err) {
+      setAdjustmentError(errorMessage(err, 'Не удалось удалить корректировку'));
+    } finally {
+      setSavingAdjustment(false);
     }
   }
 
@@ -533,9 +634,22 @@ export function Transactions() {
       {!loading &&
         !loadError &&
         (calculateBalances(transactions, splitPayers).length > 0 ||
-          calculateSoloDebts(transactions, soloPayers).length > 0) && (
+          calculateSoloBalances(transactions, soloPayers, adjustments).length > 0 ||
+          soloPayers.length > 0) && (
           <Card className="flex flex-col gap-3">
-            <span className="text-lg font-bold text-ink">Непогашенный остаток</span>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-lg font-bold text-ink">Непогашенный остаток</span>
+              {soloPayers.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => openAdjustModal(soloPayers[0], 'USD')}
+                  className="flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Скорректировать остаток
+                </button>
+              )}
+            </div>
             {calculateBalances(transactions, splitPayers).map(({ currency, totals, debtor, creditor, owed }) => (
               <div
                 key={currency}
@@ -557,17 +671,33 @@ export function Transactions() {
                 )}
               </div>
             ))}
-            {calculateSoloDebts(transactions, soloPayers).map(({ payer, currency, amount }) => (
+            {calculateSoloBalances(transactions, soloPayers, adjustments).map(({ payer, currency, amount }) => (
               <div
                 key={`${payer}-${currency}`}
                 className="flex flex-wrap items-center justify-between gap-3 rounded-control bg-surface-muted px-4 py-3"
               >
                 <span className="text-sm text-ink-muted">
-                  {payer}: <span className="font-semibold text-ink">{formatAmount(amount, currency)}</span>
+                  {payer}: <span className="font-semibold text-ink">{formatAmount(Math.abs(amount), currency)}</span>
                 </span>
-                <Badge tone="primary">
-                  Должны {payer}: {formatAmount(amount, currency)}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  {amount > 0 ? (
+                    <Badge tone="primary">
+                      Должны {payer}: {formatAmount(amount, currency)}
+                    </Badge>
+                  ) : (
+                    <Badge tone="warning">
+                      Нам должны — {payer}: {formatAmount(Math.abs(amount), currency)}
+                    </Badge>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => openAdjustModal(payer, currency)}
+                    aria-label={`Скорректировать остаток: ${payer}`}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             ))}
           </Card>
@@ -691,6 +821,63 @@ export function Transactions() {
         onAdded={(comment) => setComments((prev) => [...prev, comment])}
         onDeleted={(id) => setComments((prev) => prev.filter((c) => c.id !== id))}
       />
+
+      <Modal open={adjustModalOpen} onClose={() => setAdjustModalOpen(false)} title="Остаток по сверке">
+        <form onSubmit={submitAdjustment} className="flex flex-col gap-4">
+          <p className="text-sm text-ink-faint">
+            Отдельный остаток "с прошлого раза" — не зависит от отметки "В расчете" у транзакций, и новые непогашенные
+            траты этого же человека будут автоматически перезачитываться в него.
+          </p>
+          <Select
+            label="Кто"
+            options={soloPayers}
+            value={adjustForm.payer}
+            onChange={(v) => setAdjustForm((f) => ({ ...f, payer: v }))}
+            placeholder="Выберите человека"
+          />
+          <ToggleGroup
+            label="Валюта"
+            options={[...currencies]}
+            value={adjustForm.currency}
+            onChange={(v) => setAdjustForm((f) => ({ ...f, currency: v as Currency }))}
+          />
+          <ToggleGroup
+            label="Направление"
+            options={['Мы должны', 'Нам должны']}
+            value={adjustForm.direction === 'weOwe' ? 'Мы должны' : 'Нам должны'}
+            onChange={(v) => setAdjustForm((f) => ({ ...f, direction: v === 'Мы должны' ? 'weOwe' : 'theyOweUs' }))}
+          />
+          <Input
+            label="Сумма"
+            type="number"
+            step="0.01"
+            min="0"
+            value={adjustForm.amount}
+            onChange={(e) => setAdjustForm((f) => ({ ...f, amount: e.target.value }))}
+            placeholder="125"
+          />
+          <Input
+            label="Комментарий (необязательно)"
+            value={adjustForm.note}
+            onChange={(e) => setAdjustForm((f) => ({ ...f, note: e.target.value }))}
+            placeholder="Например: остаток после сверки 31.08.2026"
+          />
+          {adjustmentError && <p className="text-sm text-danger">{adjustmentError}</p>}
+          <div className="flex items-center justify-end gap-2">
+            {adjustments.some((a) => a.payer === adjustForm.payer && a.currency === adjustForm.currency) && (
+              <Button type="button" variant="ghost" disabled={savingAdjustment} onClick={handleDeleteAdjustment} className="mr-auto">
+                Удалить корректировку
+              </Button>
+            )}
+            <Button type="button" variant="secondary" onClick={() => setAdjustModalOpen(false)}>
+              Отмена
+            </Button>
+            <Button type="submit" disabled={!adjustForm.payer || !adjustForm.amount || savingAdjustment}>
+              {savingAdjustment ? 'Сохраняем...' : 'Сохранить'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </>
   );
 }
