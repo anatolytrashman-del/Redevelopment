@@ -38,10 +38,11 @@ const SYSTEM_PROMPT = `Ты помогаешь найти реальных по�
 "note" — одна короткая фраза по-русски: что продают/чем подходят под запрос.
 Если ничего подходящего не нашёл — верни пустой массив [].`;
 
-function buildUserQuery(itemsText, sectionTitle) {
+function buildUserQuery(itemsText, sectionTitle, extra) {
   const parts = [];
   if (sectionTitle) parts.push(`Раздел: ${sectionTitle}.`);
   parts.push(`Материалы: ${itemsText}.`);
+  if (extra) parts.push(`Дополнительные пожелания: ${extra}.`);
   parts.push('Найди поставщиков этих материалов в Минске/Беларуси.');
   return parts.join(' ');
 }
@@ -96,7 +97,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { itemsText, sectionTitle } = req.body ?? {};
+  const { itemsText, sectionTitle, extra } = req.body ?? {};
   if (typeof itemsText !== 'string' || !itemsText.trim()) {
     res.status(400).json({ error: 'Список материалов пуст' });
     return;
@@ -115,12 +116,29 @@ export default async function handler(req, res) {
         max_tokens: 2000,
         tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: MAX_SEARCHES }],
         system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: buildUserQuery(itemsText.trim(), typeof sectionTitle === 'string' ? sectionTitle.trim() : '') }],
+        messages: [
+          {
+            role: 'user',
+            content: buildUserQuery(
+              itemsText.trim(),
+              typeof sectionTitle === 'string' ? sectionTitle.trim() : '',
+              typeof extra === 'string' ? extra.trim() : '',
+            ),
+          },
+        ],
       }),
     });
 
     if (!resp.ok) {
       const text = await resp.text();
+      // 402 — недостаточно средств на балансе ProxyAPI. Проверено вживую:
+      // тот же баланс общий для OpenAI- и Anthropic-путей шлюза (meeting-ai.js
+      // на gpt-4o упадёт с той же ошибкой) — не проблема конкретно этого
+      // эндпоинта или веб-поиска, а нужно пополнить счёт в личном кабинете
+      // ProxyAPI.
+      if (resp.status === 402) {
+        throw new Error('Недостаточно средств на балансе ProxyAPI — пополните счёт в личном кабинете ProxyAPI (тот же баланс используют и остальные AI-функции проекта).');
+      }
       throw new Error(`Ошибка веб-поиска (${resp.status}): ${text.slice(0, 300)}`);
     }
     const data = await resp.json();

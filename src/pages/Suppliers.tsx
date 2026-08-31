@@ -558,10 +558,18 @@ export function Suppliers() {
   const [purchaseDraft, setPurchaseDraft] = useState<PurchaseDraft | null>(null);
 
   // "Найти в сети" (владелец, 2026-08-31) — веб-поиск поставщиков через
-  // Claude Sonnet 5 (api/supplier-web-search.js). webSearchingId — id
-  // запроса, для которого сейчас идёт поиск (дизейблит кнопку именно этой
-  // карточки, не все разом); webSearchModal — какой запрос показывать в
-  // модалке результатов и сами результаты/ошибка.
+  // Claude Sonnet 5 (api/supplier-web-search.js). Владелец сразу же
+  // пожаловался, что клик сразу запускает поиск без возможности что-то
+  // уточнить — поэтому кнопка открывает не сам поиск, а сначала
+  // webQueryModal: список материалов (редактируемый, вдруг что-то не то
+  // подтянулось из раздела сметы) + свободное поле "Дополнительные
+  // пожелания" (бренд/бюджет/регион и т.п.), и только по кнопке "Искать"
+  // уходит запрос. webSearchingId — id запроса, для которого сейчас идёт
+  // поиск (дизейблит кнопку именно этой карточки, не все разом);
+  // webSearchModal — какой запрос показывать в модалке результатов и сами
+  // результаты/ошибка.
+  const [webQueryModal, setWebQueryModal] = useState<SupplierRequest | null>(null);
+  const [webQueryForm, setWebQueryForm] = useState({ itemsText: '', extra: '' });
   const [webSearchingId, setWebSearchingId] = useState<string | null>(null);
   const [webSearchModal, setWebSearchModal] = useState<{
     request: SupplierRequest;
@@ -861,14 +869,23 @@ export function Suppliers() {
     setOfferModalOpen(true);
   }
 
-  async function handleWebSearch(request: SupplierRequest) {
-    setWebSearchingId(request.id);
+  function openWebQueryModal(request: SupplierRequest) {
     const itemsText =
       request.items.length > 0
         ? request.items.map((i) => `${i.name}${i.quantity ? ` (${i.quantity}${i.unit ? ` ${i.unit}` : ''})` : ''}`).join(', ')
         : request.title;
+    setWebQueryForm({ itemsText, extra: '' });
+    setWebQueryModal(request);
+  }
+
+  async function submitWebQuery(e: React.FormEvent) {
+    e.preventDefault();
+    const request = webQueryModal;
+    if (!request || !webQueryForm.itemsText.trim()) return;
+    setWebQueryModal(null);
+    setWebSearchingId(request.id);
     try {
-      const results = await searchSuppliersOnline(itemsText, request.sectionTitle || request.title);
+      const results = await searchSuppliersOnline(webQueryForm.itemsText.trim(), request.sectionTitle || request.title, webQueryForm.extra.trim());
       setWebSearchModal({ request, results, error: null });
     } catch (err) {
       setWebSearchModal({ request, results: [], error: errorMessage(err, 'Не удалось выполнить веб-поиск') });
@@ -1081,7 +1098,7 @@ export function Suppliers() {
               onDeleteRequest={handleDeleteRequest}
               onAddOffer={openAddOffer}
               onOpenDetail={(o) => setDetailOfferId(o.id)}
-              onWebSearch={handleWebSearch}
+              onWebSearch={openWebQueryModal}
               searching={webSearchingId === r.id}
             />
           ))}
@@ -1558,6 +1575,32 @@ export function Suppliers() {
             />
           );
         })()}
+
+      <Modal open={!!webQueryModal} onClose={() => setWebQueryModal(null)} title={`Найти в сети: ${webQueryModal?.title ?? ''}`}>
+        <form onSubmit={submitWebQuery} className="flex flex-col gap-4">
+          <Textarea
+            label="Что ищем"
+            rows={3}
+            value={webQueryForm.itemsText}
+            onChange={(e) => setWebQueryForm((f) => ({ ...f, itemsText: e.target.value }))}
+          />
+          <Textarea
+            label="Дополнительные пожелания (необязательно)"
+            rows={3}
+            placeholder="Например: бренд Ceresit, бюджет до $500, готовы смотреть не только Минск"
+            value={webQueryForm.extra}
+            onChange={(e) => setWebQueryForm((f) => ({ ...f, extra: e.target.value }))}
+          />
+          <div className="flex items-center justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setWebQueryModal(null)}>
+              Отмена
+            </Button>
+            <Button type="submit" icon={<Search className="h-4 w-4" />} disabled={!webQueryForm.itemsText.trim()}>
+              Искать
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       {webSearchModal && (
         <SupplierWebSearchModal

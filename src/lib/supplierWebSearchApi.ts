@@ -21,13 +21,13 @@ export interface SupplierSearchResult {
   note: string;
 }
 
-export async function searchSuppliersOnline(itemsText: string, sectionTitle: string): Promise<SupplierSearchResult[]> {
+export async function searchSuppliersOnline(itemsText: string, sectionTitle: string, extra: string): Promise<SupplierSearchResult[]> {
   return withRetry(
     async () => {
       const resp = await authFetch('/api/supplier-web-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemsText, sectionTitle }),
+        body: JSON.stringify({ itemsText, sectionTitle, extra }),
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) throw new Error(data.error || `Ошибка веб-поиска (${resp.status})`);
