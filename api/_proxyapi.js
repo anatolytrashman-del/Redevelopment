@@ -1,5 +1,7 @@
-// Общая проверка PROXYAPI_KEY для функций, ходящих в ProxyAPI
-// (transcribe-meeting, summarize-meeting, suggest-tasks).
+// Общая проверка PROXYAPI_KEY для функций, ходящих в ProxyAPI — как в
+// OpenAI-совместимый путь (meeting-ai.js, gpt-4o), так и в отдельный
+// Anthropic-совместимый путь того же шлюза (supplier-web-search.js,
+// claude-sonnet-5) — ключ один и тот же на оба пути.
 //
 // Проверка на посторонние символы — не перестраховка: ключ, скопированный
 // из личного кабинета ProxyAPI в замаскированном виде (sk-…•••••), ронял

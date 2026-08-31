@@ -176,10 +176,10 @@ export async function suggestTasksFromTranscript(
   alreadySuggested: string[],
 ): Promise<SuggestedTask[]> {
   return withRetry(async () => {
-    const resp = await authFetch('/api/suggest-tasks', {
+    const resp = await authFetch('/api/meeting-ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transcript, assignees, alreadySuggested }),
+      body: JSON.stringify({ action: 'suggest-tasks', transcript, assignees, alreadySuggested }),
     });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(data.error || `Ошибка извлечения задач (${resp.status})`);
@@ -189,10 +189,10 @@ export async function suggestTasksFromTranscript(
 
 export async function summarizeTranscript(transcript: string): Promise<string> {
   return withRetry(async () => {
-    const resp = await authFetch('/api/summarize-meeting', {
+    const resp = await authFetch('/api/meeting-ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transcript }),
+      body: JSON.stringify({ action: 'summarize', transcript }),
     });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(data.error || `Ошибка генерации саммери (${resp.status})`);

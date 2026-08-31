@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Trash2, Pencil, Send, Phone, Globe, Paperclip, Upload, X, ImageOff, Mail, ShoppingCart } from 'lucide-react';
+import { Plus, Loader2, Trash2, Pencil, Send, Phone, Globe, Paperclip, Upload, X, ImageOff, Mail, ShoppingCart, Search } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -52,6 +52,7 @@ import {
   uploadSupplierFile,
   type SupplierRequestInput,
 } from '../lib/supplierResearchApi';
+import { searchSuppliersOnline, type SupplierSearchResult } from '../lib/supplierWebSearchApi';
 import type { PurchaseItem } from '../data/purchases';
 import type { Estimate, EstimateMaterial } from '../data/estimates';
 import { fetchEstimates } from '../lib/estimatesApi';
@@ -189,6 +190,8 @@ function RequestCard({
   onDeleteRequest,
   onAddOffer,
   onOpenDetail,
+  onWebSearch,
+  searching,
 }: {
   request: SupplierRequest;
   offers: SupplierOffer[];
@@ -197,6 +200,8 @@ function RequestCard({
   onDeleteRequest: (r: SupplierRequest) => void;
   onAddOffer: (requestId: string) => void;
   onOpenDetail: (o: SupplierOffer) => void;
+  onWebSearch: (r: SupplierRequest) => void;
+  searching: boolean;
 }) {
   const { sorted, cheapestIds } = rankOffers(offers, rate);
 
@@ -220,6 +225,15 @@ function RequestCard({
           )}
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={searching}
+            icon={searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            onClick={() => onWebSearch(request)}
+          >
+            {searching ? 'Ищем в сети...' : 'Найти в сети'}
+          </Button>
           <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} onClick={() => onAddOffer(request.id)}>
             Добавить предложение
           </Button>
@@ -279,6 +293,76 @@ function RequestCard({
         </div>
       )}
     </Card>
+  );
+}
+
+// Модалка результатов "Найти в сети" — владелец, 2026-08-31: "веб-поиск
+// поставщиков делай через клод, модель sonnet5". Результат ни во что не
+// сохраняется сам по себе (нет отдельной таблицы под "предложенных
+// веб-поиском") — по каждому найденному варианту либо "Добавить как
+// предложение" (тот же offerForm/offerModalOpen, что и у обычного
+// "Добавить предложение", просто предзаполненный — владелец правит и
+// сохраняет как обычно), либо просто закрыть модалку.
+function SupplierWebSearchModal({
+  requestTitle,
+  results,
+  error,
+  onClose,
+  onAddResult,
+}: {
+  requestTitle: string;
+  results: SupplierSearchResult[];
+  error: string | null;
+  onClose: () => void;
+  onAddResult: (r: SupplierSearchResult) => void;
+}) {
+  return (
+    <Modal open onClose={onClose} title={`Найдено в сети: ${requestTitle}`}>
+      <div className="flex flex-col gap-3">
+        {error && <p className="text-sm text-danger">{error}</p>}
+        {!error && results.length === 0 && (
+          <p className="text-sm text-ink-faint">Ничего подходящего не нашлось — попробуйте уточнить список материалов в запросе.</p>
+        )}
+        {results.map((r, i) => (
+          <div key={i} className="flex flex-col gap-2 rounded-control border border-border px-4 py-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-medium text-ink">{r.name}</div>
+                {r.note && <div className="text-sm text-ink-muted">{r.note}</div>}
+              </div>
+              <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} onClick={() => onAddResult(r)}>
+                Добавить предложение
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-muted">
+              {r.website && (
+                <a
+                  href={/^https?:\/\//.test(r.website) ? r.website : `https://${r.website}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 text-primary hover:underline"
+                >
+                  <Globe className="h-3.5 w-3.5 shrink-0" />
+                  {siteLabel(r.website)}
+                </a>
+              )}
+              {r.phone && (
+                <span className="flex items-center gap-1.5">
+                  <Phone className="h-3.5 w-3.5 shrink-0" />
+                  {r.phone}
+                </span>
+              )}
+              {r.email && (
+                <span className="flex items-center gap-1.5">
+                  <Mail className="h-3.5 w-3.5 shrink-0" />
+                  {r.email}
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Modal>
   );
 }
 
@@ -472,6 +556,18 @@ export function Suppliers() {
   // в отдельную карточку по клику.
   const [detailOfferId, setDetailOfferId] = useState<string | null>(null);
   const [purchaseDraft, setPurchaseDraft] = useState<PurchaseDraft | null>(null);
+
+  // "Найти в сети" (владелец, 2026-08-31) — веб-поиск поставщиков через
+  // Claude Sonnet 5 (api/supplier-web-search.js). webSearchingId — id
+  // запроса, для которого сейчас идёт поиск (дизейблит кнопку именно этой
+  // карточки, не все разом); webSearchModal — какой запрос показывать в
+  // модалке результатов и сами результаты/ошибка.
+  const [webSearchingId, setWebSearchingId] = useState<string | null>(null);
+  const [webSearchModal, setWebSearchModal] = useState<{
+    request: SupplierRequest;
+    results: SupplierSearchResult[];
+    error: string | null;
+  } | null>(null);
 
   // "Создать закупку" из выигравшего предложения (владелец, 2026-08-29:
   // "у победителя жмёте «Создать закупку» — открывается форма Закупки, уже
@@ -765,6 +861,41 @@ export function Suppliers() {
     setOfferModalOpen(true);
   }
 
+  async function handleWebSearch(request: SupplierRequest) {
+    setWebSearchingId(request.id);
+    const itemsText =
+      request.items.length > 0
+        ? request.items.map((i) => `${i.name}${i.quantity ? ` (${i.quantity}${i.unit ? ` ${i.unit}` : ''})` : ''}`).join(', ')
+        : request.title;
+    try {
+      const results = await searchSuppliersOnline(itemsText, request.sectionTitle || request.title);
+      setWebSearchModal({ request, results, error: null });
+    } catch (err) {
+      setWebSearchModal({ request, results: [], error: errorMessage(err, 'Не удалось выполнить веб-поиск') });
+    } finally {
+      setWebSearchingId(null);
+    }
+  }
+
+  // Предзаполняет обычную форму "Добавить предложение" найденным вариантом
+  // — владелец правит/дополняет и сохраняет как всегда, отдельного пути
+  // сохранения для результатов веб-поиска нет.
+  function addWebSearchResultAsOffer(requestId: string, r: SupplierSearchResult) {
+    setOfferRequestId(requestId);
+    setEditingOffer(null);
+    setOfferForm({
+      ...emptyOfferForm,
+      name: r.name,
+      websiteUrl: r.website,
+      contact: r.phone,
+      email: r.email,
+      requirements: r.note ? `Найдено веб-поиском: ${r.note}` : '',
+    });
+    setOfferError(null);
+    setOfferModalOpen(true);
+    setWebSearchModal(null);
+  }
+
   function openEditOffer(o: SupplierOffer) {
     setOfferRequestId(o.requestId);
     setEditingOffer(o);
@@ -950,6 +1081,8 @@ export function Suppliers() {
               onDeleteRequest={handleDeleteRequest}
               onAddOffer={openAddOffer}
               onOpenDetail={(o) => setDetailOfferId(o.id)}
+              onWebSearch={handleWebSearch}
+              searching={webSearchingId === r.id}
             />
           ))}
 
@@ -1425,6 +1558,16 @@ export function Suppliers() {
             />
           );
         })()}
+
+      {webSearchModal && (
+        <SupplierWebSearchModal
+          requestTitle={webSearchModal.request.title}
+          results={webSearchModal.results}
+          error={webSearchModal.error}
+          onClose={() => setWebSearchModal(null)}
+          onAddResult={(r) => addWebSearchResultAsOffer(webSearchModal.request.id, r)}
+        />
+      )}
     </>
   );
 }
