@@ -188,11 +188,7 @@ function RequestCard({
   onEditRequest,
   onDeleteRequest,
   onAddOffer,
-  onEditOffer,
-  onDeleteOffer,
-  onEmailOffer,
-  onCreatePurchase,
-  deletingOfferId,
+  onOpenDetail,
 }: {
   request: SupplierRequest;
   offers: SupplierOffer[];
@@ -200,11 +196,7 @@ function RequestCard({
   onEditRequest: (r: SupplierRequest) => void;
   onDeleteRequest: (r: SupplierRequest) => void;
   onAddOffer: (requestId: string) => void;
-  onEditOffer: (o: SupplierOffer) => void;
-  onDeleteOffer: (o: SupplierOffer) => void;
-  onEmailOffer: (o: SupplierOffer) => void;
-  onCreatePurchase: (o: SupplierOffer) => void;
-  deletingOfferId: string | null;
+  onOpenDetail: (o: SupplierOffer) => void;
 }) {
   const { sorted, cheapestIds } = rankOffers(offers, rate);
 
@@ -253,159 +245,175 @@ function RequestCard({
       {sorted.length === 0 ? (
         <p className="text-sm text-ink-faint">Пока нет предложений — нажмите «Добавить предложение».</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-ink-faint">
-                <th className="py-2 pr-3 text-left">Название</th>
-                <th className="py-2 px-2 text-left">Контакт</th>
-                <th className="py-2 px-2 text-left">Сайт</th>
-                <th className="py-2 px-2 text-left">Модель в каталоге</th>
-                <th className="py-2 px-2 text-left">Статус</th>
-                <th className="py-2 px-2 text-right">Итоговая цена</th>
-                <th className="py-2 px-2 text-left">Срок</th>
-                <th className="py-2 px-2 text-left">Требования</th>
-                <th className="py-2 px-2 text-left">Файлы</th>
-                <th className="py-2 pl-2" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {sorted.map((o) => {
-                const isCheapest = cheapestIds.has(o.id);
-                return (
-                  <tr key={o.id} className={isCheapest ? 'bg-success-bg' : undefined}>
-                    <td className="py-2.5 pr-3 font-medium text-ink">
-                      {o.name}
-                      {isCheapest && (
-                        <span className="ml-2 rounded-full bg-success px-2 py-0.5 text-[11px] font-semibold text-white">
-                          лучшая цена
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-2 text-ink-muted">
-                      {o.contact ? (
-                        <span className="flex items-center gap-1.5">
-                          {o.contactMethod === 'Telegram' ? (
-                            <Send className="h-3.5 w-3.5 shrink-0" />
-                          ) : (
-                            <Phone className="h-3.5 w-3.5 shrink-0" />
-                          )}
-                          <ContactValue
-                            contact={o.contactMethod === 'Телефон' ? formatPhoneDisplay(o.contact) : o.contact}
-                            contactMethod={o.contactMethod}
-                          />
-                        </span>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="py-2.5 px-2 text-ink-muted">
-                      {o.websiteUrl ? (
-                        <a
-                          href={/^https?:\/\//.test(o.websiteUrl) ? o.websiteUrl : `https://${o.websiteUrl}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-1.5 text-primary hover:underline"
-                        >
-                          <Globe className="h-3.5 w-3.5 shrink-0" />
-                          <span className="max-w-[140px] truncate">{siteLabel(o.websiteUrl)}</span>
-                        </a>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="py-2.5 px-2 text-ink-muted">
-                      {o.catalogModelName || o.catalogModelPhoto ? (
-                        <div className="flex items-center gap-2">
-                          <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-control bg-surface-muted">
-                            {o.catalogModelPhoto ? (
-                              <img src={o.catalogModelPhoto.url} alt="" className="h-full w-full object-cover" />
-                            ) : (
-                              <ImageOff className="h-4 w-4 text-ink-faint" />
-                            )}
-                          </span>
-                          <span className="max-w-[140px] truncate text-ink">{o.catalogModelName || '—'}</span>
-                        </div>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="max-w-[160px] py-2.5 px-2 text-ink-muted">
-                      <span className="line-clamp-2">{o.communicationStatus || '—'}</span>
-                    </td>
-                    <td className={cn('py-2.5 px-2 text-right tabular-nums font-semibold', isCheapest ? 'text-success' : 'text-ink')}>
-                      {o.price > 0 ? formatPrice(o.price, o.currency) : '—'}
-                    </td>
-                    <td className="py-2.5 px-2 text-ink-muted">{o.deadline || '—'}</td>
-                    <td className="max-w-[200px] py-2.5 px-2 text-ink-muted">
-                      <span className="line-clamp-2">{o.requirements || '—'}</span>
-                    </td>
-                    <td className="py-2.5 px-2 text-ink-muted">
-                      {o.files.length > 0 ? (
-                        <div className="flex flex-col gap-1">
-                          {o.files.map((f, i) => (
-                            <a
-                              key={i}
-                              href={f.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex items-center gap-1 text-xs text-primary hover:underline"
-                            >
-                              <Paperclip className="h-3 w-3 shrink-0" />
-                              <span className="max-w-[100px] truncate">{f.fileName}</span>
-                            </a>
-                          ))}
-                        </div>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="py-2.5 pl-2">
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => onCreatePurchase(o)}
-                          aria-label="Создать закупку"
-                          title="Создать закупку"
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-success"
-                        >
-                          <ShoppingCart className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onEmailOffer(o)}
-                          aria-label="Переписка по email"
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-primary"
-                        >
-                          <Mail className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onEditOffer(o)}
-                          aria-label="Редактировать предложение"
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-primary"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onDeleteOffer(o)}
-                          disabled={deletingOfferId === o.id}
-                          aria-label="Удалить предложение"
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-danger disabled:opacity-50"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="flex flex-col gap-2">
+          {sorted.map((o) => {
+            const isCheapest = cheapestIds.has(o.id);
+            return (
+              <div
+                key={o.id}
+                className={cn(
+                  'flex flex-wrap items-center justify-between gap-3 rounded-control border border-border px-4 py-3',
+                  isCheapest && 'border-success/40 bg-success-bg',
+                )}
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="truncate font-medium text-ink">{o.name}</span>
+                  {isCheapest && (
+                    <span className="shrink-0 rounded-full bg-success px-2 py-0.5 text-[11px] font-semibold text-white">
+                      лучшая цена
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="max-w-[200px] truncate text-sm text-ink-muted">{o.communicationStatus || '—'}</span>
+                  <span className={cn('tabular-nums font-semibold', isCheapest ? 'text-success' : 'text-ink')}>
+                    {o.price > 0 ? formatPrice(o.price, o.currency) : '—'}
+                  </span>
+                  <Button type="button" variant="secondary" onClick={() => onOpenDetail(o)}>
+                    Подробнее
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </Card>
+  );
+}
+
+function OfferDetailModal({
+  offer,
+  isCheapest,
+  onClose,
+  onEmail,
+  onEdit,
+  onDelete,
+  onCreatePurchase,
+  deleting,
+}: {
+  offer: SupplierOffer;
+  isCheapest: boolean;
+  onClose: () => void;
+  onEmail: (o: SupplierOffer) => void;
+  onEdit: (o: SupplierOffer) => void;
+  onDelete: (o: SupplierOffer) => void;
+  onCreatePurchase: (o: SupplierOffer) => void;
+  deleting: boolean;
+}) {
+  return (
+    <Modal open onClose={onClose} title={offer.name}>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className={cn('tabular-nums text-lg font-semibold', isCheapest ? 'text-success' : 'text-ink')}>
+            {offer.price > 0 ? formatPrice(offer.price, offer.currency) : 'Цена не указана'}
+          </span>
+          {isCheapest && (
+            <span className="rounded-full bg-success px-2 py-0.5 text-[11px] font-semibold text-white">лучшая цена</span>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-1 text-sm">
+          <span className="text-ink-faint">Статус</span>
+          <span className="text-ink">{offer.communicationStatus || '—'}</span>
+        </div>
+
+        <div className="flex flex-col gap-1 text-sm">
+          <span className="text-ink-faint">Контакт</span>
+          {offer.contact ? (
+            <span className="flex items-center gap-1.5 text-ink">
+              {offer.contactMethod === 'Telegram' ? (
+                <Send className="h-3.5 w-3.5 shrink-0" />
+              ) : (
+                <Phone className="h-3.5 w-3.5 shrink-0" />
+              )}
+              <ContactValue
+                contact={offer.contactMethod === 'Телефон' ? formatPhoneDisplay(offer.contact) : offer.contact}
+                contactMethod={offer.contactMethod}
+              />
+            </span>
+          ) : (
+            <span className="text-ink">—</span>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-1 text-sm">
+          <span className="text-ink-faint">Сайт</span>
+          {offer.websiteUrl ? (
+            <a
+              href={/^https?:\/\//.test(offer.websiteUrl) ? offer.websiteUrl : `https://${offer.websiteUrl}`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex w-fit items-center gap-1.5 text-primary hover:underline"
+            >
+              <Globe className="h-3.5 w-3.5 shrink-0" />
+              {siteLabel(offer.websiteUrl)}
+            </a>
+          ) : (
+            <span className="text-ink">—</span>
+          )}
+        </div>
+
+        {(offer.catalogModelName || offer.catalogModelPhoto) && (
+          <div className="flex flex-col gap-1 text-sm">
+            <span className="text-ink-faint">Модель в каталоге</span>
+            <div className="flex items-center gap-2">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-control bg-surface-muted">
+                {offer.catalogModelPhoto ? (
+                  <img src={offer.catalogModelPhoto.url} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <ImageOff className="h-5 w-5 text-ink-faint" />
+                )}
+              </span>
+              <span className="text-ink">{offer.catalogModelName || '—'}</span>
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-1 text-sm">
+          <span className="text-ink-faint">Срок</span>
+          <span className="text-ink">{offer.deadline || '—'}</span>
+        </div>
+
+        <div className="flex flex-col gap-1 text-sm">
+          <span className="text-ink-faint">Требования</span>
+          <span className="whitespace-pre-wrap text-ink">{offer.requirements || '—'}</span>
+        </div>
+
+        {offer.files.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm text-ink-faint">Файлы</span>
+            {offer.files.map((f, i) => (
+              <a
+                key={i}
+                href={f.url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 rounded-control border border-border px-3 py-2 text-sm text-primary hover:underline"
+              >
+                <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{f.fileName}</span>
+              </a>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-2 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
+          <Button type="button" variant="ghost" icon={<Trash2 className="h-4 w-4" />} disabled={deleting} onClick={() => onDelete(offer)} className="mr-auto">
+            Удалить
+          </Button>
+          <Button type="button" variant="secondary" icon={<ShoppingCart className="h-4 w-4" />} onClick={() => onCreatePurchase(offer)}>
+            Создать закупку
+          </Button>
+          <Button type="button" variant="secondary" icon={<Mail className="h-4 w-4" />} onClick={() => onEmail(offer)}>
+            Написать
+          </Button>
+          <Button type="button" icon={<Pencil className="h-4 w-4" />} onClick={() => onEdit(offer)}>
+            Редактировать
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -457,6 +465,12 @@ export function Suppliers() {
   const [deletingOfferId, setDeletingOfferId] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [emailOfferId, setEmailOfferId] = useState<string | null>(null);
+  // Владелец, 2026-08-29: "слишком много инфы на превью, все вразнобой.
+  // Давай выводить название + цену + статус + кнопка Подробнее" — остальные
+  // поля (контакт/сайт/модель/срок/требования/файлы) и действия
+  // (написать/редактировать/удалить/создать закупку) переехали сюда,
+  // в отдельную карточку по клику.
+  const [detailOfferId, setDetailOfferId] = useState<string | null>(null);
   const [purchaseDraft, setPurchaseDraft] = useState<PurchaseDraft | null>(null);
 
   // "Создать закупку" из выигравшего предложения (владелец, 2026-08-29:
@@ -481,6 +495,7 @@ export function Suppliers() {
       currency: offer.currency,
     });
     setTab('Закупки');
+    setDetailOfferId(null);
   }
 
   useEffect(() => {
@@ -771,6 +786,7 @@ export function Suppliers() {
     });
     setOfferError(null);
     setOfferModalOpen(true);
+    setDetailOfferId(null);
   }
 
   async function handleCatalogPhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -839,6 +855,7 @@ export function Suppliers() {
     try {
       await deleteSupplierOffer(o.id);
       setOffers((prev) => prev.filter((x) => x.id !== o.id));
+      setDetailOfferId((id) => (id === o.id ? null : id));
     } catch (err) {
       setLoadError(errorMessage(err, 'Не удалось удалить предложение'));
     } finally {
@@ -932,11 +949,7 @@ export function Suppliers() {
               onEditRequest={openEditRequest}
               onDeleteRequest={handleDeleteRequest}
               onAddOffer={openAddOffer}
-              onEditOffer={openEditOffer}
-              onDeleteOffer={handleDeleteOffer}
-              onEmailOffer={(o) => setEmailOfferId(o.id)}
-              onCreatePurchase={handleCreatePurchase}
-              deletingOfferId={deletingOfferId}
+              onOpenDetail={(o) => setDetailOfferId(o.id)}
             />
           ))}
 
@@ -1388,6 +1401,29 @@ export function Suppliers() {
         (() => {
           const offer = offers.find((o) => o.id === emailOfferId);
           return offer ? <OfferEmailModal offer={offer} onClose={() => setEmailOfferId(null)} /> : null;
+        })()}
+
+      {detailOfferId &&
+        (() => {
+          const offer = offers.find((o) => o.id === detailOfferId);
+          if (!offer) return null;
+          const siblingOffers = offers.filter((o) => o.requestId === offer.requestId);
+          const { cheapestIds } = rankOffers(siblingOffers, rate);
+          return (
+            <OfferDetailModal
+              offer={offer}
+              isCheapest={cheapestIds.has(offer.id)}
+              onClose={() => setDetailOfferId(null)}
+              onEmail={(o) => {
+                setEmailOfferId(o.id);
+                setDetailOfferId(null);
+              }}
+              onEdit={openEditOffer}
+              onDelete={handleDeleteOffer}
+              onCreatePurchase={handleCreatePurchase}
+              deleting={deletingOfferId === offer.id}
+            />
+          );
         })()}
     </>
   );
