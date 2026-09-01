@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Pencil, Plus, Trash2, X, Check, LibraryBig, Share2 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
@@ -123,6 +123,15 @@ export function EstimateDetail() {
   // опция оставить комментарий возле каждой позиции по материалам").
   const [commentsMaterialSectionId, setCommentsMaterialSectionId] = useState<string | null>(null);
   const [commentsMaterial, setCommentsMaterial] = useState<EstimateMaterial | null>(null);
+
+  // Группы материалов ("Строительные леса" и т.п.) — по всей смете, не
+  // только текущему разделу, чтобы то же имя группы предлагалось выбрать
+  // из списка (EstimateMaterialFormModal), а не вводилось с нуля каждый раз.
+  const materialGroupOptions = useMemo(() => {
+    const set = new Set<string>();
+    (estimate?.sections ?? []).forEach((s) => s.materials.forEach((m) => m.group && set.add(m.group)));
+    return [...set];
+  }, [estimate]);
 
   const [linkCopied, setLinkCopied] = useState(false);
 
@@ -856,6 +865,7 @@ export function EstimateDetail() {
       <EstimateMaterialFormModal
         open={materialModalOpen}
         material={editingMaterial}
+        groupOptions={materialGroupOptions}
         onClose={() => setMaterialModalOpen(false)}
         onSaved={saveMaterial}
       />

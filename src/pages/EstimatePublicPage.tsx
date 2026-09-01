@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2, Check } from 'lucide-react';
 import { Card } from '../components/ui/Card';
@@ -74,6 +74,14 @@ export function EstimatePublicPage() {
 
   const [commentsMaterialSectionId, setCommentsMaterialSectionId] = useState<string | null>(null);
   const [commentsMaterial, setCommentsMaterial] = useState<EstimateMaterial | null>(null);
+
+  // Группы материалов ("Строительные леса" и т.п.) — по всей смете, см.
+  // тот же комментарий в EstimateDetail.tsx.
+  const materialGroupOptions = useMemo(() => {
+    const set = new Set<string>();
+    (estimate?.sections ?? []).forEach((s) => s.materials.forEach((m) => m.group && set.add(m.group)));
+    return [...set];
+  }, [estimate]);
 
   // Заголовок вкладки браузера — по умолчанию общий (ESTIMATE_PUBLIC_TITLE,
   // пока объект ещё не загрузился), затем "Смета реновации <адрес/название
@@ -536,6 +544,7 @@ export function EstimatePublicPage() {
       <EstimateMaterialFormModal
         open={materialModalOpen}
         material={editingMaterial}
+        groupOptions={materialGroupOptions}
         onClose={() => setMaterialModalOpen(false)}
         onSaved={saveMaterial}
       />

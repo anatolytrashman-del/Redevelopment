@@ -4,6 +4,7 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
+import { AddableSelect } from '../ui/AddableSelect';
 import type { EstimateMaterial } from '../../data/estimates';
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -17,26 +18,38 @@ function errorMessage(err: unknown, fallback: string): string {
 // EstimateMaterialCommentsModal), поэтому не часть формы вовсе — подставляются
 // из существующего материала (или пустым массивом для нового) прямо при сборке
 // saved в handleSubmit.
-const emptyForm: Omit<EstimateMaterial, 'id' | 'comments'> = { name: '', unit: '', quantity: null, note: '' };
+const emptyForm: Omit<EstimateMaterial, 'id' | 'comments'> = { name: '', unit: '', quantity: null, note: '', group: '' };
+
+const NO_GROUP = 'Без группы';
 
 interface EstimateMaterialFormModalProps {
   open: boolean;
   material: EstimateMaterial | null;
+  // Уже встречавшиеся значения group (по всей смете, не только текущему
+  // разделу) — владелец, 2026-08-31: "строительные леса отдельным
+  // блоком, по ним будут запрашиваться цены отдельно" — та же группа
+  // должна выбираться из списка, а не вводиться заново с риском опечатки
+  // (иначе позиция молча не попадёт в уже существующий блок).
+  groupOptions: string[];
   onClose: () => void;
   onSaved: (material: EstimateMaterial) => Promise<void>;
 }
 
-// Позиция списка материалов раздела — название/ед./кол-во/заметка, без
-// цены (это не построчная смета, снабжение — что закупить и сколько,
+// Позиция списка материалов раздела — название/ед./кол-во/заметка/группа,
+// без цены (это не построчная смета, снабжение — что закупить и сколько,
 // см. комментарий у EstimateMaterial в data/estimates.ts).
-export function EstimateMaterialFormModal({ open, material, onClose, onSaved }: EstimateMaterialFormModalProps) {
+export function EstimateMaterialFormModal({ open, material, groupOptions, onClose, onSaved }: EstimateMaterialFormModalProps) {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
-      setForm(material ? { name: material.name, unit: material.unit, quantity: material.quantity, note: material.note } : emptyForm);
+      setForm(
+        material
+          ? { name: material.name, unit: material.unit, quantity: material.quantity, note: material.note, group: material.group }
+          : emptyForm,
+      );
       setSubmitError(null);
     }
   }, [open, material]);
@@ -54,6 +67,7 @@ export function EstimateMaterialFormModal({ open, material, onClose, onSaved }: 
       unit: form.unit.trim(),
       quantity: form.quantity,
       note: form.note.trim(),
+      group: form.group.trim(),
       comments: material?.comments ?? [],
     };
     try {
@@ -96,6 +110,14 @@ export function EstimateMaterialFormModal({ open, material, onClose, onSaved }: 
           rows={2}
           value={form.note}
           onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+        />
+        <AddableSelect
+          label="Группа"
+          options={[NO_GROUP, ...groupOptions]}
+          value={form.group || NO_GROUP}
+          onChange={(v) => setForm((f) => ({ ...f, group: v === NO_GROUP ? '' : v }))}
+          addLabel="+ Новая группа"
+          newPlaceholder="Например, Строительные леса"
         />
 
         {submitError && <p className="text-sm text-danger">{submitError}</p>}

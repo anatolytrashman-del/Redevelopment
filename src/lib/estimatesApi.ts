@@ -23,7 +23,7 @@ function fromRow(row: EstimateRow): Estimate {
         // которая была раньше.
         currency: li.currency ?? 'BYN',
       })),
-      materials: (s.materials ?? []).map((m) => ({ ...m, comments: m.comments ?? [] })),
+      materials: (s.materials ?? []).map((m) => ({ ...m, comments: m.comments ?? [], group: m.group ?? '' })),
       materialListFiles: s.materialListFiles ?? [],
       materialFiles: s.materialFiles ?? [],
       positions: (s.positions ?? []).map((p) => ({
