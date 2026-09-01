@@ -206,12 +206,21 @@ export function estimateLineItemsTotals(estimate: Pick<Estimate, 'sections'>, ra
 // закупить и сколько). Один материал может относиться сразу к нескольким
 // строкам работ раздела, поэтому список не строка-в-строку с lineItems, а
 // отдельный на весь раздел ("блок работ" целиком — так решил владелец).
+// Комментарии к позиции материала — владелец, 2026-08-31: "у меня есть
+// вопросы к строителю, нужна опция оставить комментарий возле каждой
+// позиции по материалам". Тот же тип и та же механика, что и у
+// EstimateLineItemComment (лента дата+текст, без отдельной таблицы —
+// живёт внутри самой позиции, сохраняется тем же PATCH сметы) — материалы
+// видны и редактируются строителем на публичной странице (/estimate/:token,
+// EstimatePublicPage.tsx), поэтому это настоящая переписка в обе стороны,
+// не только для владельца.
 export interface EstimateMaterial {
   id: string;
   name: string;
   unit: string;
   quantity: number | null;
   note: string;
+  comments: EstimateLineItemComment[];
 }
 
 export interface EstimateSection {

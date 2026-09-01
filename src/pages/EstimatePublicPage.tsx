@@ -7,6 +7,7 @@ import { EstimateLineItemFormModal } from '../components/estimates/EstimateLineI
 import { EstimateLineItemCommentsModal } from '../components/estimates/EstimateLineItemCommentsModal';
 import { EstimateMaterialsPanel } from '../components/estimates/EstimateMaterialsPanel';
 import { EstimateMaterialFormModal } from '../components/estimates/EstimateMaterialFormModal';
+import { EstimateMaterialCommentsModal } from '../components/estimates/EstimateMaterialCommentsModal';
 import { cn } from '../lib/cn';
 import {
   estimateLineItemsTotals,
@@ -70,6 +71,9 @@ export function EstimatePublicPage() {
   const [materialModalOpen, setMaterialModalOpen] = useState(false);
   const [materialSectionId, setMaterialSectionId] = useState<string | null>(null);
   const [editingMaterial, setEditingMaterial] = useState<EstimateMaterial | null>(null);
+
+  const [commentsMaterialSectionId, setCommentsMaterialSectionId] = useState<string | null>(null);
+  const [commentsMaterial, setCommentsMaterial] = useState<EstimateMaterial | null>(null);
 
   // Заголовок вкладки браузера — по умолчанию общий (ESTIMATE_PUBLIC_TITLE,
   // пока объект ещё не загрузился), затем "Смета реновации <адрес/название
@@ -230,6 +234,21 @@ export function EstimatePublicPage() {
     await savePatch(sections);
   }
 
+  function openMaterialComments(sectionId: string, material: EstimateMaterial) {
+    setCommentsMaterialSectionId(sectionId);
+    setCommentsMaterial(material);
+  }
+
+  async function saveMaterialComments(updated: EstimateMaterial) {
+    if (!estimate || !commentsMaterialSectionId) return;
+    const sections = estimate.sections.map((s) =>
+      s.id === commentsMaterialSectionId ? { ...s, materials: s.materials.map((m) => (m.id === updated.id ? updated : m)) } : s,
+    );
+    const saved = await savePatch(sections);
+    const savedSection = saved.sections.find((s) => s.id === commentsMaterialSectionId);
+    setCommentsMaterial(savedSection?.materials.find((m) => m.id === updated.id) ?? null);
+  }
+
   async function deleteMaterial(sectionId: string, materialId: string) {
     if (!estimate) return;
     if (!window.confirm('Удалить материал?')) return;
@@ -346,6 +365,7 @@ export function EstimatePublicPage() {
             onAdd={() => openAddMaterial(section.id)}
             onEdit={(m) => openEditMaterial(section.id, m)}
             onDelete={(m) => deleteMaterial(section.id, m.id)}
+            onOpenComments={(m) => openMaterialComments(section.id, m)}
             onFilesChange={(files) => saveMaterialFiles(section.id, files)}
             onListFilesChange={(files) => saveMaterialListFiles(section.id, files)}
           />
@@ -518,6 +538,15 @@ export function EstimatePublicPage() {
         material={editingMaterial}
         onClose={() => setMaterialModalOpen(false)}
         onSaved={saveMaterial}
+      />
+
+      <EstimateMaterialCommentsModal
+        material={commentsMaterial}
+        onClose={() => {
+          setCommentsMaterialSectionId(null);
+          setCommentsMaterial(null);
+        }}
+        onSave={saveMaterialComments}
       />
     </div>
   );

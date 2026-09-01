@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pencil, Trash2, Plus, Upload, Loader2, Paperclip, X } from 'lucide-react';
+import { Pencil, Trash2, Plus, Upload, Loader2, Paperclip, X, MessageSquare } from 'lucide-react';
 import { Button } from '../ui/Button';
 import type { EstimateMaterial, EstimateSection } from '../../data/estimates';
 import type { DocumentFile } from '../../data/contractorDocuments';
@@ -22,6 +22,7 @@ interface EstimateMaterialsPanelProps {
   onAdd: () => void;
   onEdit: (material: EstimateMaterial) => void;
   onDelete: (material: EstimateMaterial) => void;
+  onOpenComments: (material: EstimateMaterial) => void;
   onFilesChange: (files: DocumentFile[]) => Promise<void>;
   onListFilesChange: (files: DocumentFile[]) => Promise<void>;
 }
@@ -32,7 +33,15 @@ interface EstimateMaterialsPanelProps {
 // (см. комментарий у EstimateMaterial/materialFiles там же — владелец
 // специально попросил снабжение (список + оба вида документов) отдельно от
 // построчной сметы (цены)).
-export function EstimateMaterialsPanel({ section, onAdd, onEdit, onDelete, onFilesChange, onListFilesChange }: EstimateMaterialsPanelProps) {
+export function EstimateMaterialsPanel({
+  section,
+  onAdd,
+  onEdit,
+  onDelete,
+  onOpenComments,
+  onFilesChange,
+  onListFilesChange,
+}: EstimateMaterialsPanelProps) {
   const [uploading, setUploading] = useState(false);
   const [filesError, setFilesError] = useState<string | null>(null);
 
@@ -115,6 +124,19 @@ export function EstimateMaterialsPanel({ section, onAdd, onEdit, onDelete, onFil
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onOpenComments(m)}
+                          aria-label="Комментарии к материалу"
+                          className="relative flex h-7 w-7 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+                        >
+                          <MessageSquare className="h-3 w-3" />
+                          {m.comments.length > 0 && (
+                            <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-0.5 text-[9px] font-semibold text-white">
+                              {m.comments.length}
+                            </span>
+                          )}
+                        </button>
                         <button
                           type="button"
                           onClick={() => onEdit(m)}

@@ -13,7 +13,11 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-const emptyForm: Omit<EstimateMaterial, 'id'> = { name: '', unit: '', quantity: null, note: '' };
+// comments не редактируются в этой форме (для этого отдельная
+// EstimateMaterialCommentsModal), поэтому не часть формы вовсе — подставляются
+// из существующего материала (или пустым массивом для нового) прямо при сборке
+// saved в handleSubmit.
+const emptyForm: Omit<EstimateMaterial, 'id' | 'comments'> = { name: '', unit: '', quantity: null, note: '' };
 
 interface EstimateMaterialFormModalProps {
   open: boolean;
@@ -50,6 +54,7 @@ export function EstimateMaterialFormModal({ open, material, onClose, onSaved }: 
       unit: form.unit.trim(),
       quantity: form.quantity,
       note: form.note.trim(),
+      comments: material?.comments ?? [],
     };
     try {
       await onSaved(saved);
