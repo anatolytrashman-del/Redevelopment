@@ -41,7 +41,15 @@ import { fetchObject } from '../lib/objectsApi';
 import { fetchTodayRateOrLatestCached } from '../lib/exchangeRatesApi';
 import { fetchZonesForPlan } from '../lib/buildingPlansApi';
 
-const SECTION_TABS = ['Текст', 'Смета', 'Материалы'] as const;
+// Порядок и дефолт — владелец, 2026-09-01: "мне не нужна старая смета,
+// которая внутри админки, мне нужна только версия, которая сейчас
+// доступна по ссылке строителю... она должна быть и внутри админки, и по
+// внешней ссылке" — "Смета" (построчная, то же самое, что видит строитель
+// по ссылке) теперь первая и открывается по умолчанию вместо "Текст"
+// (свободный текст/позиции/RAL — более ранний, самостоятельный слой
+// контента, данные не удалены, просто больше не первое, что видно при
+// открытии раздела).
+const SECTION_TABS = ['Смета', 'Материалы', 'Текст'] as const;
 type SectionTab = (typeof SECTION_TABS)[number];
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -707,11 +715,11 @@ export function EstimateDetail() {
                   </div>
                   <ToggleGroup
                     options={[...SECTION_TABS]}
-                    value={sectionTab[section.id] ?? 'Текст'}
+                    value={sectionTab[section.id] ?? 'Смета'}
                     onChange={(v) => setSectionTab((prev) => ({ ...prev, [section.id]: v as SectionTab }))}
                   />
 
-                  {(sectionTab[section.id] ?? 'Текст') === 'Текст' && (
+                  {(sectionTab[section.id] ?? 'Смета') === 'Текст' && (
                     <>
                       {section.body && (
                         <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{section.body}</p>
@@ -749,7 +757,7 @@ export function EstimateDetail() {
                     </>
                   )}
 
-                  {(sectionTab[section.id] ?? 'Текст') === 'Смета' && (
+                  {(sectionTab[section.id] ?? 'Смета') === 'Смета' && (
                     <EstimateLineItemsTable
                       section={section}
                       rate={rate}
@@ -761,7 +769,7 @@ export function EstimateDetail() {
                     />
                   )}
 
-                  {(sectionTab[section.id] ?? 'Текст') === 'Материалы' && (
+                  {(sectionTab[section.id] ?? 'Смета') === 'Материалы' && (
                     <EstimateMaterialsPanel
                       section={section}
                       onAdd={() => openAddMaterial(section.id)}
