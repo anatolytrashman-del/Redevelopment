@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Pencil, Plus, Trash2, X, Check, LibraryBig, Share2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Pencil, Plus, Trash2, X, Check, LibraryBig, Share2, ClipboardList } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -17,6 +17,7 @@ import { EstimateLineItemCommentsModal } from '../components/estimates/EstimateL
 import { EstimateMaterialsPanel } from '../components/estimates/EstimateMaterialsPanel';
 import { EstimateMaterialFormModal } from '../components/estimates/EstimateMaterialFormModal';
 import { EstimateMaterialCommentsModal } from '../components/estimates/EstimateMaterialCommentsModal';
+import { EstimateMaterialsLedgerModal } from '../components/estimates/EstimateMaterialsLedgerModal';
 import { cn } from '../lib/cn';
 import {
   estimateStatuses,
@@ -142,6 +143,7 @@ export function EstimateDetail() {
   }, [estimate]);
 
   const [linkCopied, setLinkCopied] = useState(false);
+  const [ledgerOpen, setLedgerOpen] = useState(false);
 
   // Курс для отображения итога построчной сметы в USD рядом с BYN — только
   // для показа, ни на что не влияет и никуда не сохраняется, поэтому
@@ -539,9 +541,19 @@ export function EstimateDetail() {
         title="Смета"
         action={
           estimate ? (
-            <Button type="button" variant="secondary" icon={<Share2 className="h-4 w-4" />} onClick={copyShareLink}>
-              {linkCopied ? 'Ссылка скопирована' : 'Ссылка для строителя'}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                icon={<ClipboardList className="h-4 w-4" />}
+                onClick={() => setLedgerOpen(true)}
+              >
+                Ведомость материалов
+              </Button>
+              <Button type="button" variant="secondary" icon={<Share2 className="h-4 w-4" />} onClick={copyShareLink}>
+                {linkCopied ? 'Ссылка скопирована' : 'Ссылка для строителя'}
+              </Button>
+            </div>
           ) : undefined
         }
       />
@@ -886,6 +898,18 @@ export function EstimateDetail() {
         }}
         onSave={saveMaterialComments}
       />
+
+      {estimate && (
+        <EstimateMaterialsLedgerModal
+          open={ledgerOpen}
+          sections={estimate.sections}
+          onClose={() => setLedgerOpen(false)}
+          onEditMaterial={openEditMaterial}
+          onDeleteMaterial={(sectionId, m) => deleteMaterial(sectionId, m.id)}
+          onOpenComments={openMaterialComments}
+          onAddMaterial={openAddMaterial}
+        />
+      )}
     </>
   );
 }

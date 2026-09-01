@@ -1,13 +1,15 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Loader2, Check } from 'lucide-react';
+import { Loader2, Check, ClipboardList } from 'lucide-react';
 import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
 import { EstimateLineItemsTable, formatUsd, formatZone } from '../components/estimates/EstimateLineItemsTable';
 import { EstimateLineItemFormModal } from '../components/estimates/EstimateLineItemFormModal';
 import { EstimateLineItemCommentsModal } from '../components/estimates/EstimateLineItemCommentsModal';
 import { EstimateMaterialsPanel } from '../components/estimates/EstimateMaterialsPanel';
 import { EstimateMaterialFormModal } from '../components/estimates/EstimateMaterialFormModal';
 import { EstimateMaterialCommentsModal } from '../components/estimates/EstimateMaterialCommentsModal';
+import { EstimateMaterialsLedgerModal } from '../components/estimates/EstimateMaterialsLedgerModal';
 import { cn } from '../lib/cn';
 import {
   estimateLineItemsTotals,
@@ -74,6 +76,8 @@ export function EstimatePublicPage() {
 
   const [commentsMaterialSectionId, setCommentsMaterialSectionId] = useState<string | null>(null);
   const [commentsMaterial, setCommentsMaterial] = useState<EstimateMaterial | null>(null);
+
+  const [ledgerOpen, setLedgerOpen] = useState(false);
 
   // Группы материалов ("Строительные леса" и т.п.) — по всей смете, см.
   // тот же комментарий в EstimateDetail.tsx.
@@ -435,11 +439,23 @@ export function EstimatePublicPage() {
           </span>
         </div>
 
-        <Card className="flex flex-col gap-1 p-5">
-          <span className="text-lg font-bold text-ink">
-            {object ? `Смета реновации ${object.name || object.address}` : ESTIMATE_PUBLIC_TITLE}
-          </span>
-          <span className="text-sm text-ink-muted">Можно добавлять, редактировать и удалять строки, оставлять комментарии.</span>
+        <Card className="flex flex-col gap-3 p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <span className="text-lg font-bold text-ink">
+                {object ? `Смета реновации ${object.name || object.address}` : ESTIMATE_PUBLIC_TITLE}
+              </span>
+              <span className="text-sm text-ink-muted">Можно добавлять, редактировать и удалять строки, оставлять комментарии.</span>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<ClipboardList className="h-4 w-4" />}
+              onClick={() => setLedgerOpen(true)}
+            >
+              Ведомость материалов
+            </Button>
+          </div>
         </Card>
 
         {sectionGroups.map((group, i) => {
@@ -556,6 +572,16 @@ export function EstimatePublicPage() {
           setCommentsMaterial(null);
         }}
         onSave={saveMaterialComments}
+      />
+
+      <EstimateMaterialsLedgerModal
+        open={ledgerOpen}
+        sections={estimate.sections}
+        onClose={() => setLedgerOpen(false)}
+        onEditMaterial={openEditMaterial}
+        onDeleteMaterial={(sectionId, m) => deleteMaterial(sectionId, m.id)}
+        onOpenComments={openMaterialComments}
+        onAddMaterial={openAddMaterial}
       />
     </div>
   );
