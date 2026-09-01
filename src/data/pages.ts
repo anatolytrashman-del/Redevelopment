@@ -4,7 +4,7 @@ import {
   Building2,
   Receipt,
   Users,
-  HardHat,
+  UsersRound,
   ClipboardList,
   Calculator,
   FileStack,
@@ -73,7 +73,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   // Закупками, несмотря на то что обе темы обсуждались в одном заходе.
   // Ключ 'contractors' сохранён как есть (не заводили новый), в профиле
   // Светланы именно он, и на нём же завязан бейдж дней рождения в Sidebar.tsx.
-  { key: 'contractors', to: '/admin/contractors', label: 'Команда', icon: HardHat },
+  { key: 'contractors', to: '/admin/contractors', label: 'Команда', icon: UsersRound },
   // "Закупки" — Каталог/Ресерч поставщиков/Закупки вместе, отдельный пункт
   // внутри группы "Стройка" (владелец: "всё остальное, что ты нагородил —
   // это страница Закупки в стройке"). Ключ 'purchases' — раньше был
