@@ -7,11 +7,9 @@ import { Input } from '../components/ui/Input';
 import { AddableSelect } from '../components/ui/AddableSelect';
 import { Textarea } from '../components/ui/Textarea';
 import { Modal } from '../components/ui/Modal';
-import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { ContractorAvatar } from '../components/contractors/ContractorAvatar';
 import { ContractorCard } from '../components/contractors/ContractorCard';
 import { ContractorDetailModal } from '../components/contractors/ContractorDetailModal';
-import { ContractorsResearch } from '../components/contractors/ContractorsResearch';
 import { contractorSpecialties, contractorContactMethods, contractorTeamTiers, type Contractor } from '../data/contractors';
 import {
   fetchContractors,
@@ -71,13 +69,14 @@ function contractorToForm(c: Contractor) {
 
 // "Подрядчики" переименована в "Команда" (владелец, 2026-08-29: "текущую
 // вкладку 'Подрядчики' переименовывать в 'Команда' и оставлять там только
-// Part-time и проверенных") — сама фильтрация не поменялась, вкладка и
-// сейчас показывает только teamTier-заполненных (см. tierGroups ниже).
-const TABS = ['Команда', 'Ресерч'] as const;
-type Tab = (typeof TABS)[number];
-
+// Part-time и проверенных") — фильтрация не поменялась, страница и сейчас
+// показывает только teamTier-заполненных (см. tierGroups ниже). Вкладка
+// "Ресерч" (сравнение предложений подрядчиков на услуги — оценка здания,
+// вывоз мусора и т.п.) отсюда убрана и перенесена на страницу "Закупки"
+// (владелец, 2026-09-02: "перенеси вот это в подрядчиков, это не команда" —
+// в Suppliers.tsx, вкладка "Ресерч", секция "Подрядчики"), эта страница
+// теперь только про состав команды, без переключателя.
 export function Contractors() {
-  const [tab, setTab] = useState<Tab>('Команда');
   const [contractors, setContractors] = useState<Contractor[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -296,32 +295,25 @@ export function Contractors() {
     }
   }
 
-  const addButton =
-    tab === 'Команда' ? (
-      <Button icon={<Plus className="h-4 w-4" />} onClick={openAddModal}>
-        Добавить подрядчика
-      </Button>
-    ) : undefined;
+  const addButton = (
+    <Button icon={<Plus className="h-4 w-4" />} onClick={openAddModal}>
+      Добавить подрядчика
+    </Button>
+  );
 
   return (
     <>
       <PageHeader title="Команда" action={addButton} />
 
-      <ToggleGroup options={[...TABS]} value={tab} onChange={(v) => setTab(v as Tab)} />
-
-      {tab === 'Ресерч' && <ContractorsResearch />}
-
-      {tab === 'Команда' && loading && (
+      {loading && (
         <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
           <Loader2 className="h-4 w-4 animate-spin" />
           Загружаем подрядчиков...
         </Card>
       )}
-      {tab === 'Команда' && !loading && loadError && (
-        <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>
-      )}
+      {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
 
-      {tab === 'Команда' && !loading && !loadError && (
+      {!loading && !loadError && (
         <div className="flex flex-col gap-8">
           {tierGroups.length === 0 && <Card className="py-10 text-center text-sm text-ink-muted">Подрядчиков пока нет</Card>}
           {tierGroups.map((group) => (

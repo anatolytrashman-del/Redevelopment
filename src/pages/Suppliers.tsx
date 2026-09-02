@@ -14,6 +14,7 @@ import { ContactValue } from '../components/ui/ContactValue';
 import { ContractorAvatar } from '../components/contractors/ContractorAvatar';
 import { ContractorCard } from '../components/contractors/ContractorCard';
 import { ContractorDetailModal } from '../components/contractors/ContractorDetailModal';
+import { ContractorsResearch } from '../components/contractors/ContractorsResearch';
 import { cn } from '../lib/cn';
 import { formatPhoneDisplay } from '../lib/formatPhone';
 import { currencySymbols, type Currency } from '../data/transactions';
@@ -1076,44 +1077,60 @@ export function Suppliers() {
       )}
 
       {tab === 'Ресерч' && (
-      <div className="mt-6 flex flex-col gap-6">
-        {loading && (
-          <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Загружаем поставщиков...
-          </Card>
-        )}
-        {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
-        {!loading && !loadError && requests.length === 0 && (
-          <Card className="py-10 text-center text-sm text-ink-muted">Пока нет запросов — нажмите «Новый запрос»</Card>
-        )}
+      <div className="mt-6 flex flex-col gap-8">
+        <div className="flex flex-col gap-6">
+          <div className="text-lg font-bold text-ink">Материалы</div>
 
-        {!loading &&
-          !loadError &&
-          requests.map((r) => (
-            <RequestCard
-              key={r.id}
-              request={r}
-              offers={offers.filter((o) => o.requestId === r.id)}
-              rate={rate}
-              onEditRequest={openEditRequest}
-              onDeleteRequest={handleDeleteRequest}
-              onAddOffer={openAddOffer}
-              onOpenDetail={(o) => setDetailOfferId(o.id)}
-              onWebSearch={openWebQueryModal}
-              searching={webSearchingId === r.id}
-            />
-          ))}
+          {loading && (
+            <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Загружаем поставщиков...
+            </Card>
+          )}
+          {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
+          {!loading && !loadError && requests.length === 0 && (
+            <Card className="py-10 text-center text-sm text-ink-muted">Пока нет запросов — нажмите «Новый запрос»</Card>
+          )}
 
-        <Button
-          type="button"
-          variant="secondary"
-          icon={<Plus className="h-4 w-4" />}
-          className="w-fit"
-          onClick={openAddRequest}
-        >
-          Новый запрос
-        </Button>
+          {!loading &&
+            !loadError &&
+            requests.map((r) => (
+              <RequestCard
+                key={r.id}
+                request={r}
+                offers={offers.filter((o) => o.requestId === r.id)}
+                rate={rate}
+                onEditRequest={openEditRequest}
+                onDeleteRequest={handleDeleteRequest}
+                onAddOffer={openAddOffer}
+                onOpenDetail={(o) => setDetailOfferId(o.id)}
+                onWebSearch={openWebQueryModal}
+                searching={webSearchingId === r.id}
+              />
+            ))}
+
+          <Button
+            type="button"
+            variant="secondary"
+            icon={<Plus className="h-4 w-4" />}
+            className="w-fit"
+            onClick={openAddRequest}
+          >
+            Новый запрос
+          </Button>
+        </div>
+
+        {/* Сравнение предложений подрядчиков на услуги (оценка здания, вывоз
+            мусора и т.п.) — перенесено сюда со страницы "Команда" (владелец,
+            2026-09-02: "перенеси вот это в подрядчиков, это не команда"),
+            в "Закупки" → "Ресерч" рядом с ресерчем материалов. Полностью
+            самостоятельный компонент (свои запросы/предложения/модалки, не
+            завязан на Contractor/contractors), поэтому просто вставлен как
+            есть отдельной секцией, без общих данных с блоком "Материалы" выше. */}
+        <div className="flex flex-col gap-6 border-t border-border pt-8">
+          <div className="text-lg font-bold text-ink">Подрядчики</div>
+          <ContractorsResearch />
+        </div>
       </div>
       )}
 
