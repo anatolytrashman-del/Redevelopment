@@ -14,6 +14,7 @@
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/tz/(.*)", "destination": "/tz.html" },
+    { "source": "/estimate/(.*)", "destination": "/estimate.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
