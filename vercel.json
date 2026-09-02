@@ -15,6 +15,9 @@
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/tz/(.*)", "destination": "/tz.html" },
     { "source": "/estimate/(.*)", "destination": "/estimate.html" },
+    { "source": "/plan/(.*)", "destination": "/plan.html" },
+    { "source": "/summary/(.*)", "destination": "/summary.html" },
+    { "source": "/business-upload", "destination": "/business-upload.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

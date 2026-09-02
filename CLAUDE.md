@@ -28,15 +28,21 @@
 - Vercel serverless functions (`api/*.js`, обычный JS, не TS) — всё, что требует секретов
   (service-role ключ Supabase, Resend, Google OAuth)
 
-## Деплой — ДВЕ цели одновременно
+## Деплой
 
-1. **Vercel → redevelopment.pro** — прод. Собирается автоматически при пуше в
-   `claude/redevelopment-platform-prototype-oodobu` (Vercel git-интеграция, вне репозитория,
-   конфигурации workflow для неё нет). Единственное место, где реально работают `api/*.js`
-   (GitHub Pages — статический хостинг, serverless-функции там не выполняются).
-2. **GitHub Pages** (`.github/workflows/deploy-pages.yml`) → `anatolytrashman-del.github.io/Redevelopment/`.
-   Собирается тем же пушем. Держим ли ещё это в актуальном использовании — не факт, но
-   workflow жив и зелёный; при возникновении вопросов "почему два деплоя" — вот ответ.
+**Vercel → redevelopment.pro** — прод, единственная цель. Собирается автоматически при пуше в
+`claude/redevelopment-platform-prototype-oodobu` (Vercel git-интеграция, вне репозитория,
+конфигурации workflow для неё нет). Единственное место, где реально работают `api/*.js`.
+
+**2026-09-02:** раньше здесь было "ДВЕ цели" — вторым деплоем шёл GitHub Pages
+(`.github/workflows/deploy-pages.yml` → `anatolytrashman-del.github.io/Redevelopment/`),
+уже тогда с пометкой "держим ли ещё это в актуальном использовании — не факт". При
+работе над noindex-шеллами токен-страниц обнаружилось, что самого workflow-файла в
+`.github/workflows/` больше нет вовсе (когда убрали — не отследить, не в рамках этого
+захода) — GitHub Pages деплой не просто неактуален, а физически не существует. Если
+где-то в тексте ниже (например, в комментарии про canonical на разных base) ещё
+всплывает упоминание GH Pages зеркала — это исторический контекст, не действующая
+конфигурация.
 
 Нужные env-переменные на Vercel (секреты, не в репозитории):
 
@@ -188,6 +194,35 @@ curl -sS -X POST "https://api.supabase.com/v1/projects/iohcdylttyuhwovztrbk/data
 
 Хронологический список, что уже сделано — не дублировать работу, не переспрашивать то,
 что уже решено. Дополнять новыми записями сверху, старые не переписывать.
+
+- **2026-09-02** — Продолжение предыдущей записи (смета в поисковой
+  выдаче) — владелец: "закрой и остальные три", имея в виду три других
+  токен/рабочих ссылки с тем же риском (клиентский-only `setNoIndex()`,
+  без статического шелла), упомянутые как оставшийся риск в конце той
+  записи. Тем же паттерном (`generate-tz-preview-html.mjs`/
+  `generate-estimate-preview-html.mjs`) добавлены:
+  `scripts/generate-plan-preview-html.mjs` → `dist/plan.html`
+  (title "Планировка и бронирование", для `/plan/:token`),
+  `scripts/generate-summary-preview-html.mjs` → `dist/summary.html`
+  (title "Саммери встречи", для `/summary/:token`),
+  `scripts/generate-business-upload-preview-html.mjs` →
+  `dist/business-upload.html` (title как у реального `<h1>` страницы
+  "Организации по домам — Минск Мир", для `/business-upload` — единственная
+  из четырёх БЕЗ `:token` в пути, рерайт в `vercel.json` на точный путь,
+  не на маску `(.*)`). Все три — `noindex, nofollow` прямо в статике, без
+  canonical (конфликтующий сигнал вместе с noindex), подключены в
+  `package.json` build-цепочку сразу за estimate; `vercel.json` — три новых
+  rewrite перед общим фолбэком на `index.html`. Заодно проверено — workflow
+  деплоя на GitHub Pages (`deploy-pages.yml`) в репозитории больше не
+  существует (владелец сам когда-то убрал или он был удалён в одной из
+  параллельных сессий, не мой заход) — второй цели деплоя из старого
+  раздела CLAUDE.md "Деплой" по факту больше нет, годной sitemap/robots
+  логике GH Pages эта правка ничем не грозит. Проверено полным прогоном
+  `npm run build` в песочнице — все 3 новых `dist/*.html` генерируются с
+  верным title и `noindex, nofollow`, `diff` с `dist/index.html` (без учёта
+  title/description/og/robots/canonical) — идентичны, ни один другой тег
+  не потерян. `npx tsc -b` чистый (сами скрипты — голый `.mjs`, вне
+  тайпчека, синтаксис и логика те же, что у уже проверенных tz/estimate).
 
 - **2026-09-02** — Владелец: "Смета попала в поисковую выдачу:
   https://redevelopment.pro/estimate/...". Причина — `EstimatePublicPage.tsx`
