@@ -34,53 +34,74 @@ import { randomUUID } from 'node:crypto';
 const ATTACHMENTS_BUCKET = 'object-documents';
 const RESEND_API_BASE = 'https://api.resend.com';
 
+// 2026-09-03, живой прогон: реальное письмо сохранилось с ПУСТЫМ телом и
+// без вложений, несмотря на этот фикс (см. журнал CLAUDE.md) — то ли
+// data.email_id не то поле, что реально приходит в вебхуке, то ли у
+// RESEND_API_KEY нет прав на Receiving API (если ключ создавался как
+// "Sending access", а не "Full access" — Resend различает эти уровни).
+// Пока причина не подтверждена диагностикой — emailId пробуется НЕСКОЛЬКИМИ
+// кандидатами полей (email_id/id), не одним, и КАЖДАЯ попытка (успех и
+// сбой) логируется целиком через console.error, чтобы в Vercel Runtime
+// Logs было видно точную причину при следующем реальном письме.
+
 // Тело письма (text предпочтительнее html — то же самое, что клиент и так
 // показывает как есть в whitespace-pre-wrap ленте переписки, сырой html
-// читать неудобно). emailId — data.email_id из вебхука.
-export async function fetchReceivedEmailBody(emailId) {
-  if (!emailId) return '';
+// читать неудобно). candidateIds — несколько возможных id письма из
+// вебхука, пробуются по очереди, пока один не сработает.
+export async function fetchReceivedEmailBody(candidateIds) {
+  const ids = [...new Set((Array.isArray(candidateIds) ? candidateIds : [candidateIds]).filter(Boolean))];
+  if (ids.length === 0) {
+    console.error('fetchReceivedEmailBody: нет ни одного кандидата id из вебхука');
+    return '';
+  }
   if (!process.env.RESEND_API_KEY) {
-    console.error('RESEND_API_KEY не задан — не могу получить тело письма', emailId);
+    console.error('RESEND_API_KEY не задан — не могу получить тело письма', ids);
     return '';
   }
-  try {
-    const resp = await fetch(`${RESEND_API_BASE}/emails/receiving/${emailId}`, {
-      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
-    });
-    if (!resp.ok) {
-      console.error('Не удалось получить тело письма:', emailId, await resp.text());
-      return '';
+  for (const emailId of ids) {
+    try {
+      const resp = await fetch(`${RESEND_API_BASE}/emails/receiving/${emailId}`, {
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
+      });
+      if (!resp.ok) {
+        console.error('Не удалось получить тело письма (id-кандидат):', emailId, resp.status, await resp.text());
+        continue;
+      }
+      const json = await resp.json();
+      console.error('Тело письма получено, сырой ответ (id-кандидат ' + emailId + '):', JSON.stringify(json).slice(0, 1000));
+      // Часть путей Resend отдаёт ресурс сразу, часть (в JS SDK) — обёрнутым в
+      // data — поддерживаем оба на всякий случай, не падаем, если формат чуть
+      // отличается от задокументированного.
+      const email = json?.text != null || json?.html != null ? json : (json?.data ?? json);
+      return (typeof email?.text === 'string' && email.text) || (typeof email?.html === 'string' && email.html) || '';
+    } catch (err) {
+      console.error('Ошибка при получении тела письма (id-кандидат):', emailId, err);
     }
-    const json = await resp.json();
-    // Часть путей Resend отдаёт ресурс сразу, часть (в JS SDK) — обёрнутым в
-    // data — поддерживаем оба на всякий случай, не падаем, если формат чуть
-    // отличается от задокументированного.
-    const email = json?.text != null || json?.html != null ? json : (json?.data ?? json);
-    return (typeof email?.text === 'string' && email.text) || (typeof email?.html === 'string' && email.html) || '';
-  } catch (err) {
-    console.error('Ошибка при получении тела письма:', emailId, err);
-    return '';
   }
+  return '';
 }
 
-async function fetchAttachmentsWithDownloadUrls(emailId) {
-  if (!emailId || !process.env.RESEND_API_KEY) return [];
-  try {
-    const resp = await fetch(`${RESEND_API_BASE}/emails/receiving/${emailId}/attachments`, {
-      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
-    });
-    if (!resp.ok) {
-      console.error('Не удалось получить список вложений письма:', emailId, await resp.text());
-      return [];
+async function fetchAttachmentsWithDownloadUrls(candidateIds) {
+  const ids = [...new Set((Array.isArray(candidateIds) ? candidateIds : [candidateIds]).filter(Boolean))];
+  if (ids.length === 0 || !process.env.RESEND_API_KEY) return [];
+  for (const emailId of ids) {
+    try {
+      const resp = await fetch(`${RESEND_API_BASE}/emails/receiving/${emailId}/attachments`, {
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
+      });
+      if (!resp.ok) {
+        console.error('Не удалось получить список вложений письма (id-кандидат):', emailId, resp.status, await resp.text());
+        continue;
+      }
+      const json = await resp.json();
+      const list = Array.isArray(json) ? json : Array.isArray(json?.data) ? json.data : [];
+      console.error('Список вложений получен (id-кандидат ' + emailId + '):', list.length, 'шт.');
+      return list;
+    } catch (err) {
+      console.error('Ошибка при получении списка вложений письма (id-кандидат):', emailId, err);
     }
-    const json = await resp.json();
-    if (Array.isArray(json)) return json;
-    if (Array.isArray(json?.data)) return json.data;
-    return [];
-  } catch (err) {
-    console.error('Ошибка при получении списка вложений письма:', emailId, err);
-    return [];
   }
+  return [];
 }
 
 function sanitizeFileName(name) {
@@ -122,10 +143,13 @@ async function uploadAttachment(bytes, contentType, fileName) {
 // fetchAttachmentsWithDownloadUrls выше), сопоставляем по id.
 export async function extractEmailAttachments(data) {
   const rawList = data.attachments ?? data.attachment ?? [];
-  if (!Array.isArray(rawList) || rawList.length === 0) return [];
+  if (!Array.isArray(rawList) || rawList.length === 0) {
+    console.error('extractEmailAttachments: data.attachments/data.attachment пуст или отсутствует в вебхуке');
+    return [];
+  }
 
-  const emailId = data.email_id ?? data.id ?? null;
-  const withUrls = await fetchAttachmentsWithDownloadUrls(emailId);
+  const candidateIds = [data.email_id, data.id].filter(Boolean);
+  const withUrls = await fetchAttachmentsWithDownloadUrls(candidateIds);
   const urlById = new Map(withUrls.filter((a) => a && a.id).map((a) => [a.id, a.download_url]));
 
   const files = [];

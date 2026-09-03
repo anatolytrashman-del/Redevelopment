@@ -21,6 +21,15 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
+// Владелец, 2026-09-03: "обязательно нужно загружать вложения с
+// возможностью предпросмотра" — для картинок показываем миниатюру прямо в
+// ленте (клик открывает оригинал в новой вкладке), для остального (PDF,
+// счета, спецификации) остаётся обычная ссылка — открывается в новой
+// вкладке, где браузер сам умеет превью PDF.
+function isImageFile(fileName: string): boolean {
+  return /\.(png|jpe?g|gif|webp|heic|heif|bmp|svg)$/i.test(fileName);
+}
+
 // Черновик первого письма по умолчанию (до выбора сохранённого шаблона) —
 // владелец, 2026-09-03, прислал готовый текст ("Заголовок письма по
 // умолчанию... По умолчанию все письма выглядят так..."). "Категория" в
@@ -30,11 +39,19 @@ function errorMessage(err: unknown, fallback: string): string {
 // была она сама, тестировавшая форму), а имя реально вошедшего сотрудника
 // (getCurrentProfile) — иначе письма от Светланы или владельца подписывались
 // бы чужим именем.
-function defaultSubject(request: SupplierRequest): string {
-  return `Запрос цены на ${request.title}`;
+//
+// Владелец, тем же днём после живого теста: "После отправки запроса не
+// нужно выводить еще раз шаблон письма под перепиской, он уже будет не
+// актуален" — этот вводный текст ("Добрый день, планируем реновацию...")
+// имеет смысл только для ПЕРВОГО письма в треде. Как только в треде уже
+// есть хоть одно письмо (отправленное или полученное), новый черновик
+// начинается пустым, а не с того же интро — hasHistory решает это.
+function defaultSubject(request: SupplierRequest, hasHistory: boolean): string {
+  return hasHistory ? '' : `Запрос цены на ${request.title}`;
 }
 
-function defaultBody(request: SupplierRequest): string {
+function defaultBody(request: SupplierRequest, hasHistory: boolean): string {
+  if (hasHistory) return '';
   const signature = getCurrentProfile().displayName;
   return `Добрый день.
 Планируем реновацию здания в г. Минск, интересуют ${request.title}.
@@ -72,8 +89,8 @@ export function EmailThread({
   onEmailSent: (email: SupplierOfferEmail) => void;
   onTemplateSaved: (template: EmailTemplate) => void;
 }) {
-  const [subject, setSubject] = useState(() => defaultSubject(request));
-  const [body, setBody] = useState(() => defaultBody(request));
+  const [subject, setSubject] = useState(() => defaultSubject(request, emails.length > 0));
+  const [body, setBody] = useState(() => defaultBody(request, emails.length > 0));
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
@@ -84,9 +101,13 @@ export function EmailThread({
   // и тему, и текст, иначе останется черновик предыдущего поставщика.
   // Новый тред = чистый черновик, ничего печатного до этого момента тут
   // не теряется — сброс срабатывает только на реальную смену offer.id.
+  // hasHistory читает emails на момент срабатывания эффекта (не входит в
+  // зависимости намеренно) — важно только "было ли хоть одно письмо к
+  // моменту открытия ЭТОГО треда", не реагировать на каждое новое письмо.
   useEffect(() => {
-    setSubject(defaultSubject(request));
-    setBody(defaultBody(request));
+    const hasHistory = emails.length > 0;
+    setSubject(defaultSubject(request, hasHistory));
+    setBody(defaultBody(request, hasHistory));
     setSendError(null);
     setSelectedTemplateId('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -157,19 +178,29 @@ export function EmailThread({
                 {e.subject && <div className="font-semibold text-ink">{e.subject}</div>}
                 <div className="whitespace-pre-wrap text-ink">{e.body}</div>
                 {e.files.length > 0 && (
-                  <div className="mt-1 flex flex-col gap-1">
-                    {e.files.map((f, i) => (
-                      <a
-                        key={i}
-                        href={f.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1.5 rounded-control border border-border bg-surface px-2.5 py-1.5 text-xs text-primary hover:underline"
-                      >
-                        <Paperclip className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
-                        <span className="min-w-0 flex-1 truncate">{f.fileName}</span>
-                      </a>
-                    ))}
+                  <div className="mt-1 flex flex-col gap-2">
+                    {e.files.map((f, i) =>
+                      isImageFile(f.fileName) ? (
+                        <a key={i} href={f.url} target="_blank" rel="noreferrer" className="block w-fit">
+                          <img
+                            src={f.url}
+                            alt={f.fileName}
+                            className="max-h-48 max-w-full rounded-control border border-border object-contain"
+                          />
+                        </a>
+                      ) : (
+                        <a
+                          key={i}
+                          href={f.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1.5 rounded-control border border-border bg-surface px-2.5 py-1.5 text-xs text-primary hover:underline"
+                        >
+                          <Paperclip className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
+                          <span className="min-w-0 flex-1 truncate">{f.fileName}</span>
+                        </a>
+                      ),
+                    )}
                   </div>
                 )}
               </div>

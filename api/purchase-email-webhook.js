@@ -86,8 +86,18 @@ function verifyResendSignature(rawBody, headers, secret) {
     });
 }
 
-function extractShortCode(toAddress, prefix) {
-  const re = new RegExp(`${prefix}\\+([0-9a-f]{4,8})@`, 'i');
+// Владелец, 2026-09-03: "давай заменим адрес на zakupki" — раньше научный
+// (research+) и закупочный (zakupki+) адреса были двумя разными префиксами,
+// определяющими, в какую таблицу класть письмо. Теперь ОБА принимаются
+// одинаково (regex по обоим сразу), а таблица определяется уже не
+// префиксом, а тем, в какой из двух таблиц реально нашёлся short_code (см.
+// вызов ниже). research+ оставлен наравне с zakupki+ НЕ для новых писем
+// (см. supplierOfferEmailAddress в data/supplierResearch.ts — она теперь
+// сама строит zakupki+), а как совместимость с уже отправленным вживую
+// письмом (research+4687a@...) — если поставщик или сотрудник ответят в
+// том же треде ещё раз, их почтовый клиент подставит именно старый адрес.
+function extractShortCode(toAddress) {
+  const re = /(?:zakupki|research)\+([0-9a-f]{4,8})@/i;
   const match = String(toAddress || '').match(re);
   return match ? match[1].toLowerCase() : null;
 }
@@ -149,38 +159,48 @@ export default async function handler(req, res) {
     // поля письма (to/from/subject/text). Поддерживаем и "плоский" вид на
     // случай отличающегося формата.
     const data = payload.data ?? payload;
+    // 2026-09-03: живой прогон сохранил пустое тело и без вложений, хотя
+    // отправитель ответил и приложил файл — точная причина ещё не
+    // подтверждена (см. комментарий в _attachments.js). Логируем сырой
+    // payload целиком, чтобы на следующем реальном письме увидеть в Vercel
+    // Runtime Logs, как он выглядит на самом деле.
+    console.error('RAW WEBHOOK PAYLOAD:', JSON.stringify(payload).slice(0, 3000));
 
     const toRaw = data.to;
     const toAddress = Array.isArray(toRaw) ? toRaw[0] : toRaw;
     const fromAddress = data.from ?? '';
     const subject = data.subject ?? '';
 
-    const purchaseCode = extractShortCode(toAddress, 'zakupki');
-    const offerCode = purchaseCode ? null : extractShortCode(toAddress, 'research');
+    const code = extractShortCode(toAddress);
 
-    if (!purchaseCode && !offerCode) {
-      // Письмо не на наш plus-адрес (ни закупка, ни предложение) — не наша
-      // забота, но и не ошибка самого вебхука (Resend не должен ретраить
-      // бесконечно). Заодно не тратим лишний запрос к Resend API на тело
-      // письма, которое всё равно никуда не сохраним.
+    if (!code) {
+      // Письмо не на наш plus-адрес — не наша забота, но и не ошибка
+      // самого вебхука (Resend не должен ретраить бесконечно). Заодно не
+      // тратим лишний запрос к Resend API на тело письма, которое всё
+      // равно никуда не сохраним.
       res.status(200).json({ skipped: true });
       return;
     }
 
-    const purchaseId = purchaseCode ? await resolveIdByShortCode('purchases', purchaseCode) : null;
-    const offerId = offerCode ? await resolveIdByShortCode('supplier_research_offers', offerCode) : null;
+    // Таблицу определяет не префикс адреса (оба принимаются одинаково, см.
+    // extractShortCode), а то, в какой из двух таблиц реально нашёлся
+    // short_code — обе таблицы проверяются по очереди, коллизия между ними
+    // технически возможна, но при таком масштабе (десятки-сотни записей на
+    // компанию, не тысячи) статистически ничтожна, отдельно не защищаемся.
+    const purchaseId = await resolveIdByShortCode('purchases', code);
+    const offerId = purchaseId ? null : await resolveIdByShortCode('supplier_research_offers', code);
 
     if (!purchaseId && !offerId) {
       // Код есть в адресе, но не резолвится ни в одну реальную запись —
       // например, письмо на давно удалённую закупку. Логируем на всякий
       // случай, но так же безобидно скипаем, как и совсем чужой адрес.
-      console.warn('Не удалось сопоставить short_code с записью:', purchaseCode || offerCode);
+      console.warn('Не удалось сопоставить short_code с записью:', code);
       res.status(200).json({ skipped: true });
       return;
     }
 
     // Тело письма — отдельным запросом, см. комментарий в начале файла.
-    const body = await fetchReceivedEmailBody(data.email_id ?? data.id);
+    const body = await fetchReceivedEmailBody([data.email_id, data.id]);
     const files = await extractEmailAttachments(data);
 
     const row = purchaseId

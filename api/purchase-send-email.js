@@ -28,13 +28,12 @@ const RESEND_FROM_NAME = 'Redevelopment Закупки';
 // 2026-09-03: адрес с UUID был "очень длинный". short_code читается той же
 // строкой, что и id, поэтому нужен отдельный запрос на его получение перед
 // отправкой (сама запись создаётся раньше, в момент добавления закупки/
-// предложения, — здесь только шлём письмо).
-function purchaseEmailAddress(shortCode) {
+// предложения, — здесь только шлём письмо). Один и тот же префикс zakupki+
+// для обоих направлений переписки (владелец, 2026-09-03: "давай заменим
+// адрес на zakupki") — таблицу на приёме определяет не префикс, а то, где
+// реально нашёлся short_code (см. purchase-email-webhook.js).
+function emailAddress(shortCode) {
   return `zakupki+${shortCode}@redevelopment.pro`;
-}
-
-function supplierOfferEmailAddress(shortCode) {
-  return `research+${shortCode}@redevelopment.pro`;
 }
 
 async function fetchShortCode(table, id) {
@@ -105,7 +104,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const fromAddress = purchaseId ? purchaseEmailAddress(shortCode) : supplierOfferEmailAddress(shortCode);
+  const fromAddress = emailAddress(shortCode);
   const table = purchaseId ? 'purchase_emails' : 'supplier_offer_emails';
   const idField = purchaseId ? 'purchase_id' : 'offer_id';
   const idValue = purchaseId ?? offerId;
