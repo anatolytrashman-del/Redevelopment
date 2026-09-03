@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply, FileSearch, CheckCircle2 } from 'lucide-react';
+import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply, FileSearch, CheckCircle2, Eye } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -325,6 +325,19 @@ export function EmailThread({
     setPreviewFile(null);
   }
 
+  // Владелец, 2026-09-03: "я не вижу счёт, но есть кнопка подтвердить. А
+  // если смотрю счёт в предпросмотре, нет кнопки подтвердить — нелогично" —
+  // решение: карточка "Похоже, это счёт" открывает предпросмотр САМОГО
+  // файла (не просто сводку), а кнопки подтверждения/отклонения переезжают
+  // в футер предпросмотра — рядом с уже видимым документом. Это письмо
+  // (если есть) ищем по совпадению url текущего previewFile с
+  // sourceFile — так футер понимает, что показывать, независимо от того,
+  // как открыт предпросмотр (кнопка на карточке или обычный клик по
+  // вложению).
+  const previewExtractionEmail = previewFile
+    ? emails.find((e) => e.extraction?.status === 'pending' && e.extraction.sourceFile?.url === previewFile.url) ?? null
+    : null;
+
   async function handleConfirmAutoExtraction(e: SupplierOfferEmail) {
     if (!e.extraction || applyingExtraction) return;
     setApplyingExtraction(true);
@@ -334,6 +347,7 @@ export function EmailThread({
       onOfferUpdated(updated);
       await setSupplierOfferEmailExtractionStatus(e.id, e.extraction, 'confirmed');
       onEmailUpdated({ ...e, extraction: { ...e.extraction, status: 'confirmed' } });
+      closePreview();
     } catch (err) {
       setExtractionError(errorMessage(err, 'Не удалось применить распознанные данные'));
     } finally {
@@ -347,6 +361,7 @@ export function EmailThread({
     try {
       await setSupplierOfferEmailExtractionStatus(e.id, extraction, 'dismissed');
       onEmailUpdated({ ...e, extraction: { ...extraction, status: 'dismissed' } });
+      closePreview();
     } catch {
       // Тихий сбой достаточен — карточка просто останется видна, можно
       // нажать ещё раз, это не критичное действие.
@@ -455,7 +470,14 @@ export function EmailThread({
                 {/* Владелец, 2026-09-03: "система [должна] понимать, что перед
                     ней счёт... а Альмира только сверяла и подтверждала" —
                     автоматически распознанный счёт ждёт подтверждения прямо
-                    здесь, рядом с письмом, из которого он взят. */}
+                    здесь, рядом с письмом, из которого он взят. Тем же днём,
+                    доработка: "я не вижу счёт, но есть кнопка подтвердить...
+                    нелогично" — карточка теперь только сводка + кнопка
+                    "Посмотреть и подтвердить", сам выбор (подтвердить/это не
+                    счёт) — в футере предпросмотра, рядом с открытым файлом
+                    (см. previewExtractionEmail выше). Прямые кнопки здесь —
+                    только запасной путь для писем без sourceFile (записи до
+                    того, как это поле появилось) — посмотреть файл негде. */}
                 {e.extraction?.status === 'pending' && (
                   <div className="flex flex-col gap-2 rounded-control border border-border-strong bg-surface-muted p-3 text-sm">
                     <div className="flex items-center gap-1.5 font-semibold text-ink">
@@ -466,19 +488,30 @@ export function EmailThread({
                       {e.extraction.price != null ? `${e.extraction.price} ${e.extraction.currency ?? ''}`.trim() : 'Сумма не распознана'}
                       {e.extraction.items.length > 0 && ` · ${e.extraction.items.length} ${pluralPositions(e.extraction.items.length)}`}
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
+                    {e.extraction.sourceFile ? (
                       <Button
                         type="button"
-                        icon={<CheckCircle2 className="h-4 w-4" />}
-                        onClick={() => handleConfirmAutoExtraction(e)}
-                        disabled={applyingExtraction}
+                        icon={<Eye className="h-4 w-4" />}
+                        className="w-fit"
+                        onClick={() => openPreview(e.extraction!.sourceFile!)}
                       >
-                        Подтвердить и заполнить карточку
+                        Посмотреть и подтвердить
                       </Button>
-                      <Button type="button" variant="ghost" onClick={() => handleDismissAutoExtraction(e)} disabled={applyingExtraction}>
-                        Это не счёт
-                      </Button>
-                    </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          icon={<CheckCircle2 className="h-4 w-4" />}
+                          onClick={() => handleConfirmAutoExtraction(e)}
+                          disabled={applyingExtraction}
+                        >
+                          Подтвердить и заполнить карточку
+                        </Button>
+                        <Button type="button" variant="ghost" onClick={() => handleDismissAutoExtraction(e)} disabled={applyingExtraction}>
+                          Это не счёт
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
                 <div className="whitespace-pre-wrap text-ink">{visible}</div>
@@ -574,7 +607,69 @@ export function EmailThread({
         onSaved={onTemplateSaved}
       />
 
-      <DocumentPreviewModal file={previewFile} onClose={closePreview} />
+      <DocumentPreviewModal
+        file={previewFile}
+        onClose={closePreview}
+        footer={
+          previewExtractionEmail?.extraction && (
+            <div className="flex flex-col gap-2 border-t border-border pt-3 text-sm">
+              <div className="flex items-center gap-1.5 font-semibold text-ink">
+                <FileSearch className="h-4 w-4 text-ink-muted" />
+                Распознанные данные
+              </div>
+              <div className="text-ink">
+                {previewExtractionEmail.extraction.price != null
+                  ? `${previewExtractionEmail.extraction.price} ${previewExtractionEmail.extraction.currency ?? ''}`.trim()
+                  : 'Сумма не распознана'}
+              </div>
+              {previewExtractionEmail.extraction.items.length > 0 && (
+                <div className="overflow-x-auto rounded-control border border-border">
+                  <table className="w-full min-w-[420px] border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-surface-muted text-left font-medium uppercase tracking-wide text-ink-faint">
+                        <th className="px-2.5 py-1.5">Название</th>
+                        <th className="px-2.5 py-1.5 text-right">Кол-во</th>
+                        <th className="px-2.5 py-1.5 text-right">Цена</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewExtractionEmail.extraction.items.map((item, i) => (
+                        <tr key={i} className="border-t border-border">
+                          <td className="px-2.5 py-1.5 text-ink">
+                            {item.name}
+                            {item.unit && <span className="text-ink-faint"> ({item.unit})</span>}
+                          </td>
+                          <td className="px-2.5 py-1.5 text-right text-ink">{item.quantity ?? '—'}</td>
+                          <td className="px-2.5 py-1.5 text-right text-ink">{item.price ?? '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {extractionError && <p className="text-sm text-danger">{extractionError}</p>}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  icon={<CheckCircle2 className="h-4 w-4" />}
+                  onClick={() => handleConfirmAutoExtraction(previewExtractionEmail)}
+                  disabled={applyingExtraction}
+                >
+                  Подтвердить и заполнить карточку
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => handleDismissAutoExtraction(previewExtractionEmail)}
+                  disabled={applyingExtraction}
+                >
+                  Это не счёт
+                </Button>
+              </div>
+            </div>
+          )
+        }
+      />
     </div>
   );
 }
