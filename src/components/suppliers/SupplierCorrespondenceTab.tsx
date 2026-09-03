@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Mail, Paperclip, Send, FileText, Save } from 'lucide-react';
+import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -28,6 +28,75 @@ function errorMessage(err: unknown, fallback: string): string {
 // вкладке, где браузер сам умеет превью PDF.
 function isImageFile(fileName: string): boolean {
   return /\.(png|jpe?g|gif|webp|heic|heif|bmp|svg)$/i.test(fileName);
+}
+
+// Владелец, 2026-09-03, после живого теста: "текст, скрытый под спойлер в
+// почтовом клиенте (в нашем случае On ... wrote: > ...) нужно скрывать под
+// спойлер и выводить только ответ" — реальные ответы поставщиков приходят
+// с процитированным предыдущим письмом внизу (стандартное поведение любого
+// почтового клиента), это раздувает ленту. Эвристика best-effort (нельзя
+// знать заранее локаль/формат клиента отправителя): ищем первую строку,
+// которая либо начинается с ">" (стандартный маркер цитаты, кросс-клиентно),
+// либо похожа на преамбулу вида "On ... wrote:"/"...писал(а):" — всё начиная
+// с неё сворачивается. Не находим — весь текст видимый, ничего не прячем.
+const QUOTE_PREAMBLE_RE = /^(On .+wrote:|.*писал\(а\):)\s*$/i;
+
+function splitQuotedReply(body: string): { visible: string; quoted: string | null } {
+  const lines = body.split('\n');
+  let splitIndex = -1;
+  let foundViaQuoteMarker = false;
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed.startsWith('>')) {
+      splitIndex = i;
+      foundViaQuoteMarker = true;
+      break;
+    }
+    if (QUOTE_PREAMBLE_RE.test(trimmed)) {
+      splitIndex = i;
+      break;
+    }
+  }
+  if (splitIndex === -1) return { visible: body, quoted: null };
+
+  // Преамбула вида "On ... wrote:" часто переносится почтовым клиентом на
+  // несколько строк (Gmail рвёт длинные строки ~76 символов — реальный
+  // пример владельца: "On Thu... <email>" и "wrote:" оказались на РАЗНЫХ
+  // строках) — если границу нашли по ">", расширяем её назад через любые
+  // непустые строки прямо перед ней, похожие на фрагмент такой преамбулы.
+  // Идём только назад ОТ уже найденного ">" (не ищем "wrote:" в письме без
+  // единой цитаты вообще) — иначе случайное "On the invoice..." в начале
+  // обычного письма без квоты ложно свернулось бы целиком.
+  if (foundViaQuoteMarker) {
+    for (let i = splitIndex - 1; i >= 0; i--) {
+      const trimmed = lines[i].trim();
+      if (trimmed === '') continue;
+      if (/wrote:\s*$/i.test(trimmed) || /писал\(а\):\s*$/i.test(trimmed) || /^on\s/i.test(trimmed)) {
+        splitIndex = i;
+        continue;
+      }
+      break;
+    }
+  }
+
+  const visible = lines.slice(0, splitIndex).join('\n').trimEnd();
+  const quoted = lines.slice(splitIndex).join('\n');
+  return { visible, quoted: quoted.trim() ? quoted : null };
+}
+
+// Владелец, тем же сообщением: "нужна возможность отвечать на это письмо,
+// чтобы сохранялся и заголовок, и вся предыдущая история" — "Ответить" на
+// конкретном письме треда подставляет в форму тему с "Re:" (если её там ещё
+// нет) и цитату этого письма целиком (как в обычном email-клиенте, ">" на
+// каждую строку + преамбула с датой/отправителем), а не пустой черновик.
+function buildQuotedReply(e: SupplierOfferEmail): { subject: string; body: string } {
+  const subject = /^re:/i.test(e.subject.trim()) ? e.subject : `Re: ${e.subject}`;
+  const preamble = `${new Date(e.createdAt).toLocaleString('ru-RU')}, ${e.fromAddress} писал(а):`;
+  const quotedLines = e.body
+    .split('\n')
+    .map((line) => `> ${line}`)
+    .join('\n');
+  return { subject, body: `\n\n${preamble}\n${quotedLines}` };
 }
 
 // Черновик первого письма по умолчанию (до выбора сохранённого шаблона) —
@@ -95,6 +164,9 @@ export function EmailThread({
   const [sendError, setSendError] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  // Какие письма развёрнуты (показана свёрнутая цитата целиком) — по id,
+  // сбрасывается сам собой при смене offer (новый emails-список).
+  const [expandedQuoteIds, setExpandedQuoteIds] = useState<Set<string>>(new Set());
 
   // Черновик по умолчанию завязан на конкретное предложение/запрос — при
   // переключении между тредами (вкладка "Переписка") нужно пересчитать
@@ -133,6 +205,23 @@ export function EmailThread({
     setBody(rendered.body);
   }
 
+  function handleReplyTo(e: SupplierOfferEmail) {
+    if ((subject.trim() || body.trim()) && !window.confirm('Заменить черновик цитатой этого письма?')) return;
+    const quoted = buildQuotedReply(e);
+    setSubject(quoted.subject);
+    setBody(quoted.body);
+    setSelectedTemplateId('');
+  }
+
+  function toggleQuoteExpanded(emailId: string) {
+    setExpandedQuoteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(emailId)) next.delete(emailId);
+      else next.add(emailId);
+      return next;
+    });
+  }
+
   async function handleSend() {
     if (!offer.email || !body.trim() || sending) return;
     setSending(true);
@@ -160,7 +249,10 @@ export function EmailThread({
         {emails.length === 0 && <p className="text-sm text-ink-faint">Писем пока нет.</p>}
         {emails.length > 0 && (
           <div className="flex flex-col gap-2">
-            {emails.map((e) => (
+            {emails.map((e) => {
+              const { visible, quoted } = splitQuotedReply(e.body);
+              const isQuoteExpanded = expandedQuoteIds.has(e.id);
+              return (
               <div
                 key={e.id}
                 className={cn(
@@ -176,7 +268,30 @@ export function EmailThread({
                   <span>{new Date(e.createdAt).toLocaleString('ru-RU')}</span>
                 </div>
                 {e.subject && <div className="font-semibold text-ink">{e.subject}</div>}
-                <div className="whitespace-pre-wrap text-ink">{e.body}</div>
+                <div className="whitespace-pre-wrap text-ink">{visible}</div>
+                {quoted && (
+                  <div className="mt-1">
+                    <button
+                      type="button"
+                      onClick={() => toggleQuoteExpanded(e.id)}
+                      className="flex items-center gap-1 text-xs text-ink-faint hover:text-ink"
+                    >
+                      {isQuoteExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                      {isQuoteExpanded ? 'Скрыть историю переписки' : 'Показать историю переписки'}
+                    </button>
+                    {isQuoteExpanded && (
+                      <div className="mt-1 whitespace-pre-wrap border-l-2 border-border pl-2 text-ink-faint">{quoted}</div>
+                    )}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleReplyTo(e)}
+                  className="mt-1 flex w-fit items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  <Reply className="h-3.5 w-3.5" />
+                  Ответить
+                </button>
                 {e.files.length > 0 && (
                   <div className="mt-1 flex flex-col gap-2">
                     {e.files.map((f, i) =>
@@ -204,7 +319,8 @@ export function EmailThread({
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
