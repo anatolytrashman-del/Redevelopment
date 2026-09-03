@@ -42,8 +42,11 @@ export function MaterialLedgerModal({
   // делать этот список, буду выбирать из него" — не все категории имеют
   // свои requestItems (например "Универсальные поставщики" — пустая
   // категория), поэтому нужен более общий источник: плоский список ВСЕХ
-  // материалов ВСЕХ смет (Suppliers.tsx → allEstimateMaterials), с поиском
-  // по имени — список может быть большим (сотни позиций по всем объектам).
+  // материалов ВСЕХ смет (Suppliers.tsx → allEstimateMaterials). Первая
+  // версия фильтровала список текстовым поиском — владелец забраковал
+  // ("вводить совсем тупо, хочу видеть весь список и отмечать галочками"),
+  // теперь весь список сразу, сгруппированный по объекту/разделу
+  // (checklistGroups ниже), с чекбоксом на каждой позиции.
   allMaterials: { item: PurchaseItem; context: string }[];
   ledgers: MaterialLedger[];
   onClose: () => void;
@@ -54,7 +57,6 @@ export function MaterialLedgerModal({
   const [name, setName] = useState('');
   const [items, setItems] = useState<PurchaseItem[]>([]);
   const [manualName, setManualName] = useState('');
-  const [materialQuery, setMaterialQuery] = useState('');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [attaching, setAttaching] = useState(false);
@@ -69,18 +71,26 @@ export function MaterialLedgerModal({
     setName('');
     setItems([]);
     setManualName('');
-    setMaterialQuery('');
     setError(null);
   }, [open]);
 
-  // Показываем результаты только когда что-то введено (список из всех смет
-  // может быть в сотни позиций — выводить его целиком без фильтра было бы
-  // бесполезно) и ограничиваем выдачу, чтобы не рендерить сотни строк разом.
-  const materialResults = useMemo(() => {
-    const q = materialQuery.trim().toLowerCase();
-    if (!q) return [];
-    return allMaterials.filter((m) => m.item.name.toLowerCase().includes(q)).slice(0, 30);
-  }, [allMaterials, materialQuery]);
+  // Владелец, 2026-09-03, после первой версии с полем поиска: "снова
+  // неудобно, мне нужно видеть весь список сразу и отмечать галочками...
+  // вот так вот вводить совсем тупо" — весь список сразу, сгруппированный
+  // по объекту/разделу сметы (плюс отдельная группа "Текущий запрос", если
+  // у категории есть свои items), чекбокс = позиция в ведомости.
+  const checklistGroups = useMemo(() => {
+    const groups: { label: string; items: PurchaseItem[] }[] = [];
+    if (requestItems.length > 0) groups.push({ label: 'Текущий запрос', items: requestItems });
+    const byContext = new Map<string, PurchaseItem[]>();
+    for (const { item, context } of allMaterials) {
+      const arr = byContext.get(context) ?? [];
+      arr.push(item);
+      byContext.set(context, arr);
+    }
+    for (const [label, contextItems] of byContext) groups.push({ label, items: contextItems });
+    return groups;
+  }, [requestItems, allMaterials]);
 
   if (!open) return null;
 
@@ -98,9 +108,13 @@ export function MaterialLedgerModal({
     setItems(ledger.items);
   }
 
-  function addFromRequest(item: PurchaseItem) {
-    if (items.some((i) => i.name === item.name)) return;
-    setItems((prev) => [...prev, { ...item, id: crypto.randomUUID() }]);
+  function toggleMaterial(item: PurchaseItem, checked: boolean) {
+    if (checked) {
+      if (items.some((i) => i.name === item.name)) return;
+      setItems((prev) => [...prev, { ...item, id: crypto.randomUUID() }]);
+    } else {
+      setItems((prev) => prev.filter((i) => i.name !== item.name));
+    }
   }
 
   function addManualItem() {
@@ -187,64 +201,44 @@ export function MaterialLedgerModal({
         <Input label="Название ведомости" placeholder="Например, Окна" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
 
         <div className="flex flex-col gap-2">
-          <Input
-            label="Материалы из смет"
-            placeholder="Начните вводить название материала"
-            value={materialQuery}
-            onChange={(e) => setMaterialQuery(e.target.value)}
-          />
-          {materialQuery.trim() && materialResults.length === 0 && (
-            <p className="text-sm text-ink-faint">Ничего не найдено.</p>
-          )}
-          {materialResults.length > 0 && (
-            <div className="flex max-h-56 flex-col gap-1.5 overflow-y-auto rounded-control bg-surface-muted p-3">
-              {materialResults.map(({ item, context }) => {
-                const added = items.some((i) => i.name === item.name);
-                return (
-                  <div key={item.id} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="min-w-0 text-ink">
-                      <span className="block truncate">{item.name}</span>
-                      <span className="block truncate text-xs text-ink-faint">
-                        {context}
-                        {item.unit && ` · ${item.quantity ?? '—'} ${item.unit}`}
-                      </span>
-                    </span>
-                    <Button type="button" variant="secondary" className="shrink-0" disabled={added} onClick={() => addFromRequest(item)}>
-                      {added ? 'Добавлено' : 'Добавить'}
-                    </Button>
-                  </div>
-                );
-              })}
+          <span className="text-sm text-ink-muted">Выберите материалы из смет</span>
+          {checklistGroups.length === 0 ? (
+            <p className="text-sm text-ink-faint">В сметах пока нет материалов — добавьте позицию вручную ниже.</p>
+          ) : (
+            <div className="flex max-h-80 flex-col gap-3 overflow-y-auto rounded-control bg-surface-muted p-3">
+              {checklistGroups.map((group) => (
+                <div key={group.label} className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-ink-faint">{group.label}</span>
+                  {group.items.map((item) => {
+                    const checked = items.some((i) => i.name === item.name);
+                    return (
+                      <label
+                        key={item.id}
+                        className="flex items-center gap-2.5 rounded-control px-1.5 py-1 text-sm hover:bg-surface"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => toggleMaterial(item, e.target.checked)}
+                          className="h-4 w-4 shrink-0 rounded border-border accent-primary"
+                        />
+                        <span className="min-w-0 truncate text-ink">
+                          {item.name}
+                          {item.unit && (
+                            <span className="text-ink-faint">
+                              {' '}
+                              · {item.quantity ?? '—'} {item.unit}
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           )}
         </div>
-
-        {requestItems.length > 0 && (
-          <div className="flex flex-col gap-2 rounded-control bg-surface-muted p-3">
-            <span className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Позиции запроса</span>
-            <div className="flex flex-col gap-1.5">
-              {requestItems.map((item) => {
-                const added = items.some((i) => i.name === item.name);
-                return (
-                  <div key={item.id} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="text-ink">
-                      {item.name}
-                      {item.unit && (
-                        <span className="text-ink-faint">
-                          {' '}
-                          · {item.quantity ?? '—'} {item.unit}
-                        </span>
-                      )}
-                    </span>
-                    <Button type="button" variant="secondary" disabled={added} onClick={() => addFromRequest(item)}>
-                      {added ? 'Добавлено' : 'Добавить'}
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         <div className="flex flex-col gap-2">
           <span className="text-sm text-ink-muted">Позиции ведомости</span>
