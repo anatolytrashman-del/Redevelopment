@@ -1382,24 +1382,6 @@ export function SupplierCorrespondenceTab({
             }}
           />
 
-          {/* Владелец, 2026-09-04: "давай реализуем массовую отправку" —
-              рассылка одной и той же ведомости нескольким поставщикам
-              выбранной категории разом. Не показываем в псевдо-категории
-              "Непрочитанные" (это не настоящая категория, там смешаны
-              поставщики из разных запросов) и когда рассылать некому
-              (нет ни одного верифицированного предложения с email). */}
-          {!isUnreadView && selectedGroup && selectedGroup.offers.some((x) => x.offer.email && x.offer.verified) && (
-            <Button
-              type="button"
-              variant="secondary"
-              icon={<Users className="h-4 w-4" />}
-              className="w-fit"
-              onClick={() => onOpenBulkSend(selectedGroup.request)}
-            >
-              Массовая отправка
-            </Button>
-          )}
-
           {/* Владелец, 2026-09-03: "не такой же выпадающий [как Категория],
               а просто два варианта, указывай флагами" — компактный тумблер
               из двух кнопок-флагов, не Select. Фильтрует список поставщиков
@@ -1425,6 +1407,24 @@ export function SupplierCorrespondenceTab({
                 </button>
               ))}
             </div>
+          )}
+
+          {/* Владелец, 2026-09-04: "давай реализуем массовую отправку" —
+              рассылка одной и той же ведомости нескольким поставщикам
+              выбранной категории разом. Не показываем в псевдо-категории
+              "Непрочитанные" (это не настоящая категория, там смешаны
+              поставщики из разных запросов) и когда рассылать некому
+              (нет ни одного верифицированного предложения с email). */}
+          {!isUnreadView && selectedGroup && selectedGroup.offers.some((x) => x.offer.email && x.offer.verified) && (
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<Users className="h-4 w-4" />}
+              className="w-fit"
+              onClick={() => onOpenBulkSend(selectedGroup.request)}
+            >
+              Массовая отправка
+            </Button>
           )}
 
           <div className="flex flex-col gap-1">
