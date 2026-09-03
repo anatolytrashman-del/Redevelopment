@@ -20,6 +20,7 @@ import { TemplateFormModal, TemplateManagerModal } from './EmailTemplates';
 import { getCurrentProfile } from '../../lib/accessProfile';
 import { DocumentPreviewModal, isPreviewable, type PreviewFile } from '../documents/DocumentPreviewModal';
 import { currencies, type Currency } from '../../data/transactions';
+import type { PurchaseItem } from '../../data/purchases';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -131,29 +132,35 @@ function pluralPositions(n: number): string {
   return 'позиций';
 }
 
-function formatExtractionItemsText(items: EmailExtractionItem[]): string {
-  if (items.length === 0) return '';
-  return items
-    .map((i) => [i.name, i.quantity != null ? `${i.quantity}${i.unit ? ` ${i.unit}` : ''}` : '', i.price != null ? String(i.price) : '']
-      .filter(Boolean)
-      .join(' — '))
-    .join('\n');
-}
-
-// Пишет распознанные цену/валюту в карточку предложения (price/currency),
-// позиции — текстом в конец "Требований" (структурированного списка позиций
-// у SupplierOffer нет, см. открытый вопрос в EMAIL_CORRESPONDENCE_PLAN.md) —
-// не затирая то, что там уже было. currency из распознавания может не
-// совпасть ни с одним известным значением (модели явно запрещено гадать,
-// возвращает null, если не уверена) — тогда валюту карточки не трогаем.
+// Пишет распознанные цену/валюту/позиции в карточку предложения и, если
+// известен источник (sourceFile — сам файл, который распознавали),
+// прикрепляет его к тем же файлам предложения — владелец, 2026-09-03:
+// "давай верстать таблицу" (вместо текстовой простыни в "Требованиях",
+// см. историю в EMAIL_CORRESPONDENCE_PLAN.md) + "давай подкреплять в
+// карточку файл КП из письма". Позиции ДОБАВЛЯЮТСЯ к уже существующим
+// (не затирают то, что уже было в карточке вручную), файл — тоже, с
+// дедупликацией по url (повторное подтверждение того же письма не
+// плодит копии). currency из распознавания может не совпасть ни с одним
+// известным значением (модели явно запрещено гадать, возвращает null,
+// если не уверена) — тогда валюту карточки не трогаем.
 async function applyExtractionToOffer(
   offer: SupplierOffer,
   extraction: { price: number | null; currency: string | null; items: EmailExtractionItem[] },
+  sourceFile: { url: string; fileName: string } | null,
 ): Promise<SupplierOffer> {
-  const itemsText = formatExtractionItemsText(extraction.items);
-  const requirements = itemsText
-    ? [offer.requirements.trim(), `Позиции из распознанного КП:\n${itemsText}`].filter(Boolean).join('\n\n')
-    : offer.requirements;
+  const newItems: PurchaseItem[] = extraction.items.map((i) => ({
+    id: crypto.randomUUID(),
+    sourceMaterialId: null,
+    name: i.name,
+    unit: i.unit,
+    quantity: i.quantity,
+    price: i.price,
+    note: '',
+  }));
+  const files =
+    sourceFile && !offer.files.some((f) => f.url === sourceFile.url)
+      ? [...offer.files, { url: sourceFile.url, fileName: sourceFile.fileName }]
+      : offer.files;
   return updateSupplierOffer(offer.id, {
     requestId: offer.requestId,
     name: offer.name,
@@ -167,8 +174,9 @@ async function applyExtractionToOffer(
     price: extraction.price ?? offer.price,
     currency: isValidCurrency(extraction.currency) ? extraction.currency : offer.currency,
     deadline: offer.deadline,
-    requirements,
-    files: offer.files,
+    requirements: offer.requirements,
+    items: [...offer.items, ...newItems],
+    files,
   });
 }
 
@@ -367,7 +375,11 @@ export function EmailThread({
     setApplyingExtraction(true);
     setExtractionError(null);
     try {
-      const updated = await applyExtractionToOffer(offer, manualResult);
+      const updated = await applyExtractionToOffer(
+        offer,
+        manualResult,
+        previewFile ? { url: previewFile.url, fileName: previewFile.fileName } : null,
+      );
       onOfferUpdated(updated);
       closePreview();
     } catch (err) {
@@ -381,7 +393,7 @@ export function EmailThread({
     if (!e.extraction || applyingExtraction) return;
     setApplyingExtraction(true);
     try {
-      const updated = await applyExtractionToOffer(offer, e.extraction);
+      const updated = await applyExtractionToOffer(offer, e.extraction, e.extraction.sourceFile ?? null);
       onOfferUpdated(updated);
       await setSupplierOfferEmailExtractionStatus(e.id, e.extraction, 'confirmed');
       onEmailUpdated({ ...e, extraction: { ...e.extraction, status: 'confirmed' } });

@@ -65,6 +65,13 @@ export interface SupplierOffer {
   currency: Currency;
   deadline: string;
   requirements: string;
+  // Позиции КП (название/кол-во/ед./цена) — переиспользован PurchaseItem
+  // (тот же смысл, что у SupplierRequest.items: снимок на момент добавления),
+  // заполняются либо вручную, либо автораспознаванием счёта из переписки
+  // (applyExtractionToOffer в SupplierCorrespondenceTab.tsx). requirements
+  // остаётся отдельным свободным полем для условий/заметок, сюда позиции
+  // больше не дублируются текстом (было так до 2026-09-03).
+  items: PurchaseItem[];
   files: DocumentFile[];
   // Короткий технический код для plus-адреса переписки (см.
   // supplierOfferEmailAddress ниже) — 5 hex-символов, генерируется в БД
@@ -89,6 +96,7 @@ export interface SupplierOfferRow {
   currency: string;
   deadline: string;
   requirements: string;
+  items: PurchaseItem[] | null;
   files: DocumentFile[] | null;
   short_code: string;
   created_at: string;

@@ -223,7 +223,12 @@ export default async function handler(req, res) {
         try {
           const recognized = await recognizeInvoice(candidate.url, candidate.fileName);
           if (recognized.isInvoice) {
-            extraction = { status: 'pending', ...recognized, recognizedAt: new Date().toISOString() };
+            extraction = {
+              status: 'pending',
+              ...recognized,
+              sourceFile: { url: candidate.url, fileName: candidate.fileName },
+              recognizedAt: new Date().toISOString(),
+            };
           }
         } catch (err) {
           console.error('Не удалось автораспознать вложение как счёт (не критично, письмо всё равно сохранится):', err);

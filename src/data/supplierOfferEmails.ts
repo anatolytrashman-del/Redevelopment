@@ -14,12 +14,17 @@ export interface EmailExtractionItem {
   price: number | null;
 }
 
+// sourceFile — какое именно вложение распознано (нужно, чтобы при
+// подтверждении прикрепить сам файл счёта к карточке предложения, не
+// только цифры из него) — null у записей, сделанных до 2026-09-03
+// (в момент, когда поле появилось), но новые всегда его заполняют.
 export interface EmailExtraction {
   status: 'pending' | 'confirmed' | 'dismissed';
   isInvoice: boolean;
   price: number | null;
   currency: string | null;
   items: EmailExtractionItem[];
+  sourceFile: { url: string; fileName: string } | null;
   recognizedAt: string;
 }
 

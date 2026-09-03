@@ -39,6 +39,7 @@ function offerFromRow(row: SupplierOfferRow): SupplierOffer {
     currency: row.currency as Currency,
     deadline: row.deadline,
     requirements: row.requirements,
+    items: row.items ?? [],
     files: row.files ?? [],
     shortCode: row.short_code,
     createdAt: row.created_at,
@@ -134,6 +135,7 @@ export function insertSupplierOffer(input: Omit<SupplierOffer, 'id' | 'createdAt
         currency: input.currency,
         deadline: input.deadline,
         requirements: input.requirements,
+        items: input.items,
         files: input.files,
       })
       .select()
@@ -161,6 +163,7 @@ export function updateSupplierOffer(id: string, input: Omit<SupplierOffer, 'id' 
         currency: input.currency,
         deadline: input.deadline,
         requirements: input.requirements,
+        items: input.items,
         files: input.files,
       })
       .eq('id', id)

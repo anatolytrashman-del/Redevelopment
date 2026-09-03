@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Trash2, Pencil, Send, Phone, Globe, Paperclip, Upload, X, ImageOff, Mail, ShoppingCart, Search, Check, MailPlus } from 'lucide-react';
+import { Plus, Loader2, Trash2, Pencil, Send, Phone, Globe, Paperclip, Upload, X, ImageOff, Mail, ShoppingCart, Search, Check, MailPlus, PackagePlus } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -58,7 +58,7 @@ import {
   type SupplierRequestInput,
 } from '../lib/supplierResearchApi';
 import { searchSuppliersOnline, type SupplierSearchResult } from '../lib/supplierWebSearchApi';
-import type { PurchaseItem } from '../data/purchases';
+import { purchaseItemTotal, type PurchaseItem } from '../data/purchases';
 import type { Estimate, EstimateMaterial } from '../data/estimates';
 import { fetchEstimates } from '../lib/estimatesApi';
 import type { RealtyObject } from '../data/objects';
@@ -170,6 +170,7 @@ const emptyOfferForm = {
   currency: 'USD' as Currency,
   deadline: '',
   requirements: '',
+  items: [] as PurchaseItem[],
   existingFiles: [] as DocumentFile[],
   newFiles: [] as File[],
 };
@@ -559,6 +560,41 @@ function OfferDetailModal({
           <span className="text-ink">{offer.deadline || '—'}</span>
         </div>
 
+        {offer.items.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm text-ink-faint">Позиции КП</span>
+            <div className="overflow-x-auto rounded-control border border-border">
+              <table className="w-full min-w-[420px] border-collapse text-sm">
+                <thead>
+                  <tr className="bg-surface-muted text-left text-xs font-medium uppercase tracking-wide text-ink-faint">
+                    <th className="px-3 py-2">Название</th>
+                    <th className="px-3 py-2 text-right">Кол-во</th>
+                    <th className="px-3 py-2 text-right">Цена</th>
+                    <th className="px-3 py-2 text-right">Сумма</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {offer.items.map((item) => (
+                    <tr key={item.id} className="border-t border-border align-top">
+                      <td className="px-3 py-2 text-ink">
+                        {item.name}
+                        {item.unit && <span className="text-ink-faint"> ({item.unit})</span>}
+                      </td>
+                      <td className="px-3 py-2 text-right text-ink">{item.quantity ?? '—'}</td>
+                      <td className="px-3 py-2 text-right text-ink">
+                        {item.price != null ? `${item.price.toLocaleString('ru-RU')} ${currencySymbols[offer.currency]}` : '—'}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold text-ink">
+                        {purchaseItemTotal(item).toLocaleString('ru-RU')} {currencySymbols[offer.currency]}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col gap-1 text-sm">
           <span className="text-ink-faint">Требования</span>
           <span className="whitespace-pre-wrap text-ink">{offer.requirements || '—'}</span>
@@ -648,6 +684,9 @@ export function Suppliers() {
   const [offerError, setOfferError] = useState<string | null>(null);
   const [deletingOfferId, setDeletingOfferId] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  // Позиции КП внутри формы предложения — тот же паттерн, что у
+  // manualItemName выше (позиции запроса), только для offerForm.items.
+  const [manualOfferItemName, setManualOfferItemName] = useState('');
   const [emailOfferId, setEmailOfferId] = useState<string | null>(null);
   // Вся переписка по всем предложениям Ресерча разом — единственный
   // источник правды для OfferEmailModal и вкладки "Переписка" (см.
@@ -1120,6 +1159,7 @@ export function Suppliers() {
             currency: 'USD',
             deadline: '',
             requirements: r.note ? `Найдено веб-поиском: ${r.note}` : '',
+            items: [],
             files: [],
           }),
         ),
@@ -1163,12 +1203,41 @@ export function Suppliers() {
       currency: o.currency,
       deadline: o.deadline,
       requirements: o.requirements,
+      items: o.items,
       existingFiles: o.files,
       newFiles: [],
     });
     setOfferError(null);
     setOfferModalOpen(true);
     setDetailOfferId(null);
+  }
+
+  // Позиции КП внутри формы предложения — тот же паттерн (id/updateItem/
+  // removeItem), что и у позиций закупки в Purchases.tsx, просто без
+  // подстановки из сметы (тут это отдельный товар, не список работ по
+  // разделу) — только ручное добавление, плюс автозаполнение из
+  // распознавания счёта (applyExtractionToOffer в SupplierCorrespondenceTab.tsx).
+  function addManualOfferItem() {
+    if (!manualOfferItemName.trim()) return;
+    const item: PurchaseItem = {
+      id: crypto.randomUUID(),
+      sourceMaterialId: null,
+      name: manualOfferItemName.trim(),
+      unit: '',
+      quantity: null,
+      price: null,
+      note: '',
+    };
+    setOfferForm((f) => ({ ...f, items: [...f.items, item] }));
+    setManualOfferItemName('');
+  }
+
+  function updateOfferItem(id: string, patch: Partial<PurchaseItem>) {
+    setOfferForm((f) => ({ ...f, items: f.items.map((i) => (i.id === id ? { ...i, ...patch } : i)) }));
+  }
+
+  function removeOfferItem(id: string) {
+    setOfferForm((f) => ({ ...f, items: f.items.filter((i) => i.id !== id) }));
   }
 
   async function handleCatalogPhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1206,6 +1275,7 @@ export function Suppliers() {
       offerForm.price.trim().length > 0 ||
       offerForm.deadline.trim().length > 0 ||
       offerForm.requirements.trim().length > 0 ||
+      offerForm.items.length > 0 ||
       offerForm.existingFiles.length > 0 ||
       offerForm.newFiles.length > 0);
 
@@ -1230,6 +1300,7 @@ export function Suppliers() {
         currency: offerForm.currency,
         deadline: offerForm.deadline.trim(),
         requirements: offerForm.requirements.trim(),
+        items: offerForm.items,
         files: [...offerForm.existingFiles, ...uploadedNewFiles],
       };
       if (editingOffer) {
@@ -1644,6 +1715,87 @@ export function Suppliers() {
             value={offerForm.deadline}
             onChange={(e) => setOfferForm((f) => ({ ...f, deadline: e.target.value }))}
           />
+
+          <div className="flex flex-col gap-2">
+            <span className="text-sm text-ink-muted">Позиции КП</span>
+            {offerForm.items.length > 0 && (
+              <div className="overflow-x-auto rounded-control border border-border">
+                <table className="w-full min-w-[520px] border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-surface-muted text-left text-xs font-medium uppercase tracking-wide text-ink-faint">
+                      <th className="px-3 py-2">Название</th>
+                      <th className="px-3 py-2 text-right">Кол-во</th>
+                      <th className="px-3 py-2 text-right">Ед.</th>
+                      <th className="px-3 py-2 text-right">Цена</th>
+                      <th className="px-3 py-2 text-right">Сумма</th>
+                      <th className="px-3 py-2" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {offerForm.items.map((item) => (
+                      <tr key={item.id} className="border-t border-border align-top">
+                        <td className="px-3 py-2 text-ink">
+                          <input
+                            value={item.name}
+                            onChange={(e) => updateOfferItem(item.id, { name: e.target.value })}
+                            className="w-full min-w-[140px] rounded-control border border-border bg-surface px-2 py-1 text-sm outline-none focus:border-primary"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <input
+                            type="number"
+                            value={item.quantity ?? ''}
+                            onChange={(e) => updateOfferItem(item.id, { quantity: e.target.value === '' ? null : Number(e.target.value) })}
+                            className="w-20 rounded-control border border-border bg-surface px-2 py-1 text-right text-sm outline-none focus:border-primary"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <input
+                            value={item.unit}
+                            onChange={(e) => updateOfferItem(item.id, { unit: e.target.value })}
+                            className="w-16 rounded-control border border-border bg-surface px-2 py-1 text-right text-sm outline-none focus:border-primary"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <input
+                            type="number"
+                            value={item.price ?? ''}
+                            onChange={(e) => updateOfferItem(item.id, { price: e.target.value === '' ? null : Number(e.target.value) })}
+                            className="w-24 rounded-control border border-border bg-surface px-2 py-1 text-right text-sm outline-none focus:border-primary"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-right font-semibold text-ink">
+                          {purchaseItemTotal(item).toLocaleString('ru-RU')} {currencySymbols[offerForm.currency]}
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => removeOfferItem(item.id)}
+                            aria-label="Удалить позицию"
+                            className="flex h-7 w-7 items-center justify-center rounded-full text-ink-faint hover:text-danger"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Input
+                placeholder="Название позиции"
+                value={manualOfferItemName}
+                onChange={(e) => setManualOfferItemName(e.target.value)}
+                className="flex-1"
+              />
+              <Button type="button" variant="secondary" icon={<PackagePlus className="h-4 w-4" />} onClick={addManualOfferItem}>
+                Добавить
+              </Button>
+            </div>
+          </div>
+
           <Textarea
             label="Требования"
             placeholder="Предоплата, документы, условия..."
