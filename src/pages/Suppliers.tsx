@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Trash2, Pencil, Send, Phone, Globe, Paperclip, Upload, X, ImageOff, Mail, ShoppingCart, Search } from 'lucide-react';
+import { Plus, Loader2, Trash2, Pencil, Send, Phone, Globe, Paperclip, Upload, X, ImageOff, Mail, ShoppingCart, Search, Check } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -300,23 +300,52 @@ function RequestCard({
 // Модалка результатов "Найти в сети" — владелец, 2026-08-31: "веб-поиск
 // поставщиков делай через клод, модель sonnet5". Результат ни во что не
 // сохраняется сам по себе (нет отдельной таблицы под "предложенных
-// веб-поиском") — по каждому найденному варианту либо "Добавить как
-// предложение" (тот же offerForm/offerModalOpen, что и у обычного
-// "Добавить предложение", просто предзаполненный — владелец правит и
-// сохраняет как обычно), либо просто закрыть модалку.
+// веб-поиском") — каждый найденный вариант сразу добавляется предложением
+// (тот же insertSupplierOffer, что и у обычной формы, просто с дефолтной
+// ценой/валютой — владелец правит/уточняет цену уже в самом предложении
+// через обычный карандаш редактирования, отдельного пути правки здесь нет).
+//
+// Владелец, 2026-09-03: "оно нашло штук 5, я выбрал 1, открылась карточка
+// первого магазина, а когда я сохранил, все остальные пропали. Мне нужна
+// возможность добавлять массово" — старая версия открывала форму
+// добавления ПОВЕРХ этой модалки и закрывала саму модалку сразу по клику
+// (ещё до сохранения), теряя весь оставшийся список. Переделано: никакого
+// промежуточного окна редактирования — клик по "Добавить" (в строке или
+// массово через чекбоксы) сразу создаёт предложение и помечает строку
+// добавленной (галочка), модалка результатов при этом никогда не
+// закрывается сама — только явным "Закрыть"/крестиком.
 function SupplierWebSearchModal({
   requestTitle,
   results,
   error,
+  selected,
+  added,
+  addingIndices,
+  bulkAdding,
+  addError,
   onClose,
-  onAddResult,
+  onToggleSelect,
+  onToggleSelectAll,
+  onAddOne,
+  onAddSelected,
 }: {
   requestTitle: string;
   results: SupplierSearchResult[];
   error: string | null;
+  selected: Set<number>;
+  added: Set<number>;
+  addingIndices: Set<number>;
+  bulkAdding: boolean;
+  addError: string | null;
   onClose: () => void;
-  onAddResult: (r: SupplierSearchResult) => void;
+  onToggleSelect: (index: number) => void;
+  onToggleSelectAll: () => void;
+  onAddOne: (index: number) => void;
+  onAddSelected: () => void;
 }) {
+  const selectableCount = results.filter((_, i) => !added.has(i)).length;
+  const allSelected = selectableCount > 0 && selected.size === selectableCount;
+
   return (
     <Modal open onClose={onClose} title={`Найдено в сети: ${requestTitle}`}>
       <div className="flex flex-col gap-3">
@@ -324,44 +353,94 @@ function SupplierWebSearchModal({
         {!error && results.length === 0 && (
           <p className="text-sm text-ink-faint">Ничего подходящего не нашлось — попробуйте уточнить список материалов в запросе.</p>
         )}
-        {results.map((r, i) => (
-          <div key={i} className="flex flex-col gap-2 rounded-control border border-border px-4 py-3">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0">
-                <div className="font-medium text-ink">{r.name}</div>
-                {r.note && <div className="text-sm text-ink-muted">{r.note}</div>}
-              </div>
-              <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} onClick={() => onAddResult(r)}>
-                Добавить предложение
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-muted">
-              {r.website && (
-                <a
-                  href={/^https?:\/\//.test(r.website) ? r.website : `https://${r.website}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1.5 text-primary hover:underline"
-                >
-                  <Globe className="h-3.5 w-3.5 shrink-0" />
-                  {siteLabel(r.website)}
-                </a>
-              )}
-              {r.phone && (
-                <span className="flex items-center gap-1.5">
-                  <Phone className="h-3.5 w-3.5 shrink-0" />
-                  {r.phone}
-                </span>
-              )}
-              {r.email && (
-                <span className="flex items-center gap-1.5">
-                  <Mail className="h-3.5 w-3.5 shrink-0" />
-                  {r.email}
-                </span>
-              )}
-            </div>
+
+        {results.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+            <button
+              type="button"
+              onClick={onToggleSelectAll}
+              disabled={selectableCount === 0}
+              className="text-sm font-medium text-primary hover:underline disabled:opacity-50 disabled:no-underline"
+            >
+              {allSelected ? 'Снять выбор' : `Выбрать все (${selectableCount})`}
+            </button>
+            <Button
+              type="button"
+              icon={bulkAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              disabled={selected.size === 0 || bulkAdding}
+              onClick={onAddSelected}
+            >
+              {bulkAdding ? 'Добавляем...' : `Добавить выбранные (${selected.size})`}
+            </Button>
           </div>
-        ))}
+        )}
+
+        {addError && <p className="text-sm text-danger">{addError}</p>}
+
+        {results.map((r, i) => {
+          const isAdded = added.has(i);
+          const isAdding = addingIndices.has(i);
+          return (
+            <div key={i} className={cn('flex flex-col gap-2 rounded-control border px-4 py-3', isAdded ? 'border-success/30 bg-success-bg' : 'border-border')}>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <label className="flex min-w-0 items-start gap-2.5">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(i)}
+                    disabled={isAdded}
+                    onChange={() => onToggleSelect(i)}
+                    className="mt-1 h-4 w-4 shrink-0 rounded border-border accent-primary disabled:opacity-50"
+                  />
+                  <span className="min-w-0">
+                    <span className="block font-medium text-ink">{r.name}</span>
+                    {r.note && <span className="block text-sm text-ink-muted">{r.note}</span>}
+                  </span>
+                </label>
+                {isAdded ? (
+                  <span className="flex shrink-0 items-center gap-1 rounded-full bg-success px-2.5 py-1 text-xs font-semibold text-white">
+                    <Check className="h-3.5 w-3.5" />
+                    Добавлено
+                  </span>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon={isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                    disabled={isAdding || bulkAdding}
+                    onClick={() => onAddOne(i)}
+                  >
+                    Добавить
+                  </Button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 pl-6 text-sm text-ink-muted">
+                {r.website && (
+                  <a
+                    href={/^https?:\/\//.test(r.website) ? r.website : `https://${r.website}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1.5 text-primary hover:underline"
+                  >
+                    <Globe className="h-3.5 w-3.5 shrink-0" />
+                    {siteLabel(r.website)}
+                  </a>
+                )}
+                {r.phone && (
+                  <span className="flex items-center gap-1.5">
+                    <Phone className="h-3.5 w-3.5 shrink-0" />
+                    {r.phone}
+                  </span>
+                )}
+                {r.email && (
+                  <span className="flex items-center gap-1.5">
+                    <Mail className="h-3.5 w-3.5 shrink-0" />
+                    {r.email}
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </Modal>
   );
@@ -579,6 +658,16 @@ export function Suppliers() {
     results: SupplierSearchResult[];
     error: string | null;
   } | null>(null);
+  // Выбор/статус строк модалки результатов — индексы в webSearchModal.results.
+  // Сбрасываются при каждом новом поиске (см. submitWebQuery). added — уже
+  // созданные предложения (не снимается кликом, чтобы случайно не добавить
+  // дубль), addingIndices — идёт создание конкретной строки (свой спиннер,
+  // не блокирует остальные), bulkAdding — идёт массовое добавление.
+  const [webSearchSelected, setWebSearchSelected] = useState<Set<number>>(new Set());
+  const [webSearchAdded, setWebSearchAdded] = useState<Set<number>>(new Set());
+  const [webSearchAddingIndices, setWebSearchAddingIndices] = useState<Set<number>>(new Set());
+  const [webSearchBulkAdding, setWebSearchBulkAdding] = useState(false);
+  const [webSearchAddError, setWebSearchAddError] = useState<string | null>(null);
 
   // "Создать закупку" из выигравшего предложения (владелец, 2026-08-29:
   // "у победителя жмёте «Создать закупку» — открывается форма Закупки, уже
@@ -887,6 +976,12 @@ export function Suppliers() {
     if (!request || !webQueryForm.itemsText.trim()) return;
     setWebQueryModal(null);
     setWebSearchingId(request.id);
+    // Новый поиск — новые результаты, сбрасываем статус выбора/добавления
+    // от предыдущего (если это повторный поиск по тому же запросу).
+    setWebSearchSelected(new Set());
+    setWebSearchAdded(new Set());
+    setWebSearchAddingIndices(new Set());
+    setWebSearchAddError(null);
     try {
       const results = await searchSuppliersOnline(webQueryForm.itemsText.trim(), request.sectionTitle || request.title, webQueryForm.extra.trim());
       setWebSearchModal({ request, results, error: null });
@@ -897,23 +992,76 @@ export function Suppliers() {
     }
   }
 
-  // Предзаполняет обычную форму "Добавить предложение" найденным вариантом
-  // — владелец правит/дополняет и сохраняет как всегда, отдельного пути
-  // сохранения для результатов веб-поиска нет.
-  function addWebSearchResultAsOffer(requestId: string, r: SupplierSearchResult) {
-    setOfferRequestId(requestId);
-    setEditingOffer(null);
-    setOfferForm({
-      ...emptyOfferForm,
-      name: r.name,
-      websiteUrl: r.website,
-      contact: r.phone,
-      email: r.email,
-      requirements: r.note ? `Найдено веб-поиском: ${r.note}` : '',
+  function toggleWebSearchSelect(index: number) {
+    setWebSearchSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
     });
-    setOfferError(null);
-    setOfferModalOpen(true);
-    setWebSearchModal(null);
+  }
+
+  function toggleWebSearchSelectAll() {
+    if (!webSearchModal) return;
+    const selectable = webSearchModal.results.map((_, i) => i).filter((i) => !webSearchAdded.has(i));
+    setWebSearchSelected((prev) => (prev.size === selectable.length ? new Set() : new Set(selectable)));
+  }
+
+  // Создаёт предложения напрямую (без промежуточной формы, см. комментарий
+  // у SupplierWebSearchModal) — с дефолтной ценой/валютой, владелец
+  // уточняет их потом через обычный карандаш редактирования у уже
+  // созданного предложения, как и любое другое.
+  async function addWebSearchResults(requestId: string, items: { index: number; r: SupplierSearchResult }[]) {
+    if (items.length === 0) return;
+    setWebSearchAddError(null);
+    const indices = items.map((x) => x.index);
+    if (items.length === 1) {
+      setWebSearchAddingIndices((prev) => new Set(prev).add(items[0].index));
+    } else {
+      setWebSearchBulkAdding(true);
+    }
+    try {
+      const created = await Promise.all(
+        items.map(({ r }) =>
+          insertSupplierOffer({
+            requestId,
+            name: r.name,
+            contactMethod: 'Телефон',
+            contact: r.phone,
+            email: r.email,
+            websiteUrl: r.website,
+            catalogModelName: '',
+            catalogModelPhoto: null,
+            communicationStatus: '',
+            price: 0,
+            currency: 'USD',
+            deadline: '',
+            requirements: r.note ? `Найдено веб-поиском: ${r.note}` : '',
+            files: [],
+          }),
+        ),
+      );
+      setOffers((prev) => [...prev, ...created]);
+      setWebSearchAdded((prev) => {
+        const next = new Set(prev);
+        indices.forEach((i) => next.add(i));
+        return next;
+      });
+      setWebSearchSelected((prev) => {
+        const next = new Set(prev);
+        indices.forEach((i) => next.delete(i));
+        return next;
+      });
+    } catch (err) {
+      setWebSearchAddError(errorMessage(err, 'Не удалось добавить предложение'));
+    } finally {
+      setWebSearchAddingIndices((prev) => {
+        const next = new Set(prev);
+        indices.forEach((i) => next.delete(i));
+        return next;
+      });
+      setWebSearchBulkAdding(false);
+    }
   }
 
   function openEditOffer(o: SupplierOffer) {
@@ -1626,8 +1774,21 @@ export function Suppliers() {
           requestTitle={webSearchModal.request.title}
           results={webSearchModal.results}
           error={webSearchModal.error}
+          selected={webSearchSelected}
+          added={webSearchAdded}
+          addingIndices={webSearchAddingIndices}
+          bulkAdding={webSearchBulkAdding}
+          addError={webSearchAddError}
           onClose={() => setWebSearchModal(null)}
-          onAddResult={(r) => addWebSearchResultAsOffer(webSearchModal.request.id, r)}
+          onToggleSelect={toggleWebSearchSelect}
+          onToggleSelectAll={toggleWebSearchSelectAll}
+          onAddOne={(i) => addWebSearchResults(webSearchModal.request.id, [{ index: i, r: webSearchModal.results[i] }])}
+          onAddSelected={() =>
+            addWebSearchResults(
+              webSearchModal.request.id,
+              [...webSearchSelected].map((i) => ({ index: i, r: webSearchModal.results[i] })),
+            )
+          }
         />
       )}
     </>
