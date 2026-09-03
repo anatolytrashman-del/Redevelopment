@@ -832,6 +832,31 @@ export function Suppliers() {
     [estimates, objects],
   );
 
+  // Владелец, 2026-09-03: "у нас же загружена ведомость в платформу, давай
+  // делать этот список, буду выбирать из него" — при сборке ведомости
+  // материалов для письма (MaterialLedgerModal) не все категории имеют
+  // собственные request.items (например, "Универсальные поставщики" —
+  // пустая категория без привязки к смете), выбирать позиции руками
+  // неудобно. Плоский список ВСЕХ материалов ВСЕХ смет (тот же источник,
+  // что и у вкладки "Ведомости материалов" на этой же странице) — поиск по
+  // нему в модалке, не жёсткая привязка к текущей категории.
+  const allEstimateMaterials = useMemo(() => {
+    const list: { item: PurchaseItem; context: string }[] = [];
+    for (const e of estimates) {
+      const objLabel = objectLabel(e.objectId);
+      for (const s of e.sections) {
+        for (const m of s.materials) {
+          list.push({
+            item: { id: crypto.randomUUID(), sourceMaterialId: m.id, name: m.name, unit: m.unit, quantity: m.quantity, price: null, note: m.note },
+            context: `${objLabel} · ${s.title}`,
+          });
+        }
+      }
+    }
+    return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estimates, objects]);
+
   const selectedRequestEstimate = estimates.find((e) => e.id === requestForm.estimateId) ?? null;
   const selectedRequestSection = selectedRequestEstimate?.sections.find((s) => s.id === requestForm.sectionId) ?? null;
 
@@ -1443,6 +1468,7 @@ export function Suppliers() {
             emails={supplierEmails}
             templates={emailTemplates}
             ledgers={materialLedgers}
+            allMaterials={allEstimateMaterials}
             onEmailSent={handleSupplierEmailSent}
             onMarkRead={handleMarkSupplierEmailsRead}
             onTemplatesChange={setEmailTemplates}
@@ -1880,6 +1906,7 @@ export function Suppliers() {
               emails={supplierEmails.filter((e) => e.offerId === offer.id)}
               templates={emailTemplates}
               ledgers={materialLedgers}
+              allMaterials={allEstimateMaterials}
               onEmailSent={handleSupplierEmailSent}
               onMarkRead={handleMarkSupplierEmailsRead}
               onTemplateSaved={handleEmailTemplateSaved}
@@ -1993,6 +2020,7 @@ function OfferEmailModal({
   emails,
   templates,
   ledgers,
+  allMaterials,
   onEmailSent,
   onMarkRead,
   onTemplateSaved,
@@ -2007,6 +2035,7 @@ function OfferEmailModal({
   emails: SupplierOfferEmail[];
   templates: EmailTemplate[];
   ledgers: MaterialLedger[];
+  allMaterials: { item: PurchaseItem; context: string }[];
   onEmailSent: (email: SupplierOfferEmail) => void;
   onMarkRead: (offerId: string) => void;
   onTemplateSaved: (template: EmailTemplate) => void;
@@ -2032,6 +2061,7 @@ function OfferEmailModal({
         emails={emails}
         templates={templates}
         ledgers={ledgers}
+        allMaterials={allMaterials}
         onEmailSent={onEmailSent}
         onTemplateSaved={onTemplateSaved}
         onLedgersChange={onLedgersChange}

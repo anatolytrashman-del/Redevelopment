@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { X, Save, Trash2, Paperclip } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -30,6 +30,7 @@ function errorMessage(err: unknown, fallback: string): string {
 export function MaterialLedgerModal({
   open,
   requestItems,
+  allMaterials,
   ledgers,
   onClose,
   onLedgersChange,
@@ -37,6 +38,13 @@ export function MaterialLedgerModal({
 }: {
   open: boolean;
   requestItems: PurchaseItem[];
+  // Владелец, 2026-09-03: "у нас же загружена ведомость в платформу, давай
+  // делать этот список, буду выбирать из него" — не все категории имеют
+  // свои requestItems (например "Универсальные поставщики" — пустая
+  // категория), поэтому нужен более общий источник: плоский список ВСЕХ
+  // материалов ВСЕХ смет (Suppliers.tsx → allEstimateMaterials), с поиском
+  // по имени — список может быть большим (сотни позиций по всем объектам).
+  allMaterials: { item: PurchaseItem; context: string }[];
   ledgers: MaterialLedger[];
   onClose: () => void;
   onLedgersChange: (ledgers: MaterialLedger[]) => void;
@@ -46,6 +54,7 @@ export function MaterialLedgerModal({
   const [name, setName] = useState('');
   const [items, setItems] = useState<PurchaseItem[]>([]);
   const [manualName, setManualName] = useState('');
+  const [materialQuery, setMaterialQuery] = useState('');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [attaching, setAttaching] = useState(false);
@@ -60,8 +69,18 @@ export function MaterialLedgerModal({
     setName('');
     setItems([]);
     setManualName('');
+    setMaterialQuery('');
     setError(null);
   }, [open]);
+
+  // Показываем результаты только когда что-то введено (список из всех смет
+  // может быть в сотни позиций — выводить его целиком без фильтра было бы
+  // бесполезно) и ограничиваем выдачу, чтобы не рендерить сотни строк разом.
+  const materialResults = useMemo(() => {
+    const q = materialQuery.trim().toLowerCase();
+    if (!q) return [];
+    return allMaterials.filter((m) => m.item.name.toLowerCase().includes(q)).slice(0, 30);
+  }, [allMaterials, materialQuery]);
 
   if (!open) return null;
 
@@ -166,6 +185,39 @@ export function MaterialLedgerModal({
         )}
 
         <Input label="Название ведомости" placeholder="Например, Окна" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+
+        <div className="flex flex-col gap-2">
+          <Input
+            label="Материалы из смет"
+            placeholder="Начните вводить название материала"
+            value={materialQuery}
+            onChange={(e) => setMaterialQuery(e.target.value)}
+          />
+          {materialQuery.trim() && materialResults.length === 0 && (
+            <p className="text-sm text-ink-faint">Ничего не найдено.</p>
+          )}
+          {materialResults.length > 0 && (
+            <div className="flex max-h-56 flex-col gap-1.5 overflow-y-auto rounded-control bg-surface-muted p-3">
+              {materialResults.map(({ item, context }) => {
+                const added = items.some((i) => i.name === item.name);
+                return (
+                  <div key={item.id} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="min-w-0 text-ink">
+                      <span className="block truncate">{item.name}</span>
+                      <span className="block truncate text-xs text-ink-faint">
+                        {context}
+                        {item.unit && ` · ${item.quantity ?? '—'} ${item.unit}`}
+                      </span>
+                    </span>
+                    <Button type="button" variant="secondary" className="shrink-0" disabled={added} onClick={() => addFromRequest(item)}>
+                      {added ? 'Добавлено' : 'Добавить'}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {requestItems.length > 0 && (
           <div className="flex flex-col gap-2 rounded-control bg-surface-muted p-3">

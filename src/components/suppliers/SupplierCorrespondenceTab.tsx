@@ -234,6 +234,7 @@ export function EmailThread({
   emails,
   templates,
   ledgers,
+  allMaterials,
   onEmailSent,
   onTemplateSaved,
   onLedgersChange,
@@ -246,6 +247,7 @@ export function EmailThread({
   emails: SupplierOfferEmail[];
   templates: EmailTemplate[];
   ledgers: MaterialLedger[];
+  allMaterials: { item: PurchaseItem; context: string }[];
   onEmailSent: (email: SupplierOfferEmail) => void;
   onTemplateSaved: (template: EmailTemplate) => void;
   onLedgersChange: (ledgers: MaterialLedger[]) => void;
@@ -705,6 +707,7 @@ export function EmailThread({
       <MaterialLedgerModal
         open={ledgerModalOpen}
         requestItems={request.items}
+        allMaterials={allMaterials}
         ledgers={ledgers}
         onClose={() => setLedgerModalOpen(false)}
         onLedgersChange={onLedgersChange}
@@ -801,6 +804,7 @@ export function SupplierCorrespondenceTab({
   emails,
   templates,
   ledgers,
+  allMaterials,
   onEmailSent,
   onMarkRead,
   onTemplatesChange,
@@ -813,6 +817,7 @@ export function SupplierCorrespondenceTab({
   emails: SupplierOfferEmail[];
   templates: EmailTemplate[];
   ledgers: MaterialLedger[];
+  allMaterials: { item: PurchaseItem; context: string }[];
   onEmailSent: (email: SupplierOfferEmail) => void;
   onMarkRead: (offerId: string) => void;
   onTemplatesChange: (templates: EmailTemplate[]) => void;
@@ -1028,6 +1033,7 @@ export function SupplierCorrespondenceTab({
                 emails={selected.emails}
                 templates={templates}
                 ledgers={ledgers}
+                allMaterials={allMaterials}
                 onEmailSent={onEmailSent}
                 onTemplateSaved={handleTemplateSaved}
                 onLedgersChange={onLedgersChange}
