@@ -94,7 +94,18 @@ export interface SupplierOfferRow {
 // отдельного ящика на каждое предложение. research+, а не zakupki+ — чтобы
 // сервер мог отличить, в какую таблицу (purchase_emails или
 // supplier_offer_emails) класть входящее письмо, см.
-// api/supplier-offer-email-webhook.js.
+// api/purchase-email-webhook.js (несмотря на имя, обрабатывает оба
+// направления переписки).
 export function supplierOfferEmailAddress(offerId: string): string {
   return `research+${offerId}@redevelopment.pro`;
+}
+
+// Список материалов запроса одной строкой ("Керамогранит (50 м²), Клей
+// (10 кг)") — общий хелпер для веб-поиска (openWebQueryModal в
+// Suppliers.tsx) и для плейсхолдера {материалы} в шаблонах писем
+// (lib/emailTemplates.ts), раньше формировался только на месте в первом
+// случае, теперь один источник вместо двух копий.
+export function formatRequestItemsText(items: PurchaseItem[], fallback: string): string {
+  if (items.length === 0) return fallback;
+  return items.map((i) => `${i.name}${i.quantity ? ` (${i.quantity}${i.unit ? ` ${i.unit}` : ''})` : ''}`).join(', ');
 }

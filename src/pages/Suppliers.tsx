@@ -37,10 +37,13 @@ import {
   type ResearchContactMethod,
   type SupplierRequest,
   type SupplierOffer,
+  formatRequestItemsText,
 } from '../data/supplierResearch';
 import type { SupplierOfferEmail } from '../data/supplierOfferEmails';
 import { fetchAllSupplierOfferEmails, markSupplierOfferEmailsRead } from '../lib/supplierOfferEmailsApi';
 import { EmailThread, SupplierCorrespondenceTab, countUnreadSupplierEmails } from '../components/suppliers/SupplierCorrespondenceTab';
+import type { EmailTemplate } from '../data/emailTemplates';
+import { fetchEmailTemplates } from '../lib/emailTemplatesApi';
 import {
   fetchSupplierRequests,
   insertSupplierRequest,
@@ -641,6 +644,9 @@ export function Suppliers() {
   // EMAIL_CORRESPONDENCE_PLAN.md, этап 2), обновляется локально при
   // отправке/прочтении, без повторного fetch на каждое действие.
   const [supplierEmails, setSupplierEmails] = useState<SupplierOfferEmail[]>([]);
+  // Шаблоны писем поставщикам (EMAIL_CORRESPONDENCE_PLAN.md, этап 3) — тот
+  // же принцип "один источник правды на странице", что и у supplierEmails.
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
   // Владелец, 2026-08-29: "слишком много инфы на превью, все вразнобой.
   // Давай выводить название + цену + статус + кнопка Подробнее" — остальные
   // поля (контакт/сайт/модель/срок/требования/файлы) и действия
@@ -724,6 +730,7 @@ export function Suppliers() {
     fetchEstimates().then(setEstimates).catch(() => setEstimates([]));
     fetchObjects().then(setObjects).catch(() => setObjects([]));
     fetchAllSupplierOfferEmails().then(setSupplierEmails).catch(() => setSupplierEmails([]));
+    fetchEmailTemplates().then(setEmailTemplates).catch(() => setEmailTemplates([]));
   }, []);
 
   // Оптимистично помечает входящие письма этого предложения прочитанными в
@@ -740,6 +747,10 @@ export function Suppliers() {
 
   function handleSupplierEmailSent(email: SupplierOfferEmail) {
     setSupplierEmails((prev) => [...prev, email]);
+  }
+
+  function handleEmailTemplateSaved(template: EmailTemplate) {
+    setEmailTemplates((prev) => (prev.some((t) => t.id === template.id) ? prev.map((t) => (t.id === template.id ? template : t)) : [...prev, template]));
   }
 
   function objectLabel(objectId: string): string {
@@ -991,11 +1002,7 @@ export function Suppliers() {
   }
 
   function openWebQueryModal(request: SupplierRequest) {
-    const itemsText =
-      request.items.length > 0
-        ? request.items.map((i) => `${i.name}${i.quantity ? ` (${i.quantity}${i.unit ? ` ${i.unit}` : ''})` : ''}`).join(', ')
-        : request.title;
-    setWebQueryForm({ itemsText, extra: '' });
+    setWebQueryForm({ itemsText: formatRequestItemsText(request.items, request.title), extra: '' });
     setWebQueryModal(request);
   }
 
@@ -1332,8 +1339,10 @@ export function Suppliers() {
             requests={requests}
             offers={offers}
             emails={supplierEmails}
+            templates={emailTemplates}
             onEmailSent={handleSupplierEmailSent}
             onMarkRead={handleMarkSupplierEmailsRead}
+            onTemplatesChange={setEmailTemplates}
           />
         </div>
       )}
@@ -1767,13 +1776,18 @@ export function Suppliers() {
       {emailOfferId &&
         (() => {
           const offer = offers.find((o) => o.id === emailOfferId);
-          if (!offer) return null;
+          const request = offer ? requests.find((r) => r.id === offer.requestId) : undefined;
+          if (!offer || !request) return null;
           return (
             <OfferEmailModal
               offer={offer}
+              request={request}
+              requests={requests}
               emails={supplierEmails.filter((e) => e.offerId === offer.id)}
+              templates={emailTemplates}
               onEmailSent={handleSupplierEmailSent}
               onMarkRead={handleMarkSupplierEmailsRead}
+              onTemplateSaved={handleEmailTemplateSaved}
               onClose={() => setEmailOfferId(null)}
             />
           );
@@ -1860,15 +1874,23 @@ export function Suppliers() {
 // у вкладки "Переписка", отдельного fetch здесь больше нет.
 function OfferEmailModal({
   offer,
+  request,
+  requests,
   emails,
+  templates,
   onEmailSent,
   onMarkRead,
+  onTemplateSaved,
   onClose,
 }: {
   offer: SupplierOffer;
+  request: SupplierRequest;
+  requests: SupplierRequest[];
   emails: SupplierOfferEmail[];
+  templates: EmailTemplate[];
   onEmailSent: (email: SupplierOfferEmail) => void;
   onMarkRead: (offerId: string) => void;
+  onTemplateSaved: (template: EmailTemplate) => void;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -1881,7 +1903,15 @@ function OfferEmailModal({
 
   return (
     <Modal open onClose={onClose} title={offer.name}>
-      <EmailThread offer={offer} emails={emails} onEmailSent={onEmailSent} />
+      <EmailThread
+        offer={offer}
+        request={request}
+        requests={requests}
+        emails={emails}
+        templates={templates}
+        onEmailSent={onEmailSent}
+        onTemplateSaved={onTemplateSaved}
+      />
     </Modal>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Mail, Paperclip, Send } from 'lucide-react';
+import { Mail, Paperclip, Send, FileText, Save } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -9,6 +9,9 @@ import type { SupplierRequest, SupplierOffer } from '../../data/supplierResearch
 import { supplierOfferEmailAddress } from '../../data/supplierResearch';
 import type { SupplierOfferEmail } from '../../data/supplierOfferEmails';
 import { sendSupplierOfferEmail } from '../../lib/supplierOfferEmailsApi';
+import type { EmailTemplate } from '../../data/emailTemplates';
+import { renderEmailTemplate } from '../../lib/emailTemplates';
+import { TemplateFormModal, TemplateManagerModal } from './EmailTemplates';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -26,17 +29,27 @@ function errorMessage(err: unknown, fallback: string): string {
 // по предложению.
 export function EmailThread({
   offer,
+  request,
+  requests,
   emails,
+  templates,
   onEmailSent,
+  onTemplateSaved,
 }: {
   offer: SupplierOffer;
+  request: SupplierRequest;
+  requests: SupplierRequest[];
   emails: SupplierOfferEmail[];
+  templates: EmailTemplate[];
   onEmailSent: (email: SupplierOfferEmail) => void;
+  onTemplateSaved: (template: EmailTemplate) => void;
 }) {
   const [subject, setSubject] = useState(`Запрос цены: ${offer.name}`);
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
 
   // Тема по умолчанию завязана на конкретное предложение — при переключении
   // между тредами (вкладка "Переписка") нужно её пересчитать, иначе останется
@@ -47,7 +60,28 @@ export function EmailThread({
     setSubject(`Запрос цены: ${offer.name}`);
     setBody('');
     setSendError(null);
+    setSelectedTemplateId('');
   }, [offer.id]);
+
+  // Шаблоны этого запроса первыми, общие — следом (EMAIL_CORRESPONDENCE_PLAN.md,
+  // этап 3: "сначала шаблоны с request_id этого запроса, затем общие").
+  const orderedTemplates = useMemo(() => {
+    const own = templates.filter((t) => t.requestId === request.id);
+    const shared = templates.filter((t) => t.requestId !== request.id);
+    return [...own, ...shared];
+  }, [templates, request.id]);
+
+  function handlePickTemplate(templateId: string) {
+    setSelectedTemplateId(templateId);
+    const template = templates.find((t) => t.id === templateId);
+    if (!template) return;
+    // Не затираем молча уже напечатанный текст — только тема (короткая,
+    // почти всегда одна и та же по умолчанию) заменяется без вопросов.
+    if (body.trim() && !window.confirm('Заменить уже введённый текст письма шаблоном?')) return;
+    const rendered = renderEmailTemplate(template, { offer, request });
+    setSubject(rendered.subject);
+    setBody(rendered.body);
+  }
 
   async function handleSend() {
     if (!offer.email || !body.trim() || sending) return;
@@ -119,20 +153,56 @@ export function EmailThread({
         <p className="text-sm text-ink-faint">У предложения не указан email — добавьте его через «Редактировать», чтобы писать отсюда.</p>
       ) : (
         <div className="flex flex-col gap-2 border-t border-border pt-3">
+          {orderedTemplates.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm text-ink-muted">Шаблон</span>
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 shrink-0 text-ink-faint" />
+                <select
+                  value={selectedTemplateId}
+                  onChange={(e) => handlePickTemplate(e.target.value)}
+                  className="flex-1 rounded-control border border-transparent bg-surface-muted px-4 py-2.5 text-sm text-ink outline-none focus:border-primary"
+                >
+                  <option value="">Без шаблона</option>
+                  {orderedTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
           <Input label="Тема" value={subject} onChange={(e) => setSubject(e.target.value)} />
           <Textarea label="Сообщение" rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
           {sendError && <p className="text-sm text-danger">{sendError}</p>}
-          <Button
-            type="button"
-            icon={<Send className="h-4 w-4" />}
-            className="w-fit self-end"
-            onClick={handleSend}
-            disabled={!body.trim() || sending}
-          >
-            {sending ? 'Отправляем...' : 'Отправить'}
-          </Button>
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<Save className="h-4 w-4" />}
+              onClick={() => setSaveTemplateOpen(true)}
+              disabled={!subject.trim() && !body.trim()}
+            >
+              Сохранить как шаблон
+            </Button>
+            <Button type="button" icon={<Send className="h-4 w-4" />} onClick={handleSend} disabled={!body.trim() || sending}>
+              {sending ? 'Отправляем...' : 'Отправить'}
+            </Button>
+          </div>
         </div>
       )}
+
+      <TemplateFormModal
+        open={saveTemplateOpen}
+        template={null}
+        requests={requests}
+        initialSubject={subject}
+        initialBody={body}
+        onClose={() => setSaveTemplateOpen(false)}
+        onSaved={onTemplateSaved}
+      />
     </div>
   );
 }
@@ -181,16 +251,25 @@ export function SupplierCorrespondenceTab({
   requests,
   offers,
   emails,
+  templates,
   onEmailSent,
   onMarkRead,
+  onTemplatesChange,
 }: {
   requests: SupplierRequest[];
   offers: SupplierOffer[];
   emails: SupplierOfferEmail[];
+  templates: EmailTemplate[];
   onEmailSent: (email: SupplierOfferEmail) => void;
   onMarkRead: (offerId: string) => void;
+  onTemplatesChange: (templates: EmailTemplate[]) => void;
 }) {
   const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
+  const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
+
+  function handleTemplateSaved(saved: EmailTemplate) {
+    onTemplatesChange(templates.some((t) => t.id === saved.id) ? templates.map((t) => (t.id === saved.id ? saved : t)) : [...templates, saved]);
+  }
 
   const groups = useMemo<RequestGroup[]>(() => {
     const byRequest = new Map<string, RequestGroup>();
@@ -234,68 +313,100 @@ export function SupplierCorrespondenceTab({
     onMarkRead(offerId);
   }
 
+  const templatesButton = (
+    <Button type="button" variant="secondary" icon={<FileText className="h-4 w-4" />} className="w-fit" onClick={() => setTemplatesModalOpen(true)}>
+      Шаблоны
+    </Button>
+  );
+
+  const templatesModal = (
+    <TemplateManagerModal
+      open={templatesModalOpen}
+      templates={templates}
+      requests={requests}
+      onClose={() => setTemplatesModalOpen(false)}
+      onChange={onTemplatesChange}
+    />
+  );
+
   if (groups.length === 0) {
     return (
-      <Card className="py-10 text-center text-sm text-ink-muted">
-        Пока не с кем переписываться — у предложений в Ресерче ещё нет email, или запросов вовсе нет.
-      </Card>
+      <div className="flex flex-col gap-4">
+        {templatesButton}
+        <Card className="py-10 text-center text-sm text-ink-muted">
+          Пока не с кем переписываться — у предложений в Ресерче ещё нет email, или запросов вовсе нет.
+        </Card>
+        {templatesModal}
+      </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-4 lg:flex-row">
-      <div className="flex flex-col gap-4 lg:w-80 lg:shrink-0">
-        {groups.map((group) => (
-          <div key={group.request.id} className="flex flex-col gap-1.5">
-            <span className="w-fit rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-semibold text-primary">
-              {group.request.title}
-            </span>
-            <div className="flex flex-col gap-1">
-              {group.offers.map(({ offer, emails: offerEmails }) => {
-                const { status, unreadCount } = threadStatus(offerEmails);
-                const isSelected = selectedOfferId === offer.id;
-                return (
-                  <button
-                    key={offer.id}
-                    type="button"
-                    onClick={() => selectOffer(offer.id)}
-                    className={cn(
-                      'flex items-center justify-between gap-2 rounded-control border px-3 py-2 text-left text-sm transition-colors',
-                      isSelected ? 'border-primary bg-primary-soft' : 'border-border bg-surface hover:border-border-strong',
-                    )}
-                  >
-                    <span className="min-w-0 flex-1 truncate font-medium text-ink">{offer.name}</span>
-                    <span className="flex shrink-0 items-center gap-1.5">
-                      {unreadCount > 0 && (
-                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[11px] font-bold text-white">
-                          {unreadCount}
-                        </span>
-                      )}
-                      <span className={cn('text-xs', STATUS_CLASS[status])}>{STATUS_LABEL[status]}</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <Card className="flex-1 p-5">
-        {!selected ? (
-          <p className="text-sm text-ink-faint">Выберите поставщика слева, чтобы открыть переписку.</p>
-        ) : (
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-lg font-bold text-ink">{selected.offer.name}</span>
-              <span className="rounded-full bg-primary-soft px-2 py-0.5 text-xs font-semibold text-primary">
-                {selected.request.title}
+    <div className="flex flex-col gap-4">
+      {templatesButton}
+      <div className="flex flex-col gap-4 lg:flex-row">
+        <div className="flex flex-col gap-4 lg:w-80 lg:shrink-0">
+          {groups.map((group) => (
+            <div key={group.request.id} className="flex flex-col gap-1.5">
+              <span className="w-fit rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-semibold text-primary">
+                {group.request.title}
               </span>
+              <div className="flex flex-col gap-1">
+                {group.offers.map(({ offer, emails: offerEmails }) => {
+                  const { status, unreadCount } = threadStatus(offerEmails);
+                  const isSelected = selectedOfferId === offer.id;
+                  return (
+                    <button
+                      key={offer.id}
+                      type="button"
+                      onClick={() => selectOffer(offer.id)}
+                      className={cn(
+                        'flex items-center justify-between gap-2 rounded-control border px-3 py-2 text-left text-sm transition-colors',
+                        isSelected ? 'border-primary bg-primary-soft' : 'border-border bg-surface hover:border-border-strong',
+                      )}
+                    >
+                      <span className="min-w-0 flex-1 truncate font-medium text-ink">{offer.name}</span>
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        {unreadCount > 0 && (
+                          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[11px] font-bold text-white">
+                            {unreadCount}
+                          </span>
+                        )}
+                        <span className={cn('text-xs', STATUS_CLASS[status])}>{STATUS_LABEL[status]}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <EmailThread offer={selected.offer} emails={selected.emails} onEmailSent={onEmailSent} />
-          </div>
-        )}
-      </Card>
+          ))}
+        </div>
+
+        <Card className="flex-1 p-5">
+          {!selected ? (
+            <p className="text-sm text-ink-faint">Выберите поставщика слева, чтобы открыть переписку.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-lg font-bold text-ink">{selected.offer.name}</span>
+                <span className="rounded-full bg-primary-soft px-2 py-0.5 text-xs font-semibold text-primary">
+                  {selected.request.title}
+                </span>
+              </div>
+              <EmailThread
+                offer={selected.offer}
+                request={selected.request}
+                requests={requests}
+                emails={selected.emails}
+                templates={templates}
+                onEmailSent={onEmailSent}
+                onTemplateSaved={handleTemplateSaved}
+              />
+            </div>
+          )}
+        </Card>
+      </div>
+      {templatesModal}
     </div>
   );
 }
