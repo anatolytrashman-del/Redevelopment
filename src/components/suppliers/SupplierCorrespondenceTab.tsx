@@ -9,11 +9,7 @@ import type { SupplierRequest, SupplierOffer } from '../../data/supplierResearch
 import { supplierOfferEmailAddress } from '../../data/supplierResearch';
 import { updateSupplierOffer } from '../../lib/supplierResearchApi';
 import type { SupplierOfferEmail, EmailExtractionItem } from '../../data/supplierOfferEmails';
-import {
-  sendSupplierOfferEmail,
-  recognizeInvoiceAttachment,
-  setSupplierOfferEmailExtractionStatus,
-} from '../../lib/supplierOfferEmailsApi';
+import { sendSupplierOfferEmail, setSupplierOfferEmailExtractionStatus } from '../../lib/supplierOfferEmailsApi';
 import type { EmailTemplate } from '../../data/emailTemplates';
 import { renderEmailTemplate } from '../../lib/emailTemplates';
 import { TemplateFormModal, TemplateManagerModal } from './EmailTemplates';
@@ -110,16 +106,13 @@ function buildQuotedReply(e: SupplierOfferEmail): { subject: string; body: strin
 // Распознавание счёта/КП из вложения (владелец, 2026-09-03: "давай подумаем,
 // как сделать так, чтобы это КП было потом удобно перенести в карточку
 // подрядчика... даже сумму и позиции из счета можем распознавать
-// автоматически" → "делай на Haiku 4.5" → "мне бы предпросмотр, как
-// договора, с кнопкой Распознать данные автоматически" → "ещё лучше сделать
-// так, чтобы система понимала, что перед ней счёт... а Альмира только
-// сверяла и подтверждала"). Два пути к одному и тому же результату:
-// (1) автоматически — api/purchase-email-webhook.js сам решает по числу
-// страниц вложения и просит модель классифицировать, кладёт результат в
-// email.extraction (status:'pending'), здесь только подтверждение/отклонение;
-// (2) вручную — кнопка в предпросмотре (DocumentPreviewModal.footer) для
-// файлов, которые автоматика не тронула (картинка вместо PDF, вложение в
-// исходящем письме, каталог, который на самом деле оказался счётом, и т.п.).
+// автоматически" → "делай на Haiku 4.5"). Раньше рядом была ещё и ручная
+// кнопка "Распознать данные автоматически" в предпросмотре вложения — тем
+// же днём убрана ("Убирай эту кнопку, раз система сама распознает данные"):
+// автоматика (api/purchase-email-webhook.js, по числу страниц вложения +
+// классификация моделью) срабатывает на каждом входящем письме сама, кладёт
+// результат в email.extraction (status:'pending') — здесь только
+// подтверждение/отклонение уже готового результата, без ручного триггера.
 function isValidCurrency(value: string | null): value is Currency {
   return !!value && (currencies as readonly string[]).includes(value);
 }
@@ -253,26 +246,19 @@ export function EmailThread({
   // сбрасывается сам собой при смене offer (новый emails-список).
   const [expandedQuoteIds, setExpandedQuoteIds] = useState<Set<string>>(new Set());
   // Владелец, 2026-09-03: "форма пустого письма не нужна, лучше сделай саму
-  // кнопку Ответить побольше" — форма Тема/Сообщение теперь не висит
-  // постоянно, а открывается по "Ответить" на конкретном письме или по
-  // общей кнопке "Написать" (см. ниже). Открыта по умолчанию только когда
-  // в треде вообще ещё нет писем — иначе первое письмо было бы физически
-  // некому "ответить".
+  // кнопку Ответить побольше" — форма Тема/Сообщение не висит постоянно, а
+  // открывается по "Ответить" на конкретном письме. Отдельная кнопка
+  // "Написать" (для сообщения не в ответ на конкретное письмо) была здесь же,
+  // убрана тем же днём ("Убирай кнопку написать, оставляем только Ответить").
+  // Открыта по умолчанию только когда в треде вообще ещё нет писем — иначе
+  // первое письмо было бы физически некому "ответить".
   const [composerOpen, setComposerOpen] = useState(emails.length === 0);
-  // Предпросмотр вложения (владелец: "мне бы предпросмотр, как договора") +
-  // состояние ручного распознавания внутри него — сбрасывается при закрытии.
+  // Предпросмотр вложения (владелец: "мне бы предпросмотр, как договора") —
+  // просто просмотр PDF/докс/картинки прямо в приложении, без ручной кнопки
+  // распознавания (была здесь, убрана владельцем 2026-09-03 — см. комментарий
+  // выше про isValidCurrency: автоматика справляется сама).
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null);
-  const [manualRecognizing, setManualRecognizing] = useState(false);
-  const [manualResult, setManualResult] = useState<{
-    isInvoice: boolean;
-    price: number | null;
-    currency: string | null;
-    items: EmailExtractionItem[];
-  } | null>(null);
   const [extractionError, setExtractionError] = useState<string | null>(null);
-  // Общий флаг на оба пути (ручное подтверждение и подтверждение
-  // автораспознанного) — оба пишут в ту же карточку предложения, одновременно
-  // случиться не могут (одна открытая форма/один клик за раз).
   const [applyingExtraction, setApplyingExtraction] = useState(false);
 
   // Черновик по умолчанию завязан на конкретное предложение/запрос — при
@@ -322,18 +308,6 @@ export function EmailThread({
     setComposerOpen(true);
   }
 
-  // "Написать" — общая кнопка для сообщения, не привязанного к конкретному
-  // письму (когда в треде уже есть история, форма по умолчанию закрыта —
-  // см. composerOpen выше). Пустой черновик, не вводный шаблон — тот
-  // актуален только для самого первого письма в треде.
-  function handleWriteNew() {
-    if ((subject.trim() || body.trim()) && !window.confirm('Заменить черновик пустым письмом?')) return;
-    setSubject('');
-    setBody('');
-    setSelectedTemplateId('');
-    setComposerOpen(true);
-  }
-
   function toggleQuoteExpanded(emailId: string) {
     setExpandedQuoteIds((prev) => {
       const next = new Set(prev);
@@ -345,53 +319,16 @@ export function EmailThread({
 
   function openPreview(f: PreviewFile) {
     setPreviewFile(f);
-    setManualResult(null);
-    setExtractionError(null);
   }
 
   function closePreview() {
     setPreviewFile(null);
-    setManualResult(null);
-    setExtractionError(null);
-  }
-
-  async function handleManualRecognize() {
-    if (!previewFile || manualRecognizing) return;
-    setManualRecognizing(true);
-    setExtractionError(null);
-    setManualResult(null);
-    try {
-      const recognized = await recognizeInvoiceAttachment(previewFile.url, previewFile.fileName);
-      setManualResult(recognized);
-    } catch (err) {
-      setExtractionError(errorMessage(err, 'Не удалось распознать документ'));
-    } finally {
-      setManualRecognizing(false);
-    }
-  }
-
-  async function handleApplyManualResult() {
-    if (!manualResult || applyingExtraction) return;
-    setApplyingExtraction(true);
-    setExtractionError(null);
-    try {
-      const updated = await applyExtractionToOffer(
-        offer,
-        manualResult,
-        previewFile ? { url: previewFile.url, fileName: previewFile.fileName } : null,
-      );
-      onOfferUpdated(updated);
-      closePreview();
-    } catch (err) {
-      setExtractionError(errorMessage(err, 'Не удалось сохранить в карточку предложения'));
-    } finally {
-      setApplyingExtraction(false);
-    }
   }
 
   async function handleConfirmAutoExtraction(e: SupplierOfferEmail) {
     if (!e.extraction || applyingExtraction) return;
     setApplyingExtraction(true);
+    setExtractionError(null);
     try {
       const updated = await applyExtractionToOffer(offer, e.extraction, e.extraction.sourceFile ?? null);
       onOfferUpdated(updated);
@@ -441,10 +378,16 @@ export function EmailThread({
 
       <div className="flex flex-col gap-2">
         <span className="text-sm font-semibold text-ink">Переписка</span>
+        {extractionError && <p className="text-sm text-danger">{extractionError}</p>}
         {emails.length === 0 && <p className="text-sm text-ink-faint">Писем пока нет.</p>}
         {emails.length > 0 && (
           <div className="flex flex-col gap-2">
-            {emails.map((e) => {
+            {/* Владелец, 2026-09-03: "когда много писем, приходится листать в
+                самый низ... я бы делал обратную хронологию — последнее письмо
+                наверху" — [...emails] копия перед reverse(), исходный emails
+                (по возрастанию даты) нужен как есть в других местах (threadStatus
+                читает emails[emails.length-1] как последнее). */}
+            {[...emails].reverse().map((e) => {
               const { visible, quoted } = splitQuotedReply(e.body);
               const isQuoteExpanded = expandedQuoteIds.has(e.id);
               return (
@@ -452,7 +395,11 @@ export function EmailThread({
                 key={e.id}
                 className={cn(
                   'flex flex-col gap-1 rounded-control p-3 text-sm',
-                  e.direction === 'out' ? 'ml-6 bg-primary-soft' : 'mr-6 bg-surface-muted',
+                  // Владелец, 2026-09-03: "слишком много красного цвета...
+                  // остальное делай нейтральным" — направление письма теперь
+                  // различимо только отступом (ml/mr) и подписью
+                  // "Отправлено"/"Получено", без цветового акцента.
+                  e.direction === 'out' ? 'ml-6 border border-border bg-surface' : 'mr-6 bg-surface-muted',
                 )}
               >
                 <div className="flex items-center justify-between gap-2 text-xs text-ink-faint">
@@ -480,12 +427,12 @@ export function EmailThread({
                       ) : isPreviewable(f.fileName) ? (
                         // Владелец: "мне бы предпросмотр, как договора" —
                         // открываем в DocumentPreviewModal вместо новой
-                        // вкладки браузера, с кнопкой распознавания внутри.
+                        // вкладки браузера.
                         <button
                           key={i}
                           type="button"
                           onClick={() => openPreview(f)}
-                          className="flex items-center gap-1.5 rounded-control border border-border bg-surface px-2.5 py-1.5 text-left text-xs text-primary hover:underline"
+                          className="flex items-center gap-1.5 rounded-control border border-border bg-surface px-2.5 py-1.5 text-left text-xs text-ink hover:underline"
                         >
                           <Paperclip className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
                           <span className="min-w-0 flex-1 truncate">{f.fileName}</span>
@@ -496,7 +443,7 @@ export function EmailThread({
                           href={f.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="flex items-center gap-1.5 rounded-control border border-border bg-surface px-2.5 py-1.5 text-xs text-primary hover:underline"
+                          className="flex items-center gap-1.5 rounded-control border border-border bg-surface px-2.5 py-1.5 text-xs text-ink hover:underline"
                         >
                           <Paperclip className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
                           <span className="min-w-0 flex-1 truncate">{f.fileName}</span>
@@ -510,9 +457,9 @@ export function EmailThread({
                     автоматически распознанный счёт ждёт подтверждения прямо
                     здесь, рядом с письмом, из которого он взят. */}
                 {e.extraction?.status === 'pending' && (
-                  <div className="flex flex-col gap-2 rounded-control border border-primary/30 bg-primary-soft p-3 text-sm">
+                  <div className="flex flex-col gap-2 rounded-control border border-border-strong bg-surface-muted p-3 text-sm">
                     <div className="flex items-center gap-1.5 font-semibold text-ink">
-                      <FileSearch className="h-4 w-4 text-primary" />
+                      <FileSearch className="h-4 w-4 text-ink-muted" />
                       Похоже, это счёт от {offer.name}
                     </div>
                     <div className="text-ink">
@@ -571,11 +518,7 @@ export function EmailThread({
 
       {!offer.email ? (
         <p className="text-sm text-ink-faint">У предложения не указан email — добавьте его через «Редактировать», чтобы писать отсюда.</p>
-      ) : !composerOpen ? (
-        <Button type="button" variant="secondary" icon={<Mail className="h-4 w-4" />} className="w-fit" onClick={handleWriteNew}>
-          Написать
-        </Button>
-      ) : (
+      ) : !composerOpen ? null : (
         <div className="flex flex-col gap-2 border-t border-border pt-3">
           {orderedTemplates.length > 0 && (
             <div className="flex flex-col gap-1.5">
@@ -631,49 +574,7 @@ export function EmailThread({
         onSaved={onTemplateSaved}
       />
 
-      <DocumentPreviewModal
-        file={previewFile}
-        onClose={closePreview}
-        footer={
-          previewFile && (
-            <div className="flex flex-col gap-2 border-t border-border pt-3">
-              {!manualResult && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  icon={<FileSearch className="h-4 w-4" />}
-                  className="w-fit"
-                  onClick={handleManualRecognize}
-                  disabled={manualRecognizing}
-                >
-                  {manualRecognizing ? 'Распознаём...' : 'Распознать данные автоматически'}
-                </Button>
-              )}
-              {extractionError && <p className="text-sm text-danger">{extractionError}</p>}
-              {manualResult && !manualResult.isInvoice && (
-                <p className="text-sm text-ink-muted">Похоже, это не счёт — не нашли чёткую сумму к оплате.</p>
-              )}
-              {manualResult && manualResult.isInvoice && (
-                <div className="flex flex-col gap-2 rounded-control border border-primary/30 bg-primary-soft p-3 text-sm">
-                  <div className="text-ink">
-                    {manualResult.price != null ? `${manualResult.price} ${manualResult.currency ?? ''}`.trim() : 'Сумма не распознана'}
-                    {manualResult.items.length > 0 && ` · ${manualResult.items.length} ${pluralPositions(manualResult.items.length)}`}
-                  </div>
-                  <Button
-                    type="button"
-                    icon={<CheckCircle2 className="h-4 w-4" />}
-                    className="w-fit"
-                    onClick={handleApplyManualResult}
-                    disabled={applyingExtraction}
-                  >
-                    Заполнить карточку предложения
-                  </Button>
-                </div>
-              )}
-            </div>
-          )
-        }
-      />
+      <DocumentPreviewModal file={previewFile} onClose={closePreview} />
     </div>
   );
 }
@@ -758,7 +659,7 @@ export function SupplierCorrespondenceTab({
       const offerEmails = emails.filter((e) => e.offerId === offer.id);
       group.offers.push({ offer, emails: offerEmails });
     }
-    return [...byRequest.values()]
+    const withSortedOffers = [...byRequest.values()]
       .filter((g) => g.offers.length > 0)
       .map((g) => ({
         ...g,
@@ -772,6 +673,18 @@ export function SupplierCorrespondenceTab({
           return a.offer.name.localeCompare(b.offer.name, 'ru');
         }),
       }));
+    // Владелец, 2026-09-03: "поднимай непрочитанные письма и поставщиков с
+    // ними в левом боковом меню в верх списка" — сортировка offers внутри
+    // группы (выше) уже поднимала поставщика наверх ВНУТРИ своего запроса,
+    // но сами запросы (категории) шли в исходном порядке. Теперь категория
+    // с хотя бы одним непрочитанным письмом целиком поднимается над
+    // категориями без непрочитанных — .sort() в JS стабилен, поэтому
+    // порядок внутри одинакового unread-счёта не меняется.
+    return withSortedOffers.sort((a, b) => {
+      const unreadA = a.offers.reduce((sum, x) => sum + threadStatus(x.emails).unreadCount, 0);
+      const unreadB = b.offers.reduce((sum, x) => sum + threadStatus(x.emails).unreadCount, 0);
+      return unreadB - unreadA;
+    });
   }, [requests, offers, emails]);
 
   const selected = useMemo(() => {
@@ -823,7 +736,7 @@ export function SupplierCorrespondenceTab({
         <div className="flex flex-col gap-4 lg:w-80 lg:shrink-0">
           {groups.map((group) => (
             <div key={group.request.id} className="flex flex-col gap-1.5">
-              <span className="w-fit rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-semibold text-primary">
+              <span className="w-fit rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-semibold text-ink-muted">
                 {group.request.title}
               </span>
               <div className="flex flex-col gap-1">
@@ -837,7 +750,7 @@ export function SupplierCorrespondenceTab({
                       onClick={() => selectOffer(offer.id)}
                       className={cn(
                         'flex items-center justify-between gap-2 rounded-control border px-3 py-2 text-left text-sm transition-colors',
-                        isSelected ? 'border-primary bg-primary-soft' : 'border-border bg-surface hover:border-border-strong',
+                        isSelected ? 'border-ink bg-surface-muted' : 'border-border bg-surface hover:border-border-strong',
                       )}
                     >
                       <span className="min-w-0 flex-1 truncate font-medium text-ink">{offer.name}</span>
@@ -864,7 +777,7 @@ export function SupplierCorrespondenceTab({
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-lg font-bold text-ink">{selected.offer.name}</span>
-                <span className="rounded-full bg-primary-soft px-2 py-0.5 text-xs font-semibold text-primary">
+                <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-semibold text-ink-muted">
                   {selected.request.title}
                 </span>
               </div>
@@ -888,8 +801,8 @@ export function SupplierCorrespondenceTab({
   );
 }
 
-// Общий счётчик непрочитанных по всей переписке — подпись вкладки
-// "Переписка (N)" в ToggleGroup и, при желании, бейдж рядом с ним.
+// Общий счётчик непрочитанных по всей переписке — бейдж поверх вкладки
+// "Email" в ToggleGroup (Suppliers.tsx, проп badges).
 export function countUnreadSupplierEmails(emails: SupplierOfferEmail[]): number {
   return emails.filter((e) => e.direction === 'in' && !e.readAt).length;
 }

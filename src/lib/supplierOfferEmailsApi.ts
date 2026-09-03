@@ -78,26 +78,6 @@ export function setSupplierOfferEmailExtractionStatus(
   });
 }
 
-// Ручное распознавание вложения ("Распознать данные автоматически" в
-// предпросмотре) — через api/supplier-web-search.js (action:'recognize-invoice',
-// общий эндпоинт — см. комментарий в файле, лимит 12 функций на Vercel Hobby
-// уже выбран). Не пишет ничего в базу сама — вызывающий код решает, что
-// делать с результатом (обычно то же самое подтверждение, что и у
-// автоматически распознанных писем).
-export async function recognizeInvoiceAttachment(
-  fileUrl: string,
-  fileName: string,
-): Promise<{ isInvoice: boolean; price: number | null; currency: string | null; items: EmailExtraction['items'] }> {
-  const res = await authFetch('/api/supplier-web-search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'recognize-invoice', fileUrl, fileName }),
-  });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json?.error || 'Не удалось распознать документ');
-  return json.recognized;
-}
-
 // Отправка — через api/purchase-send-email.js (общий эндпоинт с закупками,
 // см. комментарий в файле — Vercel Hobby ограничен 12 serverless-функциями,
 // отдельный файл на каждую пару send/receive не поместился бы).

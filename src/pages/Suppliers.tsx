@@ -94,14 +94,15 @@ function siteLabel(url: string): string {
 // "всё остальное — это страница Закупки в стройке"). Содержимое — тот же
 // компонент Purchases, встроенный сюда как embedded (свой PageHeader
 // скрыт, кнопка "Добавить закупку" рендерится внутри вкладки).
-// "Переписка" — четвёртая, EMAIL_CORRESPONDENCE_PLAN.md этап 2: вся
-// email-переписка по предложениям Ресерча в одном месте, группировка
-// Запрос → Поставщик. Подпись вкладки остаётся статичной строкой (не
-// "Переписка (N)") — ToggleGroup сравнивает value===option буквально,
-// динамический счётчик в самой подписи сломал бы подсветку активной
-// вкладки при любом изменении числа непрочитанных; счётчик — отдельным
-// бейджем рядом с ToggleGroup (см. рендер ниже).
-const SUPPLIER_TABS = ['Каталог', 'Ресерч', 'Закупки', 'Переписка'] as const;
+// "Email" (была "Переписка", переименована владельцем 2026-09-03) —
+// четвёртая, EMAIL_CORRESPONDENCE_PLAN.md этап 2: вся email-переписка по
+// предложениям Ресерча в одном месте, группировка Запрос → Поставщик.
+// Подпись вкладки остаётся статичной строкой (не "Email (N)") —
+// ToggleGroup сравнивает value===option буквально, динамический счётчик в
+// самой подписи сломал бы подсветку активной вкладки при любом изменении
+// числа непрочитанных; счётчик — бейджем поверх самого пункта через проп
+// badges (см. рендер ниже).
+const SUPPLIER_TABS = ['Каталог', 'Ресерч', 'Закупки', 'Email'] as const;
 type SupplierTab = (typeof SUPPLIER_TABS)[number];
 
 // Каталог поставщиков — те же карточки-компании, что раньше жили на странице
@@ -689,7 +690,7 @@ export function Suppliers() {
   const [manualOfferItemName, setManualOfferItemName] = useState('');
   const [emailOfferId, setEmailOfferId] = useState<string | null>(null);
   // Вся переписка по всем предложениям Ресерча разом — единственный
-  // источник правды для OfferEmailModal и вкладки "Переписка" (см.
+  // источник правды для OfferEmailModal и вкладки "Email" (см.
   // EMAIL_CORRESPONDENCE_PLAN.md, этап 2), обновляется локально при
   // отправке/прочтении, без повторного fetch на каждое действие.
   const [supplierEmails, setSupplierEmails] = useState<SupplierOfferEmail[]>([]);
@@ -1352,14 +1353,12 @@ export function Suppliers() {
     <>
       <PageHeader title="Закупки" action={supplierAddButton} />
 
-      <div className="flex items-center gap-2">
-        <ToggleGroup options={[...SUPPLIER_TABS]} value={tab} onChange={(v) => setTab(v as SupplierTab)} />
-        {unreadSupplierEmailsCount > 0 && (
-          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[11px] font-bold text-white" title="Непрочитанные ответы поставщиков">
-            {unreadSupplierEmailsCount}
-          </span>
-        )}
-      </div>
+      <ToggleGroup
+        options={[...SUPPLIER_TABS]}
+        value={tab}
+        onChange={(v) => setTab(v as SupplierTab)}
+        badges={{ Email: unreadSupplierEmailsCount }}
+      />
 
       {tab === 'Каталог' && (
         <div className="mt-6 flex flex-col gap-4">
@@ -1474,7 +1473,7 @@ export function Suppliers() {
         </div>
       )}
 
-      {tab === 'Переписка' && (
+      {tab === 'Email' && (
         <div className="mt-6">
           <SupplierCorrespondenceTab
             requests={requests}
@@ -2112,7 +2111,7 @@ export function Suppliers() {
 // Тонкая обёртка над общим EmailThread (см. components/suppliers/
 // SupplierCorrespondenceTab.tsx) — письма и их отправка/отметка
 // прочитанным идут через тот же supplierEmails на уровне страницы, что и
-// у вкладки "Переписка", отдельного fetch здесь больше нет.
+// у вкладки "Email", отдельного fetch здесь больше нет.
 function OfferEmailModal({
   offer,
   request,
