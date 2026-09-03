@@ -3,6 +3,7 @@ import { withRetry, UPLOAD_TIMEOUT_MS } from './withRetry';
 import type {
   SupplierRequest,
   SupplierRequestRow,
+  SupplierRequestGroup,
   SupplierOffer,
   SupplierOfferRow,
   ResearchContactMethod,
@@ -15,6 +16,7 @@ function requestFromRow(row: SupplierRequestRow): SupplierRequest {
   return {
     id: row.id,
     title: row.title,
+    group: (row.category_group as SupplierRequestGroup) || 'materials',
     estimateId: row.estimate_id,
     sectionId: row.section_id,
     sectionTitle: row.section_title ?? '',
@@ -58,6 +60,7 @@ export function fetchSupplierRequests(): Promise<SupplierRequest[]> {
 
 export interface SupplierRequestInput {
   title: string;
+  group: SupplierRequestGroup;
   estimateId: string | null;
   sectionId: string | null;
   sectionTitle: string;
@@ -70,6 +73,7 @@ export function insertSupplierRequest(input: SupplierRequestInput): Promise<Supp
       .from('supplier_research_requests')
       .insert({
         title: input.title,
+        category_group: input.group,
         estimate_id: input.estimateId,
         section_id: input.sectionId,
         section_title: input.sectionTitle,
@@ -88,6 +92,7 @@ export function updateSupplierRequest(id: string, input: SupplierRequestInput): 
       .from('supplier_research_requests')
       .update({
         title: input.title,
+        category_group: input.group,
         estimate_id: input.estimateId,
         section_id: input.sectionId,
         section_title: input.sectionTitle,

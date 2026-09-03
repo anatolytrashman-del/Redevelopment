@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Trash2, Pencil, Send, Phone, Globe, Paperclip, Upload, X, ImageOff, Mail, Search, Check, MailPlus, PackagePlus } from 'lucide-react';
+import { Plus, Loader2, Trash2, Pencil, Send, Phone, Globe, Paperclip, Upload, X, ImageOff, Mail, Search, Check, PackagePlus } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -22,17 +22,19 @@ import {
   RESEARCH_CURRENCIES,
   RESEARCH_CONTACT_METHODS,
   SUPPLIER_COUNTRIES,
+  SUPPLIER_REQUEST_GROUPS,
+  SUPPLIER_REQUEST_GROUP_LABELS,
   guessCountryFromWebsite,
   countryFlag,
   type ResearchContactMethod,
   type SupplierRequest,
+  type SupplierRequestGroup,
   type SupplierOffer,
   formatRequestItemsText,
 } from '../data/supplierResearch';
 import type { SupplierOfferEmail } from '../data/supplierOfferEmails';
 import { fetchAllSupplierOfferEmails, markSupplierOfferEmailsRead } from '../lib/supplierOfferEmailsApi';
 import { EmailThread, SupplierCorrespondenceTab, countUnreadSupplierEmails } from '../components/suppliers/SupplierCorrespondenceTab';
-import { BulkEmailModal } from '../components/suppliers/BulkEmailModal';
 import type { EmailTemplate } from '../data/emailTemplates';
 import { fetchEmailTemplates } from '../lib/emailTemplatesApi';
 import {
@@ -115,6 +117,7 @@ type SupplierTab = (typeof SUPPLIER_TABS)[number];
 
 const emptyRequestForm = {
   title: '',
+  group: 'materials' as SupplierRequestGroup,
   estimateId: '' as string,
   sectionId: '' as string,
   sectionTitle: '',
@@ -124,6 +127,7 @@ const emptyRequestForm = {
 function requestToForm(r: SupplierRequest) {
   return {
     title: r.title,
+    group: r.group,
     estimateId: r.estimateId ?? '',
     sectionId: r.sectionId ?? '',
     sectionTitle: r.sectionTitle,
@@ -171,6 +175,12 @@ function rankOffers(
   return { sorted: [...priced, ...unpriced].map((x) => x.offer), cheapestIds };
 }
 
+// Владелец, 2026-09-03: "для материалов и сервисов мне нужно список — для
+// Беларуси и для России... в идеале переключение списков прямо внутри
+// самого блока, чем делать две отдельные таблицы". Переключатель — локальный
+// стейт карточки (не персистится), по умолчанию Беларусь. Предложения без
+// страны (старые записи до поля country) на всякий случай считаем
+// белорусскими — иначе они пропали бы из обеих вкладок молча.
 function RequestCard({
   request,
   offers,
@@ -181,8 +191,6 @@ function RequestCard({
   onOpenDetail,
   onWebSearch,
   searching,
-  canBulkEmail,
-  onBulkEmail,
 }: {
   request: SupplierRequest;
   offers: SupplierOffer[];
@@ -193,10 +201,10 @@ function RequestCard({
   onOpenDetail: (o: SupplierOffer) => void;
   onWebSearch: (r: SupplierRequest) => void;
   searching: boolean;
-  canBulkEmail: boolean;
-  onBulkEmail: (r: SupplierRequest) => void;
 }) {
-  const { sorted, cheapestIds } = rankOffers(offers, rate);
+  const [country, setCountry] = useState<string>(SUPPLIER_COUNTRIES[0]);
+  const offersInCountry = offers.filter((o) => (o.country || SUPPLIER_COUNTRIES[0]) === country);
+  const { sorted, cheapestIds } = rankOffers(offersInCountry, rate);
 
   return (
     <Card className="flex flex-col gap-4 p-5">
@@ -230,11 +238,6 @@ function RequestCard({
           <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} onClick={() => onAddOffer(request.id)}>
             Добавить предложение
           </Button>
-          {canBulkEmail && (
-            <Button type="button" variant="secondary" icon={<MailPlus className="h-4 w-4" />} onClick={() => onBulkEmail(request)}>
-              Написать всем
-            </Button>
-          )}
           <button
             type="button"
             onClick={() => onEditRequest(request)}
@@ -254,8 +257,14 @@ function RequestCard({
         </div>
       </div>
 
+      <ToggleGroup options={[...SUPPLIER_COUNTRIES]} value={country} onChange={setCountry} />
+
       {sorted.length === 0 ? (
-        <p className="text-sm text-ink-faint">Пока нет предложений — нажмите «Добавить предложение».</p>
+        <p className="text-sm text-ink-faint">
+          {offers.length === 0
+            ? 'Пока нет предложений — нажмите «Добавить предложение».'
+            : `Нет предложений из «${country}» — переключите страну выше или добавьте предложение.`}
+        </p>
       ) : (
         <div className="flex flex-col gap-2">
           {sorted.map((o) => {
@@ -270,7 +279,6 @@ function RequestCard({
               >
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="truncate font-medium text-ink">{o.name}</span>
-                  {o.country && <span className="shrink-0" title={o.country}>{countryFlag(o.country)}</span>}
                   {isCheapest && (
                     <span className="shrink-0 rounded-full bg-success px-2 py-0.5 text-[11px] font-semibold text-white">
                       лучшая цена
@@ -674,9 +682,6 @@ export function Suppliers() {
   // (написать/редактировать/удалить/создать закупку) переехали сюда,
   // в отдельную карточку по клику.
   const [detailOfferId, setDetailOfferId] = useState<string | null>(null);
-  // "Написать всем" (EMAIL_CORRESPONDENCE_PLAN.md, этап 4) — id запроса, для
-  // которого открыта модалка массовой рассылки первого письма.
-  const [bulkEmailRequestId, setBulkEmailRequestId] = useState<string | null>(null);
 
   // Вкладка "Ведомости материалов" — та же единая ведомость по разделам, что
   // и на странице "Смета" (EstimateMaterialsLedgerModal), но не всплывающим
@@ -740,6 +745,20 @@ export function Suppliers() {
     fetchAllSupplierOfferEmails().then(setSupplierEmails).catch(() => setSupplierEmails([]));
     fetchEmailTemplates().then(setEmailTemplates).catch(() => setEmailTemplates([]));
   }, []);
+
+  // Владелец, 2026-09-03: "в ведомости по умолчанию всегда выбран Red One" —
+  // единственный объект с landingSlug 'one' (см. SEO_OVERRIDES в
+  // lib/pageMeta.ts — тот же признак используется там для той же цели).
+  // Срабатывает один раз, как только оба списка подгрузились и смета ещё не
+  // выбрана вручную — не перезаписывает осознанный выбор пользователя.
+  useEffect(() => {
+    if (ledgerEstimateId || estimates.length === 0 || objects.length === 0) return;
+    const redOne = objects.find((o) => o.landingSlug === 'one');
+    if (!redOne) return;
+    const redOneEstimate = estimates.find((e) => e.objectId === redOne.id);
+    if (redOneEstimate) setLedgerEstimateId(redOneEstimate.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estimates, objects]);
 
   // Владелец, 2026-09-03: "нужно, чтобы новые письма подгружались и были
   // уведомления даже когда страница открыта... сейчас страницу нужно
@@ -931,9 +950,9 @@ export function Suppliers() {
     }
   }
 
-  function openAddRequest() {
+  function openAddRequest(group: SupplierRequestGroup = 'materials') {
     setEditingRequest(null);
-    setRequestForm(emptyRequestForm);
+    setRequestForm({ ...emptyRequestForm, group });
     setManualItemName('');
     setRequestError(null);
     setRequestModalOpen(true);
@@ -954,6 +973,7 @@ export function Suppliers() {
     setRequestError(null);
     const input: SupplierRequestInput = {
       title: requestForm.title.trim(),
+      group: requestForm.group,
       estimateId: requestForm.estimateId || null,
       sectionId: requestForm.sectionId || null,
       sectionTitle: requestForm.sectionTitle,
@@ -1252,7 +1272,7 @@ export function Suppliers() {
 
   const supplierAddButton =
     tab === 'Поставщики' ? (
-      <Button icon={<Plus className="h-4 w-4" />} onClick={openAddRequest}>
+      <Button icon={<Plus className="h-4 w-4" />} onClick={() => openAddRequest()}>
         Новый запрос
       </Button>
     ) : undefined;
@@ -1272,64 +1292,64 @@ export function Suppliers() {
 
       {tab === 'Поставщики' && (
       <div className="mt-6 flex flex-col gap-8">
-        <div className="flex flex-col gap-6">
-          <div className="text-lg font-bold text-ink">Материалы</div>
+        {loading && (
+          <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Загружаем поставщиков...
+          </Card>
+        )}
+        {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
 
-          {loading && (
-            <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Загружаем поставщиков...
-            </Card>
-          )}
-          {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
-          {!loading && !loadError && requests.length === 0 && (
-            <Card className="py-10 text-center text-sm text-ink-muted">Пока нет запросов — нажмите «Новый запрос»</Card>
-          )}
+        {/* Владелец, 2026-09-03: "Страницу Поставщики разбиваем на 3
+            логических блока — Материалы и оборудование, Работы, Сервисы".
+            Первые два — SupplierRequest.group (см. data/supplierResearch.ts),
+            третий — полностью самостоятельный компонент ContractorsResearch
+            (перенесён сюда раньше со страницы "Команда"), без общих данных с
+            первыми двумя. */}
+        {!loading && !loadError && (
+          <>
+            {(['materials', 'services'] as const).map((group) => {
+              const groupRequests = requests.filter((r) => r.group === group);
+              return (
+                <div key={group} className="flex flex-col gap-6">
+                  <div className="text-lg font-bold text-ink">{SUPPLIER_REQUEST_GROUP_LABELS[group]}</div>
 
-          {!loading &&
-            !loadError &&
-            requests.map((r) => (
-              <RequestCard
-                key={r.id}
-                request={r}
-                offers={offers.filter((o) => o.requestId === r.id)}
-                rate={rate}
-                onEditRequest={openEditRequest}
-                onDeleteRequest={handleDeleteRequest}
-                onAddOffer={openAddOffer}
-                onOpenDetail={(o) => setDetailOfferId(o.id)}
-                onWebSearch={openWebQueryModal}
-                searching={webSearchingId === r.id}
-                canBulkEmail={offers.some(
-                  (o) =>
-                    o.requestId === r.id &&
-                    o.email.trim() &&
-                    !supplierEmails.some((e) => e.offerId === o.id && e.direction === 'out'),
-                )}
-                onBulkEmail={(req) => setBulkEmailRequestId(req.id)}
-              />
-            ))}
+                  {groupRequests.length === 0 && (
+                    <Card className="py-10 text-center text-sm text-ink-muted">Пока нет запросов — нажмите «Новый запрос»</Card>
+                  )}
 
-          <Button
-            type="button"
-            variant="secondary"
-            icon={<Plus className="h-4 w-4" />}
-            className="w-fit"
-            onClick={openAddRequest}
-          >
-            Новый запрос
-          </Button>
-        </div>
+                  {groupRequests.map((r) => (
+                    <RequestCard
+                      key={r.id}
+                      request={r}
+                      offers={offers.filter((o) => o.requestId === r.id)}
+                      rate={rate}
+                      onEditRequest={openEditRequest}
+                      onDeleteRequest={handleDeleteRequest}
+                      onAddOffer={openAddOffer}
+                      onOpenDetail={(o) => setDetailOfferId(o.id)}
+                      onWebSearch={openWebQueryModal}
+                      searching={webSearchingId === r.id}
+                    />
+                  ))}
 
-        {/* Сравнение предложений подрядчиков на услуги (оценка здания, вывоз
-            мусора и т.п.) — перенесено сюда со страницы "Команда" (владелец,
-            2026-09-02: "перенеси вот это в подрядчиков, это не команда"),
-            на вкладку "Поставщики" рядом с ресерчем материалов. Полностью
-            самостоятельный компонент (свои запросы/предложения/модалки, не
-            завязан на Contractor/contractors), поэтому просто вставлен как
-            есть отдельной секцией, без общих данных с блоком "Материалы" выше. */}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon={<Plus className="h-4 w-4" />}
+                    className="w-fit"
+                    onClick={() => openAddRequest(group)}
+                  >
+                    Новый запрос
+                  </Button>
+                </div>
+              );
+            })}
+          </>
+        )}
+
         <div className="flex flex-col gap-6 border-t border-border pt-8">
-          <div className="text-lg font-bold text-ink">Подрядчики</div>
+          <div className="text-lg font-bold text-ink">Работы</div>
           <ContractorsResearch />
         </div>
       </div>
@@ -1433,6 +1453,18 @@ export function Suppliers() {
             onChange={(e) => setRequestForm((f) => ({ ...f, title: e.target.value }))}
             required
             autoFocus
+          />
+
+          <ToggleGroup
+            label="Блок"
+            options={SUPPLIER_REQUEST_GROUPS.map((g) => SUPPLIER_REQUEST_GROUP_LABELS[g])}
+            value={SUPPLIER_REQUEST_GROUP_LABELS[requestForm.group]}
+            onChange={(label) =>
+              setRequestForm((f) => ({
+                ...f,
+                group: (SUPPLIER_REQUEST_GROUPS.find((g) => SUPPLIER_REQUEST_GROUP_LABELS[g] === label) ?? f.group),
+              }))
+            }
           />
 
           <Select
@@ -1844,22 +1876,6 @@ export function Suppliers() {
               onOfferUpdated={handleSupplierOfferUpdated}
               onEmailUpdated={handleSupplierEmailUpdated}
               onClose={() => setEmailOfferId(null)}
-            />
-          );
-        })()}
-
-      {bulkEmailRequestId &&
-        (() => {
-          const request = requests.find((r) => r.id === bulkEmailRequestId);
-          if (!request) return null;
-          return (
-            <BulkEmailModal
-              request={request}
-              offers={offers.filter((o) => o.requestId === request.id)}
-              emails={supplierEmails}
-              templates={emailTemplates}
-              onEmailSent={handleSupplierEmailSent}
-              onClose={() => setBulkEmailRequestId(null)}
             />
           );
         })()}

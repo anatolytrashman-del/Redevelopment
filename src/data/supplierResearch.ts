@@ -17,6 +17,21 @@ export type { ResearchContactMethod };
 // добавить прямо из формы, без правки кода.
 export const SUPPLIER_COUNTRIES = ['Беларусь', 'Россия'] as const;
 
+// Владелец, 2026-09-03: "Страницу Поставщики разбиваем на 3 логических
+// блока: Материалы и оборудование / Работы / Сервисы" — "Работы" реализована
+// отдельным независимым механизмом (ContractorsResearch, свои таблицы
+// contractor_research_*), сюда не относится. Эти два — жёсткий enum (в
+// отличие от SUPPLIER_COUNTRIES): структурное деление UI страницы, не
+// растущий пользовательский список, добавлять третье значение — это правка
+// кода (новый блок на странице), а не просто новая строка в списке.
+export const SUPPLIER_REQUEST_GROUPS = ['materials', 'services'] as const;
+export type SupplierRequestGroup = (typeof SUPPLIER_REQUEST_GROUPS)[number];
+
+export const SUPPLIER_REQUEST_GROUP_LABELS: Record<SupplierRequestGroup, string> = {
+  materials: 'Материалы и оборудование',
+  services: 'Сервисы',
+};
+
 // Владелец, 2026-09-03: "вместо 'Страна Беларусь'/'Страна Россия' ставь
 // просто эмодзи с флагом" — бейджи страны везде в UI показывают флаг
 // вместо текста. Для страны, добавленной вручную сверх пресета (нет в
@@ -72,6 +87,10 @@ export function guessCountryFromWebsite(websiteUrl: string): string {
 export interface SupplierRequest {
   id: string;
   title: string;
+  // Владелец, 2026-09-03: страница "Поставщики" разбита на 3 блока —
+  // Материалы и оборудование / Работы / Сервисы. group различает первые два
+  // (третий — ContractorsResearch, отдельный механизм без этого поля).
+  group: SupplierRequestGroup;
   estimateId: string | null;
   sectionId: string | null;
   sectionTitle: string;
@@ -82,6 +101,7 @@ export interface SupplierRequest {
 export interface SupplierRequestRow {
   id: string;
   title: string;
+  category_group: string;
   estimate_id: string | null;
   section_id: string | null;
   section_title: string | null;
