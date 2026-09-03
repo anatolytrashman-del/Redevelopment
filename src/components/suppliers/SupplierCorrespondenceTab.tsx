@@ -1396,7 +1396,7 @@ export function SupplierCorrespondenceTab({
               className="w-fit"
               onClick={() => onOpenBulkSend(selectedGroup.request)}
             >
-              Разослать ведомость
+              Массовая отправка
             </Button>
           )}
 
