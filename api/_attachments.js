@@ -110,9 +110,24 @@ function sanitizeFileName(name) {
   return cleaned || 'attachment';
 }
 
+// 2026-09-03, живой прогон: реальное вложение ("Счет № ФМ-194329 от
+// 02.09.2026 МАТРЕШКА ООО (2).pdf") падало на загрузке в Storage с
+// "InvalidKey" — путь строился как <uuid>-<имя файла>, а кириллица/
+// пробелы/"№"/скобки прямо в URL-пути Supabase Storage не принимает.
+// sanitizeFileName снимал только горстку символов (/\?%*:|"<>), но не это.
+// Правильный фикс — тот же принцип, что уже используется на клиенте
+// (uploadSupplierFile в supplierResearchApi.ts и другие загрузки в
+// проекте): в САМ ключ объекта идёт только uuid+расширение, человекочитаемое
+// имя остаётся только в поле fileName (то, что видит пользователь и что
+// уходит в заголовок скачивания) — так путь никогда не зависит от того, что
+// прислал отправитель письма.
+function fileExtension(fileName) {
+  const match = /\.([a-z0-9]+)$/i.exec(String(fileName || ''));
+  return match ? match[1].toLowerCase() : 'bin';
+}
+
 async function uploadAttachment(bytes, contentType, fileName) {
-  const safeName = sanitizeFileName(fileName);
-  const path = `purchase-email-attachments/${randomUUID()}-${safeName}`;
+  const path = `purchase-email-attachments/${randomUUID()}.${fileExtension(fileName)}`;
   const resp = await fetch(`${process.env.SUPABASE_URL}/storage/v1/object/${ATTACHMENTS_BUCKET}/${path}`, {
     method: 'POST',
     headers: {
@@ -128,7 +143,7 @@ async function uploadAttachment(bytes, contentType, fileName) {
   }
   return {
     url: `${process.env.SUPABASE_URL}/storage/v1/object/public/${ATTACHMENTS_BUCKET}/${path}`,
-    fileName: safeName,
+    fileName: sanitizeFileName(fileName),
   };
 }
 
