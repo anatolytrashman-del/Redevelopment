@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, X } from 'lucide-react';
 import { renderAsync } from 'docx-preview';
@@ -30,7 +31,20 @@ export function isPreviewable(fileName: string): boolean {
 // (iframe/img), а .docx рендерится прямо в браузере через docx-preview
 // (без внешних сервисов вроде Google Docs Viewer — файлы могут быть не
 // предназначены для чужих глаз, например сканы договоров с подрядчиками).
-export function DocumentPreviewModal({ file, onClose }: { file: PreviewFile | null; onClose: () => void }) {
+// footer — необязательный слот под областью предпросмотра для действий,
+// специфичных для места использования (например, "Распознать данные
+// автоматически" в переписке с поставщиками, SupplierCorrespondenceTab.tsx)
+// — сама модалка общая для всего проекта (документы юрлица, сметы,
+// объекты), ничего доменного про счета/КП в неё не зашито.
+export function DocumentPreviewModal({
+  file,
+  onClose,
+  footer,
+}: {
+  file: PreviewFile | null;
+  onClose: () => void;
+  footer?: ReactNode;
+}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const docxContainerRef = useRef<HTMLDivElement | null>(null);
@@ -112,6 +126,7 @@ export function DocumentPreviewModal({ file, onClose }: { file: PreviewFile | nu
           )}
           {kind === 'docx' && <div ref={docxContainerRef} className="docx-preview-container mx-auto w-full bg-white" />}
         </div>
+        {footer}
       </div>
     </div>,
     document.body,

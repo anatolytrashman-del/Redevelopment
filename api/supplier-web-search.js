@@ -1,5 +1,12 @@
 // Vercel serverless function: веб-поиск реальных поставщиков под список
-// материалов запроса на вкладке "Ресерч" (Suppliers.tsx).
+// материалов запроса на вкладке "Ресерч" (Suppliers.tsx). Несмотря на имя
+// файла (осталось от первой версии), также обрабатывает
+// action:'recognize-invoice' — ручное распознавание счёта/КП из вложения
+// письма (кнопка "Распознать данные автоматически" в предпросмотре,
+// SupplierCorrespondenceTab.tsx) — та же логика, что и у автоматического
+// срабатывания на входящих (purchase-email-webhook.js), общий хелпер
+// api/_invoiceRecognition.js. Один файл на оба случая — лимит 12
+// serverless-функций на Vercel Hobby уже выбран, новый файл заводить нельзя.
 //
 // 2026-08-31, дважды за день. Первая версия (claude-sonnet-5, Anthropic-путь
 // ProxyAPI) обошлась в 358 ₽ за 4 запроса (~90 ₽/запрос) — владелец увидел
@@ -30,6 +37,7 @@
 // больше, чем просто смена модели.
 import { proxyApiKeyProblem } from './_proxyapi.js';
 import { requireStaffAuth } from './_auth.js';
+import { recognizeInvoice } from './_invoiceRecognition.js';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 
@@ -116,6 +124,21 @@ export default async function handler(req, res) {
   const keyProblem = proxyApiKeyProblem();
   if (keyProblem) {
     res.status(500).json({ error: keyProblem });
+    return;
+  }
+
+  if (req.body?.action === 'recognize-invoice') {
+    const { fileUrl, fileName } = req.body ?? {};
+    if (typeof fileUrl !== 'string' || !fileUrl.trim()) {
+      res.status(400).json({ error: 'Не указан файл' });
+      return;
+    }
+    try {
+      const recognized = await recognizeInvoice(fileUrl.trim(), typeof fileName === 'string' ? fileName : '');
+      res.status(200).json({ recognized });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Не удалось распознать документ' });
+    }
     return;
   }
 

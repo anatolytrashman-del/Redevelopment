@@ -1,0 +1,143 @@
+// Общая логика распознавания счёта/КП во вложении письма — и для
+// автоматического срабатывания на входящих (purchase-email-webhook.js,
+// только переписка Ресерча — offer_id), и для ручной кнопки "Распознать
+// данные автоматически" (supplier-web-search.js, action:'recognize-invoice').
+// Отдельный файл с "_" в начале — общий хелпер, не считается в лимит 12
+// serverless-функций Vercel Hobby.
+//
+// Владелец, 2026-09-03: "делай на Haiku 4.5" (после разбора цены — доли
+// цента за документ, см. журнал) + "система [должна] понимать, что перед
+// ней счёт, а не каталог на 40 страниц" — отсюда два уровня защиты от
+// лишних вызовов модели: (1) estimatePdfPageCount отсекает многостраничные
+// файлы ДО обращения к модели вообще (каталог позиций не долетает до
+// Haiku, деньги не тратятся); (2) сама модель дополнительно решает
+// isInvoice — короткий документ без счёта (например, обычное письмо-
+// вложение не по теме) не считается счётом, ничего не подставляется.
+import { proxyApiKeyProblem } from './_proxyapi.js';
+
+const MODEL = 'claude-haiku-4-5-20251001';
+export const INVOICE_MAX_PAGES = 3;
+
+const SYSTEM_PROMPT = `Ты помогаешь понять, является ли присланный документ счётом или
+коммерческим предложением (КП) от поставщика стройматериалов заказчику, и
+если да — извлечь из него данные.
+
+Верни ОТВЕТ ЦЕЛИКОМ в виде JSON, без markdown-разметки, без \`\`\`, без
+пояснений до или после, строго формат:
+{"isInvoice": true или false, "price": число или null, "currency": "USD" или "EUR" или "BYN" или "RUB" или null,
+ "items": [{"name": "строка", "quantity": число или null, "unit": "строка", "price": число или null}]}
+
+isInvoice=false — если это каталог товаров без единой итоговой суммы к
+оплате, прайс-лист на много позиций без конкретного предложения клиенту,
+или документ вообще не про закупку. isInvoice=true — только когда есть
+чёткая итоговая сумма к оплате (счёт, инвойс, коммерческое предложение на
+конкретную поставку). price — эта итоговая сумма (с НДС, если он в неё
+включён), одно число, не диапазон. Если валюта не указана явно в
+документе — верни null, не угадывай по контексту. items — позиции
+документа, если их можно выделить построчно; если документ не разбит на
+позиции (просто "услуга — сумма") — верни пустой массив, это поле не
+обязательно. Никогда не выдумывай числа — если сумму не удаётся уверенно
+прочитать, верни isInvoice=false.`;
+
+// Грубая, но бесплатная (без внешних библиотек и без обращения к модели)
+// оценка числа страниц PDF по сырым байтам — ищем "/Type /Pages ... /Count N"
+// (стандартный узел дерева страниц), при неудаче считаем количество
+// объектов "/Type /Page" как более грубый фолбэк. Возвращает null, если
+// определить не удалось — в этом случае вызывающий код НЕ считает файл
+// кандидатом на автораспознавание (лучше пропустить настоящий счёт, чем
+// случайно прогнать через модель нечитаемый файл неизвестного размера).
+export function estimatePdfPageCount(bytes) {
+  try {
+    const text = Buffer.isBuffer(bytes) ? bytes.toString('latin1') : String(bytes ?? '');
+    const pagesNodeMatches = [...text.matchAll(/\/Type\s*\/Pages[^>]{0,300}?\/Count\s+(\d+)/g)];
+    if (pagesNodeMatches.length > 0) {
+      return Math.max(...pagesNodeMatches.map((m) => Number(m[1])));
+    }
+    const pageObjectMatches = text.match(/\/Type\s*\/Page(?!s)/g);
+    return pageObjectMatches ? pageObjectMatches.length : null;
+  } catch {
+    return null;
+  }
+}
+
+function blockTypeForFileName(fileName) {
+  const ext = String(fileName || '').split('.').pop()?.toLowerCase();
+  if (ext === 'pdf') return 'document';
+  if (['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)) return 'image';
+  return null;
+}
+
+// fileUrl — публичная ссылка на уже загруженный файл (Supabase Storage),
+// модель читает его напрямую по URL, без повторного прогона байтов через
+// нашу функцию.
+export async function recognizeInvoice(fileUrl, fileName) {
+  const keyProblem = proxyApiKeyProblem();
+  if (keyProblem) throw new Error(keyProblem);
+
+  const blockType = blockTypeForFileName(fileName);
+  if (!blockType) throw new Error('Неподдерживаемый тип файла для распознавания — нужен PDF или картинка (png/jpg/webp/gif)');
+
+  const resp = await fetch('https://api.proxyapi.ru/anthropic/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': process.env.PROXYAPI_KEY,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 1500,
+      system: SYSTEM_PROMPT,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: blockType, source: { type: 'url', url: fileUrl } },
+            { type: 'text', text: 'Определи, счёт/КП ли это, и если да — извлеки данные строго по формату из системной инструкции.' },
+          ],
+        },
+      ],
+    }),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    if (resp.status === 402) {
+      throw new Error('Недостаточно средств на балансе ProxyAPI — пополните счёт в личном кабинете (тот же баланс используют и остальные AI-функции проекта).');
+    }
+    throw new Error(`Ошибка распознавания (${resp.status}): ${text.slice(0, 300)}`);
+  }
+
+  const data = await resp.json();
+  const text = (Array.isArray(data.content) ? data.content : [])
+    .filter((b) => b && b.type === 'text' && typeof b.text === 'string')
+    .map((b) => b.text)
+    .join('');
+  const stripped = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
+  const start = stripped.indexOf('{');
+  const end = stripped.lastIndexOf('}');
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error('Модель не вернула JSON в ожидаемом формате');
+  }
+  const parsed = JSON.parse(stripped.slice(start, end + 1));
+
+  return {
+    isInvoice: parsed.isInvoice === true,
+    price: typeof parsed.price === 'number' ? parsed.price : null,
+    currency: typeof parsed.currency === 'string' ? parsed.currency : null,
+    items: Array.isArray(parsed.items)
+      ? parsed.items
+          .filter((i) => i && typeof i.name === 'string' && i.name.trim())
+          .map((i) => ({
+            name: i.name.trim(),
+            quantity: typeof i.quantity === 'number' ? i.quantity : null,
+            unit: typeof i.unit === 'string' ? i.unit.trim() : '',
+            price: typeof i.price === 'number' ? i.price : null,
+          }))
+      : [],
+  };
+}

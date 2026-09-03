@@ -1,5 +1,28 @@
 import type { DocumentFile } from './contractorDocuments';
 
+// Результат распознавания счёта/КП во вложении письма (Claude Haiku 4.5,
+// см. api/_invoiceRecognition.js) — и от автоматического срабатывания на
+// входящих, и от ручной кнопки "Распознать данные автоматически". null —
+// либо распознавание ещё не запускалось, либо вложение признано не счётом
+// (в этом случае оно вообще не сохраняется — не засорять письма пустыми
+// "не подошло"). status: 'pending' — Альмире есть что подтвердить,
+// 'confirmed'/'dismissed' — уже разобрано (карточка сворачивается).
+export interface EmailExtractionItem {
+  name: string;
+  quantity: number | null;
+  unit: string;
+  price: number | null;
+}
+
+export interface EmailExtraction {
+  status: 'pending' | 'confirmed' | 'dismissed';
+  isInvoice: boolean;
+  price: number | null;
+  currency: string | null;
+  items: EmailExtractionItem[];
+  recognizedAt: string;
+}
+
 // Одно письмо в переписке по конкретному предложению Ресерча поставщиков —
 // см. data/supplierResearch.ts (supplierOfferEmailAddress) и
 // api/purchase-send-email.js/purchase-email-webhook.js (несмотря на имя,
@@ -23,6 +46,7 @@ export interface SupplierOfferEmail {
   // исходящих всегда null. Непрочитанные входящие — вкладка "Переписка"
   // (src/pages/Suppliers.tsx) и колокольчик уведомлений.
   readAt: string | null;
+  extraction: EmailExtraction | null;
   createdAt: string;
 }
 
@@ -37,5 +61,6 @@ export interface SupplierOfferEmailRow {
   files: DocumentFile[] | null;
   resend_message_id: string | null;
   read_at: string | null;
+  extraction: EmailExtraction | null;
   created_at: string;
 }

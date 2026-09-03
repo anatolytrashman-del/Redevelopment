@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
 import { authFetch } from './authFetch';
-import type { SupplierOfferEmail, SupplierOfferEmailRow } from '../data/supplierOfferEmails';
+import type { EmailExtraction, SupplierOfferEmail, SupplierOfferEmailRow } from '../data/supplierOfferEmails';
 
 function fromRow(row: SupplierOfferEmailRow): SupplierOfferEmail {
   return {
@@ -15,6 +15,7 @@ function fromRow(row: SupplierOfferEmailRow): SupplierOfferEmail {
     files: row.files ?? [],
     resendMessageId: row.resend_message_id,
     readAt: row.read_at ?? null,
+    extraction: row.extraction ?? null,
     createdAt: row.created_at,
   };
 }
@@ -58,6 +59,43 @@ export function markSupplierOfferEmailsRead(offerId: string): Promise<void> {
       .is('read_at', null);
     if (error) throw error;
   });
+}
+
+// Владелец подтвердил/отклонил распознанный счёт — обновляем status на
+// самой строке письма (extraction — jsonb целиком, PATCH заменяет объект,
+// не отдельные поля). Обычная клиентская запись, RLS authenticated_all.
+export function setSupplierOfferEmailExtractionStatus(
+  emailId: string,
+  extraction: EmailExtraction,
+  status: EmailExtraction['status'],
+): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase
+      .from('supplier_offer_emails')
+      .update({ extraction: { ...extraction, status } })
+      .eq('id', emailId);
+    if (error) throw error;
+  });
+}
+
+// Ручное распознавание вложения ("Распознать данные автоматически" в
+// предпросмотре) — через api/supplier-web-search.js (action:'recognize-invoice',
+// общий эндпоинт — см. комментарий в файле, лимит 12 функций на Vercel Hobby
+// уже выбран). Не пишет ничего в базу сама — вызывающий код решает, что
+// делать с результатом (обычно то же самое подтверждение, что и у
+// автоматически распознанных писем).
+export async function recognizeInvoiceAttachment(
+  fileUrl: string,
+  fileName: string,
+): Promise<{ isInvoice: boolean; price: number | null; currency: string | null; items: EmailExtraction['items'] }> {
+  const res = await authFetch('/api/supplier-web-search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'recognize-invoice', fileUrl, fileName }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.error || 'Не удалось распознать документ');
+  return json.recognized;
 }
 
 // Отправка — через api/purchase-send-email.js (общий эндпоинт с закупками,

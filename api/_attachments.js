@@ -30,6 +30,7 @@
 // всегда идём отдельным запросом, а не ищем его в вебхуке.
 
 import { randomUUID } from 'node:crypto';
+import { estimatePdfPageCount } from './_invoiceRecognition.js';
 
 const ATTACHMENTS_BUCKET = 'object-documents';
 const RESEND_API_BASE = 'https://api.resend.com';
@@ -195,7 +196,14 @@ export async function extractEmailAttachments(data) {
         continue;
       }
 
-      files.push(await uploadAttachment(bytes, contentType, fileName));
+      const uploaded = await uploadAttachment(bytes, contentType, fileName);
+      // pageCount — только для решения "стоит ли пытаться автораспознать
+      // счёт" (см. api/_invoiceRecognition.js), не часть DocumentFile —
+      // вызывающий код (purchase-email-webhook.js) сам решает, класть ли
+      // это поле в files (там оно не нужно) или использовать отдельно.
+      const ext = uploaded.fileName.split('.').pop()?.toLowerCase();
+      const pageCount = ext === 'pdf' ? estimatePdfPageCount(bytes) : 1;
+      files.push({ ...uploaded, pageCount });
     } catch (err) {
       console.error('Не удалось обработать вложение письма:', err);
     }

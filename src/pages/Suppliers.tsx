@@ -783,6 +783,19 @@ export function Suppliers() {
     setSupplierEmails((prev) => [...prev, email]);
   }
 
+  // Владелец, 2026-09-03 — распознавание счёта/КП из вложения: подтверждение
+  // (ручное или автоматическое) пишет в карточку предложения и отмечает
+  // письмо разобранным — обе правки приходят снизу из EmailThread через
+  // SupplierCorrespondenceTab/OfferEmailModal, здесь единственное место,
+  // где реально живут offers/supplierEmails на всю страницу.
+  function handleSupplierOfferUpdated(updated: SupplierOffer) {
+    setOffers((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+  }
+
+  function handleSupplierEmailUpdated(updated: SupplierOfferEmail) {
+    setSupplierEmails((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+  }
+
   function handleEmailTemplateSaved(template: EmailTemplate) {
     setEmailTemplates((prev) => (prev.some((t) => t.id === template.id) ? prev.map((t) => (t.id === template.id ? template : t)) : [...prev, template]));
   }
@@ -1400,6 +1413,8 @@ export function Suppliers() {
             onEmailSent={handleSupplierEmailSent}
             onMarkRead={handleMarkSupplierEmailsRead}
             onTemplatesChange={setEmailTemplates}
+            onOfferUpdated={handleSupplierOfferUpdated}
+            onEmailUpdated={handleSupplierEmailUpdated}
           />
         </div>
       )}
@@ -1844,6 +1859,8 @@ export function Suppliers() {
               onEmailSent={handleSupplierEmailSent}
               onMarkRead={handleMarkSupplierEmailsRead}
               onTemplateSaved={handleEmailTemplateSaved}
+              onOfferUpdated={handleSupplierOfferUpdated}
+              onEmailUpdated={handleSupplierEmailUpdated}
               onClose={() => setEmailOfferId(null)}
             />
           );
@@ -1953,6 +1970,8 @@ function OfferEmailModal({
   onEmailSent,
   onMarkRead,
   onTemplateSaved,
+  onOfferUpdated,
+  onEmailUpdated,
   onClose,
 }: {
   offer: SupplierOffer;
@@ -1963,6 +1982,8 @@ function OfferEmailModal({
   onEmailSent: (email: SupplierOfferEmail) => void;
   onMarkRead: (offerId: string) => void;
   onTemplateSaved: (template: EmailTemplate) => void;
+  onOfferUpdated: (offer: SupplierOffer) => void;
+  onEmailUpdated: (email: SupplierOfferEmail) => void;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -1983,6 +2004,8 @@ function OfferEmailModal({
         templates={templates}
         onEmailSent={onEmailSent}
         onTemplateSaved={onTemplateSaved}
+        onOfferUpdated={onOfferUpdated}
+        onEmailUpdated={onEmailUpdated}
       />
     </Modal>
   );

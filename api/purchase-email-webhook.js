@@ -40,6 +40,7 @@
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { extractEmailAttachments, fetchReceivedEmailBody } from './_attachments.js';
+import { recognizeInvoice, INVOICE_MAX_PAGES } from './_invoiceRecognition.js';
 
 export const config = {
   api: {
@@ -201,7 +202,34 @@ export default async function handler(req, res) {
 
     // Тело письма — отдельным запросом, см. комментарий в начале файла.
     const body = await fetchReceivedEmailBody([data.email_id, data.id]);
-    const files = await extractEmailAttachments(data);
+    const attachments = await extractEmailAttachments(data);
+    const files = attachments.map(({ url, fileName }) => ({ url, fileName }));
+
+    // Автораспознавание счёта/КП во вложении — только для переписки Ресерча
+    // (offerId), не закупок. Владелец, 2026-09-03: "система [должна]
+    // понимать, что перед ней счёт, а не каталог на 40 страниц, и
+    // распознавала данные сама... Альмира только сверяла и подтверждала".
+    // Берём первое вложение, похожее на счёт (PDF/картинка, разумное число
+    // страниц) — многостраничные каталоги до модели не долетают вовсе,
+    // деньги не тратятся. Сбой распознавания не должен ронять сохранение
+    // самого письма — оборачиваем в try/catch, extraction просто остаётся
+    // null (Альмира всегда может распознать вручную кнопкой в предпросмотре).
+    let extraction = null;
+    if (offerId) {
+      const candidate = attachments.find(
+        (a) => /\.(pdf|png|jpe?g|webp|gif)$/i.test(a.fileName) && a.pageCount != null && a.pageCount <= INVOICE_MAX_PAGES,
+      );
+      if (candidate) {
+        try {
+          const recognized = await recognizeInvoice(candidate.url, candidate.fileName);
+          if (recognized.isInvoice) {
+            extraction = { status: 'pending', ...recognized, recognizedAt: new Date().toISOString() };
+          }
+        } catch (err) {
+          console.error('Не удалось автораспознать вложение как счёт (не критично, письмо всё равно сохранится):', err);
+        }
+      }
+    }
 
     const row = purchaseId
       ? await insertEmailRow('purchase_emails', {
@@ -222,6 +250,7 @@ export default async function handler(req, res) {
           subject,
           body,
           files,
+          extraction,
           resend_message_id: data.email_id ?? data.id ?? null,
         });
 

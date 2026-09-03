@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply } from 'lucide-react';
+import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply, FileSearch, CheckCircle2 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -7,12 +7,19 @@ import { Textarea } from '../ui/Textarea';
 import { cn } from '../../lib/cn';
 import type { SupplierRequest, SupplierOffer } from '../../data/supplierResearch';
 import { supplierOfferEmailAddress } from '../../data/supplierResearch';
-import type { SupplierOfferEmail } from '../../data/supplierOfferEmails';
-import { sendSupplierOfferEmail } from '../../lib/supplierOfferEmailsApi';
+import { updateSupplierOffer } from '../../lib/supplierResearchApi';
+import type { SupplierOfferEmail, EmailExtractionItem } from '../../data/supplierOfferEmails';
+import {
+  sendSupplierOfferEmail,
+  recognizeInvoiceAttachment,
+  setSupplierOfferEmailExtractionStatus,
+} from '../../lib/supplierOfferEmailsApi';
 import type { EmailTemplate } from '../../data/emailTemplates';
 import { renderEmailTemplate } from '../../lib/emailTemplates';
 import { TemplateFormModal, TemplateManagerModal } from './EmailTemplates';
 import { getCurrentProfile } from '../../lib/accessProfile';
+import { DocumentPreviewModal, isPreviewable, type PreviewFile } from '../documents/DocumentPreviewModal';
+import { currencies, type Currency } from '../../data/transactions';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -99,6 +106,72 @@ function buildQuotedReply(e: SupplierOfferEmail): { subject: string; body: strin
   return { subject, body: `\n\n${preamble}\n${quotedLines}` };
 }
 
+// Распознавание счёта/КП из вложения (владелец, 2026-09-03: "давай подумаем,
+// как сделать так, чтобы это КП было потом удобно перенести в карточку
+// подрядчика... даже сумму и позиции из счета можем распознавать
+// автоматически" → "делай на Haiku 4.5" → "мне бы предпросмотр, как
+// договора, с кнопкой Распознать данные автоматически" → "ещё лучше сделать
+// так, чтобы система понимала, что перед ней счёт... а Альмира только
+// сверяла и подтверждала"). Два пути к одному и тому же результату:
+// (1) автоматически — api/purchase-email-webhook.js сам решает по числу
+// страниц вложения и просит модель классифицировать, кладёт результат в
+// email.extraction (status:'pending'), здесь только подтверждение/отклонение;
+// (2) вручную — кнопка в предпросмотре (DocumentPreviewModal.footer) для
+// файлов, которые автоматика не тронула (картинка вместо PDF, вложение в
+// исходящем письме, каталог, который на самом деле оказался счётом, и т.п.).
+function isValidCurrency(value: string | null): value is Currency {
+  return !!value && (currencies as readonly string[]).includes(value);
+}
+
+function pluralPositions(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'позиция';
+  if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) return 'позиции';
+  return 'позиций';
+}
+
+function formatExtractionItemsText(items: EmailExtractionItem[]): string {
+  if (items.length === 0) return '';
+  return items
+    .map((i) => [i.name, i.quantity != null ? `${i.quantity}${i.unit ? ` ${i.unit}` : ''}` : '', i.price != null ? String(i.price) : '']
+      .filter(Boolean)
+      .join(' — '))
+    .join('\n');
+}
+
+// Пишет распознанные цену/валюту в карточку предложения (price/currency),
+// позиции — текстом в конец "Требований" (структурированного списка позиций
+// у SupplierOffer нет, см. открытый вопрос в EMAIL_CORRESPONDENCE_PLAN.md) —
+// не затирая то, что там уже было. currency из распознавания может не
+// совпасть ни с одним известным значением (модели явно запрещено гадать,
+// возвращает null, если не уверена) — тогда валюту карточки не трогаем.
+async function applyExtractionToOffer(
+  offer: SupplierOffer,
+  extraction: { price: number | null; currency: string | null; items: EmailExtractionItem[] },
+): Promise<SupplierOffer> {
+  const itemsText = formatExtractionItemsText(extraction.items);
+  const requirements = itemsText
+    ? [offer.requirements.trim(), `Позиции из распознанного КП:\n${itemsText}`].filter(Boolean).join('\n\n')
+    : offer.requirements;
+  return updateSupplierOffer(offer.id, {
+    requestId: offer.requestId,
+    name: offer.name,
+    contact: offer.contact,
+    contactMethod: offer.contactMethod,
+    email: offer.email,
+    websiteUrl: offer.websiteUrl,
+    catalogModelName: offer.catalogModelName,
+    catalogModelPhoto: offer.catalogModelPhoto,
+    communicationStatus: offer.communicationStatus,
+    price: extraction.price ?? offer.price,
+    currency: isValidCurrency(extraction.currency) ? extraction.currency : offer.currency,
+    deadline: offer.deadline,
+    requirements,
+    files: offer.files,
+  });
+}
+
 // Черновик первого письма по умолчанию (до выбора сохранённого шаблона) —
 // владелец, 2026-09-03, прислал готовый текст ("Заголовок письма по
 // умолчанию... По умолчанию все письма выглядят так..."). "Категория" в
@@ -149,6 +222,8 @@ export function EmailThread({
   templates,
   onEmailSent,
   onTemplateSaved,
+  onOfferUpdated,
+  onEmailUpdated,
 }: {
   offer: SupplierOffer;
   request: SupplierRequest;
@@ -157,6 +232,8 @@ export function EmailThread({
   templates: EmailTemplate[];
   onEmailSent: (email: SupplierOfferEmail) => void;
   onTemplateSaved: (template: EmailTemplate) => void;
+  onOfferUpdated: (offer: SupplierOffer) => void;
+  onEmailUpdated: (email: SupplierOfferEmail) => void;
 }) {
   const [subject, setSubject] = useState(() => defaultSubject(request, emails.length > 0));
   const [body, setBody] = useState(() => defaultBody(request, emails.length > 0));
@@ -174,6 +251,21 @@ export function EmailThread({
   // в треде вообще ещё нет писем — иначе первое письмо было бы физически
   // некому "ответить".
   const [composerOpen, setComposerOpen] = useState(emails.length === 0);
+  // Предпросмотр вложения (владелец: "мне бы предпросмотр, как договора") +
+  // состояние ручного распознавания внутри него — сбрасывается при закрытии.
+  const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null);
+  const [manualRecognizing, setManualRecognizing] = useState(false);
+  const [manualResult, setManualResult] = useState<{
+    isInvoice: boolean;
+    price: number | null;
+    currency: string | null;
+    items: EmailExtractionItem[];
+  } | null>(null);
+  const [extractionError, setExtractionError] = useState<string | null>(null);
+  // Общий флаг на оба пути (ручное подтверждение и подтверждение
+  // автораспознанного) — оба пишут в ту же карточку предложения, одновременно
+  // случиться не могут (одна открытая форма/один клик за раз).
+  const [applyingExtraction, setApplyingExtraction] = useState(false);
 
   // Черновик по умолчанию завязан на конкретное предложение/запрос — при
   // переключении между тредами (вкладка "Переписка") нужно пересчитать
@@ -243,6 +335,75 @@ export function EmailThread({
     });
   }
 
+  function openPreview(f: PreviewFile) {
+    setPreviewFile(f);
+    setManualResult(null);
+    setExtractionError(null);
+  }
+
+  function closePreview() {
+    setPreviewFile(null);
+    setManualResult(null);
+    setExtractionError(null);
+  }
+
+  async function handleManualRecognize() {
+    if (!previewFile || manualRecognizing) return;
+    setManualRecognizing(true);
+    setExtractionError(null);
+    setManualResult(null);
+    try {
+      const recognized = await recognizeInvoiceAttachment(previewFile.url, previewFile.fileName);
+      setManualResult(recognized);
+    } catch (err) {
+      setExtractionError(errorMessage(err, 'Не удалось распознать документ'));
+    } finally {
+      setManualRecognizing(false);
+    }
+  }
+
+  async function handleApplyManualResult() {
+    if (!manualResult || applyingExtraction) return;
+    setApplyingExtraction(true);
+    setExtractionError(null);
+    try {
+      const updated = await applyExtractionToOffer(offer, manualResult);
+      onOfferUpdated(updated);
+      closePreview();
+    } catch (err) {
+      setExtractionError(errorMessage(err, 'Не удалось сохранить в карточку предложения'));
+    } finally {
+      setApplyingExtraction(false);
+    }
+  }
+
+  async function handleConfirmAutoExtraction(e: SupplierOfferEmail) {
+    if (!e.extraction || applyingExtraction) return;
+    setApplyingExtraction(true);
+    try {
+      const updated = await applyExtractionToOffer(offer, e.extraction);
+      onOfferUpdated(updated);
+      await setSupplierOfferEmailExtractionStatus(e.id, e.extraction, 'confirmed');
+      onEmailUpdated({ ...e, extraction: { ...e.extraction, status: 'confirmed' } });
+    } catch (err) {
+      setExtractionError(errorMessage(err, 'Не удалось применить распознанные данные'));
+    } finally {
+      setApplyingExtraction(false);
+    }
+  }
+
+  async function handleDismissAutoExtraction(e: SupplierOfferEmail) {
+    if (!e.extraction) return;
+    const extraction = e.extraction;
+    try {
+      await setSupplierOfferEmailExtractionStatus(e.id, extraction, 'dismissed');
+      onEmailUpdated({ ...e, extraction: { ...extraction, status: 'dismissed' } });
+    } catch {
+      // Тихий сбой достаточен — карточка просто останется видна, можно
+      // нажать ещё раз, это не критичное действие.
+    }
+  }
+
   async function handleSend() {
     if (!offer.email || !body.trim() || sending) return;
     setSending(true);
@@ -304,6 +465,19 @@ export function EmailThread({
                             className="max-h-48 max-w-full rounded-control border border-border object-contain"
                           />
                         </a>
+                      ) : isPreviewable(f.fileName) ? (
+                        // Владелец: "мне бы предпросмотр, как договора" —
+                        // открываем в DocumentPreviewModal вместо новой
+                        // вкладки браузера, с кнопкой распознавания внутри.
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => openPreview(f)}
+                          className="flex items-center gap-1.5 rounded-control border border-border bg-surface px-2.5 py-1.5 text-left text-xs text-primary hover:underline"
+                        >
+                          <Paperclip className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
+                          <span className="min-w-0 flex-1 truncate">{f.fileName}</span>
+                        </button>
                       ) : (
                         <a
                           key={i}
@@ -317,6 +491,35 @@ export function EmailThread({
                         </a>
                       ),
                     )}
+                  </div>
+                )}
+                {/* Владелец, 2026-09-03: "система [должна] понимать, что перед
+                    ней счёт... а Альмира только сверяла и подтверждала" —
+                    автоматически распознанный счёт ждёт подтверждения прямо
+                    здесь, рядом с письмом, из которого он взят. */}
+                {e.extraction?.status === 'pending' && (
+                  <div className="flex flex-col gap-2 rounded-control border border-primary/30 bg-primary-soft p-3 text-sm">
+                    <div className="flex items-center gap-1.5 font-semibold text-ink">
+                      <FileSearch className="h-4 w-4 text-primary" />
+                      Похоже, это счёт от {offer.name}
+                    </div>
+                    <div className="text-ink">
+                      {e.extraction.price != null ? `${e.extraction.price} ${e.extraction.currency ?? ''}`.trim() : 'Сумма не распознана'}
+                      {e.extraction.items.length > 0 && ` · ${e.extraction.items.length} ${pluralPositions(e.extraction.items.length)}`}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        icon={<CheckCircle2 className="h-4 w-4" />}
+                        onClick={() => handleConfirmAutoExtraction(e)}
+                        disabled={applyingExtraction}
+                      >
+                        Подтвердить и заполнить карточку
+                      </Button>
+                      <Button type="button" variant="ghost" onClick={() => handleDismissAutoExtraction(e)} disabled={applyingExtraction}>
+                        Это не счёт
+                      </Button>
+                    </div>
                   </div>
                 )}
                 <div className="whitespace-pre-wrap text-ink">{visible}</div>
@@ -415,6 +618,50 @@ export function EmailThread({
         onClose={() => setSaveTemplateOpen(false)}
         onSaved={onTemplateSaved}
       />
+
+      <DocumentPreviewModal
+        file={previewFile}
+        onClose={closePreview}
+        footer={
+          previewFile && (
+            <div className="flex flex-col gap-2 border-t border-border pt-3">
+              {!manualResult && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon={<FileSearch className="h-4 w-4" />}
+                  className="w-fit"
+                  onClick={handleManualRecognize}
+                  disabled={manualRecognizing}
+                >
+                  {manualRecognizing ? 'Распознаём...' : 'Распознать данные автоматически'}
+                </Button>
+              )}
+              {extractionError && <p className="text-sm text-danger">{extractionError}</p>}
+              {manualResult && !manualResult.isInvoice && (
+                <p className="text-sm text-ink-muted">Похоже, это не счёт — не нашли чёткую сумму к оплате.</p>
+              )}
+              {manualResult && manualResult.isInvoice && (
+                <div className="flex flex-col gap-2 rounded-control border border-primary/30 bg-primary-soft p-3 text-sm">
+                  <div className="text-ink">
+                    {manualResult.price != null ? `${manualResult.price} ${manualResult.currency ?? ''}`.trim() : 'Сумма не распознана'}
+                    {manualResult.items.length > 0 && ` · ${manualResult.items.length} ${pluralPositions(manualResult.items.length)}`}
+                  </div>
+                  <Button
+                    type="button"
+                    icon={<CheckCircle2 className="h-4 w-4" />}
+                    className="w-fit"
+                    onClick={handleApplyManualResult}
+                    disabled={applyingExtraction}
+                  >
+                    Заполнить карточку предложения
+                  </Button>
+                </div>
+              )}
+            </div>
+          )
+        }
+      />
     </div>
   );
 }
@@ -467,6 +714,8 @@ export function SupplierCorrespondenceTab({
   onEmailSent,
   onMarkRead,
   onTemplatesChange,
+  onOfferUpdated,
+  onEmailUpdated,
 }: {
   requests: SupplierRequest[];
   offers: SupplierOffer[];
@@ -475,6 +724,8 @@ export function SupplierCorrespondenceTab({
   onEmailSent: (email: SupplierOfferEmail) => void;
   onMarkRead: (offerId: string) => void;
   onTemplatesChange: (templates: EmailTemplate[]) => void;
+  onOfferUpdated: (offer: SupplierOffer) => void;
+  onEmailUpdated: (email: SupplierOfferEmail) => void;
 }) {
   const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
   const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
@@ -613,6 +864,8 @@ export function SupplierCorrespondenceTab({
                 templates={templates}
                 onEmailSent={onEmailSent}
                 onTemplateSaved={handleTemplateSaved}
+                onOfferUpdated={onOfferUpdated}
+                onEmailUpdated={onEmailUpdated}
               />
             </div>
           )}
