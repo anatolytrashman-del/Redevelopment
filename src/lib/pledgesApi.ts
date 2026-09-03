@@ -45,7 +45,12 @@ export function insertPledge(input: Omit<Pledge, 'id' | 'createdAt'>): Promise<P
         pledge_value: input.pledgeValue,
         rental_income: input.rentalIncome,
         photo_paths: input.photoPaths,
-        certificate_photo_path: input.certificatePhotoPath || null,
+        // Колонка NOT NULL DEFAULT '' (не как property_type, у которого
+        // допустим null) — пустую строку слать как есть, а не приводить к
+        // null, иначе insert/update падает с "violates not-null constraint"
+        // (было именно так, пока не было формы без сертификата — залоги
+        // "ещё не построен" гарантированно оставляют это поле пустым).
+        certificate_photo_path: input.certificatePhotoPath,
         under_construction: input.underConstruction,
         completion_year: input.completionYear || null,
         purchase_price: input.purchasePrice,
@@ -70,7 +75,12 @@ export function updatePledge(id: string, input: Omit<Pledge, 'id' | 'createdAt'>
         pledge_value: input.pledgeValue,
         rental_income: input.rentalIncome,
         photo_paths: input.photoPaths,
-        certificate_photo_path: input.certificatePhotoPath || null,
+        // Колонка NOT NULL DEFAULT '' (не как property_type, у которого
+        // допустим null) — пустую строку слать как есть, а не приводить к
+        // null, иначе insert/update падает с "violates not-null constraint"
+        // (было именно так, пока не было формы без сертификата — залоги
+        // "ещё не построен" гарантированно оставляют это поле пустым).
+        certificate_photo_path: input.certificatePhotoPath,
         under_construction: input.underConstruction,
         completion_year: input.completionYear || null,
         purchase_price: input.purchasePrice,
