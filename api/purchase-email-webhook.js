@@ -24,13 +24,16 @@
 // проставлен в Vercel — проверка пропускается с предупреждением в лог,
 // чтобы не сломать приём писем ДО того, как секрет добавят.
 //
-// Формат тела запроса взят из документации Resend Inbound (событие с
-// полем "to"/"from"/"subject"/"text" и т.п.) — не проверен вживую на
-// реальном письме, при первом реальном письме может понадобиться поправить
-// разбор под фактический payload.
+// ВАЖНО (проверено 2026-09-03 по документации Resend, см. подробный
+// комментарий в _attachments.js): сам вебхук email.received несёт только
+// метаданные письма (from/to/subject/email_id/attachments-список без
+// содержимого) — тела ("text"/"html") в нём НЕТ, его нужно дотягивать
+// отдельным GET-запросом к api.resend.com (fetchReceivedEmailBody ниже).
+// Раньше здесь ошибочно читалось data.text/data.html прямо из вебхука —
+// на первом же реальном письме body сохранился бы пустой строкой.
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { extractEmailAttachments } from './_attachments.js';
+import { extractEmailAttachments, fetchReceivedEmailBody } from './_attachments.js';
 
 export const config = {
   api: {
@@ -130,7 +133,6 @@ export default async function handler(req, res) {
     const toAddress = Array.isArray(toRaw) ? toRaw[0] : toRaw;
     const fromAddress = data.from ?? '';
     const subject = data.subject ?? '';
-    const body = data.text ?? data.html ?? '';
 
     const purchaseId = extractId(toAddress, 'zakupki');
     const offerId = purchaseId ? null : extractId(toAddress, 'research');
@@ -138,11 +140,14 @@ export default async function handler(req, res) {
     if (!purchaseId && !offerId) {
       // Письмо не на наш plus-адрес (ни закупка, ни предложение) — не наша
       // забота, но и не ошибка самого вебхука (Resend не должен ретраить
-      // бесконечно).
+      // бесконечно). Заодно не тратим лишний запрос к Resend API на тело
+      // письма, которое всё равно никуда не сохраним.
       res.status(200).json({ skipped: true });
       return;
     }
 
+    // Тело письма — отдельным запросом, см. комментарий в начале файла.
+    const body = await fetchReceivedEmailBody(data.email_id ?? data.id);
     const files = await extractEmailAttachments(data);
 
     const row = purchaseId

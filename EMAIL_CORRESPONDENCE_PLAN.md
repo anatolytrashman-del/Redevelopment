@@ -86,21 +86,40 @@ MX на приём — Verified), тумблеры Sending/Receiving включ�
 
 ### Этап 1 — Проверить формат входящего письма вживую (перед всем остальным)
 
-- [ ] Попросить владельца: из карточки любого предложения с реальным
-  email (можно его собственный адрес) нажать "Написать", отправить, затем
-  ОТВЕТИТЬ на это письмо с той почты.
-- [ ] Посмотреть Vercel → Logs функции `purchase-email-webhook`: что
-  реально пришло в `payload.data`. Подозрение (не проверено): событие
-  `email.received` у Resend содержит только метаданные (`email_id`, `from`,
-  `to`, `subject`, `attachments` без содержимого), а тело письма нужно
-  дотягивать отдельно — `GET https://api.resend.com/emails/receiving/{email_id}`
-  с заголовком `Authorization: Bearer RESEND_API_KEY` (проверить точный
-  путь в документации Resend "Receiving emails", не угадывать).
-- [ ] Если тела нет — добавить в вебхук этот второй запрос (`text`/`html`
-  → `body`) и, при необходимости, скачивание вложений тем же способом.
-  Если пришло всё сразу — этап закрыт без правок.
-- [ ] Критерий: в `supplier_offer_emails` появилась строка `direction='in'`
-  с непустым `body`, и она видна в `OfferEmailModal` этого предложения.
+- [x] **Подозрение подтверждено документацией (2026-09-03, поиском —
+  resend.com недоступен из песочницы напрямую даже через WebFetch, только
+  WebSearch-сниппеты).** `email.received` действительно несёт только
+  метаданные (`email_id`/`from`/`to`/`subject`/`attachments`-список БЕЗ
+  содержимого), дословно из документации: "Webhooks do not include the
+  email body, headers, or attachments, only their metadata. You must call
+  the Received emails API or the Attachments API to retrieve them."
+  Тело: `GET https://api.resend.com/emails/receiving/{emailId}` →
+  `{ text, html, headers, ... }`. Вложения — ОТДЕЛЬНЫЙ запрос (не тот же,
+  что и тело): `GET https://api.resend.com/emails/receiving/{emailId}/attachments`
+  → массив `{ id, filename, content_type, download_url (валиден 1ч), ... }`
+  — сопоставляется с метаданными вебхука по `id`. Оба — `Authorization:
+  Bearer RESEND_API_KEY` (уже есть в Vercel, новый секрет не нужен).
+- [x] **Код исправлен** — `api/_attachments.js` (новый `fetchReceivedEmailBody`
+  + переписанный `extractEmailAttachments`, теперь тянет `download_url`
+  отдельным запросом вместо ожидания его в самом вебхуке) и
+  `api/purchase-email-webhook.js` (`body` больше не читается из
+  `data.text`/`data.html` — только через `fetchReceivedEmailBody`).
+  Раньше КАЖДОЕ входящее письмо сохранялось бы с пустым `body` — это не
+  крайний случай, а гарантированный баг на первом же реальном ответе.
+  Синтаксис (`node --check`) и логика (сухой прогон с моком `fetch` —
+  оба формата ответа: плоский и `{data:...}` SDK-обёрнутый, плюс полный
+  путь вложения id→download_url→байты→загрузка в бакет) проверены в
+  песочнице — реальный вызов `api.resend.com` из неё недоступен.
+- [ ] **Осталось — живой прогон с владельцем** (это НЕ code review, без
+  него нельзя закрыть этап): из карточки любого предложения с реальным
+  email нажать "Написать", отправить, затем ОТВЕТИТЬ на это письмо с той
+  почты. Критерий: в `supplier_offer_emails` появилась строка
+  `direction='in'` с непустым `body` (не только `resend_message_id`), и
+  она видна в `OfferEmailModal` этого предложения. Если формат всё же
+  окажется другим (Resend меняет API без предупреждения) — смотреть
+  Vercel → Logs функции `purchase-email-webhook` (там теперь есть
+  `console.error` с полным ответом api.resend.com при неудаче) и поправить
+  разбор под фактический ответ.
 
 ### Этап 2 — Вкладка "Переписка" на странице "Закупки"
 
@@ -258,4 +277,11 @@ MX на приём — Verified), тумблеры Sending/Receiving включ�
 
 ## 5. Журнал выполнения (дополнять сверху)
 
-- (пусто — этапы ещё не начаты)
+- **2026-09-03 — Этап 1 (частично).** Подозрение из плана подтверждено
+  документацией Resend: вебхук `email.received` не несёт тела письма —
+  оно и вложения дотягиваются отдельными GET-запросами к
+  `api.resend.com/emails/receiving/{id}` и `.../attachments`. Код в
+  `api/_attachments.js`/`api/purchase-email-webhook.js` переписан под это,
+  проверен синтаксически и сухим прогоном с моком `fetch` (реальный API
+  из песочницы недоступен). **Живой прогон с владельцем ещё не сделан** —
+  без него этап 1 не закрыт, см. чекбоксы выше.
