@@ -46,6 +46,10 @@ export interface Purchase {
   sectionTitle: string;
   items: PurchaseItem[];
   currency: Currency;
+  // Короткий технический код для plus-адреса переписки (см.
+  // purchaseEmailAddress ниже) — 5 hex-символов, генерируется в БД (default
+  // на колонке short_code, миграция 2026-09-03), уникален.
+  shortCode: string;
   createdAt: string;
 }
 
@@ -60,6 +64,7 @@ export interface PurchaseRow {
   section_title: string | null;
   items: PurchaseItem[] | null;
   currency: string;
+  short_code: string;
   created_at: string;
 }
 
@@ -70,8 +75,9 @@ export function purchaseTotal(purchase: Pick<Purchase, 'items'>): number {
 // Email-адрес закупки для переписки с поставщиком — plus-адресация на
 // общем ящике снабжения (см. api/purchase-send-email.js/purchase-email-webhook.js):
 // все ответы от поставщика приходят на этот же адрес и матчатся на сервере
-// по id закупки в локальной части, отдельного ящика на каждую закупку
-// заводить не нужно.
-export function purchaseEmailAddress(purchaseId: string): string {
-  return `zakupki+${purchaseId}@redevelopment.pro`;
+// по короткому коду закупки в локальной части, отдельного ящика на каждую
+// закупку заводить не нужно. Владелец, 2026-09-03: полный UUID в адресе —
+// "очень длинный", заменили на короткий уникальный код (shortCode).
+export function purchaseEmailAddress(shortCode: string): string {
+  return `zakupki+${shortCode}@redevelopment.pro`;
 }

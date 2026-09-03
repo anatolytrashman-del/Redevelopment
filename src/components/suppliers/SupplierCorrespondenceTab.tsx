@@ -102,7 +102,7 @@ export function EmailThread({
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1 text-sm text-ink-muted">
         <span>Email: {offer.email || 'не указан'}</span>
-        <span>Адрес для переписки: {supplierOfferEmailAddress(offer.id)}</span>
+        <span>Адрес для переписки: {supplierOfferEmailAddress(offer.shortCode)}</span>
       </div>
 
       <div className="flex flex-col gap-2">

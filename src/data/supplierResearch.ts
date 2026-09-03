@@ -66,6 +66,11 @@ export interface SupplierOffer {
   deadline: string;
   requirements: string;
   files: DocumentFile[];
+  // Короткий технический код для plus-адреса переписки (см.
+  // supplierOfferEmailAddress ниже) — 5 hex-символов, генерируется в БД
+  // (default на колонке short_code, миграция 2026-09-03), уникален. Сам id —
+  // полноценный UUID, слишком длинный для видимого email-адреса.
+  shortCode: string;
   createdAt: string;
 }
 
@@ -85,19 +90,22 @@ export interface SupplierOfferRow {
   deadline: string;
   requirements: string;
   files: DocumentFile[] | null;
+  short_code: string;
   created_at: string;
 }
 
 // Email-адрес для переписки по конкретному предложению — тот же принцип
 // plus-адресации, что и у purchaseEmailAddress (data/purchases.ts): ответ
-// поставщика матчится на сервере по id предложения в локальной части, без
+// поставщика матчится на сервере по короткому коду в локальной части, без
 // отдельного ящика на каждое предложение. research+, а не zakupki+ — чтобы
 // сервер мог отличить, в какую таблицу (purchase_emails или
 // supplier_offer_emails) класть входящее письмо, см.
 // api/purchase-email-webhook.js (несмотря на имя, обрабатывает оба
-// направления переписки).
-export function supplierOfferEmailAddress(offerId: string): string {
-  return `research+${offerId}@redevelopment.pro`;
+// направления переписки). Владелец, 2026-09-03: полный UUID в адресе был
+// "очень длинный" — заменили на короткий уникальный код (shortCode), а не
+// на сам id.
+export function supplierOfferEmailAddress(shortCode: string): string {
+  return `research+${shortCode}@redevelopment.pro`;
 }
 
 // Список материалов запроса одной строкой ("Керамогранит (50 м²), Клей

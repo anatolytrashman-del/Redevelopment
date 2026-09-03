@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Trash2, Pencil, Send, Phone, Globe, Paperclip, Upload, X, ImageOff, Mail, ShoppingCart, Search, Check } from 'lucide-react';
+import { Plus, Loader2, Trash2, Pencil, Send, Phone, Globe, Paperclip, Upload, X, ImageOff, Mail, ShoppingCart, Search, Check, MailPlus } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -42,6 +42,7 @@ import {
 import type { SupplierOfferEmail } from '../data/supplierOfferEmails';
 import { fetchAllSupplierOfferEmails, markSupplierOfferEmailsRead } from '../lib/supplierOfferEmailsApi';
 import { EmailThread, SupplierCorrespondenceTab, countUnreadSupplierEmails } from '../components/suppliers/SupplierCorrespondenceTab';
+import { BulkEmailModal } from '../components/suppliers/BulkEmailModal';
 import type { EmailTemplate } from '../data/emailTemplates';
 import { fetchEmailTemplates } from '../lib/emailTemplatesApi';
 import {
@@ -203,6 +204,8 @@ function RequestCard({
   onOpenDetail,
   onWebSearch,
   searching,
+  canBulkEmail,
+  onBulkEmail,
 }: {
   request: SupplierRequest;
   offers: SupplierOffer[];
@@ -213,6 +216,8 @@ function RequestCard({
   onOpenDetail: (o: SupplierOffer) => void;
   onWebSearch: (r: SupplierRequest) => void;
   searching: boolean;
+  canBulkEmail: boolean;
+  onBulkEmail: (r: SupplierRequest) => void;
 }) {
   const { sorted, cheapestIds } = rankOffers(offers, rate);
 
@@ -248,6 +253,11 @@ function RequestCard({
           <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} onClick={() => onAddOffer(request.id)}>
             Добавить предложение
           </Button>
+          {canBulkEmail && (
+            <Button type="button" variant="secondary" icon={<MailPlus className="h-4 w-4" />} onClick={() => onBulkEmail(request)}>
+              Написать всем
+            </Button>
+          )}
           <button
             type="button"
             onClick={() => onEditRequest(request)}
@@ -653,6 +663,9 @@ export function Suppliers() {
   // (написать/редактировать/удалить/создать закупку) переехали сюда,
   // в отдельную карточку по клику.
   const [detailOfferId, setDetailOfferId] = useState<string | null>(null);
+  // "Написать всем" (EMAIL_CORRESPONDENCE_PLAN.md, этап 4) — id запроса, для
+  // которого открыта модалка массовой рассылки первого письма.
+  const [bulkEmailRequestId, setBulkEmailRequestId] = useState<string | null>(null);
   const [purchaseDraft, setPurchaseDraft] = useState<PurchaseDraft | null>(null);
 
   // "Найти в сети" (владелец, 2026-08-31) — веб-поиск поставщиков через
@@ -1299,6 +1312,13 @@ export function Suppliers() {
                 onOpenDetail={(o) => setDetailOfferId(o.id)}
                 onWebSearch={openWebQueryModal}
                 searching={webSearchingId === r.id}
+                canBulkEmail={offers.some(
+                  (o) =>
+                    o.requestId === r.id &&
+                    o.email.trim() &&
+                    !supplierEmails.some((e) => e.offerId === o.id && e.direction === 'out'),
+                )}
+                onBulkEmail={(req) => setBulkEmailRequestId(req.id)}
               />
             ))}
 
@@ -1789,6 +1809,22 @@ export function Suppliers() {
               onMarkRead={handleMarkSupplierEmailsRead}
               onTemplateSaved={handleEmailTemplateSaved}
               onClose={() => setEmailOfferId(null)}
+            />
+          );
+        })()}
+
+      {bulkEmailRequestId &&
+        (() => {
+          const request = requests.find((r) => r.id === bulkEmailRequestId);
+          if (!request) return null;
+          return (
+            <BulkEmailModal
+              request={request}
+              offers={offers.filter((o) => o.requestId === request.id)}
+              emails={supplierEmails}
+              templates={emailTemplates}
+              onEmailSent={handleSupplierEmailSent}
+              onClose={() => setBulkEmailRequestId(null)}
             />
           );
         })()}

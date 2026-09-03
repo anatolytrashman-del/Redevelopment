@@ -6,12 +6,18 @@
 // Несмотря на название файла (осталось от первой версии — переименовывать
 // не стали, чтобы не заставлять владельца ещё раз лезть в кабинет Resend и
 // менять зарегистрированный URL), обрабатывает ДВА разных случая по
-// префиксу адреса в "to": zakupki+<purchaseId>@ — переписка по закупке
-// (purchase_emails), research+<offerId>@ — переписка по предложению в
+// префиксу адреса в "to": zakupki+<код>@ — переписка по закупке
+// (purchase_emails), research+<код>@ — переписка по предложению в
 // Ресерче поставщиков, ещё до того как оно превратилось в закупку
 // (supplier_offer_emails). Resend не даёт настроить доставку webhook по
 // конкретному адресу получателя — сюда прилетает вообще любое входящее
 // письмо на домене, дальше уже сами решаем, что с ним делать.
+//
+// <код> — короткий short_code (5 hex-символов), не полный id (владелец,
+// 2026-09-03: адрес с UUID был "очень длинный") — извлечённый код нужно
+// сначала резолвить в реальный id закупки/предложения отдельным запросом
+// (resolveIdByShortCode), сам FK-столбец purchase_id/offer_id как хранил,
+// так и хранит настоящий UUID.
 //
 // Resend подписывает вебхуки по протоколу Svix (заголовки svix-id/
 // svix-timestamp/svix-signature, HMAC-SHA256 от "id.timestamp.тело" на
@@ -80,10 +86,25 @@ function verifyResendSignature(rawBody, headers, secret) {
     });
 }
 
-function extractId(toAddress, prefix) {
-  const re = new RegExp(`${prefix}\\+([0-9a-f-]{36})@`, 'i');
+function extractShortCode(toAddress, prefix) {
+  const re = new RegExp(`${prefix}\\+([0-9a-f]{4,8})@`, 'i');
   const match = String(toAddress || '').match(re);
-  return match ? match[1] : null;
+  return match ? match[1].toLowerCase() : null;
+}
+
+async function resolveIdByShortCode(table, shortCode) {
+  const resp = await fetch(
+    `${process.env.SUPABASE_URL}/rest/v1/${table}?short_code=eq.${encodeURIComponent(shortCode)}&select=id`,
+    {
+      headers: {
+        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+    },
+  );
+  if (!resp.ok) return null;
+  const rows = await resp.json();
+  return rows[0]?.id ?? null;
 }
 
 async function insertEmailRow(table, payload) {
@@ -134,14 +155,26 @@ export default async function handler(req, res) {
     const fromAddress = data.from ?? '';
     const subject = data.subject ?? '';
 
-    const purchaseId = extractId(toAddress, 'zakupki');
-    const offerId = purchaseId ? null : extractId(toAddress, 'research');
+    const purchaseCode = extractShortCode(toAddress, 'zakupki');
+    const offerCode = purchaseCode ? null : extractShortCode(toAddress, 'research');
 
-    if (!purchaseId && !offerId) {
+    if (!purchaseCode && !offerCode) {
       // Письмо не на наш plus-адрес (ни закупка, ни предложение) — не наша
       // забота, но и не ошибка самого вебхука (Resend не должен ретраить
       // бесконечно). Заодно не тратим лишний запрос к Resend API на тело
       // письма, которое всё равно никуда не сохраним.
+      res.status(200).json({ skipped: true });
+      return;
+    }
+
+    const purchaseId = purchaseCode ? await resolveIdByShortCode('purchases', purchaseCode) : null;
+    const offerId = offerCode ? await resolveIdByShortCode('supplier_research_offers', offerCode) : null;
+
+    if (!purchaseId && !offerId) {
+      // Код есть в адресе, но не резолвится ни в одну реальную запись —
+      // например, письмо на давно удалённую закупку. Логируем на всякий
+      // случай, но так же безобидно скипаем, как и совсем чужой адрес.
+      console.warn('Не удалось сопоставить short_code с записью:', purchaseCode || offerCode);
       res.status(200).json({ skipped: true });
       return;
     }

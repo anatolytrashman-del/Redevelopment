@@ -23,12 +23,30 @@ import { requireStaffAuth } from './_auth.js';
 
 const RESEND_FROM_NAME = 'Redevelopment Закупки';
 
-function purchaseEmailAddress(purchaseId) {
-  return `zakupki+${purchaseId}@redevelopment.pro`;
+// Технический адрес переписки строится из короткого кода (short_code,
+// 5 hex-символов, генерируется в БД), не из полного UUID — владелец,
+// 2026-09-03: адрес с UUID был "очень длинный". short_code читается той же
+// строкой, что и id, поэтому нужен отдельный запрос на его получение перед
+// отправкой (сама запись создаётся раньше, в момент добавления закупки/
+// предложения, — здесь только шлём письмо).
+function purchaseEmailAddress(shortCode) {
+  return `zakupki+${shortCode}@redevelopment.pro`;
 }
 
-function supplierOfferEmailAddress(offerId) {
-  return `research+${offerId}@redevelopment.pro`;
+function supplierOfferEmailAddress(shortCode) {
+  return `research+${shortCode}@redevelopment.pro`;
+}
+
+async function fetchShortCode(table, id) {
+  const resp = await fetch(`${process.env.SUPABASE_URL}/rest/v1/${table}?id=eq.${id}&select=short_code`, {
+    headers: {
+      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+  });
+  if (!resp.ok) return null;
+  const rows = await resp.json();
+  return rows[0]?.short_code ?? null;
 }
 
 async function insertEmailRow(table, payload) {
@@ -79,7 +97,15 @@ export default async function handler(req, res) {
     return;
   }
 
-  const fromAddress = purchaseId ? purchaseEmailAddress(purchaseId) : supplierOfferEmailAddress(offerId);
+  const shortCode = purchaseId
+    ? await fetchShortCode('purchases', purchaseId)
+    : await fetchShortCode('supplier_research_offers', offerId);
+  if (!shortCode) {
+    res.status(404).json({ error: 'Не найдена закупка или предложение' });
+    return;
+  }
+
+  const fromAddress = purchaseId ? purchaseEmailAddress(shortCode) : supplierOfferEmailAddress(shortCode);
   const table = purchaseId ? 'purchase_emails' : 'supplier_offer_emails';
   const idField = purchaseId ? 'purchase_id' : 'offer_id';
   const idValue = purchaseId ?? offerId;

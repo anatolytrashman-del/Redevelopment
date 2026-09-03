@@ -632,7 +632,7 @@ function PurchaseDetailModal({
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1 text-sm text-ink-muted">
           <span>Поставщик: {supplier ? `${supplier.name}${supplier.email ? ` · ${supplier.email}` : ''}` : 'не выбран'}</span>
-          <span>Адрес для переписки: {purchaseEmailAddress(purchase.id)}</span>
+          <span>Адрес для переписки: {purchaseEmailAddress(purchase.shortCode)}</span>
         </div>
 
         <div className="flex flex-col gap-2">

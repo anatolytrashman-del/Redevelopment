@@ -14,6 +14,7 @@ function fromRow(row: PurchaseRow): Purchase {
     sectionTitle: row.section_title ?? '',
     items: row.items ?? [],
     currency: (row.currency as Currency) || 'BYN',
+    shortCode: row.short_code,
     createdAt: row.created_at,
   };
 }

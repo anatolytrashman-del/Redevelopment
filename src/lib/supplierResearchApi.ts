@@ -40,6 +40,7 @@ function offerFromRow(row: SupplierOfferRow): SupplierOffer {
     deadline: row.deadline,
     requirements: row.requirements,
     files: row.files ?? [],
+    shortCode: row.short_code,
     createdAt: row.created_at,
   };
 }
@@ -115,7 +116,7 @@ export function fetchSupplierOffers(): Promise<SupplierOffer[]> {
   });
 }
 
-export function insertSupplierOffer(input: Omit<SupplierOffer, 'id' | 'createdAt'>): Promise<SupplierOffer> {
+export function insertSupplierOffer(input: Omit<SupplierOffer, 'id' | 'createdAt' | 'shortCode'>): Promise<SupplierOffer> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('supplier_research_offers')
@@ -142,7 +143,7 @@ export function insertSupplierOffer(input: Omit<SupplierOffer, 'id' | 'createdAt
   });
 }
 
-export function updateSupplierOffer(id: string, input: Omit<SupplierOffer, 'id' | 'createdAt'>): Promise<SupplierOffer> {
+export function updateSupplierOffer(id: string, input: Omit<SupplierOffer, 'id' | 'createdAt' | 'shortCode'>): Promise<SupplierOffer> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('supplier_research_offers')
