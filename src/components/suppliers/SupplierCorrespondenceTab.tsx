@@ -167,6 +167,13 @@ export function EmailThread({
   // Какие письма развёрнуты (показана свёрнутая цитата целиком) — по id,
   // сбрасывается сам собой при смене offer (новый emails-список).
   const [expandedQuoteIds, setExpandedQuoteIds] = useState<Set<string>>(new Set());
+  // Владелец, 2026-09-03: "форма пустого письма не нужна, лучше сделай саму
+  // кнопку Ответить побольше" — форма Тема/Сообщение теперь не висит
+  // постоянно, а открывается по "Ответить" на конкретном письме или по
+  // общей кнопке "Написать" (см. ниже). Открыта по умолчанию только когда
+  // в треде вообще ещё нет писем — иначе первое письмо было бы физически
+  // некому "ответить".
+  const [composerOpen, setComposerOpen] = useState(emails.length === 0);
 
   // Черновик по умолчанию завязан на конкретное предложение/запрос — при
   // переключении между тредами (вкладка "Переписка") нужно пересчитать
@@ -182,6 +189,7 @@ export function EmailThread({
     setBody(defaultBody(request, hasHistory));
     setSendError(null);
     setSelectedTemplateId('');
+    setComposerOpen(!hasHistory);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offer.id]);
 
@@ -211,6 +219,19 @@ export function EmailThread({
     setSubject(quoted.subject);
     setBody(quoted.body);
     setSelectedTemplateId('');
+    setComposerOpen(true);
+  }
+
+  // "Написать" — общая кнопка для сообщения, не привязанного к конкретному
+  // письму (когда в треде уже есть история, форма по умолчанию закрыта —
+  // см. composerOpen выше). Пустой черновик, не вводный шаблон — тот
+  // актуален только для самого первого письма в треде.
+  function handleWriteNew() {
+    if ((subject.trim() || body.trim()) && !window.confirm('Заменить черновик пустым письмом?')) return;
+    setSubject('');
+    setBody('');
+    setSelectedTemplateId('');
+    setComposerOpen(true);
   }
 
   function toggleQuoteExpanded(emailId: string) {
@@ -230,6 +251,7 @@ export function EmailThread({
       const email = await sendSupplierOfferEmail({ offerId: offer.id, toAddress: offer.email, subject, body });
       onEmailSent(email);
       setBody('');
+      setComposerOpen(false);
     } catch (err) {
       setSendError(errorMessage(err, 'Не удалось отправить письмо'));
     } finally {
@@ -268,32 +290,11 @@ export function EmailThread({
                   <span>{new Date(e.createdAt).toLocaleString('ru-RU')}</span>
                 </div>
                 {e.subject && <div className="font-semibold text-ink">{e.subject}</div>}
-                <div className="whitespace-pre-wrap text-ink">{visible}</div>
-                {quoted && (
-                  <div className="mt-1">
-                    <button
-                      type="button"
-                      onClick={() => toggleQuoteExpanded(e.id)}
-                      className="flex items-center gap-1 text-xs text-ink-faint hover:text-ink"
-                    >
-                      {isQuoteExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                      {isQuoteExpanded ? 'Скрыть историю переписки' : 'Показать историю переписки'}
-                    </button>
-                    {isQuoteExpanded && (
-                      <div className="mt-1 whitespace-pre-wrap border-l-2 border-border pl-2 text-ink-faint">{quoted}</div>
-                    )}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => handleReplyTo(e)}
-                  className="mt-1 flex w-fit items-center gap-1 text-xs text-primary hover:underline"
-                >
-                  <Reply className="h-3.5 w-3.5" />
-                  Ответить
-                </button>
+                {/* Владелец, 2026-09-03: "все приложения к письмам в виде файлов
+                    пусть прикрепляются к верху письма" — вложения сразу после
+                    темы, до текста, а не в самом низу карточки. */}
                 {e.files.length > 0 && (
-                  <div className="mt-1 flex flex-col gap-2">
+                  <div className="flex flex-col gap-2">
                     {e.files.map((f, i) =>
                       isImageFile(f.fileName) ? (
                         <a key={i} href={f.url} target="_blank" rel="noreferrer" className="block w-fit">
@@ -318,6 +319,34 @@ export function EmailThread({
                     )}
                   </div>
                 )}
+                <div className="whitespace-pre-wrap text-ink">{visible}</div>
+                {quoted && (
+                  <div className="mt-1">
+                    <button
+                      type="button"
+                      onClick={() => toggleQuoteExpanded(e.id)}
+                      className="flex items-center gap-1 text-xs text-ink-faint hover:text-ink"
+                    >
+                      {isQuoteExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                      {isQuoteExpanded ? 'Скрыть историю переписки' : 'Показать историю переписки'}
+                    </button>
+                    {isQuoteExpanded && (
+                      <div className="mt-1 whitespace-pre-wrap border-l-2 border-border pl-2 text-ink-faint">{quoted}</div>
+                    )}
+                  </div>
+                )}
+                {/* Владелец, 2026-09-03: "форма пустого письма не нужна, лучше
+                    сделай саму кнопку Ответить побольше" — обычная кнопка
+                    вместо мелкой текстовой ссылки. */}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon={<Reply className="h-4 w-4" />}
+                  onClick={() => handleReplyTo(e)}
+                  className="mt-1 w-fit"
+                >
+                  Ответить
+                </Button>
               </div>
               );
             })}
@@ -327,6 +356,10 @@ export function EmailThread({
 
       {!offer.email ? (
         <p className="text-sm text-ink-faint">У предложения не указан email — добавьте его через «Редактировать», чтобы писать отсюда.</p>
+      ) : !composerOpen ? (
+        <Button type="button" variant="secondary" icon={<Mail className="h-4 w-4" />} className="w-fit" onClick={handleWriteNew}>
+          Написать
+        </Button>
       ) : (
         <div className="flex flex-col gap-2 border-t border-border pt-3">
           {orderedTemplates.length > 0 && (
@@ -354,6 +387,9 @@ export function EmailThread({
           <Textarea label="Сообщение" rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
           {sendError && <p className="text-sm text-danger">{sendError}</p>}
           <div className="flex items-center justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setComposerOpen(false)} disabled={sending}>
+              Отмена
+            </Button>
             <Button
               type="button"
               variant="secondary"
