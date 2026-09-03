@@ -38,6 +38,9 @@ import {
 import type { SupplierOfferEmail } from '../data/supplierOfferEmails';
 import { fetchAllSupplierOfferEmails, markSupplierOfferEmailsRead } from '../lib/supplierOfferEmailsApi';
 import { EmailThread, SupplierCorrespondenceTab, countUnreadSupplierEmails } from '../components/suppliers/SupplierCorrespondenceTab';
+import { MaterialLedgerModal } from '../components/suppliers/MaterialLedgerModal';
+import { BulkSendModal } from '../components/suppliers/BulkSendModal';
+import type { LedgerAttachment } from '../lib/materialLedgerXlsx';
 import type { EmailTemplate } from '../data/emailTemplates';
 import { fetchEmailTemplates } from '../lib/emailTemplatesApi';
 import type { MaterialLedger } from '../data/materialLedgers';
@@ -678,6 +681,19 @@ export function Suppliers() {
   // (см. рендер ниже), модалка живёт внутри SupplierCorrespondenceTab как и
   // раньше, открытость управляется отсюда.
   const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
+
+  // Владелец, 2026-09-04: "давай реализуем массовую отправку... Альмира
+  // сформировала универсальную большую ведомость и хочет разослать её
+  // нескольким универсальным поставщикам" — мастер из двух шагов: (1) выбор/
+  // сборка ведомости (переиспользуем MaterialLedgerModal как есть — та же
+  // модалка, что и у "Прикрепить ведомость" в одиночном письме), (2) выбор
+  // получателей и сама рассылка (BulkSendModal). Оба живут здесь, на уровне
+  // страницы, а не внутри SupplierCorrespondenceTab — иначе переключение
+  // вкладки "Письма" → "Поставщики"/"Ведомости материалов" размонтировало бы
+  // компонент и оборвало бы уже идущую рассылку (там реальная пауза между
+  // письмами, десятки секунд на каждое).
+  const [bulkLedgerPickerRequest, setBulkLedgerPickerRequest] = useState<SupplierRequest | null>(null);
+  const [bulkSendConfig, setBulkSendConfig] = useState<{ request: SupplierRequest; attachment: LedgerAttachment } | null>(null);
 
   const [requests, setRequests] = useState<SupplierRequest[]>([]);
   const [offers, setOffers] = useState<SupplierOffer[]>([]);
@@ -1543,6 +1559,7 @@ export function Suppliers() {
             allMaterials={allEstimateMaterials}
             templatesModalOpen={templatesModalOpen}
             onCloseTemplatesModal={() => setTemplatesModalOpen(false)}
+            onOpenBulkSend={setBulkLedgerPickerRequest}
             onEmailSent={handleSupplierEmailSent}
             onMarkRead={handleMarkSupplierEmailsRead}
             onTemplatesChange={setEmailTemplates}
@@ -1969,6 +1986,41 @@ export function Suppliers() {
         }}
         onSave={saveMaterialComments}
       />
+
+      {/* Владелец, 2026-09-04: "давай реализуем массовую отправку" — мастер
+          из двух модалок, оба рендерятся здесь (не внутри вкладки "Письма"),
+          чтобы переключение вкладок страницы не обрывало уже идущую
+          рассылку (см. комментарий у bulkSendConfig выше). Шаг 1 —
+          переиспользованный MaterialLedgerModal (тот же пикер, что и у
+          "Прикрепить ведомость" в одиночном письме), его onAttach передаёт
+          готовый xlsx дальше, в шаг 2 (BulkSendModal). */}
+      {bulkLedgerPickerRequest && (
+        <MaterialLedgerModal
+          open
+          requestItems={bulkLedgerPickerRequest.items}
+          allMaterials={allEstimateMaterials}
+          ledgers={materialLedgers}
+          onClose={() => setBulkLedgerPickerRequest(null)}
+          onLedgersChange={setMaterialLedgers}
+          onAttach={(attachment) => {
+            const request = bulkLedgerPickerRequest;
+            setBulkLedgerPickerRequest(null);
+            setBulkSendConfig({ request, attachment });
+          }}
+        />
+      )}
+
+      {bulkSendConfig && (
+        <BulkSendModal
+          request={bulkSendConfig.request}
+          attachment={bulkSendConfig.attachment}
+          offers={offers}
+          emails={supplierEmails}
+          onClose={() => setBulkSendConfig(null)}
+          onOrderCreated={(order) => setSupplierOrders((prev) => [...prev, order])}
+          onEmailSent={handleSupplierEmailSent}
+        />
+      )}
     </>
   );
 }

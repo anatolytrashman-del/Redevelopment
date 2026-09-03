@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply, FileSearch, CheckCircle2, Eye, FileSpreadsheet, X, Plus } from 'lucide-react';
+import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply, FileSearch, CheckCircle2, Eye, FileSpreadsheet, X, Plus, Users } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -281,7 +281,7 @@ function suggestMaterialMatch(name: string, allMaterials: { item: PurchaseItem; 
 // (display_name "Трэшмен" — рабочий никнейм, не имя) в письме нужно полное
 // "Анатолий Трэшмен", при этом сам display_name в профиле трогать не
 // просил ("в платформе имя не меняй") — подмена только на этом узком месте.
-function emailSignature(): string {
+export function emailSignature(): string {
   const name = getCurrentProfile().displayName;
   return name === 'Трэшмен' ? 'Анатолий Трэшмен' : name;
 }
@@ -1056,6 +1056,7 @@ export function SupplierCorrespondenceTab({
   allMaterials,
   templatesModalOpen,
   onCloseTemplatesModal,
+  onOpenBulkSend,
   onEmailSent,
   onMarkRead,
   onTemplatesChange,
@@ -1080,6 +1081,13 @@ export function SupplierCorrespondenceTab({
   // снаружи.
   templatesModalOpen: boolean;
   onCloseTemplatesModal: () => void;
+  // Владелец, 2026-09-04: "давай реализуем массовую отправку... Альмира
+  // сформировала универсальную ведомость и хочет разослать её нескольким
+  // поставщикам" — сам мастер (выбор ведомости → получатели → отправка)
+  // живёт в Suppliers.tsx (не размонтируется при переключении вкладок,
+  // рассылка переживает уход с "Письма" на другую вкладку страницы), тут
+  // только кнопка-триггер на уровне выбранной категории.
+  onOpenBulkSend: (request: SupplierRequest) => void;
   onEmailSent: (email: SupplierOfferEmail) => void;
   onMarkRead: (offerId: string, orderId: string | null) => void;
   onTemplatesChange: (templates: EmailTemplate[]) => void;
@@ -1373,6 +1381,24 @@ export function SupplierCorrespondenceTab({
               if (o) selectCategory(o.id);
             }}
           />
+
+          {/* Владелец, 2026-09-04: "давай реализуем массовую отправку" —
+              рассылка одной и той же ведомости нескольким поставщикам
+              выбранной категории разом. Не показываем в псевдо-категории
+              "Непрочитанные" (это не настоящая категория, там смешаны
+              поставщики из разных запросов) и когда рассылать некому
+              (нет ни одного верифицированного предложения с email). */}
+          {!isUnreadView && selectedGroup && selectedGroup.offers.some((x) => x.offer.email && x.offer.verified) && (
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<Users className="h-4 w-4" />}
+              className="w-fit"
+              onClick={() => onOpenBulkSend(selectedGroup.request)}
+            >
+              Разослать ведомость
+            </Button>
+          )}
 
           {/* Владелец, 2026-09-03: "не такой же выпадающий [как Категория],
               а просто два варианта, указывай флагами" — компактный тумблер
