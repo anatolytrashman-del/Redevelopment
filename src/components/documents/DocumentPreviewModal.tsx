@@ -40,10 +40,16 @@ export function DocumentPreviewModal({
   file,
   onClose,
   footer,
+  wideFooter,
 }: {
   file: PreviewFile | null;
   onClose: () => void;
   footer?: ReactNode;
+  // Владелец, 2026-09-03: "давай сверять вручную... делай двойной экран —
+  // слева счёт, справа таблица с данными" — обычный footer (сводка+кнопки)
+  // хватало 384px (sm:w-96), а таблице распознанных позиций с выбором
+  // материала сметы на каждой строке нужно заметно больше места.
+  wideFooter?: boolean;
 }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,8 +95,9 @@ export function DocumentPreviewModal({
           // Владелец, 2026-09-03: "таблицу не видно, делай счёт слева, а
           // свою таблицу справа" — с футером модалка шире и делится на
           // две колонки (документ + панель футера), без него — прежняя
-          // одна колонка на всю ширину max-w-3xl.
-          footer ? 'max-w-5xl' : 'max-w-3xl',
+          // одна колонка на всю ширину max-w-3xl. wideFooter — ещё шире,
+          // под таблицу распознанных позиций с выбором материала сметы.
+          wideFooter ? 'max-w-6xl' : footer ? 'max-w-5xl' : 'max-w-3xl',
           glassCardClass,
         )}
         style={glassCardShadow}
@@ -135,7 +142,9 @@ export function DocumentPreviewModal({
             )}
             {kind === 'docx' && <div ref={docxContainerRef} className="docx-preview-container mx-auto w-full bg-white" />}
           </div>
-          {footer && <div className="flex w-full shrink-0 flex-col overflow-y-auto sm:w-96">{footer}</div>}
+          {footer && (
+            <div className={cn('flex w-full shrink-0 flex-col overflow-y-auto', wideFooter ? 'sm:w-[30rem]' : 'sm:w-96')}>{footer}</div>
+          )}
         </div>
       </div>
     </div>,

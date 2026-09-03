@@ -1,5 +1,20 @@
 import { Pencil, Trash2, MessageSquare } from 'lucide-react';
 import type { EstimateMaterial } from '../../data/estimates';
+import type { Currency } from '../../data/transactions';
+
+// Владелец, 2026-09-03: "давай зашивать лучшие цены на позиции в текущую
+// ведомость материалов. Там, где сейчас заметка, вполне может быть лучшая
+// цена с выпадающим списком всех цен от прочих поставщиков" — одна
+// известная цена от одного поставщика на позицию сметы (sourceMaterialId —
+// общий ключ, см. Suppliers.tsx bestPricesByMaterialId); itemName —
+// конкретный товар/бренд, который квотировал поставщик (может отличаться
+// от названия позиции сметы — "альтернатива").
+export interface MaterialBestPriceOption {
+  price: number;
+  currency: Currency;
+  supplierName: string;
+  itemName: string;
+}
 
 function formatQty(m: EstimateMaterial): string {
   if (m.quantity == null) return '—';
@@ -45,12 +60,21 @@ export function MaterialsTable({
   onEdit,
   onDelete,
   onOpenComments,
+  bestPricesByMaterialId,
 }: {
   materials: EstimateMaterial[];
   onEdit: (material: EstimateMaterial) => void;
   onDelete: (material: EstimateMaterial) => void;
   onOpenComments: (material: EstimateMaterial) => void;
+  // Необязательный — только вкладка "Ведомость материалов" на Suppliers.tsx
+  // передаёт его (там есть доступ к предложениям/заявкам поставщиков).
+  // Смета (EstimateMaterialsPanel) и публичная страница сметы
+  // (EstimateMaterialsLedgerModal и там, и там) продолжают показывать
+  // обычную заметку — цены поставщиков там ни к месту, особенно на
+  // публичной странице (её видит строитель, не сотрудник).
+  bestPricesByMaterialId?: Map<string, MaterialBestPriceOption[]>;
 }) {
+  const showPrices = !!bestPricesByMaterialId;
   return (
     <div className="overflow-x-auto rounded-control border border-border">
       <table className="w-full min-w-[560px] border-collapse text-sm">
@@ -58,17 +82,36 @@ export function MaterialsTable({
           <tr className="bg-surface-muted text-left text-xs font-medium uppercase tracking-wide text-ink-faint">
             <th className="px-3 py-2">Название</th>
             <th className="px-3 py-2 text-right">Кол-во</th>
-            <th className="px-3 py-2">Заметка</th>
+            <th className="px-3 py-2">{showPrices ? 'Лучшая цена' : 'Заметка'}</th>
             <th className="px-3 py-2" />
           </tr>
         </thead>
         <tbody>
-          {materials.map((m) => (
+          {materials.map((m) => {
+            const priceOptions = bestPricesByMaterialId?.get(m.id) ?? [];
+            return (
             <tr key={m.id} className="border-t border-border align-top">
               <td className="px-3 py-2 text-ink">{m.name}</td>
               <td className="px-3 py-2 text-right text-ink-muted">{formatQty(m)}</td>
               <td className="max-w-[240px] px-3 py-2 text-ink-muted">
-                <span className="line-clamp-2">{m.note || '—'}</span>
+                {showPrices ? (
+                  priceOptions.length > 0 ? (
+                    <select
+                      defaultValue={0}
+                      className="w-full max-w-[220px] rounded-control border border-transparent bg-surface-muted px-2 py-1 text-xs text-ink outline-none focus:border-primary"
+                    >
+                      {priceOptions.map((opt, i) => (
+                        <option key={i} value={i}>
+                          {opt.price.toLocaleString('ru-RU')} {opt.currency} — {opt.supplierName} ({opt.itemName})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span>—</span>
+                  )
+                ) : (
+                  <span className="line-clamp-2">{m.note || '—'}</span>
+                )}
               </td>
               <td className="px-3 py-2">
                 <div className="flex items-center justify-end gap-1">
@@ -104,7 +147,8 @@ export function MaterialsTable({
                 </div>
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>

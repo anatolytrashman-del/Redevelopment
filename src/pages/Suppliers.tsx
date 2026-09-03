@@ -59,7 +59,7 @@ import type { Estimate, EstimateMaterial } from '../data/estimates';
 import { fetchEstimates, updateEstimate } from '../lib/estimatesApi';
 import type { RealtyObject } from '../data/objects';
 import { fetchObjects } from '../lib/objectsApi';
-import { MaterialsTable, groupMaterials } from '../components/estimates/MaterialsTable';
+import { MaterialsTable, groupMaterials, type MaterialBestPriceOption } from '../components/estimates/MaterialsTable';
 import { EstimateMaterialFormModal } from '../components/estimates/EstimateMaterialFormModal';
 import { EstimateMaterialCommentsModal } from '../components/estimates/EstimateMaterialCommentsModal';
 
@@ -868,6 +868,47 @@ export function Suppliers() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estimates, objects]);
 
+  // Владелец, 2026-09-03: "давай зашивать лучшие цены на позиции в текущую
+  // ведомость материалов" — плоский свод известных цен по каждому материалу
+  // сметы (sourceMaterialId — общий ключ, проставляется вручную при
+  // сопоставлении распознанного счёта, см. SupplierCorrespondenceTab.tsx),
+  // собранных со всех предложений (offer.items) И всех доп. заявок
+  // (order.items — "1 заявка на поставку — одна ветка"). Сортировка внутри
+  // каждой позиции — по цене в USD-эквиваленте (rate — тот же курс, что и у
+  // rankOffers в RequestCard), самая дешёвая первой.
+  const bestPricesByMaterialId = useMemo(() => {
+    const map = new Map<string, MaterialBestPriceOption[]>();
+    const push = (materialId: string, opt: MaterialBestPriceOption) => {
+      const list = map.get(materialId) ?? [];
+      list.push(opt);
+      map.set(materialId, list);
+    };
+    for (const o of offers) {
+      for (const it of o.items) {
+        if (!it.sourceMaterialId || it.price == null || it.price <= 0) continue;
+        push(it.sourceMaterialId, { price: it.price, currency: o.currency, supplierName: o.name, itemName: it.name });
+      }
+    }
+    for (const ord of supplierOrders) {
+      const parentOffer = offers.find((o) => o.id === ord.offerId);
+      for (const it of ord.items) {
+        if (!it.sourceMaterialId || it.price == null || it.price <= 0) continue;
+        push(it.sourceMaterialId, {
+          price: it.price,
+          currency: ord.currency,
+          supplierName: parentOffer?.name ?? 'Поставщик',
+          itemName: it.name,
+        });
+      }
+    }
+    for (const list of map.values()) {
+      // convertToUsd может вернуть null (курс ещё не загрузился, а валюта не
+      // USD) — такие позиции уходят в конец списка, не ломая сортировку.
+      list.sort((a, b) => (convertToUsd(a.price, a.currency, rate) ?? Infinity) - (convertToUsd(b.price, b.currency, rate) ?? Infinity));
+    }
+    return map;
+  }, [offers, supplierOrders, rate]);
+
   const selectedRequestEstimate = estimates.find((e) => e.id === requestForm.estimateId) ?? null;
   const selectedRequestSection = selectedRequestEstimate?.sections.find((s) => s.id === requestForm.sectionId) ?? null;
 
@@ -1437,6 +1478,7 @@ export function Suppliers() {
                         onEdit={(m) => openEditMaterial(section.id, m)}
                         onDelete={(m) => deleteMaterial(section.id, m.id)}
                         onOpenComments={(m) => openMaterialComments(section.id, m)}
+                        bestPricesByMaterialId={bestPricesByMaterialId}
                       />
                     )}
 
@@ -1450,6 +1492,7 @@ export function Suppliers() {
                           onEdit={(m) => openEditMaterial(section.id, m)}
                           onDelete={(m) => deleteMaterial(section.id, m.id)}
                           onOpenComments={(m) => openMaterialComments(section.id, m)}
+                          bestPricesByMaterialId={bestPricesByMaterialId}
                         />
                       </div>
                     ))}

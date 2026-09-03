@@ -143,10 +143,17 @@ function pluralPositions(n: number): string {
 // плодит копии). currency из распознавания может не совпасть ни с одним
 // известным значением (модели явно запрещено гадать, возвращает null,
 // если не уверена) — тогда валюту карточки не трогаем.
-function extractionItemsToPurchaseItems(items: EmailExtractionItem[]): PurchaseItem[] {
-  return items.map((i) => ({
+// materialMatches — какой материал сметы (EstimateMaterial.id) владелец
+// вручную сопоставил каждой распознанной позиции (по индексу в
+// extraction.items), см. форму сопоставления в footer предпросмотра ниже.
+// Без сопоставления — sourceMaterialId остаётся null (позиция разовая, вне
+// сметы, или ещё не сопоставлена) — цена такой позиции не попадёт в
+// сравнение "лучшая цена по позиции" (нужен sourceMaterialId как общий
+// ключ группировки, см. Suppliers.tsx bestPricesByMaterialId).
+function extractionItemsToPurchaseItems(items: EmailExtractionItem[], materialMatches: Record<number, string>): PurchaseItem[] {
+  return items.map((i, idx) => ({
     id: crypto.randomUUID(),
-    sourceMaterialId: null,
+    sourceMaterialId: materialMatches[idx] || null,
     name: i.name,
     unit: i.unit,
     quantity: i.quantity,
@@ -159,8 +166,9 @@ async function applyExtractionToOffer(
   offer: SupplierOffer,
   extraction: { price: number | null; currency: string | null; items: EmailExtractionItem[] },
   sourceFile: { url: string; fileName: string } | null,
+  materialMatches: Record<number, string>,
 ): Promise<SupplierOffer> {
-  const newItems = extractionItemsToPurchaseItems(extraction.items);
+  const newItems = extractionItemsToPurchaseItems(extraction.items, materialMatches);
   const files =
     sourceFile && !offer.files.some((f) => f.url === sourceFile.url)
       ? [...offer.files, { url: sourceFile.url, fileName: sourceFile.fileName }]
@@ -199,8 +207,9 @@ async function applyExtractionToOrder(
   order: SupplierOrder,
   extraction: { price: number | null; currency: string | null; items: EmailExtractionItem[] },
   sourceFile: { url: string; fileName: string } | null,
+  materialMatches: Record<number, string>,
 ): Promise<SupplierOrder> {
-  const newItems = extractionItemsToPurchaseItems(extraction.items);
+  const newItems = extractionItemsToPurchaseItems(extraction.items, materialMatches);
   const files =
     sourceFile && !order.files.some((f) => f.url === sourceFile.url)
       ? [...order.files, { url: sourceFile.url, fileName: sourceFile.fileName }]
@@ -215,6 +224,26 @@ async function applyExtractionToOrder(
     items: [...order.items, ...newItems],
     files,
   });
+}
+
+// Подсказка сопоставления — best-effort, не претендует на точность (краски
+// разных брендов называются совершенно по-разному, автоматика по названию
+// ненадёжна, владелец явно попросил ручную сверку). Просто заранее
+// подставляет очевидное совпадение (точное имя или вхождение подстроки),
+// чтобы не заставлять сопоставлять руками КАЖДУЮ позицию — Альмира всё
+// равно видит и может поправить выбор в выпадающем списке.
+function suggestMaterialMatch(name: string, allMaterials: { item: PurchaseItem; context: string }[]): string {
+  const normalize = (s: string) => s.toLowerCase().replace(/["'«»]/g, '').trim();
+  const target = normalize(name);
+  if (!target) return '';
+  const withId = allMaterials.filter((m) => m.item.sourceMaterialId);
+  const exact = withId.find((m) => normalize(m.item.name) === target);
+  if (exact) return exact.item.sourceMaterialId!;
+  const partial = withId.find((m) => {
+    const candidate = normalize(m.item.name);
+    return candidate.includes(target) || target.includes(candidate);
+  });
+  return partial?.item.sourceMaterialId ?? '';
 }
 
 // Подпись письма — имя реально вошедшего сотрудника (getCurrentProfile), не
@@ -342,6 +371,12 @@ export function EmailThread({
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null);
   const [extractionError, setExtractionError] = useState<string | null>(null);
   const [applyingExtraction, setApplyingExtraction] = useState(false);
+  // Владелец, 2026-09-03: "давай зашивать лучшие цены на позиции... давай
+  // сверять вручную" — какому материалу сметы соответствует каждая
+  // распознанная позиция счёта (по индексу в extraction.items), выбирается
+  // в footer предпросмотра (ниже). Сбрасывается/предзаполняется подсказкой
+  // при открытии предпросмотра нового счёта, см. эффект ниже.
+  const [materialMatches, setMaterialMatches] = useState<Record<number, string>>({});
 
   // Черновик по умолчанию завязан на конкретный тред (предложение + заявка) —
   // при переключении между тредами (вкладка "Переписка", в т.ч. между
@@ -422,6 +457,26 @@ export function EmailThread({
     ? threadEmails.find((e) => e.extraction?.status === 'pending' && e.extraction.sourceFile?.url === previewFile.url) ?? null
     : null;
 
+  // Заранее подставляем очевидные совпадения (suggestMaterialMatch), но
+  // только при открытии НОВОГО счёта — иначе переоткрытие того же
+  // previewFile на каждый ре-рендер стирало бы уже сделанный вручную выбор.
+  // allMaterials намеренно не в зависимостях — ссылка стабильна на весь
+  // сеанс работы со страницей (см. Suppliers.tsx), реагировать на неё смысла
+  // нет.
+  useEffect(() => {
+    if (!previewExtractionEmail?.extraction) {
+      setMaterialMatches({});
+      return;
+    }
+    const initial: Record<number, string> = {};
+    previewExtractionEmail.extraction.items.forEach((it, idx) => {
+      const suggestion = suggestMaterialMatch(it.name, allMaterials);
+      if (suggestion) initial[idx] = suggestion;
+    });
+    setMaterialMatches(initial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewExtractionEmail?.id]);
+
   async function handleConfirmAutoExtraction(e: SupplierOfferEmail) {
     if (!e.extraction || applyingExtraction) return;
     setApplyingExtraction(true);
@@ -430,9 +485,9 @@ export function EmailThread({
       // order — текущий открытый тред (тот же, которому принадлежит это
       // письмо, см. threadEmails) — заявка или основная переписка офера.
       if (order) {
-        onOrderUpdated(await applyExtractionToOrder(order, e.extraction, e.extraction.sourceFile ?? null));
+        onOrderUpdated(await applyExtractionToOrder(order, e.extraction, e.extraction.sourceFile ?? null, materialMatches));
       } else {
-        onOfferUpdated(await applyExtractionToOffer(offer, e.extraction, e.extraction.sourceFile ?? null));
+        onOfferUpdated(await applyExtractionToOffer(offer, e.extraction, e.extraction.sourceFile ?? null, materialMatches));
       }
       await setSupplierOfferEmailExtractionStatus(e.id, e.extraction, 'confirmed');
       onEmailUpdated({ ...e, extraction: { ...e.extraction, status: 'confirmed' } });
@@ -784,20 +839,70 @@ export function EmailThread({
       <DocumentPreviewModal
         file={previewFile}
         onClose={closePreview}
+        wideFooter
         footer={
           previewExtractionEmail?.extraction && (
-            <div className="flex flex-col gap-2 border-t border-border pt-3 text-sm sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
+            <div className="flex flex-col gap-3 border-t border-border pt-3 text-sm sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
               <div className="flex items-center gap-1.5 font-semibold text-ink">
                 <FileSearch className="h-4 w-4 text-ink-muted" />
-                Распознанные данные
+                Распознанные позиции
               </div>
-              <div className="text-ink">
-                {previewExtractionEmail.extraction.price != null
-                  ? `${previewExtractionEmail.extraction.price} ${previewExtractionEmail.extraction.currency ?? ''}`.trim()
-                  : 'Сумма не распознана'}
-                {previewExtractionEmail.extraction.items.length > 0 &&
-                  ` · ${previewExtractionEmail.extraction.items.length} ${pluralPositions(previewExtractionEmail.extraction.items.length)}`}
-              </div>
+
+              {previewExtractionEmail.extraction.items.length === 0 ? (
+                <div className="text-ink">
+                  {previewExtractionEmail.extraction.price != null
+                    ? `${previewExtractionEmail.extraction.price} ${previewExtractionEmail.extraction.currency ?? ''}`.trim()
+                    : 'Сумма не распознана'}
+                </div>
+              ) : (
+                <>
+                  {/* Владелец, 2026-09-03: "давай зашивать лучшие цены на
+                      позиции... давай сверять вручную" — для сравнения цен
+                      между поставщиками (даже если предложена другая
+                      марка/модель того же материала — "альтернатива")
+                      нужен общий ключ, sourceMaterialId. Сама модель не
+                      знает, какому материалу сметы соответствует
+                      распознанная строка счёта — сопоставление ручное, с
+                      подсказкой по схожести названия (suggestMaterialMatch). */}
+                  <div className="flex flex-col gap-2">
+                    {previewExtractionEmail.extraction.items.map((it, idx) => (
+                      <div key={idx} className="flex flex-col gap-1.5 rounded-control border border-border p-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="min-w-0 flex-1 font-medium text-ink">{it.name}</span>
+                          <span className="shrink-0 text-xs text-ink-muted">
+                            {it.quantity ?? '—'} {it.unit}
+                            {it.price != null && (
+                              <>
+                                {' · '}
+                                {it.price} {previewExtractionEmail.extraction!.currency ?? ''}
+                              </>
+                            )}
+                          </span>
+                        </div>
+                        <select
+                          value={materialMatches[idx] ?? ''}
+                          onChange={(e) => setMaterialMatches((prev) => ({ ...prev, [idx]: e.target.value }))}
+                          className="rounded-control border border-transparent bg-surface-muted px-2 py-1.5 text-xs text-ink outline-none focus:border-primary"
+                        >
+                          <option value="">Не сопоставлено с материалом сметы</option>
+                          {allMaterials
+                            .filter((m) => m.item.sourceMaterialId)
+                            .map((m) => (
+                              <option key={m.item.sourceMaterialId} value={m.item.sourceMaterialId!}>
+                                {m.item.name} ({m.context})
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-ink-faint">
+                    Сопоставьте позиции с материалами сметы — так система сможет находить лучшую цену по каждой позиции среди
+                    всех поставщиков, даже если предложена другая марка/модель.
+                  </p>
+                </>
+              )}
+
               {extractionError && <p className="text-sm text-danger">{extractionError}</p>}
               <div className="flex flex-wrap items-center gap-2">
                 <Button
