@@ -12,12 +12,40 @@ import { sendSupplierOfferEmail } from '../../lib/supplierOfferEmailsApi';
 import type { EmailTemplate } from '../../data/emailTemplates';
 import { renderEmailTemplate } from '../../lib/emailTemplates';
 import { TemplateFormModal, TemplateManagerModal } from './EmailTemplates';
+import { getCurrentProfile } from '../../lib/accessProfile';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
     return (err as { message: string }).message;
   }
   return fallback;
+}
+
+// Черновик первого письма по умолчанию (до выбора сохранённого шаблона) —
+// владелец, 2026-09-03, прислал готовый текст ("Заголовок письма по
+// умолчанию... По умолчанию все письма выглядят так..."). "Категория" в
+// его формулировке — это сам запрос Ресерча (та же категория, что и
+// бейдж на треде, см. комментарий у SupplierCorrespondenceTab ниже), не
+// свободный текст. Подпись — не захардкожена "Альмира" (в его примере это
+// была она сама, тестировавшая форму), а имя реально вошедшего сотрудника
+// (getCurrentProfile) — иначе письма от Светланы или владельца подписывались
+// бы чужим именем.
+function defaultSubject(request: SupplierRequest): string {
+  return `Запрос цены на ${request.title}`;
+}
+
+function defaultBody(request: SupplierRequest): string {
+  const signature = getCurrentProfile().displayName;
+  return `Добрый день.
+Планируем реновацию здания в г. Минск, интересуют ${request.title}.
+
+В вашем каталоге понравились следующие модели:
+
+
+Оплата со счета юрлица. Просьба прислать коммерческое предложение.
+
+С уважением,
+${signature}`;
 }
 
 // Лента писем + форма ответа — общий компонент для полноэкранной вкладки
@@ -44,23 +72,24 @@ export function EmailThread({
   onEmailSent: (email: SupplierOfferEmail) => void;
   onTemplateSaved: (template: EmailTemplate) => void;
 }) {
-  const [subject, setSubject] = useState(`Запрос цены: ${offer.name}`);
-  const [body, setBody] = useState('');
+  const [subject, setSubject] = useState(() => defaultSubject(request));
+  const [body, setBody] = useState(() => defaultBody(request));
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
 
-  // Тема по умолчанию завязана на конкретное предложение — при переключении
-  // между тредами (вкладка "Переписка") нужно её пересчитать, иначе останется
-  // тема предыдущего поставщика. Текст письма НЕ сбрасываем ничем похожим —
-  // тут сброс безопасен (новый тред = чистый черновик), а вот случайно
-  // потерять напечатанное было бы плохо, если бы условие сработало лишний раз.
+  // Черновик по умолчанию завязан на конкретное предложение/запрос — при
+  // переключении между тредами (вкладка "Переписка") нужно пересчитать
+  // и тему, и текст, иначе останется черновик предыдущего поставщика.
+  // Новый тред = чистый черновик, ничего печатного до этого момента тут
+  // не теряется — сброс срабатывает только на реальную смену offer.id.
   useEffect(() => {
-    setSubject(`Запрос цены: ${offer.name}`);
-    setBody('');
+    setSubject(defaultSubject(request));
+    setBody(defaultBody(request));
     setSendError(null);
     setSelectedTemplateId('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offer.id]);
 
   // Шаблоны этого запроса первыми, общие — следом (EMAIL_CORRESPONDENCE_PLAN.md,
