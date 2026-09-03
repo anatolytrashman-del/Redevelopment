@@ -1153,11 +1153,27 @@ export function Suppliers() {
     }
   }
 
-  // Владелец, 2026-09-03: "пусть только заголовок будет обязательным полем,
-  // остальное опционально" — раньше требовался ещё и сайт, из-за чего
-  // нельзя было быстро закинуть поставщика по одному только email/телефону
-  // (найденного не в вебе, а, например, по личной рекомендации).
-  const canSubmitOffer = offerForm.name.trim().length > 0;
+  // Владелец, 2026-09-03: сначала "пусть только заголовок будет обязательным
+  // полем, остальное опционально" — но у поля "Адрес сайта" остался
+  // HTML required (не заметил в первый заход, браузер блокировал сабмит
+  // нативной подсказкой независимо от canSubmitOffer), убрано отдельно. Тем
+  // же сообщением уточнил: "Название + 1 любое поле, и этого должно
+  // хватить" — совсем пустая карточка (только имя, никакого способа связаться
+  // или хоть что-то ещё) толку не несёт, поэтому помимо названия нужно
+  // заполнить хотя бы одно из остальных полей (любое, не обязательно сайт
+  // или контакт конкретно).
+  const canSubmitOffer =
+    offerForm.name.trim().length > 0 &&
+    (offerForm.contact.trim().length > 0 ||
+      offerForm.email.trim().length > 0 ||
+      offerForm.websiteUrl.trim().length > 0 ||
+      offerForm.catalogModelName.trim().length > 0 ||
+      offerForm.communicationStatus.trim().length > 0 ||
+      offerForm.price.trim().length > 0 ||
+      offerForm.deadline.trim().length > 0 ||
+      offerForm.requirements.trim().length > 0 ||
+      offerForm.existingFiles.length > 0 ||
+      offerForm.newFiles.length > 0);
 
   async function submitOffer(e: React.FormEvent) {
     e.preventDefault();
@@ -1524,7 +1540,6 @@ export function Suppliers() {
             placeholder="https://..."
             value={offerForm.websiteUrl}
             onChange={(e) => setOfferForm((f) => ({ ...f, websiteUrl: e.target.value }))}
-            required
           />
 
           <div className="flex flex-col gap-1.5">
