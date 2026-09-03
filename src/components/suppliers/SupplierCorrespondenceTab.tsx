@@ -612,7 +612,7 @@ export function EmailThread({
         onClose={closePreview}
         footer={
           previewExtractionEmail?.extraction && (
-            <div className="flex flex-col gap-2 border-t border-border pt-3 text-sm">
+            <div className="flex flex-col gap-2 border-t border-border pt-3 text-sm sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
               <div className="flex items-center gap-1.5 font-semibold text-ink">
                 <FileSearch className="h-4 w-4 text-ink-muted" />
                 Распознанные данные
@@ -621,32 +621,9 @@ export function EmailThread({
                 {previewExtractionEmail.extraction.price != null
                   ? `${previewExtractionEmail.extraction.price} ${previewExtractionEmail.extraction.currency ?? ''}`.trim()
                   : 'Сумма не распознана'}
+                {previewExtractionEmail.extraction.items.length > 0 &&
+                  ` · ${previewExtractionEmail.extraction.items.length} ${pluralPositions(previewExtractionEmail.extraction.items.length)}`}
               </div>
-              {previewExtractionEmail.extraction.items.length > 0 && (
-                <div className="overflow-x-auto rounded-control border border-border">
-                  <table className="w-full min-w-[420px] border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-surface-muted text-left font-medium uppercase tracking-wide text-ink-faint">
-                        <th className="px-2.5 py-1.5">Название</th>
-                        <th className="px-2.5 py-1.5 text-right">Кол-во</th>
-                        <th className="px-2.5 py-1.5 text-right">Цена</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {previewExtractionEmail.extraction.items.map((item, i) => (
-                        <tr key={i} className="border-t border-border">
-                          <td className="px-2.5 py-1.5 text-ink">
-                            {item.name}
-                            {item.unit && <span className="text-ink-faint"> ({item.unit})</span>}
-                          </td>
-                          <td className="px-2.5 py-1.5 text-right text-ink">{item.quantity ?? '—'}</td>
-                          <td className="px-2.5 py-1.5 text-right text-ink">{item.price ?? '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
               {extractionError && <p className="text-sm text-danger">{extractionError}</p>}
               <div className="flex flex-wrap items-center gap-2">
                 <Button

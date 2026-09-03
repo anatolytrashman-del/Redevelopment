@@ -84,7 +84,15 @@ export function DocumentPreviewModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
       <div
-        className={cn('relative flex max-h-[90vh] w-full max-w-3xl flex-col gap-3 p-4', glassCardClass)}
+        className={cn(
+          'relative flex max-h-[90vh] w-full flex-col gap-3 p-4',
+          // Владелец, 2026-09-03: "таблицу не видно, делай счёт слева, а
+          // свою таблицу справа" — с футером модалка шире и делится на
+          // две колонки (документ + панель футера), без него — прежняя
+          // одна колонка на всю ширину max-w-3xl.
+          footer ? 'max-w-5xl' : 'max-w-3xl',
+          glassCardClass,
+        )}
         style={glassCardShadow}
       >
         <div className="flex items-center justify-between gap-3">
@@ -98,35 +106,37 @@ export function DocumentPreviewModal({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="relative min-h-[70vh] flex-1 overflow-auto rounded-control bg-surface-muted">
-          {loading && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-ink-muted">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Загружаем документ...
-            </div>
-          )}
-          {error && (
-            <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-danger">{error}</div>
-          )}
-          {kind === 'pdf' && (
-            <iframe
-              src={file.url}
-              title={file.fileName}
-              onLoad={() => setLoading(false)}
-              className="h-full min-h-[70vh] w-full"
-            />
-          )}
-          {kind === 'image' && (
-            <img
-              src={file.url}
-              alt={file.fileName}
-              onLoad={() => setLoading(false)}
-              className="mx-auto h-full max-h-[70vh] w-auto object-contain"
-            />
-          )}
-          {kind === 'docx' && <div ref={docxContainerRef} className="docx-preview-container mx-auto w-full bg-white" />}
+        <div className={cn('flex min-h-0 flex-1 gap-3', footer ? 'flex-col sm:flex-row' : 'flex-col')}>
+          <div className="relative min-h-[70vh] flex-1 overflow-auto rounded-control bg-surface-muted">
+            {loading && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-ink-muted">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Загружаем документ...
+              </div>
+            )}
+            {error && (
+              <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-danger">{error}</div>
+            )}
+            {kind === 'pdf' && (
+              <iframe
+                src={file.url}
+                title={file.fileName}
+                onLoad={() => setLoading(false)}
+                className="h-full min-h-[70vh] w-full"
+              />
+            )}
+            {kind === 'image' && (
+              <img
+                src={file.url}
+                alt={file.fileName}
+                onLoad={() => setLoading(false)}
+                className="mx-auto h-full max-h-[70vh] w-auto object-contain"
+              />
+            )}
+            {kind === 'docx' && <div ref={docxContainerRef} className="docx-preview-container mx-auto w-full bg-white" />}
+          </div>
+          {footer && <div className="flex w-full shrink-0 flex-col overflow-y-auto sm:w-96">{footer}</div>}
         </div>
-        {footer}
       </div>
     </div>,
     document.body,
