@@ -160,10 +160,15 @@ async function applyExtractionToOffer(
     contact: offer.contact,
     contactMethod: offer.contactMethod,
     email: offer.email,
+    managerName: offer.managerName,
+    country: offer.country,
     websiteUrl: offer.websiteUrl,
     catalogModelName: offer.catalogModelName,
     catalogModelPhoto: offer.catalogModelPhoto,
-    communicationStatus: offer.communicationStatus,
+    // Владелец, 2026-09-03: "когда мы получили счёт и распознали его,
+    // меняй вместо прочерка статус на 'Получили КП'" — не затирает уже
+    // осмысленный статус (например, "Ждём ответ"), только пустой.
+    communicationStatus: offer.communicationStatus.trim() ? offer.communicationStatus : 'Получили КП',
     price: extraction.price ?? offer.price,
     currency: isValidCurrency(extraction.currency) ? extraction.currency : offer.currency,
     deadline: offer.deadline,
@@ -389,6 +394,7 @@ export function EmailThread({
       <div className="flex flex-col gap-1 text-sm text-ink-muted">
         <span>Email: {offer.email || 'не указан'}</span>
         <span>Адрес для переписки: {supplierOfferEmailAddress(offer.shortCode)}</span>
+        {offer.country && <span>Страна: {offer.country}</span>}
       </div>
 
       <div className="flex flex-col gap-2">
@@ -402,9 +408,13 @@ export function EmailThread({
                 наверху" — [...emails] копия перед reverse(), исходный emails
                 (по возрастанию даты) нужен как есть в других местах (threadStatus
                 читает emails[emails.length-1] как последнее). */}
-            {[...emails].reverse().map((e) => {
+            {[...emails].reverse().map((e, i) => {
               const { visible, quoted } = splitQuotedReply(e.body);
               const isQuoteExpanded = expandedQuoteIds.has(e.id);
+              // Владелец, 2026-09-03: "кнопка Ответить нужна только на
+              // последнем письме" — после reverse() индекс 0 и есть самое
+              // свежее письмо треда (хронологически последнее).
+              const isLatest = i === 0;
               return (
               <div
                 key={e.id}
@@ -532,16 +542,20 @@ export function EmailThread({
                 )}
                 {/* Владелец, 2026-09-03: "форма пустого письма не нужна, лучше
                     сделай саму кнопку Ответить побольше" — обычная кнопка
-                    вместо мелкой текстовой ссылки. */}
-                <Button
-                  type="button"
-                  variant="secondary"
-                  icon={<Reply className="h-4 w-4" />}
-                  onClick={() => handleReplyTo(e)}
-                  className="mt-1 w-fit"
-                >
-                  Ответить
-                </Button>
+                    вместо мелкой текстовой ссылки. Тем же днём, доработка:
+                    "кнопка Ответить нужна только на последнем письме" —
+                    на более старых письмах треда её теперь нет. */}
+                {isLatest && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon={<Reply className="h-4 w-4" />}
+                    onClick={() => handleReplyTo(e)}
+                    className="mt-1 w-fit"
+                  >
+                    Ответить
+                  </Button>
+                )}
               </div>
               );
             })}
@@ -825,7 +839,14 @@ export function SupplierCorrespondenceTab({
                         isSelected ? 'border-ink bg-surface-muted' : 'border-border bg-surface hover:border-border-strong',
                       )}
                     >
-                      <span className="min-w-0 flex-1 truncate font-medium text-ink">{offer.name}</span>
+                      <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate">
+                        <span className="min-w-0 flex-1 truncate font-medium text-ink">{offer.name}</span>
+                        {offer.country && (
+                          <span className="shrink-0 rounded-full bg-surface-muted px-1.5 py-0.5 text-[10px] font-semibold text-ink-muted">
+                            {offer.country}
+                          </span>
+                        )}
+                      </span>
                       <span className="flex shrink-0 items-center gap-1.5">
                         {unreadCount > 0 && (
                           <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[11px] font-bold text-white">
@@ -849,6 +870,11 @@ export function SupplierCorrespondenceTab({
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-lg font-bold text-ink">{selected.offer.name}</span>
+                {selected.offer.country && (
+                  <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-semibold text-ink-muted">
+                    {selected.offer.country}
+                  </span>
+                )}
                 <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-semibold text-ink-muted">
                   {selected.request.title}
                 </span>

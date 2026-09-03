@@ -9,6 +9,14 @@ import { RESEARCH_CURRENCIES, RESEARCH_CONTACT_METHODS, type ResearchContactMeth
 export { RESEARCH_CURRENCIES, RESEARCH_CONTACT_METHODS };
 export type { ResearchContactMethod };
 
+// Владелец, 2026-09-03: "будут поставщики из Беларуси и России, для каждой
+// категории нужно получать цены и в Беларуси, и в России" — открытый список
+// (тот же принцип, что и у leadRequirements/leadClientTypes в data/leads.ts —
+// AddableSelect + useMemo, объединяющий пресет с фактически встречающимися
+// значениями), не жёсткий enum: если появится третья страна, её можно будет
+// добавить прямо из формы, без правки кода.
+export const SUPPLIER_COUNTRIES = ['Беларусь', 'Россия'] as const;
+
 // Вкладка "Поставщики" (пункт меню "Стройка") — та же механика, что и у
 // "Подрядчики → Ресерч": 1 запрос — 1 карточка, внутри — сравнение
 // предложений разных поставщиков, дешевле всех подсвечено (см. rankOffers
@@ -57,6 +65,16 @@ export interface SupplierOffer {
   // contact/contactMethod могут быть телефоном/телеграмом, а письмо всегда
   // уходит именно на email, если он указан (см. api/supplier-offer-send-email.js).
   email: string;
+  // Имя менеджера поставщика (не название компании — это name) — владелец,
+  // 2026-09-03: "подтягивать автоматически email из письма и имя менеджера
+  // из письма". Заполняется автоматически на первом входящем письме (см.
+  // api/purchase-email-webhook.js, парсинг заголовка From — "Имя <email>"),
+  // но остаётся обычным редактируемым полем — правится вручную, если
+  // распознано неверно или нужно сменить контактное лицо.
+  managerName: string;
+  // Страна поставщика (см. SUPPLIER_COUNTRIES выше) — владелец сравнивает
+  // цены отдельно по Беларуси и по России в рамках одной категории (запроса).
+  country: string;
   websiteUrl: string;
   catalogModelName: string;
   catalogModelPhoto: DocumentFile | null;
@@ -88,6 +106,8 @@ export interface SupplierOfferRow {
   contact: string;
   contact_method: string;
   email: string | null;
+  manager_name: string | null;
+  country: string | null;
   website_url: string;
   catalog_model_name: string;
   catalog_model_photo: DocumentFile | null;

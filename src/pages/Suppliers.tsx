@@ -34,6 +34,7 @@ import {
 import {
   RESEARCH_CURRENCIES,
   RESEARCH_CONTACT_METHODS,
+  SUPPLIER_COUNTRIES,
   type ResearchContactMethod,
   type SupplierRequest,
   type SupplierOffer,
@@ -163,6 +164,8 @@ const emptyOfferForm = {
   contactMethod: 'Телефон' as ResearchContactMethod,
   contact: '',
   email: '',
+  managerName: '',
+  country: '',
   websiteUrl: '',
   catalogModelName: '',
   catalogModelPhoto: null as DocumentFile | null,
@@ -295,6 +298,11 @@ function RequestCard({
               >
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="truncate font-medium text-ink">{o.name}</span>
+                  {o.country && (
+                    <span className="shrink-0 rounded-full bg-surface-muted px-2 py-0.5 text-[11px] font-semibold text-ink-muted">
+                      {o.country}
+                    </span>
+                  )}
                   {isCheapest && (
                     <span className="shrink-0 rounded-full bg-success px-2 py-0.5 text-[11px] font-semibold text-white">
                       лучшая цена
@@ -497,6 +505,11 @@ function OfferDetailModal({
           {isCheapest && (
             <span className="rounded-full bg-success px-2 py-0.5 text-[11px] font-semibold text-white">лучшая цена</span>
           )}
+          {offer.country && (
+            <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[11px] font-semibold text-ink-muted">
+              {offer.country}
+            </span>
+          )}
         </div>
 
         <div className="flex flex-col gap-1 text-sm">
@@ -521,6 +534,16 @@ function OfferDetailModal({
           ) : (
             <span className="text-ink">—</span>
           )}
+        </div>
+
+        <div className="flex flex-col gap-1 text-sm">
+          <span className="text-ink-faint">Email</span>
+          <span className="text-ink">{offer.email || '—'}</span>
+        </div>
+
+        <div className="flex flex-col gap-1 text-sm">
+          <span className="text-ink-faint">Менеджер</span>
+          <span className="text-ink">{offer.managerName || '—'}</span>
         </div>
 
         <div className="flex flex-col gap-1 text-sm">
@@ -895,6 +918,15 @@ export function Suppliers() {
   // Contractors.tsx — контакты без занятости (teamTier).
   const supplierContractors = useMemo(() => contractors.filter((c) => !c.teamTier), [contractors]);
 
+  // Владелец, 2026-09-03: "будут поставщики из Беларуси и России" — пресет
+  // + фактически встречающиеся значения (тот же паттерн, что и у
+  // knownCatalogSpecialties ниже / leadRequirements в Leads.tsx).
+  const knownCountries = useMemo(() => {
+    const set = new Set<string>(SUPPLIER_COUNTRIES);
+    offers.forEach((o) => o.country && set.add(o.country));
+    return [...set];
+  }, [offers]);
+
   const knownCatalogSpecialties = useMemo(() => {
     const set = new Set<string>();
     supplierContractors.forEach((c) => c.specialty && set.add(c.specialty));
@@ -1152,6 +1184,8 @@ export function Suppliers() {
             contactMethod: 'Телефон',
             contact: r.phone,
             email: r.email,
+            managerName: '',
+            country: '',
             websiteUrl: r.website,
             catalogModelName: '',
             catalogModelPhoto: null,
@@ -1196,6 +1230,8 @@ export function Suppliers() {
       contactMethod: o.contactMethod,
       contact: o.contact,
       email: o.email,
+      managerName: o.managerName,
+      country: o.country,
       websiteUrl: o.websiteUrl,
       catalogModelName: o.catalogModelName,
       catalogModelPhoto: o.catalogModelPhoto,
@@ -1270,6 +1306,7 @@ export function Suppliers() {
     offerForm.name.trim().length > 0 &&
     (offerForm.contact.trim().length > 0 ||
       offerForm.email.trim().length > 0 ||
+      offerForm.country.trim().length > 0 ||
       offerForm.websiteUrl.trim().length > 0 ||
       offerForm.catalogModelName.trim().length > 0 ||
       offerForm.communicationStatus.trim().length > 0 ||
@@ -1293,6 +1330,8 @@ export function Suppliers() {
         contactMethod: offerForm.contactMethod,
         contact: offerForm.contact.trim(),
         email: offerForm.email.trim(),
+        managerName: offerForm.managerName.trim(),
+        country: offerForm.country,
         websiteUrl: offerForm.websiteUrl.trim(),
         catalogModelName: offerForm.catalogModelName.trim(),
         catalogModelPhoto: offerForm.catalogModelPhoto,
@@ -1633,19 +1672,37 @@ export function Suppliers() {
             </div>
           </div>
 
-          <Input
-            label="Email"
-            placeholder="mail@example.com"
-            type="email"
-            value={offerForm.email}
-            onChange={(e) => setOfferForm((f) => ({ ...f, email: e.target.value }))}
-          />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input
+              label="Email"
+              placeholder="mail@example.com"
+              type="email"
+              value={offerForm.email}
+              onChange={(e) => setOfferForm((f) => ({ ...f, email: e.target.value }))}
+            />
+            <Input
+              label="Менеджер"
+              placeholder="Имя контактного лица"
+              value={offerForm.managerName}
+              onChange={(e) => setOfferForm((f) => ({ ...f, managerName: e.target.value }))}
+            />
+          </div>
 
           <Input
             label="Адрес сайта"
             placeholder="https://..."
             value={offerForm.websiteUrl}
             onChange={(e) => setOfferForm((f) => ({ ...f, websiteUrl: e.target.value }))}
+          />
+
+          <AddableSelect
+            label="Страна"
+            placeholder="Не выбрано"
+            options={knownCountries}
+            value={offerForm.country}
+            onChange={(v) => setOfferForm((f) => ({ ...f, country: v }))}
+            addLabel="+ Добавить страну"
+            newPlaceholder="Название страны"
           />
 
           <div className="flex flex-col gap-1.5">

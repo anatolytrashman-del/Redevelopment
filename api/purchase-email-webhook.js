@@ -118,6 +118,61 @@ async function resolveIdByShortCode(table, shortCode) {
   return rows[0]?.id ?? null;
 }
 
+// Заголовок From письма обычно приходит в одном из двух видов —
+// "Иван Петров <ivan@company.ru>" или просто "ivan@company.ru" — если
+// получится распознать имя, дальше используем его для автозаполнения
+// карточки предложения (см. autoFillOfferContact). Не трогает уже
+// сложившийся fromAddress (используется как есть в самой записи письма),
+// это отдельный best-effort разбор ТОЛЬКО для автозаполнения.
+function parseFromHeader(raw) {
+  const str = String(raw || '').trim();
+  const match = str.match(/^"?([^"<]*?)"?\s*<([^>]+)>$/);
+  if (match) {
+    const name = match[1].trim();
+    return { name: name || null, address: match[2].trim() };
+  }
+  return { name: null, address: str };
+}
+
+// Владелец, 2026-09-03: "давай в эту карточку подтягивать автоматически
+// email из письма и имя менеджера из письма" — только для переписки
+// Ресерча (offerId), только на ПЕРВОМ входящем письме по факту (если поля
+// уже заполнены — ничем не перезаписываем, это может быть другой человек,
+// ответивший позже с того же адреса, или владелец мог поправить вручную).
+// Сбой здесь не должен ронять сохранение самого письма — вызывающий код
+// оборачивает в try/catch.
+async function autoFillOfferContact(offerId, parsedFrom) {
+  const resp = await fetch(
+    `${process.env.SUPABASE_URL}/rest/v1/supplier_research_offers?id=eq.${offerId}&select=email,manager_name`,
+    {
+      headers: {
+        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+    },
+  );
+  if (!resp.ok) return;
+  const rows = await resp.json();
+  const offer = rows[0];
+  if (!offer) return;
+
+  const patch = {};
+  if (!offer.email && parsedFrom.address) patch.email = parsedFrom.address;
+  if (!offer.manager_name && parsedFrom.name) patch.manager_name = parsedFrom.name;
+  if (Object.keys(patch).length === 0) return;
+
+  await fetch(`${process.env.SUPABASE_URL}/rest/v1/supplier_research_offers?id=eq.${offerId}`, {
+    method: 'PATCH',
+    headers: {
+      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify(patch),
+  });
+}
+
 async function insertEmailRow(table, payload) {
   const resp = await fetch(`${process.env.SUPABASE_URL}/rest/v1/${table}`, {
     method: 'POST',
@@ -258,6 +313,14 @@ export default async function handler(req, res) {
           extraction,
           resend_message_id: data.email_id ?? data.id ?? null,
         });
+
+    if (offerId) {
+      try {
+        await autoFillOfferContact(offerId, parseFromHeader(fromAddress));
+      } catch (err) {
+        console.error('Не удалось автозаполнить email/имя менеджера у предложения (не критично):', err);
+      }
+    }
 
     res.status(200).json({ email: row });
   } catch (err) {
