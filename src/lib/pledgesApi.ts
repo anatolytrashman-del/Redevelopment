@@ -18,6 +18,9 @@ function fromRow(row: PledgeRow): Pledge {
     rentalIncome: row.rental_income,
     photoPaths: row.photo_paths ?? [],
     certificatePhotoPath: row.certificate_photo_path ?? '',
+    underConstruction: row.under_construction ?? false,
+    completionYear: row.completion_year ?? 0,
+    purchasePrice: row.purchase_price ?? 0,
     createdAt: row.created_at,
   };
 }
@@ -43,6 +46,9 @@ export function insertPledge(input: Omit<Pledge, 'id' | 'createdAt'>): Promise<P
         rental_income: input.rentalIncome,
         photo_paths: input.photoPaths,
         certificate_photo_path: input.certificatePhotoPath || null,
+        under_construction: input.underConstruction,
+        completion_year: input.completionYear || null,
+        purchase_price: input.purchasePrice,
       })
       .select()
       .single();
@@ -65,6 +71,9 @@ export function updatePledge(id: string, input: Omit<Pledge, 'id' | 'createdAt'>
         rental_income: input.rentalIncome,
         photo_paths: input.photoPaths,
         certificate_photo_path: input.certificatePhotoPath || null,
+        under_construction: input.underConstruction,
+        completion_year: input.completionYear || null,
+        purchase_price: input.purchasePrice,
       })
       .eq('id', id)
       .select()

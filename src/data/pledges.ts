@@ -26,6 +26,18 @@ export interface Pledge {
   // бакет и паттерн пути, что и у photoPaths, но одно поле: документ один,
   // а не серия фото объекта.
   certificatePhotoPath: string;
+  // Залог ещё не построен (владелец, 2026-09-02: "по аналогии с 'На паузе'
+  // у объектов") — своя карточка без фото (их физически ещё нет —
+  // "фотки не загружаем"), вместо этого показывается год сдачи и цена
+  // покупки. Остальные поля (marketValue/pledgeValue/rentalIncome/
+  // certificatePhotoPath) для такого залога обычно ещё не имеют смысла, но
+  // не блокируются — ничего не мешает дозаполнить их позже.
+  underConstruction: boolean;
+  // Год сдачи ("Сдача в ___ г."). 0 — не указан.
+  completionYear: number;
+  // Цена покупки (по договору) — отдельно от marketValue/pledgeValue: это
+  // не рыночная/залоговая оценка, а то, что реально платим застройщику.
+  purchasePrice: number;
   createdAt: string;
 }
 
@@ -40,5 +52,8 @@ export interface PledgeRow {
   rental_income: number;
   photo_paths: string[] | null;
   certificate_photo_path: string | null;
+  under_construction: boolean | null;
+  completion_year: number | null;
+  purchase_price: number | null;
   created_at: string;
 }

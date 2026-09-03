@@ -63,28 +63,43 @@ export function PledgeDetailModal({ pledge, onClose, onEdit, onDelete, deleting 
           )}
         </div>
 
-        {pledge.photoPaths.length > 0 && (
-          // Высота фиксированная, а не aspect-ratio — среди фото могут быть
-          // и горизонтальные, и вертикальные вперемешку (см. fit="contain"
-          // у PhotoCarousel), под aspect-video вертикальные обрезались бы.
-          <div className="relative h-72 w-full overflow-hidden rounded-control bg-surface-muted sm:h-96">
-            <PledgePhotoCarousel
-              paths={pledge.photoPaths}
-              alt={pledge.address}
-              fit="contain"
-              onImageClick={(index, urls) => setLightbox({ urls, index })}
-            />
+        {pledge.underConstruction ? (
+          <div className="flex flex-col gap-2">
+            <span className="w-fit rounded-full bg-warning-bg px-2.5 py-1 text-xs font-semibold text-warning">
+              🏗 Ещё не построен
+            </span>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Field label="Сдача">{pledge.completionYear ? `${pledge.completionYear} г.` : null}</Field>
+              <Field label="Площадь">{pledge.area ? `${pledge.area} м²` : null}</Field>
+              <Field label="Цена покупки">{formatMoney(pledge.purchasePrice)}</Field>
+            </div>
           </div>
+        ) : (
+          <>
+            {pledge.photoPaths.length > 0 && (
+              // Высота фиксированная, а не aspect-ratio — среди фото могут быть
+              // и горизонтальные, и вертикальные вперемешку (см. fit="contain"
+              // у PhotoCarousel), под aspect-video вертикальные обрезались бы.
+              <div className="relative h-72 w-full overflow-hidden rounded-control bg-surface-muted sm:h-96">
+                <PledgePhotoCarousel
+                  paths={pledge.photoPaths}
+                  alt={pledge.address}
+                  fit="contain"
+                  onImageClick={(index, urls) => setLightbox({ urls, index })}
+                />
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Площадь">{pledge.area ? `${pledge.area} м²` : null}</Field>
+              <Field label="Арендный доход">{formatMoney(pledge.rentalIncome)}</Field>
+              <Field label="Рыночная стоимость">{formatMoney(pledge.marketValue)}</Field>
+              <Field label="Залоговая стоимость">{formatMoney(pledge.pledgeValue)}</Field>
+            </div>
+          </>
         )}
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Площадь">{pledge.area ? `${pledge.area} м²` : null}</Field>
-          <Field label="Арендный доход">{formatMoney(pledge.rentalIncome)}</Field>
-          <Field label="Рыночная стоимость">{formatMoney(pledge.marketValue)}</Field>
-          <Field label="Залоговая стоимость">{formatMoney(pledge.pledgeValue)}</Field>
-        </div>
-
-        {pledge.certificatePhotoPath && (
+        {!pledge.underConstruction && pledge.certificatePhotoPath && (
           <div className="flex flex-col gap-1.5">
             <span className="text-xs uppercase tracking-wide text-ink-faint">Свидетельство БРТИ</span>
             <button

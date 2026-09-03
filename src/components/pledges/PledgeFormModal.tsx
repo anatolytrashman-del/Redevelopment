@@ -26,6 +26,9 @@ const emptyForm = {
   rentalIncome: '',
   photoPaths: [] as string[],
   certificatePhotoPath: '',
+  underConstruction: false,
+  completionYear: '',
+  purchasePrice: '',
 };
 
 function pledgeToForm(p: Pledge) {
@@ -38,6 +41,9 @@ function pledgeToForm(p: Pledge) {
     rentalIncome: p.rentalIncome ? String(p.rentalIncome) : '',
     photoPaths: p.photoPaths,
     certificatePhotoPath: p.certificatePhotoPath,
+    underConstruction: p.underConstruction,
+    completionYear: p.completionYear ? String(p.completionYear) : '',
+    purchasePrice: p.purchasePrice ? String(p.purchasePrice) : '',
   };
 }
 
@@ -133,6 +139,9 @@ export function PledgeFormModal({ open, pledge, knownTypes, onClose, onSaved }: 
       rentalIncome: Number(form.rentalIncome) || 0,
       photoPaths: form.photoPaths,
       certificatePhotoPath: form.certificatePhotoPath,
+      underConstruction: form.underConstruction,
+      completionYear: Number(form.completionYear) || 0,
+      purchasePrice: Number(form.purchasePrice) || 0,
     };
     try {
       const saved = pledge ? await updatePledge(pledge.id, payload) : await insertPledge(payload);
@@ -165,94 +174,130 @@ export function PledgeFormModal({ open, pledge, knownTypes, onClose, onSaved }: 
           newPlaceholder="Название типа"
         />
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Input
-            label="Площадь, м²"
-            type="number"
-            value={form.area}
-            onChange={(e) => setForm((f) => ({ ...f, area: e.target.value }))}
+        <label className="flex w-fit items-center gap-2 text-sm font-medium text-ink">
+          <input
+            type="checkbox"
+            checked={form.underConstruction}
+            onChange={(e) => setForm((f) => ({ ...f, underConstruction: e.target.checked }))}
+            className="h-4 w-4 rounded border-border accent-primary"
           />
-          <Input
-            label="Арендный доход, $"
-            type="number"
-            value={form.rentalIncome}
-            onChange={(e) => setForm((f) => ({ ...f, rentalIncome: e.target.value }))}
-          />
-        </div>
+          🏗 Ещё не построен (карточка без фото, с годом сдачи вместо превью)
+        </label>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Input
-            label="Рыночная стоимость, $"
-            type="number"
-            value={form.marketValue}
-            onChange={(e) => setForm((f) => ({ ...f, marketValue: e.target.value }))}
-          />
-          <Input
-            label="Залоговая стоимость, $"
-            type="number"
-            value={form.pledgeValue}
-            onChange={(e) => setForm((f) => ({ ...f, pledgeValue: e.target.value }))}
-          />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-ink">Фотографии</span>
-          <div className="flex flex-wrap gap-2">
-            {form.photoPaths.map((path) => (
-              <div key={path} className="relative h-20 w-20 shrink-0 overflow-hidden rounded-control">
-                <PledgePhoto path={path} className="h-full w-full" />
-                <button
-                  type="button"
-                  onClick={() => handlePhotoRemove(path)}
-                  className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-ink/60 text-white hover:bg-danger"
-                  aria-label="Удалить фото"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
-            <label
-              className={cn(
-                'flex h-20 w-20 shrink-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-control border border-dashed border-border text-ink-faint hover:border-border-strong',
-                photoUploading && 'pointer-events-none opacity-50',
-              )}
-            >
-              {photoUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              <span className="text-[10px]">Добавить</span>
-              <input type="file" accept="image/*" className="hidden" onChange={handlePhotoAdd} />
-            </label>
+        {form.underConstruction ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <Input
+              label="Площадь, м²"
+              type="number"
+              value={form.area}
+              onChange={(e) => setForm((f) => ({ ...f, area: e.target.value }))}
+            />
+            <Input
+              label="Год сдачи"
+              type="number"
+              placeholder="2027"
+              value={form.completionYear}
+              onChange={(e) => setForm((f) => ({ ...f, completionYear: e.target.value }))}
+            />
+            <Input
+              label="Цена покупки, $"
+              type="number"
+              value={form.purchasePrice}
+              onChange={(e) => setForm((f) => ({ ...f, purchasePrice: e.target.value }))}
+            />
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Input
+                label="Площадь, м²"
+                type="number"
+                value={form.area}
+                onChange={(e) => setForm((f) => ({ ...f, area: e.target.value }))}
+              />
+              <Input
+                label="Арендный доход, $"
+                type="number"
+                value={form.rentalIncome}
+                onChange={(e) => setForm((f) => ({ ...f, rentalIncome: e.target.value }))}
+              />
+            </div>
 
-        <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-ink">Свидетельство БРТИ</span>
-          <div className="flex flex-wrap gap-2">
-            {form.certificatePhotoPath ? (
-              <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-control">
-                <PledgePhoto path={form.certificatePhotoPath} className="h-full w-full" />
-                <button
-                  type="button"
-                  onClick={handleCertificateRemove}
-                  className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-ink/60 text-white hover:bg-danger"
-                  aria-label="Удалить свидетельство"
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Input
+                label="Рыночная стоимость, $"
+                type="number"
+                value={form.marketValue}
+                onChange={(e) => setForm((f) => ({ ...f, marketValue: e.target.value }))}
+              />
+              <Input
+                label="Залоговая стоимость, $"
+                type="number"
+                value={form.pledgeValue}
+                onChange={(e) => setForm((f) => ({ ...f, pledgeValue: e.target.value }))}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-ink">Фотографии</span>
+              <div className="flex flex-wrap gap-2">
+                {form.photoPaths.map((path) => (
+                  <div key={path} className="relative h-20 w-20 shrink-0 overflow-hidden rounded-control">
+                    <PledgePhoto path={path} className="h-full w-full" />
+                    <button
+                      type="button"
+                      onClick={() => handlePhotoRemove(path)}
+                      className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-ink/60 text-white hover:bg-danger"
+                      aria-label="Удалить фото"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+                <label
+                  className={cn(
+                    'flex h-20 w-20 shrink-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-control border border-dashed border-border text-ink-faint hover:border-border-strong',
+                    photoUploading && 'pointer-events-none opacity-50',
+                  )}
                 >
-                  <X className="h-3 w-3" />
-                </button>
+                  {photoUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  <span className="text-[10px]">Добавить</span>
+                  <input type="file" accept="image/*" className="hidden" onChange={handlePhotoAdd} />
+                </label>
               </div>
-            ) : (
-              <label
-                className={cn(
-                  'flex h-20 w-20 shrink-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-control border border-dashed border-border text-ink-faint hover:border-border-strong',
-                  certificateUploading && 'pointer-events-none opacity-50',
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-ink">Свидетельство БРТИ</span>
+              <div className="flex flex-wrap gap-2">
+                {form.certificatePhotoPath ? (
+                  <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-control">
+                    <PledgePhoto path={form.certificatePhotoPath} className="h-full w-full" />
+                    <button
+                      type="button"
+                      onClick={handleCertificateRemove}
+                      className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-ink/60 text-white hover:bg-danger"
+                      aria-label="Удалить свидетельство"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <label
+                    className={cn(
+                      'flex h-20 w-20 shrink-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-control border border-dashed border-border text-ink-faint hover:border-border-strong',
+                      certificateUploading && 'pointer-events-none opacity-50',
+                    )}
+                  >
+                    {certificateUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                    <span className="text-[10px]">Загрузить</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleCertificateAdd} />
+                  </label>
                 )}
-              >
-                {certificateUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                <span className="text-[10px]">Загрузить</span>
-                <input type="file" accept="image/*" className="hidden" onChange={handleCertificateAdd} />
-              </label>
-            )}
-          </div>
-        </div>
+              </div>
+            </div>
+          </>
+        )}
 
         {submitError && <p className="text-sm text-danger">{submitError}</p>}
 

@@ -48,7 +48,19 @@ function PledgeCard({
       style={glassCardShadow}
     >
       <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden bg-surface-muted">
-        <PledgePhotoCarousel paths={pledge.photoPaths} alt={pledge.address} />
+        {pledge.underConstruction ? (
+          // Фото ещё нет (объект не построен) — вместо карусели ровный фон
+          // с бейджем года сдачи по центру, тот же визуальный приём, что и
+          // "На паузе" у объектов в проработке (см. блок "Объекты в
+          // проработке" ниже).
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-surface-muted to-border">
+            <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink shadow-sm">
+              {pledge.completionYear ? `Сдача в ${pledge.completionYear} г.` : 'Ещё не построен'}
+            </span>
+          </div>
+        ) : (
+          <PledgePhotoCarousel paths={pledge.photoPaths} alt={pledge.address} />
+        )}
         {pledge.propertyType && (
           <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-ink shadow-sm">
             {pledge.propertyType}
@@ -74,7 +86,13 @@ function PledgeCard({
         </div>
         <span className="truncate text-xs text-ink-muted">
           {pledge.area ? `${pledge.area} м²` : '—'}
-          {pledge.marketValue ? ` · ${formatMoney(pledge.marketValue)}` : ''}
+          {pledge.underConstruction
+            ? pledge.purchasePrice
+              ? ` · ${formatMoney(pledge.purchasePrice)}`
+              : ''
+            : pledge.marketValue
+              ? ` · ${formatMoney(pledge.marketValue)}`
+              : ''}
         </span>
       </div>
     </div>
