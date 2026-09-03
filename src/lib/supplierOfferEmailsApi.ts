@@ -86,6 +86,10 @@ export async function sendSupplierOfferEmail(input: {
   toAddress: string;
   subject: string;
   body: string;
+  // Ведомости материалов (владелец, 2026-09-03) — .xlsx, сгенерированный на
+  // клиенте (lib/materialLedgerXlsx.ts), уходит сюда уже base64-строкой;
+  // сервер сам решает, что с ним делать (см. api/purchase-send-email.js).
+  attachments?: { fileName: string; contentType: string; contentBase64: string }[];
 }): Promise<SupplierOfferEmail> {
   const res = await authFetch('/api/purchase-send-email', {
     method: 'POST',

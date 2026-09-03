@@ -127,7 +127,12 @@ function fileExtension(fileName) {
   return match ? match[1].toLowerCase() : 'bin';
 }
 
-async function uploadAttachment(bytes, contentType, fileName) {
+// Экспортирована — переиспользуется purchase-send-email.js для вложений
+// ИСХОДЯЩИХ писем (владелец, 2026-09-03: ведомости материалов, генерируются
+// на клиенте и прикладываются к письму) тем же путём, что и вложения
+// входящих: тот же бакет, та же схема имени объекта (uuid+расширение,
+// человекочитаемое имя — только в fileName).
+export async function uploadAttachment(bytes, contentType, fileName) {
   const path = `purchase-email-attachments/${randomUUID()}.${fileExtension(fileName)}`;
   const resp = await fetch(`${process.env.SUPABASE_URL}/storage/v1/object/${ATTACHMENTS_BUCKET}/${path}`, {
     method: 'POST',

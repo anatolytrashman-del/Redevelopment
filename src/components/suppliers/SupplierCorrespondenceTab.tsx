@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply, FileSearch, CheckCircle2, Eye } from 'lucide-react';
+import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply, FileSearch, CheckCircle2, Eye, FileSpreadsheet, X } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -7,13 +7,16 @@ import { Textarea } from '../ui/Textarea';
 import { Select } from '../ui/Select';
 import { cn } from '../../lib/cn';
 import type { SupplierRequest, SupplierOffer } from '../../data/supplierResearch';
-import { supplierOfferEmailAddress, countryFlag } from '../../data/supplierResearch';
+import { supplierOfferEmailAddress, countryFlag, SUPPLIER_COUNTRIES } from '../../data/supplierResearch';
 import { updateSupplierOffer } from '../../lib/supplierResearchApi';
 import type { SupplierOfferEmail, EmailExtractionItem } from '../../data/supplierOfferEmails';
 import { sendSupplierOfferEmail, setSupplierOfferEmailExtractionStatus } from '../../lib/supplierOfferEmailsApi';
 import type { EmailTemplate } from '../../data/emailTemplates';
 import { renderEmailTemplate } from '../../lib/emailTemplates';
 import { TemplateFormModal, TemplateManagerModal } from './EmailTemplates';
+import type { MaterialLedger } from '../../data/materialLedgers';
+import { MaterialLedgerModal } from './MaterialLedgerModal';
+import type { LedgerAttachment } from '../../lib/materialLedgerXlsx';
 import { getCurrentProfile } from '../../lib/accessProfile';
 import { DocumentPreviewModal, isPreviewable, type PreviewFile } from '../documents/DocumentPreviewModal';
 import { currencies, type Currency } from '../../data/transactions';
@@ -179,39 +182,42 @@ async function applyExtractionToOffer(
   });
 }
 
-// Черновик первого письма по умолчанию (до выбора сохранённого шаблона) —
-// владелец, 2026-09-03, прислал готовый текст ("Заголовок письма по
-// умолчанию... По умолчанию все письма выглядят так..."). "Категория" в
-// его формулировке — это сам запрос Ресерча (та же категория, что и
-// бейдж на треде, см. комментарий у SupplierCorrespondenceTab ниже), не
-// свободный текст. Подпись — не захардкожена "Альмира" (в его примере это
-// была она сама, тестировавшая форму), а имя реально вошедшего сотрудника
-// (getCurrentProfile) — иначе письма от Светланы или владельца подписывались
-// бы чужим именем.
-//
-// Владелец, тем же днём после живого теста: "После отправки запроса не
-// нужно выводить еще раз шаблон письма под перепиской, он уже будет не
-// актуален" — этот вводный текст ("Добрый день, планируем реновацию...")
-// имеет смысл только для ПЕРВОГО письма в треде. Как только в треде уже
-// есть хоть одно письмо (отправленное или полученное), новый черновик
-// начинается пустым, а не с того же интро — hasHistory решает это.
-function defaultSubject(request: SupplierRequest, hasHistory: boolean): string {
-  return hasHistory ? '' : `Запрос цены на ${request.title}`;
+// Подпись письма — имя реально вошедшего сотрудника (getCurrentProfile), не
+// захардкожено, иначе письма от Светланы или владельца подписывались бы
+// чужим именем. Владелец, 2026-09-03: для его собственного профиля
+// (display_name "Трэшмен" — рабочий никнейм, не имя) в письме нужно полное
+// "Анатолий Трэшмен", при этом сам display_name в профиле трогать не
+// просил ("в платформе имя не меняй") — подмена только на этом узком месте.
+function emailSignature(): string {
+  const name = getCurrentProfile().displayName;
+  return name === 'Трэшмен' ? 'Анатолий Трэшмен' : name;
 }
 
-function defaultBody(request: SupplierRequest, hasHistory: boolean): string {
+// Черновик первого письма по умолчанию (до выбора сохранённого шаблона).
+// Владелец, 2026-09-03, после серии правок темы/текста: "меняем шаблон
+// письма" — тема больше не завязана на конкретную категорию запроса,
+// текст — про ведомость материалов (та же правка, что добавила вложение
+// ведомостей, см. MaterialLedgerModal).
+//
+// Владелец, 2026-09-03 (более ранняя правка, актуальна по-прежнему): "После
+// отправки запроса не нужно выводить еще раз шаблон письма под перепиской,
+// он уже будет не актуален" — вводный текст имеет смысл только для ПЕРВОГО
+// письма в треде, hasHistory решает это.
+function defaultSubject(hasHistory: boolean): string {
+  return hasHistory ? '' : 'Поставка материалов';
+}
+
+function defaultBody(hasHistory: boolean): string {
   if (hasHistory) return '';
-  const signature = getCurrentProfile().displayName;
   return `Добрый день.
-Планируем реновацию здания в г. Минск, интересуют ${request.title}.
+Интересует поставка материалов. Список позиций и количество прикрепляю.
 
-В вашем каталоге понравились следующие модели:
+На каждую позицию готовы рассмотреть альтернативы.
 
-
-Оплата со счета юрлица. Просьба прислать коммерческое предложение.
+Планируем оплачивать со счета юрлица. Просьба прислать коммерческое предложение/счет.
 
 С уважением,
-${signature}`;
+${emailSignature()}`;
 }
 
 // Лента писем + форма ответа — общий компонент для полноэкранной вкладки
@@ -227,8 +233,10 @@ export function EmailThread({
   requests,
   emails,
   templates,
+  ledgers,
   onEmailSent,
   onTemplateSaved,
+  onLedgersChange,
   onOfferUpdated,
   onEmailUpdated,
 }: {
@@ -237,17 +245,24 @@ export function EmailThread({
   requests: SupplierRequest[];
   emails: SupplierOfferEmail[];
   templates: EmailTemplate[];
+  ledgers: MaterialLedger[];
   onEmailSent: (email: SupplierOfferEmail) => void;
   onTemplateSaved: (template: EmailTemplate) => void;
+  onLedgersChange: (ledgers: MaterialLedger[]) => void;
   onOfferUpdated: (offer: SupplierOffer) => void;
   onEmailUpdated: (email: SupplierOfferEmail) => void;
 }) {
-  const [subject, setSubject] = useState(() => defaultSubject(request, emails.length > 0));
-  const [body, setBody] = useState(() => defaultBody(request, emails.length > 0));
+  const [subject, setSubject] = useState(() => defaultSubject(emails.length > 0));
+  const [body, setBody] = useState(() => defaultBody(emails.length > 0));
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  // Ведомость материалов, прикреплённая к текущему черновику (владелец,
+  // 2026-09-03) — одна на письмо, xlsx уже сгенерирован (LedgerAttachment),
+  // реально уходит вместе с письмом только по нажатию "Отправить".
+  const [ledgerModalOpen, setLedgerModalOpen] = useState(false);
+  const [pendingLedger, setPendingLedger] = useState<LedgerAttachment | null>(null);
   // Какие письма развёрнуты (показана свёрнутая цитата целиком) — по id,
   // сбрасывается сам собой при смене offer (новый emails-список).
   const [expandedQuoteIds, setExpandedQuoteIds] = useState<Set<string>>(new Set());
@@ -277,11 +292,12 @@ export function EmailThread({
   // моменту открытия ЭТОГО треда", не реагировать на каждое новое письмо.
   useEffect(() => {
     const hasHistory = emails.length > 0;
-    setSubject(defaultSubject(request, hasHistory));
-    setBody(defaultBody(request, hasHistory));
+    setSubject(defaultSubject(hasHistory));
+    setBody(defaultBody(hasHistory));
     setSendError(null);
     setSelectedTemplateId('');
     setComposerOpen(!hasHistory);
+    setPendingLedger(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offer.id]);
 
@@ -379,10 +395,17 @@ export function EmailThread({
     setSending(true);
     setSendError(null);
     try {
-      const email = await sendSupplierOfferEmail({ offerId: offer.id, toAddress: offer.email, subject, body });
+      const email = await sendSupplierOfferEmail({
+        offerId: offer.id,
+        toAddress: offer.email,
+        subject,
+        body,
+        attachments: pendingLedger ? [pendingLedger] : undefined,
+      });
       onEmailSent(email);
       setBody('');
       setComposerOpen(false);
+      setPendingLedger(null);
     } catch (err) {
       setSendError(errorMessage(err, 'Не удалось отправить письмо'));
     } finally {
@@ -392,14 +415,17 @@ export function EmailThread({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Владелец, 2026-09-03: флаг страны из заголовка карточки убран
+          (слишком много флагов на экране, см. запись про список слева),
+          категория (раньше отдельным бейджем у заголовка выше, см.
+          SupplierCorrespondenceTab) переехала сюда же, к остальным
+          реквизитам — и слово "Страна:" убрано, флага самого по себе
+          достаточно. */}
       <div className="flex flex-col gap-1 text-sm text-ink-muted">
         <span>Email: {offer.email || 'не указан'}</span>
         <span>Адрес для переписки: {supplierOfferEmailAddress(offer.shortCode)}</span>
-        {offer.country && (
-          <span>
-            Страна: <span title={offer.country}>{countryFlag(offer.country)}</span>
-          </span>
-        )}
+        <span>Категория: {request.title}</span>
+        {offer.country && <span title={offer.country}>{countryFlag(offer.country)}</span>}
       </div>
 
       <div className="flex flex-col gap-2">
@@ -613,6 +639,38 @@ export function EmailThread({
 
           <Input label="Тема" value={subject} onChange={(e) => setSubject(e.target.value)} />
           <Textarea label="Сообщение" rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
+
+          {/* Владелец, 2026-09-03: "функционал прикрепления ведомостей
+              материалов к письму" — ведомость выбирается/собирается в
+              отдельной модалке (готовый пресет или позиции запроса), здесь
+              только чип уже выбранной (с возможностью снять) и кнопка
+              открытия модалки. Реально уходит вместе с письмом только на
+              "Отправить" (см. handleSend) — здесь просто черновик вложения. */}
+          {pendingLedger ? (
+            <div className="flex w-fit items-center gap-2 rounded-control border border-border bg-surface-muted px-3 py-1.5 text-sm text-ink">
+              <FileSpreadsheet className="h-4 w-4 shrink-0 text-ink-faint" />
+              {pendingLedger.fileName}
+              <button
+                type="button"
+                onClick={() => setPendingLedger(null)}
+                aria-label="Убрать вложенную ведомость"
+                className="flex h-5 w-5 items-center justify-center rounded-full text-ink-faint hover:text-danger"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<FileSpreadsheet className="h-4 w-4" />}
+              className="w-fit"
+              onClick={() => setLedgerModalOpen(true)}
+            >
+              Прикрепить ведомость
+            </Button>
+          )}
+
           {sendError && <p className="text-sm text-danger">{sendError}</p>}
           <div className="flex items-center justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setComposerOpen(false)} disabled={sending}>
@@ -642,6 +700,15 @@ export function EmailThread({
         initialBody={body}
         onClose={() => setSaveTemplateOpen(false)}
         onSaved={onTemplateSaved}
+      />
+
+      <MaterialLedgerModal
+        open={ledgerModalOpen}
+        requestItems={request.items}
+        ledgers={ledgers}
+        onClose={() => setLedgerModalOpen(false)}
+        onLedgersChange={onLedgersChange}
+        onAttach={setPendingLedger}
       />
 
       <DocumentPreviewModal
@@ -733,9 +800,11 @@ export function SupplierCorrespondenceTab({
   offers,
   emails,
   templates,
+  ledgers,
   onEmailSent,
   onMarkRead,
   onTemplatesChange,
+  onLedgersChange,
   onOfferUpdated,
   onEmailUpdated,
 }: {
@@ -743,13 +812,20 @@ export function SupplierCorrespondenceTab({
   offers: SupplierOffer[];
   emails: SupplierOfferEmail[];
   templates: EmailTemplate[];
+  ledgers: MaterialLedger[];
   onEmailSent: (email: SupplierOfferEmail) => void;
   onMarkRead: (offerId: string) => void;
   onTemplatesChange: (templates: EmailTemplate[]) => void;
+  onLedgersChange: (ledgers: MaterialLedger[]) => void;
   onOfferUpdated: (offer: SupplierOffer) => void;
   onEmailUpdated: (email: SupplierOfferEmail) => void;
 }) {
   const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
+  // Владелец, 2026-09-03: "добавляй ещё один селектор после категории с
+  // выбором страны, не такой же выпадающий, а просто два варианта, указывай
+  // флагами" — фильтрует список поставщиков категории ниже, не глобальный
+  // выбор (тред уже выбранного поставщика остаётся открытым при переключении).
+  const [countryFilter, setCountryFilter] = useState<string>(SUPPLIER_COUNTRIES[0]);
   // Владелец, 2026-09-03: "у нас будет по 20+ поставщиков в каждой
   // категории. Давай вместо бокового списка адресов выбирать конкретную
   // категорию, а уже ниже список поставщиков" — раньше все категории
@@ -883,39 +959,56 @@ export function SupplierCorrespondenceTab({
             }}
           />
 
+          {/* Владелец, 2026-09-03: "не такой же выпадающий [как Категория],
+              а просто два варианта, указывай флагами" — компактный тумблер
+              из двух кнопок-флагов, не Select. Фильтрует список поставщиков
+              ниже по стране (та же логика fallback на первую страну списка
+              для записей без country, что и в RequestCard на Suppliers.tsx). */}
+          <div className="flex w-fit gap-1 rounded-full border border-border bg-surface-muted p-1">
+            {SUPPLIER_COUNTRIES.map((c) => (
+              <button
+                key={c}
+                type="button"
+                title={c}
+                onClick={() => setCountryFilter(c)}
+                className={cn(
+                  'flex h-8 w-11 items-center justify-center rounded-full text-base transition-colors',
+                  countryFilter === c ? 'bg-surface shadow-card' : 'opacity-50 hover:opacity-100',
+                )}
+              >
+                {countryFlag(c)}
+              </button>
+            ))}
+          </div>
+
           <div className="flex flex-col gap-1">
-            {selectedGroup?.offers.map(({ offer, emails: offerEmails }) => {
-              const { status, unreadCount } = threadStatus(offerEmails);
-              const isSelected = selectedOfferId === offer.id;
-              return (
-                <button
-                  key={offer.id}
-                  type="button"
-                  onClick={() => selectOffer(offer.id)}
-                  className={cn(
-                    'flex items-center justify-between gap-2 rounded-control border px-3 py-2 text-left text-sm transition-colors',
-                    isSelected ? 'border-ink bg-surface-muted' : 'border-border bg-surface hover:border-border-strong',
-                  )}
-                >
-                  <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate">
+            {selectedGroup?.offers
+              .filter(({ offer }) => (offer.country || SUPPLIER_COUNTRIES[0]) === countryFilter)
+              .map(({ offer, emails: offerEmails }) => {
+                const { status, unreadCount } = threadStatus(offerEmails);
+                const isSelected = selectedOfferId === offer.id;
+                return (
+                  <button
+                    key={offer.id}
+                    type="button"
+                    onClick={() => selectOffer(offer.id)}
+                    className={cn(
+                      'flex items-center justify-between gap-2 rounded-control border px-3 py-2 text-left text-sm transition-colors',
+                      isSelected ? 'border-ink bg-surface-muted' : 'border-border bg-surface hover:border-border-strong',
+                    )}
+                  >
                     <span className="min-w-0 flex-1 truncate font-medium text-ink">{offer.name}</span>
-                    {offer.country && (
-                      <span className="shrink-0" title={offer.country}>
-                        {countryFlag(offer.country)}
-                      </span>
-                    )}
-                  </span>
-                  <span className="flex shrink-0 items-center gap-1.5">
-                    {unreadCount > 0 && (
-                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[11px] font-bold text-white">
-                        {unreadCount}
-                      </span>
-                    )}
-                    <span className={cn('text-xs', STATUS_CLASS[status])}>{STATUS_LABEL[status]}</span>
-                  </span>
-                </button>
-              );
-            })}
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      {unreadCount > 0 && (
+                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[11px] font-bold text-white">
+                          {unreadCount}
+                        </span>
+                      )}
+                      <span className={cn('text-xs', STATUS_CLASS[status])}>{STATUS_LABEL[status]}</span>
+                    </span>
+                  </button>
+                );
+              })}
           </div>
         </div>
 
@@ -924,25 +1017,20 @@ export function SupplierCorrespondenceTab({
             <p className="text-sm text-ink-faint">Выберите поставщика слева, чтобы открыть переписку.</p>
           ) : (
             <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-lg font-bold text-ink">{selected.offer.name}</span>
-                {selected.offer.country && (
-                  <span className="text-base" title={selected.offer.country}>
-                    {countryFlag(selected.offer.country)}
-                  </span>
-                )}
-                <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-semibold text-ink-muted">
-                  {selected.request.title}
-                </span>
-              </div>
+              {/* Владелец, 2026-09-03: флаг и бейдж категории убраны отсюда —
+                  флаг был лишним (слишком много флагов на экране), категория
+                  переехала в блок реквизитов внутри EmailThread. */}
+              <span className="text-lg font-bold text-ink">{selected.offer.name}</span>
               <EmailThread
                 offer={selected.offer}
                 request={selected.request}
                 requests={requests}
                 emails={selected.emails}
                 templates={templates}
+                ledgers={ledgers}
                 onEmailSent={onEmailSent}
                 onTemplateSaved={handleTemplateSaved}
+                onLedgersChange={onLedgersChange}
                 onOfferUpdated={onOfferUpdated}
                 onEmailUpdated={onEmailUpdated}
               />

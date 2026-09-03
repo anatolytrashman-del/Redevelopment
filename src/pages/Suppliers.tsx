@@ -37,6 +37,8 @@ import { fetchAllSupplierOfferEmails, markSupplierOfferEmailsRead } from '../lib
 import { EmailThread, SupplierCorrespondenceTab, countUnreadSupplierEmails } from '../components/suppliers/SupplierCorrespondenceTab';
 import type { EmailTemplate } from '../data/emailTemplates';
 import { fetchEmailTemplates } from '../lib/emailTemplatesApi';
+import type { MaterialLedger } from '../data/materialLedgers';
+import { fetchMaterialLedgers } from '../lib/materialLedgersApi';
 import {
   fetchSupplierRequests,
   insertSupplierRequest,
@@ -676,6 +678,10 @@ export function Suppliers() {
   // Шаблоны писем поставщикам (EMAIL_CORRESPONDENCE_PLAN.md, этап 3) — тот
   // же принцип "один источник правды на странице", что и у supplierEmails.
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
+  // Ведомости материалов (владелец, 2026-09-03) — тот же принцип, что и у
+  // шаблонов писем: пресеты не привязаны к конкретному поставщику/запросу,
+  // один источник на всю страницу.
+  const [materialLedgers, setMaterialLedgers] = useState<MaterialLedger[]>([]);
   // Владелец, 2026-08-29: "слишком много инфы на превью, все вразнобой.
   // Давай выводить название + цену + статус + кнопка Подробнее" — остальные
   // поля (контакт/сайт/модель/срок/требования/файлы) и действия
@@ -744,6 +750,7 @@ export function Suppliers() {
     fetchObjects().then(setObjects).catch(() => setObjects([]));
     fetchAllSupplierOfferEmails().then(setSupplierEmails).catch(() => setSupplierEmails([]));
     fetchEmailTemplates().then(setEmailTemplates).catch(() => setEmailTemplates([]));
+    fetchMaterialLedgers().then(setMaterialLedgers).catch(() => setMaterialLedgers([]));
   }, []);
 
   // Владелец, 2026-09-03: "в ведомости по умолчанию всегда выбран Red One" —
@@ -1435,9 +1442,11 @@ export function Suppliers() {
             offers={offers}
             emails={supplierEmails}
             templates={emailTemplates}
+            ledgers={materialLedgers}
             onEmailSent={handleSupplierEmailSent}
             onMarkRead={handleMarkSupplierEmailsRead}
             onTemplatesChange={setEmailTemplates}
+            onLedgersChange={setMaterialLedgers}
             onOfferUpdated={handleSupplierOfferUpdated}
             onEmailUpdated={handleSupplierEmailUpdated}
           />
@@ -1870,9 +1879,11 @@ export function Suppliers() {
               requests={requests}
               emails={supplierEmails.filter((e) => e.offerId === offer.id)}
               templates={emailTemplates}
+              ledgers={materialLedgers}
               onEmailSent={handleSupplierEmailSent}
               onMarkRead={handleMarkSupplierEmailsRead}
               onTemplateSaved={handleEmailTemplateSaved}
+              onLedgersChange={setMaterialLedgers}
               onOfferUpdated={handleSupplierOfferUpdated}
               onEmailUpdated={handleSupplierEmailUpdated}
               onClose={() => setEmailOfferId(null)}
@@ -1981,9 +1992,11 @@ function OfferEmailModal({
   requests,
   emails,
   templates,
+  ledgers,
   onEmailSent,
   onMarkRead,
   onTemplateSaved,
+  onLedgersChange,
   onOfferUpdated,
   onEmailUpdated,
   onClose,
@@ -1993,9 +2006,11 @@ function OfferEmailModal({
   requests: SupplierRequest[];
   emails: SupplierOfferEmail[];
   templates: EmailTemplate[];
+  ledgers: MaterialLedger[];
   onEmailSent: (email: SupplierOfferEmail) => void;
   onMarkRead: (offerId: string) => void;
   onTemplateSaved: (template: EmailTemplate) => void;
+  onLedgersChange: (ledgers: MaterialLedger[]) => void;
   onOfferUpdated: (offer: SupplierOffer) => void;
   onEmailUpdated: (email: SupplierOfferEmail) => void;
   onClose: () => void;
@@ -2016,8 +2031,10 @@ function OfferEmailModal({
         requests={requests}
         emails={emails}
         templates={templates}
+        ledgers={ledgers}
         onEmailSent={onEmailSent}
         onTemplateSaved={onTemplateSaved}
+        onLedgersChange={onLedgersChange}
         onOfferUpdated={onOfferUpdated}
         onEmailUpdated={onEmailUpdated}
       />

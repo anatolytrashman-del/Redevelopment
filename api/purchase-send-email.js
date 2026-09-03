@@ -20,6 +20,7 @@
 // как и у остальных приватных api/*.js; клиент вызывает через authFetch.
 
 import { requireStaffAuth } from './_auth.js';
+import { uploadAttachment } from './_attachments.js';
 
 const RESEND_FROM_NAME = 'Redevelopment Закупки';
 
@@ -84,7 +85,7 @@ export default async function handler(req, res) {
   const user = await requireStaffAuth(req, res);
   if (!user) return;
 
-  const { purchaseId, offerId, toAddress, subject, body } = req.body ?? {};
+  const { purchaseId, offerId, toAddress, subject, body, attachments } = req.body ?? {};
 
   if ((!purchaseId && !offerId) || !toAddress || !body) {
     res.status(400).json({ error: 'Заполните все поля' });
@@ -111,6 +112,29 @@ export default async function handler(req, res) {
   const defaultSubject = purchaseId ? 'Закупка' : 'Запрос цены';
 
   try {
+    // Владелец, 2026-09-03: "прикрепление ведомостей материалов к письму" —
+    // клиент генерирует .xlsx сам (lib/materialLedgerXlsx.ts) и шлёт сюда уже
+    // готовым base64, здесь только два дела с ним: (1) отдать те же байты
+    // Resend, чтобы поставщик реально получил файл вложением, (2) залить
+    // в Storage тем же хелпером, что и вложения ВХОДЯЩИХ писем
+    // (uploadAttachment из _attachments.js), чтобы файл был виден в самой
+    // ленте переписки (files), а не только долетел до почтового ящика.
+    // Сбой заливки одного вложения не должен ронять уже готовое к отправке
+    // письмо — best-effort, как и у входящих.
+    const resendAttachments = [];
+    const storedFiles = [];
+    for (const a of Array.isArray(attachments) ? attachments : []) {
+      if (!a?.contentBase64 || !a?.fileName) continue;
+      resendAttachments.push({ filename: a.fileName, content: a.contentBase64 });
+      try {
+        const bytes = Buffer.from(a.contentBase64, 'base64');
+        const uploaded = await uploadAttachment(bytes, a.contentType, a.fileName);
+        storedFiles.push(uploaded);
+      } catch (err) {
+        console.error('Не удалось сохранить вложение исходящего письма в Storage:', err);
+      }
+    }
+
     const resendResp = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -122,6 +146,7 @@ export default async function handler(req, res) {
         to: [toAddress],
         subject: subject || defaultSubject,
         html: emailHtml(body),
+        ...(resendAttachments.length > 0 ? { attachments: resendAttachments } : {}),
       }),
     });
 
@@ -138,6 +163,7 @@ export default async function handler(req, res) {
       to_address: toAddress,
       subject: subject || '',
       body,
+      files: storedFiles,
       resend_message_id: resendJson?.id ?? null,
     });
 
