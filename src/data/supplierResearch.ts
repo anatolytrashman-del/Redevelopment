@@ -17,6 +17,40 @@ export type { ResearchContactMethod };
 // добавить прямо из формы, без правки кода.
 export const SUPPLIER_COUNTRIES = ['Беларусь', 'Россия'] as const;
 
+// Владелец, 2026-09-03: "вместо 'Страна Беларусь'/'Страна Россия' ставь
+// просто эмодзи с флагом" — бейджи страны везде в UI показывают флаг
+// вместо текста. Для страны, добавленной вручную сверх пресета (нет в
+// этом словаре) — падаем обратно на текст, эмодзи неоткуда взять.
+const COUNTRY_FLAGS: Record<string, string> = {
+  Беларусь: '🇧🇾',
+  Россия: '🇷🇺',
+};
+
+export function countryFlag(country: string): string {
+  return COUNTRY_FLAGS[country] ?? country;
+}
+
+// Владелец, 2026-09-03: "для всех поставщиков с сайтом в зоне .by
+// автоматически проставляй Беларусь, для .ru — Россию" — грубая эвристика
+// по домену сайта (не гарантия — бывают исключения), используется как
+// подсказка при вводе адреса сайта (Suppliers.tsx), не перезаписывает уже
+// выбранную вручную страну. Пустая строка — не удалось определить (домен
+// не .by/.ru, или сайт не указан).
+export function guessCountryFromWebsite(websiteUrl: string): string {
+  const trimmed = websiteUrl.trim();
+  if (!trimmed) return '';
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  let hostname: string;
+  try {
+    hostname = new URL(withProtocol).hostname.toLowerCase();
+  } catch {
+    hostname = trimmed.toLowerCase();
+  }
+  if (hostname.endsWith('.by')) return 'Беларусь';
+  if (hostname.endsWith('.ru')) return 'Россия';
+  return '';
+}
+
 // Вкладка "Поставщики" (пункт меню "Стройка") — та же механика, что и у
 // "Подрядчики → Ресерч": 1 запрос — 1 карточка, внутри — сравнение
 // предложений разных поставщиков, дешевле всех подсвечено (см. rankOffers

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Trash2, Pencil, Send, Phone, Globe, Paperclip, Upload, X, ImageOff, Mail, ShoppingCart, Search, Check, MailPlus, PackagePlus } from 'lucide-react';
+import { Plus, Loader2, Trash2, Pencil, Send, Phone, Globe, Paperclip, Upload, X, ImageOff, Mail, Search, Check, MailPlus, PackagePlus } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -9,11 +9,7 @@ import { Textarea } from '../components/ui/Textarea';
 import { Modal } from '../components/ui/Modal';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Select } from '../components/ui/Select';
-import { SearchInput } from '../components/ui/SearchInput';
 import { ContactValue } from '../components/ui/ContactValue';
-import { ContractorAvatar } from '../components/contractors/ContractorAvatar';
-import { ContractorCard } from '../components/contractors/ContractorCard';
-import { ContractorDetailModal } from '../components/contractors/ContractorDetailModal';
 import { ContractorsResearch } from '../components/contractors/ContractorsResearch';
 import { cn } from '../lib/cn';
 import { formatPhoneDisplay } from '../lib/formatPhone';
@@ -22,19 +18,12 @@ import type { DocumentFile } from '../data/contractorDocuments';
 import type { ExchangeRate } from '../data/exchangeRates';
 import { fetchTodayRate } from '../lib/exchangeRatesApi';
 import { convertToUsd } from '../lib/currencyConvert';
-import { contractorContactMethods, type Contractor } from '../data/contractors';
-import {
-  fetchContractors,
-  insertContractor,
-  updateContractor,
-  deleteContractor,
-  uploadContractorPhoto,
-  deleteContractorPhoto,
-} from '../lib/contractorsApi';
 import {
   RESEARCH_CURRENCIES,
   RESEARCH_CONTACT_METHODS,
   SUPPLIER_COUNTRIES,
+  guessCountryFromWebsite,
+  countryFlag,
   type ResearchContactMethod,
   type SupplierRequest,
   type SupplierOffer,
@@ -61,10 +50,12 @@ import {
 import { searchSuppliersOnline, type SupplierSearchResult } from '../lib/supplierWebSearchApi';
 import { purchaseItemTotal, type PurchaseItem } from '../data/purchases';
 import type { Estimate, EstimateMaterial } from '../data/estimates';
-import { fetchEstimates } from '../lib/estimatesApi';
+import { fetchEstimates, updateEstimate } from '../lib/estimatesApi';
 import type { RealtyObject } from '../data/objects';
 import { fetchObjects } from '../lib/objectsApi';
-import { Purchases, type PurchaseDraft } from './Purchases';
+import { MaterialsTable, groupMaterials } from '../components/estimates/MaterialsTable';
+import { EstimateMaterialFormModal } from '../components/estimates/EstimateMaterialFormModal';
+import { EstimateMaterialCommentsModal } from '../components/estimates/EstimateMaterialCommentsModal';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -91,55 +82,36 @@ function siteLabel(url: string): string {
   }
 }
 
-// "Закупки" — третья вкладка этой же страницы (владелец, 2026-08-29:
-// "всё остальное — это страница Закупки в стройке"). Содержимое — тот же
-// компонент Purchases, встроенный сюда как embedded (свой PageHeader
-// скрыт, кнопка "Добавить закупку" рендерится внутри вкладки).
-// "Email" (была "Переписка", переименована владельцем 2026-09-03) —
-// четвёртая, EMAIL_CORRESPONDENCE_PLAN.md этап 2: вся email-переписка по
-// предложениям Ресерча в одном месте, группировка Запрос → Поставщик.
-// Подпись вкладки остаётся статичной строкой (не "Email (N)") —
-// ToggleGroup сравнивает value===option буквально, динамический счётчик в
-// самой подписи сломал бы подсветку активной вкладки при любом изменении
-// числа непрочитанных; счётчик — бейджем поверх самого пункта через проп
-// badges (см. рендер ниже).
-const SUPPLIER_TABS = ['Каталог', 'Ресерч', 'Закупки', 'Email'] as const;
+// Владелец, 2026-09-03: "Порядок страниц такой: Ресерч, Email, Закупки" —
+// вкладка "Каталог" (карточки-компании без прайса, отдельно от сравнения
+// предложений в Ресерче) убрана тем же днём — "поставщиков из Каталога
+// перенеси в ресерч, а эту страницу пока вообще удали". Данные трёх
+// поставщиков (Iotans.by/Подпись.бай/SipSim) перенесены прямым SQL в
+// supplier_research_requests/offers (категории "Оборудование"/"IT-сервисы"),
+// сами строки contractors с team_tier=null НЕ удалены (осторожность —
+// "пока" в формулировке владельца, легко восстановить вкладку обратно, если
+// понадобится). Весь код вкладки (Contractor*/contractorsApi/catalogForm и
+// т.п.) удалён вместе с ней — не оставляли полу-мёртвый код с noUnusedLocals.
+//
+// Владелец, тем же днём чуть позже: "давай пока вообще уберем Закупки, они
+// только путают... пока не получается продумать архитектуру закупок,
+// продумаю потом" — вкладка "Закупки" (компонент Purchases, embedded) и всё,
+// что с ней было связано на этой странице (кнопка "Создать закупку" у
+// предложения, черновик покупки), убраны тем же способом, что и "Каталог"
+// чуть выше — код удалён, не спрятан; сам Purchases.tsx/purchasesApi.ts и
+// таблицы purchases/purchase_emails в базе НЕ трогали (то же "пока" —
+// вернуться к архитектуре закупок отдельным заходом). На освободившееся
+// место — "Ведомости материалов" (владелец: "Поставщики - Ведомости
+// материалов - Письма. Вот эти сущности пока"): та же единая ведомость по
+// разделам сметы, что и на странице "Сметы" (EstimateMaterialsLedgerModal),
+// только не всплывающим окном, а прямо вкладкой — переиспользованы те же
+// MaterialsTable/groupMaterials и формы материала/комментариев, просто со
+// своим выбором сметы (здесь, в отличие от страницы сметы, нет "текущей").
+// "Ресерч" переименован в "Поставщики" (владелец сам так назвал сущность),
+// "Email" — в "Письма" (то же самое: подпись вкладки — статичная строка,
+// не "Письма (N)", см. комментарий про badges выше по истории этого файла).
+const SUPPLIER_TABS = ['Поставщики', 'Ведомости материалов', 'Письма'] as const;
 type SupplierTab = (typeof SUPPLIER_TABS)[number];
-
-// Каталог поставщиков — те же карточки-компании, что раньше жили на странице
-// "Подрядчики" под заголовком "Прочие подрядчики" (владелец: "И вот это всё
-// Поставщики, а не подрядчики"). Данные технически по-прежнему лежат в
-// таблице contractors (переиспользуем Contractor/ContractorCard/
-// ContractorDetailModal/contractorsApi как есть — поля один в один подходят:
-// фото, название, категория, контакт, телефон, email), просто здесь
-// показываются строки БЕЗ teamTier (см. supplierContractors ниже) — те же,
-// что Contractors.tsx раньше рисовал в "Прочие подрядчики" (эта секция там
-// удалена, переехала сюда целиком, без миграции данных).
-const emptyCatalogForm = {
-  name: '',
-  specialty: '',
-  contact: '',
-  contactMethod: '',
-  phone: '',
-  email: '',
-  notes: '',
-  responsibilityZone: '',
-  photoPath: '',
-};
-
-function catalogToForm(c: Contractor) {
-  return {
-    name: c.name,
-    specialty: c.specialty,
-    contact: c.contact,
-    contactMethod: c.contactMethod,
-    phone: c.phone,
-    email: c.email,
-    notes: c.notes,
-    responsibilityZone: c.responsibilityZone,
-    photoPath: c.photoPath,
-  };
-}
 
 const emptyRequestForm = {
   title: '',
@@ -298,11 +270,7 @@ function RequestCard({
               >
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="truncate font-medium text-ink">{o.name}</span>
-                  {o.country && (
-                    <span className="shrink-0 rounded-full bg-surface-muted px-2 py-0.5 text-[11px] font-semibold text-ink-muted">
-                      {o.country}
-                    </span>
-                  )}
+                  {o.country && <span className="shrink-0" title={o.country}>{countryFlag(o.country)}</span>}
                   {isCheapest && (
                     <span className="shrink-0 rounded-full bg-success px-2 py-0.5 text-[11px] font-semibold text-white">
                       лучшая цена
@@ -483,7 +451,6 @@ function OfferDetailModal({
   onEmail,
   onEdit,
   onDelete,
-  onCreatePurchase,
   deleting,
 }: {
   offer: SupplierOffer;
@@ -492,7 +459,6 @@ function OfferDetailModal({
   onEmail: (o: SupplierOffer) => void;
   onEdit: (o: SupplierOffer) => void;
   onDelete: (o: SupplierOffer) => void;
-  onCreatePurchase: (o: SupplierOffer) => void;
   deleting: boolean;
 }) {
   return (
@@ -506,8 +472,8 @@ function OfferDetailModal({
             <span className="rounded-full bg-success px-2 py-0.5 text-[11px] font-semibold text-white">лучшая цена</span>
           )}
           {offer.country && (
-            <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[11px] font-semibold text-ink-muted">
-              {offer.country}
+            <span className="text-base" title={offer.country}>
+              {countryFlag(offer.country)}
             </span>
           )}
         </div>
@@ -646,9 +612,6 @@ function OfferDetailModal({
           <Button type="button" variant="ghost" icon={<Trash2 className="h-4 w-4" />} disabled={deleting} onClick={() => onDelete(offer)} className="mr-auto">
             Удалить
           </Button>
-          <Button type="button" variant="secondary" icon={<ShoppingCart className="h-4 w-4" />} onClick={() => onCreatePurchase(offer)}>
-            Создать закупку
-          </Button>
           <Button type="button" variant="secondary" icon={<Mail className="h-4 w-4" />} onClick={() => onEmail(offer)}>
             Написать
           </Button>
@@ -667,22 +630,7 @@ function OfferDetailModal({
 // чтобы не гонять лишний диф ради имени; название страницы для
 // пользователя задаётся через PageHeader/data/pages.ts).
 export function Suppliers() {
-  const [tab, setTab] = useState<SupplierTab>('Каталог');
-
-  // Каталог — те же карточки-компании, что раньше были "Прочие подрядчики"
-  // на странице Contractors.tsx (см. комментарий у emptyCatalogForm выше).
-  const [contractors, setContractors] = useState<Contractor[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(true);
-  const [catalogLoadError, setCatalogLoadError] = useState<string | null>(null);
-  const [catalogSearch, setCatalogSearch] = useState('');
-  const [catalogModalOpen, setCatalogModalOpen] = useState(false);
-  const [catalogDetailId, setCatalogDetailId] = useState<string | null>(null);
-  const [catalogEditingId, setCatalogEditingId] = useState<string | null>(null);
-  const [catalogForm, setCatalogForm] = useState(emptyCatalogForm);
-  const [catalogSubmitting, setCatalogSubmitting] = useState(false);
-  const [catalogSubmitError, setCatalogSubmitError] = useState<string | null>(null);
-  const [catalogDeletingId, setCatalogDeletingId] = useState<string | null>(null);
-  const [catalogPhotoUploading, setCatalogPhotoUploading] = useState(false);
+  const [tab, setTab] = useState<SupplierTab>('Поставщики');
 
   const [requests, setRequests] = useState<SupplierRequest[]>([]);
   const [offers, setOffers] = useState<SupplierOffer[]>([]);
@@ -729,7 +677,20 @@ export function Suppliers() {
   // "Написать всем" (EMAIL_CORRESPONDENCE_PLAN.md, этап 4) — id запроса, для
   // которого открыта модалка массовой рассылки первого письма.
   const [bulkEmailRequestId, setBulkEmailRequestId] = useState<string | null>(null);
-  const [purchaseDraft, setPurchaseDraft] = useState<PurchaseDraft | null>(null);
+
+  // Вкладка "Ведомости материалов" — та же единая ведомость по разделам, что
+  // и на странице "Смета" (EstimateMaterialsLedgerModal), но не всплывающим
+  // окном, а прямо вкладкой на "Закупках" (владелец, 2026-09-03: "приходится
+  // бегать на другую вкладку ради ведомости... Поставщики - Ведомости
+  // материалов - Письма. Вот эти сущности пока"). Смету нужно выбрать явно —
+  // у этой страницы, в отличие от EstimateDetail.tsx, нет "текущей" сметы.
+  const [ledgerEstimateId, setLedgerEstimateId] = useState('');
+  const [ledgerError, setLedgerError] = useState<string | null>(null);
+  const [materialModalOpen, setMaterialModalOpen] = useState(false);
+  const [materialSectionId, setMaterialSectionId] = useState<string | null>(null);
+  const [editingMaterial, setEditingMaterial] = useState<EstimateMaterial | null>(null);
+  const [commentsMaterialSectionId, setCommentsMaterialSectionId] = useState<string | null>(null);
+  const [commentsMaterial, setCommentsMaterial] = useState<EstimateMaterial | null>(null);
 
   // "Найти в сети" (владелец, 2026-08-31) — веб-поиск поставщиков через
   // claude-haiku-4-5 (api/supplier-web-search.js; изначально был
@@ -763,31 +724,6 @@ export function Suppliers() {
   const [webSearchBulkAdding, setWebSearchBulkAdding] = useState(false);
   const [webSearchAddError, setWebSearchAddError] = useState<string | null>(null);
 
-  // "Создать закупку" из выигравшего предложения (владелец, 2026-08-29:
-  // "у победителя жмёте «Создать закупку» — открывается форма Закупки, уже
-  // с этим поставщиком и материалами из этого же раздела сметы"). Материалы
-  // берём из запроса (SupplierRequest.items — общий список для всех
-  // предложений этого запроса), поставщика пытаемся сматчить по email с
-  // уже существующим в каталоге (supplierContractors) — если такого нет,
-  // оставляем поле пустым, сотрудник выберет/добавит сам.
-  function handleCreatePurchase(offer: SupplierOffer) {
-    const request = requests.find((r) => r.id === offer.requestId);
-    const matchedContractor = offer.email
-      ? supplierContractors.find((c) => c.email && c.email.toLowerCase() === offer.email.toLowerCase())
-      : undefined;
-    setPurchaseDraft({
-      title: request?.title || offer.name,
-      contractorId: matchedContractor?.id ?? null,
-      estimateId: request?.estimateId ?? null,
-      sectionId: request?.sectionId ?? null,
-      sectionTitle: request?.sectionTitle ?? '',
-      items: (request?.items ?? []).map((i) => ({ ...i, id: crypto.randomUUID() })),
-      currency: offer.currency,
-    });
-    setTab('Закупки');
-    setDetailOfferId(null);
-  }
-
   useEffect(() => {
     Promise.all([fetchSupplierRequests(), fetchSupplierOffers()])
       .then(([r, o]) => {
@@ -799,10 +735,6 @@ export function Suppliers() {
     fetchTodayRate()
       .then(setRate)
       .catch(() => setRate(undefined));
-    fetchContractors()
-      .then(setContractors)
-      .catch((err) => setCatalogLoadError(errorMessage(err, 'Не удалось загрузить поставщиков')))
-      .finally(() => setCatalogLoading(false));
     fetchEstimates().then(setEstimates).catch(() => setEstimates([]));
     fetchObjects().then(setObjects).catch(() => setObjects([]));
     fetchAllSupplierOfferEmails().then(setSupplierEmails).catch(() => setSupplierEmails([]));
@@ -914,146 +846,88 @@ export function Suppliers() {
     setRequestForm((f) => ({ ...f, items: f.items.filter((i) => i.id !== id) }));
   }
 
-  // Ровно то же условие, что раньше отбирало "Прочие подрядчики" в
-  // Contractors.tsx — контакты без занятости (teamTier).
-  const supplierContractors = useMemo(() => contractors.filter((c) => !c.teamTier), [contractors]);
-
   // Владелец, 2026-09-03: "будут поставщики из Беларуси и России" — пресет
   // + фактически встречающиеся значения (тот же паттерн, что и у
-  // knownCatalogSpecialties ниже / leadRequirements в Leads.tsx).
+  // leadRequirements в Leads.tsx).
   const knownCountries = useMemo(() => {
     const set = new Set<string>(SUPPLIER_COUNTRIES);
     offers.forEach((o) => o.country && set.add(o.country));
     return [...set];
   }, [offers]);
 
-  const knownCatalogSpecialties = useMemo(() => {
+  // Ведомость материалов — та же логика, что у saveEstimatePatch/
+  // openEditMaterial/deleteMaterial и т.п. в EstimateDetail.tsx (просто
+  // работает с локальным списком estimates этой страницы, а не с одной
+  // загруженной сметой).
+  const ledgerEstimate = estimates.find((e) => e.id === ledgerEstimateId) ?? null;
+
+  const materialGroupOptions = useMemo(() => {
     const set = new Set<string>();
-    supplierContractors.forEach((c) => c.specialty && set.add(c.specialty));
+    (ledgerEstimate?.sections ?? []).forEach((s) => s.materials.forEach((m) => m.group && set.add(m.group)));
     return [...set];
-  }, [supplierContractors]);
+  }, [ledgerEstimate]);
 
-  const knownCatalogContactMethods = useMemo(() => {
-    const set = new Set<string>(contractorContactMethods);
-    supplierContractors.forEach((c) => c.contactMethod && set.add(c.contactMethod));
-    return [...set];
-  }, [supplierContractors]);
+  async function saveLedgerSections(estimateId: string, sections: Estimate['sections']) {
+    const target = estimates.find((e) => e.id === estimateId);
+    if (!target) throw new Error('Смета не найдена');
+    const updated = await updateEstimate(estimateId, {
+      sections,
+      questions: target.questions,
+      status: target.status,
+      floor2Deferred: target.floor2Deferred,
+    });
+    setEstimates((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+    return updated;
+  }
 
-  const catalogGroups = useMemo(() => {
-    const q = catalogSearch.trim().toLowerCase();
-    const filtered = q
-      ? supplierContractors.filter((c) => c.name.toLowerCase().includes(q) || c.specialty.toLowerCase().includes(q))
-      : supplierContractors;
-    const sorted = [...filtered].sort(
-      (a, b) => a.specialty.localeCompare(b.specialty, 'ru') || a.name.localeCompare(b.name, 'ru'),
+  function openAddMaterial(sectionId: string) {
+    setMaterialSectionId(sectionId);
+    setEditingMaterial(null);
+    setMaterialModalOpen(true);
+  }
+
+  function openEditMaterial(sectionId: string, material: EstimateMaterial) {
+    setMaterialSectionId(sectionId);
+    setEditingMaterial(material);
+    setMaterialModalOpen(true);
+  }
+
+  async function saveMaterial(saved: EstimateMaterial) {
+    if (!ledgerEstimate || !materialSectionId) return;
+    const sections = ledgerEstimate.sections.map((s) => {
+      if (s.id !== materialSectionId) return s;
+      const exists = s.materials.some((m) => m.id === saved.id);
+      return { ...s, materials: exists ? s.materials.map((m) => (m.id === saved.id ? saved : m)) : [...s.materials, saved] };
+    });
+    await saveLedgerSections(ledgerEstimate.id, sections);
+  }
+
+  function openMaterialComments(sectionId: string, material: EstimateMaterial) {
+    setCommentsMaterialSectionId(sectionId);
+    setCommentsMaterial(material);
+  }
+
+  async function saveMaterialComments(updated: EstimateMaterial) {
+    if (!ledgerEstimate || !commentsMaterialSectionId) return;
+    const sections = ledgerEstimate.sections.map((s) =>
+      s.id === commentsMaterialSectionId ? { ...s, materials: s.materials.map((m) => (m.id === updated.id ? updated : m)) } : s,
     );
-    const groups: { specialty: string; items: Contractor[] }[] = [];
-    for (const c of sorted) {
-      const specialty = c.specialty || 'Без категории';
-      const last = groups[groups.length - 1];
-      if (last && last.specialty === specialty) last.items.push(c);
-      else groups.push({ specialty, items: [c] });
-    }
-    return groups;
-  }, [supplierContractors, catalogSearch]);
-
-  const catalogDetail = catalogDetailId ? (contractors.find((c) => c.id === catalogDetailId) ?? null) : null;
-  const catalogEditing = catalogEditingId ? (contractors.find((c) => c.id === catalogEditingId) ?? null) : null;
-
-  function openAddCatalog() {
-    setCatalogEditingId(null);
-    setCatalogForm(emptyCatalogForm);
-    setCatalogSubmitError(null);
-    setCatalogModalOpen(true);
+    const saved = await saveLedgerSections(ledgerEstimate.id, sections);
+    const savedSection = saved.sections.find((s) => s.id === commentsMaterialSectionId);
+    setCommentsMaterial(savedSection?.materials.find((m) => m.id === updated.id) ?? null);
   }
 
-  function openEditCatalog(c: Contractor) {
-    setCatalogEditingId(c.id);
-    setCatalogForm(catalogToForm(c));
-    setCatalogSubmitError(null);
-    setCatalogDetailId(null);
-    setCatalogModalOpen(true);
-  }
-
-  async function handleCatalogPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file || catalogPhotoUploading) return;
-    setCatalogPhotoUploading(true);
-    setCatalogSubmitError(null);
-    const previous = catalogForm.photoPath;
+  async function deleteMaterial(sectionId: string, materialId: string) {
+    if (!ledgerEstimate) return;
+    if (!window.confirm('Удалить материал?')) return;
+    const sections = ledgerEstimate.sections.map((s) =>
+      s.id === sectionId ? { ...s, materials: s.materials.filter((m) => m.id !== materialId) } : s,
+    );
+    setLedgerError(null);
     try {
-      const path = await uploadContractorPhoto(file);
-      setCatalogForm((f) => ({ ...f, photoPath: path }));
-      if (previous) await deleteContractorPhoto(previous);
+      await saveLedgerSections(ledgerEstimate.id, sections);
     } catch (err) {
-      setCatalogSubmitError(errorMessage(err, 'Не удалось загрузить фото'));
-    } finally {
-      setCatalogPhotoUploading(false);
-    }
-  }
-
-  async function handleCatalogPhotoRemove() {
-    const path = catalogForm.photoPath;
-    setCatalogForm((f) => ({ ...f, photoPath: '' }));
-    await deleteContractorPhoto(path);
-  }
-
-  const canSubmitCatalog = catalogForm.name && catalogForm.specialty && catalogForm.contact;
-
-  async function handleCatalogSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!canSubmitCatalog || catalogSubmitting) return;
-    setCatalogSubmitting(true);
-    setCatalogSubmitError(null);
-    const payload = {
-      name: catalogForm.name,
-      specialty: catalogForm.specialty,
-      contact: catalogForm.contact,
-      contactMethod: catalogForm.contactMethod,
-      phone: catalogForm.phone,
-      email: catalogForm.email,
-      notes: catalogForm.notes,
-      paymentTerms: '',
-      teamTier: '',
-      responsibilityZone: catalogForm.responsibilityZone,
-      photoPath: catalogForm.photoPath,
-      birthday: '',
-      resumePath: '',
-      resumeFileName: '',
-    };
-    try {
-      if (catalogEditingId) {
-        const updated = await updateContractor(catalogEditingId, payload);
-        setContractors((prev) => prev.map((c) => (c.id === catalogEditingId ? updated : c)));
-      } else {
-        const created = await insertContractor(payload);
-        setContractors((prev) => [...prev, created]);
-      }
-      setCatalogForm(emptyCatalogForm);
-      setCatalogEditingId(null);
-      setCatalogModalOpen(false);
-    } catch (err) {
-      setCatalogSubmitError(errorMessage(err, 'Не удалось сохранить поставщика'));
-    } finally {
-      setCatalogSubmitting(false);
-    }
-  }
-
-  async function handleCatalogDelete(c: Contractor) {
-    if (catalogDeletingId) return;
-    if (!window.confirm(`Удалить поставщика «${c.name}»?`)) return;
-    setCatalogDeletingId(c.id);
-    setCatalogSubmitError(null);
-    try {
-      await deleteContractor(c.id);
-      setContractors((prev) => prev.filter((x) => x.id !== c.id));
-      setCatalogDetailId(null);
-      setCatalogModalOpen(false);
-    } catch (err) {
-      setCatalogSubmitError(errorMessage(err, 'Не удалось удалить поставщика'));
-    } finally {
-      setCatalogDeletingId(null);
+      setLedgerError(errorMessage(err, 'Не удалось удалить материал'));
     }
   }
 
@@ -1185,7 +1059,7 @@ export function Suppliers() {
             contact: r.phone,
             email: r.email,
             managerName: '',
-            country: '',
+            country: guessCountryFromWebsite(r.website),
             websiteUrl: r.website,
             catalogModelName: '',
             catalogModelPhoto: null,
@@ -1231,7 +1105,11 @@ export function Suppliers() {
       contact: o.contact,
       email: o.email,
       managerName: o.managerName,
-      country: o.country,
+      // Если страна ещё не проставлена у уже существующего предложения (со
+      // старой записью, до этой правки) — подсказка по домену сайта, как
+      // и при вводе нового websiteUrl. Ничего не сохраняет само по себе,
+      // только предзаполняет форму.
+      country: o.country || guessCountryFromWebsite(o.websiteUrl),
       websiteUrl: o.websiteUrl,
       catalogModelName: o.catalogModelName,
       catalogModelPhoto: o.catalogModelPhoto,
@@ -1372,15 +1250,8 @@ export function Suppliers() {
     }
   }
 
-  // На вкладке "Закупки" своей кнопки в шапке нет — Purchases сам рендерит
-  // "Добавить закупку" внутри себя (embedded), как и положено чужому
-  // компоненту со своим состоянием модалки.
   const supplierAddButton =
-    tab === 'Каталог' ? (
-      <Button icon={<Plus className="h-4 w-4" />} onClick={openAddCatalog}>
-        Добавить поставщика
-      </Button>
-    ) : tab === 'Ресерч' ? (
+    tab === 'Поставщики' ? (
       <Button icon={<Plus className="h-4 w-4" />} onClick={openAddRequest}>
         Новый запрос
       </Button>
@@ -1390,58 +1261,16 @@ export function Suppliers() {
 
   return (
     <>
-      <PageHeader title="Закупки" action={supplierAddButton} />
+      <PageHeader title="Поставщики" action={supplierAddButton} />
 
       <ToggleGroup
         options={[...SUPPLIER_TABS]}
         value={tab}
         onChange={(v) => setTab(v as SupplierTab)}
-        badges={{ Email: unreadSupplierEmailsCount }}
+        badges={{ Письма: unreadSupplierEmailsCount }}
       />
 
-      {tab === 'Каталог' && (
-        <div className="mt-6 flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            <SearchInput
-              placeholder="Название или категория..."
-              value={catalogSearch}
-              onChange={(e) => setCatalogSearch(e.target.value)}
-              className="w-full sm:w-64"
-            />
-          </div>
-
-          {catalogLoading && (
-            <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Загружаем поставщиков...
-            </Card>
-          )}
-          {!catalogLoading && catalogLoadError && (
-            <Card className="py-10 text-center text-sm text-danger">{catalogLoadError}</Card>
-          )}
-          {!catalogLoading && !catalogLoadError && catalogGroups.length === 0 && (
-            <Card className="py-10 text-center text-sm text-ink-muted">
-              {catalogSearch ? 'Ничего не найдено' : 'Поставщиков пока нет — нажмите «Добавить поставщика»'}
-            </Card>
-          )}
-          {!catalogLoading && !catalogLoadError && catalogGroups.length > 0 && (
-            <div className="flex flex-col gap-5">
-              {catalogGroups.map((group) => (
-                <div key={group.specialty} className="flex flex-col gap-2">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-ink-faint">{group.specialty}</div>
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
-                    {group.items.map((c) => (
-                      <ContractorCard key={c.id} contractor={c} onOpen={(c) => setCatalogDetailId(c.id)} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {tab === 'Ресерч' && (
+      {tab === 'Поставщики' && (
       <div className="mt-6 flex flex-col gap-8">
         <div className="flex flex-col gap-6">
           <div className="text-lg font-bold text-ink">Материалы</div>
@@ -1495,7 +1324,7 @@ export function Suppliers() {
         {/* Сравнение предложений подрядчиков на услуги (оценка здания, вывоз
             мусора и т.п.) — перенесено сюда со страницы "Команда" (владелец,
             2026-09-02: "перенеси вот это в подрядчиков, это не команда"),
-            в "Закупки" → "Ресерч" рядом с ресерчем материалов. Полностью
+            на вкладку "Поставщики" рядом с ресерчем материалов. Полностью
             самостоятельный компонент (свои запросы/предложения/модалки, не
             завязан на Contractor/contractors), поэтому просто вставлен как
             есть отдельной секцией, без общих данных с блоком "Материалы" выше. */}
@@ -1506,13 +1335,80 @@ export function Suppliers() {
       </div>
       )}
 
-      {tab === 'Закупки' && (
-        <div className="mt-6">
-          <Purchases embedded initialDraft={purchaseDraft} onDraftConsumed={() => setPurchaseDraft(null)} />
+      {tab === 'Ведомости материалов' && (
+        <div className="mt-6 flex flex-col gap-6">
+          <Select
+            label="Смета"
+            placeholder="Не выбрана"
+            options={estimateOptions.map((o) => o.label)}
+            value={estimateOptions.find((o) => o.id === ledgerEstimateId)?.label ?? ''}
+            onChange={(label) => {
+              const o = estimateOptions.find((x) => x.label === label);
+              setLedgerEstimateId(o?.id ?? '');
+            }}
+          />
+
+          {ledgerError && <p className="text-sm text-danger">{ledgerError}</p>}
+
+          {!ledgerEstimate && (
+            <Card className="py-10 text-center text-sm text-ink-muted">Выберите смету, чтобы увидеть ведомость материалов</Card>
+          )}
+
+          {ledgerEstimate && ledgerEstimate.sections.length === 0 && (
+            <Card className="py-10 text-center text-sm text-ink-muted">В этой смете пока нет разделов</Card>
+          )}
+
+          {ledgerEstimate && (
+            <div className="flex flex-col gap-8">
+              {ledgerEstimate.sections.map((section) => {
+                const { ungrouped, groups } = groupMaterials(section.materials);
+                return (
+                  <div key={section.id} className="flex flex-col gap-3">
+                    <span className="text-lg font-bold text-ink">{section.title}</span>
+
+                    {section.materials.length === 0 && <p className="text-sm text-ink-faint">Материалов пока нет.</p>}
+
+                    {ungrouped.length > 0 && (
+                      <MaterialsTable
+                        materials={ungrouped}
+                        onEdit={(m) => openEditMaterial(section.id, m)}
+                        onDelete={(m) => deleteMaterial(section.id, m.id)}
+                        onOpenComments={(m) => openMaterialComments(section.id, m)}
+                      />
+                    )}
+
+                    {groups.map((g) => (
+                      <div key={g.name} className="flex flex-col gap-2">
+                        <span className="w-fit rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-semibold text-primary">
+                          {g.name}
+                        </span>
+                        <MaterialsTable
+                          materials={g.materials}
+                          onEdit={(m) => openEditMaterial(section.id, m)}
+                          onDelete={(m) => deleteMaterial(section.id, m.id)}
+                          onOpenComments={(m) => openMaterialComments(section.id, m)}
+                        />
+                      </div>
+                    ))}
+
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      icon={<Plus className="h-4 w-4" />}
+                      className="w-fit"
+                      onClick={() => openAddMaterial(section.id)}
+                    >
+                      Добавить материал в «{section.title}»
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
-      {tab === 'Email' && (
+      {tab === 'Письма' && (
         <div className="mt-6">
           <SupplierCorrespondenceTab
             requests={requests}
@@ -1692,7 +1588,13 @@ export function Suppliers() {
             label="Адрес сайта"
             placeholder="https://..."
             value={offerForm.websiteUrl}
-            onChange={(e) => setOfferForm((f) => ({ ...f, websiteUrl: e.target.value }))}
+            onChange={(e) => {
+              const websiteUrl = e.target.value;
+              // Владелец, 2026-09-03: "для поставщиков с сайтом в зоне .by
+              // автоматически проставляй Беларусь, для .ru — Россию" — не
+              // трогает страну, если она уже выбрана (вручную или раньше).
+              setOfferForm((f) => ({ ...f, websiteUrl, country: f.country || guessCountryFromWebsite(websiteUrl) }));
+            }}
           />
 
           <AddableSelect
@@ -1924,134 +1826,6 @@ export function Suppliers() {
         </form>
       </Modal>
 
-      <Modal
-        open={catalogModalOpen}
-        onClose={() => setCatalogModalOpen(false)}
-        title={catalogEditingId ? 'Редактировать поставщика' : 'Новый поставщик'}
-      >
-        <form onSubmit={handleCatalogSubmit} className="flex flex-col gap-4">
-          <div className="flex items-center gap-4">
-            <ContractorAvatar name={catalogForm.name || '?'} photoPath={catalogForm.photoPath} size="lg" />
-            <div className="flex flex-col items-start gap-1.5">
-              <label
-                className={cn(
-                  'inline-flex cursor-pointer items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold text-ink hover:border-border-strong',
-                  catalogPhotoUploading && 'pointer-events-none opacity-50',
-                )}
-              >
-                {catalogPhotoUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                {catalogPhotoUploading ? 'Загружаем...' : catalogForm.photoPath ? 'Заменить лого' : 'Загрузить лого'}
-                <input type="file" accept="image/*" className="hidden" onChange={handleCatalogPhotoChange} />
-              </label>
-              {catalogForm.photoPath && !catalogPhotoUploading && (
-                <button
-                  type="button"
-                  onClick={handleCatalogPhotoRemove}
-                  className="inline-flex items-center gap-1 text-xs text-ink-muted underline underline-offset-2 hover:text-danger"
-                >
-                  <X className="h-3 w-3" />
-                  Удалить лого
-                </button>
-              )}
-            </div>
-          </div>
-
-          <Input
-            label="Название"
-            placeholder="Компания или имя"
-            value={catalogForm.name}
-            onChange={(e) => setCatalogForm((f) => ({ ...f, name: e.target.value }))}
-            required
-          />
-
-          <AddableSelect
-            label="Категория"
-            placeholder="Не выбрано"
-            options={knownCatalogSpecialties}
-            value={catalogForm.specialty}
-            onChange={(v) => setCatalogForm((f) => ({ ...f, specialty: v }))}
-            addLabel="+ Добавить категорию"
-            newPlaceholder="Название категории"
-          />
-
-          <Input
-            label="Что предлагают"
-            placeholder="Например: умные замки"
-            value={catalogForm.responsibilityZone}
-            onChange={(e) => setCatalogForm((f) => ({ ...f, responsibilityZone: e.target.value }))}
-          />
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Input
-              label="Телефон"
-              placeholder="+375 29 ..."
-              type="tel"
-              value={catalogForm.phone}
-              onChange={(e) => setCatalogForm((f) => ({ ...f, phone: e.target.value }))}
-            />
-            <Input
-              label="Email"
-              placeholder="mail@example.com"
-              type="email"
-              value={catalogForm.email}
-              onChange={(e) => setCatalogForm((f) => ({ ...f, email: e.target.value }))}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Input
-              label="Контакт"
-              placeholder="@username, номер телефона..."
-              value={catalogForm.contact}
-              onChange={(e) => setCatalogForm((f) => ({ ...f, contact: e.target.value }))}
-              required
-            />
-            <AddableSelect
-              label="Способ связи"
-              placeholder="Не выбрано"
-              options={knownCatalogContactMethods}
-              value={catalogForm.contactMethod}
-              onChange={(v) => setCatalogForm((f) => ({ ...f, contactMethod: v }))}
-              addLabel="+ Добавить способ"
-              newPlaceholder="Название способа связи"
-            />
-          </div>
-
-          <Textarea
-            label="Заметки"
-            placeholder="Условия, скидки, качество..."
-            rows={3}
-            value={catalogForm.notes}
-            onChange={(e) => setCatalogForm((f) => ({ ...f, notes: e.target.value }))}
-          />
-
-          {catalogSubmitError && <p className="text-sm text-danger">{catalogSubmitError}</p>}
-
-          <div className="mt-2 flex items-center justify-end gap-3">
-            {catalogEditing && (
-              <Button
-                type="button"
-                variant="ghost"
-                icon={<Trash2 className="h-4 w-4" />}
-                disabled={catalogDeletingId === catalogEditing.id}
-                onClick={() => handleCatalogDelete(catalogEditing)}
-                className="mr-auto"
-              >
-                Удалить
-              </Button>
-            )}
-            <Button type="button" variant="secondary" onClick={() => setCatalogModalOpen(false)}>
-              Отмена
-            </Button>
-            <Button type="submit" disabled={!canSubmitCatalog || catalogSubmitting}>
-              {catalogSubmitting ? 'Сохраняем...' : catalogEditingId ? 'Сохранить' : 'Добавить'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      <ContractorDetailModal contractor={catalogDetail} onClose={() => setCatalogDetailId(null)} onEdit={openEditCatalog} />
-
       {emailOfferId &&
         (() => {
           const offer = offers.find((o) => o.id === emailOfferId);
@@ -2107,7 +1881,6 @@ export function Suppliers() {
               }}
               onEdit={openEditOffer}
               onDelete={handleDeleteOffer}
-              onCreatePurchase={handleCreatePurchase}
               deleting={deletingOfferId === offer.id}
             />
           );
@@ -2161,6 +1934,23 @@ export function Suppliers() {
           }
         />
       )}
+
+      <EstimateMaterialFormModal
+        open={materialModalOpen}
+        material={editingMaterial}
+        groupOptions={materialGroupOptions}
+        onClose={() => setMaterialModalOpen(false)}
+        onSaved={saveMaterial}
+      />
+
+      <EstimateMaterialCommentsModal
+        material={commentsMaterial}
+        onClose={() => {
+          setCommentsMaterialSectionId(null);
+          setCommentsMaterial(null);
+        }}
+        onSave={saveMaterialComments}
+      />
     </>
   );
 }

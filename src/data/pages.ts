@@ -74,11 +74,15 @@ export const ADMIN_PAGES: AdminPage[] = [
   // Ключ 'contractors' сохранён как есть (не заводили новый), в профиле
   // Светланы именно он, и на нём же завязан бейдж дней рождения в Sidebar.tsx.
   { key: 'contractors', to: '/admin/contractors', label: 'Команда', icon: UsersRound },
-  // "Закупки" — Каталог/Ресерч поставщиков/Закупки вместе, отдельный пункт
-  // внутри группы "Стройка" (владелец: "всё остальное, что ты нагородил —
-  // это страница Закупки в стройке"). Ключ 'purchases' — раньше был
-  // отдельной страницей до слияния 2026-08-29, переиспользован обратно.
-  { key: 'purchases', to: '/admin/purchases', label: 'Закупки', icon: ShoppingCart },
+  // "Поставщики" (была "Закупки") — отдельный пункт внутри группы "Стройка".
+  // Ключ 'purchases' и адрес /admin/purchases — исторические (страница
+  // существовала под этим именем до слияния 2026-08-29), не переименовывали
+  // ради лишнего дифа в профилях доступа/RequirePage. Владелец, 2026-09-03:
+  // "давай пока вообще уберём Закупки, они только путают... Поставщики -
+  // Ведомости материалов - Письма" — сама вкладка "Закупки" внутри страницы
+  // убрана (см. комментарий в Suppliers.tsx), поэтому и пункт меню
+  // переименован вслед за новым набором вкладок.
+  { key: 'purchases', to: '/admin/purchases', label: 'Поставщики', icon: ShoppingCart },
   { key: 'transactions', to: '/admin/transactions', label: 'Транзакции', icon: Receipt },
   { key: 'documents', to: '/admin/documents', label: 'Документы', icon: FileStack },
   { key: 'meetingSummaries', to: '/admin/meeting-summaries', label: 'Саммери встреч', icon: MessageSquareText },

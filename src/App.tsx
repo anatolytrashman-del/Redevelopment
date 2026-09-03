@@ -27,10 +27,10 @@ const Transactions = lazy(() => import('./pages/Transactions').then((m) => ({ de
 const TransactionsReport = lazy(() => import('./pages/TransactionsReport').then((m) => ({ default: m.TransactionsReport })));
 const Leads = lazy(() => import('./pages/Leads').then((m) => ({ default: m.Leads })));
 const Contractors = lazy(() => import('./pages/Contractors').then((m) => ({ default: m.Contractors })));
-// "Закупки" (Каталог поставщиков/Ресерч/Закупки вместе, владелец,
-// 2026-08-29) — компонент по историческим причинам называется Suppliers,
-// см. комментарий в самом файле. Purchases.tsx не отдельный маршрут — он
-// встроен внутрь Suppliers как вкладка "Закупки" (embedded).
+// "Поставщики" (была "Закупки" — владелец, 2026-09-03: "уберём Закупки, они
+// только путают") — компонент по историческим причинам называется Suppliers,
+// см. комментарий в самом файле. Purchases.tsx (embedded, вкладка "Закупки")
+// с этой правкой сюда больше не подключается.
 const Suppliers = lazy(() => import('./pages/Suppliers').then((m) => ({ default: m.Suppliers })));
 const Objects = lazy(() => import('./pages/Objects').then((m) => ({ default: m.Objects })));
 const ObjectDetail = lazy(() => import('./pages/ObjectDetail').then((m) => ({ default: m.ObjectDetail })));

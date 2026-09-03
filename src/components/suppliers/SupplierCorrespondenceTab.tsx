@@ -4,9 +4,10 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
+import { Select } from '../ui/Select';
 import { cn } from '../../lib/cn';
 import type { SupplierRequest, SupplierOffer } from '../../data/supplierResearch';
-import { supplierOfferEmailAddress } from '../../data/supplierResearch';
+import { supplierOfferEmailAddress, countryFlag } from '../../data/supplierResearch';
 import { updateSupplierOffer } from '../../lib/supplierResearchApi';
 import type { SupplierOfferEmail, EmailExtractionItem } from '../../data/supplierOfferEmails';
 import { sendSupplierOfferEmail, setSupplierOfferEmailExtractionStatus } from '../../lib/supplierOfferEmailsApi';
@@ -394,7 +395,11 @@ export function EmailThread({
       <div className="flex flex-col gap-1 text-sm text-ink-muted">
         <span>Email: {offer.email || 'не указан'}</span>
         <span>Адрес для переписки: {supplierOfferEmailAddress(offer.shortCode)}</span>
-        {offer.country && <span>Страна: {offer.country}</span>}
+        {offer.country && (
+          <span>
+            Страна: <span title={offer.country}>{countryFlag(offer.country)}</span>
+          </span>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">
@@ -440,15 +445,31 @@ export function EmailThread({
                     темы, до текста, а не в самом низу карточки. */}
                 {e.files.length > 0 && (
                   <div className="flex flex-col gap-2">
-                    {e.files.map((f, i) =>
-                      isImageFile(f.fileName) ? (
-                        <a key={i} href={f.url} target="_blank" rel="noreferrer" className="block w-fit">
-                          <img
-                            src={f.url}
-                            alt={f.fileName}
-                            className="max-h-48 max-w-full rounded-control border border-border object-contain"
-                          />
-                        </a>
+                    {e.files.map((f, i) => {
+                      // Владелец, 2026-09-03: "когда внесли данные в
+                      // таблицу, давай напротив файла в письме ставить
+                      // пометку, что инфа в базе" — сравниваем по url с
+                      // sourceFile уже ПОДТВЕРЖДЁННОГО распознавания этого
+                      // письма (не pending/dismissed — только когда данные
+                      // реально попали в карточку предложения).
+                      const inDb = e.extraction?.status === 'confirmed' && e.extraction.sourceFile?.url === f.url;
+                      const inDbBadge = inDb && (
+                        <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-success">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Данные в базе
+                        </span>
+                      );
+                      return isImageFile(f.fileName) ? (
+                        <div key={i} className="flex flex-col items-start gap-1">
+                          <a href={f.url} target="_blank" rel="noreferrer" className="block w-fit">
+                            <img
+                              src={f.url}
+                              alt={f.fileName}
+                              className="max-h-48 max-w-full rounded-control border border-border object-contain"
+                            />
+                          </a>
+                          {inDbBadge}
+                        </div>
                       ) : isPreviewable(f.fileName) ? (
                         // Владелец: "мне бы предпросмотр, как договора" —
                         // открываем в DocumentPreviewModal вместо новой
@@ -461,6 +482,7 @@ export function EmailThread({
                         >
                           <Paperclip className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
                           <span className="min-w-0 flex-1 truncate">{f.fileName}</span>
+                          {inDbBadge}
                         </button>
                       ) : (
                         <a
@@ -472,9 +494,10 @@ export function EmailThread({
                         >
                           <Paperclip className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
                           <span className="min-w-0 flex-1 truncate">{f.fileName}</span>
+                          {inDbBadge}
                         </a>
-                      ),
-                    )}
+                      );
+                    })}
                   </div>
                 )}
                 {/* Владелец, 2026-09-03: "система [должна] понимать, что перед
@@ -727,6 +750,13 @@ export function SupplierCorrespondenceTab({
   onEmailUpdated: (email: SupplierOfferEmail) => void;
 }) {
   const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
+  // Владелец, 2026-09-03: "у нас будет по 20+ поставщиков в каждой
+  // категории. Давай вместо бокового списка адресов выбирать конкретную
+  // категорию, а уже ниже список поставщиков" — раньше все категории
+  // (запросы Ресерча) рендерились подряд одним длинным списком в боковой
+  // колонке, с 20+ поставщиками на категорию это стало нечитаемым. Теперь
+  // сначала выбор категории (Select сверху), ниже — только её поставщики.
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
 
   function handleTemplateSaved(saved: EmailTemplate) {
@@ -773,6 +803,22 @@ export function SupplierCorrespondenceTab({
     });
   }, [requests, offers, emails]);
 
+  // Текущая выбранная категория — если ещё ничего не выбрано, или выбор
+  // осиротел (например, запрос удалили), падаем на первую категорию
+  // списка (уже отсортирована по непрочитанным — см. groups выше).
+  const effectiveRequestId =
+    selectedRequestId && groups.some((g) => g.request.id === selectedRequestId) ? selectedRequestId : (groups[0]?.request.id ?? null);
+  const selectedGroup = groups.find((g) => g.request.id === effectiveRequestId) ?? null;
+
+  const categoryOptions = useMemo(
+    () =>
+      groups.map((g) => {
+        const unread = g.offers.reduce((sum, x) => sum + threadStatus(x.emails).unreadCount, 0);
+        return { id: g.request.id, label: unread > 0 ? `${g.request.title} (${unread})` : g.request.title };
+      }),
+    [groups],
+  );
+
   const selected = useMemo(() => {
     if (!selectedOfferId) return null;
     for (const group of groups) {
@@ -785,6 +831,13 @@ export function SupplierCorrespondenceTab({
   function selectOffer(offerId: string) {
     setSelectedOfferId(offerId);
     onMarkRead(offerId);
+  }
+
+  // Смена категории сбрасывает выбранного поставщика — иначе справа
+  // остался бы висеть тред поставщика из уже скрытой категории.
+  function selectCategory(requestId: string) {
+    setSelectedRequestId(requestId);
+    setSelectedOfferId(null);
   }
 
   const templatesButton = (
@@ -819,48 +872,51 @@ export function SupplierCorrespondenceTab({
     <div className="flex flex-col gap-4">
       {templatesButton}
       <div className="flex flex-col gap-4 lg:flex-row">
-        <div className="flex flex-col gap-4 lg:w-80 lg:shrink-0">
-          {groups.map((group) => (
-            <div key={group.request.id} className="flex flex-col gap-1.5">
-              <span className="w-fit rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-semibold text-ink-muted">
-                {group.request.title}
-              </span>
-              <div className="flex flex-col gap-1">
-                {group.offers.map(({ offer, emails: offerEmails }) => {
-                  const { status, unreadCount } = threadStatus(offerEmails);
-                  const isSelected = selectedOfferId === offer.id;
-                  return (
-                    <button
-                      key={offer.id}
-                      type="button"
-                      onClick={() => selectOffer(offer.id)}
-                      className={cn(
-                        'flex items-center justify-between gap-2 rounded-control border px-3 py-2 text-left text-sm transition-colors',
-                        isSelected ? 'border-ink bg-surface-muted' : 'border-border bg-surface hover:border-border-strong',
-                      )}
-                    >
-                      <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate">
-                        <span className="min-w-0 flex-1 truncate font-medium text-ink">{offer.name}</span>
-                        {offer.country && (
-                          <span className="shrink-0 rounded-full bg-surface-muted px-1.5 py-0.5 text-[10px] font-semibold text-ink-muted">
-                            {offer.country}
-                          </span>
-                        )}
+        <div className="flex flex-col gap-3 lg:w-80 lg:shrink-0">
+          <Select
+            label="Категория"
+            options={categoryOptions.map((o) => o.label)}
+            value={categoryOptions.find((o) => o.id === effectiveRequestId)?.label ?? ''}
+            onChange={(label) => {
+              const o = categoryOptions.find((x) => x.label === label);
+              if (o) selectCategory(o.id);
+            }}
+          />
+
+          <div className="flex flex-col gap-1">
+            {selectedGroup?.offers.map(({ offer, emails: offerEmails }) => {
+              const { status, unreadCount } = threadStatus(offerEmails);
+              const isSelected = selectedOfferId === offer.id;
+              return (
+                <button
+                  key={offer.id}
+                  type="button"
+                  onClick={() => selectOffer(offer.id)}
+                  className={cn(
+                    'flex items-center justify-between gap-2 rounded-control border px-3 py-2 text-left text-sm transition-colors',
+                    isSelected ? 'border-ink bg-surface-muted' : 'border-border bg-surface hover:border-border-strong',
+                  )}
+                >
+                  <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate">
+                    <span className="min-w-0 flex-1 truncate font-medium text-ink">{offer.name}</span>
+                    {offer.country && (
+                      <span className="shrink-0" title={offer.country}>
+                        {countryFlag(offer.country)}
                       </span>
-                      <span className="flex shrink-0 items-center gap-1.5">
-                        {unreadCount > 0 && (
-                          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[11px] font-bold text-white">
-                            {unreadCount}
-                          </span>
-                        )}
-                        <span className={cn('text-xs', STATUS_CLASS[status])}>{STATUS_LABEL[status]}</span>
+                    )}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    {unreadCount > 0 && (
+                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[11px] font-bold text-white">
+                        {unreadCount}
                       </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+                    )}
+                    <span className={cn('text-xs', STATUS_CLASS[status])}>{STATUS_LABEL[status]}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <Card className="flex-1 p-5">
@@ -871,8 +927,8 @@ export function SupplierCorrespondenceTab({
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-lg font-bold text-ink">{selected.offer.name}</span>
                 {selected.offer.country && (
-                  <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-semibold text-ink-muted">
-                    {selected.offer.country}
+                  <span className="text-base" title={selected.offer.country}>
+                    {countryFlag(selected.offer.country)}
                   </span>
                 )}
                 <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-semibold text-ink-muted">
