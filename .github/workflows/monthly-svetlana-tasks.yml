@@ -1,0 +1,24 @@
+name: Monthly Svetlana review tasks
+
+on:
+  schedule:
+    # 25-го числа каждого месяца — с запасом до конца месяца после
+    # автоматических синков (1-е/2-е число), чтобы Светлана успела разобрать
+    # накопившееся. Время не совпадает с другими месячными cron (3 utc),
+    # сдвинуто, чтобы не запускаться одновременно.
+    - cron: '0 6 25 * *'
+  workflow_dispatch:
+
+jobs:
+  create-tasks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/create-monthly-svetlana-tasks.mjs
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
