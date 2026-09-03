@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply, FileSearch, CheckCircle2, Eye, FileSpreadsheet, X } from 'lucide-react';
+import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply, FileSearch, CheckCircle2, Eye, FileSpreadsheet, X, Plus } from 'lucide-react';
 import { Card } from '../ui/Card';
+import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
@@ -9,6 +10,8 @@ import { cn } from '../../lib/cn';
 import type { SupplierRequest, SupplierOffer } from '../../data/supplierResearch';
 import { supplierOfferEmailAddress, countryFlag, SUPPLIER_COUNTRIES } from '../../data/supplierResearch';
 import { updateSupplierOffer } from '../../lib/supplierResearchApi';
+import type { SupplierOrder } from '../../data/supplierOrders';
+import { insertSupplierOrder, updateSupplierOrder } from '../../lib/supplierOrdersApi';
 import type { SupplierOfferEmail, EmailExtractionItem } from '../../data/supplierOfferEmails';
 import { sendSupplierOfferEmail, setSupplierOfferEmailExtractionStatus } from '../../lib/supplierOfferEmailsApi';
 import type { EmailTemplate } from '../../data/emailTemplates';
@@ -140,12 +143,8 @@ function pluralPositions(n: number): string {
 // плодит копии). currency из распознавания может не совпасть ни с одним
 // известным значением (модели явно запрещено гадать, возвращает null,
 // если не уверена) — тогда валюту карточки не трогаем.
-async function applyExtractionToOffer(
-  offer: SupplierOffer,
-  extraction: { price: number | null; currency: string | null; items: EmailExtractionItem[] },
-  sourceFile: { url: string; fileName: string } | null,
-): Promise<SupplierOffer> {
-  const newItems: PurchaseItem[] = extraction.items.map((i) => ({
+function extractionItemsToPurchaseItems(items: EmailExtractionItem[]): PurchaseItem[] {
+  return items.map((i) => ({
     id: crypto.randomUUID(),
     sourceMaterialId: null,
     name: i.name,
@@ -154,6 +153,14 @@ async function applyExtractionToOffer(
     price: i.price,
     note: '',
   }));
+}
+
+async function applyExtractionToOffer(
+  offer: SupplierOffer,
+  extraction: { price: number | null; currency: string | null; items: EmailExtractionItem[] },
+  sourceFile: { url: string; fileName: string } | null,
+): Promise<SupplierOffer> {
+  const newItems = extractionItemsToPurchaseItems(extraction.items);
   const files =
     sourceFile && !offer.files.some((f) => f.url === sourceFile.url)
       ? [...offer.files, { url: sourceFile.url, fileName: sourceFile.fileName }]
@@ -182,6 +189,34 @@ async function applyExtractionToOffer(
   });
 }
 
+// То же самое, но для дополнительной заявки (SupplierOrder), а не для
+// "основной" переписки офера — владелец, 2026-09-03: "1 заявка на поставку —
+// одна ветка". Письмо, из которого распознан счёт, всегда лежит в СВОЁМ
+// треде (EmailThread показывает только письма текущей заявки), поэтому
+// какую из двух функций звать, решает не e.orderId, а какая заявка сейчас
+// открыта (order prop) — см. handleConfirmAutoExtraction.
+async function applyExtractionToOrder(
+  order: SupplierOrder,
+  extraction: { price: number | null; currency: string | null; items: EmailExtractionItem[] },
+  sourceFile: { url: string; fileName: string } | null,
+): Promise<SupplierOrder> {
+  const newItems = extractionItemsToPurchaseItems(extraction.items);
+  const files =
+    sourceFile && !order.files.some((f) => f.url === sourceFile.url)
+      ? [...order.files, { url: sourceFile.url, fileName: sourceFile.fileName }]
+      : order.files;
+  return updateSupplierOrder(order.id, {
+    title: order.title,
+    communicationStatus: order.communicationStatus.trim() ? order.communicationStatus : 'Получили КП',
+    price: extraction.price ?? order.price,
+    currency: isValidCurrency(extraction.currency) ? extraction.currency : order.currency,
+    deadline: order.deadline,
+    requirements: order.requirements,
+    items: [...order.items, ...newItems],
+    files,
+  });
+}
+
 // Подпись письма — имя реально вошедшего сотрудника (getCurrentProfile), не
 // захардкожено, иначе письма от Светланы или владельца подписывались бы
 // чужим именем. Владелец, 2026-09-03: для его собственного профиля
@@ -203,8 +238,13 @@ function emailSignature(): string {
 // отправки запроса не нужно выводить еще раз шаблон письма под перепиской,
 // он уже будет не актуален" — вводный текст имеет смысл только для ПЕРВОГО
 // письма в треде, hasHistory решает это.
-function defaultSubject(hasHistory: boolean): string {
-  return hasHistory ? '' : 'Поставка материалов';
+// orderTitle — название текущей заявки (SupplierOrder.title), если письмо
+// идёт не в "основной" переписке офера, а в дополнительной заявке (владелец,
+// 2026-09-03: "1 заявка на поставку — одна ветка") — тема первого письма
+// такой заявки по умолчанию берёт её название ("Окна"), а не общее
+// "Поставка материалов".
+function defaultSubject(hasHistory: boolean, orderTitle: string): string {
+  return hasHistory ? '' : orderTitle || 'Поставка материалов';
 }
 
 function defaultBody(hasHistory: boolean): string {
@@ -229,6 +269,7 @@ ${emailSignature()}`;
 // по предложению.
 export function EmailThread({
   offer,
+  order,
   request,
   requests,
   emails,
@@ -239,11 +280,21 @@ export function EmailThread({
   onTemplateSaved,
   onLedgersChange,
   onOfferUpdated,
+  onOrderUpdated,
   onEmailUpdated,
 }: {
   offer: SupplierOffer;
+  // Владелец, 2026-09-03: "1 заявка на поставку — одна ветка" — null здесь
+  // означает "основная" переписка офера (как было всегда), непустое
+  // значение — конкретная дополнительная заявка (SupplierOrder). Какой
+  // именно тред показывать/куда слать — решает этот проп, не сам компонент.
+  order: SupplierOrder | null;
   request: SupplierRequest;
   requests: SupplierRequest[];
+  // Все письма ЭТОГО офера (по всем его заявкам разом, не только текущей) —
+  // компонент сам фильтрует до нужного треда по order (см. threadEmails
+  // ниже); везде внутри компонента используется именно отфильтрованный
+  // threadEmails, не этот проп напрямую.
   emails: SupplierOfferEmail[];
   templates: EmailTemplate[];
   ledgers: MaterialLedger[];
@@ -252,10 +303,18 @@ export function EmailThread({
   onTemplateSaved: (template: EmailTemplate) => void;
   onLedgersChange: (ledgers: MaterialLedger[]) => void;
   onOfferUpdated: (offer: SupplierOffer) => void;
+  onOrderUpdated: (order: SupplierOrder) => void;
   onEmailUpdated: (email: SupplierOfferEmail) => void;
 }) {
-  const [subject, setSubject] = useState(() => defaultSubject(emails.length > 0));
-  const [body, setBody] = useState(() => defaultBody(emails.length > 0));
+  // Письма именно текущего треда — основной переписки (order=null) или
+  // конкретной заявки. e.orderId null и undefined тут не разводим, в базе
+  // всегда либо null, либо реальный uuid (см. data/supplierOfferEmails.ts).
+  const threadEmails = useMemo(
+    () => emails.filter((e) => (e.orderId ?? null) === (order?.id ?? null)),
+    [emails, order?.id],
+  );
+  const [subject, setSubject] = useState(() => defaultSubject(threadEmails.length > 0, order?.title ?? ''));
+  const [body, setBody] = useState(() => defaultBody(threadEmails.length > 0));
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
@@ -275,7 +334,7 @@ export function EmailThread({
   // убрана тем же днём ("Убирай кнопку написать, оставляем только Ответить").
   // Открыта по умолчанию только когда в треде вообще ещё нет писем — иначе
   // первое письмо было бы физически некому "ответить".
-  const [composerOpen, setComposerOpen] = useState(emails.length === 0);
+  const [composerOpen, setComposerOpen] = useState(threadEmails.length === 0);
   // Предпросмотр вложения (владелец: "мне бы предпросмотр, как договора") —
   // просто просмотр PDF/докс/картинки прямо в приложении, без ручной кнопки
   // распознавания (была здесь, убрана владельцем 2026-09-03 — см. комментарий
@@ -284,24 +343,25 @@ export function EmailThread({
   const [extractionError, setExtractionError] = useState<string | null>(null);
   const [applyingExtraction, setApplyingExtraction] = useState(false);
 
-  // Черновик по умолчанию завязан на конкретное предложение/запрос — при
-  // переключении между тредами (вкладка "Переписка") нужно пересчитать
-  // и тему, и текст, иначе останется черновик предыдущего поставщика.
-  // Новый тред = чистый черновик, ничего печатного до этого момента тут
-  // не теряется — сброс срабатывает только на реальную смену offer.id.
-  // hasHistory читает emails на момент срабатывания эффекта (не входит в
+  // Черновик по умолчанию завязан на конкретный тред (предложение + заявка) —
+  // при переключении между тредами (вкладка "Переписка", в т.ч. между
+  // разными заявками одного поставщика) нужно пересчитать и тему, и текст,
+  // иначе останется черновик предыдущего треда. Новый тред = чистый
+  // черновик, ничего печатного до этого момента тут не теряется — сброс
+  // срабатывает только на реальную смену offer.id/order.id. hasHistory
+  // читает threadEmails на момент срабатывания эффекта (не входит в
   // зависимости намеренно) — важно только "было ли хоть одно письмо к
   // моменту открытия ЭТОГО треда", не реагировать на каждое новое письмо.
   useEffect(() => {
-    const hasHistory = emails.length > 0;
-    setSubject(defaultSubject(hasHistory));
+    const hasHistory = threadEmails.length > 0;
+    setSubject(defaultSubject(hasHistory, order?.title ?? ''));
     setBody(defaultBody(hasHistory));
     setSendError(null);
     setSelectedTemplateId('');
     setComposerOpen(!hasHistory);
     setPendingLedger(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [offer.id]);
+  }, [offer.id, order?.id]);
 
   // Шаблоны этого запроса первыми, общие — следом (EMAIL_CORRESPONDENCE_PLAN.md,
   // этап 3: "сначала шаблоны с request_id этого запроса, затем общие").
@@ -359,7 +419,7 @@ export function EmailThread({
   // как открыт предпросмотр (кнопка на карточке или обычный клик по
   // вложению).
   const previewExtractionEmail = previewFile
-    ? emails.find((e) => e.extraction?.status === 'pending' && e.extraction.sourceFile?.url === previewFile.url) ?? null
+    ? threadEmails.find((e) => e.extraction?.status === 'pending' && e.extraction.sourceFile?.url === previewFile.url) ?? null
     : null;
 
   async function handleConfirmAutoExtraction(e: SupplierOfferEmail) {
@@ -367,8 +427,13 @@ export function EmailThread({
     setApplyingExtraction(true);
     setExtractionError(null);
     try {
-      const updated = await applyExtractionToOffer(offer, e.extraction, e.extraction.sourceFile ?? null);
-      onOfferUpdated(updated);
+      // order — текущий открытый тред (тот же, которому принадлежит это
+      // письмо, см. threadEmails) — заявка или основная переписка офера.
+      if (order) {
+        onOrderUpdated(await applyExtractionToOrder(order, e.extraction, e.extraction.sourceFile ?? null));
+      } else {
+        onOfferUpdated(await applyExtractionToOffer(offer, e.extraction, e.extraction.sourceFile ?? null));
+      }
       await setSupplierOfferEmailExtractionStatus(e.id, e.extraction, 'confirmed');
       onEmailUpdated({ ...e, extraction: { ...e.extraction, status: 'confirmed' } });
       closePreview();
@@ -399,6 +464,7 @@ export function EmailThread({
     try {
       const email = await sendSupplierOfferEmail({
         offerId: offer.id,
+        orderId: order?.id ?? null,
         toAddress: offer.email,
         subject,
         body,
@@ -425,23 +491,24 @@ export function EmailThread({
           достаточно. */}
       <div className="flex flex-col gap-1 text-sm text-ink-muted">
         <span>Email: {offer.email || 'не указан'}</span>
-        <span>Адрес для переписки: {supplierOfferEmailAddress(offer.shortCode)}</span>
+        <span>Адрес для переписки: {supplierOfferEmailAddress(order?.shortCode ?? offer.shortCode)}</span>
         <span>Категория: {request.title}</span>
+        {order && <span>Заявка: {order.title || 'без названия'}</span>}
         {offer.country && <span title={offer.country}>{countryFlag(offer.country)}</span>}
       </div>
 
       <div className="flex flex-col gap-2">
         <span className="text-sm font-semibold text-ink">Переписка</span>
         {extractionError && <p className="text-sm text-danger">{extractionError}</p>}
-        {emails.length === 0 && <p className="text-sm text-ink-faint">Писем пока нет.</p>}
-        {emails.length > 0 && (
+        {threadEmails.length === 0 && <p className="text-sm text-ink-faint">Писем пока нет.</p>}
+        {threadEmails.length > 0 && (
           <div className="flex flex-col gap-2">
             {/* Владелец, 2026-09-03: "когда много писем, приходится листать в
                 самый низ... я бы делал обратную хронологию — последнее письмо
                 наверху" — [...emails] копия перед reverse(), исходный emails
                 (по возрастанию даты) нужен как есть в других местах (threadStatus
                 читает emails[emails.length-1] как последнее). */}
-            {[...emails].reverse().map((e, i) => {
+            {[...threadEmails].reverse().map((e, i) => {
               const { visible, quoted } = splitQuotedReply(e.body);
               const isQuoteExpanded = expandedQuoteIds.has(e.id);
               // Владелец, 2026-09-03: "кнопка Ответить нужна только на
@@ -801,6 +868,7 @@ interface RequestGroup {
 export function SupplierCorrespondenceTab({
   requests,
   offers,
+  orders,
   emails,
   templates,
   ledgers,
@@ -810,22 +878,34 @@ export function SupplierCorrespondenceTab({
   onTemplatesChange,
   onLedgersChange,
   onOfferUpdated,
+  onOrdersChange,
   onEmailUpdated,
 }: {
   requests: SupplierRequest[];
   offers: SupplierOffer[];
+  // Владелец, 2026-09-03: "1 заявка на поставку — одна ветка" — доп. заявки
+  // всех поставщиков разом, группировка по offerId — на месте (см.
+  // offerOrders ниже), тот же принцип, что и у offers/emails.
+  orders: SupplierOrder[];
   emails: SupplierOfferEmail[];
   templates: EmailTemplate[];
   ledgers: MaterialLedger[];
   allMaterials: { item: PurchaseItem; context: string }[];
   onEmailSent: (email: SupplierOfferEmail) => void;
-  onMarkRead: (offerId: string) => void;
+  onMarkRead: (offerId: string, orderId: string | null) => void;
   onTemplatesChange: (templates: EmailTemplate[]) => void;
   onLedgersChange: (ledgers: MaterialLedger[]) => void;
   onOfferUpdated: (offer: SupplierOffer) => void;
+  onOrdersChange: (orders: SupplierOrder[]) => void;
   onEmailUpdated: (email: SupplierOfferEmail) => void;
 }) {
   const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
+  // null — "основная" переписка офера, иначе id конкретной доп. заявки.
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [newOrderModalOpen, setNewOrderModalOpen] = useState(false);
+  const [newOrderTitle, setNewOrderTitle] = useState('');
+  const [creatingOrder, setCreatingOrder] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
   // Владелец, 2026-09-03: "добавляй ещё один селектор после категории с
   // выбором страны, не такой же выпадающий, а просто два варианта, указывай
   // флагами" — фильтрует список поставщиков категории ниже, не глобальный
@@ -909,9 +989,18 @@ export function SupplierCorrespondenceTab({
     return null;
   }, [groups, selectedOfferId]);
 
+  // Заявки выбранного поставщика — "Основная" (null) всегда в списке
+  // неявно (см. чипы ниже), тут только дополнительные (SupplierOrder).
+  const offerOrders = useMemo(
+    () => (selected ? orders.filter((o) => o.offerId === selected.offer.id) : []),
+    [orders, selected],
+  );
+  const selectedOrder = selectedOrderId ? offerOrders.find((o) => o.id === selectedOrderId) ?? null : null;
+
   function selectOffer(offerId: string) {
     setSelectedOfferId(offerId);
-    onMarkRead(offerId);
+    setSelectedOrderId(null);
+    onMarkRead(offerId, null);
   }
 
   // Смена категории сбрасывает выбранного поставщика — иначе справа
@@ -919,6 +1008,53 @@ export function SupplierCorrespondenceTab({
   function selectCategory(requestId: string) {
     setSelectedRequestId(requestId);
     setSelectedOfferId(null);
+    setSelectedOrderId(null);
+  }
+
+  // Владелец, 2026-09-03: "1 заявка на поставку — одна ветка" — переключение
+  // между "Основная"/заявками того же поставщика, отметка прочитанным идёт
+  // именно за этот тред, не за всю переписку с поставщиком разом (иначе
+  // непрочитанные в других заявках гасли бы, даже не будучи открытыми).
+  function selectOrder(orderId: string | null) {
+    setSelectedOrderId(orderId);
+    if (selectedOfferId) onMarkRead(selectedOfferId, orderId);
+  }
+
+  function openNewOrderModal() {
+    setNewOrderTitle('');
+    setOrderError(null);
+    setNewOrderModalOpen(true);
+  }
+
+  async function handleCreateOrder(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedOfferId || !newOrderTitle.trim() || creatingOrder) return;
+    setCreatingOrder(true);
+    setOrderError(null);
+    try {
+      const created = await insertSupplierOrder({
+        offerId: selectedOfferId,
+        title: newOrderTitle.trim(),
+        communicationStatus: '',
+        price: 0,
+        currency: 'USD',
+        deadline: '',
+        requirements: '',
+        items: [],
+        files: [],
+      });
+      onOrdersChange([...orders, created]);
+      setNewOrderModalOpen(false);
+      selectOrder(created.id);
+    } catch (err) {
+      setOrderError(errorMessage(err, 'Не удалось создать заявку'));
+    } finally {
+      setCreatingOrder(false);
+    }
+  }
+
+  function handleOrderUpdated(updated: SupplierOrder) {
+    onOrdersChange(orders.map((o) => (o.id === updated.id ? updated : o)));
   }
 
   const templatesButton = (
@@ -1026,8 +1162,45 @@ export function SupplierCorrespondenceTab({
                   флаг был лишним (слишком много флагов на экране), категория
                   переехала в блок реквизитов внутри EmailThread. */}
               <span className="text-lg font-bold text-ink">{selected.offer.name}</span>
+
+              {/* Владелец, 2026-09-03: "1 заявка на поставку — одна ветка" —
+                  чипы переключают тред: "Основная" (та переписка, что была
+                  всегда) + по одной на каждую доп. заявку. Непрочитанные в
+                  каждой заявке считаются отдельно, чтобы было видно, где
+                  именно ответили, не открывая все подряд. */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[{ id: null as string | null, title: 'Основная' }, ...offerOrders.map((o) => ({ id: o.id, title: o.title || 'Без названия' }))].map(
+                  (t) => {
+                    const threadUnread = threadStatus(selected.emails.filter((e) => (e.orderId ?? null) === t.id)).unreadCount;
+                    const isActive = selectedOrderId === t.id;
+                    return (
+                      <button
+                        key={t.id ?? 'main'}
+                        type="button"
+                        onClick={() => selectOrder(t.id)}
+                        className={cn(
+                          'relative rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
+                          isActive ? 'border-ink bg-surface-muted text-ink' : 'border-border bg-surface text-ink-muted hover:border-border-strong',
+                        )}
+                      >
+                        {t.title}
+                        {threadUnread > 0 && (
+                          <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white">
+                            {threadUnread}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  },
+                )}
+                <Button type="button" variant="ghost" icon={<Plus className="h-3.5 w-3.5" />} onClick={openNewOrderModal}>
+                  Новая заявка
+                </Button>
+              </div>
+
               <EmailThread
                 offer={selected.offer}
+                order={selectedOrder}
                 request={selected.request}
                 requests={requests}
                 emails={selected.emails}
@@ -1038,6 +1211,7 @@ export function SupplierCorrespondenceTab({
                 onTemplateSaved={handleTemplateSaved}
                 onLedgersChange={onLedgersChange}
                 onOfferUpdated={onOfferUpdated}
+                onOrderUpdated={handleOrderUpdated}
                 onEmailUpdated={onEmailUpdated}
               />
             </div>
@@ -1045,6 +1219,28 @@ export function SupplierCorrespondenceTab({
         </Card>
       </div>
       {templatesModal}
+
+      <Modal open={newOrderModalOpen} onClose={() => setNewOrderModalOpen(false)} title="Новая заявка">
+        <form onSubmit={handleCreateOrder} className="flex flex-col gap-4">
+          <Input
+            label="Название заявки"
+            placeholder="Например, Окна"
+            value={newOrderTitle}
+            onChange={(e) => setNewOrderTitle(e.target.value)}
+            required
+            autoFocus
+          />
+          {orderError && <p className="text-sm text-danger">{orderError}</p>}
+          <div className="mt-2 flex justify-end gap-3">
+            <Button type="button" variant="secondary" onClick={() => setNewOrderModalOpen(false)}>
+              Отмена
+            </Button>
+            <Button type="submit" disabled={!newOrderTitle.trim() || creatingOrder}>
+              {creatingOrder ? 'Создаём...' : 'Создать'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

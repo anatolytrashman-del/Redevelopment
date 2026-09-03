@@ -39,6 +39,8 @@ import type { EmailTemplate } from '../data/emailTemplates';
 import { fetchEmailTemplates } from '../lib/emailTemplatesApi';
 import type { MaterialLedger } from '../data/materialLedgers';
 import { fetchMaterialLedgers } from '../lib/materialLedgersApi';
+import type { SupplierOrder } from '../data/supplierOrders';
+import { fetchSupplierOrders } from '../lib/supplierOrdersApi';
 import {
   fetchSupplierRequests,
   insertSupplierRequest,
@@ -682,6 +684,10 @@ export function Suppliers() {
   // шаблонов писем: пресеты не привязаны к конкретному поставщику/запросу,
   // один источник на всю страницу.
   const [materialLedgers, setMaterialLedgers] = useState<MaterialLedger[]>([]);
+  // Доп. заявки поставщиков (владелец, 2026-09-03: "1 заявка на поставку —
+  // одна ветка") — все сразу, группировка по offerId на клиенте
+  // (SupplierCorrespondenceTab), тот же принцип, что и у offers/emails.
+  const [supplierOrders, setSupplierOrders] = useState<SupplierOrder[]>([]);
   // Владелец, 2026-08-29: "слишком много инфы на превью, все вразнобой.
   // Давай выводить название + цену + статус + кнопка Подробнее" — остальные
   // поля (контакт/сайт/модель/срок/требования/файлы) и действия
@@ -751,6 +757,7 @@ export function Suppliers() {
     fetchAllSupplierOfferEmails().then(setSupplierEmails).catch(() => setSupplierEmails([]));
     fetchEmailTemplates().then(setEmailTemplates).catch(() => setEmailTemplates([]));
     fetchMaterialLedgers().then(setMaterialLedgers).catch(() => setMaterialLedgers([]));
+    fetchSupplierOrders().then(setSupplierOrders).catch(() => setSupplierOrders([]));
   }, []);
 
   // Владелец, 2026-09-03: "в ведомости по умолчанию всегда выбран Red One" —
@@ -793,11 +800,15 @@ export function Suppliers() {
   // фоном; сбой запроса намеренно не откатывает локальную отметку и не
   // показывает ошибку — это не критичная операция, при следующей загрузке
   // страницы всё равно синхронизируется с базой.
-  function handleMarkSupplierEmailsRead(offerId: string) {
+  function handleMarkSupplierEmailsRead(offerId: string, orderId: string | null) {
     setSupplierEmails((prev) =>
-      prev.map((e) => (e.offerId === offerId && e.direction === 'in' && !e.readAt ? { ...e, readAt: new Date().toISOString() } : e)),
+      prev.map((e) =>
+        e.offerId === offerId && (e.orderId ?? null) === orderId && e.direction === 'in' && !e.readAt
+          ? { ...e, readAt: new Date().toISOString() }
+          : e,
+      ),
     );
-    markSupplierOfferEmailsRead(offerId).catch(() => {});
+    markSupplierOfferEmailsRead(offerId, orderId).catch(() => {});
   }
 
   function handleSupplierEmailSent(email: SupplierOfferEmail) {
@@ -1465,6 +1476,7 @@ export function Suppliers() {
           <SupplierCorrespondenceTab
             requests={requests}
             offers={offers}
+            orders={supplierOrders}
             emails={supplierEmails}
             templates={emailTemplates}
             ledgers={materialLedgers}
@@ -1474,6 +1486,7 @@ export function Suppliers() {
             onTemplatesChange={setEmailTemplates}
             onLedgersChange={setMaterialLedgers}
             onOfferUpdated={handleSupplierOfferUpdated}
+            onOrdersChange={setSupplierOrders}
             onEmailUpdated={handleSupplierEmailUpdated}
           />
         </div>
@@ -2037,7 +2050,7 @@ function OfferEmailModal({
   ledgers: MaterialLedger[];
   allMaterials: { item: PurchaseItem; context: string }[];
   onEmailSent: (email: SupplierOfferEmail) => void;
-  onMarkRead: (offerId: string) => void;
+  onMarkRead: (offerId: string, orderId: string | null) => void;
   onTemplateSaved: (template: EmailTemplate) => void;
   onLedgersChange: (ledgers: MaterialLedger[]) => void;
   onOfferUpdated: (offer: SupplierOffer) => void;
@@ -2045,7 +2058,12 @@ function OfferEmailModal({
   onClose: () => void;
 }) {
   useEffect(() => {
-    onMarkRead(offer.id);
+    // Владелец, 2026-09-03: "1 заявка на поставку — одна ветка" — эта
+    // модалка (быстрое "Написать" из карточки предложения) всегда
+    // открывает "основную" переписку (order=null); полный чек-лист заявок
+    // с переключением между ними — только на вкладке "Письма"
+    // (SupplierCorrespondenceTab).
+    onMarkRead(offer.id, null);
     // onMarkRead — стабильная ссылка из родителя (не зависит от рендера),
     // намеренно не в зависимостях, чтобы не звать повторно на каждый чужой
     // ре-рендер — только при реальной смене предложения.
@@ -2056,6 +2074,7 @@ function OfferEmailModal({
     <Modal open onClose={onClose} title={offer.name}>
       <EmailThread
         offer={offer}
+        order={null}
         request={request}
         requests={requests}
         emails={emails}
@@ -2066,6 +2085,7 @@ function OfferEmailModal({
         onTemplateSaved={onTemplateSaved}
         onLedgersChange={onLedgersChange}
         onOfferUpdated={onOfferUpdated}
+        onOrderUpdated={() => {}}
         onEmailUpdated={onEmailUpdated}
       />
     </Modal>

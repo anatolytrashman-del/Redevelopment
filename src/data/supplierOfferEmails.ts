@@ -39,6 +39,14 @@ export interface EmailExtraction {
 export interface SupplierOfferEmail {
   id: string;
   offerId: string;
+  // Владелец, 2026-09-03: "1 заявка на поставку — одна ветка" — null значит
+  // письмо принадлежит "основной" переписке поставщика (той, что была
+  // всегда, живёт прямо на offer), непустое значение — конкретной
+  // дополнительной заявке (SupplierOrder). offerId всё равно заполнен и
+  // здесь — общий счётчик непрочитанных по поставщику (countUnreadSupplierEmails,
+  // группировка в SupplierCorrespondenceTab) считает по offerId независимо
+  // от того, в какой конкретно ветке письмо.
+  orderId: string | null;
   direction: 'in' | 'out';
   fromAddress: string;
   toAddress: string;
@@ -58,6 +66,7 @@ export interface SupplierOfferEmail {
 export interface SupplierOfferEmailRow {
   id: string;
   offer_id: string;
+  order_id: string | null;
   direction: string;
   from_address: string;
   to_address: string;

@@ -118,6 +118,26 @@ async function resolveIdByShortCode(table, shortCode) {
   return rows[0]?.id ?? null;
 }
 
+// Владелец, 2026-09-03: "1 заявка на поставку — одна ветка" — дополнительные
+// заявки (supplier_orders) переписываются по своему собственному
+// short_code, но письмо всё равно должно лечь и под правильный offer_id
+// (карточка поставщика, к которому эта заявка относится) — нужен id ОБОИХ
+// сразу, не одного only order.id, как у остальных resolveIdByShortCode.
+async function resolveOrderByShortCode(shortCode) {
+  const resp = await fetch(
+    `${process.env.SUPABASE_URL}/rest/v1/supplier_orders?short_code=eq.${encodeURIComponent(shortCode)}&select=id,offer_id`,
+    {
+      headers: {
+        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+    },
+  );
+  if (!resp.ok) return null;
+  const rows = await resp.json();
+  return rows[0] ? { id: rows[0].id, offerId: rows[0].offer_id } : null;
+}
+
 // Заголовок From письма обычно приходит в одном из двух видов —
 // "Иван Петров <ivan@company.ru>" или просто "ivan@company.ru" — если
 // получится распознать имя, дальше используем его для автозаполнения
@@ -239,12 +259,20 @@ export default async function handler(req, res) {
     }
 
     // Таблицу определяет не префикс адреса (оба принимаются одинаково, см.
-    // extractShortCode), а то, в какой из двух таблиц реально нашёлся
-    // short_code — обе таблицы проверяются по очереди, коллизия между ними
-    // технически возможна, но при таком масштабе (десятки-сотни записей на
-    // компанию, не тысячи) статистически ничтожна, отдельно не защищаемся.
+    // extractShortCode), а то, в какой из трёх таблиц реально нашёлся
+    // short_code — проверяются по очереди, коллизия между ними технически
+    // возможна, но при таком масштабе (десятки-сотни записей на компанию,
+    // не тысячи) статистически ничтожна, отдельно не защищаемся.
+    //
+    // Владелец, 2026-09-03: "1 заявка на поставку — одна ветка" —
+    // дополнительные заявки (supplier_orders) переписываются по своему
+    // короткому коду; письмо в этом случае всё равно кладём под настоящий
+    // offer_id (карточка поставщика), плюс order_id конкретной заявки.
     const purchaseId = await resolveIdByShortCode('purchases', code);
-    const offerId = purchaseId ? null : await resolveIdByShortCode('supplier_research_offers', code);
+    const matchedOffer = purchaseId ? null : await resolveIdByShortCode('supplier_research_offers', code);
+    const matchedOrder = purchaseId || matchedOffer ? null : await resolveOrderByShortCode(code);
+    const offerId = matchedOffer ?? matchedOrder?.offerId ?? null;
+    const orderId = matchedOrder?.id ?? null;
 
     if (!purchaseId && !offerId) {
       // Код есть в адресе, но не резолвится ни в одну реальную запись —
@@ -304,6 +332,7 @@ export default async function handler(req, res) {
         })
       : await insertEmailRow('supplier_offer_emails', {
           offer_id: offerId,
+          order_id: orderId,
           direction: 'in',
           from_address: fromAddress,
           to_address: toAddress || '',

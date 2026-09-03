@@ -7,6 +7,7 @@ function fromRow(row: SupplierOfferEmailRow): SupplierOfferEmail {
   return {
     id: row.id,
     offerId: row.offer_id,
+    orderId: row.order_id ?? null,
     direction: row.direction === 'in' ? 'in' : 'out',
     fromAddress: row.from_address,
     toAddress: row.to_address,
@@ -44,19 +45,25 @@ export function fetchAllSupplierOfferEmails(): Promise<SupplierOfferEmail[]> {
   });
 }
 
-// Отмечает прочитанными все ВХОДЯЩИЕ письма этого предложения, у которых
-// read_at ещё не проставлен — вызывается при открытии треда. Обычная
-// клиентская запись (RLS authenticated_all), без серверной функции — не
-// privileged-операция, любой залогиненный сотрудник может отмечать письма
-// прочитанными.
-export function markSupplierOfferEmailsRead(offerId: string): Promise<void> {
+// Отмечает прочитанными все ВХОДЯЩИЕ письма этого треда, у которых read_at
+// ещё не проставлен — вызывается при открытии треда. orderId=null — тред
+// "основной" переписки офера, конкретный id — тред отдельной заявки
+// (владелец, 2026-09-03: "1 заявка на поставку — одна ветка"; отметка
+// прочитанным идёт именно за открытый тред, не за всю переписку офера
+// разом — иначе непрочитанные в других заявках гасли бы сами по себе).
+// Обычная клиентская запись (RLS authenticated_all), без серверной функции —
+// не privileged-операция, любой залогиненный сотрудник может отмечать
+// письма прочитанными.
+export function markSupplierOfferEmailsRead(offerId: string, orderId: string | null): Promise<void> {
   return withRetry(async () => {
-    const { error } = await supabase
+    let query = supabase
       .from('supplier_offer_emails')
       .update({ read_at: new Date().toISOString() })
       .eq('offer_id', offerId)
       .eq('direction', 'in')
       .is('read_at', null);
+    query = orderId ? query.eq('order_id', orderId) : query.is('order_id', null);
+    const { error } = await query;
     if (error) throw error;
   });
 }
@@ -83,6 +90,11 @@ export function setSupplierOfferEmailExtractionStatus(
 // отдельный файл на каждую пару send/receive не поместился бы).
 export async function sendSupplierOfferEmail(input: {
   offerId: string;
+  // Владелец, 2026-09-03: "1 заявка на поставку — одна ветка" — если письмо
+  // идёт в дополнительной заявке (не в основной переписке офера), сервер
+  // строит адрес отправителя из shortCode этой заявки, а не офера (см.
+  // api/purchase-send-email.js).
+  orderId?: string | null;
   toAddress: string;
   subject: string;
   body: string;

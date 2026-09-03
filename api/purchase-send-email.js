@@ -85,7 +85,7 @@ export default async function handler(req, res) {
   const user = await requireStaffAuth(req, res);
   if (!user) return;
 
-  const { purchaseId, offerId, toAddress, subject, body, attachments } = req.body ?? {};
+  const { purchaseId, offerId, orderId, toAddress, subject, body, attachments } = req.body ?? {};
 
   if ((!purchaseId && !offerId) || !toAddress || !body) {
     res.status(400).json({ error: 'Заполните все поля' });
@@ -97,18 +97,24 @@ export default async function handler(req, res) {
     return;
   }
 
+  // Владелец, 2026-09-03: "1 заявка на поставку — одна ветка" — если письмо
+  // идёт по дополнительной заявке (orderId), адрес отправителя строится из
+  // её собственного short_code (своя ветка, свой ответ прилетит именно
+  // сюда), не из short_code офера. offer_id в самой записи письма всё равно
+  // проставляется — общий счётчик непрочитанных по поставщику считает по
+  // нему независимо от конкретной заявки (см. data/supplierOfferEmails.ts).
   const shortCode = purchaseId
     ? await fetchShortCode('purchases', purchaseId)
-    : await fetchShortCode('supplier_research_offers', offerId);
+    : orderId
+      ? await fetchShortCode('supplier_orders', orderId)
+      : await fetchShortCode('supplier_research_offers', offerId);
   if (!shortCode) {
-    res.status(404).json({ error: 'Не найдена закупка или предложение' });
+    res.status(404).json({ error: 'Не найдена закупка, предложение или заявка' });
     return;
   }
 
   const fromAddress = emailAddress(shortCode);
   const table = purchaseId ? 'purchase_emails' : 'supplier_offer_emails';
-  const idField = purchaseId ? 'purchase_id' : 'offer_id';
-  const idValue = purchaseId ?? offerId;
   const defaultSubject = purchaseId ? 'Закупка' : 'Запрос цены';
 
   try {
@@ -157,7 +163,7 @@ export default async function handler(req, res) {
     const resendJson = await resendResp.json();
 
     const row = await insertEmailRow(table, {
-      [idField]: idValue,
+      ...(purchaseId ? { purchase_id: purchaseId } : { offer_id: offerId, order_id: orderId ?? null }),
       direction: 'out',
       from_address: fromAddress,
       to_address: toAddress,
