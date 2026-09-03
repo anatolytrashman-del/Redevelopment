@@ -681,6 +681,13 @@ export function Suppliers() {
   // (см. рендер ниже), модалка живёт внутри SupplierCorrespondenceTab как и
   // раньше, открытость управляется отсюда.
   const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
+  // Владелец, 2026-09-04: "на этой странице делать Шаблоны" (про "Ведомости
+  // материалов") — управление пресетами ведомостей (MaterialLedger) прямо
+  // с этой вкладки, вне контекста конкретного письма. Переиспользован
+  // MaterialLedgerModal (тот же список materialLedgers, что и у "Прикрепить
+  // ведомость"/"Массовая отправка"), только без onAttach — тут нечего
+  // прикреплять, только создавать/править/удалять.
+  const [ledgerTemplatesModalOpen, setLedgerTemplatesModalOpen] = useState(false);
 
   // Владелец, 2026-09-04: "давай реализуем массовую отправку... Альмира
   // сформировала универсальную большую ведомость и хочет разослать её
@@ -1405,6 +1412,17 @@ export function Suppliers() {
             Шаблоны
           </Button>
         )}
+        {/* Владелец, 2026-09-04: "на этой странице делать Шаблоны, они же
+            будут синхронизированы с шаблонами в массовой отправке" — это те
+            же самые ведомости (MaterialLedger), что и в "Прикрепить
+            ведомость"/"Массовая отправка" на "Письмах" — один общий список
+            (materialLedgers), просто ещё одна точка входа для управления
+            им, без привязки к конкретной переписке. */}
+        {tab === 'Ведомости материалов' && (
+          <Button type="button" variant="secondary" icon={<FileText className="h-4 w-4" />} onClick={() => setLedgerTemplatesModalOpen(true)}>
+            Шаблоны
+          </Button>
+        )}
       </div>
 
       {tab === 'Поставщики' && (
@@ -1994,6 +2012,20 @@ export function Suppliers() {
           переиспользованный MaterialLedgerModal (тот же пикер, что и у
           "Прикрепить ведомость" в одиночном письме), его onAttach передаёт
           готовый xlsx дальше, в шаг 2 (BulkSendModal). */}
+      {/* Владелец, 2026-09-04: "на этой странице делать Шаблоны" —
+          управление пресетами ведомостей вне контекста конкретного письма
+          (нет onAttach — только создание/правка/удаление). Тот же общий
+          список materialLedgers, что и у "Прикрепить ведомость"/"Массовая
+          отправка" на "Письмах" — правка здесь сразу видна там же. */}
+      <MaterialLedgerModal
+        open={ledgerTemplatesModalOpen}
+        requestItems={[]}
+        allMaterials={allEstimateMaterials}
+        ledgers={materialLedgers}
+        onClose={() => setLedgerTemplatesModalOpen(false)}
+        onLedgersChange={setMaterialLedgers}
+      />
+
       {bulkLedgerPickerRequest && (
         <MaterialLedgerModal
           open

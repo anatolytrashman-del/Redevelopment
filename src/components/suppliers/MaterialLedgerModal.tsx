@@ -51,7 +51,11 @@ export function MaterialLedgerModal({
   ledgers: MaterialLedger[];
   onClose: () => void;
   onLedgersChange: (ledgers: MaterialLedger[]) => void;
-  onAttach: (attachment: LedgerAttachment) => void;
+  // Владелец, 2026-09-04: "на странице Ведомости материалов делать
+  // Шаблоны" — тот же список пресетов, но вне контекста письма (нечего
+  // прикреплять) — необязателен, кнопка "Прикрепить" скрыта, когда не
+  // передан.
+  onAttach?: (attachment: LedgerAttachment) => void;
 }) {
   const [selectedId, setSelectedId] = useState('');
   const [name, setName] = useState('');
@@ -171,7 +175,7 @@ export function MaterialLedgerModal({
   }
 
   async function handleAttach() {
-    if (!canSubmit || attaching) return;
+    if (!canSubmit || attaching || !onAttach) return;
     setAttaching(true);
     setError(null);
     try {
@@ -289,9 +293,11 @@ export function MaterialLedgerModal({
             <Button type="button" variant="secondary" icon={<Save className="h-4 w-4" />} onClick={handleSaveLedger} disabled={!canSubmit || saving}>
               {saving ? 'Сохраняем...' : 'Сохранить как ведомость'}
             </Button>
-            <Button type="button" icon={<Paperclip className="h-4 w-4" />} onClick={handleAttach} disabled={!canSubmit || attaching}>
-              {attaching ? 'Формируем файл...' : 'Прикрепить'}
-            </Button>
+            {onAttach && (
+              <Button type="button" icon={<Paperclip className="h-4 w-4" />} onClick={handleAttach} disabled={!canSubmit || attaching}>
+                {attaching ? 'Формируем файл...' : 'Прикрепить'}
+              </Button>
+            )}
           </div>
         </div>
       </div>
