@@ -37,10 +37,10 @@ import {
   type ResearchContactMethod,
   type SupplierRequest,
   type SupplierOffer,
-  supplierOfferEmailAddress,
 } from '../data/supplierResearch';
 import type { SupplierOfferEmail } from '../data/supplierOfferEmails';
-import { fetchSupplierOfferEmails, sendSupplierOfferEmail } from '../lib/supplierOfferEmailsApi';
+import { fetchAllSupplierOfferEmails, markSupplierOfferEmailsRead } from '../lib/supplierOfferEmailsApi';
+import { EmailThread, SupplierCorrespondenceTab, countUnreadSupplierEmails } from '../components/suppliers/SupplierCorrespondenceTab';
 import {
   fetchSupplierRequests,
   insertSupplierRequest,
@@ -90,7 +90,14 @@ function siteLabel(url: string): string {
 // "всё остальное — это страница Закупки в стройке"). Содержимое — тот же
 // компонент Purchases, встроенный сюда как embedded (свой PageHeader
 // скрыт, кнопка "Добавить закупку" рендерится внутри вкладки).
-const SUPPLIER_TABS = ['Каталог', 'Ресерч', 'Закупки'] as const;
+// "Переписка" — четвёртая, EMAIL_CORRESPONDENCE_PLAN.md этап 2: вся
+// email-переписка по предложениям Ресерча в одном месте, группировка
+// Запрос → Поставщик. Подпись вкладки остаётся статичной строкой (не
+// "Переписка (N)") — ToggleGroup сравнивает value===option буквально,
+// динамический счётчик в самой подписи сломал бы подсветку активной
+// вкладки при любом изменении числа непрочитанных; счётчик — отдельным
+// бейджем рядом с ToggleGroup (см. рендер ниже).
+const SUPPLIER_TABS = ['Каталог', 'Ресерч', 'Закупки', 'Переписка'] as const;
 type SupplierTab = (typeof SUPPLIER_TABS)[number];
 
 // Каталог поставщиков — те же карточки-компании, что раньше жили на странице
@@ -629,6 +636,11 @@ export function Suppliers() {
   const [deletingOfferId, setDeletingOfferId] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [emailOfferId, setEmailOfferId] = useState<string | null>(null);
+  // Вся переписка по всем предложениям Ресерча разом — единственный
+  // источник правды для OfferEmailModal и вкладки "Переписка" (см.
+  // EMAIL_CORRESPONDENCE_PLAN.md, этап 2), обновляется локально при
+  // отправке/прочтении, без повторного fetch на каждое действие.
+  const [supplierEmails, setSupplierEmails] = useState<SupplierOfferEmail[]>([]);
   // Владелец, 2026-08-29: "слишком много инфы на превью, все вразнобой.
   // Давай выводить название + цену + статус + кнопка Подробнее" — остальные
   // поля (контакт/сайт/модель/срок/требования/файлы) и действия
@@ -711,7 +723,24 @@ export function Suppliers() {
       .finally(() => setCatalogLoading(false));
     fetchEstimates().then(setEstimates).catch(() => setEstimates([]));
     fetchObjects().then(setObjects).catch(() => setObjects([]));
+    fetchAllSupplierOfferEmails().then(setSupplierEmails).catch(() => setSupplierEmails([]));
   }, []);
+
+  // Оптимистично помечает входящие письма этого предложения прочитанными в
+  // локальном состоянии сразу (счётчик гаснет мгновенно), запрос на сервер —
+  // фоном; сбой запроса намеренно не откатывает локальную отметку и не
+  // показывает ошибку — это не критичная операция, при следующей загрузке
+  // страницы всё равно синхронизируется с базой.
+  function handleMarkSupplierEmailsRead(offerId: string) {
+    setSupplierEmails((prev) =>
+      prev.map((e) => (e.offerId === offerId && e.direction === 'in' && !e.readAt ? { ...e, readAt: new Date().toISOString() } : e)),
+    );
+    markSupplierOfferEmailsRead(offerId).catch(() => {});
+  }
+
+  function handleSupplierEmailSent(email: SupplierOfferEmail) {
+    setSupplierEmails((prev) => [...prev, email]);
+  }
 
   function objectLabel(objectId: string): string {
     const o = objects.find((x) => x.id === objectId);
@@ -1176,11 +1205,20 @@ export function Suppliers() {
       </Button>
     ) : undefined;
 
+  const unreadSupplierEmailsCount = countUnreadSupplierEmails(supplierEmails);
+
   return (
     <>
       <PageHeader title="Закупки" action={supplierAddButton} />
 
-      <ToggleGroup options={[...SUPPLIER_TABS]} value={tab} onChange={(v) => setTab(v as SupplierTab)} />
+      <div className="flex items-center gap-2">
+        <ToggleGroup options={[...SUPPLIER_TABS]} value={tab} onChange={(v) => setTab(v as SupplierTab)} />
+        {unreadSupplierEmailsCount > 0 && (
+          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[11px] font-bold text-white" title="Непрочитанные ответы поставщиков">
+            {unreadSupplierEmailsCount}
+          </span>
+        )}
+      </div>
 
       {tab === 'Каталог' && (
         <div className="mt-6 flex flex-col gap-4">
@@ -1285,6 +1323,18 @@ export function Suppliers() {
       {tab === 'Закупки' && (
         <div className="mt-6">
           <Purchases embedded initialDraft={purchaseDraft} onDraftConsumed={() => setPurchaseDraft(null)} />
+        </div>
+      )}
+
+      {tab === 'Переписка' && (
+        <div className="mt-6">
+          <SupplierCorrespondenceTab
+            requests={requests}
+            offers={offers}
+            emails={supplierEmails}
+            onEmailSent={handleSupplierEmailSent}
+            onMarkRead={handleMarkSupplierEmailsRead}
+          />
         </div>
       )}
 
@@ -1717,7 +1767,16 @@ export function Suppliers() {
       {emailOfferId &&
         (() => {
           const offer = offers.find((o) => o.id === emailOfferId);
-          return offer ? <OfferEmailModal offer={offer} onClose={() => setEmailOfferId(null)} /> : null;
+          if (!offer) return null;
+          return (
+            <OfferEmailModal
+              offer={offer}
+              emails={supplierEmails.filter((e) => e.offerId === offer.id)}
+              onEmailSent={handleSupplierEmailSent}
+              onMarkRead={handleMarkSupplierEmailsRead}
+              onClose={() => setEmailOfferId(null)}
+            />
+          );
         })()}
 
       {detailOfferId &&
@@ -1795,113 +1854,34 @@ export function Suppliers() {
   );
 }
 
-function OfferEmailModal({ offer, onClose }: { offer: SupplierOffer; onClose: () => void }) {
-  const [emails, setEmails] = useState<SupplierOfferEmail[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [subject, setSubject] = useState(`Запрос цены: ${offer.name}`);
-  const [body, setBody] = useState('');
-  const [sending, setSending] = useState(false);
-  const [sendError, setSendError] = useState<string | null>(null);
-
+// Тонкая обёртка над общим EmailThread (см. components/suppliers/
+// SupplierCorrespondenceTab.tsx) — письма и их отправка/отметка
+// прочитанным идут через тот же supplierEmails на уровне страницы, что и
+// у вкладки "Переписка", отдельного fetch здесь больше нет.
+function OfferEmailModal({
+  offer,
+  emails,
+  onEmailSent,
+  onMarkRead,
+  onClose,
+}: {
+  offer: SupplierOffer;
+  emails: SupplierOfferEmail[];
+  onEmailSent: (email: SupplierOfferEmail) => void;
+  onMarkRead: (offerId: string) => void;
+  onClose: () => void;
+}) {
   useEffect(() => {
-    fetchSupplierOfferEmails(offer.id)
-      .then(setEmails)
-      .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить переписку')));
+    onMarkRead(offer.id);
+    // onMarkRead — стабильная ссылка из родителя (не зависит от рендера),
+    // намеренно не в зависимостях, чтобы не звать повторно на каждый чужой
+    // ре-рендер — только при реальной смене предложения.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offer.id]);
-
-  async function handleSend() {
-    if (!offer.email || !body.trim() || sending) return;
-    setSending(true);
-    setSendError(null);
-    try {
-      const email = await sendSupplierOfferEmail({ offerId: offer.id, toAddress: offer.email, subject, body });
-      setEmails((prev) => [...(prev ?? []), email]);
-      setBody('');
-    } catch (err) {
-      setSendError(errorMessage(err, 'Не удалось отправить письмо'));
-    } finally {
-      setSending(false);
-    }
-  }
 
   return (
     <Modal open onClose={onClose} title={offer.name}>
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1 text-sm text-ink-muted">
-          <span>Email: {offer.email || 'не указан'}</span>
-          <span>Адрес для переписки: {supplierOfferEmailAddress(offer.id)}</span>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <span className="text-sm font-semibold text-ink">Переписка</span>
-          {emails === null && !loadError && (
-            <div className="flex items-center gap-2 text-sm text-ink-faint">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Загрузка...
-            </div>
-          )}
-          {loadError && <p className="text-sm text-danger">{loadError}</p>}
-          {emails && emails.length === 0 && <p className="text-sm text-ink-faint">Писем пока нет.</p>}
-          {emails && emails.length > 0 && (
-            <div className="flex flex-col gap-2">
-              {emails.map((e) => (
-                <div
-                  key={e.id}
-                  className={cn(
-                    'flex flex-col gap-1 rounded-control p-3 text-sm',
-                    e.direction === 'out' ? 'ml-6 bg-primary-soft' : 'mr-6 bg-surface-muted',
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2 text-xs text-ink-faint">
-                    <span className="flex items-center gap-1">
-                      <Mail className="h-3 w-3" />
-                      {e.direction === 'out' ? 'Отправлено' : 'Получено'}
-                    </span>
-                    <span>{new Date(e.createdAt).toLocaleString('ru-RU')}</span>
-                  </div>
-                  {e.subject && <div className="font-semibold text-ink">{e.subject}</div>}
-                  <div className="whitespace-pre-wrap text-ink">{e.body}</div>
-                  {e.files.length > 0 && (
-                    <div className="mt-1 flex flex-col gap-1">
-                      {e.files.map((f, i) => (
-                        <a
-                          key={i}
-                          href={f.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-1.5 rounded-control border border-border bg-surface px-2.5 py-1.5 text-xs text-primary hover:underline"
-                        >
-                          <Paperclip className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
-                          <span className="min-w-0 flex-1 truncate">{f.fileName}</span>
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {!offer.email ? (
-          <p className="text-sm text-ink-faint">У предложения не указан email — добавьте его через «Редактировать», чтобы писать отсюда.</p>
-        ) : (
-          <div className="flex flex-col gap-2 border-t border-border pt-3">
-            <Input label="Тема" value={subject} onChange={(e) => setSubject(e.target.value)} />
-            <Textarea label="Сообщение" rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
-            {sendError && <p className="text-sm text-danger">{sendError}</p>}
-            <Button
-              type="button"
-              icon={<Send className="h-4 w-4" />}
-              className="w-fit self-end"
-              onClick={handleSend}
-              disabled={!body.trim() || sending}
-            >
-              {sending ? 'Отправляем...' : 'Отправить'}
-            </Button>
-          </div>
-        )}
-      </div>
+      <EmailThread offer={offer} emails={emails} onEmailSent={onEmailSent} />
     </Modal>
   );
 }

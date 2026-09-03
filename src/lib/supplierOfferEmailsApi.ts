@@ -14,6 +14,7 @@ function fromRow(row: SupplierOfferEmailRow): SupplierOfferEmail {
     body: row.body ?? '',
     files: row.files ?? [],
     resendMessageId: row.resend_message_id,
+    readAt: row.read_at ?? null,
     createdAt: row.created_at,
   };
 }
@@ -27,6 +28,35 @@ export function fetchSupplierOfferEmails(offerId: string): Promise<SupplierOffer
       .order('created_at', { ascending: true });
     if (error) throw error;
     return (data as SupplierOfferEmailRow[]).map(fromRow);
+  });
+}
+
+// Вся переписка по всем предложениям разом — вкладка "Переписка"
+// (Suppliers.tsx) и фоновый вотчер новых ответов (supplierEmailWatcher.ts).
+// Объём маленький (десятки-сотни строк на весь Ресерч), один запрос без
+// пагинации.
+export function fetchAllSupplierOfferEmails(): Promise<SupplierOfferEmail[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('supplier_offer_emails').select('*').order('created_at', { ascending: true });
+    if (error) throw error;
+    return (data as SupplierOfferEmailRow[]).map(fromRow);
+  });
+}
+
+// Отмечает прочитанными все ВХОДЯЩИЕ письма этого предложения, у которых
+// read_at ещё не проставлен — вызывается при открытии треда. Обычная
+// клиентская запись (RLS authenticated_all), без серверной функции — не
+// privileged-операция, любой залогиненный сотрудник может отмечать письма
+// прочитанными.
+export function markSupplierOfferEmailsRead(offerId: string): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase
+      .from('supplier_offer_emails')
+      .update({ read_at: new Date().toISOString() })
+      .eq('offer_id', offerId)
+      .eq('direction', 'in')
+      .is('read_at', null);
+    if (error) throw error;
   });
 }
 
