@@ -38,14 +38,12 @@ function offerFromRow(row: SupplierOfferRow): SupplierOffer {
     websiteUrl: row.website_url,
     catalogModelName: row.catalog_model_name,
     catalogModelPhoto: row.catalog_model_photo,
-    communicationStatus: row.communication_status,
     price: row.price,
     currency: row.currency as Currency,
-    deadline: row.deadline,
-    requirements: row.requirements,
     items: row.items ?? [],
     files: row.files ?? [],
     shortCode: row.short_code,
+    verified: row.verified,
     createdAt: row.created_at,
   };
 }
@@ -139,13 +137,11 @@ export function insertSupplierOffer(input: Omit<SupplierOffer, 'id' | 'createdAt
         website_url: input.websiteUrl,
         catalog_model_name: input.catalogModelName,
         catalog_model_photo: input.catalogModelPhoto,
-        communication_status: input.communicationStatus,
         price: input.price,
         currency: input.currency,
-        deadline: input.deadline,
-        requirements: input.requirements,
         items: input.items,
         files: input.files,
+        verified: input.verified,
       })
       .select()
       .single();
@@ -169,13 +165,11 @@ export function updateSupplierOffer(id: string, input: Omit<SupplierOffer, 'id' 
         website_url: input.websiteUrl,
         catalog_model_name: input.catalogModelName,
         catalog_model_photo: input.catalogModelPhoto,
-        communication_status: input.communicationStatus,
         price: input.price,
         currency: input.currency,
-        deadline: input.deadline,
-        requirements: input.requirements,
         items: input.items,
         files: input.files,
+        verified: input.verified,
       })
       .eq('id', id)
       .select()

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply, FileSearch, CheckCircle2, Eye, FileSpreadsheet, X, Plus } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Modal } from '../ui/Modal';
@@ -184,16 +185,11 @@ async function applyExtractionToOffer(
     websiteUrl: offer.websiteUrl,
     catalogModelName: offer.catalogModelName,
     catalogModelPhoto: offer.catalogModelPhoto,
-    // Владелец, 2026-09-03: "когда мы получили счёт и распознали его,
-    // меняй вместо прочерка статус на 'Получили КП'" — не затирает уже
-    // осмысленный статус (например, "Ждём ответ"), только пустой.
-    communicationStatus: offer.communicationStatus.trim() ? offer.communicationStatus : 'Получили КП',
     price: extraction.price ?? offer.price,
     currency: isValidCurrency(extraction.currency) ? extraction.currency : offer.currency,
-    deadline: offer.deadline,
-    requirements: offer.requirements,
     items: [...offer.items, ...newItems],
     files,
+    verified: offer.verified,
   });
 }
 
@@ -978,6 +974,8 @@ export function SupplierCorrespondenceTab({
   templates,
   ledgers,
   allMaterials,
+  templatesModalOpen,
+  onCloseTemplatesModal,
   onEmailSent,
   onMarkRead,
   onTemplatesChange,
@@ -996,6 +994,12 @@ export function SupplierCorrespondenceTab({
   templates: EmailTemplate[];
   ledgers: MaterialLedger[];
   allMaterials: { item: PurchaseItem; context: string }[];
+  // Владелец, 2026-09-04: "перенеси Шаблоны направо, на уровень меню
+  // Поставщики/Письма, но видно только на Письмах" — кнопка теперь в шапке
+  // страницы (Suppliers.tsx), тут только сама модалка, открытость приходит
+  // снаружи.
+  templatesModalOpen: boolean;
+  onCloseTemplatesModal: () => void;
   onEmailSent: (email: SupplierOfferEmail) => void;
   onMarkRead: (offerId: string, orderId: string | null) => void;
   onTemplatesChange: (templates: EmailTemplate[]) => void;
@@ -1004,9 +1008,17 @@ export function SupplierCorrespondenceTab({
   onOrdersChange: (orders: SupplierOrder[]) => void;
   onEmailUpdated: (email: SupplierOfferEmail) => void;
 }) {
-  const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
-  // null — "основная" переписка офера, иначе id конкретной доп. заявки.
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  // Владелец, 2026-09-04: "сидишь на странице конкретной переписки,
+  // обновляешь — и всё слетело... кастомный урл даже на переписки с
+  // поставщиками" — категория/поставщик/заявка живут в URL
+  // (?category=...&offer=...&order=...), не в локальном стейте: F5 больше
+  // не сбрасывает открытый тред. order отсутствует в URL — открыта
+  // "основная" переписка офера (null), не отдельная заявка.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedRequestId = searchParams.get('category');
+  const selectedOfferId = searchParams.get('offer');
+  const selectedOrderId = searchParams.get('order');
+
   const [newOrderModalOpen, setNewOrderModalOpen] = useState(false);
   const [newOrderTitle, setNewOrderTitle] = useState('');
   const [creatingOrder, setCreatingOrder] = useState(false);
@@ -1016,14 +1028,6 @@ export function SupplierCorrespondenceTab({
   // флагами" — фильтрует список поставщиков категории ниже, не глобальный
   // выбор (тред уже выбранного поставщика остаётся открытым при переключении).
   const [countryFilter, setCountryFilter] = useState<string>(SUPPLIER_COUNTRIES[0]);
-  // Владелец, 2026-09-03: "у нас будет по 20+ поставщиков в каждой
-  // категории. Давай вместо бокового списка адресов выбирать конкретную
-  // категорию, а уже ниже список поставщиков" — раньше все категории
-  // (запросы Ресерча) рендерились подряд одним длинным списком в боковой
-  // колонке, с 20+ поставщиками на категорию это стало нечитаемым. Теперь
-  // сначала выбор категории (Select сверху), ниже — только её поставщики.
-  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
-  const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
 
   function handleTemplateSaved(saved: EmailTemplate) {
     onTemplatesChange(templates.some((t) => t.id === saved.id) ? templates.map((t) => (t.id === saved.id ? saved : t)) : [...templates, saved]);
@@ -1035,7 +1039,11 @@ export function SupplierCorrespondenceTab({
       byRequest.set(request.id, { request, offers: [] });
     }
     for (const offer of offers) {
-      if (!offer.email) continue; // некому писать — не показываем
+      // Владелец, 2026-09-04: "поставщик добавлен из поиска — статус
+      // Требуется верификация... заполнил поля, сохранил — доступен для
+      // переписки" — до тех пор скрыт так же, как и предложения без email
+      // (некому/нельзя писать).
+      if (!offer.email || !offer.verified) continue;
       const group = byRequest.get(offer.requestId);
       if (!group) continue;
       const offerEmails = emails.filter((e) => e.offerId === offer.id);
@@ -1069,21 +1077,71 @@ export function SupplierCorrespondenceTab({
     });
   }, [requests, offers, emails]);
 
-  // Текущая выбранная категория — если ещё ничего не выбрано, или выбор
-  // осиротел (например, запрос удалили), падаем на первую категорию
+  // Владелец, 2026-09-04: "ответы будут приходить неравномерно, в разные
+  // категории... непрочитанные письма должны быть сразу видны" —
+  // псевдо-категория "Непрочитанные" первым пунктом селектора: плоский
+  // список ВСЕХ тредов (основных и заявок) с непрочитанными письмами по
+  // всем категориям разом, с подписью категории/заявки на каждой строке,
+  // отсортирован по свежести последнего письма.
+  interface UnreadEntry {
+    requestId: string;
+    requestTitle: string;
+    offer: SupplierOffer;
+    orderId: string | null;
+    orderTitle: string | null;
+    unreadCount: number;
+    lastAt: string;
+  }
+
+  const unreadEntries = useMemo<UnreadEntry[]>(() => {
+    const list: UnreadEntry[] = [];
+    for (const group of groups) {
+      for (const { offer, emails: offerEmails } of group.offers) {
+        const threads: { id: string | null; title: string | null }[] = [
+          { id: null, title: null },
+          ...orders.filter((o) => o.offerId === offer.id).map((o) => ({ id: o.id, title: o.title || 'Без названия' })),
+        ];
+        for (const t of threads) {
+          const threadEmails = offerEmails.filter((e) => (e.orderId ?? null) === t.id);
+          const { unreadCount } = threadStatus(threadEmails);
+          if (unreadCount === 0) continue;
+          list.push({
+            requestId: group.request.id,
+            requestTitle: group.request.title,
+            offer,
+            orderId: t.id,
+            orderTitle: t.title,
+            unreadCount,
+            lastAt: threadEmails[threadEmails.length - 1]?.createdAt ?? '',
+          });
+        }
+      }
+    }
+    return list.sort((a, b) => b.lastAt.localeCompare(a.lastAt));
+  }, [groups, orders]);
+
+  const totalUnread = unreadEntries.reduce((sum, e) => sum + e.unreadCount, 0);
+
+  // Текущая выбранная категория — если ещё ничего не выбрано (или ссылка
+  // осиротела, например запрос удалили), по умолчанию открываем
+  // "Непрочитанные", если там есть что показать, иначе первую категорию
   // списка (уже отсортирована по непрочитанным — см. groups выше).
   const effectiveRequestId =
-    selectedRequestId && groups.some((g) => g.request.id === selectedRequestId) ? selectedRequestId : (groups[0]?.request.id ?? null);
+    selectedRequestId && (selectedRequestId === 'unread' ? totalUnread > 0 : groups.some((g) => g.request.id === selectedRequestId))
+      ? selectedRequestId
+      : totalUnread > 0
+        ? 'unread'
+        : (groups[0]?.request.id ?? null);
+  const isUnreadView = effectiveRequestId === 'unread';
   const selectedGroup = groups.find((g) => g.request.id === effectiveRequestId) ?? null;
 
-  const categoryOptions = useMemo(
-    () =>
-      groups.map((g) => {
-        const unread = g.offers.reduce((sum, x) => sum + threadStatus(x.emails).unreadCount, 0);
-        return { id: g.request.id, label: unread > 0 ? `${g.request.title} (${unread})` : g.request.title };
-      }),
-    [groups],
-  );
+  const categoryOptions = useMemo(() => {
+    const base = groups.map((g) => {
+      const unread = g.offers.reduce((sum, x) => sum + threadStatus(x.emails).unreadCount, 0);
+      return { id: g.request.id, label: unread > 0 ? `${g.request.title} (${unread})` : g.request.title };
+    });
+    return totalUnread > 0 ? [{ id: 'unread', label: `Непрочитанные (${totalUnread})` }, ...base] : base;
+  }, [groups, totalUnread]);
 
   const selected = useMemo(() => {
     if (!selectedOfferId) return null;
@@ -1103,17 +1161,31 @@ export function SupplierCorrespondenceTab({
   const selectedOrder = selectedOrderId ? offerOrders.find((o) => o.id === selectedOrderId) ?? null : null;
 
   function selectOffer(offerId: string) {
-    setSelectedOfferId(offerId);
-    setSelectedOrderId(null);
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.set('offer', offerId);
+        params.delete('order');
+        return params;
+      },
+      { replace: true },
+    );
     onMarkRead(offerId, null);
   }
 
   // Смена категории сбрасывает выбранного поставщика — иначе справа
   // остался бы висеть тред поставщика из уже скрытой категории.
   function selectCategory(requestId: string) {
-    setSelectedRequestId(requestId);
-    setSelectedOfferId(null);
-    setSelectedOrderId(null);
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.set('category', requestId);
+        params.delete('offer');
+        params.delete('order');
+        return params;
+      },
+      { replace: true },
+    );
   }
 
   // Владелец, 2026-09-03: "1 заявка на поставку — одна ветка" — переключение
@@ -1121,8 +1193,33 @@ export function SupplierCorrespondenceTab({
   // именно за этот тред, не за всю переписку с поставщиком разом (иначе
   // непрочитанные в других заявках гасли бы, даже не будучи открытыми).
   function selectOrder(orderId: string | null) {
-    setSelectedOrderId(orderId);
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (orderId) params.set('order', orderId);
+        else params.delete('order');
+        return params;
+      },
+      { replace: true },
+    );
     if (selectedOfferId) onMarkRead(selectedOfferId, orderId);
+  }
+
+  // Клик по строке в псевдо-категории "Непрочитанные" — сразу открывает
+  // нужный тред нужного поставщика, category в URL уже 'unread'.
+  function selectUnreadEntry(entry: UnreadEntry) {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.set('category', 'unread');
+        params.set('offer', entry.offer.id);
+        if (entry.orderId) params.set('order', entry.orderId);
+        else params.delete('order');
+        return params;
+      },
+      { replace: true },
+    );
+    onMarkRead(entry.offer.id, entry.orderId);
   }
 
   function openNewOrderModal() {
@@ -1162,18 +1259,12 @@ export function SupplierCorrespondenceTab({
     onOrdersChange(orders.map((o) => (o.id === updated.id ? updated : o)));
   }
 
-  const templatesButton = (
-    <Button type="button" variant="secondary" icon={<FileText className="h-4 w-4" />} className="w-fit" onClick={() => setTemplatesModalOpen(true)}>
-      Шаблоны
-    </Button>
-  );
-
   const templatesModal = (
     <TemplateManagerModal
       open={templatesModalOpen}
       templates={templates}
       requests={requests}
-      onClose={() => setTemplatesModalOpen(false)}
+      onClose={onCloseTemplatesModal}
       onChange={onTemplatesChange}
     />
   );
@@ -1181,7 +1272,6 @@ export function SupplierCorrespondenceTab({
   if (groups.length === 0) {
     return (
       <div className="flex flex-col gap-4">
-        {templatesButton}
         <Card className="py-10 text-center text-sm text-ink-muted">
           Пока не с кем переписываться — у предложений в Ресерче ещё нет email, или запросов вовсе нет.
         </Card>
@@ -1192,7 +1282,6 @@ export function SupplierCorrespondenceTab({
 
   return (
     <div className="flex flex-col gap-4">
-      {templatesButton}
       <div className="flex flex-col gap-4 lg:flex-row">
         <div className="flex flex-col gap-3 lg:w-80 lg:shrink-0">
           <Select
@@ -1209,52 +1298,84 @@ export function SupplierCorrespondenceTab({
               а просто два варианта, указывай флагами" — компактный тумблер
               из двух кнопок-флагов, не Select. Фильтрует список поставщиков
               ниже по стране (та же логика fallback на первую страну списка
-              для записей без country, что и в RequestCard на Suppliers.tsx). */}
-          <div className="flex w-fit gap-1 rounded-full border border-border bg-surface-muted p-1">
-            {SUPPLIER_COUNTRIES.map((c) => (
-              <button
-                key={c}
-                type="button"
-                title={c}
-                onClick={() => setCountryFilter(c)}
-                className={cn(
-                  'flex h-8 w-11 items-center justify-center rounded-full text-base transition-colors',
-                  countryFilter === c ? 'bg-surface shadow-card' : 'opacity-50 hover:opacity-100',
-                )}
-              >
-                {countryFlag(c)}
-              </button>
-            ))}
-          </div>
+              для записей без country, что и в RequestCard на Suppliers.tsx).
+              Владелец, 2026-09-04: в псевдо-категории "Непрочитанные" список
+              и так уже смешивает все категории/страны — тумблер тут ни при
+              чём, скрыт. */}
+          {!isUnreadView && (
+            <div className="flex w-fit gap-1 rounded-full border border-border bg-surface-muted p-1">
+              {SUPPLIER_COUNTRIES.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  title={c}
+                  onClick={() => setCountryFilter(c)}
+                  className={cn(
+                    'flex h-8 w-11 items-center justify-center rounded-full text-base transition-colors',
+                    countryFilter === c ? 'bg-surface shadow-card' : 'opacity-50 hover:opacity-100',
+                  )}
+                >
+                  {countryFlag(c)}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="flex flex-col gap-1">
-            {selectedGroup?.offers
-              .filter(({ offer }) => (offer.country || SUPPLIER_COUNTRIES[0]) === countryFilter)
-              .map(({ offer, emails: offerEmails }) => {
-                const { status, unreadCount } = threadStatus(offerEmails);
-                const isSelected = selectedOfferId === offer.id;
-                return (
-                  <button
-                    key={offer.id}
-                    type="button"
-                    onClick={() => selectOffer(offer.id)}
-                    className={cn(
-                      'flex items-center justify-between gap-2 rounded-control border px-3 py-2 text-left text-sm transition-colors',
-                      isSelected ? 'border-ink bg-surface-muted' : 'border-border bg-surface hover:border-border-strong',
-                    )}
-                  >
-                    <span className="min-w-0 flex-1 truncate font-medium text-ink">{offer.name}</span>
-                    <span className="flex shrink-0 items-center gap-1.5">
-                      {unreadCount > 0 && (
-                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[11px] font-bold text-white">
-                          {unreadCount}
-                        </span>
+            {isUnreadView
+              ? unreadEntries.map((entry) => {
+                  const key = `${entry.offer.id}:${entry.orderId ?? 'main'}`;
+                  const isSelected = selectedOfferId === entry.offer.id && (selectedOrderId ?? null) === entry.orderId;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => selectUnreadEntry(entry)}
+                      className={cn(
+                        'flex flex-col items-start gap-0.5 rounded-control border px-3 py-2 text-left text-sm transition-colors',
+                        isSelected ? 'border-ink bg-surface-muted' : 'border-border bg-surface hover:border-border-strong',
                       )}
-                      <span className={cn('text-xs', STATUS_CLASS[status])}>{STATUS_LABEL[status]}</span>
-                    </span>
-                  </button>
-                );
-              })}
+                    >
+                      <span className="flex w-full items-center justify-between gap-2">
+                        <span className="min-w-0 flex-1 truncate font-medium text-ink">{entry.offer.name}</span>
+                        <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-danger px-1 text-[11px] font-bold text-white">
+                          {entry.unreadCount}
+                        </span>
+                      </span>
+                      <span className="truncate text-xs text-ink-faint">
+                        {entry.requestTitle}
+                        {entry.orderTitle ? ` · ${entry.orderTitle}` : ''}
+                      </span>
+                    </button>
+                  );
+                })
+              : selectedGroup?.offers
+                  .filter(({ offer }) => (offer.country || SUPPLIER_COUNTRIES[0]) === countryFilter)
+                  .map(({ offer, emails: offerEmails }) => {
+                    const { status, unreadCount } = threadStatus(offerEmails);
+                    const isSelected = selectedOfferId === offer.id;
+                    return (
+                      <button
+                        key={offer.id}
+                        type="button"
+                        onClick={() => selectOffer(offer.id)}
+                        className={cn(
+                          'flex items-center justify-between gap-2 rounded-control border px-3 py-2 text-left text-sm transition-colors',
+                          isSelected ? 'border-ink bg-surface-muted' : 'border-border bg-surface hover:border-border-strong',
+                        )}
+                      >
+                        <span className="min-w-0 flex-1 truncate font-medium text-ink">{offer.name}</span>
+                        <span className="flex shrink-0 items-center gap-1.5">
+                          {unreadCount > 0 && (
+                            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[11px] font-bold text-white">
+                              {unreadCount}
+                            </span>
+                          )}
+                          <span className={cn('text-xs', STATUS_CLASS[status])}>{STATUS_LABEL[status]}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
           </div>
         </div>
 
@@ -1277,7 +1398,7 @@ export function SupplierCorrespondenceTab({
                 {[{ id: null as string | null, title: 'Основная' }, ...offerOrders.map((o) => ({ id: o.id, title: o.title || 'Без названия' }))].map(
                   (t) => {
                     const threadUnread = threadStatus(selected.emails.filter((e) => (e.orderId ?? null) === t.id)).unreadCount;
-                    const isActive = selectedOrderId === t.id;
+                    const isActive = (selectedOrderId ?? null) === t.id;
                     return (
                       <button
                         key={t.id ?? 'main'}

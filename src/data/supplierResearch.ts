@@ -2,6 +2,7 @@ import type { Currency } from './transactions';
 import type { DocumentFile } from './contractorDocuments';
 import type { PurchaseItem } from './purchases';
 import { RESEARCH_CURRENCIES, RESEARCH_CONTACT_METHODS, type ResearchContactMethod } from './contractorResearch';
+import type { SupplierOfferEmail } from './supplierOfferEmails';
 
 // Валюты/способы связи — те же самые списки, что и у "Подрядчики → Ресерч"
 // (data/contractorResearch.ts), общие для любого сравнения предложений в
@@ -132,17 +133,21 @@ export interface SupplierOffer {
   websiteUrl: string;
   catalogModelName: string;
   catalogModelPhoto: DocumentFile | null;
-  communicationStatus: string;
+  // Итоговая цена/валюта — больше не редактируется вручную (владелец,
+  // 2026-09-04: "срок доставки будет отличаться для каждой поставки" — то
+  // же верно и для цены, она теперь живёт на уровне конкретной заявки,
+  // SupplierOrder.price). Здесь остаётся только как последний известный
+  // итог по счёту, который распознала система (applyExtractionToOffer),
+  // используется как контекст валюты для offer.items в сравнении "лучшая
+  // цена по позиции" (см. bestPricesByMaterialId в Suppliers.tsx).
   price: number;
   currency: Currency;
-  deadline: string;
-  requirements: string;
   // Позиции КП (название/кол-во/ед./цена) — переиспользован PurchaseItem
-  // (тот же смысл, что у SupplierRequest.items: снимок на момент добавления),
-  // заполняются либо вручную, либо автораспознаванием счёта из переписки
-  // (applyExtractionToOffer в SupplierCorrespondenceTab.tsx). requirements
-  // остаётся отдельным свободным полем для условий/заметок, сюда позиции
-  // больше не дублируются текстом (было так до 2026-09-03).
+  // (тот же смысл, что у SupplierRequest.items: снимок на момент добавления).
+  // Владелец, 2026-09-04: "вручную это указывать тупо... когда получим КП от
+  // поставщика, вполне можем записать в базу" — заполняются ИСКЛЮЧИТЕЛЬНО
+  // автораспознаванием счёта из переписки (applyExtractionToOffer в
+  // SupplierCorrespondenceTab.tsx), ручного добавления в форме больше нет.
   items: PurchaseItem[];
   files: DocumentFile[];
   // Короткий технический код для plus-адреса переписки (см.
@@ -150,6 +155,15 @@ export interface SupplierOffer {
   // (default на колонке short_code, миграция 2026-09-03), уникален. Сам id —
   // полноценный UUID, слишком длинный для видимого email-адреса.
   shortCode: string;
+  // Владелец, 2026-09-04: "когда поставщик только добавлен из поиска, ставим
+  // ему статус 'Требуется верификация'... закупщик заполняет поля, жмёт
+  // сохранить — поставщик становится доступен для переписки". false — только
+  // у предложений, созданных веб-поиском (addWebSearchResults в
+  // Suppliers.tsx); любое сохранение через форму (создание вручную или
+  // правка через "Редактировать") выставляет true — считается, что человек
+  // проверил данные. Пока false — предложение скрыто из вкладки "Письма"
+  // (см. SupplierCorrespondenceTab.tsx).
+  verified: boolean;
   createdAt: string;
 }
 
@@ -165,14 +179,12 @@ export interface SupplierOfferRow {
   website_url: string;
   catalog_model_name: string;
   catalog_model_photo: DocumentFile | null;
-  communication_status: string;
   price: number;
   currency: string;
-  deadline: string;
-  requirements: string;
   items: PurchaseItem[] | null;
   files: DocumentFile[] | null;
   short_code: string;
+  verified: boolean;
   created_at: string;
 }
 
@@ -200,3 +212,25 @@ export function formatRequestItemsText(items: PurchaseItem[], fallback: string):
   if (items.length === 0) return fallback;
   return items.map((i) => `${i.name}${i.quantity ? ` (${i.quantity}${i.unit ? ` ${i.unit}` : ''})` : ''}`).join(', ');
 }
+
+// Владелец, 2026-09-04: "Статус коммуникации — вполне можем определять
+// автоматически. Если не было отправок писем, то одно. Если направили, но
+// не получили ответ — другое. Если получили счет и записали цены в базу —
+// третье" — больше не свободный ручной ввод, а всегда пересчитывается из
+// реальной переписки/данных, три взаимоисключающих состояния. items
+// заполняются исключительно подтверждённым распознаванием счёта (см.
+// SupplierOffer.items) — поэтому непустой список сам по себе и есть
+// "получили и записали", отдельно проверять статус письма не нужно.
+export type OfferCommunicationStatus = 'none' | 'sent' | 'confirmed';
+
+export function offerCommunicationStatus(offer: SupplierOffer, emails: SupplierOfferEmail[]): OfferCommunicationStatus {
+  if (offer.items.length > 0) return 'confirmed';
+  const hasSent = emails.some((e) => e.offerId === offer.id && e.direction === 'out');
+  return hasSent ? 'sent' : 'none';
+}
+
+export const OFFER_COMMUNICATION_STATUS_LABEL: Record<OfferCommunicationStatus, string> = {
+  none: 'Не писали',
+  sent: 'Отправили, ждём ответ',
+  confirmed: 'Получили КП, цены в базе',
+};

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Trash2, Pencil, Send, Phone, Globe, Paperclip, Upload, X, ImageOff, Mail, Search, Check, PackagePlus } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Plus, Loader2, Trash2, Pencil, Send, Phone, Globe, Paperclip, Upload, X, ImageOff, Mail, Search, Check, FileText } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
 import { AddableSelect } from '../components/ui/AddableSelect';
 import { Textarea } from '../components/ui/Textarea';
@@ -19,13 +21,14 @@ import type { ExchangeRate } from '../data/exchangeRates';
 import { fetchTodayRate } from '../lib/exchangeRatesApi';
 import { convertToUsd } from '../lib/currencyConvert';
 import {
-  RESEARCH_CURRENCIES,
   RESEARCH_CONTACT_METHODS,
   SUPPLIER_COUNTRIES,
   SUPPLIER_REQUEST_GROUPS,
   SUPPLIER_REQUEST_GROUP_LABELS,
   guessCountryFromWebsite,
   countryFlag,
+  offerCommunicationStatus,
+  OFFER_COMMUNICATION_STATUS_LABEL,
   type ResearchContactMethod,
   type SupplierRequest,
   type SupplierRequestGroup,
@@ -119,6 +122,21 @@ function siteLabel(url: string): string {
 const SUPPLIER_TABS = ['Поставщики', 'Ведомости материалов', 'Письма'] as const;
 type SupplierTab = (typeof SUPPLIER_TABS)[number];
 
+// Владелец, 2026-09-04: "меня бесит, что у всей страницы Поставщики
+// одинаковый url... обновляешь — и всё слетело. Мне бы кастомный урл и на
+// каждый раздел внутри" — вкладка живёт в query-параметре ?tab=, а не в
+// локальном стейте, F5 остаётся на той же вкладке. Слаги, не сами русские
+// названия — если вкладку когда-нибудь переименуют, старые сохранённые
+// ссылки не должны сломаться.
+const SUPPLIER_TAB_SLUGS: Record<SupplierTab, string> = {
+  'Поставщики': 'suppliers',
+  'Ведомости материалов': 'ledger',
+  Письма: 'letters',
+};
+const SLUG_TO_SUPPLIER_TAB: Record<string, SupplierTab> = Object.fromEntries(
+  (Object.entries(SUPPLIER_TAB_SLUGS) as [SupplierTab, string][]).map(([t, slug]) => [slug, t]),
+);
+
 const emptyRequestForm = {
   title: '',
   group: 'materials' as SupplierRequestGroup,
@@ -149,35 +167,9 @@ const emptyOfferForm = {
   websiteUrl: '',
   catalogModelName: '',
   catalogModelPhoto: null as DocumentFile | null,
-  communicationStatus: '',
-  price: '',
-  currency: 'USD' as Currency,
-  deadline: '',
-  requirements: '',
-  items: [] as PurchaseItem[],
   existingFiles: [] as DocumentFile[],
   newFiles: [] as File[],
 };
-
-// Та же логика, что и rankOffers в ContractorsResearch.tsx (см. подробный
-// комментарий там) — предложения без цены/с неизвестным курсом в сравнение
-// не попадают, лидеров может быть несколько при равной цене.
-function rankOffers(
-  offers: SupplierOffer[],
-  rate: ExchangeRate | undefined,
-): { sorted: SupplierOffer[]; cheapestIds: Set<string> } {
-  const withUsd = offers.map((o) => ({
-    offer: o,
-    usd: o.price > 0 ? convertToUsd(o.price, o.currency, rate) : null,
-  }));
-  const priced = withUsd.filter((x) => x.usd != null).sort((a, b) => a.usd! - b.usd!);
-  const unpriced = withUsd.filter((x) => x.usd == null);
-  const minUsd = priced[0] ? Math.round(priced[0].usd! * 100) : null;
-  const cheapestIds = new Set(
-    minUsd == null ? [] : priced.filter((x) => Math.round(x.usd! * 100) === minUsd).map((x) => x.offer.id),
-  );
-  return { sorted: [...priced, ...unpriced].map((x) => x.offer), cheapestIds };
-}
 
 // Владелец, 2026-09-03: "для материалов и сервисов мне нужно список — для
 // Беларуси и для России... в идеале переключение списков прямо внутри
@@ -188,7 +180,7 @@ function rankOffers(
 function RequestCard({
   request,
   offers,
-  rate,
+  emails,
   onEditRequest,
   onDeleteRequest,
   onAddOffer,
@@ -198,7 +190,7 @@ function RequestCard({
 }: {
   request: SupplierRequest;
   offers: SupplierOffer[];
-  rate: ExchangeRate | undefined;
+  emails: SupplierOfferEmail[];
   onEditRequest: (r: SupplierRequest) => void;
   onDeleteRequest: (r: SupplierRequest) => void;
   onAddOffer: (requestId: string) => void;
@@ -208,7 +200,6 @@ function RequestCard({
 }) {
   const [country, setCountry] = useState<string>(SUPPLIER_COUNTRIES[0]);
   const offersInCountry = offers.filter((o) => (o.country || SUPPLIER_COUNTRIES[0]) === country);
-  const { sorted, cheapestIds } = rankOffers(offersInCountry, rate);
 
   return (
     <Card className="flex flex-col gap-4 p-5">
@@ -263,7 +254,7 @@ function RequestCard({
 
       <ToggleGroup options={[...SUPPLIER_COUNTRIES]} value={country} onChange={setCountry} />
 
-      {sorted.length === 0 ? (
+      {offersInCountry.length === 0 ? (
         <p className="text-sm text-ink-faint">
           {offers.length === 0
             ? 'Пока нет предложений — нажмите «Добавить предложение».'
@@ -271,27 +262,27 @@ function RequestCard({
         </p>
       ) : (
         <div className="flex flex-col gap-2">
-          {sorted.map((o) => {
-            const isCheapest = cheapestIds.has(o.id);
+          {/* Владелец, 2026-09-04: "Лучшую цену на этой странице не выводим
+              вообще. Просто показываем либо верифицированного, либо нет
+              поставщика" — сравнение "дешевле всех" по офферу в целом
+              убрано (цена теперь живёт на уровне конкретной заявки на
+              поставку, не самого поставщика), вместо зелёного бейджа —
+              статус верификации. */}
+          {offersInCountry.map((o) => {
+            const status = offerCommunicationStatus(o, emails);
             return (
-              <div
-                key={o.id}
-                className={cn(
-                  'flex flex-wrap items-center justify-between gap-3 rounded-control border border-border px-4 py-3',
-                  isCheapest && 'border-success/40 bg-success-bg',
-                )}
-              >
+              <div key={o.id} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border px-4 py-3">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="truncate font-medium text-ink">{o.name}</span>
-                  {isCheapest && (
-                    <span className="shrink-0 rounded-full bg-success px-2 py-0.5 text-[11px] font-semibold text-white">
-                      лучшая цена
-                    </span>
+                  {o.verified ? (
+                    <Badge tone="success">Верифицирован</Badge>
+                  ) : (
+                    <Badge tone="warning">Требуется верификация</Badge>
                   )}
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="max-w-[200px] truncate text-sm text-ink-muted">{o.communicationStatus || '—'}</span>
-                  <span className={cn('tabular-nums font-semibold', isCheapest ? 'text-success' : 'text-ink')}>
+                  <span className="max-w-[200px] truncate text-sm text-ink-muted">{OFFER_COMMUNICATION_STATUS_LABEL[status]}</span>
+                  <span className="tabular-nums font-semibold text-ink">
                     {o.price > 0 ? formatPrice(o.price, o.currency) : '—'}
                   </span>
                   <Button type="button" variant="secondary" onClick={() => onOpenDetail(o)}>
@@ -458,7 +449,7 @@ function SupplierWebSearchModal({
 
 function OfferDetailModal({
   offer,
-  isCheapest,
+  emails,
   onClose,
   onEmail,
   onEdit,
@@ -466,22 +457,44 @@ function OfferDetailModal({
   deleting,
 }: {
   offer: SupplierOffer;
-  isCheapest: boolean;
+  emails: SupplierOfferEmail[];
   onClose: () => void;
   onEmail: (o: SupplierOffer) => void;
   onEdit: (o: SupplierOffer) => void;
   onDelete: (o: SupplierOffer) => void;
   deleting: boolean;
 }) {
+  const status = offerCommunicationStatus(offer, emails);
   return (
-    <Modal open onClose={onClose} title={offer.name}>
+    <Modal
+      open
+      onClose={onClose}
+      title={
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="min-w-0 truncate">{offer.name}</span>
+          {/* Владелец, 2026-09-04: "перенеси кнопку редактирования наверх" —
+              рядом с заголовком карточки, а не в футере среди остальных
+              действий. */}
+          <button
+            type="button"
+            onClick={() => onEdit(offer)}
+            aria-label="Редактировать предложение"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        </span>
+      }
+    >
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <span className={cn('tabular-nums text-lg font-semibold', isCheapest ? 'text-success' : 'text-ink')}>
+          <span className="tabular-nums text-lg font-semibold text-ink">
             {offer.price > 0 ? formatPrice(offer.price, offer.currency) : 'Цена не указана'}
           </span>
-          {isCheapest && (
-            <span className="rounded-full bg-success px-2 py-0.5 text-[11px] font-semibold text-white">лучшая цена</span>
+          {offer.verified ? (
+            <Badge tone="success">Верифицирован</Badge>
+          ) : (
+            <Badge tone="warning">Требуется верификация</Badge>
           )}
           {offer.country && (
             <span className="text-base" title={offer.country}>
@@ -492,7 +505,7 @@ function OfferDetailModal({
 
         <div className="flex flex-col gap-1 text-sm">
           <span className="text-ink-faint">Статус</span>
-          <span className="text-ink">{offer.communicationStatus || '—'}</span>
+          <span className="text-ink">{OFFER_COMMUNICATION_STATUS_LABEL[status]}</span>
         </div>
 
         <div className="flex flex-col gap-1 text-sm">
@@ -557,11 +570,6 @@ function OfferDetailModal({
           </div>
         )}
 
-        <div className="flex flex-col gap-1 text-sm">
-          <span className="text-ink-faint">Срок</span>
-          <span className="text-ink">{offer.deadline || '—'}</span>
-        </div>
-
         {offer.items.length > 0 && (
           <div className="flex flex-col gap-1.5">
             <span className="text-sm text-ink-faint">Позиции КП</span>
@@ -597,11 +605,6 @@ function OfferDetailModal({
           </div>
         )}
 
-        <div className="flex flex-col gap-1 text-sm">
-          <span className="text-ink-faint">Требования</span>
-          <span className="whitespace-pre-wrap text-ink">{offer.requirements || '—'}</span>
-        </div>
-
         {offer.files.length > 0 && (
           <div className="flex flex-col gap-1.5">
             <span className="text-sm text-ink-faint">Файлы</span>
@@ -624,11 +627,19 @@ function OfferDetailModal({
           <Button type="button" variant="ghost" icon={<Trash2 className="h-4 w-4" />} disabled={deleting} onClick={() => onDelete(offer)} className="mr-auto">
             Удалить
           </Button>
-          <Button type="button" variant="secondary" icon={<Mail className="h-4 w-4" />} onClick={() => onEmail(offer)}>
+          {/* Владелец, 2026-09-04: "поставщик становится доступен для
+              email-переписок" только после верификации — до этого "Написать"
+              недоступна, нужно сначала открыть форму (кнопка Редактировать
+              наверху) и сохранить известные данные. */}
+          <Button
+            type="button"
+            variant="secondary"
+            icon={<Mail className="h-4 w-4" />}
+            disabled={!offer.verified}
+            title={offer.verified ? undefined : 'Сначала заполните данные через «Редактировать» и сохраните'}
+            onClick={() => onEmail(offer)}
+          >
             Написать
-          </Button>
-          <Button type="button" icon={<Pencil className="h-4 w-4" />} onClick={() => onEdit(offer)}>
-            Редактировать
           </Button>
         </div>
       </div>
@@ -642,7 +653,31 @@ function OfferDetailModal({
 // чтобы не гонять лишний диф ради имени; название страницы для
 // пользователя задаётся через PageHeader/data/pages.ts).
 export function Suppliers() {
-  const [tab, setTab] = useState<SupplierTab>('Поставщики');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab: SupplierTab = SLUG_TO_SUPPLIER_TAB[searchParams.get('tab') ?? ''] ?? 'Поставщики';
+  function setTab(next: SupplierTab) {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.set('tab', SUPPLIER_TAB_SLUGS[next]);
+        // Уходя с "Письма", адрес конкретного треда переписки в URL больше
+        // не актуален — иначе он продолжал бы указывать на уже скрытую
+        // категорию/поставщика.
+        if (next !== 'Письма') {
+          params.delete('category');
+          params.delete('offer');
+          params.delete('order');
+        }
+        return params;
+      },
+      { replace: true },
+    );
+  }
+  // Владелец, 2026-09-04: "Шаблоны — на уровень меню Поставщики/Письма, но
+  // видна только когда открыты Письма" — кнопка теперь в шапке страницы
+  // (см. рендер ниже), модалка живёт внутри SupplierCorrespondenceTab как и
+  // раньше, открытость управляется отсюда.
+  const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
 
   const [requests, setRequests] = useState<SupplierRequest[]>([]);
   const [offers, setOffers] = useState<SupplierOffer[]>([]);
@@ -668,9 +703,6 @@ export function Suppliers() {
   const [offerError, setOfferError] = useState<string | null>(null);
   const [deletingOfferId, setDeletingOfferId] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  // Позиции КП внутри формы предложения — тот же паттерн, что у
-  // manualItemName выше (позиции запроса), только для offerForm.items.
-  const [manualOfferItemName, setManualOfferItemName] = useState('');
   const [emailOfferId, setEmailOfferId] = useState<string | null>(null);
   // Вся переписка по всем предложениям Ресерча разом — единственный
   // источник правды для OfferEmailModal и вкладки "Email" (см.
@@ -1167,13 +1199,17 @@ export function Suppliers() {
             websiteUrl: r.website,
             catalogModelName: '',
             catalogModelPhoto: null,
-            communicationStatus: '',
             price: 0,
             currency: 'USD',
-            deadline: '',
-            requirements: r.note ? `Найдено веб-поиском: ${r.note}` : '',
             items: [],
             files: [],
+            // Владелец, 2026-09-04: "когда поставщик только добавлен из
+            // поиска, ставим ему статус 'Требуется верификация'" — до тех
+            // пор скрыт из "Письма" (см. SupplierCorrespondenceTab.tsx),
+            // становится доступен после того, как кто-то откроет
+            // "Подробнее", заполнит поля и сохранит через форму (submitOffer
+            // всегда выставляет verified:true).
+            verified: false,
           }),
         ),
       );
@@ -1217,46 +1253,12 @@ export function Suppliers() {
       websiteUrl: o.websiteUrl,
       catalogModelName: o.catalogModelName,
       catalogModelPhoto: o.catalogModelPhoto,
-      communicationStatus: o.communicationStatus,
-      price: o.price ? String(o.price) : '',
-      currency: o.currency,
-      deadline: o.deadline,
-      requirements: o.requirements,
-      items: o.items,
       existingFiles: o.files,
       newFiles: [],
     });
     setOfferError(null);
     setOfferModalOpen(true);
     setDetailOfferId(null);
-  }
-
-  // Позиции КП внутри формы предложения — тот же паттерн (id/updateItem/
-  // removeItem), что и у позиций закупки в Purchases.tsx, просто без
-  // подстановки из сметы (тут это отдельный товар, не список работ по
-  // разделу) — только ручное добавление, плюс автозаполнение из
-  // распознавания счёта (applyExtractionToOffer в SupplierCorrespondenceTab.tsx).
-  function addManualOfferItem() {
-    if (!manualOfferItemName.trim()) return;
-    const item: PurchaseItem = {
-      id: crypto.randomUUID(),
-      sourceMaterialId: null,
-      name: manualOfferItemName.trim(),
-      unit: '',
-      quantity: null,
-      price: null,
-      note: '',
-    };
-    setOfferForm((f) => ({ ...f, items: [...f.items, item] }));
-    setManualOfferItemName('');
-  }
-
-  function updateOfferItem(id: string, patch: Partial<PurchaseItem>) {
-    setOfferForm((f) => ({ ...f, items: f.items.map((i) => (i.id === id ? { ...i, ...patch } : i)) }));
-  }
-
-  function removeOfferItem(id: string) {
-    setOfferForm((f) => ({ ...f, items: f.items.filter((i) => i.id !== id) }));
   }
 
   async function handleCatalogPhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1291,14 +1293,15 @@ export function Suppliers() {
       offerForm.country.trim().length > 0 ||
       offerForm.websiteUrl.trim().length > 0 ||
       offerForm.catalogModelName.trim().length > 0 ||
-      offerForm.communicationStatus.trim().length > 0 ||
-      offerForm.price.trim().length > 0 ||
-      offerForm.deadline.trim().length > 0 ||
-      offerForm.requirements.trim().length > 0 ||
-      offerForm.items.length > 0 ||
       offerForm.existingFiles.length > 0 ||
       offerForm.newFiles.length > 0);
 
+  // Владелец, 2026-09-04: "закупщик заполняет все возможные поля, жмёт
+  // сохранить — поставщик становится доступен для email-переписок" — любое
+  // сохранение через эту форму (новое предложение или правка уже
+  // существующего) считается верификацией: человек проверил/ввёл данные.
+  // Единственный путь получить verified:false — прямое добавление из
+  // веб-поиска (addWebSearchResults ниже), минуя эту форму.
   async function submitOffer(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmitOffer || savingOffer || !offerRequestId) return;
@@ -1317,13 +1320,11 @@ export function Suppliers() {
         websiteUrl: offerForm.websiteUrl.trim(),
         catalogModelName: offerForm.catalogModelName.trim(),
         catalogModelPhoto: offerForm.catalogModelPhoto,
-        communicationStatus: offerForm.communicationStatus.trim(),
-        price: Number(offerForm.price),
-        currency: offerForm.currency,
-        deadline: offerForm.deadline.trim(),
-        requirements: offerForm.requirements.trim(),
-        items: offerForm.items,
+        price: editingOffer?.price ?? 0,
+        currency: editingOffer?.currency ?? ('USD' as Currency),
+        items: editingOffer?.items ?? [],
         files: [...offerForm.existingFiles, ...uploadedNewFiles],
+        verified: true,
       };
       if (editingOffer) {
         const updated = await updateSupplierOffer(editingOffer.id, payload);
@@ -1367,12 +1368,21 @@ export function Suppliers() {
     <>
       <PageHeader title="Поставщики" action={supplierAddButton} />
 
-      <ToggleGroup
-        options={[...SUPPLIER_TABS]}
-        value={tab}
-        onChange={(v) => setTab(v as SupplierTab)}
-        badges={{ Письма: unreadSupplierEmailsCount }}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ToggleGroup
+          options={[...SUPPLIER_TABS]}
+          value={tab}
+          onChange={(v) => setTab(v as SupplierTab)}
+          badges={{ Письма: unreadSupplierEmailsCount }}
+        />
+        {/* Владелец, 2026-09-04: "перенеси Шаблоны направо, на уровень меню
+            Поставщики/Письма, но видна только когда открываешь Письма". */}
+        {tab === 'Письма' && (
+          <Button type="button" variant="secondary" icon={<FileText className="h-4 w-4" />} onClick={() => setTemplatesModalOpen(true)}>
+            Шаблоны
+          </Button>
+        )}
+      </div>
 
       {tab === 'Поставщики' && (
       <div className="mt-6 flex flex-col gap-8">
@@ -1407,7 +1417,7 @@ export function Suppliers() {
                       key={r.id}
                       request={r}
                       offers={offers.filter((o) => o.requestId === r.id)}
-                      rate={rate}
+                      emails={supplierEmails}
                       onEditRequest={openEditRequest}
                       onDeleteRequest={handleDeleteRequest}
                       onAddOffer={openAddOffer}
@@ -1524,6 +1534,8 @@ export function Suppliers() {
             templates={emailTemplates}
             ledgers={materialLedgers}
             allMaterials={allEstimateMaterials}
+            templatesModalOpen={templatesModalOpen}
+            onCloseTemplatesModal={() => setTemplatesModalOpen(false)}
             onEmailSent={handleSupplierEmailSent}
             onMarkRead={handleMarkSupplierEmailsRead}
             onTemplatesChange={setEmailTemplates}
@@ -1764,126 +1776,17 @@ export function Suppliers() {
             </div>
           </div>
 
-          <Input
-            label="Статус коммуникации"
-            placeholder="Например, ждём ответ по КП"
-            value={offerForm.communicationStatus}
-            onChange={(e) => setOfferForm((f) => ({ ...f, communicationStatus: e.target.value }))}
-          />
-
-          <div className="flex flex-col gap-1.5">
-            <span className="text-sm text-ink-muted">Итоговая цена</span>
-            <div className="flex gap-2">
-              <Input
-                placeholder="0"
-                type="number"
-                min="0"
-                value={offerForm.price}
-                onChange={(e) => setOfferForm((f) => ({ ...f, price: e.target.value }))}
-                className="flex-1"
-              />
-              <ToggleGroup
-                options={RESEARCH_CURRENCIES}
-                value={offerForm.currency}
-                onChange={(v) => setOfferForm((f) => ({ ...f, currency: v as Currency }))}
-              />
-            </div>
-          </div>
-
-          <Input
-            label="Срок"
-            placeholder="Например, 5 дней"
-            value={offerForm.deadline}
-            onChange={(e) => setOfferForm((f) => ({ ...f, deadline: e.target.value }))}
-          />
-
-          <div className="flex flex-col gap-2">
-            <span className="text-sm text-ink-muted">Позиции КП</span>
-            {offerForm.items.length > 0 && (
-              <div className="overflow-x-auto rounded-control border border-border">
-                <table className="w-full min-w-[520px] border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-surface-muted text-left text-xs font-medium uppercase tracking-wide text-ink-faint">
-                      <th className="px-3 py-2">Название</th>
-                      <th className="px-3 py-2 text-right">Кол-во</th>
-                      <th className="px-3 py-2 text-right">Ед.</th>
-                      <th className="px-3 py-2 text-right">Цена</th>
-                      <th className="px-3 py-2 text-right">Сумма</th>
-                      <th className="px-3 py-2" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {offerForm.items.map((item) => (
-                      <tr key={item.id} className="border-t border-border align-top">
-                        <td className="px-3 py-2 text-ink">
-                          <input
-                            value={item.name}
-                            onChange={(e) => updateOfferItem(item.id, { name: e.target.value })}
-                            className="w-full min-w-[140px] rounded-control border border-border bg-surface px-2 py-1 text-sm outline-none focus:border-primary"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          <input
-                            type="number"
-                            value={item.quantity ?? ''}
-                            onChange={(e) => updateOfferItem(item.id, { quantity: e.target.value === '' ? null : Number(e.target.value) })}
-                            className="w-20 rounded-control border border-border bg-surface px-2 py-1 text-right text-sm outline-none focus:border-primary"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          <input
-                            value={item.unit}
-                            onChange={(e) => updateOfferItem(item.id, { unit: e.target.value })}
-                            className="w-16 rounded-control border border-border bg-surface px-2 py-1 text-right text-sm outline-none focus:border-primary"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          <input
-                            type="number"
-                            value={item.price ?? ''}
-                            onChange={(e) => updateOfferItem(item.id, { price: e.target.value === '' ? null : Number(e.target.value) })}
-                            className="w-24 rounded-control border border-border bg-surface px-2 py-1 text-right text-sm outline-none focus:border-primary"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-right font-semibold text-ink">
-                          {purchaseItemTotal(item).toLocaleString('ru-RU')} {currencySymbols[offerForm.currency]}
-                        </td>
-                        <td className="px-3 py-2">
-                          <button
-                            type="button"
-                            onClick={() => removeOfferItem(item.id)}
-                            aria-label="Удалить позицию"
-                            className="flex h-7 w-7 items-center justify-center rounded-full text-ink-faint hover:text-danger"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <div className="flex gap-2">
-              <Input
-                placeholder="Название позиции"
-                value={manualOfferItemName}
-                onChange={(e) => setManualOfferItemName(e.target.value)}
-                className="flex-1"
-              />
-              <Button type="button" variant="secondary" icon={<PackagePlus className="h-4 w-4" />} onClick={addManualOfferItem}>
-                Добавить
-              </Button>
-            </div>
-          </div>
-
-          <Textarea
-            label="Требования"
-            placeholder="Предоплата, документы, условия..."
-            rows={3}
-            value={offerForm.requirements}
-            onChange={(e) => setOfferForm((f) => ({ ...f, requirements: e.target.value }))}
-          />
+          {/* Владелец, 2026-09-04: "Статус коммуникации — вполне можем
+              определять автоматически" / "Итоговая цена — убирай" / "Срок —
+              убирай, срок доставки будет отличаться для каждой поставки" /
+              "Позиции КП — убирай, вручную это указывать тупо, зато когда
+              получим КП от поставщика, вполне можем записать в базу" /
+              "Требования — убирай" — все пять полей убраны из формы: статус
+              теперь считается сам из переписки (offerCommunicationStatus),
+              цена/позиции заполняются только автораспознаванием счёта
+              (applyExtractionToOffer в SupplierCorrespondenceTab.tsx), у
+              срока/требований больше нет места на уровне поставщика в целом
+              (переезжают на уровень конкретной заявки на поставку). */}
 
           <div className="flex flex-col gap-1.5">
             <span className="text-sm text-ink-muted">Файлы (счета, спецификации...)</span>
@@ -1978,12 +1881,10 @@ export function Suppliers() {
         (() => {
           const offer = offers.find((o) => o.id === detailOfferId);
           if (!offer) return null;
-          const siblingOffers = offers.filter((o) => o.requestId === offer.requestId);
-          const { cheapestIds } = rankOffers(siblingOffers, rate);
           return (
             <OfferDetailModal
               offer={offer}
-              isCheapest={cheapestIds.has(offer.id)}
+              emails={supplierEmails}
               onClose={() => setDetailOfferId(null)}
               onEmail={(o) => {
                 setEmailOfferId(o.id);
