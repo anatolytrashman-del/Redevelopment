@@ -8,7 +8,11 @@ import type { Currency } from '../../data/transactions';
 // известная цена от одного поставщика на позицию сметы (sourceMaterialId —
 // общий ключ, см. Suppliers.tsx bestPricesByMaterialId); itemName —
 // конкретный товар/бренд, который квотировал поставщик (может отличаться
-// от названия позиции сметы — "альтернатива").
+// от названия позиции сметы — "альтернатива"). price — уже ЦЕНА ЗА ЕДИНИЦУ
+// ИЗМЕРЕНИЯ этого материала сметы (владелец, 2026-09-04: "краска идёт в
+// литрах, а поставщик выставляет банки... надо пересчитывать на литр"), не
+// сырая цена со счёта — единица (m.unit строки, для которой рисуется этот
+// список) в подписи опции.
 export interface MaterialBestPriceOption {
   price: number;
   currency: Currency;
@@ -102,7 +106,8 @@ export function MaterialsTable({
                     >
                       {priceOptions.map((opt, i) => (
                         <option key={i} value={i}>
-                          {opt.price.toLocaleString('ru-RU')} {opt.currency} — {opt.supplierName} ({opt.itemName})
+                          {opt.price.toLocaleString('ru-RU')} {opt.currency}
+                          {m.unit ? `/${m.unit}` : ''} — {opt.supplierName} ({opt.itemName})
                         </option>
                       ))}
                     </select>

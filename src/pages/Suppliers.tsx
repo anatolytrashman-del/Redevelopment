@@ -915,18 +915,25 @@ export function Suppliers() {
       list.push(opt);
       map.set(materialId, list);
     };
+    // Владелец, 2026-09-04: "краска идёт в литрах, а поставщик выставляет
+    // количество банок... надо пересчитывать на литр, метр, штуку, а не в
+    // целом" — сравниваем по unitPrice (цена за единицу измерения СМЕТНОГО
+    // материала, введена вручную при сопоставлении счёта, см.
+    // SupplierCorrespondenceTab.tsx), а не по сырому price/quantity со
+    // счёта (та тара поставщика — банки/упаковки — может не совпадать с
+    // единицей сметы вовсе).
     for (const o of offers) {
       for (const it of o.items) {
-        if (!it.sourceMaterialId || it.price == null || it.price <= 0) continue;
-        push(it.sourceMaterialId, { price: it.price, currency: o.currency, supplierName: o.name, itemName: it.name });
+        if (!it.sourceMaterialId || it.unitPrice == null || it.unitPrice <= 0) continue;
+        push(it.sourceMaterialId, { price: it.unitPrice, currency: o.currency, supplierName: o.name, itemName: it.name });
       }
     }
     for (const ord of supplierOrders) {
       const parentOffer = offers.find((o) => o.id === ord.offerId);
       for (const it of ord.items) {
-        if (!it.sourceMaterialId || it.price == null || it.price <= 0) continue;
+        if (!it.sourceMaterialId || it.unitPrice == null || it.unitPrice <= 0) continue;
         push(it.sourceMaterialId, {
-          price: it.price,
+          price: it.unitPrice,
           currency: ord.currency,
           supplierName: parentOffer?.name ?? 'Поставщик',
           itemName: it.name,

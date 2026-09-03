@@ -144,30 +144,63 @@ function pluralPositions(n: number): string {
 // плодит копии). currency из распознавания может не совпасть ни с одним
 // известным значением (модели явно запрещено гадать, возвращает null,
 // если не уверена) — тогда валюту карточки не трогаем.
-// materialMatches — какой материал сметы (EstimateMaterial.id) владелец
-// вручную сопоставил каждой распознанной позиции (по индексу в
-// extraction.items), см. форму сопоставления в footer предпросмотра ниже.
-// Без сопоставления — sourceMaterialId остаётся null (позиция разовая, вне
-// сметы, или ещё не сопоставлена) — цена такой позиции не попадёт в
-// сравнение "лучшая цена по позиции" (нужен sourceMaterialId как общий
-// ключ группировки, см. Suppliers.tsx bestPricesByMaterialId).
-function extractionItemsToPurchaseItems(items: EmailExtractionItem[], materialMatches: Record<number, string>): PurchaseItem[] {
-  return items.map((i, idx) => ({
-    id: crypto.randomUUID(),
-    sourceMaterialId: materialMatches[idx] || null,
-    name: i.name,
-    unit: i.unit,
-    quantity: i.quantity,
-    price: i.price,
-    note: '',
-  }));
+// Владелец, 2026-09-04: сопоставление позиции счёта с материалом сметы —
+// теперь пара (materialId, unitPrice), не просто materialId. materialId —
+// какой материал сметы (EstimateMaterial.id) соответствует этой строке;
+// unitPrice — цена за ОДНУ единицу измерения ЭТОГО материала (тот же unit,
+// что в смете), введённая/подтверждённая вручную (см. форму сопоставления
+// в footer предпросмотра ниже, computeUnitPriceGuess). Без сопоставления —
+// sourceMaterialId остаётся null (позиция разовая, вне сметы, или ещё не
+// сопоставлена), без unitPrice — позиция сопоставлена, но пока не участвует
+// в сравнении цен (нечего сравнивать, пока Альмира не указала цену за
+// единицу сметы).
+export interface MaterialMatch {
+  materialId: string;
+  unitPrice: string;
+}
+
+// "Краска идёт в литрах, а поставщик выставляет количество банок по X
+// литров... надо пересчитывать на литр, а не в целом" — raw price/quantity
+// со счёта считаются в ТАРЕ ПОСТАВЩИКА (банки, упаковки), а не в единицах
+// сметы, поэтому голое price/quantity доверенно только когда unit счёта
+// совпадает с unit материала сметы буквально (тогда 1 "единица" счёта и
+// правда 1 единица сметы) — иначе подсказку не даём вовсе, пусть Альмира
+// посчитает сама (банка 5л/10л — знает только она, не счёт).
+function computeUnitPriceGuess(
+  it: EmailExtractionItem,
+  materialId: string,
+  allMaterials: { item: PurchaseItem; context: string }[],
+): string {
+  if (it.price == null || !it.quantity) return '';
+  const material = allMaterials.find((m) => m.item.sourceMaterialId === materialId);
+  if (!material) return '';
+  const sameUnit = material.item.unit && it.unit && material.item.unit.trim().toLowerCase() === it.unit.trim().toLowerCase();
+  if (!sameUnit) return '';
+  return String(Math.round((it.price / it.quantity) * 100) / 100);
+}
+
+function extractionItemsToPurchaseItems(items: EmailExtractionItem[], materialMatches: Record<number, MaterialMatch>): PurchaseItem[] {
+  return items.map((i, idx) => {
+    const match = materialMatches[idx];
+    const unitPrice = match?.unitPrice ? Number(match.unitPrice) : NaN;
+    return {
+      id: crypto.randomUUID(),
+      sourceMaterialId: match?.materialId || null,
+      name: i.name,
+      unit: i.unit,
+      quantity: i.quantity,
+      price: i.price,
+      note: '',
+      unitPrice: Number.isFinite(unitPrice) ? unitPrice : null,
+    };
+  });
 }
 
 async function applyExtractionToOffer(
   offer: SupplierOffer,
   extraction: { price: number | null; currency: string | null; items: EmailExtractionItem[] },
   sourceFile: { url: string; fileName: string } | null,
-  materialMatches: Record<number, string>,
+  materialMatches: Record<number, MaterialMatch>,
 ): Promise<SupplierOffer> {
   const newItems = extractionItemsToPurchaseItems(extraction.items, materialMatches);
   const files =
@@ -203,7 +236,7 @@ async function applyExtractionToOrder(
   order: SupplierOrder,
   extraction: { price: number | null; currency: string | null; items: EmailExtractionItem[] },
   sourceFile: { url: string; fileName: string } | null,
-  materialMatches: Record<number, string>,
+  materialMatches: Record<number, MaterialMatch>,
 ): Promise<SupplierOrder> {
   const newItems = extractionItemsToPurchaseItems(extraction.items, materialMatches);
   const files =
@@ -372,7 +405,7 @@ export function EmailThread({
   // распознанная позиция счёта (по индексу в extraction.items), выбирается
   // в footer предпросмотра (ниже). Сбрасывается/предзаполняется подсказкой
   // при открытии предпросмотра нового счёта, см. эффект ниже.
-  const [materialMatches, setMaterialMatches] = useState<Record<number, string>>({});
+  const [materialMatches, setMaterialMatches] = useState<Record<number, MaterialMatch>>({});
 
   // Черновик по умолчанию завязан на конкретный тред (предложение + заявка) —
   // при переключении между тредами (вкладка "Переписка", в т.ч. между
@@ -464,10 +497,10 @@ export function EmailThread({
       setMaterialMatches({});
       return;
     }
-    const initial: Record<number, string> = {};
+    const initial: Record<number, MaterialMatch> = {};
     previewExtractionEmail.extraction.items.forEach((it, idx) => {
       const suggestion = suggestMaterialMatch(it.name, allMaterials);
-      if (suggestion) initial[idx] = suggestion;
+      if (suggestion) initial[idx] = { materialId: suggestion, unitPrice: computeUnitPriceGuess(it, suggestion, allMaterials) };
     });
     setMaterialMatches(initial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -861,40 +894,87 @@ export function EmailThread({
                       распознанная строка счёта — сопоставление ручное, с
                       подсказкой по схожести названия (suggestMaterialMatch). */}
                   <div className="flex flex-col gap-2">
-                    {previewExtractionEmail.extraction.items.map((it, idx) => (
-                      <div key={idx} className="flex flex-col gap-1.5 rounded-control border border-border p-2.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="min-w-0 flex-1 font-medium text-ink">{it.name}</span>
-                          <span className="shrink-0 text-xs text-ink-muted">
-                            {it.quantity ?? '—'} {it.unit}
-                            {it.price != null && (
-                              <>
-                                {' · '}
-                                {it.price} {previewExtractionEmail.extraction!.currency ?? ''}
-                              </>
-                            )}
-                          </span>
+                    {previewExtractionEmail.extraction.items.map((it, idx) => {
+                      const match = materialMatches[idx];
+                      const material = match?.materialId
+                        ? allMaterials.find((m) => m.item.sourceMaterialId === match.materialId)
+                        : undefined;
+                      // Владелец, 2026-09-04: "краска идёт в литрах, а
+                      // поставщик выставляет банки по X литров... надо
+                      // пересчитывать на литр, а не в целом" — тара счёта
+                      // (it.unit) и единица сметы (material.item.unit) может
+                      // не совпадать, показываем обе явно, чтобы было видно,
+                      // когда пересчёт обязателен.
+                      const unitMismatch = !!material && !!it.unit && !!material.item.unit && it.unit.trim().toLowerCase() !== material.item.unit.trim().toLowerCase();
+                      return (
+                        <div key={idx} className="flex flex-col gap-1.5 rounded-control border border-border p-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="min-w-0 flex-1 font-medium text-ink">{it.name}</span>
+                            <span className="shrink-0 text-xs text-ink-muted">
+                              {it.quantity ?? '—'} {it.unit}
+                              {it.price != null && (
+                                <>
+                                  {' · '}
+                                  {it.price} {previewExtractionEmail.extraction!.currency ?? ''}
+                                </>
+                              )}
+                            </span>
+                          </div>
+                          <select
+                            value={match?.materialId ?? ''}
+                            onChange={(e) => {
+                              const materialId = e.target.value;
+                              setMaterialMatches((prev) => ({
+                                ...prev,
+                                [idx]: { materialId, unitPrice: materialId ? computeUnitPriceGuess(it, materialId, allMaterials) : '' },
+                              }));
+                            }}
+                            className="rounded-control border border-transparent bg-surface-muted px-2 py-1.5 text-xs text-ink outline-none focus:border-primary"
+                          >
+                            <option value="">Не сопоставлено с материалом сметы</option>
+                            {allMaterials
+                              .filter((m) => m.item.sourceMaterialId)
+                              .map((m) => (
+                                <option key={m.item.sourceMaterialId} value={m.item.sourceMaterialId!}>
+                                  {m.item.name} ({m.context})
+                                </option>
+                              ))}
+                          </select>
+                          {material && (
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  placeholder="0"
+                                  value={match?.unitPrice ?? ''}
+                                  onChange={(e) =>
+                                    setMaterialMatches((prev) => ({
+                                      ...prev,
+                                      [idx]: { materialId: match!.materialId, unitPrice: e.target.value },
+                                    }))
+                                  }
+                                  className="w-28 rounded-control border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-primary"
+                                />
+                                <span className="text-xs text-ink-muted">
+                                  {previewExtractionEmail.extraction!.currency ?? ''} за {material.item.unit || 'ед.'} сметы
+                                </span>
+                              </div>
+                              {unitMismatch && (
+                                <p className="text-xs text-warning">
+                                  На счёте — {it.unit || 'без единицы'}, в смете — {material.item.unit || 'без единицы'}. Посчитайте цену за{' '}
+                                  {material.item.unit || 'единицу сметы'} вручную (сколько {material.item.unit || 'ед.'} в одной таре поставщика).
+                                </p>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        <select
-                          value={materialMatches[idx] ?? ''}
-                          onChange={(e) => setMaterialMatches((prev) => ({ ...prev, [idx]: e.target.value }))}
-                          className="rounded-control border border-transparent bg-surface-muted px-2 py-1.5 text-xs text-ink outline-none focus:border-primary"
-                        >
-                          <option value="">Не сопоставлено с материалом сметы</option>
-                          {allMaterials
-                            .filter((m) => m.item.sourceMaterialId)
-                            .map((m) => (
-                              <option key={m.item.sourceMaterialId} value={m.item.sourceMaterialId!}>
-                                {m.item.name} ({m.context})
-                              </option>
-                            ))}
-                        </select>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   <p className="text-xs text-ink-faint">
-                    Сопоставьте позиции с материалами сметы — так система сможет находить лучшую цену по каждой позиции среди
-                    всех поставщиков, даже если предложена другая марка/модель.
+                    Сопоставьте позиции с материалами сметы и укажите цену за единицу сметы (не за тару поставщика) — так
+                    система сможет находить лучшую цену по каждой позиции среди всех поставщиков, даже если предложена другая
+                    марка/модель или другая упаковка.
                   </p>
                 </>
               )}
