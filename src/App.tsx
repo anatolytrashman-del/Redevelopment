@@ -7,6 +7,7 @@ import { useParams } from 'react-router-dom';
 import { PublicBuildingPlan } from './pages/PublicBuildingPlan';
 import { ObjectLandingPage } from './pages/ObjectLandingPage';
 import { DistrictGuidePage } from './pages/DistrictGuidePage';
+import { BusinessCentersMinskPage } from './pages/BusinessCentersMinskPage';
 import { MinskHub } from './pages/MinskHub';
 import { BriefPublicPage } from './pages/BriefPublicPage';
 import { MeetingSummaryPublicPage } from './pages/MeetingSummaryPublicPage';
@@ -162,6 +163,7 @@ export default function App() {
       <Route path="/" element={<Navigate to="/minsk" replace />} />
       <Route path="/minsk" element={<MinskHub />} />
       <Route path="/minsk/minsk-mir" element={<DistrictGuidePage />} />
+      <Route path="/minsk/bcminsk" element={<BusinessCentersMinskPage />} />
       <Route path="/plan/:token" element={<PublicBuildingPlan />} />
       <Route path="/tz/:token" element={<BriefPublicPage />} />
       <Route path="/summary/:token" element={<MeetingSummaryPublicPage />} />

@@ -44,7 +44,7 @@ const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_
 // контентную страницу вне сущности "объект" (гиды — Э3-1 в SEO_PLAN.md).
 // /minsk/analytics и /minsk/analytics/minsk-mir были в списке — раздел
 // аналитики по районам целиком удалён владельцем 2026-08-25.
-const STATIC_PATHS = ['minsk', 'minsk/minsk-mir'];
+const STATIC_PATHS = ['minsk', 'minsk/minsk-mir', 'minsk/bcminsk'];
 
 async function fetchLandingPaths() {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/objects?select=landing_slug&landing_slug=not.is.null`, {
