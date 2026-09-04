@@ -1,17 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Pencil, Plus, Trash2, X, Check, LibraryBig, Share2, ClipboardList } from 'lucide-react';
+import { ArrowLeft, Loader2, Pencil, Plus, Trash2, Check, Share2, ClipboardList } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Textarea } from '../components/ui/Textarea';
 import { AddableSelect } from '../components/ui/AddableSelect';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
-import { CatalogPickerModal } from '../components/estimates/CatalogPickerModal';
-import { EstimatePositionCard } from '../components/estimates/EstimatePositionCard';
-import { EstimatePositionFormModal } from '../components/estimates/EstimatePositionFormModal';
-import { EstimateLineItemsTable, formatUsd, formatZone } from '../components/estimates/EstimateLineItemsTable';
+import { EstimateLineItemsTable, formatUsd, formatZone, formatQty } from '../components/estimates/EstimateLineItemsTable';
 import { EstimateLineItemFormModal } from '../components/estimates/EstimateLineItemFormModal';
 import { EstimateLineItemCommentsModal } from '../components/estimates/EstimateLineItemCommentsModal';
 import { EstimateMaterialsPanel } from '../components/estimates/EstimateMaterialsPanel';
@@ -27,17 +23,13 @@ import {
   type Estimate,
   type EstimateLineItem,
   type EstimateMaterial,
-  type EstimatePosition,
-  type EstimateQuestion,
   type EstimateSection,
 } from '../data/estimates';
-import { formatCatalogItemForInsert, type EstimateCatalogItem } from '../data/estimateCatalog';
 import type { DocumentFile } from '../data/contractorDocuments';
 import type { RealtyObject } from '../data/objects';
 import type { BuildingPlanZone } from '../data/buildingPlans';
 import type { ExchangeRate } from '../data/exchangeRates';
 import { fetchEstimate, updateEstimate } from '../lib/estimatesApi';
-import { fetchEstimateCatalogItems } from '../lib/estimateCatalogApi';
 import { fetchObject } from '../lib/objectsApi';
 import { fetchTodayRateOrLatestCached } from '../lib/exchangeRatesApi';
 import { fetchZonesForPlan } from '../lib/buildingPlansApi';
@@ -46,11 +38,19 @@ import { fetchZonesForPlan } from '../lib/buildingPlansApi';
 // которая внутри админки, мне нужна только версия, которая сейчас
 // доступна по ссылке строителю... она должна быть и внутри админки, и по
 // внешней ссылке" — "Смета" (построчная, то же самое, что видит строитель
-// по ссылке) теперь первая и открывается по умолчанию вместо "Текст"
-// (свободный текст/позиции/RAL — более ранний, самостоятельный слой
-// контента, данные не удалены, просто больше не первое, что видно при
-// открытии раздела).
-const SECTION_TABS = ['Смета', 'Материалы', 'Текст'] as const;
+// по ссылке) первая и открывается по умолчанию.
+//
+// Владелец, 2026-09-04: "в смете все вкладки Текст удаляй. Вместо этого
+// сделай вкладку Работы и вынеси туда все строки с работами, оставив
+// название работы и объём, без материала" — вкладка "Текст" (свободный
+// текст раздела + позиции с RAL-цветами/референсами товаров,
+// EstimatePosition) убрана целиком, вместе с формой позиций/каталогом
+// вставок (EstimatePositionCard/EstimatePositionFormModal/CatalogPickerModal
+// и data/estimateCatalog.ts стали полностью неиспользуемыми — удалены).
+// "Работы" — простой список из построчной сметы (EstimateLineItem.workType +
+// formatQty), без цен и без переопределения источника данных: тот же
+// section.lineItems, что и на вкладке "Смета", просто урезанный показ.
+const SECTION_TABS = ['Смета', 'Материалы', 'Работы'] as const;
 type SectionTab = (typeof SECTION_TABS)[number];
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -92,20 +92,8 @@ export function EstimateDetail() {
 
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
   const [titleDraft, setTitleDraft] = useState('');
-  const [bodyDraft, setBodyDraft] = useState('');
   const [savingSection, setSavingSection] = useState(false);
   const [sectionError, setSectionError] = useState<string | null>(null);
-
-  const [newQuestion, setNewQuestion] = useState('');
-  const [savingQuestions, setSavingQuestions] = useState(false);
-  const [questionsError, setQuestionsError] = useState<string | null>(null);
-
-  const [catalogItems, setCatalogItems] = useState<EstimateCatalogItem[]>([]);
-  const [catalogOpen, setCatalogOpen] = useState(false);
-
-  const [positionModalOpen, setPositionModalOpen] = useState(false);
-  const [positionSectionId, setPositionSectionId] = useState<string | null>(null);
-  const [editingPosition, setEditingPosition] = useState<EstimatePosition | null>(null);
 
   const [lineItemModalOpen, setLineItemModalOpen] = useState(false);
   const [lineItemSectionId, setLineItemSectionId] = useState<string | null>(null);
@@ -118,9 +106,8 @@ export function EstimateDetail() {
   const [commentsSectionId, setCommentsSectionId] = useState<string | null>(null);
   const [commentsLineItem, setCommentsLineItem] = useState<EstimateLineItem | null>(null);
 
-  // Текст/смета/материалы — три вкладки внутри каждого раздела (владелец:
-  // держать текстовую часть и построчную смету раздельно). Не персистится —
-  // просто UI-состояние на время сессии, по умолчанию всегда "Текст".
+  // Смета/материалы/работы — три вкладки внутри каждого раздела. Не
+  // персистится — просто UI-состояние на время сессии, по умолчанию "Смета".
   const [sectionTab, setSectionTab] = useState<Record<string, SectionTab>>({});
 
   const [materialModalOpen, setMaterialModalOpen] = useState(false);
@@ -176,10 +163,6 @@ export function EstimateDetail() {
       })
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить смету')))
       .finally(() => setLoading(false));
-
-    fetchEstimateCatalogItems()
-      .then(setCatalogItems)
-      .catch(() => {});
   }, [id]);
 
   const roomZones = zones.filter((z) => z.zoneType === 'room');
@@ -215,7 +198,6 @@ export function EstimateDetail() {
   function startEditSection(section: EstimateSection) {
     setEditingSectionId(section.id);
     setTitleDraft(section.title);
-    setBodyDraft(section.body);
     setSectionError(null);
   }
 
@@ -225,7 +207,7 @@ export function EstimateDetail() {
     setSectionError(null);
     try {
       const sections = estimate.sections.map((s) =>
-        s.id === editingSectionId ? { ...s, title: titleDraft.trim() || 'Без названия', body: bodyDraft } : s,
+        s.id === editingSectionId ? { ...s, title: titleDraft.trim() || 'Без названия' } : s,
       );
       await saveEstimatePatch({ sections });
       setEditingSectionId(null);
@@ -254,94 +236,6 @@ export function EstimateDetail() {
       await saveEstimatePatch({ sections: estimate.sections.filter((s) => s.id !== sectionId) });
     } catch (err) {
       setSectionError(errorMessage(err, 'Не удалось удалить раздел'));
-    }
-  }
-
-  async function addQuestion() {
-    if (!estimate || !newQuestion.trim() || savingQuestions) return;
-    setSavingQuestions(true);
-    setQuestionsError(null);
-    try {
-      const question: EstimateQuestion = { id: crypto.randomUUID(), text: newQuestion.trim(), resolved: false };
-      await saveEstimatePatch({ questions: [...estimate.questions, question] });
-      setNewQuestion('');
-    } catch (err) {
-      setQuestionsError(errorMessage(err, 'Не удалось добавить вопрос'));
-    } finally {
-      setSavingQuestions(false);
-    }
-  }
-
-  async function toggleQuestion(q: EstimateQuestion) {
-    if (!estimate) return;
-    setQuestionsError(null);
-    try {
-      await saveEstimatePatch({
-        questions: estimate.questions.map((x) => (x.id === q.id ? { ...x, resolved: !x.resolved } : x)),
-      });
-    } catch (err) {
-      setQuestionsError(errorMessage(err, 'Не удалось обновить вопрос'));
-    }
-  }
-
-  function insertCatalogItem(item: EstimateCatalogItem) {
-    const text = formatCatalogItemForInsert(item);
-    setBodyDraft((prev) => (prev.trim() ? `${prev}\n\n${text}` : text));
-  }
-
-  function openAddPosition(sectionId: string) {
-    setPositionSectionId(sectionId);
-    setEditingPosition(null);
-    setPositionModalOpen(true);
-  }
-
-  function openEditPosition(sectionId: string, position: EstimatePosition) {
-    setPositionSectionId(sectionId);
-    setEditingPosition(position);
-    setPositionModalOpen(true);
-  }
-
-  // Ошибку не глотаем здесь — пробрасываем в EstimatePositionFormModal, чтобы
-  // форма при сбое сети не закрывалась и показала ошибку сама (см. её
-  // handleSubmit): иначе форма уже закрыта, а sectionError у неё не виден.
-  async function savePosition(saved: EstimatePosition) {
-    if (!estimate || !positionSectionId) return;
-    const sections = estimate.sections.map((s) => {
-      if (s.id !== positionSectionId) return s;
-      const exists = s.positions.some((p) => p.id === saved.id);
-      return { ...s, positions: exists ? s.positions.map((p) => (p.id === saved.id ? saved : p)) : [...s.positions, saved] };
-    });
-    await saveEstimatePatch({ sections });
-  }
-
-  async function movePosition(sectionId: string, positionId: string, direction: 'up' | 'down') {
-    if (!estimate) return;
-    const sections = estimate.sections.map((s) => {
-      if (s.id !== sectionId) return s;
-      const idx = s.positions.findIndex((p) => p.id === positionId);
-      const swapWith = direction === 'up' ? idx - 1 : idx + 1;
-      if (idx === -1 || swapWith < 0 || swapWith >= s.positions.length) return s;
-      const positions = [...s.positions];
-      [positions[idx], positions[swapWith]] = [positions[swapWith], positions[idx]];
-      return { ...s, positions };
-    });
-    try {
-      await saveEstimatePatch({ sections });
-    } catch (err) {
-      setSectionError(errorMessage(err, 'Не удалось изменить порядок'));
-    }
-  }
-
-  async function deletePosition(sectionId: string, positionId: string) {
-    if (!estimate) return;
-    if (!window.confirm('Удалить позицию?')) return;
-    const sections = estimate.sections.map((s) =>
-      s.id === sectionId ? { ...s, positions: s.positions.filter((p) => p.id !== positionId) } : s,
-    );
-    try {
-      await saveEstimatePatch({ sections });
-    } catch (err) {
-      setSectionError(errorMessage(err, 'Не удалось удалить позицию'));
     }
   }
 
@@ -501,16 +395,6 @@ export function EstimateDetail() {
     });
   }
 
-  async function deleteQuestion(questionId: string) {
-    if (!estimate) return;
-    setQuestionsError(null);
-    try {
-      await saveEstimatePatch({ questions: estimate.questions.filter((x) => x.id !== questionId) });
-    } catch (err) {
-      setQuestionsError(errorMessage(err, 'Не удалось удалить вопрос'));
-    }
-  }
-
   const specs = object?.buildingSpecs;
   const lineItemsTotals = estimate
     ? estimateLineItemsTotals(estimate, rate)
@@ -655,26 +539,7 @@ export function EstimateDetail() {
             <Card key={section.id} className="flex flex-col gap-3 p-5">
               {editingSectionId === section.id ? (
                 <div className="flex flex-col gap-3">
-                  <Input label="Название раздела" value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} />
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <span className="text-sm text-ink-muted">Содержимое</span>
-                      <button
-                        type="button"
-                        onClick={() => setCatalogOpen(true)}
-                        className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-ink-muted hover:border-primary hover:text-primary"
-                      >
-                        <LibraryBig className="h-3.5 w-3.5" />
-                        Добавить из каталога
-                      </button>
-                    </div>
-                    <Textarea
-                      value={bodyDraft}
-                      onChange={(e) => setBodyDraft(e.target.value)}
-                      rows={10}
-                      placeholder="Состав работ, материалы, количества, открытые вопросы по разделу..."
-                    />
-                  </div>
+                  <Input label="Название раздела" value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} autoFocus />
                   {sectionError && <p className="text-sm text-danger">{sectionError}</p>}
                   <div className="flex justify-end gap-2">
                     <Button type="button" variant="secondary" onClick={() => setEditingSectionId(null)}>
@@ -731,42 +596,26 @@ export function EstimateDetail() {
                     onChange={(v) => setSectionTab((prev) => ({ ...prev, [section.id]: v as SectionTab }))}
                   />
 
-                  {(sectionTab[section.id] ?? 'Смета') === 'Текст' && (
-                    <>
-                      {section.body && (
-                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{section.body}</p>
+                  {/* Владелец, 2026-09-04: "сделай вкладку Работы и вынеси туда
+                      все строки с работами, оставив название работы и объём,
+                      без материала" — тот же section.lineItems, что и на
+                      вкладке "Смета" (formatQty — общий хелпер оттуда), но без
+                      цен/зоны/комментариев и без возможности править: это
+                      просто быстрый обзор состава работ, редактирование
+                      строки остаётся на вкладке "Смета". */}
+                  {(sectionTab[section.id] ?? 'Смета') === 'Работы' && (
+                    <div className="flex flex-col gap-1.5">
+                      {section.lineItems.length === 0 ? (
+                        <p className="text-sm text-ink-faint">В разделе пока нет строк работ.</p>
+                      ) : (
+                        section.lineItems.map((item) => (
+                          <div key={item.id} className="flex items-center justify-between gap-3 rounded-control border border-border px-3 py-2 text-sm">
+                            <span className="text-ink">{item.workType}</span>
+                            <span className="shrink-0 text-ink-muted">{formatQty(item)}</span>
+                          </div>
+                        ))
                       )}
-                      {section.positions.length === 0 && !section.body && (
-                        <p className="text-sm text-ink-faint">Раздел пока пустой — нажмите на карандаш или добавьте позицию.</p>
-                      )}
-
-                      {section.positions.length > 0 && (
-                        <div className="flex flex-col gap-3">
-                          {section.positions.map((p, i) => (
-                            <EstimatePositionCard
-                              key={p.id}
-                              position={p}
-                              onEdit={() => openEditPosition(section.id, p)}
-                              onDelete={() => deletePosition(section.id, p.id)}
-                              onMoveUp={() => movePosition(section.id, p.id, 'up')}
-                              onMoveDown={() => movePosition(section.id, p.id, 'down')}
-                              canMoveUp={i > 0}
-                              canMoveDown={i < section.positions.length - 1}
-                            />
-                          ))}
-                        </div>
-                      )}
-
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        icon={<Plus className="h-4 w-4" />}
-                        className="w-fit"
-                        onClick={() => openAddPosition(section.id)}
-                      >
-                        Добавить позицию
-                      </Button>
-                    </>
+                    </div>
                   )}
 
                   {(sectionTab[section.id] ?? 'Смета') === 'Смета' && (
@@ -800,71 +649,8 @@ export function EstimateDetail() {
           <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} className="w-fit" onClick={addSection}>
             Добавить раздел
           </Button>
-
-          <Card className="flex flex-col gap-3 p-5">
-            <div className="font-bold text-ink">Открытые вопросы</div>
-            {questionsError && <p className="text-sm text-danger">{questionsError}</p>}
-            <div className="flex flex-col gap-2">
-              {estimate.questions.map((q) => (
-                <div key={q.id} className="flex items-start gap-3">
-                  <button
-                    type="button"
-                    onClick={() => toggleQuestion(q)}
-                    aria-label={q.resolved ? 'Отметить как открытый' : 'Отметить как решённый'}
-                    className={cn(
-                      'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border',
-                      q.resolved ? 'border-success bg-success text-white' : 'border-border text-transparent',
-                    )}
-                  >
-                    <Check className="h-3 w-3" />
-                  </button>
-                  <span className={cn('flex-1 text-sm', q.resolved ? 'text-ink-faint line-through' : 'text-ink')}>
-                    {q.text}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => deleteQuestion(q.id)}
-                    aria-label="Удалить вопрос"
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-danger"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-              {estimate.questions.length === 0 && <p className="text-sm text-ink-faint">Открытых вопросов нет</p>}
-            </div>
-            <div className="flex gap-2">
-              <input
-                value={newQuestion}
-                onChange={(e) => setNewQuestion(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addQuestion()}
-                placeholder="Новый вопрос..."
-                className="flex-1 rounded-control border border-transparent bg-surface-muted px-4 py-2.5 text-sm text-ink outline-none placeholder:text-ink-faint focus:border-primary"
-              />
-              <Button type="button" variant="secondary" onClick={addQuestion} disabled={!newQuestion.trim() || savingQuestions}>
-                Добавить
-              </Button>
-            </div>
-          </Card>
         </div>
       )}
-
-      <CatalogPickerModal
-        open={catalogOpen}
-        onClose={() => setCatalogOpen(false)}
-        items={catalogItems}
-        onInsert={insertCatalogItem}
-        onCreated={(item) => setCatalogItems((prev) => [...prev, item].sort((a, b) => a.title.localeCompare(b.title, 'ru')))}
-      />
-
-      <EstimatePositionFormModal
-        open={positionModalOpen}
-        position={editingPosition}
-        catalogItems={catalogItems}
-        onClose={() => setPositionModalOpen(false)}
-        onSaved={savePosition}
-        onCatalogItemCreated={(item) => setCatalogItems((prev) => [...prev, item].sort((a, b) => a.title.localeCompare(b.title, 'ru')))}
-      />
 
       <EstimateLineItemFormModal
         open={lineItemModalOpen}

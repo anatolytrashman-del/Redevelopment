@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Loader2, Copy, Check, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Loader2, ExternalLink, Pencil, Trash2 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -30,7 +30,6 @@ export function Briefs() {
   const [editingBrief, setEditingBrief] = useState<Brief | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([fetchBriefs(), fetchObjects(), fetchContractors()])
@@ -53,14 +52,8 @@ export function Briefs() {
     return `${window.location.origin}/tz/${brief.shareToken}`;
   }
 
-  async function handleCopy(brief: Brief) {
-    try {
-      await navigator.clipboard.writeText(publicUrl(brief));
-      setCopiedId(brief.id);
-      setTimeout(() => setCopiedId((id) => (id === brief.id ? null : id)), 1500);
-    } catch {
-      // намеренно молча — ссылку видно текстом и так, просто не скопируется
-    }
+  function openBrief(brief: Brief) {
+    window.open(publicUrl(brief), '_blank', 'noopener,noreferrer');
   }
 
   function openAddModal() {
@@ -120,13 +113,8 @@ export function Briefs() {
               <span className="break-all text-xs text-ink-faint">{publicUrl(b)}</span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                icon={copiedId === b.id ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                onClick={() => handleCopy(b)}
-              >
-                {copiedId === b.id ? 'Скопировано' : 'Скопировать ссылку'}
+              <Button type="button" variant="secondary" icon={<ExternalLink className="h-4 w-4" />} onClick={() => openBrief(b)}>
+                Открыть
               </Button>
               <Button type="button" variant="secondary" icon={<Pencil className="h-4 w-4" />} onClick={() => openEditModal(b)}>
                 Редактировать

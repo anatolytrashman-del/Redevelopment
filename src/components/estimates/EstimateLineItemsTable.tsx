@@ -24,7 +24,7 @@ export function formatUsd(valueByn: number, rate: ExchangeRate | null): string |
   return `$${Math.round(valueByn / rate.usdByn).toLocaleString('ru-RU')}`;
 }
 
-function formatQty(item: EstimateLineItem): string {
+export function formatQty(item: EstimateLineItem): string {
   if (item.quantity == null) return '—';
   return `${item.quantity.toLocaleString('ru-RU')}${item.unit ? ` ${item.unit}` : ''}`;
 }
