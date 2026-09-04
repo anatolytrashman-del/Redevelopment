@@ -10,11 +10,13 @@ import {
   HardHat,
   Layers,
   MapPin,
+  Menu,
   Ruler,
   TrainFront,
+  X,
 } from 'lucide-react';
 import { cn } from '../lib/cn';
-import { glassCardClass, glassCardShadow } from '../lib/glass';
+import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { ObjectMapWidget } from '../components/objects/ObjectMapWidget';
@@ -146,10 +148,19 @@ function FactRow({ icon: Icon, children }: { icon: typeof MapPin; children: Reac
   );
 }
 
+// Карточка на всю ширину, фото слева/контент справа на sm+ (владелец,
+// 2026-09-04: "не нравится внешний вид карточек... по 1 карточке на всю
+// ширину экрана" — двухколоночная сетка карточек была тесной для растущего
+// набора полей, особенно с прицелом на данные по аренде/продаже, которые
+// владелец обещал добавить позже). На мобильном — фото сверху, как раньше.
 function BusinessCenterCard({ center }: { center: BusinessCenter }) {
   return (
-    <div id={center.slug} className={cn('flex scroll-mt-24 flex-col overflow-hidden', glassCardClass)} style={glassCardShadow}>
-      <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden">
+    <div
+      id={center.slug}
+      className={cn('flex scroll-mt-24 flex-col overflow-hidden sm:flex-row', glassCardClass)}
+      style={glassCardShadow}
+    >
+      <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden sm:aspect-auto sm:w-2/5">
         <PhotoBlock center={center} />
       </div>
       <div className="flex flex-1 flex-col gap-3 p-5 sm:p-6">
@@ -165,7 +176,7 @@ function BusinessCenterCard({ center }: { center: BusinessCenter }) {
 
         <FactRow icon={MapPin}>{center.address}</FactRow>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {center.totalArea != null && <FactRow icon={Ruler}>{center.totalArea.toLocaleString('ru-RU')} м² общая площадь</FactRow>}
           {center.yearBuilt != null && (
             <FactRow icon={Calendar}>
@@ -200,6 +211,10 @@ export function BusinessCentersMinskPage() {
   const [centers, setCenters] = useState<BusinessCenter[] | null>(null);
   const [classFilter, setClassFilter] = useState<'all' | NonNullable<BusinessCenter['businessClass']>>('all');
   const [districtFilter, setDistrictFilter] = useState<'all' | string>('all');
+  // Боковое меню на мобильном скрыто за плавающей кнопкой (владелец, 2026-09-04:
+  // "сделай конструктивно как на странице Минск Мира, чтобы оно с мобилки
+  // скрывалось") — тот же паттерн шторки, что и SECTION_NAV в DistrictGuidePage.tsx.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     fetchBusinessCenters()
@@ -264,6 +279,95 @@ export function BusinessCentersMinskPage() {
     [visibleCenters],
   );
 
+  // Содержимое бокового меню — общий JSX для десктопной sticky-колонки и
+  // мобильной шторки (владелец: "боковое меню... как на странице Минск
+  // Мира, чтобы оно с мобилки скрывалось"), см. рендер обоих ниже.
+  const filterContent = (
+    <>
+      <span className="px-2 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">Район</span>
+      <button
+        type="button"
+        onClick={() => setDistrictFilter('all')}
+        className={cn(
+          'rounded-control px-2 py-1.5 text-left transition-colors hover:text-primary',
+          districtFilter === 'all' ? 'bg-primary/10 font-bold text-primary' : 'font-medium text-ink',
+        )}
+      >
+        Все районы
+      </button>
+      {districts.map((d) => (
+        <button
+          key={d}
+          type="button"
+          onClick={() => setDistrictFilter(d)}
+          className={cn(
+            'flex items-center justify-between gap-2 rounded-control px-2 py-1.5 text-left transition-colors hover:text-primary',
+            districtFilter === d ? 'bg-primary/10 font-bold text-primary' : 'font-medium text-ink',
+          )}
+        >
+          <span>{d}</span>
+          <span className="text-xs text-ink-faint">{districtCounts[d]}</span>
+        </button>
+      ))}
+
+      {availableClasses.length > 0 && (
+        <>
+          <div className="my-2 border-t border-border" />
+
+          <span className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-ink-faint">Класс</span>
+          {/* Компактные пилюли с одной буквой класса (владелец: "выбор класса
+              слишком большой по размеру, хватит букв, А/В") — было вертикальным
+              списком со словом "Класс" перед каждым пунктом. */}
+          <div className="flex flex-wrap gap-1.5 px-2 pb-1">
+            <button
+              type="button"
+              onClick={() => setClassFilter('all')}
+              className={cn(
+                'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
+                classFilter === 'all' ? 'bg-primary text-white' : 'bg-surface-muted text-ink-muted hover:text-ink',
+              )}
+            >
+              Все
+            </button>
+            {availableClasses.map((cls) => (
+              <button
+                type="button"
+                key={cls}
+                onClick={() => setClassFilter(cls)}
+                className={cn(
+                  'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
+                  classFilter === cls ? 'bg-primary text-white' : 'bg-surface-muted text-ink-muted hover:text-ink',
+                )}
+              >
+                {cls}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      <div className="my-2 border-t border-border" />
+
+      <span className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+        Бизнес-центры
+      </span>
+      {sortedForNav.length === 0 ? (
+        <span className="px-2 py-1.5 text-xs text-ink-faint">Нет объектов в этом районе</span>
+      ) : (
+        sortedForNav.map((c) => (
+          <a
+            key={c.slug}
+            href={`#${c.slug}`}
+            onClick={() => setMobileNavOpen(false)}
+            className="rounded-control px-2 py-1.5 text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
+          >
+            {shortName(c)}
+          </a>
+        ))
+      )}
+    </>
+  );
+
   return (
     <div className="min-h-svh bg-bg">
       <div className="border-b border-border py-5">
@@ -274,87 +378,52 @@ export function BusinessCentersMinskPage() {
         </div>
       </div>
 
+      {/* Плавающая кнопка + шторка ниже lg — тот же паттерн, что и
+          "Содержание гайда" в DistrictGuidePage.tsx. От lg и шире — обычная
+          sticky-колонка слева (аналог Sidebar.tsx: lg:sticky работает
+          благодаря overflow-x: clip на body/#root, см. index.css). */}
+      <button
+        type="button"
+        onClick={() => setMobileNavOpen(true)}
+        className={cn(
+          'fixed bottom-4 right-4 z-30 flex items-center gap-2 px-4 py-3 text-sm font-semibold text-ink lg:hidden',
+          glassPillClass,
+        )}
+        style={glassPillShadow}
+      >
+        <Menu className="h-4 w-4 shrink-0" />
+        Фильтры
+      </button>
+
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-40 bg-ink/40 lg:hidden" onClick={() => setMobileNavOpen(false)} />
+      )}
+
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-50 flex h-svh w-72 max-w-[85vw] flex-col gap-1 overflow-y-auto border-r border-white/50 bg-white/70 px-5 py-6 backdrop-blur-xl backdrop-saturate-150 transition-transform duration-200 ease-out lg:hidden',
+          mobileNavOpen ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <span className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Фильтры</span>
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(false)}
+            aria-label="Закрыть меню"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:text-ink"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        {filterContent}
+      </aside>
+
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-8">
         <div className="lg:grid lg:grid-cols-[240px_1fr] lg:gap-10">
-          <aside className="mb-8 lg:sticky lg:top-24 lg:mb-0 lg:h-fit lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
+          <aside className="hidden lg:sticky lg:top-24 lg:block lg:h-fit lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
             <div className={cn('flex flex-col gap-1 p-3 text-sm', glassCardClass)} style={glassCardShadow}>
-              <span className="px-2 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">Район</span>
-              <button
-                type="button"
-                onClick={() => setDistrictFilter('all')}
-                className={cn(
-                  'rounded-control px-2 py-1.5 text-left transition-colors hover:text-primary',
-                  districtFilter === 'all' ? 'bg-primary/10 font-bold text-primary' : 'font-medium text-ink',
-                )}
-              >
-                Все районы
-              </button>
-              {districts.map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setDistrictFilter(d)}
-                  className={cn(
-                    'flex items-center justify-between gap-2 rounded-control px-2 py-1.5 text-left transition-colors hover:text-primary',
-                    districtFilter === d ? 'bg-primary/10 font-bold text-primary' : 'font-medium text-ink',
-                  )}
-                >
-                  <span>{d}</span>
-                  <span className="text-xs text-ink-faint">{districtCounts[d]}</span>
-                </button>
-              ))}
-
-              {availableClasses.length > 0 && (
-                <>
-                  <div className="my-2 border-t border-border" />
-
-                  <span className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-ink-faint">
-                    Класс
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setClassFilter('all')}
-                    className={cn(
-                      'rounded-control px-2 py-1.5 text-left transition-colors hover:text-primary',
-                      classFilter === 'all' ? 'bg-primary/10 font-bold text-primary' : 'font-medium text-ink',
-                    )}
-                  >
-                    Все классы
-                  </button>
-                  {availableClasses.map((cls) => (
-                    <button
-                      key={cls}
-                      type="button"
-                      onClick={() => setClassFilter(cls)}
-                      className={cn(
-                        'rounded-control px-2 py-1.5 text-left transition-colors hover:text-primary',
-                        classFilter === cls ? 'bg-primary/10 font-bold text-primary' : 'font-medium text-ink',
-                      )}
-                    >
-                      Класс {cls}
-                    </button>
-                  ))}
-                </>
-              )}
-
-              <div className="my-2 border-t border-border" />
-
-              <span className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-ink-faint">
-                Бизнес-центры
-              </span>
-              {sortedForNav.length === 0 ? (
-                <span className="px-2 py-1.5 text-xs text-ink-faint">Нет объектов в этом районе</span>
-              ) : (
-                sortedForNav.map((c) => (
-                  <a
-                    key={c.slug}
-                    href={`#${c.slug}`}
-                    className="rounded-control px-2 py-1.5 text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
-                  >
-                    {shortName(c)}
-                  </a>
-                ))
-              )}
+              {filterContent}
             </div>
           </aside>
 
@@ -392,7 +461,7 @@ export function BusinessCentersMinskPage() {
             ) : visibleCenters.length === 0 ? (
               <p className="text-sm text-ink-faint">Нет бизнес-центров по выбранным фильтрам.</p>
             ) : (
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <div className="flex flex-col gap-6">
                 {visibleCenters.map((c) => (
                   <BusinessCenterCard key={c.slug} center={c} />
                 ))}
