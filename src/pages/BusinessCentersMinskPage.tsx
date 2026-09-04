@@ -19,7 +19,8 @@ import { Badge } from '../components/ui/Badge';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { ObjectMapWidget } from '../components/objects/ObjectMapWidget';
 import { setArticleJsonLd, setBreadcrumbJsonLd, setGenericPageMeta } from '../lib/pageMeta';
-import { BUSINESS_CENTERS, type BusinessCenter } from '../data/businessCenters';
+import type { BusinessCenter } from '../data/businessCenters';
+import { fetchBusinessCenters } from '../lib/businessCentersApi';
 
 // Справочная SEO-страница по бизнес-центрам Минска (владелец, 2026-09-04) —
 // см. комментарий в data/businessCenters.ts про источник списка и принцип
@@ -196,8 +197,15 @@ function BusinessCenterCard({ center }: { center: BusinessCenter }) {
 }
 
 export function BusinessCentersMinskPage() {
+  const [centers, setCenters] = useState<BusinessCenter[] | null>(null);
   const [classFilter, setClassFilter] = useState<'all' | NonNullable<BusinessCenter['businessClass']>>('all');
   const [districtFilter, setDistrictFilter] = useState<'all' | string>('all');
+
+  useEffect(() => {
+    fetchBusinessCenters()
+      .then(setCenters)
+      .catch(() => setCenters([]));
+  }, []);
 
   useEffect(() => {
     setGenericPageMeta({ title: TITLE, description: DESCRIPTION, url: PAGE_URL, image: OG_IMAGE, ogType: 'article' });
@@ -217,34 +225,35 @@ export function BusinessCentersMinskPage() {
 
   const availableClasses = useMemo(
     () =>
-      Array.from(new Set(BUSINESS_CENTERS.map((c) => c.businessClass).filter((v): v is NonNullable<typeof v> => !!v))).sort(),
-    [],
+      Array.from(new Set((centers ?? []).map((c) => c.businessClass).filter((v): v is NonNullable<typeof v> => !!v))).sort(),
+    [centers],
   );
 
   // Районы — только те, что реально встречаются в данных (не хардкожен полный
-  // список всех 9 районов Минска: "Аден" вне города, у него district=null и
-  // он не попадает ни в один пункт фильтра — виден только при "Все районы").
+  // список всех 9 районов Минска — растёт из AddableSelect в админке, см.
+  // BusinessCentersAdminTab.tsx; "За городом" для объектов вне города, как
+  // "Аден", тоже просто одно из значений этого поля).
   const districts = useMemo(
     () =>
-      Array.from(new Set(BUSINESS_CENTERS.map((c) => c.district).filter((v): v is string => !!v))).sort((a, b) =>
+      Array.from(new Set((centers ?? []).map((c) => c.district).filter((v): v is string => !!v))).sort((a, b) =>
         a.localeCompare(b, 'ru'),
       ),
-    [],
+    [centers],
   );
   const districtCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const c of BUSINESS_CENTERS) if (c.district) counts[c.district] = (counts[c.district] ?? 0) + 1;
+    for (const c of centers ?? []) if (c.district) counts[c.district] = (counts[c.district] ?? 0) + 1;
     return counts;
-  }, []);
+  }, [centers]);
 
   const visibleCenters = useMemo(
     () =>
-      BUSINESS_CENTERS.filter(
+      (centers ?? []).filter(
         (c) =>
           (classFilter === 'all' || c.businessClass === classFilter) &&
           (districtFilter === 'all' || c.district === districtFilter),
       ),
-    [classFilter, districtFilter],
+    [centers, classFilter, districtFilter],
   );
 
   // Боковой список — те же фильтры, что и у самой сетки карточек ниже: список
@@ -294,6 +303,39 @@ export function BusinessCentersMinskPage() {
                   <span className="text-xs text-ink-faint">{districtCounts[d]}</span>
                 </button>
               ))}
+
+              {availableClasses.length > 0 && (
+                <>
+                  <div className="my-2 border-t border-border" />
+
+                  <span className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                    Класс
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setClassFilter('all')}
+                    className={cn(
+                      'rounded-control px-2 py-1.5 text-left transition-colors hover:text-primary',
+                      classFilter === 'all' ? 'bg-primary/10 font-bold text-primary' : 'font-medium text-ink',
+                    )}
+                  >
+                    Все классы
+                  </button>
+                  {availableClasses.map((cls) => (
+                    <button
+                      key={cls}
+                      type="button"
+                      onClick={() => setClassFilter(cls)}
+                      className={cn(
+                        'rounded-control px-2 py-1.5 text-left transition-colors hover:text-primary',
+                        classFilter === cls ? 'bg-primary/10 font-bold text-primary' : 'font-medium text-ink',
+                      )}
+                    >
+                      Класс {cls}
+                    </button>
+                  ))}
+                </>
+              )}
 
               <div className="my-2 border-t border-border" />
 
@@ -345,36 +387,9 @@ export function BusinessCentersMinskPage() {
 
             <ObjectMapWidget address="Бизнес-центры Минска" mapEmbedUrl={MAP_EMBED_URL} />
 
-            {availableClasses.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Класс:</span>
-                <button
-                  type="button"
-                  onClick={() => setClassFilter('all')}
-                  className={cn(
-                    'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
-                    classFilter === 'all' ? 'bg-primary text-white' : 'bg-surface-muted text-ink-muted hover:text-ink',
-                  )}
-                >
-                  Все
-                </button>
-                {availableClasses.map((cls) => (
-                  <button
-                    key={cls}
-                    type="button"
-                    onClick={() => setClassFilter(cls)}
-                    className={cn(
-                      'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
-                      classFilter === cls ? 'bg-primary text-white' : 'bg-surface-muted text-ink-muted hover:text-ink',
-                    )}
-                  >
-                    {cls}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {visibleCenters.length === 0 ? (
+            {centers === null ? (
+              <p className="text-sm text-ink-faint">Загрузка…</p>
+            ) : visibleCenters.length === 0 ? (
               <p className="text-sm text-ink-faint">Нет бизнес-центров по выбранным фильтрам.</p>
             ) : (
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
