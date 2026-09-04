@@ -17,6 +17,7 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
+import { ObjectMapWidget } from '../components/objects/ObjectMapWidget';
 import { setArticleJsonLd, setBreadcrumbJsonLd, setGenericPageMeta } from '../lib/pageMeta';
 import { BUSINESS_CENTERS, type BusinessCenter } from '../data/businessCenters';
 
@@ -48,6 +49,18 @@ const INTRO_TEXT =
 // пусто. HeroImageSlider (см. DistrictGuidePage.tsx/ObjectLandingPage.tsx)
 // при пустом массиве не рендерит ничего — плейсхолдер ниже занимает его место.
 const HERO_IMAGES: string[] = [];
+
+// Карта всех БЦ из списка (владелец, 2026-09-04) — тот же принцип, что и у
+// карты объекта в ObjectMapWidget.tsx: ссылка не из JS API/координат, а
+// готовая embed-ссылка из Яндекс.Карт Конструктора (constructor.yandex.ru),
+// куда владелец загрузил CSV/XLSX с координатами всех БЦ (см. журнал
+// CLAUDE.md — там же про формат этого файла). Владелец прислал два варианта
+// встраивания — <script src="api-maps.yandex.ru/services/constructor/...">
+// и страницу yandex.ru/maps/?um=constructor:<id> — ни один не подходит как
+// src iframe (тот же нюанс, что уже задокументирован в ObjectMapWidget.tsx
+// и в CLAUDE.md про карту объекта): нужен именно map-widget/v1 с тем же id.
+const MAP_EMBED_URL =
+  'https://yandex.ru/map-widget/v1/?um=constructor:40aec344a3d242ccc8c9562de875da3b03e8a49f93d956273f82830664696b1a&source=constructorLink';
 
 // Только дата последнего пересмотра фактов/добавления БЦ — держать в одном
 // месте, тот же принцип, что и DATE_MODIFIED в DistrictGuidePage.tsx.
@@ -329,6 +342,8 @@ export function BusinessCentersMinskPage() {
                 )}
               </div>
             </div>
+
+            <ObjectMapWidget address="Бизнес-центры Минска" mapEmbedUrl={MAP_EMBED_URL} />
 
             {availableClasses.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">
