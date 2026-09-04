@@ -1,26 +1,14 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  BadgeCheck,
-  Building2,
-  Calendar,
-  Camera,
-  Car,
-  Globe,
-  HardHat,
-  Layers,
-  MapPin,
-  Menu,
-  Ruler,
-  TrainFront,
-  X,
-} from 'lucide-react';
+import { BadgeCheck, Camera, MapPin, Menu, X } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { ObjectMapWidget } from '../components/objects/ObjectMapWidget';
+import { PhotoBlock, FactRow } from '../components/businessCenters/BusinessCenterVisuals';
 import { setArticleJsonLd, setBreadcrumbJsonLd, setGenericPageMeta } from '../lib/pageMeta';
+import { businessClassTone, shortName } from '../lib/businessCenterDisplay';
 import type { BusinessCenter } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 
@@ -91,119 +79,40 @@ const UPDATED_BADGE_LABEL = (() => {
   return `Обновлено: ${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
 })();
 
-const businessClassTone: Record<NonNullable<BusinessCenter['businessClass']>, 'primary' | 'success' | 'neutral'> = {
-  A: 'primary',
-  'B+': 'success',
-  B: 'neutral',
-  C: 'neutral',
-};
-
-// Короткое имя без "Бизнес-центр «...»" — для бокового меню и быстрой
-// навигации (владелец: "БЦ по алфавиту, но без «Бизнес-Центр», просто
-// названия"). Тот же принцип, что и в scripts-сгенерированном xlsx для
-// Конструктора карт — там метки на карте называются так же.
-function shortName(center: BusinessCenter): string {
-  if (center.slug === 'mfc-minsk-mir') return 'МФЦ (Минск Мир)';
-  const quoted = center.name.match(/«([^»]+)»/);
-  if (quoted) return quoted[1];
-  const paren = center.name.match(/\(([^)]+)\)/);
-  if (paren) return paren[1];
-  return center.name;
-}
-
-function PhotoBlock({ center }: { center: BusinessCenter }) {
-  if (center.photos.length > 0) {
-    return <img src={center.photos[0]} alt={center.name} className="h-full w-full object-cover" loading="lazy" />;
-  }
-  // Фото ещё нет — владелец добавит сам (см. комментарий в data-файле).
-  // Тот же визуальный приём, что у карточки "ещё не построен" в Залогах
-  // (Objects.tsx) — заливка градиентом вместо пустого места; для строящихся
-  // объектов бейдж говорит про стройку, а не про "фото скоро появятся".
-  if (center.status === 'under_construction') {
-    return (
-      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-surface-muted to-border">
-        <span className="flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink shadow-sm">
-          <HardHat className="h-3.5 w-3.5 shrink-0" />
-          {center.yearBuilt ? `Строится · сдача в ${center.yearBuilt} г.` : 'Строится'}
-        </span>
-      </div>
-    );
-  }
-  return (
-    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-surface-muted to-border">
-      <span className="flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink-muted shadow-sm">
-        <Camera className="h-3.5 w-3.5 shrink-0" />
-        Фото скоро
-      </span>
-    </div>
-  );
-}
-
-function FactRow({ icon: Icon, children }: { icon: typeof MapPin; children: ReactNode }) {
-  return (
-    <div className="flex items-start gap-2 text-sm text-ink-muted">
-      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint" />
-      <span>{children}</span>
-    </div>
-  );
-}
-
-// Карточка на всю ширину, фото слева/контент справа на sm+ (владелец,
-// 2026-09-04: "не нравится внешний вид карточек... по 1 карточке на всю
-// ширину экрана" — двухколоночная сетка карточек была тесной для растущего
-// набора полей, особенно с прицелом на данные по аренде/продаже, которые
-// владелец обещал добавить позже). На мобильном — фото сверху, как раньше.
+// Компактная карточка — только базовая информация, подробности переехали на
+// отдельную страницу /minsk/bcminsk/:slug (владелец, после первой полноширинной
+// версии: "давай наоборот сделаем небольшие карточки с базовой информацией, а
+// подробнее уже будет на странице самого бизнес-центра" — для SEO отдельная
+// страница на каждый БЦ выигрывает у одной большой страницы со всей инфой:
+// можно точечно ранжироваться под запрос конкретного БЦ, чего общий хаб не
+// даёт). Вся карточка — кликабельная ссылка на эту страницу.
 function BusinessCenterCard({ center }: { center: BusinessCenter }) {
   return (
-    <div
-      id={center.slug}
-      className={cn('flex scroll-mt-24 flex-col overflow-hidden sm:flex-row', glassCardClass)}
+    <Link
+      to={`/minsk/bcminsk/${center.slug}`}
+      className={cn('flex flex-col overflow-hidden transition-transform hover:-translate-y-0.5', glassCardClass)}
       style={glassCardShadow}
     >
-      <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden sm:aspect-auto sm:w-2/5">
+      <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden">
         <PhotoBlock center={center} />
-      </div>
-      <div className="flex flex-1 flex-col gap-3 p-5 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <h2 className="text-lg font-bold text-ink">{center.name}</h2>
-          <div className="flex shrink-0 flex-wrap gap-1.5">
-            {center.status === 'under_construction' && <Badge tone="warning">Строится</Badge>}
-            {center.businessClass && (
-              <Badge tone={businessClassTone[center.businessClass]}>Класс {center.businessClass}</Badge>
-            )}
-          </div>
-        </div>
-
-        <FactRow icon={MapPin}>{center.address}</FactRow>
-
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {center.totalArea != null && <FactRow icon={Ruler}>{center.totalArea.toLocaleString('ru-RU')} м² общая площадь</FactRow>}
-          {center.yearBuilt != null && (
-            <FactRow icon={Calendar}>
-              {center.status === 'under_construction' ? `Ожидаемая сдача — ${center.yearBuilt} г.` : `Сдан в ${center.yearBuilt} г.`}
-            </FactRow>
+        <div className="absolute right-2 top-2 flex flex-wrap justify-end gap-1.5">
+          {center.status === 'under_construction' && <Badge tone="warning">Строится</Badge>}
+          {center.businessClass && (
+            <Badge tone={businessClassTone[center.businessClass]}>Класс {center.businessClass}</Badge>
           )}
-          {center.floors != null && <FactRow icon={Layers}>{center.floors} этажей</FactRow>}
-          {center.metro && <FactRow icon={TrainFront}>{center.metro}</FactRow>}
-          {center.parking && <FactRow icon={Car}>{center.parking}</FactRow>}
-          {center.developer && <FactRow icon={Building2}>{center.developer}</FactRow>}
         </div>
-
-        {center.description && <p className="text-sm text-ink-muted">{center.description}</p>}
-
-        {center.website && (
-          <a
-            href={center.website}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-          >
-            <Globe className="h-4 w-4 shrink-0" />
-            {center.website.replace(/^https?:\/\//, '')}
-          </a>
-        )}
       </div>
-    </div>
+      <div className="flex flex-1 flex-col gap-2 p-4">
+        <h2 className="text-base font-bold leading-snug text-ink">{center.name}</h2>
+        <FactRow icon={MapPin}>{center.address}</FactRow>
+        <div className="mt-auto flex flex-wrap gap-x-3 gap-y-1 pt-1 text-xs text-ink-faint">
+          {center.totalArea != null && <span>{center.totalArea.toLocaleString('ru-RU')} м²</span>}
+          {center.yearBuilt != null && (
+            <span>{center.status === 'under_construction' ? `сдача в ${center.yearBuilt} г.` : `сдан в ${center.yearBuilt} г.`}</span>
+          )}
+        </div>
+      </div>
+    </Link>
   );
 }
 
@@ -355,14 +264,14 @@ export function BusinessCentersMinskPage() {
         <span className="px-2 py-1.5 text-xs text-ink-faint">Нет объектов в этом районе</span>
       ) : (
         sortedForNav.map((c) => (
-          <a
+          <Link
             key={c.slug}
-            href={`#${c.slug}`}
+            to={`/minsk/bcminsk/${c.slug}`}
             onClick={() => setMobileNavOpen(false)}
             className="rounded-control px-2 py-1.5 text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
           >
             {shortName(c)}
-          </a>
+          </Link>
         ))
       )}
     </>
@@ -461,7 +370,7 @@ export function BusinessCentersMinskPage() {
             ) : visibleCenters.length === 0 ? (
               <p className="text-sm text-ink-faint">Нет бизнес-центров по выбранным фильтрам.</p>
             ) : (
-              <div className="flex flex-col gap-6">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {visibleCenters.map((c) => (
                   <BusinessCenterCard key={c.slug} center={c} />
                 ))}

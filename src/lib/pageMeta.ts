@@ -175,6 +175,92 @@ function setLinkHref(selector: string, href: string) {
   if (el) el.setAttribute('href', href);
 }
 
+// Отдельная страница бизнес-центра (/minsk/bcminsk/:slug, владелец,
+// 2026-09-04: "в идеале бы, чтобы у страницы был отдельный урл... для SEO
+// лучше хаб + отдельная страница на каждый БЦ") — та же механика подмены
+// тегов, что и у setObjectPageMeta, но данные не из "объектов", а из
+// business_centers (см. data/businessCenters.ts), и RealEstateListing без
+// offers (там нет цены/сделки, это справочная карточка здания, не лендинг
+// бронирования). Title/description собираются из реальных полей записи —
+// вручную подобранных SEO_OVERRIDES для конкретных БЦ пока нет (можно
+// завести по аналогии, если понадобится точечная подгонка под запрос).
+export function fallbackBusinessCenterMeta(center: {
+  name: string;
+  address: string;
+  businessClass: string | null;
+  totalArea: number | null;
+  yearBuilt: number | null;
+  status: string;
+}): PageMeta {
+  const title = `${center.name} — ${center.address}`;
+  const parts: string[] = [];
+  if (center.businessClass) parts.push(`класс ${center.businessClass}`);
+  if (center.totalArea) parts.push(`${center.totalArea.toLocaleString('ru-RU')} м²`);
+  if (center.yearBuilt) {
+    parts.push(center.status === 'under_construction' ? `сдача в ${center.yearBuilt} г.` : `сдан в ${center.yearBuilt} г.`);
+  }
+  parts.push(center.address);
+  return { title, description: `Бизнес-центр в Минске: ${parts.join(', ')}.` };
+}
+
+export function setBusinessCenterPageMeta(
+  slug: string,
+  center: {
+    name: string;
+    address: string;
+    businessClass: string | null;
+    totalArea: number | null;
+    yearBuilt: number | null;
+    status: string;
+  },
+  image?: string,
+) {
+  const meta = fallbackBusinessCenterMeta(center);
+  const url = `https://redevelopment.pro/minsk/bcminsk/${slug}`;
+  // Фото БЦ хранятся локальными путями (public/images/business-centers/...,
+  // см. data/businessCenters.ts), не абсолютными URL, как у Supabase Storage
+  // объектов — og:image/JSON-LD image по спецификации должны быть абсолютными
+  // (соцсети/краулеры фетчат их напрямую, не относительно страницы).
+  const absoluteImage = image ? new URL(image, 'https://redevelopment.pro').toString() : undefined;
+
+  document.title = meta.title;
+  setMetaContent('meta[name="description"]', meta.description);
+  setLinkHref('link[rel="canonical"]', url);
+
+  setMetaContent('meta[property="og:type"]', 'website');
+  setMetaContent('meta[property="og:title"]', meta.title);
+  setMetaContent('meta[property="og:description"]', meta.description);
+  setMetaContent('meta[property="og:url"]', url);
+  setMetaContent('meta[property="og:image"]', absoluteImage ?? DEFAULT_OG_IMAGE);
+  setMetaContent('meta[name="twitter:title"]', meta.title);
+  setMetaContent('meta[name="twitter:description"]', meta.description);
+  setMetaContent('meta[name="twitter:image"]', absoluteImage ?? DEFAULT_OG_IMAGE);
+  setMetaContent('meta[name="robots"]', 'index, follow');
+
+  clearPageJsonLd();
+  // Крошки задаёт сам вызывающий код СРАЗУ после этого вызова (нужен
+  // shortName() центра, которого эта функция не знает) — здесь только сброс,
+  // тот же порядок, что и у setObjectPageMeta.
+  setBreadcrumbJsonLd(null);
+
+  const ld = document.getElementById('object-json-ld');
+  if (ld) {
+    ld.textContent = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'RealEstateListing',
+      name: center.name,
+      description: meta.description,
+      url,
+      image: absoluteImage ?? DEFAULT_OG_IMAGE,
+      address: {
+        '@type': 'PostalAddress',
+        streetAddress: center.address,
+        addressCountry: 'BY',
+      },
+    });
+  }
+}
+
 // slug — ключ в SEO_OVERRIDES (не обязательно совпадает с текущим URL: вызывающий
 // код сам решает, что передавать). image — если есть, подменяет og:image/twitter:image
 // на реальное фото объекта вместо общей заглушки og-image.png.

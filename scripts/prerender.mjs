@@ -58,6 +58,22 @@ async function fetchLandingPaths() {
     .map((slug) => `minsk/${slug}`);
 }
 
+// Отдельные страницы бизнес-центров (/minsk/bcminsk/:slug) — та же причина
+// пререндера, что и у лендингов объектов выше: без снапшота у AI-краулеров/
+// Яндекса контента конкретного БЦ не существует. Список слагов — из той же
+// таблицы, что читает публичная страница (business_centers), не хардкожен.
+async function fetchBusinessCenterPaths() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/business_centers?select=slug`, {
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+  });
+  if (!res.ok) throw new Error(`Supabase вернул ${res.status} при запросе business_centers.slug`);
+  const rows = await res.json();
+  return rows
+    .map((r) => r.slug)
+    .filter((slug) => typeof slug === 'string' && slug.trim() !== '')
+    .map((slug) => `minsk/bcminsk/${slug}`);
+}
+
 // `vite preview` — тот же сервер, что уже настроен как npm-скрипт
 // (package.json → "preview"), отдаёт dist/ с правильными MIME-типами и
 // SPA-фолбэком из коробки. Не переизобретаю сервер вручную — самодельный
@@ -107,7 +123,7 @@ async function launchBrowser() {
 async function main() {
   if (!existsSync(DIST_DIR)) throw new Error('dist/ не найден — запускать после vite build');
 
-  const paths = [...(await fetchLandingPaths()), ...STATIC_PATHS];
+  const paths = [...(await fetchLandingPaths()), ...(await fetchBusinessCenterPaths()), ...STATIC_PATHS];
   if (paths.length === 0) {
     console.warn('[prerender] пререндерить нечего — нет ни объектов с landing_slug, ни статических страниц');
     return;
