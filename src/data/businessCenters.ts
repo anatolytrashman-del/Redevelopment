@@ -12,8 +12,15 @@
 // поле пустое. businessClass — только если класс официально заявлен
 // застройщиком/агентствами недвижимости, а не мой домысел по виду здания.
 //
-// photos — владелец добавляет сам (см. заготовку блока в
-// BusinessCentersMinskPage.tsx), изначально всегда пустой массив.
+// photos — по одному фото главного фасада на объект (2026-09-04, владелец:
+// "добавь фото сам, где найдёшь в открытых источниках. Фокус — на светлые
+// фотографии главного фасада без водяных знаков"), файлы лежат в
+// public/images/business-centers/<slug>.jpg. Источники — realt.onliner.by,
+// Wikimedia Commons, официальные сайты БЦ, как запасной вариант — агрегаторы
+// domovita.by/megapolis-real.by (их фото часто с водяными знаками — там, где
+// не нашлось чистого кадра, водяной знак вырезан кропом, сама постройка не
+// тронута). Владелец может заменить/дополнить руками в любой момент — это не
+// финальная редакция подборки.
 export interface BusinessCenter {
   slug: string;
   name: string;
@@ -68,7 +75,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: 'https://minskworld.by/',
     description:
       'Флагманский строящийся объект района «Минск Мир» — архитектурный ансамбль из пяти высотных корпусов: четырёх башен по 14–26 этажей и главного 42-этажного небоскрёба высотой 168,2 м, который после сдачи станет вторым по высоте зданием Беларуси после «Газпром-Центра». Общая площадь комплекса — около 97 000 м², из них порядка 85 000 м² — офисные помещения класса A. Строительство начато в июле 2022 года, ведётся всеми корпусами одновременно, сдача запланирована на конец 2027 года.',
-    photos: [],
+    photos: ['/images/business-centers/mfc-minsk-mir.jpg'],
     status: 'under_construction',
   },
   {
@@ -85,7 +92,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: null,
     description:
       'Бизнес-центр в Партизанском районе Минска (мкр. Захарова), сдан в 2008 году. В здании работают банк/банкомат, кофе-пойнт, магазин, салон красоты. Источники по-разному указывают деловой класс — без единого официального подтверждения, поэтому поле не показано.',
-    photos: [],
+    photos: ['/images/business-centers/victoria-plaza.jpg'],
   },
   {
     slug: 'stolitsa',
@@ -101,7 +108,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: 'https://hotel-victoria.by/',
     description:
       'Офисные помещения в составе гостинично-делового комплекса «Виктория» на проспекте Победителей — управляются КУП «Бизнес-центр «Столица»» (отдельного самостоятельного здания под этим названием нет). Есть филиал с офисными и торговыми помещениями от 3,9 м² на пр-те Победителей, 103.',
-    photos: [],
+    photos: ['/images/business-centers/stolitsa.jpg'],
   },
   {
     slug: 'port',
@@ -117,7 +124,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: null,
     description:
       'Многофункциональный комплекс в микрорайоне Уручье, в 100 м от одноимённой станции метро. Около 200 офисных помещений, банковские отделения, кафе, магазин, салон красоты, фитнес-зона. Строился в несколько очередей — как год сдачи указан наиболее часто встречающийся в источниках.',
-    photos: [],
+    photos: ['/images/business-centers/port.jpg'],
   },
   {
     slug: 's-union',
@@ -133,7 +140,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: null,
     description:
       'Бизнес-центр класса B в Заводском районе, за кольцевой дорогой вдоль Партизанского проспекта. Свыше 40 000 м² офисных помещений (блоки от 150 до 5500 м²), 3 лифта, приточная вентиляция, кафе.',
-    photos: [],
+    photos: ['/images/business-centers/s-union.jpg'],
   },
   {
     slug: 'imperskiy',
@@ -149,7 +156,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: 'https://impersky.by/',
     description:
       'Многофункциональный комплекс в Московском районе: 14-этажное офисное здание класса A плюс отдельный корпус с рестораном, апарт-отелем и фитнес-центром с бассейном. Офисные лоты — от 158,45 до 929 м². Общая площадь по источникам расходится, поэтому не указана.',
-    photos: [],
+    photos: ['/images/business-centers/imperskiy.jpg'],
   },
   {
     slug: 'titul',
@@ -165,7 +172,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: 'https://titul-bc.by/',
     description:
       'Деловой центр класса A в центральной части Минска (Октябрьский район), 16 этажей, включая 2 подземных уровня. В здании — банк, ресторан, кофе-холл, конференц-зал.',
-    photos: [],
+    photos: ['/images/business-centers/titul.jpg'],
   },
   {
     slug: 'kolizey',
@@ -181,7 +188,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: 'https://bckolizey.by/',
     description:
       'Многофункциональный комплекс в Партизанском районе, работает круглосуточно. Здание перепрофилировано под офисы и паркинг из бывшего долгостроя, поэтому точный год сдачи именно как бизнес-центра в источниках противоречив. Есть переговорные, конференц-зал до 35 человек, боксы для хранения в паркинге.',
-    photos: [],
+    photos: ['/images/business-centers/kolizey.jpg'],
   },
   {
     slug: 'titan',
@@ -197,7 +204,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: null,
     description:
       'Офисная башня класса A в составе крупного многофункционального комплекса «Титан» (Московский район, мкр. Юго-Запад) — весь МФК (офисы + торговля + развлечения, несколько корпусов) занимает свыше 93 000 м², офисная часть — ок. 13 430 м². Высота потолков 3–3,5 м, центральное кондиционирование, скоростные лифты.',
-    photos: [],
+    photos: ['/images/business-centers/titan.jpg'],
   },
   {
     slug: 'parus',
@@ -213,7 +220,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: null,
     description:
       'Офисный бизнес-центр в мкр. Зелёный Луг (Советский район) — не путать с одноимённой жилой высоткой (34 этажа) в том же районе: это разные здания, часть источников-агрегаторов путает их факты между собой, поэтому класс и этажность здесь не указаны.',
-    photos: [],
+    photos: ['/images/business-centers/parus.jpg'],
   },
   {
     slug: '21-vek',
@@ -229,7 +236,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: 'http://www.bc.by',
     description:
       'Первый бизнес-центр в Беларуси, открыт в 2001 году — задал стандарт делового центра для страны. Один из старейших действующих БЦ Минска, расположен на проспекте Независимости рядом со станцией метро «Борисовский тракт».',
-    photos: [],
+    photos: ['/images/business-centers/21-vek.jpg'],
   },
   {
     slug: 'pushkinsky',
@@ -245,7 +252,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: null,
     description:
       'Офисный центр класса C во Фрунзенском районе, в шаговой доступности от станции метро «Пушкинская». Офисы от 20 м² на верхних этажах, на первом этаже — магазины и автомойка.',
-    photos: [],
+    photos: ['/images/business-centers/pushkinsky.jpg'],
   },
   {
     slug: 'germes',
@@ -261,7 +268,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: null,
     description:
       'Восьмиэтажный бизнес-центр класса B+ на пересечении улиц Лейтенанта Кижеватова и Казинца, в районе аэропорта «Минск-1». Введён в эксплуатацию в 2015 году, управляется товариществом собственников.',
-    photos: [],
+    photos: ['/images/business-centers/germes.jpg'],
   },
   {
     slug: 'futuris',
@@ -277,7 +284,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: 'https://futuris-bc.by',
     description:
       '27-этажная высотка класса A на пересечении проспекта Независимости и МКАД — один из самых высоких бизнес-центров Минска, сдан в 2019 году. Общая площадь комплекса с учётом паркинга — ок. 49 000 м², из них свыше 22 000 м² — офисные помещения открытой планировки с панорамным остеклением. В инфраструктуре — фитнес-клуб, ресторан, отделение банка, кофейня.',
-    photos: [],
+    photos: ['/images/business-centers/futuris.jpg'],
   },
   {
     slug: 'premier',
@@ -293,7 +300,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: null,
     description:
       '15-этажный бизнес-центр класса B в микрорайоне Копище (фактически сросшемся с Уручьем), построен в 2016 году, сертифицирован по наивысшему классу энергоэффективности A. На первом этаже — банк, кафе, фитнес-центр, магазин, салон красоты.',
-    photos: [],
+    photos: ['/images/business-centers/premier.jpg'],
   },
   {
     slug: 'aden',
@@ -309,7 +316,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: 'https://adenhotel.by',
     description:
       'Бизнес-отель 4* китайской сети Aden в индустриальном парке «Великий камень» — формально не в черте Минска (~25 км от города, ~4 км от Национального аэропорта «Минск»), но по запросу часто ищут вместе с бизнес-центрами Минска. Конференц- и банкетные залы, два ресторана, бар, тренажёрный зал.',
-    photos: [],
+    photos: ['/images/business-centers/aden.jpg'],
   },
   {
     slug: 'levada',
@@ -325,7 +332,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: null,
     description:
       'Офисная часть многофункционального жилого комплекса «Левада» на берегу Свислочи в Центральном районе — комплекс вводится в эксплуатацию очередями с 2024 года, точный год сдачи именно офисного блока в открытых источниках не подтверждён. Офисные лоты — от ~58 до ~3500 м².',
-    photos: [],
+    photos: ['/images/business-centers/levada.jpg'],
   },
   {
     slug: 'krasavik',
@@ -341,7 +348,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: null,
     description:
       '14-этажный бизнес-центр класса B+, открыт в июне 2016 года с крупной по тем временам британской инвестицией (Ergo Fin Ltd). Ещё до открытия всё здание было полностью арендовано компанией EPAM Systems под часть своего минского офиса.',
-    photos: [],
+    photos: ['/images/business-centers/krasavik.jpg'],
   },
   {
     slug: 'prospekt',
@@ -357,7 +364,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: 'https://elite-estate.by',
     description:
       'Многофункциональный деловой комплекс класса A в историческом центре Минска на проспекте Независимости, сдан в 2022 году; на рынке также встречается под названием Elite Estate. Помимо офисов открытой планировки — торговые помещения, коворкинг и точки питания.',
-    photos: [],
+    photos: ['/images/business-centers/prospekt.jpg'],
   },
   {
     slug: 'ajax',
@@ -373,7 +380,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: 'https://ajax-bc.by/',
     description:
       'Многофункциональный бизнес-центр класса A с панорамным остеклением возле метро «Институт культуры», введён в эксплуатацию в сентябре 2020 года. 16-этажная башня, площадь офисных помещений — ок. 16 800 м², типовой этаж — 890 м². Работает в режиме 24/7.',
-    photos: [],
+    photos: ['/images/business-centers/ajax.jpg'],
   },
   {
     slug: 'domashevsky',
@@ -389,7 +396,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: 'https://bcdomashevski.by/',
     description:
       'Бизнес-центр класса C в Московском районе рядом со станцией метро «Грушевка». Открыт в 2013 году, типовой этаж — 1100 м²; в здании — кафе, магазины, салоны красоты, офисы сдаются от 18 м².',
-    photos: [],
+    photos: ['/images/business-centers/domashevsky.jpg'],
   },
   {
     slug: 'campus',
@@ -405,7 +412,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: 'https://campus.by/',
     description:
       'Бизнес-центр и коворкинг класса A в Советском районе. Типовой этаж — 1100 м², потолки от 3,5 м, панорамное остекление; конференц-залы, коворкинг, кафе, работает круглосуточно.',
-    photos: [],
+    photos: ['/images/business-centers/campus.jpg'],
   },
   {
     slug: 'kamennogorsky',
@@ -421,7 +428,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: 'https://www.kamennogorsky.by/',
     description:
       'Многофункциональный комплекс класса B в микрорайоне Каменная Горка, в 100 м от МКАД. Открыт в 2015 году; офисные и торговые помещения, кафе, управляется товариществом собственников.',
-    photos: [],
+    photos: ['/images/business-centers/kamennogorsky.jpg'],
   },
   {
     slug: 'time',
@@ -437,7 +444,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: null,
     description:
       'Бизнес-центр класса B рядом со станцией метро «Парк Челюскинцев», построен на месте многолетнего долгостроя — точный год ввода в эксплуатацию в источниках не подтверждён. Типовой этаж — 2600 м²; в здании — кафе, банк, фитнес-центр.',
-    photos: [],
+    photos: ['/images/business-centers/time.jpg'],
   },
   {
     slug: 'prizma',
@@ -453,7 +460,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: 'https://prizmabc.by/',
     description:
       'Бизнес-центр класса A в составе многофункционального комплекса Prizma у станции метро «Партизанская». Торгово-развлекательная часть МФК открылась в 2023 году, офисная часть (4–13 этажи, ок. 19 000 м²) — в феврале 2025 года.',
-    photos: [],
+    photos: ['/images/business-centers/prizma.jpg'],
   },
   {
     slug: 'akademiya',
@@ -469,7 +476,7 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: 'http://www.idc.by',
     description:
       'Бизнес-центр класса B+ рядом с Ботаническим садом и станцией метро «Академия наук», открыт в 4 квартале 2017 года. Типовой этаж — 700 м²; в здании — кафе, банк, конференц-зал, фитнес-центр, магазин.',
-    photos: [],
+    photos: ['/images/business-centers/akademiya.jpg'],
   },
   {
     slug: 'volna',
@@ -485,6 +492,6 @@ export const BUSINESS_CENTERS: BusinessCenter[] = [
     website: null,
     description:
       'Бизнес-центр класса B в Заводском районе, построен в 2013 году. Типовой этаж — 1600 м²; в здании — кафе, кофе-пойнт, фитнес-центр, крытый паркинг.',
-    photos: [],
+    photos: ['/images/business-centers/volna.jpg'],
   },
 ];
