@@ -1,19 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  ArrowRight,
-  BadgeCheck,
-  Building2,
-  Calendar,
-  Camera,
-  Car,
-  Layers,
-  MapPin,
-  Menu,
-  Ruler,
-  TrainFront,
-  X,
-} from 'lucide-react';
+import { ArrowRight, BadgeCheck, Calendar, Camera, Layers, MapPin, Menu, Ruler, TrainFront, X } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
@@ -21,7 +8,7 @@ import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { ObjectMapWidget } from '../components/objects/ObjectMapWidget';
 import { PhotoBlock, FactRow } from '../components/businessCenters/BusinessCenterVisuals';
 import { setArticleJsonLd, setBreadcrumbJsonLd, setGenericPageMeta } from '../lib/pageMeta';
-import { businessClassTone, shortName } from '../lib/businessCenterDisplay';
+import { businessClassTone, shortAddress, shortName } from '../lib/businessCenterDisplay';
 import type { BusinessCenter } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 
@@ -43,10 +30,12 @@ const PAGE_URL = 'https://redevelopment.pro/minsk/bcminsk';
 const OG_IMAGE = 'https://redevelopment.pro/og-image.png';
 
 // Заголовок и подзаголовок hero — первая версия составлена Gemini (через
-// ProxyAPI), владелец затем переписал оба текста вручную (2026-09-04).
-const PAGE_H1 = 'Аналитика всех бизнес-центров Минска для аренды и покупки офиса';
+// ProxyAPI), владелец переписал вручную (2026-09-04), затем ещё раз попросил
+// переформулировать: "не нравится слово «всех» и «помогаем»" — выбрал из
+// трёх предложенных вариантов ("А").
+const PAGE_H1 = 'Бизнес-центры Минска: аналитика для аренды и покупки офиса';
 const INTRO_TEXT =
-  'Помогаем инвесторам и арендаторам сделать взвешенный выбор офиса и бизнес-центра для покупки или аренды помещения.';
+  'Сравнивайте бизнес-центры Минска по классу, площади и расположению — для инвестиций, аренды или покупки офиса.';
 
 // Фото hero — владелец подбирает сам ("фотки я сейчас поищу сам"), пополняется
 // по мере присылки. HeroImageSlider (см. DistrictGuidePage.tsx/
@@ -99,16 +88,14 @@ const UPDATED_BADGE_LABEL = (() => {
 const OUT_OF_TOWN_DISTRICT = 'Великий камень';
 
 // Компактная карточка на хабе, подробности — на отдельной странице
-// /minsk/bcminsk/:slug. Владелец после первой версии карточки (только адрес +
-// площадь/год мелким текстом): "неочевидно, что на них надо нажимать. Может
-// выведем больше информации и кнопку «Подробнее»?" — добавлены остальные
-// факты (этажи/метро/парковка/застройщик, те же, что и на отдельной
-// странице, просто без иконок-подписей полностью — сжато), краткое описание
-// (line-clamp, чтобы карточки не разъезжались по высоте от длины текста) и
-// явная кнопка-пилюля "Подробнее →" внизу — теперь кликабельность видна
-// сразу, а не только по курсору-руке при наведении. Вся карточка по-прежнему
-// одна большая ссылка (Link), кнопка — визуальная подсказка, не отдельный
-// интерактивный элемент.
+// /minsk/bcminsk/:slug. Владелец, посмотрев на карточку с сеткой фактов
+// 2х3: "давай менять карточку на список полей друг под другом" — ровно 5
+// строго определённых строк (адрес без "г. Минск"/района — shortAddress() в
+// lib/businessCenterDisplay.ts, площадь, срок сдачи, этажность, метро
+// пешком), остальное (застройщик/парковка/описание) убрано с карточки
+// целиком — "прячь в подробно", видно только на отдельной странице БЦ.
+// Кнопка-пилюля "Подробнее →" — из прошлого захода (владелец: "неочевидно,
+// что на них надо нажимать"), не убиралась.
 function BusinessCenterCard({ center }: { center: BusinessCenter }) {
   return (
     <Link
@@ -127,22 +114,14 @@ function BusinessCenterCard({ center }: { center: BusinessCenter }) {
       </div>
       <div className="flex flex-1 flex-col gap-2.5 p-4">
         <h2 className="text-base font-bold leading-snug text-ink">{center.name}</h2>
-        <FactRow icon={MapPin}>{center.address}</FactRow>
 
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-          {center.totalArea != null && <FactRow icon={Ruler}>{center.totalArea.toLocaleString('ru-RU')} м²</FactRow>}
-          {center.yearBuilt != null && (
-            <FactRow icon={Calendar}>
-              {center.status === 'under_construction' ? `сдача в ${center.yearBuilt} г.` : `сдан в ${center.yearBuilt} г.`}
-            </FactRow>
-          )}
-          {center.floors != null && <FactRow icon={Layers}>{center.floors} этажей</FactRow>}
-          {center.metro && <FactRow icon={TrainFront}>{center.metro}</FactRow>}
-          {center.parking && <FactRow icon={Car}>{center.parking}</FactRow>}
-          {center.developer && <FactRow icon={Building2}>{center.developer}</FactRow>}
+        <div className="flex flex-col gap-1.5">
+          <FactRow icon={MapPin}>{shortAddress(center.address)}</FactRow>
+          {center.totalArea != null && <FactRow icon={Ruler}>Площадь: {center.totalArea.toLocaleString('ru-RU')} м²</FactRow>}
+          {center.yearBuilt != null && <FactRow icon={Calendar}>Срок сдачи: {center.yearBuilt} г.</FactRow>}
+          {center.floors != null && <FactRow icon={Layers}>Этажность: {center.floors}</FactRow>}
+          {center.metro && <FactRow icon={TrainFront}>Метро: {center.metro}</FactRow>}
         </div>
-
-        {center.description && <p className="line-clamp-2 text-xs text-ink-faint">{center.description}</p>}
 
         <div className="mt-auto flex justify-end pt-1">
           <span className="flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-colors group-hover:bg-primary group-hover:text-white">
@@ -334,7 +313,16 @@ export function BusinessCentersMinskPage() {
 
   return (
     <div className="min-h-svh bg-bg">
-      <div className="border-b border-border py-5">
+      {/* Шапка sticky — владелец: "нравится, как на /minsk/minsk-mir логотип
+          остаётся при скролле, сделай 1 в 1". У DistrictGuidePage.tsx для
+          этого исторически сложный fixed+JS-измеренный трюк (см. комментарий
+          там же — нужен был из-за старого overflow-x:hidden на body/#root,
+          ломавшего position:sticky); с тех пор это заменили на overflow-x:
+          clip (см. index.css), sticky работает нормально сайтвайд (тот же
+          подход уже и в Sidebar.tsx, и в боковом фильтре этой страницы ниже)
+          — простого `sticky top-0` на саму шапку достаточно для того же
+          визуального эффекта, без дублирования логотипа отдельным узлом. */}
+      <div className="sticky top-0 z-30 border-b border-border bg-bg/90 py-5 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-8">
           <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
             <span className="font-black text-primary">RED</span>EVELOPMENT
