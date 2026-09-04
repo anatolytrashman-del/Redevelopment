@@ -1,6 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BadgeCheck, Camera, MapPin, Menu, X } from 'lucide-react';
+import {
+  ArrowRight,
+  BadgeCheck,
+  Building2,
+  Calendar,
+  Camera,
+  Car,
+  Layers,
+  MapPin,
+  Menu,
+  Ruler,
+  TrainFront,
+  X,
+} from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
@@ -79,18 +92,22 @@ const UPDATED_BADGE_LABEL = (() => {
   return `Обновлено: ${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
 })();
 
-// Компактная карточка — только базовая информация, подробности переехали на
-// отдельную страницу /minsk/bcminsk/:slug (владелец, после первой полноширинной
-// версии: "давай наоборот сделаем небольшие карточки с базовой информацией, а
-// подробнее уже будет на странице самого бизнес-центра" — для SEO отдельная
-// страница на каждый БЦ выигрывает у одной большой страницы со всей инфой:
-// можно точечно ранжироваться под запрос конкретного БЦ, чего общий хаб не
-// даёт). Вся карточка — кликабельная ссылка на эту страницу.
+// Компактная карточка на хабе, подробности — на отдельной странице
+// /minsk/bcminsk/:slug. Владелец после первой версии карточки (только адрес +
+// площадь/год мелким текстом): "неочевидно, что на них надо нажимать. Может
+// выведем больше информации и кнопку «Подробнее»?" — добавлены остальные
+// факты (этажи/метро/парковка/застройщик, те же, что и на отдельной
+// странице, просто без иконок-подписей полностью — сжато), краткое описание
+// (line-clamp, чтобы карточки не разъезжались по высоте от длины текста) и
+// явная кнопка-пилюля "Подробнее →" внизу — теперь кликабельность видна
+// сразу, а не только по курсору-руке при наведении. Вся карточка по-прежнему
+// одна большая ссылка (Link), кнопка — визуальная подсказка, не отдельный
+// интерактивный элемент.
 function BusinessCenterCard({ center }: { center: BusinessCenter }) {
   return (
     <Link
       to={`/minsk/bcminsk/${center.slug}`}
-      className={cn('flex flex-col overflow-hidden transition-transform hover:-translate-y-0.5', glassCardClass)}
+      className={cn('group flex flex-col overflow-hidden transition-transform hover:-translate-y-0.5', glassCardClass)}
       style={glassCardShadow}
     >
       <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden">
@@ -102,14 +119,30 @@ function BusinessCenterCard({ center }: { center: BusinessCenter }) {
           )}
         </div>
       </div>
-      <div className="flex flex-1 flex-col gap-2 p-4">
+      <div className="flex flex-1 flex-col gap-2.5 p-4">
         <h2 className="text-base font-bold leading-snug text-ink">{center.name}</h2>
         <FactRow icon={MapPin}>{center.address}</FactRow>
-        <div className="mt-auto flex flex-wrap gap-x-3 gap-y-1 pt-1 text-xs text-ink-faint">
-          {center.totalArea != null && <span>{center.totalArea.toLocaleString('ru-RU')} м²</span>}
+
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+          {center.totalArea != null && <FactRow icon={Ruler}>{center.totalArea.toLocaleString('ru-RU')} м²</FactRow>}
           {center.yearBuilt != null && (
-            <span>{center.status === 'under_construction' ? `сдача в ${center.yearBuilt} г.` : `сдан в ${center.yearBuilt} г.`}</span>
+            <FactRow icon={Calendar}>
+              {center.status === 'under_construction' ? `сдача в ${center.yearBuilt} г.` : `сдан в ${center.yearBuilt} г.`}
+            </FactRow>
           )}
+          {center.floors != null && <FactRow icon={Layers}>{center.floors} этажей</FactRow>}
+          {center.metro && <FactRow icon={TrainFront}>{center.metro}</FactRow>}
+          {center.parking && <FactRow icon={Car}>{center.parking}</FactRow>}
+          {center.developer && <FactRow icon={Building2}>{center.developer}</FactRow>}
+        </div>
+
+        {center.description && <p className="line-clamp-2 text-xs text-ink-faint">{center.description}</p>}
+
+        <div className="mt-auto flex justify-end pt-1">
+          <span className="flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-colors group-hover:bg-primary group-hover:text-white">
+            Подробнее
+            <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+          </span>
         </div>
       </div>
     </Link>
