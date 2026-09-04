@@ -330,7 +330,14 @@ export function ContractorsResearch() {
     setOfferModalOpen(true);
   }
 
-  const canSubmitOffer = offerForm.name.trim() && Number(offerForm.price) > 0;
+  // Владелец, 2026-09-04: "нужна возможность вносить подрядчиков без
+  // указания стоимости" — раньше цена > 0 была обязательна (и HTML
+  // required на самом инпуте, независимо от этой проверки), из-за чего
+  // приходилось вписывать фиктивную цену вроде "$1", лишь бы форма
+  // сохранилась. Строка без цены сама по себе не считается "дешевле всех"
+  // (см. rankOffers выше — o.price > 0 отсекает такие из сравнения) и в
+  // таблице просто показывает "—" вместо суммы.
+  const canSubmitOffer = !!offerForm.name.trim();
 
   async function submitOffer(e: React.FormEvent) {
     e.preventDefault();
@@ -469,7 +476,6 @@ export function ContractorsResearch() {
                 min="0"
                 value={offerForm.price}
                 onChange={(e) => setOfferForm((f) => ({ ...f, price: e.target.value }))}
-                required
                 className="flex-1"
               />
               <ToggleGroup
