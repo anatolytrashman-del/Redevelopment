@@ -8,7 +8,7 @@ import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { ObjectMapWidget } from '../components/objects/ObjectMapWidget';
 import { PhotoBlock, FactRow } from '../components/businessCenters/BusinessCenterVisuals';
 import { setArticleJsonLd, setBreadcrumbJsonLd, setGenericPageMeta } from '../lib/pageMeta';
-import { businessClassTone, shortAddress, shortName } from '../lib/businessCenterDisplay';
+import { businessClassTone, shortAddress, shortName, sortByShortName } from '../lib/businessCenterDisplay';
 import type { BusinessCenter } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 
@@ -212,6 +212,13 @@ export function BusinessCentersMinskPage() {
     [visibleCenters],
   );
 
+  // Список-легенда под картой (владелец: "давай для начала список рядом с
+  // картой, чтобы прочитал название на метке и нашёл ссылку тут") —
+  // ВСЕ БЦ, не только видимые по фильтрам: сама карта — статичный embed из
+  // Яндекс.Карт Конструктора (см. MAP_EMBED_URL), фильтры на неё не влияют,
+  // легенда должна отражать ровно то, что реально нарисовано на карте.
+  const allCentersSorted = useMemo(() => sortByShortName(centers ?? []), [centers]);
+
   // Содержимое бокового меню — общий JSX для десктопной sticky-колонки и
   // мобильной шторки (владелец: "боковое меню... как на странице Минск
   // Мира, чтобы оно с мобилки скрывалось"), см. рендер обоих ниже.
@@ -407,6 +414,35 @@ export function BusinessCentersMinskPage() {
             </div>
 
             <ObjectMapWidget address="Бизнес-центры Минска" mapEmbedUrl={MAP_EMBED_URL} aspectClassName="aspect-[21/9]" />
+
+            {/* Легенда-указатель под картой (владелец: "можем в эту карту
+                встроить ссылку на страницу БЦ? Чтобы выбрал на карте и сразу
+                открыл подробную инфу" — сама карта Яндекса встроена iframe'ом
+                из Конструктора, доступа внутрь него у нашего кода нет (нет
+                своего API-ключа Яндекса, специально не заводили — см.
+                комментарий у MAP_EMBED_URL), встроить кликабельную ссылку
+                прямо в балун метки нельзя. Первый шаг вместо этого — список
+                названий рядом: имя метки видно прямо на карте (подпись рядом
+                с самой меткой), пользователь находит то же имя здесь и
+                переходит на страницу БЦ). */}
+            {allCentersSorted.length > 0 && (
+              <div className={cn('flex flex-col gap-3 p-5', glassCardClass)} style={glassCardShadow}>
+                <p className="text-sm font-semibold text-ink">
+                  Бизнес-центры на карте — быстрый переход на страницу
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {allCentersSorted.map((c) => (
+                    <Link
+                      key={c.slug}
+                      to={`/minsk/bcminsk/${c.slug}`}
+                      className="rounded-full bg-surface-muted px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-primary/10 hover:text-primary"
+                    >
+                      {shortName(c)}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {centers === null ? (
               <p className="text-sm text-ink-faint">Загрузка…</p>
