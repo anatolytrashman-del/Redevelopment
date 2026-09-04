@@ -13,17 +13,21 @@ import { glassCardClass, glassCardShadow } from '../lib/glass';
 // ещё не существующая страница, только заявка в план ("заготовка статьи",
 // владелец 2026-08-25): не на что ссылаться, карточка не кликается, вместо
 // внешней ссылки — статус. status — открытый список в том же духе, что и
-// остальные "растущие" поля проекта (не жёсткий enum), пока единственное
-// значение — 'needs-work' ("Требует проработки", жёлтый бейдж).
+// остальные "растущие" поля проекта (не жёсткий enum). 'needs-work'
+// ("Требует проработки") — для записей без url вообще. 'in-progress'
+// ("В работе", владелец 2026-09-04) — для уже опубликованных страниц
+// (url есть, карточка кликается), которые ещё дорабатываются — например,
+// "Бизнес-центры Минска" ждут фото от владельца.
 interface LandingEntry {
   title: string;
   description: string;
   url?: string;
-  status?: 'needs-work';
+  status?: 'needs-work' | 'in-progress';
 }
 
 const LANDING_STATUS_LABEL: Record<NonNullable<LandingEntry['status']>, string> = {
   'needs-work': 'Требует проработки',
+  'in-progress': 'В работе',
 };
 
 const LANDINGS: LandingEntry[] = [
@@ -52,6 +56,7 @@ const LANDINGS: LandingEntry[] = [
     title: 'Бизнес-центры Минска',
     description: 'Справочник бизнес-центров города: адреса, класс, площадь, год постройки — по данным веб-ресерча, фото добавляет владелец.',
     url: 'https://redevelopment.pro/minsk/bcminsk',
+    status: 'in-progress',
   },
 ];
 
