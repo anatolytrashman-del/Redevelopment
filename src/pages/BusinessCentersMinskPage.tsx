@@ -92,6 +92,12 @@ const UPDATED_BADGE_LABEL = (() => {
   return `Обновлено: ${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
 })();
 
+// Значение district вне обычных городских районов (сейчас — только "Аден" в
+// индустриальном парке "Великий камень", см. data/businessCenters.ts) —
+// владелец: "переименуй За городом в Великий камень, и поставь вниз" — в
+// фильтре и списке всегда последним, не по алфавиту вместе с районами.
+const OUT_OF_TOWN_DISTRICT = 'Великий камень';
+
 // Компактная карточка на хабе, подробности — на отдельной странице
 // /minsk/bcminsk/:slug. Владелец после первой версии карточки (только адрес +
 // площадь/год мелким текстом): "неочевидно, что на них надо нажимать. Может
@@ -185,18 +191,24 @@ export function BusinessCentersMinskPage() {
       Array.from(new Set((centers ?? []).map((c) => c.businessClass).filter((v): v is NonNullable<typeof v> => !!v))).sort(),
     [centers],
   );
+  // "Все" + N классов: до 3 пилюль — один ряд, от 4 — два ряда поровну
+  // (см. комментарий у самой сетки ниже).
+  const classPillCols = useMemo(() => {
+    const total = availableClasses.length + 1;
+    return total <= 3 ? total : Math.ceil(total / 2);
+  }, [availableClasses]);
 
   // Районы — только те, что реально встречаются в данных (не хардкожен полный
   // список всех 9 районов Минска — растёт из AddableSelect в админке, см.
-  // BusinessCentersAdminTab.tsx; "За городом" для объектов вне города, как
-  // "Аден", тоже просто одно из значений этого поля).
-  const districts = useMemo(
-    () =>
-      Array.from(new Set((centers ?? []).map((c) => c.district).filter((v): v is string => !!v))).sort((a, b) =>
-        a.localeCompare(b, 'ru'),
-      ),
-    [centers],
-  );
+  // BusinessCentersAdminTab.tsx). "Великий камень" — для объектов вне
+  // Минска (сейчас только "Аден", в индустриальном парке), владелец: "внизу
+  // списка, не по алфавиту вместе с городскими районами".
+  const districts = useMemo(() => {
+    const all = Array.from(new Set((centers ?? []).map((c) => c.district).filter((v): v is string => !!v)));
+    const inCity = all.filter((d) => d !== OUT_OF_TOWN_DISTRICT).sort((a, b) => a.localeCompare(b, 'ru'));
+    const outOfCity = all.filter((d) => d === OUT_OF_TOWN_DISTRICT);
+    return [...inCity, ...outOfCity];
+  }, [centers]);
   const districtCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const c of centers ?? []) if (c.district) counts[c.district] = (counts[c.district] ?? 0) + 1;
@@ -258,14 +270,24 @@ export function BusinessCentersMinskPage() {
 
           <span className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-ink-faint">Класс</span>
           {/* Компактные пилюли с одной буквой класса (владелец: "выбор класса
-              слишком большой по размеру, хватит букв, А/В") — было вертикальным
-              списком со словом "Класс" перед каждым пунктом. */}
-          <div className="flex flex-wrap gap-1.5 px-2 pb-1">
+              слишком большой по размеру, хватит букв, А/В"). Раньше —
+              flex-wrap, который на "Все"+4 класса ломался некрасиво (4+1
+              вместо ровного ряда) — владелец: "тупо выглядит, либо вмещай в
+              одну строку, либо разноси на две равными долями". Сетка с
+              равными колонками вместо wrap: до 3 пилюль — все в один ряд, от
+              4 и больше — два ряда поровну (ceil(n/2) колонок), не "остаток
+              одной пилюлей снизу". */}
+          <div
+            className="grid gap-1.5 px-2 pb-1"
+            style={{
+              gridTemplateColumns: `repeat(${classPillCols}, minmax(0, 1fr))`,
+            }}
+          >
             <button
               type="button"
               onClick={() => setClassFilter('all')}
               className={cn(
-                'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
+                'rounded-full px-2 py-1 text-xs font-semibold transition-colors',
                 classFilter === 'all' ? 'bg-primary text-white' : 'bg-surface-muted text-ink-muted hover:text-ink',
               )}
             >
@@ -277,7 +299,7 @@ export function BusinessCentersMinskPage() {
                 key={cls}
                 onClick={() => setClassFilter(cls)}
                 className={cn(
-                  'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
+                  'rounded-full px-2 py-1 text-xs font-semibold transition-colors',
                   classFilter === cls ? 'bg-primary text-white' : 'bg-surface-muted text-ink-muted hover:text-ink',
                 )}
               >
@@ -396,7 +418,7 @@ export function BusinessCentersMinskPage() {
               </div>
             </div>
 
-            <ObjectMapWidget address="Бизнес-центры Минска" mapEmbedUrl={MAP_EMBED_URL} />
+            <ObjectMapWidget address="Бизнес-центры Минска" mapEmbedUrl={MAP_EMBED_URL} aspectClassName="aspect-[21/9]" />
 
             {centers === null ? (
               <p className="text-sm text-ink-faint">Загрузка…</p>
