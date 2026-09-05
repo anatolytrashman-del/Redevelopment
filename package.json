@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",
+    "@vercel/functions": "^3.9.5",
     "docx-preview": "^0.4.0",
     "lucide-react": "^1.31.0",
     "marked": "^18.0.10",
