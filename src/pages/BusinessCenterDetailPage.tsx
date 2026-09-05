@@ -277,33 +277,7 @@ export function BusinessCenterDetailPage() {
             большим числом организаций первыми) как ближайший доступный
             прокси, без выдумывания цифр (см. комментарий у
             BusinessCenter.tenantOrganizations в data/businessCenters.ts). */}
-        {center.tenantOrganizations.length > 0 && (
-          <div className={cn('mt-6 flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <Building2 className="h-5 w-5 shrink-0 text-primary" />
-              Организации в здании
-            </h2>
-            <div className="flex flex-col divide-y divide-border">
-              {groupTenantOrganizations(center.tenantOrganizations).map((group) => (
-                <div key={group.category} className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
-                    {group.category} <span className="text-ink-faint">· {group.items.length}</span>
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {group.items.map((name) => (
-                      <span key={name} className="rounded-full bg-surface-muted px-3 py-1 text-sm text-ink">
-                        {name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-ink-faint">
-              Собрано по карте Яндекс.Карт — полный список организаций мог измениться, уточняйте у арендодателя.
-            </p>
-          </div>
-        )}
+        {center.tenantOrganizations.length > 0 && <TenantOrganizationsBlock organizations={center.tenantOrganizations} />}
 
         {/* Условия для арендаторов с офиц. сайта БЦ (владелец, 2026-09-05,
             на примере "Проспект"/Elite Estate — по нему нет объявлений на
@@ -447,6 +421,68 @@ const HIGHLIGHT_ICONS: Record<HighlightIconKey, typeof FileText> = {
   warning: AlertTriangle,
   fact: Sparkles,
 };
+
+// Сколько категорий показывать сразу — у части БЦ (владелец, 2026-09-06:
+// "ограничь список видимых категорий с кнопкой «показать ещё»") реальная
+// страница "Организации внутри" на Яндекс.Картах даёт не карусель из
+// 6-10 позиций, а полный список зарегистрированных на адрес юрлиц — у
+// "Паруса", например, 160+ категорий одним полотном. Первый экран остаётся
+// компактным, весь список доступен по клику, без ограничения на бэкенде.
+const VISIBLE_TENANT_CATEGORIES = 8;
+
+// "5 категорий"/"2 категории"/"1 категорию" — числительное требует разного
+// падежа/числа (тот же принцип, что и pluralOrganizations в DistrictQuarterMap.tsx).
+function pluralCategories(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'категорию';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'категории';
+  return 'категорий';
+}
+
+function TenantOrganizationsBlock({ organizations }: { organizations: TenantOrganization[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const groups = useMemo(() => groupTenantOrganizations(organizations), [organizations]);
+  const visibleGroups = expanded ? groups : groups.slice(0, VISIBLE_TENANT_CATEGORIES);
+  const hiddenCount = groups.length - visibleGroups.length;
+
+  return (
+    <div className={cn('mt-6 flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+        <Building2 className="h-5 w-5 shrink-0 text-primary" />
+        Организации в здании
+      </h2>
+      <div className="flex flex-col divide-y divide-border">
+        {visibleGroups.map((group) => (
+          <div key={group.category} className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
+              {group.category} <span className="text-ink-faint">· {group.items.length}</span>
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {group.items.map((name) => (
+                <span key={name} className="rounded-full bg-surface-muted px-3 py-1 text-sm text-ink">
+                  {name}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      {groups.length > VISIBLE_TENANT_CATEGORIES && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="self-start text-sm font-semibold text-primary hover:underline"
+        >
+          {expanded ? 'Свернуть' : `Показать ещё ${hiddenCount} ${pluralCategories(hiddenCount)}`}
+        </button>
+      )}
+      <p className="text-xs text-ink-faint">
+        Собрано по карте Яндекс.Карт — полный список организаций мог измениться, уточняйте у арендодателя.
+      </p>
+    </div>
+  );
+}
 
 // Группировка "Организации в здании" по категории — без реального числа
 // отзывов на каждую организацию (см. комментарий в JSX выше) сортируем
