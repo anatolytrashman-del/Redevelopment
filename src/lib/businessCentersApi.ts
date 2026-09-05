@@ -18,6 +18,7 @@ function fromRow(row: BusinessCenterRow): BusinessCenter {
     parking: row.parking,
     website: row.website,
     description: row.description,
+    rentalInfo: row.rental_info,
     photos: row.photos ?? [],
     status: (row.status as BusinessCenter['status']) ?? 'built',
     sortOrder: row.sort_order,
@@ -50,6 +51,7 @@ function toPayload(input: Partial<BusinessCenterInput>) {
   if (input.parking !== undefined) payload.parking = input.parking;
   if (input.website !== undefined) payload.website = input.website;
   if (input.description !== undefined) payload.description = input.description;
+  if (input.rentalInfo !== undefined) payload.rental_info = input.rentalInfo;
   if (input.photos !== undefined) payload.photos = input.photos;
   if (input.status !== undefined) payload.status = input.status;
   if (input.sortOrder !== undefined) payload.sort_order = input.sortOrder;

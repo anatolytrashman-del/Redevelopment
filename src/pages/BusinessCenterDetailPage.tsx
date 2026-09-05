@@ -6,6 +6,7 @@ import {
   Car,
   ChevronLeft,
   ChevronRight,
+  FileText,
   Globe,
   Layers,
   MapPin,
@@ -248,6 +249,31 @@ export function BusinessCenterDetailPage() {
             <p className="text-xs text-ink-faint">
               Считается автоматически по объявлениям с Kufar и Realt.by, найденным по адресу здания — данные обновляются
               ежемесячно, без ручной проверки каждой строки.
+            </p>
+          </div>
+        )}
+
+        {/* Условия для арендаторов с офиц. сайта БЦ (владелец, 2026-09-05,
+            на примере "Проспект"/Elite Estate — по нему нет объявлений на
+            Kufar/Realt, но на собственном сайте есть условия для
+            арендаторов: "пройдись по сайтам БЦ и поищешь такую информацию").
+            Собрано веб-поиском (Gemini через ProxyAPI — прямого доступа к
+            большинству сайтов БЦ из песочницы нет), текст свободной формы —
+            ставки/сроки/что включено/парковка/контакты отдела аренды, где
+            что-то не удалось найти или сайт был недоступен — честно так и
+            написано в самом тексте, не приукрашено. null — сайта нет,
+            недоступен был при проверке, или на нём вообще нет такой
+            информации (например "Аден" — по факту гостиница, не БЦ). */}
+        {center.rentalInfo && (
+          <div className={cn('mt-6 flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+              <FileText className="h-5 w-5 shrink-0 text-primary" />
+              Условия для арендаторов
+            </h2>
+            <p className="whitespace-pre-line text-sm leading-relaxed text-ink-muted">{center.rentalInfo}</p>
+            <p className="text-xs text-ink-faint">
+              Собрано автоматически по официальному сайту БЦ и открытым источникам — не куратировано вручную, перед
+              подписанием договора уточняйте актуальные условия напрямую у арендодателя.
             </p>
           </div>
         )}

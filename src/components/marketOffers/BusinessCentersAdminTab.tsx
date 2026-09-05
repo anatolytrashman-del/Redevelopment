@@ -46,6 +46,7 @@ interface FormState {
   parking: string;
   website: string;
   description: string;
+  rentalInfo: string;
   photos: string; // по одному пути на строку
   status: BusinessCenter['status'];
   sortOrder: string;
@@ -65,6 +66,7 @@ const EMPTY_FORM: FormState = {
   parking: '',
   website: '',
   description: '',
+  rentalInfo: '',
   photos: '',
   status: 'built',
   sortOrder: '0',
@@ -85,6 +87,7 @@ function centerToForm(c: BusinessCenter): FormState {
     parking: c.parking ?? '',
     website: c.website ?? '',
     description: c.description ?? '',
+    rentalInfo: c.rentalInfo ?? '',
     photos: c.photos.join('\n'),
     status: c.status,
     sortOrder: String(c.sortOrder),
@@ -154,6 +157,7 @@ export function BusinessCentersAdminTab() {
         parking: form.parking.trim() || null,
         website: form.website.trim() || null,
         description: form.description.trim() || null,
+        rentalInfo: form.rentalInfo.trim() || null,
         photos: form.photos
           .split('\n')
           .map((s) => s.trim())
@@ -352,6 +356,14 @@ export function BusinessCentersAdminTab() {
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             rows={4}
+          />
+
+          <Textarea
+            label="Условия для арендаторов (с офиц. сайта БЦ)"
+            value={form.rentalInfo}
+            onChange={(e) => setForm({ ...form, rentalInfo: e.target.value })}
+            rows={6}
+            placeholder="Ставки, минимальный срок аренды, что включено, парковка, контакты отдела аренды..."
           />
 
           <Textarea

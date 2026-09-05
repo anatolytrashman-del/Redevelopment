@@ -30,6 +30,15 @@ export interface BusinessCenter {
   parking: string | null;
   website: string | null;
   description: string | null;
+  // Условия для арендаторов, найденные на официальном сайте БЦ (владелец,
+  // 2026-09-05: "по нему нет объявлений на куфаре и realt, но у них на
+  // сайте есть информация для арендаторов... пройдись по сайтам БЦ") —
+  // свободный текст (ставки/минимальный срок/что включено/парковка/
+  // контакты отдела аренды), собран веб-поиском по офиц. сайту БЦ
+  // (Gemini через ProxyAPI — прямого доступа к большинству таких сайтов
+  // из песочницы нет). null — сайта нет, недоступен, или на нём нет такой
+  // информации, честно не выдумываем.
+  rentalInfo: string | null;
   photos: string[];
   // 'built' по умолчанию. 'under_construction' — как МФЦ, ещё строится.
   status: 'built' | 'under_construction';
@@ -56,6 +65,7 @@ export interface BusinessCenterRow {
   parking: string | null;
   website: string | null;
   description: string | null;
+  rental_info: string | null;
   photos: string[] | null;
   status: string | null;
   sort_order: number;
