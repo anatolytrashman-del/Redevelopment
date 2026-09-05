@@ -1,6 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Building2, Calendar, Car, ChevronLeft, ChevronRight, Globe, Layers, MapPin, Ruler, TrainFront, X } from 'lucide-react';
+import {
+  Building2,
+  Calendar,
+  Car,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Globe,
+  Layers,
+  MapPin,
+  Ruler,
+  TrainFront,
+  X,
+} from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
@@ -9,6 +22,8 @@ import { setBreadcrumbJsonLd, setNoIndex, clearNoIndex, setBusinessCenterPageMet
 import { businessClassTone, shortName, sortByShortName } from '../lib/businessCenterDisplay';
 import type { BusinessCenter } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
+import type { BusinessCenterOffer } from '../data/businessCenterOffers';
+import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
 
 // Отдельная страница одного бизнес-центра (владелец, 2026-09-04: "для SEO
 // лучше хаб + отдельная страница на каждый БЦ" — согласился с этим доводом
@@ -23,12 +38,27 @@ import { fetchBusinessCenters } from '../lib/businessCentersApi';
 export function BusinessCenterDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const [centers, setCenters] = useState<BusinessCenter[] | null>(null);
+  const [offers, setOffers] = useState<BusinessCenterOffer[] | null>(null);
 
   useEffect(() => {
     fetchBusinessCenters()
       .then(setCenters)
       .catch(() => setCenters([]));
   }, []);
+
+  // Объявления о продаже/аренде из business_center_offers (владелец,
+  // 2026-09-05: "хочу спарсить объявления... эту инфу мы будем выводить в
+  // полной карточке" — см. scripts/sync-business-center-offers.mjs).
+  // Отдельный запрос по слагу, не общий с fetchBusinessCenters — так при
+  // переходе на следующий/предыдущий БЦ (тот же компонент, меняется только
+  // slug) список объявлений сам перезапрашивается под новый БЦ.
+  useEffect(() => {
+    if (!slug) return;
+    setOffers(null);
+    fetchBusinessCenterOffers(slug)
+      .then(setOffers)
+      .catch(() => setOffers([]));
+  }, [slug]);
 
   // Порядок для "предыдущий/следующий" — тот же алфавит по короткому имени,
   // что и в боковом меню хаба, чтобы стрелки совпадали с порядком, который
@@ -38,6 +68,9 @@ export function BusinessCenterDetailPage() {
   const index = center ? sorted.findIndex((c) => c.slug === center.slug) : -1;
   const prev = index > 0 ? sorted[index - 1] : null;
   const next = index >= 0 && index < sorted.length - 1 ? sorted[index + 1] : null;
+
+  const saleOffers = useMemo(() => (offers ?? []).filter((o) => o.dealType === 'sale'), [offers]);
+  const rentOffers = useMemo(() => (offers ?? []).filter((o) => o.dealType === 'rent'), [offers]);
 
   useEffect(() => {
     if (!center) return;
@@ -172,6 +205,25 @@ export function BusinessCenterDetailPage() {
           </div>
         </div>
 
+        {/* Объявления о продаже/аренде в этом здании (владелец, 2026-09-05) —
+            собраны автоматически с Kufar/Realt по адресу здания (см.
+            scripts/sync-business-center-offers.mjs), без ручной проверки
+            каждой строки, поэтому подпись честно указывает источник и время
+            обновления, а не выдаёт список за куратированный. Пустой список —
+            обычное дело (не у каждого БЦ прямо сейчас есть активные
+            объявления), поэтому блок при пустом offers?.length===0 не
+            рендерится вовсе, а не показывает "ничего не найдено".*/}
+        {offers === null ? null : offers.length > 0 ? (
+          <div className={cn('mt-6 flex flex-col gap-5 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <h2 className="text-lg font-bold text-ink">Объявления в этом здании</h2>
+            {saleOffers.length > 0 && <OfferGroup title="Продажа" offers={saleOffers} />}
+            {rentOffers.length > 0 && <OfferGroup title="Аренда" offers={rentOffers} />}
+            <p className="text-xs text-ink-faint">
+              Собрано автоматически с Kufar и Realt.by по адресу здания — актуальность и детали смотрите по ссылке на источник.
+            </p>
+          </div>
+        ) : null}
+
         {/* Мобильная навигация "следующий/предыдущий" — фиксированные стрелки
             выше скрыты до lg, здесь тот же переход обычной строкой кнопок. */}
         {(prev || next) && (
@@ -200,6 +252,40 @@ export function BusinessCenterDetailPage() {
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Продажа/аренда — одинаковая вёрстка, только заголовок и набор объявлений
+// разные. Отсортированы по цене за м² уже на уровне запроса
+// (fetchBusinessCenterOffers), тут просто рендерятся по порядку.
+function OfferGroup({ title, offers }: { title: string; offers: BusinessCenterOffer[] }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-faint">
+        {title} · {offers.length}
+      </h3>
+      <div className="flex flex-col divide-y divide-border">
+        {offers.map((offer) => (
+          <a
+            key={offer.id}
+            href={offer.adLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between gap-3 py-2.5 text-sm transition-colors hover:text-primary"
+          >
+            <span className="text-ink-muted">
+              {offer.propertyType ?? 'Без категории'} · {offer.size.toLocaleString('ru-RU')} м²
+              {offer.floor != null ? `, этаж ${offer.floor}` : ''}
+              <span className="text-ink-faint"> · {offer.source}</span>
+            </span>
+            <span className="flex shrink-0 items-center gap-1 font-semibold text-ink">
+              ${offer.pricePerSqm.toLocaleString('ru-RU')}/м²
+              <ExternalLink className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
+            </span>
+          </a>
+        ))}
       </div>
     </div>
   );

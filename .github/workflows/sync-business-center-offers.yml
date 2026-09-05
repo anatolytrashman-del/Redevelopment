@@ -1,0 +1,23 @@
+name: Sync business center offers (Kufar + Realt)
+
+on:
+  schedule:
+    # Раз в месяц, 3-го числа — тот же ритм, что и у общего рыночного синка
+    # (sync-market-offers-stats.yml, 1-го числа), сдвинут на пару дней, чтобы
+    # не запускать оба тяжёлых скрапа Kufar/Realt в одно и то же время.
+    - cron: '0 4 3 * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/sync-business-center-offers.mjs
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
