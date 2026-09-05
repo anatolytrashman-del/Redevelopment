@@ -53,6 +53,7 @@ const DesignProjects = lazy(() => import('./pages/DesignProjects').then((m) => (
 const Landings = lazy(() => import('./pages/Landings').then((m) => ({ default: m.Landings })));
 const MarketOffersReview = lazy(() => import('./pages/MarketOffersReview').then((m) => ({ default: m.MarketOffersReview })));
 const ActivityLog = lazy(() => import('./pages/ActivityLog').then((m) => ({ default: m.ActivityLog })));
+const Metrics = lazy(() => import('./pages/Metrics').then((m) => ({ default: m.Metrics })));
 const DesignProjectView = lazy(() => import('./pages/DesignProjectView').then((m) => ({ default: m.DesignProjectView })));
 const DesignProjectDetail = lazy(() => import('./pages/DesignProjectDetail').then((m) => ({ default: m.DesignProjectDetail })));
 const MoodboardView = lazy(() => import('./pages/MoodboardView').then((m) => ({ default: m.MoodboardView })));
@@ -232,6 +233,17 @@ export default function App() {
           element={
             <RequireSuperAdmin>
               <ActivityLog />
+            </RequireSuperAdmin>
+          }
+        />
+        {/* Метрики Альмиры (Ресерч поставщиков) — тот же принцип, что и у
+            activity-log выше: не в меню, не в data/pages.ts, доступ только
+            по прямому урлу. */}
+        <Route
+          path="metrics"
+          element={
+            <RequireSuperAdmin>
+              <Metrics />
             </RequireSuperAdmin>
           }
         />
