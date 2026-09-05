@@ -28,6 +28,8 @@ export interface ActivityLogRow {
 // миграции.
 export const ACTIVITY_ACTION_LABELS: Record<string, string> = {
   market_offer_verified: 'Верификация объявления (аналитика рынка)',
+  supplier_offer_verified: 'Верификация поставщика (Ресерч)',
+  supplier_offer_added_manually: 'Добавление поставщика вручную (Ресерч)',
 };
 
 export function activityActionLabel(action: string): string {

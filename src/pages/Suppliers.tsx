@@ -60,6 +60,7 @@ import {
   type SupplierRequestInput,
 } from '../lib/supplierResearchApi';
 import { searchSuppliersOnline, type SupplierSearchResult } from '../lib/supplierWebSearchApi';
+import { logActivity } from '../lib/activityLogApi';
 import { purchaseItemTotal, type PurchaseItem } from '../data/purchases';
 import type { Estimate, EstimateMaterial } from '../data/estimates';
 import { fetchEstimates, updateEstimate } from '../lib/estimatesApi';
@@ -1356,10 +1357,18 @@ export function Suppliers() {
         files: [...offerForm.existingFiles, ...uploadedNewFiles],
         verified: true,
       };
+      // Владелец, 2026-09-05: лог действий Альмиры для страницы "Метрики" —
+      // те же два события, что различает комментарий выше ("верификация" vs
+      // "добавление вручную"). Логируем именно здесь, а не в самих
+      // insertSupplierOffer/updateSupplierOffer (те — общий API-слой без
+      // понятия "кто и зачем сохраняет", а различие "было ли уже verified"
+      // видно только тут, по editingOffer до сохранения).
       if (editingOffer) {
+        if (!editingOffer.verified) logActivity('supplier_offer_verified');
         const updated = await updateSupplierOffer(editingOffer.id, payload);
         setOffers((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
       } else {
+        logActivity('supplier_offer_added_manually');
         const created = await insertSupplierOffer(payload);
         setOffers((prev) => [...prev, created]);
       }
