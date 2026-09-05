@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -340,11 +341,62 @@ function RentalInfoRow({ icon: Icon, label, text }: { icon: typeof FileText; lab
   return (
     <div className="flex gap-3 py-3 first:pt-0 last:pb-0">
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint" />
-      <div>
+      <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">{label}</p>
-        <p className="mt-1 text-sm leading-relaxed text-ink-muted">{text}</p>
+        <div className="mt-1 text-sm leading-relaxed text-ink-muted">{renderRentalText(text)}</div>
       </div>
     </div>
+  );
+}
+
+// Мини-разметка внутри полей "Условия для арендаторов" (владелец, 2026-09-06:
+// "делай еще сильнее дробить... в таком формате: * Пункт 1... важные цифры
+// выделяй жирным") — сознательно не полноценный markdown-парсер (незачем
+// тянуть библиотеку ради двух приёмов), просто: строки, начинающиеся с "- "
+// или "* ", группируются в маркированный список, остальные строки — обычные
+// абзацы; **текст** внутри любой строки — жирным. Текст полей набирается в
+// админке (BusinessCentersAdminTab.tsx) в этой же нотации.
+function renderRentalText(text: string): ReactNode {
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  const blocks: ReactNode[] = [];
+  let bulletBuffer: string[] = [];
+  const flushBullets = () => {
+    if (bulletBuffer.length === 0) return;
+    blocks.push(
+      <ul key={blocks.length} className="list-disc space-y-1 pl-4 marker:text-ink-faint">
+        {bulletBuffer.map((item, i) => (
+          <li key={i}>{renderBold(item)}</li>
+        ))}
+      </ul>,
+    );
+    bulletBuffer = [];
+  };
+  for (const line of lines) {
+    if (line.startsWith('- ') || line.startsWith('* ')) {
+      bulletBuffer.push(line.slice(2));
+    } else {
+      flushBullets();
+      blocks.push(
+        <p key={blocks.length} className={blocks.length > 0 ? 'mt-2' : undefined}>
+          {renderBold(line)}
+        </p>,
+      );
+    }
+  }
+  flushBullets();
+  return <>{blocks}</>;
+}
+
+function renderBold(text: string): ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) =>
+    part.startsWith('**') && part.endsWith('**') ? (
+      <strong key={i} className="font-semibold text-ink">
+        {part.slice(2, -2)}
+      </strong>
+    ) : (
+      part
+    ),
   );
 }
 

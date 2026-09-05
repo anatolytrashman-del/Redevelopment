@@ -388,7 +388,13 @@ export function BusinessCentersAdminTab() {
           />
 
           <div className="flex flex-col gap-3 rounded-control border border-border p-4">
-            <p className="text-sm font-semibold text-ink">Условия для арендаторов (с офиц. сайта БЦ)</p>
+            <div>
+              <p className="text-sm font-semibold text-ink">Условия для арендаторов (с офиц. сайта БЦ)</p>
+              <p className="text-xs text-ink-faint">
+                Каждый пункт — с новой строки, начиная с «- » (список), важные цифры — в **двух звёздочках** (жирным).
+                Строка без «- » в начале — обычный абзац.
+              </p>
+            </div>
             <Textarea
               label="Важная оговорка (если есть)"
               value={form.rentalCaveat}
@@ -400,14 +406,15 @@ export function BusinessCentersAdminTab() {
               label="Условия аренды"
               value={form.rentalTerms}
               onChange={(e) => setForm({ ...form, rentalTerms: e.target.value })}
-              rows={3}
-              placeholder="Минимальный срок, что включено в стоимость, каникулы, доступ..."
+              rows={4}
+              placeholder={'- Минимальный срок договора — **1 год**\n- Коммунальные платежи включены в ставку'}
             />
             <Textarea
               label="Ставки"
               value={form.rentalRates}
               onChange={(e) => setForm({ ...form, rentalRates: e.target.value })}
               rows={2}
+              placeholder="- От **26 BYN/м²**"
             />
             <Textarea
               label="Площади и типы помещений"
