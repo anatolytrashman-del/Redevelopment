@@ -13,9 +13,11 @@ import {
   Globe,
   Landmark,
   Layers,
+  Leaf,
   MapPin,
   MessageSquareQuote,
   Newspaper,
+  Palette,
   Phone,
   Ruler,
   ScrollText,
@@ -30,7 +32,7 @@ import { Badge } from '../components/ui/Badge';
 import { PhotoBlock, FactRow } from '../components/businessCenters/BusinessCenterVisuals';
 import { setBreadcrumbJsonLd, setNoIndex, clearNoIndex, setBusinessCenterPageMeta } from '../lib/pageMeta';
 import { businessClassTone, shortName, sortByShortName } from '../lib/businessCenterDisplay';
-import type { BusinessCenter } from '../data/businessCenters';
+import type { BusinessCenter, HighlightIconKey } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import type { BusinessCenterOffer } from '../data/businessCenterOffers';
 import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
@@ -215,34 +217,48 @@ export function BusinessCenterDetailPage() {
           </div>
         </div>
 
-        {/* "Интересные факты" — отдельная от условий аренды категория:
-            история объекта, известные арендаторы, награды/СМИ, рейтинг и
-            отзывы с карт (владелец, 2026-09-06: "подтянуть рейтинг из
-            Яндекс.Карт, отзывы, другую инфу... чтобы страница была даже
-            понятнее, чем официальный сайт"). history/tenants/media — веб-
-            поиск (Gemini+google_search), КАЖДЫЙ факт перепроверен отдельным
-            независимым поиском (см. комментарий у BusinessCenterHighlights
-            в data/businessCenters.ts — первая попытка дала неподтверждённые
-            детали). rating/reviews заполняются владельцем вручную — прямой
-            поиск с картами дал похожие на правду, но выдуманные цитаты
-            отзывов, публиковать нельзя.
+        {/* "Интересные факты" — произвольный набор блоков, разный у каждого
+            БЦ (владелец, 2026-09-06, второй заход: "старайся делать
+            кастомную страницу под каждый БЦ. Если у БЦ нет наград, не
+            делай этот блок вообще. Если есть что-то новое — кастомный
+            блок"). Раньше был фиксированный объект (history/tenants/media/
+            rating/reviews), теперь — HighlightSection[] (см. комментарий у
+            BusinessCenter.highlights в data/businessCenters.ts). icon
+            'warning' — единственная особая: выносится наверх акцентным
+            жёлтым блоком (как caveat в RentalInfo), а не в общий список.
             Порядок блоков на странице (владелец, 2026-09-06): главный блок
-            → Интересные факты → Условия для арендаторов → Рынок в этом
-            здании — общий интерес к объекту раньше практических деталей
-            аренды и голой статистики по объявлениям. */}
-        {center.highlights && (
+            → Интересные факты → Условия для арендаторов → Объявления с
+            Kufar и Realt. */}
+        {center.highlights.length > 0 && (
           <div className={cn('mt-6 flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
               <Sparkles className="h-5 w-5 shrink-0 text-primary" />
               Интересные факты
             </h2>
+
+            {center.highlights
+              .filter((s) => s.icon === 'warning')
+              .map((s, i) => (
+                <div
+                  key={`warning-${i}`}
+                  className="flex items-start gap-2 rounded-control border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-warning"
+                >
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div>
+                    {s.label && <p className="text-xs font-semibold uppercase tracking-wide">{s.label}</p>}
+                    <p className="mt-0.5 leading-relaxed">{renderRentalText(s.text)}</p>
+                  </div>
+                </div>
+              ))}
+
             <div className="flex flex-col divide-y divide-border">
-              <LabeledTextRow icon={Landmark} label="История объекта" text={center.highlights.history} />
-              <LabeledTextRow icon={Building2} label="Известные арендаторы" text={center.highlights.tenants} />
-              <LabeledTextRow icon={Newspaper} label="Награды и СМИ" text={center.highlights.media} />
-              <LabeledTextRow icon={Star} label="Рейтинг на картах" text={center.highlights.rating} />
-              <LabeledTextRow icon={MessageSquareQuote} label="Отзывы" text={center.highlights.reviews} />
+              {center.highlights
+                .filter((s) => s.icon !== 'warning')
+                .map((s, i) => (
+                  <LabeledTextRow key={i} icon={HIGHLIGHT_ICONS[s.icon]} label={s.label} text={s.text} />
+                ))}
             </div>
+
             <p className="text-xs text-ink-faint">
               Собрано веб-поиском по открытым источникам (новости, реестры, карты) — не куратировано вручную.
             </p>
@@ -377,6 +393,21 @@ export function BusinessCenterDetailPage() {
 }
 
 // Одна строка блока "Условия для арендаторов" — иконка + подпись раздела +
+// Иконка на раздел "Интересных фактов" по ключу из HighlightSection.icon —
+// 'warning' в общий список не попадает (свой рендер, акцентный блок выше),
+// но остаётся в мапе для полноты типа (Record должен покрывать все ключи).
+const HIGHLIGHT_ICONS: Record<HighlightIconKey, typeof FileText> = {
+  history: Landmark,
+  tenants: Building2,
+  media: Newspaper,
+  rating: Star,
+  reviews: MessageSquareQuote,
+  design: Palette,
+  eco: Leaf,
+  warning: AlertTriangle,
+  fact: Sparkles,
+};
+
 // сам текст, ничего не рендерит, если по этому разделу нашлось не найдено
 // (text === null) — не показываем пустые подписи.
 function LabeledTextRow({ icon: Icon, label, text }: { icon: typeof FileText; label: string; text: string | null }) {

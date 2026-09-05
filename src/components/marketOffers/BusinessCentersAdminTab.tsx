@@ -18,8 +18,23 @@ import {
 } from '../../lib/businessCentersApi';
 import { uploadObjectDocument } from '../../lib/objectsApi';
 import { BUSINESS_CENTER_CLASSES } from '../../data/businessCenters';
-import type { BusinessCenter, BusinessCenterHighlights, RentalInfo } from '../../data/businessCenters';
+import type { BusinessCenter, HighlightIconKey, HighlightSection, RentalInfo } from '../../data/businessCenters';
 import type { DocumentFile } from '../../data/contractorDocuments';
+
+// Подписи выбора иконки в форме — порядок совпадает с частотой использования
+// на практике (история/арендаторы/СМИ чаще всего, 'warning'/'fact' — реже).
+const HIGHLIGHT_ICON_LABELS: Record<HighlightIconKey, string> = {
+  history: 'История объекта',
+  tenants: 'Арендаторы',
+  media: 'Награды / СМИ',
+  rating: 'Рейтинг на картах',
+  reviews: 'Отзывы',
+  design: 'Архитектура / дизайн',
+  eco: 'Экология',
+  warning: 'Важная оговорка',
+  fact: 'Другой факт',
+};
+const HIGHLIGHT_ICON_KEYS = Object.keys(HIGHLIGHT_ICON_LABELS) as HighlightIconKey[];
 
 // Вкладка "Бизнес-центры" на /admin/market-offers — админка для публичной
 // страницы /minsk/bcminsk (владелец, 2026-09-04: "пусть это будет админка
@@ -54,11 +69,7 @@ interface FormState {
   rentalSizes: string;
   rentalParking: string;
   rentalContacts: string;
-  highlightHistory: string;
-  highlightTenants: string;
-  highlightMedia: string;
-  highlightRating: string;
-  highlightReviews: string;
+  highlights: HighlightSection[]; // "Интересные факты" — произвольный набор блоков
   mapSnapshotFiles: DocumentFile[]; // уже загруженные
   pendingMapSnapshotFiles: File[]; // выбраны, но ещё не загружены (грузятся при сохранении)
   photos: string; // по одному пути на строку
@@ -86,11 +97,7 @@ const EMPTY_FORM: FormState = {
   rentalSizes: '',
   rentalParking: '',
   rentalContacts: '',
-  highlightHistory: '',
-  highlightTenants: '',
-  highlightMedia: '',
-  highlightRating: '',
-  highlightReviews: '',
+  highlights: [],
   mapSnapshotFiles: [],
   pendingMapSnapshotFiles: [],
   photos: '',
@@ -119,11 +126,7 @@ function centerToForm(c: BusinessCenter): FormState {
     rentalSizes: c.rentalInfo?.sizes ?? '',
     rentalParking: c.rentalInfo?.parking ?? '',
     rentalContacts: c.rentalInfo?.contacts ?? '',
-    highlightHistory: c.highlights?.history ?? '',
-    highlightTenants: c.highlights?.tenants ?? '',
-    highlightMedia: c.highlights?.media ?? '',
-    highlightRating: c.highlights?.rating ?? '',
-    highlightReviews: c.highlights?.reviews ?? '',
+    highlights: c.highlights,
     mapSnapshotFiles: c.mapSnapshotFiles,
     pendingMapSnapshotFiles: [],
     photos: c.photos.join('\n'),
@@ -153,15 +156,12 @@ function buildRentalInfo(form: FormState): RentalInfo | null {
   return { caveat, terms, rates, sizes, parking, contacts };
 }
 
-// Тот же принцип, что и у buildRentalInfo — пустая форма → null целиком.
-function buildHighlights(form: FormState): BusinessCenterHighlights | null {
-  const history = form.highlightHistory.trim() || null;
-  const tenants = form.highlightTenants.trim() || null;
-  const media = form.highlightMedia.trim() || null;
-  const rating = form.highlightRating.trim() || null;
-  const reviews = form.highlightReviews.trim() || null;
-  if (!history && !tenants && !media && !rating && !reviews) return null;
-  return { history, tenants, media, rating, reviews };
+// Блоки с пустым текстом/подписью не сохраняем — та же логика, что раньше
+// была у buildRentalInfo/buildHighlights (не хранить полупустые записи).
+function buildHighlights(form: FormState): HighlightSection[] {
+  return form.highlights
+    .map((s) => ({ ...s, label: s.label.trim(), text: s.text.trim() }))
+    .filter((s) => s.label && s.text);
 }
 
 export function BusinessCentersAdminTab() {
@@ -475,45 +475,72 @@ export function BusinessCentersAdminTab() {
 
           <div className="flex flex-col gap-3 rounded-control border border-border p-4">
             <div>
-              <p className="text-sm font-semibold text-ink">Интересные факты (история, арендаторы, СМИ, рейтинг)</p>
+              <p className="text-sm font-semibold text-ink">Интересные факты</p>
               <p className="text-xs text-ink-faint">
-                Та же нотация: «- » для буллетов, **жирным** — ключевые цифры/названия. Рейтинг и отзывы с карт —
-                только вручную (скриншот/копия из своего браузера), автопоиск для них ненадёжен — модель может
-                выдумать цитаты, даже честно признавшись, что не может открыть страницу.
+                Произвольный набор блоков — добавляйте только то, что реально нашлось (нет наград — не добавляйте
+                блок вовсе), для нетипичного факта берите тип «Другой факт» и пишите свою подпись. Та же нотация в
+                тексте: «- » для буллетов, **жирным** — ключевые цифры/названия. Рейтинг/отзывы с карт — только
+                вручную (скриншот/копия из своего браузера), автопоиск для них ненадёжен.
               </p>
             </div>
-            <Textarea
-              label="История объекта"
-              value={form.highlightHistory}
-              onChange={(e) => setForm({ ...form, highlightHistory: e.target.value })}
-              rows={3}
-            />
-            <Textarea
-              label="Известные арендаторы"
-              value={form.highlightTenants}
-              onChange={(e) => setForm({ ...form, highlightTenants: e.target.value })}
-              rows={3}
-            />
-            <Textarea
-              label="Награды и СМИ"
-              value={form.highlightMedia}
-              onChange={(e) => setForm({ ...form, highlightMedia: e.target.value })}
-              rows={3}
-            />
-            <Textarea
-              label="Рейтинг на картах (вручную)"
-              value={form.highlightRating}
-              onChange={(e) => setForm({ ...form, highlightRating: e.target.value })}
-              rows={2}
-              placeholder="- Яндекс.Карты: **5,0** из 5 (204 оценки, 27 отзывов)"
-            />
-            <Textarea
-              label="Отзывы (вручную, реальные цитаты)"
-              value={form.highlightReviews}
-              onChange={(e) => setForm({ ...form, highlightReviews: e.target.value })}
-              rows={4}
-              placeholder="- **Имя** (месяц год, 5★): «текст отзыва»"
-            />
+            {form.highlights.map((section, i) => (
+              <div key={i} className="flex flex-col gap-2 rounded-control border border-border bg-surface-muted p-3">
+                <div className="flex items-center gap-2">
+                  <Select
+                    options={HIGHLIGHT_ICON_KEYS.map((k) => HIGHLIGHT_ICON_LABELS[k])}
+                    value={HIGHLIGHT_ICON_LABELS[section.icon]}
+                    onChange={(label) => {
+                      const icon = HIGHLIGHT_ICON_KEYS.find((k) => HIGHLIGHT_ICON_LABELS[k] === label) ?? 'fact';
+                      setForm((f) => ({
+                        ...f,
+                        highlights: f.highlights.map((s, idx) => (idx === i ? { ...s, icon } : s)),
+                      }));
+                    }}
+                    triggerClassName="w-56"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, highlights: f.highlights.filter((_, idx) => idx !== i) }))}
+                    aria-label="Убрать блок"
+                    className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-control text-ink-faint hover:bg-danger-bg hover:text-danger"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+                <Input
+                  label="Подпись раздела"
+                  value={section.label}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      highlights: f.highlights.map((s, idx) => (idx === i ? { ...s, label: e.target.value } : s)),
+                    }))
+                  }
+                  placeholder="Напр.: История объекта"
+                />
+                <Textarea
+                  label="Текст"
+                  value={section.text}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      highlights: f.highlights.map((s, idx) => (idx === i ? { ...s, text: e.target.value } : s)),
+                    }))
+                  }
+                  rows={3}
+                />
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<Plus className="h-4 w-4" />}
+              onClick={() =>
+                setForm((f) => ({ ...f, highlights: [...f.highlights, { icon: 'fact', label: '', text: '' }] }))
+              }
+            >
+              Добавить блок
+            </Button>
           </div>
 
           <div className="flex flex-col gap-2">

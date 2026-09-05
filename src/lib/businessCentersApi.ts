@@ -19,7 +19,7 @@ function fromRow(row: BusinessCenterRow): BusinessCenter {
     website: row.website,
     description: row.description,
     rentalInfo: row.rental_info,
-    highlights: row.highlights,
+    highlights: row.highlights ?? [],
     mapSnapshotFiles: row.map_snapshot_files ?? [],
     photos: row.photos ?? [],
     status: (row.status as BusinessCenter['status']) ?? 'built',
