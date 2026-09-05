@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
+  AlertTriangle,
+  Banknote,
   Building2,
   Calendar,
   Car,
@@ -10,7 +12,9 @@ import {
   Globe,
   Layers,
   MapPin,
+  Phone,
   Ruler,
+  ScrollText,
   TrainFront,
   X,
 } from 'lucide-react';
@@ -258,19 +262,36 @@ export function BusinessCenterDetailPage() {
             Kufar/Realt, но на собственном сайте есть условия для
             арендаторов: "пройдись по сайтам БЦ и поищешь такую информацию").
             Собрано веб-поиском (Gemini через ProxyAPI — прямого доступа к
-            большинству сайтов БЦ из песочницы нет), текст свободной формы —
-            ставки/сроки/что включено/парковка/контакты отдела аренды, где
-            что-то не удалось найти или сайт был недоступен — честно так и
-            написано в самом тексте, не приукрашено. null — сайта нет,
-            недоступен был при проверке, или на нём вообще нет такой
-            информации (например "Аден" — по факту гостиница, не БЦ). */}
+            большинству сайтов БЦ из песочницы нет). Первая версия рисовала
+            всё одним абзацем — владелец: "верстка — пиздец, разбей на
+            логические блоки, используй форматирование" — теперь отдельная
+            подписанная строка на каждый раздел (RentalInfoRow), важная
+            оговорка источника (сайт недоступен, "Аден" по факту гостиница
+            и т.п.) — акцентным блоком сверху, не затёртая в общем тексте.
+            Каждое поле независимо может быть null — рисуем только то, что
+            реально нашлось. */}
         {center.rentalInfo && (
-          <div className={cn('mt-6 flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+          <div className={cn('mt-6 flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
               <FileText className="h-5 w-5 shrink-0 text-primary" />
               Условия для арендаторов
             </h2>
-            <p className="whitespace-pre-line text-sm leading-relaxed text-ink-muted">{center.rentalInfo}</p>
+
+            {center.rentalInfo.caveat && (
+              <div className="flex items-start gap-2 rounded-control border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-warning">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p className="leading-relaxed">{center.rentalInfo.caveat}</p>
+              </div>
+            )}
+
+            <div className="flex flex-col divide-y divide-border">
+              <RentalInfoRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
+              <RentalInfoRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
+              <RentalInfoRow icon={Ruler} label="Площади и типы помещений" text={center.rentalInfo.sizes} />
+              <RentalInfoRow icon={Car} label="Парковка" text={center.rentalInfo.parking} />
+              <RentalInfoRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
+            </div>
+
             <p className="text-xs text-ink-faint">
               Собрано автоматически по официальному сайту БЦ и открытым источникам — не куратировано вручную, перед
               подписанием договора уточняйте актуальные условия напрямую у арендодателя.
@@ -306,6 +327,22 @@ export function BusinessCenterDetailPage() {
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Одна строка блока "Условия для арендаторов" — иконка + подпись раздела +
+// сам текст, ничего не рендерит, если по этому разделу нашлось не найдено
+// (text === null) — не показываем пустые подписи.
+function RentalInfoRow({ icon: Icon, label, text }: { icon: typeof FileText; label: string; text: string | null }) {
+  if (!text) return null;
+  return (
+    <div className="flex gap-3 py-3 first:pt-0 last:pb-0">
+      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint" />
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">{label}</p>
+        <p className="mt-1 text-sm leading-relaxed text-ink-muted">{text}</p>
       </div>
     </div>
   );

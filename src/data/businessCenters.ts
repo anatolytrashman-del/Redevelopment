@@ -33,12 +33,14 @@ export interface BusinessCenter {
   // Условия для арендаторов, найденные на официальном сайте БЦ (владелец,
   // 2026-09-05: "по нему нет объявлений на куфаре и realt, но у них на
   // сайте есть информация для арендаторов... пройдись по сайтам БЦ") —
-  // свободный текст (ставки/минимальный срок/что включено/парковка/
-  // контакты отдела аренды), собран веб-поиском по офиц. сайту БЦ
-  // (Gemini через ProxyAPI — прямого доступа к большинству таких сайтов
-  // из песочницы нет). null — сайта нет, недоступен, или на нём нет такой
-  // информации, честно не выдумываем.
-  rentalInfo: string | null;
+  // собрано веб-поиском по офиц. сайту БЦ (Gemini через ProxyAPI — прямого
+  // доступа к большинству таких сайтов из песочницы нет). Разбито на
+  // логические разделы (не единый текст-простыня — первая версия была
+  // нечитаемой "стеной текста", владелец: "верстка — пиздец, разбей на
+  // логические блоки"), каждое поле независимо null, если по этому пункту
+  // ничего не нашлось. null у всего объекта — сайта нет, недоступен был
+  // при проверке, или на нём вообще нет такой информации (не выдумываем).
+  rentalInfo: RentalInfo | null;
   photos: string[];
   // 'built' по умолчанию. 'under_construction' — как МФЦ, ещё строится.
   status: 'built' | 'under_construction';
@@ -47,6 +49,20 @@ export interface BusinessCenter {
   // Управляется в админке (см. BusinessCentersAdminTab.tsx).
   sortOrder: number;
   createdAt: string;
+}
+
+// Разделы блока "Условия для арендаторов" — каждый рендерится своей
+// подписанной строкой на BusinessCenterDetailPage.tsx (иконка + текст), а
+// не одним абзацем. caveat — важная оговорка источника (сайт недоступен,
+// БЦ на деле не сдаёт офисы и т.п.) показывается отдельным акцентным
+// блоком наверху, если заполнена.
+export interface RentalInfo {
+  caveat: string | null;
+  terms: string | null;
+  rates: string | null;
+  sizes: string | null;
+  parking: string | null;
+  contacts: string | null;
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. lib/businessCentersApi.ts
@@ -65,7 +81,7 @@ export interface BusinessCenterRow {
   parking: string | null;
   website: string | null;
   description: string | null;
-  rental_info: string | null;
+  rental_info: RentalInfo | null;
   photos: string[] | null;
   status: string | null;
   sort_order: number;

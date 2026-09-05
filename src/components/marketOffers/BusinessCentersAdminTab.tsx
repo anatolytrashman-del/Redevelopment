@@ -17,7 +17,7 @@ import {
   deleteBusinessCenter,
 } from '../../lib/businessCentersApi';
 import { BUSINESS_CENTER_CLASSES } from '../../data/businessCenters';
-import type { BusinessCenter } from '../../data/businessCenters';
+import type { BusinessCenter, RentalInfo } from '../../data/businessCenters';
 
 // Вкладка "Бизнес-центры" на /admin/market-offers — админка для публичной
 // страницы /minsk/bcminsk (владелец, 2026-09-04: "пусть это будет админка
@@ -46,7 +46,12 @@ interface FormState {
   parking: string;
   website: string;
   description: string;
-  rentalInfo: string;
+  rentalCaveat: string;
+  rentalTerms: string;
+  rentalRates: string;
+  rentalSizes: string;
+  rentalParking: string;
+  rentalContacts: string;
   photos: string; // по одному пути на строку
   status: BusinessCenter['status'];
   sortOrder: string;
@@ -66,7 +71,12 @@ const EMPTY_FORM: FormState = {
   parking: '',
   website: '',
   description: '',
-  rentalInfo: '',
+  rentalCaveat: '',
+  rentalTerms: '',
+  rentalRates: '',
+  rentalSizes: '',
+  rentalParking: '',
+  rentalContacts: '',
   photos: '',
   status: 'built',
   sortOrder: '0',
@@ -87,7 +97,12 @@ function centerToForm(c: BusinessCenter): FormState {
     parking: c.parking ?? '',
     website: c.website ?? '',
     description: c.description ?? '',
-    rentalInfo: c.rentalInfo ?? '',
+    rentalCaveat: c.rentalInfo?.caveat ?? '',
+    rentalTerms: c.rentalInfo?.terms ?? '',
+    rentalRates: c.rentalInfo?.rates ?? '',
+    rentalSizes: c.rentalInfo?.sizes ?? '',
+    rentalParking: c.rentalInfo?.parking ?? '',
+    rentalContacts: c.rentalInfo?.contacts ?? '',
     photos: c.photos.join('\n'),
     status: c.status,
     sortOrder: String(c.sortOrder),
@@ -99,6 +114,20 @@ function numOrNull(v: string): number | null {
   if (!trimmed) return null;
   const n = Number(trimmed);
   return Number.isFinite(n) ? n : null;
+}
+
+// Пустая форма → null целиком (не объект из одних null) — карточка "Условия
+// для арендаторов" на публичной странице не рендерится вовсе, когда искать
+// было нечего (сайта нет и т.п.), а не показывает пустой заголовок.
+function buildRentalInfo(form: FormState): RentalInfo | null {
+  const caveat = form.rentalCaveat.trim() || null;
+  const terms = form.rentalTerms.trim() || null;
+  const rates = form.rentalRates.trim() || null;
+  const sizes = form.rentalSizes.trim() || null;
+  const parking = form.rentalParking.trim() || null;
+  const contacts = form.rentalContacts.trim() || null;
+  if (!caveat && !terms && !rates && !sizes && !parking && !contacts) return null;
+  return { caveat, terms, rates, sizes, parking, contacts };
 }
 
 export function BusinessCentersAdminTab() {
@@ -157,7 +186,7 @@ export function BusinessCentersAdminTab() {
         parking: form.parking.trim() || null,
         website: form.website.trim() || null,
         description: form.description.trim() || null,
-        rentalInfo: form.rentalInfo.trim() || null,
+        rentalInfo: buildRentalInfo(form),
         photos: form.photos
           .split('\n')
           .map((s) => s.trim())
@@ -358,13 +387,47 @@ export function BusinessCentersAdminTab() {
             rows={4}
           />
 
-          <Textarea
-            label="Условия для арендаторов (с офиц. сайта БЦ)"
-            value={form.rentalInfo}
-            onChange={(e) => setForm({ ...form, rentalInfo: e.target.value })}
-            rows={6}
-            placeholder="Ставки, минимальный срок аренды, что включено, парковка, контакты отдела аренды..."
-          />
+          <div className="flex flex-col gap-3 rounded-control border border-border p-4">
+            <p className="text-sm font-semibold text-ink">Условия для арендаторов (с офиц. сайта БЦ)</p>
+            <Textarea
+              label="Важная оговорка (если есть)"
+              value={form.rentalCaveat}
+              onChange={(e) => setForm({ ...form, rentalCaveat: e.target.value })}
+              rows={2}
+              placeholder="Напр.: сайт недоступен, данные устарели, это не БЦ, а гостиница..."
+            />
+            <Textarea
+              label="Условия аренды"
+              value={form.rentalTerms}
+              onChange={(e) => setForm({ ...form, rentalTerms: e.target.value })}
+              rows={3}
+              placeholder="Минимальный срок, что включено в стоимость, каникулы, доступ..."
+            />
+            <Textarea
+              label="Ставки"
+              value={form.rentalRates}
+              onChange={(e) => setForm({ ...form, rentalRates: e.target.value })}
+              rows={2}
+            />
+            <Textarea
+              label="Площади и типы помещений"
+              value={form.rentalSizes}
+              onChange={(e) => setForm({ ...form, rentalSizes: e.target.value })}
+              rows={3}
+            />
+            <Textarea
+              label="Парковка"
+              value={form.rentalParking}
+              onChange={(e) => setForm({ ...form, rentalParking: e.target.value })}
+              rows={2}
+            />
+            <Textarea
+              label="Контакты отдела аренды"
+              value={form.rentalContacts}
+              onChange={(e) => setForm({ ...form, rentalContacts: e.target.value })}
+              rows={2}
+            />
+          </div>
 
           <Textarea
             label="Фото (по одному пути на строку)"
