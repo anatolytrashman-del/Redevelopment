@@ -6,7 +6,6 @@ import {
   Car,
   ChevronLeft,
   ChevronRight,
-  ExternalLink,
   Globe,
   Layers,
   MapPin,
@@ -19,13 +18,7 @@ import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from
 import { Badge } from '../components/ui/Badge';
 import { PhotoBlock, FactRow } from '../components/businessCenters/BusinessCenterVisuals';
 import { setBreadcrumbJsonLd, setNoIndex, clearNoIndex, setBusinessCenterPageMeta } from '../lib/pageMeta';
-import {
-  businessClassTone,
-  buildKufarSearchUrl,
-  buildRealtSearchUrl,
-  shortName,
-  sortByShortName,
-} from '../lib/businessCenterDisplay';
+import { businessClassTone, shortName, sortByShortName } from '../lib/businessCenterDisplay';
 import type { BusinessCenter } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import type { BusinessCenterOffer } from '../data/businessCenterOffers';
@@ -75,8 +68,8 @@ export function BusinessCenterDetailPage() {
   const prev = index > 0 ? sorted[index - 1] : null;
   const next = index >= 0 && index < sorted.length - 1 ? sorted[index + 1] : null;
 
-  const saleStats = useMemo(() => computeOfferStats((offers ?? []).filter((o) => o.dealType === 'sale')), [offers]);
-  const rentStats = useMemo(() => computeOfferStats((offers ?? []).filter((o) => o.dealType === 'rent')), [offers]);
+  const saleRows = useMemo(() => computeOfferRows(offers ?? [], 'sale'), [offers]);
+  const rentRows = useMemo(() => computeOfferRows(offers ?? [], 'rent'), [offers]);
 
   useEffect(() => {
     if (!center) return;
@@ -211,51 +204,50 @@ export function BusinessCenterDetailPage() {
           </div>
         </div>
 
-        {/* Рынок в этом здании — было списком отдельных объявлений, владелец
-            после первой версии: "чтобы список был актуальным, его придётся
-            постоянно поддерживать. Я бы скорее давал агрегированную
-            статистику по площадям и ценам + давал прямые ссылки на куфар и
-            realt, чтобы открыли объявления по этим адресам" — картина не
-            протухает сама по себе (числа считаются из свежего синка раз в
-            месяц, см. scripts/sync-business-center-offers.mjs), а клик по
-            ссылке уводит на живой поиск источника, а не на наш возможно
-            устаревший кэш конкретного объявления. */}
+        {/* Рынок в этом здании — было списком отдельных объявлений, потом
+            статистикой в две строки + ссылками на живой поиск Kufar/Realt.
+            Обе правки не прижились: владелец увидел, что ссылка на Kufar в
+            реальном браузере открывает общую страницу без фильтра (не
+            проверить из песочницы — headless-браузер сюда не достаёт,
+            только curl, а он не показывает поведение клиентской гидратации
+            SPA), а ссылка на Realt через Google выглядела как костыль —
+            "или сделай нормально, или убирай вообще". Ссылки убраны
+            полностью. Заодно владелец: "мало данных как будто" — таблица
+            расширена разбивкой по типу помещения (то же поле property_type,
+            что уже есть в business_center_offers, раньше просто не
+            использовалось для группировки), и "Продажа" теперь показывается
+            явной строкой "нет объявлений", а не пропадает из виду, если
+            сейчас пусто. */}
         {offers !== null && (
-          <div className={cn('mt-6 flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+          <div className={cn('mt-6 flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="text-lg font-bold text-ink">Рынок в этом здании</h2>
-            {saleStats || rentStats ? (
-              <div className="flex flex-col gap-3">
-                {saleStats && <OfferStatsRow title="Продажа" stats={saleStats} />}
-                {rentStats && <OfferStatsRow title="Аренда" stats={rentStats} />}
-              </div>
-            ) : (
-              <p className="text-sm text-ink-faint">
-                Сейчас в базе нет ни одного активного объявления по этому адресу — проверьте напрямую по ссылкам ниже.
-              </p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <a
-                href={buildKufarSearchUrl(center.address)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={cn('flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-ink', glassPillClass)}
-              >
-                Смотреть на Kufar
-                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-              </a>
-              <a
-                href={buildRealtSearchUrl(center.address)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={cn('flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-ink', glassPillClass)}
-              >
-                Смотреть на Realt.by
-                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-              </a>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[480px] border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                    <th scope="col" className="py-2 pr-3 text-left">
+                      Тип помещения
+                    </th>
+                    <th scope="col" className="py-2 px-2 text-right">
+                      Объявлений
+                    </th>
+                    <th scope="col" className="py-2 px-2 text-right">
+                      Площадь
+                    </th>
+                    <th scope="col" className="py-2 pl-2 text-right">
+                      Цена за м²
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  <OfferDealSection title="Продажа" rows={saleRows} isFirst />
+                  <OfferDealSection title="Аренда" rows={rentRows} />
+                </tbody>
+              </table>
             </div>
             <p className="text-xs text-ink-faint">
-              Статистика считается автоматически по объявлениям с Kufar и Realt.by, найденным по адресу здания, и обновляется
-              ежемесячно — актуальные варианты смотрите по ссылкам выше.
+              Считается автоматически по объявлениям с Kufar и Realt.by, найденным по адресу здания — данные обновляются
+              ежемесячно, без ручной проверки каждой строки.
             </p>
           </div>
         )}
@@ -293,10 +285,12 @@ export function BusinessCenterDetailPage() {
   );
 }
 
-// Продажа/аренда — одинаковая вёрстка, только заголовок и набор объявлений
-// разные. Отсортированы по цене за м² уже на уровне запроса
-// (fetchBusinessCenterOffers), тут просто рендерятся по порядку.
-interface OfferStats {
+// Одна строка таблицы — либо реальная разбивка по типу помещения (для
+// сделки, где объявления есть), либо единственная строка-заглушка "нет
+// объявлений" (propertyType: null), когда по этой сделке сейчас пусто —
+// владелец: "Продажа" должна быть видна явной строкой, а не пропадать.
+interface OfferRow {
+  propertyType: string | null;
   count: number;
   minSize: number;
   maxSize: number;
@@ -305,58 +299,77 @@ interface OfferStats {
   maxPrice: number;
 }
 
-function computeOfferStats(offers: BusinessCenterOffer[]): OfferStats | null {
-  if (offers.length === 0) return null;
-  const sizes = offers.map((o) => o.size);
-  const prices = offers.map((o) => o.pricePerSqm).sort((a, b) => a - b);
-  const mid = Math.floor(prices.length / 2);
-  const medianPrice = prices.length % 2 !== 0 ? prices[mid] : (prices[mid - 1] + prices[mid]) / 2;
-  return {
-    count: offers.length,
-    minSize: Math.min(...sizes),
-    maxSize: Math.max(...sizes),
-    minPrice: Math.min(...prices),
-    medianPrice,
-    maxPrice: Math.max(...prices),
-  };
-}
+function computeOfferRows(offers: BusinessCenterOffer[], dealType: BusinessCenterOffer['dealType']): OfferRow[] {
+  const filtered = offers.filter((o) => o.dealType === dealType);
+  if (filtered.length === 0) {
+    return [{ propertyType: null, count: 0, minSize: 0, maxSize: 0, minPrice: 0, medianPrice: 0, maxPrice: 0 }];
+  }
 
-// "1 объявление" / "2 объявления" / "5 объявлений" — стандартное русское
-// склонение по последней цифре (с исключением на 11-14).
-function pluralOffers(n: number): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return 'объявление';
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'объявления';
-  return 'объявлений';
+  const groups = new Map<string, BusinessCenterOffer[]>();
+  for (const o of filtered) {
+    const key = o.propertyType ?? 'Без категории';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(o);
+  }
+
+  return Array.from(groups.entries())
+    .map(([propertyType, group]) => {
+      const sizes = group.map((o) => o.size);
+      const prices = [...group.map((o) => o.pricePerSqm)].sort((a, b) => a - b);
+      const mid = Math.floor(prices.length / 2);
+      const medianPrice = prices.length % 2 !== 0 ? prices[mid] : (prices[mid - 1] + prices[mid]) / 2;
+      return {
+        propertyType,
+        count: group.length,
+        minSize: Math.min(...sizes),
+        maxSize: Math.max(...sizes),
+        minPrice: Math.min(...prices),
+        medianPrice,
+        maxPrice: Math.max(...prices),
+      };
+    })
+    .sort((a, b) => b.count - a.count);
 }
 
 function formatUsd(n: number): string {
   return `$${Math.round(n).toLocaleString('ru-RU')}`;
 }
 
-function OfferStatsRow({ title, stats }: { title: string; stats: OfferStats }) {
-  const sizeRange =
-    stats.minSize === stats.maxSize
-      ? `${stats.minSize.toLocaleString('ru-RU')} м²`
-      : `${stats.minSize.toLocaleString('ru-RU')}–${stats.maxSize.toLocaleString('ru-RU')} м²`;
-  const priceRange =
-    stats.minPrice === stats.maxPrice
-      ? `${formatUsd(stats.minPrice)}/м²`
-      : `${formatUsd(stats.minPrice)}–${formatUsd(stats.maxPrice)}/м² (медиана ${formatUsd(stats.medianPrice)})`;
-
+// Заголовок сделки (Продажа/Аренда) — не отдельная колонка (чтобы не
+// повторять текст на каждой строке разбивки), а строка-разделитель на всю
+// ширину таблицы, за ней сразу строки по типу помещения.
+function OfferDealSection({ title, rows, isFirst }: { title: string; rows: OfferRow[]; isFirst?: boolean }) {
   return (
-    <div className="flex flex-col gap-1 rounded-control bg-surface-muted p-4">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-bold text-ink">{title}</span>
-        <span className="text-xs text-ink-faint">
-          {stats.count} {pluralOffers(stats.count)}
-        </span>
-      </div>
-      <div className="flex flex-col gap-0.5 text-sm text-ink-muted sm:flex-row sm:gap-6">
-        <span>Площадь: {sizeRange}</span>
-        <span>Цена за м²: {priceRange}</span>
-      </div>
-    </div>
+    <>
+      <tr>
+        <td colSpan={4} className={cn('pb-1 text-xs font-bold uppercase tracking-wide text-ink-faint', isFirst ? 'pt-0' : 'pt-3')}>
+          {title}
+        </td>
+      </tr>
+      {rows.map((row) =>
+        row.propertyType === null ? (
+          <tr key="empty">
+            <td colSpan={4} className="py-2 text-ink-faint">
+              Нет активных объявлений
+            </td>
+          </tr>
+        ) : (
+          <tr key={row.propertyType}>
+            <td className="py-2 pr-3 font-medium text-ink">{row.propertyType}</td>
+            <td className="py-2 px-2 text-right tabular-nums text-ink-faint">{row.count}</td>
+            <td className="whitespace-nowrap py-2 px-2 text-right tabular-nums text-ink-faint">
+              {row.minSize === row.maxSize
+                ? `${row.minSize.toLocaleString('ru-RU')} м²`
+                : `${row.minSize.toLocaleString('ru-RU')}–${row.maxSize.toLocaleString('ru-RU')} м²`}
+            </td>
+            <td className="whitespace-nowrap py-2 pl-2 text-right tabular-nums font-semibold text-ink">
+              {row.minPrice === row.maxPrice
+                ? `${formatUsd(row.minPrice)}/м²`
+                : `${formatUsd(row.minPrice)}–${formatUsd(row.maxPrice)}/м² (медиана ${formatUsd(row.medianPrice)})`}
+            </td>
+          </tr>
+        ),
+      )}
+    </>
   );
 }
