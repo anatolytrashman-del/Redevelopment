@@ -18,7 +18,7 @@ import {
 } from '../../lib/businessCentersApi';
 import { uploadObjectDocument } from '../../lib/objectsApi';
 import { BUSINESS_CENTER_CLASSES } from '../../data/businessCenters';
-import type { BusinessCenter, HighlightIconKey, HighlightSection, RentalInfo } from '../../data/businessCenters';
+import type { BusinessCenter, HighlightIconKey, HighlightSection, RentalInfo, TenantOrganization } from '../../data/businessCenters';
 import type { DocumentFile } from '../../data/contractorDocuments';
 
 // Подписи выбора иконки в форме — порядок совпадает с частотой использования
@@ -70,6 +70,8 @@ interface FormState {
   rentalParking: string;
   rentalContacts: string;
   highlights: HighlightSection[]; // "Интересные факты" — произвольный набор блоков
+  tenantOrganizations: TenantOrganization[]; // организации внутри здания
+  tenantOrganizationsBulk: string; // черновик для вставки списком (не сохраняется как есть)
   mapSnapshotFiles: DocumentFile[]; // уже загруженные
   pendingMapSnapshotFiles: File[]; // выбраны, но ещё не загружены (грузятся при сохранении)
   photos: string; // по одному пути на строку
@@ -98,6 +100,8 @@ const EMPTY_FORM: FormState = {
   rentalParking: '',
   rentalContacts: '',
   highlights: [],
+  tenantOrganizations: [],
+  tenantOrganizationsBulk: '',
   mapSnapshotFiles: [],
   pendingMapSnapshotFiles: [],
   photos: '',
@@ -127,6 +131,8 @@ function centerToForm(c: BusinessCenter): FormState {
     rentalParking: c.rentalInfo?.parking ?? '',
     rentalContacts: c.rentalInfo?.contacts ?? '',
     highlights: c.highlights,
+    tenantOrganizations: c.tenantOrganizations,
+    tenantOrganizationsBulk: '',
     mapSnapshotFiles: c.mapSnapshotFiles,
     pendingMapSnapshotFiles: [],
     photos: c.photos.join('\n'),
@@ -162,6 +168,29 @@ function buildHighlights(form: FormState): HighlightSection[] {
   return form.highlights
     .map((s) => ({ ...s, label: s.label.trim(), text: s.text.trim() }))
     .filter((s) => s.label && s.text);
+}
+
+function buildTenantOrganizations(form: FormState): TenantOrganization[] {
+  return form.tenantOrganizations
+    .map((o) => ({ name: o.name.trim(), category: o.category.trim() }))
+    .filter((o) => o.name);
+}
+
+// Разбор вставки списком — по одной организации на строку, категория и
+// название через "—"/"-"/":" (то, что реально получается копипастом из
+// разобранного веб-архива, где категория идёт из aria-label ссылки, см.
+// scripts/... в CLAUDE.md журнале). Без разделителя — вся строка это
+// название, категория пустая (можно дозаполнить руками).
+function parseTenantOrganizationsBulk(text: string): TenantOrganization[] {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const match = line.match(/^(.+?)\s*[—\-:]\s*(.+)$/);
+      if (match) return { category: match[1].trim(), name: match[2].trim() };
+      return { category: '', name: line };
+    });
 }
 
 export function BusinessCentersAdminTab() {
@@ -223,6 +252,7 @@ export function BusinessCentersAdminTab() {
         description: form.description.trim() || null,
         rentalInfo: buildRentalInfo(form),
         highlights: buildHighlights(form),
+        tenantOrganizations: buildTenantOrganizations(form),
         mapSnapshotFiles: [...form.mapSnapshotFiles, ...uploadedSnapshots],
         photos: form.photos
           .split('\n')
@@ -541,6 +571,88 @@ export function BusinessCentersAdminTab() {
             >
               Добавить блок
             </Button>
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-control border border-border p-4">
+            <div>
+              <p className="text-sm font-semibold text-ink">Организации внутри здания</p>
+              <p className="text-xs text-ink-faint">
+                Из карусели "Организации внутри" на Яндекс.Картах (веб-архив). На публичной странице
+                группируются по категории автоматически — вводить готовым списком не нужно, порядок не важен.
+                Категория — из подписи ссылки на карте (напр. «Банк», «IT-компания»), можно оставить пустой.
+              </p>
+            </div>
+            {form.tenantOrganizations.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {form.tenantOrganizations.map((org, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className="w-40 shrink-0">
+                      <Input
+                        value={org.category}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            tenantOrganizations: f.tenantOrganizations.map((o, idx) => (idx === i ? { ...o, category: e.target.value } : o)),
+                          }))
+                        }
+                        placeholder="Категория"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <Input
+                        value={org.name}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            tenantOrganizations: f.tenantOrganizations.map((o, idx) => (idx === i ? { ...o, name: e.target.value } : o)),
+                          }))
+                        }
+                        placeholder="Название организации"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, tenantOrganizations: f.tenantOrganizations.filter((_, idx) => idx !== i) }))}
+                      aria-label="Убрать организацию"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control text-ink-faint hover:bg-danger-bg hover:text-danger"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<Plus className="h-4 w-4" />}
+              onClick={() => setForm((f) => ({ ...f, tenantOrganizations: [...f.tenantOrganizations, { category: '', name: '' }] }))}
+            >
+              Добавить организацию
+            </Button>
+            <div className="flex flex-col gap-2 border-t border-border pt-3">
+              <Textarea
+                label="Или вставить списком (по одной на строку: «Категория — Название»)"
+                value={form.tenantOrganizationsBulk}
+                onChange={(e) => setForm((f) => ({ ...f, tenantOrganizationsBulk: e.target.value }))}
+                rows={3}
+                placeholder={'Банк — Сбер Банк\nIT-компания — Vadarod'}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() =>
+                  setForm((f) => ({
+                    ...f,
+                    tenantOrganizations: [...f.tenantOrganizations, ...parseTenantOrganizationsBulk(f.tenantOrganizationsBulk)],
+                    tenantOrganizationsBulk: '',
+                  }))
+                }
+                disabled={!form.tenantOrganizationsBulk.trim()}
+              >
+                Добавить из списка
+              </Button>
+            </div>
           </div>
 
           <div className="flex flex-col gap-2">
