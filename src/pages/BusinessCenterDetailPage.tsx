@@ -32,7 +32,7 @@ import { Badge } from '../components/ui/Badge';
 import { PhotoBlock, FactRow } from '../components/businessCenters/BusinessCenterVisuals';
 import { setBreadcrumbJsonLd, setNoIndex, clearNoIndex, setBusinessCenterPageMeta } from '../lib/pageMeta';
 import { businessClassTone, shortName, sortByShortName } from '../lib/businessCenterDisplay';
-import type { BusinessCenter, HighlightIconKey } from '../data/businessCenters';
+import type { BusinessCenter, HighlightIconKey, TenantOrganization } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import type { BusinessCenterOffer } from '../data/businessCenterOffers';
 import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
@@ -265,6 +265,46 @@ export function BusinessCenterDetailPage() {
           </div>
         )}
 
+        {/* Организации внутри здания — владелец, 2026-09-06 (третий заход):
+            "давай сделаем ещё блок арендаторов внутри БЦ... сгруппировать,
+            на первое место ставь места с максимумом отзывов на картах".
+            Источник — карусель "Организации внутри" на Яндекс.Картах
+            (веб-архив) — она отдаёт только название+категорию на каждую
+            организацию, БЕЗ числа отзывов на неё саму (в отличие от
+            рейтинга/отзывов всего здания в блоке выше). Настоящей сортировки
+            "по числу отзывов" на уровне отдельной организации из этих данных
+            не построить — группы отсортированы по размеру (категории с
+            большим числом организаций первыми) как ближайший доступный
+            прокси, без выдумывания цифр (см. комментарий у
+            BusinessCenter.tenantOrganizations в data/businessCenters.ts). */}
+        {center.tenantOrganizations.length > 0 && (
+          <div className={cn('mt-6 flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+              <Building2 className="h-5 w-5 shrink-0 text-primary" />
+              Организации в здании
+            </h2>
+            <div className="flex flex-col divide-y divide-border">
+              {groupTenantOrganizations(center.tenantOrganizations).map((group) => (
+                <div key={group.category} className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                    {group.category} <span className="text-ink-faint">· {group.items.length}</span>
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {group.items.map((name) => (
+                      <span key={name} className="rounded-full bg-surface-muted px-3 py-1 text-sm text-ink">
+                        {name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-ink-faint">
+              Собрано по карте Яндекс.Карт — полный список организаций мог измениться, уточняйте у арендодателя.
+            </p>
+          </div>
+        )}
+
         {/* Условия для арендаторов с офиц. сайта БЦ (владелец, 2026-09-05,
             на примере "Проспект"/Elite Estate — по нему нет объявлений на
             Kufar/Realt, но на собственном сайте есть условия для
@@ -407,6 +447,28 @@ const HIGHLIGHT_ICONS: Record<HighlightIconKey, typeof FileText> = {
   warning: AlertTriangle,
   fact: Sparkles,
 };
+
+// Группировка "Организации в здании" по категории — без реального числа
+// отзывов на каждую организацию (см. комментарий в JSX выше) сортируем
+// группы по размеру (больше организаций одной категории — выше), внутри
+// группы — по алфавиту. "Без категории" (пустая строка из формы) — всегда
+// последней группой, не мешает содержательным категориям наверху.
+function groupTenantOrganizations(orgs: TenantOrganization[]): { category: string; items: string[] }[] {
+  const groups = new Map<string, string[]>();
+  for (const org of orgs) {
+    const category = org.category.trim() || 'Без категории';
+    if (!groups.has(category)) groups.set(category, []);
+    groups.get(category)!.push(org.name);
+  }
+  return Array.from(groups.entries())
+    .map(([category, items]) => ({ category, items: [...items].sort((a, b) => a.localeCompare(b, 'ru')) }))
+    .sort((a, b) => {
+      if (a.category === 'Без категории') return 1;
+      if (b.category === 'Без категории') return -1;
+      if (b.items.length !== a.items.length) return b.items.length - a.items.length;
+      return a.category.localeCompare(b.category, 'ru');
+    });
+}
 
 // сам текст, ничего не рендерит, если по этому разделу нашлось не найдено
 // (text === null) — не показываем пустые подписи.

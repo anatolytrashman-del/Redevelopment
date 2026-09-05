@@ -76,6 +76,20 @@ export interface BusinessCenter {
   // следующая сессия скачивает файл и разбирает вручную (пример разбора —
   // в журнале CLAUDE.md, 2026-09-06: plistlib+BeautifulSoup для .webarchive).
   mapSnapshotFiles: DocumentFile[];
+  // Организации внутри здания — владелец, 2026-09-06 (второй заход): "давай
+  // сделаем ещё блок арендаторов внутри БЦ... сгруппировать, на первое
+  // место ставь места с максимумом отзывов на картах". Источник — тот же
+  // веб-архив Яндекс.Карт (карточка "Организации внутри", раздел
+  // `.card-places-inside-view`), что уже используется для рейтинга/отзывов
+  // самого здания. ВАЖНО: у этого раздела на самой странице Яндекс.Карт нет
+  // числа отзывов/рейтинга на каждую отдельную организацию — карусель отдаёт
+  // только название и категорию (aria-label). Реальное "по числу отзывов"
+  // потребовало бы отдельного веб-архива на КАЖДУЮ организацию — нереалистично
+  // при 9-10+ арендаторах на объект. Поэтому сортировка на публичной странице
+  // — по размеру группы (категории с большим числом организаций первыми) как
+  // ближайший доступный из реальных данных прокси, не выдуманные цифры
+  // отзывов на конкретную организацию.
+  tenantOrganizations: TenantOrganization[];
   photos: string[];
   // 'built' по умолчанию. 'under_construction' — как МФЦ, ещё строится.
   status: 'built' | 'under_construction';
@@ -122,6 +136,16 @@ export interface HighlightSection {
   text: string;
 }
 
+// Одна организация из карусели "Организации внутри" на Яндекс.Картах —
+// category приходит из aria-label ссылки на странице ("Банк", "IT-компания",
+// "Кофейный автомат" и т.п.), не нормализована вручную под фиксированный
+// список — категорий на практике десятки и они специфичны для конкретного
+// здания (см. комментарий у BusinessCenter.tenantOrganizations).
+export interface TenantOrganization {
+  name: string;
+  category: string;
+}
+
 // Форма строки в таблице Supabase (snake_case-колонки) — см. lib/businessCentersApi.ts
 export interface BusinessCenterRow {
   id: string;
@@ -141,6 +165,7 @@ export interface BusinessCenterRow {
   rental_info: RentalInfo | null;
   highlights: HighlightSection[] | null;
   map_snapshot_files: DocumentFile[] | null;
+  tenant_organizations: TenantOrganization[] | null;
   photos: string[] | null;
   status: string | null;
   sort_order: number;
