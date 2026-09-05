@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Lightbulb, Lock, LogOut, X } from 'lucide-react';
+import { BarChart3, Lightbulb, Lock, LogOut, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { fetchBacklogUnreadCount } from '../../lib/backlogApi';
 import { getBacklogLastViewedAt, onBacklogViewed } from '../../lib/backlogSeen';
@@ -8,7 +8,7 @@ import { fetchLeadsUnreadCount } from '../../lib/leadsApi';
 import { getLeadsLastViewedAt, onLeadsViewed } from '../../lib/leadsSeen';
 import { fetchContractorsWithBirthdayToday } from '../../lib/contractorsApi';
 import { SIDEBAR_LAYOUT, findPage } from '../../data/pages';
-import { getCurrentProfile, isPageAllowed, signOutAndClearCache } from '../../lib/accessProfile';
+import { getCurrentProfile, isPageAllowed, isSuperAdminAllowed, signOutAndClearCache } from '../../lib/accessProfile';
 
 const backlogPage = findPage('backlog');
 
@@ -29,6 +29,16 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const backlogAllowed = isPageAllowed(profile, 'backlog');
   const leadsAllowed = isPageAllowed(profile, 'leads');
   const contractorsAllowed = isPageAllowed(profile, 'contractors');
+  // Владелец, 2026-09-05: "даже если у кого-то включен Полный доступ, эта
+  // страница будет только у меня" — 'metrics' сознательно НЕ заведён как
+  // обычный PageKey в data/pages.ts: там pages:'all' автоматически даёт
+  // доступ к любому ключу, а тут нужно жёсткое "только Трэшмен", независимо
+  // от профиля. Поэтому пункт меню не через renderNavItem/isPageAllowed, а
+  // отдельной веткой ниже — isSuperAdminAllowed (тот же гейт, что и у самого
+  // роута /admin/metrics, см. App.tsx). Для не-суперадмина пункт не просто
+  // недоступен, а не рисуется вовсе — чтобы не палить сам факт существования
+  // страницы с трекингом чужих действий.
+  const metricsAllowed = isSuperAdminAllowed(profile);
 
   // Не считаем непрочитанные бэклог/лиды и дни рождения подрядчиков для
   // профиля, которому эти разделы всё равно недоступны — не только чтобы
@@ -182,6 +192,21 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               ) : (
                 renderNavItem(findPage(entry.key))
               ),
+            )}
+            {metricsAllowed && (
+              <NavLink
+                to="/admin/metrics"
+                onClick={onClose}
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium transition-colors',
+                    isActive ? 'text-primary' : 'text-ink hover:text-primary',
+                  )
+                }
+              >
+                <BarChart3 className="h-5 w-5" />
+                Метрики
+              </NavLink>
             )}
           </nav>
         </div>
