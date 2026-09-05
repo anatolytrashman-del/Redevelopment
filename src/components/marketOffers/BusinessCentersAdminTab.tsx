@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Pencil, Plus, Trash2, Upload, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import { Modal } from '../ui/Modal';
@@ -16,8 +16,10 @@ import {
   updateBusinessCenter,
   deleteBusinessCenter,
 } from '../../lib/businessCentersApi';
+import { uploadObjectDocument } from '../../lib/objectsApi';
 import { BUSINESS_CENTER_CLASSES } from '../../data/businessCenters';
 import type { BusinessCenter, BusinessCenterHighlights, RentalInfo } from '../../data/businessCenters';
+import type { DocumentFile } from '../../data/contractorDocuments';
 
 // Вкладка "Бизнес-центры" на /admin/market-offers — админка для публичной
 // страницы /minsk/bcminsk (владелец, 2026-09-04: "пусть это будет админка
@@ -57,6 +59,8 @@ interface FormState {
   highlightMedia: string;
   highlightRating: string;
   highlightReviews: string;
+  mapSnapshotFiles: DocumentFile[]; // уже загруженные
+  pendingMapSnapshotFiles: File[]; // выбраны, но ещё не загружены (грузятся при сохранении)
   photos: string; // по одному пути на строку
   status: BusinessCenter['status'];
   sortOrder: string;
@@ -87,6 +91,8 @@ const EMPTY_FORM: FormState = {
   highlightMedia: '',
   highlightRating: '',
   highlightReviews: '',
+  mapSnapshotFiles: [],
+  pendingMapSnapshotFiles: [],
   photos: '',
   status: 'built',
   sortOrder: '0',
@@ -118,6 +124,8 @@ function centerToForm(c: BusinessCenter): FormState {
     highlightMedia: c.highlights?.media ?? '',
     highlightRating: c.highlights?.rating ?? '',
     highlightReviews: c.highlights?.reviews ?? '',
+    mapSnapshotFiles: c.mapSnapshotFiles,
+    pendingMapSnapshotFiles: [],
     photos: c.photos.join('\n'),
     status: c.status,
     sortOrder: String(c.sortOrder),
@@ -198,6 +206,7 @@ export function BusinessCentersAdminTab() {
     if (!form.name.trim() || !form.slug.trim()) return;
     setSaving(true);
     try {
+      const uploadedSnapshots = await Promise.all(form.pendingMapSnapshotFiles.map(uploadObjectDocument));
       const payload = {
         slug: form.slug.trim(),
         name: form.name.trim(),
@@ -214,6 +223,7 @@ export function BusinessCentersAdminTab() {
         description: form.description.trim() || null,
         rentalInfo: buildRentalInfo(form),
         highlights: buildHighlights(form),
+        mapSnapshotFiles: [...form.mapSnapshotFiles, ...uploadedSnapshots],
         photos: form.photos
           .split('\n')
           .map((s) => s.trim())
@@ -504,6 +514,59 @@ export function BusinessCentersAdminTab() {
               rows={4}
               placeholder="- **Имя** (месяц год, 5★): «текст отзыва»"
             />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-semibold text-ink">Файлы для ресерча (Яндекс.Карты, 2ГИС и т.п.)</p>
+            <p className="text-xs text-ink-faint">
+              Сохранённая страница организации (в Safari — «Сохранить как» → Web Archive, в Chrome — «Сохранить
+              страницу» → .html/.mhtml). Файл не разбирается автоматически — просто хранится здесь, чтобы можно
+              было выгрузить и разобрать данные (рейтинг/отзывы) вручную в следующий раз.
+            </p>
+            {form.mapSnapshotFiles.map((file, i) => (
+              <div key={file.url} className="flex items-center gap-2 rounded-control border border-border px-3 py-2 text-sm text-ink">
+                <a href={file.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-primary hover:underline">
+                  {file.fileName}
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, mapSnapshotFiles: f.mapSnapshotFiles.filter((_, idx) => idx !== i) }))}
+                  aria-label="Убрать файл"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center text-ink-faint hover:text-danger"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+            {form.pendingMapSnapshotFiles.map((file, i) => (
+              <div key={`pending-${i}`} className="flex items-center gap-2 rounded-control border border-dashed border-border px-3 py-2 text-sm text-ink-muted">
+                <span className="min-w-0 flex-1 truncate">{file.name} (загрузится при сохранении)</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm((f) => ({ ...f, pendingMapSnapshotFiles: f.pendingMapSnapshotFiles.filter((_, idx) => idx !== i) }))
+                  }
+                  aria-label="Убрать файл"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center text-ink-faint hover:text-danger"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+            <label className="flex w-fit cursor-pointer items-center gap-2 rounded-control border border-dashed border-border px-4 py-2.5 text-sm text-ink-muted hover:border-border-strong">
+              <Upload className="h-4 w-4" />
+              Добавить файл
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const picked = Array.from(e.target.files ?? []);
+                  e.target.value = '';
+                  if (picked.length) setForm((f) => ({ ...f, pendingMapSnapshotFiles: [...f.pendingMapSnapshotFiles, ...picked] }));
+                }}
+              />
+            </label>
           </div>
 
           <Textarea

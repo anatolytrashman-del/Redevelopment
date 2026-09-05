@@ -215,50 +215,36 @@ export function BusinessCenterDetailPage() {
           </div>
         </div>
 
-        {/* Рынок в этом здании — было списком отдельных объявлений, потом
-            статистикой в две строки + ссылками на живой поиск Kufar/Realt.
-            Обе правки не прижились: владелец увидел, что ссылка на Kufar в
-            реальном браузере открывает общую страницу без фильтра (не
-            проверить из песочницы — headless-браузер сюда не достаёт,
-            только curl, а он не показывает поведение клиентской гидратации
-            SPA), а ссылка на Realt через Google выглядела как костыль —
-            "или сделай нормально, или убирай вообще". Ссылки убраны
-            полностью. Заодно владелец: "мало данных как будто" — таблица
-            расширена разбивкой по типу помещения (то же поле property_type,
-            что уже есть в business_center_offers, раньше просто не
-            использовалось для группировки), и "Продажа" теперь показывается
-            явной строкой "нет объявлений", а не пропадает из виду, если
-            сейчас пусто. */}
-        {offers !== null && (
-          <div className={cn('mt-6 flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <h2 className="text-lg font-bold text-ink">Рынок в этом здании</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[480px] border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-ink-faint">
-                    <th scope="col" className="py-2 pr-3 text-left">
-                      Тип помещения
-                    </th>
-                    <th scope="col" className="py-2 px-2 text-right">
-                      Объявлений
-                    </th>
-                    <th scope="col" className="py-2 px-2 text-right">
-                      Площадь
-                    </th>
-                    <th scope="col" className="py-2 pl-2 text-right">
-                      Цена за м²
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  <OfferDealSection title="Продажа" rows={saleRows} isFirst />
-                  <OfferDealSection title="Аренда" rows={rentRows} />
-                </tbody>
-              </table>
+        {/* "Интересные факты" — отдельная от условий аренды категория:
+            история объекта, известные арендаторы, награды/СМИ, рейтинг и
+            отзывы с карт (владелец, 2026-09-06: "подтянуть рейтинг из
+            Яндекс.Карт, отзывы, другую инфу... чтобы страница была даже
+            понятнее, чем официальный сайт"). history/tenants/media — веб-
+            поиск (Gemini+google_search), КАЖДЫЙ факт перепроверен отдельным
+            независимым поиском (см. комментарий у BusinessCenterHighlights
+            в data/businessCenters.ts — первая попытка дала неподтверждённые
+            детали). rating/reviews заполняются владельцем вручную — прямой
+            поиск с картами дал похожие на правду, но выдуманные цитаты
+            отзывов, публиковать нельзя.
+            Порядок блоков на странице (владелец, 2026-09-06): главный блок
+            → Интересные факты → Условия для арендаторов → Рынок в этом
+            здании — общий интерес к объекту раньше практических деталей
+            аренды и голой статистики по объявлениям. */}
+        {center.highlights && (
+          <div className={cn('mt-6 flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+              <Sparkles className="h-5 w-5 shrink-0 text-primary" />
+              Интересные факты
+            </h2>
+            <div className="flex flex-col divide-y divide-border">
+              <LabeledTextRow icon={Landmark} label="История объекта" text={center.highlights.history} />
+              <LabeledTextRow icon={Building2} label="Известные арендаторы" text={center.highlights.tenants} />
+              <LabeledTextRow icon={Newspaper} label="Награды и СМИ" text={center.highlights.media} />
+              <LabeledTextRow icon={Star} label="Рейтинг на картах" text={center.highlights.rating} />
+              <LabeledTextRow icon={MessageSquareQuote} label="Отзывы" text={center.highlights.reviews} />
             </div>
             <p className="text-xs text-ink-faint">
-              Считается автоматически по объявлениям с Kufar и Realt.by, найденным по адресу здания — данные обновляются
-              ежемесячно, без ручной проверки каждой строки.
+              Собрано веб-поиском по открытым источникам (новости, реестры, карты) — не куратировано вручную.
             </p>
           </div>
         )}
@@ -316,21 +302,43 @@ export function BusinessCenterDetailPage() {
             детали). rating/reviews заполняются владельцем вручную — прямой
             поиск с картами дал похожие на правду, но выдуманные цитаты
             отзывов, публиковать нельзя. */}
-        {center.highlights && (
-          <div className={cn('mt-6 flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <Sparkles className="h-5 w-5 shrink-0 text-primary" />
-              Интересные факты
-            </h2>
-            <div className="flex flex-col divide-y divide-border">
-              <LabeledTextRow icon={Landmark} label="История объекта" text={center.highlights.history} />
-              <LabeledTextRow icon={Building2} label="Известные арендаторы" text={center.highlights.tenants} />
-              <LabeledTextRow icon={Newspaper} label="Награды и СМИ" text={center.highlights.media} />
-              <LabeledTextRow icon={Star} label="Рейтинг на картах" text={center.highlights.rating} />
-              <LabeledTextRow icon={MessageSquareQuote} label="Отзывы" text={center.highlights.reviews} />
+
+        {/* Объявления с Kufar и Realt — было "Рынок в этом здании", владелец
+            переименовал (2026-09-06), чтобы сразу было понятно источник
+            данных. История правок самой таблицы (разбивка по типу
+            помещения, явная строка "нет объявлений" вместо исчезновения
+            секции, убранные прямые ссылки на Kufar/Realt) — см. запись
+            2026-09-05 в CLAUDE.md. */}
+        {offers !== null && (
+          <div className={cn('mt-6 flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <h2 className="text-lg font-bold text-ink">Объявления с Kufar и Realt</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[480px] border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                    <th scope="col" className="py-2 pr-3 text-left">
+                      Тип помещения
+                    </th>
+                    <th scope="col" className="py-2 px-2 text-right">
+                      Объявлений
+                    </th>
+                    <th scope="col" className="py-2 px-2 text-right">
+                      Площадь
+                    </th>
+                    <th scope="col" className="py-2 pl-2 text-right">
+                      Цена за м²
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  <OfferDealSection title="Продажа" rows={saleRows} isFirst />
+                  <OfferDealSection title="Аренда" rows={rentRows} />
+                </tbody>
+              </table>
             </div>
             <p className="text-xs text-ink-faint">
-              Собрано веб-поиском по открытым источникам (новости, реестры, карты) — не куратировано вручную.
+              Считается автоматически по объявлениям с Kufar и Realt.by, найденным по адресу здания — данные обновляются
+              ежемесячно, без ручной проверки каждой строки.
             </p>
           </div>
         )}

@@ -7,6 +7,8 @@
 // (BusinessCentersMinskPage.tsx) и админка (BusinessCentersAdminTab.tsx)
 // читают/пишут через lib/businessCentersApi.ts.
 //
+import type { DocumentFile } from './contractorDocuments';
+
 // businessClass=null / district=null — "не указано", владелец: "где класс
 // не указан, поставь тег «Не указан», укажем вручную" — не выдумывать
 // значение, честно показывать как есть, дозаполнять со временем в админке.
@@ -55,6 +57,14 @@ export interface BusinessCenter {
   // именами и датами — то есть выдумал. Рейтинг/отзывы заполняются вручную
   // владельцем (копия/скриншот из его браузера, где Яндекс.Карты доступны).
   highlights: BusinessCenterHighlights | null;
+  // Сырые файлы для БУДУЩЕГО ресерча — владелец, 2026-09-06: "сделаешь в
+  // интерфейсе редактирования БЦ возможность загрузить файл из Яндекс.Карт,
+  // чтобы ты в следующей задаче ресерча уже брал эту инфу". Не парсится на
+  // лету в браузере (.webarchive — бинарный Apple-формат, .html/.mhtml тоже
+  // не то, что стоит разбирать в React) — просто хранится рядом с БЦ,
+  // следующая сессия скачивает файл и разбирает вручную (пример разбора —
+  // в журнале CLAUDE.md, 2026-09-06: plistlib+BeautifulSoup для .webarchive).
+  mapSnapshotFiles: DocumentFile[];
   photos: string[];
   // 'built' по умолчанию. 'under_construction' — как МФЦ, ещё строится.
   status: 'built' | 'under_construction';
@@ -108,6 +118,7 @@ export interface BusinessCenterRow {
   description: string | null;
   rental_info: RentalInfo | null;
   highlights: BusinessCenterHighlights | null;
+  map_snapshot_files: DocumentFile[] | null;
   photos: string[] | null;
   status: string | null;
   sort_order: number;
