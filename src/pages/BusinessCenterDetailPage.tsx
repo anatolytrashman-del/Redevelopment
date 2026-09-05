@@ -11,11 +11,16 @@ import {
   ChevronRight,
   FileText,
   Globe,
+  Landmark,
   Layers,
   MapPin,
+  MessageSquareQuote,
+  Newspaper,
   Phone,
   Ruler,
   ScrollText,
+  Sparkles,
+  Star,
   TrainFront,
   X,
 } from 'lucide-react';
@@ -266,7 +271,7 @@ export function BusinessCenterDetailPage() {
             большинству сайтов БЦ из песочницы нет). Первая версия рисовала
             всё одним абзацем — владелец: "верстка — пиздец, разбей на
             логические блоки, используй форматирование" — теперь отдельная
-            подписанная строка на каждый раздел (RentalInfoRow), важная
+            подписанная строка на каждый раздел (LabeledTextRow), важная
             оговорка источника (сайт недоступен, "Аден" по факту гостиница
             и т.п.) — акцентным блоком сверху, не затёртая в общем тексте.
             Каждое поле независимо может быть null — рисуем только то, что
@@ -286,16 +291,46 @@ export function BusinessCenterDetailPage() {
             )}
 
             <div className="flex flex-col divide-y divide-border">
-              <RentalInfoRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
-              <RentalInfoRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
-              <RentalInfoRow icon={Ruler} label="Площади и типы помещений" text={center.rentalInfo.sizes} />
-              <RentalInfoRow icon={Car} label="Парковка" text={center.rentalInfo.parking} />
-              <RentalInfoRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
+              <LabeledTextRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
+              <LabeledTextRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
+              <LabeledTextRow icon={Ruler} label="Площади и типы помещений" text={center.rentalInfo.sizes} />
+              <LabeledTextRow icon={Car} label="Парковка" text={center.rentalInfo.parking} />
+              <LabeledTextRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
             </div>
 
             <p className="text-xs text-ink-faint">
               Собрано автоматически по официальному сайту БЦ и открытым источникам — не куратировано вручную, перед
               подписанием договора уточняйте актуальные условия напрямую у арендодателя.
+            </p>
+          </div>
+        )}
+
+        {/* "Интересные факты" — отдельная от условий аренды категория:
+            история объекта, известные арендаторы, награды/СМИ, рейтинг и
+            отзывы с карт (владелец, 2026-09-06: "подтянуть рейтинг из
+            Яндекс.Карт, отзывы, другую инфу... чтобы страница была даже
+            понятнее, чем официальный сайт"). history/tenants/media — веб-
+            поиск (Gemini+google_search), КАЖДЫЙ факт перепроверен отдельным
+            независимым поиском (см. комментарий у BusinessCenterHighlights
+            в data/businessCenters.ts — первая попытка дала неподтверждённые
+            детали). rating/reviews заполняются владельцем вручную — прямой
+            поиск с картами дал похожие на правду, но выдуманные цитаты
+            отзывов, публиковать нельзя. */}
+        {center.highlights && (
+          <div className={cn('mt-6 flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+              <Sparkles className="h-5 w-5 shrink-0 text-primary" />
+              Интересные факты
+            </h2>
+            <div className="flex flex-col divide-y divide-border">
+              <LabeledTextRow icon={Landmark} label="История объекта" text={center.highlights.history} />
+              <LabeledTextRow icon={Building2} label="Известные арендаторы" text={center.highlights.tenants} />
+              <LabeledTextRow icon={Newspaper} label="Награды и СМИ" text={center.highlights.media} />
+              <LabeledTextRow icon={Star} label="Рейтинг на картах" text={center.highlights.rating} />
+              <LabeledTextRow icon={MessageSquareQuote} label="Отзывы" text={center.highlights.reviews} />
+            </div>
+            <p className="text-xs text-ink-faint">
+              Собрано веб-поиском по открытым источникам (новости, реестры, карты) — не куратировано вручную.
             </p>
           </div>
         )}
@@ -336,7 +371,7 @@ export function BusinessCenterDetailPage() {
 // Одна строка блока "Условия для арендаторов" — иконка + подпись раздела +
 // сам текст, ничего не рендерит, если по этому разделу нашлось не найдено
 // (text === null) — не показываем пустые подписи.
-function RentalInfoRow({ icon: Icon, label, text }: { icon: typeof FileText; label: string; text: string | null }) {
+function LabeledTextRow({ icon: Icon, label, text }: { icon: typeof FileText; label: string; text: string | null }) {
   if (!text) return null;
   return (
     <div className="flex gap-3 py-3 first:pt-0 last:pb-0">

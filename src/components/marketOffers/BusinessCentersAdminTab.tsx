@@ -17,7 +17,7 @@ import {
   deleteBusinessCenter,
 } from '../../lib/businessCentersApi';
 import { BUSINESS_CENTER_CLASSES } from '../../data/businessCenters';
-import type { BusinessCenter, RentalInfo } from '../../data/businessCenters';
+import type { BusinessCenter, BusinessCenterHighlights, RentalInfo } from '../../data/businessCenters';
 
 // Вкладка "Бизнес-центры" на /admin/market-offers — админка для публичной
 // страницы /minsk/bcminsk (владелец, 2026-09-04: "пусть это будет админка
@@ -52,6 +52,11 @@ interface FormState {
   rentalSizes: string;
   rentalParking: string;
   rentalContacts: string;
+  highlightHistory: string;
+  highlightTenants: string;
+  highlightMedia: string;
+  highlightRating: string;
+  highlightReviews: string;
   photos: string; // по одному пути на строку
   status: BusinessCenter['status'];
   sortOrder: string;
@@ -77,6 +82,11 @@ const EMPTY_FORM: FormState = {
   rentalSizes: '',
   rentalParking: '',
   rentalContacts: '',
+  highlightHistory: '',
+  highlightTenants: '',
+  highlightMedia: '',
+  highlightRating: '',
+  highlightReviews: '',
   photos: '',
   status: 'built',
   sortOrder: '0',
@@ -103,6 +113,11 @@ function centerToForm(c: BusinessCenter): FormState {
     rentalSizes: c.rentalInfo?.sizes ?? '',
     rentalParking: c.rentalInfo?.parking ?? '',
     rentalContacts: c.rentalInfo?.contacts ?? '',
+    highlightHistory: c.highlights?.history ?? '',
+    highlightTenants: c.highlights?.tenants ?? '',
+    highlightMedia: c.highlights?.media ?? '',
+    highlightRating: c.highlights?.rating ?? '',
+    highlightReviews: c.highlights?.reviews ?? '',
     photos: c.photos.join('\n'),
     status: c.status,
     sortOrder: String(c.sortOrder),
@@ -128,6 +143,17 @@ function buildRentalInfo(form: FormState): RentalInfo | null {
   const contacts = form.rentalContacts.trim() || null;
   if (!caveat && !terms && !rates && !sizes && !parking && !contacts) return null;
   return { caveat, terms, rates, sizes, parking, contacts };
+}
+
+// Тот же принцип, что и у buildRentalInfo — пустая форма → null целиком.
+function buildHighlights(form: FormState): BusinessCenterHighlights | null {
+  const history = form.highlightHistory.trim() || null;
+  const tenants = form.highlightTenants.trim() || null;
+  const media = form.highlightMedia.trim() || null;
+  const rating = form.highlightRating.trim() || null;
+  const reviews = form.highlightReviews.trim() || null;
+  if (!history && !tenants && !media && !rating && !reviews) return null;
+  return { history, tenants, media, rating, reviews };
 }
 
 export function BusinessCentersAdminTab() {
@@ -187,6 +213,7 @@ export function BusinessCentersAdminTab() {
         website: form.website.trim() || null,
         description: form.description.trim() || null,
         rentalInfo: buildRentalInfo(form),
+        highlights: buildHighlights(form),
         photos: form.photos
           .split('\n')
           .map((s) => s.trim())
@@ -433,6 +460,49 @@ export function BusinessCentersAdminTab() {
               value={form.rentalContacts}
               onChange={(e) => setForm({ ...form, rentalContacts: e.target.value })}
               rows={2}
+            />
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-control border border-border p-4">
+            <div>
+              <p className="text-sm font-semibold text-ink">Интересные факты (история, арендаторы, СМИ, рейтинг)</p>
+              <p className="text-xs text-ink-faint">
+                Та же нотация: «- » для буллетов, **жирным** — ключевые цифры/названия. Рейтинг и отзывы с карт —
+                только вручную (скриншот/копия из своего браузера), автопоиск для них ненадёжен — модель может
+                выдумать цитаты, даже честно признавшись, что не может открыть страницу.
+              </p>
+            </div>
+            <Textarea
+              label="История объекта"
+              value={form.highlightHistory}
+              onChange={(e) => setForm({ ...form, highlightHistory: e.target.value })}
+              rows={3}
+            />
+            <Textarea
+              label="Известные арендаторы"
+              value={form.highlightTenants}
+              onChange={(e) => setForm({ ...form, highlightTenants: e.target.value })}
+              rows={3}
+            />
+            <Textarea
+              label="Награды и СМИ"
+              value={form.highlightMedia}
+              onChange={(e) => setForm({ ...form, highlightMedia: e.target.value })}
+              rows={3}
+            />
+            <Textarea
+              label="Рейтинг на картах (вручную)"
+              value={form.highlightRating}
+              onChange={(e) => setForm({ ...form, highlightRating: e.target.value })}
+              rows={2}
+              placeholder="- Яндекс.Карты: **5,0** из 5 (204 оценки, 27 отзывов)"
+            />
+            <Textarea
+              label="Отзывы (вручную, реальные цитаты)"
+              value={form.highlightReviews}
+              onChange={(e) => setForm({ ...form, highlightReviews: e.target.value })}
+              rows={4}
+              placeholder="- **Имя** (месяц год, 5★): «текст отзыва»"
             />
           </div>
 

@@ -41,6 +41,20 @@ export interface BusinessCenter {
   // ничего не нашлось. null у всего объекта — сайта нет, недоступен был
   // при проверке, или на нём вообще нет такой информации (не выдумываем).
   rentalInfo: RentalInfo | null;
+  // "Интересные факты" — история объекта, известные арендаторы, награды и
+  // упоминания в СМИ, рейтинг/отзывы с карт (владелец, 2026-09-06: "давай
+  // подтянем рейтинг из Яндекс.Карт, отзывы, другую инфу про БЦ... чтобы
+  // страница была даже понятнее, чем официальный сайт"). История/арендаторы/
+  // СМИ — собраны веб-поиском (Gemini+google_search), КАЖДЫЙ факт
+  // перепроверен ОТДЕЛЬНЫМ независимым поиском перед публикацией — первая
+  // попытка дала правдоподобные, но неподтверждённые детали, не взяли на
+  // веру с одного ответа модели. rating/reviews — сознательно НЕ
+  // автоматизировано: прямой доступ к Яндекс.Картам из песочницы
+  // заблокирован, а "заземлённый" поиск, честно признавшись "не могу
+  // открыть страницу", всё равно выдал правдоподобные цитаты отзывов с
+  // именами и датами — то есть выдумал. Рейтинг/отзывы заполняются вручную
+  // владельцем (копия/скриншот из его браузера, где Яндекс.Карты доступны).
+  highlights: BusinessCenterHighlights | null;
   photos: string[];
   // 'built' по умолчанию. 'under_construction' — как МФЦ, ещё строится.
   status: 'built' | 'under_construction';
@@ -65,6 +79,17 @@ export interface RentalInfo {
   contacts: string | null;
 }
 
+// "Интересные факты" — независимая от rentalInfo категория (не про условия
+// аренды, а про сам объект как таковой). rating/reviews не автогенерятся
+// (см. комментарий у BusinessCenter.highlights) — заполняются вручную.
+export interface BusinessCenterHighlights {
+  history: string | null;
+  tenants: string | null;
+  media: string | null;
+  rating: string | null;
+  reviews: string | null;
+}
+
 // Форма строки в таблице Supabase (snake_case-колонки) — см. lib/businessCentersApi.ts
 export interface BusinessCenterRow {
   id: string;
@@ -82,6 +107,7 @@ export interface BusinessCenterRow {
   website: string | null;
   description: string | null;
   rental_info: RentalInfo | null;
+  highlights: BusinessCenterHighlights | null;
   photos: string[] | null;
   status: string | null;
   sort_order: number;
