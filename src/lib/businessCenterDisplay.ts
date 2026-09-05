@@ -67,6 +67,26 @@ export function shortMetro(metro: string): string {
   return cleaned;
 }
 
+// Прямые ссылки на живой поиск объявлений по адресу здания — владелец,
+// увидев итоговые объявления на карточке: "чтобы список был актуальным, его
+// придётся постоянно поддерживать. Я бы скорее давал агрегированную
+// статистику по площадям и ценам + давал прямые ссылки на куфар и realt,
+// чтобы открыли объявления по этим адресам". Тот же принцип поиска, что и
+// в scripts/sync-business-center-offers.mjs — полнотекстовый `query` на
+// Kufar по адресу (проверено вживую — точный адрес находит ровно нужные
+// объявления). У Realt своего поиска по ключевым словам нет (несколько
+// часов проб URL/API безуспешно, см. комментарий в скрипте синка) — вместо
+// него поиск через Google по `site:realt.by "<адрес>"`, тоже находит
+// реальные объявления по адресу, просто не через собственный поиск сайта
+// (честный компромисс, не выдаём это за нативный поиск Realt).
+export function buildKufarSearchUrl(fullAddress: string): string {
+  return `https://re.kufar.by/l/minsk/kommercheskaya?query=${encodeURIComponent(shortAddress(fullAddress))}`;
+}
+
+export function buildRealtSearchUrl(fullAddress: string): string {
+  return `https://www.google.com/search?q=${encodeURIComponent(`site:realt.by "${shortAddress(fullAddress)}"`)}`;
+}
+
 // Порядок для навигации "следующий/предыдущий БЦ" на отдельной странице —
 // тот же алфавит по короткому имени, что и в боковом меню хаба, чтобы
 // стрелки совпадали с порядком, который пользователь уже видел в списке.

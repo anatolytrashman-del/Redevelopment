@@ -19,7 +19,13 @@ import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from
 import { Badge } from '../components/ui/Badge';
 import { PhotoBlock, FactRow } from '../components/businessCenters/BusinessCenterVisuals';
 import { setBreadcrumbJsonLd, setNoIndex, clearNoIndex, setBusinessCenterPageMeta } from '../lib/pageMeta';
-import { businessClassTone, shortName, sortByShortName } from '../lib/businessCenterDisplay';
+import {
+  businessClassTone,
+  buildKufarSearchUrl,
+  buildRealtSearchUrl,
+  shortName,
+  sortByShortName,
+} from '../lib/businessCenterDisplay';
 import type { BusinessCenter } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import type { BusinessCenterOffer } from '../data/businessCenterOffers';
@@ -69,8 +75,8 @@ export function BusinessCenterDetailPage() {
   const prev = index > 0 ? sorted[index - 1] : null;
   const next = index >= 0 && index < sorted.length - 1 ? sorted[index + 1] : null;
 
-  const saleOffers = useMemo(() => (offers ?? []).filter((o) => o.dealType === 'sale'), [offers]);
-  const rentOffers = useMemo(() => (offers ?? []).filter((o) => o.dealType === 'rent'), [offers]);
+  const saleStats = useMemo(() => computeOfferStats((offers ?? []).filter((o) => o.dealType === 'sale')), [offers]);
+  const rentStats = useMemo(() => computeOfferStats((offers ?? []).filter((o) => o.dealType === 'rent')), [offers]);
 
   useEffect(() => {
     if (!center) return;
@@ -205,24 +211,54 @@ export function BusinessCenterDetailPage() {
           </div>
         </div>
 
-        {/* Объявления о продаже/аренде в этом здании (владелец, 2026-09-05) —
-            собраны автоматически с Kufar/Realt по адресу здания (см.
-            scripts/sync-business-center-offers.mjs), без ручной проверки
-            каждой строки, поэтому подпись честно указывает источник и время
-            обновления, а не выдаёт список за куратированный. Пустой список —
-            обычное дело (не у каждого БЦ прямо сейчас есть активные
-            объявления), поэтому блок при пустом offers?.length===0 не
-            рендерится вовсе, а не показывает "ничего не найдено".*/}
-        {offers === null ? null : offers.length > 0 ? (
-          <div className={cn('mt-6 flex flex-col gap-5 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <h2 className="text-lg font-bold text-ink">Объявления в этом здании</h2>
-            {saleOffers.length > 0 && <OfferGroup title="Продажа" offers={saleOffers} />}
-            {rentOffers.length > 0 && <OfferGroup title="Аренда" offers={rentOffers} />}
+        {/* Рынок в этом здании — было списком отдельных объявлений, владелец
+            после первой версии: "чтобы список был актуальным, его придётся
+            постоянно поддерживать. Я бы скорее давал агрегированную
+            статистику по площадям и ценам + давал прямые ссылки на куфар и
+            realt, чтобы открыли объявления по этим адресам" — картина не
+            протухает сама по себе (числа считаются из свежего синка раз в
+            месяц, см. scripts/sync-business-center-offers.mjs), а клик по
+            ссылке уводит на живой поиск источника, а не на наш возможно
+            устаревший кэш конкретного объявления. */}
+        {offers !== null && (
+          <div className={cn('mt-6 flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <h2 className="text-lg font-bold text-ink">Рынок в этом здании</h2>
+            {saleStats || rentStats ? (
+              <div className="flex flex-col gap-3">
+                {saleStats && <OfferStatsRow title="Продажа" stats={saleStats} />}
+                {rentStats && <OfferStatsRow title="Аренда" stats={rentStats} />}
+              </div>
+            ) : (
+              <p className="text-sm text-ink-faint">
+                Сейчас в базе нет ни одного активного объявления по этому адресу — проверьте напрямую по ссылкам ниже.
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={buildKufarSearchUrl(center.address)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn('flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-ink', glassPillClass)}
+              >
+                Смотреть на Kufar
+                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+              </a>
+              <a
+                href={buildRealtSearchUrl(center.address)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn('flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-ink', glassPillClass)}
+              >
+                Смотреть на Realt.by
+                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+              </a>
+            </div>
             <p className="text-xs text-ink-faint">
-              Собрано автоматически с Kufar и Realt.by по адресу здания — актуальность и детали смотрите по ссылке на источник.
+              Статистика считается автоматически по объявлениям с Kufar и Realt.by, найденным по адресу здания, и обновляется
+              ежемесячно — актуальные варианты смотрите по ссылкам выше.
             </p>
           </div>
-        ) : null}
+        )}
 
         {/* Мобильная навигация "следующий/предыдущий" — фиксированные стрелки
             выше скрыты до lg, здесь тот же переход обычной строкой кнопок. */}
@@ -260,32 +296,66 @@ export function BusinessCenterDetailPage() {
 // Продажа/аренда — одинаковая вёрстка, только заголовок и набор объявлений
 // разные. Отсортированы по цене за м² уже на уровне запроса
 // (fetchBusinessCenterOffers), тут просто рендерятся по порядку.
-function OfferGroup({ title, offers }: { title: string; offers: BusinessCenterOffer[] }) {
+interface OfferStats {
+  count: number;
+  minSize: number;
+  maxSize: number;
+  minPrice: number;
+  medianPrice: number;
+  maxPrice: number;
+}
+
+function computeOfferStats(offers: BusinessCenterOffer[]): OfferStats | null {
+  if (offers.length === 0) return null;
+  const sizes = offers.map((o) => o.size);
+  const prices = offers.map((o) => o.pricePerSqm).sort((a, b) => a - b);
+  const mid = Math.floor(prices.length / 2);
+  const medianPrice = prices.length % 2 !== 0 ? prices[mid] : (prices[mid - 1] + prices[mid]) / 2;
+  return {
+    count: offers.length,
+    minSize: Math.min(...sizes),
+    maxSize: Math.max(...sizes),
+    minPrice: Math.min(...prices),
+    medianPrice,
+    maxPrice: Math.max(...prices),
+  };
+}
+
+// "1 объявление" / "2 объявления" / "5 объявлений" — стандартное русское
+// склонение по последней цифре (с исключением на 11-14).
+function pluralOffers(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'объявление';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'объявления';
+  return 'объявлений';
+}
+
+function formatUsd(n: number): string {
+  return `$${Math.round(n).toLocaleString('ru-RU')}`;
+}
+
+function OfferStatsRow({ title, stats }: { title: string; stats: OfferStats }) {
+  const sizeRange =
+    stats.minSize === stats.maxSize
+      ? `${stats.minSize.toLocaleString('ru-RU')} м²`
+      : `${stats.minSize.toLocaleString('ru-RU')}–${stats.maxSize.toLocaleString('ru-RU')} м²`;
+  const priceRange =
+    stats.minPrice === stats.maxPrice
+      ? `${formatUsd(stats.minPrice)}/м²`
+      : `${formatUsd(stats.minPrice)}–${formatUsd(stats.maxPrice)}/м² (медиана ${formatUsd(stats.medianPrice)})`;
+
   return (
-    <div className="flex flex-col gap-1">
-      <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-faint">
-        {title} · {offers.length}
-      </h3>
-      <div className="flex flex-col divide-y divide-border">
-        {offers.map((offer) => (
-          <a
-            key={offer.id}
-            href={offer.adLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-between gap-3 py-2.5 text-sm transition-colors hover:text-primary"
-          >
-            <span className="text-ink-muted">
-              {offer.propertyType ?? 'Без категории'} · {offer.size.toLocaleString('ru-RU')} м²
-              {offer.floor != null ? `, этаж ${offer.floor}` : ''}
-              <span className="text-ink-faint"> · {offer.source}</span>
-            </span>
-            <span className="flex shrink-0 items-center gap-1 font-semibold text-ink">
-              ${offer.pricePerSqm.toLocaleString('ru-RU')}/м²
-              <ExternalLink className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
-            </span>
-          </a>
-        ))}
+    <div className="flex flex-col gap-1 rounded-control bg-surface-muted p-4">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-bold text-ink">{title}</span>
+        <span className="text-xs text-ink-faint">
+          {stats.count} {pluralOffers(stats.count)}
+        </span>
+      </div>
+      <div className="flex flex-col gap-0.5 text-sm text-ink-muted sm:flex-row sm:gap-6">
+        <span>Площадь: {sizeRange}</span>
+        <span>Цена за м²: {priceRange}</span>
       </div>
     </div>
   );
