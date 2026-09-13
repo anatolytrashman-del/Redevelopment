@@ -6,6 +6,7 @@ import { IntentAgreementDocument } from './IntentAgreementDocument';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../../lib/glass';
 import type { ObjectDocumentFile } from '../../data/objects';
+import type { DealMode } from '../../data/buildingPlans';
 
 // Тот же id стоит на обёртке PublicPlanAndUnits — кнопка "Выбрать кабинет"
 // здесь просто скроллит к нему, без прокидывания рефов между соседними
@@ -13,7 +14,10 @@ import type { ObjectDocumentFile } from '../../data/objects';
 export const PLAN_AND_UNITS_ANCHOR_ID = 'plan-and-units';
 
 interface BookingTermsCardProps {
+  // Родитель уже выбирает нужный файл по dealMode (intentAgreementFile vs
+  // rentIntentAgreementFile) — см. ObjectLandingPage.tsx.
   agreement: ObjectDocumentFile | null;
+  dealMode?: DealMode;
 }
 
 interface Step {
@@ -47,7 +51,7 @@ const steps: Step[] = [
 // PublicPlanAndUnits), так что и там, и там кнопка ведёт к списку — но на
 // 3-м шаге это финальный, самый заметный призыв после всего объяснения, а
 // не дубль. Шаг 1 — только лёгкая ссылка-подсказка "куда смотреть".
-export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
+export function BookingTermsCard({ agreement, dealMode = 'sale' }: BookingTermsCardProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
 
   function scrollToUnits() {
@@ -154,7 +158,7 @@ export function BookingTermsCard({ agreement }: BookingTermsCardProps) {
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto rounded-control bg-surface-muted p-3 sm:p-6">
-                <IntentAgreementDocument />
+                <IntentAgreementDocument dealMode={dealMode} />
               </div>
               <div className="flex flex-col items-start gap-1 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-ink-faint">Согласны с условиями? Выберите кабинет и подпишите онлайн.</p>

@@ -5,6 +5,7 @@ import { Input } from '../ui/Input';
 import { ToggleGroup } from '../ui/ToggleGroup';
 import { requestAgreementOtp, verifyAgreementOtp } from '../../lib/agreementSigningApi';
 import { guessGenderFromName } from '../../lib/guessGender';
+import type { DealMode } from '../../data/buildingPlans';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err instanceof Error) return err.message;
@@ -35,6 +36,9 @@ interface AgreementSigningFlowProps {
   zoneFloorLabel: string;
   zoneLabel: string;
   isWorkstation: boolean;
+  // Покупка (по умолчанию) или аренда — влияет на то, какой гугл-шаблон
+  // соглашения подставит api/agreement-otp-verify.js. Саму форму не меняет.
+  dealMode?: DealMode;
   // Родитель показывает "Забронировано!" только после реального подписания,
   // а не сразу после брони — см. PublicPlanAndUnits.
   onSigned?: () => void;
@@ -53,6 +57,7 @@ export function AgreementSigningFlow({
   zoneFloorLabel,
   zoneLabel,
   isWorkstation,
+  dealMode = 'sale',
   onSigned,
 }: AgreementSigningFlowProps) {
   const [step, setStep] = useState<'closed' | 'form' | 'code' | 'done'>('closed');
@@ -80,6 +85,7 @@ export function AgreementSigningFlow({
         zoneFloorLabel,
         zoneLabel,
         isWorkstation,
+        dealMode,
         buyerName: form.buyerName.trim(),
         buyerGender: guessGenderFromName(form.buyerName.trim()) ?? 'Мужчина',
         buyerCitizenship: CITIZENSHIP_CODE[form.buyerCitizenship],

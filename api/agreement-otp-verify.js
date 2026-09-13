@@ -1,7 +1,9 @@
 // Vercel serverless function: второй шаг подписания соглашения о намерениях.
-// Проверяет одноразовый код, затем копирует гугл-документ шаблона
-// (env INTENT_AGREEMENT_TEMPLATE_ID — id строки в document_templates),
-// подставляет данные покупателя/кабинета и видимую отметку о факте
+// Проверяет одноразовый код, затем копирует гугл-документ шаблона (env
+// INTENT_AGREEMENT_TEMPLATE_ID/WORKSTATION_AGREEMENT_TEMPLATE_ID для покупки,
+// RENT_AGREEMENT_TEMPLATE_ID/RENT_WORKSTATION_AGREEMENT_TEMPLATE_ID для
+// аренды — id строки в document_templates, см. выбор ниже), подставляет
+// данные покупателя/арендатора и кабинета и видимую отметку о факте
 // электронного подписания, экспортирует результат в PDF и сохраняет его
 // в Supabase Storage — клиенту и админке нужен самостоятельный файл,
 // а не ссылка на гугл-документ.
@@ -122,12 +124,18 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Фиксированное рабочее место — отдельный шаблон соглашения (не м²,
-    // а формат/место), который владелец заводит сам через админку "Шаблоны",
-    // как и обычный INTENT_AGREEMENT_TEMPLATE_ID.
-    const templateId = row.is_workstation
-      ? process.env.WORKSTATION_AGREEMENT_TEMPLATE_ID
-      : process.env.INTENT_AGREEMENT_TEMPLATE_ID;
+    // Четыре независимых шаблона (кабинет/рабочее место × покупка/аренда) —
+    // владелец заводит каждый сам через админку "Шаблоны" и указывает id
+    // соответствующей переменной окружения на Vercel. Текст соглашения на
+    // покупку и на аренду принципиально разный (ставка, стороны, предмет),
+    // поэтому это не один шаблон с условной вставкой, а разные документы.
+    const templateEnvKey = row.deal_mode === 'rent'
+      ? (row.is_workstation ? 'RENT_WORKSTATION_AGREEMENT_TEMPLATE_ID' : 'RENT_AGREEMENT_TEMPLATE_ID')
+      : (row.is_workstation ? 'WORKSTATION_AGREEMENT_TEMPLATE_ID' : 'INTENT_AGREEMENT_TEMPLATE_ID');
+    const templateId = process.env[templateEnvKey];
+    if (!templateId) {
+      throw new Error(`Шаблон соглашения не настроен: не задана переменная окружения ${templateEnvKey}`);
+    }
     const template = await fetchDocumentTemplate(templateId);
     const docId = extractDocId(template.url);
     if (!docId) throw new Error('Не удалось определить ID документа из ссылки шаблона');
@@ -155,7 +163,10 @@ export default async function handler(req, res) {
       signature_stamp: signatureStamp,
     };
 
-    const copy = await copyDoc(docId, `Соглашение о намерениях — ${row.buyer_name} — ${now.toLocaleDateString('ru-RU')}`, accessToken);
+    const copyTitle =
+      `Соглашение о намерениях${row.deal_mode === 'rent' ? ' (аренда)' : ''} — ${row.buyer_name} — ` +
+      now.toLocaleDateString('ru-RU');
+    const copy = await copyDoc(docId, copyTitle, accessToken);
 
     const requests = Object.entries(values).map(([key, text]) => ({
       replaceAllText: {
