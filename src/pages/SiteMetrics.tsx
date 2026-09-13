@@ -58,12 +58,36 @@ import type { GoogleSearchConsoleStat } from '../data/googleSearchConsoleStats';
 // просто больше не выводятся здесь; смотреть напрямую в таблице, если
 // понадобится точный статус конкретной страницы.
 
-type PeriodDays = 7 | 30 | 90;
-const PERIOD_LABELS: Record<PeriodDays, string> = { 7: '7 дней', 30: '30 дней', 90: '90 дней' };
-const PERIOD_OPTIONS = Object.values(PERIOD_LABELS);
-const LABEL_TO_DAYS = Object.fromEntries(
-  Object.entries(PERIOD_LABELS).map(([days, label]) => [label, Number(days) as PeriodDays]),
-) as Record<string, PeriodDays>;
+// 2026-09-13 — по просьбе владельца добавлен период "Вчера" (ровно один
+// календарный день, не "последний день из окна") — отдельно от 7/30/90,
+// потому что те считают скользящее окно N дней, а "Вчера" должен показывать
+// именно вчерашний день без сегодняшнего (у которого сутки ещё не закончились).
+// Порядок вариантов задаём явно массивом PERIOD_ORDER, а не полагаемся на
+// порядок ключей объекта — числовые ключи (7/30/90) в JS всегда
+// перечисляются раньше строковых ('yesterday'), это увело бы "Вчера" в конец
+// списка вместо начала.
+type Period = 'yesterday' | 7 | 30 | 90;
+const PERIOD_LABELS: Record<Period, string> = { yesterday: 'Вчера', 7: '7 дней', 30: '30 дней', 90: '90 дней' };
+const PERIOD_ORDER: Period[] = ['yesterday', 7, 30, 90];
+const PERIOD_OPTIONS = PERIOD_ORDER.map((p) => PERIOD_LABELS[p]);
+const LABEL_TO_PERIOD = Object.fromEntries(
+  PERIOD_ORDER.map((p) => [PERIOD_LABELS[p], p]),
+) as Record<string, Period>;
+
+// Данные приходят по дням без пропусков (см. scripts/sync-yandex-metrika.mjs)
+// и последняя строка — всегда "сегодня" (date2: 'today' в запросе к Метрике),
+// поэтому "вчера" — предпоследняя строка массива, а не дата, вычисленная
+// вручную через часовой пояс (так это остаётся верным независимо от того,
+// в каком часовом поясе Метрика считает границу суток).
+function sliceCurrentPeriod<T>(data: T[], period: Period): T[] {
+  if (period === 'yesterday') return data.length >= 2 ? data.slice(-2, -1) : [];
+  return data.slice(-period);
+}
+
+function slicePreviousPeriod<T>(data: T[], period: Period): T[] {
+  if (period === 'yesterday') return data.length >= 3 ? data.slice(-3, -2) : [];
+  return data.slice(-period * 2, -period);
+}
 
 function formatDateShort(iso: string): string {
   const d = new Date(`${iso}T00:00:00`);
@@ -315,7 +339,7 @@ export function SiteMetrics() {
   const [webmasterStats, setWebmasterStats] = useState<YandexWebmasterStat[] | null>(null);
   const [googleStats, setGoogleStats] = useState<GoogleSearchConsoleStat[] | null>(null);
   const [error, setError] = useState('');
-  const [periodDays, setPeriodDays] = useState<PeriodDays>(30);
+  const [period, setPeriod] = useState<Period>(30);
   const [topPagesExpanded, setTopPagesExpanded] = useState(false);
 
   useEffect(() => {
@@ -344,19 +368,16 @@ export function SiteMetrics() {
 
   const loading = dailyStats === null || trafficSources === null || topPages === null || goalCompletions === null;
 
-  const currentPeriod = useMemo(() => (dailyStats ?? []).slice(-periodDays), [dailyStats, periodDays]);
-  const previousPeriod = useMemo(
-    () => (dailyStats ?? []).slice(-periodDays * 2, -periodDays),
-    [dailyStats, periodDays],
-  );
+  const currentPeriod = useMemo(() => sliceCurrentPeriod(dailyStats ?? [], period), [dailyStats, period]);
+  const previousPeriod = useMemo(() => slicePreviousPeriod(dailyStats ?? [], period), [dailyStats, period]);
 
-  const currentGoals = useMemo(() => (goalCompletions ?? []).slice(-periodDays), [goalCompletions, periodDays]);
+  const currentGoals = useMemo(() => sliceCurrentPeriod(goalCompletions ?? [], period), [goalCompletions, period]);
   const previousGoals = useMemo(
-    () => (goalCompletions ?? []).slice(-periodDays * 2, -periodDays),
-    [goalCompletions, periodDays],
+    () => slicePreviousPeriod(goalCompletions ?? [], period),
+    [goalCompletions, period],
   );
 
-  const currentWebmaster = useMemo(() => (webmasterStats ?? []).slice(-periodDays), [webmasterStats, periodDays]);
+  const currentWebmaster = useMemo(() => sliceCurrentPeriod(webmasterStats ?? [], period), [webmasterStats, period]);
   // "Страниц в поиске" — не сумма по дням (это счётчик состояния, не
   // событие), берём последнее известное значение в периоде.
   const latestPagesInSearch = useMemo(() => {
@@ -368,7 +389,7 @@ export function SiteMetrics() {
   }, [currentWebmaster]);
   const hasSearchQueryData = currentWebmaster.some((d) => d.impressions !== null || d.clicks !== null);
 
-  const currentGoogle = useMemo(() => (googleStats ?? []).slice(-periodDays), [googleStats, periodDays]);
+  const currentGoogle = useMemo(() => sliceCurrentPeriod(googleStats ?? [], period), [googleStats, period]);
   const latestGoogleCoverage = useMemo(() => {
     for (let i = currentGoogle.length - 1; i >= 0; i--) {
       const d = currentGoogle[i];
@@ -414,8 +435,8 @@ export function SiteMetrics() {
             <ToggleGroup
               label="Период"
               options={PERIOD_OPTIONS}
-              value={PERIOD_LABELS[periodDays]}
-              onChange={(label) => setPeriodDays(LABEL_TO_DAYS[label])}
+              value={PERIOD_LABELS[period]}
+              onChange={(label) => setPeriod(LABEL_TO_PERIOD[label])}
             />
             {maxUpdatedAt && (
               <p className="text-xs text-ink-muted">

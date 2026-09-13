@@ -92,6 +92,19 @@ const COUNTER_ID = 111858495;
 const WINDOW_DAYS = 90;
 const GOAL_IDENTIFIER = 'booking_submitted';
 
+// 2026-09-13 — владелец попросил очистить накопленные цифры посещаемости и
+// дальше показывать только вчера/сегодня и то, что накопится заново. Ряды
+// (1) и (4) идут через upsert по date и НЕ удаляются этим скриптом — старые
+// дни, once written, остаются в таблице сами по себе; опасность был не в
+// хранении, а в том, что WINDOW_DAYS=90 каждый прогон заново перезатягивал
+// все 90 дней из Метрики поверх уже очищенной вручную истории (см.
+// docs/session-journal.md, 2026-09-13). Сузили ИМЕННО окно ЗАПРОСА к Метрике
+// для этих двух дневных рядов до "вчера+сегодня" — так и очистка не
+// перезатирается следующим прогоном, и таблица честно накапливается день за
+// днём. (2)/(3) — не дневные ряды, а разовый снимок за окно целиком
+// (см. комментарий выше), их WINDOW_DAYS не трогаем — не в рамках этой правки.
+const TREND_WINDOW_DAYS = 2;
+
 const METRIKA_API = 'https://api-metrika.yandex.net';
 
 async function fetchYandexToken() {
@@ -152,15 +165,19 @@ function windowDateParams() {
   return { date1: `${WINDOW_DAYS - 1}daysAgo`, date2: 'today' };
 }
 
+function trendWindowDateParams() {
+  return { date1: `${TREND_WINDOW_DAYS - 1}daysAgo`, date2: 'today' };
+}
+
 async function syncDailyStats(token) {
   const body = await metrikaFetch(token, '/stat/v1/data', {
     ids: COUNTER_ID,
     metrics: 'ym:s:visits,ym:s:users,ym:s:pageviews,ym:s:bounceRate,ym:s:pageDepth,ym:s:avgVisitDurationSeconds',
     dimensions: 'ym:s:date',
     sort: 'ym:s:date',
-    limit: WINDOW_DAYS + 10,
+    limit: TREND_WINDOW_DAYS + 5,
     filters: ADMIN_EXCLUDE_FILTER_SESSION,
-    ...windowDateParams(),
+    ...trendWindowDateParams(),
   });
   if (PRINT_JSON) console.log('daily-stats raw:', JSON.stringify(body, null, 2));
 
@@ -261,9 +278,9 @@ async function syncGoalCompletions(token) {
     metrics: `ym:s:goal${goalId}reaches,ym:s:goal${goalId}conversionRate`,
     dimensions: 'ym:s:date',
     sort: 'ym:s:date',
-    limit: WINDOW_DAYS + 10,
+    limit: TREND_WINDOW_DAYS + 5,
     filters: ADMIN_EXCLUDE_FILTER_SESSION,
-    ...windowDateParams(),
+    ...trendWindowDateParams(),
   });
   if (PRINT_JSON) console.log('goal-completions raw:', JSON.stringify(body, null, 2));
 
