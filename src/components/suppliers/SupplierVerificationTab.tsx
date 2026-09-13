@@ -72,11 +72,23 @@ interface HostGroup {
 // снимок сайта ещё не классифицирован/классификатор ничего не нашёл) в
 // основную очередь не идут вовсе (см. комментарий про "вторую очередь"
 // в шапке файла — в интерфейсе больше нигде не показываются).
+//
+// Владелец, 2026-09-13 (шестой заход, после разбора кейсов abb-electro.ru/
+// oaomkk.ru/priorglass.ru — массовая переклассификация "второго захода"
+// оказалась в основном галлюцинацией, см. data/supplierSiteSnapshots.ts):
+// "отложи вообще всю очередь верификации... будем шаг за шагом дообучать
+// модель" — снимок сайта ДОПОЛНИТЕЛЬНО должен быть помечен
+// categoriesVerified (пересчитан новым методом и одобрен владельцем), иначе
+// в очередь не идёт, ДАЖЕ если у него уже есть непустые categories от
+// старого ненадёжного прогона. Расширять очередь можно только пачками —
+// переклассифицировать пачку доменов реальными разделами сайта, показать
+// владельцу до/после, после одобрения проставить categories_verified=true.
 function isReadyForVerification(group: HostGroup): boolean {
   return (
     group.representative.name.trim().length > 0 &&
     group.representative.email.trim().length > 0 &&
-    (group.snapshot?.categories.length ?? 0) > 0
+    (group.snapshot?.categories.length ?? 0) > 0 &&
+    group.snapshot?.categoriesVerified === true
   );
 }
 
