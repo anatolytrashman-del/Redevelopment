@@ -2934,7 +2934,7 @@ export function Suppliers() {
     ) : undefined;
 
   const unreadSupplierEmailsCount = countUnreadSupplierEmails(supplierEmails);
-  const pendingVerificationCount = pendingVerificationHostCount(offers);
+  const pendingVerificationCount = pendingVerificationHostCount(offers, siteSnapshots);
 
   return (
     <>

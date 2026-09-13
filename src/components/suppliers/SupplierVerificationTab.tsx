@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CheckCircle2, ExternalLink, MessageCircle, Phone, Play, Send, Trash2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ExternalLink, MessageCircle, Phone, Play, Send, Trash2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { ContactValue } from '../ui/ContactValue';
 import { cn } from '../../lib/cn';
@@ -40,6 +40,16 @@ import type { SupplierSiteSnapshot } from '../../data/supplierSiteSnapshots';
 // от крупных площадок с антискрейпингом. Для тех, что всё же блокируют
 // встраивание (сайт будет пустым/не загрузится) — рядом всегда есть ссылка
 // "Открыть в новой вкладке".
+//
+// "Вторая очередь" (владелец, 2026-09-13, третий заход — после разбора
+// кейса 169.ru, см. docs/session-journal.md): "на верификацию мне нужны
+// только те, где есть название, почта и все категории каталога". Хост, у
+// которого это не так (нет email, или снимок сайта ещё не дошёл до
+// классификации/классификатор ничего не нашёл), в основную очередь
+// (карточка + браузер + кнопка "Верифицировать") не попадает вовсе, а
+// перечисляется отдельным списком ниже с причиной — только чтобы было
+// видно, что они есть, без действия по умолчанию (кнопка "Редактировать"
+// уходит в общую форму карточки поставщика).
 
 interface HostGroup {
   host: string;
@@ -51,9 +61,23 @@ interface HostGroup {
   snapshot: SupplierSiteSnapshot | null;
 }
 
-// Используется и здесь, и бейджем на самой вкладке (Suppliers.tsx) — чтобы
-// не считать по разным правилам в двух местах.
-export function pendingVerificationHostCount(offers: SupplierOffer[]): number {
+// Владелец, 2026-09-13 (третий заход, после разбора кейса 169.ru — брак
+// одного прогона классификатора записал пустые категории части
+// поставщиков, хотя по факту распознать их было можно, см.
+// docs/session-journal.md): "на верификацию мне нужны только те, где есть
+// название, почта и все категории каталога" — остальные (нет email или
+// снимок сайта ещё не классифицирован/классификатор ничего не нашёл) в
+// основную очередь не идут вовсе, а показываются отдельным списком
+// ("вторая очередь") ниже, без кнопки "Верифицировать".
+function isReadyForVerification(group: HostGroup): boolean {
+  return (
+    group.representative.name.trim().length > 0 &&
+    group.representative.email.trim().length > 0 &&
+    (group.snapshot?.categories.length ?? 0) > 0
+  );
+}
+
+function buildHostGroups(offers: SupplierOffer[], snapshotByHost: Map<string, SupplierSiteSnapshot>): HostGroup[] {
   const byHost = new Map<string, SupplierOffer[]>();
   for (const o of offers) {
     const host = supplierWebsiteHost(o.websiteUrl);
@@ -61,11 +85,22 @@ export function pendingVerificationHostCount(offers: SupplierOffer[]): number {
     if (!byHost.has(host)) byHost.set(host, []);
     byHost.get(host)!.push(o);
   }
-  let count = 0;
-  for (const list of byHost.values()) {
-    if (list.some((o) => !o.verified)) count++;
+  const groups: HostGroup[] = [];
+  for (const [host, list] of byHost) {
+    const unverified = list.find((o) => !o.verified);
+    if (!unverified) continue;
+    groups.push({ host, offers: list, representative: unverified, snapshot: snapshotByHost.get(host) ?? null });
   }
-  return count;
+  return groups;
+}
+
+// Используется и здесь, и бейджем на самой вкладке (Suppliers.tsx) — чтобы
+// не считать по разным правилам в двух местах. Считает только то, что
+// реально попадёт в очередь верификации (см. isReadyForVerification) — не
+// "вторую очередь".
+export function pendingVerificationHostCount(offers: SupplierOffer[], snapshots: SupplierSiteSnapshot[]): number {
+  const snapshotByHost = new Map(snapshots.map((s) => [s.host, s]));
+  return buildHostGroups(offers, snapshotByHost).filter(isReadyForVerification).length;
 }
 
 function SiteBrowser({ url }: { url: string }) {
@@ -259,22 +294,20 @@ export function SupplierVerificationTab({
   // SupplierCatalog.tsx (молчаливо прятать их было бы потерей данных).
   const countryOffers = useMemo(() => offers.filter((o) => !o.country.trim() || o.country === country), [offers, country]);
 
-  const hostGroups = useMemo<HostGroup[]>(() => {
-    const byHost = new Map<string, SupplierOffer[]>();
-    for (const o of countryOffers) {
-      const host = supplierWebsiteHost(o.websiteUrl);
-      if (!host) continue;
-      if (!byHost.has(host)) byHost.set(host, []);
-      byHost.get(host)!.push(o);
-    }
-    const groups: HostGroup[] = [];
-    for (const [host, list] of byHost) {
-      const unverified = list.find((o) => !o.verified);
-      if (!unverified) continue;
-      groups.push({ host, offers: list, representative: unverified, snapshot: snapshotByHost.get(host) ?? null });
-    }
-    return groups.sort((a, b) => a.host.localeCompare(b.host));
-  }, [countryOffers, snapshotByHost]);
+  const allHostGroups = useMemo<HostGroup[]>(
+    () => buildHostGroups(countryOffers, snapshotByHost).sort((a, b) => a.host.localeCompare(b.host)),
+    [countryOffers, snapshotByHost],
+  );
+  const hostGroups = useMemo(() => allHostGroups.filter(isReadyForVerification), [allHostGroups]);
+  const secondQueueGroups = useMemo(() => allHostGroups.filter((g) => !isReadyForVerification(g)), [allHostGroups]);
+
+  function secondQueueReason(group: HostGroup): string {
+    const reasons: string[] = [];
+    if (!group.representative.name.trim()) reasons.push('нет названия');
+    if (!group.representative.email.trim()) reasons.push('нет email');
+    if ((group.snapshot?.categories.length ?? 0) === 0) reasons.push('категории не распознаны');
+    return reasons.join(', ') || 'не хватает данных';
+  }
 
   const verifyTarget = useMemo(() => {
     if (!verifying) return null;
@@ -383,6 +416,34 @@ export function SupplierVerificationTab({
               </Button>
             </div>
           )}
+        </div>
+      )}
+
+      {secondQueueGroups.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-warning" />
+            <p className="text-sm font-semibold text-ink">Вторая очередь — не хватает данных ({secondQueueGroups.length})</p>
+          </div>
+          <p className="text-xs text-ink-faint">
+            Название, email и категории каталога распознаны не полностью — в верификацию не идут, пока классификатор
+            (или карточка) не дозаполнит данные.
+          </p>
+          <div className={cn('flex flex-col divide-y divide-border overflow-hidden', glassCardClass)} style={glassCardShadow}>
+            {secondQueueGroups.map((g) => (
+              <div key={g.host} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate font-medium text-ink">{g.representative.name || g.host}</span>
+                  <span className="truncate text-xs text-ink-faint">
+                    {g.host} · {secondQueueReason(g)}
+                  </span>
+                </div>
+                <Button type="button" variant="secondary" onClick={() => onEditOffer(g.representative)}>
+                  Редактировать
+                </Button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
