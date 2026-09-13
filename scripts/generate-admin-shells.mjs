@@ -55,6 +55,7 @@ const ADMIN_SHELLS = [
   { path: 'admin/landings', title: 'Лендинги', description: 'Продающие страницы объектов: адреса, публикация, превью.' },
   { path: 'admin/site-metrics', title: 'Показатели', description: 'Посещаемость сайта: визиты, источники, поисковые запросы.' },
   { path: 'admin/market-offers', title: 'Аналитика рынка', description: 'Предложения с Kufar, Realt и Avito: разбор и проверка.' },
+  { path: 'admin/collaborations', title: 'Коллаборации', description: 'Партнёрства и договорённости: контакты, статусы, ссылки.' },
   { path: 'admin/leads', title: 'Лиды', description: 'Заявки с сайта и из рекламы: контакты, требования, статусы.' },
   { path: 'admin/contractors', title: 'Команда', description: 'Подрядчики и сотрудники: контакты, специализация, дни рождения.' },
   { path: 'admin/meeting-summaries', title: 'Саммери встреч', description: 'Записи встреч и краткие итоги с задачами.' },
