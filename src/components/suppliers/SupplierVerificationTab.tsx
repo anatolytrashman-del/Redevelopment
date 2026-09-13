@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ExternalLink, MessageCircle, Phone, Play, Send, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { CheckCircle2, ExternalLink, MessageCircle, Phone, Play, Send, Trash2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { ContactValue } from '../ui/ContactValue';
 import { cn } from '../../lib/cn';
@@ -13,8 +13,8 @@ import type { SupplierSiteSnapshot } from '../../data/supplierSiteSnapshots';
 // Вкладка "Верификация" на странице Закупки. Владелец, 2026-09-13 (второй
 // заход, после первой версии с редактируемым чек-листом категорий — снята
 // по прямой правке "не будем отмечать категории вручную"): карточка
-// поставщика в РЕЖИМЕ ПРОСМОТРА слева + встроенный браузер с главной
-// страницей сайта справа, одной кнопкой "Верифицировать" — без правки
+// поставщика в РЕЖИМЕ ПРОСМОТРА + сайт поставщика в отдельном окне (см.
+// openSupplierSiteWindow ниже), одной кнопкой "Верифицировать" — без правки
 // категорий. Категории здесь только показываются (для контекста, что этот
 // сайт вообще продаёт), присваивает их по-прежнему классификатор
 // (supplier_site_snapshots.categories, см. data/supplyCategories.ts).
@@ -34,22 +34,25 @@ import type { SupplierSiteSnapshot } from '../../data/supplierSiteSnapshots';
 // карточек-предложений с этим доменом, поэтому очередь и показывает
 // уникальное число поставщиков, а не число карточек.
 //
-// Встроить сайт поставщика в iframe (в отличие от Kufar/Realt в
-// MarketOffersReview.tsx) в большинстве случаев можно — мелкие корпоративные
-// сайты обычно не выставляют X-Frame-Options/CSP frame-ancestors, в отличие
-// от крупных площадок с антискрейпингом. Для тех, что всё же блокируют
-// встраивание (сайт будет пустым/не загрузится) — рядом всегда есть ссылка
-// "Открыть в новой вкладке".
+// Сайт поставщика — отдельное позиционированное окно (половина экрана
+// справа), а НЕ встроенный iframe. Владелец, 2026-09-13 (четвёртый заход):
+// "точно как в верификации объявлений с рынка" — переиспользует тот же
+// приём, что openAdWindow в MarketOffersReview.tsx (см. openSupplierSiteWindow
+// ниже), вместо прежнего embed-панели рядом с карточкой. Одно и то же имя
+// окна ('supplier-site-check') — переход к следующему поставщику
+// переиспользует то же окно, не плодит вкладки.
 //
 // "Вторая очередь" (владелец, 2026-09-13, третий заход — после разбора
 // кейса 169.ru, см. docs/session-journal.md): "на верификацию мне нужны
 // только те, где есть название, почта и все категории каталога". Хост, у
 // которого это не так (нет email, или снимок сайта ещё не дошёл до
 // классификации/классификатор ничего не нашёл), в основную очередь
-// (карточка + браузер + кнопка "Верифицировать") не попадает вовсе, а
-// перечисляется отдельным списком ниже с причиной — только чтобы было
-// видно, что они есть, без действия по умолчанию (кнопка "Редактировать"
-// уходит в общую форму карточки поставщика).
+// (карточка + кнопка "Верифицировать") не попадает вовсе. Владелец,
+// 2026-09-13 (четвёртый заход): убрать отдельный видимый список таких
+// хостов со всех страниц — данные (name/email/categories на самом
+// поставщике и его снимке сайта) по-прежнему в базе как есть, просто без
+// отдельного UI-списка; isReadyForVerification ниже по-прежнему фильтрует
+// основную очередь, эти хосты просто нигде не показываются.
 
 interface HostGroup {
   host: string;
@@ -67,8 +70,8 @@ interface HostGroup {
 // docs/session-journal.md): "на верификацию мне нужны только те, где есть
 // название, почта и все категории каталога" — остальные (нет email или
 // снимок сайта ещё не классифицирован/классификатор ничего не нашёл) в
-// основную очередь не идут вовсе, а показываются отдельным списком
-// ("вторая очередь") ниже, без кнопки "Верифицировать".
+// основную очередь не идут вовсе (см. комментарий про "вторую очередь"
+// в шапке файла — в интерфейсе больше нигде не показываются).
 function isReadyForVerification(group: HostGroup): boolean {
   return (
     group.representative.name.trim().length > 0 &&
@@ -103,26 +106,15 @@ export function pendingVerificationHostCount(offers: SupplierOffer[], snapshots:
   return buildHostGroups(offers, snapshotByHost).filter(isReadyForVerification).length;
 }
 
-function SiteBrowser({ url }: { url: string }) {
-  return (
-    <div className="flex min-h-[420px] flex-1 flex-col overflow-hidden rounded-control border border-border bg-white">
-      <div className="flex items-center gap-2 border-b border-border bg-surface-muted px-3 py-2 text-xs text-ink-muted">
-        <span className="min-w-0 flex-1 truncate">{url}</span>
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex shrink-0 items-center gap-1 text-primary-hover hover:underline"
-        >
-          Открыть в новой вкладке
-          <ExternalLink className="h-3.5 w-3.5" />
-        </a>
-      </div>
-      {/* Некоторые сайты запрещают встраивание (X-Frame-Options/CSP) — тогда
-          здесь будет пусто, ссылка выше на этот случай и рассчитана. */}
-      <iframe key={url} src={url} title="Сайт поставщика" referrerPolicy="no-referrer" className="w-full flex-1" />
-    </div>
-  );
+// Открывает сайт поставщика в отдельном окне на половину экрана — тот же
+// приём, что openAdWindow в MarketOffersReview.tsx (см. комментарий выше).
+// Размер и позиция считаются от РЕАЛЬНОГО экрана в момент вызова
+// (window.screen), не зашиты заранее.
+function openSupplierSiteWindow(url: string) {
+  const width = Math.round(window.screen.availWidth / 2);
+  const height = window.screen.availHeight;
+  const left = window.screen.availWidth - width;
+  window.open(url, 'supplier-site-check', `width=${width},height=${height},left=${left},top=0`);
 }
 
 function SupplierCard({
@@ -141,7 +133,7 @@ function SupplierCard({
   const offer = group.representative;
   const categories = group.snapshot?.categories ?? [];
   return (
-    <div className={cn('flex w-full flex-col gap-4 p-5 lg:w-[380px] lg:shrink-0', glassCardClass)} style={glassCardShadow}>
+    <div className={cn('flex w-full flex-col gap-4 p-5 lg:w-[420px]', glassCardClass)} style={glassCardShadow}>
       <div className="flex flex-col gap-1">
         <span className="text-lg font-bold text-ink">{offer.name}</span>
         {offer.country && (
@@ -157,6 +149,16 @@ function SupplierCard({
           href={offer.websiteUrl}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={(e) => {
+            // Обычный клик — открываем позиционированное окно (см.
+            // openSupplierSiteWindow). Ctrl/Cmd/Shift/средняя кнопка —
+            // оставляем браузеру штатное поведение, не мешаем привычным
+            // жестам (тот же принцип, что у ссылки источника в
+            // MarketOffersReview.tsx).
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+            e.preventDefault();
+            openSupplierSiteWindow(offer.websiteUrl);
+          }}
           className="flex min-w-0 items-center gap-1 text-primary-hover hover:underline"
         >
           <span className="truncate">{group.host}</span>
@@ -294,20 +296,10 @@ export function SupplierVerificationTab({
   // SupplierCatalog.tsx (молчаливо прятать их было бы потерей данных).
   const countryOffers = useMemo(() => offers.filter((o) => !o.country.trim() || o.country === country), [offers, country]);
 
-  const allHostGroups = useMemo<HostGroup[]>(
-    () => buildHostGroups(countryOffers, snapshotByHost).sort((a, b) => a.host.localeCompare(b.host)),
+  const hostGroups = useMemo(
+    () => buildHostGroups(countryOffers, snapshotByHost).filter(isReadyForVerification).sort((a, b) => a.host.localeCompare(b.host)),
     [countryOffers, snapshotByHost],
   );
-  const hostGroups = useMemo(() => allHostGroups.filter(isReadyForVerification), [allHostGroups]);
-  const secondQueueGroups = useMemo(() => allHostGroups.filter((g) => !isReadyForVerification(g)), [allHostGroups]);
-
-  function secondQueueReason(group: HostGroup): string {
-    const reasons: string[] = [];
-    if (!group.representative.name.trim()) reasons.push('нет названия');
-    if (!group.representative.email.trim()) reasons.push('нет email');
-    if ((group.snapshot?.categories.length ?? 0) === 0) reasons.push('категории не распознаны');
-    return reasons.join(', ') || 'не хватает данных';
-  }
 
   const verifyTarget = useMemo(() => {
     if (!verifying) return null;
@@ -316,6 +308,19 @@ export function SupplierVerificationTab({
 
   const remaining = hostGroups.filter((g) => !skippedHosts.has(g.host)).length;
   const skippedCount = skippedHosts.size;
+
+  // Минимум кликов во время верификации — как только цель меняется, сама
+  // открывается позиционированное окно с сайтом (см. openSupplierSiteWindow
+  // и комментарий про openAdWindow в MarketOffersReview.tsx). Гвард по хосту
+  // (не по verifyTarget целиком) — чтобы "Пропустить" не открывало окно
+  // повторно на каждый ре-рендер, только когда цель реально сменилась.
+  const lastAutoOpenedHostRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!verifying || !verifyTarget) return;
+    if (lastAutoOpenedHostRef.current === verifyTarget.host) return;
+    lastAutoOpenedHostRef.current = verifyTarget.host;
+    openSupplierSiteWindow(verifyTarget.representative.websiteUrl);
+  }, [verifying, verifyTarget]);
 
   function startVerification() {
     setSkippedHosts(new Set());
@@ -396,16 +401,13 @@ export function SupplierVerificationTab({
           </div>
 
           {verifyTarget ? (
-            <div className="flex flex-col gap-4 lg:flex-row">
-              <SupplierCard
-                group={verifyTarget}
-                onVerify={handleVerify}
-                onEdit={onEditOffer}
-                onDelete={onDeleteOffer}
-                saving={savingHost === verifyTarget.host}
-              />
-              <SiteBrowser url={verifyTarget.representative.websiteUrl} />
-            </div>
+            <SupplierCard
+              group={verifyTarget}
+              onVerify={handleVerify}
+              onEdit={onEditOffer}
+              onDelete={onDeleteOffer}
+              saving={savingHost === verifyTarget.host}
+            />
           ) : (
             <div className={cn('flex flex-col items-center gap-2 p-8 text-center', glassCardClass)} style={glassCardShadow}>
               <CheckCircle2 className="h-8 w-8 text-success" />
@@ -416,34 +418,6 @@ export function SupplierVerificationTab({
               </Button>
             </div>
           )}
-        </div>
-      )}
-
-      {secondQueueGroups.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-warning" />
-            <p className="text-sm font-semibold text-ink">Вторая очередь — не хватает данных ({secondQueueGroups.length})</p>
-          </div>
-          <p className="text-xs text-ink-faint">
-            Название, email и категории каталога распознаны не полностью — в верификацию не идут, пока классификатор
-            (или карточка) не дозаполнит данные.
-          </p>
-          <div className={cn('flex flex-col divide-y divide-border overflow-hidden', glassCardClass)} style={glassCardShadow}>
-            {secondQueueGroups.map((g) => (
-              <div key={g.host} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
-                <div className="flex min-w-0 flex-col">
-                  <span className="truncate font-medium text-ink">{g.representative.name || g.host}</span>
-                  <span className="truncate text-xs text-ink-faint">
-                    {g.host} · {secondQueueReason(g)}
-                  </span>
-                </div>
-                <Button type="button" variant="secondary" onClick={() => onEditOffer(g.representative)}>
-                  Редактировать
-                </Button>
-              </div>
-            ))}
-          </div>
         </div>
       )}
     </div>
