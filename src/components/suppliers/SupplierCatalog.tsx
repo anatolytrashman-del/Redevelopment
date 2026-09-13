@@ -123,6 +123,11 @@ export function SupplierCatalog({
         const groups = new Set(category.supplyGroups);
         const suppliers: SupplierOffer[] = [];
         for (const o of countryOffers) {
+          // Каталог считает и показывает только верифицированных поставщиков
+          // (владелец, 2026-09-13) — `verified: false` значит «нашли веб-
+          // поиском, руками ещё не смотрели», такую карточку рано выводить
+          // в счётчик плитки или в список.
+          if (!o.verified) continue;
           const title = requestTitleById.get(o.requestId) ?? '';
           // Категория присваивается по ЛЮБОМУ из двух признаков — по новому
           // или старому названию строки закупки (LEGACY_REQUEST_TITLES) ИЛИ
@@ -153,7 +158,7 @@ export function SupplierCatalog({
   const searchResults = useMemo(() => {
     if (!searchQuery) return [];
     return countryOffers
-      .filter((o) => o.name.toLowerCase().includes(searchQuery))
+      .filter((o) => o.verified && o.name.toLowerCase().includes(searchQuery))
       .map((o) => ({ offer: o, categoryLabel: catalogLabelFor(o, requestTitleById, snapshotByHost) }))
       .sort((a, b) => a.offer.name.localeCompare(b.offer.name, 'ru'));
   }, [countryOffers, requestTitleById, searchQuery, snapshotByHost]);
