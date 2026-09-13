@@ -89,8 +89,11 @@
 SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY      — server-side доступ в обход RLS (api/*.js)
 RESEND_API_KEY, RESEND_FROM                  — письма с OTP-кодом подписания
 GOOGLE_OAUTH_CLIENT_ID / _SECRET / _REFRESH_TOKEN
-INTENT_AGREEMENT_TEMPLATE_ID                 — id гугл-шаблона "соглашение о намерениях"
-WORKSTATION_AGREEMENT_TEMPLATE_ID            — отдельный шаблон для рабочих мест
+INTENT_AGREEMENT_TEMPLATE_ID                 — id гугл-шаблона "соглашение о намерениях" (покупка кабинета)
+WORKSTATION_AGREEMENT_TEMPLATE_ID            — тот же документ, но для рабочих мест (покупка)
+RENT_AGREEMENT_TEMPLATE_ID                   — то же самое соглашение, но текст про аренду кабинета
+                                                (2026-09-13+, см. docs/session-journal.md)
+RENT_WORKSTATION_AGREEMENT_TEMPLATE_ID       — аренда рабочего места (2026-09-13+)
 KUFAR_BEARER_TOKEN, REALT_COOKIE, AVITO_COOKIE, MEGAPOLIS_COOKIE
                                               — авторизация в scripts/sync-*-stats.mjs
                                                 (крон раз в час, см. sync-demand-stats.yml)

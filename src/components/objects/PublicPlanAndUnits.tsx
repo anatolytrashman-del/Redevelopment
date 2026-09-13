@@ -240,6 +240,10 @@ export function PublicPlanAndUnits({
     setBookingError(null);
     try {
       const requirement = [
+        // Покупка — умолчание, не отмечаем отдельно (как и раньше); аренда —
+        // новый вариант, помечаем явно, чтобы менеджер видел намерение
+        // клиента без необходимости лезть в базу за deal_mode подписания.
+        dealMode === 'rent' ? 'Формат сделки: аренда' : '',
         bookingForm.comment.trim(),
         !bookingWorkstation && wetPointAddon
           ? `Доп. опция: ${WET_POINT_ADDON_LABEL} (+${formatMoney(WET_POINT_ADDON_PRICE)})`
@@ -486,6 +490,7 @@ export function PublicPlanAndUnits({
                           zoneFloorLabel={plan?.name ?? ''}
                           zoneLabel={selectedZone.label}
                           isWorkstation={isWorkstation}
+                          dealMode={dealMode}
                           onSigned={() => setAgreementSigned(true)}
                         />
                       </div>

@@ -51,6 +51,7 @@ const emptyForm = {
   landingSlug: '',
   renderImageUrls: [] as string[],
   intentAgreementFile: null as ObjectDocumentFile | null,
+  rentIntentAgreementFile: null as ObjectDocumentFile | null,
   mapEmbedUrl: '',
   priority: false,
   paused: false,
@@ -76,6 +77,7 @@ function objectToForm(o: RealtyObject) {
     landingSlug: o.landingSlug,
     renderImageUrls: o.renderImageUrls,
     intentAgreementFile: o.intentAgreementFile,
+    rentIntentAgreementFile: o.rentIntentAgreementFile,
     mapEmbedUrl: o.mapEmbedUrl,
     priority: o.priority,
     paused: o.paused,
@@ -105,10 +107,13 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
   const [renderImageUploadError, setRenderImageUploadError] = useState<string | null>(null);
   const [uploadingAgreement, setUploadingAgreement] = useState(false);
   const [agreementUploadError, setAgreementUploadError] = useState<string | null>(null);
+  const [uploadingRentAgreement, setUploadingRentAgreement] = useState(false);
+  const [rentAgreementUploadError, setRentAgreementUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const floorPlanInputRef = useRef<HTMLInputElement>(null);
   const renderImageInputRef = useRef<HTMLInputElement>(null);
   const agreementInputRef = useRef<HTMLInputElement>(null);
+  const rentAgreementInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -250,6 +255,26 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
     setForm((f) => ({ ...f, intentAgreementFile: null }));
   }
 
+  async function handleRentAgreementSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingRentAgreement(true);
+    setRentAgreementUploadError(null);
+    try {
+      const uploaded = await uploadObjectDocument(file);
+      setForm((f) => ({ ...f, rentIntentAgreementFile: { ...uploaded, uploadedAt: new Date().toISOString() } }));
+    } catch (err) {
+      setRentAgreementUploadError(errorMessage(err, 'Не удалось загрузить файл'));
+    } finally {
+      setUploadingRentAgreement(false);
+      if (rentAgreementInputRef.current) rentAgreementInputRef.current.value = '';
+    }
+  }
+
+  function removeRentAgreement() {
+    setForm((f) => ({ ...f, rentIntentAgreementFile: null }));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit || submitting) return;
@@ -281,6 +306,7 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
       documents: editing?.documents ?? {},
       renderImageUrls: form.renderImageUrls,
       intentAgreementFile: form.intentAgreementFile,
+      rentIntentAgreementFile: form.rentIntentAgreementFile,
       mapEmbedUrl: form.mapEmbedUrl,
       priority: form.priority,
       paused: form.paused,
@@ -427,7 +453,7 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-sm text-ink-muted">Шаблон соглашения о намерениях (для продающей страницы)</span>
+          <span className="text-sm text-ink-muted">Шаблон соглашения о намерениях — покупка (для продающей страницы)</span>
           <div className="flex items-center gap-4">
             <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-control bg-surface-muted">
               {form.intentAgreementFile ? (
@@ -460,6 +486,42 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
             </div>
           </div>
           {agreementUploadError && <p className="text-sm text-danger">{agreementUploadError}</p>}
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm text-ink-muted">Шаблон соглашения о намерениях — аренда (для продающей страницы)</span>
+          <div className="flex items-center gap-4">
+            <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-control bg-surface-muted">
+              {form.rentIntentAgreementFile ? (
+                <FileText className="h-5 w-5 text-ink-muted" />
+              ) : (
+                <ImageOff className="h-5 w-5 text-ink-faint" />
+              )}
+            </span>
+            <div className="min-w-0 flex-1">
+              {form.rentIntentAgreementFile && (
+                <div className="truncate text-sm text-ink">{form.rentIntentAgreementFile.fileName}</div>
+              )}
+              <input ref={rentAgreementInputRef} type="file" className="hidden" onChange={handleRentAgreementSelect} />
+              <div className="mt-1 flex gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon={uploadingRentAgreement ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  onClick={() => rentAgreementInputRef.current?.click()}
+                  disabled={uploadingRentAgreement}
+                >
+                  {uploadingRentAgreement ? 'Загружаем...' : form.rentIntentAgreementFile ? 'Заменить файл' : 'Загрузить файл'}
+                </Button>
+                {form.rentIntentAgreementFile && (
+                  <Button type="button" variant="secondary" onClick={removeRentAgreement}>
+                    Удалить
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+          {rentAgreementUploadError && <p className="text-sm text-danger">{rentAgreementUploadError}</p>}
         </div>
 
         <Input

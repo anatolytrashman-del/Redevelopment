@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
+import type { DealMode } from '../data/buildingPlans';
 
 export interface AgreementOtpRequestInput {
   leadId: string;
@@ -11,6 +12,9 @@ export interface AgreementOtpRequestInput {
   // рабочее место (isWorkstation) он подставляется в place of площади.
   zoneLabel: string;
   isWorkstation: boolean;
+  // Покупка или аренда — определяет, какой гугл-шаблон соглашения подставит
+  // api/agreement-otp-verify.js (см. RENT_AGREEMENT_TEMPLATE_ID и т.п.).
+  dealMode: DealMode;
   buyerName: string;
   buyerGender: 'Мужчина' | 'Женщина';
   buyerCitizenship: 'РБ' | 'РФ';
@@ -67,6 +71,7 @@ export interface SignedAgreement {
   objectId: string;
   zoneLabel: string;
   isWorkstation: boolean;
+  dealMode: DealMode;
   buyerName: string;
   documentUrl: string;
   verifiedAt: string;
@@ -77,7 +82,9 @@ export function fetchAllSignedAgreements(): Promise<SignedAgreement[]> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('agreement_signatures')
-      .select('id, lead_id, object_id, zone_label, is_workstation, buyer_name, document_url, verified_at, created_at')
+      .select(
+        'id, lead_id, object_id, zone_label, is_workstation, deal_mode, buyer_name, document_url, verified_at, created_at',
+      )
       .not('verified_at', 'is', null)
       .order('verified_at', { ascending: false });
     if (error) throw error;
@@ -88,6 +95,7 @@ export function fetchAllSignedAgreements(): Promise<SignedAgreement[]> {
         object_id: string;
         zone_label: string;
         is_workstation: boolean;
+        deal_mode: DealMode | null;
         buyer_name: string;
         document_url: string;
         verified_at: string;
@@ -99,6 +107,10 @@ export function fetchAllSignedAgreements(): Promise<SignedAgreement[]> {
       objectId: row.object_id,
       zoneLabel: row.zone_label,
       isWorkstation: row.is_workstation,
+      // Строки, подписанные до этой фичи, — deal_mode пуст только если
+      // читаем напрямую из старого кэша схемы; в базе колонка NOT NULL
+      // DEFAULT 'sale', так что на деле row.deal_mode всегда заполнен.
+      dealMode: row.deal_mode ?? 'sale',
       buyerName: row.buyer_name,
       documentUrl: row.document_url,
       verifiedAt: row.verified_at,

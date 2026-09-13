@@ -509,8 +509,8 @@ export function Documents() {
               <div className="min-w-0 flex-1">
                 <div className="truncate font-semibold text-ink">{a.buyerName}</div>
                 <div className="truncate text-sm text-ink-muted">
-                  {objectName(a.objectId)} · {a.isWorkstation ? `Рабочее место ${a.zoneLabel}` : `Кабинет ${a.zoneLabel}`} ·
-                  Подписано {formatDate(a.verifiedAt)}
+                  {objectName(a.objectId)} · {a.isWorkstation ? `Рабочее место ${a.zoneLabel}` : `Кабинет ${a.zoneLabel}`} ·{' '}
+                  {a.dealMode === 'rent' ? 'Аренда' : 'Покупка'} · Подписано {formatDate(a.verifiedAt)}
                 </div>
               </div>
             </div>
