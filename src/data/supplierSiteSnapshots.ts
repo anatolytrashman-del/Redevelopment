@@ -11,13 +11,26 @@
 // supabase/migrations/20260912-supplier-site-snapshots.sql.
 //
 // Колонки categories_verified/categories_verified_at (миграция
-// 20260913-supplier-site-snapshots-verification.sql) в базе есть, но код их
-// больше не читает и не пишет — первая версия вкладки "Верификация" ставила
-// отметку сюда, владелец тем же днём попросил другую механику (см.
-// SupplierOffer.verified в data/supplierResearch.ts и
-// components/suppliers/SupplierVerificationTab.tsx). Колонки не убраны —
-// DROP COLUMN сразу после уже опубликованного кода рискует спором версий
-// между миграцией и ещё не доехавшим до прода деплоем.
+// 20260913-supplier-site-snapshots-verification.sql) заведены давно под
+// другой смысл (первая версия вкладки "Верификация" ставила отметку сюда,
+// владелец тем же днём попросил другую механику — см. SupplierOffer.verified
+// в data/supplierResearch.ts) и какое-то время были неиспользуемыми.
+//
+// Переиспользованы 2026-09-13 (шестой заход) под НОВЫЙ смысл: массовая
+// переклассификация 2026-09-13 ("второй заход", 14 Haiku-субагентов на
+// оторванных от контекста строках ассортимента без сайта) оказалась
+// массово ненадёжной — см. docs/supplier-catalog-expansion.md, разбор
+// кейсов abb-electro.ru/oaomkk.ru/priorglass.ru. Вместо того чтобы залпом
+// переклассифицировать все ~850 подозрительных доменов и рисковать той же
+// ошибкой в новом виде, владелец попросил дообучать пошагово: маленькими
+// пачками, каждая — реальные разделы сайта (не оторванный текст) + ручная
+// сверка результата с владельцем перед следующей пачкой.
+// categories_verified = true теперь означает "категории пересчитаны по
+// новому, проверенному методу и одобрены" — ТОЛЬКО такие домены попадают
+// в основную очередь вкладки "Верификация" (см. isReadyForVerification в
+// SupplierVerificationTab.tsx) — вся остальная база (в т.ч. старые
+// корректные снимки без этой отметки) временно вне очереди, пока не
+// прогнана тем же методом и не помечена.
 export type SupplierSiteSnapshotStatus = 'pending' | 'processing' | 'done' | 'error';
 
 export interface SupplierSiteSection {
@@ -39,6 +52,11 @@ export interface SupplierSiteSnapshot {
   categories: string[];
   categoriesNote: string;
   classifiedAt: string | null;
+  // См. комментарий выше — "прошёл переклассификацию по новому методу и
+  // одобрен владельцем", не "категории вообще существуют" (у старых
+  // снимков categories может быть непустым, а categoriesVerified — false).
+  categoriesVerified: boolean;
+  categoriesVerifiedAt: string | null;
 }
 
 export interface SupplierSiteSnapshotRow {
@@ -53,4 +71,6 @@ export interface SupplierSiteSnapshotRow {
   categories: string[] | null;
   categories_note: string | null;
   classified_at: string | null;
+  categories_verified: boolean | null;
+  categories_verified_at: string | null;
 }
