@@ -1,306 +1,355 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, ExternalLink, Play, Undo2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { CheckCircle2, ExternalLink, MessageCircle, Phone, Play, Send, Trash2 } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { Badge } from '../ui/Badge';
-import { Modal } from '../ui/Modal';
-import { SearchInput } from '../ui/SearchInput';
-import { ToggleGroup } from '../ui/ToggleGroup';
+import { ContactValue } from '../ui/ContactValue';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import { logActivity } from '../../lib/activityLogApi';
-import { SUPPLY_CATEGORY_NAMES } from '../../data/supplyCategories';
-import { updateSupplierSiteSnapshotCategories } from '../../lib/supplierSiteSnapshotsApi';
-import { supplierWebsiteHost, type SupplierOffer } from '../../data/supplierResearch';
+import { formatPhoneDisplay } from '../../lib/formatPhone';
+import { updateSupplierOffer } from '../../lib/supplierResearchApi';
+import { countryFlag, messengerLink, supplierWebsiteHost, SUPPLIER_COUNTRIES, type SupplierOffer } from '../../data/supplierResearch';
 import type { SupplierSiteSnapshot } from '../../data/supplierSiteSnapshots';
 
-// Вкладка "Верификация" на странице Закупки — по аналогии с верификацией
-// объявлений для Светланы (MarketOffersReview.tsx): карточка с данными +
-// отдельное окно с сайтом источника. Встроить сайт поставщика в iframe так
-// же нельзя (те же X-Frame-Options/CSP, см. комментарий у openAdWindow в
-// MarketOffersReview.tsx) — поэтому тот же приём: позиционированное окно
-// (window.open, одно и то же имя — повторный клик переиспользует его, не
-// плодит вкладки), а не разбитая на две половины страница.
+// Вкладка "Верификация" на странице Закупки. Владелец, 2026-09-13 (второй
+// заход, после первой версии с редактируемым чек-листом категорий — снята
+// по прямой правке "не будем отмечать категории вручную"): карточка
+// поставщика в РЕЖИМЕ ПРОСМОТРА слева + встроенный браузер с главной
+// страницей сайта справа, одной кнопкой "Верифицировать" — без правки
+// категорий. Категории здесь только показываются (для контекста, что этот
+// сайт вообще продаёт), присваивает их по-прежнему классификатор
+// (supplier_site_snapshots.categories, см. data/supplyCategories.ts).
 //
-// Единица верификации — СНИМОК САЙТА (supplier_site_snapshots, одна строка
-// на домен), не карточка предложения (supplier_research_offers) и не
-// категория: у одного поставщика один сайт и один набор категорий на нём
-// (categories), а карточек-предложений с этим же сайтом может быть
-// несколько (компания заведена под разные категории закупки). Владелец,
-// 2026-09-13: "если поставщика апрувнули в одной категории, значит он
-// автоматически апрувнулся и во всех" — ровно это тут и происходит
-// структурно: "Одобрить" сохраняет и подтверждает ВЕСЬ набор категорий
-// снимка одним действием, поэтому очередь и показывает уникальное число
-// поставщиков — по числу СНИМКОВ (доменов), не карточек-предложений.
-function openSupplierSiteWindow(url: string) {
-  const width = Math.round(window.screen.availWidth / 2);
-  const height = window.screen.availHeight;
-  const left = window.screen.availWidth - width;
-  window.open(url, 'supplier-site-verification', `width=${width},height=${height},left=${left},top=0`);
+// "Верифицировать" переиспользует УЖЕ СУЩЕСТВУЮЩИЙ признак
+// SupplierOffer.verified (владелец, 2026-09-04: "поставщика заводят из
+// поиска — verified=false, закупщик сверяет и подтверждает") — та же кнопка,
+// что раньше была доступна только по одной карточке за раз в общем списке
+// "Поставщики"; эта вкладка просто даёт для неё выделенную очередь с
+// превью сайта, не новый смысл поля.
+//
+// Единица очереди — ДОМЕН (не карточка-предложение): у одной компании
+// может быть несколько карточек-предложений под разные категории закупки
+// с одним и тем же сайтом. Владелец, 2026-09-13: "если поставщика
+// апрувнули в одной категории, значит он автоматически апрувнулся и во
+// всех" — "Верифицировать" помечает verified=true СРАЗУ у всех
+// карточек-предложений с этим доменом, поэтому очередь и показывает
+// уникальное число поставщиков, а не число карточек.
+//
+// Встроить сайт поставщика в iframe (в отличие от Kufar/Realt в
+// MarketOffersReview.tsx) в большинстве случаев можно — мелкие корпоративные
+// сайты обычно не выставляют X-Frame-Options/CSP frame-ancestors, в отличие
+// от крупных площадок с антискрейпингом. Для тех, что всё же блокируют
+// встраивание (сайт будет пустым/не загрузится) — рядом всегда есть ссылка
+// "Открыть в новой вкладке".
+
+interface HostGroup {
+  host: string;
+  // Все карточки-предложения этого домена в выбранной стране — не только
+  // непроверенные: нужно знать полный список, чтобы "Верифицировать"
+  // подтвердил их разом (см. комментарий выше).
+  offers: SupplierOffer[];
+  representative: SupplierOffer;
+  snapshot: SupplierSiteSnapshot | null;
 }
 
-const FILTER_OPTIONS = ['Не проверено', 'Проверено', 'Все'] as const;
-type Filter = (typeof FILTER_OPTIONS)[number];
+// Используется и здесь, и бейджем на самой вкладке (Suppliers.tsx) — чтобы
+// не считать по разным правилам в двух местах.
+export function pendingVerificationHostCount(offers: SupplierOffer[]): number {
+  const byHost = new Map<string, SupplierOffer[]>();
+  for (const o of offers) {
+    const host = supplierWebsiteHost(o.websiteUrl);
+    if (!host) continue;
+    if (!byHost.has(host)) byHost.set(host, []);
+    byHost.get(host)!.push(o);
+  }
+  let count = 0;
+  for (const list of byHost.values()) {
+    if (list.some((o) => !o.verified)) count++;
+  }
+  return count;
+}
 
-function CategoryChecklist({ selected, onToggle }: { selected: string[]; onToggle: (name: string) => void }) {
-  const [query, setQuery] = useState('');
-  const q = query.trim().toLowerCase();
-  const visible = q ? SUPPLY_CATEGORY_NAMES.filter((n) => n.toLowerCase().includes(q)) : SUPPLY_CATEGORY_NAMES;
+function SiteBrowser({ url }: { url: string }) {
   return (
-    <div className="flex flex-col gap-2">
-      <SearchInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Фильтр по списку категорий…" />
-      <div className="grid max-h-64 grid-cols-1 gap-x-4 gap-y-0.5 overflow-y-auto rounded-control border border-border p-2 sm:grid-cols-2">
-        {visible.map((name) => (
-          <label key={name} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-surface-muted">
-            <input
-              type="checkbox"
-              checked={selected.includes(name)}
-              onChange={() => onToggle(name)}
-              className="h-4 w-4 shrink-0 rounded border-border"
+    <div className="flex min-h-[420px] flex-1 flex-col overflow-hidden rounded-control border border-border bg-white">
+      <div className="flex items-center gap-2 border-b border-border bg-surface-muted px-3 py-2 text-xs text-ink-muted">
+        <span className="min-w-0 flex-1 truncate">{url}</span>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex shrink-0 items-center gap-1 text-primary-hover hover:underline"
+        >
+          Открыть в новой вкладке
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      </div>
+      {/* Некоторые сайты запрещают встраивание (X-Frame-Options/CSP) — тогда
+          здесь будет пусто, ссылка выше на этот случай и рассчитана. */}
+      <iframe key={url} src={url} title="Сайт поставщика" referrerPolicy="no-referrer" className="w-full flex-1" />
+    </div>
+  );
+}
+
+function SupplierCard({
+  group,
+  onVerify,
+  onEdit,
+  onDelete,
+  saving,
+}: {
+  group: HostGroup;
+  onVerify: (group: HostGroup) => void;
+  onEdit: (offer: SupplierOffer) => void;
+  onDelete: (offer: SupplierOffer) => void;
+  saving: boolean;
+}) {
+  const offer = group.representative;
+  const categories = group.snapshot?.categories ?? [];
+  return (
+    <div className={cn('flex w-full flex-col gap-4 p-5 lg:w-[380px] lg:shrink-0', glassCardClass)} style={glassCardShadow}>
+      <div className="flex flex-col gap-1">
+        <span className="text-lg font-bold text-ink">{offer.name}</span>
+        {offer.country && (
+          <span className="text-sm text-ink-faint">
+            {countryFlag(offer.country)} {offer.country}
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1 text-sm">
+        <span className="text-ink-faint">Сайт</span>
+        <a
+          href={offer.websiteUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex min-w-0 items-center gap-1 text-primary-hover hover:underline"
+        >
+          <span className="truncate">{group.host}</span>
+          <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+        </a>
+      </div>
+
+      <div className="flex flex-col gap-1 text-sm">
+        <span className="text-ink-faint">Email</span>
+        <span className="text-ink">{offer.email || '—'}</span>
+      </div>
+
+      <div className="flex flex-col gap-1 text-sm">
+        <span className="text-ink-faint">Телефон</span>
+        {offer.contact ? (
+          <span className="flex items-center gap-1.5 text-ink">
+            {offer.contactMethod === 'Telegram' ? (
+              <Send className="h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <Phone className="h-3.5 w-3.5 shrink-0" />
+            )}
+            <ContactValue
+              contact={offer.contactMethod === 'Телефон' ? formatPhoneDisplay(offer.contact) : offer.contact}
+              contactMethod={offer.contactMethod}
             />
-            <span className="text-ink">{name}</span>
-          </label>
-        ))}
-        {visible.length === 0 && <p className="col-span-full py-4 text-center text-xs text-ink-faint">Ничего не найдено.</p>}
+          </span>
+        ) : (
+          <span className="text-ink">—</span>
+        )}
+      </div>
+
+      {offer.messengers.length > 0 && (
+        <div className="flex flex-col gap-1 text-sm">
+          <span className="text-ink-faint">Мессенджеры</span>
+          <div className="flex flex-wrap gap-1.5">
+            {offer.messengers.map((m, i) => {
+              const { href, label } = messengerLink(m);
+              const inner = (
+                <>
+                  <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span className="min-w-0 truncate">
+                    {m.type}: {label}
+                  </span>
+                </>
+              );
+              return href ? (
+                <a
+                  key={i}
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex max-w-full items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-primary-hover hover:border-primary hover:underline"
+                >
+                  {inner}
+                </a>
+              ) : (
+                <span key={i} className="flex max-w-full items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-ink-muted">
+                  {inner}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-1 text-sm">
+        <span className="text-ink-faint">Категории</span>
+        {categories.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {categories.map((c) => (
+              <span key={c} className="rounded-full border border-border px-2 py-0.5 text-xs text-ink-muted">
+                {c}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="text-xs text-ink-faint">категорий не найдено</span>
+        )}
+      </div>
+
+      {group.offers.length > 1 && (
+        <p className="text-xs text-ink-faint">
+          У этой компании {group.offers.length} карточки-предложения — «Верифицировать» подтвердит их разом.
+        </p>
+      )}
+
+      <div className="mt-auto flex items-center justify-between gap-2 pt-2">
+        <button
+          type="button"
+          onClick={() => onDelete(offer)}
+          aria-label="Удалить поставщика"
+          className="p-2 text-ink-faint hover:text-danger"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+        <div className="flex gap-2">
+          <Button type="button" variant="secondary" onClick={() => onEdit(offer)}>
+            Редактировать
+          </Button>
+          <Button type="button" onClick={() => onVerify(group)} disabled={saving}>
+            {saving ? 'Сохраняем…' : 'Верифицировать'}
+          </Button>
+        </div>
       </div>
     </div>
   );
 }
 
-function SiteLink({ snapshot }: { snapshot: SupplierSiteSnapshot }) {
-  return (
-    <a
-      href={snapshot.websiteUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={(e) => {
-        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-        e.preventDefault();
-        openSupplierSiteWindow(snapshot.websiteUrl);
-      }}
-      className="flex min-w-0 items-center gap-1 font-medium text-ink hover:underline"
-    >
-      <span className="truncate">{snapshot.host}</span>
-      <ExternalLink className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
-    </a>
-  );
-}
-
 export function SupplierVerificationTab({
-  snapshots,
   offers,
-  onSnapshotUpdated,
+  snapshots,
+  onOfferUpdated,
+  onEditOffer,
+  onDeleteOffer,
 }: {
-  snapshots: SupplierSiteSnapshot[];
   offers: SupplierOffer[];
-  onSnapshotUpdated: (snapshot: SupplierSiteSnapshot) => void;
+  snapshots: SupplierSiteSnapshot[];
+  onOfferUpdated: (offer: SupplierOffer) => void;
+  onEditOffer: (offer: SupplierOffer) => void;
+  onDeleteOffer: (offer: SupplierOffer) => void;
 }) {
+  // Владелец, 2026-09-13: "раздели очередь верификации на Россию и
+  // Беларусь, мне пока не нужны белорусские поставщики" — SUPPLIER_COUNTRIES[0]
+  // это уже "Россия" (см. data/supplierResearch.ts), поэтому она и по
+  // умолчанию.
+  const [country, setCountry] = useState<string>(SUPPLIER_COUNTRIES[0]);
   const [verifying, setVerifying] = useState(false);
   const [skippedHosts, setSkippedHosts] = useState<Set<string>>(new Set());
-  const [editingHost, setEditingHost] = useState<string | null>(null);
-  const [draftCategories, setDraftCategories] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
+  const [savingHost, setSavingHost] = useState<string | null>(null);
   const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<Filter>('Не проверено');
 
-  // Названия компаний по домену — только для отображения на карточке
-  // (человеку нужно видеть, кого он проверяет), сам поиск поставщика в
-  // категории по-прежнему решает SupplierCatalog по snapshot.categories.
-  const namesByHost = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    for (const o of offers) {
+  const snapshotByHost = useMemo(() => new Map(snapshots.map((s) => [s.host, s])), [snapshots]);
+
+  // Карточки без страны видны при любом флаге — тот же принцип, что в
+  // SupplierCatalog.tsx (молчаливо прятать их было бы потерей данных).
+  const countryOffers = useMemo(() => offers.filter((o) => !o.country.trim() || o.country === country), [offers, country]);
+
+  const hostGroups = useMemo<HostGroup[]>(() => {
+    const byHost = new Map<string, SupplierOffer[]>();
+    for (const o of countryOffers) {
       const host = supplierWebsiteHost(o.websiteUrl);
       if (!host) continue;
-      if (!map.has(host)) map.set(host, new Set());
-      map.get(host)!.add(o.name);
+      if (!byHost.has(host)) byHost.set(host, []);
+      byHost.get(host)!.push(o);
     }
-    return map;
-  }, [offers]);
-
-  // Только обработанные снимки — по остальным (pending/processing/error)
-  // ещё нечего сверять, они появятся здесь сами, как только Edge Function
-  // их обойдёт и классификатор расставит категории.
-  const readySnapshots = useMemo(() => snapshots.filter((s) => s.status === 'done'), [snapshots]);
-
-  const pending = useMemo(() => readySnapshots.filter((s) => !s.categoriesVerified), [readySnapshots]);
+    const groups: HostGroup[] = [];
+    for (const [host, list] of byHost) {
+      const unverified = list.find((o) => !o.verified);
+      if (!unverified) continue;
+      groups.push({ host, offers: list, representative: unverified, snapshot: snapshotByHost.get(host) ?? null });
+    }
+    return groups.sort((a, b) => a.host.localeCompare(b.host));
+  }, [countryOffers, snapshotByHost]);
 
   const verifyTarget = useMemo(() => {
     if (!verifying) return null;
-    return pending.find((s) => !skippedHosts.has(s.host)) ?? null;
-  }, [verifying, pending, skippedHosts]);
+    return hostGroups.find((g) => !skippedHosts.has(g.host)) ?? null;
+  }, [verifying, hostGroups, skippedHosts]);
 
-  const verifyRemaining = pending.filter((s) => !skippedHosts.has(s.host)).length;
-  const verifySkippedCount = skippedHosts.size;
-
-  const editingSnapshot = readySnapshots.find((s) => s.host === editingHost) ?? null;
-
-  function openCard(snapshot: SupplierSiteSnapshot) {
-    setEditingHost(snapshot.host);
-    setDraftCategories(snapshot.categories);
-  }
-
-  function closeCard() {
-    // Как и в MarketOffersReview: закрытие карточки — без побочных эффектов,
-    // не пропускает и не двигает очередь. Явно перейти к следующей можно
-    // только кнопкой "Пропустить" в шапке.
-    setEditingHost(null);
-  }
+  const remaining = hostGroups.filter((g) => !skippedHosts.has(g.host)).length;
+  const skippedCount = skippedHosts.size;
 
   function startVerification() {
     setSkippedHosts(new Set());
-    lastAutoOpenedHostRef.current = null;
     setVerifying(true);
   }
 
   function stopVerification() {
     setVerifying(false);
-    setEditingHost(null);
   }
 
   function skipCurrent() {
     if (verifyTarget) setSkippedHosts((prev) => new Set(prev).add(verifyTarget.host));
   }
 
-  function toggleCategory(name: string) {
-    setDraftCategories((prev) => (prev.includes(name) ? prev.filter((c) => c !== name) : [...prev, name]));
-  }
-
-  async function handleApprove() {
-    if (!editingSnapshot || saving) return;
-    setSaving(true);
+  // После успешной верификации следующая карточка (и её сайт справа)
+  // подставляется сама — hostGroups пересчитывается из обновлённых offers
+  // и больше не содержит этот хост (все его карточки уже verified).
+  async function handleVerify(group: HostGroup) {
+    setSavingHost(group.host);
+    setError('');
     try {
-      await updateSupplierSiteSnapshotCategories(editingSnapshot.host, draftCategories, true);
-      onSnapshotUpdated({
-        ...editingSnapshot,
-        categories: draftCategories,
-        categoriesVerified: true,
-        categoriesVerifiedAt: new Date().toISOString(),
-      });
-      logActivity('supplier_site_categories_verified');
-      setEditingHost(null);
+      const toVerify = group.offers.filter((o) => !o.verified);
+      const updated = await Promise.all(toVerify.map((o) => updateSupplierOffer(o.id, { ...o, verified: true })));
+      updated.forEach(onOfferUpdated);
+      logActivity('supplier_offer_verified');
     } catch {
-      setError('Не удалось сохранить — попробуйте ещё раз.');
+      setError('Не удалось верифицировать — попробуйте ещё раз.');
     } finally {
-      setSaving(false);
+      setSavingHost(null);
     }
   }
-
-  async function handleUnverify() {
-    if (!editingSnapshot || saving) return;
-    setSaving(true);
-    try {
-      await updateSupplierSiteSnapshotCategories(editingSnapshot.host, editingSnapshot.categories, false);
-      onSnapshotUpdated({ ...editingSnapshot, categoriesVerified: false, categoriesVerifiedAt: null });
-      setEditingHost(null);
-    } catch {
-      setError('Не удалось сохранить — попробуйте ещё раз.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  // Минимум кликов во время верификации — как только цель меняется, сама
-  // открывается и карточка, и позиционированное окно с сайтом (см.
-  // комментарий у аналогичного эффекта в MarketOffersReview.tsx). Гвард по
-  // РЕФУ хоста, не по editingHost — иначе закрытие карточки без смены цели
-  // тут же открывало бы её и окно заново на каждый ре-рендер (тот самый баг,
-  // словивший бан по IP на Kufar, см. журнал/комментарий в MarketOffersReview.tsx).
-  const lastAutoOpenedHostRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!verifying || !verifyTarget) return;
-    if (lastAutoOpenedHostRef.current === verifyTarget.host) return;
-    lastAutoOpenedHostRef.current = verifyTarget.host;
-    openCard(verifyTarget);
-    openSupplierSiteWindow(verifyTarget.websiteUrl);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [verifying, verifyTarget]);
-
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return readySnapshots
-      .filter((s) => {
-        if (filter === 'Не проверено' && s.categoriesVerified) return false;
-        if (filter === 'Проверено' && !s.categoriesVerified) return false;
-        if (!query) return true;
-        const names = [...(namesByHost.get(s.host) ?? [])].join(' ').toLowerCase();
-        return s.host.toLowerCase().includes(query) || names.includes(query);
-      })
-      .sort((a, b) => a.host.localeCompare(b.host));
-  }, [readySnapshots, filter, search, namesByHost]);
-
-  const card = editingSnapshot && (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <SiteLink snapshot={editingSnapshot} />
-          {editingSnapshot.pageTitle && <span className="truncate text-xs text-ink-faint">{editingSnapshot.pageTitle}</span>}
-          {namesByHost.has(editingSnapshot.host) && (
-            <span className="text-sm text-ink-muted">{[...namesByHost.get(editingSnapshot.host)!].join(', ')}</span>
-          )}
-        </div>
-        {editingSnapshot.categoriesVerified && (
-          <Badge tone="success">
-            Проверено{editingSnapshot.categoriesVerifiedAt ? ` ${new Date(editingSnapshot.categoriesVerifiedAt).toLocaleDateString('ru-RU')}` : ''}
-          </Badge>
-        )}
-      </div>
-      {editingSnapshot.categoriesNote && (
-        <p className="rounded-control bg-info-bg/60 p-2 text-xs text-info-text">
-          Заметка классификатора: {editingSnapshot.categoriesNote}
-        </p>
-      )}
-      <CategoryChecklist selected={draftCategories} onToggle={toggleCategory} />
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-3">
-          {verifying && (
-            <button type="button" onClick={stopVerification} className="text-xs text-ink-faint underline hover:text-ink">
-              Завершить проверку
-            </button>
-          )}
-          {editingSnapshot.categoriesVerified && (
-            <button
-              type="button"
-              onClick={handleUnverify}
-              disabled={saving}
-              className="flex items-center gap-1 text-xs text-ink-faint underline hover:text-ink"
-            >
-              <Undo2 className="h-3.5 w-3.5" />
-              Снять отметку
-            </button>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <Button type="button" variant="secondary" onClick={closeCard}>
-            Отмена
-          </Button>
-          <Button type="button" onClick={handleApprove} disabled={saving}>
-            {saving ? 'Сохраняем…' : 'Одобрить'}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
 
   return (
     <div className="flex flex-col gap-4">
       {error && <p className="text-sm text-danger">{error}</p>}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-ink-muted">
-          Обработано сайтов {readySnapshots.length} · проверено {readySnapshots.length - pending.length} из{' '}
-          {readySnapshots.length}
-        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm text-ink-muted">Осталось проверить: {hostGroups.length}</p>
+          <div className="flex items-center gap-1">
+            {SUPPLIER_COUNTRIES.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setCountry(c)}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium',
+                  country === c ? 'border-primary text-primary' : 'border-border text-ink-muted hover:border-primary',
+                )}
+              >
+                <span className="text-sm leading-none">{countryFlag(c)}</span>
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
         {!verifying && (
-          <Button icon={<Play className="h-4 w-4" />} disabled={pending.length === 0} onClick={startVerification}>
+          <Button icon={<Play className="h-4 w-4" />} disabled={hostGroups.length === 0} onClick={startVerification}>
             Начать верификацию
           </Button>
         )}
       </div>
 
-      {verifying ? (
+      {verifying && (
         <div className="flex flex-col gap-3">
           <div className={cn('flex flex-wrap items-center justify-between gap-3 p-4', glassCardClass)} style={glassCardShadow}>
-            <p className="text-sm font-semibold text-ink">Верификация — осталось {verifyRemaining}</p>
+            <p className="text-sm font-semibold text-ink">Верификация — осталось {remaining}</p>
             <div className="flex gap-2">
               {verifyTarget && (
                 <Button variant="secondary" onClick={skipCurrent}>
@@ -313,68 +362,28 @@ export function SupplierVerificationTab({
             </div>
           </div>
 
-          {verifyTarget && card ? (
-            <div className={cn('flex flex-col gap-3 p-4', glassCardClass)} style={glassCardShadow}>
-              {card}
+          {verifyTarget ? (
+            <div className="flex flex-col gap-4 lg:flex-row">
+              <SupplierCard
+                group={verifyTarget}
+                onVerify={handleVerify}
+                onEdit={onEditOffer}
+                onDelete={onDeleteOffer}
+                saving={savingHost === verifyTarget.host}
+              />
+              <SiteBrowser url={verifyTarget.representative.websiteUrl} />
             </div>
           ) : (
             <div className={cn('flex flex-col items-center gap-2 p-8 text-center', glassCardClass)} style={glassCardShadow}>
               <CheckCircle2 className="h-8 w-8 text-success" />
               <p className="text-sm font-semibold text-ink">Всё проверено!</p>
-              {verifySkippedCount > 0 && (
-                <p className="text-xs text-ink-faint">Пропущено {verifySkippedCount} — найдёте их в списке ниже.</p>
-              )}
+              {skippedCount > 0 && <p className="text-xs text-ink-faint">Пропущено {skippedCount} за этот проход.</p>}
               <Button className="mt-2" onClick={stopVerification}>
-                Вернуться к списку
+                Завершить
               </Button>
             </div>
           )}
         </div>
-      ) : (
-        <>
-          <div className={cn('flex flex-wrap gap-3 p-4', glassCardClass)} style={glassCardShadow}>
-            <SearchInput
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Поиск по домену или названию…"
-              wrapperClassName="w-full max-w-xs"
-            />
-            <ToggleGroup options={[...FILTER_OPTIONS]} value={filter} onChange={(v) => setFilter(v as Filter)} />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            {filtered.map((s) => (
-              <div key={s.host} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border px-4 py-2.5">
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <SiteLink snapshot={s} />
-                  {namesByHost.has(s.host) && (
-                    <span className="truncate text-xs text-ink-faint">{[...namesByHost.get(s.host)!].join(', ')}</span>
-                  )}
-                  <div className="flex flex-wrap gap-1">
-                    {s.categories.slice(0, 4).map((c) => (
-                      <span key={c} className="rounded-full border border-border px-2 py-0.5 text-xs text-ink-muted">{c}</span>
-                    ))}
-                    {s.categories.length > 4 && <span className="text-xs text-ink-faint">+{s.categories.length - 4}</span>}
-                    {s.categories.length === 0 && <span className="text-xs text-ink-faint">категорий не найдено</span>}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {s.categoriesVerified ? <Badge tone="success">Проверено</Badge> : <Badge tone="warning">Не проверено</Badge>}
-                  <Button type="button" variant="secondary" onClick={() => openCard(s)}>
-                    Открыть карточку
-                  </Button>
-                </div>
-              </div>
-            ))}
-            {filtered.length === 0 && <p className="py-6 text-center text-sm text-ink-faint">Ничего не найдено.</p>}
-          </div>
-        </>
-      )}
-
-      {!verifying && (
-        <Modal open={!!editingSnapshot} onClose={closeCard} title="Верификация поставщика">
-          {card}
-        </Modal>
       )}
     </div>
   );

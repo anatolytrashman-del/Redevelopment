@@ -55,7 +55,7 @@ import { fetchSupplierReliability, checkSupplierReliability } from '../lib/suppl
 import { RiskBadge } from '../components/suppliers/RiskBadge';
 import type { SupplierSiteSnapshot } from '../data/supplierSiteSnapshots';
 import { fetchSupplierSiteSnapshots } from '../lib/supplierSiteSnapshotsApi';
-import { SupplierVerificationTab } from '../components/suppliers/SupplierVerificationTab';
+import { SupplierVerificationTab, pendingVerificationHostCount } from '../components/suppliers/SupplierVerificationTab';
 import type { SupplierOfferEmail } from '../data/supplierOfferEmails';
 import { fetchAllSupplierOfferEmails, markSupplierOfferEmailsRead } from '../lib/supplierOfferEmailsApi';
 import { EmailThread, SupplierCorrespondenceTab, countUnreadSupplierEmails } from '../components/suppliers/SupplierCorrespondenceTab';
@@ -200,12 +200,16 @@ function siteLabel(url: string): string {
 // вкладку — чистый вид только для сравнения, без кнопок управления запросом/
 // предложением, сгруппированный по тем же категориям (Материалы и
 // оборудование/Сервисы), что и "Поставщики".
-// Владелец, 2026-09-13: "делаем на странице Закупки вкладку 'Верификация',
-// в неё загоняем весь функционал" — ручная сверка автоматически расставленных
-// категорий поставщика по его сайту (supplier_site_snapshots.categories), по
-// аналогии с вкладкой "Верификация" на странице "Аналитика рынка"
-// (MarketOffersReview.tsx, для Светланы): карточка + отдельное окно с сайтом.
-// См. components/suppliers/SupplierVerificationTab.tsx.
+// Владелец, 2026-09-13: "делаем на странице Закупки вкладку 'Верификация'"
+// — очередь ручной проверки поставщика: карточка в режиме просмотра (имя,
+// сайт, email, телефон, мессенджеры, категории по сайту — только для
+// контекста, не редактируются) + встроенный браузер с главной страницей
+// сайта справа. "Верифицировать" переиспользует SupplierOffer.verified —
+// тот же признак, что и обычное "Редактировать → Сохранить" в карточке
+// предложения, просто выделенная очередь с превью сайта. Второй заход тем
+// же днём убрал первую версию с редактируемым чек-листом категорий — "не
+// будем отмечать категории вручную". См.
+// components/suppliers/SupplierVerificationTab.tsx.
 const SUPPLIER_TABS = ['Поставщики', 'Верификация', 'Сравнение цен', 'Ведомости материалов', 'Письма'] as const;
 type SupplierTab = (typeof SUPPLIER_TABS)[number];
 
@@ -2930,7 +2934,7 @@ export function Suppliers() {
     ) : undefined;
 
   const unreadSupplierEmailsCount = countUnreadSupplierEmails(supplierEmails);
-  const pendingVerificationCount = siteSnapshots.filter((s) => s.status === 'done' && !s.categoriesVerified).length;
+  const pendingVerificationCount = pendingVerificationHostCount(offers);
 
   return (
     <>
@@ -3072,11 +3076,11 @@ export function Suppliers() {
           {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
           {!loading && !loadError && (
             <SupplierVerificationTab
-              snapshots={siteSnapshots}
               offers={offers}
-              onSnapshotUpdated={(updated) =>
-                setSiteSnapshots((prev) => prev.map((s) => (s.host === updated.host ? updated : s)))
-              }
+              snapshots={siteSnapshots}
+              onOfferUpdated={(updated) => setOffers((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))}
+              onEditOffer={openEditOffer}
+              onDeleteOffer={handleDeleteOffer}
             />
           )}
         </div>

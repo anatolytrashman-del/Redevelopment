@@ -9,6 +9,15 @@
 // data/supplyCategories.ts). Новые домены ставит в очередь триггер в базе
 // при сохранении карточки с сайтом. Подробности — миграция
 // supabase/migrations/20260912-supplier-site-snapshots.sql.
+//
+// Колонки categories_verified/categories_verified_at (миграция
+// 20260913-supplier-site-snapshots-verification.sql) в базе есть, но код их
+// больше не читает и не пишет — первая версия вкладки "Верификация" ставила
+// отметку сюда, владелец тем же днём попросил другую механику (см.
+// SupplierOffer.verified в data/supplierResearch.ts и
+// components/suppliers/SupplierVerificationTab.tsx). Колонки не убраны —
+// DROP COLUMN сразу после уже опубликованного кода рискует спором версий
+// между миграцией и ещё не доехавшим до прода деплоем.
 export type SupplierSiteSnapshotStatus = 'pending' | 'processing' | 'done' | 'error';
 
 export interface SupplierSiteSection {
@@ -30,14 +39,6 @@ export interface SupplierSiteSnapshot {
   categories: string[];
   categoriesNote: string;
   classifiedAt: string | null;
-  // Ручная верификация (страница Закупки → вкладка "Верификация", см.
-  // components/suppliers/SupplierVerificationTab.tsx): человек открыл сайт,
-  // сверил categories и подтвердил (или поправил) их. Одобрение — на весь
-  // снимок сразу, отдельного флага по каждой категории нет: если поставщика
-  // одобрили в одной категории, он одобрен и во всех остальных, где стоит
-  // (владелец, 2026-09-13).
-  categoriesVerified: boolean;
-  categoriesVerifiedAt: string | null;
 }
 
 export interface SupplierSiteSnapshotRow {
@@ -52,6 +53,4 @@ export interface SupplierSiteSnapshotRow {
   categories: string[] | null;
   categories_note: string | null;
   classified_at: string | null;
-  categories_verified: boolean;
-  categories_verified_at: string | null;
 }
