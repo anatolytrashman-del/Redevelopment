@@ -30,6 +30,14 @@ export interface SupplierSiteSnapshot {
   categories: string[];
   categoriesNote: string;
   classifiedAt: string | null;
+  // Ручная верификация (страница Закупки → вкладка "Верификация", см.
+  // components/suppliers/SupplierVerificationTab.tsx): человек открыл сайт,
+  // сверил categories и подтвердил (или поправил) их. Одобрение — на весь
+  // снимок сразу, отдельного флага по каждой категории нет: если поставщика
+  // одобрили в одной категории, он одобрен и во всех остальных, где стоит
+  // (владелец, 2026-09-13).
+  categoriesVerified: boolean;
+  categoriesVerifiedAt: string | null;
 }
 
 export interface SupplierSiteSnapshotRow {
@@ -44,4 +52,6 @@ export interface SupplierSiteSnapshotRow {
   categories: string[] | null;
   categories_note: string | null;
   classified_at: string | null;
+  categories_verified: boolean;
+  categories_verified_at: string | null;
 }

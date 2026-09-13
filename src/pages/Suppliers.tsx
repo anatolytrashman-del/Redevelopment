@@ -55,6 +55,7 @@ import { fetchSupplierReliability, checkSupplierReliability } from '../lib/suppl
 import { RiskBadge } from '../components/suppliers/RiskBadge';
 import type { SupplierSiteSnapshot } from '../data/supplierSiteSnapshots';
 import { fetchSupplierSiteSnapshots } from '../lib/supplierSiteSnapshotsApi';
+import { SupplierVerificationTab } from '../components/suppliers/SupplierVerificationTab';
 import type { SupplierOfferEmail } from '../data/supplierOfferEmails';
 import { fetchAllSupplierOfferEmails, markSupplierOfferEmailsRead } from '../lib/supplierOfferEmailsApi';
 import { EmailThread, SupplierCorrespondenceTab, countUnreadSupplierEmails } from '../components/suppliers/SupplierCorrespondenceTab';
@@ -199,7 +200,13 @@ function siteLabel(url: string): string {
 // вкладку — чистый вид только для сравнения, без кнопок управления запросом/
 // предложением, сгруппированный по тем же категориям (Материалы и
 // оборудование/Сервисы), что и "Поставщики".
-const SUPPLIER_TABS = ['Поставщики', 'Сравнение цен', 'Ведомости материалов', 'Письма'] as const;
+// Владелец, 2026-09-13: "делаем на странице Закупки вкладку 'Верификация',
+// в неё загоняем весь функционал" — ручная сверка автоматически расставленных
+// категорий поставщика по его сайту (supplier_site_snapshots.categories), по
+// аналогии с вкладкой "Верификация" на странице "Аналитика рынка"
+// (MarketOffersReview.tsx, для Светланы): карточка + отдельное окно с сайтом.
+// См. components/suppliers/SupplierVerificationTab.tsx.
+const SUPPLIER_TABS = ['Поставщики', 'Верификация', 'Сравнение цен', 'Ведомости материалов', 'Письма'] as const;
 type SupplierTab = (typeof SUPPLIER_TABS)[number];
 
 // Владелец, 2026-09-04: "меня бесит, что у всей страницы Поставщики
@@ -210,6 +217,7 @@ type SupplierTab = (typeof SUPPLIER_TABS)[number];
 // ссылки не должны сломаться.
 const SUPPLIER_TAB_SLUGS: Record<SupplierTab, string> = {
   'Поставщики': 'suppliers',
+  'Верификация': 'verification',
   'Сравнение цен': 'comparison',
   'Ведомости материалов': 'ledger',
   Письма: 'letters',
@@ -2922,6 +2930,7 @@ export function Suppliers() {
     ) : undefined;
 
   const unreadSupplierEmailsCount = countUnreadSupplierEmails(supplierEmails);
+  const pendingVerificationCount = siteSnapshots.filter((s) => s.status === 'done' && !s.categoriesVerified).length;
 
   return (
     <>
@@ -2935,7 +2944,7 @@ export function Suppliers() {
           options={[...SUPPLIER_TABS]}
           value={tab}
           onChange={(v) => setTab(v as SupplierTab)}
-          badges={{ Письма: unreadSupplierEmailsCount }}
+          badges={{ Письма: unreadSupplierEmailsCount, Верификация: pendingVerificationCount }}
         />
         {/* Владелец, 2026-09-04: "перенеси Шаблоны направо, на уровень меню
             Поставщики/Письма, но видна только когда открываешь Письма". */}
@@ -3050,6 +3059,27 @@ export function Suppliers() {
           <ContractorsResearch />
         </div>
       </div>
+      )}
+
+      {tab === 'Верификация' && (
+        <div className="mt-6">
+          {loading && (
+            <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Загружаем поставщиков...
+            </Card>
+          )}
+          {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
+          {!loading && !loadError && (
+            <SupplierVerificationTab
+              snapshots={siteSnapshots}
+              offers={offers}
+              onSnapshotUpdated={(updated) =>
+                setSiteSnapshots((prev) => prev.map((s) => (s.host === updated.host ? updated : s)))
+              }
+            />
+          )}
+        </div>
       )}
 
       {/* Владелец, 2026-09-09: "нам как будто нужна отдельная вкладка

@@ -32,6 +32,7 @@ export const ACTIVITY_ACTION_LABELS: Record<string, string> = {
   supplier_offer_added_manually: 'Добавление поставщика вручную (Ресерч)',
   supplier_invoice_confirmed: 'Подтверждение счёта/КП из письма (Ресерч → Письма)',
   supplier_web_search_started: 'Запуск веб-поиска поставщиков (Закупки → Поставщики)',
+  supplier_site_categories_verified: 'Верификация категорий поставщика (Закупки → Верификация)',
 };
 
 export function activityActionLabel(action: string): string {
