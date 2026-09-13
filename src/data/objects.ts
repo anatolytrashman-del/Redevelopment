@@ -165,6 +165,10 @@ export interface RealtyObject {
   // documents: это маркетинговый материал для клиента, а не официальный
   // документ объекта (выписка/техпаспорт/землеотвод).
   intentAgreementFile: ObjectDocumentFile | null;
+  // То же самое, но для режима "Аренда" переключателя Покупка/Аренда на
+  // продающей странице (см. DealMode в buildingPlans.ts) — текст соглашения
+  // на покупку и на аренду разный, поэтому и файл-превью отдельный.
+  rentIntentAgreementFile: ObjectDocumentFile | null;
   // Ссылка на эмбед карты из Яндекс.Карт Конструктора (constructor.yandex.ru) —
   // именно iframe-ссылка на готовую карту с меткой, не координаты и не API-
   // ключ. Осознанный выбор: не нужен свой аккаунт разработчика/ключ Яндекса,
@@ -212,6 +216,7 @@ export interface RealtyObjectRow {
   landing_slug: string | null;
   render_image_urls: string[] | null;
   intent_agreement_file: ObjectDocumentFile | null;
+  rent_intent_agreement_file: ObjectDocumentFile | null;
   map_embed_url: string | null;
   priority: boolean | null;
   paused: boolean | null;

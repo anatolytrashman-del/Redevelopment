@@ -150,6 +150,7 @@ export default async function handler(req, res) {
     zoneFloorLabel,
     zoneLabel,
     isWorkstation,
+    dealMode,
     buyerName,
     buyerGender,
     buyerCitizenship,
@@ -158,6 +159,10 @@ export default async function handler(req, res) {
     buyerAddress,
     email,
   } = req.body ?? {};
+  // Только 'rent' переключает шаблон/текст письма — любое другое значение
+  // (включая отсутствие поля у старого закэшированного фронта) считаем
+  // покупкой, как было до этой фичи.
+  const isRent = dealMode === 'rent';
 
   if (
     !leadId ||
@@ -203,6 +208,7 @@ export default async function handler(req, res) {
       zone_floor_label: zoneFloorLabel ?? '',
       zone_label: zoneLabel ?? '',
       is_workstation: !!isWorkstation,
+      deal_mode: isRent ? 'rent' : 'sale',
       buyer_name: buyerName,
       buyer_gender: buyerGender,
       buyer_citizenship: buyerCitizenship,
@@ -216,9 +222,11 @@ export default async function handler(req, res) {
       user_agent: req.headers['user-agent'] ?? null,
     });
 
-    const unitLabel = isWorkstation
-      ? `Рабочее место ${zoneLabel || ''}`.trim()
-      : `Кабинет ${zoneLabel || ''}${zoneArea ? ` · ${zoneArea} м²` : ''}`.trim();
+    const unitLabel = (
+      isWorkstation
+        ? `Рабочее место ${zoneLabel || ''}`
+        : `Кабинет ${zoneLabel || ''}${zoneArea ? ` · ${zoneArea} м²` : ''}`
+    ).trim() + (isRent ? ' · аренда' : '');
     await sendOtpEmail(email, code, unitLabel);
 
     res.status(200).json({ signatureId: row.id });

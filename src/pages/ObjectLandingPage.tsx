@@ -470,7 +470,11 @@ export function ObjectLandingPage() {
           dealMode={dealMode}
         />
 
-        <BookingTermsCard key="booking-terms" agreement={object.intentAgreementFile} />
+        <BookingTermsCard
+          key="booking-terms"
+          agreement={dealMode === 'rent' ? object.rentIntentAgreementFile : object.intentAgreementFile}
+          dealMode={dealMode}
+        />
 
         <FaqCard key="faq" dealMode={dealMode} />
       </div>
