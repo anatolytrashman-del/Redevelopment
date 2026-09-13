@@ -22,6 +22,43 @@
   задача чинить сам ci.yml. Подробности — `docs/release-queue.md`,
   «Опубликовано».
 
+- **2026-09-13 — Фильтр ботов/headless-браузеров из счётчика "онлайн" на
+  сайте, опубликовано.** Владелец сообщил: в сайдбаре стабильно 3-4
+  "онлайн" на маркетинговых страницах без реальных посетителей, заподозрил
+  ИИ-агентов. Причина — `src/lib/onlinePresence.ts`: любой браузер, который
+  выполнил JS публичной страницы (не только `/admin`), джойнится в общий
+  Supabase Realtime Presence-канал `online-visitors`, а счётчик просто
+  считает участников. Headless-браузеры (Playwright/Puppeteer/Selenium —
+  на них и работает большинство ИИ-агентов/скрейперов, выполняющих JS)
+  засчитывались наравне с людьми. Фикс: `useOnlinePresenceTracker` не
+  трекает presence, если `navigator.webdriver === true` либо `User-Agent`
+  совпадает с известными ботами/AI-краулерами (GPTBot, ClaudeBot,
+  PerplexityBot, ahrefs/semrush и т.п.). Не идеально (эвристику можно
+  подделать), но убирает основной шум. Ветка `claude/wizardly-babbage-ijfnwn`
+  → очередь релиза → по команде владельца «мерджи»: PR
+  [#84](https://github.com/anatolytrashman-del/Redevelopment/pull/84) →
+  `oodobu`, Vercel `dpl_7UPWxwuoeErAiL5VH8wxJ1nWaRCR` READY за 6 мин
+  (легитимный полный пререндер — `onlinePresence.ts` в графе `App.tsx`).
+
+- **2026-09-13 — Добавлен и опубликован раздел «Коллаборации» в меню
+  Маркетинг.** По просьбе владельца: новая страница `/admin/collaborations`
+  для учёта партнёрств — карточки с полями партнёр/способ связи+контакт/
+  ссылка/о чём договариваемся/статус (два последних поля — растущие списки
+  через `AddableSelect`, как у лидов/банков). Реализовано 1-в-1 по паттерну
+  страницы «Финансирование» (`data/collaborations.ts` + `lib/
+  collaborationsApi.ts` + `pages/Collaborations.tsx`), новая таблица
+  `public.collaborations` в Supabase создана через Management API. По
+  команде «публикуй очередь» → «мерджи»: PR
+  [#82](https://github.com/anatolytrashman-del/Redevelopment/pull/82) в
+  `oodobu`, мердж-коммит `2ea0b0b`, Vercel `dpl_AZNrgwPf9LhGm3ADK7b4wPaqLQwV`
+  — READY за 6 мин. Живой прод подтверждён (`/admin/collaborations` → 200,
+  свой шелл). Остальные незамерженные ветки в репо на момент публикации
+  проверены и сознательно не включены — `claude/wonderful-einstein-vdg945`
+  всё ещё отложена (ждёт апгрейда тарифа Resend), `claude/modular-platform-
+  client-sales-r6fgw4` вне очереди (см. `docs/release-queue.md`), остальные
+  старые ветки без записи в очереди — брошенные хвосты, не трогал.
+  Подробности — `docs/release-queue.md`, «Опубликовано».
+
 - **2026-09-13 — Опубликован второй заход правок Покупка/Аренда на Red One.**
   По команде «мерджи, посмотрю все сам»: PR
   [#79](https://github.com/anatolytrashman-del/Redevelopment/pull/79) из
