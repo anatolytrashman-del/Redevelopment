@@ -15,9 +15,23 @@ function randomPresenceKey(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
+// Headless-браузеры (Playwright/Puppeteer/Selenium — на них работает большинство
+// ИИ-агентов и скрейперов, выполняющих JS страницы) выставляют navigator.webdriver
+// в true; обычный браузер человека — никогда. Плюс явные строки UA известных ботов
+// и AI-краулеров, которые тоже рендерят JS (значит без этой проверки попадали бы
+// в presence). Не претендует на 100% точность — просто убирает основной шум.
+const BOT_UA_PATTERN =
+  /bot|spider|crawl|slurp|headless|puppeteer|playwright|selenium|phantomjs|gptbot|chatgpt-user|oai-searchbot|claudebot|anthropic-ai|ccbot|perplexitybot|bytespider|petalbot|mj12bot|dotbot|ahrefsbot|semrushbot|facebookexternalhit|telegrambot|discordbot|whatsapp/i;
+
+function isLikelyBot(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  if (navigator.webdriver) return true;
+  return BOT_UA_PATTERN.test(navigator.userAgent);
+}
+
 export function useOnlinePresenceTracker(active: boolean): void {
   useEffect(() => {
-    if (!active) return;
+    if (!active || isLikelyBot()) return;
     const channel = supabase.channel(CHANNEL_NAME, {
       config: { presence: { key: randomPresenceKey() } },
     });
