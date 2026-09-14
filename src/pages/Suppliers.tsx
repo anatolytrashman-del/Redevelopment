@@ -68,8 +68,18 @@ import { SupplierCatalog } from '../components/suppliers/SupplierCatalog';
 import type { LedgerAttachment } from '../lib/materialLedgerXlsx';
 import type { EmailTemplate } from '../data/emailTemplates';
 import { fetchEmailTemplates } from '../lib/emailTemplatesApi';
-import type { EmailAutoReplyLogEntry, EmailAutoReplyRule, EmailAutoReplySettings } from '../data/emailAutoReply';
-import { fetchEmailAutoReplyRules, fetchEmailAutoReplySettings, fetchPendingAutoReplies } from '../lib/emailAutoReplyApi';
+import type {
+  EmailAutoReplyLogEntry,
+  EmailAutoReplyRule,
+  EmailAutoReplyRuleStats,
+  EmailAutoReplySettings,
+} from '../data/emailAutoReply';
+import {
+  fetchEmailAutoReplyRules,
+  fetchEmailAutoReplyRuleStats,
+  fetchEmailAutoReplySettings,
+  fetchPendingAutoReplies,
+} from '../lib/emailAutoReplyApi';
 import { DEFAULT_AUTO_REPLY_SIGNATURE } from '../data/emailAutoReply';
 import { AutoReplyRulesModal } from '../components/suppliers/AutoReplyRules';
 import type { MaterialLedger } from '../data/materialLedgers';
@@ -1778,6 +1788,7 @@ export function Suppliers() {
   const [autoReplyLoading, setAutoReplyLoading] = useState(true);
   const [autoRepliesModalOpen, setAutoRepliesModalOpen] = useState(false);
   const [pendingAutoReplies, setPendingAutoReplies] = useState<EmailAutoReplyLogEntry[]>([]);
+  const [autoReplyStats, setAutoReplyStats] = useState<EmailAutoReplyRuleStats[]>([]);
   // Ведомости материалов (владелец, 2026-09-03) — тот же принцип, что и у
   // шаблонов писем: пресеты не привязаны к конкретному поставщику/запросу,
   // один источник на всю страницу.
@@ -1934,6 +1945,7 @@ export function Suppliers() {
       })
       .finally(() => setAutoReplyLoading(false));
     fetchPendingAutoReplies().then(setPendingAutoReplies).catch(() => setPendingAutoReplies([]));
+    fetchEmailAutoReplyRuleStats().then(setAutoReplyStats).catch(() => setAutoReplyStats([]));
     fetchMaterialLedgers().then(setMaterialLedgers).catch(() => setMaterialLedgers([]));
     fetchSupplierOrders().then(setSupplierOrders).catch(() => setSupplierOrders([]));
     fetchSupplierQuotes().then(setSupplierQuotes).catch(() => setSupplierQuotes([]));
@@ -4128,6 +4140,7 @@ export function Suppliers() {
         rules={autoReplyRules}
         settings={autoReplySettings}
         requests={requests}
+        stats={autoReplyStats}
         loading={autoReplyLoading}
         onClose={() => setAutoRepliesModalOpen(false)}
         onRulesChange={setAutoReplyRules}
