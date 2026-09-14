@@ -2,6 +2,7 @@ import { Bot, Check, Clock } from 'lucide-react';
 import { ClaudeLogo } from './ClaudeLogo';
 import type { AiAgent } from '../../data/aiAgents';
 import { formatActivityTime, type AiAgentActivity } from '../../lib/aiAgentsApi';
+import { Badge } from '../ui/Badge';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 
@@ -27,7 +28,14 @@ export function AiAgentCard({ agent, activity: liveActivity }: { agent: AiAgent;
           </span>
         )}
         <div className="min-w-0">
-          <div className="break-words font-semibold text-ink">{agent.name}</div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span className="break-words font-semibold text-ink">{agent.name}</span>
+            {agent.tag && (
+              <Badge tone="primary" className="px-2 py-0.5">
+                {agent.tag}
+              </Badge>
+            )}
+          </div>
           <div className="truncate text-sm text-ink-muted">{agent.role}</div>
         </div>
       </div>
