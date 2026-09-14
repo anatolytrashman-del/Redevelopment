@@ -11,7 +11,7 @@ import { countryFlag, messengerLink, supplierWebsiteFullUrl, supplierWebsiteHost
 import type { SupplierSiteSnapshot } from '../../data/supplierSiteSnapshots';
 import type { SupplierScreenshot } from '../../data/supplierScreenshots';
 import { deleteSupplierScreenshot, fetchSupplierScreenshots, uploadSupplierScreenshot } from '../../lib/supplierScreenshotsApi';
-import { fetchSupplierMenuCaptures, type SupplierMenuCapture } from '../../lib/supplierMenuCapturesApi';
+import { fetchSupplierMenuCaptures, fetchSupplierMenuCaptureHosts, type SupplierMenuCapture } from '../../lib/supplierMenuCapturesApi';
 import { CONTACT_CAPTURE_SAVED_EVENT, MENU_CAPTURE_SAVED_EVENT } from '../../lib/menuCaptureReceiver';
 import { CONTACTS_BOOKMARKLET_HREF, MENU_BOOKMARKLET_HREF } from '../../data/bookmarkletLinks';
 import {
@@ -115,7 +115,18 @@ function isReadyForVerification(group: HostGroup): boolean {
   return group.representative.name.trim().length > 0 && group.representative.websiteUrl.trim().length > 0;
 }
 
-function buildHostGroups(offers: SupplierOffer[], snapshotByHost: Map<string, SupplierSiteSnapshot>): HostGroup[] {
+// includeVerified — брать хост даже тогда, когда все его карточки уже
+// помечены верифицированными. Основной очереди это не нужно (там как раз
+// ждут неподтверждённые), а второй — нужно: с 2026-09-14 отметку ставит
+// scripts/verify-recognized.mjs по факту распознанного каталога, и её
+// получили в том числе десять сайтов, которые робот ни разу не открывал —
+// категории у них от старого серверного снимка без браузера. Без этой
+// опции они не попали бы никуда вообще.
+function buildHostGroups(
+  offers: SupplierOffer[],
+  snapshotByHost: Map<string, SupplierSiteSnapshot>,
+  options: { includeVerified?: boolean } = {},
+): HostGroup[] {
   const byHost = new Map<string, SupplierOffer[]>();
   for (const o of offers) {
     const host = supplierWebsiteHost(o.websiteUrl);
@@ -125,9 +136,9 @@ function buildHostGroups(offers: SupplierOffer[], snapshotByHost: Map<string, Su
   }
   const groups: HostGroup[] = [];
   for (const [host, list] of byHost) {
-    const unverified = list.find((o) => !o.verified);
-    if (!unverified) continue;
-    groups.push({ host, offers: list, representative: unverified, snapshot: snapshotByHost.get(host) ?? null });
+    const representative = list.find((o) => !o.verified) ?? (options.includeVerified ? list[0] : undefined);
+    if (!representative) continue;
+    groups.push({ host, offers: list, representative, snapshot: snapshotByHost.get(host) ?? null });
   }
   return groups;
 }
@@ -616,6 +627,9 @@ export function SupplierVerificationTab({
   // скринов и меню, снятый контакт НЕ выводит поставщика из очереди —
   // наоборот, он нужен прямо сейчас, на открытой карточке.
   const [contactCaptures, setContactCaptures] = useState<SupplierContactCapture[]>([]);
+  // Хосты, чей сайт уже открывали (роботом или закладкой) — отдельным
+  // лёгким запросом, см. fetchSupplierMenuCaptureHosts.
+  const [capturedHosts, setCapturedHosts] = useState<Set<string>>(new Set());
 
   const snapshotByHost = useMemo(() => new Map(snapshots.map((s) => [s.host, s])), [snapshots]);
 
@@ -631,6 +645,9 @@ export function SupplierVerificationTab({
       .catch(() => {});
     fetchSupplierContactCaptures()
       .then(setContactCaptures)
+      .catch(() => {});
+    fetchSupplierMenuCaptureHosts()
+      .then(setCapturedHosts)
       .catch(() => {});
   }, []);
 
@@ -668,11 +685,25 @@ export function SupplierVerificationTab({
   // (каталог рисуется скриптом, спрятан за поиском, закрыт защитой).
   // Раскладывать там нечего, нужен съём руками — поэтому такие не мешаются
   // в основной очереди, а ждут отдельным списком с кнопкой «открыть сайт».
-  const unrecognizedGroups = useMemo(
-    () => hostGroups.filter((g) => (g.snapshot?.categories.length ?? 0) === 0),
-    [hostGroups],
+  //
+  // Расширено 2026-09-15 (владелец: «15 поставщиков по России прячь во
+  // вторую очередь»). Случаев на самом деле два, и оба означают одно и то
+  // же — каталога у нас нет, нужен человек:
+  //   1. сайт открывали, но меню пустое — то, ради чего очередь заводилась;
+  //   2. сайт не открывали ни разу — робот до него не дошёл (отдавал отказ
+  //      или выпал из очереди прогона).
+  // Второй случай раньше не отображался нигде: десять таких хостов уже
+  // помечены верифицированными по старому серверному снимку, и обычная
+  // сборка групп их отбрасывала. Отсюда includeVerified.
+  const secondQueueGroups = useMemo(
+    () =>
+      buildHostGroups(countryOffers, snapshotByHost, { includeVerified: true })
+        .filter(isReadyForVerification)
+        .filter((g) => !capturedHosts.has(g.host) || (g.snapshot?.categories.length ?? 0) === 0)
+        .sort((a, b) => a.host.localeCompare(b.host)),
+    [countryOffers, snapshotByHost, capturedHosts],
   );
-  const unrecognizedHosts = useMemo(() => new Set(unrecognizedGroups.map((g) => g.host)), [unrecognizedGroups]);
+  const unrecognizedHosts = useMemo(() => new Set(secondQueueGroups.map((g) => g.host)), [secondQueueGroups]);
   const queueGroups = useMemo(
     () => hostGroups.filter((g) => !awaitingHosts.has(g.host) && !unrecognizedHosts.has(g.host)),
     [hostGroups, awaitingHosts, unrecognizedHosts],
@@ -976,26 +1007,34 @@ export function SupplierVerificationTab({
         </div>
       )}
 
-      {unrecognizedGroups.length > 0 && (
+      {secondQueueGroups.length > 0 && (
         <div className={cn('flex flex-col gap-2 p-4', glassCardClass)} style={glassCardShadow}>
-          <p className="text-sm font-semibold text-ink">Вторая очередь: каталог не распознался ({unrecognizedGroups.length})</p>
+          <p className="text-sm font-semibold text-ink">Вторая очередь: каталога нет ({secondQueueGroups.length})</p>
           <p className="text-xs text-ink-faint">
-            У этих поставщиков робот не смог снять меню — каталог рисуется скриптом, спрятан за поиском или закрыт
-            защитой. Товарных групп нет, поэтому в основную очередь они не попадают. Откройте сайт и нажмите «Снять
-            меню» руками: после этого поставщик вернётся в обычную очередь сам.
+            Товарных групп у этих поставщиков нет, поэтому в основную очередь они не идут. Сплошной контур — робот сайт
+            открыл, но меню не снялось: каталог рисуется скриптом, спрятан за поиском или закрыт защитой. Пунктир —
+            сайт не открывали ни разу, робот до него не дошёл. Действие в обоих случаях одно: открыть сайт и нажать
+            «Снять меню» руками, после этого поставщик вернётся в обычную очередь сам.
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {unrecognizedGroups.map((g) => (
-              <button
-                key={g.host}
-                type="button"
-                onClick={() => openSupplierSiteTab(supplierWebsiteFullUrl(g.representative.websiteUrl))}
-                className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-primary-hover hover:border-primary hover:underline"
-              >
-                {g.representative.name || g.host}
-                <ExternalLink className="h-3 w-3 shrink-0" />
-              </button>
-            ))}
+            {secondQueueGroups.map((g) => {
+              const neverOpened = !capturedHosts.has(g.host);
+              return (
+                <button
+                  key={g.host}
+                  type="button"
+                  title={neverOpened ? 'Сайт не открывали ни разу' : 'Сайт открывали, меню не снялось'}
+                  onClick={() => openSupplierSiteTab(supplierWebsiteFullUrl(g.representative.websiteUrl))}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs text-primary-hover hover:border-primary hover:underline',
+                    neverOpened ? 'border-dashed border-ink-faint' : 'border-border',
+                  )}
+                >
+                  {g.representative.name || g.host}
+                  <ExternalLink className="h-3 w-3 shrink-0" />
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
