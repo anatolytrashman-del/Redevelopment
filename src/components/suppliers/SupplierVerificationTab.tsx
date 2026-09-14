@@ -661,7 +661,22 @@ export function SupplierVerificationTab({
     () => new Set(screenshots.filter((s) => s.status === 'pending').map((s) => s.host)),
     [screenshots],
   );
-  const queueGroups = useMemo(() => hostGroups.filter((g) => !awaitingHosts.has(g.host)), [hostGroups, awaitingHosts]);
+  // Вторая очередь. Владелец, 2026-09-14: «всё, что не распозналось,
+  // закидывай во вторую очередь… а всё, что распозналось, помечай
+  // верифицированным». Не распозналось — значит у поставщика нет ни одной
+  // товарной группы: робот принёс с сайта пустое или почти пустое меню
+  // (каталог рисуется скриптом, спрятан за поиском, закрыт защитой).
+  // Раскладывать там нечего, нужен съём руками — поэтому такие не мешаются
+  // в основной очереди, а ждут отдельным списком с кнопкой «открыть сайт».
+  const unrecognizedGroups = useMemo(
+    () => hostGroups.filter((g) => (g.snapshot?.categories.length ?? 0) === 0),
+    [hostGroups],
+  );
+  const unrecognizedHosts = useMemo(() => new Set(unrecognizedGroups.map((g) => g.host)), [unrecognizedGroups]);
+  const queueGroups = useMemo(
+    () => hostGroups.filter((g) => !awaitingHosts.has(g.host) && !unrecognizedHosts.has(g.host)),
+    [hostGroups, awaitingHosts, unrecognizedHosts],
+  );
   const awaitingGroups = useMemo(() => hostGroups.filter((g) => awaitingHosts.has(g.host)), [hostGroups, awaitingHosts]);
 
   // Карточку, на которую только что загрузили скрины, держим на экране до
@@ -958,6 +973,30 @@ export function SupplierVerificationTab({
           {captureGroups.map((group) => (
             <CaptureGroupRow key={group.key} group={group} withName onPick={pickCapture} onDismiss={dismissCaptureGroup} />
           ))}
+        </div>
+      )}
+
+      {unrecognizedGroups.length > 0 && (
+        <div className={cn('flex flex-col gap-2 p-4', glassCardClass)} style={glassCardShadow}>
+          <p className="text-sm font-semibold text-ink">Вторая очередь: каталог не распознался ({unrecognizedGroups.length})</p>
+          <p className="text-xs text-ink-faint">
+            У этих поставщиков робот не смог снять меню — каталог рисуется скриптом, спрятан за поиском или закрыт
+            защитой. Товарных групп нет, поэтому в основную очередь они не попадают. Откройте сайт и нажмите «Снять
+            меню» руками: после этого поставщик вернётся в обычную очередь сам.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {unrecognizedGroups.map((g) => (
+              <button
+                key={g.host}
+                type="button"
+                onClick={() => openSupplierSiteTab(supplierWebsiteFullUrl(g.representative.websiteUrl))}
+                className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-primary-hover hover:border-primary hover:underline"
+              >
+                {g.representative.name || g.host}
+                <ExternalLink className="h-3 w-3 shrink-0" />
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

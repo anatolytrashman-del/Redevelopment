@@ -342,6 +342,54 @@ async function dossier() {
   console.log(`групп ${dict.length}, терминов ${termRows.length} (разложено ${mapped.length}, нет ${unmapped.length})`);
 }
 
+// Пересчёт категорий у поставщиков по текущему словарю: дерево разделов →
+// термины → группы. Отдельной командой нужен после прогона робота — новые
+// сайты раскладываются готовым словарём, без модели и без нового досье.
+async function recomputeCategories() {
+  // 3. Пересчёт категорий у поставщиков — обычный поиск по словарю, без
+  // модели: дерево разделов → термины → группы.
+  //
+  // Пачками по 200 хостов одним UPDATE ... FROM (VALUES …). Первый проход
+  // (2026-09-14) шёл по одному запросу на хост — 1069 запросов через
+  // Management API, около одиннадцати минут и риск словить таймаут на
+  // ровном месте. Здесь то же самое укладывается в несколько секунд.
+  const captures = await query(`
+    select host, tree from supplier_menu_captures where status <> 'skipped'
+  `);
+  const mapRows = await query("select term, categories from supply_terms where categories <> '{}'");
+  const byTerm = new Map(mapRows.map((r) => [r.term, r.categories]));
+  const updates = [];
+  for (const row of captures) {
+    const found = new Set();
+    for (const { term } of treeTerms(row.tree)) {
+      for (const name of byTerm.get(term) ?? []) found.add(name);
+    }
+    if (!found.size) continue;
+    updates.push({ host: row.host, categories: [...found] });
+  }
+  const chunkHosts = 200;
+  for (let i = 0; i < updates.length; i += chunkHosts) {
+    const values = updates
+      .slice(i, i + chunkHosts)
+      .map((u) => `(${lit(u.host)}, array[${u.categories.map(lit).join(', ')}]::text[])`)
+      .join(', ');
+    await query(`
+      update supplier_site_snapshots s
+      set categories = v.cats, classified_at = now()
+      from (values ${values}) as v(host, cats)
+      where s.host = v.host
+    `);
+  }
+  const touched = updates.length;
+  return touched;
+}
+
+async function recompute() {
+  const touched = await recomputeCategories();
+  console.log(`категории пересчитаны у поставщиков: ${touched}`);
+  console.log('дальше: node scripts/verify-recognized.mjs --confirm');
+}
+
 async function apply() {
   const file = named.file;
   if (!file) throw new Error('нужен --file=decision.json');
@@ -429,42 +477,7 @@ async function apply() {
         set categories = excluded.categories, ignored = excluded.ignored, updated_at = now()
     `);
   }
-
-  // 3. Пересчёт категорий у поставщиков — обычный поиск по словарю, без
-  // модели: дерево разделов → термины → группы.
-  //
-  // Пачками по 200 хостов одним UPDATE ... FROM (VALUES …). Первый проход
-  // (2026-09-14) шёл по одному запросу на хост — 1069 запросов через
-  // Management API, около одиннадцати минут и риск словить таймаут на
-  // ровном месте. Здесь то же самое укладывается в несколько секунд.
-  const captures = await query(`
-    select host, tree from supplier_menu_captures where status <> 'skipped'
-  `);
-  const mapRows = await query("select term, categories from supply_terms where categories <> '{}'");
-  const byTerm = new Map(mapRows.map((r) => [r.term, r.categories]));
-  const updates = [];
-  for (const row of captures) {
-    const found = new Set();
-    for (const { term } of treeTerms(row.tree)) {
-      for (const name of byTerm.get(term) ?? []) found.add(name);
-    }
-    if (!found.size) continue;
-    updates.push({ host: row.host, categories: [...found] });
-  }
-  const chunkHosts = 200;
-  for (let i = 0; i < updates.length; i += chunkHosts) {
-    const values = updates
-      .slice(i, i + chunkHosts)
-      .map((u) => `(${lit(u.host)}, array[${u.categories.map(lit).join(', ')}]::text[])`)
-      .join(', ');
-    await query(`
-      update supplier_site_snapshots s
-      set categories = v.cats, classified_at = now()
-      from (values ${values}) as v(host, cats)
-      where s.host = v.host
-    `);
-  }
-  const touched = updates.length;
+  const touched = await recomputeCategories();
 
   // 4. Прямые группы домену — для сайтов, где в меню одни названия
   // коллекций. Ставятся ПОСЛЕ пересчёта по словарю и объединяются с ним, а
@@ -519,9 +532,9 @@ async function apply() {
   }
 }
 
-const commands = { terms, dossier, apply, status };
+const commands = { terms, dossier, apply, status, recompute };
 if (!commands[cmd]) {
-  console.error('команды: terms | dossier [--min-hosts=N] | apply --file=decision.json [--dry] | status');
+  console.error('команды: terms | dossier [--min-hosts=N | --empty-hosts] | apply --file=decision.json [--terms-only] [--dry] | recompute | status');
   process.exit(1);
 }
 await commands[cmd]();
