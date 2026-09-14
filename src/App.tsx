@@ -68,6 +68,7 @@ const Contractors = lazy(() => import('./pages/Contractors').then((m) => ({ defa
 // Suppliers, см. комментарий в самом файле. Purchases.tsx (embedded, вкладка
 // "Закупки") сюда по-прежнему не подключается — вкладку убрали 2026-09-03.
 const Suppliers = lazy(() => import('./pages/Suppliers').then((m) => ({ default: m.Suppliers })));
+const WorkContractors = lazy(() => import('./pages/WorkContractors').then((m) => ({ default: m.WorkContractors })));
 const Objects = lazy(() => import('./pages/Objects').then((m) => ({ default: m.Objects })));
 const ObjectDetail = lazy(() => import('./pages/ObjectDetail').then((m) => ({ default: m.ObjectDetail })));
 const Documents = lazy(() => import('./pages/Documents').then((m) => ({ default: m.Documents })));
@@ -370,6 +371,12 @@ export default function App() {
             сохранённые ссылки. */}
         <Route path="contractors" element={<RequirePage page="contractors"><Contractors /></RequirePage>} />
         <Route path="purchases" element={<RequirePage page="purchases"><Suppliers /></RequirePage>} />
+        {/* "Подрядчики" — отдельный пункт меню в группе "Стройка" под
+            "Закупками" (владелец, 2026-09-14). Успело побывать вкладкой
+            внутри "Закупок" и уехать в прод в таком виде, поэтому старый
+            адрес вкладки (/admin/purchases?tab=contractors) редиректим
+            сюда — тем же приёмом, что и остальные переехавшие адреса выше. */}
+        <Route path="work-contractors" element={<RequirePage page="workContractors"><WorkContractors /></RequirePage>} />
         <Route path="suppliers" element={<Navigate to="/admin/purchases" replace />} />
         <Route path="work-and-supplies" element={<Navigate to="/admin/contractors" replace />} />
         <Route path="objects" element={<RequirePage page="objects"><Objects /></RequirePage>} />

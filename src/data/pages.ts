@@ -17,6 +17,7 @@ import {
   Globe,
   ClipboardCheck,
   ShoppingCart,
+  HardHat,
   BarChart3,
   Handshake,
 } from 'lucide-react';
@@ -41,6 +42,7 @@ export type PageKey =
   | 'tz'
   | 'estimates'
   | 'purchases'
+  | 'workContractors'
   | 'finModels'
   | 'financing'
   | 'designProjects'
@@ -96,6 +98,15 @@ export const ADMIN_PAGES: AdminPage[] = [
   // раздел (закупки) и его первая вкладка (поставщики) теперь называются
   // по-разному намеренно.
   { key: 'purchases', to: '/admin/purchases', label: 'Закупки', icon: ShoppingCart },
+  // "Подрядчики" — подрядчики с Авито и переписка с ними. Владелец,
+  // 2026-09-14: "вынеси Подрядчики в отдельный пункт меню, тоже в стройку,
+  // прямо под закупками. Мы будем работать над ним позже" — в тот же день
+  // это успело побывать вкладкой внутри "Закупок" и уехать в прод.
+  // Ключ 'workContractors', а не 'contractors': последний давно занят
+  // страницей "Команда" (см. выше) и на нём завязан бейдж дней рождения.
+  // Адрес /admin/work-contractors по той же причине — /admin/contractors
+  // это "Команда".
+  { key: 'workContractors', to: '/admin/work-contractors', label: 'Подрядчики', icon: HardHat },
   { key: 'transactions', to: '/admin/transactions', label: 'Транзакции', icon: Receipt },
   { key: 'documents', to: '/admin/documents', label: 'Документы', icon: FileStack },
   { key: 'meetingSummaries', to: '/admin/meeting-summaries', label: 'Саммери встреч', icon: MessageSquareText },
@@ -112,6 +123,7 @@ export const VISIBLE_PAGE_KEYS: PageKey[] = [
   'tz',
   'estimates',
   'purchases',
+  'workContractors',
   'finModels',
   'financing',
   'designProjects',
@@ -137,7 +149,7 @@ export const SIDEBAR_LAYOUT: SidebarEntry[] = [
   { type: 'page', key: 'tasks' },
   { type: 'page', key: 'objects' },
   { type: 'page', key: 'contractors' },
-  { type: 'group', label: 'Стройка', keys: ['tz', 'estimates', 'purchases', 'designProjects'] },
+  { type: 'group', label: 'Стройка', keys: ['tz', 'estimates', 'purchases', 'workContractors', 'designProjects'] },
   { type: 'group', label: 'Финансы', keys: ['finModels', 'financing', 'transactions', 'documents'] },
   { type: 'group', label: 'Маркетинг', keys: ['landings', 'siteMetrics', 'marketOffers', 'collaborations', 'leads'] },
   { type: 'page', key: 'meetingSummaries' },

@@ -47,6 +47,7 @@ const ADMIN_SHELLS = [
   { path: 'admin/tz', title: 'Техзадания', description: 'Техзадания на просчёт объёмов работ по объектам.' },
   { path: 'admin/estimates', title: 'Сметы', description: 'Сметы подрядчиков: позиции, стоимость, сравнение предложений.' },
   { path: 'admin/purchases', title: 'Закупки', description: 'Поставщики, ведомости материалов и переписка по закупкам.' },
+  { path: 'admin/work-contractors', title: 'Подрядчики', description: 'Подрядчики с Авито и переписка с ними по email.' },
   { path: 'admin/design-projects', title: 'Дизайн-проекты', description: 'Дизайн-проекты и мудборды по объектам.' },
   { path: 'admin/finmodels', title: 'Финмодели', description: 'Финансовые модели объектов: доходность, окупаемость, сценарии.' },
   { path: 'admin/financing', title: 'Финансирование', description: 'Кредиты, лизинг и рассрочки по объектам.' },
