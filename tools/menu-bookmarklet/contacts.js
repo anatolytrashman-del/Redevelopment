@@ -277,6 +277,54 @@ if (messengers.length) parts.push(messengers.join(', '));
 return parts.join(', ');
 }
 
+// Запасное окно — ровно как у «Снять меню»: если сайт открыт не из карточки
+// или админка не ответила, найденное не должно пропадать. Владелец,
+// 2026-09-14: «снять контакты не получается. Давай переделаем логику
+// контактов тоже под сохранение в txt, я тебе на проверку пришлю».
+function showPanel(items, usedContactsPage) {
+var lines = items.map(function (it) {
+return [it.kind, it.messengerType || '-', 'r' + it.rank, it.value].join('\t');
+});
+var text = lines.join('\n');
+var host_el = document.createElement('div');
+host_el.style.cssText = 'position:fixed;inset:0;z-index:2147483647';
+var root = host_el.attachShadow ? host_el.attachShadow({ mode: 'open' }) : host_el;
+root.innerHTML =
+'<style>' +
+':host{all:initial}' +
+'.bg{position:fixed;inset:0;background:rgba(0,0,0,.45);font:14px -apple-system,Segoe UI,Roboto,sans-serif}' +
+'.win{position:absolute;top:5vh;left:50%;transform:translateX(-50%);width:min(720px,92vw);max-height:90vh;' +
+'display:flex;flex-direction:column;gap:12px;background:#fff;border-radius:16px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.35)}' +
+'h2{margin:0;font-size:16px;color:#111}' +
+'pre{flex:1;overflow:auto;margin:0;padding:12px;background:#f6f6f6;border-radius:10px;font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap}' +
+'.row{display:flex;gap:8px;justify-content:flex-end}' +
+'button{font:inherit;padding:8px 16px;border-radius:999px;border:1px solid #ddd;background:#fff;cursor:pointer}' +
+'button.p{background:#d92d20;border-color:#d92d20;color:#fff}' +
+'</style>' +
+'<div class="bg"><div class="win"><h2></h2><pre></pre>' +
+'<div class="row"><button class="close">Закрыть</button><button class="dl">Скачать .txt</button>' +
+'<button class="p copy">Скопировать</button></div></div></div>';
+root.querySelector('h2').textContent =
+HOST + ' — контактов: ' + items.length + (usedContactsPage ? ' (+ страница «Контакты»)' : '') + '  ·  ' + VERSION;
+root.querySelector('pre').textContent = text || 'Контактов не нашлось.';
+root.querySelector('.close').onclick = function () {
+host_el.remove();
+};
+root.querySelector('.copy').onclick = function () {
+navigator.clipboard.writeText(HOST + '\n' + text).then(function () {
+root.querySelector('.copy').textContent = 'Скопировано';
+});
+};
+root.querySelector('.dl').onclick = function () {
+var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+var a = document.createElement('a');
+a.href = URL.createObjectURL(blob);
+a.download = HOST + '-contacts.txt';
+a.click();
+};
+document.body.appendChild(host_el);
+}
+
 function send(items, usedContactsPage) {
 var payload = {
 source: 'redevelopment-contacts-capture',
@@ -304,7 +352,8 @@ toast('Контактов на странице не нашлось  ·  ' + VER
 return;
 }
 if (!opener) {
-toast('Сайт открыт не из карточки — откройте его кнопкой «Начать верификацию»  ·  ' + VERSION, false);
+toast('Сайт открыт не из карточки — снятое в окне ниже  ·  ' + VERSION, false);
+showPanel(items, usedContactsPage);
 return;
 }
 var acked = false;
@@ -328,6 +377,7 @@ setTimeout(function () {
 if (!acked) {
 window.removeEventListener('message', onAck);
 toast('Админка не ответила. Обновите её вкладку: ⌘⇧R  ·  ' + VERSION, false);
+showPanel(items, usedContactsPage);
 }
 }, 8000);
 }
