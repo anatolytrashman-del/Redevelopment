@@ -319,8 +319,8 @@ const DISTRICT_TELEGRAM_CHAT = {
   url: 'https://t.me/minskmir',
   label: 'Живой тематический чат',
   tail: ' на 10 000+ жителей района.',
-  platform: { url: 'https://moyrayon.by', label: 'Мой район' },
-  platformTail: ' — 65 чатов на 45 000+ минчан.',
+  platform: { url: 'https://moyrayon.by', label: '#МойРайон' },
+  platformTail: ' — 65 микрорайонных чатов на 45 000+ минчан.',
 };
 
 
