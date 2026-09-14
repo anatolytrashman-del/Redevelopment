@@ -254,6 +254,21 @@ return parts.join(', ');
 }
 
 function send(items, usedContactsPage) {
+var payload = {
+source: 'redevelopment-contacts-capture',
+host: HOST,
+pageUrl: location.href,
+contacts: items.map(function (it) {
+return { kind: it.kind, value: it.value, messengerType: it.messengerType, rawText: it.rawText, rank: it.rank };
+}),
+};
+// Робот (scripts/harvest.mjs) выполняет ровно этот же код в headless-браузере
+// и забирает набор из переменной: вкладки админки у него нет. Так съём
+// человеком и роботом гарантированно одинаковый.
+if (window.__redevHarvest) {
+window.__redevHarvestResult = payload;
+return;
+}
 var opener = null;
 try {
 opener = window.opener && !window.opener.closed ? window.opener : null;
@@ -276,14 +291,6 @@ window.removeEventListener('message', onAck);
 toast('Снято: ' + summary(items) + (usedContactsPage ? '  (+ страница «Контакты»)' : '') + '  ·  ' + VERSION, true);
 }
 window.addEventListener('message', onAck);
-var payload = {
-source: 'redevelopment-contacts-capture',
-host: HOST,
-pageUrl: location.href,
-contacts: items.map(function (it) {
-return { kind: it.kind, value: it.value, messengerType: it.messengerType, rawText: it.rawText, rank: it.rank };
-}),
-};
 opener.postMessage(payload, '*');
 setTimeout(function () {
 if (!acked) {

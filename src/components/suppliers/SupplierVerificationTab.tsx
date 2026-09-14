@@ -275,7 +275,7 @@ function ScreenshotZone({
 // теперь отдаёт ВЕСЬ набор со страницы одним кликом, поэтому выбор «какой из
 // двух телефонов верный» должен быть одним кликом по нужному, а не разбором
 // нескольких отдельных предложений.
-export interface CaptureGroup {
+interface CaptureGroup {
   key: string;
   host: string;
   hostOffers: SupplierOffer[];
@@ -649,13 +649,17 @@ export function SupplierVerificationTab({
   // не заводим: наличие непрочитанного скрина У САМОГО ХОСТА и есть признак.
   // Такой поставщик выходит из активной очереди — верифицировать его сейчас
   // нельзя, его категории вот-вот изменятся разбором.
+  // Только скрины: их ещё должен разобрать человек в сессии, и до разбора
+  // категории поставщика вот-вот изменятся — верифицировать его рано.
+  //
+  // Снятое МЕНЮ сюда больше не входит (2026-09-14). Раньше входило, и это
+  // было верно, пока меню снимали поштучно. С роботом (scripts/harvest.mjs),
+  // который проходит всю базу за один прогон, это правило вымело бы из
+  // очереди всех до единого: у каждого поставщика появился бы неразобранный
+  // снимок меню. На карточке снятое меню по-прежнему отмечено галочкой.
   const awaitingHosts = useMemo(
-    () =>
-      new Set([
-        ...screenshots.filter((s) => s.status === 'pending').map((s) => s.host),
-        ...menuCaptures.filter((c) => c.status === 'pending').map((c) => c.host),
-      ]),
-    [screenshots, menuCaptures],
+    () => new Set(screenshots.filter((s) => s.status === 'pending').map((s) => s.host)),
+    [screenshots],
   );
   const queueGroups = useMemo(() => hostGroups.filter((g) => !awaitingHosts.has(g.host)), [hostGroups, awaitingHosts]);
   const awaitingGroups = useMemo(() => hostGroups.filter((g) => awaitingHosts.has(g.host)), [hostGroups, awaitingHosts]);

@@ -268,6 +268,17 @@
      разделов — открытые данные с публичного сайта, получатель здесь всегда
      та вкладка, которая эту и открыла. */
   function sendToAdmin(onDone) {
+    // Тот же код закладки крутит робот (scripts/harvest.mjs) в headless-браузере
+    // на машине владельца — чтобы съём у него и у человека был буквально
+    // одинаковым, а не «похожим». Владелец, 2026-09-14: «наша задача — открыть
+    // вкладку и нажать 2 ссылки, зачем нам вообще Светлана?». Вкладки админки
+    // у робота нет, поэтому он поднимает флаг и забирает результат из
+    // переменной.
+    if (window.__redevHarvest) {
+      window.__redevHarvestResult = { source: 'redevelopment-menu-capture', host: host, pageUrl: location.href, tree: text };
+      onDone(true, items.length);
+      return true;
+    }
     var opener = null;
     try {
       opener = window.opener && !window.opener.closed ? window.opener : null;
