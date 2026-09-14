@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bookmark, CheckCircle2, ExternalLink, ImagePlus, Loader2, MessageCircle, Phone, Play, Send, Trash2, X } from 'lucide-react';
+import { Bookmark, CheckCircle2, ExternalLink, ImagePlus, Loader2, MessageCircle, Pause, Phone, Play, RotateCcw, Send, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { ContactValue } from '../ui/ContactValue';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import { logActivity } from '../../lib/activityLogApi';
 import { formatPhoneDisplay } from '../../lib/formatPhone';
-import { updateSupplierOffer } from '../../lib/supplierResearchApi';
+import { updateSupplierOffer, snoozeSupplierOffers, unsnoozeAllSupplierOffers } from '../../lib/supplierResearchApi';
 import { countryFlag, messengerLink, supplierWebsiteFullUrl, supplierWebsiteHost, SUPPLIER_COUNTRIES, type SupplierOffer } from '../../data/supplierResearch';
 import type { SupplierSiteSnapshot } from '../../data/supplierSiteSnapshots';
 import type { SupplierScreenshot } from '../../data/supplierScreenshots';
@@ -153,7 +153,9 @@ function buildHostGroups(
 // "вторую очередь".
 export function pendingVerificationHostCount(offers: SupplierOffer[], snapshots: SupplierSiteSnapshot[]): number {
   const snapshotByHost = new Map(snapshots.map((s) => [s.host, s]));
-  return buildHostGroups(offers, snapshotByHost).filter(isReadyForVerification).length;
+  // Отложенные не считаем — иначе бейдж на вкладке зовёт в пустую очередь.
+  const queue = offers.filter((o) => !o.queueSnoozedAt);
+  return buildHostGroups(queue, snapshotByHost).filter(isReadyForVerification).length;
 }
 
 // Открывает сайт поставщика соседней вкладкой (см. комментарий выше).
@@ -607,7 +609,16 @@ export function SupplierVerificationTab({
 
   // Карточки без страны видны при любом флаге — тот же принцип, что в
   // SupplierCatalog.tsx (молчаливо прятать их было бы потерей данных).
-  const countryOffers = useMemo(() => offers.filter((o) => !o.country.trim() || o.country === country), [offers, country]);
+  // Отложенные карточки не участвуют в очереди вообще (владелец, 2026-09-15:
+  // «полностью очисти очередь верификации, я пока не буду ей заниматься,
+  // мне достаточно поставщиков»). Данные целы, показ выключен — вернуть
+  // можно кнопкой ниже.
+  const snoozedCount = useMemo(() => offers.filter((o) => o.queueSnoozedAt).length, [offers]);
+  const queueOffers = useMemo(() => offers.filter((o) => !o.queueSnoozedAt), [offers]);
+  const countryOffers = useMemo(
+    () => queueOffers.filter((o) => !o.country.trim() || o.country === country),
+    [queueOffers, country],
+  );
 
   const hostGroups = useMemo(
     () => buildHostGroups(countryOffers, snapshotByHost).filter(isReadyForVerification).sort((a, b) => a.host.localeCompare(b.host)),
@@ -680,6 +691,46 @@ export function SupplierVerificationTab({
   useEffect(() => {
     if (verifyTarget && verifyTarget.host !== heldHost) setHeldHost(verifyTarget.host);
   }, [verifyTarget, heldHost]);
+
+  const [queueBusy, setQueueBusy] = useState(false);
+
+  // «Отложить очередь» убирает ровно то, что сейчас видно (очередь + вторая
+  // очередь текущей страны), «Вернуть» поднимает всё отложенное сразу —
+  // держать половину спрятанной незачем. Родителю сообщаем поштучно через
+  // onOfferUpdated: список карточек живёт у него, перезапрашивать всё
+  // заново ради одного поля не нужно.
+  const snoozeQueue = async () => {
+    const hosts = new Set([...hostGroups, ...secondQueueGroups].map((g) => g.host));
+    const targets = queueOffers.filter((o) => hosts.has(supplierWebsiteHost(o.websiteUrl)));
+    if (!targets.length) return;
+    setQueueBusy(true);
+    setError('');
+    try {
+      await snoozeSupplierOffers(targets.map((o) => o.id));
+      const at = new Date().toISOString();
+      for (const o of targets) onOfferUpdated({ ...o, queueSnoozedAt: at });
+      setVerifying(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось отложить очередь');
+    } finally {
+      setQueueBusy(false);
+    }
+  };
+
+  const restoreQueue = async () => {
+    const targets = offers.filter((o) => o.queueSnoozedAt);
+    if (!targets.length) return;
+    setQueueBusy(true);
+    setError('');
+    try {
+      await unsnoozeAllSupplierOffers();
+      for (const o of targets) onOfferUpdated({ ...o, queueSnoozedAt: null });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось вернуть очередь');
+    } finally {
+      setQueueBusy(false);
+    }
+  };
 
   const remaining = queueGroups.filter((g) => !skippedHosts.has(g.host)).length;
   const skippedCount = skippedHosts.size;
@@ -850,6 +901,21 @@ export function SupplierVerificationTab({
           <p className="text-sm text-ink-muted">Осталось проверить: {queueGroups.length}</p>
           <BookmarkletsBlock />
 
+      {snoozedCount > 0 && (
+        <div className={cn('flex flex-wrap items-center justify-between gap-3 p-4', glassCardClass)} style={glassCardShadow}>
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-semibold text-ink">Очередь отложена ({snoozedCount})</p>
+            <p className="text-xs text-ink-faint">
+              Эти карточки убраны из очереди «на потом» — сами поставщики, их контакты и товарные группы целы, они
+              просто не показываются здесь и не считаются в бейдже вкладки.
+            </p>
+          </div>
+          <Button variant="secondary" icon={<RotateCcw className="h-4 w-4" />} disabled={queueBusy} onClick={restoreQueue}>
+            Вернуть в очередь
+          </Button>
+        </div>
+      )}
+
       {secondQueueGroups.length > 0 && (
         <div className={cn('flex flex-col gap-2 p-4', glassCardClass)} style={glassCardShadow}>
           <p className="text-sm font-semibold text-ink">Вторая очередь: каталога нет ({secondQueueGroups.length})</p>
@@ -909,9 +975,22 @@ export function SupplierVerificationTab({
           </div>
         </div>
         {!verifying && (
-          <Button icon={<Play className="h-4 w-4" />} disabled={hostGroups.length === 0} onClick={startVerification}>
-            Начать верификацию
-          </Button>
+          <div className="flex items-center gap-2">
+            {hostGroups.length + secondQueueGroups.length > 0 && (
+              <Button
+                variant="ghost"
+                icon={<Pause className="h-4 w-4" />}
+                disabled={queueBusy}
+                onClick={snoozeQueue}
+                title="Убрать этих поставщиков из очереди — данные останутся, вернуть можно одной кнопкой"
+              >
+                Отложить очередь
+              </Button>
+            )}
+            <Button icon={<Play className="h-4 w-4" />} disabled={hostGroups.length === 0} onClick={startVerification}>
+              Начать верификацию
+            </Button>
+          </div>
         )}
       </div>
 
