@@ -1,9 +1,11 @@
 // Vercel serverless function: отправка письма поставщику — из карточки
 // закупки (Purchases.tsx → lib/purchaseEmailsApi.ts → sendPurchaseEmail)
 // ИЛИ из предложения в Ресерче поставщиков (Suppliers.tsx →
-// lib/supplierOfferEmailsApi.ts → sendSupplierOfferEmail). Несмотря на имя
-// файла (осталось от первой версии), обрабатывает оба случая — так же, как
-// purchase-email-webhook.js уже объединяет приём входящих писем для обоих:
+// lib/supplierOfferEmailsApi.ts → sendSupplierOfferEmail) ИЛИ подрядчику с
+// вкладки "Подрядчики" (lib/workContractorEmailsApi.ts →
+// sendWorkContractorEmail, добавлено 2026-09-14). Несмотря на имя
+// файла (осталось от первой версии), обрабатывает все три случая — так же, как
+// purchase-email-webhook.js уже объединяет приём входящих писем для них:
 // на Hobby-плане Vercel лимит 12 serverless-функций на деплой, отдельный
 // файл под каждую пару send/receive быстро упёрся бы в потолок (реальный
 // инцидент 2026-08-29 — деплой упал с "No more than 12 Serverless
@@ -314,9 +316,13 @@ export default async function handler(req, res) {
   const user = await requireStaffAuth(req, res);
   if (!user) return;
 
-  const { purchaseId, offerId, orderId, toAddress, subject, body, attachments } = req.body ?? {};
+  // contractorId — третье направление переписки (вкладка "Подрядчики"
+  // страницы "Закупки", владелец 2026-09-14). Сюда же, а не отдельным
+  // эндпоинтом, по той же причине, что и предложения Ресерча: лимит в 12
+  // serverless-функций на Hobby-плане уже выбран (см. шапку файла).
+  const { purchaseId, offerId, orderId, contractorId, toAddress, subject, body, attachments } = req.body ?? {};
 
-  if ((!purchaseId && !offerId) || !toAddress || !body) {
+  if ((!purchaseId && !offerId && !contractorId) || !toAddress || !body) {
     res.status(400).json({ error: 'Заполните все поля' });
     return;
   }
@@ -334,17 +340,23 @@ export default async function handler(req, res) {
   // нему независимо от конкретной заявки (см. data/supplierOfferEmails.ts).
   const shortCode = purchaseId
     ? await fetchShortCode('purchases', purchaseId)
-    : orderId
-      ? await fetchShortCode('supplier_orders', orderId)
-      : await fetchShortCode('supplier_research_offers', offerId);
+    : contractorId
+      ? await fetchShortCode('work_contractors', contractorId)
+      : orderId
+        ? await fetchShortCode('supplier_orders', orderId)
+        : await fetchShortCode('supplier_research_offers', offerId);
   if (!shortCode) {
-    res.status(404).json({ error: 'Не найдена закупка, предложение или заявка' });
+    res.status(404).json({ error: 'Не найдена закупка, предложение, заявка или подрядчик' });
     return;
   }
 
   const fromAddress = emailAddress(shortCode);
-  const table = purchaseId ? 'purchase_emails' : 'supplier_offer_emails';
-  const defaultSubject = purchaseId ? 'Закупка' : 'Запрос цены';
+  const table = purchaseId
+    ? 'purchase_emails'
+    : contractorId
+      ? 'work_contractor_emails'
+      : 'supplier_offer_emails';
+  const defaultSubject = purchaseId ? 'Закупка' : contractorId ? 'Подрядчику' : 'Запрос цены';
 
   try {
     // Владелец, 2026-09-03: "прикрепление ведомостей материалов к письму" —
@@ -406,19 +418,26 @@ export default async function handler(req, res) {
       deferred = err;
     }
 
-    // sent_by_* есть только у supplier_offer_emails (переписка Ресерча) —
-    // в purchase_emails таких колонок нет, туда поля не подмешиваем.
+    // sent_by_* есть у supplier_offer_emails (переписка Ресерча) и
+    // work_contractor_emails (подрядчики) — в purchase_emails таких колонок
+    // нет, туда поля не подмешиваем.
     const author = purchaseId ? null : await fetchAuthorProfile(user.id);
 
     const row = await insertEmailRow(table, {
       ...(purchaseId
         ? { purchase_id: purchaseId }
-        : {
-            offer_id: offerId,
-            order_id: orderId ?? null,
-            sent_by_profile_id: author?.id ?? null,
-            sent_by_name: author?.display_name ?? null,
-          }),
+        : contractorId
+          ? {
+              contractor_id: contractorId,
+              sent_by_profile_id: author?.id ?? null,
+              sent_by_name: author?.display_name ?? null,
+            }
+          : {
+              offer_id: offerId,
+              order_id: orderId ?? null,
+              sent_by_profile_id: author?.id ?? null,
+              sent_by_name: author?.display_name ?? null,
+            }),
       direction: 'out',
       from_address: fromAddress,
       to_address: toAddress,
