@@ -1970,7 +1970,7 @@ export function DistrictGuidePage() {
         <div id="telegram" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
           <div className="flex items-center gap-3">
             <Send className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Хотите узнать, чем живут жители района Минск Мира?</h2>
+            <h2 className="text-lg font-bold text-ink">Хотите узнать, чем живут жители Минск Мира?</h2>
           </div>
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-ink-muted">
             <span>
