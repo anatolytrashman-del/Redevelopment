@@ -8,7 +8,12 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { fetchActivityLog } from '../lib/activityLogApi';
 import type { ActivityLogEntry } from '../data/activityLog';
-import { fetchOutgoingEmailMetrics, type OutgoingEmailMetric } from '../lib/supplierOfferEmailsApi';
+import {
+  fetchIncomingInvoiceMetrics,
+  fetchOutgoingEmailMetrics,
+  type IncomingInvoiceMetric,
+  type OutgoingEmailMetric,
+} from '../lib/supplierOfferEmailsApi';
 import { fetchSupplierWebSearchJobMetrics, type SupplierWebSearchJobMetric } from '../lib/supplierWebSearchApi';
 import { fetchAutoReplyLogMetrics, type AutoReplyLogMetric } from '../lib/emailAutoReplyApi';
 import { fetchDeploymentMetrics, type DeploymentMetric } from '../lib/deploymentsApi';
@@ -256,7 +261,28 @@ function PersonSection({
 // из-за невозможности отличить его от "действие вообще не логируется" была
 // правка 2026-09-10 (см. комментарий в начале файла). Все прочие профили,
 // реально встретившиеся в данных за период, дописываются к списку сами.
-const TRACKED_PEOPLE = ['Светлана', 'Альмира', 'Трэшмен'];
+const TRACKED_PEOPLE = ['Светлана', 'Трэшмен'];
+
+// Один человек — один блок. Владелец, 2026-09-14: "тут дубль, это всё я" —
+// на странице рядом стояли «Трэшмен» (профиль в access_profiles) и «Анатолий
+// Трэшмен» (подпись автоответов, DEFAULT_AUTO_REPLY_SIGNATURE — ею бэкфилл
+// пометил четыре письма). Сами четыре строки в базе переписаны на имя
+// профиля, но алиас остаётся здесь: подпись в письме и display_name живут
+// порознь, и следующее расхождение иначе снова разъедет блок надвое.
+const PROFILE_NAME_ALIASES: Record<string, string> = {
+  'Анатолий Трэшмен': 'Трэшмен',
+};
+
+function canonicalName(name: string | null): string | null {
+  if (!name) return null;
+  return PROFILE_NAME_ALIASES[name] ?? name;
+}
+
+// Владелец, 2026-09-14: "Альмиру скрывай из действий". Её блок не
+// показывается вовсе — ни как постоянный, ни как дописанный по факту из
+// лога; сами записи в activity_log и в переписке остаются нетронутыми, это
+// только про вывод на странице.
+const HIDDEN_PEOPLE = ['Альмира'];
 
 // 2026-09-14, вторая правка за день (владелец: "оставь для Claude 2
 // плиточки, как сейчас, а слева, также на 2 плиточки, добавь ИИ-закупщика"):
@@ -319,6 +345,7 @@ export function Metrics() {
   const [emails, setEmails] = useState<OutgoingEmailMetric[] | null>(null);
   const [searchJobs, setSearchJobs] = useState<SupplierWebSearchJobMetric[] | null>(null);
   const [autoReplyLog, setAutoReplyLog] = useState<AutoReplyLogMetric[] | null>(null);
+  const [incomingInvoices, setIncomingInvoices] = useState<IncomingInvoiceMetric[] | null>(null);
   const [deployments, setDeployments] = useState<DeploymentMetric[] | null>(null);
   const [error, setError] = useState('');
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
@@ -341,11 +368,12 @@ export function Metrics() {
     inFlight.current = true;
     setRefreshing(true);
     try {
-      const [logEntries, offerEmails, jobs, replyLog, deploys] = await Promise.all([
+      const [logEntries, offerEmails, jobs, replyLog, invoices, deploys] = await Promise.all([
         fetchActivityLog(),
         fetchOutgoingEmailMetrics(),
         fetchSupplierWebSearchJobMetrics(),
         fetchAutoReplyLogMetrics(),
+        fetchIncomingInvoiceMetrics(),
         // Единственный источник, который тянется не целиком, а диапазоном:
         // деплоев в день десятки, за всё время их уже тысячи, а нужен всегда
         // только выбранный период (фильтр inRange ниже всё равно применяется).
@@ -355,6 +383,7 @@ export function Metrics() {
       setEmails(offerEmails);
       setSearchJobs(jobs);
       setAutoReplyLog(replyLog);
+      setIncomingInvoices(invoices);
       setDeployments(deploys);
       setLastUpdatedAt(new Date());
       setError('');
@@ -432,15 +461,27 @@ export function Metrics() {
   // её запустил (api/purchase-send-email.js, process-bulk-send-jobs), так что
   // письма "с участием Трэшмена" сюда не попадают.
   const aiBuyerStats = useMemo(() => {
-    const actions = entriesInRange.filter((e) => e.profileName === AI_BUYER_NAME);
-    const sent = outgoingEmailsInRange.filter((e) => e.sentByName === AI_BUYER_NAME);
+    const actions = entriesInRange.filter((e) => canonicalName(e.profileName) === AI_BUYER_NAME);
+    const sent = outgoingEmailsInRange.filter((e) => canonicalName(e.sentByName) === AI_BUYER_NAME);
+    // Доля входящих, закрытых без человека: знаменатель — все разобранные
+    // письма (включая пропущенные как спорные), то есть весь поток, который
+    // прошёл через ИИ-закупщика. Пока лога нет вовсе, показываем прочерк, а
+    // не 0% — ноль означал бы "ни на одно не ответил сам".
+    const processed = autoReplyStats.processed;
+    // Счета и КП, распознанные во входящих за период. Считаем сами КП, а не
+    // письма: в одном ответе поставщика их бывает несколько.
+    const proposalsReceived = (incomingInvoices ?? [])
+      .filter((r) => inRange(r.createdAt))
+      .reduce((sum, r) => sum + r.invoiceCount, 0);
     return {
       suppliersVerified: actions.filter((e) => e.action === 'supplier_offer_verified').length,
       invoicesConfirmed: actions.filter((e) => e.action === 'supplier_invoice_confirmed').length,
       emailsSent: sent.length,
       emailsUnique: new Set(sent.map((e) => e.toAddress.trim().toLowerCase())).size,
+      autoReplyShare: processed ? autoReplyStats.sentAuto / processed : null,
+      proposalsReceived,
     };
-  }, [entriesInRange, outgoingEmailsInRange]);
+  }, [entriesInRange, outgoingEmailsInRange, autoReplyStats, incomingInvoices, inRange]);
 
   // Деплои ИИ-кодера за период. Только успешные (state = 'READY'): именно
   // столько раз сайт реально обновился. Строки приходят отсортированными по
@@ -463,26 +504,27 @@ export function Metrics() {
   }, [deployments, inRange]);
 
   const people: PersonStats[] = useMemo(() => {
-    const names = [...TRACKED_PEOPLE];
+    const names = TRACKED_PEOPLE.filter((n) => !HIDDEN_PEOPLE.includes(n));
     const seen = [
-      ...entriesInRange.map((e) => e.profileName),
-      ...outgoingEmailsInRange.map((e) => e.sentByName),
-      ...searchJobsInRange.map((j) => j.createdByName),
+      ...entriesInRange.map((e) => canonicalName(e.profileName)),
+      ...outgoingEmailsInRange.map((e) => canonicalName(e.sentByName)),
+      ...searchJobsInRange.map((j) => canonicalName(j.createdByName)),
     ];
     for (const name of seen) {
-      if (name && name !== AI_BUYER_NAME && !names.includes(name)) names.push(name);
+      if (!name || name === AI_BUYER_NAME || HIDDEN_PEOPLE.includes(name)) continue;
+      if (!names.includes(name)) names.push(name);
     }
     return names.map((name) => {
-      const actions = entriesInRange.filter((e) => e.profileName === name);
+      const actions = entriesInRange.filter((e) => canonicalName(e.profileName) === name);
       const countAction = (action: string) => actions.filter((e) => e.action === action).length;
-      const sent = outgoingEmailsInRange.filter((e) => e.sentByName === name);
+      const sent = outgoingEmailsInRange.filter((e) => canonicalName(e.sentByName) === name);
       return {
         name,
         marketOffersVerified: countAction('market_offer_verified'),
         suppliersAddedManually: countAction('supplier_offer_added_manually'),
         supplierSearchesStarted: countAction('supplier_web_search_started'),
         suppliersAddedBySearch: searchJobsInRange
-          .filter((j) => j.createdByName === name)
+          .filter((j) => canonicalName(j.createdByName) === name)
           .reduce((sum, j) => sum + (j.addedCount ?? 0), 0),
         suppliersVerified: countAction('supplier_offer_verified'),
         invoicesConfirmed: countAction('supplier_invoice_confirmed'),
@@ -507,7 +549,12 @@ export function Metrics() {
   const aiTileColsClass = sideBySideAiRow ? 'lg:grid-cols-2' : 'lg:grid-cols-4';
 
   const loading =
-    entries === null || emails === null || searchJobs === null || autoReplyLog === null || deployments === null;
+    entries === null ||
+    emails === null ||
+    searchJobs === null ||
+    autoReplyLog === null ||
+    incomingInvoices === null ||
+    deployments === null;
 
   return (
     <>
@@ -585,6 +632,27 @@ export function Metrics() {
                 value={aiBuyerStats.emailsSent}
                 hint={`Автоматические ответы, без участия человека · адресатов: ${aiBuyerStats.emailsUnique.toLocaleString('ru-RU')} · разобрано входящих: ${autoReplyStats.processed.toLocaleString('ru-RU')}, пропущено: ${autoReplyStats.skipped.toLocaleString('ru-RU')}`}
               />
+              {/* Владелец, 2026-09-14: "при открытии статы за неделю/месяц —
+                  для ИИ-закупщика выводим +2 показателя". В периоде "Сегодня"
+                  блок остаётся на две плитки, как он и просил до этого. */}
+              {period !== 'today' && (
+                <>
+                  <StatTile
+                    label="% автоматических ответов"
+                    value={
+                      aiBuyerStats.autoReplyShare === null
+                        ? '—'
+                        : `${(aiBuyerStats.autoReplyShare * 100).toLocaleString('ru-RU', { maximumFractionDigits: 0 })}%`
+                    }
+                    hint={`Доля входящих, закрытых без человека · ${autoReplyStats.sentAuto.toLocaleString('ru-RU')} из ${autoReplyStats.processed.toLocaleString('ru-RU')}`}
+                  />
+                  <StatTile
+                    label="Итого получено КП"
+                    value={aiBuyerStats.proposalsReceived}
+                    hint="Счета и КП, распознанные во входящих письмах за период"
+                  />
+                </>
+              )}
             </PersonSection>
 
             <PersonSection

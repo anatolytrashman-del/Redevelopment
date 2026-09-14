@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
 import { authFetch } from './authFetch';
+import { extractionInvoices } from '../data/supplierOfferEmails';
 import type { EmailExtraction, SupplierOfferEmail, SupplierOfferEmailRow } from '../data/supplierOfferEmails';
 import { emailSendStatusFromRow } from '../data/emailSendStatus';
 
@@ -74,6 +75,34 @@ export function fetchOutgoingEmailMetrics(): Promise<OutgoingEmailMetric[]> {
       createdAt: row.created_at,
       sentByName: row.sent_by_name ?? null,
       toAddress: row.to_address,
+    }));
+  });
+}
+
+// Входящие письма с распознанным счётом/КП — плитка "Итого получено КП" в
+// блоке ИИ-закупщика на /admin/metrics. Как и у исходящих метрик, тянем
+// только нужные колонки (body письма счётчику не нужен, а он тяжёлый) и
+// только те строки, где распознавание реально что-то нашло: фильтр по
+// JSON-полю отрабатывает PostgREST, а не браузер.
+export interface IncomingInvoiceMetric {
+  createdAt: string;
+  invoiceCount: number;
+}
+
+export function fetchIncomingInvoiceMetrics(): Promise<IncomingInvoiceMetric[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('supplier_offer_emails')
+      .select('created_at, extraction')
+      .eq('direction', 'in')
+      .eq('extraction->>isInvoice', 'true')
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return (data as Pick<SupplierOfferEmailRow, 'created_at' | 'extraction'>[]).map((row) => ({
+      createdAt: row.created_at,
+      // В одном письме счетов может быть несколько (алюминий и оцинковка
+      // одним ответом) — считаем именно КП, а не письма.
+      invoiceCount: extractionInvoices(row.extraction).length,
     }));
   });
 }
