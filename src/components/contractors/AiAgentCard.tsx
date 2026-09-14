@@ -1,4 +1,5 @@
 import { Bot, Check, Clock } from 'lucide-react';
+import { ClaudeLogo } from './ClaudeLogo';
 import type { AiAgent } from '../../data/aiAgents';
 import { formatActivityTime, type AiAgentActivity } from '../../lib/aiAgentsApi';
 import { cn } from '../../lib/cn';
@@ -11,13 +12,20 @@ import { glassCardClass, glassCardShadow } from '../../lib/glass';
 // "сделай время последней выполненной задачи агента" — из RPC
 // ai_agents_last_activity, см. lib/aiAgentsApi.ts) и список задач.
 // Не кликабельна — редактировать нечего.
-export function AiAgentCard({ agent, activity }: { agent: AiAgent; activity?: AiAgentActivity | null }) {
+export function AiAgentCard({ agent, activity: liveActivity }: { agent: AiAgent; activity?: AiAgentActivity | null }) {
+  const activity = liveActivity ?? agent.staticActivity ?? null;
   return (
     <div className={cn('flex w-full flex-col gap-2 p-4', glassCardClass)} style={glassCardShadow}>
       <div className="flex min-w-0 items-center gap-2.5">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <Bot className="h-4 w-4" />
-        </span>
+        {agent.icon === 'claude' ? (
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d97757]/15 text-[#d97757]">
+            <ClaudeLogo className="h-5 w-5" />
+          </span>
+        ) : (
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Bot className="h-4 w-4" />
+          </span>
+        )}
         <div className="min-w-0">
           <div className="break-words font-semibold text-ink">{agent.name}</div>
           <div className="truncate text-sm text-ink-muted">{agent.role}</div>
