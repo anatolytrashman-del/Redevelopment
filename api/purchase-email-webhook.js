@@ -50,6 +50,26 @@ export const config = {
   },
 };
 
+// ВРЕМЯ РАБОТЫ ФУНКЦИИ — не декоративная настройка, а корень реального бага
+// (разбор 2026-09-14). У этой функции не было maxDuration, то есть работал
+// потолок Vercel по умолчанию — 10 секунд. А делает она последовательно:
+// тело письма → скачивание и перезаливка всех вложений → до трёх обращений
+// к модели (реальные замеры на живых счетах: 4.4 с и 8.2 с на ОДИН PDF) →
+// проверку ИНН в Checko → вставку письма → запись счёта в карточку. На
+// тяжёлом письме это 12-20 секунд, и функцию убивали посреди работы — в
+// произвольном месте, поэтому симптомы каждый раз разные:
+//   • DEARTIO, 14.09 11:19 — письмо вставлено на 10-й секунде, дальше
+//     ничего: распознавание осталось pending, владелец подтверждал руками
+//     (с этого и начался разбор — "счёт не распознался автоматически");
+//   • Грильято/Авангард, 14.09 09:15 — успела пройти запись позиций в
+//     карточку, но не строка КП и не отметка в письме;
+//   • "RE: Плинтус", 14.09 09:00 — ответа Resend не дождался вовсе,
+//     повторил доставку, письмо в базе задвоилось.
+// Потолок поднят до 300 с в vercel.json (как у остальных AI-функций), а от
+// повторных доставок отдельно защищает emailAlreadyStored ниже.
+// Не убирать одно без другого: длинная функция БЕЗ защиты от повтора — это
+// ровно задвоенные позиции счёта.
+
 const SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
 
 async function readRawBody(req) {
@@ -233,6 +253,37 @@ async function autoFillOfferContact(offerId, parsedFrom) {
   });
 }
 
+// Resend/svix повторяет доставку вебхука, если мы не ответили вовремя —
+// а до 2026-09-14 функция регулярно не отвечала вовсе (см. комментарий про
+// maxDuration в самом обработчике). Реальный след в базе: письмо "RE:
+// Плинтус" от 2026-09-14 лежит ДВАЖДЫ (06:00:54 и 06:02:09, один и тот же
+// resend_message_id, вложения перезалиты по второму разу), а у предложения
+// "Грильято" 9 позиций счёта записаны дважды подряд — второй прогон
+// добавил их к уже добавленным. Поэтому повторная доставка теперь
+// отсекается по resend_message_id ДО всей тяжёлой работы: ни лишнего
+// распознавания (деньги), ни задвоенных позиций (данные).
+//
+// При ошибке самой проверки возвращаем false — лучше сохранить письмо
+// второй раз, чем потерять его из-за сбоя проверки на дубликат.
+async function emailAlreadyStored(table, messageId) {
+  try {
+    const resp = await fetch(
+      `${process.env.SUPABASE_URL}/rest/v1/${table}?select=id&direction=eq.in&resend_message_id=eq.${encodeURIComponent(messageId)}&limit=1`,
+      {
+        headers: {
+          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      },
+    );
+    if (!resp.ok) return false;
+    return (await resp.json()).length > 0;
+  } catch (err) {
+    console.error('Не удалось проверить письмо на повторную доставку (обрабатываем как новое):', err);
+    return false;
+  }
+}
+
 async function insertEmailRow(table, payload) {
   const resp = await fetch(`${process.env.SUPABASE_URL}/rest/v1/${table}`, {
     method: 'POST',
@@ -352,6 +403,20 @@ export default async function handler(req, res) {
       return;
     }
 
+    // Повторная доставка того же письма (см. emailAlreadyStored) — отвечаем
+    // 200 и ничего не делаем: письмо уже сохранено первым разом.
+    const messageId = data.email_id ?? data.id ?? null;
+    const targetTable = purchaseId
+      ? 'purchase_emails'
+      : contractorId
+      ? 'work_contractor_emails'
+      : 'supplier_offer_emails';
+    if (messageId && (await emailAlreadyStored(targetTable, messageId))) {
+      console.warn('Повторная доставка вебхука — письмо уже сохранено, пропускаем:', messageId);
+      res.status(200).json({ skipped: true, duplicate: true });
+      return;
+    }
+
     // Тело письма — отдельным запросом, см. комментарий в начале файла.
     const body = await fetchReceivedEmailBody([data.email_id, data.id]);
     const attachments = await extractEmailAttachments(data);
@@ -375,10 +440,30 @@ export default async function handler(req, res) {
     let extraction = null;
     let recognizedInvoice = null;
     if (offerId) {
+      // status:'none' — "пробовали, счёта не нашли". Раньше при неудаче в
+      // письме не оставалось НИЧЕГО, и вопрос владельца "почему обычный счёт
+      // не распознался" (2026-09-14) невозможно было закрыть запросом к базе:
+      // молчание одинаково означало и "модель решила, что это не счёт", и
+      // "до модели файл вообще не дошёл", и "распознавание не запускалось".
+      // Теперь в attempts/skipped лежит протокол: что пробовали и что
+      // отсеяли с какой причиной. На карточку в переписке этот статус ничего
+      // не выводит (см. SupplierCorrespondenceTab) — только для разбора.
+      const emptyExtraction = (extra) => ({
+        status: 'none',
+        isInvoice: false,
+        price: null,
+        currency: null,
+        items: [],
+        supplierInn: null,
+        sourceFile: null,
+        recognizedAt: new Date().toISOString(),
+        ...extra,
+      });
       try {
-        recognizedInvoice = await recognizeInvoiceFromAttachments(attachments);
-        if (recognizedInvoice) {
-          const { recognized, candidate } = recognizedInvoice;
+        const result = await recognizeInvoiceFromAttachments(attachments);
+        if (result.recognized) {
+          recognizedInvoice = result;
+          const { recognized, candidate } = result;
           extraction = {
             status: 'pending',
             ...recognized,
@@ -398,9 +483,16 @@ export default async function handler(req, res) {
           // supplier_reliability ни на что не влияет, пока у предложения не
           // появится тот же inn.
           await saveReliabilityIfNew(recognized.supplierInn);
+        } else if (result.attempts.length > 0 || result.skipped.length > 0) {
+          extraction = emptyExtraction({ attempts: result.attempts, skipped: result.skipped });
         }
       } catch (err) {
         console.error('Не удалось автораспознать вложение как счёт (не критично, письмо всё равно сохранится):', err);
+        extraction = emptyExtraction({
+          attempts: [],
+          skipped: [],
+          error: (err instanceof Error ? err.message : String(err)).slice(0, 300),
+        });
       }
     }
 

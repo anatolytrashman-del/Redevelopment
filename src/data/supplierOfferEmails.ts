@@ -42,7 +42,13 @@ export interface EmailExtractionApplied {
 }
 
 export interface EmailExtraction {
-  status: 'pending' | 'confirmed' | 'dismissed';
+  // 'none' — распознавание отработало и счёта во вложениях НЕ нашло; в
+  // attempts/skipped лежит протокол (что пробовали, что отсеяли и почему).
+  // Появился 2026-09-14: до него неудача не оставляла в письме ничего, и
+  // вопрос "почему обычный счёт не распознался" нельзя было закрыть
+  // запросом к базе. В интерфейсе переписки такой статус ничего не рисует —
+  // он только для разбора.
+  status: 'pending' | 'confirmed' | 'dismissed' | 'none';
   // Владелец, 2026-09-12: "мне нужно автоматическое распознавание счетов и
   // запись в базу ещё до открытия письма нами вручную" — true означает, что
   // status:'confirmed' поставил не человек кнопкой, а сервер при приёме
@@ -61,6 +67,10 @@ export interface EmailExtraction {
   supplierInn: string | null;
   sourceFile: { url: string; fileName: string } | null;
   recognizedAt: string;
+  // Диагностика неудачи (заполняется только при status:'none').
+  attempts?: { fileName: string; outcome: string }[];
+  skipped?: { fileName: string; reason: string }[];
+  error?: string;
 }
 
 // Одно письмо в переписке по конкретному предложению Ресерча поставщиков —
