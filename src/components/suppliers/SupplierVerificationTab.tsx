@@ -12,7 +12,12 @@ import type { SupplierSiteSnapshot } from '../../data/supplierSiteSnapshots';
 import type { SupplierScreenshot } from '../../data/supplierScreenshots';
 import { deleteSupplierScreenshot, fetchSupplierScreenshots, uploadSupplierScreenshot } from '../../lib/supplierScreenshotsApi';
 import { fetchSupplierMenuCaptures, type SupplierMenuCapture } from '../../lib/supplierMenuCapturesApi';
-import { MENU_CAPTURE_SAVED_EVENT } from '../../lib/menuCaptureReceiver';
+import { CONTACT_CAPTURE_SAVED_EVENT, MENU_CAPTURE_SAVED_EVENT } from '../../lib/menuCaptureReceiver';
+import {
+  fetchSupplierContactCaptures,
+  markSupplierContactCapture,
+  type SupplierContactCapture,
+} from '../../lib/supplierContactCapturesApi';
 
 // Вкладка "Верификация" на странице Закупки. Владелец, 2026-09-13 (второй
 // заход, после первой версии с редактируемым чек-листом категорий — снята
@@ -266,6 +271,9 @@ function SupplierCard({
   saving,
   screenshots,
   menuCaptured,
+  contactCaptures,
+  onApplyCapture,
+  onSkipCapture,
   uploadingScreenshots,
   onScreenshotFiles,
   onScreenshotDelete,
@@ -277,6 +285,9 @@ function SupplierCard({
   saving: boolean;
   screenshots: SupplierScreenshot[];
   menuCaptured: boolean;
+  contactCaptures: SupplierContactCapture[];
+  onApplyCapture: (capture: SupplierContactCapture) => void;
+  onSkipCapture: (capture: SupplierContactCapture) => void;
   uploadingScreenshots: boolean;
   onScreenshotFiles: (files: File[]) => void;
   onScreenshotDelete: (screenshot: SupplierScreenshot) => void;
@@ -375,6 +386,26 @@ function SupplierCard({
         </div>
       )}
 
+      {contactCaptures.length > 0 && (
+        <div className="flex flex-col gap-2 rounded-2xl border border-warning/40 bg-warning/5 p-3">
+          <span className="text-xs font-semibold text-ink">Снято кликом на сайте — не совпадает с карточкой</span>
+          {contactCaptures.map((capture) => (
+            <div key={capture.id} className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-ink-faint">
+                {capture.kind === 'email' ? 'Почта' : capture.kind === 'phone' ? 'Телефон' : capture.messengerType}
+              </span>
+              <span className="min-w-0 break-all font-semibold text-ink">{capture.value}</span>
+              <Button variant="ghost" className="h-7 px-2 py-0 text-xs" onClick={() => onApplyCapture(capture)}>
+                Заменить
+              </Button>
+              <Button variant="ghost" className="h-7 px-2 py-0 text-xs" onClick={() => onSkipCapture(capture)}>
+                Не надо
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex flex-col gap-1 text-sm">
         <span className="text-ink-faint">Категории</span>
         {categories.length > 0 ? (
@@ -461,6 +492,11 @@ export function SupplierVerificationTab({
   const [screenshots, setScreenshots] = useState<SupplierScreenshot[]>([]);
   const [uploadingScreenshots, setUploadingScreenshots] = useState(false);
   const [menuCaptures, setMenuCaptures] = useState<SupplierMenuCapture[]>([]);
+  // Контакты, снятые кликом на сайте (закладка «Снять контакт»). Владелец,
+  // 2026-09-14: «чтобы вся верификация была на одной вкладке». В отличие от
+  // скринов и меню, снятый контакт НЕ выводит поставщика из очереди —
+  // наоборот, он нужен прямо сейчас, на открытой карточке.
+  const [contactCaptures, setContactCaptures] = useState<SupplierContactCapture[]>([]);
 
   const snapshotByHost = useMemo(() => new Map(snapshots.map((s) => [s.host, s])), [snapshots]);
 
@@ -473,6 +509,9 @@ export function SupplierVerificationTab({
       });
     fetchSupplierMenuCaptures()
       .then(setMenuCaptures)
+      .catch(() => {});
+    fetchSupplierContactCaptures()
+      .then(setContactCaptures)
       .catch(() => {});
   }, []);
 
@@ -596,6 +635,87 @@ export function SupplierVerificationTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [verifying, verifyTarget]);
 
+  // Снятый контакт принимает вся админка (lib/menuCaptureReceiver.ts), здесь
+  // только подхватываем.
+  useEffect(() => {
+    function onSaved() {
+      fetchSupplierContactCaptures()
+        .then(setContactCaptures)
+        .catch(() => {});
+    }
+    window.addEventListener(CONTACT_CAPTURE_SAVED_EVENT, onSaved);
+    return () => window.removeEventListener(CONTACT_CAPTURE_SAVED_EVENT, onSaved);
+  }, []);
+
+  // Запись снятого контакта в карточку. Пишем ВСЕМ карточкам-предложениям
+  // этого домена — по той же логике, что и «Верифицировать»: контакт у
+  // компании один, а карточек под разные категории закупки может быть
+  // несколько.
+  async function applyContactCapture(group: HostGroup, capture: SupplierContactCapture) {
+    setError('');
+    try {
+      for (const offer of group.offers) {
+        const patch =
+          capture.kind === 'email'
+            ? { email: capture.value }
+            : capture.kind === 'phone'
+              ? { contact: capture.value, contactMethod: 'Телефон' as const }
+              : {
+                  messengers: [
+                    // Мессенджер того же типа заменяем, а не добавляем вторым:
+                    // Светлана кликает по нему как раз тогда, когда нашла
+                    // рабочий, а старый оказался не тем (кейс «Альбия»,
+                    // 2026-09-14 — один и тот же Max записался двумя видами).
+                    ...offer.messengers.filter((m) => m.type !== capture.messengerType),
+                    { type: capture.messengerType as SupplierOffer['messengers'][number]['type'], number: capture.value },
+                  ],
+                };
+        const updated = await updateSupplierOffer(offer.id, { ...offer, ...patch });
+        onOfferUpdated(updated);
+      }
+      await markSupplierContactCapture(capture.id, 'applied');
+      setContactCaptures((prev) => prev.filter((c) => c.id !== capture.id));
+    } catch {
+      setError('Не удалось записать контакт в карточку — попробуйте ещё раз.');
+    }
+  }
+
+  async function skipContactCapture(capture: SupplierContactCapture) {
+    setContactCaptures((prev) => prev.filter((c) => c.id !== capture.id));
+    try {
+      await markSupplierContactCapture(capture.id, 'skipped');
+    } catch {
+      setError('Не удалось убрать снятый контакт — обновите страницу.');
+    }
+  }
+
+  // Пустое поле заполняем сами, без лишнего клика — ровно то, ради чего
+  // затевалось («а оно записало бы само в базу»). А вот РАСХОЖДЕНИЕ с уже
+  // заполненным полем автоматически не переписываем никогда: карточки
+  // поставщиков продаются с требованием точности 97%, и молча затереть
+  // проверенный номер тем, что случайно кликнули в подвале, дороже, чем
+  // один клик «Заменить». Ref — чтобы повторный рендер не пытался применить
+  // ту же строку второй раз, пока идёт запрос.
+  const autoAppliedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const capture of contactCaptures) {
+      if (autoAppliedRef.current.has(capture.id)) continue;
+      const group = hostGroups.find((g) => g.host === capture.host);
+      if (!group) continue;
+      const offer = group.representative;
+      const isEmpty =
+        capture.kind === 'email'
+          ? !offer.email.trim()
+          : capture.kind === 'phone'
+            ? !offer.contact.trim()
+            : !offer.messengers.some((m) => m.type === capture.messengerType);
+      if (!isEmpty) continue;
+      autoAppliedRef.current.add(capture.id);
+      void applyContactCapture(group, capture);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contactCaptures, hostGroups]);
+
   function startVerification() {
     setSkippedHosts(new Set());
     setVerifying(true);
@@ -714,6 +834,9 @@ export function SupplierVerificationTab({
               saving={savingHost === verifyTarget.host}
               screenshots={screenshots.filter((s) => s.host === verifyTarget.host)}
               menuCaptured={menuCaptures.some((c) => c.host === verifyTarget.host && c.status === 'pending')}
+              contactCaptures={contactCaptures.filter((c) => c.host === verifyTarget.host)}
+              onApplyCapture={(capture) => void applyContactCapture(verifyTarget, capture)}
+              onSkipCapture={(capture) => void skipContactCapture(capture)}
               uploadingScreenshots={uploadingScreenshots}
               onScreenshotFiles={(files) => handleScreenshotFiles(verifyTarget.host, files)}
               onScreenshotDelete={handleScreenshotDelete}

@@ -1,8 +1,13 @@
 #!/usr/bin/env node
-// Собирает bookmarklet.js в страницу установки: ссылку, которую нужно
+// Собирает закладки в одну страницу установки: кнопки, которые нужно
 // перетащить на панель закладок. Минификации нет намеренно — переносы строк
 // в javascript:-адресе кодируются как %0A и прекрасно работают, зато закладку
 // можно в любой момент прочитать и понять, что она делает.
+//
+// Закладок две (вторая с 2026-09-14):
+//   bookmarklet.js — «Снять меню»: дерево разделов каталога;
+//   contacts.js    — «Снять контакт»: телефон/почта/мессенджер по клику.
+// Обе шлют снятое в открывшую вкладку админки (lib/menuCaptureReceiver.ts).
 //
 //   node tools/menu-bookmarklet/build.mjs
 //   → tools/menu-bookmarklet/install.html
@@ -10,29 +15,37 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const dir = path.join(process.cwd(), 'tools/menu-bookmarklet');
+
 // Из исходника вырезаем блочные комментарии и отступы: закладка длиной
 // 23 тысячи символов формально работает, но такую строку неприятно и
 // вставлять руками, и отлаживать. Переносы строк остаются.
-const src = fs.readFileSync(path.join(dir, 'bookmarklet.js'), 'utf8');
-const min = src
-  .replace(/\/\*[\s\S]*?\*\//g, '')
-  .split('\n')
-  .map((l) => l.trim())
-  .filter(Boolean)
-  .join('\n');
-fs.writeFileSync(path.join(dir, 'bookmarklet.min.js'), min);
-const href = 'javascript:' + encodeURIComponent(min);
+function build(name) {
+  const src = fs.readFileSync(path.join(dir, `${name}.js`), 'utf8');
+  const min = src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .join('\n');
+  fs.writeFileSync(path.join(dir, `${name}.min.js`), min);
+  return 'javascript:' + encodeURIComponent(min);
+}
+
+const menuHref = build('bookmarklet');
+const contactsHref = build('contacts');
+const esc = (s) => s.replace(/"/g, '&quot;');
 
 const html = `<!doctype html>
 <html lang="ru">
 <meta charset="utf-8">
-<title>Закладка «Снять меню»</title>
+<title>Закладки для верификации поставщиков</title>
 <style>
   body { font: 16px/1.6 -apple-system, Segoe UI, Roboto, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #111; }
   h1 { font-size: 22px; margin-bottom: 4px; }
   h2 { font-size: 17px; margin-top: 36px; }
   .lead { color: #555; margin-top: 0; }
   .drag { display: inline-block; padding: 12px 28px; border-radius: 999px; background: #d92d20; color: #fff; text-decoration: none; font-weight: 600; cursor: grab; }
+  .drag.second { background: #111; }
   .step { display: flex; gap: 14px; margin: 18px 0; }
   .n { flex: 0 0 28px; height: 28px; border-radius: 50%; background: #111; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; }
   .step div { flex: 1; }
@@ -43,9 +56,9 @@ const html = `<!doctype html>
   summary { cursor: pointer; font-weight: 600; }
 </style>
 
-<h1>Закладка «Снять меню»</h1>
-<p class="lead">Читает разделы каталога прямо со страницы поставщика — включая те,
-что показываются только при наведении.</p>
+<h1>Закладки для верификации поставщиков</h1>
+<p class="lead">Две кнопки на панели закладок. Обе снимают данные прямо со страницы
+поставщика и отправляют их в открытую вкладку админки — переписывать руками ничего не нужно.</p>
 
 <h2>Установка в Chrome</h2>
 
@@ -54,46 +67,78 @@ const html = `<!doctype html>
 </div></div>
 
 <div class="step"><div class="n">2</div><div>
-  <b>Перетащите мышью эту кнопку вверх, на панель закладок</b> — туда, где остальные ваши закладки.<br><br>
-  <a class="drag" href="${href.replace(/"/g, '&quot;')}">Снять меню</a>
+  <b>Перетащите мышью обе кнопки вверх, на панель закладок.</b> Если такие кнопки
+  там уже есть — сначала удалите старые (правой кнопкой → «Удалить»), иначе
+  сработает прежняя версия.<br><br>
+  <a class="drag" href="${esc(menuHref)}">Снять меню</a>
+  &nbsp;&nbsp;
+  <a class="drag second" href="${esc(contactsHref)}">Снять контакт</a>
 </div></div>
 
 <h2>Как пользоваться</h2>
 
-<div class="step"><div class="n">1</div><div>Открыть сайт поставщика — лучше сразу страницу каталога.</div></div>
-<div class="step"><div class="n">2</div><div>Нажать закладку «Снять меню» на панели.</div></div>
-<div class="step"><div class="n">3</div><div>Появится окно с деревом разделов — нажать «Скопировать».</div></div>
-<div class="step"><div class="n">4</div><div><b>Прислать текст в чат.</b> Админку открывать не нужно: закладка ничего никуда не отправляет, это проверочная версия.</div></div>
+<div class="step"><div class="n">1</div><div>
+  В админке — «Закупки» → «Верификация» → <b>«Начать верификацию»</b>. Сайт поставщика
+  откроется соседней вкладкой. Важно открывать его именно так: закладки отправляют
+  снятое в ту вкладку, из которой сайт открыли.
+</div></div>
+<div class="step"><div class="n">2</div><div>
+  <b>«Снять меню»</b> — нажать на панели закладок. Появится зелёное уведомление
+  «Меню снято: N разделов». Поставщик уйдёт в блок «ждут распознавания» — так и надо.
+</div></div>
+<div class="step"><div class="n">3</div><div>
+  <b>«Снять контакт»</b> — нажать на панели, внизу появится чёрная плашка.
+  Дальше кликать по телефону, почте, значку Telegram/WhatsApp/Max. Ссылки при этом
+  <b>не открываются</b> — значение уходит в карточку. Если номер просто текстом и
+  клик берёт не то — <b>выделите его мышью</b>, снимется сразу. Выход — <kbd>Esc</kbd>
+  или «Готово».
+</div></div>
+<div class="step"><div class="n">4</div><div>
+  Вернуться во вкладку админки. Пустые поля карточки уже заполнены снятым. Если
+  снятое <b>не совпало</b> с тем, что было в карточке, — оно показано отдельным
+  жёлтым блоком с кнопками «Заменить» / «Не надо»: само ничего не затирается.
+</div></div>
+
+<div class="note">
+  <b>Уведомление красное, «Админка не ответила»</b> — обновите вкладку админки
+  (<kbd>⌘+Shift+R</kbd>) и попробуйте ещё раз.
+  <br><br>
+  <b>«Сайт открыт не из карточки»</b> — сайт открыли вручную (адресной строкой или
+  из истории). Закройте вкладку и откройте сайт кнопкой из карточки верификации.
+  <br><br>
+  <b>Меню не нашлось</b> — на этом сайте оно нарисовано не ссылками. Работает прежний
+  способ: скриншот, вставить в карточку через <kbd>⌘+V</kbd>.
+</div>
 
 <details>
   <summary>Если пользуетесь Safari</summary>
   <div class="note">
-    В Safari перетаскивание такой кнопки часто не срабатывает. Тогда так:
+    В Safari перетаскивание таких кнопок часто не срабатывает. Тогда так:
     <ol>
-      <li>Нажмите кнопку ниже — код скопируется в буфер.</li>
-      <li>В Safari: <kbd>⌘+D</kbd> на любой странице, сохранить в «Избранное», назвать «Снять меню».</li>
+      <li>Нажмите нужную кнопку ниже — код скопируется в буфер.</li>
+      <li>В Safari: <kbd>⌘+D</kbd> на любой странице, сохранить в «Избранное», назвать «Снять меню» (или «Снять контакт»).</li>
       <li>Меню «Закладки» → «Править закладки», найти её, вставить скопированный код в поле адреса.</li>
     </ol>
-    <p><button id="copy">Скопировать код закладки</button></p>
+    <p>
+      <button data-code="menu">Скопировать код «Снять меню»</button>
+      <button data-code="contacts">Скопировать код «Снять контакт»</button>
+    </p>
   </div>
 </details>
 
-<div class="note">
-  <b>Если ничего не нашлось</b> — меню на этом сайте нарисовано не ссылками.
-  Тогда работает прежний способ: скриншот в карточке верификации.
-  <br><br>
-  <b>Если дерево кривое</b> (лишнее из подвала, странные пункты) — всё равно
-  скопируйте и пришлите: по таким случаям и будет видно, что чинить.
-</div>
-
 <script>
-  const CODE = document.querySelector('.drag').getAttribute('href');
-  document.getElementById('copy').onclick = function () {
-    navigator.clipboard.writeText(CODE).then(() => { this.textContent = 'Скопировано'; });
+  const CODE = {
+    menu: document.querySelector('.drag').getAttribute('href'),
+    contacts: document.querySelector('.drag.second').getAttribute('href'),
   };
+  document.querySelectorAll('[data-code]').forEach((b) => {
+    b.onclick = function () {
+      navigator.clipboard.writeText(CODE[this.dataset.code]).then(() => { this.textContent = 'Скопировано'; });
+    };
+  });
 </script>
 </html>
 `;
 
 fs.writeFileSync(path.join(dir, 'install.html'), html);
-console.log(`install.html готов, длина закладки ${href.length} символов`);
+console.log(`install.html готов: «Снять меню» ${menuHref.length} символов, «Снять контакт» ${contactsHref.length}`);
