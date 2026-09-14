@@ -102,7 +102,22 @@ function withFile(files, sourceFile) {
 // его хватает, чтобы откатить запись ровно в том объёме, в каком она была
 // сделана, не трогая то, что закупщица успела добавить руками.
 // emailId — письмо, из которого счёт распознан (source_email_id у КП).
-export async function applyRecognizedInvoice({ emailId, offerId, orderId, subject, recognized, sourceFile }) {
+// Заголовок строки КП. Тема письма одна на все его счета, поэтому когда
+// счетов несколько, к теме добавляется имя файла — иначе в сравнении цен
+// две неразличимые строки "Re: Грильято 100х100" (владелец, 2026-09-14:
+// "я как раз сравниваю альтернативные материалы"). Тот же формат, что на
+// клиенте (quoteTitle в SupplierCorrespondenceTab.tsx) — ручной и
+// автоматический путь не должны расходиться.
+export function quoteTitle(subject, fileName, severalInvoices) {
+  const base = String(subject ?? '').trim();
+  const file = String(fileName ?? '')
+    .replace(/\.[^.]+$/, '')
+    .trim();
+  if (!severalInvoices || !file) return base || file || 'Счёт без темы';
+  return base ? `${base} — ${file}` : file;
+}
+
+export async function applyRecognizedInvoice({ emailId, offerId, orderId, subject, recognized, sourceFile, title }) {
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error('SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY не заданы — некуда записывать распознанный счёт');
   }
@@ -162,7 +177,7 @@ export async function applyRecognizedInvoice({ emailId, offerId, orderId, subjec
   // цена от последнего, а позиции от всех сразу (разбор 2026-09-11).
   const quote = await restInsert('supplier_offer_quotes', {
     offer_id: offerId,
-    title: subject || 'Счёт без темы',
+    title: title || subject || 'Счёт без темы',
     price: recognized.price ?? 0,
     currency,
     items: newItems,

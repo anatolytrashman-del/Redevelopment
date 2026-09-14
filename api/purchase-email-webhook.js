@@ -40,8 +40,8 @@
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { extractEmailAttachments, fetchReceivedEmailBody } from './_attachments.js';
-import { recognizeInvoiceFromAttachments, recognizeAllInvoicesFromAttachments } from './_invoiceRecognition.js';
-import { applyRecognizedInvoice } from './_invoiceApply.js';
+import { recognizeAllInvoicesFromAttachments } from './_invoiceRecognition.js';
+import { applyRecognizedInvoice, quoteTitle } from './_invoiceApply.js';
 import { saveReliabilityIfNew } from './_checko.js';
 
 export const config = {
@@ -430,7 +430,7 @@ export default async function handler(req, res) {
     // 2026-09-12: раньше здесь брался ПЕРВЫЙ подходящий файл письма — на
     // живых письмах этим файлом регулярно оказывалась картинка из подписи
     // отправителя, и настоящий счёт рядом не распознавался вовсе. Теперь
-    // выбор и перебор кандидатов внутри recognizeInvoiceFromAttachments
+    // выбор и перебор кандидатов внутри recognizeAllInvoicesFromAttachments
     // (см. pickInvoiceCandidates) — служебные картинки отсеиваются, счёт
     // ищется по всем вложениям. Многостраничные каталоги до модели
     // по-прежнему не долетают, деньги не тратятся.
@@ -468,12 +468,19 @@ export default async function handler(req, res) {
         // 2026-09-14: находим ВСЕ счёты в письме, не только первый.
         // Реальный случай (письмо от Авангарда): два счёта на разных видах
         // материалов в одном письме, но при обработке записывался только первый.
-        const result = await recognizeAllInvoicesFromAttachments(attachments);
+        // Тема и текст письма идут к модели справочно: короткая таблица с
+        // ценами сама по себе неотличима от куска каталога, а письмо
+        // ("направляю коммерческое предложение по вашему запросу") снимает
+        // этот вопрос — см. emailContextBlock в _invoiceRecognition.js.
+        const result = await recognizeAllInvoicesFromAttachments(attachments, { subject, body });
         recognizedInvoicesData = result;
         if (result.allRecognized && result.allRecognized.length > 0) {
-          // Сохраняем ПЕРВЫЙ счёт в extraction для совместимости с фронтом
-          // (он ожидает один счёт). Все остальные обрабатываются отдельно
-          // в цикле ниже (см. applyRecognizedInvoice для каждого).
+          // ПЕРВЫЙ счёт лежит прямо в корне extraction, остальные — в
+          // additionalInvoices. Это не "для диагностики", а рабочая форма
+          // хранения: интерфейс читает оба места одним списком (см.
+          // extractionInvoices в data/supplierOfferEmails.ts), а корень
+          // оставлен первым счётом, чтобы записи, сделанные до появления
+          // нескольких счетов, читались тем же кодом.
           const [firstInvoice, ...restInvoices] = result.allRecognized;
           recognizedInvoice = firstInvoice;
           const { recognized, candidate } = firstInvoice;
@@ -482,12 +489,11 @@ export default async function handler(req, res) {
             ...recognized,
             sourceFile: { url: candidate.url, fileName: candidate.fileName },
             recognizedAt: new Date().toISOString(),
-            // Если счётов больше одного — сохраняем информацию об остальных
-            // для диагностики (видно в переписке и в логах).
             ...(restInvoices.length > 0 && {
               additionalInvoices: restInvoices.map(({ recognized, candidate }) => ({
                 ...recognized,
                 sourceFile: { url: candidate.url, fileName: candidate.fileName },
+                applied: null,
               })),
             }),
           };
@@ -557,30 +563,48 @@ export default async function handler(req, res) {
     //
     // 2026-09-14: обрабатываем ВСЕ найденные счёты, а не только первый.
     if (recognizedInvoicesData?.allRecognized && recognizedInvoicesData.allRecognized.length > 0 && row?.id) {
-      const allApplied = [];
+      const several = recognizedInvoicesData.allRecognized.length > 1;
+      // Снимок записи по каждому счёту, разложенный по url вложения: в
+      // extraction каждый счёт носит СВОЙ applied (первый — в корне,
+      // остальные в additionalInvoices, см. data/supplierOfferEmails.ts).
+      // Раньше при двух счетах в корневой applied клался МАССИВ снимков —
+      // форма, которой фронт не знает: карточка счёта падала на
+      // applied.itemIds, то есть ни сверить позиции, ни откатить запись
+      // было нельзя.
+      const appliedByUrl = new Map();
       for (const invoice of recognizedInvoicesData.allRecognized) {
         try {
+          const invoiceSourceFile = { url: invoice.candidate.url, fileName: invoice.candidate.fileName };
           const applied = await applyRecognizedInvoice({
             emailId: row.id,
             offerId,
             orderId,
             subject,
             recognized: invoice.recognized,
-            sourceFile: { url: invoice.candidate.url, fileName: invoice.candidate.fileName },
+            sourceFile: invoiceSourceFile,
+            title: quoteTitle(subject, invoiceSourceFile.fileName, several),
           });
-          allApplied.push(applied);
+          appliedByUrl.set(invoiceSourceFile.url, applied);
         } catch (err) {
           console.error(`Не удалось записать счёт ${invoice.candidate.fileName} в карточку (письмо сохранено, останется ручное подтверждение):`, err);
         }
       }
-      // Обновляем extraction со статусом 'confirmed' и информацией о том,
-      // что счёты были обработаны автоматически.
-      if (allApplied.length > 0) {
+      if (appliedByUrl.size > 0) {
         extraction = {
           ...extraction,
-          status: 'confirmed',
+          // 'confirmed' только когда записаны ВСЕ счета письма: если один
+          // из двух не записался, письмо остаётся с пометкой "есть что
+          // подтвердить" — в переписке у такого счёта будет обычная
+          // кнопка ручного подтверждения, а у записанных — своя карточка.
+          status: appliedByUrl.size === recognizedInvoicesData.allRecognized.length ? 'confirmed' : 'pending',
           appliedAutomatically: true,
-          applied: allApplied.length === 1 ? allApplied[0] : allApplied,
+          applied: appliedByUrl.get(extraction.sourceFile?.url) ?? null,
+          ...(extraction.additionalInvoices && {
+            additionalInvoices: extraction.additionalInvoices.map((inv) => ({
+              ...inv,
+              applied: appliedByUrl.get(inv.sourceFile?.url) ?? null,
+            })),
+          }),
         };
         // Только supplier_offer_emails: распознавание запускается лишь при
         // offerId (см. выше), в переписке по закупкам счетов не разбираем.

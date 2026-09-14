@@ -41,6 +41,30 @@ export interface EmailExtractionApplied {
   appliedAt: string;
 }
 
+// Один распознанный счёт письма. Владелец, 2026-09-14: "в письме два счета,
+// а распознался и записался в базу только 1. Хотя я как раз сравниваю
+// альтернативные материалы" — реальное письмо Авангарда с двумя счетами
+// (алюминий и оцинковка) на один и тот же потолок. До этой правки письмо
+// могло нести ровно один счёт: поля price/items/sourceFile лежали прямо в
+// EmailExtraction, второй счёт не находился вовсе.
+//
+// Сейчас счетов может быть несколько, но форма хранения осталась
+// обратно совместимой: ПЕРВЫЙ счёт по-прежнему лежит в корне
+// EmailExtraction (старые записи и старый код продолжают работать как
+// работали), остальные — в additionalInvoices. Не читать эти поля
+// напрямую: весь интерфейс работает через extractionInvoices() ниже,
+// который приводит обе формы к одному списку.
+export interface EmailExtractionInvoice {
+  price: number | null;
+  currency: string | null;
+  items: EmailExtractionItem[];
+  supplierInn: string | null;
+  sourceFile: { url: string; fileName: string } | null;
+  // Снимок записи ИМЕННО этого счёта в базу (см. EmailExtractionApplied).
+  // У первого счёта берётся из корня extraction — там он лежал всегда.
+  applied: EmailExtractionApplied | null;
+}
+
 export interface EmailExtraction {
   // 'none' — распознавание отработало и счёта во вложениях НЕ нашло; в
   // attempts/skipped лежит протокол (что пробовали, что отсеяли и почему).
@@ -67,10 +91,40 @@ export interface EmailExtraction {
   supplierInn: string | null;
   sourceFile: { url: string; fileName: string } | null;
   recognizedAt: string;
+  // Второй и последующие счета того же письма (первый — в полях выше).
+  // Пусто/нет поля — в письме один счёт, как было до 2026-09-14.
+  additionalInvoices?: EmailExtractionInvoice[];
   // Диагностика неудачи (заполняется только при status:'none').
   attempts?: { fileName: string; outcome: string }[];
   skipped?: { fileName: string; reason: string }[];
   error?: string;
+}
+
+// Все счета письма одним списком — единственный способ читать
+// распознавание в интерфейсе. Скрывает то, что первый счёт хранится в
+// корне extraction, а остальные в additionalInvoices (см. выше), поэтому
+// письмо с одним счётом и письмо с тремя обрабатываются одинаковым кодом.
+// status:'none' — счёта не нашли вовсе, там в полях только протокол
+// неудачи, счётом его считать нельзя (иначе в переписке нарисовался бы
+// пустой "счёт без суммы").
+export function extractionInvoices(extraction: EmailExtraction | null | undefined): EmailExtractionInvoice[] {
+  if (!extraction || extraction.status === 'none' || !extraction.isInvoice) return [];
+  // Короткоживущая форма записи (прод 2026-09-14, 08:39–…): при двух и
+  // более счетах сервер клал в applied МАССИВ снимков вместо объекта.
+  // Письма, принятые в этом окне, иначе уронили бы карточку на
+  // applied.itemIds.indexOf.
+  const rootApplied = Array.isArray(extraction.applied)
+    ? ((extraction.applied[0] as EmailExtractionApplied | undefined) ?? null)
+    : (extraction.applied ?? null);
+  const first: EmailExtractionInvoice = {
+    price: extraction.price,
+    currency: extraction.currency,
+    items: extraction.items ?? [],
+    supplierInn: extraction.supplierInn,
+    sourceFile: extraction.sourceFile,
+    applied: rootApplied,
+  };
+  return [first, ...(extraction.additionalInvoices ?? [])];
 }
 
 // Одно письмо в переписке по конкретному предложению Ресерча поставщиков —

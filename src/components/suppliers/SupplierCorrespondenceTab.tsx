@@ -16,8 +16,14 @@ import { supplierOfferEmailAddress, countryFlag, SUPPLIER_COUNTRIES } from '../.
 import { updateSupplierOffer } from '../../lib/supplierResearchApi';
 import type { SupplierOrder } from '../../data/supplierOrders';
 import { insertSupplierOrder, updateSupplierOrder } from '../../lib/supplierOrdersApi';
-import type { SupplierOfferEmail, EmailExtractionItem, EmailExtraction, EmailExtractionApplied } from '../../data/supplierOfferEmails';
-import { isFirstOutgoingToOffer } from '../../data/supplierOfferEmails';
+import type {
+  SupplierOfferEmail,
+  EmailExtractionItem,
+  EmailExtraction,
+  EmailExtractionApplied,
+  EmailExtractionInvoice,
+} from '../../data/supplierOfferEmails';
+import { isFirstOutgoingToOffer, extractionInvoices } from '../../data/supplierOfferEmails';
 import { emailSendStatusLabel } from '../../data/emailSendStatus';
 import { sendSupplierOfferEmail, setSupplierOfferEmailExtractionStatus } from '../../lib/supplierOfferEmailsApi';
 import type { LegalEntity } from '../../data/legalEntities';
@@ -225,14 +231,15 @@ function extractionItemsToPurchaseItems(items: EmailExtractionItem[], materialMa
 async function saveExtractionAsQuote(
   offerId: string,
   email: SupplierOfferEmail,
-  extraction: { price: number | null; currency: string | null; items: EmailExtractionItem[] },
+  extraction: { price: number | null },
   items: PurchaseItem[],
   sourceFile: { url: string; fileName: string } | null,
   currency: Currency,
+  title: string,
 ): Promise<SupplierQuote> {
   return insertSupplierQuote({
     offerId,
-    title: email.subject || 'Счёт без темы',
+    title,
     price: extraction.price ?? 0,
     currency,
     items,
@@ -245,6 +252,58 @@ async function saveExtractionAsQuote(
   });
 }
 
+// Заголовок строки КП. Тема письма одна на все его счета, поэтому когда
+// счетов несколько, к теме добавляется имя файла — иначе в сравнении цен
+// две неразличимые строки "Re: Грильято 100х100" (владелец, 2026-09-14).
+export function quoteTitle(subject: string, fileName: string | null, severalInvoices: boolean): string {
+  const base = subject.trim();
+  const file = (fileName ?? '').replace(/\.[^.]+$/, '').trim();
+  if (!severalInvoices || !file) return base || file || 'Счёт без темы';
+  return base ? `${base} — ${file}` : file;
+}
+
+// Кладёт снимок записи в КОНКРЕТНЫЙ счёт письма, не трогая остальные:
+// первый счёт хранится в корне extraction, прочие — в additionalInvoices
+// (см. extractionInvoices в data/supplierOfferEmails.ts). Счета сравниваем
+// по url вложения — единственный их устойчивый признак.
+function withInvoiceApplied(
+  extraction: EmailExtraction,
+  invoice: EmailExtractionInvoice,
+  applied: EmailExtractionApplied | null,
+): EmailExtraction {
+  const url = invoice.sourceFile?.url ?? null;
+  if ((extraction.sourceFile?.url ?? null) === url) return { ...extraction, applied };
+  return {
+    ...extraction,
+    additionalInvoices: (extraction.additionalInvoices ?? []).map((inv) =>
+      (inv.sourceFile?.url ?? null) === url ? { ...inv, applied } : inv,
+    ),
+  };
+}
+
+// Убирает ОДИН счёт из письма ("это не счёт"), сохраняя остальные: в
+// письме с двумя счетами отклонение первого раньше пометило бы
+// 'dismissed' всё письмо, вместе с настоящим вторым счётом. Оставшийся
+// первый счёт переезжает в корень extraction — форма хранения та же, что
+// у письма с одним счётом (см. extractionInvoices).
+function withInvoiceRemoved(extraction: EmailExtraction, invoice: EmailExtractionInvoice): EmailExtraction {
+  const url = invoice.sourceFile?.url ?? null;
+  const rest = extractionInvoices(extraction).filter((inv) => (inv.sourceFile?.url ?? null) !== url);
+  if (rest.length === 0) return { ...extraction, status: 'dismissed', applied: null, additionalInvoices: [] };
+  const [first, ...others] = rest;
+  return {
+    ...extraction,
+    status: rest.every((inv) => inv.applied) ? 'confirmed' : 'pending',
+    price: first.price,
+    currency: first.currency,
+    items: first.items,
+    supplierInn: first.supplierInn,
+    sourceFile: first.sourceFile,
+    applied: first.applied,
+    additionalInvoices: others,
+  };
+}
+
 // Счёт, который система уже САМА записала в базу при приёме письма
 // (api/_invoiceApply.js) — владелец, 2026-09-12: "мне нужно автоматическое
 // распознавание счетов и запись в базу ещё до открытия письма нами
@@ -253,10 +312,23 @@ async function saveExtractionAsQuote(
 // если модель ошиблась — откатить. Снимок applied пишет сервер; у записей
 // старше этой правки его нет, поэтому проверяем именно его наличие, а не
 // один флаг.
-function autoApplied(e: SupplierOfferEmail): EmailExtractionApplied | null {
+// 2026-09-14: у письма может быть несколько счетов (владелец: "в письме два
+// счета, а распознался и записался в базу только 1... я как раз сравниваю
+// альтернативные материалы"), поэтому "записан автоматически" — свойство
+// КОНКРЕТНОГО счёта, а не письма целиком: один счёт письма может быть уже
+// сверен со сметой, другой — откачен как ошибочный.
+function autoApplied(e: SupplierOfferEmail, invoice: EmailExtractionInvoice): EmailExtractionApplied | null {
   const extraction = e.extraction;
   if (!extraction || extraction.status !== 'confirmed' || !extraction.appliedAutomatically) return null;
-  return extraction.applied ?? null;
+  return invoice.applied ?? null;
+}
+
+// Тот же файл, что распознан как счёт? Сравнение по url, а не по имени —
+// поставщики шлют вложения с одинаковыми именами (реальный случай: два
+// разных счёта, оба "Счет на оплату №2815 от 09.09.2026 (сФ).pdf", второй с
+// суффиксом "(3)" от почтового клиента).
+function invoiceOfFile(e: SupplierOfferEmail, fileUrl: string): EmailExtractionInvoice | null {
+  return extractionInvoices(e.extraction).find((inv) => inv.sourceFile?.url === fileUrl) ?? null;
 }
 
 // Проставляет сопоставление со сметой позициям, которые автозапись уже
@@ -324,13 +396,18 @@ function revertAppliedOnOrder(order: SupplierOrder, applied: EmailExtractionAppl
   });
 }
 
+// newItems приходят ГОТОВЫМИ, а не собираются здесь из materialMatches:
+// ровно эти же объекты (с теми же id) уходят и в строку КП, и в снимок
+// applied.itemIds. Раньше карточка и КП собирали позиции двумя отдельными
+// вызовами extractionItemsToPurchaseItems, то есть с разными
+// crypto.randomUUID(), и связать строку КП с позициями карточки было
+// нечем.
 async function applyExtractionToOffer(
   offer: SupplierOffer,
-  extraction: { price: number | null; currency: string | null; items: EmailExtractionItem[]; supplierInn?: string | null },
+  extraction: { price: number | null; currency: string | null; supplierInn?: string | null },
   sourceFile: { url: string; fileName: string } | null,
-  materialMatches: Record<number, MaterialMatch>,
+  newItems: PurchaseItem[],
 ): Promise<SupplierOffer> {
-  const newItems = extractionItemsToPurchaseItems(extraction.items, materialMatches);
   const files =
     sourceFile && !offer.files.some((f) => f.url === sourceFile.url)
       ? [...offer.files, { url: sourceFile.url, fileName: sourceFile.fileName }]
@@ -372,11 +449,10 @@ async function applyExtractionToOffer(
 // открыта (order prop) — см. handleConfirmAutoExtraction.
 async function applyExtractionToOrder(
   order: SupplierOrder,
-  extraction: { price: number | null; currency: string | null; items: EmailExtractionItem[] },
+  extraction: { price: number | null; currency: string | null },
   sourceFile: { url: string; fileName: string } | null,
-  materialMatches: Record<number, MaterialMatch>,
+  newItems: PurchaseItem[],
 ): Promise<SupplierOrder> {
-  const newItems = extractionItemsToPurchaseItems(extraction.items, materialMatches);
   const files =
     sourceFile && !order.files.some((f) => f.url === sourceFile.url)
       ? [...order.files, { url: sourceFile.url, fileName: sourceFile.fileName }]
@@ -719,12 +795,17 @@ export function EmailThread({
   // сама (autoApplied) — у него в футере не "подтвердить", а "сохранить
   // сопоставление со сметой" и откат, но список позиций и сам документ
   // показываются точно так же.
-  const previewExtractionEmail = previewFile
-    ? threadEmails.find(
-        (e) =>
-          (e.extraction?.status === 'pending' || autoApplied(e)) && e.extraction?.sourceFile?.url === previewFile.url,
-      ) ?? null
-    : null;
+  // 2026-09-14: ищем не только письмо, но и КОНКРЕТНЫЙ счёт — в письме их
+  // может быть несколько, и футер должен показывать позиции того счёта,
+  // который сейчас открыт, а не всегда первого.
+  const previewExtraction = useMemo(() => {
+    if (!previewFile) return null;
+    for (const e of threadEmails) {
+      const invoice = invoiceOfFile(e, previewFile.url);
+      if (invoice && (e.extraction?.status === 'pending' || autoApplied(e, invoice))) return { email: e, invoice };
+    }
+    return null;
+  }, [previewFile, threadEmails]);
 
   // Заранее подставляем очевидные совпадения (suggestMaterialMatch), но
   // только при открытии НОВОГО счёта — иначе переоткрытие того же
@@ -733,7 +814,7 @@ export function EmailThread({
   // сеанс работы со страницей (см. Suppliers.tsx), реагировать на неё смысла
   // нет.
   useEffect(() => {
-    if (!previewExtractionEmail?.extraction) {
+    if (!previewExtraction) {
       setMaterialMatches({});
       return;
     }
@@ -741,10 +822,10 @@ export function EmailThread({
     // их когда-то сверила, показываем СОХРАНЁННОЕ сопоставление, а не
     // подсказку заново (иначе повторное открытие счёта молча предлагало бы
     // откатить её ручной выбор).
-    const applied = autoApplied(previewExtractionEmail);
+    const applied = autoApplied(previewExtraction.email, previewExtraction.invoice);
     const storedItems = applied ? (applied.target === 'order' ? (order?.items ?? []) : offer.items) : [];
     const initial: Record<number, MaterialMatch> = {};
-    previewExtractionEmail.extraction.items.forEach((it, idx) => {
+    previewExtraction.invoice.items.forEach((it, idx) => {
       const stored = applied ? storedItems.find((i) => i.id === applied.itemIds[idx]) : undefined;
       if (stored?.sourceMaterialId) {
         initial[idx] = { materialId: stored.sourceMaterialId, unitPrice: stored.unitPrice != null ? String(stored.unitPrice) : '' };
@@ -754,20 +835,43 @@ export function EmailThread({
       if (suggestion) initial[idx] = { materialId: suggestion, unitPrice: computeUnitPriceGuess(it, suggestion, allMaterials) };
     });
     setMaterialMatches(initial);
+    // Ключ — url открытого файла, а не id письма: у письма с двумя счетами
+    // id один, и по нему сопоставление не пересчиталось бы при переходе от
+    // одного счёта к другому.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewExtractionEmail?.id]);
+  }, [previewFile?.url]);
 
-  async function handleConfirmAutoExtraction(e: SupplierOfferEmail) {
+  async function handleConfirmAutoExtraction(e: SupplierOfferEmail, invoice: EmailExtractionInvoice) {
     if (!e.extraction || applyingExtraction) return;
+    const extraction = e.extraction;
     setApplyingExtraction(true);
     setExtractionError(null);
     try {
+      const sourceFile = invoice.sourceFile ?? null;
+      // Позиции создаются ОДИН раз и в этом виде уходят и в карточку, и в
+      // строку КП, и в снимок applied.itemIds — по нему потом находится,
+      // какие строки карточки пришли именно из этого счёта.
+      const newItems = extractionItemsToPurchaseItems(invoice.items, materialMatches);
+      const appliedAt = new Date().toISOString();
+      let applied: EmailExtractionApplied;
       // order — текущий открытый тред (тот же, которому принадлежит это
       // письмо, см. threadEmails) — заявка или основная переписка офера.
       if (order) {
-        onOrderUpdated(await applyExtractionToOrder(order, e.extraction, e.extraction.sourceFile ?? null, materialMatches));
+        const fileAdded = !!sourceFile && !order.files.some((f) => f.url === sourceFile.url);
+        onOrderUpdated(await applyExtractionToOrder(order, invoice, sourceFile, newItems));
+        applied = {
+          target: 'order',
+          targetId: order.id,
+          quoteId: null,
+          itemIds: newItems.map((i) => i.id),
+          fileUrl: sourceFile?.url ?? null,
+          fileAdded,
+          previous: { price: order.price, currency: order.currency, inn: null },
+          appliedAt,
+        };
       } else {
-        const updated = await applyExtractionToOffer(offer, e.extraction, e.extraction.sourceFile ?? null, materialMatches);
+        const fileAdded = !!sourceFile && !offer.files.some((f) => f.url === sourceFile.url);
+        const updated = await applyExtractionToOffer(offer, invoice, sourceFile, newItems);
         onOfferUpdated(updated);
         // Владелец, 2026-09-11: "когда поставщик прислал счет и нам стали
         // известны реквизиты, запускать процесс верификации поставщика" —
@@ -786,15 +890,32 @@ export function EmailThread({
         const quote = await saveExtractionAsQuote(
           offer.id,
           e,
-          e.extraction,
-          extractionItemsToPurchaseItems(e.extraction.items, materialMatches),
-          e.extraction.sourceFile ?? null,
+          invoice,
+          newItems,
+          sourceFile,
           updated.currency,
+          quoteTitle(e.subject, sourceFile?.fileName ?? null, extractionInvoices(extraction).length > 1),
         );
         onQuotesChange((prev) => [...prev, quote]);
+        applied = {
+          target: 'offer',
+          targetId: offer.id,
+          quoteId: quote.id,
+          itemIds: newItems.map((i) => i.id),
+          fileUrl: sourceFile?.url ?? null,
+          fileAdded,
+          previous: { price: offer.price, currency: offer.currency, inn: offer.inn },
+          appliedAt,
+        };
       }
-      await setSupplierOfferEmailExtractionStatus(e.id, e.extraction, 'confirmed');
-      onEmailUpdated({ ...e, extraction: { ...e.extraction, status: 'confirmed' } });
+      // Письмо считается разобранным, только когда записаны ВСЕ его счета:
+      // при двух счетах подтверждение первого раньше ставило письму
+      // 'confirmed' целиком, и карточка второго счёта просто исчезала из
+      // переписки — подтвердить его было негде.
+      const nextExtraction = withInvoiceApplied(extraction, invoice, applied);
+      const status = extractionInvoices(nextExtraction).every((inv) => inv.applied) ? 'confirmed' : 'pending';
+      await setSupplierOfferEmailExtractionStatus(e.id, nextExtraction, status);
+      onEmailUpdated({ ...e, extraction: { ...nextExtraction, status } });
       // Владелец, 2026-09-10: "Метрики" считали только submitOffer
       // (правка/создание через форму карточки) — самая частая реальная
       // работа Альмиры, подтверждение автораспознанного счёта прямо в
@@ -817,8 +938,8 @@ export function EmailThread({
   // банке, знает только человек (владелец, 2026-09-04: "давай сверять
   // вручную"). Пишем сопоставление и в карточку, и в саму строку КП —
   // сравнение цен по позициям читает и то, и другое.
-  async function handleSaveMaterialMatches(e: SupplierOfferEmail) {
-    const applied = autoApplied(e);
+  async function handleSaveMaterialMatches(e: SupplierOfferEmail, invoice: EmailExtractionInvoice) {
+    const applied = autoApplied(e, invoice);
     if (!applied || applyingExtraction) return;
     setApplyingExtraction(true);
     setExtractionError(null);
@@ -893,8 +1014,8 @@ export function EmailThread({
   // откат записи: система сработала без человека, значит и убрать за собой
   // должна полностью (иначе ошибочно распознанная презентация навсегда
   // оставит в сравнении цен чужую сумму).
-  async function handleUndoAutoExtraction(e: SupplierOfferEmail) {
-    const applied = autoApplied(e);
+  async function handleUndoAutoExtraction(e: SupplierOfferEmail, invoice: EmailExtractionInvoice) {
+    const applied = autoApplied(e, invoice);
     const extraction = e.extraction;
     if (!applied || !extraction || applyingExtraction) return;
     if (!window.confirm('Убрать распознанный счёт из базы? Цена, позиции и файл, записанные из этого письма, будут удалены из карточки, прежние значения вернутся.')) return;
@@ -911,9 +1032,9 @@ export function EmailThread({
       } else {
         onOfferUpdated(await revertAppliedOnOffer(offer, applied));
       }
-      const dismissed: EmailExtraction = { ...extraction, status: 'dismissed', applied: null };
-      await setSupplierOfferEmailExtractionStatus(e.id, dismissed, 'dismissed');
-      onEmailUpdated({ ...e, extraction: dismissed });
+      const next = withInvoiceRemoved(extraction, invoice);
+      await setSupplierOfferEmailExtractionStatus(e.id, next, next.status);
+      onEmailUpdated({ ...e, extraction: next });
       closePreview();
     } catch (err) {
       setExtractionError(errorMessage(err, 'Не удалось убрать распознанный счёт из базы'));
@@ -922,12 +1043,13 @@ export function EmailThread({
     }
   }
 
-  async function handleDismissAutoExtraction(e: SupplierOfferEmail) {
+  async function handleDismissAutoExtraction(e: SupplierOfferEmail, invoice: EmailExtractionInvoice) {
     if (!e.extraction) return;
     const extraction = e.extraction;
     try {
-      await setSupplierOfferEmailExtractionStatus(e.id, extraction, 'dismissed');
-      onEmailUpdated({ ...e, extraction: { ...extraction, status: 'dismissed' } });
+      const next = withInvoiceRemoved(extraction, invoice);
+      await setSupplierOfferEmailExtractionStatus(e.id, next, next.status);
+      onEmailUpdated({ ...e, extraction: next });
       closePreview();
     } catch {
       // Тихий сбой достаточен — карточка просто останется видна, можно
@@ -1095,7 +1217,12 @@ export function EmailThread({
                       // sourceFile уже ПОДТВЕРЖДЁННОГО распознавания этого
                       // письма (не pending/dismissed — только когда данные
                       // реально попали в карточку предложения).
-                      const inDb = e.extraction?.status === 'confirmed' && e.extraction.sourceFile?.url === f.url;
+                      // 2026-09-14: сравниваем со ВСЕМИ счетами письма, а не
+                      // с одним. Именно это владелец видел три раза подряд:
+                      // в письме Авангарда два счёта, оба записаны в базу, а
+                      // пометку получал только первый — второй выглядел
+                      // нераспознанным.
+                      const inDb = e.extraction?.status === 'confirmed' && !!invoiceOfFile(e, f.url);
                       const inDbBadge = inDb && (
                         <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-success">
                           <CheckCircle2 className="h-3.5 w-3.5" />
@@ -1151,7 +1278,7 @@ export function EmailThread({
                     нелогично" — карточка теперь только сводка + кнопка
                     "Посмотреть и подтвердить", сам выбор (подтвердить/это не
                     счёт) — в футере предпросмотра, рядом с открытым файлом
-                    (см. previewExtractionEmail выше). Прямые кнопки здесь —
+                    (см. previewExtraction выше). Прямые кнопки здесь —
                     только запасной путь для писем без sourceFile (записи до
                     того, как это поле появилось) — посмотреть файл негде. */}
                 {/* Счёт, записанный системой автоматически (владелец,
@@ -1162,69 +1289,101 @@ export function EmailThread({
                     позиций со сметой (её система сделать за человека не
                     может, см. handleSaveMaterialMatches) и откат, если
                     счётом оказалось что-то другое. */}
-                {autoApplied(e) && e.extraction && (
-                  <div className="flex flex-col gap-2 rounded-control border border-success/40 bg-success/5 p-3 text-sm">
-                    <div className="flex items-center gap-1.5 font-semibold text-ink">
-                      <CheckCircle2 className="h-4 w-4 text-success" />
-                      Счёт распознан и записан в базу автоматически
-                    </div>
+                {/* 2026-09-14: карточка на КАЖДЫЙ счёт письма. Их может быть
+                    несколько (владелец: "в письме два счета... я как раз
+                    сравниваю альтернативные материалы"), и у каждого своя
+                    судьба: один сверен со сметой, другой откачен. */}
+                {extractionInvoices(e.extraction).map((invoice, invoiceIdx, allInvoices) => {
+                  const applied = autoApplied(e, invoice);
+                  if (!applied && e.extraction?.status !== 'pending') return null;
+                  // У письма с одним счётом подпись прежняя; когда счетов
+                  // несколько, каждый подписан своим файлом — иначе две
+                  // одинаковые карточки подряд не различить.
+                  const label =
+                    allInvoices.length > 1
+                      ? `Счёт ${invoiceIdx + 1} из ${allInvoices.length}${invoice.sourceFile ? `: ${invoice.sourceFile.fileName}` : ''}`
+                      : null;
+                  const summary = (
                     <div className="text-ink">
-                      {e.extraction.price != null ? `${e.extraction.price} ${e.extraction.currency ?? ''}`.trim() : 'Сумма не распознана'}
-                      {e.extraction.items.length > 0 && ` · ${e.extraction.items.length} ${pluralPositions(e.extraction.items.length)}`}
+                      {invoice.price != null ? `${invoice.price} ${invoice.currency ?? ''}`.trim() : 'Сумма не распознана'}
+                      {invoice.items.length > 0 && ` · ${invoice.items.length} ${pluralPositions(invoice.items.length)}`}
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {e.extraction.sourceFile && (
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          icon={<Eye className="h-4 w-4" />}
-                          onClick={() => openPreview(e.extraction!.sourceFile!)}
-                        >
-                          Сверить позиции со сметой
-                        </Button>
-                      )}
-                      <Button type="button" variant="ghost" onClick={() => handleUndoAutoExtraction(e)} disabled={applyingExtraction}>
-                        Это не счёт — убрать из базы
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                {e.extraction?.status === 'pending' && (
-                  <div className="flex flex-col gap-2 rounded-control border border-border-strong bg-surface-muted p-3 text-sm">
-                    <div className="flex items-center gap-1.5 font-semibold text-ink">
-                      <FileSearch className="h-4 w-4 text-ink-muted" />
-                      Похоже, это счёт от {offer.name}
-                    </div>
-                    <div className="text-ink">
-                      {e.extraction.price != null ? `${e.extraction.price} ${e.extraction.currency ?? ''}`.trim() : 'Сумма не распознана'}
-                      {e.extraction.items.length > 0 && ` · ${e.extraction.items.length} ${pluralPositions(e.extraction.items.length)}`}
-                    </div>
-                    {e.extraction.sourceFile ? (
-                      <Button
-                        type="button"
-                        icon={<Eye className="h-4 w-4" />}
-                        className="w-fit"
-                        onClick={() => openPreview(e.extraction!.sourceFile!)}
-                      >
-                        Посмотреть и подтвердить
-                      </Button>
-                    ) : (
+                  );
+                  return applied ? (
+                    <div
+                      key={invoice.sourceFile?.url ?? invoiceIdx}
+                      className="flex flex-col gap-2 rounded-control border border-success/40 bg-success/5 p-3 text-sm"
+                    >
+                      <div className="flex items-center gap-1.5 font-semibold text-ink">
+                        <CheckCircle2 className="h-4 w-4 text-success" />
+                        Счёт распознан и записан в базу автоматически
+                      </div>
+                      {label && <div className="text-xs text-ink-muted">{label}</div>}
+                      {summary}
                       <div className="flex flex-wrap items-center gap-2">
+                        {invoice.sourceFile && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            icon={<Eye className="h-4 w-4" />}
+                            onClick={() => openPreview(invoice.sourceFile!)}
+                          >
+                            Сверить позиции со сметой
+                          </Button>
+                        )}
                         <Button
                           type="button"
-                          icon={<CheckCircle2 className="h-4 w-4" />}
-                          onClick={() => handleConfirmAutoExtraction(e)}
+                          variant="ghost"
+                          onClick={() => handleUndoAutoExtraction(e, invoice)}
                           disabled={applyingExtraction}
                         >
-                          Подтвердить и заполнить карточку
-                        </Button>
-                        <Button type="button" variant="ghost" onClick={() => handleDismissAutoExtraction(e)} disabled={applyingExtraction}>
-                          Это не счёт
+                          Это не счёт — убрать из базы
                         </Button>
                       </div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  ) : (
+                    <div
+                      key={invoice.sourceFile?.url ?? invoiceIdx}
+                      className="flex flex-col gap-2 rounded-control border border-border-strong bg-surface-muted p-3 text-sm"
+                    >
+                      <div className="flex items-center gap-1.5 font-semibold text-ink">
+                        <FileSearch className="h-4 w-4 text-ink-muted" />
+                        Похоже, это счёт от {offer.name}
+                      </div>
+                      {label && <div className="text-xs text-ink-muted">{label}</div>}
+                      {summary}
+                      {invoice.sourceFile ? (
+                        <Button
+                          type="button"
+                          icon={<Eye className="h-4 w-4" />}
+                          className="w-fit"
+                          onClick={() => openPreview(invoice.sourceFile!)}
+                        >
+                          Посмотреть и подтвердить
+                        </Button>
+                      ) : (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            type="button"
+                            icon={<CheckCircle2 className="h-4 w-4" />}
+                            onClick={() => handleConfirmAutoExtraction(e, invoice)}
+                            disabled={applyingExtraction}
+                          >
+                            Подтвердить и заполнить карточку
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => handleDismissAutoExtraction(e, invoice)}
+                            disabled={applyingExtraction}
+                          >
+                            Это не счёт
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
                 <div className="whitespace-pre-wrap text-ink">{visible}</div>
                 {quoted && (
                   <div className="mt-1">
@@ -1508,17 +1667,17 @@ export function EmailThread({
         onClose={closePreview}
         wideFooter
         footer={
-          previewExtractionEmail?.extraction && (
+          previewExtraction && (
             <div className="flex flex-col gap-3 border-t border-border pt-3 text-sm sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
               <div className="flex items-center gap-1.5 font-semibold text-ink">
                 <FileSearch className="h-4 w-4 text-ink-muted" />
                 Распознанные позиции
               </div>
 
-              {previewExtractionEmail.extraction.items.length === 0 ? (
+              {previewExtraction.invoice.items.length === 0 ? (
                 <div className="text-ink">
-                  {previewExtractionEmail.extraction.price != null
-                    ? `${previewExtractionEmail.extraction.price} ${previewExtractionEmail.extraction.currency ?? ''}`.trim()
+                  {previewExtraction.invoice.price != null
+                    ? `${previewExtraction.invoice.price} ${previewExtraction.invoice.currency ?? ''}`.trim()
                     : 'Сумма не распознана'}
                 </div>
               ) : (
@@ -1532,7 +1691,7 @@ export function EmailThread({
                       распознанная строка счёта — сопоставление ручное, с
                       подсказкой по схожести названия (suggestMaterialMatch). */}
                   <div className="flex flex-col gap-2">
-                    {previewExtractionEmail.extraction.items.map((it, idx) => {
+                    {previewExtraction.invoice.items.map((it, idx) => {
                       const match = materialMatches[idx];
                       const material = match?.materialId
                         ? allMaterials.find((m) => m.item.sourceMaterialId === match.materialId)
@@ -1553,7 +1712,7 @@ export function EmailThread({
                               {it.price != null && (
                                 <>
                                   {' · '}
-                                  {it.price} {previewExtractionEmail.extraction!.currency ?? ''}
+                                  {it.price} {previewExtraction.invoice.currency ?? ''}
                                 </>
                               )}
                             </span>
@@ -1594,7 +1753,7 @@ export function EmailThread({
                                   className="w-28 rounded-control border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-primary"
                                 />
                                 <span className="text-xs text-ink-muted">
-                                  {previewExtractionEmail.extraction!.currency ?? ''} за {material.item.unit || 'ед.'} сметы
+                                  {previewExtraction.invoice.currency ?? ''} за {material.item.unit || 'ед.'} сметы
                                 </span>
                               </div>
                               {unitMismatch && (
@@ -1623,7 +1782,7 @@ export function EmailThread({
                   Старый путь (status:'pending') остаётся для писем, по
                   которым автозапись не прошла: сервис распознавания был
                   недоступен или запись в карточку сорвалась. */}
-              {autoApplied(previewExtractionEmail) ? (
+              {autoApplied(previewExtraction.email, previewExtraction.invoice) ? (
                 <div className="flex flex-col gap-2">
                   <p className="text-xs text-ink-faint">
                     Цена и позиции этого счёта записаны в карточку автоматически, когда письмо пришло. Сверка со сметой —
@@ -1633,7 +1792,7 @@ export function EmailThread({
                     <Button
                       type="button"
                       icon={<Save className="h-4 w-4" />}
-                      onClick={() => handleSaveMaterialMatches(previewExtractionEmail)}
+                      onClick={() => handleSaveMaterialMatches(previewExtraction.email, previewExtraction.invoice)}
                       disabled={applyingExtraction}
                     >
                       Сохранить сопоставление
@@ -1641,7 +1800,7 @@ export function EmailThread({
                     <Button
                       type="button"
                       variant="ghost"
-                      onClick={() => handleUndoAutoExtraction(previewExtractionEmail)}
+                      onClick={() => handleUndoAutoExtraction(previewExtraction.email, previewExtraction.invoice)}
                       disabled={applyingExtraction}
                     >
                       Это не счёт — убрать из базы
@@ -1653,7 +1812,7 @@ export function EmailThread({
                   <Button
                     type="button"
                     icon={<CheckCircle2 className="h-4 w-4" />}
-                    onClick={() => handleConfirmAutoExtraction(previewExtractionEmail)}
+                    onClick={() => handleConfirmAutoExtraction(previewExtraction.email, previewExtraction.invoice)}
                     disabled={applyingExtraction}
                   >
                     Подтвердить и заполнить карточку
@@ -1661,7 +1820,7 @@ export function EmailThread({
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={() => handleDismissAutoExtraction(previewExtractionEmail)}
+                    onClick={() => handleDismissAutoExtraction(previewExtraction.email, previewExtraction.invoice)}
                     disabled={applyingExtraction}
                   >
                     Это не счёт

@@ -32,12 +32,16 @@
 //
 // CHECKO_API_KEY необязателен — без него просто не будет автопроверки
 // благонадёжности по найденным ИНН (она и так делается отдельно).
-import { recognizeInvoiceFromAttachments, estimatePdfPageCount } from '../api/_invoiceRecognition.js';
-import { applyRecognizedInvoice } from '../api/_invoiceApply.js';
+import { recognizeAllInvoicesFromAttachments, estimatePdfPageCount } from '../api/_invoiceRecognition.js';
+import { applyRecognizedInvoice, quoteTitle } from '../api/_invoiceApply.js';
 import { saveReliabilityIfNew } from '../api/_checko.js';
 
 const DRY_RUN = process.argv.includes('--dry-run');
 const LIMIT = Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1] ?? 0);
+// Разобрать одно конкретное письмо (по id или его началу) — когда владелец
+// показывает конкретную переписку, где счёт не распознался, гонять весь
+// архив ради неё незачем.
+const ONLY_EMAIL = process.argv.find((a) => a.startsWith('--email='))?.split('=')[1] ?? null;
 
 const auth = {
   apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -81,10 +85,18 @@ async function withFileMetrics(files) {
 // строка КП с этим письмом-источником, либо сам файл счёта уже прикреплён к
 // карточке поставщика (так делает и ручное подтверждение в переписке, и
 // загрузка счёта в форму предложения).
+// 2026-09-14: проверка идёт по КОНКРЕТНОМУ файлу счёта, а не по письму
+// целиком. В письме может быть несколько счетов (владелец: "в письме два
+// счета, а распознался и записался в базу только 1"), и признак "по этому
+// письму КП уже заведено" отсекал бы второй счёт как дубль первого.
 async function alreadyApplied(email, sourceFile) {
-  const quotes = await rest(`supplier_offer_quotes?source_email_id=eq.${email.id}&select=id&limit=1`);
-  if (quotes.length > 0) return 'КП по этому письму уже заведено';
-  if (sourceFile?.url && email.offer_id) {
+  if (!sourceFile?.url) {
+    const quotes = await rest(`supplier_offer_quotes?source_email_id=eq.${email.id}&select=id&limit=1`);
+    return quotes.length > 0 ? 'КП по этому письму уже заведено' : null;
+  }
+  const quotes = await rest(`supplier_offer_quotes?source_email_id=eq.${email.id}&select=id,files`);
+  if (quotes.some((q) => (q.files ?? []).some((f) => f?.url === sourceFile.url))) return 'КП по этому счёту уже заведено';
+  if (email.offer_id) {
     const [offer] = await rest(`supplier_research_offers?id=eq.${email.offer_id}&select=files`);
     if ((offer?.files ?? []).some((f) => f?.url === sourceFile.url)) return 'файл счёта уже прикреплён к карточке';
   }
@@ -97,7 +109,7 @@ async function main() {
   }
 
   const emails = await rest(
-    'supplier_offer_emails?direction=eq.in&select=id,offer_id,order_id,subject,files,extraction&order=created_at.asc',
+    'supplier_offer_emails?direction=eq.in&select=id,offer_id,order_id,subject,body,files,extraction&order=created_at.asc',
   );
   console.log(`Входящих писем поставщиков: ${emails.length}${DRY_RUN ? ' (сухой прогон)' : ''}`);
 
@@ -105,6 +117,7 @@ async function main() {
   let processed = 0;
 
   for (const email of emails) {
+    if (ONLY_EMAIL && !email.id.startsWith(ONLY_EMAIL)) continue;
     const status = email.extraction?.status ?? null;
     if (status === 'confirmed' || status === 'dismissed') {
       stats.skipped += 1;
@@ -118,15 +131,34 @@ async function main() {
       // попытки (isInvoice:false, ни цены, ни позиций). Применять его в
       // карточку нельзя, прогонять заново — можно и нужно: именно так
       // разбираются письма, где счёт не дошёл до модели из-за старого бага.
-      let recognized = email.extraction?.status === 'none' ? null : email.extraction;
-      let sourceFile = recognized?.sourceFile ?? null;
+      //
+      // 2026-09-14: письмо может нести НЕСКОЛЬКО счетов (владелец: "в письме
+      // два счета, а распознался и записался в базу только 1"). Первый
+      // лежит в корне extraction, остальные — в additionalInvoices; здесь
+      // они сразу приводятся к одному списку, как это делает интерфейс
+      // (extractionInvoices в src/data/supplierOfferEmails.ts).
+      const stored = email.extraction?.status === 'none' ? null : email.extraction;
+      let invoices = stored
+        ? [
+            {
+              price: stored.price ?? null,
+              currency: stored.currency ?? null,
+              items: stored.items ?? [],
+              supplierInn: stored.supplierInn ?? null,
+              sourceFile: stored.sourceFile ?? null,
+            },
+            ...(stored.additionalInvoices ?? []),
+          ]
+        : null;
 
-      if (!recognized) {
+      if (!invoices) {
         const attachments = await withFileMetrics(email.files);
         // Тот же перебор кандидатов, что и на приёме письма, — специально
         // общей функцией, чтобы прогон по архиву и живой вебхук не разошлись
         // в том, что считают счётом.
-        const result = await recognizeInvoiceFromAttachments(attachments);
+        // Контекст письма — тот же, что и на живом приёме (см.
+        // emailContextBlock в api/_invoiceRecognition.js).
+        const result = await recognizeAllInvoicesFromAttachments(attachments, { subject: email.subject, body: email.body });
         if (result.attempts.length === 0 && result.skipped.length === 0) {
           stats.skipped += 1;
           continue;
@@ -135,7 +167,7 @@ async function main() {
         console.log(`\n${label}`);
         for (const a of result.attempts) console.log(`  ${a.fileName} → ${a.outcome}`);
         for (const sk of result.skipped) console.log(`  ${sk.fileName} — не пробовали: ${sk.reason}`);
-        if (!result.recognized) {
+        if (result.allRecognized.length === 0) {
           console.log('  не счёт — ничего не пишем');
           stats.notInvoice += 1;
           // Протокол неудачи всё же сохраняем (status:'none') — чтобы
@@ -164,20 +196,17 @@ async function main() {
           }
           continue;
         }
-        recognized = result.recognized;
-        sourceFile = { url: result.candidate.url, fileName: result.candidate.fileName };
-        stats.recognized += 1;
-        console.log(`  счёт: ${recognized.price ?? '—'} ${recognized.currency ?? ''}, позиций ${recognized.items.length}, ИНН ${recognized.supplierInn ?? '—'}`);
+        invoices = result.allRecognized.map(({ recognized, candidate }) => ({
+          ...recognized,
+          sourceFile: { url: candidate.url, fileName: candidate.fileName },
+        }));
+        stats.recognized += invoices.length;
+        for (const inv of invoices) {
+          console.log(`  счёт: ${inv.price ?? '—'} ${inv.currency ?? ''}, позиций ${inv.items.length}, ИНН ${inv.supplierInn ?? '—'} (${inv.sourceFile.fileName})`);
+        }
       } else {
         processed += 1;
-        console.log(`\n${label}\n  уже распознан (pending): ${recognized.price ?? '—'} ${recognized.currency ?? ''}, позиций ${recognized.items.length}`);
-      }
-
-      const seen = await alreadyApplied(email, sourceFile);
-      if (seen) {
-        console.log(`  пропуск — ${seen}`);
-        stats.skipped += 1;
-        continue;
+        console.log(`\n${label}\n  уже распознан (pending), счетов ${invoices.length}`);
       }
 
       if (DRY_RUN) {
@@ -185,35 +214,58 @@ async function main() {
         continue;
       }
 
-      await saveReliabilityIfNew(recognized.supplierInn);
-      const applied = await applyRecognizedInvoice({
-        emailId: email.id,
-        offerId: email.offer_id,
-        orderId: email.order_id,
-        subject: email.subject,
-        recognized,
-        sourceFile,
-      });
+      // Каждый счёт письма записывается отдельно и со своим снимком
+      // applied: сверка позиций со сметой и откат в интерфейсе работают
+      // по конкретному счёту, а не по письму целиком.
+      const appliedByUrl = new Map();
+      for (const invoice of invoices) {
+        const seen = await alreadyApplied(email, invoice.sourceFile);
+        if (seen) {
+          console.log(`  пропуск ${invoice.sourceFile?.fileName ?? ''} — ${seen}`);
+          stats.skipped += 1;
+          continue;
+        }
+        await saveReliabilityIfNew(invoice.supplierInn);
+        const applied = await applyRecognizedInvoice({
+          emailId: email.id,
+          offerId: email.offer_id,
+          orderId: email.order_id,
+          subject: email.subject,
+          recognized: invoice,
+          sourceFile: invoice.sourceFile,
+          title: quoteTitle(email.subject, invoice.sourceFile?.fileName ?? null, invoices.length > 1),
+        });
+        if (invoice.sourceFile?.url) appliedByUrl.set(invoice.sourceFile.url, applied);
+        stats.applied += 1;
+        console.log(`  записано в ${applied.target === 'order' ? 'заявку' : 'карточку поставщика'}${applied.quoteId ? ' + строка КП' : ''}`);
+      }
+      if (appliedByUrl.size === 0) continue;
+
+      const [firstInvoice, ...restInvoices] = invoices;
       await rest(`supplier_offer_emails?id=eq.${email.id}`, {
         method: 'PATCH',
         headers: { Prefer: 'return=minimal' },
         body: JSON.stringify({
           extraction: {
-            status: 'confirmed',
+            status: appliedByUrl.size === invoices.length ? 'confirmed' : 'pending',
             isInvoice: true,
-            price: recognized.price ?? null,
-            currency: recognized.currency ?? null,
-            items: recognized.items ?? [],
-            supplierInn: recognized.supplierInn ?? null,
-            sourceFile,
-            recognizedAt: recognized.recognizedAt ?? new Date().toISOString(),
+            price: firstInvoice.price ?? null,
+            currency: firstInvoice.currency ?? null,
+            items: firstInvoice.items ?? [],
+            supplierInn: firstInvoice.supplierInn ?? null,
+            sourceFile: firstInvoice.sourceFile ?? null,
+            recognizedAt: email.extraction?.recognizedAt ?? new Date().toISOString(),
             appliedAutomatically: true,
-            applied,
+            applied: appliedByUrl.get(firstInvoice.sourceFile?.url) ?? null,
+            ...(restInvoices.length > 0 && {
+              additionalInvoices: restInvoices.map((inv) => ({
+                ...inv,
+                applied: appliedByUrl.get(inv.sourceFile?.url) ?? null,
+              })),
+            }),
           },
         }),
       });
-      stats.applied += 1;
-      console.log(`  записано в ${applied.target === 'order' ? 'заявку' : 'карточку поставщика'}${applied.quoteId ? ' + строка КП' : ''}`);
     } catch (err) {
       stats.failed += 1;
       console.error(`  ОШИБКА на ${label}: ${err.message}`);
