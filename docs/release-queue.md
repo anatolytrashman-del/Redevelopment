@@ -71,6 +71,15 @@ for the client-license prototype (separate repo + Supabase project)", то ес�
 
 ## Опубликовано
 
+### claude/wizardly-babbage-x8hlsg (девятый заход) — опубликовано 2026-09-14 (PR #112)
+Деплой Vercel READY. Снятие контактов в один клик (закладка v2, фоновое
+чтение страницы «Контакты», оценка вариантов), очередь верификации требует
+только сайт. После публикации выполнена разовая очистка данных поставщиков
+(`scripts/supply-categories/reset-supplier-data.mjs`) с бэкапом в
+`supplier_contacts_backup_20260914` / `supplier_categories_backup_20260914`.
+
+- **Миграция** `20260914-contact-captures-rank.sql` применена ДО публикации.
+
 ### claude/gallant-curie-y9d0h6 — опубликовано 2026-09-14 (восьмой релиз дня)
 Опубликована сразу, вне очереди: владелец попросил «и сразу на прод». PR #109
 в `oodobu`, прод-деплой READY.
