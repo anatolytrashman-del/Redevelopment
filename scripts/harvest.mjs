@@ -210,7 +210,7 @@ async function main() {
 
   async function worker() {
     const page = await context.newPage();
-    page.setDefaultTimeout(25000);
+    page.setDefaultTimeout(45000);
     while (index < work.length) {
       const item = work[index++];
       const no = index;
@@ -223,28 +223,56 @@ async function main() {
         // терять поставщика. Второй заход: ждём 'load' вместо
         // 'domcontentloaded' и, если https не отвечает вовсе, пробуем http.
         try {
-          response = await page.goto(`https://${item.host}`, { waitUntil: 'domcontentloaded', timeout: 25000 });
+          response = await page.goto(`https://${item.host}`, { waitUntil: 'domcontentloaded', timeout: 45000 });
         } catch (first) {
           try {
-            response = await page.goto(`https://${item.host}`, { waitUntil: 'load', timeout: 30000 });
+            response = await page.goto(`https://${item.host}`, { waitUntil: 'load', timeout: 45000 });
           } catch (second) {
-            response = await page.goto(`http://${item.host}`, { waitUntil: 'domcontentloaded', timeout: 25000 });
+            response = await page.goto(`http://${item.host}`, { waitUntil: 'domcontentloaded', timeout: 45000 });
           }
         }
         // Меню и контакты часто дорисовываются скриптом сразу после загрузки.
         await page.waitForTimeout(1500);
 
-        await page.evaluate(() => {
-          window.__redevHarvest = true;
-          window.__redevHarvestResult = null;
-        });
-        await page.evaluate(menuCode);
-        menu = await page.evaluate(() => window.__redevHarvestResult);
+        // Страница-проверка от защиты: «Идет проверка вашего браузера,
+        // пожалуйста, подождите» (okna-moskva.ru). Она сама пропускает через
+        // несколько секунд — надо просто дождаться и перезагрузиться.
+        const guard = await page.title().catch(() => '');
+        if (/проверка вашего браузера|checking your browser|just a moment|ddos/i.test(guard)) {
+          await page.waitForTimeout(8000);
+          response = await page.reload({ waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => response);
+          await page.waitForTimeout(1500);
+        }
 
-        await page.evaluate(() => {
-          window.__redevHarvestResult = null;
+        // «Execution context was destroyed» — страница ушла на другой адрес
+        // прямо во время съёма (deartio.moscow). Ждём, пока встанет, и
+        // повторяем: терять поставщика из-за одного редиректа глупо.
+        const evaluateTwice = async (fn) => {
+          try {
+            return await fn();
+          } catch (e) {
+            if (!/Execution context was destroyed|Target closed/i.test(String(e.message || e))) throw e;
+            await page.waitForTimeout(2500);
+            return await fn();
+          }
+        };
+
+        await evaluateTwice(async () => {
+          await page.evaluate(() => {
+            window.__redevHarvest = true;
+            window.__redevHarvestResult = null;
+          });
+          await page.evaluate(menuCode);
+          menu = await page.evaluate(() => window.__redevHarvestResult);
         });
-        await page.evaluate(contactsCode);
+
+        await evaluateTwice(async () => {
+          await page.evaluate(() => {
+            window.__redevHarvest = true;
+            window.__redevHarvestResult = null;
+          });
+          await page.evaluate(contactsCode);
+        });
         // Контакты ждут фоновой загрузки страницы «Контакты» — до 6 секунд.
         await page.waitForFunction(() => window.__redevHarvestResult !== null, { timeout: 9000 }).catch(() => {});
         contacts = await page.evaluate(() => window.__redevHarvestResult);
