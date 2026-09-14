@@ -80,3 +80,31 @@ export function insertSupplierMenuCapture(input: {
     return fromRow(data as SupplierMenuCaptureRow);
   });
 }
+
+// Только хосты, зато ВСЕ. Нужно для «второй очереди» на вкладке
+// верификации: признак «сайт вообще открывали» — наличие строки здесь, и
+// ошибиться в нём нельзя, иначе уже снятый поставщик уедет в ручной список.
+//
+// Почему отдельная функция, а не fetchSupplierMenuCaptures().map(host):
+// у Supabase стоит потолок в 1000 строк на запрос (настройка Max rows), а
+// снимков уже больше — полный список молча приезжал бы обрезанным. Здесь
+// страницы перебираются явно, и в выборке одна короткая колонка вместо
+// всего дерева разделов.
+const CAPTURE_PAGE = 1000;
+
+export function fetchSupplierMenuCaptureHosts(): Promise<Set<string>> {
+  return withRetry(async () => {
+    const hosts = new Set<string>();
+    for (let from = 0; ; from += CAPTURE_PAGE) {
+      const { data, error } = await supabase
+        .from('supplier_menu_captures')
+        .select('host')
+        .order('host', { ascending: true })
+        .range(from, from + CAPTURE_PAGE - 1);
+      if (error) throw error;
+      const rows = (data ?? []) as { host: string }[];
+      for (const r of rows) hosts.add(r.host);
+      if (rows.length < CAPTURE_PAGE) return hosts;
+    }
+  });
+}
