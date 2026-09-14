@@ -20,6 +20,10 @@ export interface SupplierContactCapture {
   messengerType: string;
   rawText: string;
   pageUrl: string;
+  // Оценка варианта: чем больше, тем вероятнее это рабочий контакт закупок
+  // (ящик zakaz@/sales@ выше info@, городской номер выше 8-800). Считает
+  // закладка, см. tools/menu-bookmarklet/contacts.js.
+  rank: number;
   capturedAt: string;
   status: 'pending' | 'applied' | 'skipped';
   appliedAt: string | null;
@@ -34,6 +38,7 @@ interface SupplierContactCaptureRow {
   messenger_type: string | null;
   raw_text: string | null;
   page_url: string | null;
+  rank: number | null;
   captured_at: string;
   status: string | null;
   applied_at: string | null;
@@ -49,6 +54,7 @@ function fromRow(row: SupplierContactCaptureRow): SupplierContactCapture {
     messengerType: row.messenger_type ?? '',
     rawText: row.raw_text ?? '',
     pageUrl: row.page_url ?? '',
+    rank: row.rank ?? 0,
     capturedAt: row.captured_at,
     status: (row.status as SupplierContactCapture['status']) ?? 'pending',
     appliedAt: row.applied_at,
@@ -79,6 +85,7 @@ export function upsertSupplierContactCapture(input: {
   messengerType: string;
   rawText: string;
   pageUrl: string;
+  rank: number;
 }): Promise<SupplierContactCapture> {
   return withRetry(async () => {
     const { data, error } = await supabase
@@ -91,6 +98,7 @@ export function upsertSupplierContactCapture(input: {
           messenger_type: input.messengerType,
           raw_text: input.rawText,
           page_url: input.pageUrl,
+          rank: input.rank,
           status: 'pending',
           captured_at: new Date().toISOString(),
         },

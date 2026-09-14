@@ -21,7 +21,12 @@ import { upsertSupplierContactCapture, type SupplierContactCaptureKind } from '.
 // записать строку-заготовку в отдельную таблицу, которую всё равно
 // проверяют глазами перед тем, как пустить в карточку.
 export const MENU_CAPTURE_MESSAGE = 'redevelopment-menu-capture';
+// Первая версия закладки слала по одному контакту за клик; вторая (v2,
+// 2026-09-14) — весь набор со страницы разом, одним кликом, как «Снять меню».
+// Оба сообщения принимаются: у кого-то на панели может остаться старая
+// кнопка, и молча терять её посылку хуже, чем поддержать два формата.
 export const CONTACT_CAPTURE_MESSAGE = 'redevelopment-contact-capture';
+export const CONTACTS_BULK_MESSAGE = 'redevelopment-contacts-capture';
 export const MENU_CAPTURE_ACK = 'redevelopment-menu-capture-ok';
 // События для тех, кто показывает снятое (вкладка «Верификация») — чтобы
 // обновиться, не заводя второго слушателя сообщений и не рискуя записать
@@ -84,35 +89,61 @@ export function useMenuCaptureReceiver(): string {
         return;
       }
 
-      if (d.source === CONTACT_CAPTURE_MESSAGE) {
-        const kind = d.kind === 'phone' || d.kind === 'email' || d.kind === 'messenger'
-          ? (d.kind as SupplierContactCaptureKind)
-          : null;
-        const rawValue = typeof d.value === 'string' ? d.value.trim() : '';
-        if (!kind || !rawValue) return;
-        const messengerType = typeof d.messengerType === 'string' ? d.messengerType.trim() : '';
-        if (kind === 'messenger' && !['Telegram', 'WhatsApp', 'Max'].includes(messengerType)) return;
-        const value = kind === 'phone'
-          ? normalizeCapturedPhone(rawValue)
-          : kind === 'email'
-            ? rawValue.toLowerCase()
-            : rawValue;
-        const label = kind === 'phone' ? 'Телефон' : kind === 'email' ? 'Почта' : messengerType;
-        try {
-          const saved = await upsertSupplierContactCapture({
-            host,
-            kind,
-            value,
-            messengerType: kind === 'messenger' ? messengerType : '',
-            rawText: typeof d.rawText === 'string' ? d.rawText.slice(0, 300) : '',
-            pageUrl,
-          });
-          setToast(`${host}: ${label.toLowerCase()} ${value}`);
-          window.dispatchEvent(new CustomEvent(CONTACT_CAPTURE_SAVED_EVENT, { detail: saved }));
-          ack(e.source, `${label}: ${value}`, 1);
-        } catch {
-          setToast(`${host}: не удалось сохранить контакт`);
+      if (d.source === CONTACT_CAPTURE_MESSAGE || d.source === CONTACTS_BULK_MESSAGE) {
+        const items =
+          d.source === CONTACTS_BULK_MESSAGE
+            ? Array.isArray(d.contacts)
+              ? (d.contacts as unknown[])
+              : []
+            : [d];
+        const saved: string[] = [];
+        for (const raw of items.slice(0, 40)) {
+          const item = raw as Record<string, unknown> | null;
+          if (!item) continue;
+          const kind = item.kind === 'phone' || item.kind === 'email' || item.kind === 'messenger'
+            ? (item.kind as SupplierContactCaptureKind)
+            : null;
+          const rawValue = typeof item.value === 'string' ? item.value.trim() : '';
+          if (!kind || !rawValue) continue;
+          const messengerType = typeof item.messengerType === 'string' ? item.messengerType.trim() : '';
+          if (kind === 'messenger' && !['Telegram', 'WhatsApp', 'Max'].includes(messengerType)) continue;
+          const value = kind === 'phone'
+            ? normalizeCapturedPhone(rawValue)
+            : kind === 'email'
+              ? rawValue.toLowerCase()
+              : rawValue;
+          try {
+            await upsertSupplierContactCapture({
+              host,
+              kind,
+              value,
+              messengerType: kind === 'messenger' ? messengerType : '',
+              rawText: typeof item.rawText === 'string' ? item.rawText.slice(0, 300) : '',
+              pageUrl,
+              rank: typeof item.rank === 'number' ? item.rank : 0,
+            });
+            saved.push(kind);
+          } catch {
+            // Одна неудачная строка не должна ронять весь набор: остальные
+            // варианты всё равно полезны.
+          }
         }
+        if (saved.length === 0) {
+          setToast(`${host}: не удалось сохранить контакты`);
+          return;
+        }
+        const phones = saved.filter((k) => k === 'phone').length;
+        const emails = saved.filter((k) => k === 'email').length;
+        const messengers = saved.filter((k) => k === 'messenger').length;
+        const text = [
+          phones ? `${phones} тел.` : '',
+          emails ? `${emails} почт.` : '',
+          messengers ? `${messengers} мессенджер.` : '',
+        ].filter(Boolean).join(', ');
+        setToast(`${host}: снято ${text}`);
+        window.dispatchEvent(new CustomEvent(CONTACT_CAPTURE_SAVED_EVENT));
+        ack(e.source, `Снято: ${text}`, saved.length);
+        return;
       }
     }
     window.addEventListener('message', onMessage);

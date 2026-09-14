@@ -18,6 +18,7 @@ import {
   fetchSupplierContactCaptures,
   markSupplierContactCapture,
   type SupplierContactCapture,
+  type SupplierContactCaptureKind,
 } from '../../lib/supplierContactCapturesApi';
 
 // Вкладка "Верификация" на странице Закупки. Владелец, 2026-09-13 (второй
@@ -101,12 +102,17 @@ interface HostGroup {
 // сайта с обязательной уликой на каждую группу, apply ставит флаг, и пачка
 // появляется здесь для ручной проверки владельцем рядом с сайтом.
 function isReadyForVerification(group: HostGroup): boolean {
-  return (
-    group.representative.name.trim().length > 0 &&
-    group.representative.email.trim().length > 0 &&
-    (group.snapshot?.categories.length ?? 0) > 0 &&
-    group.snapshot?.categoriesVerified === true
-  );
+  // Условие переписано 2026-09-14 (владелец: «я бы очистил вообще всю инфу
+  // по контактам и категориям, будем записывать её с нуля через кнопки»).
+  // Раньше требовались непустая почта и проверенные категории — правило
+  // писалось в сентябре, когда очередь была последним шагом после
+  // автообогащения: приходить туда с пустой карточкой было незачем.
+  // Теперь наоборот: карточка ПУСТАЯ по замыслу, а заполняется прямо в
+  // очереди двумя кнопками («Снять меню» и «Снять контакты»). Оставлять
+  // старое условие нельзя — после очистки очередь была бы пуста целиком.
+  //
+  // Нужен только сайт: без него открывать нечего и кнопки не работают.
+  return group.representative.name.trim().length > 0 && group.representative.websiteUrl.trim().length > 0;
 }
 
 function buildHostGroups(offers: SupplierOffer[], snapshotByHost: Map<string, SupplierSiteSnapshot>): HostGroup[] {
@@ -264,6 +270,56 @@ function ScreenshotZone({
   );
 }
 
+// Варианты контакта, снятые закладкой со страницы поставщика: текущее
+// значение карточки и чипы-альтернативы. Владелец, 2026-09-14: закладка
+// теперь отдаёт ВЕСЬ набор со страницы одним кликом, поэтому выбор «какой из
+// двух телефонов верный» должен быть одним кликом по нужному, а не разбором
+// нескольких отдельных предложений.
+export interface CaptureGroup {
+  key: string;
+  host: string;
+  hostOffers: SupplierOffer[];
+  kind: SupplierContactCaptureKind;
+  messengerType: string;
+  current: string;
+  options: SupplierContactCapture[];
+}
+
+function CaptureGroupRow({
+  group,
+  withName,
+  onPick,
+  onDismiss,
+}: {
+  group: CaptureGroup;
+  withName: boolean;
+  onPick: (group: CaptureGroup, capture: SupplierContactCapture) => void;
+  onDismiss: (group: CaptureGroup) => void;
+}) {
+  const label = group.kind === 'email' ? 'почта' : group.kind === 'phone' ? 'телефон' : group.messengerType;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-warning/40 bg-warning/5 px-3 py-2 text-xs">
+      {withName && <span className="font-semibold text-ink">{group.hostOffers[0].name}</span>}
+      <span className="text-ink-faint">{label}</span>
+      <span className="min-w-0 break-all text-ink-faint">{group.current || '—'}</span>
+      <span className="text-ink-faint">→</span>
+      {group.options.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          onClick={() => onPick(group, option)}
+          className="min-w-0 break-all rounded-full border border-border bg-surface px-2.5 py-1 font-semibold text-ink hover:border-primary hover:text-primary"
+        >
+          {option.value}
+        </button>
+      ))}
+      <button type="button" onClick={() => onDismiss(group)} className="px-1 text-ink-faint hover:text-ink">
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
 // Что делать со снятым контактом: пустое поле — записать молча, такое же
 // значение — молча закрыть, иное — спросить. Телефоны сравниваем по цифрам:
 // в базе они лежат в разном оформлении («+7 495 120-24-13» и
@@ -275,17 +331,6 @@ function sameContact(kind: SupplierContactCapture['kind'], a: string, b: string)
     return digits(a) === digits(b) && digits(a).length > 0;
   }
   return a.trim().toLowerCase() === b.trim().toLowerCase();
-}
-
-function captureState(offer: SupplierOffer, capture: SupplierContactCapture): 'empty' | 'same' | 'conflict' {
-  const current =
-    capture.kind === 'email'
-      ? offer.email
-      : capture.kind === 'phone'
-        ? offer.contact
-        : (offer.messengers.find((m) => m.type === capture.messengerType)?.number ?? '');
-  if (!current.trim()) return 'empty';
-  return sameContact(capture.kind, current, capture.value) ? 'same' : 'conflict';
 }
 
 // Обе закладки — прямо в админке. Владелец, 2026-09-14: «я вижу снять меню и
@@ -324,7 +369,7 @@ function BookmarkletsBlock() {
     <div className={cn('flex flex-col gap-2 p-4', glassCardClass)} style={glassCardShadow}>
       <button type="button" className="flex items-center gap-2 text-left text-sm font-semibold text-ink" onClick={() => setOpen((v) => !v)}>
         <Bookmark className="h-4 w-4 shrink-0" />
-        Закладки для браузера — «Снять меню» и «Снять контакт»
+        Закладки для браузера — «Снять меню» и «Снять контакты»
       </button>
       {open && (
         <>
@@ -335,12 +380,12 @@ function BookmarkletsBlock() {
           </p>
           <div className="flex flex-wrap items-center gap-3 py-1">
             <BookmarkletLink href={MENU_BOOKMARKLET_HREF} label="Снять меню" primary />
-            <BookmarkletLink href={CONTACTS_BOOKMARKLET_HREF} label="Снять контакт" />
+            <BookmarkletLink href={CONTACTS_BOOKMARKLET_HREF} label="Снять контакты" />
           </div>
           <p className="text-xs text-ink-faint">
-            «Снять меню» — один клик на странице каталога, разделы уедут сюда сами. «Снять контакт» — включает режим
-            съёма: кликайте по телефону, почте, Telegram/WhatsApp/Max, ссылки при этом не открываются. Номер обычным
-            текстом — выделите мышью. Выход — Esc.
+            Обе работают одинаково: один клик на странице поставщика, дальше ничего нажимать не нужно. «Снять меню»
+            заберёт разделы каталога, «Снять контакты» — все телефоны, почты и мессенджеры страницы, а заодно фоном
+            прочитает страницу «Контакты» того же сайта.
           </p>
         </>
       )}
@@ -356,9 +401,9 @@ function SupplierCard({
   saving,
   screenshots,
   menuCaptured,
-  contactCaptures,
-  onApplyCapture,
-  onSkipCapture,
+  captureGroups,
+  onPickCapture,
+  onDismissCaptures,
   uploadingScreenshots,
   onScreenshotFiles,
   onScreenshotDelete,
@@ -370,9 +415,9 @@ function SupplierCard({
   saving: boolean;
   screenshots: SupplierScreenshot[];
   menuCaptured: boolean;
-  contactCaptures: SupplierContactCapture[];
-  onApplyCapture: (capture: SupplierContactCapture) => void;
-  onSkipCapture: (capture: SupplierContactCapture) => void;
+  captureGroups: CaptureGroup[];
+  onPickCapture: (group: CaptureGroup, capture: SupplierContactCapture) => void;
+  onDismissCaptures: (group: CaptureGroup) => void;
   uploadingScreenshots: boolean;
   onScreenshotFiles: (files: File[]) => void;
   onScreenshotDelete: (screenshot: SupplierScreenshot) => void;
@@ -471,22 +516,11 @@ function SupplierCard({
         </div>
       )}
 
-      {contactCaptures.length > 0 && (
-        <div className="flex flex-col gap-2 rounded-2xl border border-warning/40 bg-warning/5 p-3">
-          <span className="text-xs font-semibold text-ink">Снято кликом на сайте — не совпадает с карточкой</span>
-          {contactCaptures.map((capture) => (
-            <div key={capture.id} className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-ink-faint">
-                {capture.kind === 'email' ? 'Почта' : capture.kind === 'phone' ? 'Телефон' : capture.messengerType}
-              </span>
-              <span className="min-w-0 break-all font-semibold text-ink">{capture.value}</span>
-              <Button variant="ghost" className="h-7 px-2 py-0 text-xs" onClick={() => onApplyCapture(capture)}>
-                Заменить
-              </Button>
-              <Button variant="ghost" className="h-7 px-2 py-0 text-xs" onClick={() => onSkipCapture(capture)}>
-                Не надо
-              </Button>
-            </div>
+      {captureGroups.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <span className="text-xs font-semibold text-ink">Снято на сайте — выберите верное</span>
+          {captureGroups.map((group) => (
+            <CaptureGroupRow key={group.key} group={group} withName={false} onPick={onPickCapture} onDismiss={onDismissCaptures} />
           ))}
         </div>
       )}
@@ -799,45 +833,75 @@ export function SupplierVerificationTab({
     return map;
   }, [offers]);
 
-  const conflictCaptures = useMemo(
-    () =>
-      contactCaptures.flatMap((capture) => {
-        const hostOffers = offersByHost.get(capture.host);
-        if (!hostOffers || hostOffers.length === 0) return [];
-        const offer = hostOffers[0];
-        if (captureState(offer, capture) !== 'conflict') return [];
-        const current =
+  // Снятое группируем по домену и виду контакта: закладка отдаёт весь набор
+  // со страницы (несколько телефонов и почт), и показывать их отдельными
+  // предложениями значило бы заставлять человека решать один и тот же вопрос
+  // по нескольку раз.
+  const captureGroups = useMemo<CaptureGroup[]>(() => {
+    const byKey = new Map<string, CaptureGroup>();
+    for (const capture of contactCaptures) {
+      const hostOffers = offersByHost.get(capture.host);
+      if (!hostOffers || hostOffers.length === 0) continue;
+      const offer = hostOffers[0];
+      const key = `${capture.host}|${capture.kind}|${capture.messengerType}`;
+      const existing = byKey.get(key);
+      if (existing) {
+        existing.options.push(capture);
+        continue;
+      }
+      byKey.set(key, {
+        key,
+        host: capture.host,
+        hostOffers,
+        kind: capture.kind,
+        messengerType: capture.messengerType,
+        current:
           capture.kind === 'email'
             ? offer.email
             : capture.kind === 'phone'
               ? offer.contact
-              : (offer.messengers.find((m) => m.type === capture.messengerType)?.number ?? '');
-        return [{ capture, hostOffers, current }];
-      }),
-    [contactCaptures, offersByHost],
-  );
+              : (offer.messengers.find((m) => m.type === capture.messengerType)?.number ?? ''),
+        options: [capture],
+      });
+    }
+    for (const group of byKey.values()) {
+      group.options.sort((a, b) => b.rank - a.rank || a.value.localeCompare(b.value));
+    }
+    return [...byKey.values()].sort((a, b) => a.hostOffers[0].name.localeCompare(b.hostOffers[0].name));
+  }, [contactCaptures, offersByHost]);
+
+  function pickCapture(group: CaptureGroup, capture: SupplierContactCapture) {
+    void applyContactCapture(group.hostOffers, capture);
+  }
+
+  function dismissCaptureGroup(group: CaptureGroup) {
+    for (const option of group.options) void skipContactCapture(option);
+  }
 
   useEffect(() => {
-    for (const capture of contactCaptures) {
-      if (autoAppliedRef.current.has(capture.id)) continue;
-      const hostOffers = offersByHost.get(capture.host);
-      if (!hostOffers || hostOffers.length === 0) continue;
-      const state = captureState(hostOffers[0], capture);
-      if (state === 'conflict') continue;
-      autoAppliedRef.current.add(capture.id);
-      if (state === 'same') {
-        // Снято ровно то, что уже в карточке. Раньше такое висело в
-        // «расхождениях» наравне с настоящими (2026-09-14: два из семи
-        // снятых контактов совпадали до символа) — человек должен был
-        // глазами сверять одинаковые строки. Молча закрываем.
-        void markSupplierContactCapture(capture.id, 'applied', 'совпало с карточкой');
-        setContactCaptures((prev) => prev.filter((c) => c.id !== capture.id));
+    for (const group of captureGroups) {
+      const best = group.options[0];
+      if (!group.current.trim()) {
+        // Пустое поле заполняем лучшим вариантом сами — ровно то, ради чего
+        // всё затевалось. Остальные варианты остаются чипами: если закупщик
+        // видит, что верным был второй, это один клик.
+        if (autoAppliedRef.current.has(best.id)) continue;
+        autoAppliedRef.current.add(best.id);
+        void applyContactCapture(group.hostOffers, best);
         continue;
       }
-      void applyContactCapture(hostOffers, capture);
+      // Снято ровно то, что уже в карточке: молча закрываем, чтобы человек
+      // не сверял глазами две одинаковые строки (2026-09-14: два из семи
+      // снятых контактов совпадали до символа).
+      const same = group.options.find((o) => sameContact(o.kind, group.current, o.value));
+      if (same && !autoAppliedRef.current.has(same.id)) {
+        autoAppliedRef.current.add(same.id);
+        void markSupplierContactCapture(same.id, 'applied', 'совпало с карточкой');
+        setContactCaptures((prev) => prev.filter((c) => c.id !== same.id));
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contactCaptures, offersByHost]);
+  }, [captureGroups]);
 
   function startVerification() {
     setSkippedHosts(new Set());
@@ -879,29 +943,16 @@ export function SupplierVerificationTab({
           <p className="text-sm text-ink-muted">Осталось проверить: {queueGroups.length}</p>
           <BookmarkletsBlock />
 
-      {conflictCaptures.length > 0 && (
+      {captureGroups.length > 0 && (
         <div className={cn('flex flex-col gap-2 p-4', glassCardClass)} style={glassCardShadow}>
-          <p className="text-sm font-semibold text-ink">Снято на сайте, но не совпало с карточкой</p>
+          <p className="text-sm font-semibold text-ink">Снято на сайте — выберите верное</p>
           <p className="text-xs text-ink-faint">
-            Пустые поля заполняются сами; сюда попадает только то, где в карточке уже стоит другое значение. Блок
-            виден и после верификации поставщика — иначе снятое было бы некуда показать.
+            Закладка снимает со страницы все контакты разом. Пустое поле карточки заполняется лучшим вариантом само
+            (ящик закупок важнее общего info@, городской номер важнее 8-800); здесь остаётся выбор, когда в карточке
+            уже стоит другое значение. Клик по варианту записывает его. Блок виден и после верификации поставщика.
           </p>
-          {conflictCaptures.map(({ capture, hostOffers, current }) => (
-            <div key={capture.id} className="flex flex-wrap items-center gap-2 rounded-2xl border border-warning/40 bg-warning/5 px-3 py-2 text-xs">
-              <span className="font-semibold text-ink">{hostOffers[0].name}</span>
-              <span className="text-ink-faint">
-                {capture.kind === 'email' ? 'почта' : capture.kind === 'phone' ? 'телефон' : capture.messengerType}
-              </span>
-              <span className="text-ink-faint line-through">{current}</span>
-              <span className="text-ink-faint">→</span>
-              <span className="min-w-0 break-all font-semibold text-ink">{capture.value}</span>
-              <Button variant="ghost" className="h-7 px-2 py-0 text-xs" onClick={() => void applyContactCapture(hostOffers, capture)}>
-                Записать
-              </Button>
-              <Button variant="ghost" className="h-7 px-2 py-0 text-xs" onClick={() => void skipContactCapture(capture)}>
-                Не надо
-              </Button>
-            </div>
+          {captureGroups.map((group) => (
+            <CaptureGroupRow key={group.key} group={group} withName onPick={pickCapture} onDismiss={dismissCaptureGroup} />
           ))}
         </div>
       )}
@@ -986,9 +1037,9 @@ export function SupplierVerificationTab({
               saving={savingHost === verifyTarget.host}
               screenshots={screenshots.filter((s) => s.host === verifyTarget.host)}
               menuCaptured={menuCaptures.some((c) => c.host === verifyTarget.host && c.status === 'pending')}
-              contactCaptures={contactCaptures.filter((c) => c.host === verifyTarget.host)}
-              onApplyCapture={(capture) => void applyContactCapture(verifyTarget.offers, capture)}
-              onSkipCapture={(capture) => void skipContactCapture(capture)}
+              captureGroups={captureGroups.filter((g) => g.host === verifyTarget.host)}
+              onPickCapture={pickCapture}
+              onDismissCaptures={dismissCaptureGroup}
               uploadingScreenshots={uploadingScreenshots}
               onScreenshotFiles={(files) => handleScreenshotFiles(verifyTarget.host, files)}
               onScreenshotDelete={handleScreenshotDelete}
