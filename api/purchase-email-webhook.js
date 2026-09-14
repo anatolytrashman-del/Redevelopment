@@ -40,7 +40,7 @@
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { extractEmailAttachments, fetchReceivedEmailBody } from './_attachments.js';
-import { recognizeInvoiceFromAttachments } from './_invoiceRecognition.js';
+import { recognizeInvoiceFromAttachments, recognizeAllInvoicesFromAttachments } from './_invoiceRecognition.js';
 import { applyRecognizedInvoice } from './_invoiceApply.js';
 import { saveReliabilityIfNew } from './_checko.js';
 
@@ -49,6 +49,26 @@ export const config = {
     bodyParser: false,
   },
 };
+
+// ВРЕМЯ РАБОТЫ ФУНКЦИИ — не декоративная настройка, а корень реального бага
+// (разбор 2026-09-14). У этой функции не было maxDuration, то есть работал
+// потолок Vercel по умолчанию — 10 секунд. А делает она последовательно:
+// тело письма → скачивание и перезаливка всех вложений → до трёх обращений
+// к модели (реальные замеры на живых счетах: 4.4 с и 8.2 с на ОДИН PDF) →
+// проверку ИНН в Checko → вставку письма → запись счёта в карточку. На
+// тяжёлом письме это 12-20 секунд, и функцию убивали посреди работы — в
+// произвольном месте, поэтому симптомы каждый раз разные:
+//   • DEARTIO, 14.09 11:19 — письмо вставлено на 10-й секунде, дальше
+//     ничего: распознавание осталось pending, владелец подтверждал руками
+//     (с этого и начался разбор — "счёт не распознался автоматически");
+//   • Грильято/Авангард, 14.09 09:15 — успела пройти запись позиций в
+//     карточку, но не строка КП и не отметка в письме;
+//   • "RE: Плинтус", 14.09 09:00 — ответа Resend не дождался вовсе,
+//     повторил доставку, письмо в базе задвоилось.
+// Потолок поднят до 300 с в vercel.json (как у остальных AI-функций), а от
+// повторных доставок отдельно защищает emailAlreadyStored ниже.
+// Не убирать одно без другого: длинная функция БЕЗ защиты от повтора — это
+// ровно задвоенные позиции счёта.
 
 const SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
 
@@ -93,7 +113,7 @@ function verifyResendSignature(rawBody, headers, secret) {
 // (research+) и закупочный (zakupki+) адреса были двумя разными префиксами,
 // определяющими, в какую таблицу класть письмо. Теперь ОБА принимаются
 // одинаково (regex по обоим сразу), а таблица определяется уже не
-// префиксом, а тем, в какой из двух таблиц реально нашёлся short_code (см.
+// префиксом, а тем, в какой из четырёх таблиц реально нашёлся short_code (см.
 // вызов ниже). research+ оставлен наравне с zakupki+ НЕ для новых писем
 // (см. supplierOfferEmailAddress в data/supplierResearch.ts — она теперь
 // сама строит zakupki+), а как совместимость с уже отправленным вживую
@@ -233,6 +253,37 @@ async function autoFillOfferContact(offerId, parsedFrom) {
   });
 }
 
+// Resend/svix повторяет доставку вебхука, если мы не ответили вовремя —
+// а до 2026-09-14 функция регулярно не отвечала вовсе (см. комментарий про
+// maxDuration в самом обработчике). Реальный след в базе: письмо "RE:
+// Плинтус" от 2026-09-14 лежит ДВАЖДЫ (06:00:54 и 06:02:09, один и тот же
+// resend_message_id, вложения перезалиты по второму разу), а у предложения
+// "Грильято" 9 позиций счёта записаны дважды подряд — второй прогон
+// добавил их к уже добавленным. Поэтому повторная доставка теперь
+// отсекается по resend_message_id ДО всей тяжёлой работы: ни лишнего
+// распознавания (деньги), ни задвоенных позиций (данные).
+//
+// При ошибке самой проверки возвращаем false — лучше сохранить письмо
+// второй раз, чем потерять его из-за сбоя проверки на дубликат.
+async function emailAlreadyStored(table, messageId) {
+  try {
+    const resp = await fetch(
+      `${process.env.SUPABASE_URL}/rest/v1/${table}?select=id&direction=eq.in&resend_message_id=eq.${encodeURIComponent(messageId)}&limit=1`,
+      {
+        headers: {
+          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      },
+    );
+    if (!resp.ok) return false;
+    return (await resp.json()).length > 0;
+  } catch (err) {
+    console.error('Не удалось проверить письмо на повторную доставку (обрабатываем как новое):', err);
+    return false;
+  }
+}
+
 async function insertEmailRow(table, payload) {
   const resp = await fetch(`${process.env.SUPABASE_URL}/rest/v1/${table}`, {
     method: 'POST',
@@ -315,7 +366,7 @@ export default async function handler(req, res) {
     }
 
     // Таблицу определяет не префикс адреса (оба принимаются одинаково, см.
-    // extractShortCode), а то, в какой из трёх таблиц реально нашёлся
+    // extractShortCode), а то, в какой из четырёх таблиц реально нашёлся
     // short_code — проверяются по очереди, коллизия между ними технически
     // возможна, но при таком масштабе (десятки-сотни записей на компанию,
     // не тысячи) статистически ничтожна, отдельно не защищаемся.
@@ -329,20 +380,40 @@ export default async function handler(req, res) {
     const matchedOrder = purchaseId || matchedOffer ? null : await resolveOrderByShortCode(code);
     let offerId = matchedOffer ?? matchedOrder?.offerId ?? null;
     const orderId = matchedOrder?.id ?? null;
+    // Четвёртая таблица — подрядчики (вкладка "Подрядчики" страницы
+    // "Закупки", владелец 2026-09-14). Проверяется последней из прямых
+    // поисков: у поставщиков переписки на порядки больше, незачем на каждом
+    // письме ходить сюда первым.
+    const contractorId =
+      purchaseId || offerId ? null : await resolveIdByShortCode('work_contractors', code);
 
     // Фолбэк по истории отправленных писем (см. комментарий у
     // resolveOfferIdByEmailHistory) — только когда прямой поиск по всем
-    // трём таблицам ничего не дал.
-    if (!purchaseId && !offerId) {
+    // четырём таблицам ничего не дал.
+    if (!purchaseId && !offerId && !contractorId) {
       offerId = await resolveOfferIdByEmailHistory(code);
     }
 
-    if (!purchaseId && !offerId) {
+    if (!purchaseId && !offerId && !contractorId) {
       // Код есть в адресе, но не резолвится ни в одну реальную запись —
       // например, письмо на давно удалённую закупку. Логируем на всякий
       // случай, но так же безобидно скипаем, как и совсем чужой адрес.
       console.warn('Не удалось сопоставить short_code с записью:', code);
       res.status(200).json({ skipped: true });
+      return;
+    }
+
+    // Повторная доставка того же письма (см. emailAlreadyStored) — отвечаем
+    // 200 и ничего не делаем: письмо уже сохранено первым разом.
+    const messageId = data.email_id ?? data.id ?? null;
+    const targetTable = purchaseId
+      ? 'purchase_emails'
+      : contractorId
+      ? 'work_contractor_emails'
+      : 'supplier_offer_emails';
+    if (messageId && (await emailAlreadyStored(targetTable, messageId))) {
+      console.warn('Повторная доставка вебхука — письмо уже сохранено, пропускаем:', messageId);
+      res.status(200).json({ skipped: true, duplicate: true });
       return;
     }
 
@@ -364,43 +435,96 @@ export default async function handler(req, res) {
     // ищется по всем вложениям. Многостраничные каталоги до модели
     // по-прежнему не долетают, деньги не тратятся.
     //
+    // 2026-09-14: теперь обрабатываем ВСЕ счёты в письме, а не только первый
+    // (реальный случай: письмо от Авангарда с двумя счетами на разные
+    // материалы).
+    //
     // Сбой распознавания не должен ронять сохранение самого письма —
     // оборачиваем в try/catch, extraction просто остаётся null.
     let extraction = null;
     let recognizedInvoice = null;
+    let recognizedInvoicesData = null;
     if (offerId) {
+      // status:'none' — "пробовали, счёта не нашли". Раньше при неудаче в
+      // письме не оставалось НИЧЕГО, и вопрос владельца "почему обычный счёт
+      // не распознался" (2026-09-14) невозможно было закрыть запросом к базе:
+      // молчание одинаково означало и "модель решила, что это не счёт", и
+      // "до модели файл вообще не дошёл", и "распознавание не запускалось".
+      // Теперь в attempts/skipped лежит протокол: что пробовали и что
+      // отсеяли с какой причиной. На карточку в переписке этот статус ничего
+      // не выводит (см. SupplierCorrespondenceTab) — только для разбора.
+      const emptyExtraction = (extra) => ({
+        status: 'none',
+        isInvoice: false,
+        price: null,
+        currency: null,
+        items: [],
+        supplierInn: null,
+        sourceFile: null,
+        recognizedAt: new Date().toISOString(),
+        ...extra,
+      });
       try {
-        recognizedInvoice = await recognizeInvoiceFromAttachments(attachments);
-        if (recognizedInvoice) {
-          const { recognized, candidate } = recognizedInvoice;
+        // 2026-09-14: находим ВСЕ счёты в письме, не только первый.
+        // Реальный случай (письмо от Авангарда): два счёта на разных видах
+        // материалов в одном письме, но при обработке записывался только первый.
+        const result = await recognizeAllInvoicesFromAttachments(attachments);
+        recognizedInvoicesData = result;
+        if (result.allRecognized && result.allRecognized.length > 0) {
+          // Сохраняем ПЕРВЫЙ счёт в extraction для совместимости с фронтом
+          // (он ожидает один счёт). Все остальные обрабатываются отдельно
+          // в цикле ниже (см. applyRecognizedInvoice для каждого).
+          const [firstInvoice, ...restInvoices] = result.allRecognized;
+          recognizedInvoice = firstInvoice;
+          const { recognized, candidate } = firstInvoice;
           extraction = {
             status: 'pending',
             ...recognized,
             sourceFile: { url: candidate.url, fileName: candidate.fileName },
             recognizedAt: new Date().toISOString(),
+            // Если счётов больше одного — сохраняем информацию об остальных
+            // для диагностики (видно в переписке и в логах).
+            ...(restInvoices.length > 0 && {
+              additionalInvoices: restInvoices.map(({ recognized, candidate }) => ({
+                ...recognized,
+                sourceFile: { url: candidate.url, fileName: candidate.fileName },
+              })),
+            }),
           };
-          // Владелец, 2026-09-12: "как только поставщик присылает счет в
-          // первый раз с новым ИНН, проверка должна автоматически
-          // запускаться и выводить на карточке поставщика" — запускаем
-          // ЗДЕСЬ, на приёме письма, а не при подтверждении распознавания
-          // закупщицей: к моменту, когда она откроет карточку, результат уже
-          // должен лежать в базе, иначе "автоматически" превращается в
-          // "после того, как я нажму подтвердить".
-          //
-          // Проверка привязана к ИНН, а не к предложению, поэтому её можно
-          // сохранять ещё до того, как закупщица примет счёт: строка в
-          // supplier_reliability ни на что не влияет, пока у предложения не
-          // появится тот же inn.
-          await saveReliabilityIfNew(recognized.supplierInn);
+          // Проверка благонадёжности для ВСЕ найденных счётов
+          for (const invoice of result.allRecognized) {
+            await saveReliabilityIfNew(invoice.recognized.supplierInn);
+          }
+        } else if (result.attempts.length > 0 || result.skipped.length > 0) {
+          extraction = emptyExtraction({ attempts: result.attempts, skipped: result.skipped });
         }
       } catch (err) {
         console.error('Не удалось автораспознать вложение как счёт (не критично, письмо всё равно сохранится):', err);
+        extraction = emptyExtraction({
+          attempts: [],
+          skipped: [],
+          error: (err instanceof Error ? err.message : String(err)).slice(0, 300),
+        });
       }
     }
 
     const row = purchaseId
       ? await insertEmailRow('purchase_emails', {
           purchase_id: purchaseId,
+          direction: 'in',
+          from_address: fromAddress,
+          to_address: toAddress || '',
+          subject,
+          body,
+          files,
+          resend_message_id: data.email_id ?? data.id ?? null,
+        })
+      : contractorId
+      ? // Переписка с подрядчиком: без extraction — распознавание счетов
+        // выше запускается только при offerId (это про поставщиков
+        // материалов), подрядчику мы пишем и читаем руками.
+        await insertEmailRow('work_contractor_emails', {
+          contractor_id: contractorId,
           direction: 'in',
           from_address: fromAddress,
           to_address: toAddress || '',
@@ -422,7 +546,7 @@ export default async function handler(req, res) {
           resend_message_id: data.email_id ?? data.id ?? null,
         });
 
-    // Запись распознанного счёта в карточку поставщика/заявку — СРАЗУ, не
+    // Запись распознанных счётов в карточку поставщика/заявку — СРАЗУ, не
     // дожидаясь, пока закупщица откроет письмо и нажмёт "Подтвердить"
     // (владелец, 2026-09-12: "мне нужно автоматическое распознавание счетов
     // и запись в базу ещё до открытия письма нами вручную"). Делается уже
@@ -430,29 +554,38 @@ export default async function handler(req, res) {
     // порядок такой безопаснее: если запись в карточку сорвётся, письмо со
     // своим распознаванием всё равно на месте и останется старый ручной
     // путь (extraction.status:'pending' — кнопка в переписке).
-    if (recognizedInvoice && row?.id) {
-      try {
-        const applied = await applyRecognizedInvoice({
-          emailId: row.id,
-          offerId,
-          orderId,
-          subject,
-          recognized: recognizedInvoice.recognized,
-          sourceFile: extraction.sourceFile,
-        });
-        // status:'confirmed' — данные реально в базе, ровно то же состояние,
-        // что после ручного подтверждения (старый фронт, пока релиз не
-        // опубликован, поймёт его правильно и покажет "Данные в базе").
-        // appliedAutomatically отличает автозапись от ручной: только для неё
-        // в переписке показывается карточка "записано автоматически" с
-        // возможностью сверить позиции и откатить.
-        extraction = { ...extraction, status: 'confirmed', appliedAutomatically: true, applied };
+    //
+    // 2026-09-14: обрабатываем ВСЕ найденные счёты, а не только первый.
+    if (recognizedInvoicesData?.allRecognized && recognizedInvoicesData.allRecognized.length > 0 && row?.id) {
+      const allApplied = [];
+      for (const invoice of recognizedInvoicesData.allRecognized) {
+        try {
+          const applied = await applyRecognizedInvoice({
+            emailId: row.id,
+            offerId,
+            orderId,
+            subject,
+            recognized: invoice.recognized,
+            sourceFile: { url: invoice.candidate.url, fileName: invoice.candidate.fileName },
+          });
+          allApplied.push(applied);
+        } catch (err) {
+          console.error(`Не удалось записать счёт ${invoice.candidate.fileName} в карточку (письмо сохранено, останется ручное подтверждение):`, err);
+        }
+      }
+      // Обновляем extraction со статусом 'confirmed' и информацией о том,
+      // что счёты были обработаны автоматически.
+      if (allApplied.length > 0) {
+        extraction = {
+          ...extraction,
+          status: 'confirmed',
+          appliedAutomatically: true,
+          applied: allApplied.length === 1 ? allApplied[0] : allApplied,
+        };
         // Только supplier_offer_emails: распознавание запускается лишь при
         // offerId (см. выше), в переписке по закупкам счетов не разбираем.
         await updateEmailExtraction('supplier_offer_emails', row.id, extraction);
         row.extraction = extraction;
-      } catch (err) {
-        console.error('Не удалось записать распознанный счёт в карточку (письмо сохранено, останется ручное подтверждение):', err);
       }
     }
 

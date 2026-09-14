@@ -31,13 +31,15 @@ function fromRow(row: SupplierSiteSnapshotRow): SupplierSiteSnapshot {
     categories: Array.isArray(row.categories) ? row.categories.filter((c) => typeof c === 'string' && c.trim()) : [],
     categoriesNote: row.categories_note ?? '',
     classifiedAt: row.classified_at,
+    categoriesVerified: row.categories_verified === true,
+    categoriesVerifiedAt: row.categories_verified_at,
   };
 }
 
 // Без home_text: он нужен только классификатору, а на 259+ доменов это
 // ~700 КБ лишнего трафика при каждом открытии страницы поставщиков.
 const COLUMNS =
-  'host, website_url, status, page_title, meta_description, sections, error, fetched_at, categories, categories_note, classified_at';
+  'host, website_url, status, page_title, meta_description, sections, error, fetched_at, categories, categories_note, classified_at, categories_verified, categories_verified_at';
 
 export function fetchSupplierSiteSnapshots(): Promise<SupplierSiteSnapshot[]> {
   return withRetry(async () => {

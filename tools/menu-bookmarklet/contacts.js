@@ -1,0 +1,314 @@
+(function () {
+/*
+ * Закладка «Снять контакты» — вторая кнопка рядом со «Снять меню».
+ *
+ * Владелец, 2026-09-14 (второй заход): «мне нравится, как реализовано снятие
+ * меню — всего 1 клик. Я бы делал и такое же понятное снятие контактов».
+ * Первая версия (v1) включала режим съёма и требовала кликать по каждому
+ * контакту на странице: это и промахи, и «выделите мышью», и несколько
+ * посылок на одного поставщика. Теперь как у меню — ОДИН клик, режима нет:
+ * закладка сама обходит страницу и отдаёт весь набор разом.
+ *
+ * Откуда берутся контакты:
+ *   - ссылки tel: / mailto: и мессенджеры (t.me, wa.me, max.ru) — точные
+ *     значения, как их задал сам сайт;
+ *   - видимый текст страницы (шапка и подвал) — номера и почты, набранные
+ *     просто текстом, ссылками они не являются;
+ *   - страница «Контакты» того же домена — подтягивается ФОНОМ, вкладку
+ *     переключать не нужно. Владелец: «я не понял одного — открывать
+ *     страницу контакты Светлане нужно будет или нет?» — не нужно. На
+ *     главной обычно висит только 8-800, а рабочий контакт закупок лежит
+ *     именно там.
+ *
+ * Что лучше — решает не закладка, а админка: сюда уезжает ВЕСЬ набор с
+ * оценкой каждого варианта (rank), а карточка заполняет пустое поле лучшим
+ * и показывает остальные чипами, чтобы выбор был в один клик.
+ */
+var VERSION = 'v2';
+var HOST = location.hostname.replace(/^www\./i, '');
+var MAX_PER_KIND = 6;
+
+function toast(message, ok) {
+var el = document.createElement('div');
+el.style.cssText =
+'position:fixed;z-index:2147483647;left:50%;top:24px;transform:translateX(-50%);' +
+'padding:14px 24px;border-radius:999px;color:#fff;font:600 15px -apple-system,Segoe UI,Roboto,sans-serif;' +
+'box-shadow:0 10px 30px rgba(0,0,0,.25);background:' +
+(ok ? '#12a150' : '#d92d20');
+el.textContent = message;
+document.body.appendChild(el);
+setTimeout(function () {
+el.remove();
+}, 4500);
+}
+
+// Российский/белорусский номер в свободном оформлении. Требуем узнаваемое
+// начало (+7, 8, +375): без него в улов попадают артикулы, ГОСТы и цены —
+// на строительных сайтах их куда больше, чем телефонов.
+var PHONE_RE = /(?:\+?7|8|\+?375)[\s(\-–—]*\d{2,3}[\s)\-–—]*\d{3}[\s\-–—]*\d{2}[\s\-–—]*\d{2}/g;
+var EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+// Хвосты картинок: «logo@2x.png» проходит по форме почты, но почтой не
+// является. Плюс технические ящики, на которые бессмысленно слать закупку.
+var NOT_EMAIL = /\.(png|jpe?g|svg|webp|gif|ico|css|js)$/i;
+var DEAD_MAILBOX = /^(noreply|no-reply|donotreply|postmaster|abuse|webmaster)$/i;
+
+function phoneDigits(raw) {
+var d = raw.replace(/\D/g, '');
+if (d.length === 11 && d.charAt(0) === '8') d = '7' + d.slice(1);
+return d;
+}
+
+function validPhone(raw) {
+var d = phoneDigits(raw);
+return (d.length === 11 && d.charAt(0) === '7') || (d.length === 12 && d.indexOf('375') === 0);
+}
+
+// Оценка «насколько это рабочий контакт закупок». Решение владельца,
+// 2026-09-14: ящик закупок/продаж важнее общего info@, городской или
+// мобильный важнее 8-800 (горячая линия для розницы — в закупках обычно
+// тупик). Оценка только расставляет порядок; заполненное человеком поле
+// она не трогает.
+function emailRank(value) {
+var local = value.split('@')[0].toLowerCase();
+if (/^(zakupki|zakaz|zakazy|sales|sale|opt|order|orders|torg|trade|snab)/.test(local)) return 4;
+if (/^(info|mail|office|post|admin|shop|site|market)$/.test(local)) return 2;
+if (/^(support|help|hr|job|jobs|vacancy|press|pr|reklama)/.test(local)) return 1;
+return 3;
+}
+
+function phoneRank(value) {
+return phoneDigits(value).indexOf('7800') === 0 ? 1 : 3;
+}
+
+function messengerFromUrl(href, base) {
+var abs;
+try {
+abs = new URL(href, base);
+} catch (e) {
+return null;
+}
+var h = abs.hostname.replace(/^www\./i, '');
+if (h === 't.me' || h === 'telegram.me' || h === 'telegram.dog') return { type: 'Telegram', value: abs.href };
+if (h === 'wa.me' || h === 'api.whatsapp.com' || h === 'web.whatsapp.com' || h === 'whatsapp.com') {
+return { type: 'WhatsApp', value: abs.href };
+}
+if (h === 'max.ru' || h === 'oneme.ru') return { type: 'Max', value: abs.href };
+return null;
+}
+
+// Один проход по документу: ссылки + видимый текст. Возвращает плоский
+// список находок, дедупликация — общая, уже снаружи.
+function harvest(doc, base, source, out) {
+var links = doc.querySelectorAll('a[href]');
+for (var i = 0; i < links.length; i++) {
+var href = links[i].getAttribute('href') || '';
+var text = (links[i].textContent || '').replace(/\s+/g, ' ').trim();
+if (/^tel:/i.test(href)) {
+var tel = href.replace(/^tel:/i, '').trim();
+if (validPhone(tel)) out.push({ kind: 'phone', value: tel, messengerType: '', rawText: text, rank: phoneRank(tel) + 1, source: source });
+continue;
+}
+if (/^mailto:/i.test(href)) {
+var mail = href.replace(/^mailto:/i, '').split('?')[0].trim();
+if (EMAIL_RE.test(mail) && !NOT_EMAIL.test(mail)) {
+EMAIL_RE.lastIndex = 0;
+out.push({ kind: 'email', value: mail, messengerType: '', rawText: text, rank: emailRank(mail) + 1, source: source });
+}
+EMAIL_RE.lastIndex = 0;
+continue;
+}
+var m = messengerFromUrl(href, base);
+if (m) out.push({ kind: 'messenger', value: m.value, messengerType: m.type, rawText: text, rank: 3, source: source });
+}
+
+// innerText — только видимое; у загруженной фоном страницы верстки нет,
+// поэтому там остаётся textContent.
+var body = doc.body;
+var plain = body ? (body.innerText || body.textContent || '') : '';
+plain = plain.replace(/\s+/g, ' ');
+var found;
+PHONE_RE.lastIndex = 0;
+while ((found = PHONE_RE.exec(plain)) !== null) {
+if (validPhone(found[0])) out.push({ kind: 'phone', value: found[0].trim(), messengerType: '', rawText: '', rank: phoneRank(found[0]), source: source });
+}
+EMAIL_RE.lastIndex = 0;
+while ((found = EMAIL_RE.exec(plain)) !== null) {
+var e = found[0];
+if (NOT_EMAIL.test(e)) continue;
+if (DEAD_MAILBOX.test(e.split('@')[0])) continue;
+out.push({ kind: 'email', value: e, messengerType: '', rawText: '', rank: emailRank(e), source: source });
+}
+}
+
+// Одно и то же значение приходит и ссылкой, и текстом, и со страницы
+// контактов. Держим лучший вариант: у ссылки оценка выше на единицу, потому
+// что там значение задал сам сайт, а не наша регулярка.
+function dedupe(items) {
+var best = {};
+var order = [];
+for (var i = 0; i < items.length; i++) {
+var it = items[i];
+var key = it.kind + '|' + it.messengerType + '|' + (it.kind === 'phone' ? phoneDigits(it.value) : it.value.toLowerCase());
+if (!best[key]) {
+best[key] = it;
+order.push(key);
+} else if (it.rank > best[key].rank) {
+best[key] = it;
+}
+}
+var out = [];
+for (var j = 0; j < order.length; j++) out.push(best[order[j]]);
+out.sort(function (a, b) {
+return b.rank - a.rank;
+});
+var counts = { phone: 0, email: 0, messenger: 0 };
+return out.filter(function (it) {
+counts[it.kind] += 1;
+return it.kind === 'messenger' || counts[it.kind] <= MAX_PER_KIND;
+});
+}
+
+function contactsPageUrl() {
+var links = document.querySelectorAll('a[href]');
+var best = null;
+for (var i = 0; i < links.length; i++) {
+var text = (links[i].textContent || '').replace(/\s+/g, ' ').trim();
+var href = links[i].getAttribute('href') || '';
+var looks = /контакт/i.test(text) || /(^|\/)(kontakty|kontakti|contacts?|kontakt)(\/|\.|$)/i.test(href);
+if (!looks) continue;
+var abs;
+try {
+abs = new URL(links[i].href, location.href);
+} catch (e) {
+continue;
+}
+// Только свой домен: чужой всё равно не отдаст содержимое браузеру, а
+// уходить на поддомены магазина смысла нет.
+if (abs.hostname !== location.hostname) continue;
+if (abs.href.replace(/#.*$/, '') === location.href.replace(/#.*$/, '')) continue;
+best = abs.href;
+break;
+}
+return best;
+}
+
+function withContactsPage(done) {
+var url = contactsPageUrl();
+var items = [];
+harvest(document, location.href, 'page', items);
+if (!url) return done(items, false);
+var settled = false;
+var timer = setTimeout(function () {
+if (!settled) {
+settled = true;
+done(items, false);
+}
+}, 5000);
+try {
+fetch(url, { credentials: 'omit' })
+.then(function (r) {
+return r.ok ? r.text() : '';
+})
+.then(function (html) {
+if (settled) return;
+settled = true;
+clearTimeout(timer);
+if (html) {
+try {
+var doc = new DOMParser().parseFromString(html, 'text/html');
+harvest(doc, url, 'contacts', items);
+done(items, true);
+return;
+} catch (e) {
+}
+}
+done(items, false);
+})
+.catch(function () {
+if (settled) return;
+settled = true;
+clearTimeout(timer);
+done(items, false);
+});
+} catch (e) {
+settled = true;
+clearTimeout(timer);
+done(items, false);
+}
+}
+
+function summary(items) {
+var phones = 0;
+var emails = 0;
+var messengers = [];
+for (var i = 0; i < items.length; i++) {
+if (items[i].kind === 'phone') phones++;
+else if (items[i].kind === 'email') emails++;
+else if (messengers.indexOf(items[i].messengerType) < 0) messengers.push(items[i].messengerType);
+}
+var parts = [];
+if (phones) parts.push(phones + ' тел.');
+if (emails) parts.push(emails + ' почт.');
+if (messengers.length) parts.push(messengers.join(', '));
+return parts.join(', ');
+}
+
+function send(items, usedContactsPage) {
+var payload = {
+source: 'redevelopment-contacts-capture',
+host: HOST,
+pageUrl: location.href,
+contacts: items.map(function (it) {
+return { kind: it.kind, value: it.value, messengerType: it.messengerType, rawText: it.rawText, rank: it.rank };
+}),
+};
+// Робот (scripts/harvest.mjs) выполняет ровно этот же код в headless-браузере
+// и забирает набор из переменной: вкладки админки у него нет. Так съём
+// человеком и роботом гарантированно одинаковый.
+if (window.__redevHarvest) {
+window.__redevHarvestResult = payload;
+return;
+}
+var opener = null;
+try {
+opener = window.opener && !window.opener.closed ? window.opener : null;
+} catch (e) {
+opener = null;
+}
+if (!items.length) {
+toast('Контактов на странице не нашлось  ·  ' + VERSION, false);
+return;
+}
+if (!opener) {
+toast('Сайт открыт не из карточки — откройте его кнопкой «Начать верификацию»  ·  ' + VERSION, false);
+return;
+}
+var acked = false;
+function onAck(e) {
+if (!e.data || e.data.source !== 'redevelopment-menu-capture-ok') return;
+acked = true;
+window.removeEventListener('message', onAck);
+toast('Снято: ' + summary(items) + (usedContactsPage ? '  (+ страница «Контакты»)' : '') + '  ·  ' + VERSION, true);
+}
+window.addEventListener('message', onAck);
+opener.postMessage(payload, '*');
+setTimeout(function () {
+if (!acked) {
+try {
+opener.postMessage(payload, '*');
+} catch (e) {
+}
+}
+}, 1200);
+setTimeout(function () {
+if (!acked) {
+window.removeEventListener('message', onAck);
+toast('Админка не ответила. Обновите её вкладку: ⌘⇧R  ·  ' + VERSION, false);
+}
+}, 8000);
+}
+
+withContactsPage(function (items, usedContactsPage) {
+send(dedupe(items), usedContactsPage);
+});
+})();

@@ -13,6 +13,7 @@ import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Select } from '../components/ui/Select';
 import { ContactValue } from '../components/ui/ContactValue';
 import { ContractorsResearch } from '../components/contractors/ContractorsResearch';
+import { WorkContractorsTab } from '../components/suppliers/WorkContractorsTab';
 import { cn } from '../lib/cn';
 import { formatPhoneDisplay } from '../lib/formatPhone';
 import { estimateOptionLabel } from '../lib/estimateDisplay';
@@ -41,6 +42,7 @@ import {
   UNIVERSAL_SUPPLIERS_TITLE,
   isUniversalRequest,
   isSameSupplier,
+  supplierWebsiteFullUrl,
   supplierWebsiteHost,
   type ResearchContactMethod,
   type SupplierRequest,
@@ -58,6 +60,8 @@ import { fetchSupplierSiteSnapshots } from '../lib/supplierSiteSnapshotsApi';
 import { SupplierVerificationTab, pendingVerificationHostCount } from '../components/suppliers/SupplierVerificationTab';
 import type { SupplierOfferEmail } from '../data/supplierOfferEmails';
 import { fetchAllSupplierOfferEmails, markSupplierOfferEmailsRead } from '../lib/supplierOfferEmailsApi';
+import { fetchAllWorkContractorEmails } from '../lib/workContractorEmailsApi';
+import { countUnreadWorkContractorEmails, type WorkContractorEmail } from '../data/workContractorEmails';
 import { EmailThread, SupplierCorrespondenceTab, countUnreadSupplierEmails } from '../components/suppliers/SupplierCorrespondenceTab';
 import { MaterialLedgerModal } from '../components/suppliers/MaterialLedgerModal';
 import { MasterLedgerCard } from '../components/suppliers/MasterLedgerCard';
@@ -210,7 +214,7 @@ function siteLabel(url: string): string {
 // же днём убрал первую версию с редактируемым чек-листом категорий — "не
 // будем отмечать категории вручную". См.
 // components/suppliers/SupplierVerificationTab.tsx.
-const SUPPLIER_TABS = ['Поставщики', 'Верификация', 'Сравнение цен', 'Ведомости материалов', 'Письма'] as const;
+const SUPPLIER_TABS = ['Поставщики', 'Подрядчики', 'Верификация', 'Сравнение цен', 'Ведомости материалов', 'Письма'] as const;
 type SupplierTab = (typeof SUPPLIER_TABS)[number];
 
 // Владелец, 2026-09-04: "меня бесит, что у всей страницы Поставщики
@@ -221,6 +225,10 @@ type SupplierTab = (typeof SUPPLIER_TABS)[number];
 // ссылки не должны сломаться.
 const SUPPLIER_TAB_SLUGS: Record<SupplierTab, string> = {
   'Поставщики': 'suppliers',
+  // Владелец, 2026-09-14 — реестр подрядчиков с Авито и переписка с ними.
+  // Не путать с "Работы" (секция внутри вкладки "Поставщики": сравнение
+  // предложений на услуги по цене) и со страницей "Команда".
+  'Подрядчики': 'contractors',
   'Верификация': 'verification',
   'Сравнение цен': 'comparison',
   'Ведомости материалов': 'ledger',
@@ -1283,7 +1291,7 @@ function OfferDetailModal({
           <span className="text-ink-faint">Сайт</span>
           {offer.websiteUrl ? (
             <a
-              href={/^https?:\/\//.test(offer.websiteUrl) ? offer.websiteUrl : `https://${offer.websiteUrl}`}
+              href={supplierWebsiteFullUrl(offer.websiteUrl)}
               target="_blank"
               rel="noreferrer"
               className="flex w-fit items-center gap-1.5 text-primary-hover hover:underline"
@@ -1751,6 +1759,11 @@ export function Suppliers() {
   // EMAIL_CORRESPONDENCE_PLAN.md, этап 2), обновляется локально при
   // отправке/прочтении, без повторного fetch на каждое действие.
   const [supplierEmails, setSupplierEmails] = useState<SupplierOfferEmail[]>([]);
+  // Переписка с подрядчиками (вкладка "Подрядчики"). Живёт здесь, а не
+  // внутри самой вкладки, ровно из-за бейджика непрочитанных на переключателе
+  // вкладок: содержимое неактивной вкладки не смонтировано, а счётчик нужен
+  // до того, как в неё зайдут. Список самих подрядчиков вкладка грузит сама.
+  const [contractorEmails, setContractorEmails] = useState<WorkContractorEmail[]>([]);
   // Шаблоны писем поставщикам (EMAIL_CORRESPONDENCE_PLAN.md, этап 3) — тот
   // же принцип "один источник правды на странице", что и у supplierEmails.
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
@@ -1851,7 +1864,17 @@ export function Suppliers() {
   const reliabilityByInn = useMemo(() => new Map(reliability.map((r) => [r.inn, r])), [reliability]);
   // Снимки сайтов (что поставляет компания) — по домену, см.
   // data/supplierSiteSnapshots.ts; карточка находит свой по websiteUrl.
+  // Табл. большая (~1400 строк) и грузится отдельным независимым запросом
+  // (см. useEffect ниже) — заметно дольше, чем offers/requests, которые
+  // решают общий `loading`. Раньше `SupplierCatalog`/`SupplierVerificationTab`
+  // открывались сразу по `!loading`, ещё до того, как siteSnapshots долетели:
+  // числа на плитках каталога сперва считались только по "домашней" категории
+  // строки закупки (snapshotByHost пуст), а через момент подскакивали вверх,
+  // когда снимки дозагружались и добавляли совпадения по товарным группам —
+  // видимый баг "сначала маленькая цифра, потом большая" (владелец,
+  // 2026-09-13). siteSnapshotsLoading — отдельный флаг именно под это.
   const [siteSnapshots, setSiteSnapshots] = useState<SupplierSiteSnapshot[]>([]);
+  const [siteSnapshotsLoading, setSiteSnapshotsLoading] = useState(true);
   const snapshotByHost = useMemo(() => new Map(siteSnapshots.map((s) => [s.host, s])), [siteSnapshots]);
   const [checkingInn, setCheckingInn] = useState<string | null>(null);
 
@@ -1881,11 +1904,15 @@ export function Suppliers() {
       .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить поставщиков')))
       .finally(() => setLoading(false));
     fetchSupplierReliability().then(setReliability).catch(() => setReliability([]));
-    fetchSupplierSiteSnapshots().then(setSiteSnapshots).catch(() => setSiteSnapshots([]));
+    fetchSupplierSiteSnapshots()
+      .then(setSiteSnapshots)
+      .catch(() => setSiteSnapshots([]))
+      .finally(() => setSiteSnapshotsLoading(false));
     fetchEstimates().then(setEstimates).catch(() => setEstimates([]));
     fetchObjects().then(setObjects).catch(() => setObjects([]));
     fetchLegalEntities().then(setLegalEntities).catch(() => setLegalEntities([]));
     fetchAllSupplierOfferEmails().then(setSupplierEmails).catch(() => setSupplierEmails([]));
+    fetchAllWorkContractorEmails().then(setContractorEmails).catch(() => setContractorEmails([]));
     fetchEmailTemplates().then(setEmailTemplates).catch(() => setEmailTemplates([]));
     fetchMaterialLedgers().then(setMaterialLedgers).catch(() => setMaterialLedgers([]));
     fetchSupplierOrders().then(setSupplierOrders).catch(() => setSupplierOrders([]));
@@ -2934,7 +2961,8 @@ export function Suppliers() {
     ) : undefined;
 
   const unreadSupplierEmailsCount = countUnreadSupplierEmails(supplierEmails);
-  const pendingVerificationCount = pendingVerificationHostCount(offers);
+  const unreadContractorEmailsCount = countUnreadWorkContractorEmails(contractorEmails);
+  const pendingVerificationCount = pendingVerificationHostCount(offers, siteSnapshots);
 
   return (
     <>
@@ -2948,7 +2976,11 @@ export function Suppliers() {
           options={[...SUPPLIER_TABS]}
           value={tab}
           onChange={(v) => setTab(v as SupplierTab)}
-          badges={{ Письма: unreadSupplierEmailsCount, Верификация: pendingVerificationCount }}
+          badges={{
+            Письма: unreadSupplierEmailsCount,
+            Верификация: pendingVerificationCount,
+            Подрядчики: unreadContractorEmailsCount,
+          }}
         />
         {/* Владелец, 2026-09-04: "перенеси Шаблоны направо, на уровень меню
             Поставщики/Письма, но видна только когда открываешь Письма". */}
@@ -2961,7 +2993,7 @@ export function Suppliers() {
 
       {tab === 'Поставщики' && (
       <div className="mt-6 flex flex-col gap-8">
-        {loading && (
+        {(loading || siteSnapshotsLoading) && (
           <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
             <Loader2 className="h-4 w-4 animate-spin" />
             Загружаем поставщиков...
@@ -2972,8 +3004,11 @@ export function Suppliers() {
         {/* Каталог поставщиков: хабы → категории → компании, как большие
             карточки у ВсеИнструменты (владелец, 2026-09-12). Числа на плитках
             считаются и по «домашним» карточкам категории, и по товарным
-            группам со снимков сайтов — см. components/suppliers/SupplierCatalog. */}
-        {!loading && !loadError && (
+            группам со снимков сайтов — см. components/suppliers/SupplierCatalog.
+            Ждём siteSnapshotsLoading, а не только loading — иначе цифры сперва
+            посчитаны без снимков сайтов (меньше) и через момент подскакивают
+            вверх, когда снимки дозагрузятся (см. комментарий у siteSnapshots). */}
+        {!loading && !loadError && !siteSnapshotsLoading && (
           <SupplierCatalog
             offers={offers}
             requests={requests}
@@ -3065,16 +3100,22 @@ export function Suppliers() {
       </div>
       )}
 
+      {tab === 'Подрядчики' && (
+        <WorkContractorsTab emails={contractorEmails} onEmailsChange={setContractorEmails} />
+      )}
+
       {tab === 'Верификация' && (
         <div className="mt-6">
-          {loading && (
+          {/* Тот же баг, что у каталога (см. комментарий у siteSnapshots) —
+              очередь верификации тоже читает snapshotByHost, ждём и её. */}
+          {(loading || siteSnapshotsLoading) && (
             <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
               <Loader2 className="h-4 w-4 animate-spin" />
               Загружаем поставщиков...
             </Card>
           )}
           {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
-          {!loading && !loadError && (
+          {!loading && !loadError && !siteSnapshotsLoading && (
             <SupplierVerificationTab
               offers={offers}
               snapshots={siteSnapshots}

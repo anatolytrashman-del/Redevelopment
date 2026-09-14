@@ -439,6 +439,17 @@ export function normalizeSupplierName(name: string): string {
     .trim();
 }
 
+// Полный URL с протоколом для перехода/открытия в браузере. website_url
+// в базе иногда без протокола (заведено вручную как "site.ru", без
+// "https://") — голая строка в href/window.open резолвится ОТНОСИТЕЛЬНО
+// текущего домена (redevelopment.pro/site.ru → 404), а не на сайт
+// поставщика. Владелец, 2026-09-14: карточка 3dplitka.ru в очереди
+// верификации открывала «Страница не найдена» вместо самого сайта.
+export function supplierWebsiteFullUrl(url: string): string {
+  const trimmed = url.trim();
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
 // Домен сайта без протокола, www и пути. Пустая строка — сайта нет или
 // это не разбираемый адрес (сравнивать нечего).
 export function supplierWebsiteHost(url: string): string {

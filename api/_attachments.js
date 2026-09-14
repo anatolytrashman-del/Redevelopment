@@ -179,11 +179,32 @@ const EXT_BY_CONTENT_TYPE = {
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
 };
 
-function fileExtension(fileName, contentType) {
+// Последний рубеж, когда ни имя файла, ни content_type ничего не говорят
+// (часть отправителей шлёт вложение без имени и с
+// application/octet-stream): смотрим на первые байты. Реальный случай —
+// письмо "HA: Счет по запросу грильято 100х100" от 2026-09-11, где счёт
+// лёг в базу файлом "attachment" без расширения и до распознавания,
+// разумеется, не дошёл. Сигнатур ровно столько, сколько типов умеет читать
+// распознавание (см. api/_invoiceRecognition.js): PDF, JPEG, PNG, GIF,
+// WEBP и zip-контейнер офисных форматов.
+function extensionFromMagicBytes(bytes) {
+  if (!Buffer.isBuffer(bytes) || bytes.length < 12) return null;
+  if (bytes.subarray(0, 4).toString('latin1') === '%PDF') return 'pdf';
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'jpg';
+  if (bytes.subarray(0, 8).toString('hex') === '89504e470d0a1a0a') return 'png';
+  if (bytes.subarray(0, 3).toString('latin1') === 'GIF') return 'gif';
+  if (bytes.subarray(0, 4).toString('latin1') === 'RIFF' && bytes.subarray(8, 12).toString('latin1') === 'WEBP') return 'webp';
+  // .docx/.xlsx — обычный zip; какой именно, по сигнатуре не отличить,
+  // поэтому не гадаем: расширение остаётся 'bin', зато хотя бы не
+  // подсовываем распознаванию .docx вместо .xlsx.
+  return null;
+}
+
+function fileExtension(fileName, contentType, bytes) {
   const match = /\.([a-z0-9]+)$/i.exec(String(fileName || ''));
   if (match) return match[1].toLowerCase();
   const byType = EXT_BY_CONTENT_TYPE[String(contentType || '').split(';')[0].trim().toLowerCase()];
-  return byType ?? 'bin';
+  return byType ?? extensionFromMagicBytes(bytes) ?? 'bin';
 }
 
 // Экспортирована — переиспользуется purchase-send-email.js для вложений
@@ -192,7 +213,7 @@ function fileExtension(fileName, contentType) {
 // входящих: тот же бакет, та же схема имени объекта (uuid+расширение,
 // человекочитаемое имя — только в fileName).
 export async function uploadAttachment(bytes, contentType, fileName) {
-  const ext = fileExtension(fileName, contentType);
+  const ext = fileExtension(fileName, contentType, bytes);
   const path = `purchase-email-attachments/${randomUUID()}.${ext}`;
   const resp = await fetch(`${process.env.SUPABASE_URL}/storage/v1/object/${ATTACHMENTS_BUCKET}/${path}`, {
     method: 'POST',
