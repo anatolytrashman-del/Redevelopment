@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, ExternalLink, ImagePlus, Loader2, MessageCircle, Phone, Play, Send, Trash2, X } from 'lucide-react';
+import { Bookmark, CheckCircle2, ExternalLink, ImagePlus, Loader2, MessageCircle, Phone, Play, Send, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { ContactValue } from '../ui/ContactValue';
 import { cn } from '../../lib/cn';
@@ -13,6 +13,7 @@ import type { SupplierScreenshot } from '../../data/supplierScreenshots';
 import { deleteSupplierScreenshot, fetchSupplierScreenshots, uploadSupplierScreenshot } from '../../lib/supplierScreenshotsApi';
 import { fetchSupplierMenuCaptures, type SupplierMenuCapture } from '../../lib/supplierMenuCapturesApi';
 import { CONTACT_CAPTURE_SAVED_EVENT, MENU_CAPTURE_SAVED_EVENT } from '../../lib/menuCaptureReceiver';
+import { CONTACTS_BOOKMARKLET_HREF, MENU_BOOKMARKLET_HREF } from '../../data/bookmarkletLinks';
 import {
   fetchSupplierContactCaptures,
   markSupplierContactCapture,
@@ -258,6 +259,66 @@ function ScreenshotZone({
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+// Обе закладки — прямо в админке. Владелец, 2026-09-14: «я вижу снять меню и
+// оно снялось, но не вижу снять контакт» — открылся присланный раньше файл
+// install.html, в котором второй кнопки ещё не было. Пока страница установки
+// живёт отдельным файлом в переписке, это будет повторяться на каждой правке:
+// версий в чате несколько, а на вид они одинаковые. Здесь версия всегда ровно
+// одна — та, что задеплоена.
+//
+// href проставляется через ref, а не атрибутом в JSX: React намеренно режет
+// javascript:-адреса в href (и обещает в будущих версиях блокировать их
+// совсем), а для закладки это единственно возможный вид ссылки.
+function BookmarkletLink({ href, label, primary }: { href: string; label: string; primary?: boolean }) {
+  const ref = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    ref.current?.setAttribute('href', href);
+  }, [href]);
+  return (
+    <a
+      ref={ref}
+      draggable
+      onClick={(e) => e.preventDefault()}
+      className={cn(
+        'cursor-grab rounded-full px-4 py-1.5 text-xs font-semibold',
+        primary ? 'bg-primary text-white' : 'border border-ink bg-ink text-white',
+      )}
+    >
+      {label}
+    </a>
+  );
+}
+
+function BookmarkletsBlock() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={cn('flex flex-col gap-2 p-4', glassCardClass)} style={glassCardShadow}>
+      <button type="button" className="flex items-center gap-2 text-left text-sm font-semibold text-ink" onClick={() => setOpen((v) => !v)}>
+        <Bookmark className="h-4 w-4 shrink-0" />
+        Закладки для браузера — «Снять меню» и «Снять контакт»
+      </button>
+      {open && (
+        <>
+          <p className="text-xs text-ink-faint">
+            Перетащите обе кнопки мышью на панель закладок браузера (если её не видно — ⌘+Shift+B). Старые такие же
+            кнопки сначала удалите: иначе сработает прежняя версия. Это всегда актуальные версии — они обновляются
+            вместе с админкой.
+          </p>
+          <div className="flex flex-wrap items-center gap-3 py-1">
+            <BookmarkletLink href={MENU_BOOKMARKLET_HREF} label="Снять меню" primary />
+            <BookmarkletLink href={CONTACTS_BOOKMARKLET_HREF} label="Снять контакт" />
+          </div>
+          <p className="text-xs text-ink-faint">
+            «Снять меню» — один клик на странице каталога, разделы уедут сюда сами. «Снять контакт» — включает режим
+            съёма: кликайте по телефону, почте, Telegram/WhatsApp/Max, ссылки при этом не открываются. Номер обычным
+            текстом — выделите мышью. Выход — Esc.
+          </p>
+        </>
       )}
     </div>
   );
@@ -754,7 +815,9 @@ export function SupplierVerificationTab({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-sm text-ink-muted">Осталось проверить: {queueGroups.length}</p>
-          {awaitingGroups.length > 0 && (
+          <BookmarkletsBlock />
+
+      {awaitingGroups.length > 0 && (
             <span
               className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-ink-muted"
               title={awaitingGroups.map((g) => g.representative.name || g.host).join(', ')}
