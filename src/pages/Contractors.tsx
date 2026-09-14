@@ -99,10 +99,28 @@ export function Contractors() {
   // ломать страницу команды из-за декоративной строки не надо.
   const [agentActivity, setAgentActivity] = useState<Record<string, AiAgentActivity>>({});
 
+  // Раз в минуту перечитываем: агенты работают по крону и без перезагрузки
+  // страницы карточки застывали на «12 мин назад» навсегда. Ошибка опроса
+  // не трогает уже показанное — остаётся прошлый ответ. На скрытой вкладке
+  // не опрашиваем, а при возврате на неё обновляем сразу, не дожидаясь тика.
   useEffect(() => {
-    fetchAiAgentsLastActivity()
-      .then(setAgentActivity)
-      .catch(() => undefined);
+    let cancelled = false;
+    const load = () => {
+      if (document.hidden) return;
+      fetchAiAgentsLastActivity()
+        .then((next) => {
+          if (!cancelled) setAgentActivity(next);
+        })
+        .catch(() => undefined);
+    };
+    load();
+    const timer = window.setInterval(load, 60_000);
+    document.addEventListener('visibilitychange', load);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', load);
+    };
   }, []);
 
   useEffect(() => {
