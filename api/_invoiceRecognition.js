@@ -356,17 +356,50 @@ export function pickInvoiceCandidates(attachments) {
 // до базы вовсе. Потолок на число разбираемых вложений остаётся
 // (MAX_CANDIDATES) — он про стоимость распознавания, а не про то, сколько
 // счетов бывает в письме.
+// ОДИН и тот же счёт часто приходит двумя файлами. Реальный комплект
+// КраскиТорга (владелец, 2026-09-14: "и вот еще два счета не распознаны"):
+// "Счет на оплату № 84664" и "Заказ клиента № 84664" — один номер, одна
+// сумма 2 319 610 ₽, одни и те же 9 позиций, просто платёжная и товарная
+// форма одного документа. Второй такой файл — НЕ второй счёт: записав его
+// отдельной строкой КП, мы задвоили бы позиции в карточке и сумму в
+// сравнении цен. Поэтому счета с одинаковой суммой и одинаковым составом
+// позиций схлопываются в один, а файлы-копии едут вместе с ним (их тоже
+// нужно пометить в переписке, иначе выглядит, будто вложение потеряли).
+//
+// Слипание двух РАЗНЫХ счетов требует совпадения и суммы, и числа позиций,
+// и всех названий — у настоящих альтернатив (алюминий против оцинковки в
+// письме Авангарда) расходится и то, и другое.
+function invoiceIdentity(recognized) {
+  const names = (recognized.items ?? [])
+    .map((i) => String(i?.name ?? '').trim().toLowerCase())
+    .sort();
+  return JSON.stringify([recognized.price ?? null, names]);
+}
+
 export async function recognizeAllInvoicesFromAttachments(attachments, emailContext = null) {
   const candidates = pickInvoiceCandidates(attachments);
   const allRecognized = [];
   const attempts = [];
+  // Кандидаты уже отсортированы так, что файл с "счёт"/"КП" в имени идёт
+  // раньше (см. pickInvoiceCandidates) — значит основным экземпляром
+  // становится сам счёт, а копией "Заказ клиента", а не наоборот.
+  const byIdentity = new Map();
 
   for (const candidate of candidates) {
     try {
       const recognized = await recognizeInvoice(candidate.url, candidate.fileName, emailContext);
       if (recognized.isInvoice) {
-        allRecognized.push({ recognized, candidate });
-        attempts.push({ fileName: candidate.fileName, outcome: 'счёт' });
+        const identity = invoiceIdentity(recognized);
+        const original = byIdentity.get(identity);
+        if (original) {
+          original.duplicates.push(candidate);
+          attempts.push({ fileName: candidate.fileName, outcome: `тот же счёт, что и «${original.candidate.fileName}»` });
+        } else {
+          const entry = { recognized, candidate, duplicates: [] };
+          byIdentity.set(identity, entry);
+          allRecognized.push(entry);
+          attempts.push({ fileName: candidate.fileName, outcome: 'счёт' });
+        }
       } else {
         attempts.push({ fileName: candidate.fileName, outcome: 'модель не считает это счётом' });
       }

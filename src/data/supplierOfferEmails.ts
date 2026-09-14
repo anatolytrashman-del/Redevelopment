@@ -60,6 +60,14 @@ export interface EmailExtractionInvoice {
   items: EmailExtractionItem[];
   supplierInn: string | null;
   sourceFile: { url: string; fileName: string } | null;
+  // Другие вложения письма, оказавшиеся ТЕМ ЖЕ счётом: поставщики
+  // регулярно шлют один документ двумя файлами (реальный комплект
+  // КраскиТорга — "Счет на оплату № 84664" и "Заказ клиента № 84664":
+  // один номер, одна сумма, одни позиции). Отдельным КП такой файл не
+  // становится — иначе задвоились бы и позиции, и сумма в сравнении цен,
+  // — но в переписке помечается наравне с оригиналом, чтобы не выглядел
+  // потерянным (владелец, 2026-09-14: "и вот еще два счета не распознаны").
+  duplicateFiles?: { url: string; fileName: string }[];
   // Снимок записи ИМЕННО этого счёта в базу (см. EmailExtractionApplied).
   // У первого счёта берётся из корня extraction — там он лежал всегда.
   applied: EmailExtractionApplied | null;
@@ -94,6 +102,8 @@ export interface EmailExtraction {
   // Второй и последующие счета того же письма (первый — в полях выше).
   // Пусто/нет поля — в письме один счёт, как было до 2026-09-14.
   additionalInvoices?: EmailExtractionInvoice[];
+  // Копии ПЕРВОГО счёта другими файлами (см. EmailExtractionInvoice).
+  duplicateFiles?: { url: string; fileName: string }[];
   // Диагностика неудачи (заполняется только при status:'none').
   attempts?: { fileName: string; outcome: string }[];
   skipped?: { fileName: string; reason: string }[];
@@ -122,6 +132,7 @@ export function extractionInvoices(extraction: EmailExtraction | null | undefine
     items: extraction.items ?? [],
     supplierInn: extraction.supplierInn,
     sourceFile: extraction.sourceFile,
+    duplicateFiles: extraction.duplicateFiles ?? [],
     applied: rootApplied,
   };
   return [first, ...(extraction.additionalInvoices ?? [])];
