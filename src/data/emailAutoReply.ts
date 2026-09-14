@@ -73,12 +73,17 @@ export interface EmailAutoReplySettings {
   // письма"). Мгновенный ответ выдаёт робота, а заодно не оставляет
   // времени вмешаться руками.
   minDelayMinutes: number;
+  // Чем подписаны автоответы. Владелец, 2026-09-14: "Ко всем письмам пишем
+  // подпись: Анатолий Трэшмен" — подпись НЕ дублируется в тексте каждой
+  // ситуации, её подставляет SQL-функция auto_reply_apply на отправке.
+  signature: string;
 }
 
 export interface EmailAutoReplySettingsRow {
   id: boolean;
   enabled: boolean;
   min_delay_minutes: number | null;
+  signature: string | null;
   updated_at: string;
 }
 
@@ -132,8 +137,10 @@ export const autoReplyKindLabel: Record<AutoReplyKind, string> = {
   ai: 'ИИ пишет по инструкции',
 };
 
-// Подпись под автоответом — то же имя, которым подписаны письма владельца
-// (см. emailSignature в SupplierCorrespondenceTab). Отдельной константой,
-// потому что её читает не только приложение: тот же текст подставляет
-// почасовая сессия, когда правило просит модель написать ответ самой.
+// Имя, которым помечены автоответы в ленте переписки (колонка sent_by_name
+// исходящего письма) — не подпись в тексте письма, а отметка "это писал не
+// человек". Ту же строку ставит SQL-функция auto_reply_apply.
 export const AUTO_REPLY_SENDER_NAME = 'ИИ-закупщик';
+
+// Подпись по умолчанию, если в настройках её стёрли.
+export const DEFAULT_AUTO_REPLY_SIGNATURE = 'Анатолий Трэшмен';

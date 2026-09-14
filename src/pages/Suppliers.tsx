@@ -73,6 +73,7 @@ import type { EmailTemplate } from '../data/emailTemplates';
 import { fetchEmailTemplates } from '../lib/emailTemplatesApi';
 import type { EmailAutoReplyLogEntry, EmailAutoReplyRule, EmailAutoReplySettings } from '../data/emailAutoReply';
 import { fetchEmailAutoReplyRules, fetchEmailAutoReplySettings, fetchPendingAutoReplies } from '../lib/emailAutoReplyApi';
+import { DEFAULT_AUTO_REPLY_SIGNATURE } from '../data/emailAutoReply';
 import { AutoReplyRulesModal } from '../components/suppliers/AutoReplyRules';
 import type { MaterialLedger } from '../data/materialLedgers';
 import { fetchMaterialLedgers, deleteMaterialLedger } from '../lib/materialLedgersApi';
@@ -1774,7 +1775,11 @@ export function Suppliers() {
   // почасовая Claude-сессия (см. data/emailAutoReply.ts) — здесь только
   // настройки ситуаций и черновики, которые она предложила.
   const [autoReplyRules, setAutoReplyRules] = useState<EmailAutoReplyRule[]>([]);
-  const [autoReplySettings, setAutoReplySettings] = useState<EmailAutoReplySettings>({ enabled: false, minDelayMinutes: 20 });
+  const [autoReplySettings, setAutoReplySettings] = useState<EmailAutoReplySettings>({
+    enabled: false,
+    minDelayMinutes: 20,
+    signature: DEFAULT_AUTO_REPLY_SIGNATURE,
+  });
   const [autoReplyLoading, setAutoReplyLoading] = useState(true);
   const [autoRepliesModalOpen, setAutoRepliesModalOpen] = useState(false);
   const [pendingAutoReplies, setPendingAutoReplies] = useState<EmailAutoReplyLogEntry[]>([]);

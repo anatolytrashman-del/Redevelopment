@@ -12,6 +12,7 @@ import type {
   EmailAutoReplySettings,
   EmailAutoReplySettingsRow,
 } from '../data/emailAutoReply';
+import { DEFAULT_AUTO_REPLY_SIGNATURE } from '../data/emailAutoReply';
 
 function ruleFromRow(row: EmailAutoReplyRuleRow): EmailAutoReplyRule {
   return {
@@ -112,7 +113,11 @@ export function fetchEmailAutoReplySettings(): Promise<EmailAutoReplySettings> {
     const { data, error } = await supabase.from('email_auto_reply_settings').select('*').eq('id', true).maybeSingle();
     if (error) throw error;
     const row = data as EmailAutoReplySettingsRow | null;
-    return { enabled: row?.enabled ?? false, minDelayMinutes: row?.min_delay_minutes ?? 20 };
+    return {
+      enabled: row?.enabled ?? false,
+      minDelayMinutes: row?.min_delay_minutes ?? 20,
+      signature: row?.signature ?? DEFAULT_AUTO_REPLY_SIGNATURE,
+    };
   });
 }
 
@@ -125,6 +130,7 @@ export function updateEmailAutoReplySettings(input: EmailAutoReplySettings): Pro
           id: true,
           enabled: input.enabled,
           min_delay_minutes: input.minDelayMinutes,
+          signature: input.signature,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'id' },
@@ -133,7 +139,11 @@ export function updateEmailAutoReplySettings(input: EmailAutoReplySettings): Pro
       .single();
     if (error) throw error;
     const row = data as EmailAutoReplySettingsRow;
-    return { enabled: row.enabled, minDelayMinutes: row.min_delay_minutes ?? 20 };
+    return {
+      enabled: row.enabled,
+      minDelayMinutes: row.min_delay_minutes ?? 20,
+      signature: row.signature ?? DEFAULT_AUTO_REPLY_SIGNATURE,
+    };
   });
 }
 
