@@ -13,8 +13,19 @@
   списком), блок вставлен в `Contractors.tsx` перед `tierGroups`. Двое
   стартовых: ИИ-закупщик (ответы на письма, сбор цен) и ИИ-сборщик информации
   (Kufar, Realt, Bir, Avito, Megapolis). Новый агент = новая запись в
-  массиве, формы в админке нет намеренно. Ветка `claude/tender-faraday-1wfeno`,
-  в очереди релиза.
+  массиве, формы в админке нет намеренно. Вторым заходом — «сделай время
+  последней выполненной задачи агента»: RPC `ai_agents_last_activity`
+  (SECURITY DEFINER, `supabase/migrations/20260914-ai-agents-last-activity.sql`,
+  применена) собирает max по следам агента — закупщик: `email_auto_reply_log`
+  (sent), `bulk_send_job_items` (sent), `supplier_web_search_jobs`/
+  `supplier_enrichment_jobs` (done); сборщик: `demand_stats.checked_at`,
+  `market_offers.updated_at`, `primary_market_offers.scraped_at` по source —
+  и отдаёт по одной строке на агента (подпись + время). Фронт —
+  `lib/aiAgentsApi.ts` (+ `formatActivityTime`: «5 мин назад / 3 ч назад /
+  вчера, 14:32»), карточка показывает «<задача> · Выполнено <когда>».
+  Headless Chromium в мок-тесте до Supabase не достаёт (нет прокси в
+  браузере) — RPC проверять curl'ом, вёрстку — подстановкой ответа.
+  Ветка `claude/tender-faraday-1wfeno`, в очереди релиза.
 - **2026-09-15 — Список поставщиков утверждён; очередь робота врала из-за
   отметки «верифицирован»; 15 неснятых сайтов ушли во вторую очередь.**
   Владелец запустил прогон и увидел «в очереди 7 сайтов»: «Все готово типо?»
