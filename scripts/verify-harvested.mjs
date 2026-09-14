@@ -13,7 +13,7 @@
 //
 //   node scripts/verify-harvested.mjs --dry
 //   node scripts/verify-harvested.mjs --confirm
-import { parseArgs, query } from './supply-categories/lib.mjs';
+import { LOG_VERIFIED_SQL, parseArgs, query } from './supply-categories/lib.mjs';
 
 const { named } = parseArgs();
 
@@ -40,6 +40,12 @@ console.log(before);
 if (!named.confirm) {
   console.log('пробный прогон. Для записи: --confirm');
 } else {
-  const rows = await query(`update supplier_research_offers set verified = true where ${WHERE} returning id`);
+  // Отметка и запись в activity_log одним запросом — каждая карточка,
+  // верифицированная роботом, идёт на баланс ИИ-закупщика на /admin/metrics
+  // (см. AI_BUYER_NAME в lib.mjs).
+  const rows = await query(`
+    with up as (update supplier_research_offers set verified = true where ${WHERE} returning id)
+    ${LOG_VERIFIED_SQL}
+  `);
   console.log(`отмечено карточек: ${rows.length}`);
 }

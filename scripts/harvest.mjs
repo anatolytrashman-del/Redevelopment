@@ -39,6 +39,7 @@ import path from 'node:path';
 import readline from 'node:readline/promises';
 import { createClient } from '@supabase/supabase-js';
 import { chromium } from 'playwright-core';
+import { AI_BUYER_NAME } from './supply-categories/lib.mjs';
 
 const SUPABASE_URL = 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
@@ -163,13 +164,18 @@ async function main() {
     if (onlyHosts ? !onlyHosts.has(host) : done.has(host)) continue;
     if (COUNTRY && offer.country && offer.country !== COUNTRY) continue;
     seen.add(host);
-    queue.push({ host, name: offer.name, country: offer.country ?? '', offerIds: [] });
+    queue.push({ host, name: offer.name, country: offer.country ?? '', offerIds: [], unverifiedCount: 0 });
   }
-  // Все карточки домена — чтобы отметить их разом по итогам съёма.
+  // Все карточки домена — чтобы отметить их разом по итогам съёма. Отдельно
+  // считаем, сколько из них ещё не верифицированы: ровно столько строк уйдёт
+  // в activity_log после отметки (уже верифицированные — чья-то прошлая
+  // работа, её на баланс робота не переписываем).
   const byHost = new Map(queue.map((q) => [q.host, q]));
   for (const offer of offers ?? []) {
     const entry = byHost.get(hostOf(offer.website_url));
-    if (entry) entry.offerIds.push(offer.id);
+    if (!entry) continue;
+    entry.offerIds.push(offer.id);
+    if (!offer.verified) entry.unverifiedCount++;
   }
 
   const work = LIMIT === Infinity ? queue : queue.slice(0, LIMIT);
@@ -369,12 +375,29 @@ async function main() {
         // верификацию. Всё равно это не финал, мы будем ещё писать письма,
         // получать счета и иначе верифицировать, но сейчас этого точно
         // хватит». Отмечаем сразу, чтобы не гонять потом отдельный проход.
+        // Владелец, 2026-09-14 (вечер): «все верифицированные сегодня
+        // автоматическим образом поставщики на странице метрики идут на
+        // баланс ИИ-закупщика» — после отметки пишем в activity_log по
+        // строке на каждую только что верифицированную карточку от его
+        // имени (то же действие, что у ручной верификации). Лог — только
+        // если отметка реально прошла, иначе счётчик обгонит базу.
         if (item.offerIds.length) {
-          await supabase
+          const { error: verifyError } = await supabase
             .from('supplier_research_offers')
             .update({ verified: true })
-            .in('id', item.offerIds)
-            .then(() => {}, () => {});
+            .in('id', item.offerIds);
+          if (!verifyError && item.unverifiedCount > 0) {
+            await supabase
+              .from('activity_log')
+              .insert(
+                Array.from({ length: item.unverifiedCount }, () => ({
+                  profile_id: null,
+                  profile_name: AI_BUYER_NAME,
+                  action: 'supplier_offer_verified',
+                })),
+              )
+              .then(() => {}, () => {});
+          }
         }
       }
       if (sections > 0 && found.length > 0) stats.ok++;

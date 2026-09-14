@@ -29,6 +29,29 @@ export async function query(sql) {
 
 export const lit = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
+// Имя, под которым автоматика пишет в activity_log и подписывает письма —
+// то же, что AUTO_REPLY_SENDER_NAME в src/data/emailAutoReply.ts (скрипты
+// не тянут TS-модули, поэтому копия; менять — синхронно). Владелец,
+// 2026-09-14: «все верифицированные сегодня автоматическим образом
+// поставщики на странице метрики идут на баланс ИИ-закупщика» — поэтому
+// каждая отметка «верифицирован», поставленная роботом (harvest.mjs,
+// verify-harvested.mjs, verify-recognized.mjs), логируется как
+// supplier_offer_verified от его имени, одна строка на карточку, ровно как
+// ручная верификация человека. profile_id пустой — строки в access_profiles
+// у ИИ-закупщика нет, и приписывать его действия чьему-то uuid нельзя.
+export const AI_BUYER_NAME = 'ИИ-закупщик';
+
+// Хвост для `with up as (update supplier_research_offers … returning id)`:
+// вставляет в activity_log по строке на каждую только что отмеченную
+// карточку. Обновление и лог — одним запросом, чтобы отметка без записи в
+// лог была невозможна (иначе счётчик на /admin/metrics снова разойдётся с
+// базой, как разошёлся 2026-09-14 на ~900 карточек).
+export const LOG_VERIFIED_SQL = `
+  insert into activity_log (profile_id, profile_name, action)
+  select null, ${lit(AI_BUYER_NAME)}, 'supplier_offer_verified' from up
+  returning id
+`;
+
 export function parseArgs(argv = process.argv.slice(2)) {
   const positional = [];
   const named = {};
