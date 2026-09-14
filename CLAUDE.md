@@ -366,6 +366,10 @@ curl -sS -X POST "https://api.supabase.com/v1/projects/iohcdylttyuhwovztrbk/data
 заранее целиком) — у каждого свой журнал прогресса внутри: `SEO_PLAN.md`/
 `SEO_PLAN_OWNER.md`, `BCMINSK_SEO_PLAN.md`, `PAGESPEED_PLAN.md`,
 `EMAIL_CORRESPONDENCE_PLAN.md`, `ANALYTICSPLAN.md`. Отдельно —
+`docs/auto-reply-routine.md` — автоответы поставщикам: их разбирает не код, а
+почасовая Claude-сессия (Routine владельца, как проверка Sentry), там схема
+таблиц, список ситуаций и полный текст её промпта; правится промпт — правится
+и этот файл. Ещё отдельно —
 `docs/release-queue.md`: что доведено до готовности, но ещё не опубликовано
 (см. раздел "Очередь релиза" выше) — читать перед публикацией и дописывать
 перед завершением своей сессии.
