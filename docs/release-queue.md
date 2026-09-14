@@ -30,6 +30,19 @@
 - **Риск при задержке:** есть/нет и какой
 ```
 
+### claude/new-session-kqovh9
+- **Что:** решение второго прохода по каталогу — `scripts/supply-categories/decisions/2026-09-14-catalog-empty-hosts.json`
+  (ответ на досье `catalog.mjs dossier --empty-hosts` из ветки `claude/wizardly-babbage-x8hlsg`): 2246 редких
+  названий разделов 89 сайтов без групп разложены (509 с группой, 1737 помечены мусором), 32 доменам с меню из
+  коллекций/новостей группы проставлены напрямую (`hosts`), новых групп нет. Только файл данных, кода не меняет.
+- **Проверено:** ключи нормализованы как `normalizeTerm`; `catalog.mjs apply --terms-only --dry` (версия
+  скрипта из `wizardly-babbage-x8hlsg`) — «проверка прошла: новых групп 0, размечено терминов 2246».
+- **Миграции SQL:** нет. Решение в базу НЕ применялось — применяет сессия-владелец досье
+  (`node scripts/supply-categories/catalog.mjs apply --file=<этот json> --terms-only`), скрипт с поддержкой
+  `hosts`/`--terms-only` живёт в `claude/wizardly-babbage-x8hlsg`.
+- **Риск при задержке:** нет.
+- **Конфликты при сборке:** только журнал/очередь.
+
 ### claude/wonderful-einstein-vdg945 — ОТЛОЖЕНА ОСОЗНАННО
 - **Что:** очередь повторной отправки одиночных писем (отказ Resend больше не
   теряет письмо): новая таблица `outgoing_email_jobs`, колонки `send_status`/
