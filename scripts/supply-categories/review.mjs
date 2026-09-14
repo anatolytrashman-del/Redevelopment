@@ -129,7 +129,15 @@ async function next() {
            s.categories, s.categories_note, s.categories_verified,
            coalesce(g.names, '{}') as names, coalesce(g.countries, '{}') as countries, coalesce(g.verified, false) as verified
     from supplier_site_snapshots s
-    left join g on g.host = s.host
+    -- Владелец, 2026-09-14 (после пачки №2): «я вижу только 2» — у
+    -- 1kirpichi.ru и 3tn.ru снимок сайта есть, а строки в
+    -- supplier_research_offers на этот хост нет вовсе (карточку когда-то
+    -- удалили, снимок остался сиротой) — isReadyForVerification в
+    -- SupplierVerificationTab.tsx группирует карточки verification-очереди
+    -- ИМЕННО по offers, так что такой хост физически не может там
+    -- появиться, сколько его ни классифицируй. INNER JOIN вместо LEFT —
+    -- такие сироты больше не съедают место в пачке.
+    join g on g.host = s.host
     where s.status = 'done' ${where} ${russiaOnly}
     order by coalesce(g.verified, false) desc, coalesce(g.names[1], s.host) collate "ru-RU-x-icu", s.host
   `);
