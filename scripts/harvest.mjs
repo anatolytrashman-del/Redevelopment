@@ -39,6 +39,7 @@ import path from 'node:path';
 import readline from 'node:readline/promises';
 import { createClient } from '@supabase/supabase-js';
 import { chromium } from 'playwright-core';
+import { AI_BUYER_NAME } from './supply-categories/lib.mjs';
 
 const SUPABASE_URL = 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
@@ -369,12 +370,30 @@ async function main() {
         // верификацию. Всё равно это не финал, мы будем ещё писать письма,
         // получать счета и иначе верифицировать, но сейчас этого точно
         // хватит». Отмечаем сразу, чтобы не гонять потом отдельный проход.
+        // Обычно к этому моменту отметку уже поставила сама база — триггер
+        // на вставке меню/контакта (verify_supplier_offers_with_captures,
+        // миграция 20260914-auto-apply-captures.sql), и он же записал её в
+        // activity_log на ИИ-закупщика. Здесь — страховка на случай, если
+        // триггер не сработал: ставим отметку только тем, у кого её ещё
+        // нет, и логируем РОВНО перевёрнутые этим запросом строки (владелец,
+        // 2026-09-14: «все верифицированные автоматическим образом
+        // поставщики на странице метрики идут на баланс ИИ-закупщика»),
+        // иначе счётчик задвоился бы с триггером.
         if (item.offerIds.length) {
-          await supabase
+          const { data: flipped } = await supabase
             .from('supplier_research_offers')
             .update({ verified: true })
             .in('id', item.offerIds)
-            .then(() => {}, () => {});
+            .eq('verified', false)
+            .select('id');
+          if (flipped?.length) {
+            await supabase
+              .from('activity_log')
+              .insert(
+                flipped.map(() => ({ profile_id: null, profile_name: AI_BUYER_NAME, action: 'supplier_offer_verified' })),
+              )
+              .then(() => {}, () => {});
+          }
         }
       }
       if (sections > 0 && found.length > 0) stats.ok++;
