@@ -25,6 +25,7 @@
  *   node scripts/harvest.mjs --limit=50          — пробный прогон на 50 сайтах
  *   node scripts/harvest.mjs                     — по всей очереди
  *   node scripts/harvest.mjs --country=Беларусь  — только белорусские
+ *   node scripts/harvest.mjs --country=all       — все страны разом
  *   node scripts/harvest.mjs --workers=2         — медленнее, но мягче к сайтам
  *   node scripts/harvest.mjs --headful           — показать браузер (посмотреть,
  *                                                  что там происходит)
@@ -50,7 +51,10 @@ const args = Object.fromEntries(
 );
 const LIMIT = args.limit ? Number(args.limit) : Infinity;
 const WORKERS = args.workers ? Math.max(1, Number(args.workers)) : 3;
-const COUNTRY = args.country ?? 'Россия';
+// --country=all — снять всё, что есть (Россия + Беларусь). По умолчанию
+// только Россия: там основная масса, и белорусские сайты владелец смотрел
+// отдельно.
+const COUNTRY = args.country === 'all' ? '' : (args.country ?? 'Россия');
 const HEADFUL = args.headful === 'true';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
@@ -122,10 +126,17 @@ async function main() {
     process.exit(1);
   }
 
+  // Берём ВСЕ карточки, не только `verified = false`. Раньше здесь стоял
+  // фильтр по этому флагу — и он тихо выкидывал из очереди сайты, которые
+  // робот ни разу не открывал: 2026-09-14 отметку «верифицирован» стали
+  // ставить по факту распознанного каталога (scripts/verify-recognized.mjs),
+  // в том числе по старым серверным снимкам, снятым без браузера. Десять
+  // доменов так и остались бы неснятыми, а очередь показывала бы «всё
+  // готово». Единственный признак «этот сайт уже снят» — строка в
+  // supplier_menu_captures, она же и отсекает лишнее ниже.
   const { data: offers, error } = await supabase
     .from('supplier_research_offers')
-    .select('id, name, website_url, country, verified')
-    .eq('verified', false);
+    .select('id, name, website_url, country, verified');
   if (error) throw error;
 
   // Уже снятое пропускаем — прогон можно останавливать и продолжать.
@@ -152,7 +163,7 @@ async function main() {
     if (onlyHosts ? !onlyHosts.has(host) : done.has(host)) continue;
     if (COUNTRY && offer.country && offer.country !== COUNTRY) continue;
     seen.add(host);
-    queue.push({ host, name: offer.name, offerIds: [] });
+    queue.push({ host, name: offer.name, country: offer.country ?? '', offerIds: [] });
   }
   // Все карточки домена — чтобы отметить их разом по итогам съёма.
   const byHost = new Map(queue.map((q) => [q.host, q]));
@@ -162,7 +173,11 @@ async function main() {
   }
 
   const work = LIMIT === Infinity ? queue : queue.slice(0, LIMIT);
-  console.log(`в очереди ${queue.length} сайтов, берём ${work.length}, потоков ${WORKERS}`);
+  const byCountry = new Map();
+  for (const q of queue) byCountry.set(q.country, (byCountry.get(q.country) ?? 0) + 1);
+  const countries = [...byCountry].map(([c, n]) => `${c || 'без страны'}: ${n}`).join(', ');
+  console.log(`в очереди ${queue.length} сайтов (${countries || 'пусто'}), берём ${work.length}, потоков ${WORKERS}`);
+  if (COUNTRY) console.log(`фильтр по стране: ${COUNTRY} (снять всё — --country=all)`);
   if (!work.length) return;
 
   let browser;
