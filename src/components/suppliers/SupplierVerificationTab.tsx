@@ -165,11 +165,18 @@ function ScreenshotZone({
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <span className="text-sm text-ink-faint">Скрины каталога</span>
-        {screenshots.length > 0 && (
-          <span className="text-xs text-ink-faint">
-            {pending > 0 ? `${pending} ждут разбора` : `${processed} разобрано`}
-          </span>
-        )}
+        {screenshots.length > 0 &&
+          (pending > 0 ? (
+            // Заметный статус, а не мелкая серая подпись: это промежуточное
+            // состояние карточки — верифицировать её сейчас нельзя, категории
+            // изменятся после разбора (владелец, 2026-09-14).
+            <span className="flex items-center gap-1.5 rounded-full border border-primary px-2.5 py-0.5 text-xs font-medium text-primary">
+              <Loader2 className="h-3 w-3" />
+              {pending} ждут распознавания
+            </span>
+          ) : (
+            <span className="text-xs text-ink-faint">{processed} разобрано</span>
+          ))}
       </div>
 
       <div
@@ -210,6 +217,12 @@ function ScreenshotZone({
           e.target.value = '';
         }}
       />
+
+      {pending > 0 && (
+        <p className="text-xs text-ink-faint">
+          Карточка вышла из очереди до разбора — нажмите «Дальше», чтобы перейти к следующему поставщику.
+        </p>
+      )}
 
       {screenshots.length > 0 && (
         <div className="flex flex-wrap gap-2">
@@ -455,13 +468,39 @@ export function SupplierVerificationTab({
     [countryOffers, snapshotByHost],
   );
 
+  // Промежуточное состояние «скрины загружены, но ещё не распознаны»
+  // (владелец, 2026-09-14: «явно нет промежуточного шага, чтобы видеть, что
+  // скрины уже загружены, но ещё не распознались»). Отдельного поля под это
+  // не заводим: наличие непрочитанного скрина У САМОГО ХОСТА и есть признак.
+  // Такой поставщик выходит из активной очереди — верифицировать его сейчас
+  // нельзя, его категории вот-вот изменятся разбором.
+  const awaitingHosts = useMemo(
+    () => new Set(screenshots.filter((s) => s.status === 'pending').map((s) => s.host)),
+    [screenshots],
+  );
+  const queueGroups = useMemo(() => hostGroups.filter((g) => !awaitingHosts.has(g.host)), [hostGroups, awaitingHosts]);
+  const awaitingGroups = useMemo(() => hostGroups.filter((g) => awaitingHosts.has(g.host)), [hostGroups, awaitingHosts]);
+
+  // Карточку, на которую только что загрузили скрины, держим на экране до
+  // явного «Дальше»: иначе она исчезает прямо под руками сразу после ⌘V.
+  const [heldHost, setHeldHost] = useState<string | null>(null);
+
   const verifyTarget = useMemo(() => {
     if (!verifying) return null;
-    return hostGroups.find((g) => !skippedHosts.has(g.host)) ?? null;
-  }, [verifying, hostGroups, skippedHosts]);
+    if (heldHost && !skippedHosts.has(heldHost)) {
+      const held = hostGroups.find((g) => g.host === heldHost);
+      if (held) return held;
+    }
+    return queueGroups.find((g) => !skippedHosts.has(g.host)) ?? null;
+  }, [verifying, heldHost, hostGroups, queueGroups, skippedHosts]);
 
-  const remaining = hostGroups.filter((g) => !skippedHosts.has(g.host)).length;
+  useEffect(() => {
+    if (verifyTarget && verifyTarget.host !== heldHost) setHeldHost(verifyTarget.host);
+  }, [verifyTarget, heldHost]);
+
+  const remaining = queueGroups.filter((g) => !skippedHosts.has(g.host)).length;
   const skippedCount = skippedHosts.size;
+  const currentAwaits = verifyTarget ? awaitingHosts.has(verifyTarget.host) : false;
 
   // Минимум кликов во время верификации — как только цель меняется, сама
   // открывается позиционированное окно с сайтом (см. openSupplierSiteWindow
@@ -560,7 +599,16 @@ export function SupplierVerificationTab({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-sm text-ink-muted">Осталось проверить: {hostGroups.length}</p>
+          <p className="text-sm text-ink-muted">Осталось проверить: {queueGroups.length}</p>
+          {awaitingGroups.length > 0 && (
+            <span
+              className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-ink-muted"
+              title={awaitingGroups.map((g) => g.representative.name || g.host).join(', ')}
+            >
+              <ImagePlus className="h-3.5 w-3.5" />
+              Ждут распознавания: {awaitingGroups.length}
+            </span>
+          )}
           <div className="flex items-center gap-1">
             {SUPPLIER_COUNTRIES.map((c) => (
               <button
@@ -585,6 +633,26 @@ export function SupplierVerificationTab({
         )}
       </div>
 
+      {awaitingGroups.length > 0 && (
+        <div className={cn('flex flex-col gap-2 p-4', glassCardClass)} style={glassCardShadow}>
+          <p className="text-sm font-semibold text-ink">Скрины загружены, ждут распознавания</p>
+          <p className="text-xs text-ink-faint">
+            Эти поставщики временно вне очереди — их категории изменятся после разбора скринов. Скажите в сессии
+            «разбери скрины», и они вернутся сюда уже с обновлёнными категориями.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {awaitingGroups.map((g) => {
+              const count = screenshots.filter((s) => s.host === g.host && s.status === 'pending').length;
+              return (
+                <span key={g.host} className="rounded-full border border-border px-2.5 py-1 text-xs text-ink-muted">
+                  {g.representative.name || g.host} · {count}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {verifying && (
         <div className="flex flex-col gap-3">
           <div className={cn('flex flex-wrap items-center justify-between gap-3 p-4', glassCardClass)} style={glassCardShadow}>
@@ -592,7 +660,7 @@ export function SupplierVerificationTab({
             <div className="flex gap-2">
               {verifyTarget && (
                 <Button variant="secondary" onClick={skipCurrent}>
-                  Пропустить
+                  {currentAwaits ? 'Дальше →' : 'Пропустить'}
                 </Button>
               )}
               <Button variant="ghost" onClick={stopVerification}>
