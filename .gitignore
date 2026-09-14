@@ -4,3 +4,6 @@ dist
 .env
 ui-audit-report
 .prerender-result.json
+
+# Рабочие файлы пошаговой переклассификации (см. scripts/supply-categories/README.md)
+scripts/supply-categories/out/
