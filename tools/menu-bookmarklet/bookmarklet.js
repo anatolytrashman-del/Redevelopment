@@ -21,20 +21,29 @@
 (function () {
   var MIN_LINKS = 8;
 
-  // Явно не-товарные пункты. Список намеренно короткий: «Услуги» и
-  // «Производство» сюда НЕ входят — у Авиасталь «Производство» оказалось
-  // настоящим товарным разделом (металлоконструкции, стеллажи, заборы).
-  // Лучше отдать лишнее на разбор модели, чем молча потерять раздел.
+  // Явно не-товарные пункты. Якоря в конце нет намеренно: на живом сайте
+  // встречается «Корзина0», «Сравнение товаров0» — счётчик приклеен к
+  // названию. «Производство» сюда НЕ входит: у Авиасталь это оказался
+  // настоящий товарный раздел (металлоконструкции, стеллажи, заборы).
   var SKIP = new RegExp(
-    '^\\s*(контакты|о компании|о нас|доставка|оплата|доставка и оплата|вакансии|корзина|войти|' +
-      'вход|личный кабинет|регистрация|главная|поиск|карта сайта|политика|пользовательское соглашение|' +
-      'обратная связь|написать|заказать звонок|新|блог|новости|отзывы|как заказать|возврат|' +
-      'гарантия|сертификаты|реквизиты|справочники|франшиза|сотрудничество)\\s*$',
+    '^\\s*(контакты|о компании|о нас|доставка|оплата|условия оплаты|условия доставки|' +
+      'вакансии|карьера|корзина|избранные товары|сравнение|войти|вход|личный кабинет|' +
+      'регистрация|главная|поиск|карта сайта|политик|пользовательское соглашение|согласие|' +
+      'cookie|обратная связь|написать|заказать звонок|блог|новости|акции|отзывы|как купить|' +
+      'как заказать|возврат|гарантия|сертификаты|реквизиты|справочники|франшиза|' +
+      'сотрудничество|наши клиенты|офисы компании|помощь|обзоры|идеи интерьера|проекты|' +
+      'компания|галерея|бренды|вопрос-ответ|калькулятор|онлайн расч|вконтакте|instagram|telegram|' +
+      'facebook|youtube|whatsapp|max|яндекс)',
     'i',
   );
 
+  // Внутри ссылки часто лежит инлайновый <svg> со своим <style> — его текст
+  // попадает в textContent, и в дерево прилетает «.clsw-1{fill:#fff…}».
   function visibleText(a) {
-    return (a.textContent || '').replace(/\s+/g, ' ').trim();
+    var clone = a.cloneNode(true);
+    var junk = clone.querySelectorAll ? clone.querySelectorAll('style,script') : [];
+    for (var i = 0; i < junk.length; i++) junk[i].remove();
+    return (clone.textContent || '').replace(/\s+/g, ' ').trim();
   }
 
   function usefulLink(a) {
@@ -44,13 +53,35 @@
     var t = visibleText(a);
     if (t.length < 2 || t.length > 120) return false;
     if (SKIP.test(t)) return false;
+    // Логотип и «на главную»: ведут в корень сайта, товарным разделом не бывают.
+    try {
+      if (new URL(a.href, location.href).pathname.replace(/\/+$/, '') === '') return false;
+    } catch (e) {
+      /* относительный мусор — пусть решают остальные проверки */
+    }
     return true;
   }
 
-  /* Глубина — по вложенности списков между ссылкой и контейнером меню.
-     Меню на <div> выйдет плоским: это не беда, плоский список названий
-     разделов остаётся нормальной уликой, просто менее структурированной. */
-  function depthWithin(a, container) {
+  /* Глубина — по АДРЕСУ ссылки: /catalog/potolki → 0, /catalog/potolki/ekonom
+     → 1. Так же строит дерево серверный краулер (sectionTree в review.mjs),
+     и так же это работает независимо от вёрстки. Первая версия считала
+     вложенность списков <ul>, и на первом же живом сайте (msk.avangardrf.ru,
+     меню целиком на <div>) всё дерево вышло плоским — 127 строк без единого
+     отступа.
+
+     Вложенность разметки оставлена запасным вариантом: если адреса ничего не
+     говорят (все ссылки одного уровня, или это одностраничник с якорями),
+     считаем по спискам, как раньше. */
+  function pathDepth(a) {
+    try {
+      var parts = new URL(a.href, location.href).pathname.split('/').filter(Boolean);
+      return parts.length;
+    } catch (e) {
+      return -1;
+    }
+  }
+
+  function listDepth(a, container) {
     var d = 0;
     var el = a.parentElement;
     while (el && el !== container && el !== document.body) {
@@ -69,7 +100,8 @@
       out.push({
         title: visibleText(links[i]),
         href: links[i].getAttribute('href'),
-        depth: depthWithin(links[i], container),
+        byPath: pathDepth(links[i]),
+        byList: listDepth(links[i], container),
       });
     }
     return out;
@@ -127,7 +159,8 @@
       (byPrefix[key] = byPrefix[key] || []).push({
         title: visibleText(links[i]),
         href: links[i].getAttribute('href'),
-        depth: Math.max(0, parts.length - 1),
+        byPath: parts.length,
+        byList: 0,
       });
     }
     var best = [];
@@ -159,14 +192,56 @@
     usedFallback = true;
   }
 
-  /* Нормализуем глубину: минимальная встреченная становится нулём, иначе
-     всё дерево уезжает вправо на пару уровней. */
-  var minDepth = items.reduce(function (m, it) {
-    return it.depth < m ? it.depth : m;
-  }, 99);
+  /* Берём ту метрику, которая вообще различает уровни: если все адреса
+     одной длины — толку от них нет, смотрим на вложенность списков. */
+  function spread(items, key) {
+    var min = 99;
+    var max = -99;
+    for (var i = 0; i < items.length; i++) {
+      var v = items[i][key];
+      if (v < 0) continue;
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+    return { min: min === 99 ? 0 : min, levels: max - min };
+  }
+
+  var byPath = spread(items, 'byPath');
+  var byList = spread(items, 'byList');
+  var useKey = byPath.levels >= byList.levels ? 'byPath' : 'byList';
+  var base = useKey === 'byPath' ? byPath.min : byList.min;
+
+  /* Ноль отсчитываем от ОСНОВНОЙ группы ссылок (обычно /catalog/…), а не от
+     самой короткой ссылки вообще. Иначе одинокие «Услуги» (/services, один
+     сегмент) делают базой единицу, и весь каталог уезжает вправо на уровень,
+     как будто у дерева есть невидимый корень. */
+  if (useKey === 'byPath') {
+    var groups = {};
+    for (var gi = 0; gi < items.length; gi++) {
+      var h = items[gi].href || '';
+      var seg;
+      try {
+        seg = new URL(h, location.href).pathname.split('/').filter(Boolean)[0] || '';
+      } catch (e) {
+        seg = '';
+      }
+      (groups[seg] = groups[seg] || []).push(items[gi]);
+    }
+    var main = null;
+    Object.keys(groups).forEach(function (k) {
+      if (!main || groups[k].length > main.length) main = groups[k];
+    });
+    if (main && main.length > 1) {
+      base = main.reduce(function (m, it) {
+        return it.byPath >= 0 && it.byPath < m ? it.byPath : m;
+      }, 99);
+      if (base === 99) base = byPath.min;
+    }
+  }
   var text = items
     .map(function (it) {
-      return new Array(Math.max(0, it.depth - minDepth) + 1).join('  ') + it.title;
+      var d = Math.max(0, (it[useKey] < 0 ? base : it[useKey]) - base);
+      return new Array(d + 1).join('  ') + it.title;
     })
     .join('\n');
 
