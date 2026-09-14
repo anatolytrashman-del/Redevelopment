@@ -29,6 +29,13 @@ export type AutoReplyKind = 'template' | 'ai';
 // человек жмёт "Отправить"; 'auto' — уходит само, без подтверждения.
 export type AutoReplyMode = 'draft' | 'auto';
 
+// Откуда взялась ситуация: 'manual' — владелец завёл её руками в админке,
+// 'learned' — её вывел разбор почты из живого ответа владельца (см.
+// docs/auto-reply-routine.md, раздел про обучение). Выученные заводятся
+// всегда в режиме 'draft': сначала показывают черновик, и только после
+// нескольких одобрений подряд им предлагают отвечать самостоятельно.
+export type AutoReplySource = 'manual' | 'learned';
+
 export interface EmailAutoReplyRule {
   id: string;
   name: string;
@@ -44,6 +51,13 @@ export interface EmailAutoReplyRule {
   // Чем меньше число, тем раньше правило проверяется: если под письмо
   // подходят два правила, выигрывает то, что выше в списке.
   priority: number;
+  source: AutoReplySource;
+  // Письмо, из ответа на которое ситуация выучена (для 'learned').
+  originEmailId: string | null;
+  // Живые формулировки поставщиков, по строке на пример: их дописывает
+  // разбор почты, когда ситуация не узнала очередной вариант вопроса.
+  // Читает их та же модель, что и criteria — это "память" ситуации.
+  examples: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -59,6 +73,9 @@ export interface EmailAutoReplyRuleRow {
   request_id: string | null;
   enabled: boolean;
   priority: number | null;
+  source: string | null;
+  origin_email_id: string | null;
+  examples: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -107,6 +124,17 @@ export interface EmailAutoReplyLogEntry {
   replyEmailId: string | null;
   reviewedAt: string | null;
   reviewedAction: AutoReplyReviewAction | null;
+  // Разбор почты с владельцем: что именно у него спросили, какой ответ
+  // предложили (смысловая часть, без приветствия и подписи — в отличие от
+  // draftBody, где лежит уже собранное письмо), когда спросили и что он
+  // ответил. answeredAt закрывает письмо: закрытое повторно не спрашивают
+  // и второй раз не отправляют.
+  question: string;
+  proposal: string;
+  askedAt: string | null;
+  answeredAt: string | null;
+  ownerAnswer: string;
+  learnedRuleId: string | null;
   createdAt: string;
 }
 
@@ -124,8 +152,44 @@ export interface EmailAutoReplyLogRow {
   reply_email_id: string | null;
   reviewed_at: string | null;
   reviewed_action: string | null;
+  question: string | null;
+  proposal: string | null;
+  asked_at: string | null;
+  answered_at: string | null;
+  owner_answer: string | null;
+  learned_rule_id: string | null;
   created_at: string;
 }
+
+// Сколько раз ситуация срабатывала и чем это кончилось — из представления
+// email_auto_reply_rule_stats. Нужно ровно для одного: видеть в админке, на
+// что система уже насмотрелась, а что владелец каждый раз переписывает.
+export interface EmailAutoReplyRuleStats {
+  ruleId: string;
+  firedTotal: number;
+  autoSent: number;
+  drafts: number;
+  approvedAsIs: number;
+  edited: number;
+  rejected: number;
+  lastFiredAt: string | null;
+}
+
+export interface EmailAutoReplyRuleStatsRow {
+  rule_id: string;
+  fired_total: number | string | null;
+  auto_sent: number | string | null;
+  drafts: number | string | null;
+  approved_as_is: number | string | null;
+  edited: number | string | null;
+  rejected: number | string | null;
+  last_fired_at: string | null;
+}
+
+export const autoReplySourceLabel: Record<AutoReplySource, string> = {
+  manual: 'Заведена вручную',
+  learned: 'Выучена из вашего ответа',
+};
 
 export const autoReplyModeLabel: Record<AutoReplyMode, string> = {
   draft: 'Черновик на проверку',

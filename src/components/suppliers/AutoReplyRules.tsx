@@ -1,11 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Bot, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Bot, Loader2, GraduationCap } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
 import { cn } from '../../lib/cn';
-import type { AutoReplyKind, AutoReplyMode, EmailAutoReplyRule, EmailAutoReplySettings } from '../../data/emailAutoReply';
+import type {
+  AutoReplyKind,
+  AutoReplyMode,
+  AutoReplySource,
+  EmailAutoReplyRule,
+  EmailAutoReplyRuleStats,
+  EmailAutoReplySettings,
+} from '../../data/emailAutoReply';
 import { autoReplyKindLabel, autoReplyModeLabel } from '../../data/emailAutoReply';
 import type { SupplierRequest } from '../../data/supplierResearch';
 import {
@@ -38,6 +45,9 @@ interface RuleFormState {
   requestId: string;
   enabled: boolean;
   priority: string;
+  source: AutoReplySource;
+  originEmailId: string | null;
+  examples: string;
 }
 
 function emptyForm(): RuleFormState {
@@ -51,6 +61,9 @@ function emptyForm(): RuleFormState {
     requestId: '',
     enabled: true,
     priority: '100',
+    source: 'manual',
+    originEmailId: null,
+    examples: '',
   };
 }
 
@@ -65,6 +78,9 @@ function ruleToForm(r: EmailAutoReplyRule): RuleFormState {
     requestId: r.requestId ?? '',
     enabled: r.enabled,
     priority: String(r.priority),
+    source: r.source,
+    originEmailId: r.originEmailId,
+    examples: r.examples,
   };
 }
 
@@ -151,6 +167,9 @@ function RuleFormModal({
       requestId: form.requestId || null,
       enabled: form.enabled,
       priority: Number.isFinite(parsedPriority) ? parsedPriority : 100,
+      source: form.source,
+      originEmailId: form.originEmailId,
+      examples: form.examples,
     };
     try {
       const saved = rule ? await updateEmailAutoReplyRule(rule.id, payload) : await insertEmailAutoReplyRule(payload);
@@ -187,6 +206,20 @@ function RuleFormModal({
           <p className="text-xs text-ink-faint">
             Этот текст читает ИИ-закупщик — пишите так, как объяснили бы человеку. Если под письмо не подошла ни одна
             ситуация или ИИ сомневается, он не отвечает и оставляет письмо вам.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Textarea
+            label="Как это звучит у поставщиков"
+            rows={3}
+            placeholder="По одному примеру в строке. Заполняется само: когда ситуация не узнала очередной вариант вопроса, разбор почты дописывает сюда живую формулировку."
+            value={form.examples}
+            onChange={(e) => setForm((f) => ({ ...f, examples: e.target.value }))}
+          />
+          <p className="text-xs text-ink-faint">
+            Память ситуации. Чем больше здесь реальных формулировок, тем увереннее ИИ-закупщик узнаёт тот же вопрос,
+            заданный другими словами. Строку можно убрать руками, если она уводит не туда.
           </p>
         </div>
 
@@ -305,6 +338,7 @@ export function AutoReplyRulesModal({
   rules,
   settings,
   requests,
+  stats,
   loading,
   onClose,
   onRulesChange,
@@ -314,6 +348,7 @@ export function AutoReplyRulesModal({
   rules: EmailAutoReplyRule[];
   settings: EmailAutoReplySettings;
   requests: SupplierRequest[];
+  stats: EmailAutoReplyRuleStats[];
   loading: boolean;
   onClose: () => void;
   onRulesChange: (rules: EmailAutoReplyRule[]) => void;
@@ -378,7 +413,22 @@ export function AutoReplyRulesModal({
     return requests.find((r) => r.id === requestId)?.title ?? NO_REQUEST;
   }
 
+  // Строка вида «сработала 5 раз · 3 одобрены как есть · 1 правка». Считаем
+  // только то, что уже случилось: у новой ситуации строки нет вовсе, чтобы не
+  // показывать частокол нулей.
+  function statsLine(ruleId: string): string | null {
+    const s = stats.find((x) => x.ruleId === ruleId);
+    if (!s || s.firedTotal === 0) return null;
+    const parts = [`сработала ${s.firedTotal} раз`];
+    if (s.autoSent > 0) parts.push(`${s.autoSent} ушло само`);
+    if (s.approvedAsIs > 0) parts.push(`${s.approvedAsIs} одобрено как есть`);
+    if (s.edited > 0) parts.push(`${s.edited} с правкой`);
+    if (s.rejected > 0) parts.push(`${s.rejected} отклонено`);
+    return parts.join(' · ');
+  }
+
   const autoCount = rules.filter((r) => r.enabled && r.mode === 'auto').length;
+  const learnedCount = rules.filter((r) => r.source === 'learned').length;
 
   return (
     <>
@@ -477,10 +527,17 @@ export function AutoReplyRulesModal({
                     >
                       {r.mode === 'auto' ? 'Автоматически' : 'Черновик'}
                     </span>
+                    {r.source === 'learned' && (
+                      <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                        <GraduationCap className="h-3 w-3" />
+                        выучена
+                      </span>
+                    )}
                     {!r.enabled && <span className="text-[11px] text-ink-faint">выключена</span>}
                   </div>
                   <div className="text-xs text-ink-faint">
                     {requestTitle(r.requestId)} · {autoReplyKindLabel[r.replyKind]}
+                    {statsLine(r.id) && <> · {statsLine(r.id)}</>}
                   </div>
                   <div className="mt-1 line-clamp-2 text-xs text-ink-muted">{r.criteria}</div>
                 </div>
@@ -511,6 +568,13 @@ export function AutoReplyRulesModal({
             <Bot className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             Черновики ИИ-закупщика появляются в самой переписке с поставщиком — с кнопками «Отправить», «Изменить» и
             «Отклонить».
+          </p>
+          <p className="flex items-start gap-2 text-xs text-ink-faint">
+            <GraduationCap className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            Письма, на которые ни одна ситуация не подошла, раз в час приходят вам отдельным списком в Клод — с готовым
+            вариантом ответа на каждое. Из ваших ответов там же заводятся новые ситуации: они появляются в этом списке
+            с пометкой «выучена» и сначала работают черновиками.
+            {learnedCount > 0 && ` Сейчас таких ${learnedCount}.`}
           </p>
         </div>
       </Modal>

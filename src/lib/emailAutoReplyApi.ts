@@ -3,12 +3,15 @@ import { withRetry } from './withRetry';
 import type {
   AutoReplyKind,
   AutoReplyMode,
+  AutoReplySource,
   AutoReplyDecision,
   AutoReplyReviewAction,
   EmailAutoReplyLogEntry,
   EmailAutoReplyLogRow,
   EmailAutoReplyRule,
   EmailAutoReplyRuleRow,
+  EmailAutoReplyRuleStats,
+  EmailAutoReplyRuleStatsRow,
   EmailAutoReplySettings,
   EmailAutoReplySettingsRow,
 } from '../data/emailAutoReply';
@@ -26,6 +29,9 @@ function ruleFromRow(row: EmailAutoReplyRuleRow): EmailAutoReplyRule {
     requestId: row.request_id,
     enabled: row.enabled,
     priority: row.priority ?? 100,
+    source: (row.source === 'learned' ? 'learned' : 'manual') as AutoReplySource,
+    originEmailId: row.origin_email_id,
+    examples: row.examples ?? '',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -45,6 +51,12 @@ function logFromRow(row: EmailAutoReplyLogRow): EmailAutoReplyLogEntry {
     replyEmailId: row.reply_email_id,
     reviewedAt: row.reviewed_at,
     reviewedAction: (row.reviewed_action as AutoReplyReviewAction | null) ?? null,
+    question: row.question ?? '',
+    proposal: row.proposal ?? '',
+    askedAt: row.asked_at,
+    answeredAt: row.answered_at,
+    ownerAnswer: row.owner_answer ?? '',
+    learnedRuleId: row.learned_rule_id,
     createdAt: row.created_at,
   };
 }
@@ -62,7 +74,30 @@ function ruleToRow(input: RuleInput) {
     request_id: input.requestId,
     enabled: input.enabled,
     priority: input.priority,
+    source: input.source,
+    origin_email_id: input.originEmailId,
+    examples: input.examples,
   };
+}
+
+// Счётчики срабатываний — отдельным запросом, а не join'ом к правилам:
+// представление считает по всему логу, и подмешивать его в каждую выборку
+// правил незачем (модалка автоответов — единственное место, где оно нужно).
+export function fetchEmailAutoReplyRuleStats(): Promise<EmailAutoReplyRuleStats[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('email_auto_reply_rule_stats').select('*');
+    if (error) throw error;
+    return (data as EmailAutoReplyRuleStatsRow[]).map((row) => ({
+      ruleId: row.rule_id,
+      firedTotal: Number(row.fired_total ?? 0),
+      autoSent: Number(row.auto_sent ?? 0),
+      drafts: Number(row.drafts ?? 0),
+      approvedAsIs: Number(row.approved_as_is ?? 0),
+      edited: Number(row.edited ?? 0),
+      rejected: Number(row.rejected ?? 0),
+      lastFiredAt: row.last_fired_at,
+    }));
+  });
 }
 
 export function fetchEmailAutoReplyRules(): Promise<EmailAutoReplyRule[]> {
@@ -176,5 +211,33 @@ export function markAutoReplyReviewed(id: string, action: AutoReplyReviewAction)
       .single();
     if (error) throw error;
     return logFromRow(data as EmailAutoReplyLogRow);
+  });
+}
+
+// Облегчённая выборка лога для страницы метрик (/admin/metrics): только
+// решение и время, без текстов черновиков и причин — страница опрашивает
+// базу раз в минуту, и тянуть на каждом тике тело каждого черновика
+// незачем (тот же принцип, что fetchOutgoingEmailMetrics). Берётся весь
+// лог, включая 'skipped': на метриках пропуски — отдельная плитка, чтобы
+// было видно, сколько писем ИИ-закупщик разобрал, а не только сколько
+// ответил.
+export interface AutoReplyLogMetric {
+  decision: AutoReplyDecision;
+  reviewedAction: AutoReplyReviewAction | null;
+  createdAt: string;
+}
+
+export function fetchAutoReplyLogMetrics(): Promise<AutoReplyLogMetric[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('email_auto_reply_log')
+      .select('decision, reviewed_action, created_at')
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return (data as Pick<EmailAutoReplyLogRow, 'decision' | 'reviewed_action' | 'created_at'>[]).map((row) => ({
+      decision: row.decision as AutoReplyDecision,
+      reviewedAction: (row.reviewed_action as AutoReplyReviewAction | null) ?? null,
+      createdAt: row.created_at,
+    }));
   });
 }

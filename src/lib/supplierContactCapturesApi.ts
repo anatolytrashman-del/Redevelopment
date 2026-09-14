@@ -6,10 +6,19 @@ import { withRetry } from './withRetry';
 // 20260914-supplier-contact-captures.sql.
 //
 // Владелец, 2026-09-14: «чтобы вся верификация была на одной вкладке».
-// Снятое НИКОГДА не затирает уже заполненное поле карточки — только
-// подставляется в пустое, а расхождение показывается предложением
-// (см. SupplierVerificationTab.tsx). Карточки поставщиков продаются с
-// требованием точности 97%, молчаливая перезапись тут недопустима.
+//
+// Записывает снятое в карточку не этот файл и не вкладка верификации, а сама
+// база — триггер supplier_contact_captures_auto_apply (миграция
+// 20260914-auto-apply-captures.sql). Владелец, 2026-09-14, про блок «выберите
+// верное»: «Я не собираюсь ничего делать с этим. Всё, что мы собрали с сайта,
+// по умолчанию более актуально, чем то, что было в базе до этого». Лучший
+// вариант на «хост + вид контакта» (по rank, который считает закладка)
+// записывается сразу и поверх заполненного поля, остальные закрываются.
+// Исключение ровно одно, и оно тоже в триггере: карточку с живой перепиской
+// по почте не трогаем — там адрес подтверждён ответом поставщика.
+//
+// Отсюда и порядок работы фронта: снятое приезжает уже в статусе applied,
+// показывать и подтверждать нечего — вкладке остаётся перечитать карточки.
 export type SupplierContactCaptureKind = 'phone' | 'email' | 'messenger';
 
 export interface SupplierContactCapture {
@@ -62,12 +71,16 @@ function fromRow(row: SupplierContactCaptureRow): SupplierContactCapture {
   };
 }
 
-export function fetchSupplierContactCaptures(): Promise<SupplierContactCapture[]> {
+// Только по одному домену и без фильтра по статусу: снятое теперь приезжает
+// сразу применённым, а вкладке нужен один факт — что у этого поставщика
+// контакты с сайта уже сняты (плашка на карточке). Таблица растёт тысячами
+// строк на каждый прогон робота, тянуть её целиком ради плашки незачем.
+export function fetchSupplierContactCapturesForHost(host: string): Promise<SupplierContactCapture[]> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('supplier_contact_captures')
       .select('*')
-      .eq('status', 'pending')
+      .eq('host', host)
       .order('captured_at', { ascending: false });
     if (error) throw error;
     return (data as SupplierContactCaptureRow[]).map(fromRow);
@@ -110,23 +123,5 @@ export function upsertSupplierContactCapture(input: {
       .single();
     if (error) throw error;
     return fromRow(data as SupplierContactCaptureRow);
-  });
-}
-
-export function markSupplierContactCapture(
-  id: string,
-  status: 'applied' | 'skipped',
-  note = '',
-): Promise<void> {
-  return withRetry(async () => {
-    const { error } = await supabase
-      .from('supplier_contact_captures')
-      .update({
-        status,
-        note,
-        applied_at: status === 'applied' ? new Date().toISOString() : null,
-      })
-      .eq('id', id);
-    if (error) throw error;
   });
 }

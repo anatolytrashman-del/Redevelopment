@@ -11,7 +11,7 @@
 //
 //   node scripts/verify-recognized.mjs --dry
 //   node scripts/verify-recognized.mjs --confirm
-import { parseArgs, query } from './supply-categories/lib.mjs';
+import { LOG_VERIFIED_SQL, parseArgs, query } from './supply-categories/lib.mjs';
 
 const { named } = parseArgs();
 
@@ -29,9 +29,17 @@ console.log(before);
 if (!named.confirm) {
   console.log('пробный прогон. Для записи: --confirm');
 } else {
+  // Отметка и запись в activity_log одним запросом — каждая карточка,
+  // верифицированная роботом, идёт на баланс ИИ-закупщика на /admin/metrics
+  // (см. AI_BUYER_NAME в lib.mjs). Снятие отметки ниже не логируется:
+  // отдельного действия «разверифицировал» в логе нет, а вычитать из
+  // счётчика владелец не просил.
   const up = await query(`
-    update supplier_research_offers set verified = true
-    where not verified and ${HOST} in (${РАСПОЗНАНО}) returning id
+    with up as (
+      update supplier_research_offers set verified = true
+      where not verified and ${HOST} in (${РАСПОЗНАНО}) returning id
+    )
+    ${LOG_VERIFIED_SQL}
   `);
   const down = await query(`
     update supplier_research_offers set verified = false
