@@ -246,11 +246,71 @@
     .join('\n');
 
   var host = location.hostname.replace(/^www\./i, '');
+
+  /* Отправка в админку. Вкладку с сайтом открыла сама админка
+     (openSupplierSiteTab в SupplierVerificationTab.tsx), поэтому window.opener
+     указывает на неё — шлём дерево туда. Ни токенов в закладке, ни
+     всплывающих окон, ни ручного копирования.
+
+     Владелец, 2026-09-14: «я не хочу вручную пересылать каждый раз. Надо так:
+     открылась вкладка, Светлана нажала кнопку снимка, система записала в
+     память и, если всё ок, показала уведомление».
+
+     Если сайт открыт сам по себе (не из карточки), opener пустой — тогда
+     показываем прежнее окно с копированием, чтобы способ не пропадал совсем. */
+  var ORIGIN = 'https://redevelopment.pro';
+  function sendToAdmin(onDone) {
+    var opener = null;
+    try {
+      opener = window.opener && !window.opener.closed ? window.opener : null;
+    } catch (e) {
+      opener = null;
+    }
+    if (!opener) return false;
+    var acked = false;
+    function onAck(e) {
+      if (!e.data || e.data.source !== 'redevelopment-menu-capture-ok') return;
+      acked = true;
+      window.removeEventListener('message', onAck);
+      onDone(true, e.data.count);
+    }
+    window.addEventListener('message', onAck);
+    opener.postMessage({ source: 'redevelopment-menu-capture', host: host, pageUrl: location.href, tree: text }, ORIGIN);
+    /* Ответа может не быть: админка открыта не на вкладке «Верификация» или
+       вообще перешла на другую страницу. Через 2.5 секунды честно говорим,
+       что подтверждения нет, и показываем дерево для копирования. */
+    setTimeout(function () {
+      if (!acked) {
+        window.removeEventListener('message', onAck);
+        onDone(false, 0);
+      }
+    }, 2500);
+    return true;
+  }
+
+  /* Короткое уведомление прямо на странице поставщика — чтобы не
+     переключаться на вкладку админки ради подтверждения. */
+  function toast(message, ok) {
+    var el = document.createElement('div');
+    el.style.cssText =
+      'position:fixed;z-index:2147483647;left:50%;top:24px;transform:translateX(-50%);' +
+      'padding:14px 24px;border-radius:999px;color:#fff;font:600 15px -apple-system,Segoe UI,Roboto,sans-serif;' +
+      'box-shadow:0 10px 30px rgba(0,0,0,.25);background:' +
+      (ok ? '#12a150' : '#d92d20');
+    el.textContent = message;
+    document.body.appendChild(el);
+    setTimeout(function () {
+      el.remove();
+    }, 4000);
+  }
+
   var header =
     host + ' — разделов: ' + items.length + (usedFallback ? ' (по адресам ссылок, навигацию найти не удалось)' : '');
 
-  /* Панель в теневом дереве: стили страницы до неё не дотянутся, а наши —
-     до страницы. */
+  /* Панель с копированием — ЗАПАСНОЙ путь: показывается, только если
+     отправить в админку не вышло (сайт открыт не из карточки верификации,
+     или админка не ответила). */
+  function showPanel() {
   var host_el = document.createElement('div');
   host_el.style.cssText = 'position:fixed;inset:0;z-index:2147483647';
   var root = host_el.attachShadow ? host_el.attachShadow({ mode: 'open' }) : host_el;
@@ -289,4 +349,14 @@
     a.click();
   };
   document.body.appendChild(host_el);
+  }
+
+  var sent = sendToAdmin(function (ok, count) {
+    if (ok) toast('Меню снято: ' + count + ' разделов', true);
+    else {
+      toast('Админка не ответила — скопируйте вручную', false);
+      showPanel();
+    }
+  });
+  if (!sent) showPanel();
 })();

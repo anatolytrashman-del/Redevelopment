@@ -11,6 +11,11 @@ import { countryFlag, messengerLink, supplierWebsiteFullUrl, supplierWebsiteHost
 import type { SupplierSiteSnapshot } from '../../data/supplierSiteSnapshots';
 import type { SupplierScreenshot } from '../../data/supplierScreenshots';
 import { deleteSupplierScreenshot, fetchSupplierScreenshots, uploadSupplierScreenshot } from '../../lib/supplierScreenshotsApi';
+import {
+  fetchSupplierMenuCaptures,
+  insertSupplierMenuCapture,
+  type SupplierMenuCapture,
+} from '../../lib/supplierMenuCapturesApi';
 
 // Вкладка "Верификация" на странице Закупки. Владелец, 2026-09-13 (второй
 // заход, после первой версии с редактируемым чек-листом категорий — снята
@@ -263,6 +268,7 @@ function SupplierCard({
   onDelete,
   saving,
   screenshots,
+  menuCaptured,
   uploadingScreenshots,
   onScreenshotFiles,
   onScreenshotDelete,
@@ -273,6 +279,7 @@ function SupplierCard({
   onDelete: (offer: SupplierOffer) => void;
   saving: boolean;
   screenshots: SupplierScreenshot[];
+  menuCaptured: boolean;
   uploadingScreenshots: boolean;
   onScreenshotFiles: (files: File[]) => void;
   onScreenshotDelete: (screenshot: SupplierScreenshot) => void;
@@ -392,6 +399,13 @@ function SupplierCard({
         </p>
       )}
 
+      {menuCaptured && (
+        <div className="flex items-center gap-2 rounded-2xl border border-success/40 bg-success/5 px-3 py-2 text-xs text-ink">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+          Меню каталога снято закладкой — ушло на разбор
+        </div>
+      )}
+
       <ScreenshotZone
         screenshots={screenshots}
         uploading={uploadingScreenshots}
@@ -449,6 +463,11 @@ export function SupplierVerificationTab({
   // заметно хуже при том же результате.
   const [screenshots, setScreenshots] = useState<SupplierScreenshot[]>([]);
   const [uploadingScreenshots, setUploadingScreenshots] = useState(false);
+  const [menuCaptures, setMenuCaptures] = useState<SupplierMenuCapture[]>([]);
+  // Короткое подтверждение после снимка меню — владелец просил именно
+  // уведомление: «система записала в память и, если всё ок, показала
+  // уведомление».
+  const [captureToast, setCaptureToast] = useState('');
 
   const snapshotByHost = useMemo(() => new Map(snapshots.map((s) => [s.host, s])), [snapshots]);
 
@@ -459,6 +478,9 @@ export function SupplierVerificationTab({
         // Молча: скрины — вспомогательная штука, из-за их недоступности
         // верификация как таковая работать не перестаёт.
       });
+    fetchSupplierMenuCaptures()
+      .then(setMenuCaptures)
+      .catch(() => {});
   }, []);
 
   // Карточки без страны видны при любом флаге — тот же принцип, что в
@@ -477,8 +499,12 @@ export function SupplierVerificationTab({
   // Такой поставщик выходит из активной очереди — верифицировать его сейчас
   // нельзя, его категории вот-вот изменятся разбором.
   const awaitingHosts = useMemo(
-    () => new Set(screenshots.filter((s) => s.status === 'pending').map((s) => s.host)),
-    [screenshots],
+    () =>
+      new Set([
+        ...screenshots.filter((s) => s.status === 'pending').map((s) => s.host),
+        ...menuCaptures.filter((c) => c.status === 'pending').map((c) => c.host),
+      ]),
+    [screenshots, menuCaptures],
   );
   const queueGroups = useMemo(() => hostGroups.filter((g) => !awaitingHosts.has(g.host)), [hostGroups, awaitingHosts]);
   const awaitingGroups = useMemo(() => hostGroups.filter((g) => awaitingHosts.has(g.host)), [hostGroups, awaitingHosts]);
@@ -542,6 +568,52 @@ export function SupplierVerificationTab({
     }
   }
 
+  // Приём дерева разделов от закладки «Снять меню». Вкладку с сайтом открыла
+  // эта же страница (openSupplierSiteTab), поэтому у той вкладки есть ссылка
+  // на нас, и закладка шлёт дерево сюда напрямую — без всплывающих окон,
+  // страниц-приёмников и токенов в самой закладке. Владелец, 2026-09-14:
+  // «я не хочу вручную пересылать каждый раз… система записала в память и,
+  // если всё ок, показала уведомление».
+  //
+  // Источник сообщения — чужой домен (сайт поставщика), поэтому доверять
+  // origin нельзя и проверяется ФОРМА данных: наша метка, строковый хост и
+  // непустое дерево. Худшее, что может сделать посторонняя страница, —
+  // записать строку-заготовку в отдельную таблицу, которую всё равно
+  // проверяют глазами перед тем, как пустить разделы в улики.
+  useEffect(() => {
+    async function onMessage(e: MessageEvent) {
+      const d = e.data as { source?: unknown; host?: unknown; tree?: unknown; pageUrl?: unknown } | null;
+      if (!d || d.source !== 'redevelopment-menu-capture') return;
+      const host = typeof d.host === 'string' ? d.host.trim().toLowerCase() : '';
+      const tree = typeof d.tree === 'string' ? d.tree.trim() : '';
+      if (!host || !tree) return;
+      const count = tree.split('\n').filter((l) => l.trim()).length;
+      try {
+        const created = await insertSupplierMenuCapture({
+          host,
+          pageUrl: typeof d.pageUrl === 'string' ? d.pageUrl.slice(0, 500) : '',
+          tree,
+          sectionsCount: count,
+        });
+        setMenuCaptures((prev) => [created, ...prev]);
+        setCaptureToast(`${host}: снято ${count} разделов`);
+        // Отвечаем закладке, чтобы она показала подтверждение у себя на
+        // странице — Светлана видит результат, не переключая вкладку.
+        if (e.source) (e.source as Window).postMessage({ source: 'redevelopment-menu-capture-ok', count }, '*');
+      } catch {
+        setError('Не удалось сохранить снятое меню — попробуйте ещё раз.');
+      }
+    }
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  useEffect(() => {
+    if (!captureToast) return;
+    const t = setTimeout(() => setCaptureToast(''), 6000);
+    return () => clearTimeout(t);
+  }, [captureToast]);
+
   // Главный путь загрузки — ⌘V прямо на вкладке: сделал скрин меню
   // поставщика в соседнем окне, вернулся, вставил. Слушатель висит на окне
   // (а не на самой зоне), чтобы не нужно было сначала целиться мышью;
@@ -597,6 +669,12 @@ export function SupplierVerificationTab({
   return (
     <div className="flex flex-col gap-4">
       {error && <p className="text-sm text-danger">{error}</p>}
+      {captureToast && (
+        <div className={cn('flex items-center gap-2 p-3 text-sm text-ink', glassCardClass)} style={glassCardShadow}>
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+          Меню снято — {captureToast}. Заполните контакты и жмите «Дальше».
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
@@ -643,10 +721,12 @@ export function SupplierVerificationTab({
           </p>
           <div className="flex flex-wrap gap-1.5">
             {awaitingGroups.map((g) => {
-              const count = screenshots.filter((s) => s.host === g.host && s.status === 'pending').length;
+              const shots = screenshots.filter((s) => s.host === g.host && s.status === 'pending').length;
+              const menus = menuCaptures.filter((c) => c.host === g.host && c.status === 'pending').length;
+              const what = [menus > 0 ? 'меню' : '', shots > 0 ? `${shots} скр.` : ''].filter(Boolean).join(' + ');
               return (
                 <span key={g.host} className="rounded-full border border-border px-2.5 py-1 text-xs text-ink-muted">
-                  {g.representative.name || g.host} · {count}
+                  {g.representative.name || g.host} · {what}
                 </span>
               );
             })}
@@ -678,6 +758,7 @@ export function SupplierVerificationTab({
               onDelete={onDeleteOffer}
               saving={savingHost === verifyTarget.host}
               screenshots={screenshots.filter((s) => s.host === verifyTarget.host)}
+              menuCaptured={menuCaptures.some((c) => c.host === verifyTarget.host && c.status === 'pending')}
               uploadingScreenshots={uploadingScreenshots}
               onScreenshotFiles={(files) => handleScreenshotFiles(verifyTarget.host, files)}
               onScreenshotDelete={handleScreenshotDelete}
