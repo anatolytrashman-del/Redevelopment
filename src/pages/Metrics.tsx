@@ -11,6 +11,9 @@ import type { ActivityLogEntry } from '../data/activityLog';
 import { fetchOutgoingEmailMetrics, type OutgoingEmailMetric } from '../lib/supplierOfferEmailsApi';
 import { fetchSupplierWebSearchJobMetrics, type SupplierWebSearchJobMetric } from '../lib/supplierWebSearchApi';
 import { fetchAutoReplyLogMetrics, type AutoReplyLogMetric } from '../lib/emailAutoReplyApi';
+import { fetchDeploymentMetrics, type DeploymentMetric } from '../lib/deploymentsApi';
+import { formatActivityTime } from '../lib/aiAgentsApi';
+import { ClaudeLogo } from '../components/contractors/ClaudeLogo';
 import { AUTO_REPLY_SENDER_NAME } from '../data/emailAutoReply';
 
 // Владелец, 2026-09-05: "давай трекать Альмиру" (по аналогии с Activity Log
@@ -95,6 +98,24 @@ import { AUTO_REPLY_SENDER_NAME } from '../data/emailAutoReply';
 //     "ИИ-закупщик" с profile_id = null — по прямому указанию владельца,
 //     SQL-обновлением в живой базе, кода это не касается.
 
+// 2026-09-15 — владелец: "можем вывести метрику по количеству деплоев на
+// страницу метрики для ИИ-сотрудника Claude Code". Claude Code (ИИ-кодер из
+// "Команды", см. data/aiAgents.ts) отличается от всех остальных блоков этой
+// страницы тем, что в activity_log его нет вовсе: он не жмёт кнопки в
+// админке, а пишет код и публикует релизы. Единственное его измеримое
+// действие в проде — деплой, поэтому у него свой блок и свой источник —
+// таблица deployments (строку пишет последним шагом прод-сборки
+// scripts/record-deployment.mjs, история до 15.09 залита бэкфиллом из
+// Vercel API). Общие плитки людей ему не показываем по той же причине, по
+// которой блок ИИ-закупщика не смешан с людьми: ноль там означал бы не
+// "ничего не делал", а "не к нему вопрос".
+//
+// Считаем только успешные (state = 'READY') прод-деплои: на сайт выехало
+// ровно столько раз. Упавшие и отменённые сборки в таблице есть, но только
+// в записях бэкфилла — билд-скрипт до записи просто не доживает, если
+// сборка упала, поэтому плитку "неуспешных" не рисуем: после 15.09 она
+// всегда показывала бы ноль независимо от реальности.
+
 // 2026-09-12 — владелец: "можем автоматически обновлять цифры раз в минуту
 // без необходимости перезагружать страницу?". Страница теперь сама
 // перезапрашивает данные каждые REFRESH_INTERVAL_MS, не сбрасывая при этом
@@ -178,7 +199,9 @@ function formatPeriodCaption(period: Period, start: Date, end: Date): string {
 
 interface StatTileProps {
   label: string;
-  value: number;
+  // Строка — для плиток, где показатель не счётчик, а момент времени
+  // ("Последний релиз"); числа по-прежнему форматируются по-русски.
+  value: number | string;
   hint?: string;
 }
 
@@ -186,18 +209,35 @@ function StatTile({ label, value, hint }: StatTileProps) {
   return (
     <div className={cn('flex flex-col gap-1 p-4', glassCardClass)} style={glassCardShadow}>
       <p className="text-sm text-ink-muted">{label}</p>
-      <p className="text-3xl font-semibold text-ink">{value.toLocaleString('ru-RU')}</p>
+      <p className="text-3xl font-semibold text-ink">
+        {typeof value === 'number' ? value.toLocaleString('ru-RU') : value}
+      </p>
       {hint && <p className="text-xs text-ink-faint">{hint}</p>}
     </div>
   );
 }
 
-function PersonSection({ name, subtitle, children }: { name: string; subtitle: string; children: ReactNode }) {
+function PersonSection({
+  name,
+  subtitle,
+  icon,
+  children,
+}: {
+  name: string;
+  subtitle: string;
+  // Только у ИИ-агентов — чтобы блок Claude Code читался так же, как его
+  // карточка в "Команде" (ContractorCard/AiAgentCard). У людей иконки нет.
+  icon?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <Card className="flex flex-col gap-3">
-      <div>
-        <h2 className="text-base font-semibold text-ink">{name}</h2>
-        <p className="text-xs text-ink-faint">{subtitle}</p>
+      <div className="flex items-center gap-2.5">
+        {icon}
+        <div>
+          <h2 className="text-base font-semibold text-ink">{name}</h2>
+          <p className="text-xs text-ink-faint">{subtitle}</p>
+        </div>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">{children}</div>
     </Card>
@@ -210,6 +250,18 @@ function PersonSection({ name, subtitle, children }: { name: string; subtitle: s
 // правка 2026-09-10 (см. комментарий в начале файла). Все прочие профили,
 // реально встретившиеся в данных за период, дописываются к списку сами.
 const TRACKED_PEOPLE = ['Светлана', 'Альмира', 'Трэшмен', AUTO_REPLY_SENDER_NAME];
+
+// ИИ-кодер — не профиль в access_profiles и не строка activity_log, поэтому
+// в TRACKED_PEOPLE он не входит: у него отдельный блок и единственный
+// источник (таблица deployments). Имя то же, что у карточки в "Команде"
+// (data/aiAgents.ts, id 'claude-code').
+const AI_CODER_NAME = 'Claude Code';
+
+// Начало истории деплоев: 15 августа 2026 — дальше вглубь Vercel свою
+// историю уже не отдавал в день бэкфилла (2026-09-15), поэтому за более
+// ранние месяцы ноль означает "не сохранилось", а не "не деплоили". Пишем
+// это прямо в блоке, чтобы пустой июль не читался как реальный простой.
+const DEPLOY_HISTORY_START = new Date(2026, 7, 15);
 
 // display_name владельца в профиле — рабочий никнейм ("в платформе имя не
 // меняй", 2026-09-03); на этой странице, которую видит только он сам,
@@ -251,6 +303,7 @@ export function Metrics() {
   const [emails, setEmails] = useState<OutgoingEmailMetric[] | null>(null);
   const [searchJobs, setSearchJobs] = useState<SupplierWebSearchJobMetric[] | null>(null);
   const [autoReplyLog, setAutoReplyLog] = useState<AutoReplyLogMetric[] | null>(null);
+  const [deployments, setDeployments] = useState<DeploymentMetric[] | null>(null);
   const [error, setError] = useState('');
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -258,6 +311,8 @@ export function Metrics() {
 
   const [period, setPeriod] = useState<Period>('today');
   const [customMonth, setCustomMonth] = useState(currentMonthStr());
+
+  const { start, end } = useMemo(() => periodRange(period, customMonth), [period, customMonth]);
 
   // Одна загрузка всех трёх источников — и при открытии страницы, и на каждом
   // тике автообновления. Показанные данные при этом не сбрасываются в null:
@@ -270,16 +325,21 @@ export function Metrics() {
     inFlight.current = true;
     setRefreshing(true);
     try {
-      const [logEntries, offerEmails, jobs, replyLog] = await Promise.all([
+      const [logEntries, offerEmails, jobs, replyLog, deploys] = await Promise.all([
         fetchActivityLog(),
         fetchOutgoingEmailMetrics(),
         fetchSupplierWebSearchJobMetrics(),
         fetchAutoReplyLogMetrics(),
+        // Единственный источник, который тянется не целиком, а диапазоном:
+        // деплоев в день десятки, за всё время их уже тысячи, а нужен всегда
+        // только выбранный период (фильтр inRange ниже всё равно применяется).
+        fetchDeploymentMetrics(start.toISOString()),
       ]);
       setEntries(logEntries);
       setEmails(offerEmails);
       setSearchJobs(jobs);
       setAutoReplyLog(replyLog);
+      setDeployments(deploys);
       setLastUpdatedAt(new Date());
       setError('');
     } catch {
@@ -288,7 +348,7 @@ export function Metrics() {
       inFlight.current = false;
       setRefreshing(false);
     }
-  }, []);
+  }, [start]);
 
   useEffect(() => {
     void load();
@@ -309,7 +369,6 @@ export function Metrics() {
     };
   }, [load]);
 
-  const { start, end } = useMemo(() => periodRange(period, customMonth), [period, customMonth]);
   const inRange = useMemo(() => {
     const startMs = start.getTime();
     const endMs = end.getTime();
@@ -347,6 +406,26 @@ export function Metrics() {
       skipped: rows.filter((r) => r.decision === 'skipped').length,
     };
   }, [autoReplyLog, inRange]);
+
+  // Деплои ИИ-кодера за период. Только успешные (state = 'READY'): именно
+  // столько раз сайт реально обновился. Строки приходят отсортированными по
+  // возрастанию, но последний релиз берём явным максимумом — порядок выборки
+  // не то, на чём стоит держать цифру в отчёте.
+  const deployStats = useMemo(() => {
+    const rows = (deployments ?? []).filter((d) => d.state === 'READY' && inRange(d.deployedAt));
+    const days = new Set(rows.map((d) => new Date(d.deployedAt).toDateString()));
+    const last = rows.reduce<DeploymentMetric | null>(
+      (acc, row) => (!acc || new Date(row.deployedAt) > new Date(acc.deployedAt) ? row : acc),
+      null,
+    );
+    return {
+      total: rows.length,
+      days: days.size,
+      perDay: days.size ? rows.length / days.size : 0,
+      lastAt: last?.deployedAt ?? null,
+      lastMessage: last?.commitMessage ?? '',
+    };
+  }, [deployments, inRange]);
 
   const people: PersonStats[] = useMemo(() => {
     const names = [...TRACKED_PEOPLE];
@@ -387,7 +466,8 @@ export function Metrics() {
     [outgoingEmailsInRange],
   );
 
-  const loading = entries === null || emails === null || searchJobs === null || autoReplyLog === null;
+  const loading =
+    entries === null || emails === null || searchJobs === null || autoReplyLog === null || deployments === null;
 
   return (
     <>
@@ -431,6 +511,51 @@ export function Metrics() {
                 : 'обновление…'}
             </span>
           </div>
+
+          <PersonSection
+            name={AI_CODER_NAME}
+            subtitle="ИИ-кодер: разработка платформы и публикация релизов на прод"
+            icon={
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d97757]/15 text-[#d97757]">
+                <ClaudeLogo className="h-5 w-5" />
+              </span>
+            }
+          >
+            <StatTile
+              label="Деплоев на прод"
+              value={deployStats.total}
+              hint="Успешные сборки, выехавшие на redevelopment.pro"
+            />
+            {/* В периоде "Сегодня" эти две плитки были бы копией первой
+                (дней всегда 1, среднее равно общему числу) — показываем их
+                только там, где в периоде больше одного дня. */}
+            {period !== 'today' && (
+              <>
+                <StatTile
+                  label="Дней с релизами"
+                  value={deployStats.days}
+                  hint="Разных дней периода, когда что-то выезжало"
+                />
+                <StatTile
+                  label="В среднем за день"
+                  value={deployStats.perDay.toLocaleString('ru-RU', { maximumFractionDigits: 1 })}
+                  hint="Считается по дням, когда релизы были"
+                />
+              </>
+            )}
+            <StatTile
+              label="Последний релиз"
+              value={deployStats.lastAt ? formatActivityTime(deployStats.lastAt) : '—'}
+              hint={deployStats.lastMessage || 'За период релизов не было'}
+            />
+          </PersonSection>
+
+          {start < DEPLOY_HISTORY_START && (
+            <p className="text-xs text-ink-faint">
+              Деплои сохраняются с 15 августа 2026 — за более ранние периоды в счётчике ноль потому, что история не
+              сохранилась, а не потому, что релизов не было.
+            </p>
+          )}
 
           {people.map((p) => (
             <PersonSection
