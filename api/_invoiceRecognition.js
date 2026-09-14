@@ -323,3 +323,30 @@ export async function recognizeInvoiceFromAttachments(attachments) {
   }
   return { recognized: null, candidate: null, attempts, skipped: candidates.skipped ?? [] };
 }
+
+// Новая функция для обработки ВСЕХ счётов в письме (2026-09-14).
+// Возвращает массив { recognized, candidate } для каждого найденного счёта.
+// Пробует кандидатов по очереди и ПРОДОЛЖАЕТ поиск даже после нахождения
+// счёта — записывает все найденные счёта сразу (решает проблему в письме
+// от Авангарда с двумя счетами).
+export async function recognizeAllInvoicesFromAttachments(attachments) {
+  const candidates = pickInvoiceCandidates(attachments);
+  const allRecognized = [];
+  const attempts = [];
+
+  for (const candidate of candidates) {
+    try {
+      const recognized = await recognizeInvoice(candidate.url, candidate.fileName);
+      if (recognized.isInvoice) {
+        allRecognized.push({ recognized, candidate });
+        attempts.push({ fileName: candidate.fileName, outcome: 'счёт' });
+      } else {
+        attempts.push({ fileName: candidate.fileName, outcome: 'модель не считает это счётом' });
+      }
+    } catch (err) {
+      console.error('Не удалось распознать вложение как счёт:', candidate.fileName, err);
+      attempts.push({ fileName: candidate.fileName, outcome: `ошибка: ${err instanceof Error ? err.message : String(err)}`.slice(0, 300) });
+    }
+  }
+  return { allRecognized, attempts, skipped: candidates.skipped ?? [] };
+}

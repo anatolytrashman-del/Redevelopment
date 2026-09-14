@@ -40,7 +40,7 @@
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { extractEmailAttachments, fetchReceivedEmailBody } from './_attachments.js';
-import { recognizeInvoiceFromAttachments } from './_invoiceRecognition.js';
+import { recognizeInvoiceFromAttachments, recognizeAllInvoicesFromAttachments } from './_invoiceRecognition.js';
 import { applyRecognizedInvoice } from './_invoiceApply.js';
 import { saveReliabilityIfNew } from './_checko.js';
 
@@ -435,10 +435,15 @@ export default async function handler(req, res) {
     // ищется по всем вложениям. Многостраничные каталоги до модели
     // по-прежнему не долетают, деньги не тратятся.
     //
+    // 2026-09-14: теперь обрабатываем ВСЕ счёты в письме, а не только первый
+    // (реальный случай: письмо от Авангарда с двумя счетами на разные
+    // материалы).
+    //
     // Сбой распознавания не должен ронять сохранение самого письма —
     // оборачиваем в try/catch, extraction просто остаётся null.
     let extraction = null;
     let recognizedInvoice = null;
+    let recognizedInvoicesData = null;
     if (offerId) {
       // status:'none' — "пробовали, счёта не нашли". Раньше при неудаче в
       // письме не оставалось НИЧЕГО, и вопрос владельца "почему обычный счёт
@@ -460,29 +465,36 @@ export default async function handler(req, res) {
         ...extra,
       });
       try {
-        const result = await recognizeInvoiceFromAttachments(attachments);
-        if (result.recognized) {
-          recognizedInvoice = result;
-          const { recognized, candidate } = result;
+        // 2026-09-14: находим ВСЕ счёты в письме, не только первый.
+        // Реальный случай (письмо от Авангарда): два счёта на разных видах
+        // материалов в одном письме, но при обработке записывался только первый.
+        const result = await recognizeAllInvoicesFromAttachments(attachments);
+        recognizedInvoicesData = result;
+        if (result.allRecognized && result.allRecognized.length > 0) {
+          // Сохраняем ПЕРВЫЙ счёт в extraction для совместимости с фронтом
+          // (он ожидает один счёт). Все остальные обрабатываются отдельно
+          // в цикле ниже (см. applyRecognizedInvoice для каждого).
+          const [firstInvoice, ...restInvoices] = result.allRecognized;
+          recognizedInvoice = firstInvoice;
+          const { recognized, candidate } = firstInvoice;
           extraction = {
             status: 'pending',
             ...recognized,
             sourceFile: { url: candidate.url, fileName: candidate.fileName },
             recognizedAt: new Date().toISOString(),
+            // Если счётов больше одного — сохраняем информацию об остальных
+            // для диагностики (видно в переписке и в логах).
+            ...(restInvoices.length > 0 && {
+              additionalInvoices: restInvoices.map(({ recognized, candidate }) => ({
+                ...recognized,
+                sourceFile: { url: candidate.url, fileName: candidate.fileName },
+              })),
+            }),
           };
-          // Владелец, 2026-09-12: "как только поставщик присылает счет в
-          // первый раз с новым ИНН, проверка должна автоматически
-          // запускаться и выводить на карточке поставщика" — запускаем
-          // ЗДЕСЬ, на приёме письма, а не при подтверждении распознавания
-          // закупщицей: к моменту, когда она откроет карточку, результат уже
-          // должен лежать в базе, иначе "автоматически" превращается в
-          // "после того, как я нажму подтвердить".
-          //
-          // Проверка привязана к ИНН, а не к предложению, поэтому её можно
-          // сохранять ещё до того, как закупщица примет счёт: строка в
-          // supplier_reliability ни на что не влияет, пока у предложения не
-          // появится тот же inn.
-          await saveReliabilityIfNew(recognized.supplierInn);
+          // Проверка благонадёжности для ВСЕ найденных счётов
+          for (const invoice of result.allRecognized) {
+            await saveReliabilityIfNew(invoice.recognized.supplierInn);
+          }
         } else if (result.attempts.length > 0 || result.skipped.length > 0) {
           extraction = emptyExtraction({ attempts: result.attempts, skipped: result.skipped });
         }
@@ -534,7 +546,7 @@ export default async function handler(req, res) {
           resend_message_id: data.email_id ?? data.id ?? null,
         });
 
-    // Запись распознанного счёта в карточку поставщика/заявку — СРАЗУ, не
+    // Запись распознанных счётов в карточку поставщика/заявку — СРАЗУ, не
     // дожидаясь, пока закупщица откроет письмо и нажмёт "Подтвердить"
     // (владелец, 2026-09-12: "мне нужно автоматическое распознавание счетов
     // и запись в базу ещё до открытия письма нами вручную"). Делается уже
@@ -542,29 +554,38 @@ export default async function handler(req, res) {
     // порядок такой безопаснее: если запись в карточку сорвётся, письмо со
     // своим распознаванием всё равно на месте и останется старый ручной
     // путь (extraction.status:'pending' — кнопка в переписке).
-    if (recognizedInvoice && row?.id) {
-      try {
-        const applied = await applyRecognizedInvoice({
-          emailId: row.id,
-          offerId,
-          orderId,
-          subject,
-          recognized: recognizedInvoice.recognized,
-          sourceFile: extraction.sourceFile,
-        });
-        // status:'confirmed' — данные реально в базе, ровно то же состояние,
-        // что после ручного подтверждения (старый фронт, пока релиз не
-        // опубликован, поймёт его правильно и покажет "Данные в базе").
-        // appliedAutomatically отличает автозапись от ручной: только для неё
-        // в переписке показывается карточка "записано автоматически" с
-        // возможностью сверить позиции и откатить.
-        extraction = { ...extraction, status: 'confirmed', appliedAutomatically: true, applied };
+    //
+    // 2026-09-14: обрабатываем ВСЕ найденные счёты, а не только первый.
+    if (recognizedInvoicesData?.allRecognized && recognizedInvoicesData.allRecognized.length > 0 && row?.id) {
+      const allApplied = [];
+      for (const invoice of recognizedInvoicesData.allRecognized) {
+        try {
+          const applied = await applyRecognizedInvoice({
+            emailId: row.id,
+            offerId,
+            orderId,
+            subject,
+            recognized: invoice.recognized,
+            sourceFile: { url: invoice.candidate.url, fileName: invoice.candidate.fileName },
+          });
+          allApplied.push(applied);
+        } catch (err) {
+          console.error(`Не удалось записать счёт ${invoice.candidate.fileName} в карточку (письмо сохранено, останется ручное подтверждение):`, err);
+        }
+      }
+      // Обновляем extraction со статусом 'confirmed' и информацией о том,
+      // что счёты были обработаны автоматически.
+      if (allApplied.length > 0) {
+        extraction = {
+          ...extraction,
+          status: 'confirmed',
+          appliedAutomatically: true,
+          applied: allApplied.length === 1 ? allApplied[0] : allApplied,
+        };
         // Только supplier_offer_emails: распознавание запускается лишь при
         // offerId (см. выше), в переписке по закупкам счетов не разбираем.
         await updateEmailExtraction('supplier_offer_emails', row.id, extraction);
         row.extraction = extraction;
-      } catch (err) {
-        console.error('Не удалось записать распознанный счёт в карточку (письмо сохранено, останется ручное подтверждение):', err);
       }
     }
 
