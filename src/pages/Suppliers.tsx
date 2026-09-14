@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Check, ChevronDown, ExternalLink, FileText, Globe, ImageOff, Loader2, Mail, MessageCircle, Paperclip, Pencil, Phone, Plus, Search, Send, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, Bot, Check, ChevronDown, ExternalLink, FileText, Globe, ImageOff, Loader2, Mail, MessageCircle, Paperclip, Pencil, Phone, Plus, Search, Send, Trash2, Upload, X } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -71,6 +71,9 @@ import { SupplierCatalog } from '../components/suppliers/SupplierCatalog';
 import type { LedgerAttachment } from '../lib/materialLedgerXlsx';
 import type { EmailTemplate } from '../data/emailTemplates';
 import { fetchEmailTemplates } from '../lib/emailTemplatesApi';
+import type { EmailAutoReplyLogEntry, EmailAutoReplyRule, EmailAutoReplySettings } from '../data/emailAutoReply';
+import { fetchEmailAutoReplyRules, fetchEmailAutoReplySettings, fetchPendingAutoReplies } from '../lib/emailAutoReplyApi';
+import { AutoReplyRulesModal } from '../components/suppliers/AutoReplyRules';
 import type { MaterialLedger } from '../data/materialLedgers';
 import { fetchMaterialLedgers, deleteMaterialLedger } from '../lib/materialLedgersApi';
 import { buildMasterLedgers, isMasterLedgerId } from '../lib/masterLedger';
@@ -1767,6 +1770,14 @@ export function Suppliers() {
   // Шаблоны писем поставщикам (EMAIL_CORRESPONDENCE_PLAN.md, этап 3) — тот
   // же принцип "один источник правды на странице", что и у supplierEmails.
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
+  // Автоответы (владелец, 2026-09-14). Разбирает письма не приложение, а
+  // почасовая Claude-сессия (см. data/emailAutoReply.ts) — здесь только
+  // настройки ситуаций и черновики, которые она предложила.
+  const [autoReplyRules, setAutoReplyRules] = useState<EmailAutoReplyRule[]>([]);
+  const [autoReplySettings, setAutoReplySettings] = useState<EmailAutoReplySettings>({ enabled: false, minDelayMinutes: 20 });
+  const [autoReplyLoading, setAutoReplyLoading] = useState(true);
+  const [autoRepliesModalOpen, setAutoRepliesModalOpen] = useState(false);
+  const [pendingAutoReplies, setPendingAutoReplies] = useState<EmailAutoReplyLogEntry[]>([]);
   // Ведомости материалов (владелец, 2026-09-03) — тот же принцип, что и у
   // шаблонов писем: пресеты не привязаны к конкретному поставщику/запросу,
   // один источник на всю страницу.
@@ -1914,6 +1925,16 @@ export function Suppliers() {
     fetchAllSupplierOfferEmails().then(setSupplierEmails).catch(() => setSupplierEmails([]));
     fetchAllWorkContractorEmails().then(setContractorEmails).catch(() => setContractorEmails([]));
     fetchEmailTemplates().then(setEmailTemplates).catch(() => setEmailTemplates([]));
+    Promise.all([fetchEmailAutoReplyRules(), fetchEmailAutoReplySettings()])
+      .then(([rules, settings]) => {
+        setAutoReplyRules(rules);
+        setAutoReplySettings(settings);
+      })
+      .catch(() => {
+        setAutoReplyRules([]);
+      })
+      .finally(() => setAutoReplyLoading(false));
+    fetchPendingAutoReplies().then(setPendingAutoReplies).catch(() => setPendingAutoReplies([]));
     fetchMaterialLedgers().then(setMaterialLedgers).catch(() => setMaterialLedgers([]));
     fetchSupplierOrders().then(setSupplierOrders).catch(() => setSupplierOrders([]));
     fetchSupplierQuotes().then(setSupplierQuotes).catch(() => setSupplierQuotes([]));
@@ -2023,6 +2044,14 @@ export function Suppliers() {
 
   function handleEmailTemplateSaved(template: EmailTemplate) {
     setEmailTemplates((prev) => (prev.some((t) => t.id === template.id) ? prev.map((t) => (t.id === template.id ? template : t)) : [...prev, template]));
+  }
+
+  // Черновик автоответа разобран (отправлен/перенесён в форму/отклонён) —
+  // убираем из очереди на проверку. Перезапрашивать список целиком незачем:
+  // новые черновики появляются не от действий пользователя, а раз в час,
+  // от внешней сессии, и подхватятся при следующей загрузке страницы.
+  function handleAutoReplyReviewed(id: string) {
+    setPendingAutoReplies((prev) => prev.filter((d) => d.id !== id));
   }
 
   function objectLabel(objectId: string): string {
@@ -2985,9 +3014,14 @@ export function Suppliers() {
         {/* Владелец, 2026-09-04: "перенеси Шаблоны направо, на уровень меню
             Поставщики/Письма, но видна только когда открываешь Письма". */}
         {tab === 'Письма' && (
-          <Button type="button" variant="secondary" icon={<FileText className="h-4 w-4" />} onClick={() => setTemplatesModalOpen(true)}>
-            Шаблоны
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="secondary" icon={<Bot className="h-4 w-4" />} onClick={() => setAutoRepliesModalOpen(true)}>
+              Автоответы
+            </Button>
+            <Button type="button" variant="secondary" icon={<FileText className="h-4 w-4" />} onClick={() => setTemplatesModalOpen(true)}>
+              Шаблоны
+            </Button>
+          </div>
         )}
       </div>
 
@@ -3408,6 +3442,8 @@ export function Suppliers() {
             onOrdersChange={setSupplierOrders}
             onQuotesChange={setSupplierQuotes}
             onEmailUpdated={handleSupplierEmailUpdated}
+            pendingAutoReplies={pendingAutoReplies}
+            onAutoReplyReviewed={handleAutoReplyReviewed}
           />
         </div>
       )}
@@ -3890,6 +3926,8 @@ export function Suppliers() {
               onOfferUpdated={handleSupplierOfferUpdated}
               onEmailUpdated={handleSupplierEmailUpdated}
               onQuotesChange={setSupplierQuotes}
+              pendingAutoReplies={pendingAutoReplies}
+              onAutoReplyReviewed={handleAutoReplyReviewed}
               onClose={() => setEmailOfferId(null)}
             />
           );
@@ -4091,6 +4129,17 @@ export function Suppliers() {
         />
       )}
 
+      <AutoReplyRulesModal
+        open={autoRepliesModalOpen}
+        rules={autoReplyRules}
+        settings={autoReplySettings}
+        requests={requests}
+        loading={autoReplyLoading}
+        onClose={() => setAutoRepliesModalOpen(false)}
+        onRulesChange={setAutoReplyRules}
+        onSettingsChange={setAutoReplySettings}
+      />
+
       {bulkSendConfig && (
         <BulkSendModal
           request={bulkSendConfig.request}
@@ -4130,6 +4179,8 @@ function OfferEmailModal({
   reliabilityByInn,
   onEmailUpdated,
   onQuotesChange,
+  pendingAutoReplies,
+  onAutoReplyReviewed,
   onClose,
 }: {
   offer: SupplierOffer;
@@ -4149,6 +4200,8 @@ function OfferEmailModal({
   reliabilityByInn: Map<string, SupplierReliability>;
   onEmailUpdated: (email: SupplierOfferEmail) => void;
   onQuotesChange: (update: (prev: SupplierQuote[]) => SupplierQuote[]) => void;
+  pendingAutoReplies: EmailAutoReplyLogEntry[];
+  onAutoReplyReviewed: (id: string) => void;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -4185,6 +4238,8 @@ function OfferEmailModal({
         onOrderUpdated={() => {}}
         onEmailUpdated={onEmailUpdated}
         onQuotesChange={onQuotesChange}
+        pendingAutoReplies={pendingAutoReplies}
+        onAutoReplyReviewed={onAutoReplyReviewed}
       />
     </Modal>
   );

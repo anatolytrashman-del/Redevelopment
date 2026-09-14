@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply, FileSearch, CheckCircle2, Eye, FileSpreadsheet, X, Plus, Users, Clock, AlertTriangle } from 'lucide-react';
+import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply, FileSearch, CheckCircle2, Eye, FileSpreadsheet, X, Plus, Users, Clock, AlertTriangle, Bot } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -41,6 +41,9 @@ import { currencies, type Currency } from '../../data/transactions';
 import type { PurchaseItem } from '../../data/purchases';
 import type { SupplierQuote } from '../../data/supplierQuotes';
 import { insertSupplierQuote, updateSupplierQuoteItems, deleteSupplierQuote } from '../../lib/supplierQuotesApi';
+import type { EmailAutoReplyLogEntry } from '../../data/emailAutoReply';
+import { AUTO_REPLY_SENDER_NAME } from '../../data/emailAutoReply';
+import { markAutoReplyReviewed } from '../../lib/emailAutoReplyApi';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -569,6 +572,8 @@ export function EmailThread({
   onOrderUpdated,
   onEmailUpdated,
   onQuotesChange,
+  pendingAutoReplies,
+  onAutoReplyReviewed,
 }: {
   offer: SupplierOffer;
   // Владелец, 2026-09-03: "1 заявка на поставку — одна ветка" — null здесь
@@ -596,6 +601,12 @@ export function EmailThread({
   onOrderUpdated: (order: SupplierOrder) => void;
   onEmailUpdated: (email: SupplierOfferEmail) => void;
   onQuotesChange: (update: (prev: SupplierQuote[]) => SupplierQuote[]) => void;
+  // Черновики автоответов, ждущие решения человека — ВСЕ сразу (страница
+  // держит один список на всю вкладку, как и письма), компонент сам
+  // отбирает свои по emailId. Писем этого треда среди них может не быть
+  // вовсе — тогда ничего и не рисуется.
+  pendingAutoReplies: EmailAutoReplyLogEntry[];
+  onAutoReplyReviewed: (id: string) => void;
 }) {
   // Письма именно текущего треда — основной переписки (order=null) или
   // конкретной заявки. e.orderId null и undefined тут не разводим, в базе
@@ -698,6 +709,10 @@ export function EmailThread({
   // распознавания (была здесь, убрана владельцем 2026-09-03 — см. комментарий
   // выше про isValidCurrency: автоматика справляется сама).
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null);
+  // Черновик автоответа: какой сейчас отправляется/отклоняется (блокируем
+  // повторные клики) и ошибка последнего действия.
+  const [autoReplyBusyId, setAutoReplyBusyId] = useState<string | null>(null);
+  const [autoReplyError, setAutoReplyError] = useState<string | null>(null);
   const [extractionError, setExtractionError] = useState<string | null>(null);
   const [applyingExtraction, setApplyingExtraction] = useState(false);
   // Владелец, 2026-09-03: "давай зашивать лучшие цены на позиции... давай
@@ -750,6 +765,88 @@ export function EmailThread({
     const rendered = renderEmailTemplate(template, { offer, request });
     setSubject(rendered.subject);
     setBody(rendered.body);
+  }
+
+  // Черновики ИИ-закупщика, относящиеся именно к этому треду. Привязка —
+  // к ВХОДЯЩЕМУ письму, на которое предложен ответ (email_auto_reply_log.
+  // email_id), поэтому и фильтруем по письмам треда, а не по офферу: у
+  // поставщика может быть несколько веток (доп. заявки), черновик должен
+  // висеть только в своей.
+  const threadDrafts = useMemo(() => {
+    if (pendingAutoReplies.length === 0) return [];
+    const ids = new Set(threadEmails.map((e) => e.id));
+    return pendingAutoReplies.filter((d) => ids.has(d.emailId));
+  }, [pendingAutoReplies, threadEmails]);
+
+  // Тема ответа: правило могло не задавать свою (тогда в черновике пусто) —
+  // отвечаем в тему исходного письма, как и обычная кнопка "Ответить".
+  function draftSubjectFor(draft: EmailAutoReplyLogEntry): string {
+    if (draft.draftSubject.trim()) return draft.draftSubject;
+    const source = threadEmails.find((e) => e.id === draft.emailId);
+    return source ? buildQuotedReply(source).subject : '';
+  }
+
+  async function handleSendDraft(draft: EmailAutoReplyLogEntry) {
+    if (!offer.email || autoReplyBusyId) return;
+    setAutoReplyBusyId(draft.id);
+    setAutoReplyError(null);
+    try {
+      // Тот же путь, что и у обычного письма из формы — отдельного
+      // "серверного" способа отправки у черновиков нет: человек нажал
+      // кнопку, значит письмо уходит от него, как любое другое.
+      const email = await sendSupplierOfferEmail({
+        offerId: offer.id,
+        orderId: order?.id ?? null,
+        toAddress: offer.email,
+        subject: draftSubjectFor(draft),
+        body: draft.draftBody,
+      });
+      onEmailSent(email);
+      await markAutoReplyReviewed(draft.id, 'sent');
+      onAutoReplyReviewed(draft.id);
+    } catch (err) {
+      setAutoReplyError(errorMessage(err, 'Не удалось отправить ответ'));
+    } finally {
+      setAutoReplyBusyId(null);
+    }
+  }
+
+  // "Изменить" — черновик переезжает в обычную форму ответа и перестаёт
+  // висеть карточкой: дальше это обычное письмо, которое пишет человек.
+  // Сам текст никуда не пропадает и в случае сбоя отметки — он уже в форме,
+  // а в логе решений строка остаётся навсегда.
+  async function handleEditDraft(draft: EmailAutoReplyLogEntry) {
+    if (autoReplyBusyId) return;
+    setAutoReplyBusyId(draft.id);
+    setAutoReplyError(null);
+    setSubject(draftSubjectFor(draft));
+    setBody(draft.draftBody);
+    setComposerOpen(true);
+    requestAnimationFrame(() => {
+      composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    });
+    try {
+      await markAutoReplyReviewed(draft.id, 'edited');
+      onAutoReplyReviewed(draft.id);
+    } catch (err) {
+      setAutoReplyError(errorMessage(err, 'Текст перенесён в форму, но черновик не удалось убрать из очереди'));
+    } finally {
+      setAutoReplyBusyId(null);
+    }
+  }
+
+  async function handleRejectDraft(draft: EmailAutoReplyLogEntry) {
+    if (autoReplyBusyId) return;
+    setAutoReplyBusyId(draft.id);
+    setAutoReplyError(null);
+    try {
+      await markAutoReplyReviewed(draft.id, 'rejected');
+      onAutoReplyReviewed(draft.id);
+    } catch (err) {
+      setAutoReplyError(errorMessage(err, 'Не удалось отклонить черновик'));
+    } finally {
+      setAutoReplyBusyId(null);
+    }
   }
 
   function handleReplyTo(e: SupplierOfferEmail) {
@@ -1157,6 +1254,56 @@ export function EmailThread({
           //     ленте он вылезал за сжатого min-h-0 родителя и налезал на
           //     композер (проверено на макете со скомпилированным CSS).
           <div className="flex flex-col gap-2 roomy:min-h-0 roomy:flex-1 roomy:overflow-y-auto">
+            {/* Предложенный ИИ-закупщиком ответ — над лентой, рядом с самым
+                свежим письмом (лента идёт от новых к старым). Это ещё не
+                письмо: ничего никуда не ушло, пока человек не нажал
+                "Отправить". Правила с режимом "Отправлять автоматически"
+                сюда не попадают вовсе — там ответ уже в ленте, обычным
+                исходящим письмом с подписью ИИ-закупщика. */}
+            {autoReplyError && <p className="text-sm text-danger">{autoReplyError}</p>}
+            {threadDrafts.map((draft) => (
+              <div key={draft.id} className="flex flex-col gap-2 rounded-control border border-primary/40 bg-primary/5 p-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+                  <span className="flex items-center gap-1 font-semibold text-ink">
+                    <Bot className="h-3.5 w-3.5" />
+                    ИИ-закупщик предлагает ответ
+                  </span>
+                  {draft.ruleName && <span>· ситуация «{draft.ruleName}»</span>}
+                  <span className="ml-auto">{new Date(draft.createdAt).toLocaleString('ru-RU')}</span>
+                </div>
+                {draft.reason && <div className="text-xs text-ink-faint">Почему так решил: {draft.reason}</div>}
+                {draftSubjectFor(draft) && <div className="font-semibold text-ink">{draftSubjectFor(draft)}</div>}
+                <div className="whitespace-pre-wrap text-ink">{draft.draftBody}</div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    icon={<Send className="h-4 w-4" />}
+                    disabled={autoReplyBusyId === draft.id || !offer.email}
+                    onClick={() => handleSendDraft(draft)}
+                  >
+                    {autoReplyBusyId === draft.id ? 'Отправляем...' : 'Отправить'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon={<Reply className="h-4 w-4" />}
+                    disabled={autoReplyBusyId === draft.id}
+                    onClick={() => handleEditDraft(draft)}
+                  >
+                    Изменить
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon={<X className="h-4 w-4" />}
+                    disabled={autoReplyBusyId === draft.id}
+                    onClick={() => handleRejectDraft(draft)}
+                  >
+                    Отклонить
+                  </Button>
+                </div>
+              </div>
+            ))}
             {/* Владелец, 2026-09-03: "когда много писем, приходится листать в
                 самый низ... я бы делал обратную хронологию — последнее письмо
                 наверху" — [...emails] копия перед reverse(), исходный emails
@@ -1201,13 +1348,24 @@ export function EmailThread({
                       <AlertTriangle className="h-3 w-3" />
                     )}
                     {e.direction === 'out' ? emailSendStatusLabel[e.sendStatus] : 'Получено'}
+                    {e.direction === 'out' && e.sentByName === AUTO_REPLY_SENDER_NAME && (
+                      <span className="flex items-center gap-1 text-ink-faint">
+                        <Bot className="h-3 w-3" />
+                        автоответ
+                      </span>
+                    )}
                   </span>
                   <span>{new Date(e.createdAt).toLocaleString('ru-RU')}</span>
                 </div>
                 {e.direction === 'out' && e.sendStatus === 'queued' && (
                   <div className="text-xs text-ink-faint">
-                    Почта временно недоступна — письмо уйдёт само, как только отправка заработает.
-                    {e.sendError ? ` Причина: ${e.sendError}` : ''}
+                    {/* Автоответ ВСЕГДА уходит через очередь (его ставит не
+                        браузер, а почасовая сессия — см. SQL-функцию
+                        auto_reply_apply), поэтому "в очереди" у него значит
+                        просто "вот-вот уйдёт", а не поломку почты. */}
+                    {e.sentByName === AUTO_REPLY_SENDER_NAME && !e.sendError
+                      ? 'Автоответ поставлен в очередь — уйдёт в ближайшую минуту.'
+                      : `Почта временно недоступна — письмо уйдёт само, как только отправка заработает.${e.sendError ? ` Причина: ${e.sendError}` : ''}`}
                   </div>
                 )}
                 {e.direction === 'out' && e.sendStatus === 'failed' && (
@@ -1973,6 +2131,8 @@ export function SupplierCorrespondenceTab({
   onOrdersChange,
   onEmailUpdated,
   onQuotesChange,
+  pendingAutoReplies,
+  onAutoReplyReviewed,
 }: {
   requests: SupplierRequest[];
   offers: SupplierOffer[];
@@ -2008,6 +2168,10 @@ export function SupplierCorrespondenceTab({
   onOrdersChange: (orders: SupplierOrder[]) => void;
   onEmailUpdated: (email: SupplierOfferEmail) => void;
   onQuotesChange: (update: (prev: SupplierQuote[]) => SupplierQuote[]) => void;
+  // Черновики автоответов на проверку — грузятся один раз на странице
+  // (Suppliers.tsx), тут только проброс в открытый тред.
+  pendingAutoReplies: EmailAutoReplyLogEntry[];
+  onAutoReplyReviewed: (id: string) => void;
 }) {
   // Владелец, 2026-09-04: "сидишь на странице конкретной переписки,
   // обновляешь — и всё слетело... кастомный урл даже на переписки с
@@ -2450,6 +2614,8 @@ export function SupplierCorrespondenceTab({
                 onOrderUpdated={handleOrderUpdated}
                 onEmailUpdated={onEmailUpdated}
                 onQuotesChange={onQuotesChange}
+                pendingAutoReplies={pendingAutoReplies}
+                onAutoReplyReviewed={onAutoReplyReviewed}
               />
             </div>
           )}
