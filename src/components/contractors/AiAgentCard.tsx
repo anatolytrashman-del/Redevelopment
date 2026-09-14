@@ -1,20 +1,35 @@
 import { Bot, Check, Clock } from 'lucide-react';
 import { ClaudeLogo } from './ClaudeLogo';
 import type { AiAgent } from '../../data/aiAgents';
-import { formatActivityTime, type AiAgentActivity } from '../../lib/aiAgentsApi';
+import { formatActivityTime, getAiAgentStatus, type AiAgentActivity } from '../../lib/aiAgentsApi';
 import { Badge } from '../ui/Badge';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 
+// Цвет кружка и подписи под каждый статус. Онлайн пульсирует — это единственный
+// статус, где что-то прямо сейчас происходит.
+const statusStyles = {
+  online: { text: 'text-success', dot: 'bg-emerald-500 animate-pulse' },
+  idle: { text: 'text-ink-muted', dot: 'bg-ink-faint' },
+  down: { text: 'text-danger', dot: 'bg-danger' },
+} as const;
+
 // Карточка ИИ-агента в "Команде" — та же геометрия и стекло, что у
-// ContractorCard, но без контактов: у агента их нет, вместо них статус
-// "Онлайн" (агенты крутятся кроном/очередями круглосуточно, см.
-// data/aiAgents.ts), последняя выполненная задача (владелец, 2026-09-14:
-// "сделай время последней выполненной задачи агента" — из RPC
-// ai_agents_last_activity, см. lib/aiAgentsApi.ts) и список задач.
-// Не кликабельна — редактировать нечего.
+// ContractorCard, но без контактов: у агента их нет, вместо них статус,
+// последняя выполненная задача (владелец, 2026-09-14: "сделай время последней
+// выполненной задачи агента" — из RPC ai_agents_last_activity, см.
+// lib/aiAgentsApi.ts) и список задач. Не кликабельна — редактировать нечего.
+//
+// Статус считается, а не рисуется константой (владелец, 2026-09-14: "сделай
+// отсчёт онлайна от реальной функции, которая заявлена для агента"): берём
+// время последней задачи этого агента и сверяем с heartbeat из
+// data/aiAgents.ts — как часто заявленная функция обязана срабатывать.
+// Страница перечитывает активность раз в минуту (см. Contractors.tsx),
+// поэтому статус протухает сам, без перезагрузки.
 export function AiAgentCard({ agent, activity: liveActivity }: { agent: AiAgent; activity?: AiAgentActivity | null }) {
   const activity = liveActivity ?? agent.staticActivity ?? null;
+  const status = getAiAgentStatus(agent.heartbeat, activity);
+  const statusStyle = statusStyles[status.tone];
   return (
     <div className={cn('flex w-full flex-col gap-2 p-4', glassCardClass)} style={glassCardShadow}>
       <div className="flex min-w-0 items-center gap-2.5">
@@ -39,9 +54,9 @@ export function AiAgentCard({ agent, activity: liveActivity }: { agent: AiAgent;
           <div className="truncate text-sm text-ink-muted">{agent.role}</div>
         </div>
       </div>
-      <div className="flex items-center gap-1.5 text-sm font-medium text-success">
-        <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
-        Онлайн
+      <div className={cn('flex items-center gap-1.5 text-sm font-medium', statusStyle.text)} title={status.hint}>
+        <span className={cn('h-2 w-2 shrink-0 rounded-full', statusStyle.dot)} />
+        {status.label}
       </div>
       {activity && (
         <div
