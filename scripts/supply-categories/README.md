@@ -36,7 +36,7 @@ set status='pending', attempts=0 where host='…'`. Модели здесь не
 теперь так:
 
 ```bash
-node scripts/supply-categories/review.mjs next --limit=10   # выгрузить пачку
+node scripts/supply-categories/review.mjs next                # выгрузить пачку (5 по умолчанию)
 #   → out/review-batch.json: верифицированные поставщики первыми, в порядке
 #     каталога; полное дерево разделов с путями; текущие группы («было»).
 #     Компания с несколькими доменами идёт целиком.

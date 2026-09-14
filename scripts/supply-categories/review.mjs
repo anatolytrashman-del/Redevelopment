@@ -100,7 +100,11 @@ function sectionTree(sections, host) {
 }
 
 async function next() {
-  const limit = Number(named.limit ?? 10);
+  // Владелец, 2026-09-14 (после того как выборка из 5 карточек contact_source
+  // 'ai-research-2026-09' нашла 2 ошибки): «сократи очередь новой верификации
+  // до 5 поставщиков» — пачки поменьше держат внимание на каждом конкретном
+  // кейсе при дообучении. Было 10 (пачка №1).
+  const limit = Number(named.limit ?? 5);
   const explicit = typeof named.hosts === 'string' ? named.hosts.split(',').map((h) => h.trim().toLowerCase()).filter(Boolean) : [];
   const where = explicit.length ? `and s.host in (${explicit.map(lit).join(', ')})` : 'and not s.categories_verified';
   const rows = await query(`
