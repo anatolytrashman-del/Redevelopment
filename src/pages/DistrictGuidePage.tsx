@@ -36,6 +36,7 @@ import {
   PawPrint,
   Phone,
   Scissors,
+  Send,
   ShieldCheck,
   ShoppingBag,
   ShoppingBasket,
@@ -304,6 +305,20 @@ const trafficHighlights: { label: string; text: string }[] = [
   {
     label: 'Заселение ТЦ и запуск Финансового центра.',
     text: 'Avia Mall уже открыт, но ещё заселяется арендаторами, а Международный финансовый центр пока строится. Это станет дополнительной точкой притяжения и даст району ещё один буст.',
+  },
+];
+
+// Партнёрские телеграм-каналы района (владелец, 2026-09-14) — отдельная
+// однострочная карточка между "Целевой аудиторией" и "Генераторами
+// трафика". Список открытый: по мере появления партнёров дописывать сюда,
+// карточка сама рисует по строке на канал. `verified` — зелёная плашка
+// "Проверенный канал" (стиль тот же, что у пометки свежести в хиро:
+// text-[#0f6b3d] вместо text-success из-за контраста, см. комментарий там).
+const districtTelegramChannels: { handle: string; description: string; verified: boolean }[] = [
+  {
+    handle: 'minskmir',
+    description: 'Живой тематический чат на 10 000+ жителей района',
+    verified: true,
   },
 ];
 
@@ -1948,6 +1963,35 @@ export function DistrictGuidePage() {
             loading="lazy"
             className="hidden h-auto w-36 shrink-0 self-center sm:block"
           />
+        </div>
+
+        <div id="telegram" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
+          <div className="flex items-center gap-3">
+            <Send className="h-5 w-5 shrink-0 text-ink" />
+            <h2 className="text-lg font-bold text-ink">Главные телеграм-каналы района</h2>
+          </div>
+          <ul className="flex flex-col gap-2">
+            {districtTelegramChannels.map(({ handle, description, verified }) => (
+              <li key={handle} className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-ink-muted">
+                <a
+                  href={`https://t.me/${handle}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 font-semibold text-ink hover:underline"
+                >
+                  @{handle}
+                  <ExternalLink className="h-3 w-3 shrink-0" />
+                </a>
+                <span>{description}</span>
+                {verified && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success-bg px-3 py-1 text-xs font-semibold text-[#0f6b3d]">
+                    <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
+                    Проверенный канал
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
 
         <div id="traffic" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
