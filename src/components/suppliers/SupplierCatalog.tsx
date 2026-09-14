@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronRight, Search } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -12,6 +12,7 @@ import {
   type SupplierCatalogCategory,
   type SupplierCatalogHub,
 } from '../../data/supplierCatalog';
+import { fetchSupplyCategories, type SupplyCategoryDto } from '../../lib/supplyCategoriesApi';
 import {
   countryFlag,
   supplierWebsiteHost,
@@ -81,13 +82,29 @@ function offerGroups(o: SupplierOffer, snapshotByHost: Map<string, SupplierSiteS
 // закупки) в приоритете, иначе первая категория, чья товарная группа есть
 // на снимке сайта, иначе сырое название строки закупки (услуги вроде «ЭДО»,
 // не входящие в каталог).
-function catalogLabelFor(o: SupplierOffer, requestTitleById: Map<string, string>, snapshotByHost: Map<string, SupplierSiteSnapshot>): string {
+function catalogLabelFor(
+  o: SupplierOffer,
+  requestTitleById: Map<string, string>,
+  snapshotByHost: Map<string, SupplierSiteSnapshot>,
+  extraGroupsByTile: Map<string, string[]>,
+): string {
   const title = requestTitleById.get(o.requestId) ?? '';
   const home = findCatalogCategory(title);
   if (home) return home.name;
   const groups = offerGroups(o, snapshotByHost);
-  const bySite = SUPPLIER_CATALOG_CATEGORIES.find((c) => c.supplyGroups.some((g) => groups.includes(g)));
+  const bySite = SUPPLIER_CATALOG_CATEGORIES.find((c) =>
+    tileGroups(c, extraGroupsByTile).some((g) => groups.includes(g)),
+  );
   return bySite?.name ?? title ?? '—';
+}
+
+// Товарные группы плитки = зашитые в код + заведённые в базе на эту же
+// плитку (см. lib/supplyCategoriesApi.ts). Складываем, а не заменяем:
+// недоступная база должна означать «каталог как раньше», а не «каталог
+// опустел».
+function tileGroups(category: SupplierCatalogCategory, extraGroupsByTile: Map<string, string[]>): string[] {
+  const extra = extraGroupsByTile.get(category.name);
+  return extra && extra.length > 0 ? [...category.supplyGroups, ...extra] : category.supplyGroups;
 }
 
 export function SupplierCatalog({
@@ -116,11 +133,33 @@ export function SupplierCatalog({
 
   const requestTitleById = useMemo(() => new Map(requests.map((r) => [r.id, r.title])), [requests]);
 
+  // Справочник из базы — чтобы группа, найденная при верификации живого
+  // поставщика, попадала в свою плитку сразу, без ожидания публикации кода
+  // (владелец, 2026-09-14). Ошибку глотаем молча: каталог тогда показывает
+  // ровно то же, что показывал бы без базы, — группы из кода.
+  const [dbCategories, setDbCategories] = useState<SupplyCategoryDto[]>([]);
+  useEffect(() => {
+    fetchSupplyCategories()
+      .then(setDbCategories)
+      .catch(() => {});
+  }, []);
+
+  const extraGroupsByTile = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const c of dbCategories) {
+      if (!c.tile) continue;
+      const list = map.get(c.tile);
+      if (list) list.push(c.name);
+      else map.set(c.tile, [c.name]);
+    }
+    return map;
+  }, [dbCategories]);
+
   const hubs = useMemo<HubStats[]>(() => {
     return SUPPLIER_CATALOG.map((hub) => {
       const seen = new Set<string>();
       const categories = hub.categories.map((category) => {
-        const groups = new Set(category.supplyGroups);
+        const groups = new Set(tileGroups(category, extraGroupsByTile));
         const suppliers: SupplierOffer[] = [];
         for (const o of countryOffers) {
           // Каталог считает и показывает только верифицированных поставщиков
@@ -145,7 +184,7 @@ export function SupplierCatalog({
       });
       return { hub, categories, total: seen.size };
     });
-  }, [countryOffers, requestTitleById, snapshotByHost]);
+  }, [countryOffers, requestTitleById, snapshotByHost, extraGroupsByTile]);
 
   const currentHub = hubs.find((h) => h.hub.name === hubName) ?? null;
   const currentCategory = currentHub?.categories.find((c) => c.category.name === categoryName) ?? null;
@@ -159,9 +198,9 @@ export function SupplierCatalog({
     if (!searchQuery) return [];
     return countryOffers
       .filter((o) => o.verified && o.name.toLowerCase().includes(searchQuery))
-      .map((o) => ({ offer: o, categoryLabel: catalogLabelFor(o, requestTitleById, snapshotByHost) }))
+      .map((o) => ({ offer: o, categoryLabel: catalogLabelFor(o, requestTitleById, snapshotByHost, extraGroupsByTile) }))
       .sort((a, b) => a.offer.name.localeCompare(b.offer.name, 'ru'));
-  }, [countryOffers, requestTitleById, searchQuery, snapshotByHost]);
+  }, [countryOffers, requestTitleById, searchQuery, snapshotByHost, extraGroupsByTile]);
 
   const openHub = (h: HubStats) => {
     setHubName(h.hub.name);

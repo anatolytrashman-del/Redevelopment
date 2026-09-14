@@ -41,6 +41,7 @@ import {
   UNIVERSAL_SUPPLIERS_TITLE,
   isUniversalRequest,
   isSameSupplier,
+  supplierWebsiteFullUrl,
   supplierWebsiteHost,
   type ResearchContactMethod,
   type SupplierRequest,
@@ -1283,7 +1284,7 @@ function OfferDetailModal({
           <span className="text-ink-faint">Сайт</span>
           {offer.websiteUrl ? (
             <a
-              href={/^https?:\/\//.test(offer.websiteUrl) ? offer.websiteUrl : `https://${offer.websiteUrl}`}
+              href={supplierWebsiteFullUrl(offer.websiteUrl)}
               target="_blank"
               rel="noreferrer"
               className="flex w-fit items-center gap-1.5 text-primary-hover hover:underline"
