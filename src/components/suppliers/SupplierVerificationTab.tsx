@@ -264,6 +264,30 @@ function ScreenshotZone({
   );
 }
 
+// Что делать со снятым контактом: пустое поле — записать молча, такое же
+// значение — молча закрыть, иное — спросить. Телефоны сравниваем по цифрам:
+// в базе они лежат в разном оформлении («+7 495 120-24-13» и
+// «+7 (495) 120-24-13» — один и тот же номер), и посимвольное сравнение
+// показывало бы расхождение там, где его нет.
+function sameContact(kind: SupplierContactCapture['kind'], a: string, b: string): boolean {
+  if (kind === 'phone') {
+    const digits = (v: string) => v.replace(/\D/g, '').replace(/^8(?=\d{10}$)/, '7');
+    return digits(a) === digits(b) && digits(a).length > 0;
+  }
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+function captureState(offer: SupplierOffer, capture: SupplierContactCapture): 'empty' | 'same' | 'conflict' {
+  const current =
+    capture.kind === 'email'
+      ? offer.email
+      : capture.kind === 'phone'
+        ? offer.contact
+        : (offer.messengers.find((m) => m.type === capture.messengerType)?.number ?? '');
+  if (!current.trim()) return 'empty';
+  return sameContact(capture.kind, current, capture.value) ? 'same' : 'conflict';
+}
+
 // Обе закладки — прямо в админке. Владелец, 2026-09-14: «я вижу снять меню и
 // оно снялось, но не вижу снять контакт» — открылся присланный раньше файл
 // install.html, в котором второй кнопки ещё не было. Пока страница установки
@@ -712,10 +736,10 @@ export function SupplierVerificationTab({
   // этого домена — по той же логике, что и «Верифицировать»: контакт у
   // компании один, а карточек под разные категории закупки может быть
   // несколько.
-  async function applyContactCapture(group: HostGroup, capture: SupplierContactCapture) {
+  async function applyContactCapture(hostOffers: SupplierOffer[], capture: SupplierContactCapture) {
     setError('');
     try {
-      for (const offer of group.offers) {
+      for (const offer of hostOffers) {
         const patch =
           capture.kind === 'email'
             ? { email: capture.value }
@@ -758,24 +782,62 @@ export function SupplierVerificationTab({
   // один клик «Заменить». Ref — чтобы повторный рендер не пытался применить
   // ту же строку второй раз, пока идёт запрос.
   const autoAppliedRef = useRef<Set<string>>(new Set());
+
+  // Все карточки по домену — по ВСЕМ предложениям, а не по очереди
+  // верификации: снятый контакт нужен и у поставщика, которого уже
+  // верифицировали (иначе снятое некуда показать — ровно это и случилось
+  // 2026-09-14 у glavrele.ru и ironpolimer.ru, см. журнал).
+  const offersByHost = useMemo(() => {
+    const map = new Map<string, SupplierOffer[]>();
+    for (const offer of offers) {
+      const host = supplierWebsiteHost(offer.websiteUrl);
+      if (!host) continue;
+      const list = map.get(host);
+      if (list) list.push(offer);
+      else map.set(host, [offer]);
+    }
+    return map;
+  }, [offers]);
+
+  const conflictCaptures = useMemo(
+    () =>
+      contactCaptures.flatMap((capture) => {
+        const hostOffers = offersByHost.get(capture.host);
+        if (!hostOffers || hostOffers.length === 0) return [];
+        const offer = hostOffers[0];
+        if (captureState(offer, capture) !== 'conflict') return [];
+        const current =
+          capture.kind === 'email'
+            ? offer.email
+            : capture.kind === 'phone'
+              ? offer.contact
+              : (offer.messengers.find((m) => m.type === capture.messengerType)?.number ?? '');
+        return [{ capture, hostOffers, current }];
+      }),
+    [contactCaptures, offersByHost],
+  );
+
   useEffect(() => {
     for (const capture of contactCaptures) {
       if (autoAppliedRef.current.has(capture.id)) continue;
-      const group = hostGroups.find((g) => g.host === capture.host);
-      if (!group) continue;
-      const offer = group.representative;
-      const isEmpty =
-        capture.kind === 'email'
-          ? !offer.email.trim()
-          : capture.kind === 'phone'
-            ? !offer.contact.trim()
-            : !offer.messengers.some((m) => m.type === capture.messengerType);
-      if (!isEmpty) continue;
+      const hostOffers = offersByHost.get(capture.host);
+      if (!hostOffers || hostOffers.length === 0) continue;
+      const state = captureState(hostOffers[0], capture);
+      if (state === 'conflict') continue;
       autoAppliedRef.current.add(capture.id);
-      void applyContactCapture(group, capture);
+      if (state === 'same') {
+        // Снято ровно то, что уже в карточке. Раньше такое висело в
+        // «расхождениях» наравне с настоящими (2026-09-14: два из семи
+        // снятых контактов совпадали до символа) — человек должен был
+        // глазами сверять одинаковые строки. Молча закрываем.
+        void markSupplierContactCapture(capture.id, 'applied', 'совпало с карточкой');
+        setContactCaptures((prev) => prev.filter((c) => c.id !== capture.id));
+        continue;
+      }
+      void applyContactCapture(hostOffers, capture);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contactCaptures, hostGroups]);
+  }, [contactCaptures, offersByHost]);
 
   function startVerification() {
     setSkippedHosts(new Set());
@@ -816,6 +878,33 @@ export function SupplierVerificationTab({
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-sm text-ink-muted">Осталось проверить: {queueGroups.length}</p>
           <BookmarkletsBlock />
+
+      {conflictCaptures.length > 0 && (
+        <div className={cn('flex flex-col gap-2 p-4', glassCardClass)} style={glassCardShadow}>
+          <p className="text-sm font-semibold text-ink">Снято на сайте, но не совпало с карточкой</p>
+          <p className="text-xs text-ink-faint">
+            Пустые поля заполняются сами; сюда попадает только то, где в карточке уже стоит другое значение. Блок
+            виден и после верификации поставщика — иначе снятое было бы некуда показать.
+          </p>
+          {conflictCaptures.map(({ capture, hostOffers, current }) => (
+            <div key={capture.id} className="flex flex-wrap items-center gap-2 rounded-2xl border border-warning/40 bg-warning/5 px-3 py-2 text-xs">
+              <span className="font-semibold text-ink">{hostOffers[0].name}</span>
+              <span className="text-ink-faint">
+                {capture.kind === 'email' ? 'почта' : capture.kind === 'phone' ? 'телефон' : capture.messengerType}
+              </span>
+              <span className="text-ink-faint line-through">{current}</span>
+              <span className="text-ink-faint">→</span>
+              <span className="min-w-0 break-all font-semibold text-ink">{capture.value}</span>
+              <Button variant="ghost" className="h-7 px-2 py-0 text-xs" onClick={() => void applyContactCapture(hostOffers, capture)}>
+                Записать
+              </Button>
+              <Button variant="ghost" className="h-7 px-2 py-0 text-xs" onClick={() => void skipContactCapture(capture)}>
+                Не надо
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {awaitingGroups.length > 0 && (
             <span
@@ -898,7 +987,7 @@ export function SupplierVerificationTab({
               screenshots={screenshots.filter((s) => s.host === verifyTarget.host)}
               menuCaptured={menuCaptures.some((c) => c.host === verifyTarget.host && c.status === 'pending')}
               contactCaptures={contactCaptures.filter((c) => c.host === verifyTarget.host)}
-              onApplyCapture={(capture) => void applyContactCapture(verifyTarget, capture)}
+              onApplyCapture={(capture) => void applyContactCapture(verifyTarget.offers, capture)}
               onSkipCapture={(capture) => void skipContactCapture(capture)}
               uploadingScreenshots={uploadingScreenshots}
               onScreenshotFiles={(files) => handleScreenshotFiles(verifyTarget.host, files)}
