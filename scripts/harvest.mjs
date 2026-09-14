@@ -266,6 +266,7 @@ async function main() {
             page_url: menu.pageUrl ?? `https://${item.host}`,
             tree: menu.tree,
             sections_count: sections,
+            source: 'robot',
           });
         }
         for (const c of found) {
@@ -286,6 +287,7 @@ async function main() {
               page_url: contacts.pageUrl ?? `https://${item.host}`,
               rank: typeof c.rank === 'number' ? c.rank : 0,
               status: 'pending',
+              source: 'robot',
             },
             { onConflict: 'host,kind,messenger_type,value' },
           );
