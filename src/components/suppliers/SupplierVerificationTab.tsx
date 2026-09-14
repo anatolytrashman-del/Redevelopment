@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, ExternalLink, MessageCircle, Phone, Play, Send, Trash2 } from 'lucide-react';
+import { CheckCircle2, ExternalLink, ImagePlus, Loader2, MessageCircle, Phone, Play, Send, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { ContactValue } from '../ui/ContactValue';
 import { cn } from '../../lib/cn';
@@ -9,6 +9,8 @@ import { formatPhoneDisplay } from '../../lib/formatPhone';
 import { updateSupplierOffer } from '../../lib/supplierResearchApi';
 import { countryFlag, messengerLink, supplierWebsiteFullUrl, supplierWebsiteHost, SUPPLIER_COUNTRIES, type SupplierOffer } from '../../data/supplierResearch';
 import type { SupplierSiteSnapshot } from '../../data/supplierSiteSnapshots';
+import type { SupplierScreenshot } from '../../data/supplierScreenshots';
+import { deleteSupplierScreenshot, fetchSupplierScreenshots, uploadSupplierScreenshot } from '../../lib/supplierScreenshotsApi';
 
 // Вкладка "Верификация" на странице Закупки. Владелец, 2026-09-13 (второй
 // заход, после первой версии с редактируемым чек-листом категорий — снята
@@ -131,18 +133,134 @@ function openSupplierSiteWindow(url: string) {
   window.open(url, 'supplier-site-check', `width=${width},height=${height},left=${left},top=0`);
 }
 
+// Зона загрузки скриншотов каталога прямо на карточке верификации.
+// Владелец, 2026-09-14: «мы будем верифицировать каждого поставщика вручную,
+// загружая скрины… нужно решение, чтобы скрины массово грузить». Главный
+// путь — вставка из буфера: сделал скрин меню → ⌘V, не отрываясь от
+// карточки (слушатель висит на всей вкладке, см. useEffect с 'paste' ниже);
+// drag&drop и выбор файлов — запасные.
+//
+// Дальше картинки разбирает НЕ эта вкладка, а сессия Claude Code
+// (scripts/supply-categories/screenshots.mjs pull → субагент читает картинки
+// → расшифровка → review.mjs sections): в чат сами картинки не попадают,
+// чтобы не забивать контекст, а категории по-прежнему присваиваются только
+// с уликой из разделов.
+function ScreenshotZone({
+  screenshots,
+  uploading,
+  onFiles,
+  onDelete,
+}: {
+  screenshots: SupplierScreenshot[];
+  uploading: boolean;
+  onFiles: (files: File[]) => void;
+  onDelete: (screenshot: SupplierScreenshot) => void;
+}) {
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const pending = screenshots.filter((s) => s.status === 'pending').length;
+  const processed = screenshots.length - pending;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-ink-faint">Скрины каталога</span>
+        {screenshots.length > 0 && (
+          <span className="text-xs text-ink-faint">
+            {pending > 0 ? `${pending} ждут разбора` : `${processed} разобрано`}
+          </span>
+        )}
+      </div>
+
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          onFiles([...e.dataTransfer.files]);
+        }}
+        onClick={() => inputRef.current?.click()}
+        className={cn(
+          'flex cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border border-dashed px-3 py-4 text-center transition-colors',
+          dragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary',
+        )}
+      >
+        {uploading ? (
+          <Loader2 className="h-5 w-5 animate-spin text-ink-faint" />
+        ) : (
+          <ImagePlus className="h-5 w-5 text-ink-faint" />
+        )}
+        <span className="text-xs text-ink-muted">
+          {uploading ? 'Загружаем...' : 'Вставьте скрин (⌘V), перетащите или нажмите'}
+        </span>
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          onFiles([...(e.target.files ?? [])]);
+          e.target.value = '';
+        }}
+      />
+
+      {screenshots.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {screenshots.map((s) => (
+            <div key={s.id} className="group relative">
+              <a href={s.publicUrl} target="_blank" rel="noopener noreferrer">
+                <img
+                  src={s.publicUrl}
+                  alt=""
+                  className={cn(
+                    'h-14 w-20 rounded-lg border border-border object-cover',
+                    s.status === 'pending' ? '' : 'opacity-50',
+                  )}
+                />
+              </a>
+              <button
+                type="button"
+                onClick={() => onDelete(s)}
+                aria-label="Удалить скрин"
+                className="absolute -right-1.5 -top-1.5 hidden h-5 w-5 items-center justify-center rounded-full border border-border bg-white text-ink-muted hover:border-danger hover:text-danger group-hover:flex"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SupplierCard({
   group,
   onVerify,
   onEdit,
   onDelete,
   saving,
+  screenshots,
+  uploadingScreenshots,
+  onScreenshotFiles,
+  onScreenshotDelete,
 }: {
   group: HostGroup;
   onVerify: (group: HostGroup) => void;
   onEdit: (offer: SupplierOffer) => void;
   onDelete: (offer: SupplierOffer) => void;
   saving: boolean;
+  screenshots: SupplierScreenshot[];
+  uploadingScreenshots: boolean;
+  onScreenshotFiles: (files: File[]) => void;
+  onScreenshotDelete: (screenshot: SupplierScreenshot) => void;
 }) {
   const offer = group.representative;
   const categories = group.snapshot?.categories ?? [];
@@ -259,6 +377,13 @@ function SupplierCard({
         </p>
       )}
 
+      <ScreenshotZone
+        screenshots={screenshots}
+        uploading={uploadingScreenshots}
+        onFiles={onScreenshotFiles}
+        onDelete={onScreenshotDelete}
+      />
+
       <div className="mt-auto flex items-center justify-between gap-2 pt-2">
         <button
           type="button"
@@ -303,8 +428,23 @@ export function SupplierVerificationTab({
   const [skippedHosts, setSkippedHosts] = useState<Set<string>>(new Set());
   const [savingHost, setSavingHost] = useState<string | null>(null);
   const [error, setError] = useState('');
+  // Скрины грузятся одним запросом на всю вкладку, а не по карточке:
+  // таблица маленькая (одна строка на картинку), а карточка в очереди
+  // меняется каждые несколько секунд — отдельный запрос на каждую был бы
+  // заметно хуже при том же результате.
+  const [screenshots, setScreenshots] = useState<SupplierScreenshot[]>([]);
+  const [uploadingScreenshots, setUploadingScreenshots] = useState(false);
 
   const snapshotByHost = useMemo(() => new Map(snapshots.map((s) => [s.host, s])), [snapshots]);
+
+  useEffect(() => {
+    fetchSupplierScreenshots()
+      .then(setScreenshots)
+      .catch(() => {
+        // Молча: скрины — вспомогательная штука, из-за их недоступности
+        // верификация как таковая работать не перестаёт.
+      });
+  }, []);
 
   // Карточки без страны видны при любом флаге — тот же принцип, что в
   // SupplierCatalog.tsx (молчаливо прятать их было бы потерей данных).
@@ -334,6 +474,53 @@ export function SupplierVerificationTab({
     if (lastAutoOpenedHostRef.current === verifyTarget.host) return;
     lastAutoOpenedHostRef.current = verifyTarget.host;
     openSupplierSiteWindow(verifyTarget.representative.websiteUrl);
+  }, [verifying, verifyTarget]);
+
+  async function handleScreenshotFiles(host: string, files: File[]) {
+    const images = files.filter((f) => f.type.startsWith('image/'));
+    if (images.length === 0) return;
+    setUploadingScreenshots(true);
+    setError('');
+    try {
+      for (const file of images) {
+        const created = await uploadSupplierScreenshot(host, file);
+        setScreenshots((prev) => [...prev, created]);
+      }
+    } catch {
+      setError('Не удалось загрузить скрин — попробуйте ещё раз.');
+    } finally {
+      setUploadingScreenshots(false);
+    }
+  }
+
+  async function handleScreenshotDelete(screenshot: SupplierScreenshot) {
+    setScreenshots((prev) => prev.filter((s) => s.id !== screenshot.id));
+    try {
+      await deleteSupplierScreenshot(screenshot);
+    } catch {
+      setError('Не удалось удалить скрин — обновите страницу.');
+    }
+  }
+
+  // Главный путь загрузки — ⌘V прямо на вкладке: сделал скрин меню
+  // поставщика в соседнем окне, вернулся, вставил. Слушатель висит на окне
+  // (а не на самой зоне), чтобы не нужно было сначала целиться мышью;
+  // ввод в поля не перехватываем — иначе сломается вставка текста в форму
+  // редактирования, открытую поверх вкладки.
+  useEffect(() => {
+    if (!verifying || !verifyTarget) return;
+    const host = verifyTarget.host;
+    function onPaste(e: ClipboardEvent) {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      const files = [...(e.clipboardData?.files ?? [])].filter((f) => f.type.startsWith('image/'));
+      if (files.length === 0) return;
+      e.preventDefault();
+      void handleScreenshotFiles(host, files);
+    }
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [verifying, verifyTarget]);
 
   function startVerification() {
@@ -421,6 +608,10 @@ export function SupplierVerificationTab({
               onEdit={onEditOffer}
               onDelete={onDeleteOffer}
               saving={savingHost === verifyTarget.host}
+              screenshots={screenshots.filter((s) => s.host === verifyTarget.host)}
+              uploadingScreenshots={uploadingScreenshots}
+              onScreenshotFiles={(files) => handleScreenshotFiles(verifyTarget.host, files)}
+              onScreenshotDelete={handleScreenshotDelete}
             />
           ) : (
             <div className={cn('flex flex-col items-center gap-2 p-8 text-center', glassCardClass)} style={glassCardShadow}>

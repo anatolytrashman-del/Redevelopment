@@ -41,7 +41,23 @@ export function parseArgs(argv = process.argv.slice(2)) {
   return { positional, named };
 }
 
-// Справочник — прямо из TS-файла (регулярка по полям name/hint, без сборки).
+// Справочник из базы (таблица supply_categories) — источник правды с
+// 2026-09-14: группа, заведённая при верификации живого поставщика, должна
+// сразу считаться допустимой, без правки файла и ожидания релиза. Файл
+// остаётся сидом и запасным вариантом: пустая/недоступная таблица не должна
+// останавливать разбор пачки.
+export async function readDictionaryLive(root = process.cwd()) {
+  try {
+    const rows = await query('select name, hint from supply_categories order by sort, name');
+    if (rows.length > 0) return rows.map((r) => ({ name: r.name, hint: r.hint ?? '' }));
+    console.warn('supply_categories пуста — беру справочник из файла (dictionary.mjs sync его зальёт)');
+  } catch (e) {
+    console.warn(`справочник из базы не прочитался (${e.message}) — беру из файла`);
+  }
+  return readDictionary(root);
+}
+
+// Запасной путь — прямо из TS-файла (регулярка по полям name/hint, без сборки).
 export function readDictionary(root = process.cwd()) {
   const src = fs.readFileSync(path.join(root, 'src/data/supplyCategories.ts'), 'utf8');
   const entries = [...src.matchAll(/name:\s*'([^']+)',\s*hint:\s*'([^']*)'/g)].map((m) => ({ name: m[1], hint: m[2] }));

@@ -36,7 +36,7 @@
 // это увидела.
 import fs from 'node:fs';
 import path from 'node:path';
-import { HOST_SQL, lit, normalizeCategory, parseArgs, query, readDictionary } from './lib.mjs';
+import { HOST_SQL, lit, normalizeCategory, parseArgs, query, readDictionaryLive } from './lib.mjs';
 
 const { positional, named } = parseArgs();
 const cmd = positional[0];
@@ -260,14 +260,14 @@ function renderDiff(checked) {
 }
 
 async function diff() {
-  const checked = validate(readJson(batchFile), readJson(resultFile), readDictionary());
+  const checked = validate(readJson(batchFile), readJson(resultFile), await readDictionaryLive());
   const md = renderDiff(checked);
   fs.writeFileSync(diffFile, md);
   console.log(md);
 }
 
 async function apply() {
-  const checked = validate(readJson(batchFile), readJson(resultFile), readDictionary());
+  const checked = validate(readJson(batchFile), readJson(resultFile), await readDictionaryLive());
   const bad = checked.filter((c) => c.error);
   if (bad.length) {
     for (const b of bad) console.error(`${b.host}: ${b.error}`);
