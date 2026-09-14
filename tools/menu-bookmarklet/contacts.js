@@ -1,0 +1,252 @@
+(function () {
+/*
+ * Закладка «Снять контакт» — вторая кнопка на панели закладок рядом со
+ * «Снять меню». Владелец, 2026-09-14: «можно ли сделать так, чтобы Светлана
+ * могла кликнуть на сайте телефон, email, мессенджеры, а оно записало бы само
+ * в базу. Чтобы вся верификация была на одной вкладке. Надо обязательно
+ * учесть кейсы, когда это кликабельные элементы, чтобы они фактически не
+ * открывались, а в базу добавлялись. И когда это не кликабельные, а текст,
+ * такие кейсы тоже учесть нужно».
+ *
+ * Оба кейса закрыты разными путями:
+ *   - КЛИКАБЕЛЬНОЕ (<a href="tel:…">, mailto:, t.me, wa.me, max.ru) —
+ *     слушатель клика в ФАЗЕ ПЕРЕХВАТА с preventDefault/stopPropagation:
+ *     переход не происходит вовсе, сайт своих обработчиков тоже не видит;
+ *   - НЕ КЛИКАБЕЛЬНОЕ (номер просто текстом в подвале) — два пути:
+ *     клик по элементу (берём его текст, при нужде поднимаясь к родителю) и
+ *     выделение мышью (mouseup с непустым выделением). Второй путь главный,
+ *     когда в одной строке сразу несколько номеров.
+ *
+ * Отправка — тем же postMessage во вкладку админки, что и «Снять меню»
+ * (lib/menuCaptureReceiver.ts). Ответа ждём до 6 секунд.
+ */
+var VERSION = 'v1';
+var HOST = location.hostname.replace(/^www\./i, '');
+
+// Уже включённый режим выключаем повторным нажатием закладки — иначе на
+// странице копились бы слушатели, а на экране несколько панелей.
+if (window.__redevContactPicker) {
+window.__redevContactPicker.stop();
+return;
+}
+
+function toast(message, ok) {
+var el = document.createElement('div');
+el.style.cssText =
+'position:fixed;z-index:2147483647;left:50%;top:24px;transform:translateX(-50%);' +
+'padding:14px 24px;border-radius:999px;color:#fff;font:600 15px -apple-system,Segoe UI,Roboto,sans-serif;' +
+'box-shadow:0 10px 30px rgba(0,0,0,.25);background:' +
+(ok ? '#12a150' : '#d92d20');
+el.textContent = message;
+document.body.appendChild(el);
+setTimeout(function () {
+el.remove();
+}, 3500);
+}
+
+// Телефон: 10–13 цифр подряд с любыми разделителями. Меньше десяти — это
+// уже год, цена или номер дома; больше тринадцати — склеенные подряд два
+// номера, такое лучше не угадывать.
+function findPhone(text) {
+var m = text.match(/\+?\d[\d\s()\-.]{8,20}\d/);
+if (!m) return '';
+var digits = m[0].replace(/\D/g, '');
+if (digits.length < 10 || digits.length > 13) return '';
+return m[0].trim();
+}
+
+function findEmail(text) {
+var m = text.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+return m ? m[0] : '';
+}
+
+function findTelegram(text) {
+var m = text.match(/@[A-Za-z][A-Za-z0-9_]{4,31}\b/);
+return m ? m[0] : '';
+}
+
+// Что именно сняли: {kind, value, messengerType}. null — не распознали.
+function fromLink(a) {
+var href = a.getAttribute('href') || '';
+if (/^tel:/i.test(href)) return { kind: 'phone', value: href.replace(/^tel:/i, ''), messengerType: '' };
+if (/^mailto:/i.test(href)) return { kind: 'email', value: href.replace(/^mailto:/i, '').split('?')[0], messengerType: '' };
+var abs;
+try {
+abs = new URL(a.href, location.href);
+} catch (e) {
+return null;
+}
+var h = abs.hostname.replace(/^www\./i, '');
+if (h === 't.me' || h === 'telegram.me' || h === 'telegram.dog') {
+return { kind: 'messenger', value: abs.href, messengerType: 'Telegram' };
+}
+if (h === 'wa.me' || h === 'api.whatsapp.com' || h === 'web.whatsapp.com' || h === 'whatsapp.com') {
+return { kind: 'messenger', value: abs.href, messengerType: 'WhatsApp' };
+}
+if (h === 'max.ru' || h === 'oneme.ru') {
+return { kind: 'messenger', value: abs.href, messengerType: 'Max' };
+}
+return null;
+}
+
+function fromText(text) {
+var email = findEmail(text);
+if (email) return { kind: 'email', value: email, messengerType: '' };
+var phone = findPhone(text);
+if (phone) return { kind: 'phone', value: phone, messengerType: '' };
+var tg = findTelegram(text);
+if (tg) return { kind: 'messenger', value: tg, messengerType: 'Telegram' };
+return null;
+}
+
+// Текст самого элемента, а если в нём контакта нет — поднимаемся к
+// родителю: номер часто разбит на <span>+7</span><span>495…</span>, и в
+// кликнутом узле лежит только кусок. Выше четвёртого уровня не идём —
+// дальше в текст затягивает пол-страницы.
+function fromElement(el) {
+var node = el;
+for (var i = 0; i < 4 && node; i++) {
+var text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+// Потолок в 120 символов — не косметика: без него клик по любому
+// постороннему пункту («Каталог») поднимался до контейнера, находил
+// телефон из шапки и снимал его как будто нарочно.
+if (text && text.length <= 120) {
+var found = fromText(text);
+if (found) return found;
+}
+node = node.parentElement;
+}
+return null;
+}
+
+var lastValue = '';
+var lastAt = 0;
+
+function send(found, rawText) {
+// Двойной клик и «выделил → кликнул» дают две одинаковые посылки подряд.
+// Сервер их и так схлопывает (уникальный индекс), но лишний тост сбивает.
+var now = Date.now();
+if (found.value === lastValue && now - lastAt < 1500) return;
+lastValue = found.value;
+lastAt = now;
+
+var opener = null;
+try {
+opener = window.opener && !window.opener.closed ? window.opener : null;
+} catch (e) {
+opener = null;
+}
+if (!opener) {
+toast('Сайт открыт не из карточки — откройте его кнопкой «Начать верификацию»  ·  ' + VERSION, false);
+return;
+}
+var acked = false;
+function onAck(e) {
+if (!e.data || e.data.source !== 'redevelopment-menu-capture-ok') return;
+acked = true;
+window.removeEventListener('message', onAck);
+toast((e.data.text || 'Записано') + '  ·  ' + VERSION, true);
+}
+window.addEventListener('message', onAck);
+var payload = {
+source: 'redevelopment-contact-capture',
+host: HOST,
+pageUrl: location.href,
+kind: found.kind,
+value: found.value,
+messengerType: found.messengerType,
+rawText: rawText || '',
+};
+opener.postMessage(payload, '*');
+setTimeout(function () {
+if (!acked) {
+try {
+opener.postMessage(payload, '*');
+} catch (e) {
+}
+}
+}, 1200);
+setTimeout(function () {
+if (!acked) {
+window.removeEventListener('message', onAck);
+toast('Админка не ответила. Обновите её вкладку: ⌘⇧R  ·  ' + VERSION, false);
+}
+}, 6000);
+}
+
+function onClick(e) {
+// Гасим ВСЁ, пока режим включён: иначе клик по tel:-ссылке уводит со
+// страницы, а клик по карточке товара — в другой раздел.
+e.preventDefault();
+e.stopPropagation();
+
+var el = e.target;
+// Клик по собственной панели — это «Готово», а не контакт. Проверяем
+// здесь: слушатель документа в фазе перехвата срабатывает РАНЬШЕ, чем
+// обработчик самой кнопки, и без этой ветки кнопка была бы мертва.
+if (el && panel.contains(el)) {
+window.__redevContactPicker.stop();
+return;
+}
+var link = el && el.closest ? el.closest('a[href]') : null;
+var found = link ? fromLink(link) : null;
+var rawText = link ? (link.textContent || '') : '';
+if (!found) {
+found = fromElement(el);
+rawText = (el && el.textContent ? el.textContent : '').replace(/\s+/g, ' ').trim();
+}
+if (!found) {
+toast('Не понял, что это. Выделите номер мышью — снимется сразу.', false);
+return;
+}
+send(found, rawText.replace(/\s+/g, ' ').trim());
+}
+
+// Выделение мышью — главный путь для текста, который не ссылка: в одной
+// строке подвала бывает сразу три номера, и клик по ней взял бы первый.
+function onMouseUp() {
+setTimeout(function () {
+var sel = window.getSelection ? String(window.getSelection()) : '';
+sel = sel.replace(/\s+/g, ' ').trim();
+if (!sel) return;
+var found = fromText(sel);
+if (found) send(found, sel);
+}, 0);
+}
+
+function onKey(e) {
+if (e.key === 'Escape') window.__redevContactPicker.stop();
+}
+
+var panel = document.createElement('div');
+panel.style.cssText =
+'position:fixed;z-index:2147483646;left:50%;bottom:20px;transform:translateX(-50%);' +
+'display:flex;align-items:center;gap:14px;padding:12px 18px;border-radius:999px;' +
+'background:#111;color:#fff;font:600 14px -apple-system,Segoe UI,Roboto,sans-serif;' +
+'box-shadow:0 10px 30px rgba(0,0,0,.35)';
+var label = document.createElement('span');
+label.textContent = 'Снимаю контакты: кликайте по телефону, почте, мессенджеру  ·  ' + VERSION;
+var done = document.createElement('button');
+done.textContent = 'Готово (Esc)';
+done.style.cssText =
+'font:inherit;padding:6px 14px;border-radius:999px;border:0;background:#fff;color:#111;cursor:pointer';
+panel.appendChild(label);
+panel.appendChild(done);
+
+window.__redevContactPicker = {
+stop: function () {
+document.removeEventListener('click', onClick, true);
+document.removeEventListener('mouseup', onMouseUp, true);
+document.removeEventListener('keydown', onKey, true);
+panel.remove();
+document.documentElement.style.cursor = '';
+window.__redevContactPicker = null;
+},
+};
+document.addEventListener('click', onClick, true);
+document.addEventListener('mouseup', onMouseUp, true);
+document.addEventListener('keydown', onKey, true);
+document.documentElement.style.cursor = 'crosshair';
+document.body.appendChild(panel);
+toast('Режим снятия контактов включён  ·  ' + VERSION, true);
+})();
