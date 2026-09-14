@@ -326,7 +326,30 @@ async function sections() {
   console.log(`${host}: разделов со скриншота ${added.length} (старые ручные заменены), всего в снимке ${merged.length}`);
 }
 
-const commands = { next, diff, apply, sections };
+// Отправить пачку в очередь верификации КАК ЕСТЬ, без переклассификации.
+// Владелец, 2026-09-14: «зачем тебе субагенты? мне нужны только адреса, а
+// верификацию будет делать Светлана нашей кнопкой». Очередь во вкладке
+// показывает только хосты с categories_verified — это и есть единственное,
+// что здесь выставляется. Категории при этом остаются те, что нашёл
+// автоматический проход: они на карточке нужны лишь как подсказка, «чем
+// вообще торгует этот сайт», а настоящие приедут со снятого меню.
+async function queue() {
+  const batch = readJson(batchFile);
+  const hosts = batch.map((c) => c.host);
+  if (!hosts.length) {
+    console.log('в пачке нет хостов — сначала review.mjs next');
+    return;
+  }
+  const rows = await query(`
+    update supplier_site_snapshots
+    set categories_verified = true
+    where host in (${hosts.map((h) => lit(h)).join(', ')})
+    returning host
+  `);
+  console.log(`в очередь верификации отправлено хостов: ${rows.length}`);
+}
+
+const commands = { next, diff, apply, sections, queue };
 if (!commands[cmd]) {
   console.error('использование: review.mjs next|diff|apply|sections (см. шапку файла)');
   process.exit(1);
