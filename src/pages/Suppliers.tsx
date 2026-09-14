@@ -3109,6 +3109,14 @@ export function Suppliers() {
               offers={offers}
               snapshots={siteSnapshots}
               onOfferUpdated={(updated) => setOffers((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))}
+              onOffersChanged={() => {
+                // Контакты с сайта и признак verified проставляет база
+                // (триггер на supplier_contact_captures), а не эта страница —
+                // после съёма карточки перечитываем целиком.
+                fetchSupplierOffers()
+                  .then(setOffers)
+                  .catch(() => {});
+              }}
               onEditOffer={openEditOffer}
               onDeleteOffer={handleDeleteOffer}
             />

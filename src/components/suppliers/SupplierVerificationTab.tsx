@@ -14,12 +14,7 @@ import { deleteSupplierScreenshot, fetchSupplierScreenshots, uploadSupplierScree
 import { fetchSupplierMenuCaptures, type SupplierMenuCapture } from '../../lib/supplierMenuCapturesApi';
 import { CONTACT_CAPTURE_SAVED_EVENT, MENU_CAPTURE_SAVED_EVENT } from '../../lib/menuCaptureReceiver';
 import { CONTACTS_BOOKMARKLET_HREF, MENU_BOOKMARKLET_HREF } from '../../data/bookmarkletLinks';
-import {
-  fetchSupplierContactCaptures,
-  markSupplierContactCapture,
-  type SupplierContactCapture,
-  type SupplierContactCaptureKind,
-} from '../../lib/supplierContactCapturesApi';
+import { fetchSupplierContactCapturesForHost, type SupplierContactCapture } from '../../lib/supplierContactCapturesApi';
 
 // Вкладка "Верификация" на странице Закупки. Владелец, 2026-09-13 (второй
 // заход, после первой версии с редактируемым чек-листом категорий — снята
@@ -44,6 +39,15 @@ import {
 // всех" — "Верифицировать" помечает verified=true СРАЗУ у всех
 // карточек-предложений с этим доменом, поэтому очередь и показывает
 // уникальное число поставщиков, а не число карточек.
+//
+// Владелец, 2026-09-14: «всё, где прошёлся мой скрипт и мы собрали каталог +
+// контакты, помечай как верифицированного». Кнопка осталась для ручных
+// случаев, но обычный путь теперь другой: как только по домену есть и снимок
+// меню каталога, и снятый контакт, verified=true проставляет сама база
+// (verify_supplier_offers_with_captures, миграция
+// 20260914-auto-apply-captures.sql) — и поставщик уходит из очереди, не
+// дожидаясь, пока его откроют глазами. Руками там сверяли ровно эти два
+// факта.
 //
 // Сайт поставщика — соседняя ВКЛАДКА того же окна, а не встроенный iframe и
 // не отдельное окно. История: 2026-09-13 (четвёртый заход) владелец просил
@@ -270,69 +274,16 @@ function ScreenshotZone({
   );
 }
 
-// Варианты контакта, снятые закладкой со страницы поставщика: текущее
-// значение карточки и чипы-альтернативы. Владелец, 2026-09-14: закладка
-// теперь отдаёт ВЕСЬ набор со страницы одним кликом, поэтому выбор «какой из
-// двух телефонов верный» должен быть одним кликом по нужному, а не разбором
-// нескольких отдельных предложений.
-interface CaptureGroup {
-  key: string;
-  host: string;
-  hostOffers: SupplierOffer[];
-  kind: SupplierContactCaptureKind;
-  messengerType: string;
-  current: string;
-  options: SupplierContactCapture[];
-}
-
-function CaptureGroupRow({
-  group,
-  withName,
-  onPick,
-  onDismiss,
-}: {
-  group: CaptureGroup;
-  withName: boolean;
-  onPick: (group: CaptureGroup, capture: SupplierContactCapture) => void;
-  onDismiss: (group: CaptureGroup) => void;
-}) {
-  const label = group.kind === 'email' ? 'почта' : group.kind === 'phone' ? 'телефон' : group.messengerType;
-  return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-warning/40 bg-warning/5 px-3 py-2 text-xs">
-      {withName && <span className="font-semibold text-ink">{group.hostOffers[0].name}</span>}
-      <span className="text-ink-faint">{label}</span>
-      <span className="min-w-0 break-all text-ink-faint">{group.current || '—'}</span>
-      <span className="text-ink-faint">→</span>
-      {group.options.map((option) => (
-        <button
-          key={option.id}
-          type="button"
-          onClick={() => onPick(group, option)}
-          className="min-w-0 break-all rounded-full border border-border bg-surface px-2.5 py-1 font-semibold text-ink hover:border-primary hover:text-primary"
-        >
-          {option.value}
-        </button>
-      ))}
-      <button type="button" onClick={() => onDismiss(group)} className="px-1 text-ink-faint hover:text-ink">
-        <X className="h-3.5 w-3.5" />
-      </button>
-    </div>
-  );
-}
-
-// Что делать со снятым контактом: пустое поле — записать молча, такое же
-// значение — молча закрыть, иное — спросить. Телефоны сравниваем по цифрам:
-// в базе они лежат в разном оформлении («+7 495 120-24-13» и
-// «+7 (495) 120-24-13» — один и тот же номер), и посимвольное сравнение
-// показывало бы расхождение там, где его нет.
-function sameContact(kind: SupplierContactCapture['kind'], a: string, b: string): boolean {
-  if (kind === 'phone') {
-    const digits = (v: string) => v.replace(/\D/g, '').replace(/^8(?=\d{10}$)/, '7');
-    return digits(a) === digits(b) && digits(a).length > 0;
-  }
-  return a.trim().toLowerCase() === b.trim().toLowerCase();
-}
-
+// Снятое закладкой в карточку записывает САМА БАЗА — триггер
+// supplier_contact_captures_auto_apply (миграция
+// 20260914-auto-apply-captures.sql). Здесь когда-то был блок «Снято на сайте
+// — выберите верное» с чипами-вариантами; владелец, 2026-09-14, увидев его на
+// ~1800 накопленных расхождений: «Я не собираюсь ничего делать с этим. Всё,
+// что мы собрали с сайта, по умолчанию более актуально, чем то, что было в
+// базе до этого». Выбор снят целиком: лучший вариант (по rank закладки)
+// записывается поверх старого значения, остальные закрываются с пометкой и
+// остаются в supplier_contact_captures, если понадобится вернуться.
+//
 // Обе закладки — прямо в админке. Владелец, 2026-09-14: «я вижу снять меню и
 // оно снялось, но не вижу снять контакт» — открылся присланный раньше файл
 // install.html, в котором второй кнопки ещё не было. Пока страница установки
@@ -385,7 +336,9 @@ function BookmarkletsBlock() {
           <p className="text-xs text-ink-faint">
             Обе работают одинаково: один клик на странице поставщика, дальше ничего нажимать не нужно. «Снять меню»
             заберёт разделы каталога, «Снять контакты» — все телефоны, почты и мессенджеры страницы, а заодно фоном
-            прочитает страницу «Контакты» того же сайта.
+            прочитает страницу «Контакты» того же сайта. Снятое записывается в карточку само, поверх старого значения:
+            то, что стоит на сайте сегодня, свежее того, что попало в базу раньше. Когда по поставщику собрано и меню,
+            и контакты, он помечается верифицированным и уходит из очереди.
           </p>
         </>
       )}
@@ -401,9 +354,7 @@ function SupplierCard({
   saving,
   screenshots,
   menuCaptured,
-  captureGroups,
-  onPickCapture,
-  onDismissCaptures,
+  contactsCaptured,
   uploadingScreenshots,
   onScreenshotFiles,
   onScreenshotDelete,
@@ -415,9 +366,7 @@ function SupplierCard({
   saving: boolean;
   screenshots: SupplierScreenshot[];
   menuCaptured: boolean;
-  captureGroups: CaptureGroup[];
-  onPickCapture: (group: CaptureGroup, capture: SupplierContactCapture) => void;
-  onDismissCaptures: (group: CaptureGroup) => void;
+  contactsCaptured: string[];
   uploadingScreenshots: boolean;
   onScreenshotFiles: (files: File[]) => void;
   onScreenshotDelete: (screenshot: SupplierScreenshot) => void;
@@ -516,15 +465,6 @@ function SupplierCard({
         </div>
       )}
 
-      {captureGroups.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <span className="text-xs font-semibold text-ink">Снято на сайте — выберите верное</span>
-          {captureGroups.map((group) => (
-            <CaptureGroupRow key={group.key} group={group} withName={false} onPick={onPickCapture} onDismiss={onDismissCaptures} />
-          ))}
-        </div>
-      )}
-
       <div className="flex flex-col gap-1 text-sm">
         <span className="text-ink-faint">Категории</span>
         {categories.length > 0 ? (
@@ -550,6 +490,13 @@ function SupplierCard({
         <div className="flex items-center gap-2 rounded-2xl border border-success/40 bg-success/5 px-3 py-2 text-xs text-ink">
           <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
           Меню каталога снято закладкой — ушло на разбор
+        </div>
+      )}
+
+      {contactsCaptured.length > 0 && (
+        <div className="flex items-center gap-2 rounded-2xl border border-success/40 bg-success/5 px-3 py-2 text-xs text-ink">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+          Контакты сняты с сайта и записаны в карточку: {contactsCaptured.join(', ')}
         </div>
       )}
 
@@ -586,12 +533,18 @@ export function SupplierVerificationTab({
   offers,
   snapshots,
   onOfferUpdated,
+  onOffersChanged,
   onEditOffer,
   onDeleteOffer,
 }: {
   offers: SupplierOffer[];
   snapshots: SupplierSiteSnapshot[];
   onOfferUpdated: (offer: SupplierOffer) => void;
+  // Перечитать карточки целиком. Нужен отдельно от onOfferUpdated: контакты и
+  // признак verified теперь проставляет база (триггер на снятое), поэтому
+  // изменившуюся строку вкладка не знает — знает только, что изменилось
+  // что-то по этому домену.
+  onOffersChanged: () => void;
   onEditOffer: (offer: SupplierOffer) => void;
   onDeleteOffer: (offer: SupplierOffer) => void;
 }) {
@@ -611,11 +564,15 @@ export function SupplierVerificationTab({
   const [screenshots, setScreenshots] = useState<SupplierScreenshot[]>([]);
   const [uploadingScreenshots, setUploadingScreenshots] = useState(false);
   const [menuCaptures, setMenuCaptures] = useState<SupplierMenuCapture[]>([]);
-  // Контакты, снятые кликом на сайте (закладка «Снять контакт»). Владелец,
-  // 2026-09-14: «чтобы вся верификация была на одной вкладке». В отличие от
-  // скринов и меню, снятый контакт НЕ выводит поставщика из очереди —
-  // наоборот, он нужен прямо сейчас, на открытой карточке.
-  const [contactCaptures, setContactCaptures] = useState<SupplierContactCapture[]>([]);
+  // Контакты, снятые на сайте закладкой или роботом (scripts/harvest.mjs), —
+  // только по домену открытой карточки и только для плашки «записано»:
+  // записывает их в карточку сама база (см. комментарий выше про триггер), а
+  // очередь верификации снятый контакт по-прежнему не покидает.
+  const [hostCaptures, setHostCaptures] = useState<SupplierContactCapture[]>([]);
+  // Пропс приходит новой функцией на каждый рендер страницы — через ref
+  // слушатели событий вешаются один раз, а не пересоздаются постоянно.
+  const onOffersChangedRef = useRef(onOffersChanged);
+  onOffersChangedRef.current = onOffersChanged;
 
   const snapshotByHost = useMemo(() => new Map(snapshots.map((s) => [s.host, s])), [snapshots]);
 
@@ -628,9 +585,6 @@ export function SupplierVerificationTab({
       });
     fetchSupplierMenuCaptures()
       .then(setMenuCaptures)
-      .catch(() => {});
-    fetchSupplierContactCaptures()
-      .then(setContactCaptures)
       .catch(() => {});
   }, []);
 
@@ -732,6 +686,10 @@ export function SupplierVerificationTab({
       fetchSupplierMenuCaptures()
         .then(setMenuCaptures)
         .catch(() => {});
+      // Снятое меню на домене, где контакты уже сняты, делает поставщика
+      // верифицированным прямо в базе (триггер supplier_menu_captures_verify)
+      // — карточка должна уйти из очереди сама.
+      onOffersChangedRef.current();
     }
     window.addEventListener(MENU_CAPTURE_SAVED_EVENT, onSaved);
     return () => window.removeEventListener(MENU_CAPTURE_SAVED_EVENT, onSaved);
@@ -758,154 +716,53 @@ export function SupplierVerificationTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [verifying, verifyTarget]);
 
-  // Снятый контакт принимает вся админка (lib/menuCaptureReceiver.ts), здесь
-  // только подхватываем.
+  // Снятое закладкой принимает вся админка (lib/menuCaptureReceiver.ts), а
+  // записывает в карточку база (триггер supplier_contact_captures_auto_apply).
+  // Вкладке остаётся перечитать карточки: поля поставщика уже изменились, а
+  // если по домену снято и меню каталога, он ещё и стал верифицированным — то
+  // есть должен уйти из очереди прямо сейчас, без F5.
   useEffect(() => {
     function onSaved() {
-      fetchSupplierContactCaptures()
-        .then(setContactCaptures)
-        .catch(() => {});
+      onOffersChangedRef.current();
+      if (verifyTarget) {
+        fetchSupplierContactCapturesForHost(verifyTarget.host)
+          .then(setHostCaptures)
+          .catch(() => {});
+      }
     }
     window.addEventListener(CONTACT_CAPTURE_SAVED_EVENT, onSaved);
     return () => window.removeEventListener(CONTACT_CAPTURE_SAVED_EVENT, onSaved);
-  }, []);
+  }, [verifyTarget]);
 
-  // Запись снятого контакта в карточку. Пишем ВСЕМ карточкам-предложениям
-  // этого домена — по той же логике, что и «Верифицировать»: контакт у
-  // компании один, а карточек под разные категории закупки может быть
-  // несколько.
-  async function applyContactCapture(hostOffers: SupplierOffer[], capture: SupplierContactCapture) {
-    setError('');
-    try {
-      for (const offer of hostOffers) {
-        const patch =
-          capture.kind === 'email'
-            ? { email: capture.value }
-            : capture.kind === 'phone'
-              ? { contact: capture.value, contactMethod: 'Телефон' as const }
-              : {
-                  messengers: [
-                    // Мессенджер того же типа заменяем, а не добавляем вторым:
-                    // Светлана кликает по нему как раз тогда, когда нашла
-                    // рабочий, а старый оказался не тем (кейс «Альбия»,
-                    // 2026-09-14 — один и тот же Max записался двумя видами).
-                    ...offer.messengers.filter((m) => m.type !== capture.messengerType),
-                    { type: capture.messengerType as SupplierOffer['messengers'][number]['type'], number: capture.value },
-                  ],
-                };
-        const updated = await updateSupplierOffer(offer.id, { ...offer, ...patch });
-        onOfferUpdated(updated);
-      }
-      await markSupplierContactCapture(capture.id, 'applied');
-      setContactCaptures((prev) => prev.filter((c) => c.id !== capture.id));
-    } catch {
-      setError('Не удалось записать контакт в карточку — попробуйте ещё раз.');
-    }
-  }
-
-  async function skipContactCapture(capture: SupplierContactCapture) {
-    setContactCaptures((prev) => prev.filter((c) => c.id !== capture.id));
-    try {
-      await markSupplierContactCapture(capture.id, 'skipped');
-    } catch {
-      setError('Не удалось убрать снятый контакт — обновите страницу.');
-    }
-  }
-
-  // Пустое поле заполняем сами, без лишнего клика — ровно то, ради чего
-  // затевалось («а оно записало бы само в базу»). А вот РАСХОЖДЕНИЕ с уже
-  // заполненным полем автоматически не переписываем никогда: карточки
-  // поставщиков продаются с требованием точности 97%, и молча затереть
-  // проверенный номер тем, что случайно кликнули в подвале, дороже, чем
-  // один клик «Заменить». Ref — чтобы повторный рендер не пытался применить
-  // ту же строку второй раз, пока идёт запрос.
-  const autoAppliedRef = useRef<Set<string>>(new Set());
-
-  // Все карточки по домену — по ВСЕМ предложениям, а не по очереди
-  // верификации: снятый контакт нужен и у поставщика, которого уже
-  // верифицировали (иначе снятое некуда показать — ровно это и случилось
-  // 2026-09-14 у glavrele.ru и ironpolimer.ru, см. журнал).
-  const offersByHost = useMemo(() => {
-    const map = new Map<string, SupplierOffer[]>();
-    for (const offer of offers) {
-      const host = supplierWebsiteHost(offer.websiteUrl);
-      if (!host) continue;
-      const list = map.get(host);
-      if (list) list.push(offer);
-      else map.set(host, [offer]);
-    }
-    return map;
-  }, [offers]);
-
-  // Снятое группируем по домену и виду контакта: закладка отдаёт весь набор
-  // со страницы (несколько телефонов и почт), и показывать их отдельными
-  // предложениями значило бы заставлять человека решать один и тот же вопрос
-  // по нескольку раз.
-  const captureGroups = useMemo<CaptureGroup[]>(() => {
-    const byKey = new Map<string, CaptureGroup>();
-    for (const capture of contactCaptures) {
-      const hostOffers = offersByHost.get(capture.host);
-      if (!hostOffers || hostOffers.length === 0) continue;
-      const offer = hostOffers[0];
-      const key = `${capture.host}|${capture.kind}|${capture.messengerType}`;
-      const existing = byKey.get(key);
-      if (existing) {
-        existing.options.push(capture);
-        continue;
-      }
-      byKey.set(key, {
-        key,
-        host: capture.host,
-        hostOffers,
-        kind: capture.kind,
-        messengerType: capture.messengerType,
-        current:
-          capture.kind === 'email'
-            ? offer.email
-            : capture.kind === 'phone'
-              ? offer.contact
-              : (offer.messengers.find((m) => m.type === capture.messengerType)?.number ?? ''),
-        options: [capture],
-      });
-    }
-    for (const group of byKey.values()) {
-      group.options.sort((a, b) => b.rank - a.rank || a.value.localeCompare(b.value));
-    }
-    return [...byKey.values()].sort((a, b) => a.hostOffers[0].name.localeCompare(b.hostOffers[0].name));
-  }, [contactCaptures, offersByHost]);
-
-  function pickCapture(group: CaptureGroup, capture: SupplierContactCapture) {
-    void applyContactCapture(group.hostOffers, capture);
-  }
-
-  function dismissCaptureGroup(group: CaptureGroup) {
-    for (const option of group.options) void skipContactCapture(option);
-  }
-
+  // Что снято по открытому домену — для плашки на карточке. Запрос по одному
+  // хосту, а не вся таблица: робот наполняет её тысячами строк за прогон.
   useEffect(() => {
-    for (const group of captureGroups) {
-      const best = group.options[0];
-      if (!group.current.trim()) {
-        // Пустое поле заполняем лучшим вариантом сами — ровно то, ради чего
-        // всё затевалось. Остальные варианты остаются чипами: если закупщик
-        // видит, что верным был второй, это один клик.
-        if (autoAppliedRef.current.has(best.id)) continue;
-        autoAppliedRef.current.add(best.id);
-        void applyContactCapture(group.hostOffers, best);
-        continue;
-      }
-      // Снято ровно то, что уже в карточке: молча закрываем, чтобы человек
-      // не сверял глазами две одинаковые строки (2026-09-14: два из семи
-      // снятых контактов совпадали до символа).
-      const same = group.options.find((o) => sameContact(o.kind, group.current, o.value));
-      if (same && !autoAppliedRef.current.has(same.id)) {
-        autoAppliedRef.current.add(same.id);
-        void markSupplierContactCapture(same.id, 'applied', 'совпало с карточкой');
-        setContactCaptures((prev) => prev.filter((c) => c.id !== same.id));
-      }
+    if (!verifyTarget) {
+      setHostCaptures([]);
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [captureGroups]);
+    let alive = true;
+    fetchSupplierContactCapturesForHost(verifyTarget.host)
+      .then((list) => {
+        if (alive) setHostCaptures(list);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [verifyTarget]);
+
+  // Виды снятого — «телефон, почта, Telegram»: подтверждение, что клик по
+  // закладке дошёл, даже когда значение в карточке осталось прежним (снятое
+  // совпало с записанным или адрес оставлен из-за живой переписки).
+  const capturedKinds = useMemo(() => {
+    const kinds: string[] = [];
+    for (const capture of hostCaptures) {
+      const label = capture.kind === 'email' ? 'почта' : capture.kind === 'phone' ? 'телефон' : capture.messengerType;
+      if (label && !kinds.includes(label)) kinds.push(label);
+    }
+    return kinds;
+  }, [hostCaptures]);
 
   function startVerification() {
     setSkippedHosts(new Set());
@@ -946,20 +803,6 @@ export function SupplierVerificationTab({
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-sm text-ink-muted">Осталось проверить: {queueGroups.length}</p>
           <BookmarkletsBlock />
-
-      {captureGroups.length > 0 && (
-        <div className={cn('flex flex-col gap-2 p-4', glassCardClass)} style={glassCardShadow}>
-          <p className="text-sm font-semibold text-ink">Снято на сайте — выберите верное</p>
-          <p className="text-xs text-ink-faint">
-            Закладка снимает со страницы все контакты разом. Пустое поле карточки заполняется лучшим вариантом само
-            (ящик закупок важнее общего info@, городской номер важнее 8-800); здесь остаётся выбор, когда в карточке
-            уже стоит другое значение. Клик по варианту записывает его. Блок виден и после верификации поставщика.
-          </p>
-          {captureGroups.map((group) => (
-            <CaptureGroupRow key={group.key} group={group} withName onPick={pickCapture} onDismiss={dismissCaptureGroup} />
-          ))}
-        </div>
-      )}
 
       {awaitingGroups.length > 0 && (
             <span
@@ -1041,9 +884,7 @@ export function SupplierVerificationTab({
               saving={savingHost === verifyTarget.host}
               screenshots={screenshots.filter((s) => s.host === verifyTarget.host)}
               menuCaptured={menuCaptures.some((c) => c.host === verifyTarget.host && c.status === 'pending')}
-              captureGroups={captureGroups.filter((g) => g.host === verifyTarget.host)}
-              onPickCapture={pickCapture}
-              onDismissCaptures={dismissCaptureGroup}
+              contactsCaptured={capturedKinds}
               uploadingScreenshots={uploadingScreenshots}
               onScreenshotFiles={(files) => handleScreenshotFiles(verifyTarget.host, files)}
               onScreenshotDelete={handleScreenshotDelete}
