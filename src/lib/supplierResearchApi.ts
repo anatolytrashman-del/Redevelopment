@@ -50,6 +50,7 @@ function offerFromRow(row: SupplierOfferRow): SupplierOffer {
     shortCode: row.short_code,
     verified: row.verified,
     inn: row.inn ?? null,
+    queueSnoozedAt: row.queue_snoozed_at ?? null,
     createdAt: row.created_at,
   };
 }
@@ -123,6 +124,8 @@ export function deleteSupplierRequest(id: string): Promise<void> {
 
 // Все предложения сразу, группировка по requestId на клиенте — тот же
 // принцип, что и у fetchResearchOffers (contractorResearchApi.ts).
+export type SupplierOfferInput = Omit<SupplierOffer, 'id' | 'createdAt' | 'shortCode' | 'queueSnoozedAt'>;
+
 export function fetchSupplierOffers(): Promise<SupplierOffer[]> {
   return withRetry(async () => {
     const { data, error } = await supabase.from('supplier_research_offers').select('*').order('created_at', { ascending: true });
@@ -131,7 +134,11 @@ export function fetchSupplierOffers(): Promise<SupplierOffer[]> {
   });
 }
 
-export function insertSupplierOffer(input: Omit<SupplierOffer, 'id' | 'createdAt' | 'shortCode'>): Promise<SupplierOffer> {
+// queueSnoozedAt сюда не входит намеренно: это состояние очереди, а не
+// данные поставщика. Его ставит и снимает вкладка верификации целиком
+// (snoozeSupplierOffers / unsnoozeAllSupplierOffers), и обычная правка
+// карточки не должна ни выставлять, ни затирать его.
+export function insertSupplierOffer(input: SupplierOfferInput): Promise<SupplierOffer> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('supplier_research_offers')
@@ -162,7 +169,7 @@ export function insertSupplierOffer(input: Omit<SupplierOffer, 'id' | 'createdAt
   });
 }
 
-export function updateSupplierOffer(id: string, input: Omit<SupplierOffer, 'id' | 'createdAt' | 'shortCode'>): Promise<SupplierOffer> {
+export function updateSupplierOffer(id: string, input: SupplierOfferInput): Promise<SupplierOffer> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('supplier_research_offers')
@@ -220,4 +227,29 @@ export function uploadSupplierFile(file: File): Promise<DocumentFile> {
     UPLOAD_TIMEOUT_MS,
     3,
   );
+}
+
+// Очередь верификации целиком — «на потом» и обратно. Владелец, 2026-09-15:
+// «полностью очисти очередь верификации, я пока не буду ей заниматься».
+// Одним запросом, а не по карточке: их под сотню, и держать очередь
+// наполовину убранной незачем.
+export function snoozeSupplierOffers(ids: string[]): Promise<void> {
+  return withRetry(async () => {
+    if (!ids.length) return;
+    const { error } = await supabase
+      .from('supplier_research_offers')
+      .update({ queue_snoozed_at: new Date().toISOString() })
+      .in('id', ids);
+    if (error) throw error;
+  });
+}
+
+export function unsnoozeAllSupplierOffers(): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase
+      .from('supplier_research_offers')
+      .update({ queue_snoozed_at: null })
+      .not('queue_snoozed_at', 'is', null);
+    if (error) throw error;
+  });
 }

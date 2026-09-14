@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import { updateSupplierOffer, deleteSupplierOffer } from './supplierResearchApi';
+import { updateSupplierOffer, deleteSupplierOffer, type SupplierOfferInput } from './supplierResearchApi';
 import type { SupplierMessengerContact, SupplierOffer } from '../data/supplierResearch';
 import type { DocumentFile } from '../data/contractorDocuments';
 
@@ -66,7 +66,7 @@ function mergeMessengers(target: SupplierMessengerContact[], sources: SupplierMe
 // перезаписывается: у неё приоритет по каждому полю (это та карточка, что
 // остаётся жить, и её данные человек видел последними). Дубликаты идут в
 // том порядке, в каком их передали — первый непустой выигрывает.
-export function buildMergedOfferPayload(target: SupplierOffer, sources: SupplierOffer[]): Omit<SupplierOffer, 'id' | 'createdAt' | 'shortCode'> {
+export function buildMergedOfferPayload(target: SupplierOffer, sources: SupplierOffer[]): SupplierOfferInput {
   const firstFilled = (pick: (o: SupplierOffer) => string): string => {
     const own = pick(target).trim();
     if (own) return own;
