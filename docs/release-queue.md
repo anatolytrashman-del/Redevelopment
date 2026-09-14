@@ -32,11 +32,16 @@
 
 ### claude/wizardly-babbage-x8hlsg — пошаговая переклассификация товарных групп (review.mjs + LESSONS.md)
 - **Что:** новый инструмент `scripts/supply-categories/review.mjs` (пачка из
-  10 компаний → «было/стало» → запись с `categories_verified`), общий
-  `lib.mjs`, правила `LESSONS.md`, README (новый «Шаг 2»), комментарии у
-  флага в `supplierSiteSnapshots.ts`/`SupplierVerificationTab.tsx`,
-  `.gitignore` для `scripts/supply-categories/out/`. Поведение прода не
-  меняется — ни одной строки в UI/API.
+  10 компаний → «было/стало» → запись с `categories_verified`; `sections` —
+  разделы со скриншота как улики), общий `lib.mjs`, правила `LESSONS.md`,
+  README (новый «Шаг 2»), комментарии у флага в
+  `supplierSiteSnapshots.ts`/`SupplierVerificationTab.tsx`, `.gitignore` для
+  `scripts/supply-categories/out/`. **Влияет на прод:** `supplyCategories.ts`
+  +8 групп и их плитки в `supplierCatalog.ts` — до публикации новые группы
+  (уже проставленные в базе у 1001krep.ru) в каталоге/карточке НЕ видны как
+  плитки, только как чипы; ничего не ломается. Edge Function
+  `process-supplier-jobs` (раскрытие зонтичных разделов, сохранение
+  `manual://`-разделов) задеплоена напрямую, v21 — от релиза не зависит.
 - **Проверено:** `npm run build:app` чистый; скрипт прогнан на пачке №1
   (11 доменов записаны в живую базу), валидатор улик проверен на фальшивом
   результате.

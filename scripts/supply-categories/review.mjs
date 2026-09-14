@@ -16,6 +16,13 @@
 //       проверить результат (названия — из справочника, у каждой группы есть
 //       улика — реальный раздел сайта) и записать в базу с
 //       categories_verified = true: пачка выходит на вкладку «Верификация».
+//   node scripts/supply-categories/review.mjs sections --host=1001krep.ru --file=sections.txt
+//       дописать в снимок разделы, переписанные вручную со скриншота каталога
+//       (Светлана присылает скрин → модель переписывает текстом → сюда).
+//       Файл — по разделу на строку, вложенность — отступом в два пробела.
+//       Хранятся в том же sections с url «manual://…», переживают повторный
+//       снимок (см. processSnapshot в Edge Function) и дальше считаются
+//       уликами наравне с найденными краулером.
 //
 // Результат классификации — out/review-result.json, массив
 //   [{ "host": "avangardrf.ru",
@@ -56,11 +63,16 @@ function sectionTree(sections, host) {
   for (const s of Array.isArray(sections) ? sections : []) {
     const title = String(s?.title ?? '').trim();
     let p = String(s?.url ?? '').trim();
-    try {
-      const u = new URL(p);
-      p = u.pathname;
-    } catch {
-      /* относительный путь или мусор — оставляем как есть */
+    if (p.startsWith('manual://')) {
+      // manual://host/a/b → 'manual:/a/b' — глубина считается как у обычного пути
+      p = `manual:${p.slice('manual://'.length).replace(/^[^/]*/, '')}`;
+    } else {
+      try {
+        const u = new URL(p);
+        p = u.pathname;
+      } catch {
+        /* относительный путь или мусор — оставляем как есть */
+      }
     }
     p = p.replace(/\/+$/, '').replace(/^\/+/, '');
     const key = `${title.toLowerCase()}|${p.toLowerCase()}`;
@@ -70,7 +82,21 @@ function sectionTree(sections, host) {
   }
   const minDepth = rows.reduce((m, r) => (r.depth > 0 && r.depth < m ? r.depth : m), Infinity);
   const base = Number.isFinite(minDepth) ? minDepth : 0;
-  return rows.map((r) => `${'  '.repeat(Math.max(0, r.depth - base))}${r.title}${r.path ? `  [/${r.path}]` : ''}`);
+  // Раздел верхнего уровня без единого потомка в снимке — краулер его не
+  // раскрыл (1001krep.ru: «Всё для строительства» пришло одним заголовком,
+  // а внутри профили для ГКЛ и стройхимия). Помечаем, чтобы классификатор не
+  // считал такой раздел пустым, а при проверке было видно, куда смотреть.
+  const paths = rows.map((r) => r.path.toLowerCase());
+  // Метку ставим только зонтичным по названию разделам — на «плоских»
+  // сайтах (все категории на одном уровне) потомков нет ни у кого, и метка
+  // на каждой строке ничего не говорит.
+  const UMBRELLA_RE = /(вс[её] для|прочее|разное|другое|другие|товары|каталог|категори|продукция|материалы|ассортимент|оборудование)/i;
+  return rows.map((r) => {
+    const key = r.path.toLowerCase();
+    const unexpanded = r.depth > 0 && r.depth <= base + 1 && key && UMBRELLA_RE.test(r.title) && !paths.some((p) => p !== key && p.startsWith(`${key}/`));
+    const src = r.path.startsWith('manual:') ? '  [со скриншота]' : r.path ? `  [/${r.path}]` : '';
+    return `${'  '.repeat(Math.max(0, r.depth - base))}${r.title}${src}${unexpanded && !r.path.startsWith('manual:') ? '  (подразделы не раскрыты)' : ''}`;
+  });
 }
 
 async function next() {
@@ -151,7 +177,7 @@ function validate(batch, result, dict) {
       continue;
     }
     const haystack = [
-      ...b.sections.map((s) => s.replace(/\s+\[\/[^\]]*\]$/, '').trim().toLowerCase()),
+      ...b.sections.map((s) => s.replace(/\s+\[[^\]]*\](\s+\(подразделы не раскрыты\))?$/, '').trim().toLowerCase()),
       b.pageTitle.toLowerCase(),
       b.metaDescription.toLowerCase(),
       b.homeText.toLowerCase(),
@@ -249,9 +275,43 @@ async function apply() {
   console.log(`записано: ${Array.isArray(updated) ? updated.length : '?'}, categories_verified = true`);
 }
 
-const commands = { next, diff, apply };
+// Ручные разделы со скриншота: строка = раздел, отступ в два пробела =
+// вложенность. Слаг для manual://-адреса — транслит не нужен, достаточно
+// уникальности: нумеруем по позиции в файле.
+async function sections() {
+  const host = String(named.host ?? '').trim().toLowerCase();
+  const file = String(named.file ?? '');
+  if (!host || !file) {
+    console.error('нужно --host=… и --file=…');
+    process.exit(1);
+  }
+  const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+  const stack = [];
+  const added = [];
+  lines.forEach((raw, i) => {
+    if (!raw.trim() || raw.trim().startsWith('#')) return;
+    const depth = Math.floor((raw.match(/^ */)[0].length) / 2);
+    const title = raw.trim();
+    stack.length = depth;
+    stack[depth] = `s${i + 1}`;
+    added.push({ title, url: `${'manual://'}${host}/${stack.slice(0, depth + 1).join('/')}` });
+  });
+  const [row] = await query(`select sections from supplier_site_snapshots where host = ${lit(host)}`);
+  if (!row) {
+    console.error(`снимка для ${host} нет`);
+    process.exit(1);
+  }
+  const existing = (Array.isArray(row.sections) ? row.sections : []).filter(
+    (s) => !(typeof s?.url === 'string' && s.url.startsWith('manual://')),
+  );
+  const merged = [...existing, ...added];
+  await query(`update supplier_site_snapshots set sections = ${lit(JSON.stringify(merged))}::jsonb where host = ${lit(host)}`);
+  console.log(`${host}: разделов со скриншота ${added.length} (старые ручные заменены), всего в снимке ${merged.length}`);
+}
+
+const commands = { next, diff, apply, sections };
 if (!commands[cmd]) {
-  console.error('использование: review.mjs next|diff|apply (см. шапку файла)');
+  console.error('использование: review.mjs next|diff|apply|sections (см. шапку файла)');
   process.exit(1);
 }
 await commands[cmd]();

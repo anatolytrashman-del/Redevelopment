@@ -695,6 +695,21 @@ const SNAPSHOT_TIME_BUDGET_MS = 55000;
 // первых 130 доменах). Повторов на домен — три, дальше считаем сайт мёртвым.
 const SNAPSHOT_HOME_TIMEOUT_MS = 20000;
 const SNAPSHOT_MAX_ATTEMPTS = 3;
+// Раскрытие «зонтичных» разделов (2026-09-14). У 1001krep.ru главная и корень
+// каталога дали заголовки «Всё для строительства», «Всё для сада»,
+// «Хозяйственные товары» без единого подраздела, и классификатор их
+// отбросил как пустые — а там профили для ГКЛ, строительная химия,
+// уборочный инвентарь (владелец показал скриншот страницы категорий).
+// Поэтому после sitemap докачиваем страницы разделов, у которых в снимке
+// нет ни одного потомка, и берём с них ссылки-потомки — не больше
+// SNAPSHOT_MAX_EXPAND страниц и только в остатке бюджета времени.
+const SNAPSHOT_MAX_EXPAND = 8;
+const SNAPSHOT_EXPAND_TIMEOUT_MS = 7000;
+const SNAPSHOT_EXPAND_PER_PAGE = 40;
+// Разделы, добавленные вручную со скриншота каталога (review.mjs sections),
+// живут в том же массиве sections с таким префиксом вместо адреса и
+// переживают повторный снимок — см. processSnapshot.
+const MANUAL_SECTION_PREFIX = 'manual://';
 
 interface SiteSection {
   title: string;
@@ -1013,6 +1028,10 @@ async function buildSiteSnapshot(host: string, websiteUrl: string): Promise<Site
     if (!byPath.has(key)) byPath.set(key, section);
   };
   extractLinks(home, base, host).forEach(add);
+  // Ссылки шапки/футера/меню повторяются на каждой странице — всё, что есть
+  // на главной и в корне каталога, при раскрытии разделов не считается
+  // «новым» (см. ниже).
+  const boilerplate = new Set<string>(byPath.keys());
 
   // Корень каталога: ссылка глубины 1 с каталожным сегментом — на ней
   // обычно полный список разделов, которого нет в шапке. Если с главной
@@ -1041,7 +1060,10 @@ async function buildSiteSnapshot(host: string, websiteUrl: string): Promise<Site
     if (!html) continue;
     rootsFetched++;
     pagesFetched++;
-    extractLinks(html, new URL(rootUrl), host).forEach(add);
+    extractLinks(html, new URL(rootUrl), host).forEach((s) => {
+      add(s);
+      boilerplate.add(pathKey(new URL(s.url)));
+    });
   }
 
   // sitemap.xml — единственный источник для сайтов, где меню рисует скрипт.
@@ -1089,6 +1111,47 @@ async function buildSiteSnapshot(host: string, websiteUrl: string): Promise<Site
     }
   }
 
+  // Раскрытие зонтичных разделов: раздел без потомков в снимке — кандидат
+  // на докачку; предпочитаем каталожные пути и мелкую глубину. Со страницы
+  // раздела берём ссылки, которых НЕ было на главной и в корне каталога
+  // (меню и футер повторяются везде — это boilerplate, а новое на странице
+  // раздела — его подразделы). Фильтровать по префиксу пути нельзя: у
+  // 1001krep.ru раздел живёт на /krepezh-i-metizy, а его подразделы — на
+  // /magazin/folder/<slug>, общего префикса нет. Не больше SNAPSHOT_EXPAND_PER_PAGE
+  // ссылок с одной страницы, короткие пути первыми (подразделы короче
+  // карточек товаров).
+  if (!fromArchive && byPath.size < SNAPSHOT_MAX_SECTIONS) {
+    const paths = [...byPath.keys()];
+    const hasChild = (key: string) => paths.some((p) => p !== key && p.startsWith(`${key}/`));
+    const leaves = [...byPath.entries()]
+      .filter(([key, s]) => {
+        const u = new URL(s.url);
+        return pathDepth(u) <= 2 && !hasChild(key) && !FILE_EXT_RE.test(u.pathname);
+      })
+      .sort(([, a], [, b]) => {
+        const ua = new URL(a.url);
+        const ub = new URL(b.url);
+        return Number(isCatalogPath(ub)) - Number(isCatalogPath(ua)) || pathDepth(ua) - pathDepth(ub);
+      })
+      .slice(0, SNAPSHOT_MAX_EXPAND);
+    for (const [, leaf] of leaves) {
+      if (!withinBudget() || byPath.size >= SNAPSHOT_MAX_SECTIONS) break;
+      const html = await fetchSnapshotPage(leaf.url, SNAPSHOT_EXPAND_TIMEOUT_MS);
+      if (!html) continue;
+      pagesFetched++;
+      const fresh = new Map<string, SiteSection>();
+      for (const s of extractLinks(html, new URL(leaf.url), host)) {
+        const key = pathKey(new URL(s.url));
+        if (boilerplate.has(key) || byPath.has(key) || fresh.has(key)) continue;
+        fresh.set(key, s);
+      }
+      [...fresh.values()]
+        .sort((a, b) => pathDepth(new URL(a.url)) - pathDepth(new URL(b.url)) || a.url.length - b.url.length)
+        .slice(0, SNAPSHOT_EXPAND_PER_PAGE)
+        .forEach(add);
+    }
+  }
+
   const sections = [...byPath.values()].slice(0, SNAPSHOT_MAX_SECTIONS);
   const pageTitle = cleanTitle(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(home)?.[1] ?? '') ||
     (/<title[^>]*>([\s\S]*?)<\/title>/i.exec(home)?.[1] ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
@@ -1103,6 +1166,12 @@ async function buildSiteSnapshot(host: string, websiteUrl: string): Promise<Site
 
 async function processSnapshot(row: { host: string; website_url: string }): Promise<void> {
   const snapshot = await buildSiteSnapshot(row.host, row.website_url);
+  // Разделы, внесённые вручную со скриншота, не затираем свежим снимком:
+  // это единственный источник для сайтов с капчей/JS-меню.
+  const { data: existing } = await supabase.from('supplier_site_snapshots').select('sections').eq('host', row.host).maybeSingle();
+  const manual = (Array.isArray(existing?.sections) ? existing.sections : []).filter(
+    (s: { url?: string }) => typeof s?.url === 'string' && s.url.startsWith(MANUAL_SECTION_PREFIX),
+  );
   await supabase
     .from('supplier_site_snapshots')
     .update({
@@ -1110,7 +1179,7 @@ async function processSnapshot(row: { host: string; website_url: string }): Prom
       page_title: snapshot.pageTitle,
       meta_description: snapshot.metaDescription,
       home_text: snapshot.homeText,
-      sections: snapshot.sections,
+      sections: [...snapshot.sections, ...manual],
       pages_fetched: snapshot.pagesFetched,
       error: null,
       fetched_at: new Date().toISOString(),
