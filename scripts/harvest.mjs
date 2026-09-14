@@ -57,6 +57,20 @@ const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
 const menuCode = fs.readFileSync(path.join(root, 'tools/menu-bookmarklet/bookmarklet.min.js'), 'utf8');
 const contactsCode = fs.readFileSync(path.join(root, 'tools/menu-bookmarklet/contacts.min.js'), 'utf8');
 
+// На экране входа в админку выбирают ИМЯ, а не почту — владелец так и ввёл
+// («Трэшмен»), и вход не прошёл. Поэтому принимаем и имя: список тот же, что
+// на экране входа (src/data/loginAccounts.ts), разбираем регуляркой, чтобы не
+// тащить сюда сборку TypeScript.
+function resolveLogin(input) {
+  const value = String(input || '').trim();
+  if (!value || value.includes('@')) return value;
+  const src = fs.readFileSync(path.join(root, 'src/data/loginAccounts.ts'), 'utf8');
+  for (const m of src.matchAll(/displayName:\s*'([^']+)',\s*email:\s*'([^']+)'/g)) {
+    if (m[1].toLowerCase() === value.toLowerCase()) return m[2];
+  }
+  return value;
+}
+
 async function ask(question) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const answer = await rl.question(question);
@@ -97,13 +111,14 @@ function hostOf(url) {
 }
 
 async function main() {
-  const email = process.env.REDEV_EMAIL || (await ask('Почта админки: '));
+  const email = resolveLogin(process.env.REDEV_EMAIL || (await ask('Почта или имя из админки (например Трэшмен): ')));
   const password = process.env.REDEV_PASSWORD || (await ask('Пароль (будет виден в терминале): '));
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
   const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
   if (authError) {
-    console.error('Не пускает в базу:', authError.message);
+    console.error(`Не пускает в базу (${email}):`, authError.message);
+    console.error('Логин — тот же, что в админке. Имя тоже подойдёт: «Трэшмен», «Светлана».');
     process.exit(1);
   }
 
