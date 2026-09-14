@@ -132,11 +132,24 @@ async function main() {
   const { data: doneRows } = await supabase.from('supplier_menu_captures').select('host');
   const done = new Set((doneRows ?? []).map((r) => r.host));
 
+  // --retry-failed: пройти заново ровно по тем, что не дались. Нужен, чтобы
+  // проверять догадки о причине отказов на одном и том же наборе, а не на
+  // случайных новых сайтах.
+  let onlyHosts = null;
+  if (args['retry-failed']) {
+    const { data: failRows } = await supabase.from('supplier_harvest_failures').select('host');
+    onlyHosts = new Set((failRows ?? []).map((r) => r.host));
+    console.log(`повтор по упавшим: ${onlyHosts.size}`);
+  } else if (args.hosts) {
+    onlyHosts = new Set(String(args.hosts).split(',').map((h) => h.trim().toLowerCase()).filter(Boolean));
+  }
+
   const queue = [];
   const seen = new Set();
   for (const offer of offers ?? []) {
     const host = hostOf(offer.website_url);
-    if (!host || seen.has(host) || done.has(host)) continue;
+    if (!host || seen.has(host)) continue;
+    if (onlyHosts ? !onlyHosts.has(host) : done.has(host)) continue;
     if (COUNTRY && offer.country && offer.country !== COUNTRY) continue;
     seen.add(host);
     queue.push({ host, name: offer.name });
@@ -147,7 +160,16 @@ async function main() {
 
   let browser;
   try {
-    browser = await chromium.launch({ channel: 'chrome', headless: !HEADFUL });
+    browser = await chromium.launch({
+      channel: 'chrome',
+      headless: !HEADFUL,
+      // Метка автоматизации — первое, на что смотрят системы защиты от
+      // ботов (Qrator, DDoS-Guard, StormWall — на российских магазинах это
+      // почти стандарт). Убираем её: браузер настоящий, пусть таким и
+      // выглядит.
+      ignoreDefaultArgs: ['--enable-automation'],
+      args: ['--disable-blink-features=AutomationControlled'],
+    });
   } catch (e) {
     console.error('Не нашёлся Google Chrome. Установите его (google.com/chrome) и запустите снова.');
     console.error(String(e.message || e).slice(0, 200));
@@ -244,6 +266,7 @@ async function main() {
             page_url: menu.pageUrl ?? `https://${item.host}`,
             tree: menu.tree,
             sections_count: sections,
+            source: 'robot',
           });
         }
         for (const c of found) {
@@ -264,6 +287,7 @@ async function main() {
               page_url: contacts.pageUrl ?? `https://${item.host}`,
               rank: typeof c.rank === 'number' ? c.rank : 0,
               status: 'pending',
+              source: 'robot',
             },
             { onConflict: 'host,kind,messenger_type,value' },
           );
@@ -280,6 +304,14 @@ async function main() {
         // видно по заголовку — сохраняем его.
         const title = await page.title().catch(() => '');
         await noteFailure(item.host, 'empty', '', response ? response.status() : null, title);
+      }
+      if (sections > 0 || found.length > 0) {
+        // Получилось со второго захода — строку отказа убираем, иначе
+        // --retry-failed будет вечно возвращаться к уже снятому.
+        await supabase.from('supplier_harvest_failures').delete().eq('host', item.host).then(
+          () => {},
+          () => {},
+        );
       }
       if (sections > 0 && found.length > 0) stats.ok++;
       else if (sections > 0) stats.menuOnly++;

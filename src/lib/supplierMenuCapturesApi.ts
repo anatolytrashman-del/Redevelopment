@@ -71,6 +71,8 @@ export function insertSupplierMenuCapture(input: {
         page_url: input.pageUrl,
         tree: input.tree,
         sections_count: input.sectionsCount,
+        // Съём человеком — в отличие от робота (scripts/harvest.mjs).
+        source: 'bookmarklet',
       })
       .select()
       .single();

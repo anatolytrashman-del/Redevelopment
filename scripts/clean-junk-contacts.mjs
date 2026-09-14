@@ -24,6 +24,8 @@ const WHERE = `
     or (kind = 'phone' and regexp_replace(value, '\\D', '', 'g') ~ '^7[5-7]')
     or (kind = 'phone' and regexp_replace(value, '\\D', '', 'g') ~ '^7(\\d)\\1{9}$')
     or (kind = 'messenger' and value ilike '%t.me/share%')
+    -- почта, слипшаяся с хвостом телефона: «137-65-60contacts@idg-deco.ru»
+    or (kind = 'email' and value ~ '^\\d[\\d-]{4,}[A-Za-z]')
   )
 `;
 

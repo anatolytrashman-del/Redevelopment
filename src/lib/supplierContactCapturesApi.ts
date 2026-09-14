@@ -100,6 +100,8 @@ export function upsertSupplierContactCapture(input: {
           page_url: input.pageUrl,
           rank: input.rank,
           status: 'pending',
+          // Съём человеком — в отличие от робота (scripts/harvest.mjs).
+          source: 'bookmarklet',
           captured_at: new Date().toISOString(),
         },
         { onConflict: 'host,kind,messenger_type,value' },
