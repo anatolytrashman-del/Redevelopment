@@ -164,18 +164,13 @@ async function main() {
     if (onlyHosts ? !onlyHosts.has(host) : done.has(host)) continue;
     if (COUNTRY && offer.country && offer.country !== COUNTRY) continue;
     seen.add(host);
-    queue.push({ host, name: offer.name, country: offer.country ?? '', offerIds: [], unverifiedCount: 0 });
+    queue.push({ host, name: offer.name, country: offer.country ?? '', offerIds: [] });
   }
-  // Все карточки домена — чтобы отметить их разом по итогам съёма. Отдельно
-  // считаем, сколько из них ещё не верифицированы: ровно столько строк уйдёт
-  // в activity_log после отметки (уже верифицированные — чья-то прошлая
-  // работа, её на баланс робота не переписываем).
+  // Все карточки домена — чтобы отметить их разом по итогам съёма.
   const byHost = new Map(queue.map((q) => [q.host, q]));
   for (const offer of offers ?? []) {
     const entry = byHost.get(hostOf(offer.website_url));
-    if (!entry) continue;
-    entry.offerIds.push(offer.id);
-    if (!offer.verified) entry.unverifiedCount++;
+    if (entry) entry.offerIds.push(offer.id);
   }
 
   const work = LIMIT === Infinity ? queue : queue.slice(0, LIMIT);
@@ -375,26 +370,27 @@ async function main() {
         // верификацию. Всё равно это не финал, мы будем ещё писать письма,
         // получать счета и иначе верифицировать, но сейчас этого точно
         // хватит». Отмечаем сразу, чтобы не гонять потом отдельный проход.
-        // Владелец, 2026-09-14 (вечер): «все верифицированные сегодня
-        // автоматическим образом поставщики на странице метрики идут на
-        // баланс ИИ-закупщика» — после отметки пишем в activity_log по
-        // строке на каждую только что верифицированную карточку от его
-        // имени (то же действие, что у ручной верификации). Лог — только
-        // если отметка реально прошла, иначе счётчик обгонит базу.
+        // Обычно к этому моменту отметку уже поставила сама база — триггер
+        // на вставке меню/контакта (verify_supplier_offers_with_captures,
+        // миграция 20260914-auto-apply-captures.sql), и он же записал её в
+        // activity_log на ИИ-закупщика. Здесь — страховка на случай, если
+        // триггер не сработал: ставим отметку только тем, у кого её ещё
+        // нет, и логируем РОВНО перевёрнутые этим запросом строки (владелец,
+        // 2026-09-14: «все верифицированные автоматическим образом
+        // поставщики на странице метрики идут на баланс ИИ-закупщика»),
+        // иначе счётчик задвоился бы с триггером.
         if (item.offerIds.length) {
-          const { error: verifyError } = await supabase
+          const { data: flipped } = await supabase
             .from('supplier_research_offers')
             .update({ verified: true })
-            .in('id', item.offerIds);
-          if (!verifyError && item.unverifiedCount > 0) {
+            .in('id', item.offerIds)
+            .eq('verified', false)
+            .select('id');
+          if (flipped?.length) {
             await supabase
               .from('activity_log')
               .insert(
-                Array.from({ length: item.unverifiedCount }, () => ({
-                  profile_id: null,
-                  profile_name: AI_BUYER_NAME,
-                  action: 'supplier_offer_verified',
-                })),
+                flipped.map(() => ({ profile_id: null, profile_name: AI_BUYER_NAME, action: 'supplier_offer_verified' })),
               )
               .then(() => {}, () => {});
           }

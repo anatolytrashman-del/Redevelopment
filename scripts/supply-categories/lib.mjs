@@ -35,7 +35,9 @@ export const lit = (s) => `'${String(s).replace(/'/g, "''")}'`;
 // 2026-09-14: «все верифицированные сегодня автоматическим образом
 // поставщики на странице метрики идут на баланс ИИ-закупщика» — поэтому
 // каждая отметка «верифицирован», поставленная роботом (harvest.mjs,
-// verify-harvested.mjs, verify-recognized.mjs), логируется как
+// verify-harvested.mjs, verify-recognized.mjs) или триггером базы
+// (verify_supplier_offers_with_captures, миграция
+// 20260914-ai-buyer-trigger-verifications-log.sql), логируется как
 // supplier_offer_verified от его имени, одна строка на карточку, ровно как
 // ручная верификация человека. profile_id пустой — строки в access_profiles
 // у ИИ-закупщика нет, и приписывать его действия чьему-то uuid нельзя.
