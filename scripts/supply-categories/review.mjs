@@ -107,6 +107,11 @@ async function next() {
   const limit = Number(named.limit ?? 5);
   const explicit = typeof named.hosts === 'string' ? named.hosts.split(',').map((h) => h.trim().toLowerCase()).filter(Boolean) : [];
   const where = explicit.length ? `and s.host in (${explicit.map(lit).join(', ')})` : 'and not s.categories_verified';
+  // Владелец, 2026-09-14: «белорусских поставщиков убери из очереди пока,
+  // ищи только Россию» — хосты без страны (g.countries пуст) не исключаем
+  // (тот же принцип, что в SupplierVerificationTab.tsx: молчаливо прятать
+  // нельзя), фильтр только по явному "Беларусь".
+  const russiaOnly = explicit.length ? '' : "and not ('Беларусь' = any(coalesce(g.countries, '{}')))";
   const rows = await query(`
     with o as (
       select ${HOST_SQL('website_url')} as host, name, country, verified
@@ -125,7 +130,7 @@ async function next() {
            coalesce(g.names, '{}') as names, coalesce(g.countries, '{}') as countries, coalesce(g.verified, false) as verified
     from supplier_site_snapshots s
     left join g on g.host = s.host
-    where s.status = 'done' ${where}
+    where s.status = 'done' ${where} ${russiaOnly}
     order by coalesce(g.verified, false) desc, coalesce(g.names[1], s.host) collate "ru-RU-x-icu", s.host
   `);
 
