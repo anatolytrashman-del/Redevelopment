@@ -10,6 +10,9 @@ import { Modal } from '../components/ui/Modal';
 import { ContractorAvatar } from '../components/contractors/ContractorAvatar';
 import { ContractorCard } from '../components/contractors/ContractorCard';
 import { ContractorDetailModal } from '../components/contractors/ContractorDetailModal';
+import { AiAgentCard } from '../components/contractors/AiAgentCard';
+import { aiAgents } from '../data/aiAgents';
+import { fetchAiAgentsLastActivity, type AiAgentActivity } from '../lib/aiAgentsApi';
 import { contractorSpecialties, contractorContactMethods, contractorTeamTiers, type Contractor } from '../data/contractors';
 import {
   fetchContractors,
@@ -91,6 +94,16 @@ export function Contractors() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [resumeUploading, setResumeUploading] = useState(false);
+  // Последняя задача каждого ИИ-агента (ключ — AiAgent.id). Грузится отдельно
+  // от людей и молча: если RPC не ответил, карточки просто без времени —
+  // ломать страницу команды из-за декоративной строки не надо.
+  const [agentActivity, setAgentActivity] = useState<Record<string, AiAgentActivity>>({});
+
+  useEffect(() => {
+    fetchAiAgentsLastActivity()
+      .then(setAgentActivity)
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     fetchContractors()
@@ -315,6 +328,16 @@ export function Contractors() {
 
       {!loading && !loadError && (
         <div className="flex flex-col gap-8">
+          {/* ИИ-агенты — всегда первым блоком, задаются кодом (data/aiAgents.ts),
+              не из таблицы contractors, поэтому в tierGroups их нет. */}
+          <div className="flex flex-col gap-4">
+            <div className="text-lg font-bold text-ink">ИИ-агенты</div>
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
+              {aiAgents.map((agent) => (
+                <AiAgentCard key={agent.id} agent={agent} activity={agentActivity[agent.id]} />
+              ))}
+            </div>
+          </div>
           {tierGroups.length === 0 && <Card className="py-10 text-center text-sm text-ink-muted">Подрядчиков пока нет</Card>}
           {tierGroups.map((group) => (
             <div key={group.tier} className="flex flex-col gap-4">
