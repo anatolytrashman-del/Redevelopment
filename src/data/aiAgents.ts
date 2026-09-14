@@ -14,6 +14,12 @@ export interface AiAgent {
   role: string;
   // Что агент делает; на карточке выводится списком.
   tasks: string[];
+  // Аватар: общий значок робота или фирменный знак (ClaudeLogo).
+  icon?: 'bot' | 'claude';
+  // Последняя задача, известная без похода в базу (у Claude Code это время
+  // сборки прода). Если агента нет в ответе RPC ai_agents_last_activity —
+  // карточка покажет это.
+  staticActivity?: { label: string; doneAt: string };
 }
 
 export const aiAgents: AiAgent[] = [
@@ -28,5 +34,16 @@ export const aiAgents: AiAgent[] = [
     name: 'ИИ-сборщик информации',
     role: 'Аналитика рынка',
     tasks: ['Сбор данных: Kufar, Realt, Bir, Avito, Megapolis', 'Статистика спроса и предложений по рынку'],
+  },
+  // Владелец, 2026-09-14: «добавь в список ИИ-агентов Claude Code с тегом
+  // ИИ-кодер и логотипом Клода». Следов в базе у него нет (пишет код и
+  // публикует релизы), поэтому последняя задача — момент сборки прода.
+  {
+    id: 'claude-code',
+    name: 'Claude Code',
+    role: 'ИИ-кодер',
+    tasks: ['Разработка и правки платформы', 'Публикация релизов на прод'],
+    icon: 'claude',
+    staticActivity: { label: 'Релиз на прод', doneAt: __BUILD_TIME__ },
   },
 ];

@@ -8,3 +8,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+// ISO-время сборки, подставляется через define в vite.config.ts.
+declare const __BUILD_TIME__: string;
