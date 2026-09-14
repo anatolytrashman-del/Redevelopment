@@ -11,11 +11,8 @@ import { countryFlag, messengerLink, supplierWebsiteFullUrl, supplierWebsiteHost
 import type { SupplierSiteSnapshot } from '../../data/supplierSiteSnapshots';
 import type { SupplierScreenshot } from '../../data/supplierScreenshots';
 import { deleteSupplierScreenshot, fetchSupplierScreenshots, uploadSupplierScreenshot } from '../../lib/supplierScreenshotsApi';
-import {
-  fetchSupplierMenuCaptures,
-  insertSupplierMenuCapture,
-  type SupplierMenuCapture,
-} from '../../lib/supplierMenuCapturesApi';
+import { fetchSupplierMenuCaptures, type SupplierMenuCapture } from '../../lib/supplierMenuCapturesApi';
+import { MENU_CAPTURE_SAVED_EVENT } from '../../lib/menuCaptureReceiver';
 
 // Вкладка "Верификация" на странице Закупки. Владелец, 2026-09-13 (второй
 // заход, после первой версии с редактируемым чек-листом категорий — снята
@@ -464,10 +461,6 @@ export function SupplierVerificationTab({
   const [screenshots, setScreenshots] = useState<SupplierScreenshot[]>([]);
   const [uploadingScreenshots, setUploadingScreenshots] = useState(false);
   const [menuCaptures, setMenuCaptures] = useState<SupplierMenuCapture[]>([]);
-  // Короткое подтверждение после снимка меню — владелец просил именно
-  // уведомление: «система записала в память и, если всё ок, показала
-  // уведомление».
-  const [captureToast, setCaptureToast] = useState('');
 
   const snapshotByHost = useMemo(() => new Map(snapshots.map((s) => [s.host, s])), [snapshots]);
 
@@ -568,51 +561,19 @@ export function SupplierVerificationTab({
     }
   }
 
-  // Приём дерева разделов от закладки «Снять меню». Вкладку с сайтом открыла
-  // эта же страница (openSupplierSiteTab), поэтому у той вкладки есть ссылка
-  // на нас, и закладка шлёт дерево сюда напрямую — без всплывающих окон,
-  // страниц-приёмников и токенов в самой закладке. Владелец, 2026-09-14:
-  // «я не хочу вручную пересылать каждый раз… система записала в память и,
-  // если всё ок, показала уведомление».
-  //
-  // Источник сообщения — чужой домен (сайт поставщика), поэтому доверять
-  // origin нельзя и проверяется ФОРМА данных: наша метка, строковый хост и
-  // непустое дерево. Худшее, что может сделать посторонняя страница, —
-  // записать строку-заготовку в отдельную таблицу, которую всё равно
-  // проверяют глазами перед тем, как пустить разделы в улики.
+  // Снятое меню принимает вся админка целиком (lib/menuCaptureReceiver.ts) —
+  // здесь только обновляем список, когда посылка сохранилась: иначе при
+  // переключении на другую страницу принимать было бы некому, а два
+  // слушателя записали бы одну посылку дважды.
   useEffect(() => {
-    async function onMessage(e: MessageEvent) {
-      const d = e.data as { source?: unknown; host?: unknown; tree?: unknown; pageUrl?: unknown } | null;
-      if (!d || d.source !== 'redevelopment-menu-capture') return;
-      const host = typeof d.host === 'string' ? d.host.trim().toLowerCase() : '';
-      const tree = typeof d.tree === 'string' ? d.tree.trim() : '';
-      if (!host || !tree) return;
-      const count = tree.split('\n').filter((l) => l.trim()).length;
-      try {
-        const created = await insertSupplierMenuCapture({
-          host,
-          pageUrl: typeof d.pageUrl === 'string' ? d.pageUrl.slice(0, 500) : '',
-          tree,
-          sectionsCount: count,
-        });
-        setMenuCaptures((prev) => [created, ...prev]);
-        setCaptureToast(`${host}: снято ${count} разделов`);
-        // Отвечаем закладке, чтобы она показала подтверждение у себя на
-        // странице — Светлана видит результат, не переключая вкладку.
-        if (e.source) (e.source as Window).postMessage({ source: 'redevelopment-menu-capture-ok', count }, '*');
-      } catch {
-        setError('Не удалось сохранить снятое меню — попробуйте ещё раз.');
-      }
+    function onSaved() {
+      fetchSupplierMenuCaptures()
+        .then(setMenuCaptures)
+        .catch(() => {});
     }
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
+    window.addEventListener(MENU_CAPTURE_SAVED_EVENT, onSaved);
+    return () => window.removeEventListener(MENU_CAPTURE_SAVED_EVENT, onSaved);
   }, []);
-
-  useEffect(() => {
-    if (!captureToast) return;
-    const t = setTimeout(() => setCaptureToast(''), 6000);
-    return () => clearTimeout(t);
-  }, [captureToast]);
 
   // Главный путь загрузки — ⌘V прямо на вкладке: сделал скрин меню
   // поставщика в соседнем окне, вернулся, вставил. Слушатель висит на окне
@@ -669,12 +630,6 @@ export function SupplierVerificationTab({
   return (
     <div className="flex flex-col gap-4">
       {error && <p className="text-sm text-danger">{error}</p>}
-      {captureToast && (
-        <div className={cn('flex items-center gap-2 p-3 text-sm text-ink', glassCardClass)} style={glassCardShadow}>
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
-          Меню снято — {captureToast}. Заполните контакты и жмите «Дальше».
-        </div>
-      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">

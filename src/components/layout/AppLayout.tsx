@@ -9,6 +9,7 @@ import { useSupplierEmailWatcher } from '../../lib/supplierEmailWatcher';
 import { useSupplierWebSearchJobWatcher } from '../../lib/supplierWebSearchJobWatcher';
 import { useSupplierEnrichmentJobWatcher } from '../../lib/supplierEnrichmentJobWatcher';
 import { ADMIN_PAGES } from '../../data/pages';
+import { useMenuCaptureReceiver } from '../../lib/menuCaptureReceiver';
 
 // index.html — общий статический файл на все роуты (публичный SPA-фолбэк),
 // его <title> заточен под OG-превью продающей страницы (см. index.html).
@@ -79,6 +80,12 @@ export function AppLayout() {
     setNavOpen(false);
   }, [location.pathname]);
 
+  // Приём дерева разделов от закладки «Снять меню» — на уровне всей админки,
+  // а не внутри вкладки «Верификация» (см. lib/menuCaptureReceiver.ts):
+  // Светлана может смотреть любую страницу, пока снимает меню на соседней
+  // вкладке, и принять посылку должно быть кому в любом случае.
+  const menuCaptureToast = useMenuCaptureReceiver();
+
   return (
     // Владелец, 2026-09-10: "чтобы влезало полностью, вне зависимости от
     // экрана" (композер письма поставщику упирался в нижний край окна) —
@@ -92,6 +99,16 @@ export function AppLayout() {
     // "заполнить всю высоту экрана" вёрстка (см. SupplierCorrespondenceTab),
     // используют flex-1 min-h-0 вниз по дереву от .mx-auto ниже.
     <div className="flex h-svh bg-bg">
+      {menuCaptureToast && (
+        <div
+          className={cn(
+            'fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-full px-5 py-3 text-sm font-semibold text-white shadow-lg',
+            menuCaptureToast.includes('не удалось') ? 'bg-danger' : 'bg-success',
+          )}
+        >
+          Меню снято — {menuCaptureToast}
+        </div>
+      )}
       <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* Верхняя полоса с гамбургером — только ниже lg, где сайдбар уехал в шторку. */}
