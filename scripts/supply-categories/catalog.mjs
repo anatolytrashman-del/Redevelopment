@@ -497,6 +497,7 @@ async function apply() {
   }
   if (hostEntries.length) console.log(`групп проставлено домену напрямую: ${hostEntries.length}`);
 
+  const [{ n: totalCats }] = await query('select count(*)::int as n from supply_categories');
   const [stat] = await query(`
     select
       (select count(distinct host) from supplier_menu_captures where status <> 'skipped') as снято,
@@ -508,7 +509,6 @@ async function apply() {
     values (${lit(String(named.model ?? 'claude-fable-5-1'))}, ${stat.снято}, ${stat.терминов}, ${stat.размечено}, ${totalCats}, ${lit(String(decision.summary ?? ''))})
   `);
 
-  const [{ n: totalCats }] = await query('select count(*)::int as n from supply_categories');
   console.log(`справочник: ${totalCats} групп`);
   console.log(`терминов размечено: ${stat.размечено} из ${stat.терминов}`);
   console.log(`категории пересчитаны у поставщиков: ${touched}`);
