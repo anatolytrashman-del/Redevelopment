@@ -35,6 +35,20 @@ const menuHref = build('bookmarklet');
 const contactsHref = build('contacts');
 const esc = (s) => s.replace(/"/g, '&quot;');
 
+// Те же две закладки — в саму админку, на вкладку «Верификация». Владелец,
+// 2026-09-14: «я вижу снять меню и оно снялось, но не вижу снять контакт» —
+// открылся присланный раньше файл install.html без второй кнопки. Пока
+// страница установки живёт отдельным файлом в чате, такое будет повторяться
+// на каждой правке закладки: в переписке лежат несколько версий, и на вид
+// они одинаковые. В админке версия всегда ровно одна — та, что задеплоена.
+const generated = `// СГЕНЕРИРОВАНО tools/menu-bookmarklet/build.mjs — не править руками.
+// Исходники закладок: tools/menu-bookmarklet/bookmarklet.js и contacts.js.
+// После правки любой из них: node tools/menu-bookmarklet/build.mjs
+export const MENU_BOOKMARKLET_HREF = ${JSON.stringify(menuHref)};
+export const CONTACTS_BOOKMARKLET_HREF = ${JSON.stringify(contactsHref)};
+`;
+fs.writeFileSync(path.join(process.cwd(), 'src/data/bookmarkletLinks.ts'), generated);
+
 const html = `<!doctype html>
 <html lang="ru">
 <meta charset="utf-8">
@@ -141,4 +155,4 @@ const html = `<!doctype html>
 `;
 
 fs.writeFileSync(path.join(dir, 'install.html'), html);
-console.log(`install.html готов: «Снять меню» ${menuHref.length} символов, «Снять контакт» ${contactsHref.length}`);
+console.log(`install.html и src/data/bookmarkletLinks.ts готовы: «Снять меню» ${menuHref.length} символов, «Снять контакт» ${contactsHref.length}`);
