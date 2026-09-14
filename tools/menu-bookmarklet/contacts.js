@@ -153,6 +153,12 @@ plain = plain.replace(/\s+/g, ' ');
 var found;
 PHONE_RE.lastIndex = 0;
 while ((found = PHONE_RE.exec(plain)) !== null) {
+// В ТЕКСТЕ (в отличие от ссылки tel:) номер обязан быть оформлен —
+// пробелы, скобки или дефисы. Одиннадцать цифр подряд без единого
+// разделителя на строительном сайте почти всегда артикул или ГОСТ:
+// у bard.su так записались «83510143734» и «83973629452», а настоящие
+// номера там же стоят ссылками. Людям номер печатают читаемым.
+if (!/[\s()\-–—]/.test(found[0])) continue;
 if (validPhone(found[0])) out.push({ kind: 'phone', value: found[0].trim(), messengerType: '', rawText: '', rank: phoneRank(found[0]), source: source });
 }
 EMAIL_RE.lastIndex = 0;

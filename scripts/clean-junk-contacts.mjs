@@ -26,6 +26,10 @@ const WHERE = `
     or (kind = 'messenger' and value ilike '%t.me/share%')
     -- почта, слипшаяся с хвостом телефона: «137-65-60contacts@idg-deco.ru»
     or (kind = 'email' and value ~ '^\\d[\\d-]{4,}[A-Za-z]')
+    -- одиннадцать цифр подряд без единого разделителя, снятые из ТЕКСТА
+    -- (оценка 3, не из ссылки tel:): у bard.su так записались артикулы
+    -- «83510143734» и «83973629452». Людям номер печатают читаемым.
+    or (kind = 'phone' and rank <= 3 and raw_text = '' and value !~ '[ ()-]')
   )
 `;
 
