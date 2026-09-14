@@ -126,9 +126,81 @@ async function skip() {
   console.log(`${host}: снимок помечен неподходящим`);
 }
 
-const commands = { list, show, apply, skip };
+// Дерево из снимка → разделы снимка сайта, тем же правилом, что
+// review.mjs sections: строка = раздел, отступ в два пробела = вложенность,
+// адрес manual:// (не затирается повторным снимком краулера).
+function treeToSections(host, tree) {
+  const stack = [];
+  const added = [];
+  tree.split(/\r?\n/).forEach((raw, i) => {
+    if (!raw.trim() || raw.trim().startsWith('#')) return;
+    const depth = Math.floor(raw.match(/^ */)[0].length / 2);
+    stack.length = depth;
+    stack[depth] = `s${i + 1}`;
+    added.push({ title: raw.trim(), url: `manual://${host}/${stack.slice(0, depth + 1).join('/')}` });
+  });
+  return added;
+}
+
+// Массовая заливка всего, что снял робот (scripts/harvest.mjs): он проходит
+// базу целиком, и разбирать тысячу снимков по одному --host бессмысленно —
+// мусорный хвост вроде «Все акции» всё равно отсекается на следующем шаге,
+// там у каждой группы обязательная улика. Ручной apply остаётся для случаев,
+// когда хвост надо отрезать глазами (--drop-after).
+async function applyAll() {
+  const limit = Number(named.limit ?? 0);
+  const rows = await query(`
+    select distinct on (c.host) c.id, c.host, c.tree
+    from supplier_menu_captures c
+    join supplier_site_snapshots s on s.host = c.host
+    where c.status = 'pending'
+    order by c.host, c.captured_at desc
+    ${limit ? `limit ${limit}` : ''}
+  `);
+  if (!rows.length) {
+    console.log('неразобранных снимков меню нет');
+    return;
+  }
+  const snapshots = await query(`
+    select host, sections from supplier_site_snapshots
+    where host in (${rows.map((r) => lit(r.host)).join(', ')})
+  `);
+  const byHost = new Map(snapshots.map((s) => [s.host, Array.isArray(s.sections) ? s.sections : []]));
+
+  let done = 0;
+  const CHUNK = 20;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows[i] ? rows.slice(i, i + CHUNK) : [];
+    const values = chunk
+      .map((r) => {
+        const kept = (byHost.get(r.host) ?? []).filter((s) => !(typeof s?.url === 'string' && s.url.startsWith('manual://')));
+        const merged = [...kept, ...treeToSections(r.host, r.tree)];
+        return `(${lit(r.host)}, ${lit(JSON.stringify(merged))}::jsonb)`;
+      })
+      .join(',\n      ');
+    await query(`
+      update supplier_site_snapshots s
+      set sections = v.sections
+      from (values
+      ${values}
+      ) as v(host, sections)
+      where s.host = v.host
+    `);
+    await query(`
+      update supplier_menu_captures
+      set status = 'applied', applied_at = now(), note = 'дерево с сайта записано в снимок'
+      where id in (${chunk.map((r) => lit(r.id)).join(', ')})
+    `);
+    done += chunk.length;
+    console.log(`  записано ${done}/${rows.length}`);
+  }
+  console.log(`готово: разделы с сайта записаны у ${done} хостов`);
+  console.log('дальше: node scripts/supply-categories/review.mjs next --limit=20');
+}
+
+const commands = { list, show, apply, 'apply-all': applyAll, skip };
 if (!commands[cmd]) {
-  console.error("команды: list | show --host=… | apply --host=… [--drop-after='строка'] | skip --host=… [--note=…]");
+  console.error("команды: list | show --host=… | apply --host=… [--drop-after='строка'] | apply-all [--limit=N] | skip --host=… [--note=…]");
   process.exit(1);
 }
 await commands[cmd]();
