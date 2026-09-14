@@ -310,6 +310,13 @@ export interface SupplierOffer {
   // АВТОМАТИЧЕСКОЙ проверки благонадёжности по госреестрам
   // (data/supplierReliability.ts). Это разные вещи, одно не заменяет другое.
   inn: string | null;
+  // Когда карточку убрали из очереди верификации «на потом» (владелец,
+  // 2026-09-15: «полностью очисти очередь верификации, я пока не буду ей
+  // заниматься, мне достаточно поставщиков»). null — в очереди на общих
+  // основаниях. Именно отдельное поле, а не verified = true: verified
+  // означает «каталог распознан», его пересчитывает verify-recognized.mjs,
+  // и подделанная отметка слетела бы на первом же прогоне.
+  queueSnoozedAt: string | null;
   createdAt: string;
 }
 
@@ -335,6 +342,7 @@ export interface SupplierOfferRow {
   short_code: string;
   verified: boolean;
   inn: string | null;
+  queue_snoozed_at: string | null;
   created_at: string;
 }
 
