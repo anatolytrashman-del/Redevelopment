@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Bot, Loader2, RefreshCw } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
@@ -149,13 +149,15 @@ function currentMonthStr(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-// Понедельник текущей недели — тот же принцип "европейской" недели, что и
-// startOfWeekIsoDate в Tasks.tsx (getDay() воскресенье=0, сдвигаем на Пн=0).
-function startOfWeek(d: Date): Date {
-  const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const mondayOffset = (monday.getDay() + 6) % 7;
-  monday.setDate(monday.getDate() - mondayOffset);
-  return monday;
+// "Неделя" — последние 7 календарных дней, включая сегодняшний (владелец,
+// 2026-09-14: "при нажатии «Неделя» выводи 7 последних календарных дней").
+// Раньше это была текущая календарная неделя с понедельника, то есть в
+// понедельник утром кнопка показывала почти пустой период, а в воскресенье —
+// семь дней; теперь длина окна всегда одна и та же.
+function startOfLast7Days(now: Date): Date {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  start.setDate(start.getDate() - 6);
+  return start;
 }
 
 // [start, end) — весь диапазон отдаётся полными календарными границами
@@ -170,7 +172,7 @@ function periodRange(period: Period, customMonth: string): { start: Date; end: D
     return { start, end };
   }
   if (period === 'week') {
-    const start = startOfWeek(now);
+    const start = startOfLast7Days(now);
     const end = new Date(start);
     end.setDate(end.getDate() + 7);
     return { start, end };
@@ -192,7 +194,7 @@ function formatPeriodCaption(period: Period, start: Date, end: Date): string {
   }
   if (period === 'week') {
     const endInclusive = new Date(end.getTime() - 24 * 60 * 60 * 1000);
-    return `${start.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long' })} – ${endInclusive.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' })} (текущая неделя, с понедельника)`;
+    return `${start.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long' })} – ${endInclusive.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' })} (последние 7 дней, включая сегодня)`;
   }
   return start.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 }
@@ -221,6 +223,7 @@ function PersonSection({
   name,
   subtitle,
   icon,
+  tileColsClass = 'lg:grid-cols-4',
   children,
 }: {
   name: string;
@@ -228,6 +231,10 @@ function PersonSection({
   // Только у ИИ-агентов — чтобы блок Claude Code читался так же, как его
   // карточка в "Команде" (ContractorCard/AiAgentCard). У людей иконки нет.
   icon?: ReactNode;
+  // Блоки ИИ-сотрудников стоят по двое в ряд (половина ширины каждый),
+  // поэтому у них плитки идут в две колонки, а не в четыре, как у людей на
+  // всю ширину.
+  tileColsClass?: string;
   children: ReactNode;
 }) {
   return (
@@ -239,7 +246,7 @@ function PersonSection({
           <p className="text-xs text-ink-faint">{subtitle}</p>
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">{children}</div>
+      <div className={cn('grid grid-cols-1 gap-3 sm:grid-cols-2', tileColsClass)}>{children}</div>
     </Card>
   );
 }
@@ -249,7 +256,18 @@ function PersonSection({
 // из-за невозможности отличить его от "действие вообще не логируется" была
 // правка 2026-09-10 (см. комментарий в начале файла). Все прочие профили,
 // реально встретившиеся в данных за период, дописываются к списку сами.
-const TRACKED_PEOPLE = ['Светлана', 'Альмира', 'Трэшмен', AUTO_REPLY_SENDER_NAME];
+const TRACKED_PEOPLE = ['Светлана', 'Альмира', 'Трэшмен'];
+
+// 2026-09-14, вторая правка за день (владелец: "оставь для Claude 2
+// плиточки, как сейчас, а слева, также на 2 плиточки, добавь ИИ-закупщика"):
+// ИИ-закупщик переехал из общего списка людей наверх, в ряд ИИ-сотрудников
+// рядом с Claude Code, и показывает ровно две цифры — верификации
+// поставщиков и письма, ушедшие автоматически, без участия человека. Поэтому
+// его больше нет ни в TRACKED_PEOPLE, ни среди профилей, дописываемых по
+// факту из лога (иначе блок дублировался бы дважды на одной странице).
+// Остальные цифры автоответов (разобрано входящих, пропущено) никуда не
+// делись — они ушли в подписи этих двух плиток.
+const AI_BUYER_NAME = AUTO_REPLY_SENDER_NAME;
 
 // ИИ-кодер — не профиль в access_profiles и не строка activity_log, поэтому
 // в TRACKED_PEOPLE он не входит: у него отдельный блок и единственный
@@ -272,9 +290,7 @@ function personTitle(name: string): string {
 }
 
 function personSubtitle(name: string): string {
-  return name === AUTO_REPLY_SENDER_NAME
-    ? `Почасовая сессия автоответов (Routine) и действия, записанные под именем «${name}»`
-    : `Действия, залогированные под профилем «${name}»`;
+  return `Действия, залогированные под профилем «${name}»`;
 }
 
 interface PersonStats {
@@ -407,6 +423,25 @@ export function Metrics() {
     };
   }, [autoReplyLog, inRange]);
 
+  // Две цифры ИИ-закупщика для его блока в ряду ИИ-сотрудников.
+  // "Верифицировано поставщиков" — те же supplier_offer_verified, что и у
+  // людей, но залогированные под его именем. "Писем отправлено" — исходящие
+  // с sent_by_name = «ИИ-закупщик», то есть ровно те, что ушли сами:
+  // автоответы подписывает так SQL-функция auto_reply_apply, а у массовой
+  // рассылки и у ручной отправки в sent_by_name стоит имя человека, который
+  // её запустил (api/purchase-send-email.js, process-bulk-send-jobs), так что
+  // письма "с участием Трэшмена" сюда не попадают.
+  const aiBuyerStats = useMemo(() => {
+    const actions = entriesInRange.filter((e) => e.profileName === AI_BUYER_NAME);
+    const sent = outgoingEmailsInRange.filter((e) => e.sentByName === AI_BUYER_NAME);
+    return {
+      suppliersVerified: actions.filter((e) => e.action === 'supplier_offer_verified').length,
+      invoicesConfirmed: actions.filter((e) => e.action === 'supplier_invoice_confirmed').length,
+      emailsSent: sent.length,
+      emailsUnique: new Set(sent.map((e) => e.toAddress.trim().toLowerCase())).size,
+    };
+  }, [entriesInRange, outgoingEmailsInRange]);
+
   // Деплои ИИ-кодера за период. Только успешные (state = 'READY'): именно
   // столько раз сайт реально обновился. Строки приходят отсортированными по
   // возрастанию, но последний релиз берём явным максимумом — порядок выборки
@@ -435,7 +470,7 @@ export function Metrics() {
       ...searchJobsInRange.map((j) => j.createdByName),
     ];
     for (const name of seen) {
-      if (name && !names.includes(name)) names.push(name);
+      if (name && name !== AI_BUYER_NAME && !names.includes(name)) names.push(name);
     }
     return names.map((name) => {
       const actions = entriesInRange.filter((e) => e.profileName === name);
@@ -465,6 +500,11 @@ export function Metrics() {
     () => outgoingEmailsInRange.filter((e) => !e.sentByName).length,
     [outgoingEmailsInRange],
   );
+
+  // Рядом блоки ИИ-сотрудников стоят только там, где у обоих по две плитки, —
+  // то есть в периоде "Сегодня" (см. комментарий у самого ряда ниже).
+  const sideBySideAiRow = period === 'today';
+  const aiTileColsClass = sideBySideAiRow ? 'lg:grid-cols-2' : 'lg:grid-cols-4';
 
   const loading =
     entries === null || emails === null || searchJobs === null || autoReplyLog === null || deployments === null;
@@ -512,43 +552,80 @@ export function Metrics() {
             </span>
           </div>
 
-          <PersonSection
-            name={AI_CODER_NAME}
-            subtitle="ИИ-кодер: разработка платформы и публикация релизов на прод"
-            icon={
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d97757]/15 text-[#d97757]">
-                <ClaudeLogo className="h-5 w-5" />
-              </span>
-            }
-          >
-            <StatTile
-              label="Деплоев на прод"
-              value={deployStats.total}
-              hint="Успешные сборки, выехавшие на redevelopment.pro"
-            />
-            {/* В периоде "Сегодня" эти две плитки были бы копией первой
-                (дней всегда 1, среднее равно общему числу) — показываем их
-                только там, где в периоде больше одного дня. */}
-            {period !== 'today' && (
-              <>
-                <StatTile
-                  label="Дней с релизами"
-                  value={deployStats.days}
-                  hint="Разных дней периода, когда что-то выезжало"
-                />
-                <StatTile
-                  label="В среднем за день"
-                  value={deployStats.perDay.toLocaleString('ru-RU', { maximumFractionDigits: 1 })}
-                  hint="Считается по дням, когда релизы были"
-                />
-              </>
-            )}
-            <StatTile
-              label="Последний релиз"
-              value={deployStats.lastAt ? formatActivityTime(deployStats.lastAt) : '—'}
-              hint={deployStats.lastMessage || 'За период релизов не было'}
-            />
-          </PersonSection>
+          {/* Ряд ИИ-сотрудников: в периоде "Сегодня" у обоих ровно по две
+              плитки, поэтому они стоят рядом — закупщик слева, кодер справа.
+              За неделю/месяц у кодера добавляются ещё две плитки (дни с
+              релизами, среднее за день), вчетвером в половине ширины они уже
+              не читаются, поэтому там блоки идут друг под другом на всю
+              ширину, как у людей (владелец, 2026-09-14: "за сегодня выводи
+              как я сказал, а за неделю и 30 дней друг под другом"). На узком
+              экране блоки встают друг под друга в любом случае. */}
+          <div className={cn('grid grid-cols-1 gap-4', sideBySideAiRow && 'lg:grid-cols-2')}>
+            <PersonSection
+              name={AI_BUYER_NAME}
+              subtitle="ИИ-закупщик: переписка с поставщиками без участия человека"
+              tileColsClass={aiTileColsClass}
+              icon={
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <Bot className="h-4 w-4" />
+                </span>
+              }
+            >
+              <StatTile
+                label="Верифицировано поставщиков"
+                value={aiBuyerStats.suppliersVerified}
+                hint={
+                  aiBuyerStats.invoicesConfirmed
+                    ? `Карточки, подтверждённые им самим · счетов и КП по переписке: ${aiBuyerStats.invoicesConfirmed.toLocaleString('ru-RU')}`
+                    : 'Карточки поставщиков, подтверждённые им самим'
+                }
+              />
+              <StatTile
+                label="Писем отправлено"
+                value={aiBuyerStats.emailsSent}
+                hint={`Автоматические ответы, без участия человека · адресатов: ${aiBuyerStats.emailsUnique.toLocaleString('ru-RU')} · разобрано входящих: ${autoReplyStats.processed.toLocaleString('ru-RU')}, пропущено: ${autoReplyStats.skipped.toLocaleString('ru-RU')}`}
+              />
+            </PersonSection>
+
+            <PersonSection
+              name={AI_CODER_NAME}
+              subtitle="ИИ-кодер: разработка платформы и публикация релизов на прод"
+              tileColsClass={aiTileColsClass}
+              icon={
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d97757]/15 text-[#d97757]">
+                  <ClaudeLogo className="h-5 w-5" />
+                </span>
+              }
+            >
+              <StatTile
+                label="Деплоев на прод"
+                value={deployStats.total}
+                hint="Успешные сборки, выехавшие на redevelopment.pro"
+              />
+              {/* В периоде "Сегодня" эти две плитки были бы копией первой
+                  (дней всегда 1, среднее равно общему числу) — показываем их
+                  только там, где в периоде больше одного дня. */}
+              {period !== 'today' && (
+                <>
+                  <StatTile
+                    label="Дней с релизами"
+                    value={deployStats.days}
+                    hint="Разных дней периода, когда что-то выезжало"
+                  />
+                  <StatTile
+                    label="В среднем за день"
+                    value={deployStats.perDay.toLocaleString('ru-RU', { maximumFractionDigits: 1 })}
+                    hint="Считается по дням, когда релизы были"
+                  />
+                </>
+              )}
+              <StatTile
+                label="Последний релиз"
+                value={deployStats.lastAt ? formatActivityTime(deployStats.lastAt) : '—'}
+                hint={deployStats.lastMessage || 'За период релизов не было'}
+              />
+            </PersonSection>
+          </div>
 
           {start < DEPLOY_HISTORY_START && (
             <p className="text-xs text-ink-faint">
@@ -599,30 +676,6 @@ export function Metrics() {
                 hint="Разных адресов получателей"
               />
               <StatTile label="Писем отправлено всего" value={p.emailsTotal} hint="Включая повторные письма" />
-              {p.name === AUTO_REPLY_SENDER_NAME && (
-                <>
-                  <StatTile
-                    label="Разобрано входящих писем"
-                    value={autoReplyStats.processed}
-                    hint="Все решения ИИ-закупщика, включая пропуски"
-                  />
-                  <StatTile
-                    label="Ответов отправлено автоматически"
-                    value={autoReplyStats.sentAuto}
-                    hint="Ситуации в режиме «отправлять автоматически»"
-                  />
-                  <StatTile
-                    label="Черновиков на проверку"
-                    value={autoReplyStats.draftsPending}
-                    hint={`Ждут решения человека · разобрано: ${autoReplyStats.draftsReviewed.toLocaleString('ru-RU')}`}
-                  />
-                  <StatTile
-                    label="Пропущено писем"
-                    value={autoReplyStats.skipped}
-                    hint="Спорные, с вопросами, автоответчики — отвечает человек"
-                  />
-                </>
-              )}
             </PersonSection>
           ))}
 
