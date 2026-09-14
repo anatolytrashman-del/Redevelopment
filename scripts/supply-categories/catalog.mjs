@@ -125,6 +125,104 @@ async function status() {
   );
 }
 
+// Досье по хостам, которые после прохода остались БЕЗ групп. Такое бывает,
+// когда весь словарь сайта — редкие названия: порог частоты их отсекает, и
+// поставщик проваливается мимо каталога. Здесь частота не поможет, поможет
+// контекст: показываем меню каждого такого сайта целиком, а не строчки
+// вперемешку. Владелец, 2026-09-14: «продолжаем переосмысление каталога».
+async function dossierEmptyHosts(dict) {
+  const rows = await query(`
+    select m.host, m.tree
+    from supplier_menu_captures m
+    left join supplier_site_snapshots s on s.host = m.host
+    where m.status <> 'skipped' and coalesce(array_length(s.categories, 1), 0) = 0
+    order by m.host
+  `);
+  const known = await query("select term from supply_terms where categories <> '{}' or ignored");
+  const skip = new Set(known.map((r) => r.term));
+
+  const lines = [];
+  lines.push('# Каталог: сайты, оставшиеся без товарных групп');
+  lines.push('');
+  lines.push(
+    'Это продолжение первого прохода. Справочник уже собран и менять его',
+    'целиком не нужно — задача точечная.',
+    '',
+    `Ниже ${rows.length} поставщиков, у которых после первого прохода не`,
+    'осталось ни одной группы: все названия разделов на их сайтах оказались',
+    'редкими и не прошли порог частоты. Названия, уже разложенные или',
+    'помеченные мусором в первом проходе, из списков убраны — показано только',
+    'то, что осталось нерешённым.',
+    '',
+    'Разложи эти названия по группам справочника. Правила те же:',
+    '',
+    '- пустой массив — если это навигация, фильтр (цвет, размер, страна,',
+    '  стиль, помещение), услуга продавца, бренд неясного профиля или товар',
+    '  не про стройку;',
+    '- родовое название («Двери», «Плитка») может идти в две группы;',
+    '- точность важнее полноты: по этим группам уходят запросы на закупку.',
+    '',
+    'Если для целого сайта не нашлось ни одной подходящей группы, а товар',
+    'очевидно есть — заведи новую группу в `newCategories`, но только когда',
+    'она осмысленна и для других поставщиков тоже.',
+  );
+  lines.push('');
+  lines.push(`## Справочник (${dict.length} групп)`);
+  lines.push('');
+  for (const c of dict) lines.push(`- ${c.name} | ${c.tile || '—'}${c.hint ? ` | ${c.hint}` : ''}`);
+  lines.push('');
+  lines.push('## Сайты');
+  lines.push('');
+  let shown = 0;
+  for (const row of rows) {
+    const seen = new Set();
+    const items = [];
+    for (const { raw, term } of treeTerms(row.tree)) {
+      if (skip.has(term) || seen.has(term)) continue;
+      seen.add(term);
+      items.push(raw);
+    }
+    if (!items.length) continue;
+    shown += items.length;
+    lines.push(`### ${row.host}`);
+    for (const it of items) lines.push(`- ${it}`);
+    lines.push('');
+  }
+  lines.push('## Что вернуть');
+  lines.push('');
+  lines.push('Один JSON-файл, без пояснений вокруг:');
+  lines.push('');
+  lines.push('```json');
+  lines.push('{');
+  lines.push('  "terms": { "реечный потолок": ["Подвесные потолки"], "все новости": [] },');
+  lines.push('  "hosts": { "alma-ceramics.ru": ["Керамогранит и плитка"] },');
+  lines.push('  "newCategories": [');
+  lines.push('    { "name": "Новая группа", "tile": "Плитка каталога", "hint": "что входит" }');
+  lines.push('  ],');
+  lines.push('  "summary": "два-три предложения о том, что решено"');
+  lines.push('}');
+  lines.push('```');
+  lines.push('');
+  lines.push(
+    'Ключи `terms` — в нижнем регистре, как названия выше (регистр и лишние',
+    'пробелы приводятся автоматически). `newCategories` можно не присылать,',
+    'если новых групп не понадобилось. Справочник целиком присылать НЕ надо.',
+    '',
+    '`hosts` — на случай, когда в меню сайта одни названия коллекций и',
+    'моделей («Танзания», «Тиберио»), а чем торгует компания, видно только по',
+    'самому сайту. Тогда проставь группы прямо домену: разложить такие',
+    'названия по словарю нельзя, а поставщик без групп невидим для закупок.',
+    'Пользуйся этим только там, где иначе никак.',
+  );
+  lines.push('');
+
+  fs.mkdirSync(outDir, { recursive: true });
+  const file = path.join(outDir, 'catalog-dossier-empty-hosts.md');
+  fs.writeFileSync(file, lines.join('\n'));
+  console.log(`досье готово: ${path.relative(process.cwd(), file)}`);
+  console.log(`сайтов без групп: ${rows.length}, названий на разбор: ${shown}`);
+}
+
 async function dossier() {
   const minHosts = Number(named['min-hosts'] ?? 1);
   // Плитка каталога нужна модели, чтобы новая группа сразу попала в нужный
@@ -132,6 +230,7 @@ async function dossier() {
   // не через readDictionaryLive (там только имя и подсказка).
   const dict = await query('select name, hint, tile from supply_categories order by sort, name');
   if (!dict.length) throw new Error('справочник supply_categories пуст');
+  if (named['empty-hosts']) return dossierEmptyHosts(dict);
   const termRows = await query(`
     select term, sample, hosts, categories from supply_terms
     where not ignored and hosts >= ${minHosts}
@@ -247,11 +346,23 @@ async function apply() {
   const file = named.file;
   if (!file) throw new Error('нужен --file=decision.json');
   const decision = JSON.parse(fs.readFileSync(file, 'utf8'));
-  const categories = Array.isArray(decision.categories) ? decision.categories : [];
   const termMap = decision.terms && typeof decision.terms === 'object' ? decision.terms : {};
-  if (!categories.length) throw new Error('в решении нет categories');
 
-  const names = new Set(categories.map((c) => String(c.name)));
+  // Точечный проход (--terms-only): справочник не пересобирается целиком, а
+  // только дополняется новыми группами из newCategories. Нужен для добора
+  // хостов, оставшихся без групп: присылать ради десятка названий весь
+  // справочник — лишний повод его случайно порезать.
+  const termsOnly = Boolean(named['terms-only']) || !Array.isArray(decision.categories);
+  const categories = Array.isArray(decision.categories) ? decision.categories : [];
+  const added = Array.isArray(decision.newCategories) ? decision.newCategories : [];
+  if (!termsOnly && !categories.length) throw new Error('в решении нет categories');
+
+  const names = termsOnly
+    ? new Set([
+        ...(await query('select name from supply_categories')).map((r) => r.name),
+        ...added.map((c) => String(c.name)),
+      ])
+    : new Set(categories.map((c) => String(c.name)));
   // Ссылка на группу, которой нет в итоговом справочнике, — самая частая
   // ошибка в таком ответе: проверяем ДО записи, иначе поставщики получат
   // группу-призрак.
@@ -266,11 +377,29 @@ async function apply() {
   }
 
   if (named.dry) {
-    console.log(`проверка прошла: групп ${categories.length}, размечено терминов ${Object.keys(termMap).length}`);
+    console.log(
+      termsOnly
+        ? `проверка прошла: новых групп ${added.length}, размечено терминов ${Object.keys(termMap).length}`
+        : `проверка прошла: групп ${categories.length}, размечено терминов ${Object.keys(termMap).length}`,
+    );
     return;
   }
 
-  // 1. Справочник целиком: что не названо — удаляем.
+  // 1. Справочник. В точечном проходе только дописываем новые группы, в
+  // полном — пересобираем целиком, и что не названо, то удаляем.
+  if (termsOnly) {
+    if (added.length) {
+      const [{ n: maxSort }] = await query('select coalesce(max(sort), 0) + 1 as n from supply_categories');
+      const rows = added
+        .map((c, i) => `(${lit(String(c.name))}, ${lit(String(c.hint ?? ''))}, ${lit(String(c.tile ?? ''))}, ${Number(maxSort) + i}, 'catalog-review', ${lit(String(c.note ?? ''))})`)
+        .join(', ');
+      await query(`
+        insert into supply_categories (name, hint, tile, sort, source, note) values ${rows}
+        on conflict (name) do update set hint = excluded.hint, tile = excluded.tile, note = excluded.note
+      `);
+      console.log(`новых групп заведено: ${added.length}`);
+    }
+  } else {
   const values = categories
     .map((c, i) => `(${lit(String(c.name))}, ${lit(String(c.hint ?? ''))}, ${lit(String(c.tile ?? ''))}, ${i}, 'catalog-review', ${lit(String(c.note ?? ''))})`)
     .join(', ');
@@ -280,6 +409,7 @@ async function apply() {
       set hint = excluded.hint, tile = excluded.tile, sort = excluded.sort, note = excluded.note
   `);
   await query(`delete from supply_categories where name not in (${[...names].map(lit).join(', ')})`);
+  }
 
   // 2. Разметка терминов.
   const entries = Object.entries(termMap);
@@ -302,26 +432,70 @@ async function apply() {
 
   // 3. Пересчёт категорий у поставщиков — обычный поиск по словарю, без
   // модели: дерево разделов → термины → группы.
+  //
+  // Пачками по 200 хостов одним UPDATE ... FROM (VALUES …). Первый проход
+  // (2026-09-14) шёл по одному запросу на хост — 1069 запросов через
+  // Management API, около одиннадцати минут и риск словить таймаут на
+  // ровном месте. Здесь то же самое укладывается в несколько секунд.
   const captures = await query(`
     select host, tree from supplier_menu_captures where status <> 'skipped'
   `);
-  const mapRows = await query('select term, categories from supply_terms where categories <> \'{}\'');
+  const mapRows = await query("select term, categories from supply_terms where categories <> '{}'");
   const byTerm = new Map(mapRows.map((r) => [r.term, r.categories]));
-  let touched = 0;
+  const updates = [];
   for (const row of captures) {
     const found = new Set();
     for (const { term } of treeTerms(row.tree)) {
       for (const name of byTerm.get(term) ?? []) found.add(name);
     }
     if (!found.size) continue;
-    const arr = [...found].map(lit).join(', ');
-    await query(`
-      update supplier_site_snapshots
-      set categories = array[${arr}]::text[], classified_at = now()
-      where host = ${lit(row.host)}
-    `);
-    touched++;
+    updates.push({ host: row.host, categories: [...found] });
   }
+  const chunkHosts = 200;
+  for (let i = 0; i < updates.length; i += chunkHosts) {
+    const values = updates
+      .slice(i, i + chunkHosts)
+      .map((u) => `(${lit(u.host)}, array[${u.categories.map(lit).join(', ')}]::text[])`)
+      .join(', ');
+    await query(`
+      update supplier_site_snapshots s
+      set categories = v.cats, classified_at = now()
+      from (values ${values}) as v(host, cats)
+      where s.host = v.host
+    `);
+  }
+  const touched = updates.length;
+
+  // 4. Прямые группы домену — для сайтов, где в меню одни названия
+  // коллекций. Ставятся ПОСЛЕ пересчёта по словарю и объединяются с ним, а
+  // не затирают его.
+  const hostMap = decision.hosts && typeof decision.hosts === 'object' ? decision.hosts : {};
+  const hostEntries = Object.entries(hostMap).filter(([, list]) => Array.isArray(list) && list.length);
+  const badHosts = [];
+  for (const [host, list] of hostEntries) {
+    for (const name of list) if (!names.has(String(name))) badHosts.push(`${host} → ${name}`);
+  }
+  if (badHosts.length) {
+    console.error('домены ссылаются на группы, которых нет в справочнике:');
+    for (const b of badHosts.slice(0, 20)) console.error('  ' + b);
+    process.exit(1);
+  }
+  for (let i = 0; i < hostEntries.length; i += chunkHosts) {
+    const values = hostEntries
+      .slice(i, i + chunkHosts)
+      .map(([host, list]) => `(${lit(host.toLowerCase())}, array[${list.map((n) => lit(String(n))).join(', ')}]::text[])`)
+      .join(', ');
+    await query(`
+      update supplier_site_snapshots s
+      set categories = (
+            select array_agg(distinct x) from unnest(coalesce(s.categories, '{}') || v.cats) as x
+          ),
+          classified_at = now()
+      from (values ${values}) as v(host, cats)
+      where s.host = v.host
+    `);
+  }
+  if (hostEntries.length) console.log(`групп проставлено домену напрямую: ${hostEntries.length}`);
 
   const [stat] = await query(`
     select
@@ -331,10 +505,11 @@ async function apply() {
   `);
   await query(`
     insert into supply_catalog_reviews (model, suppliers_at_review, terms_total, terms_mapped, categories_after, summary)
-    values (${lit(String(named.model ?? 'claude-fable-5-1'))}, ${stat.снято}, ${stat.терминов}, ${stat.размечено}, ${categories.length}, ${lit(String(decision.summary ?? ''))})
+    values (${lit(String(named.model ?? 'claude-fable-5-1'))}, ${stat.снято}, ${stat.терминов}, ${stat.размечено}, ${totalCats}, ${lit(String(decision.summary ?? ''))})
   `);
 
-  console.log(`справочник: ${categories.length} групп`);
+  const [{ n: totalCats }] = await query('select count(*)::int as n from supply_categories');
+  console.log(`справочник: ${totalCats} групп`);
   console.log(`терминов размечено: ${stat.размечено} из ${stat.терминов}`);
   console.log(`категории пересчитаны у поставщиков: ${touched}`);
   if (Array.isArray(decision.changes)) {
