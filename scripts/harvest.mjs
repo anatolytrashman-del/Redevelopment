@@ -162,6 +162,27 @@ async function main() {
     return route.continue();
   });
 
+  // Причины отказов уезжают в базу, а не только в терминал: по ним видно,
+  // в чём дело — сеть, антибот или сайт на скриптах. Владелец, 2026-09-14:
+  // «много ошибок. Может быть, из-за vpn?»
+  async function noteFailure(host, kind, error, httpStatus, pageTitle) {
+    try {
+      await supabase.from('supplier_harvest_failures').upsert(
+        {
+          host,
+          kind,
+          error: String(error ?? '').slice(0, 300),
+          http_status: httpStatus,
+          page_title: String(pageTitle ?? '').slice(0, 200),
+          last_try_at: new Date().toISOString(),
+        },
+        { onConflict: 'host' },
+      );
+    } catch {
+      // Диагностика не должна ронять прогон.
+    }
+  }
+
   const stats = { ok: 0, menuOnly: 0, contactsOnly: 0, empty: 0, failed: 0 };
   let index = 0;
 
@@ -173,8 +194,21 @@ async function main() {
       const no = index;
       let menu = null;
       let contacts = null;
+      let response = null;
       try {
-        await page.goto(`https://${item.host}`, { waitUntil: 'domcontentloaded', timeout: 25000 });
+        // Часть сайтов сразу уводит редиректом (kraski.ru: «Navigation is
+        // interrupted») или рвёт соединение на первом заходе — это не повод
+        // терять поставщика. Второй заход: ждём 'load' вместо
+        // 'domcontentloaded' и, если https не отвечает вовсе, пробуем http.
+        try {
+          response = await page.goto(`https://${item.host}`, { waitUntil: 'domcontentloaded', timeout: 25000 });
+        } catch (first) {
+          try {
+            response = await page.goto(`https://${item.host}`, { waitUntil: 'load', timeout: 30000 });
+          } catch (second) {
+            response = await page.goto(`http://${item.host}`, { waitUntil: 'domcontentloaded', timeout: 25000 });
+          }
+        }
         // Меню и контакты часто дорисовываются скриптом сразу после загрузки.
         await page.waitForTimeout(1500);
 
@@ -194,7 +228,9 @@ async function main() {
         contacts = await page.evaluate(() => window.__redevHarvestResult);
       } catch (e) {
         stats.failed++;
-        console.log(`${no}/${work.length} x ${item.host} — ${String(e.message || e).split('\n')[0].slice(0, 60)}`);
+        const message = String(e.message || e).split('\n')[0];
+        await noteFailure(item.host, 'network', message, null, '');
+        console.log(`${no}/${work.length} x ${item.host} — ${message.slice(0, 60)}`);
         continue;
       }
 
@@ -238,6 +274,13 @@ async function main() {
         continue;
       }
 
+      if (sections === 0 && found.length === 0) {
+        // Страница ответила, а взять с неё нечего: это либо заглушка от
+        // антибота, либо сайт, который рисует всё скриптом позже. Разницу
+        // видно по заголовку — сохраняем его.
+        const title = await page.title().catch(() => '');
+        await noteFailure(item.host, 'empty', '', response ? response.status() : null, title);
+      }
       if (sections > 0 && found.length > 0) stats.ok++;
       else if (sections > 0) stats.menuOnly++;
       else if (found.length > 0) stats.contactsOnly++;
