@@ -1710,6 +1710,61 @@ interface RequestGroup {
   offers: { offer: SupplierOffer; emails: SupplierOfferEmail[] }[];
 }
 
+// includeUnverified — только для псевдо-категории "Непрочитанные"
+// (владелец, 2026-09-14: "нужно вывести все непрочитанные сообщения на
+// 1 страницу, даже если поставщики ещё не верифицированы, это мои прежние
+// запросы и на них нужно ответить"). Обычные категории по-прежнему
+// показывают только верифицированных с email.
+function buildGroups(
+  requests: SupplierRequest[],
+  offers: SupplierOffer[],
+  emails: SupplierOfferEmail[],
+  includeUnverified: boolean,
+): RequestGroup[] {
+  const byRequest = new Map<string, RequestGroup>();
+  for (const request of requests) {
+    byRequest.set(request.id, { request, offers: [] });
+  }
+  for (const offer of offers) {
+    // Владелец, 2026-09-04: "поставщик добавлен из поиска — статус
+    // Требуется верификация... заполнил поля, сохранил — доступен для
+    // переписки" — до тех пор скрыт так же, как и предложения без email
+    // (некому/нельзя писать).
+    if (!includeUnverified && (!offer.email || !offer.verified)) continue;
+    const group = byRequest.get(offer.requestId);
+    if (!group) continue;
+    const offerEmails = emails.filter((e) => e.offerId === offer.id);
+    group.offers.push({ offer, emails: offerEmails });
+  }
+  const withSortedOffers = [...byRequest.values()]
+    .filter((g) => g.offers.length > 0)
+    .map((g) => ({
+      ...g,
+      offers: g.offers.sort((a, b) => {
+        const sa = threadStatus(a.emails);
+        const sb = threadStatus(b.emails);
+        if (sa.unreadCount !== sb.unreadCount) return sb.unreadCount - sa.unreadCount;
+        const lastA = a.emails[a.emails.length - 1]?.createdAt ?? '';
+        const lastB = b.emails[b.emails.length - 1]?.createdAt ?? '';
+        if (lastA !== lastB) return lastB.localeCompare(lastA);
+        return a.offer.name.localeCompare(b.offer.name, 'ru');
+      }),
+    }));
+  // Владелец, 2026-09-03: "поднимай непрочитанные письма и поставщиков с
+  // ними в левом боковом меню в верх списка" — сортировка offers внутри
+  // группы (выше) уже поднимала поставщика наверх ВНУТРИ своего запроса,
+  // но сами запросы (категории) шли в исходном порядке. Теперь категория
+  // с хотя бы одним непрочитанным письмом целиком поднимается над
+  // категориями без непрочитанных — .sort() в JS стабилен, поэтому
+  // порядок внутри одинакового unread-счёта не меняется.
+  return withSortedOffers.sort((a, b) => {
+    const unreadA = a.offers.reduce((sum, x) => sum + threadStatus(x.emails).unreadCount, 0);
+    const unreadB = b.offers.reduce((sum, x) => sum + threadStatus(x.emails).unreadCount, 0);
+    return unreadB - unreadA;
+  });
+}
+
+
 // Слева — дерево Запрос → Поставщик (только те, у кого есть email — писать
 // больше некому), справа — тред выбранного. Владелец, 2026-09-03: "точно
 // нужна группировка по подрядчику, метка с категорией... ну и сама
@@ -1799,49 +1854,12 @@ export function SupplierCorrespondenceTab({
     onTemplatesChange(templates.some((t) => t.id === saved.id) ? templates.map((t) => (t.id === saved.id ? saved : t)) : [...templates, saved]);
   }
 
-  const groups = useMemo<RequestGroup[]>(() => {
-    const byRequest = new Map<string, RequestGroup>();
-    for (const request of requests) {
-      byRequest.set(request.id, { request, offers: [] });
-    }
-    for (const offer of offers) {
-      // Владелец, 2026-09-04: "поставщик добавлен из поиска — статус
-      // Требуется верификация... заполнил поля, сохранил — доступен для
-      // переписки" — до тех пор скрыт так же, как и предложения без email
-      // (некому/нельзя писать).
-      if (!offer.email || !offer.verified) continue;
-      const group = byRequest.get(offer.requestId);
-      if (!group) continue;
-      const offerEmails = emails.filter((e) => e.offerId === offer.id);
-      group.offers.push({ offer, emails: offerEmails });
-    }
-    const withSortedOffers = [...byRequest.values()]
-      .filter((g) => g.offers.length > 0)
-      .map((g) => ({
-        ...g,
-        offers: g.offers.sort((a, b) => {
-          const sa = threadStatus(a.emails);
-          const sb = threadStatus(b.emails);
-          if (sa.unreadCount !== sb.unreadCount) return sb.unreadCount - sa.unreadCount;
-          const lastA = a.emails[a.emails.length - 1]?.createdAt ?? '';
-          const lastB = b.emails[b.emails.length - 1]?.createdAt ?? '';
-          if (lastA !== lastB) return lastB.localeCompare(lastA);
-          return a.offer.name.localeCompare(b.offer.name, 'ru');
-        }),
-      }));
-    // Владелец, 2026-09-03: "поднимай непрочитанные письма и поставщиков с
-    // ними в левом боковом меню в верх списка" — сортировка offers внутри
-    // группы (выше) уже поднимала поставщика наверх ВНУТРИ своего запроса,
-    // но сами запросы (категории) шли в исходном порядке. Теперь категория
-    // с хотя бы одним непрочитанным письмом целиком поднимается над
-    // категориями без непрочитанных — .sort() в JS стабилен, поэтому
-    // порядок внутри одинакового unread-счёта не меняется.
-    return withSortedOffers.sort((a, b) => {
-      const unreadA = a.offers.reduce((sum, x) => sum + threadStatus(x.emails).unreadCount, 0);
-      const unreadB = b.offers.reduce((sum, x) => sum + threadStatus(x.emails).unreadCount, 0);
-      return unreadB - unreadA;
-    });
-  }, [requests, offers, emails]);
+  const groups = useMemo<RequestGroup[]>(() => buildGroups(requests, offers, emails, false), [requests, offers, emails]);
+  // Надмножество groups: то же самое плюс неверифицированные (и без email).
+  // Используется ТОЛЬКО в псевдо-категории "Непрочитанные" и при поиске
+  // открытого треда — чтобы на старое письмо можно было ответить, не
+  // дожидаясь верификации поставщика.
+  const allGroups = useMemo<RequestGroup[]>(() => buildGroups(requests, offers, emails, true), [requests, offers, emails]);
 
   // Владелец, 2026-09-04: "ответы будут приходить неравномерно, в разные
   // категории... непрочитанные письма должны быть сразу видны" —
@@ -1861,7 +1879,7 @@ export function SupplierCorrespondenceTab({
 
   const unreadEntries = useMemo<UnreadEntry[]>(() => {
     const list: UnreadEntry[] = [];
-    for (const group of groups) {
+    for (const group of allGroups) {
       for (const { offer, emails: offerEmails } of group.offers) {
         const threads: { id: string | null; title: string | null }[] = [
           { id: null, title: null },
@@ -1884,7 +1902,7 @@ export function SupplierCorrespondenceTab({
       }
     }
     return list.sort((a, b) => b.lastAt.localeCompare(a.lastAt));
-  }, [groups, orders]);
+  }, [allGroups, orders]);
 
   const totalUnread = unreadEntries.reduce((sum, e) => sum + e.unreadCount, 0);
 
@@ -1911,12 +1929,12 @@ export function SupplierCorrespondenceTab({
 
   const selected = useMemo(() => {
     if (!selectedOfferId) return null;
-    for (const group of groups) {
+    for (const group of allGroups) {
       const found = group.offers.find((x) => x.offer.id === selectedOfferId);
       if (found) return { ...found, request: group.request };
     }
     return null;
-  }, [groups, selectedOfferId]);
+  }, [allGroups, selectedOfferId]);
 
   // Заявки выбранного поставщика — "Основная" (null) всегда в списке
   // неявно (см. чипы ниже), тут только дополнительные (SupplierOrder).
@@ -2139,9 +2157,19 @@ export function SupplierCorrespondenceTab({
                           {entry.unreadCount}
                         </span>
                       </span>
-                      <span className="truncate text-xs text-ink-faint">
-                        {entry.requestTitle}
-                        {entry.orderTitle ? ` · ${entry.orderTitle}` : ''}
+                      <span className="flex w-full min-w-0 items-center gap-1.5 text-xs text-ink-faint">
+                        <span className="min-w-0 flex-1 truncate">
+                          {entry.requestTitle}
+                          {entry.orderTitle ? ` · ${entry.orderTitle}` : ''}
+                        </span>
+                        {/* Такой поставщик не виден в своей категории (нужна
+                            верификация) — без пометки было бы непонятно,
+                            почему письмо есть только здесь. */}
+                        {!entry.offer.verified && (
+                          <span className="shrink-0 rounded-full bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium text-ink-muted">
+                            не верифицирован
+                          </span>
+                        )}
                       </span>
                     </button>
                   );

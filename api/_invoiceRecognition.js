@@ -81,10 +81,19 @@ export function estimatePdfPageCount(bytes) {
   }
 }
 
+// Расширения картинок, которые модель умеет читать. .jfif и .jpe — тот же
+// JPEG, просто под старыми именами: Outlook и часть веб-клиентов сохраняют
+// вставленное в письмо фото именно так. 2026-09-14: реальное вложение
+// "4bf2732d-...jfif" (фото 1440x1920 на 800 КБ) не попадало в кандидаты
+// вовсе — ни ошибки, ни попытки, потому что .jfif не было ни в одном из
+// трёх списков ниже. Держать списки в одном месте, чтобы такое не
+// повторилось: добавляя расширение, добавляешь его везде сразу.
+const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'jfif', 'jpe', 'webp', 'gif'];
+
 function blockTypeForFileName(fileName) {
   const ext = String(fileName || '').split('.').pop()?.toLowerCase();
   if (ext === 'pdf') return 'document';
-  if (['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)) return 'image';
+  if (IMAGE_EXT.includes(ext)) return 'image';
   return null;
 }
 
@@ -221,50 +230,96 @@ export async function recognizeInvoice(fileUrl, fileName) {
 // документ три попытки ничего не стоят, но и бесконечно перебирать
 // двадцативложенную рассылку незачем.
 const SIGNATURE_IMAGE_MAX_BYTES = 60 * 1024;
-const SERVICE_IMAGE_NAME = /^(image|img|oledata|logo|signature|sig|footer|banner|mailrusigimg|outlook-)[-_a-z0-9]*\.(png|jpe?g|gif|webp)$/i;
+const IMAGE_EXT_RE = new RegExp(`\\.(${IMAGE_EXT.join('|')})$`, 'i');
+const SERVICE_IMAGE_NAME = new RegExp(
+  `^(image|img|oledata|logo|signature|sig|footer|banner|mailrusigimg|outlook-)[-_a-z0-9]*\\.(${IMAGE_EXT.join('|')})$`,
+  'i',
+);
 const INVOICE_NAME_HINT = /(сч[её]т|invoice|inv[-_ ]?\d|\bкп\b|коммерч|оферт|предложен|quote|proposal|прайс|price)/i;
-const RECOGNIZABLE_EXT = /\.(pdf|png|jpe?g|webp|gif|docx|xlsx)$/i;
+const RECOGNIZABLE_EXT = new RegExp(`\\.(pdf|docx|xlsx|${IMAGE_EXT.join('|')})$`, 'i');
 export const MAX_CANDIDATES = 3;
 
+// 2026-09-14: имя перестало быть самостоятельным основанием отсеять
+// картинку. Outlook переименовывает в imageNNN.png ВСЁ, что вставлено в
+// тело письма, — и логотип из подписи, и скриншот прайса, который прислал
+// менеджер. В базе на этот момент лежали четыре таких письма, где
+// "image002.png" (133 КБ), "image011.png" (182 КБ), "image012.png" (156 КБ)
+// и "image001.png" (166 КБ) отбрасывались не глядя, хотя картинки из
+// подписи в тех же письмах весили 1-3 КБ. Поэтому: размер известен — решает
+// он (подпись/логотип это единицы килобайт, скриншот счёта — сотни), и
+// только когда размера нет (старое письмо, файл не скачался) в ход идёт имя.
 function isServiceImage(attachment) {
-  if (!/\.(png|jpe?g|gif|webp)$/i.test(attachment.fileName)) return false;
-  if (SERVICE_IMAGE_NAME.test(attachment.fileName)) return true;
-  return typeof attachment.size === 'number' && attachment.size > 0 && attachment.size < SIGNATURE_IMAGE_MAX_BYTES;
+  if (!IMAGE_EXT_RE.test(attachment.fileName)) return false;
+  const size = typeof attachment.size === 'number' && attachment.size > 0 ? attachment.size : null;
+  if (size != null) return size < SIGNATURE_IMAGE_MAX_BYTES;
+  return SERVICE_IMAGE_NAME.test(attachment.fileName);
+}
+
+// Почему конкретное вложение до модели не дошло — словами, для записи в
+// extraction.skipped (см. recognizeInvoiceFromAttachments). Без этого
+// "счёт не распознался" неотличимо от "распознавание даже не пробовало", и
+// разбор каждой такой жалобы превращается в археологию по коду (ровно это
+// и случилось 2026-09-14).
+function skipReason(a) {
+  if (!a || !a.url) return 'файл не загрузился в хранилище';
+  if (!RECOGNIZABLE_EXT.test(a.fileName || '')) return 'тип файла не читается моделью';
+  if (a.pageCount == null) return 'не удалось определить число страниц PDF';
+  if (a.pageCount > INVOICE_MAX_PAGES) return `страниц ${a.pageCount} — похоже на каталог, не на счёт`;
+  if (isServiceImage(a)) return 'картинка из подписи отправителя';
+  return null;
 }
 
 // attachments — то, что вернул extractEmailAttachments (url/fileName/
-// pageCount/size). Возвращает отсортированный список кандидатов, не более
-// MAX_CANDIDATES.
+// pageCount/size). Возвращает отсортированный список кандидатов (не более
+// MAX_CANDIDATES) и список отсеянных с причинами.
 export function pickInvoiceCandidates(attachments) {
-  const suitable = (Array.isArray(attachments) ? attachments : []).filter((a) => {
-    if (!a || !a.url || !RECOGNIZABLE_EXT.test(a.fileName || '')) return false;
-    // pageCount у не-PDF всегда 1 (см. _attachments.js); null — PDF, число
-    // страниц которого не удалось определить: лучше пропустить настоящий
-    // счёт, чем прогонять через модель неизвестного размера каталог.
-    if (a.pageCount == null || a.pageCount > INVOICE_MAX_PAGES) return false;
-    return !isServiceImage(a);
-  });
+  const suitable = [];
+  const skipped = [];
+  for (const a of Array.isArray(attachments) ? attachments : []) {
+    const reason = skipReason(a);
+    if (reason) skipped.push({ fileName: a?.fileName ?? '(без имени)', reason });
+    else suitable.push(a);
+  }
 
   const rank = (a) => {
     const hinted = INVOICE_NAME_HINT.test(a.fileName) ? 0 : 1;
     const isDocument = /\.(pdf|docx|xlsx)$/i.test(a.fileName) ? 0 : 1;
     return hinted * 2 + isDocument;
   };
-  return [...suitable].sort((a, b) => rank(a) - rank(b)).slice(0, MAX_CANDIDATES);
+  const ranked = [...suitable].sort((a, b) => rank(a) - rank(b));
+  for (const a of ranked.slice(MAX_CANDIDATES)) {
+    skipped.push({ fileName: a.fileName, reason: `дальше ${MAX_CANDIDATES}-го по правдоподобию — не пробовали` });
+  }
+  const candidates = ranked.slice(0, MAX_CANDIDATES);
+  // Свойство, а не отдельный возвращаемый объект: pickInvoiceCandidates
+  // вызывается и как обычный список кандидатов (scripts/backfill-invoice-
+  // recognition.mjs), ломать её форму ради диагностики не нужно.
+  Object.defineProperty(candidates, 'skipped', { value: skipped, enumerable: false });
+  return candidates;
 }
 
-// Пробует кандидатов по очереди и возвращает ПЕРВЫЙ, признанный счётом:
-// { recognized, candidate }. null — ни одно вложение счётом не оказалось
-// (или распознавать было нечего). Ошибка на одном кандидате не прекращает
-// перебор: битый .docx в письме не должен прятать нормальный PDF рядом.
+// Пробует кандидатов по очереди. Возвращает ВСЕГДА объект:
+//   { recognized, candidate, attempts, skipped }
+// recognized/candidate — первое вложение, признанное счётом (null, если ни
+// одно им не оказалось); attempts/skipped — протокол попыток и отсева, он
+// уходит в письмо даже при неудаче (см. purchase-email-webhook.js). Ошибка
+// на одном кандидате не прекращает перебор: битый .docx в письме не должен
+// прятать нормальный PDF рядом.
 export async function recognizeInvoiceFromAttachments(attachments) {
-  for (const candidate of pickInvoiceCandidates(attachments)) {
+  const candidates = pickInvoiceCandidates(attachments);
+  const attempts = [];
+  for (const candidate of candidates) {
     try {
       const recognized = await recognizeInvoice(candidate.url, candidate.fileName);
-      if (recognized.isInvoice) return { recognized, candidate };
+      if (recognized.isInvoice) {
+        attempts.push({ fileName: candidate.fileName, outcome: 'счёт' });
+        return { recognized, candidate, attempts, skipped: candidates.skipped ?? [] };
+      }
+      attempts.push({ fileName: candidate.fileName, outcome: 'модель не считает это счётом' });
     } catch (err) {
       console.error('Не удалось распознать вложение как счёт:', candidate.fileName, err);
+      attempts.push({ fileName: candidate.fileName, outcome: `ошибка: ${err instanceof Error ? err.message : String(err)}`.slice(0, 300) });
     }
   }
-  return null;
+  return { recognized: null, candidate: null, attempts, skipped: candidates.skipped ?? [] };
 }
