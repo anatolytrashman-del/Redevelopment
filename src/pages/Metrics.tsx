@@ -10,6 +10,8 @@ import { fetchActivityLog } from '../lib/activityLogApi';
 import type { ActivityLogEntry } from '../data/activityLog';
 import { fetchOutgoingEmailMetrics, type OutgoingEmailMetric } from '../lib/supplierOfferEmailsApi';
 import { fetchSupplierWebSearchJobMetrics, type SupplierWebSearchJobMetric } from '../lib/supplierWebSearchApi';
+import { fetchAutoReplyLogMetrics, type AutoReplyLogMetric } from '../lib/emailAutoReplyApi';
+import { AUTO_REPLY_SENDER_NAME } from '../data/emailAutoReply';
 
 // Владелец, 2026-09-05: "давай трекать Альмиру" (по аналогии с Activity Log
 // Светланы — см. data/activityLog.ts/ActivityLog.tsx). Страница НЕ в меню и
@@ -72,6 +74,26 @@ import { fetchSupplierWebSearchJobMetrics, type SupplierWebSearchJobMetric } fro
 //     сервером по вошедшему пользователю (api/purchase-send-email.js) и
 //     автором задания у массовой рассылки; историю разобрали бэкфиллом по
 //     подписи в теле письма (см. docs/session-journal.md, 2026-09-12).
+
+// 2026-09-14 — владелец: "я настроил автоматические ответы на письма
+// поставщиков. Добавь на страницу метрики юзера ИИ-закупщик, трекай
+// автоматические ответы и все сегодняшние верификации поставщиков под его
+// юзернеймом". ИИ-закупщик — не профиль в access_profiles, а почасовая
+// Routine в аккаунте владельца (см. docs/auto-reply-routine.md), поэтому:
+//  1. Он в TRACKED_PEOPLE под тем же именем, которым SQL-функция
+//     auto_reply_apply подписывает исходящие (AUTO_REPLY_SENDER_NAME) —
+//     значит, его письма попадают в общие плитки "писем отправлено" сами,
+//     через sent_by_name, без отдельного учёта.
+//  2. К общему набору плиток у него добавлен четвёртый источник —
+//     email_auto_reply_log: сколько входящих разобрано, сколько ответов
+//     ушло автоматически, сколько черновиков ждёт/прошло проверку и сколько
+//     писем пропущено как спорные. Эти плитки только у него: у людей такого
+//     лога нет по определению, ноль там был бы не "ничего не делал", а
+//     "не к нему вопрос".
+//  3. Верификации за 2026-09-14 (14 записей supplier_offer_verified,
+//     лежали под "Трэшмен") переписаны в activity_log на profile_name
+//     "ИИ-закупщик" с profile_id = null — по прямому указанию владельца,
+//     SQL-обновлением в живой базе, кода это не касается.
 
 // 2026-09-12 — владелец: "можем автоматически обновлять цифры раз в минуту
 // без необходимости перезагружать страницу?". Страница теперь сама
@@ -187,7 +209,7 @@ function PersonSection({ name, subtitle, children }: { name: string; subtitle: s
 // из-за невозможности отличить его от "действие вообще не логируется" была
 // правка 2026-09-10 (см. комментарий в начале файла). Все прочие профили,
 // реально встретившиеся в данных за период, дописываются к списку сами.
-const TRACKED_PEOPLE = ['Светлана', 'Альмира', 'Трэшмен'];
+const TRACKED_PEOPLE = ['Светлана', 'Альмира', 'Трэшмен', AUTO_REPLY_SENDER_NAME];
 
 // display_name владельца в профиле — рабочий никнейм ("в платформе имя не
 // меняй", 2026-09-03); на этой странице, которую видит только он сам,
@@ -195,6 +217,12 @@ const TRACKED_PEOPLE = ['Светлана', 'Альмира', 'Трэшмен'];
 // (emailSignature в SupplierCorrespondenceTab.tsx), сам профиль не трогаем.
 function personTitle(name: string): string {
   return name === 'Трэшмен' ? 'Анатолий (Трэшмен)' : name;
+}
+
+function personSubtitle(name: string): string {
+  return name === AUTO_REPLY_SENDER_NAME
+    ? `Почасовая сессия автоответов (Routine) и действия, записанные под именем «${name}»`
+    : `Действия, залогированные под профилем «${name}»`;
 }
 
 interface PersonStats {
@@ -209,10 +237,20 @@ interface PersonStats {
   emailsUnique: number;
 }
 
+// Сводка по email_auto_reply_log — есть только у ИИ-закупщика.
+interface AutoReplyStats {
+  processed: number;
+  sentAuto: number;
+  draftsPending: number;
+  draftsReviewed: number;
+  skipped: number;
+}
+
 export function Metrics() {
   const [entries, setEntries] = useState<ActivityLogEntry[] | null>(null);
   const [emails, setEmails] = useState<OutgoingEmailMetric[] | null>(null);
   const [searchJobs, setSearchJobs] = useState<SupplierWebSearchJobMetric[] | null>(null);
+  const [autoReplyLog, setAutoReplyLog] = useState<AutoReplyLogMetric[] | null>(null);
   const [error, setError] = useState('');
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -232,14 +270,16 @@ export function Metrics() {
     inFlight.current = true;
     setRefreshing(true);
     try {
-      const [logEntries, offerEmails, jobs] = await Promise.all([
+      const [logEntries, offerEmails, jobs, replyLog] = await Promise.all([
         fetchActivityLog(),
         fetchOutgoingEmailMetrics(),
         fetchSupplierWebSearchJobMetrics(),
+        fetchAutoReplyLogMetrics(),
       ]);
       setEntries(logEntries);
       setEmails(offerEmails);
       setSearchJobs(jobs);
+      setAutoReplyLog(replyLog);
       setLastUpdatedAt(new Date());
       setError('');
     } catch {
@@ -294,6 +334,20 @@ export function Metrics() {
     [searchJobs, inRange],
   );
 
+  // Решение по входящему относим к периоду по времени разбора — это и есть
+  // момент "действия" ИИ-закупщика; само письмо могло прийти и раньше.
+  const autoReplyStats: AutoReplyStats = useMemo(() => {
+    const rows = (autoReplyLog ?? []).filter((r) => inRange(r.createdAt));
+    const drafts = rows.filter((r) => r.decision === 'draft');
+    return {
+      processed: rows.length,
+      sentAuto: rows.filter((r) => r.decision === 'sent').length,
+      draftsPending: drafts.filter((r) => !r.reviewedAction).length,
+      draftsReviewed: drafts.filter((r) => Boolean(r.reviewedAction)).length,
+      skipped: rows.filter((r) => r.decision === 'skipped').length,
+    };
+  }, [autoReplyLog, inRange]);
+
   const people: PersonStats[] = useMemo(() => {
     const names = [...TRACKED_PEOPLE];
     const seen = [
@@ -333,7 +387,7 @@ export function Metrics() {
     [outgoingEmailsInRange],
   );
 
-  const loading = entries === null || emails === null || searchJobs === null;
+  const loading = entries === null || emails === null || searchJobs === null || autoReplyLog === null;
 
   return (
     <>
@@ -382,7 +436,7 @@ export function Metrics() {
             <PersonSection
               key={p.name}
               name={personTitle(p.name)}
-              subtitle={`Действия, залогированные под профилем «${p.name}»`}
+              subtitle={personSubtitle(p.name)}
             >
               <StatTile
                 label="Верифицировано объявлений"
@@ -420,6 +474,30 @@ export function Metrics() {
                 hint="Разных адресов получателей"
               />
               <StatTile label="Писем отправлено всего" value={p.emailsTotal} hint="Включая повторные письма" />
+              {p.name === AUTO_REPLY_SENDER_NAME && (
+                <>
+                  <StatTile
+                    label="Разобрано входящих писем"
+                    value={autoReplyStats.processed}
+                    hint="Все решения ИИ-закупщика, включая пропуски"
+                  />
+                  <StatTile
+                    label="Ответов отправлено автоматически"
+                    value={autoReplyStats.sentAuto}
+                    hint="Ситуации в режиме «отправлять автоматически»"
+                  />
+                  <StatTile
+                    label="Черновиков на проверку"
+                    value={autoReplyStats.draftsPending}
+                    hint={`Ждут решения человека · разобрано: ${autoReplyStats.draftsReviewed.toLocaleString('ru-RU')}`}
+                  />
+                  <StatTile
+                    label="Пропущено писем"
+                    value={autoReplyStats.skipped}
+                    hint="Спорные, с вопросами, автоответчики — отвечает человек"
+                  />
+                </>
+              )}
             </PersonSection>
           ))}
 
