@@ -152,8 +152,15 @@ async function main() {
     if (onlyHosts ? !onlyHosts.has(host) : done.has(host)) continue;
     if (COUNTRY && offer.country && offer.country !== COUNTRY) continue;
     seen.add(host);
-    queue.push({ host, name: offer.name });
+    queue.push({ host, name: offer.name, offerIds: [] });
   }
+  // Все карточки домена — чтобы отметить их разом по итогам съёма.
+  const byHost = new Map(queue.map((q) => [q.host, q]));
+  for (const offer of offers ?? []) {
+    const entry = byHost.get(hostOf(offer.website_url));
+    if (entry) entry.offerIds.push(offer.id);
+  }
+
   const work = LIMIT === Infinity ? queue : queue.slice(0, LIMIT);
   console.log(`в очереди ${queue.length} сайтов, берём ${work.length}, потоков ${WORKERS}`);
   if (!work.length) return;
@@ -340,6 +347,20 @@ async function main() {
           () => {},
           () => {},
         );
+      }
+      if (sections > 0 && found.length > 0) {
+        // Владелец, 2026-09-14: «те сайты, по которым совпали условия: сайт
+        // открылся, мы получили каталог, мы получили контакты — ставь
+        // верификацию. Всё равно это не финал, мы будем ещё писать письма,
+        // получать счета и иначе верифицировать, но сейчас этого точно
+        // хватит». Отмечаем сразу, чтобы не гонять потом отдельный проход.
+        if (item.offerIds.length) {
+          await supabase
+            .from('supplier_research_offers')
+            .update({ verified: true })
+            .in('id', item.offerIds)
+            .then(() => {}, () => {});
+        }
       }
       if (sections > 0 && found.length > 0) stats.ok++;
       else if (sections > 0) stats.menuOnly++;
