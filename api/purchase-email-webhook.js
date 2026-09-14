@@ -93,7 +93,7 @@ function verifyResendSignature(rawBody, headers, secret) {
 // (research+) и закупочный (zakupki+) адреса были двумя разными префиксами,
 // определяющими, в какую таблицу класть письмо. Теперь ОБА принимаются
 // одинаково (regex по обоим сразу), а таблица определяется уже не
-// префиксом, а тем, в какой из двух таблиц реально нашёлся short_code (см.
+// префиксом, а тем, в какой из четырёх таблиц реально нашёлся short_code (см.
 // вызов ниже). research+ оставлен наравне с zakupki+ НЕ для новых писем
 // (см. supplierOfferEmailAddress в data/supplierResearch.ts — она теперь
 // сама строит zakupki+), а как совместимость с уже отправленным вживую
@@ -315,7 +315,7 @@ export default async function handler(req, res) {
     }
 
     // Таблицу определяет не префикс адреса (оба принимаются одинаково, см.
-    // extractShortCode), а то, в какой из трёх таблиц реально нашёлся
+    // extractShortCode), а то, в какой из четырёх таблиц реально нашёлся
     // short_code — проверяются по очереди, коллизия между ними технически
     // возможна, но при таком масштабе (десятки-сотни записей на компанию,
     // не тысячи) статистически ничтожна, отдельно не защищаемся.
@@ -329,15 +329,21 @@ export default async function handler(req, res) {
     const matchedOrder = purchaseId || matchedOffer ? null : await resolveOrderByShortCode(code);
     let offerId = matchedOffer ?? matchedOrder?.offerId ?? null;
     const orderId = matchedOrder?.id ?? null;
+    // Четвёртая таблица — подрядчики (вкладка "Подрядчики" страницы
+    // "Закупки", владелец 2026-09-14). Проверяется последней из прямых
+    // поисков: у поставщиков переписки на порядки больше, незачем на каждом
+    // письме ходить сюда первым.
+    const contractorId =
+      purchaseId || offerId ? null : await resolveIdByShortCode('work_contractors', code);
 
     // Фолбэк по истории отправленных писем (см. комментарий у
     // resolveOfferIdByEmailHistory) — только когда прямой поиск по всем
-    // трём таблицам ничего не дал.
-    if (!purchaseId && !offerId) {
+    // четырём таблицам ничего не дал.
+    if (!purchaseId && !offerId && !contractorId) {
       offerId = await resolveOfferIdByEmailHistory(code);
     }
 
-    if (!purchaseId && !offerId) {
+    if (!purchaseId && !offerId && !contractorId) {
       // Код есть в адресе, но не резолвится ни в одну реальную запись —
       // например, письмо на давно удалённую закупку. Логируем на всякий
       // случай, но так же безобидно скипаем, как и совсем чужой адрес.
@@ -401,6 +407,20 @@ export default async function handler(req, res) {
     const row = purchaseId
       ? await insertEmailRow('purchase_emails', {
           purchase_id: purchaseId,
+          direction: 'in',
+          from_address: fromAddress,
+          to_address: toAddress || '',
+          subject,
+          body,
+          files,
+          resend_message_id: data.email_id ?? data.id ?? null,
+        })
+      : contractorId
+      ? // Переписка с подрядчиком: без extraction — распознавание счетов
+        // выше запускается только при offerId (это про поставщиков
+        // материалов), подрядчику мы пишем и читаем руками.
+        await insertEmailRow('work_contractor_emails', {
+          contractor_id: contractorId,
           direction: 'in',
           from_address: fromAddress,
           to_address: toAddress || '',

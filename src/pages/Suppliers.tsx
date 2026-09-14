@@ -13,6 +13,7 @@ import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Select } from '../components/ui/Select';
 import { ContactValue } from '../components/ui/ContactValue';
 import { ContractorsResearch } from '../components/contractors/ContractorsResearch';
+import { WorkContractorsTab } from '../components/suppliers/WorkContractorsTab';
 import { cn } from '../lib/cn';
 import { formatPhoneDisplay } from '../lib/formatPhone';
 import { estimateOptionLabel } from '../lib/estimateDisplay';
@@ -59,6 +60,8 @@ import { fetchSupplierSiteSnapshots } from '../lib/supplierSiteSnapshotsApi';
 import { SupplierVerificationTab, pendingVerificationHostCount } from '../components/suppliers/SupplierVerificationTab';
 import type { SupplierOfferEmail } from '../data/supplierOfferEmails';
 import { fetchAllSupplierOfferEmails, markSupplierOfferEmailsRead } from '../lib/supplierOfferEmailsApi';
+import { fetchAllWorkContractorEmails } from '../lib/workContractorEmailsApi';
+import { countUnreadWorkContractorEmails, type WorkContractorEmail } from '../data/workContractorEmails';
 import { EmailThread, SupplierCorrespondenceTab, countUnreadSupplierEmails } from '../components/suppliers/SupplierCorrespondenceTab';
 import { MaterialLedgerModal } from '../components/suppliers/MaterialLedgerModal';
 import { MasterLedgerCard } from '../components/suppliers/MasterLedgerCard';
@@ -211,7 +214,7 @@ function siteLabel(url: string): string {
 // же днём убрал первую версию с редактируемым чек-листом категорий — "не
 // будем отмечать категории вручную". См.
 // components/suppliers/SupplierVerificationTab.tsx.
-const SUPPLIER_TABS = ['Поставщики', 'Верификация', 'Сравнение цен', 'Ведомости материалов', 'Письма'] as const;
+const SUPPLIER_TABS = ['Поставщики', 'Подрядчики', 'Верификация', 'Сравнение цен', 'Ведомости материалов', 'Письма'] as const;
 type SupplierTab = (typeof SUPPLIER_TABS)[number];
 
 // Владелец, 2026-09-04: "меня бесит, что у всей страницы Поставщики
@@ -222,6 +225,10 @@ type SupplierTab = (typeof SUPPLIER_TABS)[number];
 // ссылки не должны сломаться.
 const SUPPLIER_TAB_SLUGS: Record<SupplierTab, string> = {
   'Поставщики': 'suppliers',
+  // Владелец, 2026-09-14 — реестр подрядчиков с Авито и переписка с ними.
+  // Не путать с "Работы" (секция внутри вкладки "Поставщики": сравнение
+  // предложений на услуги по цене) и со страницей "Команда".
+  'Подрядчики': 'contractors',
   'Верификация': 'verification',
   'Сравнение цен': 'comparison',
   'Ведомости материалов': 'ledger',
@@ -1752,6 +1759,11 @@ export function Suppliers() {
   // EMAIL_CORRESPONDENCE_PLAN.md, этап 2), обновляется локально при
   // отправке/прочтении, без повторного fetch на каждое действие.
   const [supplierEmails, setSupplierEmails] = useState<SupplierOfferEmail[]>([]);
+  // Переписка с подрядчиками (вкладка "Подрядчики"). Живёт здесь, а не
+  // внутри самой вкладки, ровно из-за бейджика непрочитанных на переключателе
+  // вкладок: содержимое неактивной вкладки не смонтировано, а счётчик нужен
+  // до того, как в неё зайдут. Список самих подрядчиков вкладка грузит сама.
+  const [contractorEmails, setContractorEmails] = useState<WorkContractorEmail[]>([]);
   // Шаблоны писем поставщикам (EMAIL_CORRESPONDENCE_PLAN.md, этап 3) — тот
   // же принцип "один источник правды на странице", что и у supplierEmails.
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
@@ -1900,6 +1912,7 @@ export function Suppliers() {
     fetchObjects().then(setObjects).catch(() => setObjects([]));
     fetchLegalEntities().then(setLegalEntities).catch(() => setLegalEntities([]));
     fetchAllSupplierOfferEmails().then(setSupplierEmails).catch(() => setSupplierEmails([]));
+    fetchAllWorkContractorEmails().then(setContractorEmails).catch(() => setContractorEmails([]));
     fetchEmailTemplates().then(setEmailTemplates).catch(() => setEmailTemplates([]));
     fetchMaterialLedgers().then(setMaterialLedgers).catch(() => setMaterialLedgers([]));
     fetchSupplierOrders().then(setSupplierOrders).catch(() => setSupplierOrders([]));
@@ -2948,6 +2961,7 @@ export function Suppliers() {
     ) : undefined;
 
   const unreadSupplierEmailsCount = countUnreadSupplierEmails(supplierEmails);
+  const unreadContractorEmailsCount = countUnreadWorkContractorEmails(contractorEmails);
   const pendingVerificationCount = pendingVerificationHostCount(offers, siteSnapshots);
 
   return (
@@ -2962,7 +2976,11 @@ export function Suppliers() {
           options={[...SUPPLIER_TABS]}
           value={tab}
           onChange={(v) => setTab(v as SupplierTab)}
-          badges={{ Письма: unreadSupplierEmailsCount, Верификация: pendingVerificationCount }}
+          badges={{
+            Письма: unreadSupplierEmailsCount,
+            Верификация: pendingVerificationCount,
+            Подрядчики: unreadContractorEmailsCount,
+          }}
         />
         {/* Владелец, 2026-09-04: "перенеси Шаблоны направо, на уровень меню
             Поставщики/Письма, но видна только когда открываешь Письма". */}
@@ -3080,6 +3098,10 @@ export function Suppliers() {
           <ContractorsResearch />
         </div>
       </div>
+      )}
+
+      {tab === 'Подрядчики' && (
+        <WorkContractorsTab emails={contractorEmails} onEmailsChange={setContractorEmails} />
       )}
 
       {tab === 'Верификация' && (
