@@ -178,3 +178,31 @@ export function markAutoReplyReviewed(id: string, action: AutoReplyReviewAction)
     return logFromRow(data as EmailAutoReplyLogRow);
   });
 }
+
+// Облегчённая выборка лога для страницы метрик (/admin/metrics): только
+// решение и время, без текстов черновиков и причин — страница опрашивает
+// базу раз в минуту, и тянуть на каждом тике тело каждого черновика
+// незачем (тот же принцип, что fetchOutgoingEmailMetrics). Берётся весь
+// лог, включая 'skipped': на метриках пропуски — отдельная плитка, чтобы
+// было видно, сколько писем ИИ-закупщик разобрал, а не только сколько
+// ответил.
+export interface AutoReplyLogMetric {
+  decision: AutoReplyDecision;
+  reviewedAction: AutoReplyReviewAction | null;
+  createdAt: string;
+}
+
+export function fetchAutoReplyLogMetrics(): Promise<AutoReplyLogMetric[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('email_auto_reply_log')
+      .select('decision, reviewed_action, created_at')
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return (data as Pick<EmailAutoReplyLogRow, 'decision' | 'reviewed_action' | 'created_at'>[]).map((row) => ({
+      decision: row.decision as AutoReplyDecision,
+      reviewedAction: (row.reviewed_action as AutoReplyReviewAction | null) ?? null,
+      createdAt: row.created_at,
+    }));
+  });
+}
