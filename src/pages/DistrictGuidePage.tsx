@@ -309,19 +309,22 @@ const trafficHighlights: { label: string; text: string }[] = [
 ];
 
 // Партнёрский телеграм-чат района (владелец, 2026-09-14) — отдельная
-// однострочная карточка между "Целевой аудиторией" и "Генераторами
-// трафика". Текст второй правкой владельца: заголовок-вопрос, фраза
-// "Живой тематический чат" ведёт на сам чат, "Мой район" — на платформу,
-// частью которой он является. Плашка "Проверенный канал" — тот же стиль,
-// что у пометки свежести в хиро (text-[#0f6b3d] вместо text-success из-за
-// контраста, см. комментарий там).
+// карточка между "Целевой аудиторией" и "Генераторами трафика". Текст
+// после нескольких правок владельца: первая строка — "@minskmir — живой
+// тематический чат…" + плашка "Проверенный канал", вторая — про платформу
+// "#МойРайон" ("они так себя называют"). @minskmir и #МойРайон —
+// подчёркнутые ссылки, чтобы читалось как гиперссылка. Плашка — тот же
+// стиль, что у пометки свежести в хиро (text-[#0f6b3d] вместо
+// text-success из-за контраста, см. комментарий там).
 const DISTRICT_TELEGRAM_CHAT = {
   url: 'https://t.me/minskmir',
-  label: 'Живой тематический чат',
-  tail: ' на 10 000+ жителей района.',
+  handle: '@minskmir',
+  tail: ' — живой тематический чат на 10 000+ жителей района.',
   platform: { url: 'https://moyrayon.by', label: '#МойРайон' },
+  platformLead: 'Часть платформы ',
   platformTail: ' — 65 микрорайонных чатов на 45 000+ минчан.',
 };
+
 
 
 // Плотность населения — отдельный блок ("population-density") прямо перед
@@ -1972,32 +1975,37 @@ export function DistrictGuidePage() {
             <Send className="h-5 w-5 shrink-0 text-ink" />
             <h2 className="text-lg font-bold text-ink">Хотите узнать, чем живут жители Минск Мира?</h2>
           </div>
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-ink-muted">
-            <span>
-              <a
-                href={DISTRICT_TELEGRAM_CHAT.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-semibold text-ink hover:underline"
-              >
-                {DISTRICT_TELEGRAM_CHAT.label}
-              </a>
-              {DISTRICT_TELEGRAM_CHAT.tail} Часть платформы{' '}
+          <div className="flex flex-col gap-1.5 text-sm text-ink-muted">
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+              <span>
+                <a
+                  href={DISTRICT_TELEGRAM_CHAT.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-ink underline decoration-ink/40 underline-offset-2 hover:decoration-ink"
+                >
+                  {DISTRICT_TELEGRAM_CHAT.handle}
+                </a>
+                {DISTRICT_TELEGRAM_CHAT.tail}
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success-bg px-3 py-1 text-xs font-semibold text-[#0f6b3d]">
+                <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
+                Проверенный канал
+              </span>
+            </p>
+            <p>
+              {DISTRICT_TELEGRAM_CHAT.platformLead}
               <a
                 href={DISTRICT_TELEGRAM_CHAT.platform.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-semibold text-ink hover:underline"
+                className="font-semibold text-ink underline decoration-ink/40 underline-offset-2 hover:decoration-ink"
               >
                 {DISTRICT_TELEGRAM_CHAT.platform.label}
               </a>
               {DISTRICT_TELEGRAM_CHAT.platformTail}
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success-bg px-3 py-1 text-xs font-semibold text-[#0f6b3d]">
-              <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
-              Проверенный канал
-            </span>
-          </p>
+            </p>
+          </div>
         </div>
 
         <div id="traffic" className={cn('flex scroll-mt-6 flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
