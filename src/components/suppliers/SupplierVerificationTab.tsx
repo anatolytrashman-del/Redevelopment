@@ -15,8 +15,8 @@ import { deleteSupplierScreenshot, fetchSupplierScreenshots, uploadSupplierScree
 // Вкладка "Верификация" на странице Закупки. Владелец, 2026-09-13 (второй
 // заход, после первой версии с редактируемым чек-листом категорий — снята
 // по прямой правке "не будем отмечать категории вручную"): карточка
-// поставщика в РЕЖИМЕ ПРОСМОТРА + сайт поставщика в отдельном окне (см.
-// openSupplierSiteWindow ниже), одной кнопкой "Верифицировать" — без правки
+// поставщика в РЕЖИМЕ ПРОСМОТРА + сайт поставщика соседней вкладкой (см.
+// openSupplierSiteTab ниже), одной кнопкой "Верифицировать" — без правки
 // категорий. Категории здесь только показываются (для контекста, что этот
 // сайт вообще продаёт), присваивает их по-прежнему классификатор
 // (supplier_site_snapshots.categories, см. data/supplyCategories.ts).
@@ -36,13 +36,18 @@ import { deleteSupplierScreenshot, fetchSupplierScreenshots, uploadSupplierScree
 // карточек-предложений с этим доменом, поэтому очередь и показывает
 // уникальное число поставщиков, а не число карточек.
 //
-// Сайт поставщика — отдельное позиционированное окно (половина экрана
-// справа), а НЕ встроенный iframe. Владелец, 2026-09-13 (четвёртый заход):
-// "точно как в верификации объявлений с рынка" — переиспользует тот же
-// приём, что openAdWindow в MarketOffersReview.tsx (см. openSupplierSiteWindow
-// ниже), вместо прежнего embed-панели рядом с карточкой. Одно и то же имя
-// окна ('supplier-site-check') — переход к следующему поставщику
-// переиспользует то же окно, не плодит вкладки.
+// Сайт поставщика — соседняя ВКЛАДКА того же окна, а не встроенный iframe и
+// не отдельное окно. История: 2026-09-13 (четвёртый заход) владелец просил
+// «точно как в верификации объявлений с рынка» — позиционированное окно на
+// половину экрана, как openAdWindow в MarketOffersReview.tsx. 2026-09-14 это
+// отменено им же: «в этом окне нет закладок, правильнее открывать сайт
+// поставщика в новой вкладке этого же браузера». Причина конкретная — со
+// вчера разметку каталога снимает закладка «Снять меню»
+// (tools/menu-bookmarklet), а панели закладок у всплывающего окна нет вовсе,
+// то есть инструмент там физически недоступен.
+//
+// Одно и то же имя вкладки ('supplier-site-check') сохранено: переход к
+// следующему поставщику переиспользует ту же вкладку, а не плодит их.
 //
 // "Вторая очередь" (владелец, 2026-09-13, третий заход — после разбора
 // кейса 169.ru, см. docs/session-journal.md): "на верификацию мне нужны
@@ -122,15 +127,12 @@ export function pendingVerificationHostCount(offers: SupplierOffer[], snapshots:
   return buildHostGroups(offers, snapshotByHost).filter(isReadyForVerification).length;
 }
 
-// Открывает сайт поставщика в отдельном окне на половину экрана — тот же
-// приём, что openAdWindow в MarketOffersReview.tsx (см. комментарий выше).
-// Размер и позиция считаются от РЕАЛЬНОГО экрана в момент вызова
-// (window.screen), не зашиты заранее.
-function openSupplierSiteWindow(url: string) {
-  const width = Math.round(window.screen.availWidth / 2);
-  const height = window.screen.availHeight;
-  const left = window.screen.availWidth - width;
-  window.open(url, 'supplier-site-check', `width=${width},height=${height},left=${left},top=0`);
+// Открывает сайт поставщика соседней вкладкой (см. комментарий выше).
+// Третий аргумент window.open НЕ передаём намеренно: любая строка
+// параметров — и браузер делает всплывающее окно вместо вкладки, а вместе с
+// ним пропадает панель закладок, на которой живёт «Снять меню».
+function openSupplierSiteTab(url: string) {
+  window.open(url, 'supplier-site-check');
 }
 
 // Зона загрузки скриншотов каталога прямо на карточке верификации.
@@ -165,11 +167,18 @@ function ScreenshotZone({
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <span className="text-sm text-ink-faint">Скрины каталога</span>
-        {screenshots.length > 0 && (
-          <span className="text-xs text-ink-faint">
-            {pending > 0 ? `${pending} ждут разбора` : `${processed} разобрано`}
-          </span>
-        )}
+        {screenshots.length > 0 &&
+          (pending > 0 ? (
+            // Заметный статус, а не мелкая серая подпись: это промежуточное
+            // состояние карточки — верифицировать её сейчас нельзя, категории
+            // изменятся после разбора (владелец, 2026-09-14).
+            <span className="flex items-center gap-1.5 rounded-full border border-primary px-2.5 py-0.5 text-xs font-medium text-primary">
+              <Loader2 className="h-3 w-3" />
+              {pending} ждут распознавания
+            </span>
+          ) : (
+            <span className="text-xs text-ink-faint">{processed} разобрано</span>
+          ))}
       </div>
 
       <div
@@ -210,6 +219,12 @@ function ScreenshotZone({
           e.target.value = '';
         }}
       />
+
+      {pending > 0 && (
+        <p className="text-xs text-ink-faint">
+          Карточка вышла из очереди до разбора — нажмите «Дальше», чтобы перейти к следующему поставщику.
+        </p>
+      )}
 
       {screenshots.length > 0 && (
         <div className="flex flex-wrap gap-2">
@@ -282,14 +297,14 @@ function SupplierCard({
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => {
-            // Обычный клик — открываем позиционированное окно (см.
-            // openSupplierSiteWindow). Ctrl/Cmd/Shift/средняя кнопка —
+            // Обычный клик — открываем соседнюю вкладку (см.
+            // openSupplierSiteTab). Ctrl/Cmd/Shift/средняя кнопка —
             // оставляем браузеру штатное поведение, не мешаем привычным
             // жестам (тот же принцип, что у ссылки источника в
             // MarketOffersReview.tsx).
             if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
             e.preventDefault();
-            openSupplierSiteWindow(supplierWebsiteFullUrl(offer.websiteUrl));
+            openSupplierSiteTab(supplierWebsiteFullUrl(offer.websiteUrl));
           }}
           className="flex min-w-0 items-center gap-1 text-primary-hover hover:underline"
         >
@@ -455,25 +470,50 @@ export function SupplierVerificationTab({
     [countryOffers, snapshotByHost],
   );
 
+  // Промежуточное состояние «скрины загружены, но ещё не распознаны»
+  // (владелец, 2026-09-14: «явно нет промежуточного шага, чтобы видеть, что
+  // скрины уже загружены, но ещё не распознались»). Отдельного поля под это
+  // не заводим: наличие непрочитанного скрина У САМОГО ХОСТА и есть признак.
+  // Такой поставщик выходит из активной очереди — верифицировать его сейчас
+  // нельзя, его категории вот-вот изменятся разбором.
+  const awaitingHosts = useMemo(
+    () => new Set(screenshots.filter((s) => s.status === 'pending').map((s) => s.host)),
+    [screenshots],
+  );
+  const queueGroups = useMemo(() => hostGroups.filter((g) => !awaitingHosts.has(g.host)), [hostGroups, awaitingHosts]);
+  const awaitingGroups = useMemo(() => hostGroups.filter((g) => awaitingHosts.has(g.host)), [hostGroups, awaitingHosts]);
+
+  // Карточку, на которую только что загрузили скрины, держим на экране до
+  // явного «Дальше»: иначе она исчезает прямо под руками сразу после ⌘V.
+  const [heldHost, setHeldHost] = useState<string | null>(null);
+
   const verifyTarget = useMemo(() => {
     if (!verifying) return null;
-    return hostGroups.find((g) => !skippedHosts.has(g.host)) ?? null;
-  }, [verifying, hostGroups, skippedHosts]);
+    if (heldHost && !skippedHosts.has(heldHost)) {
+      const held = hostGroups.find((g) => g.host === heldHost);
+      if (held) return held;
+    }
+    return queueGroups.find((g) => !skippedHosts.has(g.host)) ?? null;
+  }, [verifying, heldHost, hostGroups, queueGroups, skippedHosts]);
 
-  const remaining = hostGroups.filter((g) => !skippedHosts.has(g.host)).length;
+  useEffect(() => {
+    if (verifyTarget && verifyTarget.host !== heldHost) setHeldHost(verifyTarget.host);
+  }, [verifyTarget, heldHost]);
+
+  const remaining = queueGroups.filter((g) => !skippedHosts.has(g.host)).length;
   const skippedCount = skippedHosts.size;
+  const currentAwaits = verifyTarget ? awaitingHosts.has(verifyTarget.host) : false;
 
   // Минимум кликов во время верификации — как только цель меняется, сама
-  // открывается позиционированное окно с сайтом (см. openSupplierSiteWindow
-  // и комментарий про openAdWindow в MarketOffersReview.tsx). Гвард по хосту
-  // (не по verifyTarget целиком) — чтобы "Пропустить" не открывало окно
+  // открывается вкладка с сайтом (см. openSupplierSiteTab). Гвард по хосту
+  // (не по verifyTarget целиком) — чтобы "Пропустить" не открывало вкладку
   // повторно на каждый ре-рендер, только когда цель реально сменилась.
   const lastAutoOpenedHostRef = useRef<string | null>(null);
   useEffect(() => {
     if (!verifying || !verifyTarget) return;
     if (lastAutoOpenedHostRef.current === verifyTarget.host) return;
     lastAutoOpenedHostRef.current = verifyTarget.host;
-    openSupplierSiteWindow(verifyTarget.representative.websiteUrl);
+    openSupplierSiteTab(supplierWebsiteFullUrl(verifyTarget.representative.websiteUrl));
   }, [verifying, verifyTarget]);
 
   async function handleScreenshotFiles(host: string, files: File[]) {
@@ -560,7 +600,16 @@ export function SupplierVerificationTab({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-sm text-ink-muted">Осталось проверить: {hostGroups.length}</p>
+          <p className="text-sm text-ink-muted">Осталось проверить: {queueGroups.length}</p>
+          {awaitingGroups.length > 0 && (
+            <span
+              className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-ink-muted"
+              title={awaitingGroups.map((g) => g.representative.name || g.host).join(', ')}
+            >
+              <ImagePlus className="h-3.5 w-3.5" />
+              Ждут распознавания: {awaitingGroups.length}
+            </span>
+          )}
           <div className="flex items-center gap-1">
             {SUPPLIER_COUNTRIES.map((c) => (
               <button
@@ -585,6 +634,26 @@ export function SupplierVerificationTab({
         )}
       </div>
 
+      {awaitingGroups.length > 0 && (
+        <div className={cn('flex flex-col gap-2 p-4', glassCardClass)} style={glassCardShadow}>
+          <p className="text-sm font-semibold text-ink">Скрины загружены, ждут распознавания</p>
+          <p className="text-xs text-ink-faint">
+            Эти поставщики временно вне очереди — их категории изменятся после разбора скринов. Скажите в сессии
+            «разбери скрины», и они вернутся сюда уже с обновлёнными категориями.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {awaitingGroups.map((g) => {
+              const count = screenshots.filter((s) => s.host === g.host && s.status === 'pending').length;
+              return (
+                <span key={g.host} className="rounded-full border border-border px-2.5 py-1 text-xs text-ink-muted">
+                  {g.representative.name || g.host} · {count}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {verifying && (
         <div className="flex flex-col gap-3">
           <div className={cn('flex flex-wrap items-center justify-between gap-3 p-4', glassCardClass)} style={glassCardShadow}>
@@ -592,7 +661,7 @@ export function SupplierVerificationTab({
             <div className="flex gap-2">
               {verifyTarget && (
                 <Button variant="secondary" onClick={skipCurrent}>
-                  Пропустить
+                  {currentAwaits ? 'Дальше →' : 'Пропустить'}
                 </Button>
               )}
               <Button variant="ghost" onClick={stopVerification}>
