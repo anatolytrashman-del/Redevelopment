@@ -7,7 +7,7 @@ import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import { logActivity } from '../../lib/activityLogApi';
 import { formatPhoneDisplay } from '../../lib/formatPhone';
 import { updateSupplierOffer } from '../../lib/supplierResearchApi';
-import { countryFlag, messengerLink, supplierWebsiteHost, SUPPLIER_COUNTRIES, type SupplierOffer } from '../../data/supplierResearch';
+import { countryFlag, messengerLink, supplierWebsiteFullUrl, supplierWebsiteHost, SUPPLIER_COUNTRIES, type SupplierOffer } from '../../data/supplierResearch';
 import type { SupplierSiteSnapshot } from '../../data/supplierSiteSnapshots';
 
 // Вкладка "Верификация" на странице Закупки. Владелец, 2026-09-13 (второй
@@ -160,7 +160,7 @@ function SupplierCard({
       <div className="flex flex-col gap-1 text-sm">
         <span className="text-ink-faint">Сайт</span>
         <a
-          href={offer.websiteUrl}
+          href={supplierWebsiteFullUrl(offer.websiteUrl)}
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => {
@@ -171,7 +171,7 @@ function SupplierCard({
             // MarketOffersReview.tsx).
             if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
             e.preventDefault();
-            openSupplierSiteWindow(offer.websiteUrl);
+            openSupplierSiteWindow(supplierWebsiteFullUrl(offer.websiteUrl));
           }}
           className="flex min-w-0 items-center gap-1 text-primary-hover hover:underline"
         >
