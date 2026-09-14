@@ -484,15 +484,22 @@ export default async function handler(req, res) {
           const [firstInvoice, ...restInvoices] = result.allRecognized;
           recognizedInvoice = firstInvoice;
           const { recognized, candidate } = firstInvoice;
+          // duplicateFiles — вложения, оказавшиеся тем же самым счётом
+          // (счёт + "заказ клиента" одним комплектом, см.
+          // recognizeAllInvoicesFromAttachments). Отдельной строкой КП они
+          // не становятся, но в переписке помечаются наравне с оригиналом.
+          const asFile = (c) => ({ url: c.url, fileName: c.fileName });
           extraction = {
             status: 'pending',
             ...recognized,
-            sourceFile: { url: candidate.url, fileName: candidate.fileName },
+            sourceFile: asFile(candidate),
+            duplicateFiles: firstInvoice.duplicates.map(asFile),
             recognizedAt: new Date().toISOString(),
             ...(restInvoices.length > 0 && {
-              additionalInvoices: restInvoices.map(({ recognized, candidate }) => ({
-                ...recognized,
-                sourceFile: { url: candidate.url, fileName: candidate.fileName },
+              additionalInvoices: restInvoices.map((inv) => ({
+                ...inv.recognized,
+                sourceFile: asFile(inv.candidate),
+                duplicateFiles: inv.duplicates.map(asFile),
                 applied: null,
               })),
             }),

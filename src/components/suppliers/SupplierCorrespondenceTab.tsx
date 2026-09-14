@@ -328,7 +328,19 @@ function autoApplied(e: SupplierOfferEmail, invoice: EmailExtractionInvoice): Em
 // разных счёта, оба "Счет на оплату №2815 от 09.09.2026 (сФ).pdf", второй с
 // суффиксом "(3)" от почтового клиента).
 function invoiceOfFile(e: SupplierOfferEmail, fileUrl: string): EmailExtractionInvoice | null {
-  return extractionInvoices(e.extraction).find((inv) => inv.sourceFile?.url === fileUrl) ?? null;
+  return (
+    extractionInvoices(e.extraction).find(
+      (inv) => inv.sourceFile?.url === fileUrl || (inv.duplicateFiles ?? []).some((f) => f.url === fileUrl),
+    ) ?? null
+  );
+}
+
+// Это вложение — копия счёта, а не сам распознанный файл (см.
+// duplicateFiles). Данные из него в базе, просто взяты из парного файла;
+// в переписке поясняется подсказкой на пометке.
+function duplicateOriginalName(invoice: EmailExtractionInvoice, fileUrl: string): string | null {
+  if (invoice.sourceFile?.url === fileUrl) return null;
+  return invoice.sourceFile?.fileName ?? null;
 }
 
 // Проставляет сопоставление со сметой позициям, которые автозапись уже
@@ -1222,11 +1234,20 @@ export function EmailThread({
                       // в письме Авангарда два счёта, оба записаны в базу, а
                       // пометку получал только первый — второй выглядел
                       // нераспознанным.
-                      const inDb = e.extraction?.status === 'confirmed' && !!invoiceOfFile(e, f.url);
+                      const fileInvoice = invoiceOfFile(e, f.url);
+                      const inDb = e.extraction?.status === 'confirmed' && !!fileInvoice;
+                      const duplicateOf = fileInvoice ? duplicateOriginalName(fileInvoice, f.url) : null;
                       const inDbBadge = inDb && (
-                        <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-success">
+                        <span
+                          className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-success"
+                          title={
+                            duplicateOf
+                              ? `Тот же счёт, что и «${duplicateOf}» — данные взяты из него, отдельным КП этот файл не заводится`
+                              : undefined
+                          }
+                        >
                           <CheckCircle2 className="h-3.5 w-3.5" />
-                          Данные в базе
+                          {duplicateOf ? 'Тот же счёт' : 'Данные в базе'}
                         </span>
                       );
                       return isImageFile(f.fileName) ? (

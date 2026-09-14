@@ -196,9 +196,12 @@ async function main() {
           }
           continue;
         }
-        invoices = result.allRecognized.map(({ recognized, candidate }) => ({
+        invoices = result.allRecognized.map(({ recognized, candidate, duplicates }) => ({
           ...recognized,
           sourceFile: { url: candidate.url, fileName: candidate.fileName },
+          // Вложения, оказавшиеся тем же счётом (счёт + "заказ клиента"):
+          // отдельным КП не становятся, но помечаются в переписке.
+          duplicateFiles: (duplicates ?? []).map((d) => ({ url: d.url, fileName: d.fileName })),
         }));
         stats.recognized += invoices.length;
         for (const inv of invoices) {
@@ -254,6 +257,7 @@ async function main() {
             items: firstInvoice.items ?? [],
             supplierInn: firstInvoice.supplierInn ?? null,
             sourceFile: firstInvoice.sourceFile ?? null,
+            duplicateFiles: firstInvoice.duplicateFiles ?? [],
             recognizedAt: email.extraction?.recognizedAt ?? new Date().toISOString(),
             appliedAutomatically: true,
             applied: appliedByUrl.get(firstInvoice.sourceFile?.url) ?? null,
