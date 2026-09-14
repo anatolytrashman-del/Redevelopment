@@ -142,10 +142,20 @@ function extractJsonArray(content: unknown): Record<string, string>[] {
 }
 
 function sanitizeEnrichment(raw: Record<string, any>): EnrichmentResult {
+  // Владелец, 2026-09-14: у albia.ru один и тот же Max-контакт записался
+  // дважды в разных форматах (голый id и целиком https://max.ru/u/<id>) —
+  // модель в одном ответе вернула два messengers-элемента типа Max, а ниже
+  // по цепочке (merge/добавление в БД) дедуп идёт только по типу ПРОТИВ
+  // уже сохранённого в базе, не внутри самого ответа модели. Схлопываем
+  // дубли по type здесь же, оставляя первое вхождение — инвариант "не
+  // больше одной записи на тип от одного обогащения" должен выполняться
+  // уже на этом шаге.
+  const seenTypes = new Set<string>();
   const messengers = Array.isArray(raw.messengers)
     ? raw.messengers
         .filter((m: any) => m && MESSENGER_TYPES.includes(m.type) && typeof m.number === 'string' && m.number.trim())
         .map((m: any) => ({ type: m.type, number: m.number.trim() }))
+        .filter((m) => (seenTypes.has(m.type) ? false : (seenTypes.add(m.type), true)))
     : [];
   return {
     orderEmail: typeof raw.orderEmail === 'string' ? raw.orderEmail.trim() : '',
