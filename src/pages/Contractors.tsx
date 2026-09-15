@@ -12,7 +12,7 @@ import { ContractorCard } from '../components/contractors/ContractorCard';
 import { ContractorDetailModal } from '../components/contractors/ContractorDetailModal';
 import { AiAgentCard } from '../components/contractors/AiAgentCard';
 import { aiAgents } from '../data/aiAgents';
-import { fetchAiAgentsLastActivity, type AiAgentActivity } from '../lib/aiAgentsApi';
+import { useAiAgentsActivity } from '../lib/useAiAgentsActivity';
 import { contractorSpecialties, contractorContactMethods, contractorTeamTiers, type Contractor } from '../data/contractors';
 import {
   fetchContractors,
@@ -96,32 +96,10 @@ export function Contractors() {
   const [resumeUploading, setResumeUploading] = useState(false);
   // Последняя задача каждого ИИ-агента (ключ — AiAgent.id). Грузится отдельно
   // от людей и молча: если RPC не ответил, карточки просто без времени —
-  // ломать страницу команды из-за декоративной строки не надо.
-  const [agentActivity, setAgentActivity] = useState<Record<string, AiAgentActivity>>({});
-
-  // Раз в минуту перечитываем: агенты работают по крону и без перезагрузки
-  // страницы карточки застывали на «12 мин назад» навсегда. Ошибка опроса
-  // не трогает уже показанное — остаётся прошлый ответ. На скрытой вкладке
-  // не опрашиваем, а при возврате на неё обновляем сразу, не дожидаясь тика.
-  useEffect(() => {
-    let cancelled = false;
-    const load = () => {
-      if (document.hidden) return;
-      fetchAiAgentsLastActivity()
-        .then((next) => {
-          if (!cancelled) setAgentActivity(next);
-        })
-        .catch(() => undefined);
-    };
-    load();
-    const timer = window.setInterval(load, 60_000);
-    document.addEventListener('visibilitychange', load);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-      document.removeEventListener('visibilitychange', load);
-    };
-  }, []);
+  // ломать страницу команды из-за декоративной строки не надо. Сам опрос (раз
+  // в минуту, с паузой на скрытой вкладке) — в useAiAgentsActivity: то же
+  // самое нужно пилюле ИИ-закупщика над вкладками «Закупок».
+  const agentActivity = useAiAgentsActivity();
 
   useEffect(() => {
     fetchContractors()

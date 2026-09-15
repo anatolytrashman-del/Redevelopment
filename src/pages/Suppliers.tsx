@@ -51,6 +51,7 @@ import {
 import type { SupplierReliability } from '../data/supplierReliability';
 import { fetchSupplierReliability, checkSupplierReliability } from '../lib/supplierReliabilityApi';
 import { RiskBadge } from '../components/suppliers/RiskBadge';
+import { AiAgentStatusPill } from '../components/contractors/AiAgentStatusPill';
 import type { SupplierSiteSnapshot } from '../data/supplierSiteSnapshots';
 import { fetchSupplierSiteSnapshots } from '../lib/supplierSiteSnapshotsApi';
 import { SupplierVerificationTab, pendingVerificationHostCount } from '../components/suppliers/SupplierVerificationTab';
@@ -2302,17 +2303,27 @@ export function Suppliers() {
           "Поставщики" — первая внутри него, это разные уровни. */}
       <PageHeader title="Закупки" action={supplierAddButton} />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Ряд шапки: меню раздела, сразу за ним пилюля ИИ-закупщика, кнопки
+          прижаты к правому краю (ml-auto вместо justify-between — иначе
+          свободное место растащило бы пилюлю от меню на середину строки). */}
+      <div className="flex flex-wrap items-center gap-3">
         <ToggleGroup
           options={[...VISIBLE_SUPPLIER_TABS]}
           value={tab}
           onChange={(v) => setTab(v as SupplierTab)}
           badges={{ Письма: unreadSupplierEmailsCount }}
         />
+        {/* Владелец, 2026-09-15: "справа от нашего меню выведем статус онлайна
+            ИИ-закупщика и покажем его последнее действие". Данные пилюля тянет
+            сама (та же RPC ai_agents_last_activity, что у карточки в
+            "Команде"), странице готовить ничего не нужно.
+            Ширина пилюли ограничена внутри неё, длинная подпись задачи
+            обрезается многоточием. */}
+        <AiAgentStatusPill agentId="procurement" />
         {/* Владелец, 2026-09-04: "перенеси Шаблоны направо, на уровень меню
             Поставщики/Письма, но видна только когда открываешь Письма". */}
         {tab === 'Письма' && (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
             <Button type="button" variant="secondary" icon={<Bot className="h-4 w-4" />} onClick={() => setAutoRepliesModalOpen(true)}>
               Автоответы
             </Button>

@@ -5,14 +5,8 @@ import { formatActivityTime, getAiAgentStatus, type AiAgentActivity } from '../.
 import { Badge } from '../ui/Badge';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
-
-// Цвет кружка и подписи под каждый статус. Онлайн пульсирует — это единственный
-// статус, где что-то прямо сейчас происходит.
-const statusStyles = {
-  online: { text: 'text-success', dot: 'bg-emerald-500 animate-pulse' },
-  idle: { text: 'text-ink-muted', dot: 'bg-ink-faint' },
-  down: { text: 'text-danger', dot: 'bg-danger' },
-} as const;
+// Цвета статуса общие с пилюлей над вкладками «Закупок» (AiAgentStatusPill).
+import { aiAgentStatusStyles } from './aiAgentStatusStyles';
 
 // Карточка ИИ-агента в "Команде" — та же геометрия и стекло, что у
 // ContractorCard, но без контактов: у агента их нет, вместо них статус,
@@ -29,7 +23,7 @@ const statusStyles = {
 export function AiAgentCard({ agent, activity: liveActivity }: { agent: AiAgent; activity?: AiAgentActivity | null }) {
   const activity = liveActivity ?? agent.staticActivity ?? null;
   const status = getAiAgentStatus(agent.heartbeat, activity);
-  const statusStyle = statusStyles[status.tone];
+  const statusStyle = aiAgentStatusStyles[status.tone];
   return (
     <div className={cn('flex w-full flex-col gap-2 p-4', glassCardClass)} style={glassCardShadow}>
       <div className="flex min-w-0 items-center gap-2.5">

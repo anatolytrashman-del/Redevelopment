@@ -43,6 +43,7 @@ import { closeQuantity, sameUnit } from '../../lib/units';
 import type { SupplierQuote } from '../../data/supplierQuotes';
 import { insertSupplierQuote, updateSupplierQuoteItems, deleteSupplierQuote } from '../../lib/supplierQuotesApi';
 import type { EmailAutoReplyLogEntry } from '../../data/emailAutoReply';
+import { pendingIncomingEmails } from '../../lib/pendingEmails';
 import { AUTO_REPLY_SENDER_NAME } from '../../data/emailAutoReply';
 import { markAutoReplyReviewed } from '../../lib/emailAutoReplyApi';
 
@@ -2119,7 +2120,12 @@ type ThreadStatus = 'unread' | 'sent' | 'replied' | 'none';
 // (последнее письмо входящее — unread красным счётчиком поверх статуса,
 // если ещё не открывали тред).
 function threadStatus(emails: SupplierOfferEmail[]): { status: ThreadStatus; unreadCount: number } {
-  const unreadCount = emails.filter((e) => e.direction === 'in' && !e.readAt).length;
+  // Не "все непрочитанные входящие", а только те, что ждут ответа — см.
+  // lib/pendingEmails.ts (владелец, 2026-09-15: счётчик должен показывать
+  // нерешённые вопросы, а не письма, на которые уже ответили или которые
+  // вообще автоответы). Группировка по заявке внутри — список сюда
+  // приходит и целиком по поставщику, и уже отфильтрованным по одной ветке.
+  const unreadCount = pendingIncomingEmails(emails, (e) => e.orderId ?? '').length;
   if (emails.length === 0) return { status: 'none', unreadCount: 0 };
   const last = emails[emails.length - 1];
   if (unreadCount > 0) return { status: 'unread', unreadCount };
@@ -2745,8 +2751,11 @@ export function SupplierCorrespondenceTab({
   );
 }
 
-// Общий счётчик непрочитанных по всей переписке — бейдж поверх вкладки
-// "Email" в ToggleGroup (Suppliers.tsx, проп badges).
+// Общий счётчик по всей переписке — бейдж поверх вкладки "Письма" в
+// ToggleGroup (Suppliers.tsx, проп badges). Считаются не все непрочитанные
+// письма, а треды, ждущие ответа (см. lib/pendingEmails.ts): тред, на
+// который уже ушёл ответ — в том числе автоответ ИИ-закупщика или письмо,
+// стоящее в очереди на отправку, — счётчик не поднимает.
 export function countUnreadSupplierEmails(emails: SupplierOfferEmail[]): number {
-  return emails.filter((e) => e.direction === 'in' && !e.readAt).length;
+  return pendingIncomingEmails(emails, (e) => `${e.offerId}|${e.orderId ?? ''}`).length;
 }
