@@ -69,6 +69,33 @@ export interface SupplierReliabilityRow {
   checked_at: string;
 }
 
+// Одна проверка по реестрам из истории (таблица supplier_reliability_checks,
+// миграция 20260915-reliability-history.sql). supplier_reliability хранит
+// ПОСЛЕДНЕЕ состояние — его читают бейджи рисков в каталоге и в сравнении
+// цен; здесь лежат все проверки подряд, чтобы на странице компании было
+// видно, менялась ли картина. Пишет их триггер в базе, а не приложение.
+export interface SupplierReliabilityCheck {
+  id: string;
+  supplierId: string | null;
+  inn: string;
+  found: boolean;
+  riskLevel: RiskLevel;
+  risks: RiskFlag[];
+  error: string | null;
+  checkedAt: string;
+}
+
+export interface SupplierReliabilityCheckRow {
+  id: string;
+  supplier_id: string | null;
+  inn: string;
+  found: boolean;
+  risk_level: string;
+  risks: RiskFlag[] | null;
+  error: string | null;
+  checked_at: string;
+}
+
 export const RISK_LEVEL_LABEL: Record<RiskLevel, string> = {
   ok: 'Проверен, рисков не найдено',
   warn: 'Есть на что обратить внимание',
