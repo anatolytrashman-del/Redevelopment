@@ -12,7 +12,6 @@ import { Modal } from '../components/ui/Modal';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Select } from '../components/ui/Select';
 import { ContactValue } from '../components/ui/ContactValue';
-import { ContractorsResearch } from '../components/contractors/ContractorsResearch';
 import { cn } from '../lib/cn';
 import { formatPhoneDisplay } from '../lib/formatPhone';
 import { estimateOptionLabel } from '../lib/estimateDisplay';
@@ -3066,19 +3065,24 @@ export function Suppliers() {
             Первые два — SupplierRequest.group (см. data/supplierResearch.ts),
             третий — полностью самостоятельный компонент ContractorsResearch
             (перенесён сюда раньше со страницы "Команда"), без общих данных с
-            первыми двумя.
-            2026-09-12, после каталога поставщиков (хабы → категории выше):
-            владелец на старые карточки-категории (Плинтус, Краска
-            интерьерная, Керамогранит...) — "вот этот весь список теперь тоже
-            не актуален". Список остаётся: это единственное место добавить/
-            изменить/удалить категорию закупки, добавить предложение, запустить
-            веб-поиск и объединить дубли универсальных — каталог выше только
-            просматривает те же данные, ничего из этого не умеет. Но дублировать
-            каталог визуально не нужно — свёрнуто по умолчанию (<details>, без
-            JS-стейта, как в FaqAccordion). */}
+            первыми двумя; 2026-09-15 он уехал отсюда на страницу "Подрядчики"
+            (pages/WorkContractors.tsx) — владелец: "все таблицы с работами
+            переносим на страницу Подрядчики".
+            2026-09-15: блок "Материалы и оборудование" убран совсем —
+            владелец о старых карточках-категориях ("Инструмент, расходники,
+            леса и СИЗ", "Крепёж и метизы", "Кровля и фасады"...): "эти старые
+            таблицы, вплоть до надписи Сервисы, нужно убирать отсюда". Материалы
+            смотрят в каталоге выше (хабы → категории → компании). Вместе с
+            блоком для материалов ушли и его действия — создать/переименовать/
+            удалить категорию закупки, добавить предложение вручную, переключить
+            тип сравнения, статусы фонового веб-поиска и кнопка "Объединить"
+            дубли универсальных: каталог ничего из этого не умеет. Для группы
+            "Сервисы" список остаётся (тот же <details>, свёрнут по умолчанию),
+            так что сами обработчики никуда не делись — вернуть материалы =
+            вернуть 'materials' в массив ниже. */}
         {!loading && !loadError && (
           <>
-            {(['materials', 'services'] as const).map((group) => {
+            {(['services'] as const).map((group) => {
               const groupRequests = requests.filter((r) => r.group === group);
               return (
                 <details key={group} className="flex flex-col gap-6">
@@ -3136,11 +3140,6 @@ export function Suppliers() {
             })}
           </>
         )}
-
-        <div className="flex flex-col gap-6 border-t border-border pt-8">
-          <div className="text-lg font-bold text-ink">Работы</div>
-          <ContractorsResearch />
-        </div>
       </div>
       )}
 

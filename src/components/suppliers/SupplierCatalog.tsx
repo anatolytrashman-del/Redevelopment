@@ -4,6 +4,7 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { SearchInput } from '../ui/SearchInput';
+import { ToggleGroup } from '../ui/ToggleGroup';
 import { cn } from '../../lib/cn';
 import {
   findCatalogCategory,
@@ -96,6 +97,18 @@ function catalogLabelFor(
     tileGroups(c, extraGroupsByTile).some((g) => groups.includes(g)),
   );
   return bySite?.name ?? title ?? '—';
+}
+
+// Подпись страны для ToggleGroup — флаг остаётся в переключателе (владелец,
+// 2026-09-12: «вверху каталога выбор иконки флага»), а сам компонент работает
+// со строками, поэтому флаг живёт прямо в подписи, и обратно в страну её
+// переводит countryByLabel.
+function countryLabel(country: string): string {
+  return `${countryFlag(country)} ${country}`;
+}
+
+function countryByLabel(label: string): string {
+  return SUPPLIER_COUNTRIES.find((c) => countryLabel(c) === label) ?? SUPPLIER_COUNTRIES[0];
 }
 
 // Товарные группы плитки = зашитые в код + заведённые в базе на эту же
@@ -246,22 +259,20 @@ export function SupplierCatalog({
             placeholder="Поиск поставщика"
             wrapperClassName="w-full max-w-[240px]"
           />
-          <div className="flex items-center gap-1">
-            {SUPPLIER_COUNTRIES.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setCountry(c)}
-                className={cn(
-                  'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium',
-                  country === c ? 'border-primary text-primary' : 'border-border text-ink-muted hover:border-primary',
-                )}
-              >
-                <span className="text-sm leading-none">{countryFlag(c)}</span>
-                {c}
-              </button>
-            ))}
-          </div>
+          {/* Владелец, 2026-09-15: "вместо двух надписей рядом друг с другом
+              сделай переключатель, по умолчанию открыта Россия" — вместо двух
+              самостоятельных пилюль-кнопок общий ToggleGroup (одна «таблетка»
+              с подсвеченным вариантом), как у страны внутри карточки категории
+              на странице Закупки. Флаг остаётся частью подписи: ToggleGroup
+              принимает строки, поэтому options — подписи с флагом, а обратно в
+              страну переводим countryByLabel (тот же приём, что у групп закупки
+              в pages/Suppliers.tsx). Значение по умолчанию — SUPPLIER_COUNTRIES[0],
+              то есть Россия (см. data/supplierResearch.ts). */}
+          <ToggleGroup
+            options={SUPPLIER_COUNTRIES.map(countryLabel)}
+            value={countryLabel(country)}
+            onChange={(label) => setCountry(countryByLabel(label))}
+          />
         </div>
       </div>
 
