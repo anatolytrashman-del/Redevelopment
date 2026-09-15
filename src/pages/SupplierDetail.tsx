@@ -8,18 +8,25 @@ import {
   Loader2,
   Mail,
   MessageCircle,
+  Pencil,
   Phone,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { ContactValue } from '../components/ui/ContactValue';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Modal } from '../components/ui/Modal';
 import { cn } from '../lib/cn';
 import { formatPhoneDisplay } from '../lib/formatPhone';
 import type { Supplier } from '../data/suppliers';
 import type { SupplierOffer, SupplierRequest } from '../data/supplierResearch';
 import type { SupplierSiteSnapshot } from '../data/supplierSiteSnapshots';
 import type { SupplierReliability } from '../data/supplierReliability';
+import { CONTACT_SOURCE_LABEL, type SupplierContact } from '../data/supplierContacts';
 import {
   countryFlag,
   messengerLink,
@@ -31,6 +38,13 @@ import { fetchSupplier } from '../lib/suppliersApi';
 import { fetchSupplierOffersByCompany, fetchSupplierRequests } from '../lib/supplierResearchApi';
 import { fetchSupplierSiteSnapshot } from '../lib/supplierSiteSnapshotsApi';
 import { fetchSupplierReliability } from '../lib/supplierReliabilityApi';
+import {
+  deleteSupplierContact,
+  fetchSupplierContacts,
+  insertSupplierContact,
+  updateSupplierContact,
+  type SupplierContactInput,
+} from '../lib/supplierContactsApi';
 
 // Страница компании-поставщика (шаг 3 плана docs/procurement-product-steps.md).
 //
@@ -115,6 +129,71 @@ function pluralCategories(n: number): string {
   return `${n} ${word} закупки`;
 }
 
+// Как назвать контакт в списке. Пустое имя — обычное дело: общий ящик
+// компании человеком не является, и подписывать его выдуманным именем
+// хуже, чем честно показать адрес.
+function contactTitle(c: SupplierContact): string {
+  if (c.name.trim()) return c.name.trim();
+  if (c.email.trim()) return c.email.trim();
+  if (c.phone.trim()) return formatPhoneDisplay(c.phone);
+  return 'Контакт без данных';
+}
+
+const emptyContactForm: SupplierContactInput = { name: '', role: '', phone: '', email: '', messengers: [] };
+
+function ContactFormModal({
+  open,
+  initial,
+  saving,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  initial: SupplierContact | null;
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (input: SupplierContactInput) => void;
+}) {
+  const [form, setForm] = useState<SupplierContactInput>(emptyContactForm);
+
+  useEffect(() => {
+    if (!open) return;
+    setForm(
+      initial
+        ? { name: initial.name, role: initial.role, phone: initial.phone, email: initial.email, messengers: initial.messengers }
+        : emptyContactForm,
+    );
+  }, [open, initial]);
+
+  return (
+    <Modal open={open} onClose={onClose} title={initial ? 'Контактное лицо' : 'Новое контактное лицо'}>
+      <form
+        className="flex flex-col gap-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSubmit(form);
+        }}
+      >
+        <Input label="Имя" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Например: Сергей Иванов" />
+        <Input label="Роль" value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} placeholder="Например: менеджер по продажам" />
+        <Input label="Почта" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="ivanov@example.ru" />
+        <Input label="Телефон" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="+7 495 123-45-67" />
+        <div className="mt-2 flex justify-end gap-2 border-t border-border pt-3">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Отмена
+          </Button>
+          {/* Контакт без единого способа связаться ни на что не годен —
+              сохранять такую строку незачем. Имя не требуем: у общего ящика
+              его и не бывает. */}
+          <Button type="submit" disabled={saving || (!form.email.trim() && !form.phone.trim())}>
+            {saving ? 'Сохраняем...' : 'Сохранить'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -165,6 +244,7 @@ export function SupplierDetail() {
   const [requests, setRequests] = useState<SupplierRequest[]>([]);
   const [snapshot, setSnapshot] = useState<SupplierSiteSnapshot | null>(null);
   const [reliability, setReliability] = useState<SupplierReliability | null>(null);
+  const [contacts, setContacts] = useState<SupplierContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -175,15 +255,17 @@ export function SupplierDetail() {
     setLoadError(null);
     (async () => {
       try {
-        const [company, companyOffers, allRequests] = await Promise.all([
+        const [company, companyOffers, allRequests, companyContacts] = await Promise.all([
           fetchSupplier(id),
           fetchSupplierOffersByCompany(id),
           fetchSupplierRequests(),
+          fetchSupplierContacts(id),
         ]);
         if (cancelled) return;
         setSupplier(company);
         setOffers(companyOffers);
         setRequests(allRequests);
+        setContacts(companyContacts);
 
         // Снимок сайта и проверка реестра — вторым заходом: они нужны не
         // всегда (компания без сайта, компания без ИНН) и не должны
@@ -235,7 +317,17 @@ export function SupplierDetail() {
     );
   }
 
-  return <SupplierDetailView supplier={supplier} offers={offers} requests={requests} snapshot={snapshot} reliability={reliability} />;
+  return (
+    <SupplierDetailView
+      supplier={supplier}
+      offers={offers}
+      requests={requests}
+      snapshot={snapshot}
+      reliability={reliability}
+      contacts={contacts}
+      onContactsChange={setContacts}
+    />
+  );
 }
 
 // Чистое представление: всё, что страница показывает, без единого запроса.
@@ -249,12 +341,19 @@ export function SupplierDetailView({
   requests,
   snapshot,
   reliability,
+  contacts,
+  onContactsChange,
 }: {
   supplier: Supplier;
   offers: SupplierOffer[];
   requests: SupplierRequest[];
   snapshot: SupplierSiteSnapshot | null;
   reliability: SupplierReliability | null;
+  contacts: SupplierContact[];
+  // Список людей меняется прямо на странице, поэтому его держит загрузчик, а
+  // представление возвращает ему новый — так же, как это делают страницы
+  // «Лиды» и «Юрлица». В мок-тесте сюда передают заглушку.
+  onContactsChange: (next: SupplierContact[]) => void;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab: SupplierDetailTab = SLUG_TO_TAB[searchParams.get('tab') ?? ''] ?? 'Обзор';
@@ -292,6 +391,49 @@ export function SupplierDetailView({
   const filledCount = fields.filter((f) => f.filled).length;
   const profilePercent = fields.length > 0 ? Math.round((filledCount / fields.length) * 100) : 0;
   const missing = fields.filter((f) => !f.filled).map((f) => f.label);
+
+  const [contactModalOpen, setContactModalOpen] = useState(false);
+  const [editingContact, setEditingContact] = useState<SupplierContact | null>(null);
+  const [savingContact, setSavingContact] = useState(false);
+  const [deletingContactId, setDeletingContactId] = useState<string | null>(null);
+  const [contactError, setContactError] = useState<string | null>(null);
+
+  async function saveContact(input: SupplierContactInput) {
+    setSavingContact(true);
+    setContactError(null);
+    try {
+      if (editingContact) {
+        const updated = await updateSupplierContact(editingContact.id, input);
+        onContactsChange(contacts.map((c) => (c.id === updated.id ? updated : c)));
+      } else {
+        const created = await insertSupplierContact(supplier.id, input);
+        onContactsChange([...contacts, created]);
+      }
+      setContactModalOpen(false);
+      setEditingContact(null);
+    } catch (err) {
+      // Самая частая причина — тот же адрес уже есть у этой компании
+      // (уникальный индекс в базе). Показываем причину прямо в списке, а не
+      // молча закрываем форму.
+      setContactError(errorMessage(err, 'Не удалось сохранить контакт'));
+    } finally {
+      setSavingContact(false);
+    }
+  }
+
+  async function removeContact(contact: SupplierContact) {
+    if (!window.confirm(`Убрать контакт «${contactTitle(contact)}»? Строка останется в базе, из списка пропадёт.`)) return;
+    setDeletingContactId(contact.id);
+    setContactError(null);
+    try {
+      await deleteSupplierContact(contact.id);
+      onContactsChange(contacts.filter((c) => c.id !== contact.id));
+    } catch (err) {
+      setContactError(errorMessage(err, 'Не удалось убрать контакт'));
+    } finally {
+      setDeletingContactId(null);
+    }
+  }
 
   function setTab(next: SupplierDetailTab) {
     const params = new URLSearchParams(searchParams);
@@ -505,41 +647,108 @@ export function SupplierDetailView({
       )}
 
       {tab === 'Контакты' && (
-        <Card className="space-y-3">
-          <h2 className="text-sm font-semibold text-ink">Контакты компании</h2>
-          <Row label="Почта">
-            {supplier.email.trim() ? (
-              <span className="inline-flex items-center gap-1.5">
-                <Mail className="h-4 w-4 text-ink-faint" />
-                {supplier.email}
-              </span>
+        <div className="space-y-4">
+          <Card className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold text-ink">
+                Контактные лица{contacts.length > 0 ? ` (${contacts.length})` : ''}
+              </h2>
+              <Button
+                type="button"
+                variant="secondary"
+                icon={<Plus className="h-4 w-4" />}
+                onClick={() => {
+                  setEditingContact(null);
+                  setContactModalOpen(true);
+                }}
+              >
+                Добавить
+              </Button>
+            </div>
+
+            {contactError && <p className="text-sm text-danger">{contactError}</p>}
+
+            {contacts.length === 0 ? (
+              <p className="text-sm text-ink-faint">
+                Людей пока нет. Контакт появится сам, как только с этой компании ответят на письмо, — или добавьте
+                вручную.
+              </p>
             ) : (
-              '—'
+              <ul className="space-y-3">
+                {contacts.map((c) => (
+                  <li key={c.id} className="rounded-control border border-border p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-ink">{contactTitle(c)}</span>
+                          {c.role.trim() && <span className="text-xs text-ink-muted">{c.role}</span>}
+                          <Badge tone="neutral">{CONTACT_SOURCE_LABEL[c.source] ?? c.source ?? 'источник неизвестен'}</Badge>
+                        </div>
+                        {/* У безымянного контакта заголовком уже служит его
+                            адрес (см. contactTitle) — второй раз ту же строку
+                            под иконкой не показываем. */}
+                        {c.email.trim() && contactTitle(c) !== c.email.trim() && (
+                          <p className="flex items-center gap-1.5 text-sm text-ink">
+                            <Mail className="h-4 w-4 text-ink-faint" />
+                            {c.email}
+                          </p>
+                        )}
+                        {c.phone.trim() && (
+                          <p className="flex items-center gap-1.5 text-sm text-ink">
+                            <Phone className="h-4 w-4 text-ink-faint" />
+                            <ContactValue contact={formatPhoneDisplay(c.phone)} contactMethod="Телефон" />
+                          </p>
+                        )}
+                        {c.messengers.length > 0 && <MessengerChips messengers={c.messengers} />}
+                        <p className="text-xs text-ink-faint">
+                          {c.lastReplyAt ? `Последний ответ: ${formatDate(c.lastReplyAt)}` : 'Ни разу не отвечал'}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        <button
+                          type="button"
+                          aria-label={`Изменить контакт «${contactTitle(c)}»`}
+                          className="rounded-full border border-border p-2 text-ink-muted transition-colors hover:text-ink"
+                          onClick={() => {
+                            setEditingContact(c);
+                            setContactModalOpen(true);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Убрать контакт «${contactTitle(c)}»`}
+                          disabled={deletingContactId === c.id}
+                          className="rounded-full border border-border p-2 text-ink-muted transition-colors hover:border-danger hover:text-danger disabled:opacity-50"
+                          onClick={() => removeContact(c)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             )}
-          </Row>
-          <Row label="Телефон">
-            {supplier.phone.trim() ? (
-              <span className="inline-flex items-center gap-1.5">
-                <Phone className="h-4 w-4 text-ink-faint" />
-                <ContactValue contact={formatPhoneDisplay(supplier.phone)} contactMethod="Телефон" />
-              </span>
-            ) : (
-              '—'
-            )}
-          </Row>
-          <Row label="Мессенджеры">
-            {supplier.messengers.length > 0 ? <MessengerChips messengers={supplier.messengers} /> : '—'}
-          </Row>
-          <Row label="Менеджеры">
-            {offers.some((o) => o.managerName.trim())
-              ? [...new Set(offers.map((o) => o.managerName.trim()).filter(Boolean))].join(', ')
-              : 'имя менеджера подставится из первого ответа на письмо'}
-          </Row>
-          <p className="border-t border-border pt-3 text-xs text-ink-faint">
-            Пока это сводка по компании. Отдельные контактные лица со своей ролью, телефоном и датой последнего ответа
-            появятся следующим шагом.
-          </p>
-        </Card>
+
+            <p className="border-t border-border pt-3 text-xs text-ink-faint">
+              Список пополняется сам: когда с нового адреса приходит ответ, человек появляется здесь с датой письма.
+              Общий ящик компании — тоже строка в списке, просто без имени.
+            </p>
+          </Card>
+
+          <ContactFormModal
+            open={contactModalOpen}
+            initial={editingContact}
+            saving={savingContact}
+            onClose={() => {
+              setContactModalOpen(false);
+              setEditingContact(null);
+            }}
+            onSubmit={saveContact}
+          />
+        </div>
       )}
     </div>
   );
