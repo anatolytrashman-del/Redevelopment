@@ -6,29 +6,24 @@
 // клиент собирает письмо (html — тот же лист согласования, что и в PDF, но
 // в email-совместимой вёрстке, см. buildProposalEmailHtml в
 // components/suppliers/priceComparisonPrint.ts), а здесь оно уходит через
-// Resend. Ключ Resend — только на сервере, поэтому эндпоинт, а не прямой
-// вызов с фронта. Авторизация — как у остальных приватных api/*.js
-// (requireStaffAuth, клиент ходит через authFetch).
+// Resend. Ключ Resend — только на сервере, поэтому серверная функция, а не
+// прямой вызов с фронта.
+//
+// Живёт веткой `kind: 'proposal'` внутри api/purchase-send-email.js, а не
+// своим файлом: в api/ ровно 12 serverless-функций — лимит Vercel Hobby,
+// тринадцатый файл уронил деплой целиком (2026-09-15, проверено на живом
+// билде). Авторизацию (requireStaffAuth) делает вызывающий обработчик.
 //
 // Ответ руководителя должен прийти человеку, а не в вебхук переписки с
 // поставщиками: reply_to — почта владельца (PROPOSAL_REPLY_TO), копия туда
 // же, чтобы отправленное предложение было и в его ящике.
-
-import { requireStaffAuth } from './_auth.js';
 
 const FROM = process.env.PROPOSAL_FROM || 'Анатолий Трэшмен <zakupki@redevelopment.pro>';
 const REPLY_TO = process.env.PROPOSAL_REPLY_TO || 'anatoly.trashman@gmail.com';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' });
-    return;
-  }
-  const user = await requireStaffAuth(req, res);
-  if (!user) return;
-
+export async function handleProposalSend(req, res) {
   if (!process.env.RESEND_API_KEY) {
     res.status(500).json({ error: 'RESEND_API_KEY не настроен на Vercel' });
     return;
