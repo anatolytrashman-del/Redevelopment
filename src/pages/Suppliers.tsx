@@ -1,13 +1,12 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Bot, Check, ChevronDown, ExternalLink, FileText, Globe, ImageOff, Loader2, Mail, MessageCircle, Paperclip, Pencil, Phone, Plus, Search, Send, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, Bot, Check, ExternalLink, FileText, Globe, ImageOff, Loader2, Mail, MessageCircle, Paperclip, Pencil, Phone, Plus, Send, ShieldCheck, Trash2, Upload, X } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
 import { AddableSelect } from '../components/ui/AddableSelect';
-import { Textarea } from '../components/ui/Textarea';
 import { Modal } from '../components/ui/Modal';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { Select } from '../components/ui/Select';
@@ -24,8 +23,6 @@ import {
   RESEARCH_CONTACT_METHODS,
   RESEARCH_CURRENCIES,
   SUPPLIER_COUNTRIES,
-  SUPPLIER_SEARCH_REGIONS,
-  defaultSearchRegion,
   SUPPLIER_REQUEST_GROUPS,
   SUPPLIER_REQUEST_GROUP_LABELS,
   SUPPLIER_COMPARISON_MODES,
@@ -93,7 +90,6 @@ import {
   fetchSupplierRequests,
   insertSupplierRequest,
   updateSupplierRequest,
-  deleteSupplierRequest,
   fetchSupplierOffers,
   insertSupplierOffer,
   updateSupplierOffer,
@@ -101,20 +97,13 @@ import {
   uploadSupplierFile,
   type SupplierRequestInput,
 } from '../lib/supplierResearchApi';
-import {
-  queueSupplierWebSearch,
-  fetchSupplierWebSearchJobs,
-  recognizeInvoiceFile,
-  type SupplierWebSearchJob,
-  type RecognizedInvoiceItem,
-} from '../lib/supplierWebSearchApi';
+import { recognizeInvoiceFile, type RecognizedInvoiceItem } from '../lib/supplierWebSearchApi';
 import {
   fetchSupplierEnrichmentJobs,
   enrichmentStateByOffer,
   supplierVerificationStatus,
   SUPPLIER_VERIFICATION_LABEL,
   type SupplierEnrichmentJob,
-  type SupplierVerificationStatus,
   type OfferEnrichmentState,
 } from '../lib/supplierEnrichmentApi';
 import { logActivity } from '../lib/activityLogApi';
@@ -140,34 +129,6 @@ function formatPrice(price: number, currency: Currency): string {
   const formatted = price.toLocaleString('ru-RU');
   const symbol = currencySymbols[currency];
   return currency === 'USD' ? `${symbol}${formatted}` : `${formatted} ${symbol}`;
-}
-
-// Короткий вид ссылки в таблице — просто домен, без протокола/пути, чтобы
-// колонка не растягивалась длинными урлами. Если строка не парсится как URL
-// (ввели без https://), показываем как есть — свободный ввод, не хотим
-// блокировать сохранение из-за формата.
-// Сколько времени показывать баннер "Готово: добавлено N поставщиков" после
-// завершения поиска (см. latestVisibleJobForRequest).
-const DONE_BANNER_TTL_MS = 30 * 60_000;
-
-// "добавлен 31 поставщик" / "добавлено 2 поставщика" / "добавлено 5
-// поставщиков" — иначе в баннере получалось "добавлено 31 поставщиков".
-function addedSuppliersLabel(count: number): string {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  if (mod10 === 1 && mod100 !== 11) return `добавлен ${count} поставщик`;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `добавлено ${count} поставщика`;
-  return `добавлено ${count} поставщиков`;
-}
-
-// Подпись на спойлере со списком поставщиков в карточке категории
-// (владелец, 2026-09-11: "у меня стало очень много поставщиков").
-function suppliersCountLabel(count: number): string {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  if (mod10 === 1 && mod100 !== 11) return `${count} поставщик`;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${count} поставщика`;
-  return `${count} поставщиков`;
 }
 
 function siteLabel(url: string): string {
@@ -227,6 +188,17 @@ function siteLabel(url: string): string {
 const SUPPLIER_TABS = ['Поставщики', 'Верификация', 'Сравнение цен', 'Ведомости материалов', 'Письма'] as const;
 type SupplierTab = (typeof SUPPLIER_TABS)[number];
 
+// Владелец, 2026-09-15: "вкладку Верификация убираем из верхнего меню и
+// переносим ссылкой под основной каталог". Сама вкладка никуда не делась —
+// живёт по тому же ?tab=verification (сохранённые ссылки не ломаются) и
+// рисуется тем же {tab === 'Верификация' && ...} ниже, из верхней пилюли
+// убран только пункт. Поэтому список видимых вкладок отдельный от
+// SUPPLIER_TABS, а не наоборот: слаги, редирект со старого адреса и тип
+// SupplierTab по-прежнему знают про все вкладки. Счётчик очереди
+// (pendingVerificationCount) уехал вместе с пунктом — он теперь на ссылке
+// под каталогом.
+const VISIBLE_SUPPLIER_TABS = SUPPLIER_TABS.filter((t) => t !== 'Верификация');
+
 // Владелец, 2026-09-04: "меня бесит, что у всей страницы Поставщики
 // одинаковый url... обновляешь — и всё слетело. Мне бы кастомный урл и на
 // каждый раздел внутри" — вкладка живёт в query-параметре ?tab=, а не в
@@ -253,18 +225,6 @@ const emptyRequestForm = {
   legalEntityId: '' as string,
   comparisonMode: 'material' as SupplierComparisonMode,
 };
-
-function requestToForm(r: SupplierRequest) {
-  return {
-    title: r.title,
-    group: r.group,
-    estimateId: r.estimateId ?? '',
-    sectionId: r.sectionId ?? '',
-    sectionTitle: r.sectionTitle,
-    legalEntityId: r.legalEntityId ?? '',
-    comparisonMode: r.comparisonMode,
-  };
-}
 
 const emptyOfferForm = {
   name: '',
@@ -406,102 +366,6 @@ function SupplyCategoriesChips({
       ))}
       {rest > 0 && <span className="text-xs text-ink-faint">+{rest}</span>}
     </div>
-  );
-}
-
-// Владелец, 2026-09-11: "давай выводить цены и статус «лучшая цена» на
-// странице сравнения цен, а в списке поставщиков просто оставим самих
-// поставщиков со статусом Верифицировано/Нет" — раньше и здесь, и на
-// вкладке "Сравнение цен" рисовался один и тот же OfferTotalComparison
-// (цены, бейдж "лучшая цена", статус переписки, разбивка по КП). Теперь
-// сравнение цен живёт ровно в одном месте — на своей вкладке, а вкладка
-// "Поставщики" отвечает только за состав списка: кто у нас есть по этой
-// категории и в каком состоянии его проверка. Отсюда и новое имя
-// компонента — сравнением он больше не является.
-// Свой стейт страны — самодостаточный компонент, реюзабельный без прокидки
-// состояния через родителя.
-function SupplierListBlock({
-  offers,
-  onOpenDetail,
-  emptyHint,
-  country: controlledCountry,
-  onCountryChange,
-  showCountryToggle = true,
-  enrichmentState,
-  reliabilityByInn,
-  snapshotByHost,
-}: {
-  offers: SupplierOffer[];
-  onOpenDetail: (o: SupplierOffer) => void;
-  enrichmentState: Map<string, OfferEnrichmentState>;
-  reliabilityByInn: Map<string, SupplierReliability>;
-  snapshotByHost: Map<string, SupplierSiteSnapshot>;
-  // Владелец, 2026-09-03: "для материалов и сервисов мне нужно список — для
-  // Беларуси и для России... в идеале переключение списков прямо внутри
-  // самого блока" — подсказка для пустого списка отличается в зависимости
-  // от контекста (на "Поставщики" есть кнопка "Добавить предложение" рядом,
-  // на "Сравнение цен" её нет).
-  emptyHint: string;
-  // RequestCard (вкладка "Поставщики") использует этот же переключатель
-  // страны и для кнопки "Найти в сети" — там страна контролируется
-  // родителем (controlled), чтобы оба места читали одно и то же значение.
-  country?: string;
-  onCountryChange?: (country: string) => void;
-  // Владелец, 2026-09-11: "у меня стало очень много поставщиков" — в
-  // RequestCard список спрятан под спойлер, а переключатель страны вынесен
-  // во всегда видимую шапку карточки (он общий с кнопкой "Найти в сети",
-  // прятать его вместе со списком нельзя — поиск ушёл бы в невидимую
-  // пользователю страну). Здесь он в этом случае просто не рисуется второй раз.
-  showCountryToggle?: boolean;
-}) {
-  const [internalCountry, setInternalCountry] = useState<string>(SUPPLIER_COUNTRIES[0]);
-  const country = controlledCountry ?? internalCountry;
-  const setCountry = onCountryChange ?? setInternalCountry;
-  const offersInCountry = offers.filter((o) => (o.country || SUPPLIER_COUNTRIES[0]) === country);
-
-  // Сортировки по цене здесь больше нет (как и самих цен) — порядок по
-  // состоянию проверки: проверенные сверху, за ними те, где ход за
-  // человеком, и только потом ещё собираемые; внутри статуса — по алфавиту.
-  const verificationOrder: Record<SupplierVerificationStatus, number> = {
-    verified: 0,
-    ready: 1,
-    needs_verification: 2,
-    enriching: 3,
-  };
-  const sortedOffers = [...offersInCountry].sort((a, b) => {
-    const diff =
-      verificationOrder[supplierVerificationStatus(a, enrichmentState)] -
-      verificationOrder[supplierVerificationStatus(b, enrichmentState)];
-    return diff !== 0 ? diff : a.name.localeCompare(b.name, 'ru');
-  });
-
-  return (
-    <>
-      {showCountryToggle && <ToggleGroup options={[...SUPPLIER_COUNTRIES]} value={country} onChange={setCountry} />}
-
-      {sortedOffers.length === 0 ? (
-        <p className="text-sm text-ink-faint">{offers.length === 0 ? 'Пока нет предложений.' : `Нет предложений из «${country}» — ${emptyHint}`}</p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {sortedOffers.map((o) => (
-            <div
-              key={o.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border px-4 py-3"
-            >
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="truncate font-medium text-ink">{o.name}</span>
-                <VerificationBadge offer={o} enrichmentState={enrichmentState} />
-                <RiskBadge inn={o.inn} reliabilityByInn={reliabilityByInn} />
-              </div>
-              <Button type="button" variant="secondary" onClick={() => onOpenDetail(o)}>
-                Подробнее
-              </Button>
-              <SupplyCategoriesChips snapshot={snapshotByHost.get(supplierWebsiteHost(o.websiteUrl))} compact />
-            </div>
-          ))}
-        </div>
-      )}
-    </>
   );
 }
 
@@ -906,240 +770,6 @@ function MaterialPriceComparisonCard({
             </div>
           ))}
         </div>
-      )}
-    </Card>
-  );
-}
-
-// Владелец, 2026-09-12: "Убери кнопку «Найти в сети», а функционал ИИ-поиска
-// оставь". Сам поиск остаётся полностью рабочим — очередь
-// supplier_web_search_jobs, обработчик (supabase/functions/process-supplier-jobs),
-// автосоздание предложений, обогащение контактов и уведомления в колокольчик
-// не тронуты; из интерфейса убрана только ручная точка запуска на карточке
-// категории. Плашки хода/результата задания на карточке специально оставлены
-// видимыми: задание может появиться и не из этой кнопки (крон, ручной
-// workflow_dispatch, прямая постановка в базу), и тогда закупщица должна
-// видеть, что поиск идёт. Вернуть кнопку — переключить флаг в true.
-const WEB_SEARCH_BUTTON_VISIBLE: boolean = false;
-
-// Владелец, 2026-09-03: "для материалов и сервисов мне нужно список — для
-// Беларуси и для России... в идеале переключение списков прямо внутри
-// самого блока, чем делать две отдельные таблицы". Переключатель — локальный
-// стейт карточки (не персистится), по умолчанию Беларусь. Предложения без
-// страны (старые записи до поля country) на всякий случай считаем
-// белорусскими — иначе они пропали бы из обеих вкладок молча.
-function RequestCard({
-  request,
-  offers,
-  onEditRequest,
-  onDeleteRequest,
-  onAddOffer,
-  onOpenDetail,
-  onWebSearch,
-  onToggleComparisonMode,
-  searching,
-  searchJob,
-  searchQueueError,
-  onDismissSearchJob,
-  enrichmentState,
-  reliabilityByInn,
-  snapshotByHost,
-  duplicatesCount,
-  onMergeDuplicates,
-}: {
-  request: SupplierRequest;
-  offers: SupplierOffer[];
-  onEditRequest: (r: SupplierRequest) => void;
-  onDeleteRequest: (r: SupplierRequest) => void;
-  onAddOffer: (r: SupplierRequest) => void;
-  onOpenDetail: (o: SupplierOffer) => void;
-  onWebSearch: (r: SupplierRequest, country: string) => void;
-  onToggleComparisonMode: (r: SupplierRequest) => void;
-  searching: boolean;
-  // Владелец, 2026-09-11: веб-поиск переехал на фоновую очередь (см.
-  // supplierWebSearchApi.ts) — searchJob здесь ТОЛЬКО отображает последнее
-  // ещё не скрытое задание этой категории: pending/processing — идёт поиск
-  // (можно закрыть вкладку, уведомление придёт само), done — поиск завершён
-  // и найденные поставщики уже добавлены в базу, error — поиск не удался.
-  searchJob: SupplierWebSearchJob | undefined;
-  searchQueueError: string | null;
-  onDismissSearchJob: (jobId: string) => void;
-  enrichmentState: Map<string, OfferEnrichmentState>;
-  reliabilityByInn: Map<string, SupplierReliability>;
-  snapshotByHost: Map<string, SupplierSiteSnapshot>;
-  // Сколько универсальных поставщиков этой категории продублировано в
-  // профильных категориях (нулю не равно только у самой категории
-  // "Универсальные поставщики", см. universalDuplicatePlans в Suppliers).
-  duplicatesCount: number;
-  onMergeDuplicates: () => void;
-}) {
-  // Владелец, 2026-09-03: страна выбирается ОДНИМ переключателем (см.
-  // SupplierListBlock выше — здесь он controlled, значение общее и для
-  // фильтра списка, и для кнопки "Найти в сети").
-  const [country, setCountry] = useState<string>(SUPPLIER_COUNTRIES[0]);
-  // Владелец, 2026-09-11: "у меня стало очень много поставщиков — давай
-  // сделаем название категории и основные кнопки видимыми, а список
-  // поставщиков будем прятать под спойлер". По умолчанию свёрнуто: страница
-  // становится компактным перечнем категорий, список раскрывается по клику
-  // и живёт только в стейте карточки (не персистится).
-  const [listOpen, setListOpen] = useState(false);
-  const offersInCountry = offers.filter((o) => (o.country || SUPPLIER_COUNTRIES[0]) === country);
-
-  return (
-    <Card className="flex flex-col gap-4 p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-lg font-bold text-ink">{request.title}</span>
-            <button
-              type="button"
-              onClick={() => onToggleComparisonMode(request)}
-              title="Клик — переключить тип сравнения на «Сравнение цен»"
-              className={cn(
-                'rounded-full border px-2 py-0.5 text-[11px] font-medium hover:border-primary hover:text-primary',
-                request.comparisonMode === 'lot'
-                  ? 'border-border-strong text-ink-muted'
-                  : 'border-border text-ink-faint',
-              )}
-            >
-              {SUPPLIER_COMPARISON_MODE_LABELS[request.comparisonMode]}
-            </button>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {WEB_SEARCH_BUTTON_VISIBLE && (
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={searching || searchJob?.status === 'pending' || searchJob?.status === 'processing'}
-              icon={searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              onClick={() => onWebSearch(request, country)}
-            >
-              {searching ? 'Ставим в очередь...' : 'Найти в сети'}
-            </Button>
-          )}
-          <Button type="button" variant="secondary" icon={<Plus className="h-4 w-4" />} onClick={() => onAddOffer(request)}>
-            Добавить предложение
-          </Button>
-          <button
-            type="button"
-            onClick={() => onEditRequest(request)}
-            aria-label="Переименовать запрос"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-primary hover:text-primary"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => onDeleteRequest(request)}
-            aria-label="Удалить запрос"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted hover:border-danger hover:text-danger"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {searchQueueError && <p className="text-sm text-danger">{searchQueueError}</p>}
-
-      {/* Владелец, 2026-09-12: универсальный поставщик не должен висеть ещё
-          и в профильных категориях. Найденные дубликаты не удаляем молча —
-          показываем здесь, объединяет их человек кнопкой (перенос переписки,
-          КП и файлов — lib/supplierMergeApi.ts). */}
-      {duplicatesCount > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-warning/30 bg-warning-bg px-3 py-2 text-sm text-ink">
-          <span className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
-            {suppliersCountLabel(duplicatesCount)} из этого списка заведены ещё и в профильных категориях
-          </span>
-          <button type="button" onClick={onMergeDuplicates} className="shrink-0 font-semibold text-primary hover:underline">
-            Объединить
-          </button>
-        </div>
-      )}
-
-      {/* Владелец, 2026-09-11: "я формирую поиск, система ищет в фоне, я
-          закрываю вкладку, когда найдёт — уведомление" — статус фонового
-          задания веб-поиска этой категории, отдельно от кнопки "Найти в
-          сети" выше (та просто ставит в очередь и сразу освобождается). */}
-      {searchJob && (searchJob.status === 'pending' || searchJob.status === 'processing') && (
-        <div className="flex items-center gap-2 rounded-control border border-border bg-surface-muted px-3 py-2 text-sm text-ink-muted">
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-          Ищем поставщиков в сети — можно закрыть вкладку, о готовности придёт уведомление.
-        </div>
-      )}
-      {/* Владелец, 2026-09-11: результаты больше НЕ открываются модалкой для
-          ручного добавления — поисковый скрипт сам создаёт предложения и сам
-          ставит их на обогащение (см. createOffersAndQueueEnrichment в
-          scripts/process-supplier-web-search-jobs.mjs), поэтому здесь просто
-          сообщение о том, что произошло: новые поставщики уже в списке ниже,
-          со статусом "Собираем данные..." → "Готово к верификации". */}
-      {searchJob && searchJob.status === 'done' && (
-        <div className="flex items-center justify-between gap-2 rounded-control border border-success/30 bg-success-bg px-3 py-2 text-sm font-medium text-success">
-          <span className="flex items-center gap-2">
-            <Check className="h-4 w-4 shrink-0" />
-            {searchJob.addedCount === 0
-              ? 'Поиск завершён — новых поставщиков не нашлось (всё найденное уже есть в списке)'
-              : `Готово: ${addedSuppliersLabel(searchJob.addedCount ?? searchJob.results.length)} — собираем их контакты`}
-          </span>
-          <button
-            type="button"
-            onClick={() => onDismissSearchJob(searchJob.id)}
-            aria-label="Скрыть сообщение"
-            className="shrink-0 rounded-full p-1 hover:bg-success/10"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
-      {searchJob && searchJob.status === 'error' && (
-        <div className="flex items-center justify-between gap-2 rounded-control border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
-          <span>Поиск не удался: {searchJob.error || 'см. журнал ошибок'}</span>
-          <button
-            type="button"
-            onClick={() => onDismissSearchJob(searchJob.id)}
-            aria-label="Скрыть сообщение об ошибке"
-            className="shrink-0 rounded-full p-1 hover:bg-danger/10"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
-
-      {/* Переключатель страны остаётся видимым и в свёрнутом виде: он
-          фильтрует список поставщиков этой категории (а при включённом
-          WEB_SEARCH_BUTTON_VISIBLE — ещё и задаёт страну поиска, поэтому
-          прятать его вместе со списком нельзя: поиск уходил бы в
-          невыбранную на глазах страну). */}
-      <div className="flex flex-wrap items-center gap-3">
-        <ToggleGroup options={[...SUPPLIER_COUNTRIES]} value={country} onChange={setCountry} />
-        <button
-          type="button"
-          onClick={() => setListOpen((open) => !open)}
-          aria-expanded={listOpen}
-          className="flex items-center gap-1.5 text-sm font-medium text-ink-muted hover:text-primary"
-        >
-          <ChevronDown className={cn('h-4 w-4 transition-transform', listOpen ? '' : '-rotate-90')} />
-          {listOpen
-            ? 'Скрыть список'
-            : offersInCountry.length === 0
-              ? 'Показать список'
-              : `Показать ${suppliersCountLabel(offersInCountry.length)}`}
-        </button>
-      </div>
-
-      {listOpen && (
-        <SupplierListBlock
-          offers={offers}
-          onOpenDetail={onOpenDetail}
-          emptyHint="переключите страну выше или добавьте предложение."
-          country={country}
-          onCountryChange={setCountry}
-          showCountryToggle={false}
-          enrichmentState={enrichmentState}
-          reliabilityByInn={reliabilityByInn}
-          snapshotByHost={snapshotByHost}
-        />
       )}
     </Card>
   );
@@ -1828,37 +1458,6 @@ export function Suppliers() {
   const [ledgerSectionTitleDraft, setLedgerSectionTitleDraft] = useState('');
   const [savingLedgerSection, setSavingLedgerSection] = useState(false);
 
-  // "Найти в сети" (владелец, 2026-08-31) — веб-поиск поставщиков через
-  // claude-haiku-4-5 (scripts/process-supplier-web-search-jobs.mjs).
-  // Владелец сразу же пожаловался, что клик сразу запускает поиск без
-  // возможности что-то уточнить — поэтому кнопка открывает не сам поиск, а
-  // сначала webQueryModal: список материалов (редактируемый, вдруг что-то
-  // не то подтянулось из раздела сметы) + свободное поле "Дополнительные
-  // пожелания" (бренд/бюджет/регион и т.п.), и только по кнопке "Искать"
-  // уходит запрос. webSearchingId — id запроса, для которого сейчас идёт
-  // ПОСТАНОВКА в очередь (дизейблит кнопку именно этой карточки на время
-  // самого INSERT — доли секунды, не сам поиск).
-  const [webQueryModal, setWebQueryModal] = useState<SupplierRequest | null>(null);
-  // country — страна поиска (карточка запроса передаёт свою текущую
-  // вкладку страны, см. RequestCard/ToggleGroup выше), но реальный баг
-  // (2026-09-07): она никогда не доходила до самого поиска — сервер был
-  // жёстко зашит на "Беларусь (Минск)" независимо от неё и от того, что
-  // написано в "Дополнительные пожелания" (например, город "Москва").
-  // Теперь страна редактируема прямо в этой форме (вдруг нужно
-  // переключить перед конкретным поиском) и уходит на сервер как есть.
-  const [webQueryForm, setWebQueryForm] = useState({
-    itemsText: '',
-    extra: '',
-    region: defaultSearchRegion(SUPPLIER_COUNTRIES[0]) as string,
-  });
-  const [webSearchingId, setWebSearchingId] = useState<string | null>(null);
-  // Владелец, 2026-09-11: "минуту ждать перед открытой вкладкой не
-  // захочется... я формирую поиск, система ищет в фоне, я закрываю вкладку,
-  // когда найдёт — уведомление". Веб-поиск переведён с синхронного HTTP-
-  // запроса на асинхронную очередь (supplier_web_search_jobs, см.
-  // supplierWebSearchApi.ts) — все задания страницы разом, чтобы у каждой
-  // категории посчитать своё последнее незавершённое/неоткрытое.
-  const [webSearchJobs, setWebSearchJobs] = useState<SupplierWebSearchJob[]>([]);
   // Владелец, 2026-09-11: обогащение контактов поставщика с его сайта (email
   // для заказов/телефон/мессенджеры) — тот же принцип фоновой очереди, что и
   // у веб-поиска (supplierEnrichmentApi.ts). enrichmentJobs — все задания,
@@ -1867,14 +1466,6 @@ export function Suppliers() {
   // найденное к supplier_research_offers.
   const [enrichmentJobs, setEnrichmentJobs] = useState<SupplierEnrichmentJob[]>([]);
   const [verifyingOfferId, setVerifyingOfferId] = useState<string | null>(null);
-  // Ошибка ПОСТАНОВКИ в очередь (сам INSERT не прошёл — сетевая икота и
-  // т.п.), не ошибка самого поиска (та приходит как status:'error' у уже
-  // поставленного задания и показывается через searchJob на карточке).
-  const [webSearchQueueError, setWebSearchQueueError] = useState<{ requestId: string; message: string } | null>(null);
-  // Задания, чью карточку "Готово"/"Ошибка" уже открыли или явно скрыли —
-  // не показываем их бейдж повторно (если позже для той же категории
-  // появится НОВОЕ задание — оно не в этом Set, бейдж покажется снова).
-  const [dismissedJobIds, setDismissedJobIds] = useState<Set<string>>(new Set());
 
   // Проверки благонадёжности — отдельным необязательным запросом, а не в
   // общем Promise.all с поставщиками: если таблицы ещё нет (миграция не
@@ -1949,7 +1540,6 @@ export function Suppliers() {
     fetchSupplierOrders().then(setSupplierOrders).catch(() => setSupplierOrders([]));
     fetchSupplierQuotes().then(setSupplierQuotes).catch(() => setSupplierQuotes([]));
     fetchTodayRate().then(setRate).catch(() => setRate(undefined));
-    fetchSupplierWebSearchJobs().then(setWebSearchJobs).catch(() => setWebSearchJobs([]));
     fetchSupplierEnrichmentJobs().then(setEnrichmentJobs).catch(() => setEnrichmentJobs([]));
   }, []);
 
@@ -1983,20 +1573,6 @@ export function Suppliers() {
     const interval = setInterval(() => {
       fetchAllSupplierOfferEmails()
         .then(setSupplierEmails)
-        .catch(() => {});
-    }, 20000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Тот же принцип — задания веб-поиска обрабатываются фоновым GitHub
-  // Actions скриптом, не этой вкладкой (см. supplierWebSearchApi.ts).
-  // Глобальный вотчер (supplierWebSearchJobWatcher.ts) шлёт уведомление в
-  // колокольчик, но не обновляет эту страницу — лёгкий поллинг здесь
-  // держит бейджи "Ищем..."/"Готово" на карточках свежими без перезагрузки.
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchSupplierWebSearchJobs()
-        .then(setWebSearchJobs)
         .catch(() => {});
     }, 20000);
     return () => clearInterval(interval);
@@ -2343,13 +1919,6 @@ export function Suppliers() {
     setRequestModalOpen(true);
   }
 
-  function openEditRequest(r: SupplierRequest) {
-    setEditingRequest(r);
-    setRequestForm(requestToForm(r));
-    setRequestError(null);
-    setRequestModalOpen(true);
-  }
-
   async function submitRequest(e: React.FormEvent) {
     e.preventDefault();
     if (!requestForm.title.trim() || savingRequest) return;
@@ -2380,44 +1949,6 @@ export function Suppliers() {
     }
   }
 
-  async function handleDeleteRequest(r: SupplierRequest) {
-    if (!window.confirm(`Удалить запрос «${r.title}» вместе со всеми предложениями?`)) return;
-    try {
-      await deleteSupplierRequest(r.id);
-      setRequests((prev) => prev.filter((x) => x.id !== r.id));
-      setOffers((prev) => prev.filter((o) => o.requestId !== r.id));
-    } catch (err) {
-      setLoadError(errorMessage(err, 'Не удалось удалить запрос'));
-    }
-  }
-
-  // Владелец, 2026-09-09: "где и как отмечается, какая поставка идёт целиком,
-  // а какие по частям? Это должно быть очевидно и просто" — раньше тип
-  // сравнения менялся только через полную форму "Редактировать запрос"
-  // (Select "Тип сравнения цен" внутри модалки), сам текущий выбор нигде не
-  // был виден на самой карточке "Поставщики" (только на "Сравнение цен", и
-  // то лишь когда выбран 'lot'). Теперь прямо на карточке категории —
-  // кликабельная пилюля с текущим режимом, переключается в один клик, без
-  // открытия формы.
-  async function toggleComparisonMode(r: SupplierRequest) {
-    const nextMode: SupplierComparisonMode = r.comparisonMode === 'lot' ? 'material' : 'lot';
-    const input: SupplierRequestInput = {
-      title: r.title,
-      group: r.group,
-      estimateId: r.estimateId,
-      sectionId: r.sectionId,
-      sectionTitle: r.sectionTitle,
-      legalEntityId: r.legalEntityId,
-      comparisonMode: nextMode,
-    };
-    try {
-      const updated = await updateSupplierRequest(r.id, input);
-      setRequests((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
-    } catch (err) {
-      setLoadError(errorMessage(err, 'Не удалось изменить тип сравнения'));
-    }
-  }
-
   // --- Универсальные поставщики (владелец, 2026-09-12) ---------------------
   // Правило: универсальный поставщик живёт ровно в одной карточке — в
   // категории "Универсальные поставщики". Подробности и сравнение карточек
@@ -2440,19 +1971,6 @@ export function Suppliers() {
       .map((o) => ({ offer: o, requestTitle: requests.find((r) => r.id === o.requestId)?.title ?? 'без категории' }));
   }
 
-  const universalDuplicatePlans = useMemo<SupplierMergePlan[]>(() => {
-    if (!universalRequest) return [];
-    const requestTitle = (id: string) => requests.find((r) => r.id === id)?.title ?? 'без категории';
-    return universalOffers
-      .map((target) => ({
-        target,
-        sources: offers
-          .filter((o) => o.requestId !== universalRequest.id && isSameSupplier(o, target))
-          .map((o) => ({ offer: o, requestTitle: requestTitle(o.requestId) })),
-      }))
-      .filter((plan) => plan.sources.length > 0);
-  }, [offers, requests, universalOffers, universalRequest]);
-
   function handleOffersMerged(merged: SupplierOffer[], removedOfferIds: string[]) {
     const removed = new Set(removedOfferIds);
     const byId = new Map(merged.map((m) => [m.id, m]));
@@ -2468,24 +1986,6 @@ export function Suppliers() {
     fetchAllSupplierOfferEmails().then(setSupplierEmails).catch(() => {});
     fetchSupplierOrders().then(setSupplierOrders).catch(() => {});
     fetchSupplierQuotes().then(setSupplierQuotes).catch(() => {});
-  }
-
-  function openAddOffer(request: SupplierRequest) {
-    setOfferRequestId(request.id);
-    setEditingOffer(null);
-    // Владелец, 2026-09-09: "вручную не будем ничего указывать" — items
-    // больше НЕ предзаполняются материалами категории (как было раньше в
-    // этом же заходе): пустые строки "что просим оценить" рядом с реально
-    // распознанными позициями КП только путали бы (два ряда на один
-    // материал — один пустой, один с ценой). Позиции появляются
-    // исключительно через confirmOfferExtraction.
-    setOfferForm(emptyOfferForm);
-    setOfferManualItemName('');
-    setOfferExtraction(null);
-    setOfferExtractionError(null);
-    setOfferNotInvoiceFile(null);
-    setOfferError(null);
-    setOfferModalOpen(true);
   }
 
   function updateOfferItem(id: string, patch: Partial<PurchaseItem>) {
@@ -2509,77 +2009,6 @@ export function Suppliers() {
     };
     setOfferForm((f) => ({ ...f, items: [...f.items, item] }));
     setOfferManualItemName('');
-  }
-
-  function openWebQueryModal(request: SupplierRequest, country: string) {
-    // Страна из карточки — это фильтр СПИСКА поставщиков; регион поиска из
-    // неё только подставляется по умолчанию (Россия → Москва, см.
-    // defaultSearchRegion), дальше его можно переключить в самой модалке.
-    setWebQueryForm({ itemsText: request.title, extra: '', region: defaultSearchRegion(country) });
-    setWebQueryModal(request);
-  }
-
-  // Последнее ещё не скрытое задание категории — источник правды для
-  // бейджа на RequestCard (см. searchJob-проп там же). webSearchJobs уже
-  // отсортирован по created_at desc сервером, а свежепоставленные задания
-  // добавляются в НАЧАЛО массива (см. submitWebQuery/searchMoreSuppliers),
-  // поэтому первое совпадение по requestId всегда самое новое.
-  function latestVisibleJobForRequest(requestId: string): SupplierWebSearchJob | undefined {
-    const job = webSearchJobs.find((j) => j.requestId === requestId);
-    if (!job || dismissedJobIds.has(job.id)) return undefined;
-    // Владелец, 2026-09-11: "это уведомление не пропадает, хотя поставщики
-    // уже давно добавлены в базу" — крестик прятал баннер только в памяти
-    // вкладки, после F5 он возвращался снова. "Готово" — разовая новость о
-    // том, что поиск отработал, а не постоянный статус категории (сами
-    // поставщики уже видны в списке ниже), поэтому баннер живёт ограниченное
-    // время после завершения задания. Ошибку не прячем по таймеру — она
-    // требует действия и снимается только крестиком.
-    if (job.status === 'done' && job.completedAt && Date.now() - new Date(job.completedAt).getTime() > DONE_BANNER_TTL_MS) {
-      return undefined;
-    }
-    return job;
-  }
-
-  function dismissWebSearchJob(jobId: string) {
-    setDismissedJobIds((prev) => new Set(prev).add(jobId));
-  }
-
-  async function submitWebQuery(e: React.FormEvent) {
-    e.preventDefault();
-    const request = webQueryModal;
-    if (!request || !webQueryForm.itemsText.trim()) return;
-    setWebQueryModal(null);
-    setWebSearchingId(request.id);
-    setWebSearchQueueError(null);
-    try {
-      const job = await queueSupplierWebSearch({
-        requestId: request.id,
-        itemsText: webQueryForm.itemsText.trim(),
-        sectionTitle: request.sectionTitle || request.title,
-        extra: webQueryForm.extra.trim(),
-        region: webQueryForm.region,
-        // Уже добавленные поставщики этой категории — чтобы повторный поиск
-        // искал НОВЫХ, а не приносил те же компании (раньше это работало
-        // только у отдельной кнопки "Искать ещё" в модалке результатов;
-        // теперь результаты добавляются в базу автоматически, поэтому
-        // доисключение нужно каждому поиску, а сама кнопка "Искать ещё"
-        // больше не нужна — достаточно нажать "Найти в сети" ещё раз).
-        excludeCompanies: offers
-          .filter((o) => o.requestId === request.id)
-          .map((o) => ({ name: o.name, website: o.websiteUrl })),
-      });
-      // Владелец, 2026-09-12: учёт добавления новых поставщиков по
-      // сотрудникам. Само действие человека здесь — "запустил поиск"; сколько
-      // поставщиков по нему реально добавилось, считается не отсюда, а по
-      // added_count самого задания (created_by_name в supplier_web_search_jobs,
-      // см. Metrics.tsx) — в момент постановки в очередь это ещё неизвестно.
-      logActivity('supplier_web_search_started');
-      setWebSearchJobs((prev) => [job, ...prev]);
-    } catch (err) {
-      setWebSearchQueueError({ requestId: request.id, message: errorMessage(err, 'Не удалось поставить поиск в очередь') });
-    } finally {
-      setWebSearchingId(null);
-    }
   }
 
   function openEditOffer(o: SupplierOffer) {
@@ -3015,10 +2444,10 @@ export function Suppliers() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ToggleGroup
-          options={[...SUPPLIER_TABS]}
+          options={[...VISIBLE_SUPPLIER_TABS]}
           value={tab}
           onChange={(v) => setTab(v as SupplierTab)}
-          badges={{ Письма: unreadSupplierEmailsCount, Верификация: pendingVerificationCount }}
+          badges={{ Письма: unreadSupplierEmailsCount }}
         />
         {/* Владелец, 2026-09-04: "перенеси Шаблоны направо, на уровень меню
             Поставщики/Письма, но видна только когда открываешь Письма". */}
@@ -3060,85 +2489,27 @@ export function Suppliers() {
           />
         )}
 
-        {/* Владелец, 2026-09-03: "Страницу Поставщики разбиваем на 3
-            логических блока — Материалы и оборудование, Работы, Сервисы".
-            Первые два — SupplierRequest.group (см. data/supplierResearch.ts),
-            третий — полностью самостоятельный компонент ContractorsResearch
-            (перенесён сюда раньше со страницы "Команда"), без общих данных с
-            первыми двумя; 2026-09-15 он уехал отсюда на страницу "Подрядчики"
-            (pages/WorkContractors.tsx) — владелец: "все таблицы с работами
-            переносим на страницу Подрядчики".
-            2026-09-15: блок "Материалы и оборудование" убран совсем —
-            владелец о старых карточках-категориях ("Инструмент, расходники,
-            леса и СИЗ", "Крепёж и метизы", "Кровля и фасады"...): "эти старые
-            таблицы, вплоть до надписи Сервисы, нужно убирать отсюда". Материалы
-            смотрят в каталоге выше (хабы → категории → компании). Вместе с
-            блоком для материалов ушли и его действия — создать/переименовать/
-            удалить категорию закупки, добавить предложение вручную, переключить
-            тип сравнения, статусы фонового веб-поиска и кнопка "Объединить"
-            дубли универсальных: каталог ничего из этого не умеет. Для группы
-            "Сервисы" список остаётся (тот же <details>, свёрнут по умолчанию),
-            так что сами обработчики никуда не делись — вернуть материалы =
-            вернуть 'materials' в массив ниже. */}
-        {!loading && !loadError && (
-          <>
-            {(['services'] as const).map((group) => {
-              const groupRequests = requests.filter((r) => r.group === group);
-              return (
-                <details key={group} className="flex flex-col gap-6">
-                  <summary className="cursor-pointer text-lg font-bold text-ink">
-                    {SUPPLIER_REQUEST_GROUP_LABELS[group]}
-                    <span className="ml-2 text-sm font-normal text-ink-faint">
-                      управление категориями закупки — добавить/изменить/удалить, веб-поиск
-                    </span>
-                  </summary>
-
-                  {groupRequests.length === 0 && (
-                    <Card className="py-10 text-center text-sm text-ink-muted">Пока нет запросов — нажмите «Новый запрос»</Card>
-                  )}
-
-                  {groupRequests.map((r) => (
-                    <RequestCard
-                      key={r.id}
-                      request={r}
-                      offers={offers.filter((o) => o.requestId === r.id)}
-                      onEditRequest={openEditRequest}
-                      onDeleteRequest={handleDeleteRequest}
-                      onAddOffer={openAddOffer}
-                      onOpenDetail={(o) => setDetailOfferId(o.id)}
-                      onWebSearch={openWebQueryModal}
-                      onToggleComparisonMode={toggleComparisonMode}
-                      searching={webSearchingId === r.id}
-                      searchJob={latestVisibleJobForRequest(r.id)}
-                      searchQueueError={webSearchQueueError?.requestId === r.id ? webSearchQueueError.message : null}
-                      onDismissSearchJob={dismissWebSearchJob}
-                      enrichmentState={enrichmentState}
-                      reliabilityByInn={reliabilityByInn}
-                      snapshotByHost={snapshotByHost}
-                      duplicatesCount={isUniversalRequest(r) ? universalDuplicatePlans.length : 0}
-                      onMergeDuplicates={() =>
-                        setMergePlans({
-                          intro:
-                            'Эти поставщики заведены и в «Универсальных», и в профильных категориях. Объединим: переписка, КП, заявки и файлы переедут в универсальную карточку, дубликаты удалим.',
-                          plans: universalDuplicatePlans,
-                        })
-                      }
-                    />
-                  ))}
-
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    icon={<Plus className="h-4 w-4" />}
-                    className="w-fit"
-                    onClick={() => openAddRequest(group)}
-                  >
-                    Новый запрос
-                  </Button>
-                </details>
-              );
-            })}
-          </>
+        {/* Владелец, 2026-09-15: "вкладку Верификация убираем из верхнего
+            меню и переносим ссылкой под основной каталог". Не <Link> и не
+            <a href>: вкладка — это ?tab= на этой же странице (см. SUPPLIER_TAB_SLUGS),
+            поэтому setTab, а не переход по маршруту — иначе страница
+            перезагружала бы всех поставщиков и снимки заново. Счётчик очереди
+            переехал сюда же с верхней пилюли; когда очередь пуста, число не
+            рисуем вовсе (0 в бейдже выглядел бы как «есть задача»). */}
+        {!loading && !loadError && !siteSnapshotsLoading && (
+          <button
+            type="button"
+            onClick={() => setTab('Верификация')}
+            className="flex w-fit items-center gap-2 text-sm font-medium text-ink-muted transition-colors hover:text-primary"
+          >
+            <ShieldCheck className="h-4 w-4" />
+            Верификация поставщиков
+            {pendingVerificationCount > 0 && (
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white">
+                {pendingVerificationCount}
+              </span>
+            )}
+          </button>
         )}
       </div>
       )}
@@ -4022,47 +3393,6 @@ export function Suppliers() {
         onClose={() => setMergePlans(null)}
         onMerged={handleOffersMerged}
       />
-
-      <Modal open={!!webQueryModal} onClose={() => setWebQueryModal(null)} title={`Найти в сети: ${webQueryModal?.title ?? ''}`}>
-        <form onSubmit={submitWebQuery} className="flex flex-col gap-4">
-          <div>
-            <div className="mb-1.5 text-sm font-medium text-ink">Регион поиска</div>
-            <ToggleGroup
-              options={[...SUPPLIER_SEARCH_REGIONS]}
-              value={webQueryForm.region}
-              onChange={(region) => setWebQueryForm((f) => ({ ...f, region }))}
-            />
-            <p className="mt-1.5 text-xs text-ink-faint">
-              «Москва» — только компании с офисом или складом в Москве и Московской области;
-              «Россия» — вся страна, включая региональные филиалы.
-            </p>
-          </div>
-          <Textarea
-            label="Что ищем"
-            rows={3}
-            value={webQueryForm.itemsText}
-            onChange={(e) => setWebQueryForm((f) => ({ ...f, itemsText: e.target.value }))}
-          />
-          <Textarea
-            label="Дополнительные пожелания (необязательно)"
-            rows={3}
-            placeholder="Например: бренд Ceresit, бюджет до $500, готовы смотреть не только Минск"
-            value={webQueryForm.extra}
-            onChange={(e) => setWebQueryForm((f) => ({ ...f, extra: e.target.value }))}
-          />
-          <p className="text-xs text-ink-faint">
-            Поиск идёт в фоне — вкладку можно сразу закрыть, о готовности придёт уведомление.
-          </p>
-          <div className="flex items-center justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setWebQueryModal(null)}>
-              Отмена
-            </Button>
-            <Button type="submit" icon={<Search className="h-4 w-4" />} disabled={!webQueryForm.itemsText.trim()}>
-              Искать
-            </Button>
-          </div>
-        </form>
-      </Modal>
 
       <EstimateMaterialFormModal
         open={materialModalOpen}
