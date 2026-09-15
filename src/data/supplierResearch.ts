@@ -207,8 +207,18 @@ export interface SupplierRequest {
   // SUPPLIER_COMPARISON_MODES выше). Заводится один раз на категорию, не
   // меняется автоматически.
   comparisonMode: SupplierComparisonMode;
+  // Владелец, 2026-09-15: «я отберу позиции на утверждение Ивану и уже от
+  // них посчитаешь сумму поставки» — ручной отбор на вкладке «Сравнение
+  // цен»: какому поставщику (и какой строке его счёта) отдаём каждую
+  // позицию ведомости. Ключ — id материала сметы (EstimateMaterial.id ==
+  // PurchaseItem.sourceMaterialId). Никакого автозаполнения минимумом:
+  // минимум считался бы по аналогам, которые могут не подойти. Пусто —
+  // ничего не отобрано.
+  proposal: SupplierProposal;
   createdAt: string;
 }
+
+export type SupplierProposal = Record<string, { offerId: string; itemId: string }>;
 
 export interface SupplierRequestRow {
   id: string;
@@ -219,6 +229,7 @@ export interface SupplierRequestRow {
   section_title: string | null;
   legal_entity_id: string | null;
   comparison_mode: string | null;
+  proposal: SupplierProposal | null;
   created_at: string;
 }
 
@@ -317,6 +328,14 @@ export interface SupplierOffer {
   // означает «каталог распознан», его пересчитывает verify-recognized.mjs,
   // и подделанная отметка слетела бы на первом же прогоне.
   queueSnoozedAt: string | null;
+  // Владелец, 2026-09-15: строка «Наличие и сроки» в сравнении цен — что
+  // менеджер написал в письме про наличие, сроки, образцы, условия («600 м²
+  // на складе, остальное 1,5–2 недели», «готовы грузить, образец в среду»).
+  // Свободный текст, руками, из карточки предложения. Необязательное поле в
+  // типе намеренно: формы, собирающие полный payload обновления (переписка,
+  // верификация), его не знают и не должны затирать — API пишет колонку
+  // только когда поле передано явно.
+  termsNote?: string;
   createdAt: string;
 }
 
@@ -343,6 +362,7 @@ export interface SupplierOfferRow {
   verified: boolean;
   inn: string | null;
   queue_snoozed_at: string | null;
+  terms_note: string | null;
   created_at: string;
 }
 
