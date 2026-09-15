@@ -102,7 +102,20 @@ const GOAL_IDENTIFIER = 'booking_submitted';
 // для этих двух дневных рядов до "вчера+сегодня" — так и очистка не
 // перезатирается следующим прогоном, и таблица честно накапливается день за
 // днём. (2)/(3) — не дневные ряды, а разовый снимок за окно целиком
-// (см. комментарий выше), их WINDOW_DAYS не трогаем — не в рамках этой правки.
+// (см. комментарий выше), их WINDOW_DAYS тогда не трогали.
+//
+// 2026-09-15 — владелец поймал остаток той же проблемы: «мы очищали метрику
+// от визитов за предыдущие дни, а в этих блоках визиты остались». Дневные
+// ряды после очистки начинались с 11.09, а «Источники трафика»/«Топ страниц»
+// продолжали приходить снимком за 90 дней — на странице рядом стояли визиты
+// за 4 дня и источники за 90 (130 прямых заходов). Теперь окно снимка НЕ
+// фиксированное: оно считается от самой ранней даты, которая реально лежит в
+// yandex_metrika_daily_stats, то есть от начала накопленной (после любой
+// очистки) истории, и обрезается сверху теми же WINDOW_DAYS. Так очистка
+// дневных рядов автоматически чистит и эти два блока, а отдельную константу
+// «дата сброса» держать не нужно — источник правды один. Если дневная
+// таблица пуста или её не удалось прочитать — падаем на TREND_WINDOW_DAYS
+// (узкое окно), а не на 90: лучше показать меньше, чем вернуть старьё.
 const TREND_WINDOW_DAYS = 2;
 
 const METRIKA_API = 'https://api-metrika.yandex.net';
@@ -165,6 +178,49 @@ function windowDateParams() {
   return { date1: `${WINDOW_DAYS - 1}daysAgo`, date2: 'today' };
 }
 
+// Окно для снимков (2)/(3) — от первой даты в накопленной дневной истории
+// до сегодня, но не длиннее WINDOW_DAYS. Возвращает и сами параметры запроса
+// к Метрике, и число дней — оно уходит в колонку window_days и показывается
+// на странице («За последние N дней»), так что подпись всегда совпадает с
+// тем, что реально запрошено.
+async function fetchSnapshotWindow() {
+  const fallback = {
+    date1: `${TREND_WINDOW_DAYS - 1}daysAgo`,
+    date2: 'today',
+    windowDays: TREND_WINDOW_DAYS,
+  };
+
+  const { data, error } = await supabase
+    .from('yandex_metrika_daily_stats')
+    .select('date')
+    .order('date', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.warn(
+      `Не удалось прочитать начало истории из yandex_metrika_daily_stats (${error.message}) — снимок за ${TREND_WINDOW_DAYS} дн.`,
+    );
+    return fallback;
+  }
+  const firstDate = data?.date;
+  if (!firstDate) {
+    console.warn(`В yandex_metrika_daily_stats пока нет строк — снимок за ${TREND_WINDOW_DAYS} дн.`);
+    return fallback;
+  }
+
+  const startMs = Date.parse(`${firstDate}T00:00:00Z`);
+  if (Number.isNaN(startMs)) return fallback;
+  const now = new Date();
+  const todayMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const days = Math.floor((todayMs - startMs) / 86400000) + 1;
+  const windowDays = Math.min(Math.max(days, 1), WINDOW_DAYS);
+
+  return windowDays >= WINDOW_DAYS
+    ? { ...windowDateParams(), windowDays: WINDOW_DAYS }
+    : { date1: firstDate, date2: 'today', windowDays };
+}
+
 function trendWindowDateParams() {
   return { date1: `${TREND_WINDOW_DAYS - 1}daysAgo`, date2: 'today' };
 }
@@ -209,7 +265,7 @@ async function syncDailyStats(token) {
 // реального прогона в логе GitHub Actions (--json) окажется, что там id/код,
 // а не читаемое имя — поправить на row.dimensions[0].id или завести словарь
 // кодов здесь же, не трогая остальной скрипт.
-async function syncTrafficSources(token) {
+async function syncTrafficSources(token, snapshotWindow) {
   const body = await metrikaFetch(token, '/stat/v1/data', {
     ids: COUNTER_ID,
     metrics: 'ym:s:visits,ym:s:users',
@@ -217,7 +273,8 @@ async function syncTrafficSources(token) {
     sort: '-ym:s:visits',
     limit: 30,
     filters: ADMIN_EXCLUDE_FILTER_SESSION,
-    ...windowDateParams(),
+    date1: snapshotWindow.date1,
+    date2: snapshotWindow.date2,
   });
   if (PRINT_JSON) console.log('traffic-sources raw:', JSON.stringify(body, null, 2));
 
@@ -226,10 +283,10 @@ async function syncTrafficSources(token) {
     source: row.dimensions[0].name,
     visits: Math.round(row.metrics[0] ?? 0),
     users: Math.round(row.metrics[1] ?? 0),
-    window_days: WINDOW_DAYS,
+    window_days: snapshotWindow.windowDays,
     updated_at: now,
   }));
-  console.log(`Источники трафика: ${rows.length} строк.`);
+  console.log(`Источники трафика: ${rows.length} строк (окно ${snapshotWindow.windowDays} дн., с ${snapshotWindow.date1}).`);
   if (DRY_RUN) return;
 
   const del = await supabase.from('yandex_metrika_traffic_sources').delete().gte('visits', 0);
@@ -239,7 +296,7 @@ async function syncTrafficSources(token) {
   if (error) throw error;
 }
 
-async function syncTopPages(token) {
+async function syncTopPages(token, snapshotWindow) {
   const body = await metrikaFetch(token, '/stat/v1/data', {
     ids: COUNTER_ID,
     metrics: 'ym:pv:pageviews,ym:pv:users',
@@ -247,7 +304,8 @@ async function syncTopPages(token) {
     sort: '-ym:pv:pageviews',
     limit: 30,
     filters: ADMIN_EXCLUDE_FILTER_PAGEVIEW,
-    ...windowDateParams(),
+    date1: snapshotWindow.date1,
+    date2: snapshotWindow.date2,
   });
   if (PRINT_JSON) console.log('top-pages raw:', JSON.stringify(body, null, 2));
 
@@ -256,10 +314,10 @@ async function syncTopPages(token) {
     path: row.dimensions[0].name,
     pageviews: Math.round(row.metrics[0] ?? 0),
     users: Math.round(row.metrics[1] ?? 0),
-    window_days: WINDOW_DAYS,
+    window_days: snapshotWindow.windowDays,
     updated_at: now,
   }));
-  console.log(`Топ страниц: ${rows.length} строк.`);
+  console.log(`Топ страниц: ${rows.length} строк (окно ${snapshotWindow.windowDays} дн., с ${snapshotWindow.date1}).`);
   if (DRY_RUN) return;
 
   const del = await supabase.from('yandex_metrika_top_pages').delete().gte('pageviews', 0);
@@ -343,24 +401,34 @@ async function main() {
     return;
   }
 
-  const sections = [
-    ['визиты по дням', () => syncDailyStats(token)],
-    ['источники трафика', () => syncTrafficSources(token)],
-    ['топ страниц', () => syncTopPages(token)],
-    ['достижения целей', () => syncGoalCompletions(token)],
-  ];
-
   let failures = 0;
-  for (const [label, run] of sections) {
+  const runSection = async (label, run) => {
     try {
       await run();
     } catch (err) {
       failures += 1;
       console.error(`Раздел «${label}» не синхронизировался:`, err.message ?? err);
     }
+  };
+
+  // Дневные ряды идут первыми отдельно: окно снимков (2)/(3) считается по уже
+  // обновлённой истории — иначе в первый прогон после очистки сегодняшнего
+  // дня в таблице ещё нет и снимок вышел бы на день короче графика визитов.
+  // Их сбой окну не мешает: fetchSnapshotWindow читает Supabase, а не Метрику.
+  await runSection('визиты по дням', () => syncDailyStats(token));
+  const snapshotWindow = await fetchSnapshotWindow();
+
+  const sections = [
+    ['источники трафика', () => syncTrafficSources(token, snapshotWindow)],
+    ['топ страниц', () => syncTopPages(token, snapshotWindow)],
+    ['достижения целей', () => syncGoalCompletions(token)],
+  ];
+
+  for (const [label, run] of sections) {
+    await runSection(label, run);
   }
 
-  if (failures === sections.length) {
+  if (failures === sections.length + 1) {
     // Ни один раздел не прошёл — скорее всего протух токен/сменились
     // права. Валим весь прогон явно, а не тихо оставляем пустые таблицы.
     process.exitCode = 1;

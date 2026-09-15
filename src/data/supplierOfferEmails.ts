@@ -217,4 +217,7 @@ export interface SupplierOfferEmailRow {
   send_status: string | null;
   send_error: string | null;
   created_at: string;
+  // Мягкое удаление (миграция 20260915-soft-delete-supplier-data.sql):
+  // строка жива, но скрыта из интерфейса. NULL у всего активного.
+  deleted_at?: string | null;
 }

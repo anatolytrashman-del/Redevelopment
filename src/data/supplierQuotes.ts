@@ -57,6 +57,9 @@ export interface SupplierQuoteRow {
   alternative_note: string | null;
   source_email_id: string | null;
   created_at: string;
+  // Мягкое удаление (миграция 20260915-soft-delete-supplier-data.sql):
+  // строка жива, но скрыта из интерфейса. NULL у всего активного.
+  deleted_at?: string | null;
 }
 
 // Сумма КП: у распознанных счетов price приходит итогом из документа, но если

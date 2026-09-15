@@ -385,6 +385,14 @@ export interface SupplierOffer {
   // верификация), его не знают и не должны затирать — API пишет колонку
   // только когда поле передано явно.
   termsNote?: string;
+  // Компания, к которой относится эта карточка (шаг 2 плана закупок,
+  // таблица suppliers). Заполняет БАЗА, а не приложение: триггер
+  // supplier_offer_attach_company на вставке находит фирму по домену, ИНН
+  // или названию и создаёт новую, если не нашёл. Поле только для чтения —
+  // в SupplierOfferInput его намеренно нет, чтобы формы карточки не могли
+  // случайно перевесить её на чужую компанию. null бывает лишь у карточек,
+  // вставленных в обход триггера.
+  supplierId?: string | null;
   createdAt: string;
 }
 
@@ -413,6 +421,12 @@ export interface SupplierOfferRow {
   queue_snoozed_at: string | null;
   terms_note: string | null;
   created_at: string;
+  // Мягкое удаление (миграция 20260915-soft-delete-supplier-data.sql):
+  // строка жива, но скрыта из интерфейса. NULL у всего активного.
+  deleted_at?: string | null;
+  // Ссылка на компанию (миграция 20260915-suppliers-company-entity.sql),
+  // проставляется триггером в БД.
+  supplier_id?: string | null;
 }
 
 // Email-адрес для переписки по конкретному предложению — тот же принцип
