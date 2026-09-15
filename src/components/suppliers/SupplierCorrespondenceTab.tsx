@@ -824,14 +824,18 @@ export function EmailThread({
     setAutoReplyError(null);
     try {
       // Тот же путь, что и у обычного письма из формы — отдельного
-      // "серверного" способа отправки у черновиков нет: человек нажал
-      // кнопку, значит письмо уходит от него, как любое другое.
+      // "серверного" способа отправки у черновиков нет. Но автор письма не
+      // тот, кто нажал кнопку: текст целиком написал ИИ-закупщик, человек
+      // только подтвердил отправку (владелец, 2026-09-15: «все письма
+      // прогоняй через ИИ-закупщика»). Если текст правили — это уже кнопка
+      // "Изменить", письмо уходит из обычной формы и автор там человек.
       const email = await sendSupplierOfferEmail({
         offerId: offer.id,
         orderId: order?.id ?? null,
         toAddress: offer.email,
         subject: draftSubjectFor(draft),
         body: draft.draftBody,
+        asAiBuyer: true,
       });
       onEmailSent(email);
       await markAutoReplyReviewed(draft.id, 'sent');
@@ -1390,10 +1394,15 @@ export function EmailThread({
                       <AlertTriangle className="h-3 w-3" />
                     )}
                     {e.direction === 'out' ? emailSendStatusLabel[e.sendStatus] : 'Получено'}
+                    {/* Пометка "писал не человек". Раньше тут стояло
+                        "автоответ", но с 2026-09-15 под этим именем уходят и
+                        письма, отправленные по подсказке владельца в разборе
+                        почты, и его черновики, отправленные кнопкой, — это уже
+                        не автоответ, а просто письмо агента. */}
                     {e.direction === 'out' && e.sentByName === AUTO_REPLY_SENDER_NAME && (
                       <span className="flex items-center gap-1 text-ink-faint">
                         <Bot className="h-3 w-3" />
-                        автоответ
+                        ИИ-закупщик
                       </span>
                     )}
                   </span>
