@@ -194,15 +194,46 @@ export type SupplierOfferInput = Omit<SupplierOffer, 'id' | 'createdAt' | 'short
 // ниже и миграцию 20260915-soft-delete-supplier-data.sql) в приложение не
 // попадают вообще: ни в каталог, ни в сравнение, ни в рассылку, которая
 // собирает адресатов из этого же списка.
+//
+// Постраничная выборка обязательна: PostgREST в настройках проекта отдаёт
+// максимум 1000 строк (max_rows), а живых карточек 1141 и число растёт. До
+// 2026-09-15 запрос шёл одной страницей и МОЛЧА терял хвост — 141 карточка
+// просто не существовала для приложения: её не было ни в каталоге, ни в
+// сравнении цен, ни в списке адресатов рассылки, и никакой ошибки при этом
+// не показывалось. Сортировка по id, а не по created_at: даты у карточек
+// одного импорта совпадают, и при неустойчивом порядке соседние страницы
+// вернули бы одну строку дважды, потеряв другую.
+const OFFERS_PAGE_SIZE = 1000;
+
 export function fetchSupplierOffers(): Promise<SupplierOffer[]> {
   return withRetry(async () => {
-    const { data, error } = await supabase
+    const { count, error: countError } = await supabase
       .from('supplier_research_offers')
-      .select('*')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: true });
-    if (error) throw error;
-    return (data as SupplierOfferRow[]).map(offerFromRow);
+      .select('id', { count: 'exact', head: true })
+      .is('deleted_at', null);
+    if (countError) throw countError;
+
+    const total = count ?? 0;
+    if (total === 0) return [];
+
+    const pageStarts: number[] = [];
+    for (let from = 0; from < total; from += OFFERS_PAGE_SIZE) pageStarts.push(from);
+
+    const pages = await Promise.all(
+      pageStarts.map(async (from) => {
+        const { data, error } = await supabase
+          .from('supplier_research_offers')
+          .select('*')
+          .is('deleted_at', null)
+          .order('id')
+          .range(from, from + OFFERS_PAGE_SIZE - 1);
+        if (error) throw error;
+        return (data as SupplierOfferRow[]).map(offerFromRow);
+      }),
+    );
+    // Порядок «сначала старые» сохраняем: на него опирается остальной код
+    // (первая карточка поставщика в категории, порядок в списках).
+    return pages.flat().sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   });
 }
 
@@ -210,6 +241,24 @@ export function fetchSupplierOffers(): Promise<SupplierOffer[]> {
 // данные поставщика. Его ставит и снимает вкладка верификации целиком
 // (snoozeSupplierOffers / unsnoozeAllSupplierOffers), и обычная правка
 // карточки не должна ни выставлять, ни затирать его.
+// Карточки одной компании — для страницы поставщика (/admin/suppliers/:id).
+// Отдельный запрос, а не фильтр по общему списку: страница открывается по
+// прямой ссылке, и тянуть ради неё все 1141 карточку незачем. Компания
+// участвует в закупке столькими карточками, во скольких категориях ей
+// писали, — это и есть её история участия.
+export function fetchSupplierOffersByCompany(supplierId: string): Promise<SupplierOffer[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('supplier_research_offers')
+      .select('*')
+      .eq('supplier_id', supplierId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return (data as SupplierOfferRow[]).map(offerFromRow);
+  });
+}
+
 export function insertSupplierOffer(input: SupplierOfferInput): Promise<SupplierOffer> {
   return withRetry(async () => {
     const { data, error } = await supabase

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ChevronRight, Search } from 'lucide-react';
 import { Card } from '../ui/Card';
-import { Button } from '../ui/Button';
+import { Button, buttonClasses } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { SearchInput } from '../ui/SearchInput';
 import { Select } from '../ui/Select';
@@ -73,6 +74,29 @@ interface HubStats {
   categories: CategoryStats[];
   // Уникальные компании по всем плиткам хаба (без баз).
   total: number;
+}
+
+
+// «Подробнее» из каталога ведёт на страницу компании (/admin/suppliers/:id,
+// шаг 3 плана закупок), а не в модалку: в каталоге человек смотрит на
+// компанию целиком, и адрес такой страницы можно сохранить и переслать.
+// Модалка остаётся запасным путём для карточек без supplier_id — их быть не
+// должно (компанию проставляет триггер в базе), но терять кнопку из-за
+// пропущенной связи нельзя. Из сравнения цен по-прежнему открывается
+// модалка: там уход со страницы потерял бы таблицу сравнения (шаг 4).
+function OpenDetailButton({ offer, onOpenDetail }: { offer: SupplierOffer; onOpenDetail: (o: SupplierOffer) => void }) {
+  if (offer.supplierId) {
+    return (
+      <Link to={`/admin/suppliers/${offer.supplierId}`} className={buttonClasses('secondary')}>
+        Подробнее
+      </Link>
+    );
+  }
+  return (
+    <Button type="button" variant="secondary" onClick={() => onOpenDetail(offer)}>
+      Подробнее
+    </Button>
+  );
 }
 
 function offerGroups(o: SupplierOffer, snapshotByHost: Map<string, SupplierSiteSnapshot>): string[] {
@@ -291,9 +315,7 @@ export function SupplierCatalog({
                 <span className="truncate font-medium text-ink">{offer.name}</span>
                 <span className="text-xs text-ink-faint">{categoryLabel}</span>
               </div>
-              <Button type="button" variant="secondary" onClick={() => onOpenDetail(offer)}>
-                Подробнее
-              </Button>
+              <OpenDetailButton offer={offer} onOpenDetail={onOpenDetail} />
             </div>
           ))}
         </div>
@@ -396,9 +418,7 @@ function CategoryView({
         <span className="truncate font-medium text-ink">{o.name}</span>
         {!o.country.trim() && <span className="text-xs text-ink-faint">страна не указана</span>}
       </div>
-      <Button type="button" variant="secondary" onClick={() => onOpenDetail(o)}>
-        Подробнее
-      </Button>
+      <OpenDetailButton offer={o} onOpenDetail={onOpenDetail} />
     </div>
   );
 

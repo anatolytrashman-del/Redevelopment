@@ -68,6 +68,7 @@ const Contractors = lazy(() => import('./pages/Contractors').then((m) => ({ defa
 // Suppliers, см. комментарий в самом файле. Purchases.tsx (embedded, вкладка
 // "Закупки") сюда по-прежнему не подключается — вкладку убрали 2026-09-03.
 const Suppliers = lazy(() => import('./pages/Suppliers').then((m) => ({ default: m.Suppliers })));
+const SupplierDetail = lazy(() => import('./pages/SupplierDetail').then((m) => ({ default: m.SupplierDetail })));
 const WorkContractors = lazy(() => import('./pages/WorkContractors').then((m) => ({ default: m.WorkContractors })));
 const Objects = lazy(() => import('./pages/Objects').then((m) => ({ default: m.Objects })));
 const ObjectDetail = lazy(() => import('./pages/ObjectDetail').then((m) => ({ default: m.ObjectDetail })));
@@ -378,6 +379,12 @@ export default function App() {
             сюда — тем же приёмом, что и остальные переехавшие адреса выше. */}
         <Route path="work-contractors" element={<RequirePage page="workContractors"><WorkContractors /></RequirePage>} />
         <Route path="suppliers" element={<Navigate to="/admin/purchases" replace />} />
+        {/* Страница компании-поставщика (шаг 3 плана закупок). Права — те же,
+            что у «Закупок» (purchases): это их часть, отдельного пункта меню
+            у неё нет, приходят по ссылке из каталога. Адрес /admin/suppliers
+            без id так и остаётся редиректом на закупки — старые сохранённые
+            ссылки не ломаем. */}
+        <Route path="suppliers/:id" element={<RequirePage page="purchases"><SupplierDetail /></RequirePage>} />
         <Route path="work-and-supplies" element={<Navigate to="/admin/contractors" replace />} />
         <Route path="objects" element={<RequirePage page="objects"><Objects /></RequirePage>} />
         <Route path="objects/:id" element={<RequirePage page="objects"><ObjectDetail /></RequirePage>} />

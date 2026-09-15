@@ -41,13 +41,53 @@ function fromRow(row: SupplierSiteSnapshotRow): SupplierSiteSnapshot {
 const COLUMNS =
   'host, website_url, status, page_title, meta_description, sections, error, fetched_at, categories, categories_note, classified_at, categories_verified, categories_verified_at';
 
+// Постраничная выборка по той же причине, что у карточек поставщиков (см.
+// fetchSupplierOffers): PostgREST отдаёт максимум 1000 строк, а снимков 1393.
+// Одностраничный запрос молча обрезал хвост по алфавиту хостов — у доменов
+// после тысячного товарные группы в каталоге просто не показывались, и
+// выглядело это не как ошибка, а как «сайт ещё не разобран».
+const SNAPSHOTS_PAGE_SIZE = 1000;
+
 export function fetchSupplierSiteSnapshots(): Promise<SupplierSiteSnapshot[]> {
+  return withRetry(async () => {
+    const { count, error: countError } = await supabase
+      .from('supplier_site_snapshots')
+      .select('host', { count: 'exact', head: true });
+    if (countError) throw countError;
+
+    const total = count ?? 0;
+    if (total === 0) return [];
+
+    const pageStarts: number[] = [];
+    for (let from = 0; from < total; from += SNAPSHOTS_PAGE_SIZE) pageStarts.push(from);
+
+    const pages = await Promise.all(
+      pageStarts.map(async (from) => {
+        const { data, error } = await supabase
+          .from('supplier_site_snapshots')
+          .select(COLUMNS)
+          .order('host', { ascending: true })
+          .range(from, from + SNAPSHOTS_PAGE_SIZE - 1);
+        if (error) throw error;
+        return ((data ?? []) as unknown as SupplierSiteSnapshotRow[]).map(fromRow);
+      }),
+    );
+    return pages.flat();
+  });
+}
+
+// Снимок одного домена — для страницы компании, где грузить все 1393 строки
+// незачем. Пустой host (компания без сайта) до запроса не доходит.
+export function fetchSupplierSiteSnapshot(host: string): Promise<SupplierSiteSnapshot | null> {
+  const normalized = host.trim().toLowerCase();
+  if (!normalized) return Promise.resolve(null);
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('supplier_site_snapshots')
       .select(COLUMNS)
-      .order('host', { ascending: true });
+      .eq('host', normalized)
+      .maybeSingle();
     if (error) throw error;
-    return ((data ?? []) as unknown as SupplierSiteSnapshotRow[]).map(fromRow);
+    return data ? fromRow(data as unknown as SupplierSiteSnapshotRow) : null;
   });
 }
