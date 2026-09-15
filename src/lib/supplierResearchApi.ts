@@ -10,7 +10,9 @@ import type {
   SupplierOfferRow,
   ResearchContactMethod,
   SupplierProposal,
+  SupplierProposalReview,
 } from '../data/supplierResearch';
+import type { PurchaseItem } from '../data/purchases';
 import type { DocumentFile } from '../data/contractorDocuments';
 import type { Currency } from '../data/transactions';
 
@@ -25,6 +27,7 @@ function requestFromRow(row: SupplierRequestRow): SupplierRequest {
     legalEntityId: row.legal_entity_id ?? null,
     comparisonMode: (row.comparison_mode as SupplierComparisonMode) || 'material',
     proposal: row.proposal && typeof row.proposal === 'object' ? row.proposal : {},
+    review: row.proposal_review && typeof row.proposal_review === 'object' && row.proposal_review.status ? row.proposal_review : null,
     createdAt: row.created_at,
   };
 }
@@ -134,6 +137,40 @@ export function updateSupplierRequestProposal(id: string, proposal: SupplierProp
   });
 }
 
+// Стадия согласования (см. SupplierProposalReview) — отдельным одноколоночным
+// апдейтом по той же причине, что и proposal выше.
+export function updateSupplierRequestReview(id: string, review: SupplierProposalReview | null): Promise<SupplierRequest> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('supplier_research_requests')
+      .update({ proposal_review: review })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return requestFromRow(data as SupplierRequestRow);
+  });
+}
+
+// Привязка раздела сметы к категории одним кликом из «Сравнения цен»
+// (владелец, 2026-09-15: у плинтусов раздел в смете был, а к категории не
+// привязан — страница показывала «раздел не выбран» при пяти КП на руках).
+export function updateSupplierRequestSection(
+  id: string,
+  input: { estimateId: string | null; sectionId: string | null; sectionTitle: string },
+): Promise<SupplierRequest> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('supplier_research_requests')
+      .update({ estimate_id: input.estimateId, section_id: input.sectionId, section_title: input.sectionTitle })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return requestFromRow(data as SupplierRequestRow);
+  });
+}
+
 export function deleteSupplierRequest(id: string): Promise<void> {
   return withRetry(async () => {
     const { error } = await supabase.from('supplier_research_requests').delete().eq('id', id);
@@ -220,6 +257,16 @@ export function updateSupplierOffer(id: string, input: SupplierOfferInput): Prom
       .single();
     if (error) throw error;
     return offerFromRow(data as SupplierOfferRow);
+  });
+}
+
+// Только позиции карточки — для сопоставления строки счёта прямо из
+// таблицы сравнения (те же объекты с теми же id лежат и в КП, см.
+// updateSupplierQuoteItems: править нужно оба списка).
+export function updateSupplierOfferItems(id: string, items: PurchaseItem[]): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase.from('supplier_research_offers').update({ items }).eq('id', id);
+    if (error) throw error;
   });
 }
 

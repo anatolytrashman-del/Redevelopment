@@ -18,7 +18,7 @@ function errorMessage(err: unknown, fallback: string): string {
 // EstimateMaterialCommentsModal), поэтому не часть формы вовсе — подставляются
 // из существующего материала (или пустым массивом для нового) прямо при сборке
 // saved в handleSubmit.
-const emptyForm: Omit<EstimateMaterial, 'id' | 'comments'> = { name: '', unit: '', quantity: null, note: '', group: '' };
+const emptyForm: Omit<EstimateMaterial, 'id' | 'comments'> = { name: '', unit: '', quantity: null, note: '', group: '', consumption: null, consumptionUnit: '' };
 
 const NO_GROUP = 'Без группы';
 
@@ -47,7 +47,7 @@ export function EstimateMaterialFormModal({ open, material, groupOptions, onClos
     if (open) {
       setForm(
         material
-          ? { name: material.name, unit: material.unit, quantity: material.quantity, note: material.note, group: material.group }
+          ? { name: material.name, unit: material.unit, quantity: material.quantity, note: material.note, group: material.group, consumption: material.consumption ?? null, consumptionUnit: material.consumptionUnit ?? '' }
           : emptyForm,
       );
       setSubmitError(null);
@@ -68,6 +68,8 @@ export function EstimateMaterialFormModal({ open, material, groupOptions, onClos
       quantity: form.quantity,
       note: form.note.trim(),
       group: form.group.trim(),
+      consumption: form.consumption != null && form.consumption > 0 ? form.consumption : null,
+      consumptionUnit: (form.consumptionUnit ?? '').trim(),
       comments: material?.comments ?? [],
     };
     try {
@@ -102,6 +104,25 @@ export function EstimateMaterialFormModal({ open, material, groupOptions, onClos
             type="number"
             value={form.quantity ?? ''}
             onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value === '' ? null : Number(e.target.value) }))}
+          />
+        </div>
+        {/* Владелец, 2026-09-15 (краски): без расхода цену банки не перевести
+            в цену за м² сметы — см. lib/unitPriceGuess.ts. Слои уже внутри
+            числа: 0,25 л/м² × 2 слоя = 0,5. */}
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label={`Расход на 1 ${form.unit.trim() || 'ед.'} (с учётом слоёв)`}
+            type="number"
+            step="any"
+            placeholder="например, 0.5"
+            value={form.consumption ?? ''}
+            onChange={(e) => setForm((f) => ({ ...f, consumption: e.target.value === '' ? null : Number(e.target.value) }))}
+          />
+          <Input
+            label="Единица расхода"
+            placeholder="л, кг, шт"
+            value={form.consumptionUnit ?? ''}
+            onChange={(e) => setForm((f) => ({ ...f, consumptionUnit: e.target.value }))}
           />
         </div>
         <Textarea
