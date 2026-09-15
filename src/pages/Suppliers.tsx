@@ -57,7 +57,7 @@ import { fetchSupplierSiteSnapshots } from '../lib/supplierSiteSnapshotsApi';
 import { SupplierVerificationTab, pendingVerificationHostCount } from '../components/suppliers/SupplierVerificationTab';
 import type { SupplierOfferEmail } from '../data/supplierOfferEmails';
 import { fetchAllSupplierOfferEmails, markSupplierOfferEmailsRead } from '../lib/supplierOfferEmailsApi';
-import { EmailThread, SupplierCorrespondenceTab, countUnreadSupplierEmails } from '../components/suppliers/SupplierCorrespondenceTab';
+import { EmailThread, SupplierCorrespondenceTab, countUnreadSupplierEmails, type EstimateMaterialOption } from '../components/suppliers/SupplierCorrespondenceTab';
 import { MaterialLedgerModal } from '../components/suppliers/MaterialLedgerModal';
 import { MasterLedgerCard } from '../components/suppliers/MasterLedgerCard';
 import { BulkSendModal } from '../components/suppliers/BulkSendModal';
@@ -1515,7 +1515,7 @@ export function Suppliers() {
   // что и у вкладки "Ведомости материалов" на этой же странице) — поиск по
   // нему в модалке.
   const allEstimateMaterials = useMemo(() => {
-    const list: { item: PurchaseItem; context: string }[] = [];
+    const list: { item: PurchaseItem; context: string; consumption: number | null; consumptionUnit: string }[] = [];
     for (const e of estimates) {
       const objLabel = e.objectId ? objectLabel(e.objectId) : e.title || 'без объекта';
       for (const s of e.sections) {
@@ -1523,6 +1523,8 @@ export function Suppliers() {
           list.push({
             item: { id: crypto.randomUUID(), sourceMaterialId: m.id, name: m.name, unit: m.unit, quantity: m.quantity, price: null, note: m.note },
             context: `${objLabel} · ${s.title}`,
+            consumption: m.consumption ?? null,
+            consumptionUnit: m.consumptionUnit ?? '',
           });
         }
       }
@@ -2485,8 +2487,11 @@ export function Suppliers() {
                         emails={supplierEmails}
                         quotes={supplierQuotes}
                         rate={rate}
+                        estimates={estimates}
                         onOpenDetail={(o) => setDetailOfferId(o.id)}
-                        onProposalSaved={(saved) => setRequests((prev) => prev.map((x) => (x.id === saved.id ? saved : x)))}
+                        onRequestSaved={(saved) => setRequests((prev) => prev.map((x) => (x.id === saved.id ? saved : x)))}
+                        onQuotesChange={setSupplierQuotes}
+                        onOfferUpdated={handleSupplierOfferUpdated}
                         renderBadges={(o) => (
                           <>
                             <VerificationBadge offer={o} enrichmentState={enrichmentState} />
@@ -3443,7 +3448,7 @@ function OfferEmailModal({
   emails: SupplierOfferEmail[];
   templates: EmailTemplate[];
   ledgers: MaterialLedger[];
-  allMaterials: { item: PurchaseItem; context: string }[];
+  allMaterials: EstimateMaterialOption[];
   legalEntities: LegalEntity[];
   onEmailSent: (email: SupplierOfferEmail) => void;
   onMarkRead: (offerId: string, orderId: string | null) => void;

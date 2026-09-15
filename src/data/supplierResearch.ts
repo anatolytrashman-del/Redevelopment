@@ -215,10 +215,58 @@ export interface SupplierRequest {
   // минимум считался бы по аналогам, которые могут не подойти. Пусто —
   // ничего не отобрано.
   proposal: SupplierProposal;
+  // Владелец, 2026-09-15: стадия согласования отбора — см. SupplierProposalReview.
+  // null — черновик, никуда не отправлялось (все категории до этой даты).
+  review: SupplierProposalReview | null;
   createdAt: string;
 }
 
 export type SupplierProposal = Record<string, { offerId: string; itemId: string }>;
+
+// Стадия согласования предложения (колонка proposal_review jsonb).
+//   draft    — отбор идёт, никому не отправлялось;
+//   sent     — ушло руководителю стройки письмом (sentTo, sentAt);
+//   approved — утверждено (decidedAt, comment);
+//   returned — вернули на уточнение (decidedAt, comment).
+// snapshot — строки с ценами на момент отправки: по нему карточка видит, что
+// новый счёт поставщика поменял сумму после того, как её уже согласовали.
+export type SupplierProposalReviewStatus = 'draft' | 'sent' | 'approved' | 'returned';
+
+export interface SupplierProposalSnapshotLine {
+  positionId: string;
+  positionName: string;
+  supplierName: string;
+  kind: string;
+  unitPrice: number;
+  quantity: number | null;
+  unit: string;
+  amount: number;
+  currency: string;
+}
+
+export interface SupplierProposalSnapshot {
+  createdAt: string;
+  total: string;
+  lines: SupplierProposalSnapshotLine[];
+  delivery: string | null;
+}
+
+export interface SupplierProposalReview {
+  status: SupplierProposalReviewStatus;
+  sentAt?: string;
+  sentTo?: string;
+  sentBy?: string;
+  decidedAt?: string;
+  comment?: string;
+  snapshot?: SupplierProposalSnapshot;
+}
+
+export const PROPOSAL_REVIEW_STATUS_LABELS: Record<SupplierProposalReviewStatus, string> = {
+  draft: 'Черновик',
+  sent: 'На утверждении',
+  approved: 'Утверждено',
+  returned: 'Возвращено на уточнение',
+};
 
 export interface SupplierRequestRow {
   id: string;
@@ -230,6 +278,7 @@ export interface SupplierRequestRow {
   legal_entity_id: string | null;
   comparison_mode: string | null;
   proposal: SupplierProposal | null;
+  proposal_review: SupplierProposalReview | null;
   created_at: string;
 }
 

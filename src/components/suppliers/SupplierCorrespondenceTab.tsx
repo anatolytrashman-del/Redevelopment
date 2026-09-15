@@ -40,6 +40,7 @@ import { DocumentPreviewModal, isPreviewable, type PreviewFile } from '../docume
 import { currencies, type Currency } from '../../data/transactions';
 import { PURCHASE_ITEM_MATCH_KIND_LABELS, looksLikeDeliveryItem, type PurchaseItem, type PurchaseItemMatchKind } from '../../data/purchases';
 import { closeQuantity, sameUnit } from '../../lib/units';
+import { guessUnitPrice } from '../../lib/unitPriceGuess';
 import type { SupplierQuote } from '../../data/supplierQuotes';
 import { insertSupplierQuote, updateSupplierQuoteItems, deleteSupplierQuote } from '../../lib/supplierQuotesApi';
 import type { EmailAutoReplyLogEntry } from '../../data/emailAutoReply';
@@ -222,16 +223,28 @@ function matchFields(match: MaterialMatch | undefined): Pick<PurchaseItem, 'sour
 // совпадает с unit материала сметы буквально (тогда 1 "единица" счёта и
 // правда 1 единица сметы) — иначе подсказку не даём вовсе, пусть Альмира
 // посчитает сама (банка 5л/10л — знает только она, не счёт).
-function computeUnitPriceGuess(
-  it: EmailExtractionItem,
-  materialId: string,
-  allMaterials: { item: PurchaseItem; context: string }[],
-): string {
-  if (it.price == null || !it.quantity) return '';
+// Материал сметы в выпадающем списке сопоставления + расход (владелец,
+// 2026-09-15, краски: банка 9 л → цена за м² через расход, см.
+// lib/unitPriceGuess.ts).
+export interface EstimateMaterialOption {
+  item: PurchaseItem;
+  context: string;
+  consumption?: number | null;
+  consumptionUnit?: string;
+}
+
+function computeUnitPriceGuess(it: EmailExtractionItem, materialId: string, allMaterials: EstimateMaterialOption[]): string {
+  const guess = unitPriceGuessFor(it, materialId, allMaterials);
+  return guess ? String(guess.unitPrice) : '';
+}
+
+function unitPriceGuessFor(it: EmailExtractionItem, materialId: string, allMaterials: EstimateMaterialOption[]) {
   const material = allMaterials.find((m) => m.item.sourceMaterialId === materialId);
-  if (!material) return '';
-  if (!sameUnit(material.item.unit, it.unit)) return '';
-  return String(Math.round((it.price / it.quantity) * 100) / 100);
+  if (!material) return null;
+  return guessUnitPrice(
+    { name: it.name, unit: it.unit, quantity: it.quantity, price: it.price },
+    { unit: material.item.unit, consumption: material.consumption, consumptionUnit: material.consumptionUnit },
+  );
 }
 
 function extractionItemsToPurchaseItems(items: EmailExtractionItem[], materialMatches: Record<number, MaterialMatch>): PurchaseItem[] {
@@ -506,7 +519,7 @@ async function applyExtractionToOrder(
 // равно видит и может поправить выбор в выпадающем списке.
 function suggestMaterialMatch(
   name: string,
-  allMaterials: { item: PurchaseItem; context: string }[],
+  allMaterials: EstimateMaterialOption[],
   // Владелец, 2026-09-15: «сопоставляй по объёму, это точнее всего будет» —
   // названия у поставщиков свои (артикулы, коллекции, аналоги), а объём в
   // счёте повторяет ведомость с точностью до кратности упаковки. Если по
@@ -622,7 +635,7 @@ export function EmailThread({
   emails: SupplierOfferEmail[];
   templates: EmailTemplate[];
   ledgers: MaterialLedger[];
-  allMaterials: { item: PurchaseItem; context: string }[];
+  allMaterials: EstimateMaterialOption[];
   legalEntities: LegalEntity[];
   onEmailSent: (email: SupplierOfferEmail) => void;
   onTemplateSaved: (template: EmailTemplate) => void;
@@ -1994,6 +2007,14 @@ export function EmailThread({
                                 />
                                 <span className="text-xs text-ink-muted">
                                   {previewExtraction.invoice.currency ?? ''} за {material.item.unit || 'ед.'} сметы, с НДС
+                                  {(() => {
+                                    const g = unitPriceGuessFor(it, material.item.sourceMaterialId!, allMaterials);
+                                    if (g) return <span className="block text-ink-faint">подсказка: {g.unitPrice} — {g.explanation}</span>;
+                                    if (!sameUnit(material.item.unit, it.unit) && !(material.consumption ?? 0)) {
+                                      return <span className="block text-ink-faint">единицы разные ({it.unit || '?'} в счёте, {material.item.unit || '?'} в смете): задайте расход у материала сметы, и цена посчитается из тары</span>;
+                                    }
+                                    return null;
+                                  })()}
                                 </span>
                                 {/* Владелец, 2026-09-15: у МаксиКерам цены в строках без НДС, итог с НДС 22% — без пересчёта поставщик выглядел бы на 22% дешевле. */}
                                 {match?.unitPrice && (
@@ -2255,7 +2276,7 @@ export function SupplierCorrespondenceTab({
   emails: SupplierOfferEmail[];
   templates: EmailTemplate[];
   ledgers: MaterialLedger[];
-  allMaterials: { item: PurchaseItem; context: string }[];
+  allMaterials: EstimateMaterialOption[];
   legalEntities: LegalEntity[];
   // Владелец, 2026-09-04: "перенеси Шаблоны направо, на уровень меню
   // Поставщики/Письма, но видно только на Письмах" — кнопка теперь в шапке

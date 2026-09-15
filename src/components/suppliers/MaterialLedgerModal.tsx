@@ -7,6 +7,7 @@ import { Select } from '../ui/Select';
 import type { MaterialLedger } from '../../data/materialLedgers';
 import { insertMaterialLedger, updateMaterialLedger, deleteMaterialLedger } from '../../lib/materialLedgersApi';
 import type { PurchaseItem } from '../../data/purchases';
+import type { EstimateMaterialOption } from './SupplierCorrespondenceTab';
 import { buildMaterialLedgerXlsx, type LedgerAttachment } from '../../lib/materialLedgerXlsx';
 import { isMasterLedgerId } from '../../lib/masterLedger';
 import {
@@ -75,7 +76,7 @@ export function MaterialLedgerModal({
   // ("вводить совсем тупо, хочу видеть весь список и отмечать галочками"),
   // теперь весь список сразу, сгруппированный по объекту/разделу
   // (checklistGroups ниже), с чекбоксом на каждой позиции.
-  allMaterials: { item: PurchaseItem; context: string }[];
+  allMaterials: EstimateMaterialOption[];
   ledgers: MaterialLedger[];
   onClose: () => void;
   onLedgersChange: (ledgers: MaterialLedger[]) => void;
