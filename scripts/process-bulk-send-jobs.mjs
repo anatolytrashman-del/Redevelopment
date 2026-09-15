@@ -302,9 +302,19 @@ async function sendOneEmail({ offer, request, legalEntity, job, item }) {
   // заявка", массовая рассылка не должна заводить её сама.
   const fromAddress = emailAddress(offer.short_code);
 
+  // Idempotency-Key тот же, что в Edge Function process-bulk-send-jobs (это
+  // её ручной дубль, см. CLAUDE.md — правится всегда парой): обрыв связи
+  // после приёма письма Resend'ом, но до нашей записи в supplier_offer_emails,
+  // иначе даёт поставщику второе письмо на следующем проходе. Ключ привязан к
+  // строке задания, поэтому у обоих путей он совпадает — даже параллельный
+  // запуск скрипта и крона не сможет отправить два письма по одной строке.
   const resendResp = await fetch('https://api.resend.com/emails', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+      'Idempotency-Key': `bulk-item-${item.id}`,
+    },
     body: JSON.stringify({
       from: `${RESEND_FROM_NAME} <${fromAddress}>`,
       to: [offer.email],
@@ -423,6 +433,16 @@ async function processItem({ job, item, request, legalEntity, recipientsCount })
     await supabase
       .from('bulk_send_job_items')
       .update({ status: 'error', error_message: 'Предложение не найдено' })
+      .eq('id', item.id);
+    return;
+  }
+  // Та же проверка, что в Edge Function process-bulk-send-jobs: карточку
+  // могли мягко удалить уже после постановки задания в очередь, и письмо
+  // ушло бы удалённому поставщику (раньше строку задания уносил каскад).
+  if (offer.deleted_at) {
+    await supabase
+      .from('bulk_send_job_items')
+      .update({ status: 'error', error_message: 'Поставщик удалён после постановки в очередь' })
       .eq('id', item.id);
     return;
   }

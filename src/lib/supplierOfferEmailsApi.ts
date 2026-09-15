@@ -33,6 +33,7 @@ export function fetchSupplierOfferEmails(offerId: string): Promise<SupplierOffer
       .from('supplier_offer_emails')
       .select('*')
       .eq('offer_id', offerId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: true });
     if (error) throw error;
     return (data as SupplierOfferEmailRow[]).map(fromRow);
@@ -45,7 +46,11 @@ export function fetchSupplierOfferEmails(offerId: string): Promise<SupplierOffer
 // пагинации.
 export function fetchAllSupplierOfferEmails(): Promise<SupplierOfferEmail[]> {
   return withRetry(async () => {
-    const { data, error } = await supabase.from('supplier_offer_emails').select('*').order('created_at', { ascending: true });
+    const { data, error } = await supabase
+      .from('supplier_offer_emails')
+      .select('*')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true });
     if (error) throw error;
     return (data as SupplierOfferEmailRow[]).map(fromRow);
   });
@@ -63,6 +68,10 @@ export interface OutgoingEmailMetric {
   toAddress: string;
 }
 
+// deleted_at здесь СОЗНАТЕЛЬНО не фильтруется, в отличие от выборок выше:
+// метрика считает факт отправки письма, а он состоялся. Если бы мягкое
+// удаление карточки вычитало письма из счётчика ИИ-закупщика, история его
+// работы переписывалась бы задним числом при каждой чистке каталога.
 export function fetchOutgoingEmailMetrics(): Promise<OutgoingEmailMetric[]> {
   return withRetry(async () => {
     const { data, error } = await supabase
@@ -89,6 +98,8 @@ export interface IncomingInvoiceMetric {
   invoiceCount: number;
 }
 
+// Как и у исходящих метрик, мягко удалённые письма остаются в счёте — см.
+// комментарий к fetchOutgoingEmailMetrics.
 export function fetchIncomingInvoiceMetrics(): Promise<IncomingInvoiceMetric[]> {
   return withRetry(async () => {
     const { data, error } = await supabase

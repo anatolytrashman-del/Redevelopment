@@ -413,6 +413,9 @@ export interface SupplierOfferRow {
   queue_snoozed_at: string | null;
   terms_note: string | null;
   created_at: string;
+  // Мягкое удаление (миграция 20260915-soft-delete-supplier-data.sql):
+  // строка жива, но скрыта из интерфейса. NULL у всего активного.
+  deleted_at?: string | null;
 }
 
 // Email-адрес для переписки по конкретному предложению — тот же принцип

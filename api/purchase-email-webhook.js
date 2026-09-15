@@ -26,9 +26,9 @@
 // поддельное "письмо от поставщика" прямо в переписку любой закупки —
 // поэтому bodyParser отключён (нужно именно СЫРОЕ тело запроса байт-в-байт,
 // не пересобранный JSON.stringify, иначе подпись не сойдётся) и подпись
-// проверяется до разбора payload. Если RESEND_WEBHOOK_SECRET ещё не
-// проставлен в Vercel — проверка пропускается с предупреждением в лог,
-// чтобы не сломать приём писем ДО того, как секрет добавят.
+// проверяется до разбора payload. Без секрета в окружении функция отвечает
+// 500 и НЕ обрабатывает письмо (раньше проверка в этом случае пропускалась —
+// см. подробный разбор в самом обработчике).
 //
 // ВАЖНО (проверено 2026-09-03 по документации Resend, см. подробный
 // комментарий в _attachments.js): сам вебхук email.received несёт только
@@ -327,13 +327,22 @@ export default async function handler(req, res) {
 
   const rawBody = await readRawBody(req);
   const secret = process.env.RESEND_WEBHOOK_SECRET;
-  if (secret) {
-    if (!verifyResendSignature(rawBody, req.headers, secret)) {
-      res.status(401).json({ error: 'Invalid signature' });
-      return;
-    }
-  } else {
-    console.warn('RESEND_WEBHOOK_SECRET не настроен — подпись входящего письма не проверяется');
+  if (!secret) {
+    // Раньше здесь была мягкая ветка: нет секрета — обрабатываем письмо без
+    // проверки подписи, только с предупреждением в лог. Это оставляло
+    // эндпоинт открытым для любого, кто узнает URL: поддельное "письмо от
+    // поставщика" с любым отправителем, текстом и вложением-счётом попадало
+    // бы прямо в переписку закупки, а автораспознавание счетов записало бы
+    // из него цены в сравнение. Послабление было нужно ровно на время, пока
+    // секрет не добавили в Vercel; он добавлен, поэтому теперь отсутствие
+    // секрета — отказ обслуживать, а не тихий пропуск проверки.
+    console.error('RESEND_WEBHOOK_SECRET не настроен — входящее письмо не принято');
+    res.status(500).json({ error: 'Webhook secret is not configured' });
+    return;
+  }
+  if (!verifyResendSignature(rawBody, req.headers, secret)) {
+    res.status(401).json({ error: 'Invalid signature' });
+    return;
   }
 
   try {
@@ -342,12 +351,21 @@ export default async function handler(req, res) {
     // поля письма (to/from/subject/text). Поддерживаем и "плоский" вид на
     // случай отличающегося формата.
     const data = payload.data ?? payload;
-    // 2026-09-03: живой прогон сохранил пустое тело и без вложений, хотя
-    // отправитель ответил и приложил файл — точная причина ещё не
-    // подтверждена (см. комментарий в _attachments.js). Логируем сырой
-    // payload целиком, чтобы на следующем реальном письме увидеть в Vercel
-    // Runtime Logs, как он выглядит на самом деле.
-    console.error('RAW WEBHOOK PAYLOAD:', JSON.stringify(payload).slice(0, 3000));
+    // Раньше здесь в лог уходил ВЕСЬ payload письма (до 3000 символов) —
+    // отладка истории 2026-09-03 с пустым телом. Логи Vercel видны всем, у
+    // кого есть доступ к проекту, и переписка поставщиков (адреса, условия,
+    // цены) в них попадать не должна, а на Hobby-плане они живут час и для
+    // разбора того инцидента всё равно не годятся. Оставляем только то, по
+    // чему письмо можно найти в Resend и в нашей базе.
+    console.log(
+      '[webhook] входящее письмо:',
+      JSON.stringify({
+        type: payload.type ?? null,
+        emailId: data.email_id ?? data.id ?? null,
+        subject: (data.subject ?? '').slice(0, 120),
+        attachments: Array.isArray(data.attachments) ? data.attachments.length : 0,
+      }),
+    );
 
     const toRaw = data.to;
     const toAddress = Array.isArray(toRaw) ? toRaw[0] : toRaw;
