@@ -55,6 +55,8 @@ export const aiAgents: AiAgent[] = [
   // Владелец, 2026-09-14: «добавь в список ИИ-агентов Claude Code с тегом
   // ИИ-кодер и логотипом Клода». Следов в базе у него нет (пишет код и
   // публикует релизы), поэтому последняя задача — момент сборки прода.
+  // Подпись — от первого лица, как и все подписи задач в RPC
+  // ai_agents_last_activity (владелец, 2026-09-15: «прям от его лица»).
   {
     id: 'claude-code',
     name: 'Claude Code',
@@ -62,7 +64,7 @@ export const aiAgents: AiAgent[] = [
     tasks: ['Разработка и правки платформы', 'Публикация релизов на прод'],
     icon: 'claude',
     tag: 'Max X20',
-    staticActivity: { label: 'Релиз на прод', doneAt: __BUILD_TIME__ },
+    staticActivity: { label: 'Выпустил релиз на прод', doneAt: __BUILD_TIME__ },
     // Работает, когда владелец открывает сессию, — расписания нет. Сутки без
     // релиза это не авария, а просто день без задач.
     heartbeat: { staleAfterMinutes: 24 * 60, scheduled: false, cadence: 'по запросу' },
