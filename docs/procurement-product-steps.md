@@ -91,23 +91,34 @@
 Готово, когда: удалённая карточка не видна в UI, но строка и её письма в
 базе живы; вебхук с неверной подписью получает 401. План: §7.
 
-### Шаг 2 — компания как сущность (данные, без UI) — M
+### Шаг 2 — компания как сущность (данные, без UI) — M — СДЕЛАН 2026-09-15
 Где в коде: `src/data/supplierResearch.ts:285-389` (`SupplierOffer`),
 `src/lib/supplierMergeApi.ts`, `isSameSupplier` (`supplierResearch.ts:550`),
 таблица `supplier_site_snapshots` (строка на домен).
-- [ ] Миграция: таблица `suppliers` (id, name, website_host, website_url,
+- [x] Миграция: таблица `suppliers` (id, name, website_host, website_url,
       inn, country, city, email, phone, messengers jsonb, terms_note,
       verified, created_at, deleted_at) + колонка
       `supplier_research_offers.supplier_id uuid` (nullable на время
-      переезда).
-- [ ] Бэкфилл SQL: одна компания на уникальный `website_host` (для карточек
+      переезда). FK стоит `ON DELETE SET NULL`, не CASCADE: запись о
+      компании не должна уносить карточки с перепиской.
+- [x] Бэкфилл SQL: одна компания на уникальный `website_host` (для карточек
       без сайта — на нормализованное имя), заполнить `supplier_id` у всех
       1141 карточек; при конфликте полей — правило из
       `buildMergedOfferPayload` (`supplierMergeApi.ts:69`).
-- [ ] `src/data/suppliers.ts` (`Supplier`/`SupplierRow`) +
+      Факт: 1141 карточка → 1129 компаний, 11 групп дублей по домену.
+      Нормализация домена вынесена в SQL-функцию `supplier_website_host`
+      (точный аналог `supplierWebsiteHost`); имя — `supplier_normalized_name`.
+- [x] `src/data/suppliers.ts` (`Supplier`/`SupplierRow`) +
       `src/lib/suppliersApi.ts` по шаблону `leads.ts`/`leadsApi.ts`.
-- [ ] Триггер/логика: при вставке новой карточки — найти или создать
-      компанию по хосту/ИНН/email.
+      `fetchSuppliers` постраничный: компаний 1129 при потолке выдачи 1000.
+- [x] Триггер/логика: при вставке новой карточки — найти или создать
+      компанию по хосту/ИНН/email. Сделано триггером
+      `supplier_offer_attach_company` (BEFORE INSERT, SECURITY DEFINER):
+      домен → ИНН → нормализованное имя при совпадающей стране, тот же
+      порядок, что в `isSameSupplier`.
+Не входило в шаг и осталось на потом: правка карточки НЕ обновляет поля
+компании (бэкфилл — снимок на момент миграции), у компании нет `blocked_reason`
+и рейтинга (шаг 4), `supplier_contacts` как список людей — шаг 3.
 Готово, когда: `select count(*) from supplier_research_offers where
 supplier_id is null` = 0; старый UI работает без изменений. План: §5.2.
 
@@ -475,6 +486,11 @@ Code. План: §6.3.
 
 ## Журнал выполнения (дополнять сверху)
 
+- 2026-09-15 — шаг 2 закрыт одной сессией (планировалось 2–3). Таблица
+  `suppliers`, колонка `supplier_research_offers.supplier_id`, бэкфилл
+  1141 → 1129 компаний, триггер автопривязки, `src/data/suppliers.ts` +
+  `src/lib/suppliersApi.ts`. Интерфейс не менялся вообще — связь пока только
+  в данных. Критерий проверен: карточек без компании 0.
 - 2026-09-15 — шаг 1 закрыт. Вебхук входящей почты больше не принимает письма
   без секрета подписи (было: молча пропускал проверку, то есть любой, кто
   знает URL, мог подкинуть поддельное письмо со счётом в переписку закупки);
