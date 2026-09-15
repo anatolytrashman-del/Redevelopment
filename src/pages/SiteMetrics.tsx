@@ -26,9 +26,13 @@ import type { GoogleSearchConsoleStat } from '../data/googleSearchConsoleStats';
 // "Визиты по дням"/"Достижение целей" — настоящий тренд, можно выбрать
 // период (7/30/90 дней), считается из уже загруженных daily/goal рядов на
 // клиенте. "Источники трафика"/"Топ страниц" — НЕ разбиты по дням (см.
-// комментарий в самом скрипте синка, WINDOW_DAYS=90) — это один снимок за
-// последние 90 дней, полностью перезаписываемый каждым синком, выбор
-// периода на них не влияет (явно подписано в интерфейсе, не скрыто).
+// комментарий в самом скрипте синка) — это один снимок за окно целиком,
+// полностью перезаписываемый каждым синком, выбор периода на них не влияет
+// (явно подписано в интерфейсе, не скрыто). Длина окна с 2026-09-15 не
+// фиксированные 90 дней, а ровно та история визитов, что накоплена после
+// последней очистки (скрипт синка берёт её из yandex_metrika_daily_stats и
+// кладёт в колонку window_days) — иначе на странице соседствовали визиты за
+// 4 дня и источники за 90.
 //
 // Блок "Индексация и поисковые запросы" — данные Яндекс.Вебмастера (не
 // Метрики), из отдельного синка scripts/sync-yandex-webmaster-stats.mjs
@@ -209,6 +213,19 @@ function resolvePageBaseLabel(base: string): string {
     if (m) return build(m);
   }
   return base;
+}
+
+// Окно снимков «Источники трафика»/«Топ страниц» больше не константа 90 —
+// скрипт синка считает его от начала накопленной истории визитов (см.
+// scripts/sync-yandex-metrika.mjs, правка 2026-09-15), так что здесь может
+// оказаться и 5, и 1 день — подпись склоняем.
+function pluralDays(n: number): string {
+  const mod100 = n % 100;
+  const mod10 = n % 10;
+  if (mod100 >= 11 && mod100 <= 14) return 'дней';
+  if (mod10 === 1) return 'день';
+  if (mod10 >= 2 && mod10 <= 4) return 'дня';
+  return 'дней';
 }
 
 function pluralPages(n: number): string {
@@ -628,7 +645,10 @@ export function SiteMetrics() {
               <div>
                 <h3 className="text-sm font-semibold text-ink">Источники трафика</h3>
                 <p className="text-xs text-ink-muted">
-                  За последние {(trafficSources?.[0]?.windowDays ?? 90)} дней — не зависит от выбранного периода выше.
+                  {(() => {
+                    const days = trafficSources?.[0]?.windowDays ?? 90;
+                    return `За последние ${days} ${pluralDays(days)} — не зависит от выбранного периода выше.`;
+                  })()}
                 </p>
               </div>
               <div className="flex flex-col gap-2">
@@ -661,7 +681,10 @@ export function SiteMetrics() {
               <div>
                 <h3 className="text-sm font-semibold text-ink">Топ страниц</h3>
                 <p className="text-xs text-ink-muted">
-                  За последние {(topPages?.[0]?.windowDays ?? 90)} дней — не зависит от выбранного периода выше.
+                  {(() => {
+                    const days = topPages?.[0]?.windowDays ?? 90;
+                    return `За последние ${days} ${pluralDays(days)} — не зависит от выбранного периода выше.`;
+                  })()}
                 </p>
               </div>
               <div className="flex flex-col divide-y divide-border">
