@@ -385,6 +385,13 @@ async function main() {
             .update({ verified: true })
             .in('id', item.offerIds)
             .eq('verified', false)
+            // Почта обязательна (владелец, 2026-09-15, по карточке
+            // magmastones.ru: каталог снялся, а из контактов — только
+            // телефон и Max). Смотрим состояние карточки В БАЗЕ, а не
+            // загруженное в начале прогона: email туда обычно кладёт
+            // триггер по только что снятому контакту.
+            .not('email', 'is', null)
+            .neq('email', '')
             .select('id');
           if (flipped?.length) {
             await supabase

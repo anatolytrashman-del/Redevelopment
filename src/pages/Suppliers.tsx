@@ -1492,11 +1492,17 @@ function OfferDetailModal({
               было открыть форму и сохранить её (submitOffer всегда ставит
               verified:true). Теперь это один клик прямо здесь, карточка
               после него закрывается. */}
+          {/* Владелец, 2026-09-15: без email верифицировать нельзя — отметка
+              нужна ровно затем, чтобы поставщику можно было писать (рассылка
+              и переписка требуют email И verified). То же правило в базе
+              (verify_supplier_offers_with_captures, миграция
+              20260915-verify-requires-email.sql) и на вкладке «Верификация». */}
           {!offer.verified && (
             <Button
               type="button"
               icon={verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              disabled={verifying}
+              disabled={verifying || !offer.email.trim()}
+              title={offer.email.trim() ? undefined : 'Без email верифицировать нельзя — впишите почту в карточке'}
               onClick={() => onVerify(offer)}
             >
               {verifying ? 'Сохраняем...' : 'Верифицировать'}
@@ -2758,8 +2764,9 @@ export function Suppliers() {
   // сохранить — поставщик становится доступен для email-переписок" — любое
   // сохранение через эту форму (новое предложение или правка уже
   // существующего) считается верификацией: человек проверил/ввёл данные.
-  // Единственный путь получить verified:false — прямое добавление из
-  // веб-поиска (addWebSearchResults ниже), минуя эту форму.
+  // С 2026-09-15 — с одной оговоркой: пустая почта верификацию снимает (см.
+  // verifiedNow в saveOffer). Другой путь получить verified:false — прямое
+  // добавление из веб-поиска (addWebSearchResults ниже), минуя эту форму.
   async function submitOffer(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmitOffer || savingOffer || !offerRequestId) return;
@@ -2796,6 +2803,15 @@ export function Suppliers() {
     setSavingOffer(true);
     setOfferError(null);
     try {
+      // Сохранение формы = верификация (владелец, 2026-09-04: «закупщик
+      // заполняет все возможные поля, жмёт сохранить — поставщик становится
+      // доступен для email-переписок»), но только при заполненной почте:
+      // владелец, 2026-09-15 — «email это обязательное условие верификации».
+      // Карточка без адреса сохраняется как неверифицированная и остаётся в
+      // очереди; то же правило в базе (миграция
+      // 20260915-verify-requires-email.sql) и на обеих кнопках
+      // «Верифицировать».
+      const verifiedNow = offerForm.email.trim().length > 0;
       const payload = {
         requestId: offerRequestId,
         name: offerForm.name.trim(),
@@ -2817,7 +2833,7 @@ export function Suppliers() {
         // Файлы грузятся в Storage сразу по выбору (handleOfferFilesSelect),
         // а не откладываются до сабмита — тут уже готовый список.
         files: offerForm.existingFiles,
-        verified: true,
+        verified: verifiedNow,
         // ИНН формой не правится (он приходит из распознанного счёта —
         // см. data/supplierResearch.ts), поэтому при сохранении карточки
         // сохраняем уже имеющееся значение, а не затираем его в null.
@@ -2831,7 +2847,7 @@ export function Suppliers() {
       // видно только тут, по editingOffer до сохранения).
       let saved: SupplierOffer;
       if (editingOffer) {
-        if (!editingOffer.verified) logActivity('supplier_offer_verified');
+        if (!editingOffer.verified && verifiedNow) logActivity('supplier_offer_verified');
         saved = await updateSupplierOffer(editingOffer.id, payload);
         const updated = saved;
         setOffers((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
@@ -2868,6 +2884,9 @@ export function Suppliers() {
   // данные верны. Логируем то же событие, что и submitOffer, чтобы метрика
   // "Верифицировано поставщиков" (Metrics.tsx) считала оба пути одинаково.
   async function handleVerifyOffer(o: SupplierOffer) {
+    // Страховка к disabled на кнопке: почта обязательна (владелец,
+    // 2026-09-15), то же условие стоит в базе.
+    if (!o.email.trim()) return;
     setVerifyingOfferId(o.id);
     try {
       logActivity('supplier_offer_verified');
