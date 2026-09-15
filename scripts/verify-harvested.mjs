@@ -24,8 +24,14 @@ const HOSTS = `
   group by m.host
 `;
 
+// Почта обязательна для верификации (владелец, 2026-09-15, по карточке
+// magmastones.ru: сайт открылся и каталог снялся, но с него сняли только
+// телефон и мессенджер — верифицировать такого нельзя, писать ему нечем).
+// То же условие в базе: verify_supplier_offers_with_captures, миграция
+// 20260915-verify-requires-email.sql.
 const WHERE = `
   not verified
+  and coalesce(trim(email), '') <> ''
   and lower(split_part(regexp_replace(trim(website_url), '^(https?://)?(www\\.)?', ''), '/', 1)) in (${HOSTS})
 `;
 

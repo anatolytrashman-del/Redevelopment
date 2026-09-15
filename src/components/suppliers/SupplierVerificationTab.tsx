@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bookmark, CheckCircle2, ExternalLink, ImagePlus, Loader2, MessageCircle, Pause, Phone, Play, RotateCcw, Send, Trash2, X } from 'lucide-react';
+import { Bookmark, CheckCircle2, ExternalLink, ImagePlus, Loader2, Mail, MessageCircle, Pause, Phone, Play, RotateCcw, Send, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { ContactValue } from '../ui/ContactValue';
 import { cn } from '../../lib/cn';
@@ -48,6 +48,14 @@ import { fetchSupplierContactCapturesForHost, type SupplierContactCapture } from
 // 20260914-auto-apply-captures.sql) — и поставщик уходит из очереди, не
 // дожидаясь, пока его откроют глазами. Руками там сверяли ровно эти два
 // факта.
+//
+// Владелец, 2026-09-15: у отметки есть ещё одно, жёсткое условие — НЕПУСТАЯ
+// ПОЧТА в карточке. Первая версия правила выше принимала любой снятый
+// контакт, поэтому сайт, с которого закладка взяла только телефон и Max
+// (magmastones.ru), уехал в верифицированные. Теперь и база
+// (20260915-verify-requires-email.sql), и кнопка ниже требуют email:
+// верификация открывает поставщику переписку и рассылку, а те без адреса
+// бессмысленны.
 //
 // Сайт поставщика — соседняя ВКЛАДКА того же окна, а не встроенный iframe и
 // не отдельное окно. История: 2026-09-13 (четвёртый заход) владелец просил
@@ -386,6 +394,16 @@ function SupplierCard({
 }) {
   const offer = group.representative;
   const categories = group.snapshot?.categories ?? [];
+  // Почта — обязательное условие верификации (владелец, 2026-09-15, по
+  // карточке magmastones.ru, попавшей в верифицированные с телефоном и
+  // мессенджером Max, но без почты). Смысл отметки в том, что поставщику
+  // можно писать: и рассылка (BulkSendModal), и переписка
+  // (SupplierCorrespondenceTab) требуют email И verified — без адреса
+  // верифицированная карточка никуда не годится. Кнопка снимается, чтобы
+  // руками нельзя было обойти то же правило в базе
+  // (verify_supplier_offers_with_captures, миграция
+  // 20260915-verify-requires-email.sql).
+  const hasEmail = group.offers.some((o) => o.email.trim().length > 0);
   return (
     <div className={cn('flex w-full flex-col gap-4 p-5 lg:w-[420px]', glassCardClass)} style={glassCardShadow}>
       <div className="flex flex-col gap-1">
@@ -513,6 +531,13 @@ function SupplierCard({
         </div>
       )}
 
+      {!hasEmail && (
+        <div className="flex items-center gap-2 rounded-2xl border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-ink">
+          <Mail className="h-4 w-4 shrink-0 text-warning" />
+          Нет email — верифицировать нельзя. Снимите почту закладкой «Снять контакты» или впишите её в карточке.
+        </div>
+      )}
+
       <ScreenshotZone
         screenshots={screenshots}
         uploading={uploadingScreenshots}
@@ -533,7 +558,12 @@ function SupplierCard({
           <Button type="button" variant="secondary" onClick={() => onEdit(offer)}>
             Редактировать
           </Button>
-          <Button type="button" onClick={() => onVerify(group)} disabled={saving}>
+          <Button
+            type="button"
+            onClick={() => onVerify(group)}
+            disabled={saving || !hasEmail}
+            title={hasEmail ? undefined : 'Без email верифицировать нельзя — снимите почту с сайта или впишите её в карточке'}
+          >
             {saving ? 'Сохраняем…' : 'Верифицировать'}
           </Button>
         </div>
@@ -881,7 +911,9 @@ export function SupplierVerificationTab({
     setSavingHost(group.host);
     setError('');
     try {
-      const toVerify = group.offers.filter((o) => !o.verified);
+      // Только карточки с почтой — то же правило, что в базе (см.
+      // hasEmail в SupplierCard и миграцию 20260915-verify-requires-email).
+      const toVerify = group.offers.filter((o) => !o.verified && o.email.trim().length > 0);
       const updated = await Promise.all(toVerify.map((o) => updateSupplierOffer(o.id, { ...o, verified: true })));
       updated.forEach(onOfferUpdated);
       logActivity('supplier_offer_verified');

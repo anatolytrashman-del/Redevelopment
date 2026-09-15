@@ -4,7 +4,7 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { SearchInput } from '../ui/SearchInput';
-import { ToggleGroup } from '../ui/ToggleGroup';
+import { Select } from '../ui/Select';
 import { cn } from '../../lib/cn';
 import {
   findCatalogCategory,
@@ -99,9 +99,9 @@ function catalogLabelFor(
   return bySite?.name ?? title ?? '—';
 }
 
-// Подпись страны для ToggleGroup — флаг остаётся в переключателе (владелец,
-// 2026-09-12: «вверху каталога выбор иконки флага»), а сам компонент работает
-// со строками, поэтому флаг живёт прямо в подписи, и обратно в страну её
+// Подпись страны для селектора — флаг остаётся в подписи (владелец,
+// 2026-09-12: «вверху каталога выбор иконки флага»), а Select работает со
+// строками, поэтому флаг живёт прямо в подписи, и обратно в страну её
 // переводит countryByLabel.
 function countryLabel(country: string): string {
   return `${countryFlag(country)} ${country}`;
@@ -259,19 +259,21 @@ export function SupplierCatalog({
             placeholder="Поиск поставщика"
             wrapperClassName="w-full max-w-[240px]"
           />
-          {/* Владелец, 2026-09-15: "вместо двух надписей рядом друг с другом
-              сделай переключатель, по умолчанию открыта Россия" — вместо двух
-              самостоятельных пилюль-кнопок общий ToggleGroup (одна «таблетка»
-              с подсвеченным вариантом), как у страны внутри карточки категории
-              на странице Закупки. Флаг остаётся частью подписи: ToggleGroup
-              принимает строки, поэтому options — подписи с флагом, а обратно в
-              страну переводим countryByLabel (тот же приём, что у групп закупки
-              в pages/Suppliers.tsx). Значение по умолчанию — SUPPLIER_COUNTRIES[0],
-              то есть Россия (см. data/supplierResearch.ts). */}
-          <ToggleGroup
+          {/* Владелец, 2026-09-15, второй заход: сперва две пилюли-кнопки
+              заменили на ToggleGroup, но владелец хотел не «две страны рядом»,
+              а «когда виден только активный вариант, а для переключения надо
+              на него кликнуть и выбрать из выпадающего списка» — то есть Select
+              (ui/Select, pill), а не ToggleGroup: тот по определению показывает
+              все варианты сразу. Флаг остаётся частью подписи: Select работает
+              со строками, поэтому options — подписи с флагом, а обратно в
+              страну переводим countryByLabel. Значение по умолчанию —
+              SUPPLIER_COUNTRIES[0], то есть Россия (см. data/supplierResearch.ts). */}
+          <Select
+            pill
             options={SUPPLIER_COUNTRIES.map(countryLabel)}
             value={countryLabel(country)}
             onChange={(label) => setCountry(countryByLabel(label))}
+            triggerClassName="py-1.5 text-sm"
           />
         </div>
       </div>
