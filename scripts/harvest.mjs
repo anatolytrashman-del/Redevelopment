@@ -26,6 +26,10 @@
  *   node scripts/harvest.mjs                     — по всей очереди
  *   node scripts/harvest.mjs --country=Беларусь  — только белорусские
  *   node scripts/harvest.mjs --country=all       — все страны разом
+ *   node scripts/harvest.mjs --missing-email --country=all
+ *                                                — добор почты: пройти заново
+ *                                                  по всем, кто не верифицирован
+ *                                                  из-за пустого email
  *   node scripts/harvest.mjs --workers=2         — медленнее, но мягче к сайтам
  *   node scripts/harvest.mjs --headful           — показать браузер (посмотреть,
  *                                                  что там происходит)
@@ -137,7 +141,7 @@ async function main() {
   // supplier_menu_captures, она же и отсекает лишнее ниже.
   const { data: offers, error } = await supabase
     .from('supplier_research_offers')
-    .select('id, name, website_url, country, verified');
+    .select('id, name, website_url, country, verified, email');
   if (error) throw error;
 
   // Уже снятое пропускаем — прогон можно останавливать и продолжать.
@@ -152,6 +156,20 @@ async function main() {
     const { data: failRows } = await supabase.from('supplier_harvest_failures').select('host');
     onlyHosts = new Set((failRows ?? []).map((r) => r.host));
     console.log(`повтор по упавшим: ${onlyHosts.size}`);
+  } else if (args['missing-email']) {
+    // --missing-email: добор почты по тем, кто до сих пор не верифицирован
+    // из-за её отсутствия. С 2026-09-15 email — обязательное условие
+    // верификации (20260915-verify-requires-email.sql), так что «оставшаяся
+    // часть поставщиков» и «поставщики без почты» — это один и тот же
+    // список. Обычная очередь их не берёт: меню у большинства снято, а она
+    // отсекает всё, что есть в supplier_menu_captures.
+    onlyHosts = new Set(
+      (offers ?? [])
+        .filter((o) => !o.verified && !String(o.email ?? '').trim())
+        .map((o) => hostOf(o.website_url))
+        .filter(Boolean),
+    );
+    console.log(`добор почты: ${onlyHosts.size} доменов без email`);
   } else if (args.hosts) {
     onlyHosts = new Set(String(args.hosts).split(',').map((h) => h.trim().toLowerCase()).filter(Boolean));
   }
@@ -311,7 +329,11 @@ async function main() {
       const found = contacts && Array.isArray(contacts.contacts) ? contacts.contacts : [];
 
       try {
-        if (sections > 0) {
+        // Повторный заход (--missing-email, --hosts, --retry-failed) по сайту,
+        // меню которого уже снято, второй копии дерева не пишет: оно нам тут
+        // не нужно, а лишняя строка сдвинула бы «снято» в отчётах и на
+        // вкладке верификации.
+        if (sections > 0 && !done.has(item.host)) {
           await supabase.from('supplier_menu_captures').insert({
             host: item.host,
             page_url: menu.pageUrl ?? `https://${item.host}`,
