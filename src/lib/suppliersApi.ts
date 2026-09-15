@@ -28,10 +28,12 @@ function fromRow(row: SupplierRow): Supplier {
     verified: row.verified,
     createdAt: row.created_at,
     deletedAt: row.deleted_at,
+    blockedReason: row.blocked_reason,
+    blockedAt: row.blocked_at,
   };
 }
 
-export type SupplierInput = Omit<Supplier, 'id' | 'createdAt' | 'deletedAt'>;
+export type SupplierInput = Omit<Supplier, 'id' | 'createdAt' | 'deletedAt' | 'blockedReason' | 'blockedAt'>;
 
 function toRow(input: SupplierInput) {
   return {
@@ -82,6 +84,41 @@ export function fetchSuppliers(): Promise<Supplier[]> {
       }),
     );
     return pages.flat();
+  });
+}
+
+// Стоп-лист: причина непуста — компании больше не пишем. Снятие — reason=null.
+// Дата ставится и снимается вместе с причиной, чтобы не остаться с «когда-то
+// блокировали, но уже нет» в данных.
+export function setSupplierBlocked(id: string, reason: string | null): Promise<Supplier> {
+  return withRetry(async () => {
+    const trimmed = (reason ?? '').trim();
+    const { data, error } = await supabase
+      .from('suppliers')
+      .update({
+        blocked_reason: trimmed || null,
+        blocked_at: trimmed ? new Date().toISOString() : null,
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return fromRow(data as SupplierRow);
+  });
+}
+
+// Только идентификаторы заблокированных — для фильтра рассылки. Отдельная
+// лёгкая выборка: тянуть ради этого все 1129 компаний в модалку рассылки
+// незачем, а заблокированных всегда меньшинство.
+export function fetchBlockedSupplierIds(): Promise<Set<string>> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('suppliers')
+      .select('id')
+      .is('deleted_at', null)
+      .not('blocked_reason', 'is', null);
+    if (error) throw error;
+    return new Set((data as { id: string }[]).map((r) => r.id));
   });
 }
 

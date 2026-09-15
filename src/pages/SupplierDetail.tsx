@@ -8,16 +8,19 @@ import {
   Loader2,
   Mail,
   MessageCircle,
+  Ban,
   Pencil,
   Phone,
   Plus,
+  RefreshCw,
+  ShieldCheck,
   Trash2,
 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { ContactValue } from '../components/ui/ContactValue';
-import { Button } from '../components/ui/Button';
+import { Button, buttonClasses } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { cn } from '../lib/cn';
@@ -39,10 +42,14 @@ import {
   type SupplierMessengerContact,
 } from '../data/supplierResearch';
 import { RISK_LEVEL_LABEL, isReliabilityStale, riskSummary, shouldFlag } from '../data/supplierReliability';
-import { fetchSupplier } from '../lib/suppliersApi';
+import { fetchSupplier, setSupplierBlocked } from '../lib/suppliersApi';
 import { fetchSupplierOffersByCompany, fetchSupplierRequests } from '../lib/supplierResearchApi';
-import { fetchSupplierSiteSnapshot } from '../lib/supplierSiteSnapshotsApi';
-import { fetchSupplierReliability, fetchSupplierReliabilityChecks } from '../lib/supplierReliabilityApi';
+import { fetchSupplierSiteSnapshot, requestSiteSnapshotRefresh } from '../lib/supplierSiteSnapshotsApi';
+import {
+  checkSupplierReliability,
+  fetchSupplierReliability,
+  fetchSupplierReliabilityChecks,
+} from '../lib/supplierReliabilityApi';
 import { fetchSupplierOfferEmailsByOffers } from '../lib/supplierOfferEmailsApi';
 import { fetchSupplierQuotesByOffers } from '../lib/supplierQuotesApi';
 import {
@@ -382,6 +389,7 @@ export function SupplierDetail() {
       requests={requests}
       snapshot={snapshot}
       reliability={reliability}
+      onSupplierChange={setSupplier}
       contacts={contacts}
       onContactsChange={setContacts}
       emails={emails}
@@ -398,6 +406,7 @@ export function SupplierDetail() {
 // тащить через сеть, когда нужно проверить только вёрстку.
 export function SupplierDetailView({
   supplier,
+  onSupplierChange,
   offers,
   requests,
   snapshot,
@@ -409,6 +418,9 @@ export function SupplierDetailView({
   checks,
 }: {
   supplier: Supplier;
+  // Стоп-лист и перепроверка меняют саму компанию, поэтому представление
+  // возвращает обновлённую загрузчику — тот же приём, что с контактами.
+  onSupplierChange: (next: Supplier) => void;
   offers: SupplierOffer[];
   requests: SupplierRequest[];
   snapshot: SupplierSiteSnapshot | null;
@@ -499,6 +511,91 @@ export function SupplierDetailView({
   const profilePercent = fields.length > 0 ? Math.round((filledCount / fields.length) * 100) : 0;
   const missing = fields.filter((f) => !f.filled).map((f) => f.label);
 
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionNote, setActionNote] = useState<string | null>(null);
+  const [busyAction, setBusyAction] = useState<'reliability' | 'snapshot' | 'block' | null>(null);
+
+  // Первая карточка компании — с неё начинается переписка, если человек жмёт
+  // «Написать». Карточек может быть несколько (по одной на категорию
+  // закупки), и выбрать за человека правильную нельзя; берём самую свежую —
+  // по ней и переписка обычно самая живая.
+  const primaryOffer = offers.length > 0 ? offers[offers.length - 1] : null;
+
+  async function recheckReliability() {
+    const inn = (supplier.inn ?? '').trim();
+    if (!inn) return;
+    setBusyAction('reliability');
+    setActionError(null);
+    setActionNote(null);
+    try {
+      const result = await checkSupplierReliability(inn);
+      setActionNote(
+        result.error
+          ? `Проверка не удалась: ${result.error}`
+          : result.found
+            ? `Проверено: ${RISK_LEVEL_LABEL[result.riskLevel].toLowerCase()}`
+            : 'Юрлицо с таким ИНН не найдено в реестрах',
+      );
+      // Строку истории пишет триггер в базе, поэтому перечитываем страницу
+      // целиком только по требованию человека — здесь достаточно сообщения.
+    } catch (err) {
+      setActionError(errorMessage(err, 'Не удалось проверить по реестру'));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function refreshSnapshot() {
+    if (!supplier.websiteHost) return;
+    setBusyAction('snapshot');
+    setActionError(null);
+    setActionNote(null);
+    try {
+      await requestSiteSnapshotRefresh(supplier.websiteHost, supplier.websiteUrl);
+      setActionNote('Сайт поставлен в очередь на перечитывание — разбирается в течение минуты.');
+    } catch (err) {
+      setActionError(errorMessage(err, 'Не удалось поставить сайт в очередь'));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function toggleBlocked() {
+    setActionError(null);
+    setActionNote(null);
+    if (supplier.blockedReason) {
+      if (!window.confirm(`Вернуть «${supplier.name}» в работу? Компания снова будет попадать в рассылки.`)) return;
+      setBusyAction('block');
+      try {
+        onSupplierChange(await setSupplierBlocked(supplier.id, null));
+        setActionNote('Компания вернулась в работу.');
+      } catch (err) {
+        setActionError(errorMessage(err, 'Не удалось снять стоп-лист'));
+      } finally {
+        setBusyAction(null);
+      }
+      return;
+    }
+    const reason = window.prompt(
+      `Почему больше не работаем с «${supplier.name}»?\n\nПричина видна на карточке. Компания и вся её переписка останутся, но письма ей уходить перестанут — в том числе уже поставленные в очередь рассылки.`,
+      '',
+    );
+    if (reason === null) return;
+    if (!reason.trim()) {
+      setActionError('Без причины в стоп-лист не отправляем: через месяц никто не вспомнит, за что.');
+      return;
+    }
+    setBusyAction('block');
+    try {
+      onSupplierChange(await setSupplierBlocked(supplier.id, reason));
+      setActionNote('Компания в стоп-листе, письма ей больше не уйдут.');
+    } catch (err) {
+      setActionError(errorMessage(err, 'Не удалось отправить в стоп-лист'));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<SupplierContact | null>(null);
   const [savingContact, setSavingContact] = useState(false);
@@ -575,7 +672,68 @@ export function SupplierDetailView({
           </Badge>
         )}
         <Badge tone="neutral">{pluralCategories(offers.length)}</Badge>
+        {supplier.blockedReason && <Badge tone="danger">в стоп-листе</Badge>}
       </div>
+
+      {supplier.blockedReason && (
+        <Card className="space-y-1 border-danger/40">
+          <p className="flex items-center gap-2 text-sm font-medium text-danger">
+            <Ban className="h-4 w-4" />
+            Компания в стоп-листе
+          </p>
+          <p className="text-sm text-ink">{supplier.blockedReason}</p>
+          <p className="text-xs text-ink-faint">
+            {/* formatDate уже заканчивается на «г.» — своя точка сверху дала бы
+                «2026 г.. Письма». */}
+            С {formatDate(supplier.blockedAt)} письма ей не уходят, в рассылку не попадает.
+          </p>
+        </Card>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        {primaryOffer && (
+          <Link
+            to={threadLink(primaryOffer.requestId, primaryOffer.id, null)}
+            className={buttonClasses('secondary')}
+            title={offers.length > 1 ? 'Откроется переписка по последней категории закупки' : undefined}
+          >
+            <Mail className="h-4 w-4" />
+            Написать
+          </Link>
+        )}
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={busyAction !== null || !(supplier.inn ?? '').trim()}
+          icon={busyAction === 'reliability' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+          onClick={recheckReliability}
+          title={(supplier.inn ?? '').trim() ? undefined : 'ИНН появится из первого счёта — до этого проверять нечего'}
+        >
+          Перепроверить реестр
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={busyAction !== null || !supplier.websiteHost}
+          icon={busyAction === 'snapshot' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          onClick={refreshSnapshot}
+          title={supplier.websiteHost ? undefined : 'Сайта нет — перечитывать нечего'}
+        >
+          Обновить сайт
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={busyAction !== null}
+          icon={busyAction === 'block' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+          onClick={toggleBlocked}
+        >
+          {supplier.blockedReason ? 'Вернуть в работу' : 'В стоп-лист'}
+        </Button>
+      </div>
+
+      {actionError && <p className="text-sm text-danger">{actionError}</p>}
+      {actionNote && <p className="text-sm text-ink-muted">{actionNote}</p>}
 
       <div className="flex flex-wrap gap-2">
         {TABS.map((t) => (

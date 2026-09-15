@@ -446,6 +446,21 @@ async function processItem({ job, item, request, legalEntity, recipientsCount })
       .eq('id', item.id);
     return;
   }
+  // Стоп-лист компании — та же проверка, что в Edge Function (правим парой).
+  if (offer.supplier_id) {
+    const { data: company } = await supabase
+      .from('suppliers')
+      .select('blocked_reason')
+      .eq('id', offer.supplier_id)
+      .maybeSingle();
+    if (company?.blocked_reason) {
+      await supabase
+        .from('bulk_send_job_items')
+        .update({ status: 'error', error_message: `Компания в стоп-листе: ${String(company.blocked_reason).slice(0, 200)}` })
+        .eq('id', item.id);
+      return;
+    }
+  }
 
   try {
     await sendOneEmail({

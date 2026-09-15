@@ -408,6 +408,26 @@ Deno.serve(async () => {
         summary.failed++;
         continue;
       }
+      // Стоп-лист компании (шаг 4b плана закупок). Проверяем здесь, а не
+      // только при сборе адресатов: между постановкой в очередь и отправкой
+      // проходит время, и решение «этой компании больше не пишем» обязано
+      // останавливать уже поставленные письма — иначе стоп-лист работает
+      // только на бумаге.
+      if (offer.supplier_id) {
+        const { data: company } = await supabase
+          .from('suppliers')
+          .select('blocked_reason')
+          .eq('id', offer.supplier_id)
+          .maybeSingle();
+        if (company?.blocked_reason) {
+          await supabase
+            .from('bulk_send_job_items')
+            .update({ status: 'error', error_message: `Компания в стоп-листе: ${String(company.blocked_reason).slice(0, 200)}` })
+            .eq('id', item.id);
+          summary.failed++;
+          continue;
+        }
+      }
 
       if (summary.sent + summary.failed > 0) await sleep(randomDelay());
 
