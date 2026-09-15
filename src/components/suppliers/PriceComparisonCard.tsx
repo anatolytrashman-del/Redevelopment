@@ -385,10 +385,12 @@ export function PriceComparisonCard({
     setSuggesting(true);
     setError(null);
     try {
-      const resp = await authFetch('/api/proposal-suggest-matches', {
+      // action внутри supplier-web-search — лимит 12 функций Vercel Hobby.
+      const resp = await authFetch('/api/supplier-web-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          action: 'suggest-matches',
           positions: positions.map((p) => ({ id: p.id, name: p.name, unit: p.unit, quantity: p.quantity, note: p.note, consumption: p.consumption ?? null, consumptionUnit: p.consumptionUnit ?? '' })),
           lines: unmatchedAll.map(({ line, offer }) => ({
             id: line.item.id,
@@ -1370,10 +1372,11 @@ export function PriceComparisonCard({
           onClose={() => setSendOpen(false)}
           onSend={async (to, subject, message) => {
             const { html, text } = buildProposalEmailHtml(doc(), message);
-            const resp = await authFetch('/api/proposal-send', {
+            // kind внутри purchase-send-email — лимит 12 функций Vercel Hobby.
+            const resp = await authFetch('/api/purchase-send-email', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ to, subject, html, text }),
+              body: JSON.stringify({ kind: 'proposal', to, subject, html, text }),
             });
             const data = (await resp.json().catch(() => ({}))) as { error?: string };
             if (!resp.ok) throw new Error(data.error || `Ошибка ${resp.status}`);

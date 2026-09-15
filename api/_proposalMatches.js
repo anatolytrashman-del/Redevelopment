@@ -11,12 +11,16 @@
 // список и подтверждает — в базу без подтверждения ничего не пишется
 // (см. PriceComparisonCard: «Предложить сопоставление»).
 //
+// Живёт действием `action: 'suggest-matches'` внутри
+// api/supplier-web-search.js, а не своим файлом: в api/ ровно 12
+// serverless-функций — лимит Vercel Hobby, тринадцатый файл уронил деплой
+// целиком (2026-09-15). Авторизацию делает вызывающий обработчик.
+//
 // Тот же ProxyAPI (Anthropic-совместимый путь), что и распознавание счетов
 // (_invoiceRecognition.js). Модель — Sonnet: задача семантическая (артикулы,
 // коллекции, «тёмно-серый вместо серого»), Haiku тут ошибается чаще; при
 // неизвестном id модели у шлюза — откат на Haiku, чтобы кнопка не умирала.
 
-import { requireStaffAuth } from './_auth.js';
 import { proxyApiKeyProblem } from './_proxyapi.js';
 
 const MODEL = 'claude-sonnet-5';
@@ -61,13 +65,7 @@ async function askModel(model, userText) {
   });
 }
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' });
-    return;
-  }
-  const user = await requireStaffAuth(req, res);
-  if (!user) return;
+export async function handleSuggestMatches(req, res) {
   const keyProblem = proxyApiKeyProblem();
   if (keyProblem) {
     res.status(500).json({ error: keyProblem });

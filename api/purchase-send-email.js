@@ -31,6 +31,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { requireStaffAuth } from './_auth.js';
+import { handleProposalSend } from './_proposalSend.js';
 import { uploadAttachment } from './_attachments.js';
 
 const RESEND_FROM_NAME = 'Анатолий Трэшмен';
@@ -315,6 +316,14 @@ export default async function handler(req, res) {
 
   const user = await requireStaffAuth(req, res);
   if (!user) return;
+
+  // Предложение на утверждение руководителю стройки («Сравнение цен»,
+  // 2026-09-15) — не переписка с поставщиком, но тоже письмо через Resend;
+  // веткой здесь по той же причине лимита функций, что и contractorId ниже.
+  if ((req.body ?? {}).kind === 'proposal') {
+    await handleProposalSend(req, res);
+    return;
+  }
 
   // contractorId — третье направление переписки (вкладка "Подрядчики"
   // страницы "Закупки", владелец 2026-09-14). Сюда же, а не отдельным

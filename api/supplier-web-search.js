@@ -37,6 +37,7 @@
 // (Suppliers.tsx), не из предпросмотра письма (та кнопка остаётся
 // убранной, как и была).
 import { requireStaffAuth } from './_auth.js';
+import { handleSuggestMatches } from './_proposalMatches.js';
 import { recognizeInvoice } from './_invoiceRecognition.js';
 import { checkReliability, checkoKeyProblem, invalidInnReason, saveReliabilityIfNew } from './_checko.js';
 
@@ -55,6 +56,12 @@ export default async function handler(req, res) {
   }
   if (action === 'check-reliability') {
     await handleCheckReliability(req, res);
+    return;
+  }
+  // ИИ-подсказка сопоставления строк счетов с ведомостью для «Сравнения
+  // цен» (2026-09-15) — здесь по той же причине лимита функций, см. ниже.
+  if (action === 'suggest-matches') {
+    await handleSuggestMatches(req, res);
     return;
   }
   res.status(400).json({ error: 'Неизвестное действие' });
