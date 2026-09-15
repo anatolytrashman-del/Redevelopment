@@ -7,7 +7,11 @@ import type { MaterialLedger } from '../../data/materialLedgers';
 // что-то меняться или их будет становиться больше/меньше, мастер-ведомость
 // тоже должна обновляться").
 //
-// Визуально отделена от обычных ведомостей (рамка/фон primary + бейдж) и
+// Визуально отделена от обычных ведомостей чуть более серой заливкой и
+// бейджем — владелец, 2026-09-15: "не нравится красный оттенок, пусть этот
+// блок будет просто чуть более серым", поэтому подсветка нейтральная
+// (ink/4% поверх фона страницы + border-strong), не primary.
+//
 // СОЗНАТЕЛЬНО без кнопок правки и удаления: мастер не хранится, а собирается
 // из ведомостей ниже (см. lib/masterLedger.ts) — править в нём нечего,
 // удалять тоже (исчезнет сам, когда у сметы останется меньше двух
@@ -23,11 +27,11 @@ export function MasterLedgerCard({
   onOpen: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-control border border-primary/40 bg-primary-soft/40 px-4 py-3">
+    <div className="flex items-center justify-between gap-3 rounded-control border border-border-strong bg-ink/[0.045] px-4 py-3">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <span className="min-w-0 truncate font-medium text-ink">{ledger.name}</span>
-          <span className="shrink-0 rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-semibold text-primary">
+          <span className="shrink-0 rounded-full bg-ink/[0.07] px-2 py-0.5 text-[11px] font-semibold text-ink-muted">
             обновляется сама
           </span>
         </div>
