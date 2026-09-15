@@ -56,6 +56,25 @@ export function fetchAllSupplierOfferEmails(): Promise<SupplierOfferEmail[]> {
   });
 }
 
+// Переписка одной компании (страница /admin/suppliers/:id, шаг 4 плана
+// закупок). Письма привязаны к карточке категории, а не к компании, поэтому
+// выбираем по её карточкам. Отдельная функция, а не фильтр по общему списку:
+// на странице компании тянуть все письма всех поставщиков незачем, а body у
+// них тяжёлый.
+export function fetchSupplierOfferEmailsByOffers(offerIds: string[]): Promise<SupplierOfferEmail[]> {
+  if (offerIds.length === 0) return Promise.resolve([]);
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('supplier_offer_emails')
+      .select('*')
+      .in('offer_id', offerIds)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data as SupplierOfferEmailRow[]).map(fromRow);
+  });
+}
+
 // Облегчённый срез исходящих писем для страницы метрик (/admin/metrics) —
 // только те три поля, по которым там считаются плитки. Отдельная функция, а не
 // fetchAllSupplierOfferEmails, именно из-за автообновления: метрики

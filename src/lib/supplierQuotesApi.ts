@@ -34,6 +34,22 @@ export function fetchSupplierQuotes(): Promise<SupplierQuote[]> {
   });
 }
 
+// Все КП компании (страница поставщика, шаг 4). КП висят на карточке
+// категории, поэтому выбираем по карточкам компании.
+export function fetchSupplierQuotesByOffers(offerIds: string[]): Promise<SupplierQuote[]> {
+  if (offerIds.length === 0) return Promise.resolve([]);
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('supplier_offer_quotes')
+      .select('*')
+      .in('offer_id', offerIds)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data as SupplierQuoteRow[]).map(fromRow);
+  });
+}
+
 export function insertSupplierQuote(input: Omit<SupplierQuote, 'id' | 'createdAt'>): Promise<SupplierQuote> {
   return withRetry(async () => {
     const { data, error } = await supabase

@@ -27,6 +27,11 @@ import type { SupplierOffer, SupplierRequest } from '../data/supplierResearch';
 import type { SupplierSiteSnapshot } from '../data/supplierSiteSnapshots';
 import type { SupplierReliability } from '../data/supplierReliability';
 import { CONTACT_SOURCE_LABEL, type SupplierContact } from '../data/supplierContacts';
+import type { SupplierOfferEmail } from '../data/supplierOfferEmails';
+import type { SupplierQuote } from '../data/supplierQuotes';
+import type { SupplierReliabilityCheck } from '../data/supplierReliability';
+import { currencySymbols } from '../data/transactions';
+import { purchaseItemTotal } from '../data/purchases';
 import {
   countryFlag,
   messengerLink,
@@ -37,7 +42,9 @@ import { RISK_LEVEL_LABEL, isReliabilityStale, riskSummary, shouldFlag } from '.
 import { fetchSupplier } from '../lib/suppliersApi';
 import { fetchSupplierOffersByCompany, fetchSupplierRequests } from '../lib/supplierResearchApi';
 import { fetchSupplierSiteSnapshot } from '../lib/supplierSiteSnapshotsApi';
-import { fetchSupplierReliability } from '../lib/supplierReliabilityApi';
+import { fetchSupplierReliability, fetchSupplierReliabilityChecks } from '../lib/supplierReliabilityApi';
+import { fetchSupplierOfferEmailsByOffers } from '../lib/supplierOfferEmailsApi';
+import { fetchSupplierQuotesByOffers } from '../lib/supplierQuotesApi';
 import {
   deleteSupplierContact,
   fetchSupplierContacts,
@@ -59,14 +66,21 @@ import {
 // удобнее, не теряя таблицу. Перевод сравнения на страницу и удаление
 // модалки — шаг 4, где у страницы появятся разделы «Переписка» и «КП».
 
-type SupplierDetailTab = 'Обзор' | 'Контакты';
+type SupplierDetailTab = 'Обзор' | 'Контакты' | 'Переписка' | 'КП и цены' | 'Проверка' | 'Активность';
 
-const TABS: SupplierDetailTab[] = ['Обзор', 'Контакты'];
+const TABS: SupplierDetailTab[] = ['Обзор', 'Контакты', 'Переписка', 'КП и цены', 'Проверка', 'Активность'];
 
 // Вкладка живёт в ?tab=, а не в стейте — как на странице «Закупки»
 // (владелец, 2026-09-04: «обновляешь — и всё слетело»). Слаги, не русские
 // названия: переименование вкладки не должно ломать сохранённые ссылки.
-const TAB_SLUGS: Record<SupplierDetailTab, string> = { 'Обзор': 'overview', Контакты: 'contacts' };
+const TAB_SLUGS: Record<SupplierDetailTab, string> = {
+  'Обзор': 'overview',
+  Контакты: 'contacts',
+  Переписка: 'emails',
+  'КП и цены': 'quotes',
+  Проверка: 'reliability',
+  Активность: 'activity',
+};
 const SLUG_TO_TAB: Record<string, SupplierDetailTab> = Object.fromEntries(
   (Object.entries(TAB_SLUGS) as [SupplierDetailTab, string][]).map(([t, slug]) => [slug, t]),
 );
@@ -194,6 +208,37 @@ function ContactFormModal({
   );
 }
 
+// Ссылка в «Закупки», на конкретный тред переписки. Адрес такой же, какой
+// ставит себе сама вкладка «Письма» (см. SupplierCorrespondenceTab), поэтому
+// открывается ровно нужная ветка, а не общий список.
+function threadLink(requestId: string, offerId: string, orderId: string | null): string {
+  const params = new URLSearchParams({ tab: 'letters', category: requestId, offer: offerId });
+  if (orderId) params.set('order', orderId);
+  return `/admin/purchases?${params.toString()}`;
+}
+
+function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatMoney(value: number, currency: string): string {
+  return `${value.toLocaleString('ru-RU')} ${currencySymbols[currency as keyof typeof currencySymbols] ?? currency}`;
+}
+
+// Лента «Активности» — одно событие. Своей таблицы у неё нет и не будет:
+// activity_log в этой базе хранит только «кто и что сделал» без ссылки на
+// сущность (колонки profile_id/profile_name/action/created_at), поэтому
+// отфильтровать его по конкретному поставщику невозможно. Лента собирается
+// из того, что действительно привязано к компании: письма, КП, проверки.
+interface ActivityEvent {
+  at: string;
+  title: string;
+  detail: string;
+  href?: string;
+}
+
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -245,6 +290,9 @@ export function SupplierDetail() {
   const [snapshot, setSnapshot] = useState<SupplierSiteSnapshot | null>(null);
   const [reliability, setReliability] = useState<SupplierReliability | null>(null);
   const [contacts, setContacts] = useState<SupplierContact[]>([]);
+  const [emails, setEmails] = useState<SupplierOfferEmail[]>([]);
+  const [quotes, setQuotes] = useState<SupplierQuote[]>([]);
+  const [checks, setChecks] = useState<SupplierReliabilityCheck[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -272,13 +320,23 @@ export function SupplierDetail() {
         // задерживать показ основного.
         const host = company?.websiteHost ?? '';
         const inn = (company?.inn ?? '').trim();
-        const [siteSnapshot, checks] = await Promise.all([
+        // Переписка, КП и история проверок — вторым заходом, вместе со
+        // снимком сайта: первый экран (кто это и чем занимается) не должен
+        // ждать писем.
+        const offerIds = companyOffers.map((o) => o.id);
+        const [siteSnapshot, allChecks, companyEmails, companyQuotes, history] = await Promise.all([
           host ? fetchSupplierSiteSnapshot(host) : Promise.resolve(null),
           inn ? fetchSupplierReliability() : Promise.resolve([]),
+          fetchSupplierOfferEmailsByOffers(offerIds),
+          fetchSupplierQuotesByOffers(offerIds),
+          fetchSupplierReliabilityChecks(id),
         ]);
         if (cancelled) return;
         setSnapshot(siteSnapshot);
-        setReliability(checks.find((c) => c.inn === inn) ?? null);
+        setReliability(allChecks.find((c) => c.inn === inn) ?? null);
+        setEmails(companyEmails);
+        setQuotes(companyQuotes);
+        setChecks(history);
       } catch (err) {
         if (!cancelled) setLoadError(errorMessage(err, 'Не удалось загрузить поставщика'));
       } finally {
@@ -326,6 +384,9 @@ export function SupplierDetail() {
       reliability={reliability}
       contacts={contacts}
       onContactsChange={setContacts}
+      emails={emails}
+      quotes={quotes}
+      checks={checks}
     />
   );
 }
@@ -343,6 +404,9 @@ export function SupplierDetailView({
   reliability,
   contacts,
   onContactsChange,
+  emails,
+  quotes,
+  checks,
 }: {
   supplier: Supplier;
   offers: SupplierOffer[];
@@ -354,11 +418,54 @@ export function SupplierDetailView({
   // представление возвращает ему новый — так же, как это делают страницы
   // «Лиды» и «Юрлица». В мок-тесте сюда передают заглушку.
   onContactsChange: (next: SupplierContact[]) => void;
+  emails: SupplierOfferEmail[];
+  quotes: SupplierQuote[];
+  checks: SupplierReliabilityCheck[];
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab: SupplierDetailTab = SLUG_TO_TAB[searchParams.get('tab') ?? ''] ?? 'Обзор';
 
   const requestById = useMemo(() => new Map(requests.map((r) => [r.id, r])), [requests]);
+
+  const offerById = useMemo(() => new Map(offers.map((o) => [o.id, o])), [offers]);
+
+  // Категория закупки, к которой относится письмо или КП: они висят на
+  // карточке, а карточка — на категории.
+  function categoryOf(offerId: string): { requestId: string; title: string } {
+    const offer = offerById.get(offerId);
+    const request = offer ? requestById.get(offer.requestId) : undefined;
+    return { requestId: offer?.requestId ?? '', title: request?.title ?? 'категория удалена' };
+  }
+
+  const activity: ActivityEvent[] = useMemo(() => {
+    const events: ActivityEvent[] = [];
+    for (const e of emails) {
+      const cat = categoryOf(e.offerId);
+      events.push({
+        at: e.createdAt,
+        title: e.direction === 'in' ? 'Ответ от поставщика' : 'Мы написали',
+        detail: `${e.subject || 'без темы'} · ${cat.title}`,
+        href: cat.requestId ? threadLink(cat.requestId, e.offerId, e.orderId ?? null) : undefined,
+      });
+    }
+    for (const q of quotes) {
+      const cat = categoryOf(q.offerId);
+      events.push({
+        at: q.createdAt,
+        title: 'Получено КП',
+        detail: `${q.title}${q.price > 0 ? ` · ${formatMoney(q.price, q.currency)}` : ''} · ${cat.title}`,
+      });
+    }
+    for (const c of checks) {
+      events.push({
+        at: c.checkedAt,
+        title: 'Проверка по реестру',
+        detail: c.error ? `не удалось: ${c.error}` : c.found ? RISK_LEVEL_LABEL[c.riskLevel] : 'юрлицо не найдено в ЕГРЮЛ/ЕГРИП',
+      });
+    }
+    return events.sort((a, b) => b.at.localeCompare(a.at));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emails, quotes, checks, offerById, requestById]);
 
   // Условия работы собираем со ВСЕХ карточек компании: менеджер пишет их в
   // переписке по конкретной категории, а относятся они обычно к компании
@@ -644,6 +751,231 @@ export function SupplierDetailView({
             </div>
           </Card>
         </div>
+      )}
+
+      {tab === 'Переписка' && (
+        <Card className="space-y-4">
+          <h2 className="text-sm font-semibold text-ink">
+            Переписка{emails.length > 0 ? ` (${emails.length})` : ''}
+          </h2>
+          {emails.length === 0 ? (
+            <p className="text-sm text-ink-faint">Писем с этой компанией ещё не было.</p>
+          ) : (
+            <ul className="space-y-2">
+              {emails.slice(0, 30).map((e) => {
+                const cat = categoryOf(e.offerId);
+                return (
+                  <li key={e.id} className="rounded-control border border-border p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone={e.direction === 'in' ? 'success' : 'neutral'}>
+                        {e.direction === 'in' ? 'ответ' : 'наше письмо'}
+                      </Badge>
+                      <span className="min-w-0 flex-1 truncate text-sm text-ink">{e.subject || 'без темы'}</span>
+                      <span className="text-xs text-ink-faint">{formatDateTime(e.createdAt)}</span>
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-ink-faint">
+                      <span>{cat.title}</span>
+                      <span>·</span>
+                      <span>{e.direction === 'in' ? e.fromAddress : e.toAddress}</span>
+                      {cat.requestId && (
+                        <Link
+                          to={threadLink(cat.requestId, e.offerId, e.orderId ?? null)}
+                          className="inline-flex items-center gap-1 text-primary-hover hover:underline"
+                        >
+                          Открыть переписку
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </Link>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <p className="border-t border-border pt-3 text-xs text-ink-faint">
+            {emails.length > 30 ? 'Показаны последние 30 писем. ' : ''}
+            Отвечать и прикладывать ведомость по-прежнему во вкладке «Письма» в закупках: там тред целиком, композер и
+            распознавание счетов.
+          </p>
+        </Card>
+      )}
+
+      {tab === 'КП и цены' && (
+        <Card className="space-y-4">
+          <h2 className="text-sm font-semibold text-ink">
+            Коммерческие предложения{quotes.length > 0 ? ` (${quotes.length})` : ''}
+          </h2>
+          {quotes.length === 0 ? (
+            <p className="text-sm text-ink-faint">
+              КП ещё не получали. Они появляются сами, когда поставщик присылает счёт и распознавание его разбирает.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {quotes.map((q) => {
+                const cat = categoryOf(q.offerId);
+                return (
+                  <li key={q.id} className="rounded-control border border-border p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="min-w-0 font-medium text-ink">{q.title}</span>
+                      <span className="tabular-nums text-sm text-ink">
+                        {q.price > 0 ? formatMoney(q.price, q.currency) : 'цена не распознана'}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-faint">
+                      <span>{cat.title}</span>
+                      <span>·</span>
+                      <span>{formatDate(q.createdAt)}</span>
+                      {q.isAlternative && <Badge tone="warning">аналог{q.alternativeNote ? `: ${q.alternativeNote}` : ''}</Badge>}
+                    </div>
+                    {q.items.length > 0 && (
+                      <div className="mt-2 overflow-x-auto rounded-control border border-border">
+                        <table className="w-full text-sm">
+                          <thead className="bg-surface-muted text-xs text-ink-faint">
+                            <tr>
+                              <th className="px-3 py-1.5 text-left font-normal">Позиция</th>
+                              <th className="px-3 py-1.5 text-right font-normal">Кол-во</th>
+                              <th className="px-3 py-1.5 text-right font-normal">Цена</th>
+                              <th className="px-3 py-1.5 text-right font-normal">Сумма</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {q.items.map((item, i) => (
+                              <tr key={`${q.id}-${i}`} className="border-t border-border">
+                                <td className="px-3 py-1.5 text-ink">
+                                  {item.name}
+                                  {item.unit && <span className="text-ink-faint"> ({item.unit})</span>}
+                                </td>
+                                <td className="px-3 py-1.5 text-right tabular-nums text-ink">{item.quantity ?? '—'}</td>
+                                <td className="px-3 py-1.5 text-right tabular-nums text-ink">
+                                  {item.price != null ? formatMoney(item.price, q.currency) : '—'}
+                                </td>
+                                <td className="px-3 py-1.5 text-right tabular-nums text-ink">
+                                  {formatMoney(purchaseItemTotal(item), q.currency)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Card>
+      )}
+
+      {tab === 'Проверка' && (
+        <div className="space-y-4">
+          <Card className="space-y-3">
+            <h2 className="text-sm font-semibold text-ink">Последняя проверка</h2>
+            {!(supplier.inn ?? '').trim() ? (
+              <p className="text-sm text-ink-faint">
+                ИНН неизвестен — проверять нечего. Он подставится из первого же счёта поставщика.
+              </p>
+            ) : !reliability ? (
+              <p className="text-sm text-ink-faint">Ещё не проверяли. Проверку запускают из карточки в закупках.</p>
+            ) : (
+              <>
+                <Row label="ИНН">{reliability.inn}</Row>
+                <Row label="Результат">
+                  {reliability.error ? (
+                    <span className="text-warning">не удалось проверить: {reliability.error}</span>
+                  ) : !reliability.found ? (
+                    <span className="font-medium text-danger">юрлица с таким ИНН нет в ЕГРЮЛ/ЕГРИП</span>
+                  ) : (
+                    <span className={reliability.riskLevel === 'ok' ? 'text-success' : 'text-warning'}>
+                      {RISK_LEVEL_LABEL[reliability.riskLevel]}
+                    </span>
+                  )}
+                </Row>
+                <Row label="Когда">
+                  {formatDate(reliability.checkedAt)}
+                  {isReliabilityStale(reliability) && <span className="ml-2 text-xs text-warning">устарело</span>}
+                </Row>
+                {reliability.risks.length > 0 && (
+                  <ul className="space-y-1 border-t border-border pt-3">
+                    {reliability.risks.map((r, i) => (
+                      <li
+                        key={`${r.title}-${i}`}
+                        className={cn('flex gap-1.5 text-sm', r.level === 'danger' ? 'text-danger' : 'text-warning')}
+                      >
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span>
+                          {r.title}
+                          {r.detail && <span className="text-ink-faint"> — {r.detail}</span>}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </Card>
+
+          <Card className="space-y-3">
+            <h2 className="text-sm font-semibold text-ink">История проверок</h2>
+            {checks.length === 0 ? (
+              <p className="text-sm text-ink-faint">Проверок ещё не было.</p>
+            ) : (
+              <ul className="space-y-2">
+                {checks.map((c) => (
+                  <li key={c.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
+                    <span className="w-40 shrink-0 text-ink-faint">{formatDate(c.checkedAt)}</span>
+                    <span className="min-w-0 flex-1 text-ink">
+                      {c.error ? (
+                        <span className="text-warning">не удалось проверить: {c.error}</span>
+                      ) : !c.found ? (
+                        <span className="text-danger">юрлицо не найдено</span>
+                      ) : (
+                        <>
+                          {RISK_LEVEL_LABEL[c.riskLevel]}
+                          {c.risks.length > 0 && <span className="text-ink-faint"> · рисков: {c.risks.length}</span>}
+                        </>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="border-t border-border pt-3 text-xs text-ink-faint">
+              История пишется сама при каждой проверке, включая неудачные попытки: «не смогли проверить» — это не то же
+              самое, что «не проверяли».
+            </p>
+          </Card>
+        </div>
+      )}
+
+      {tab === 'Активность' && (
+        <Card className="space-y-4">
+          <h2 className="text-sm font-semibold text-ink">Что происходило</h2>
+          {activity.length === 0 ? (
+            <p className="text-sm text-ink-faint">С этой компанией пока ничего не происходило.</p>
+          ) : (
+            <ul className="space-y-2">
+              {activity.slice(0, 50).map((e, i) => (
+                <li key={`${e.at}-${i}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="w-44 shrink-0 text-xs text-ink-faint">{formatDateTime(e.at)}</span>
+                  <span className="min-w-0 flex-1 text-sm text-ink">
+                    <span className="font-medium">{e.title}</span>
+                    <span className="text-ink-faint"> — {e.detail}</span>
+                  </span>
+                  {e.href && (
+                    <Link to={e.href} className="text-xs text-primary-hover hover:underline">
+                      открыть
+                    </Link>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="border-t border-border pt-3 text-xs text-ink-faint">
+            Лента собрана из писем, полученных КП и проверок по реестру. Действий сотрудников в ней нет: общий журнал
+            действий в этой базе хранит только «кто и что сделал», без ссылки на поставщика, и отфильтровать его по
+            конкретной компании нечем.
+          </p>
+        </Card>
       )}
 
       {tab === 'Контакты' && (

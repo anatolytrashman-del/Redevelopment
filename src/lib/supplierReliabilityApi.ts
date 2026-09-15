@@ -1,7 +1,14 @@
 import { supabase } from './supabase';
 import { authFetch } from './authFetch';
 import { withRetry } from './withRetry';
-import type { RiskFlag, RiskLevel, SupplierReliability, SupplierReliabilityRow } from '../data/supplierReliability';
+import type {
+  RiskFlag,
+  RiskLevel,
+  SupplierReliability,
+  SupplierReliabilityCheck,
+  SupplierReliabilityCheckRow,
+  SupplierReliabilityRow,
+} from '../data/supplierReliability';
 
 function fromRow(row: SupplierReliabilityRow): SupplierReliability {
   return {
@@ -42,6 +49,32 @@ interface CheckResponse {
 // Vercel, поэтому сам запрос в Checko идёт через серверный action, а не из
 // браузера (см. api/supplier-web-search.js, action:'check-reliability').
 //
+// История проверок этой компании, новые сверху (страница поставщика, шаг 4).
+// Записи создаёт триггер supplier_reliability_log_check при каждой записи в
+// supplier_reliability — включая неудачные попытки: «не смогли проверить» в
+// истории видно так же, как удачную проверку, иначе пропуск выглядел бы как
+// «не пробовали».
+export function fetchSupplierReliabilityChecks(supplierId: string): Promise<SupplierReliabilityCheck[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('supplier_reliability_checks')
+      .select('*')
+      .eq('supplier_id', supplierId)
+      .order('checked_at', { ascending: false });
+    if (error) throw error;
+    return (data as SupplierReliabilityCheckRow[]).map((row) => ({
+      id: row.id,
+      supplierId: row.supplier_id,
+      inn: row.inn,
+      found: row.found,
+      riskLevel: row.risk_level as SupplierReliabilityCheck['riskLevel'],
+      risks: row.risks ?? [],
+      error: row.error,
+      checkedAt: row.checked_at,
+    }));
+  });
+}
+
 // Запись кладём upsert'ом по ИНН: повторная проверка того же юрлица должна
 // обновлять существующую строку, а не плодить историю — нам нужно текущее
 // состояние, а не архив (если понадобится история, это отдельная таблица,
