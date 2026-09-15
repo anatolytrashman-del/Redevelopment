@@ -27,6 +27,7 @@ export function fetchSupplierQuotes(): Promise<SupplierQuote[]> {
     const { data, error } = await supabase
       .from('supplier_offer_quotes')
       .select('*')
+      .is('deleted_at', null)
       .order('created_at', { ascending: true });
     if (error) throw error;
     return (data as SupplierQuoteRow[]).map(fromRow);
@@ -91,9 +92,16 @@ export function updateSupplierQuoteItems(id: string, items: PurchaseItem[]): Pro
   });
 }
 
+// Мягкое удаление (шаг 1 плана закупок): строка КП остаётся в базе с меткой
+// времени, из сравнения цен пропадает. Раньше здесь был физический DELETE —
+// ошибочно удалённое КП со всеми распознанными позициями восстановить было
+// нельзя, только распознавать счёт заново.
 export function deleteSupplierQuote(id: string): Promise<void> {
   return withRetry(async () => {
-    const { error } = await supabase.from('supplier_offer_quotes').delete().eq('id', id);
+    const { error } = await supabase
+      .from('supplier_offer_quotes')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id);
     if (error) throw error;
   });
 }

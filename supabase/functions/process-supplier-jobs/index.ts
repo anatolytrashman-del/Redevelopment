@@ -367,7 +367,12 @@ async function listingIsMissing(link: string): Promise<boolean> {
 
 async function processEnrichmentJob(job: any): Promise<void> {
   const offer = job.supplier_research_offers;
-  if (!offer) {
+  // deleted_at — мягко удалённая карточка (см. миграцию
+  // 20260915-soft-delete-supplier-data.sql). До неё такие задания уносил
+  // каскад вместе со строкой карточки; теперь задание остаётся в очереди, и
+  // без этой проверки мы бы платили модели за обогащение контактов
+  // поставщика, которого только что выкинули из каталога.
+  if (!offer || offer.deleted_at) {
     await supabase
       .from('supplier_enrichment_jobs')
       .update({ status: 'error', error: 'Предложение удалено', completed_at: new Date().toISOString() })
@@ -1312,7 +1317,7 @@ Deno.serve(async (req: Request) => {
   const enrichmentLimit = summary.search > 0 ? 1 : ENRICHMENT_BATCH;
   const { data: enrichmentJobs } = await supabase
     .from('supplier_enrichment_jobs')
-    .select('*, supplier_research_offers(name, website_url)')
+    .select('*, supplier_research_offers(name, website_url, deleted_at)')
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
     .limit(enrichmentLimit);

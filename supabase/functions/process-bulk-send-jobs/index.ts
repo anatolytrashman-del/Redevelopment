@@ -266,9 +266,23 @@ async function sendOneEmail(offer: any, request: any, legalEntity: any, job: any
   }
 
   const fromAddress = emailAddress(offer.short_code);
+  // Idempotency-Key — та же страховка, что в process-outgoing-emails: если
+  // связь оборвётся ПОСЛЕ того, как Resend принял письмо, но ДО того, как мы
+  // записали строку в supplier_offer_emails, следующий тик пойдёт по этой же
+  // строке задания заново. Проверка «уже отправлено» выше опирается на нашу
+  // запись, которой в таком сценарии нет, — и поставщик получил бы письмо
+  // дважды. Ключ привязан к строке задания, поэтому переживает и рестарт
+  // функции, и повторный тик: Resend по нему вернёт первое письмо вместо
+  // отправки второго. Ровно этот класс задвоения реально случился 2026-09-12
+  // (38 поставщиков получили по два письма), тогда его закрыли атомарным
+  // захватом строки — это второй рубеж, на случай обрыва уже после захвата.
   const resendResp = await fetch('https://api.resend.com/emails', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+      'Idempotency-Key': `bulk-item-${item.id}`,
+    },
     body: JSON.stringify({
       from: `${RESEND_FROM_NAME} <${fromAddress}>`,
       to: [offer.email],
@@ -377,6 +391,20 @@ Deno.serve(async () => {
       const { data: offer } = await supabase.from('supplier_research_offers').select('*').eq('id', item.offer_id).single();
       if (!offer) {
         await supabase.from('bulk_send_job_items').update({ status: 'error', error_message: 'Предложение не найдено' }).eq('id', item.id);
+        summary.failed++;
+        continue;
+      }
+      // Карточку могли удалить уже после того, как задание поставили в
+      // очередь. До перехода на мягкое удаление такую строку задания уносил
+      // каскад (FK ON DELETE CASCADE), и письмо просто не уходило; теперь
+      // строка жива, поэтому проверяем метку сами — иначе удалённый
+      // поставщик получит письмо, и это выглядело бы как рассылка по
+      // вычищенной базе.
+      if (offer.deleted_at) {
+        await supabase
+          .from('bulk_send_job_items')
+          .update({ status: 'error', error_message: 'Поставщик удалён после постановки в очередь' })
+          .eq('id', item.id);
         summary.failed++;
         continue;
       }

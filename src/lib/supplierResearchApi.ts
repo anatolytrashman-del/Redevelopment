@@ -171,6 +171,13 @@ export function updateSupplierRequestSection(
   });
 }
 
+// ВНИМАНИЕ: в отличие от deleteSupplierOffer ниже, это по-прежнему ФИЗИЧЕСКОЕ
+// удаление, и FK ON DELETE CASCADE утащит за запросом все его карточки
+// поставщиков со всей перепиской, КП и заданиями рассылки. Сейчас это
+// безопасно ровно потому, что из интерфейса функция не вызывается ни разу
+// (проверено grep'ом 2026-09-15) — запросы удаляются только руками через SQL.
+// Прежде чем повесить её на кнопку, перевести на мягкое удаление так же, как
+// deleteSupplierOffer.
 export function deleteSupplierRequest(id: string): Promise<void> {
   return withRetry(async () => {
     const { error } = await supabase.from('supplier_research_requests').delete().eq('id', id);
@@ -182,9 +189,17 @@ export function deleteSupplierRequest(id: string): Promise<void> {
 // принцип, что и у fetchResearchOffers (contractorResearchApi.ts).
 export type SupplierOfferInput = Omit<SupplierOffer, 'id' | 'createdAt' | 'shortCode' | 'queueSnoozedAt'>;
 
+// `is('deleted_at', null)` — мягко удалённые карточки (см. deleteSupplierOffer
+// ниже и миграцию 20260915-soft-delete-supplier-data.sql) в приложение не
+// попадают вообще: ни в каталог, ни в сравнение, ни в рассылку, которая
+// собирает адресатов из этого же списка.
 export function fetchSupplierOffers(): Promise<SupplierOffer[]> {
   return withRetry(async () => {
-    const { data, error } = await supabase.from('supplier_research_offers').select('*').order('created_at', { ascending: true });
+    const { data, error } = await supabase
+      .from('supplier_research_offers')
+      .select('*')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true });
     if (error) throw error;
     return (data as SupplierOfferRow[]).map(offerFromRow);
   });
@@ -270,10 +285,33 @@ export function updateSupplierOfferItems(id: string, items: PurchaseItem[]): Pro
   });
 }
 
+// Мягкое удаление вместо DELETE (шаг 1 плана закупок, §7 аудита). Физический
+// DELETE здесь утаскивал каскадом всю переписку с поставщиком, все его КП,
+// заявки и позиции рассылки (FK ON DELETE CASCADE, см. шапку миграции
+// 20260915-soft-delete-supplier-data.sql). Снимков базы на бесплатном плане
+// Supabase нет, так что восстановить это было нечем. Теперь строка остаётся в
+// базе с меткой времени, а из интерфейса пропадает — вернуть карточку можно
+// одним UPDATE в SQL.
 export function deleteSupplierOffer(id: string): Promise<void> {
   return withRetry(async () => {
-    const { error } = await supabase.from('supplier_research_offers').delete().eq('id', id);
+    const deletedAt = new Date().toISOString();
+    const { error } = await supabase
+      .from('supplier_research_offers')
+      .update({ deleted_at: deletedAt })
+      .eq('id', id);
     if (error) throw error;
+
+    // Тем же движением помечаем переписку и КП этой карточки — чтобы вкладка
+    // «Переписка» и сравнение цен вели себя ровно как раньше (после удаления
+    // поставщика его писем и КП там не видно), но данные при этом никуда не
+    // делись. Восстановление карточки = снять метку во всех трёх таблицах по
+    // одному и тому же deleted_at.
+    const [emailsRes, quotesRes] = await Promise.all([
+      supabase.from('supplier_offer_emails').update({ deleted_at: deletedAt }).eq('offer_id', id).is('deleted_at', null),
+      supabase.from('supplier_offer_quotes').update({ deleted_at: deletedAt }).eq('offer_id', id).is('deleted_at', null),
+    ]);
+    if (emailsRes.error) throw emailsRes.error;
+    if (quotesRes.error) throw quotesRes.error;
   });
 }
 
