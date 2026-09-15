@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Clock, ExternalLink, Loader2, Mail, Paperclip, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
+import { ContractorsResearch } from '../components/contractors/ContractorsResearch';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -249,6 +250,18 @@ export function WorkContractors() {
           )}
         </div>
       )}
+
+      {/* Владелец, 2026-09-15: "все таблицы с работами переносим на страницу
+          Подрядчики, пока просто перенеси, потом поправим внешний вид той
+          страницы" — блок "Работы" (ContractorsResearch, свои таблицы
+          contractor_research_*) переехал сюда со страницы "Закупки" как есть,
+          без правок вёрстки. С подрядчиками с Авито выше у него общих данных
+          нет — это два независимых механизма, сведённые пока просто на одну
+          страницу; внешний вид владелец просил поправить отдельно. */}
+      <div className="flex flex-col gap-6 border-t border-border pt-8">
+        <div className="text-lg font-bold text-ink">Работы</div>
+        <ContractorsResearch />
+      </div>
 
         <Modal open={formOpen} onClose={() => setFormOpen(false)} title={editing ? 'Подрядчик' : 'Новый подрядчик'}>
         <div className="flex flex-col gap-4">
