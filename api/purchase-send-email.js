@@ -320,7 +320,8 @@ export default async function handler(req, res) {
   // страницы "Закупки", владелец 2026-09-14). Сюда же, а не отдельным
   // эндпоинтом, по той же причине, что и предложения Ресерча: лимит в 12
   // serverless-функций на Hobby-плане уже выбран (см. шапку файла).
-  const { purchaseId, offerId, orderId, contractorId, toAddress, subject, body, attachments } = req.body ?? {};
+  const { purchaseId, offerId, orderId, contractorId, toAddress, subject, body, attachments, asAiBuyer } =
+    req.body ?? {};
 
   if ((!purchaseId && !offerId && !contractorId) || !toAddress || !body) {
     res.status(400).json({ error: 'Заполните все поля' });
@@ -423,6 +424,19 @@ export default async function handler(req, res) {
     // нет, туда поля не подмешиваем.
     const author = purchaseId ? null : await fetchAuthorProfile(user.id);
 
+    // asAiBuyer — письмо с готовым текстом ИИ-закупщика: черновик автоответа,
+    // который человек отправил кнопкой «Отправить», ничего в нём не меняя
+    // (SupplierCorrespondenceTab.handleSendDraft). Владелец, 2026-09-15: «все
+    // письма прогоняй через ИИ-закупщика» — автор такого письма он, кнопка
+    // лишь подтверждает отправку. Если текст правили («Изменить»), флаг не
+    // ставится: дальше это обычное письмо человека.
+    // Имя — то же, что в AUTO_REPLY_SENDER_NAME (src/data/emailAutoReply.ts) и
+    // в SQL-функциях автоответов; здесь строкой, в api/*.js нет импорта из src.
+    const aiBuyerAuthor = Boolean(asAiBuyer) && Boolean(offerId);
+    const sentBy = aiBuyerAuthor
+      ? { sent_by_profile_id: null, sent_by_name: 'ИИ-закупщик' }
+      : { sent_by_profile_id: author?.id ?? null, sent_by_name: author?.display_name ?? null };
+
     const row = await insertEmailRow(table, {
       ...(purchaseId
         ? { purchase_id: purchaseId }
@@ -435,8 +449,7 @@ export default async function handler(req, res) {
           : {
               offer_id: offerId,
               order_id: orderId ?? null,
-              sent_by_profile_id: author?.id ?? null,
-              sent_by_name: author?.display_name ?? null,
+              ...sentBy,
             }),
       direction: 'out',
       from_address: fromAddress,

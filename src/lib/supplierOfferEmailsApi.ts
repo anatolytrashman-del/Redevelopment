@@ -164,6 +164,12 @@ export async function sendSupplierOfferEmail(input: {
   // клиенте (lib/materialLedgerXlsx.ts), уходит сюда уже base64-строкой;
   // сервер сам решает, что с ним делать (см. api/purchase-send-email.js).
   attachments?: { fileName: string; contentType: string; contentBase64: string }[];
+  // Письмо отправляет ИИ-закупщик, а не вошедший человек (владелец,
+  // 2026-09-15: «все письма прогоняй через ИИ-закупщика»). Ставится ровно в
+  // одном месте — когда черновик автоответа уходит кнопкой «Отправить» без
+  // правок (SupplierCorrespondenceTab). Сервер подставит его имя в
+  // sent_by_name, от этого зависят и лента переписки, и метрики.
+  asAiBuyer?: boolean;
 }): Promise<SupplierOfferEmail> {
   const res = await authFetch('/api/purchase-send-email', {
     method: 'POST',

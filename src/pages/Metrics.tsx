@@ -103,6 +103,22 @@ import { AUTO_REPLY_SENDER_NAME } from '../data/emailAutoReply';
 //     "ИИ-закупщик" с profile_id = null — по прямому указанию владельца,
 //     SQL-обновлением в живой базе, кода это не касается.
 
+// 2026-09-15 — владелец: "все письма прогоняй через ИИ-закупщика" (на вопрос
+// об охвате выбрано: его письма — те, где участвовал ИИ). Считать их
+// по-прежнему нечего: всё решает sent_by_name, менялись не метрики, а то, кто
+// проставляется автором письма:
+//  1. Ответ, отправленный по подсказке владельца в разборе почты, раньше
+//     уходил с sent_by_name = подпись из настроек ("Анатолий Трэшмен") и
+//     числился за человеком — auto_reply_answer передавала в очередь подпись
+//     вместо имени автора. Теперь автор агент (миграция
+//     20260915-ai-buyer-sender-name.sql, там же бэкфилл шести таких писем);
+//     подпись в тексте письма не изменилась.
+//  2. Черновик автоответа, отправленный кнопкой "Отправить" без правок, тоже
+//     уходит от агента: клиент шлёт asAiBuyer (SupplierCorrespondenceTab →
+//     api/purchase-send-email.js). Нажали "Изменить" и правили текст — автор
+//     снова человек.
+// Письма, которые владелец пишет с нуля из интерфейса, остались за ним.
+
 // 2026-09-15 — владелец: "можем вывести метрику по количеству деплоев на
 // страницу метрики для ИИ-сотрудника Claude Code". Claude Code (ИИ-кодер из
 // "Команды", см. data/aiAgents.ts) отличается от всех остальных блоков этой
@@ -455,11 +471,11 @@ export function Metrics() {
   // Две цифры ИИ-закупщика для его блока в ряду ИИ-сотрудников.
   // "Верифицировано поставщиков" — те же supplier_offer_verified, что и у
   // людей, но залогированные под его именем. "Писем отправлено" — исходящие
-  // с sent_by_name = «ИИ-закупщик», то есть ровно те, что ушли сами:
-  // автоответы подписывает так SQL-функция auto_reply_apply, а у массовой
-  // рассылки и у ручной отправки в sent_by_name стоит имя человека, который
-  // её запустил (api/purchase-send-email.js, process-bulk-send-jobs), так что
-  // письма "с участием Трэшмена" сюда не попадают.
+  // с sent_by_name = «ИИ-закупщик»: письма, которые отправил он сам
+  // (автоответы), по подсказке владельца в разборе почты и его же черновики,
+  // отправленные кнопкой без правок (см. блок 2026-09-15 в шапке файла). У
+  // массовой рассылки и у писем, написанных человеком с нуля, в sent_by_name
+  // стоит имя человека — такие сюда не попадают.
   const aiBuyerStats = useMemo(() => {
     const actions = entriesInRange.filter((e) => canonicalName(e.profileName) === AI_BUYER_NAME);
     const sent = outgoingEmailsInRange.filter((e) => canonicalName(e.sentByName) === AI_BUYER_NAME);
@@ -610,7 +626,7 @@ export function Metrics() {
           <div className={cn('grid grid-cols-1 gap-4', sideBySideAiRow && 'lg:grid-cols-2')}>
             <PersonSection
               name={AI_BUYER_NAME}
-              subtitle="ИИ-закупщик: переписка с поставщиками без участия человека"
+              subtitle="ИИ-закупщик: переписка с поставщиками — сам и по вашим подсказкам"
               tileColsClass={aiTileColsClass}
               icon={
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -630,7 +646,7 @@ export function Metrics() {
               <StatTile
                 label="Писем отправлено"
                 value={aiBuyerStats.emailsSent}
-                hint={`Автоматические ответы, без участия человека · адресатов: ${aiBuyerStats.emailsUnique.toLocaleString('ru-RU')} · разобрано входящих: ${autoReplyStats.processed.toLocaleString('ru-RU')}, пропущено: ${autoReplyStats.skipped.toLocaleString('ru-RU')}`}
+                hint={`Отправил сам и по вашим подсказкам · адресатов: ${aiBuyerStats.emailsUnique.toLocaleString('ru-RU')} · разобрано входящих: ${autoReplyStats.processed.toLocaleString('ru-RU')}, пропущено: ${autoReplyStats.skipped.toLocaleString('ru-RU')}`}
               />
               {/* Владелец, 2026-09-14: "при открытии статы за неделю/месяц —
                   для ИИ-закупщика выводим +2 показателя". В периоде "Сегодня"
