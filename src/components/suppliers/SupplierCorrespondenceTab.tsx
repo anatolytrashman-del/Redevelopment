@@ -39,6 +39,7 @@ import { logActivity } from '../../lib/activityLogApi';
 import { DocumentPreviewModal, isPreviewable, type PreviewFile } from '../documents/DocumentPreviewModal';
 import { currencies, type Currency } from '../../data/transactions';
 import { PURCHASE_ITEM_MATCH_KIND_LABELS, looksLikeDeliveryItem, type PurchaseItem, type PurchaseItemMatchKind } from '../../data/purchases';
+import { closeQuantity, sameUnit } from '../../lib/units';
 import type { SupplierQuote } from '../../data/supplierQuotes';
 import { insertSupplierQuote, updateSupplierQuoteItems, deleteSupplierQuote } from '../../lib/supplierQuotesApi';
 import type { EmailAutoReplyLogEntry } from '../../data/emailAutoReply';
@@ -228,8 +229,7 @@ function computeUnitPriceGuess(
   if (it.price == null || !it.quantity) return '';
   const material = allMaterials.find((m) => m.item.sourceMaterialId === materialId);
   if (!material) return '';
-  const sameUnit = material.item.unit && it.unit && material.item.unit.trim().toLowerCase() === it.unit.trim().toLowerCase();
-  if (!sameUnit) return '';
+  if (!sameUnit(material.item.unit, it.unit)) return '';
   return String(Math.round((it.price / it.quantity) * 100) / 100);
 }
 
@@ -503,18 +503,36 @@ async function applyExtractionToOrder(
 // подставляет очевидное совпадение (точное имя или вхождение подстроки),
 // чтобы не заставлять сопоставлять руками КАЖДУЮ позицию — Альмира всё
 // равно видит и может поправить выбор в выпадающем списке.
-function suggestMaterialMatch(name: string, allMaterials: { item: PurchaseItem; context: string }[]): string {
+function suggestMaterialMatch(
+  name: string,
+  allMaterials: { item: PurchaseItem; context: string }[],
+  // Владелец, 2026-09-15: «сопоставляй по объёму, это точнее всего будет» —
+  // названия у поставщиков свои (артикулы, коллекции, аналоги), а объём в
+  // счёте повторяет ведомость с точностью до кратности упаковки. Если по
+  // названию не нашли, ищем единственную позицию с тем же объёмом (±3%) и
+  // той же единицей; две одинаковых по объёму позиции — подсказку не даём.
+  quantity?: number | null,
+  unit?: string,
+): string {
   const normalize = (s: string) => s.toLowerCase().replace(/["'«»]/g, '').trim();
   const target = normalize(name);
-  if (!target) return '';
   const withId = allMaterials.filter((m) => m.item.sourceMaterialId);
-  const exact = withId.find((m) => normalize(m.item.name) === target);
-  if (exact) return exact.item.sourceMaterialId!;
-  const partial = withId.find((m) => {
-    const candidate = normalize(m.item.name);
-    return candidate.includes(target) || target.includes(candidate);
-  });
-  return partial?.item.sourceMaterialId ?? '';
+  if (target) {
+    const exact = withId.find((m) => normalize(m.item.name) === target);
+    if (exact) return exact.item.sourceMaterialId!;
+    const partial = withId.find((m) => {
+      const candidate = normalize(m.item.name);
+      return candidate.includes(target) || target.includes(candidate);
+    });
+    if (partial) return partial.item.sourceMaterialId!;
+  }
+  if (quantity != null && quantity > 0) {
+    const byQuantity = withId.filter(
+      (m) => closeQuantity(m.item.quantity, quantity) && (!unit || !m.item.unit || sameUnit(m.item.unit, unit)),
+    );
+    if (byQuantity.length === 1) return byQuantity[0].item.sourceMaterialId!;
+  }
+  return '';
 }
 
 // Подпись письма — имя реально вошедшего сотрудника (getCurrentProfile), не
@@ -963,7 +981,7 @@ export function EmailThread({
         initial[idx] = { ...emptyMatch(), kind: 'delivery' };
         return;
       }
-      const suggestion = suggestMaterialMatch(it.name, allMaterials);
+      const suggestion = suggestMaterialMatch(it.name, allMaterials, it.quantity, it.unit);
       if (suggestion) initial[idx] = { ...emptyMatch(suggestion), unitPrice: computeUnitPriceGuess(it, suggestion, allMaterials) };
     });
     setMaterialMatches(initial);
