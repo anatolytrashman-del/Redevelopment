@@ -15,6 +15,7 @@ import {
 import type { SupplierOfferEmail } from '../../data/supplierOfferEmails';
 import type { LedgerAttachment } from '../../lib/materialLedgerXlsx';
 import type { LegalEntity } from '../../data/legalEntities';
+import { fetchBlockedSupplierIds } from '../../lib/suppliersApi';
 import type { EmailTemplate } from '../../data/emailTemplates';
 import {
   insertBulkSendJob,
@@ -278,10 +279,33 @@ export function BulkSendModal({
   // профильной категории читается как тот самый дубль, который мы
   // объединением карточек и убирали.
 
+  // Стоп-лист (шаг 4b плана закупок): компания, с которой решили не работать,
+  // из рассылки выпадает целиком — по всем своим карточкам и категориям.
+  // Блокировка живёт на компании, поэтому сверяем supplierId карточки.
+  const [blockedSupplierIds, setBlockedSupplierIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let cancelled = false;
+    fetchBlockedSupplierIds()
+      .then((ids) => {
+        if (!cancelled) setBlockedSupplierIds(ids);
+      })
+      // Не смогли получить список — рассылку не блокируем, но и не делаем
+      // вид, что стоп-лист пуст: об этом скажет подпись под списком.
+      .catch(() => {
+        if (!cancelled) setBlockedSupplierIds(new Set());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const matchesFilters = useMemo(
     () => (o: SupplierOffer) =>
-      !!o.email && o.verified && (selectedCountry === ALL_COUNTRIES || (o.country || SUPPLIER_COUNTRIES[0]) === selectedCountry),
-    [selectedCountry],
+      !!o.email &&
+      o.verified &&
+      !(o.supplierId && blockedSupplierIds.has(o.supplierId)) &&
+      (selectedCountry === ALL_COUNTRIES || (o.country || SUPPLIER_COUNTRIES[0]) === selectedCountry),
+    [selectedCountry, blockedSupplierIds],
   );
 
   const candidates = useMemo(

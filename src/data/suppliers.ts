@@ -44,6 +44,12 @@ export interface Supplier {
   // Мягкое удаление — см. шаг 1 плана и миграцию
   // 20260915-soft-delete-supplier-data.sql. null — компания активна.
   deletedAt: string | null;
+  // Стоп-лист (шаг 4b): причина, по которой компании больше не пишем.
+  // null — в работе. Отличается от deletedAt тем, что компания остаётся
+  // видна со всей историей: «не работаем и вот почему» — это знание, которое
+  // нужно хранить, а не прятать.
+  blockedReason: string | null;
+  blockedAt: string | null;
 }
 
 export interface SupplierRow {
@@ -61,4 +67,6 @@ export interface SupplierRow {
   verified: boolean;
   created_at: string;
   deleted_at: string | null;
+  blocked_reason: string | null;
+  blocked_at: string | null;
 }

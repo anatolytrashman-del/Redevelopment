@@ -76,6 +76,27 @@ export function fetchSupplierSiteSnapshots(): Promise<SupplierSiteSnapshot[]> {
   });
 }
 
+// Перечитать сайт заново: ставим снимок обратно в очередь, дальше его
+// разберёт Edge Function process-supplier-jobs (крон раз в минуту). Строка на
+// домен одна, поэтому именно update, а не вставка новой; upsert на случай,
+// когда домена в таблице ещё нет вовсе (компанию завели руками).
+export function requestSiteSnapshotRefresh(host: string, websiteUrl: string): Promise<void> {
+  const normalized = host.trim().toLowerCase();
+  if (!normalized) return Promise.resolve();
+  return withRetry(async () => {
+    const { error } = await supabase
+      .from('supplier_site_snapshots')
+      .upsert(
+        // attempts сбрасываем: счётчик неудач копится по домену, и без сброса
+        // сайт, который раньше не открывался, снова упал бы в 'error' с первой
+        // же осечки, хотя человек попросил перечитать его заново.
+        { host: normalized, website_url: websiteUrl, status: 'pending', claimed_at: null, error: null, attempts: 0 },
+        { onConflict: 'host' },
+      );
+    if (error) throw error;
+  });
+}
+
 // Снимок одного домена — для страницы компании, где грузить все 1393 строки
 // незачем. Пустой host (компания без сайта) до запроса не доходит.
 export function fetchSupplierSiteSnapshot(host: string): Promise<SupplierSiteSnapshot | null> {
