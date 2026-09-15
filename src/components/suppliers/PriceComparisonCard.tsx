@@ -20,6 +20,7 @@ import {
 import { PURCHASE_ITEM_MATCH_KIND_LABELS, looksLikeDeliveryItem, purchaseItemTotal, type PurchaseItem, type PurchaseItemMatchKind } from '../../data/purchases';
 import { updateSupplierRequestProposal } from '../../lib/supplierResearchApi';
 import { getCurrentProfile } from '../../lib/accessProfile';
+import { emailSignature } from './SupplierCorrespondenceTab';
 import { errorMessage } from '../../lib/errorMessage';
 import { sameUnit } from '../../lib/units';
 
@@ -149,6 +150,17 @@ function buildColumns(
     }
     return { offer, cells, delivery, unmatched, quotesCount: quotes.length };
   });
+}
+
+// Кто готовит предложение: вошедший сотрудник + отдел (владелец, 2026-09-15:
+// «не отдел снабжения, а бэкофис»). emailSignature() — тот же разворот
+// рабочего никнейма в полное имя, что и в подписи писем поставщикам.
+function preparedBy(): string {
+  // getCurrentProfile() возвращает undefined, пока справочник профилей не
+  // загрузился (типы этого не отражают, а emailSignature читает displayName
+  // без проверки) — подпись не должна ронять всю карточку сравнения.
+  const name = getCurrentProfile() ? emailSignature() : '';
+  return name ? `${name}, бэкофис` : 'Бэкофис';
 }
 
 function formatMoney(amount: number, currency: Currency): string {
@@ -320,39 +332,216 @@ export function PriceComparisonCard({
   }
 
   // Владелец, 2026-09-15: «чтобы эту страницу можно было выгрузить как PDF,
-  // чтобы я смог скинуть руководителю стройки на утверждение» — печатаем
-  // карточку в отдельном окне со стилями страницы (A4 альбомная), браузер
-  // сам предлагает «Сохранить как PDF». Кнопки и переключатели (.no-print)
-  // в печать не попадают.
-  function exportPdf(cardEl: HTMLElement | null) {
-    if (!cardEl) return;
-    const win = window.open('', '_blank', 'width=1200,height=800');
+  // чтобы я смог скинуть руководителю стройки на утверждение», в тот же день
+  // после первой попытки: «когда пытаешься выгрузить в pdf, обрезается. Надо,
+  // чтобы всё было видно».
+  //
+  // Почему обрезалось: печаталась КОПИЯ экранной карточки вместе со стилями
+  // приложения, а экранная таблица живёт в горизонтальном скролле
+  // (`overflow-x: auto` + `min-w-[900px]`). На бумаге скролла нет — контейнер
+  // просто отрезает всё, что не влезло в ширину листа, и в PDF попадали два
+  // поставщика из пяти. Ширину не спасает и альбомная ориентация: колонок
+  // столько, сколько поставщиков прислали КП, и на любой ширине найдётся
+  // случай, когда не влезает (а Safari, судя по скриншоту владельца, ещё и
+  // игнорирует `@page { size: landscape }` — в диалоге стояла книжная).
+  //
+  // Поэтому печать — не копия экрана, а СВОЙ документ с собственной вёрсткой:
+  // матрица «позиции × поставщики» разворачивается в блоки по позициям, где
+  // поставщики идут СТРОКАМИ. Ширина документа перестаёт зависеть от числа
+  // поставщиков: хоть 5, хоть 20 — всё влезает в книжную A4 и ничего не
+  // обрезается. Плюс на бумаге так удобнее: руководитель смотрит позицию и
+  // сразу все варианты под ней.
+  function buildPrintHtml(): string {
+    const esc = (v: string) =>
+      v.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);
+    const kindTag = (kind: PurchaseItemMatchKind) =>
+      `<span class="tag ${kind}">${kind === 'exact' ? 'ровно' : esc(PURCHASE_ITEM_MATCH_KIND_LABELS[kind])}</span>`;
+    const linkHtml = (url: string) => {
+      if (!url) return '';
+      const href = /^https?:\/\//.test(url) ? url : `https://${url}`;
+      let label = href;
+      try {
+        label = new URL(href).hostname.replace(/^www\./, '');
+      } catch {
+        /* свободный ввод — печатаем как есть */
+      }
+      return `<a class="lnk" href="${esc(href)}">${esc(label)}</a>`;
+    };
+    const qty = (p: EstimateMaterial) =>
+      `${p.quantity != null ? p.quantity.toLocaleString('ru-RU') : '—'} ${esc(p.unit)}`;
+    // В примечаниях сметы часто лежит ссылка на образец целиком — на бумаге
+    // длинный URL съедает полстроки, печатаем домен ссылкой.
+    const withLinks = (text: string) =>
+      esc(text).replace(/https?:\/\/\S+/g, (url) => linkHtml(url.replace(/[).,;]+$/, '')));
+
+    // Предложение на утверждение — главный разворот документа.
+    const proposalRows = picked
+      .map(({ position, cell }) => {
+        if (!cell) {
+          return `<tr class="empty"><td>${esc(position.name)}<span class="muted">${qty(position)}</span></td><td colspan="4">не отобрано</td></tr>`;
+        }
+        const offer = columnById.get(cell.offerId)?.offer;
+        return `<tr class="picked"><td>${esc(position.name)}<span class="muted">${qty(position)}</span></td>` +
+          `<td>${esc(offer?.name ?? '')}</td>` +
+          `<td>${kindTag(cell.kind)}${cell.note ? `<span class="muted">${withLinks(cell.note)}</span>` : ''}${cell.productUrl ? `<span class="muted">${linkHtml(cell.productUrl)}</span>` : ''}</td>` +
+          `<td class="num">${esc(formatUnit(cell.unitPrice, cell.currency))}</td>` +
+          `<td class="num strong">${esc(formatMoney(cell.unitPrice * (position.quantity ?? 0), cell.currency))}</td></tr>`;
+      })
+      .join('');
+    const deliveryRow =
+      pickedDelivery.length > 0
+        ? `<tr><td colspan="4">Доставка: ${esc([...pickedOfferIds].filter((id) => columnById.get(id)?.delivery != null).map((id) => columnById.get(id)!.offer.name).join(', '))}</td>` +
+          `<td class="num strong">${esc(sumMoney(pickedDelivery, rate))}</td></tr>`
+        : '';
+    const proposalBlock =
+      pickedCells.length === 0
+        ? `<p class="note">Позиции ещё не отобраны. Откройте «Сравнение цен» и отметьте кнопкой «Выбрать», что выносится на утверждение — состав и сумма появятся здесь.</p>`
+        : `<table class="grid">
+             <thead><tr><th>Позиция ведомости</th><th>Поставщик</th><th>Соответствие</th><th class="num">Цена за ед.</th><th class="num">Сумма</th></tr></thead>
+             <tbody>${proposalRows}${deliveryRow}</tbody>
+             <tfoot><tr><td colspan="4">Итого к утверждению, с НДС</td><td class="num total">${esc(sumMoney([...pickedParts, ...pickedDelivery], rate))}</td></tr></tfoot>
+           </table>
+           <p class="note">${pickedCells.length} из ${positions.length} позиций · поставщиков: ${pickedOfferIds.size} · ровно по ведомости ${kinds.exact ?? 0}, аналогов ${kinds.alternative ?? 0}, требуют уточнения ${kinds.check ?? 0}.</p>`;
+
+    // Сравнение: на каждую позицию — свой блок, поставщики строками.
+    const comparisonBlocks = positions
+      .map((p) => {
+        const offered = columns.filter((c) => c.cells.has(p.id));
+        const missing = columns.filter((c) => !c.cells.has(p.id)).map((c) => c.offer.name);
+        const rows = offered
+          .map((c) => {
+            const cell = c.cells.get(p.id)!;
+            const isPicked = proposal[p.id]?.offerId === c.offer.id;
+            return `<tr class="${isPicked ? 'picked' : ''}"><td>${esc(c.offer.name)}${isPicked ? '<span class="pick">✓ на утверждение</span>' : ''}</td>` +
+              `<td>${kindTag(cell.kind)}${cell.note ? `<span class="muted">${withLinks(cell.note)}</span>` : ''}${cell.productUrl ? `<span class="muted">${linkHtml(cell.productUrl)}</span>` : ''}</td>` +
+              `<td class="num">${esc(formatUnit(cell.unitPrice, cell.currency))}</td>` +
+              `<td class="num strong">${esc(formatMoney(cell.unitPrice * (p.quantity ?? 0), cell.currency))}</td></tr>`;
+          })
+          .join('');
+        return `<section class="block">
+            <h3>${esc(p.name)} <span class="qty">${qty(p)}</span></h3>
+            ${p.note ? `<p class="note">${withLinks(p.note)}</p>` : ''}
+            ${offered.length === 0
+              ? '<p class="note">Цену на эту позицию не дал никто из приславших КП.</p>'
+              : `<table class="grid"><thead><tr><th>Поставщик</th><th>Что предлагают</th><th class="num">Цена за ед.</th><th class="num">На объём</th></tr></thead><tbody>${rows}</tbody></table>`}
+            ${missing.length > 0 ? `<p class="note">Не предложили: ${esc(missing.join(', '))}.</p>` : ''}
+          </section>`;
+      })
+      .join('');
+
+    const termsRows = columns
+      .map(
+        (c) =>
+          `<tr><td>${esc(c.offer.name)}</td>` +
+          `<td>${c.delivery != null ? esc(formatMoney(c.delivery, c.offer.currency)) : 'в счёте нет'}</td>` +
+          `<td>${c.offer.termsNote ? withLinks(c.offer.termsNote) : '—'}</td></tr>`,
+      )
+      .join('');
+
+    const signatureField = (caption: string, value = '') =>
+      `<div class="sign"><div class="line">${esc(value)}</div><div class="cap">${esc(caption)}</div></div>`;
+
+    return `<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<title>${esc(request.title)} — предложение на утверждение</title>
+<style>
+  @page { size: A4 portrait; margin: 14mm 12mm; }
+  @font-face { font-family: 'Montserrat'; src: url('/fonts/Montserrat-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+  @font-face { font-family: 'Montserrat'; src: url('/fonts/Montserrat-SemiBold.woff2') format('woff2'); font-weight: 600 700; font-display: swap; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; background: #fff; color: #14151a; font-family: 'Montserrat', system-ui, sans-serif; font-size: 9.5pt; line-height: 1.35; }
+  h1 { font-size: 17pt; margin: 0; letter-spacing: -.01em; }
+  h2 { font-size: 12pt; margin: 0 0 6px; break-after: avoid; }
+  h3 { font-size: 10.5pt; margin: 0 0 4px; break-after: avoid; }
+  h3 .qty { font-weight: 400; color: #6b6d76; }
+  header { border-bottom: 2px solid #14151a; padding-bottom: 8px; margin-bottom: 12px; }
+  .brand { font-size: 8pt; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: #9a9ba3; }
+  .sub { color: #6b6d76; margin-top: 3px; }
+  .block { break-inside: avoid; margin-bottom: 12px; }
+  .funnel { display: flex; gap: 10px; margin-bottom: 12px; }
+  .funnel div { flex: 1; border: 1px solid #e7e5e2; border-radius: 6px; padding: 6px 8px; }
+  .funnel b { display: block; font-size: 14pt; line-height: 1.1; }
+  .funnel span { color: #6b6d76; font-size: 8pt; }
+  table.grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  table.grid th { text-align: left; font-size: 8pt; text-transform: uppercase; letter-spacing: .04em; color: #6b6d76; font-weight: 600; border-bottom: 1px solid #d8d6d2; padding: 4px 6px; }
+  table.grid td { border-bottom: 1px solid #e7e5e2; padding: 5px 6px; vertical-align: top; word-wrap: break-word; }
+  table.grid td.num, table.grid th.num { text-align: right; white-space: nowrap; width: 17%; }
+  table.grid td.strong { font-weight: 600; }
+  table.grid tfoot td { border-top: 1.5px solid #14151a; border-bottom: 0; font-weight: 600; padding-top: 6px; }
+  td.total { font-size: 12pt; color: #157f42; }
+  tr.picked td { background: #e6f6ed; }
+  tr.empty td { color: #9a9ba3; }
+  .muted { display: block; color: #6b6d76; font-size: 8.5pt; }
+  .pick { display: block; color: #157f42; font-weight: 600; font-size: 8pt; }
+  .tag { display: inline-block; border-radius: 20px; padding: 0 6px; font-size: 8pt; font-weight: 600; }
+  .tag.exact { background: #e6f6ed; color: #157f42; }
+  .tag.alternative { background: #fbf1de; color: #906721; }
+  .tag.check { background: #fce9eb; color: #d21e34; }
+  .tag.delivery { background: #f5f4f2; color: #6b6d76; }
+  .lnk { color: #14151a; text-decoration: none; border-bottom: 1px dotted #9a9ba3; }
+  .note { color: #6b6d76; margin: 6px 0 0; font-size: 8.5pt; }
+  .total-line { font-size: 20pt; font-weight: 700; color: #157f42; margin: 2px 0 8px; }
+  .signs { display: flex; gap: 14px; margin-top: 14px; break-inside: avoid; }
+  .sign { flex: 1; }
+  .sign .line { border-bottom: 1px solid #d8d6d2; min-height: 22px; padding-bottom: 2px; }
+  .sign .cap { font-size: 7.5pt; text-transform: uppercase; letter-spacing: .04em; color: #9a9ba3; margin-top: 3px; }
+  .compare { break-before: page; }
+</style></head><body>
+<header>
+  <div class="brand">Redevelopment · Закупки · Сравнение цен</div>
+  <h1>${esc(request.title)}</h1>
+  <div class="sub">${request.sectionTitle ? `Раздел сметы «${esc(request.sectionTitle)}», ` : ''}${positions.length} позиций · ${esc(country)} · цены за единицу сметы с НДС × объём ведомости · сформировано ${new Date().toLocaleDateString('ru-RU')}</div>
+</header>
+
+<div class="funnel">
+  <div><b>${funnel.sent}</b><span>запрос отправлен${funnel.letters ? `, ${funnel.letters} писем` : ''}</span></div>
+  <div><b>${funnel.replied}</b><span>ответили, ${funnel.repliedNoQuote} без КП</span></div>
+  <div><b>${funnel.confirmed}</b><span>прислали КП, ${funnel.quotesCount} счетов</span></div>
+  <div><b>${funnel.pricedPositions} из ${positions.length}</b><span>позиций с ценой</span></div>
+</div>
+
+<section class="block">
+  <h2>Предложение на утверждение</h2>
+  ${pickedCells.length > 0 ? `<div class="total-line">${esc(sumMoney([...pickedParts, ...pickedDelivery], rate))}</div>` : ''}
+  ${proposalBlock}
+  <div class="signs">
+    ${signatureField('Подготовил', preparedBy())}
+    ${signatureField('Дата', new Date().toLocaleDateString('ru-RU'))}
+    ${signatureField('Руководитель стройки, подпись')}
+    ${signatureField('Дата')}
+  </div>
+  <div class="signs">${signatureField('Решение: утвердить / вернуть на уточнение, комментарий')}</div>
+</section>
+
+<div class="compare">
+  <h2>Все предложения по позициям</h2>
+  ${comparisonBlocks}
+</div>
+
+<section class="block">
+  <h2>Наличие, сроки и доставка</h2>
+  <table class="grid"><thead><tr><th>Поставщик</th><th class="num">Доставка</th><th>Что написал менеджер</th></tr></thead><tbody>${termsRows}</tbody></table>
+</section>
+</body></html>`;
+  }
+
+  function exportPdf() {
+    const win = window.open('', '_blank', 'width=1000,height=800');
     if (!win) {
       setError('Браузер заблокировал окно печати — разрешите всплывающие окна для этого сайта.');
       return;
     }
-    const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
-      .map((n) => n.outerHTML)
-      .join('\n');
-    win.document.write(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>${request.title} — сравнение КП</title>${styles}
-      <style>
-        @page { size: A4 landscape; margin: 10mm; }
-        body { background: #fff !important; padding: 0 !important; }
-        .no-print { display: none !important; }
-        .print-root { box-shadow: none !important; border-radius: 8px; }
-        table { font-size: 10px; } th, td { padding: 4px 6px !important; }
-        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      </style></head><body>${cardEl.outerHTML}</body></html>`);
+    win.document.write(buildPrintHtml());
     win.document.close();
     win.focus();
-    setTimeout(() => win.print(), 400);
+    // Ждём подгрузку шрифта: без паузы Safari печатает системным.
+    setTimeout(() => win.print(), 500);
   }
 
   const emptyPositions = positions.length === 0;
   const unmatchedAll = columns.flatMap((c) => c.unmatched.map((item) => ({ item, offer: c.offer })));
 
   return (
-    <Card className="print-root flex flex-col gap-4 p-5">
+    <Card className="flex flex-col gap-4 p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-lg font-bold text-ink">{request.title}</div>
@@ -362,7 +551,7 @@ export function PriceComparisonCard({
             {positions.length > 0 && ` · цены за единицу сметы с НДС × объём ведомости`}
           </p>
         </div>
-        <div className="no-print flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <ToggleGroup options={[...SUPPLIER_COUNTRIES]} value={country} onChange={setCountry} />
           {Object.keys(proposal).length > 0 && (
             <Button type="button" variant="ghost" onClick={() => void saveProposal({})} disabled={saving}>
@@ -373,7 +562,7 @@ export function PriceComparisonCard({
             type="button"
             variant="secondary"
             icon={<FileDown className="h-4 w-4" />}
-            onClick={(e) => exportPdf((e.currentTarget as HTMLElement).closest('.print-root'))}
+            onClick={exportPdf}
           >
             Скачать PDF
           </Button>
@@ -468,7 +657,7 @@ export function PriceComparisonCard({
                           disabled={saving}
                           onClick={() => toggleColumn(col)}
                           className={cn(
-                            'no-print mt-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold',
+                            'mt-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold',
                             mine === all ? 'border-success bg-success text-white' : 'border-border-strong bg-surface text-ink hover:border-success hover:text-success',
                           )}
                         >
@@ -532,7 +721,7 @@ export function PriceComparisonCard({
                           disabled={saving}
                           onClick={() => togglePick(p.id, cell)}
                           className={cn(
-                            'no-print mt-1.5 block rounded-full border px-2.5 py-0.5 text-[11px] font-semibold',
+                            'mt-1.5 block rounded-full border px-2.5 py-0.5 text-[11px] font-semibold',
                             isPicked ? 'border-success bg-success text-white' : 'border-border-strong bg-surface text-ink hover:border-success hover:text-success',
                           )}
                         >
@@ -553,7 +742,7 @@ export function PriceComparisonCard({
                 {columns.map((col) => (
                   <td key={col.offer.id} className="px-3 py-2 text-ink">
                     {col.offer.termsNote || <span className="text-ink-faint">не указано</span>}
-                    <button type="button" onClick={() => onOpenDetail(col.offer)} className="no-print ml-1 inline-flex align-middle text-ink-faint hover:text-ink" title="Изменить в карточке">
+                    <button type="button" onClick={() => onOpenDetail(col.offer)} className="ml-1 inline-flex align-middle text-ink-faint hover:text-ink" title="Изменить в карточке">
                       <Pencil className="h-3 w-3" />
                     </button>
                   </td>
@@ -606,7 +795,7 @@ export function PriceComparisonCard({
           <span className="inline-flex items-center gap-1.5"><KindTag kind="exact" /> та же позиция, что в ведомости</span>
           <span className="inline-flex items-center gap-1.5"><KindTag kind="alternative" /> другой артикул или бренд</span>
           <span className="inline-flex items-center gap-1.5"><KindTag kind="check" /> расхождение, нужен ответ поставщика</span>
-          <span className="no-print">Цена ведёт в карточку поставщика, вид и ссылка задаются при сопоставлении счёта</span>
+          <span >Цена ведёт в карточку поставщика, вид и ссылка задаются при сопоставлении счёта</span>
         </div>
       )}
 
@@ -668,7 +857,7 @@ export function PriceComparisonCard({
             </table>
             <div className="grid grid-cols-2 gap-x-4 gap-y-4 text-xs">
               <div>
-                <div className="min-h-[30px] border-b border-border-strong pb-1 text-ink">{getCurrentProfile()?.displayName || 'Бэкофис'}</div>
+                <div className="min-h-[30px] border-b border-border-strong pb-1 text-ink">{preparedBy()}</div>
                 <div className="mt-1 text-[10.5px] uppercase tracking-wide text-ink-faint">Подготовил</div>
               </div>
               <div>
@@ -694,7 +883,7 @@ export function PriceComparisonCard({
 
       {/* Строки счетов, которые ещё не привязаны к ведомости, — чтобы ничего не терялось молча */}
       {unmatchedAll.length > 0 && (
-        <details className="no-print group">
+        <details className="group">
           <summary className="cursor-pointer text-xs font-medium text-ink-muted">
             Не привязано к ведомости: {unmatchedAll.length} строк счетов — сопоставьте в переписке, чтобы они попали в таблицу
           </summary>
