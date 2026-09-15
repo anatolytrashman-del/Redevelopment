@@ -6,6 +6,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
+import { Textarea } from '../components/ui/Textarea';
 import { AddableSelect } from '../components/ui/AddableSelect';
 import { Modal } from '../components/ui/Modal';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
