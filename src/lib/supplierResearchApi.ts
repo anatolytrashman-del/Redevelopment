@@ -9,6 +9,7 @@ import type {
   SupplierOffer,
   SupplierOfferRow,
   ResearchContactMethod,
+  SupplierProposal,
 } from '../data/supplierResearch';
 import type { DocumentFile } from '../data/contractorDocuments';
 import type { Currency } from '../data/transactions';
@@ -23,6 +24,7 @@ function requestFromRow(row: SupplierRequestRow): SupplierRequest {
     sectionTitle: row.section_title ?? '',
     legalEntityId: row.legal_entity_id ?? null,
     comparisonMode: (row.comparison_mode as SupplierComparisonMode) || 'material',
+    proposal: row.proposal && typeof row.proposal === 'object' ? row.proposal : {},
     createdAt: row.created_at,
   };
 }
@@ -51,6 +53,7 @@ function offerFromRow(row: SupplierOfferRow): SupplierOffer {
     verified: row.verified,
     inn: row.inn ?? null,
     queueSnoozedAt: row.queue_snoozed_at ?? null,
+    termsNote: row.terms_note ?? '',
     createdAt: row.created_at,
   };
 }
@@ -115,6 +118,22 @@ export function updateSupplierRequest(id: string, input: SupplierRequestInput): 
 }
 
 // Каскад на request_id (см. миграцию) сам чистит предложения этого запроса.
+// Отбор на утверждение (SupplierRequest.proposal) хранится отдельно от
+// остальной формы запроса: его меняет вкладка «Сравнение цен» по одному
+// клику, и тащить туда весь SupplierRequestInput незачем.
+export function updateSupplierRequestProposal(id: string, proposal: SupplierProposal): Promise<SupplierRequest> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('supplier_research_requests')
+      .update({ proposal })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return requestFromRow(data as SupplierRequestRow);
+  });
+}
+
 export function deleteSupplierRequest(id: string): Promise<void> {
   return withRetry(async () => {
     const { error } = await supabase.from('supplier_research_requests').delete().eq('id', id);
@@ -161,6 +180,7 @@ export function insertSupplierOffer(input: SupplierOfferInput): Promise<Supplier
         files: input.files,
         verified: input.verified,
         inn: input.inn,
+        terms_note: input.termsNote ?? null,
       })
       .select()
       .single();
@@ -192,6 +212,8 @@ export function updateSupplierOffer(id: string, input: SupplierOfferInput): Prom
         files: input.files,
         verified: input.verified,
         inn: input.inn,
+        // См. SupplierOffer.termsNote: пишем только когда поле передано.
+        ...(input.termsNote !== undefined ? { terms_note: input.termsNote } : {}),
       })
       .eq('id', id)
       .select()

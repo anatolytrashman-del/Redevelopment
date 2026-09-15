@@ -38,7 +38,7 @@ import { getCurrentProfile } from '../../lib/accessProfile';
 import { logActivity } from '../../lib/activityLogApi';
 import { DocumentPreviewModal, isPreviewable, type PreviewFile } from '../documents/DocumentPreviewModal';
 import { currencies, type Currency } from '../../data/transactions';
-import type { PurchaseItem } from '../../data/purchases';
+import { PURCHASE_ITEM_MATCH_KIND_LABELS, looksLikeDeliveryItem, type PurchaseItem, type PurchaseItemMatchKind } from '../../data/purchases';
 import type { SupplierQuote } from '../../data/supplierQuotes';
 import { insertSupplierQuote, updateSupplierQuoteItems, deleteSupplierQuote } from '../../lib/supplierQuotesApi';
 import type { EmailAutoReplyLogEntry } from '../../data/emailAutoReply';
@@ -187,6 +187,30 @@ function pluralPositions(n: number): string {
 export interface MaterialMatch {
   materialId: string;
   unitPrice: string;
+  // Владелец, 2026-09-15: вид соответствия, пометка и ссылка на карточку
+  // товара (см. PurchaseItem.matchKind/matchNote/productUrl) — заполняются
+  // здесь же, при сопоставлении, потому что только человек знает, аналог
+  // это или ровно то, что просили. 'delivery' — строка не материал вовсе.
+  kind: PurchaseItemMatchKind;
+  note: string;
+  productUrl: string;
+}
+
+const emptyMatch = (materialId = ''): MaterialMatch => ({ materialId, unitPrice: '', kind: 'exact', note: '', productUrl: '' });
+
+// Что записать в PurchaseItem из формы сопоставления. Строка «доставка» —
+// без материала сметы (её некуда сопоставлять), но с видом, чтобы сравнение
+// цен отнесло её к доставке, а не потеряло.
+function matchFields(match: MaterialMatch | undefined): Pick<PurchaseItem, 'sourceMaterialId' | 'unitPrice' | 'matchKind' | 'matchNote' | 'productUrl'> {
+  const unitPrice = match?.unitPrice ? Number(match.unitPrice) : NaN;
+  const kind: PurchaseItemMatchKind | undefined = match?.kind === 'delivery' ? 'delivery' : match?.materialId ? match.kind : undefined;
+  return {
+    sourceMaterialId: kind === 'delivery' ? null : match?.materialId || null,
+    unitPrice: kind && kind !== 'delivery' && Number.isFinite(unitPrice) ? unitPrice : null,
+    matchKind: kind,
+    matchNote: match?.note.trim() || undefined,
+    productUrl: match?.productUrl.trim() || undefined,
+  };
 }
 
 // "Краска идёт в литрах, а поставщик выставляет количество банок по X
@@ -210,20 +234,15 @@ function computeUnitPriceGuess(
 }
 
 function extractionItemsToPurchaseItems(items: EmailExtractionItem[], materialMatches: Record<number, MaterialMatch>): PurchaseItem[] {
-  return items.map((i, idx) => {
-    const match = materialMatches[idx];
-    const unitPrice = match?.unitPrice ? Number(match.unitPrice) : NaN;
-    return {
-      id: crypto.randomUUID(),
-      sourceMaterialId: match?.materialId || null,
-      name: i.name,
-      unit: i.unit,
-      quantity: i.quantity,
-      price: i.price,
-      note: '',
-      unitPrice: Number.isFinite(unitPrice) ? unitPrice : null,
-    };
-  });
+  return items.map((i, idx) => ({
+    id: crypto.randomUUID(),
+    name: i.name,
+    unit: i.unit,
+    quantity: i.quantity,
+    price: i.price,
+    note: '',
+    ...matchFields(materialMatches[idx]),
+  }));
 }
 
 // Каждое подтверждённое распознавание — отдельное КП (data/supplierQuotes.ts):
@@ -360,13 +379,7 @@ function withMaterialMatches(
   return items.map((item) => {
     const idx = applied.itemIds.indexOf(item.id);
     if (idx === -1) return item;
-    const match = materialMatches[idx];
-    const unitPrice = match?.unitPrice ? Number(match.unitPrice) : NaN;
-    return {
-      ...item,
-      sourceMaterialId: match?.materialId || null,
-      unitPrice: Number.isFinite(unitPrice) ? unitPrice : null,
-    };
+    return { ...item, ...matchFields(materialMatches[idx]) };
   });
 }
 
@@ -936,12 +949,22 @@ export function EmailThread({
     const initial: Record<number, MaterialMatch> = {};
     previewExtraction.invoice.items.forEach((it, idx) => {
       const stored = applied ? storedItems.find((i) => i.id === applied.itemIds[idx]) : undefined;
-      if (stored?.sourceMaterialId) {
-        initial[idx] = { materialId: stored.sourceMaterialId, unitPrice: stored.unitPrice != null ? String(stored.unitPrice) : '' };
+      if (stored?.sourceMaterialId || stored?.matchKind === 'delivery') {
+        initial[idx] = {
+          materialId: stored.sourceMaterialId ?? '',
+          unitPrice: stored.unitPrice != null ? String(stored.unitPrice) : '',
+          kind: stored.matchKind ?? 'exact',
+          note: stored.matchNote ?? '',
+          productUrl: stored.productUrl ?? '',
+        };
+        return;
+      }
+      if (looksLikeDeliveryItem(it.name)) {
+        initial[idx] = { ...emptyMatch(), kind: 'delivery' };
         return;
       }
       const suggestion = suggestMaterialMatch(it.name, allMaterials);
-      if (suggestion) initial[idx] = { materialId: suggestion, unitPrice: computeUnitPriceGuess(it, suggestion, allMaterials) };
+      if (suggestion) initial[idx] = { ...emptyMatch(suggestion), unitPrice: computeUnitPriceGuess(it, suggestion, allMaterials) };
     });
     setMaterialMatches(initial);
     // Ключ — url открытого файла, а не id письма: у письма с двумя счетами
@@ -1897,17 +1920,27 @@ export function EmailThread({
                             </span>
                           </div>
                           <select
-                            value={match?.materialId ?? ''}
+                            value={match?.kind === 'delivery' ? '__delivery' : (match?.materialId ?? '')}
                             onChange={(e) => {
-                              const materialId = e.target.value;
-                              setMaterialMatches((prev) => ({
-                                ...prev,
-                                [idx]: { materialId, unitPrice: materialId ? computeUnitPriceGuess(it, materialId, allMaterials) : '' },
-                              }));
+                              const value = e.target.value;
+                              setMaterialMatches((prev) => {
+                                const cur = prev[idx] ?? emptyMatch();
+                                if (value === '__delivery') return { ...prev, [idx]: { ...cur, materialId: '', unitPrice: '', kind: 'delivery' } };
+                                return {
+                                  ...prev,
+                                  [idx]: {
+                                    ...cur,
+                                    materialId: value,
+                                    unitPrice: value ? computeUnitPriceGuess(it, value, allMaterials) : '',
+                                    kind: cur.kind === 'delivery' ? 'exact' : cur.kind,
+                                  },
+                                };
+                              });
                             }}
                             className="rounded-control border border-transparent bg-surface-muted px-2 py-1.5 text-xs text-ink outline-none focus:border-primary"
                           >
                             <option value="">Не сопоставлено с материалом сметы</option>
+                            <option value="__delivery">Доставка / транспорт (не материал)</option>
                             {allMaterials
                               .filter((m) => m.item.sourceMaterialId)
                               .map((m) => (
@@ -1926,15 +1959,61 @@ export function EmailThread({
                                   onChange={(e) =>
                                     setMaterialMatches((prev) => ({
                                       ...prev,
-                                      [idx]: { materialId: match!.materialId, unitPrice: e.target.value },
+                                      [idx]: { ...(prev[idx] ?? emptyMatch(match!.materialId)), unitPrice: e.target.value },
                                     }))
                                   }
                                   className="w-28 rounded-control border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-primary"
                                 />
                                 <span className="text-xs text-ink-muted">
-                                  {previewExtraction.invoice.currency ?? ''} за {material.item.unit || 'ед.'} сметы
+                                  {previewExtraction.invoice.currency ?? ''} за {material.item.unit || 'ед.'} сметы, с НДС
                                 </span>
+                                {/* Владелец, 2026-09-15: у МаксиКерам цены в строках без НДС, итог с НДС 22% — без пересчёта поставщик выглядел бы на 22% дешевле. */}
+                                {match?.unitPrice && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setMaterialMatches((prev) => ({
+                                        ...prev,
+                                        [idx]: { ...prev[idx], unitPrice: String(Math.round(Number(prev[idx].unitPrice) * 1.22 * 100) / 100) },
+                                      }))
+                                    }
+                                    className="text-xs font-medium text-primary-hover hover:underline"
+                                    title="Если в счёте цены без НДС — умножить на 1,22"
+                                  >
+                                    +22% НДС
+                                  </button>
+                                )}
                               </div>
+                              {/* Владелец, 2026-09-15: «Грильято прислал аналог и получил бейдж лучшей цены» / керамогранит — ровно по артикулам ответил один из пяти. Вид соответствия и пометка живут рядом с ценой в сравнении, ссылка — на карточку товара (из письма менеджера или с сайта). */}
+                              <div className="flex flex-wrap items-center gap-2">
+                                <select
+                                  value={match?.kind ?? 'exact'}
+                                  onChange={(e) =>
+                                    setMaterialMatches((prev) => ({ ...prev, [idx]: { ...prev[idx], kind: e.target.value as PurchaseItemMatchKind } }))
+                                  }
+                                  className="rounded-control border border-border bg-surface px-2 py-1 text-xs text-ink outline-none focus:border-primary"
+                                >
+                                  {(['exact', 'alternative', 'check'] as const).map((k) => (
+                                    <option key={k} value={k}>
+                                      {PURCHASE_ITEM_MATCH_KIND_LABELS[k]}
+                                    </option>
+                                  ))}
+                                </select>
+                                <input
+                                  type="text"
+                                  placeholder="Чем отличается: «Мурал вместо Urban Home», «20 мм вместо 9»"
+                                  value={match?.note ?? ''}
+                                  onChange={(e) => setMaterialMatches((prev) => ({ ...prev, [idx]: { ...prev[idx], note: e.target.value } }))}
+                                  className="min-w-0 flex-1 rounded-control border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-primary"
+                                />
+                              </div>
+                              <input
+                                type="url"
+                                placeholder="Ссылка на карточку товара (из письма менеджера или с сайта)"
+                                value={match?.productUrl ?? ''}
+                                onChange={(e) => setMaterialMatches((prev) => ({ ...prev, [idx]: { ...prev[idx], productUrl: e.target.value } }))}
+                                className="rounded-control border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-primary"
+                              />
                               {unitMismatch && (
                                 <p className="text-xs text-warning">
                                   На счёте — {it.unit || 'без единицы'}, в смете — {material.item.unit || 'без единицы'}. Посчитайте цену за{' '}
@@ -1948,9 +2027,9 @@ export function EmailThread({
                     })}
                   </div>
                   <p className="text-xs text-ink-faint">
-                    Сопоставьте позиции с материалами сметы и укажите цену за единицу сметы (не за тару поставщика) — так
-                    система сможет находить лучшую цену по каждой позиции среди всех поставщиков, даже если предложена другая
-                    марка/модель или другая упаковка.
+                    Сопоставьте позиции с материалами сметы и укажите цену за единицу сметы с НДС (не за тару поставщика).
+                    Отметьте, ровно ли это то, что просили, или аналог, и дайте ссылку на карточку — так во вкладке «Сравнение
+                    цен» позиции ведомости сравниваются между поставщиками честно, а руководитель видит, что именно предлагают.
                   </p>
                 </>
               )}
