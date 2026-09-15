@@ -36,6 +36,7 @@ function offerFromRow(row: SupplierOfferRow): SupplierOffer {
   return {
     id: row.id,
     requestId: row.request_id,
+    supplierId: row.supplier_id ?? null,
     name: row.name,
     contact: row.contact,
     contactMethod: row.contact_method as ResearchContactMethod,
