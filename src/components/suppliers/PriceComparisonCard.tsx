@@ -21,6 +21,7 @@ import { PURCHASE_ITEM_MATCH_KIND_LABELS, looksLikeDeliveryItem, purchaseItemTot
 import { updateSupplierRequestProposal } from '../../lib/supplierResearchApi';
 import { getCurrentProfile } from '../../lib/accessProfile';
 import { errorMessage } from '../../lib/errorMessage';
+import { sameUnit } from '../../lib/units';
 
 // Владелец, 2026-09-15: «Пришла пора разобраться со сравнением цен... исходя
 // из этой страницы я ничего не понимаю». Старое сравнение группировало
@@ -74,26 +75,6 @@ interface Column {
   // Строки последнего счёта, не привязанные ни к позиции, ни к доставке.
   unmatched: PurchaseItem[];
   quotesCount: number;
-}
-
-// «м²» в смете и «м2»/«кв.м»/«m2» в счёте — одна и та же единица;
-// распознавание счёта пишет как в документе, смета — как ввёл человек.
-function normalizeUnit(u: string): string {
-  return u
-    .trim()
-    .toLowerCase()
-    .replace(/²/g, '2')
-    .replace(/³/g, '3')
-    .replace(/\s+|\./g, '')
-    .replace(/^кв\.?м$|^квм$|^sqm$|^m2$/i, 'м2')
-    .replace(/^m3$|^кубм$/i, 'м3')
-    .replace(/^шт\.?$|^pcs$|^pc$/i, 'шт');
-}
-
-function sameUnit(a: string, b: string): boolean {
-  const na = normalizeUnit(a);
-  const nb = normalizeUnit(b);
-  return na.length > 0 && na === nb;
 }
 
 // Цена за единицу сметы: введённая руками при сопоставлении, а без неё —
