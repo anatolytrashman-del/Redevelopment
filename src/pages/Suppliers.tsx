@@ -64,6 +64,7 @@ import { MasterLedgerCard } from '../components/suppliers/MasterLedgerCard';
 import { BulkSendModal } from '../components/suppliers/BulkSendModal';
 import { SupplierMergeModal, type SupplierMergePlan } from '../components/suppliers/SupplierMergeModal';
 import { SupplierCatalog } from '../components/suppliers/SupplierCatalog';
+import { PriceComparisonCard } from '../components/suppliers/PriceComparisonCard';
 import type { LedgerAttachment } from '../lib/materialLedgerXlsx';
 import type { EmailTemplate } from '../data/emailTemplates';
 import { fetchEmailTemplates } from '../lib/emailTemplatesApi';
@@ -298,6 +299,9 @@ const emptyOfferForm = {
   price: '' as string,
   currency: RESEARCH_CURRENCIES[0] as Currency,
   items: [] as PurchaseItem[],
+  // Владелец, 2026-09-15: строка «Наличие и условия» в сравнении цен — что
+  // менеджер написал про наличие/сроки/образцы (см. SupplierOffer.termsNote).
+  termsNote: '',
   // Не редактируется руками — приходит из распознанного счёта (см. inn в
   // data/supplierResearch.ts). Живёт в форме только чтобы пережить
   // сохранение карточки и не потеряться между распознаванием и submit.
@@ -683,113 +687,16 @@ function OfferTotalComparison({
   );
 }
 
-// Владелец, 2026-09-09: "В сравнении цен нужно добавлять только тех, кто
-// уже прислал КП" + "не списки поставщиков, а материал — КП по убыванию" —
-// вкладка "Сравнение цен" перестроена целиком под этот принцип, отдельно от
-// списка на вкладке "Поставщики" (SupplierListBlock — там нужен весь состав,
-// включая ещё не ответивших, это управление запросом, а не сравнение цен;
-// с 2026-09-11 цен там нет вовсе). Здесь: (1) только
-// offerCommunicationStatus === 'confirmed' — offer.items или offer.price уже зафиксированы, счёт реально
-// получен, не просто отправлено письмо; (2) единица сравнения — не
-// поставщик, а МАТЕРИАЛ: заголовок самого запроса (request.title) плюс
-// любые доп. компоненты, обнаруженные в разбивке присланных счетов (см.
-// точку 3 из истории про Грильято — сложное КП это не 1 цена, а много
-// строк). Под каждым материалом — список полученных КП по убыванию (не по
-// возрастанию, как у лучшей цены выше — тут задача увидеть весь диапазон
-// сверху вниз), самая низкая цена всё равно подсвечена зелёным, где бы она
-// ни оказалась в списке.
-interface MaterialQuote {
-  offerId: string;
-  offerName: string;
-  verified: boolean;
-  // Нужны только бейджу статуса (см. supplierVerificationStatus): без
-  // собранных контактов поставщик остаётся "Требуется верификация".
-  offerEmail: string;
-  offerContact: string;
-  // ИНН из счёта — для восклицательного знака благонадёжности. Владелец,
-  // 2026-09-11: знак нужен в том числе "в сравнении цен", а разбивка по
-  // материалам — это оно и есть, поэтому ИНН нужен и на уровне строки КП.
-  offerInn: string | null;
-  amount: number;
-  currency: Currency;
-  usd: number | null;
-}
-
-interface MaterialGroup {
-  key: string;
-  name: string;
-  unit: string;
-  quotes: MaterialQuote[];
-  cheapestOfferIds: Set<string>;
-}
-
-function buildMaterialQuotes(request: SupplierRequest, confirmedOffers: SupplierOffer[], rate: ExchangeRate | undefined): MaterialGroup[] {
-  const groups = new Map<string, MaterialGroup>();
-
-  function addQuote(name: string, unit: string, offer: SupplierOffer, amount: number) {
-    const key = name.trim().toLowerCase();
-    if (!key) return;
-    let group = groups.get(key);
-    if (!group) {
-      group = { key, name: name.trim(), unit, quotes: [], cheapestOfferIds: new Set() };
-      groups.set(key, group);
-    }
-    group.quotes.push({
-      offerId: offer.id,
-      offerName: offer.name,
-      verified: offer.verified,
-      offerEmail: offer.email,
-      offerContact: offer.contact,
-      offerInn: offer.inn,
-      amount,
-      currency: offer.currency,
-      usd: convertToUsd(amount, offer.currency, rate),
-    });
-  }
-
-  // У запроса больше нет собственных позиций (поле удалено, владелец,
-  // 2026-09-11) — сам request.title и есть "материал", про который вообще
-  // идёт речь, когда счёт поставщика распознан только итогом без разбивки.
-  const fallbackName = request.title;
-  const fallbackUnit = '';
-
-  for (const offer of confirmedOffers) {
-    if (offer.items.length > 0) {
-      for (const item of offer.items) {
-        if (item.price == null) continue;
-        addQuote(item.name, item.unit, offer, purchaseItemTotal(item));
-      }
-    } else if (offer.price > 0) {
-      // Счёт распознан только итогом, без разбивки — весь итог относим к
-      // единственному материалу, про который создавался этот запрос.
-      addQuote(fallbackName, fallbackUnit, offer, offer.price);
-    }
-  }
-
-  const primaryKey = fallbackName.trim().toLowerCase();
-  const list = Array.from(groups.values());
-  for (const group of list) {
-    const priced = group.quotes.filter((q) => q.usd != null).sort((a, b) => b.usd! - a.usd!);
-    const unpriced = group.quotes.filter((q) => q.usd == null);
-    group.quotes = [...priced, ...unpriced];
-    if (priced.length > 0) {
-      const minUsd = Math.round(priced[priced.length - 1].usd! * 100);
-      for (const q of priced) {
-        if (Math.round(q.usd! * 100) === minUsd) group.cheapestOfferIds.add(q.offerId);
-      }
-    }
-  }
-  // Материал самого запроса — первым, остальные (доп. компоненты) — по
-  // числу полученных КП (сначала там, где реально есть с чем сравнивать).
-  list.sort((a, b) => {
-    if (a.key === primaryKey) return -1;
-    if (b.key === primaryKey) return 1;
-    return b.quotes.length - a.quotes.length;
-  });
-  return list;
-}
-
-function MaterialPriceComparisonCard({
+// Владелец, 2026-09-09: "Грильято, где есть комплектующие, нужно
+// оценивать полностью... мы не будем заказывать несущие в одном месте, а
+// подвесы в другом" — для категорий с comparisonMode:'lot' сравниваются КП
+// целиком (OfferTotalComparison), а не по отдельным материалам. Сравнение
+// по материалам (режим 'material') с 2026-09-15 живёт в
+// components/suppliers/PriceComparisonCard.tsx — позиции ведомости ×
+// поставщики; прежняя группировка строк счетов по названию у поставщика
+// (buildMaterialQuotes) убрана: у каждого поставщика своя формулировка, и в
+// каждой группе оказывался ровно один поставщик, сравнивать было не с кем.
+function LotPriceComparisonCard({
   request,
   offers,
   emails,
@@ -811,101 +718,32 @@ function MaterialPriceComparisonCard({
   const [country, setCountry] = useState<string>(SUPPLIER_COUNTRIES[0]);
   const offersInCountry = offers.filter((o) => (o.country || SUPPLIER_COUNTRIES[0]) === country);
   const confirmedOffers = offersInCountry.filter((o) => offerCommunicationStatus(o, emails) === 'confirmed');
-  // Владелец, 2026-09-09: "Грильято, где есть комплектующие, нужно
-  // оценивать полностью... мы не будем заказывать несущие в одном месте, а
-  // подвесы в другом. Поэтому логика такая — формируем поставку — сравниваем
-  // цену на поставку в целом. Но, в то же время, если бы позиции были
-  // штукатурка и плитка, то могли бы заказать и в разных местах" —
-  // comparisonMode:'lot' сравнивает КП целиком (OfferTotalComparison, та же
-  // логика, что и на вкладке "Поставщики"), а не по отдельным материалам.
-  const isLot = request.comparisonMode === 'lot';
-  const materialGroups = isLot ? [] : buildMaterialQuotes(request, confirmedOffers, rate);
 
   return (
     <Card className="flex flex-col gap-4 p-5">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-lg font-bold text-ink">{request.title}</span>
-        {isLot && (
-          <span
-            className="rounded-full border border-border-strong px-2 py-0.5 text-[11px] font-medium text-ink-muted"
-            title={SUPPLIER_COMPARISON_MODE_HINTS.lot}
-          >
-            поставка целиком
-          </span>
-        )}
+        <span
+          className="rounded-full border border-border-strong px-2 py-0.5 text-[11px] font-medium text-ink-muted"
+          title={SUPPLIER_COMPARISON_MODE_HINTS.lot}
+        >
+          поставка целиком
+        </span>
       </div>
       <ToggleGroup options={[...SUPPLIER_COUNTRIES]} value={country} onChange={setCountry} />
 
-      {isLot ? (
-        confirmedOffers.length === 0 ? (
-          <p className="text-sm text-ink-faint">Пока никто из «{country}» не прислал КП — переключите страну выше.</p>
-        ) : (
-          <OfferTotalComparison
-            offers={confirmedOffers}
-            emails={emails}
-            quotes={quotes}
-            rate={rate}
-            onOpenDetail={onOpenDetail}
-            enrichmentState={enrichmentState}
-            reliabilityByInn={reliabilityByInn}
-          />
-        )
-      ) : materialGroups.length === 0 ? (
+      {confirmedOffers.length === 0 ? (
         <p className="text-sm text-ink-faint">Пока никто из «{country}» не прислал КП — переключите страну выше.</p>
       ) : (
-        <div className="flex flex-col gap-4">
-          {materialGroups.map((group) => (
-            <div key={group.key} className="flex flex-col gap-1.5">
-              <span className="text-sm font-semibold text-ink">
-                {group.name}
-                {group.unit && <span className="font-normal text-ink-faint"> ({group.unit})</span>}
-              </span>
-              <div className="flex flex-col gap-1.5">
-                {group.quotes.map((q) => {
-                  const isCheapest = group.cheapestOfferIds.has(q.offerId);
-                  return (
-                    <div
-                      key={q.offerId}
-                      className={cn(
-                        'flex flex-wrap items-center justify-between gap-3 rounded-control border px-3 py-2',
-                        isCheapest ? 'border-success/30 bg-success-bg' : 'border-border',
-                      )}
-                    >
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className="truncate text-sm font-medium text-ink">{q.offerName}</span>
-                        <VerificationBadge
-                          offer={{ id: q.offerId, verified: q.verified, email: q.offerEmail, contact: q.offerContact }}
-                          enrichmentState={enrichmentState}
-                        />
-                        <RiskBadge inn={q.offerInn} reliabilityByInn={reliabilityByInn} />
-                        {isCheapest && (
-                          <span className="rounded-full bg-success px-2 py-0.5 text-[11px] font-semibold text-white">
-                            лучшая цена
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className={cn('tabular-nums text-sm font-semibold', isCheapest ? 'text-success' : 'text-ink')}>
-                          {formatPrice(q.amount, q.currency)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const offer = offers.find((o) => o.id === q.offerId);
-                            if (offer) onOpenDetail(offer);
-                          }}
-                          className="shrink-0 text-xs font-medium text-primary-hover hover:underline"
-                        >
-                          Подробнее
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
+        <OfferTotalComparison
+          offers={confirmedOffers}
+          emails={emails}
+          quotes={quotes}
+          rate={rate}
+          onOpenDetail={onOpenDetail}
+          enrichmentState={enrichmentState}
+          reliabilityByInn={reliabilityByInn}
+        />
       )}
     </Card>
   );
@@ -2606,6 +2444,7 @@ export function Suppliers() {
       price: o.price > 0 ? String(o.price) : '',
       currency: o.currency,
       items: o.items,
+      termsNote: o.termsNote ?? '',
     });
     setOfferManualItemName('');
     setOfferExtraction(null);
@@ -2822,6 +2661,7 @@ export function Suppliers() {
         // см. data/supplierResearch.ts), поэтому при сохранении карточки
         // сохраняем уже имеющееся значение, а не затираем его в null.
         inn: offerForm.inn ?? editingOffer?.inn ?? null,
+        termsNote: offerForm.termsNote.trim(),
       };
       // Владелец, 2026-09-05: лог действий Альмиры для страницы "Метрики" —
       // те же два события, что различает комментарий выше ("верификация" vs
@@ -3213,19 +3053,47 @@ export function Suppliers() {
               return (
                 <div key={group} className="flex flex-col gap-6">
                   <div className="text-lg font-bold text-ink">{SUPPLIER_REQUEST_GROUP_LABELS[group]}</div>
-                  {requestsWithOffers.map((r) => (
-                    <MaterialPriceComparisonCard
-                      key={r.id}
-                      request={r}
-                      offers={offers.filter((o) => o.requestId === r.id)}
-                      emails={supplierEmails}
-                      quotes={supplierQuotes}
-                      rate={rate}
-                      onOpenDetail={(o) => setDetailOfferId(o.id)}
-                      enrichmentState={enrichmentState}
-                      reliabilityByInn={reliabilityByInn}
-                    />
-                  ))}
+                  {requestsWithOffers.map((r) =>
+                    r.comparisonMode === 'lot' ? (
+                      <LotPriceComparisonCard
+                        key={r.id}
+                        request={r}
+                        offers={offers.filter((o) => o.requestId === r.id)}
+                        emails={supplierEmails}
+                        quotes={supplierQuotes}
+                        rate={rate}
+                        onOpenDetail={(o) => setDetailOfferId(o.id)}
+                        enrichmentState={enrichmentState}
+                        reliabilityByInn={reliabilityByInn}
+                      />
+                    ) : (
+                      // Владелец, 2026-09-15: перестройка сравнения — позиции
+                      // ведомости × поставщики, ручной отбор на утверждение,
+                      // PDF руководителю (см. шапку PriceComparisonCard.tsx).
+                      // Позиции — материалы раздела сметы, к которому привязан
+                      // запрос: именно они уходят поставщикам ведомостью
+                      // (lib/ledgerSync.ts зеркалит ведомости из живой сметы).
+                      <PriceComparisonCard
+                        key={r.id}
+                        request={r}
+                        positions={
+                          estimates.find((e) => e.id === r.estimateId)?.sections.find((sec) => sec.id === r.sectionId)?.materials ?? []
+                        }
+                        offers={offers.filter((o) => o.requestId === r.id)}
+                        emails={supplierEmails}
+                        quotes={supplierQuotes}
+                        rate={rate}
+                        onOpenDetail={(o) => setDetailOfferId(o.id)}
+                        onProposalSaved={(saved) => setRequests((prev) => prev.map((x) => (x.id === saved.id ? saved : x)))}
+                        renderBadges={(o) => (
+                          <>
+                            <VerificationBadge offer={o} enrichmentState={enrichmentState} />
+                            <RiskBadge inn={o.inn} reliabilityByInn={reliabilityByInn} />
+                          </>
+                        )}
+                      />
+                    ),
+                  )}
                 </div>
               );
             });
@@ -3674,6 +3542,17 @@ export function Suppliers() {
             placeholder="https://... (страница конкретного товара, не главная сайта)"
             value={offerForm.listingUrl}
             onChange={(e) => setOfferForm((f) => ({ ...f, listingUrl: e.target.value }))}
+          />
+
+          {/* Владелец, 2026-09-15: строка «Наличие и условия» на вкладке
+              «Сравнение цен» — то, что менеджер написал в письме и чего нет
+              в счёте: наличие на складе, сроки, образцы, условия отгрузки. */}
+          <Textarea
+            label="Наличие и условия (для сравнения цен)"
+            rows={2}
+            placeholder="Например: 600 м² в наличии, остальное 1,5–2 недели; образец привезут в среду"
+            value={offerForm.termsNote}
+            onChange={(e) => setOfferForm((f) => ({ ...f, termsNote: e.target.value }))}
           />
 
           <AddableSelect
