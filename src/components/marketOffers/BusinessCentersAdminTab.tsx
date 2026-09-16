@@ -54,6 +54,16 @@ const STATUS_LABEL: Record<BusinessCenter['status'], string> = {
   under_construction: 'Строится',
 };
 
+// Список «по одному в строке» → массив: пустые строки и лишние пробелы
+// выкидываем, иначе в базу уедут пустые плюсы, а на странице появятся
+// пустые буллеты.
+function splitLines(value: string): string[] {
+  return value
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
 interface FormState {
   slug: string;
   name: string;
@@ -68,6 +78,9 @@ interface FormState {
   parking: string;
   website: string;
   description: string;
+  verdict: string;
+  pros: string;
+  cons: string;
   rentalCaveat: string;
   rentalTerms: string;
   rentalRates: string;
@@ -98,6 +111,9 @@ const EMPTY_FORM: FormState = {
   parking: '',
   website: '',
   description: '',
+  verdict: '',
+  pros: '',
+  cons: '',
   rentalCaveat: '',
   rentalTerms: '',
   rentalRates: '',
@@ -129,6 +145,9 @@ function centerToForm(c: BusinessCenter): FormState {
     parking: c.parking ?? '',
     website: c.website ?? '',
     description: c.description ?? '',
+    verdict: c.verdict ?? '',
+    pros: c.pros.join('\n'),
+    cons: c.cons.join('\n'),
     rentalCaveat: c.rentalInfo?.caveat ?? '',
     rentalTerms: c.rentalInfo?.terms ?? '',
     rentalRates: c.rentalInfo?.rates ?? '',
@@ -340,12 +359,14 @@ export function BusinessCentersAdminTab() {
           .filter(Boolean),
         status: form.status,
         sortOrder: numOrNull(form.sortOrder) ?? 0,
-        // Вердикт и плюсы/минусы (Б2) в этой форме пока не редактируются —
-        // при правке сохраняем как было, у новой записи начинаем с пустого.
-        verdict: editing !== 'new' && editing ? editing.verdict : null,
-        pros: editing !== 'new' && editing ? editing.pros : [],
-        cons: editing !== 'new' && editing ? editing.cons : [],
-        verdictEdited: editing !== 'new' && editing ? editing.verdictEdited : false,
+        // Б2. Пустые поля означают «пусть работает авточерновик»: тогда
+        // verdictEdited сбрасывается в false и страница снова считает текст
+        // по порогам. Как только владелец что-то написал — флаг поднимается,
+        // и генерация его больше не трогает.
+        verdict: form.verdict.trim() || null,
+        pros: splitLines(form.pros),
+        cons: splitLines(form.cons),
+        verdictEdited: Boolean(form.verdict.trim() || form.pros.trim() || form.cons.trim()),
       };
       if (editing === 'new') {
         await insertBusinessCenter(payload);
@@ -543,6 +564,40 @@ export function BusinessCentersAdminTab() {
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             rows={4}
           />
+
+          {/* Б2 «Кому подходит». Оставить всё пустым — нормальный рабочий
+              режим: страница тогда показывает авточерновик, посчитанный по
+              порогам (lib/businessCenterVerdict.ts). Заполнять имеет смысл
+              там, где автоматика вышла топорной. */}
+          <div className="flex flex-col gap-3 rounded-control border border-border p-4">
+            <div>
+              <p className="text-sm font-semibold text-ink">Кому подходит (блок на публичной странице)</p>
+              <p className="text-xs text-ink-faint">
+                Пусто — страница сама соберёт черновик по данным (класс, метро, парковка, ставка, лоты).
+                Заполненное здесь генерация больше не трогает. Плюсы и минусы — по одному в строке.
+              </p>
+            </div>
+            <Textarea
+              label="Вердикт одной фразой"
+              value={form.verdict}
+              onChange={(e) => setForm({ ...form, verdict: e.target.value })}
+              rows={2}
+            />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Textarea
+                label="Плюсы"
+                value={form.pros}
+                onChange={(e) => setForm({ ...form, pros: e.target.value })}
+                rows={5}
+              />
+              <Textarea
+                label="На что смотреть"
+                value={form.cons}
+                onChange={(e) => setForm({ ...form, cons: e.target.value })}
+                rows={5}
+              />
+            </div>
+          </div>
 
           <div className="flex flex-col gap-3 rounded-control border border-border p-4">
             <div>

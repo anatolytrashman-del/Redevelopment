@@ -1,0 +1,132 @@
+// Б2 плана docs/bc-catalog-redesign-plan.md — «Кому подходит» и
+// плюсы/минусы. Решение владельца 2026-09-16: авточерновик из порогов +
+// ручная правка в админке.
+//
+// Зачем автогенерация, а не ручной текст: описание в прозе есть у 27
+// зданий из 143, и написать руками ещё 116 — это отдельный проект. Пороги
+// же считаются по уже собранным данным и дают честный черновик, который
+// владелец правит там, где формулировка вышла топорной.
+//
+// Почему пороги, а не «лучше среднего»: каждый плюс и минус — публичное
+// утверждение про чужое здание, и его должно быть можно проверить. «Метро
+// в 300 м» проверяется, «инфраструктура выше средней» — нет.
+//
+// Флаг verdictEdited отделяет правленое руками от сгенерированного:
+// генерация НИКОГДА не перетирает то, что владелец написал сам.
+import type { BusinessCenter } from '../data/businessCenters';
+import type { MarketSnapshot } from '../data/marketSnapshots';
+import type { CatalogOfferIndex } from './businessCenterCatalogFilter';
+import { nearestMetroMeters } from './businessCenterCatalogFilter';
+
+export const VERDICT_SIGNATURE = 'Оценка Redevelopment по данным prometr.by и 2ГИС';
+
+// Больше пяти пунктов с каждой стороны никто не читает, а список из
+// пятнадцати плюсов перестаёт значить что-либо. Порядок добавления ниже и
+// есть приоритет: деньги и дорога важнее кофепоинта.
+const MAX_ITEMS = 5;
+
+export interface VerdictDraft {
+  verdict: string;
+  pros: string[];
+  cons: string[];
+}
+
+function classRentMedian(snapshots: MarketSnapshot[] | null, businessClass: string | null): number | null {
+  if (!businessClass) return null;
+  return (
+    (snapshots ?? []).find((s) => s.deal === 'rent' && s.sliceType === 'class' && s.sliceKey === businessClass)?.median ??
+    null
+  );
+}
+
+export function buildVerdictDraft(
+  center: BusinessCenter,
+  offers: CatalogOfferIndex,
+  snapshots: MarketSnapshot[] | null,
+): VerdictDraft {
+  const pros: string[] = [];
+  const cons: string[] = [];
+
+  const metro = nearestMetroMeters(center);
+  const rent = offers.rentBySlug.get(center.slug)?.median ?? null;
+  const classMedian = classRentMedian(snapshots, center.businessClass);
+  const lots = (offers.rentBySlug.get(center.slug)?.n ?? 0) + (offers.saleBySlug.get(center.slug)?.n ?? 0);
+
+  // --- Плюсы -----------------------------------------------------------
+  if (rent != null && classMedian != null && classMedian > 0 && rent <= classMedian * 0.9) {
+    pros.push(`Ставка ниже медианы класса ${center.businessClass} на ${Math.round((1 - rent / classMedian) * 100)}%`);
+  }
+  if (metro != null && metro <= 500) pros.push(`До метро ${metro} м по прямой — пешком пара минут`);
+  if (center.parkingRatio != null && center.parkingRatio >= 1.5) {
+    pros.push(`Парковка ${center.parkingRatio.toLocaleString('ru-RU')} маш./100 м² — выше типичной для города`);
+  }
+  if (center.managementType === 'single_uk') {
+    pros.push('Единая управляющая компания: один договор и одинаковые правила на всё здание');
+  }
+  if (center.layoutTypes.includes('open_space')) pros.push('Есть open-space — гибче под рост команды');
+  if (center.ceilingHeight != null && center.ceilingHeight >= 3) {
+    pros.push(`Потолки ${center.ceilingHeight.toLocaleString('ru-RU')} м`);
+  }
+  if (lots >= 5) pros.push(`Сейчас ${lots} активных объявлений — есть из чего выбрать`);
+  if (center.gisRating != null && center.gisRating >= 4.5) pros.push(`Рейтинг 2ГИС ${center.gisRating}`);
+  if (center.is24x7) pros.push('Круглосуточный доступ');
+  if (center.infraInternal.length >= 3) pros.push(`В самом здании: ${center.infraInternal.slice(0, 4).join(', ')}`);
+  if (center.accessibility.length >= 2) pros.push(`Доступная среда: ${center.accessibility.slice(0, 3).join(', ').toLowerCase()}`);
+
+  // --- Минусы ----------------------------------------------------------
+  // Каждый минус — только когда параметр ИЗВЕСТЕН и плох. Отсутствие
+  // данных минусом не считается: мы не знаем, а не «там плохо».
+  if (metro != null && metro > 1000) cons.push(`До ближайшего метро ${metro} м — пешком далековато`);
+  if (center.parkingRatio != null && center.parkingRatio < 1) {
+    cons.push(`Парковка ${center.parkingRatio.toLocaleString('ru-RU')} маш./100 м² — мест мало`);
+  }
+  if (center.airConditioning === 'none') cons.push('Центрального кондиционирования нет');
+  if (center.managementType === 'hoa') {
+    cons.push('Товарищество собственников: условия и отделка отличаются от этажа к этажу, единого стандарта нет');
+  }
+  if (center.ceilingHeight != null && center.ceilingHeight < 2.7) {
+    cons.push(`Потолки ${center.ceilingHeight.toLocaleString('ru-RU')} м — ниже привычных`);
+  }
+  if (center.businessClass === 'C') cons.push('Класс C: базовая отделка и минимальный набор сервисов');
+  if (lots === 0) cons.push('Активных объявлений на Kufar и Realt сейчас нет — придётся писать в УК напрямую');
+  if (rent != null && classMedian != null && classMedian > 0 && rent >= classMedian * 1.15) {
+    cons.push(`Ставка выше медианы класса ${center.businessClass} на ${Math.round((rent / classMedian - 1) * 100)}%`);
+  }
+
+  // --- Вердикт ---------------------------------------------------------
+  // Собирается из трёх осей: цена относительно класса, дорога и размер
+  // типового блока. Каждая ветка соответствует реальному сценарию выбора,
+  // а не абстрактной похвале.
+  const cheap = rent != null && classMedian != null && rent <= classMedian * 0.9;
+  const pricey = rent != null && classMedian != null && rent >= classMedian * 1.15;
+  const nearMetro = metro != null && metro <= 700;
+  const bigFloor = center.floorPlateArea != null && center.floorPlateArea >= 1500;
+  const smallFloor = center.floorPlateArea != null && center.floorPlateArea <= 700;
+
+  let verdict: string;
+  if (center.status === 'under_construction') {
+    verdict = center.yearBuilt
+      ? `Здание ещё строится, сдача заявлена на ${center.yearBuilt} год — снять или купить офис здесь пока нельзя, но можно заранее прицениться.`
+      : 'Здание ещё строится — снять или купить офис здесь пока нельзя.';
+  } else if (center.businessClass === 'A' && nearMetro) {
+    verdict = pricey
+      ? 'Представительный офис в шаговой доступности от метро — и платить за это придётся выше медианы класса. Подойдёт компании, которой важно, как выглядит адрес.'
+      : 'Представительный офис в шаговой доступности от метро — редкое сочетание для Минска. Подойдёт компании, которой важен адрес и удобство для сотрудников.';
+  } else if (cheap && !nearMetro) {
+    verdict =
+      'Вариант для тех, кому важнее стоимость метра, чем дорога: ставка ниже медианы своего класса, но до метро идти небыстро.';
+  } else if (cheap) {
+    verdict = 'Крепкий вариант «цена — расположение»: ставка ниже медианы класса, метро рядом.';
+  } else if (bigFloor) {
+    verdict =
+      'Подойдёт под большой офис одним блоком: типовой этаж позволяет разместить крупное подразделение без дробления по этажам.';
+  } else if (smallFloor) {
+    verdict = 'Небольшое здание — вариант для команды, которой нужен свой отдельный офис, а не этаж в высотке.';
+  } else if (center.businessClass === 'C') {
+    verdict = 'Рабочий вариант без переплаты за класс: базовая отделка и сервисы, зато цена метра обычно ниже.';
+  } else {
+    verdict = `Типичный бизнес-центр класса ${center.businessClass ?? '—'} для своего района: без выраженных преимуществ и без явных проблем по имеющимся данным.`;
+  }
+
+  return { verdict, pros: pros.slice(0, MAX_ITEMS), cons: cons.slice(0, MAX_ITEMS) };
+}

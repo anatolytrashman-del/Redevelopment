@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { Coins, Gauge, History, MessageSquare, Star } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Coins, Gauge, Gem, History, MessageSquare, Star } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { BusinessCenter } from '../../data/businessCenters';
@@ -7,6 +8,8 @@ import type { MarketSnapshot } from '../../data/marketSnapshots';
 import { mapRatingFromHighlights } from '../../lib/businessCenterDisplay';
 import type { CatalogOfferIndex } from '../../lib/businessCenterCatalogFilter';
 import type { MarketPosition } from '../../lib/businessCenterMarketPosition';
+import { SUBSCALE_META, type BusinessCenterIndex } from '../../lib/businessCenterIndex';
+import { VERDICT_SIGNATURE } from '../../lib/businessCenterVerdict';
 
 // Авторские блоки карточки БЦ (Б1, Б8, Б10, Б11 плана
 // docs/bc-catalog-redesign-plan.md) — то, чего на странице не было вовсе:
@@ -438,6 +441,125 @@ export function TechTilesBlock({ center, all }: { center: BusinessCenter; all: B
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// --- К9. Индекс Redevelopment на карточке -------------------------------
+//
+// Число само по себе ничего не объясняет, поэтому рядом всегда: разбивка по
+// подшкалам, сколько подшкал удалось посчитать и ссылка на открытую
+// методику. Собственник здания с низким индексом должен за два клика
+// увидеть, из чего он сложился.
+
+export function IndexBlock({ index, rank, total }: { index: BusinessCenterIndex; rank: number | null; total: number }) {
+  return (
+    <div id="index" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+        <Gem className="h-5 w-5 shrink-0 text-ink-muted" />
+        Индекс Redevelopment
+      </h2>
+      <div className="flex flex-wrap items-center gap-4">
+        <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary text-2xl font-extrabold text-white">
+          {index.value}
+        </span>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm text-ink-muted">
+            из 100, посчитан по {index.known} {index.known === 1 ? 'подшкале' : 'подшкалам'} из 5
+          </span>
+          {rank != null && (
+            <span className="text-sm text-ink-muted">
+              <span className="font-bold text-ink">
+                {rank}-е место из {total}
+              </span>{' '}
+              среди бизнес-центров каталога с посчитанным индексом
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="flex flex-col gap-2">
+        {index.subscales.map((s) => (
+          <div key={s.key} className="flex items-center gap-3">
+            <span className="w-28 shrink-0 text-xs text-ink-muted sm:w-36">{SUBSCALE_META[s.key].label}</span>
+            <span className="h-2 flex-1 overflow-hidden rounded-full bg-surface-muted">
+              <span className="block h-full rounded-full bg-border-strong" style={{ width: `${s.score}%` }} />
+            </span>
+            <span className="w-8 shrink-0 text-right text-xs font-bold tabular-nums text-ink">{s.score}</span>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-ink-faint">
+        Только измеримые параметры здания: расстояния, класс, парковка, инфраструктура, наличие
+        активных объявлений. Усреднённых оценок пользователей в индексе нет.{' '}
+        <Link to="/minsk/bcminsk/metodika" className="font-semibold text-primary-hover hover:underline">
+          Как считается
+        </Link>
+      </p>
+    </div>
+  );
+}
+
+// --- Б2. Кому подходит --------------------------------------------------
+//
+// Показывается правленый вручную текст, если он есть, иначе — авточерновик
+// из порогов (lib/businessCenterVerdict.ts). Так страница не ждёт, пока до
+// неё дойдут руки: у 116 зданий из 143 не было даже описания в прозе.
+// Подпись про оценку обязательна — читатель должен понимать, что это наш
+// вывод из открытых данных, а не позиция собственника.
+
+export function VerdictBlock({
+  verdict,
+  pros,
+  cons,
+  edited,
+}: {
+  verdict: string;
+  pros: string[];
+  cons: string[];
+  edited: boolean;
+}) {
+  if (!verdict && pros.length === 0 && cons.length === 0) return null;
+  return (
+    <div id="verdict" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+        <Gauge className="h-5 w-5 shrink-0 text-ink-muted" />
+        Кому подходит
+      </h2>
+      {verdict && <p className="text-sm leading-relaxed text-ink">{verdict}</p>}
+      {(pros.length > 0 || cons.length > 0) && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {pros.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Плюсы</span>
+              <ul className="flex flex-col gap-1.5">
+                {pros.map((p) => (
+                  <li key={p} className="flex gap-2 text-sm leading-snug text-ink-muted">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
+                    {p}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {cons.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">На что смотреть</span>
+              <ul className="flex flex-col gap-1.5">
+                {cons.map((c) => (
+                  <li key={c} className="flex gap-2 text-sm leading-snug text-ink-muted">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-border-strong" />
+                    {c}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+      <p className="text-xs text-ink-faint">
+        {VERDICT_SIGNATURE}
+        {!edited && ' · собрано автоматически по порогам, без ручной правки'}
+      </p>
     </div>
   );
 }

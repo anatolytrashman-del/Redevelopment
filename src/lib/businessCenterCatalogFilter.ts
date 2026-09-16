@@ -21,6 +21,7 @@ import { shortName, streetOfAddress } from './businessCenterDisplay';
 
 export type CatalogSortKey =
   | 'default'
+  | 'index'
   | 'rent'
   | 'area'
   | 'metro'
@@ -33,6 +34,7 @@ export const CATALOG_SORTS: { key: CatalogSortKey; label: string }[] = [
   // По умолчанию — sort_order каталога (примерно по частотности поисковых
   // запросов, см. BusinessCenter.sortOrder), а не алфавит.
   { key: 'default', label: 'По умолчанию' },
+  { key: 'index', label: 'Индекс Redevelopment' },
   { key: 'rent', label: 'Ставка аренды' },
   { key: 'area', label: 'Площадь' },
   { key: 'metro', label: 'Ближе к метро' },
@@ -63,7 +65,13 @@ export interface CatalogFilterState {
   // фильтр, но живёт в том же состоянии и в той же строке запроса —
   // ссылкой «вот эти 12 зданий таблицей» делятся так же, как фильтром.
   view: CatalogView;
+  // К14: слаги зданий, отмеченных для сравнения (до MAX_COMPARE). Живут в
+  // URL вместе с фильтром — сравнение можно отправить ссылкой, ради чего
+  // его обычно и делают.
+  compare: string[];
 }
+
+export const MAX_COMPARE = 4;
 
 export type CatalogView = 'cards' | 'table' | 'map';
 
@@ -82,6 +90,7 @@ export const EMPTY_CATALOG_FILTER: CatalogFilterState = {
   query: '',
   sort: 'default',
   view: 'cards',
+  compare: [],
 };
 
 export const METRO_WITHIN_OPTIONS: { value: number; label: string }[] = [
@@ -259,6 +268,7 @@ export function parseCatalogFilter(params: URLSearchParams): CatalogFilterState 
     query: params.get('q')?.trim() ?? '',
     sort: CATALOG_SORTS.some((s) => s.key === sortRaw) ? (sortRaw as CatalogSortKey) : 'default',
     view: CATALOG_VIEWS.some((v) => v.key === viewRaw) ? (viewRaw as CatalogView) : 'cards',
+    compare: splitList(params.get('compare')).slice(0, MAX_COMPARE),
   };
 }
 
@@ -276,6 +286,9 @@ export function catalogFilterToQuery(state: CatalogFilterState): string {
   if (state.query) params.set('q', state.query);
   if (state.sort !== 'default') params.set('sort', state.sort);
   if (state.view !== 'cards') params.set('view', state.view);
+  // Порядок сравнения — тот, в котором отмечал пользователь: колонки не
+  // должны переставляться сами при перезагрузке страницы.
+  if (state.compare.length > 0) params.set('compare', state.compare.join(','));
   const s = params.toString();
   return s ? `?${s}` : '';
 }
@@ -363,9 +376,14 @@ export function sortCatalogCenters(
   centers: BusinessCenter[],
   sort: CatalogSortKey,
   offers: CatalogOfferIndex,
+  // Индекс считается от всего каталога сразу (см. lib/businessCenterIndex),
+  // поэтому приходит готовой картой, а не считается тут по одному зданию.
+  indexBySlug?: Map<string, { value: number }>,
 ): BusinessCenter[] {
   const list = [...centers];
   switch (sort) {
+    case 'index':
+      return list.sort(byNumber((c) => indexBySlug?.get(c.slug)?.value ?? null, 'desc'));
     case 'rent':
       return list.sort(byNumber((c) => offers.rentBySlug.get(c.slug)?.median ?? null, 'asc'));
     case 'area':

@@ -17,6 +17,7 @@ import { PhotoBlock, FactRow, FactTile } from '../components/businessCenters/Bus
 import { CatalogFilterPanel } from '../components/businessCenters/CatalogFilterPanel';
 import { CatalogTable } from '../components/businessCenters/CatalogTable';
 import { CatalogMap } from '../components/businessCenters/CatalogMap';
+import { CatalogCompare } from '../components/businessCenters/CatalogCompare';
 import {
   setArticleJsonLd,
   setBreadcrumbJsonLd,
@@ -55,6 +56,7 @@ import { MIN_RELIABLE_N, type ExternalMetric, type MarketSnapshot } from '../dat
 import {
   CATALOG_FACTS,
   EMPTY_CATALOG_FILTER,
+  MAX_COMPARE,
   METRO_WITHIN_OPTIONS,
   buildOfferIndex,
   catalogFilterToQuery,
@@ -68,6 +70,7 @@ import {
   type CatalogOfferIndex,
 } from '../lib/businessCenterCatalogFilter';
 import { buildBadgeContext, businessCenterBadge, type BusinessCenterBadge } from '../lib/businessCenterBadges';
+import { buildIndexMap, type BusinessCenterIndex } from '../lib/businessCenterIndex';
 
 // Справочная SEO-страница по бизнес-центрам Минска (владелец, 2026-09-04) —
 // см. комментарий в data/businessCenters.ts про источник списка и принцип
@@ -171,11 +174,17 @@ function BusinessCenterCard({
   metroStation,
   offers,
   badge,
+  index,
+  compared,
+  onToggleCompare,
 }: {
   center: BusinessCenter;
   metroStation?: string | null;
   offers: CatalogOfferIndex;
   badge: BusinessCenterBadge | null;
+  index: BusinessCenterIndex | null;
+  compared: boolean;
+  onToggleCompare: (slug: string) => void;
 }) {
   // На хабе станции — точное расстояние 2GIS до НЕЁ; иначе до ближайшей.
   const metroDistance = metroStation ? metroHubDistance(center, metroStation) : nearestMetroMeters(center);
@@ -204,6 +213,35 @@ function BusinessCenterCard({
             <Badge tone={businessClassTone[center.businessClass]}>Класс {center.businessClass}</Badge>
           )}
         </div>
+        {/* Индекс (К9) — в углу фото, чтобы его было видно при беглом
+            просмотре сетки. Числа нет, если посчитать не по чему (меньше
+            трёх подшкал) — пустого кружка тоже нет. */}
+        {index && (
+          <span
+            className="absolute bottom-2 left-2 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-sm font-extrabold text-ink shadow-sm"
+            title={`Индекс Redevelopment: ${index.value} из 100, по ${index.known} подшкалам из 5`}
+          >
+            {index.value}
+          </span>
+        )}
+        {/* Отметка «сравнить» лежит поверх ссылки-карточки, поэтому клик
+            обязан не всплывать: иначе отметка уводила бы на страницу БЦ. */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleCompare(center.slug);
+          }}
+          aria-pressed={compared}
+          aria-label={compared ? 'Убрать из сравнения' : 'Добавить к сравнению'}
+          className={cn(
+            'absolute bottom-2 right-2 rounded-full px-2.5 py-1 text-xs font-bold shadow-sm transition-colors',
+            compared ? 'bg-primary text-white' : 'bg-white/90 text-ink-muted hover:text-ink',
+          )}
+        >
+          {compared ? 'В сравнении' : 'Сравнить'}
+        </button>
       </div>
       <div className="flex flex-1 flex-col gap-2 p-4">
         <h2 className="text-sm font-bold leading-snug text-ink">{shortName(center)}</h2>
@@ -505,6 +543,10 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // Контекст авто-бейджей (К8) считается один раз от ВСЕГО каталога, не от
   // отфильтрованной выборки: «самый большой в районе» — факт про район, он
   // не должен меняться от того, что пользователь включил тумблер.
+  // Индекс Redevelopment (К9) — считается от всего каталога, а не от
+  // выборки: это характеристика здания, а не места в текущем фильтре.
+  const indexBySlug = useMemo(() => buildIndexMap(centers ?? [], offerIndex), [centers, offerIndex]);
+
   const badgeContext = useMemo(
     () => buildBadgeContext(centers ?? [], officeSnapshots, offerIndex),
     [centers, officeSnapshots, offerIndex],
@@ -546,8 +588,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
         (a, b) => (metroHubDistance(a, metroFilter) ?? Infinity) - (metroHubDistance(b, metroFilter) ?? Infinity),
       );
     }
-    return sortCatalogCenters(visibleCenters, filter.sort, offerIndex);
-  }, [visibleCenters, metroFilter, filter.sort, offerIndex]);
+    return sortCatalogCenters(visibleCenters, filter.sort, offerIndex, indexBySlug);
+  }, [visibleCenters, metroFilter, filter.sort, offerIndex, indexBySlug]);
 
   // Классы и районы для чипов — весь набор, встречающийся в данных (не
   // урезанный по другой оси, как было у старого сайдбара): вместо того
@@ -639,8 +681,20 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   function applyFilter(next: CatalogFilterState) {
     navigate(urlForFilter(next), { replace: true });
   }
+  // К14. Отметка «сравнить»: до MAX_COMPARE зданий, повторный клик
+  // снимает. Больше четырёх колонок таблица сравнения не выдерживает ни на
+  // одном экране, поэтому лишнее просто не добавляется.
+  function toggleCompare(slug: string) {
+    const next = filter.compare.includes(slug)
+      ? filter.compare.filter((s) => s !== slug)
+      : filter.compare.length >= MAX_COMPARE
+        ? filter.compare
+        : [...filter.compare, slug];
+    applyFilter({ ...filter, compare: next });
+  }
+
   function resetFilter() {
-    applyFilter({ ...EMPTY_CATALOG_FILTER, sort: filter.sort });
+    applyFilter({ ...EMPTY_CATALOG_FILTER, sort: filter.sort, view: filter.view, compare: filter.compare });
   }
 
   // Микрорайоны, станции и улицы больше не списки в боковом фильтре — они
@@ -966,6 +1020,21 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             </div>
           )}
 
+          {/* К14. Сравнение — блоком НАД результатами, а не модалкой:
+              вложенных модалок в проекте не бывает, а сравнение смотрят,
+              продолжая листать каталог. */}
+          {centers !== null && filter.compare.length >= 2 && (
+            <CatalogCompare
+              centers={filter.compare
+                .map((slug) => centers.find((c) => c.slug === slug))
+                .filter((c): c is BusinessCenter => Boolean(c))}
+              offers={offerIndex}
+              indexBySlug={indexBySlug}
+              onRemove={(slug) => toggleCompare(slug)}
+              onClear={() => applyFilter({ ...filter, compare: [] })}
+            />
+          )}
+
           {/* text-ink, не text-ink-muted: эти два состояния лежат прямо на
               фоне страницы (не на стеклянной карточке), а muted на #f0efed
               даёт 4,48:1 — на волосок ниже порога 4,5 (Accessibility). */}
@@ -991,6 +1060,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             <CatalogTable
               centers={orderedCenters}
               offers={offerIndex}
+              indexBySlug={indexBySlug}
               sort={filter.sort}
               onSort={(key) => applyFilter({ ...filter, sort: key })}
             />
@@ -1006,6 +1076,9 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                     metroStation={metroFilter}
                     offers={offerIndex}
                     badge={businessCenterBadge(c, badgeContext)}
+                    index={indexBySlug.get(c.slug) ?? null}
+                    compared={filter.compare.includes(c.slug)}
+                    onToggleCompare={toggleCompare}
                   />
                 ))}
               </div>
