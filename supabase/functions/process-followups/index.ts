@@ -142,7 +142,7 @@ Deno.serve(async () => {
   for (let i = 0; i < waiting.length; i += 200) {
     const { data, error } = await supabase
       .from('supplier_research_offers')
-      .select('id, request_id, name, contact, email, short_code, supplier_id, verified, deleted_at, outcome, reminder_stage, price, items')
+      .select('id, request_id, name, contact, email, short_code, supplier_id, verified, deleted_at, outcome, reminder_stage, price, items, email_invalid_at')
       .in('id', waiting.slice(i, i + 200));
     if (error) throw error;
     offers.push(...(data ?? []));
@@ -171,6 +171,11 @@ Deno.serve(async () => {
   for (const offer of offers) {
     if (summary.reminded >= MAX_REMINDERS_PER_RUN) break;
     if (offer.deleted_at || offer.outcome || !offer.email || !offer.verified) continue;
+    // Почта уже вернула «такого ящика нет» (шаг 9, событие Resend
+    // email.bounced — api/_emailEvents.js). Молчание такого поставщика —
+    // не молчание, и напоминание уйдёт в ту же пустоту: без этой проверки
+    // дожим исправно слал бы по письму раз в три дня в несуществующий ящик.
+    if (offer.email_invalid_at) continue;
     // Счёт — это ответ, даже если письмом поставщик ничего не написал.
     if ((offer.price ?? 0) > 0 || (Array.isArray(offer.items) && offer.items.length > 0)) continue;
     if (offer.supplier_id && blocked.has(offer.supplier_id)) continue;

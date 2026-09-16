@@ -198,6 +198,20 @@ curl -sS -X POST "https://api.supabase.com/v1/projects/iohcdylttyuhwovztrbk/data
   выборка, где строк может стать больше, — постранично через `.range()`, иначе
   хвост теряется МОЛЧА, без ошибки. Так из приложения пропадали 141 карточка
   поставщика и 393 снимка сайтов (разбор 2026-09-15).
+- **`resend_message_id` — не заголовок `Message-ID` письма.** Первый выдаёт
+  `POST /emails` (uuid), второй ставит Amazon SES, через который Resend
+  отправляет (`<…@eu-west-1.amazonses.com>`), и именно на него ссылается
+  `In-Reply-To` ответа поставщика. Настоящий заголовок отдаёт
+  `GET /emails/{id}` в поле `message_id`; у нас он лежит в
+  `message_id_header` и заполняется по событию `email.sent`
+  (`api/_emailEvents.js`). Матчинг ответа по `resend_message_id` не работает
+  и не заработает.
+- **Подписка на вебхук ≠ его обработка.** Endpoint
+  `api/purchase-email-webhook.js` был подписан в Resend на все типы событий с
+  2026-08-29, но до 2026-09-16 читал только `email.received` — отлупы «такого
+  ящика нет» полгода уходили в `{skipped:true}`. Список событий смотреть
+  `GET https://api.resend.com/webhooks`, а не по тому, что endpoint
+  зарегистрирован.
 - **`create or replace function` с ДРУГИМ числом аргументов не заменяет
   функцию, а заводит вторую.** Дальше любой вызов со старым числом
   аргументов падает с «function is not unique» — то есть ломается всё, что

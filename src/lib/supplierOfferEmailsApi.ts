@@ -5,7 +5,10 @@ import { extractionInvoices } from '../data/supplierOfferEmails';
 import type { EmailExtraction, SupplierOfferEmail, SupplierOfferEmailRow } from '../data/supplierOfferEmails';
 import { emailSendStatusFromRow } from '../data/emailSendStatus';
 
-function fromRow(row: SupplierOfferEmailRow): SupplierOfferEmail {
+// Экспортируется ради ручной привязки неразобранного письма
+// (lib/unmatchedIncomingEmailsApi.ts) — там строка создаётся в обход
+// обычных функций этого файла, но маппер должен остаться один.
+export function supplierOfferEmailFromRow(row: SupplierOfferEmailRow): SupplierOfferEmail {
   return {
     id: row.id,
     offerId: row.offer_id,
@@ -23,6 +26,12 @@ function fromRow(row: SupplierOfferEmailRow): SupplierOfferEmail {
     sentByName: row.sent_by_name ?? null,
     sendStatus: emailSendStatusFromRow(row.send_status),
     sendError: row.send_error ?? null,
+    deliveredAt: row.delivered_at ?? null,
+    openedAt: row.opened_at ?? null,
+    bouncedAt: row.bounced_at ?? null,
+    bounceReason: row.bounce_reason ?? null,
+    complainedAt: row.complained_at ?? null,
+    messageIdHeader: row.message_id_header ?? null,
     createdAt: row.created_at,
   };
 }
@@ -36,7 +45,7 @@ export function fetchSupplierOfferEmails(offerId: string): Promise<SupplierOffer
       .is('deleted_at', null)
       .order('created_at', { ascending: true });
     if (error) throw error;
-    return (data as SupplierOfferEmailRow[]).map(fromRow);
+    return (data as SupplierOfferEmailRow[]).map(supplierOfferEmailFromRow);
   });
 }
 
@@ -52,7 +61,7 @@ export function fetchAllSupplierOfferEmails(): Promise<SupplierOfferEmail[]> {
       .is('deleted_at', null)
       .order('created_at', { ascending: true });
     if (error) throw error;
-    return (data as SupplierOfferEmailRow[]).map(fromRow);
+    return (data as SupplierOfferEmailRow[]).map(supplierOfferEmailFromRow);
   });
 }
 
@@ -71,7 +80,7 @@ export function fetchSupplierOfferEmailsByOffers(offerIds: string[]): Promise<Su
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
     if (error) throw error;
-    return (data as SupplierOfferEmailRow[]).map(fromRow);
+    return (data as SupplierOfferEmailRow[]).map(supplierOfferEmailFromRow);
   });
 }
 
@@ -208,5 +217,5 @@ export async function sendSupplierOfferEmail(input: {
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json?.error || 'Не удалось отправить письмо');
-  return fromRow(json.email as SupplierOfferEmailRow);
+  return supplierOfferEmailFromRow(json.email as SupplierOfferEmailRow);
 }

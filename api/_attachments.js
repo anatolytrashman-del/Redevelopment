@@ -83,19 +83,27 @@ function htmlToPlainText(html) {
   return text;
 }
 
-// Тело письма (text предпочтительнее html — если text пуст, html
-// прогоняется через htmlToPlainText, не подставляется сырой разметкой, см.
-// комментарий выше). candidateIds — несколько возможных id письма из
-// вебхука, пробуются по очереди, пока один не сработает.
-export async function fetchReceivedEmailBody(candidateIds) {
+// Тело и заголовки письма одним запросом (text предпочтительнее html —
+// если text пуст, html прогоняется через htmlToPlainText, не
+// подставляется сырой разметкой, см. комментарий выше). candidateIds —
+// несколько возможных id письма из вебхука, пробуются по очереди, пока один
+// не сработает.
+//
+// Заголовки нужны для матчинга ответа по In-Reply-To/References (шаг 9
+// плана закупок): поставщик может ответить на голый zakupki@ вместо
+// plus-адреса, и тогда единственная нить к нашей карточке — Message-ID
+// письма, на которое он отвечает. Тянутся тем же запросом, что и тело, —
+// отдельного обращения к Resend не добавляется.
+export async function fetchReceivedEmail(candidateIds) {
+  const empty = { body: '', headers: null };
   const ids = [...new Set((Array.isArray(candidateIds) ? candidateIds : [candidateIds]).filter(Boolean))];
   if (ids.length === 0) {
-    console.error('fetchReceivedEmailBody: нет ни одного кандидата id из вебхука');
-    return '';
+    console.error('fetchReceivedEmail: нет ни одного кандидата id из вебхука');
+    return empty;
   }
   if (!process.env.RESEND_API_KEY) {
     console.error('RESEND_API_KEY не задан — не могу получить тело письма', ids);
-    return '';
+    return empty;
   }
   for (const emailId of ids) {
     try {
@@ -107,19 +115,33 @@ export async function fetchReceivedEmailBody(candidateIds) {
         continue;
       }
       const json = await resp.json();
-      console.error('Тело письма получено, сырой ответ (id-кандидат ' + emailId + '):', JSON.stringify(json).slice(0, 1000));
       // Часть путей Resend отдаёт ресурс сразу, часть (в JS SDK) — обёрнутым в
       // data — поддерживаем оба на всякий случай, не падаем, если формат чуть
       // отличается от задокументированного.
       const email = json?.text != null || json?.html != null ? json : (json?.data ?? json);
-      if (typeof email?.text === 'string' && email.text.trim()) return email.text;
-      if (typeof email?.html === 'string' && email.html.trim()) return htmlToPlainText(email.html);
-      return '';
+      // Раньше здесь в лог уходил СЫРОЙ ответ Resend целиком (до 1000
+      // символов) — отладка истории 2026-09-03 с пустым телом. Это та же
+      // утечка, которую уже убрали из самого вебхука: логи Vercel видны
+      // всем, у кого есть доступ к проекту, а в теле письма — цены, условия
+      // и контакты поставщика. Оставляем только признаки того, что ответ
+      // пришёл в ожидаемой форме.
+      console.error(
+        'Тело письма получено (id-кандидат ' + emailId + '):',
+        JSON.stringify({
+          text: typeof email?.text === 'string' ? email.text.length : null,
+          html: typeof email?.html === 'string' ? email.html.length : null,
+          headers: email?.headers ? (Array.isArray(email.headers) ? email.headers.length : Object.keys(email.headers).length) : 0,
+        }),
+      );
+      const headers = email?.headers ?? null;
+      if (typeof email?.text === 'string' && email.text.trim()) return { body: email.text, headers };
+      if (typeof email?.html === 'string' && email.html.trim()) return { body: htmlToPlainText(email.html), headers };
+      return { body: '', headers };
     } catch (err) {
       console.error('Ошибка при получении тела письма (id-кандидат):', emailId, err);
     }
   }
-  return '';
+  return empty;
 }
 
 async function fetchAttachmentsWithDownloadUrls(candidateIds) {

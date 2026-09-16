@@ -64,6 +64,8 @@ function offerFromRow(row: SupplierOfferRow): SupplierOffer {
     outcomeAt: row.outcome_at ?? null,
     reminderStage: row.reminder_stage ?? 0,
     reminderSentAt: row.reminder_sent_at ?? null,
+    emailInvalidAt: row.email_invalid_at ?? null,
+    emailInvalidReason: row.email_invalid_reason ?? null,
     createdAt: row.created_at,
   };
 }
@@ -221,7 +223,18 @@ export function deleteSupplierRequest(id: string): Promise<void> {
 // двигает воркер напоминаний.
 export type SupplierOfferInput = Omit<
   SupplierOffer,
-  'id' | 'createdAt' | 'shortCode' | 'queueSnoozedAt' | 'outcome' | 'outcomeAt' | 'reminderStage' | 'reminderSentAt'
+  | 'id'
+  | 'createdAt'
+  | 'shortCode'
+  | 'queueSnoozedAt'
+  | 'outcome'
+  | 'outcomeAt'
+  | 'reminderStage'
+  | 'reminderSentAt'
+  // Ставится только сервером по событию почты (шаг 9), руками не пишется —
+  // очищается вместе с правкой самого адреса, см. updateSupplierOffer.
+  | 'emailInvalidAt'
+  | 'emailInvalidReason'
 >;
 
 // `is('deleted_at', null)` — мягко удалённые карточки (см. deleteSupplierOffer
@@ -327,9 +340,24 @@ export function insertSupplierOffer(input: SupplierOfferInput): Promise<Supplier
 
 export function updateSupplierOffer(id: string, input: SupplierOfferInput): Promise<SupplierOffer> {
   return withRetry(async () => {
+    // Отметку «адрес не существует» ставит сервер по событию почты (шаг 9),
+    // а снимает — исправление самого адреса: иначе карточка навсегда
+    // осталась бы вне рассылки. Именно исправление, а не любое сохранение
+    // формы, поэтому старый адрес сначала читаем. Стоит один лёгкий запрос
+    // на сохранение карточки и только у тех, у кого отметка вообще есть.
+    const { data: current } = await supabase
+      .from('supplier_research_offers')
+      .select('email, email_invalid_at')
+      .eq('id', id)
+      .single();
+    const emailFixed =
+      !!current?.email_invalid_at &&
+      (current.email ?? '').trim().toLowerCase() !== (input.email ?? '').trim().toLowerCase();
+
     const { data, error } = await supabase
       .from('supplier_research_offers')
       .update({
+        ...(emailFixed ? { email_invalid_at: null, email_invalid_reason: null } : {}),
         request_id: input.requestId,
         name: input.name,
         contact: input.contact,

@@ -196,6 +196,27 @@ export interface SupplierOfferEmail {
   // или не ушло совсем.
   sendStatus: EmailSendStatus;
   sendError: string | null;
+  // Судьба отправленного письма по данным почтового сервера (шаг 9 плана
+  // закупок, события Resend — api/_emailEvents.js). Только у исходящих.
+  // null в deliveredAt у свежего письма — это «ещё не знаем», а не «не
+  // доставлено»: событие приходит через секунды после отправки, а у писем
+  // до 2026-09-16 его не было вовсе.
+  deliveredAt: string | null;
+  // Открытие письма Resend видит только при включённом open tracking на
+  // домене; если он выключен, поле всегда null — и это не означает, что
+  // письмо не читали.
+  openedAt: string | null;
+  // Почтовый сервер вернул письмо. bounceReason — тип и текст отказа как их
+  // прислал Resend. Постоянный отказ дополнительно помечает сам адрес
+  // (SupplierOffer.emailInvalidAt).
+  bouncedAt: string | null;
+  bounceReason: string | null;
+  // Получатель нажал «это спам». Компания при этом уходит в стоп-лист.
+  complainedAt: string | null;
+  // Настоящий заголовок Message-ID письма — по нему ответ поставщика
+  // привязывается к треду, если он пришёл не на plus-адрес. НЕ равен
+  // resendMessageId, см. разбор в api/_emailEvents.js.
+  messageIdHeader: string | null;
   createdAt: string;
 }
 
@@ -227,6 +248,12 @@ export interface SupplierOfferEmailRow {
   sent_by_name: string | null;
   send_status: string | null;
   send_error: string | null;
+  delivered_at?: string | null;
+  opened_at?: string | null;
+  bounced_at?: string | null;
+  bounce_reason?: string | null;
+  complained_at?: string | null;
+  message_id_header?: string | null;
   created_at: string;
   // Мягкое удаление (миграция 20260915-soft-delete-supplier-data.sql):
   // строка жива, но скрыта из интерфейса. NULL у всего активного.

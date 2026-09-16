@@ -418,6 +418,13 @@ export interface SupplierOffer {
   // же и страхуется от двух одинаковых писем поставщику.
   reminderStage: number;
   reminderSentAt: string | null;
+  // Почта поставщика вернула постоянный отказ (шаг 9: событие Resend
+  // email.bounced с type=Permanent, см. api/_emailEvents.js). Такой адрес
+  // не попадает ни в массовую рассылку, ни в дожим — письма туда уходят в
+  // никуда, а поставщик при этом числится «молчащим». Снимается
+  // исправлением адреса руками в карточке.
+  emailInvalidAt: string | null;
+  emailInvalidReason: string | null;
   createdAt: string;
 }
 
@@ -461,6 +468,8 @@ export interface SupplierOfferRow {
   outcome_at?: string | null;
   reminder_stage?: number | null;
   reminder_sent_at?: string | null;
+  email_invalid_at?: string | null;
+  email_invalid_reason?: string | null;
   terms?: QuoteTerms | null;
   // Ссылка на компанию (миграция 20260915-suppliers-company-entity.sql),
   // проставляется триггером в БД.
