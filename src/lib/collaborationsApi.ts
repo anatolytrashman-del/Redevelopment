@@ -9,6 +9,8 @@ function fromRow(row: CollaborationRow): Collaboration {
     contactMethod: row.contact_method ?? '',
     contact: row.contact ?? '',
     link: row.link ?? '',
+    audienceSize: row.audience_size ?? null,
+    about: row.about ?? '',
     agreement: row.agreement ?? '',
     status: row.status,
     createdAt: row.created_at,
@@ -32,6 +34,8 @@ export function insertCollaboration(input: Omit<Collaboration, 'id' | 'createdAt
         contact_method: input.contactMethod || null,
         contact: input.contact || null,
         link: input.link || null,
+        audience_size: input.audienceSize,
+        about: input.about || null,
         agreement: input.agreement || null,
         status: input.status,
       })
@@ -52,6 +56,8 @@ export function updateCollaboration(id: string, input: Omit<Collaboration, 'id' 
         contact_method: input.contactMethod || null,
         contact: input.contact || null,
         link: input.link || null,
+        audience_size: input.audienceSize,
+        about: input.about || null,
         agreement: input.agreement || null,
         status: input.status,
       })
