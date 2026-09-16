@@ -46,6 +46,14 @@ function fromRow(row: BusinessCenterRow): BusinessCenter {
     infraNearby: row.infra_nearby ?? [],
     lat: row.lat,
     lng: row.lng,
+    gisRating: row.gis_rating,
+    gisReviewCount: row.gis_review_count,
+    is24x7: row.is_24x7,
+    accessibility: row.accessibility ?? [],
+    verdict: row.verdict,
+    pros: row.pros ?? [],
+    cons: row.cons ?? [],
+    verdictEdited: row.verdict_edited ?? false,
     photos: row.photos ?? [],
     status: (row.status as BusinessCenter['status']) ?? 'built',
     sortOrder: row.sort_order,
@@ -89,6 +97,10 @@ function toPayload(input: Partial<BusinessCenterInput>) {
   if (input.technicalParams !== undefined) payload.technical_params = input.technicalParams;
   if (input.nearestMetroStations !== undefined) payload.nearest_metro_stations = input.nearestMetroStations;
   if (input.photos !== undefined) payload.photos = input.photos;
+  if (input.verdict !== undefined) payload.verdict = input.verdict;
+  if (input.pros !== undefined) payload.pros = input.pros;
+  if (input.cons !== undefined) payload.cons = input.cons;
+  if (input.verdictEdited !== undefined) payload.verdict_edited = input.verdictEdited;
   if (input.status !== undefined) payload.status = input.status;
   if (input.sortOrder !== undefined) payload.sort_order = input.sortOrder;
   return payload;

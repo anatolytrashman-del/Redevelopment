@@ -125,6 +125,16 @@ export interface BusinessCenter {
   // BusinessCenter.metro), более ценный, чем метры по прямой. Оба поля
   // независимы, на карточке показываются оба, если оба заполнены.
   nearestMetroStations: NearestMetroStation[];
+  // Вердикт «кому подходит» и плюсы/минусы (Б2). В отличие от всего
+  // блока производных колонок ниже, ЭТИ поля редактируемые: авточерновик
+  // считается из порогов (lib/businessCenterVerdict.ts) и предлагается в
+  // админке, а verdictEdited=true означает «правлено руками, генерацией не
+  // перетирать».
+  verdict: string | null;
+  pros: string[];
+  cons: string[];
+  verdictEdited: boolean;
+
   // --- Производные колонки (Д1/Д2 плана docs/bc-catalog-redesign-plan.md) ---
   // Всё ниже НЕ редактируется из приложения: считает триггер в базе
   // (supabase/migrations/20260916-bc-structured-tech-params.sql) — из
@@ -173,6 +183,18 @@ export interface BusinessCenter {
   // триггером, а не читаются join'ом.
   lat: number | null;
   lng: number | null;
+  // Рейтинг 2ГИС по ЗДАНИЮ целиком (не по отдельной организации в нём) и
+  // число оценок со звёздами. Есть у 47 из 143 — это не «плохой рейтинг у
+  // остальных», а просто отсутствие оценок; блок и фильтр по таким зданиям
+  // молчат. Отдельно от рейтинга Яндекса, который лежит свободным текстом
+  // в highlights (mapRatingFromHighlights) — источники не смешиваем.
+  gisRating: number | null;
+  gisReviewCount: number | null;
+  // Круглосуточный доступ по расписанию 2ГИС (27 зданий).
+  is24x7: boolean | null;
+  // Элементы доступной среды из 2ГИС («Пандус», «Широкий лифт», ...),
+  // 91 здание. Пустой массив = группы «Доступная среда» в снимке нет.
+  accessibility: string[];
   photos: string[];
   // 'built' по умолчанию. 'under_construction' — как МФЦ, ещё строится.
   status: 'built' | 'under_construction';
@@ -291,6 +313,14 @@ export interface BusinessCenterRow {
   infra_nearby: string[] | null;
   lat: number | null;
   lng: number | null;
+  gis_rating: number | null;
+  gis_review_count: number | null;
+  is_24x7: boolean | null;
+  accessibility: string[] | null;
+  verdict: string | null;
+  pros: string[] | null;
+  cons: string[] | null;
+  verdict_edited: boolean | null;
   photos: string[] | null;
   status: string | null;
   sort_order: number;
@@ -321,4 +351,8 @@ export type BusinessCenterDerivedField =
   | 'infraInternal'
   | 'infraNearby'
   | 'lat'
-  | 'lng';
+  | 'lng'
+  | 'gisRating'
+  | 'gisReviewCount'
+  | 'is24x7'
+  | 'accessibility';
