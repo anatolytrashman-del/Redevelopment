@@ -65,8 +65,9 @@ const Leads = lazy(() => import('./pages/Leads').then((m) => ({ default: m.Leads
 const Contractors = lazy(() => import('./pages/Contractors').then((m) => ({ default: m.Contractors })));
 // "Закупки" (в меню; 2026-09-03 — 2026-09-12 пункт назывался "Поставщики",
 // см. data/pages.ts) — компонент по историческим причинам называется
-// Suppliers, см. комментарий в самом файле. Purchases.tsx (embedded, вкладка
-// "Закупки") сюда по-прежнему не подключается — вкладку убрали 2026-09-03.
+// Suppliers, см. комментарий в самом файле. Вкладку "Закупки" (Purchases.tsx)
+// убрали 2026-09-03, сам файл удалён в шаге 11b плана закупок — заказ
+// поставщику теперь отдельная сущность (data/purchaseOrders.ts).
 const Suppliers = lazy(() => import('./pages/Suppliers').then((m) => ({ default: m.Suppliers })));
 const SupplierDetail = lazy(() => import('./pages/SupplierDetail').then((m) => ({ default: m.SupplierDetail })));
 const WorkContractors = lazy(() => import('./pages/WorkContractors').then((m) => ({ default: m.WorkContractors })));

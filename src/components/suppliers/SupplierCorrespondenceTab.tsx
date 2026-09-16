@@ -3009,7 +3009,7 @@ export function SupplierCorrespondenceTab({
       setNewOrderModalOpen(false);
       selectOrder(created.id);
     } catch (err) {
-      setOrderError(errorMessage(err, 'Не удалось создать заявку'));
+      setOrderError(errorMessage(err, 'Не удалось создать дополнительную заявку'));
     } finally {
       setCreatingOrder(false);
     }
@@ -3259,7 +3259,14 @@ export function SupplierCorrespondenceTab({
                   чипы переключают тред: "Основная" (та переписка, что была
                   всегда) + по одной на каждую доп. заявку. Непрочитанные в
                   каждой заявке считаются отдельно, чтобы было видно, где
-                  именно ответили, не открывая все подряд. */}
+                  именно ответили, не открывая все подряд.
+
+                  Шаг 11b плана закупок: в подписях это "дополнительная
+                  заявка", а не просто "заявка" — с появлением заказов
+                  поставщику (data/purchaseOrders.ts) короткое слово стало
+                  двусмысленным. Таблица и типы как назывались
+                  supplier_orders/SupplierOrder, так и называются: переименование
+                  ради слова расползлось бы по всему модулю. */}
               <div className="flex flex-wrap items-center gap-1.5">
                 {[{ id: null as string | null, title: 'Основная' }, ...offerOrders.map((o) => ({ id: o.id, title: o.title || 'Без названия' }))].map(
                   (t) => {
@@ -3286,7 +3293,7 @@ export function SupplierCorrespondenceTab({
                   },
                 )}
                 <Button type="button" variant="ghost" icon={<Plus className="h-3.5 w-3.5" />} onClick={openNewOrderModal}>
-                  Новая заявка
+                  Доп. заявка
                 </Button>
               </div>
 
@@ -3318,11 +3325,12 @@ export function SupplierCorrespondenceTab({
       </div>
       {templatesModal}
 
-      <Modal open={newOrderModalOpen} onClose={() => setNewOrderModalOpen(false)} title="Новая заявка">
+      <Modal open={newOrderModalOpen} onClose={() => setNewOrderModalOpen(false)} title="Новая дополнительная заявка">
         <form onSubmit={handleCreateOrder} className="flex flex-col gap-4">
           <Input
             label="Название заявки"
             placeholder="Например, Окна"
+            helperText="Отдельная ветка переписки с тем же поставщиком — не заказ, заказы живут на вкладке «Заказы»."
             value={newOrderTitle}
             onChange={(e) => setNewOrderTitle(e.target.value)}
             required
