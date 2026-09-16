@@ -30,7 +30,23 @@ import { fetchPurchaseDeliveriesByOrders } from '../../lib/purchaseDeliveriesApi
 import { fetchPurchaseReceivers } from '../../lib/purchaseReceiversApi';
 import type { PurchaseReceiver } from '../../data/purchaseReceivers';
 import type { DocumentFile } from '../../data/contractorDocuments';
-import { DeliveriesBlock, DeliveryForm, FileField } from './PurchaseDeliveries';
+import { FileField } from '../ui/FileField';
+import { DeliveriesBlock, DeliveryForm } from './PurchaseDeliveries';
+import { DeliveryAddressField } from './DeliveryAddressField';
+import { PurchaseDocumentsBlock } from './PurchaseDocuments';
+import {
+  persistReceiverDraft,
+  receiverDraftFrom,
+  ReceiverPicker,
+  EMPTY_RECEIVER_DRAFT,
+  type ReceiverDraft,
+} from './PurchaseReceiverPicker';
+import type { PurchaseDocument } from '../../data/purchaseDocuments';
+import { fetchPurchaseDocumentsByOrder } from '../../lib/purchaseDocumentsApi';
+import type { PurchaseDeliveryAddress } from '../../data/purchaseDeliveryAddresses';
+import { fetchPurchaseDeliveryAddresses } from '../../lib/purchaseDeliveryAddressesApi';
+import { deliveryAddressFromInfo } from '../../data/legalEntities';
+import { fetchLegalEntities } from '../../lib/legalEntitiesApi';
 
 // Заказы поставщикам как раздел интерфейса (шаг 11b плана
 // docs/procurement-product-steps.md). Сами заказы рождаются на вкладке
@@ -167,15 +183,25 @@ function PurchaseOrderModal({
   const [paymentNumber, setPaymentNumber] = useState(order.paymentNumber);
   const [paymentDate, setPaymentDate] = useState(dateInputValue(order.paymentDate));
   const [paymentAmount, setPaymentAmount] = useState(order.paymentAmount == null ? '' : String(order.paymentAmount));
+  const [poaNumber, setPoaNumber] = useState(order.poaNumber);
+  const [poaDate, setPoaDate] = useState(dateInputValue(order.poaDate));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Журнал перечитывается после смены статуса: событие пишет триггер в базе,
   // фронт его не знает и выдумывать не должен.
   const [journalTick, setJournalTick] = useState(0);
-  // Принимающие лица: список короткий, грузится один раз на открытие
-  // карточки. Пустой список не ошибка — первое лицо заводится прямо в форме
-  // поставки.
+  // Принимающие лица, адреса-шаблоны и документы: списки короткие, грузятся
+  // один раз на открытие карточки.
   const [receivers, setReceivers] = useState<PurchaseReceiver[]>([]);
+  const [receiver, setReceiver] = useState<ReceiverDraft>(EMPTY_RECEIVER_DRAFT);
+  // Правка лица не отслеживается сравнением с шаблоном: список приезжает
+  // асинхронно, и до его приезда любое сравнение показывало бы «изменено».
+  const [receiverTouched, setReceiverTouched] = useState(false);
+  const [addresses, setAddresses] = useState<PurchaseDeliveryAddress[]>([]);
+  // Адрес объекта из «Информации по доставке» юрлица заказа — тот самый
+  // текст, который уходит поставщику вложением.
+  const [entityAddress, setEntityAddress] = useState('');
+  const [documents, setDocuments] = useState<PurchaseDocument[]>([]);
   // null — карточка заказа, объект — открыта форма поставки ВМЕСТО неё
   // (delivery: null — новая поставка).
   const [editing, setEditing] = useState<{ delivery: PurchaseDelivery | null } | null>(null);
@@ -197,16 +223,57 @@ function PurchaseOrderModal({
 
   useEffect(() => {
     let alive = true;
-    fetchPurchaseReceivers()
-      .then((list) => alive && setReceivers(list))
+    fetchPurchaseDocumentsByOrder(order.id)
+      .then((list) => alive && setDocuments(list))
       .catch(() => {
-        // Молча: без справочника форма поставки всё равно работает — лицо
-        // просто вводится руками и сохранится как новый шаблон.
+        // Молча: документы — приложение к заказу, из-за них карточка не
+        // должна показывать ошибку вместо позиций и оплаты.
       });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [order.id]);
+
+  useEffect(() => {
+    let alive = true;
+    fetchPurchaseReceivers()
+      .then((list) => {
+        if (!alive) return;
+        setReceivers(list);
+        setReceiver(receiverDraftFrom(list.find((r) => r.id === order.receiverId)));
+      })
+      .catch(() => {
+        // Без справочника форма всё равно работает: лицо вводится руками и
+        // сохранится как новый шаблон.
+      });
+    fetchPurchaseDeliveryAddresses()
+      .then((list) => alive && setAddresses(list))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [order.receiverId]);
+
+  // Адрес доставки из карточки юрлица: подставляем в пустое поле, чтобы его
+  // не набирали руками по памяти (в живом заказе так появилось «Зеленый»
+  // вместо полного адреса объекта). Непустой адрес не трогаем — человек мог
+  // указать другую точку выгрузки.
+  useEffect(() => {
+    let alive = true;
+    if (!order.legalEntityId) return;
+    fetchLegalEntities()
+      .then((list) => {
+        if (!alive) return;
+        const entity = list.find((e) => e.id === order.legalEntityId);
+        const address = entity ? deliveryAddressFromInfo(entity.deliveryInfo) : '';
+        setEntityAddress(address);
+        if (address && !order.deliveryAddress.trim()) setDeliveryAddress(address);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [order.legalEntityId, order.deliveryAddress]);
 
   const dirty =
     deliveryAddress !== order.deliveryAddress ||
@@ -216,12 +283,18 @@ function PurchaseOrderModal({
     invoiceDate !== dateInputValue(order.invoiceDate) ||
     paymentNumber !== order.paymentNumber ||
     paymentDate !== dateInputValue(order.paymentDate) ||
-    paymentAmount !== (order.paymentAmount == null ? '' : String(order.paymentAmount));
+    paymentAmount !== (order.paymentAmount == null ? '' : String(order.paymentAmount)) ||
+    poaNumber !== order.poaNumber ||
+    poaDate !== dateInputValue(order.poaDate) ||
+    receiverTouched;
 
   async function save() {
     setSaving(true);
     setError(null);
     try {
+      // Лицо сохраняется шаблоном до заказа: заказу нужен его id.
+      const persisted = await persistReceiverDraft(receiver, receivers, order.legalEntityId);
+      if (persisted.receivers !== receivers) setReceivers(persisted.receivers);
       const amount = paymentAmount.replace(',', '.').trim();
       const next = await updatePurchaseOrder(order.id, {
         deliveryAddress,
@@ -234,7 +307,12 @@ function PurchaseOrderModal({
         // Нечисловую сумму не пишем: колонка numeric, и строка «оплачено»
         // уедет ошибкой уже на сервере.
         paymentAmount: amount && Number.isFinite(Number(amount)) ? Number(amount) : null,
+        receiverId: persisted.receiverId,
+        poaNumber,
+        poaDate: poaDate || null,
       });
+      setReceiver((prev) => ({ ...prev, receiverId: persisted.receiverId }));
+      setReceiverTouched(false);
       onChanged(next);
     } catch (e) {
       setError(errorMessage(e, 'Не удалось сохранить заказ'));
@@ -243,10 +321,10 @@ function PurchaseOrderModal({
     }
   }
 
-  // Файлы счёта и платёжки сохраняются сразу при загрузке, а не по кнопке
-  // «Сохранить»: человек грузит документ и уходит смотреть поставки, а файл
-  // при этом уже должен быть на заказе.
-  async function saveFile(field: 'invoiceFile' | 'paymentFile', file: DocumentFile | null) {
+  // Файлы сохраняются сразу при загрузке, а не по кнопке «Сохранить»:
+  // человек грузит документ и уходит смотреть поставки, а файл при этом уже
+  // должен быть на заказе.
+  async function saveFile(field: 'invoiceFile' | 'paymentFile' | 'poaFile', file: DocumentFile | null) {
     setError(null);
     try {
       onChanged(await updatePurchaseOrder(order.id, { [field]: file }));
@@ -398,9 +476,37 @@ function PurchaseOrderModal({
           <FileField label="Файл платёжки" file={order.paymentFile} onChange={(f) => void saveFile('paymentFile', f)} />
         </div>
 
+        {/* Доставка и приёмка: куда везти, когда и кто встречает. Ответственный
+            и доверенность лежат на ЗАКАЗЕ и наследуются поставками — обычно
+            принимает один и тот же человек по одной доверенности. */}
         <div className="flex flex-col gap-3">
-          <Input label="Адрес доставки" value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} placeholder="Куда везти" />
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Доставка и приёмка</span>
+          <DeliveryAddressField
+            value={deliveryAddress}
+            onChange={setDeliveryAddress}
+            addresses={addresses}
+            onAddressesChange={setAddresses}
+            legalEntityId={order.legalEntityId}
+            entityAddress={entityAddress}
+          />
           <Input label="Поставка до" type="date" value={deliveryDue} onChange={(e) => setDeliveryDue(e.target.value)} />
+          <ReceiverPicker
+            receivers={receivers}
+            value={receiver}
+            onChange={(next) => {
+              setReceiver(next);
+              setReceiverTouched(true);
+            }}
+          />
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Доверенность</span>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input label="Номер" value={poaNumber} onChange={(e) => setPoaNumber(e.target.value)} placeholder="№ 14" />
+            <Input label="Дата" type="date" value={poaDate} onChange={(e) => setPoaDate(e.target.value)} />
+          </div>
+          <FileField label="Файл доверенности" file={order.poaFile} onChange={(f) => void saveFile('poaFile', f)} />
+        </div>
+
+        <div className="flex flex-col gap-3">
           <label className="flex flex-col gap-1.5">
             <span className="text-sm text-ink-muted">Комментарий</span>
             <textarea
@@ -421,7 +527,19 @@ function PurchaseOrderModal({
           </div>
         </div>
 
-        <DeliveriesBlock order={order} deliveries={deliveries} onEdit={(delivery) => setEditing({ delivery })} />
+        <DeliveriesBlock
+          order={order}
+          deliveries={deliveries}
+          documents={documents}
+          onEdit={(delivery) => setEditing({ delivery })}
+        />
+
+        <PurchaseDocumentsBlock
+          orderId={order.id}
+          documents={documents}
+          deliveries={deliveries}
+          onChange={setDocuments}
+        />
 
         <div className="flex flex-col gap-1">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Журнал</span>
@@ -443,7 +561,6 @@ function PurchaseOrderModal({
   );
 }
 
-// Поставки сразу по всем видимым заказам: значок «получено N из M» нужен в
 // списке, а не только в карточке, и дёргать базу по разу на строку ради него
 // незачем. Ошибку глотаем молча — заказы важнее значка, и падать из-за него
 // весь список не должен.

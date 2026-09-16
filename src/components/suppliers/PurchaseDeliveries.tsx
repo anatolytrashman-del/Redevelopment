@@ -1,12 +1,13 @@
-import { useRef, useState } from 'react';
-import { Loader2, Paperclip, Plus, Trash2, Truck, X } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Trash2, Truck } from 'lucide-react';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
-import { uploadObjectDocument } from '../../lib/objectsApi';
+import { FileField } from '../ui/FileField';
 import type { DocumentFile } from '../../data/contractorDocuments';
 import type { PurchaseOrder } from '../../data/purchaseOrders';
+import type { PurchaseDocument } from '../../data/purchaseDocuments';
 import {
   PURCHASE_DELIVERY_STATUSES,
   PURCHASE_DELIVERY_STATUS_LABELS,
@@ -14,25 +15,27 @@ import {
   type PurchaseDelivery,
   type PurchaseDeliveryStatus,
 } from '../../data/purchaseDeliveries';
-import { receiverLabel, type PurchaseReceiver } from '../../data/purchaseReceivers';
+import type { PurchaseReceiver } from '../../data/purchaseReceivers';
+import { deletePurchaseDelivery, insertPurchaseDelivery, updatePurchaseDelivery } from '../../lib/purchaseDeliveriesApi';
 import {
-  deletePurchaseDelivery,
-  insertPurchaseDelivery,
-  updatePurchaseDelivery,
-} from '../../lib/purchaseDeliveriesApi';
-import { insertPurchaseReceiver, updatePurchaseReceiver } from '../../lib/purchaseReceiversApi';
+  persistReceiverDraft,
+  receiverDraftFrom,
+  ReceiverPicker,
+  type ReceiverDraft,
+} from './PurchaseReceiverPicker';
 
 // Поставки по заказу: список внутри карточки заказа и форма одной поставки
 // (владелец, 2026-09-16: «Делай все, что предложил, и тогда уже заведу
 // поставку»). Отдельный файл, а не блок в PurchaseOrdersTab.tsx, — там уже
-// список заказов и карточка заказа, форма поставки с приёмщиком,
-// доверенностью и построчными количествами добавила бы к ним ещё столько же.
+// список заказов и карточка заказа.
 //
 // Форма показывается ВМЕСТО тела карточки заказа, а не второй модалкой
 // поверх: у Modal одинаковый z-50 и свой обработчик Escape на каждую копию —
 // вложенные модалки закрывались бы обе разом.
-
-const NEW_RECEIVER = 'Новое лицо…';
+//
+// Приёмщик и доверенность живут на ЗАКАЗЕ и наследуются новой поставкой как
+// значения по умолчанию: обычно принимает один и тот же человек по одной
+// доверенности, а если машину встретил другой — здесь это переопределяется.
 
 function deliveryStatusTone(status: PurchaseDeliveryStatus): 'neutral' | 'success' | 'warning' | 'danger' {
   // Шкала та же, что у статусов заказа (см. statusTone в PurchaseOrdersTab):
@@ -71,111 +74,16 @@ function formatQuantity(value: number | null): string {
   return String(Math.round(value * 1000) / 1000);
 }
 
-// Один файл: загрузить, посмотреть, заменить, убрать. Доверенность и
-// платёжку владелец грузит готовыми документами — генерации из шаблона нет.
-export function FileField({
-  label,
-  file,
-  onChange,
-}: {
-  label: string;
-  file: DocumentFile | null;
-  onChange: (file: DocumentFile | null) => void;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleFile(selected: File | null) {
-    if (!selected) return;
-    setUploading(true);
-    setError(null);
-    try {
-      onChange(await uploadObjectDocument(selected));
-    } catch (err) {
-      setError(errorMessage(err, 'Не удалось загрузить файл'));
-    } finally {
-      setUploading(false);
-      // Сброс значения — иначе повторный выбор ТОГО ЖЕ файла не даёт события
-      // change и загрузка молча не стартует.
-      if (inputRef.current) inputRef.current.value = '';
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      {label && <span className="text-sm text-ink-muted">{label}</span>}
-      <div className="flex flex-wrap items-center gap-2">
-        {file && (
-          <a
-            href={file.url}
-            target="_blank"
-            rel="noreferrer"
-            className="flex min-w-0 items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-ink hover:border-primary"
-          >
-            <Paperclip className="h-3.5 w-3.5 shrink-0" />
-            <span className="min-w-0 truncate">{file.fileName}</span>
-          </a>
-        )}
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-          icon={uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-        >
-          {uploading ? 'Загружаем...' : file ? 'Заменить' : 'Загрузить'}
-        </Button>
-        {file && (
-          <Button type="button" variant="ghost" onClick={() => onChange(null)} icon={<X className="h-4 w-4" />}>
-            Убрать
-          </Button>
-        )}
-      </div>
-      {error && <span className="text-xs text-danger">{error}</span>}
-      <input ref={inputRef} type="file" className="hidden" onChange={(e) => void handleFile(e.target.files?.[0] ?? null)} />
-    </div>
-  );
-}
-
-// Несколько файлов одной кучей — документы поставки (накладная, УПД, акт).
-function FilesField({ files, onChange }: { files: DocumentFile[]; onChange: (files: DocumentFile[]) => void }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-sm text-ink-muted">Документы поставки</span>
-      {files.map((f, i) => (
-        <div key={`${f.url}-${i}`} className="flex items-center gap-2">
-          <a
-            href={f.url}
-            target="_blank"
-            rel="noreferrer"
-            className="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-ink hover:text-primary"
-          >
-            <Paperclip className="h-3.5 w-3.5 shrink-0" />
-            <span className="min-w-0 truncate">{f.fileName}</span>
-          </a>
-          <button
-            type="button"
-            onClick={() => onChange(files.filter((_, idx) => idx !== i))}
-            className="text-ink-faint hover:text-danger"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      ))}
-      <FileField label="" file={null} onChange={(f) => f && onChange([...files, f])} />
-    </div>
-  );
-}
-
 // Список поставок внутри карточки заказа.
 export function DeliveriesBlock({
   order,
   deliveries,
+  documents,
   onEdit,
 }: {
   order: PurchaseOrder;
   deliveries: PurchaseDelivery[];
+  documents: PurchaseDocument[];
   onEdit: (delivery: PurchaseDelivery | null) => void;
 }) {
   return (
@@ -194,6 +102,7 @@ export function DeliveriesBlock({
       )}
       {deliveries.map((delivery) => {
         const lines = delivery.items.filter((l) => l.quantity != null && l.quantity > 0).length;
+        const docs = documents.filter((d) => d.deliveryId === delivery.id).length;
         return (
           <button
             key={delivery.id}
@@ -219,7 +128,7 @@ export function DeliveriesBlock({
                 </span>
               )}
               {delivery.poaNumber && <span>доверенность № {delivery.poaNumber}</span>}
-              {delivery.files.length > 0 && <span>документов: {delivery.files.length}</span>}
+              {docs > 0 && <span>документов: {docs}</span>}
             </div>
             {delivery.comment && <span className="text-xs text-ink-faint">{delivery.comment}</span>}
           </button>
@@ -229,10 +138,7 @@ export function DeliveriesBlock({
   );
 }
 
-// Форма одной поставки. Приёмщик выбирается из шаблонов (они повторяются) и
-// тут же правится; новое лицо заводится прямо отсюда, отдельной страницы под
-// справочник нет — заводить человека где-то ещё, чтобы потом выбрать его
-// здесь, значит делать лишний шаг ради одного поля.
+// Форма одной поставки.
 export function DeliveryForm({
   order,
   delivery,
@@ -260,15 +166,17 @@ export function DeliveryForm({
   const [status, setStatus] = useState<PurchaseDeliveryStatus>(delivery?.status ?? 'planned');
   const [plannedDate, setPlannedDate] = useState(delivery?.plannedDate ?? order.deliveryDue ?? '');
   const [deliveredAt, setDeliveredAt] = useState(delivery?.deliveredAt ?? '');
-  const [receiverId, setReceiverId] = useState<string | null>(delivery?.receiverId ?? null);
-  const [receiverName, setReceiverName] = useState(delivery?.receiverName ?? '');
-  const [receiverPhone, setReceiverPhone] = useState(delivery?.receiverPhone ?? '');
-  const [receiverPosition, setReceiverPosition] = useState('');
-  const [receiverPassport, setReceiverPassport] = useState('');
-  const [poaNumber, setPoaNumber] = useState(delivery?.poaNumber ?? '');
-  const [poaDate, setPoaDate] = useState(delivery?.poaDate ?? '');
-  const [poaFile, setPoaFile] = useState<DocumentFile | null>(delivery?.poaFile ?? null);
-  const [files, setFiles] = useState<DocumentFile[]>(delivery?.files ?? []);
+  const [receiver, setReceiver] = useState<ReceiverDraft>(() => {
+    // Новая поставка наследует ответственного с заказа; у уже заведённой
+    // берём её собственного (шаблон, если он жив, иначе снимок имени).
+    if (!delivery) return receiverDraftFrom(receivers.find((r) => r.id === order.receiverId));
+    const template = receivers.find((r) => r.id === delivery.receiverId);
+    if (template) return receiverDraftFrom(template);
+    return { receiverId: null, name: delivery.receiverName, phone: delivery.receiverPhone, position: '', passport: '' };
+  });
+  const [poaNumber, setPoaNumber] = useState(delivery?.poaNumber ?? order.poaNumber);
+  const [poaDate, setPoaDate] = useState(delivery?.poaDate ?? order.poaDate ?? '');
+  const [poaFile, setPoaFile] = useState<DocumentFile | null>(delivery?.poaFile ?? order.poaFile);
   const [comment, setComment] = useState(delivery?.comment ?? '');
   const [quantities, setQuantities] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
@@ -291,70 +199,17 @@ export function DeliveryForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const template = receivers.find((r) => r.id === receiverId) ?? null;
-  // Должность и паспорт не хранятся в самой поставке (они нужны для
-  // доверенности, а она уже файлом) — показываем то, что лежит в шаблоне,
-  // пока человек не начал править.
-  const positionValue = receiverPosition || template?.position || '';
-  const passportValue = receiverPassport || template?.passport || '';
-
-  function pickReceiver(label: string) {
-    if (label === NEW_RECEIVER) {
-      setReceiverId(null);
-      setReceiverName('');
-      setReceiverPhone('');
-      setReceiverPosition('');
-      setReceiverPassport('');
-      return;
-    }
-    const found = receivers.find((r) => receiverLabel(r) === label);
-    if (!found) return;
-    setReceiverId(found.id);
-    setReceiverName(found.name);
-    setReceiverPhone(found.phone);
-    setReceiverPosition(found.position);
-    setReceiverPassport(found.passport);
-  }
-
-  // Приёмщик: сохраняем шаблон, если это новое лицо, и обновляем, если у
-  // существующего поправили данные. Возвращает id, который ляжет в поставку.
-  async function persistReceiver(): Promise<string | null> {
-    const name = receiverName.trim();
-    if (!name) return null;
-    const payload = {
-      legalEntityId: order.legalEntityId,
-      name,
-      phone: receiverPhone.trim(),
-      position: positionValue.trim(),
-      passport: passportValue.trim(),
-      note: template?.note ?? '',
-    };
-    if (!template) {
-      const created = await insertPurchaseReceiver(payload);
-      onReceiversChange([...receivers, created]);
-      return created.id;
-    }
-    const changed =
-      template.name !== payload.name ||
-      template.phone !== payload.phone ||
-      template.position !== payload.position ||
-      template.passport !== payload.passport;
-    if (!changed) return template.id;
-    const updated = await updatePurchaseReceiver(template.id, payload);
-    onReceiversChange(receivers.map((r) => (r.id === updated.id ? updated : r)));
-    return updated.id;
-  }
-
   async function save() {
     setSaving(true);
     setError(null);
     try {
-      const savedReceiverId = await persistReceiver();
+      const persisted = await persistReceiverDraft(receiver, receivers, order.legalEntityId);
+      if (persisted.receivers !== receivers) onReceiversChange(persisted.receivers);
       const input = {
         orderId: order.id,
-        receiverId: savedReceiverId,
-        receiverName: receiverName.trim(),
-        receiverPhone: receiverPhone.trim(),
+        receiverId: persisted.receiverId,
+        receiverName: receiver.name.trim(),
+        receiverPhone: receiver.phone.trim(),
         status,
         plannedDate: plannedDate || null,
         deliveredAt: deliveredAt || null,
@@ -364,7 +219,10 @@ export function DeliveryForm({
         items: order.items
           .map((item) => ({ itemId: item.id, quantity: parseQuantity(quantities[item.id] ?? '') }))
           .filter((line) => line.quantity != null),
-        files,
+        // Документы поставки живут в общем списке документов заказа
+        // (purchase_documents) — колонка files осталась от первой версии и
+        // не используется.
+        files: [],
         comment: comment.trim(),
       };
       onSaved(delivery ? await updatePurchaseDelivery(delivery.id, input) : await insertPurchaseDelivery(input));
@@ -414,36 +272,7 @@ export function DeliveryForm({
         />
       </div>
 
-      <div className="flex flex-col gap-3">
-        <Select
-          label="Принимающее лицо"
-          options={[...receivers.map(receiverLabel), NEW_RECEIVER]}
-          value={template ? receiverLabel(template) : receiverName ? receiverName : ''}
-          onChange={pickReceiver}
-          placeholder="Выберите или заведите нового"
-        />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Input label="ФИО" value={receiverName} onChange={(e) => setReceiverName(e.target.value)} placeholder="Кто принимает" />
-          <Input
-            label="Телефон"
-            value={receiverPhone}
-            onChange={(e) => setReceiverPhone(e.target.value)}
-            placeholder="+375 29 ..."
-            helperText="По нему поставщик звонит при доставке"
-          />
-          <Input label="Должность" value={positionValue} onChange={(e) => setReceiverPosition(e.target.value)} />
-          <Input
-            label="Паспорт"
-            value={passportValue}
-            onChange={(e) => setReceiverPassport(e.target.value)}
-            placeholder="MP1234567, выдан ..."
-            helperText="Нужен для доверенности"
-          />
-        </div>
-        <p className="text-xs text-ink-faint">
-          Лицо сохраняется как шаблон: в следующей поставке его достаточно выбрать из списка.
-        </p>
-      </div>
+      <ReceiverPicker label="Кто принял эту машину" receivers={receivers} value={receiver} onChange={setReceiver} />
 
       <div className="flex flex-col gap-3">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Доверенность</span>
@@ -452,6 +281,10 @@ export function DeliveryForm({
           <Input label="Дата" type="date" value={poaDate} onChange={(e) => setPoaDate(e.target.value)} />
         </div>
         <FileField label="Файл доверенности" file={poaFile} onChange={setPoaFile} />
+        <p className="text-xs text-ink-faint">
+          Подставлена доверенность с заказа. Если эту машину встречали по другой — замените здесь, на заказе останется
+          прежняя.
+        </p>
       </div>
 
       <div className="flex flex-col gap-1">
@@ -485,8 +318,6 @@ export function DeliveryForm({
         </p>
       </div>
 
-      <FilesField files={files} onChange={setFiles} />
-
       <label className="flex flex-col gap-1.5">
         <span className="text-sm text-ink-muted">Комментарий</span>
         <textarea
@@ -497,6 +328,11 @@ export function DeliveryForm({
           placeholder="Чем машина, кто водитель, что не так"
         />
       </label>
+
+      <p className="text-xs text-ink-faint">
+        Накладную, УПД и прочие бумаги по этой машине грузите в разделе «Документы» карточки заказа — там же выбирается,
+        к какой поставке они относятся.
+      </p>
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="button" onClick={() => void save()} disabled={saving}>
