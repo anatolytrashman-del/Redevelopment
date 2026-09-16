@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Loader2, Pencil, Trash2, ExternalLink, Handshake } from 'lucide-react';
+import { Plus, Loader2, Pencil, Trash2, ExternalLink, Handshake, Users } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -9,7 +9,12 @@ import { Textarea } from '../components/ui/Textarea';
 import { AddableSelect } from '../components/ui/AddableSelect';
 import { Modal } from '../components/ui/Modal';
 import { ContactValue } from '../components/ui/ContactValue';
-import { collaborationContactMethods, collaborationStatuses, type Collaboration } from '../data/collaborations';
+import {
+  collaborationContactMethods,
+  collaborationStatuses,
+  formatAudience,
+  type Collaboration,
+} from '../data/collaborations';
 import { badgeColor } from '../lib/badgeColor';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
@@ -27,11 +32,22 @@ function errorMessage(err: unknown, fallback: string) {
   return fallback;
 }
 
+// Подписчики вводят как угодно — «32 000», «32000», «~32 тыс.» не поймём,
+// но пробелы/разделители разрядов снимаем. Пусто или ничего не осталось — null.
+function parseAudience(raw: string): number | null {
+  const digits = raw.replace(/[^\d]/g, '');
+  if (!digits) return null;
+  const n = Number(digits);
+  return Number.isFinite(n) ? n : null;
+}
+
 const emptyForm = {
   partner: '',
   contactMethod: collaborationContactMethods[0] as string,
   contact: '',
   link: '',
+  audienceSize: '',
+  about: '',
   agreement: '',
   status: collaborationStatuses[0] as string,
 };
@@ -42,6 +58,8 @@ function collaborationToForm(c: Collaboration) {
     contactMethod: c.contactMethod,
     contact: c.contact,
     link: c.link,
+    audienceSize: c.audienceSize === null ? '' : String(c.audienceSize),
+    about: c.about,
     agreement: c.agreement,
     status: c.status,
   };
@@ -100,7 +118,15 @@ function CollaborationCard({
         </div>
         <div className="flex min-w-0 flex-col gap-1">
           <span className="truncate font-semibold text-ink">{collaboration.partner || 'Без названия'}</span>
-          <Badge style={{ backgroundColor: colors.bg, color: colors.text }}>{collaboration.status}</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge style={{ backgroundColor: colors.bg, color: colors.text }}>{collaboration.status}</Badge>
+            {collaboration.audienceSize !== null && (
+              <span className="flex items-center gap-1 text-xs text-ink-muted">
+                <Users className="h-3.5 w-3.5 shrink-0" />
+                {formatAudience(collaboration.audienceSize)}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -111,7 +137,14 @@ function CollaborationCard({
         </div>
       )}
 
-      {collaboration.agreement && <p className="line-clamp-3 text-sm text-ink-muted">{collaboration.agreement}</p>}
+      {collaboration.about && <p className="line-clamp-3 text-sm text-ink-muted">{collaboration.about}</p>}
+
+      {collaboration.agreement && (
+        <p className="line-clamp-3 text-sm text-ink-muted">
+          <span className="text-ink-faint">Договорённости: </span>
+          {collaboration.agreement}
+        </p>
+      )}
 
       {collaboration.link && (
         <a
@@ -189,6 +222,10 @@ export function Collaborations() {
       contactMethod: form.contactMethod,
       contact: form.contact.trim(),
       link: form.link.trim(),
+      // «Подписчики» — свободный ввод, могут написать «32 000» или «32000»:
+      // оставляем только цифры, пустое поле = данных нет (null, не 0).
+      audienceSize: parseAudience(form.audienceSize),
+      about: form.about.trim(),
       agreement: form.agreement.trim(),
       status: form.status,
     };
@@ -288,11 +325,27 @@ export function Collaborations() {
             />
           </div>
 
-          <Input
-            label="Ссылка"
-            placeholder="https://..."
-            value={form.link}
-            onChange={(e) => setForm((f) => ({ ...f, link: e.target.value }))}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input
+              label="Ссылка на канал"
+              placeholder="https://..."
+              value={form.link}
+              onChange={(e) => setForm((f) => ({ ...f, link: e.target.value }))}
+            />
+            <Input
+              label="Подписчики"
+              placeholder="32 000"
+              inputMode="numeric"
+              value={form.audienceSize}
+              onChange={(e) => setForm((f) => ({ ...f, audienceSize: e.target.value }))}
+            />
+          </div>
+
+          <Textarea
+            label="Что за канал"
+            placeholder="Тематика, аудитория, чем полезен..."
+            value={form.about}
+            onChange={(e) => setForm((f) => ({ ...f, about: e.target.value }))}
           />
 
           <Textarea
