@@ -28,6 +28,7 @@ function requestFromRow(row: SupplierRequestRow): SupplierRequest {
     comparisonMode: (row.comparison_mode as SupplierComparisonMode) || 'material',
     proposal: row.proposal && typeof row.proposal === 'object' ? row.proposal : {},
     review: row.proposal_review && typeof row.proposal_review === 'object' && row.proposal_review.status ? row.proposal_review : null,
+    replyDueDays: row.reply_due_days ?? 3,
     createdAt: row.created_at,
   };
 }
@@ -59,6 +60,10 @@ function offerFromRow(row: SupplierOfferRow): SupplierOffer {
     inn: row.inn ?? null,
     queueSnoozedAt: row.queue_snoozed_at ?? null,
     termsNote: row.terms_note ?? '',
+    outcome: row.outcome === 'no_answer' || row.outcome === 'declined' ? row.outcome : null,
+    outcomeAt: row.outcome_at ?? null,
+    reminderStage: row.reminder_stage ?? 0,
+    reminderSentAt: row.reminder_sent_at ?? null,
     createdAt: row.created_at,
   };
 }
@@ -79,6 +84,8 @@ export interface SupplierRequestInput {
   sectionTitle: string;
   legalEntityId: string | null;
   comparisonMode: SupplierComparisonMode;
+  // Сколько дней ждём ответа, прежде чем ИИ-закупщик напомнит (шаг 8).
+  replyDueDays: number;
 }
 
 export function insertSupplierRequest(input: SupplierRequestInput): Promise<SupplierRequest> {
@@ -93,6 +100,7 @@ export function insertSupplierRequest(input: SupplierRequestInput): Promise<Supp
         section_title: input.sectionTitle,
         legal_entity_id: input.legalEntityId,
         comparison_mode: input.comparisonMode,
+        reply_due_days: input.replyDueDays,
       })
       .select()
       .single();
@@ -113,6 +121,7 @@ export function updateSupplierRequest(id: string, input: SupplierRequestInput): 
         section_title: input.sectionTitle,
         legal_entity_id: input.legalEntityId,
         comparison_mode: input.comparisonMode,
+        reply_due_days: input.replyDueDays,
       })
       .eq('id', id)
       .select()
@@ -173,6 +182,23 @@ export function updateSupplierRequestSection(
   });
 }
 
+// Срок ответа категории (шаг 8 плана закупок). Узкая функция, а не общий
+// updateSupplierRequest: полная форма запроса из интерфейса недостижима
+// (её модалка открывается только на создание), а срок менять надо на живых
+// категориях — иначе поле осталось бы навсегда со значением по умолчанию.
+export function updateSupplierRequestReplyDue(id: string, replyDueDays: number): Promise<SupplierRequest> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('supplier_research_requests')
+      .update({ reply_due_days: replyDueDays })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return requestFromRow(data as SupplierRequestRow);
+  });
+}
+
 // ВНИМАНИЕ: в отличие от deleteSupplierOffer ниже, это по-прежнему ФИЗИЧЕСКОЕ
 // удаление, и FK ON DELETE CASCADE утащит за запросом все его карточки
 // поставщиков со всей перепиской, КП и заданиями рассылки. Сейчас это
@@ -189,7 +215,14 @@ export function deleteSupplierRequest(id: string): Promise<void> {
 
 // Все предложения сразу, группировка по requestId на клиенте — тот же
 // принцип, что и у fetchResearchOffers (contractorResearchApi.ts).
-export type SupplierOfferInput = Omit<SupplierOffer, 'id' | 'createdAt' | 'shortCode' | 'queueSnoozedAt'>;
+// outcome/reminderStage тут нет по той же причине, что и queueSnoozedAt: это
+// состояние дожима, а не поля карточки. Формы его не знают и не должны
+// затирать — исход ставится отдельной setSupplierOfferOutcome, ступень
+// двигает воркер напоминаний.
+export type SupplierOfferInput = Omit<
+  SupplierOffer,
+  'id' | 'createdAt' | 'shortCode' | 'queueSnoozedAt' | 'outcome' | 'outcomeAt' | 'reminderStage' | 'reminderSentAt'
+>;
 
 // `is('deleted_at', null)` — мягко удалённые карточки (см. deleteSupplierOffer
 // ниже и миграцию 20260915-soft-delete-supplier-data.sql) в приложение не
@@ -409,5 +442,30 @@ export function unsnoozeAllSupplierOffers(): Promise<void> {
       .update({ queue_snoozed_at: null })
       .not('queue_snoozed_at', 'is', null);
     if (error) throw error;
+  });
+}
+
+// Исход дожима руками (шаг 8 плана закупок): кнопки «Отказался» / «Без
+// ответа» в треде и «Вернуть в работу» (outcome = null). Отдельная функция,
+// а не общий updateSupplierOffer: формы карточки про это поле не знают и не
+// должны его затирать — ровно та же причина, что у queue_snoozed_at выше.
+//
+// Ступень напоминаний при возврате в работу обнуляется: «вернуть в работу»
+// означает «дожимаем заново», иначе карточка вернулась бы сразу на третью
+// ступень и следующим действием воркера стало бы «без ответа».
+export function setSupplierOfferOutcome(id: string, outcome: 'no_answer' | 'declined' | null): Promise<SupplierOffer> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('supplier_research_offers')
+      .update(
+        outcome
+          ? { outcome, outcome_at: new Date().toISOString() }
+          : { outcome: null, outcome_at: null, reminder_stage: 0, reminder_sent_at: null },
+      )
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return offerFromRow(data as SupplierOfferRow);
   });
 }

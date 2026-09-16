@@ -13,7 +13,8 @@ import { RiskBadge } from './RiskBadge';
 import type { SupplierReliability } from '../../data/supplierReliability';
 import { checkSupplierReliability } from '../../lib/supplierReliabilityApi';
 import { supplierOfferEmailAddress, countryFlag, SUPPLIER_COUNTRIES } from '../../data/supplierResearch';
-import { updateSupplierOffer } from '../../lib/supplierResearchApi';
+import { updateSupplierOffer, setSupplierOfferOutcome, updateSupplierRequestReplyDue } from '../../lib/supplierResearchApi';
+import { offerFollowupState, followupCounts, OFFER_OUTCOME_LABEL } from '../../data/supplierResearch';
 import type { SupplierOrder } from '../../data/supplierOrders';
 import { insertSupplierOrder, updateSupplierOrder } from '../../lib/supplierOrdersApi';
 import type {
@@ -2240,6 +2241,170 @@ type ThreadStatus = 'unread' | 'sent' | 'replied' | 'none';
 // (писем нет), "Отправлено" (есть исходящее, ответа нет), "Ответили"
 // (последнее письмо входящее — unread красным счётчиком поверх статуса,
 // если ещё не открывали тред).
+// ---------------------------------------------------------------------------
+// Дожим (шаг 8 плана закупок)
+// ---------------------------------------------------------------------------
+// Воронка категории плюс срок ответа. Срок правится прямо здесь: полная
+// форма запроса из интерфейса недостижима (модалка открывается только на
+// создание), а менять его надо на живых категориях.
+export function FollowupPanel({
+  request,
+  offers,
+  emails,
+  onRequestSaved,
+}: {
+  request: SupplierRequest;
+  offers: SupplierOffer[];
+  emails: SupplierOfferEmail[];
+  onRequestSaved: (r: SupplierRequest) => void;
+}) {
+  const [days, setDays] = useState(String(request.replyDueDays));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDays(String(request.replyDueDays));
+  }, [request.id, request.replyDueDays]);
+
+  const counts = useMemo(
+    () => followupCounts(offers, emails, request.replyDueDays),
+    [offers, emails, request.replyDueDays],
+  );
+
+  async function save() {
+    const parsed = Number.parseInt(days, 10);
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 60) {
+      setDays(String(request.replyDueDays));
+      setError('Срок — от 1 до 60 дней');
+      return;
+    }
+    if (parsed === request.replyDueDays) return;
+    setSaving(true);
+    setError(null);
+    try {
+      onRequestSaved(await updateSupplierRequestReplyDue(request.id, parsed));
+    } catch (err) {
+      setError(errorMessage(err, 'Не удалось сохранить срок ответа'));
+      setDays(String(request.replyDueDays));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-control border border-border bg-surface-muted/40 px-3 py-2.5">
+      <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
+        <span>Ждём ответ</span>
+        <input
+          type="number"
+          min={1}
+          max={60}
+          value={days}
+          disabled={saving}
+          onChange={(e) => setDays(e.target.value)}
+          onBlur={() => void save()}
+          className="w-14 rounded-control border border-transparent bg-surface px-2 py-1 text-center text-sm tabular-nums text-ink outline-none focus:border-primary"
+        />
+        <span>дней, потом напоминаем</span>
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
+        <span className="text-ink-muted">
+          дожимаем <span className="font-semibold tabular-nums text-ink">{counts.followingUp}</span>
+        </span>
+        <span className="text-ink-muted">
+          отказались <span className="font-semibold tabular-nums text-ink">{counts.declined}</span>
+        </span>
+        <span className="text-ink-muted">
+          без ответа <span className="font-semibold tabular-nums text-ink">{counts.noAnswer}</span>
+        </span>
+      </div>
+      {error && <p className="text-xs text-danger">{error}</p>}
+    </div>
+  );
+}
+
+// Строка дожима в самом треде: сколько дней молчит, сколько напоминаний ушло
+// и две кнопки исхода. Кнопки нужны рядом с письмами: решение «он отказался»
+// принимается ровно тогда, когда читаешь его ответ.
+export function FollowupControls({
+  offer,
+  emails,
+  replyDueDays,
+  onOfferUpdated,
+}: {
+  offer: SupplierOffer;
+  emails: SupplierOfferEmail[];
+  replyDueDays: number;
+  onOfferUpdated: (o: SupplierOffer) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const state = offerFollowupState(offer, emails, replyDueDays);
+
+  async function set(outcome: 'no_answer' | 'declined' | null) {
+    setSaving(true);
+    setError(null);
+    try {
+      onOfferUpdated(await setSupplierOfferOutcome(offer.id, outcome));
+    } catch (err) {
+      setError(errorMessage(err, 'Не удалось сохранить исход'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const note =
+    state.stage === 'quoted'
+      ? 'Прислал КП'
+      : state.stage === 'answered'
+        ? 'Ответил, переписку ведёт человек'
+        : state.stage === 'none'
+          ? 'Писем ещё не было'
+          : state.daysSilent != null
+            ? `Молчит ${state.daysSilent} ${pluralDays(state.daysSilent)}${state.reminders > 0 ? `, напомнили ${state.reminders} ${state.reminders === 1 ? 'раз' : 'раза'}` : ''}`
+            : '';
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      {offer.outcome ? (
+        <>
+          <span
+            className={cn(
+              'rounded-full px-2 py-0.5 font-semibold',
+              offer.outcome === 'declined' ? 'bg-danger/10 text-danger' : 'bg-surface-muted text-ink-muted',
+            )}
+          >
+            {OFFER_OUTCOME_LABEL[offer.outcome]}
+          </span>
+          <button type="button" disabled={saving} onClick={() => void set(null)} className="text-ink-faint underline decoration-dotted hover:text-primary">
+            вернуть в работу
+          </button>
+        </>
+      ) : (
+        <>
+          <span className={cn(state.stage === 'due' ? 'font-medium text-warning' : 'text-ink-faint')}>{note}</span>
+          <button type="button" disabled={saving} onClick={() => void set('declined')} className="text-ink-faint underline decoration-dotted hover:text-danger">
+            отказался
+          </button>
+          <button type="button" disabled={saving} onClick={() => void set('no_answer')} className="text-ink-faint underline decoration-dotted hover:text-primary">
+            без ответа
+          </button>
+        </>
+      )}
+      {error && <span className="text-danger">{error}</span>}
+    </div>
+  );
+}
+
+function pluralDays(n: number): string {
+  const mod100 = n % 100;
+  const mod10 = n % 10;
+  if (mod100 >= 11 && mod100 <= 14) return 'дней';
+  if (mod10 === 1) return 'день';
+  if (mod10 >= 2 && mod10 <= 4) return 'дня';
+  return 'дней';
+}
+
 function threadStatus(emails: SupplierOfferEmail[]): { status: ThreadStatus; unreadCount: number } {
   // Не "все непрочитанные входящие", а только те, что ждут ответа — см.
   // lib/pendingEmails.ts (владелец, 2026-09-15: счётчик должен показывать
@@ -2357,6 +2522,7 @@ export function SupplierCorrespondenceTab({
   onQuotesChange,
   pendingAutoReplies,
   onAutoReplyReviewed,
+  onRequestSaved,
 }: {
   requests: SupplierRequest[];
   offers: SupplierOffer[];
@@ -2396,6 +2562,9 @@ export function SupplierCorrespondenceTab({
   // (Suppliers.tsx), тут только проброс в открытый тред.
   pendingAutoReplies: EmailAutoReplyLogEntry[];
   onAutoReplyReviewed: (id: string) => void;
+  // Срок ответа категории правится прямо в панели дожима (шаг 8) — обновлённый
+  // запрос надо вернуть наверх, иначе панель откатится на старое значение.
+  onRequestSaved: (r: SupplierRequest) => void;
 }) {
   // Владелец, 2026-09-04: "сидишь на странице конкретной переписки,
   // обновляешь — и всё слетело... кастомный урл даже на переписки с
@@ -2698,6 +2867,20 @@ export function SupplierCorrespondenceTab({
             </Button>
           )}
 
+          {/* Дожим (шаг 8 плана закупок): срок ответа категории и счётчики
+              воронки — сколько поставщиков ещё дожимаем, сколько отказалось и
+              сколько так и не ответило. В псевдо-категории «Непрочитанные»
+              не показываем: там смешаны разные категории, а срок ответа — у
+              категории. */}
+          {!isUnreadView && selectedGroup && (
+            <FollowupPanel
+              request={selectedGroup.request}
+              offers={selectedGroup.offers.map((x) => x.offer)}
+              emails={emails}
+              onRequestSaved={onRequestSaved}
+            />
+          )}
+
           {/* Владелец, 2026-09-10: "боковой список поставщиков будет как-то
               скрываться за кнопку" — сюда список не влезал бы полностью,
               поэтому вместо скрытия за кнопкой (список нужен сразу) он
@@ -2783,6 +2966,16 @@ export function SupplierCorrespondenceTab({
                   переехала в блок реквизитов внутри EmailThread. */}
               <span className="text-lg font-bold text-ink">{selected.offer.name}</span>
               <RiskBadge inn={selected.offer.inn} reliabilityByInn={reliabilityByInn} />
+
+              {/* Дожим по этому поставщику (шаг 8): сколько молчит, сколько
+                  напоминаний ушло, и кнопки исхода — решение «он отказался»
+                  принимается ровно тогда, когда читаешь его письмо. */}
+              <FollowupControls
+                offer={selected.offer}
+                emails={selected.emails}
+                replyDueDays={requests.find((r) => r.id === selected.offer.requestId)?.replyDueDays ?? 3}
+                onOfferUpdated={onOfferUpdated}
+              />
 
               {/* Владелец, 2026-09-03: "1 заявка на поставку — одна ветка" —
                   чипы переключают тред: "Основная" (та переписка, что была

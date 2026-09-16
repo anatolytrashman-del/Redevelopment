@@ -9,6 +9,7 @@ function fromRow(row: EmailTemplateRow): EmailTemplate {
     subject: row.subject ?? '',
     body: row.body ?? '',
     requestId: row.request_id,
+    kind: row.kind === 'reminder_1' || row.kind === 'reminder_2' ? row.kind : null,
     createdAt: row.created_at,
   };
 }
@@ -25,7 +26,7 @@ export function insertEmailTemplate(input: Omit<EmailTemplate, 'id' | 'createdAt
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('email_templates')
-      .insert({ name: input.name, subject: input.subject, body: input.body, request_id: input.requestId })
+      .insert({ name: input.name, subject: input.subject, body: input.body, request_id: input.requestId, kind: input.kind })
       .select()
       .single();
     if (error) throw error;
@@ -37,7 +38,7 @@ export function updateEmailTemplate(id: string, input: Omit<EmailTemplate, 'id' 
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('email_templates')
-      .update({ name: input.name, subject: input.subject, body: input.body, request_id: input.requestId })
+      .update({ name: input.name, subject: input.subject, body: input.body, request_id: input.requestId, kind: input.kind })
       .eq('id', id)
       .select()
       .single();

@@ -219,6 +219,11 @@ export interface SupplierRequest {
   // Владелец, 2026-09-15: стадия согласования отбора — см. SupplierProposalReview.
   // null — черновик, никуда не отправлялось (все категории до этой даты).
   review: SupplierProposalReview | null;
+  // Сколько дней ждём ответа, прежде чем напомнить (шаг 8 плана закупок).
+  // Свойство закупки, а не поставщика: замки ждём три дня, металл — неделю.
+  // По этому же сроку идёт и вторая ступень дожима, и признание молчания
+  // ответом «нет» (см. followupState ниже).
+  replyDueDays: number;
   createdAt: string;
 }
 
@@ -280,6 +285,7 @@ export interface SupplierRequestRow {
   comparison_mode: string | null;
   proposal: SupplierProposal | null;
   proposal_review: SupplierProposalReview | null;
+  reply_due_days?: number | null;
   created_at: string;
 }
 
@@ -399,8 +405,29 @@ export interface SupplierOffer {
   // случайно перевесить её на чужую компанию. null бывает лишь у карточек,
   // вставленных в обход триггера.
   supplierId?: string | null;
+  // Исход дожима (шаг 8 плана закупок). null — карточка ещё в работе.
+  // 'declined' — поставщик сказал «не возим / не будем предлагать»,
+  // 'no_answer' — молчал столько, что дальше писать бессмысленно.
+  // Значения «получили КП» здесь намеренно НЕТ: оно и так видно по
+  // offer.items/price (offerCommunicationStatus), а вторая копия правды
+  // рано или поздно разойдётся с первой.
+  outcome: OfferOutcome;
+  outcomeAt: string | null;
+  // Сколько напоминаний уже ушло: 0, 1 или 2. Ступень двигает воркер
+  // дожима (supabase/functions/process-followups) атомарным UPDATE — этим
+  // же и страхуется от двух одинаковых писем поставщику.
+  reminderStage: number;
+  reminderSentAt: string | null;
   createdAt: string;
 }
+
+// Исход дожима: null — ещё ждём.
+export type OfferOutcome = 'no_answer' | 'declined' | null;
+
+export const OFFER_OUTCOME_LABEL: Record<'no_answer' | 'declined', string> = {
+  no_answer: 'Без ответа',
+  declined: 'Отказался',
+};
 
 export interface SupplierOfferRow {
   id: string;
@@ -430,6 +457,10 @@ export interface SupplierOfferRow {
   // Мягкое удаление (миграция 20260915-soft-delete-supplier-data.sql):
   // строка жива, но скрыта из интерфейса. NULL у всего активного.
   deleted_at?: string | null;
+  outcome?: string | null;
+  outcome_at?: string | null;
+  reminder_stage?: number | null;
+  reminder_sent_at?: string | null;
   terms?: QuoteTerms | null;
   // Ссылка на компанию (миграция 20260915-suppliers-company-entity.sql),
   // проставляется триггером в БД.
@@ -479,6 +510,89 @@ export const OFFER_COMMUNICATION_STATUS_LABEL: Record<OfferCommunicationStatus, 
   sent: 'Отправили, ждём ответ',
   confirmed: 'Получили КП, цены в базе',
 };
+
+// ---------------------------------------------------------------------------
+// Дожим (шаг 8 плана закупок)
+// ---------------------------------------------------------------------------
+// Статус коммуникации выше отвечает на вопрос «на чём остановилось», дожим —
+// на вопрос «а не пора ли уже что-то сделать»: сколько дней поставщик молчит,
+// сколько напоминаний ему ушло и не пора ли признать молчание ответом.
+//
+// Здесь только ПОКАЗ. Решение «слать напоминание сейчас» принимает воркер
+// supabase/functions/process-followups — он ходит сервисным ключом и умеет
+// атомарно занимать карточку. Пороги в двух местах одинаковые намеренно
+// (тот же случай, что src/data/vat.ts ↔ api/_vat.js): правится один — сразу
+// правится второй, иначе интерфейс покажет «пора напомнить», а воркер
+// промолчит.
+//
+//   none      — не писали вовсе;
+//   answered  — поставщик ответил, КП пока нет: дальше ведёт человек,
+//               напоминать тому, кто и так пишет, нельзя;
+//   waiting   — написали, молчит, срок ответа ещё не вышел;
+//   due       — срок вышел: пора напомнить, а после второго напоминания —
+//               признать молчание ответом «нет»;
+//   quoted    — КП получено (по данным карточки, не по отметке);
+//   declined  — отказался;
+//   no_answer — так и не ответил.
+export type FollowupStage = 'none' | 'answered' | 'waiting' | 'due' | 'quoted' | 'declined' | 'no_answer';
+
+export interface FollowupState {
+  stage: FollowupStage;
+  // Дней с нашего последнего письма (включая напоминания). null — не писали.
+  daysSilent: number | null;
+  // Сколько напоминаний уже ушло.
+  reminders: number;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function offerFollowupState(
+  offer: SupplierOffer,
+  emails: SupplierOfferEmail[],
+  replyDueDays: number,
+  now: Date = new Date(),
+): FollowupState {
+  const reminders = offer.reminderStage ?? 0;
+  const mine = emails.filter((e) => e.offerId === offer.id);
+  const lastOut = mine.filter((e) => e.direction === 'out').sort((a, b) => a.createdAt.localeCompare(b.createdAt)).pop();
+  const daysSilent = lastOut ? Math.floor((now.getTime() - new Date(lastOut.createdAt).getTime()) / DAY_MS) : null;
+  const state = (stage: FollowupStage): FollowupState => ({ stage, daysSilent, reminders });
+
+  // Отказ важнее всего: поставщик сказал «не возим» — КП от него не ждём,
+  // даже если в карточке остался счёт с прошлой закупки.
+  if (offer.outcome === 'declined') return state('declined');
+  if (offerCommunicationStatus(offer, emails) === 'confirmed') return state('quoted');
+  if (offer.outcome === 'no_answer') return state('no_answer');
+  if (mine.some((e) => e.direction === 'in')) return state('answered');
+  if (!lastOut) return state('none');
+  const due = replyDueDays > 0 ? replyDueDays : 3;
+  return state((daysSilent ?? 0) >= due ? 'due' : 'waiting');
+}
+
+// Счётчики воронки по группе карточек (одна категория, одна страна).
+export interface FollowupCounts {
+  followingUp: number;
+  declined: number;
+  noAnswer: number;
+  reminders: number;
+}
+
+export function followupCounts(
+  offers: SupplierOffer[],
+  emails: SupplierOfferEmail[],
+  replyDueDays: number,
+  now: Date = new Date(),
+): FollowupCounts {
+  const counts: FollowupCounts = { followingUp: 0, declined: 0, noAnswer: 0, reminders: 0 };
+  for (const offer of offers) {
+    const st = offerFollowupState(offer, emails, replyDueDays, now);
+    counts.reminders += st.reminders;
+    if (st.stage === 'waiting' || st.stage === 'due') counts.followingUp++;
+    else if (st.stage === 'declined') counts.declined++;
+    else if (st.stage === 'no_answer') counts.noAnswer++;
+  }
+  return counts;
+}
 
 // ---------------------------------------------------------------------------
 // Универсальные поставщики

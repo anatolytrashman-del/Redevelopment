@@ -4,7 +4,8 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
-import type { EmailTemplate } from '../../data/emailTemplates';
+import type { EmailTemplate, EmailTemplateKind } from '../../data/emailTemplates';
+import { EMAIL_TEMPLATE_KIND_LABEL } from '../../data/emailTemplates';
 import type { SupplierRequest } from '../../data/supplierResearch';
 import { insertEmailTemplate, updateEmailTemplate, deleteEmailTemplate } from '../../lib/emailTemplatesApi';
 
@@ -24,16 +25,17 @@ interface TemplateFormState {
   subject: string;
   body: string;
   requestId: string;
+  kind: EmailTemplateKind;
 }
 
 const NO_REQUEST = 'Общий (для любого запроса)';
 
 function emptyForm(): TemplateFormState {
-  return { name: '', subject: '', body: '', requestId: '' };
+  return { name: '', subject: '', body: '', requestId: '', kind: null };
 }
 
 function templateToForm(t: EmailTemplate): TemplateFormState {
-  return { name: t.name, subject: t.subject, body: t.body, requestId: t.requestId ?? '' };
+  return { name: t.name, subject: t.subject, body: t.body, requestId: t.requestId ?? '', kind: t.kind };
 }
 
 // Форма создания/редактирования одного шаблона — используется и из общей
@@ -102,6 +104,7 @@ function TemplateFormModal({
       subject: form.subject,
       body: form.body,
       requestId: form.requestId || null,
+      kind: form.kind,
     };
     try {
       const saved = template ? await updateEmailTemplate(template.id, payload) : await insertEmailTemplate(payload);
@@ -139,6 +142,24 @@ function TemplateFormModal({
                 {r.title}
               </option>
             ))}
+          </select>
+        </div>
+
+        {/* Тип шаблона — шаг 8 плана закупок. Обычный шаблон человек
+            выбирает в композере сам; напоминания выбирает не он, а воркер
+            дожима, поэтому их и надо как-то пометить. Одно напоминание
+            каждого номера на запрос (плюс одно общее) — это уникальный
+            индекс в базе, форма просто не даёт завести второе молча. */}
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm text-ink-muted">Когда используется</span>
+          <select
+            value={form.kind ?? ''}
+            onChange={(e) => setForm((f) => ({ ...f, kind: (e.target.value || null) as EmailTemplateKind }))}
+            className="rounded-control border border-transparent bg-surface-muted px-4 py-2.5 text-sm text-ink outline-none focus:border-primary"
+          >
+            <option value="">Обычный — выбираю руками при отправке</option>
+            <option value="reminder_1">{EMAIL_TEMPLATE_KIND_LABEL.reminder_1} — ИИ-закупщик шлёт сам</option>
+            <option value="reminder_2">{EMAIL_TEMPLATE_KIND_LABEL.reminder_2} — ИИ-закупщик шлёт сам</option>
           </select>
         </div>
 
@@ -234,7 +255,10 @@ export function TemplateManagerModal({
               <div key={t.id} className="flex items-start justify-between gap-3 rounded-control border border-border px-3 py-2.5">
                 <div className="min-w-0">
                   <div className="font-medium text-ink">{t.name}</div>
-                  <div className="text-xs text-ink-faint">{requestTitle(t.requestId)}</div>
+                  <div className="text-xs text-ink-faint">
+                    {requestTitle(t.requestId)}
+                    {t.kind && <span className="ml-1.5 text-primary">· {EMAIL_TEMPLATE_KIND_LABEL[t.kind]}</span>}
+                  </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   <button
