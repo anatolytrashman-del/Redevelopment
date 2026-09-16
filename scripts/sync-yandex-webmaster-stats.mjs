@@ -17,13 +17,28 @@
 // хост в аккаунте — сам redevelopment.pro, но на случай появления второго
 // хоста явная сверка по домену надёжнее, чем брать hosts[0]).
 //
-// Реальное наблюдение на 2026-09-10 (сайт только начал индексироваться,
-// первая страница появилась в поиске 31.08): индикаторы показов/кликов по
-// запросам (TOTAL_SHOWS/TOTAL_CLICKS/...) пока приходят пустым объектом —
-// либо данных ещё физически нет, либо Вебмастер скрывает их при слишком
-// малом объёме. Это не баг скрипта — просто пока нечего сохранять по этим
-// полям, они останутся NULL, пока Яндекс не начнёт их отдавать. Скрипт не
-// падает и не ругается на пустые indicators, upsert просто кладёт NULL.
+// 2026-09-16 — ИСПРАВЛЕНА ошибка, из-за которой показы/клики не приходили
+// НИ РАЗУ. В комментарии здесь раньше стояло "данных ещё физически нет,
+// сайт молодой" — это был неверный диагноз: `indicators` возвращался
+// пустым объектом, потому что запрашивались индикаторы параметром с
+// НЕВЕРНЫМ ИМЕНЕМ. У /search-queries/all/history параметр называется
+// `query_indicator` (повторяется столько раз, сколько индикаторов нужно),
+// а не `indicators` — `indicators` это имя поля в ОТВЕТЕ. Неизвестный
+// параметр Вебмастер молча игнорирует: HTTP 200, пустой объект, ошибки
+// нет, скрипт честно кладёт NULL. Проверено вживую A/B-запросом на том же
+// хосте: `indicators=` → {"indicators":{}}, `query_indicator=` → 85
+// показов и 4 клика с 28.08. Владелец поймал на своих же цифрах в
+// интерфейсе Вебмастера («у меня уже есть показы и клики»).
+//
+// Второе там же: "Страниц в поиске" берётся НЕ из истории индексирования.
+// Ряд /search-urls/in-search/history обновляется только по апдейтам
+// поисковой базы и отстаёт на дни (16.09 его последняя точка — 15.09 со
+// значением 24, когда в поиске реально уже 58 страниц). Фактическое
+// текущее число отдаёт /search-urls/in-search/samples полем `count` — это
+// ровно то, что владелец видит в разделе «Страницы в поиске» и получает
+// экспортом (проверено: удалённые из поиска URL в samples не попадают).
+// Поэтому история идёт в прошлые дни как тренд, а в строку ЗА СЕГОДНЯ
+// пишется живой count.
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -89,13 +104,27 @@ async function fetchIndexingHistory(token, userId, hostId) {
   return byDate;
 }
 
+// Сколько страниц в поиске ПРЯМО СЕЙЧАС. limit=1 — сам список примеров не
+// нужен, нужно только поле count (общее число страниц в поиске), оно
+// приходит независимо от limit.
+async function fetchCurrentPagesInSearch(token, userId, hostId) {
+  const data = await webmasterFetch(
+    token,
+    `/user/${userId}/hosts/${encodeURIComponent(hostId)}/search-urls/in-search/samples?limit=1`,
+  );
+  return typeof data.count === 'number' ? data.count : null;
+}
+
 async function fetchQueryHistory(token, userId, hostId) {
   const dateTo = new Date();
   const dateFrom = new Date(dateTo);
   dateFrom.setDate(dateFrom.getDate() - QUERY_HISTORY_DAYS);
 
   const params = new URLSearchParams({ date_from: isoDate(dateFrom), date_to: isoDate(dateTo) });
-  for (const indicator of QUERY_INDICATORS) params.append('indicators', indicator);
+  // ИМЕННО `query_indicator`, а не `indicators` — см. комментарий в шапке
+  // файла: `indicators` это поле ответа, как параметр запроса оно молча
+  // игнорируется и обнуляет весь блок показов/кликов.
+  for (const indicator of QUERY_INDICATORS) params.append('query_indicator', indicator);
 
   const { indicators } = await webmasterFetch(
     token,
@@ -120,11 +149,21 @@ async function main() {
   const { userId, hostId } = await resolveHost(token);
   console.log(`Хост Вебмастера: ${hostId} (user_id=${userId})`);
 
-  const [indexingByDate, queryByDate] = await Promise.all([
+  const [indexingByDate, queryByDate, currentPagesInSearch] = await Promise.all([
     fetchIndexingHistory(token, userId, hostId),
     fetchQueryHistory(token, userId, hostId),
+    fetchCurrentPagesInSearch(token, userId, hostId),
   ]);
-  console.log(`Индексирование: ${indexingByDate.size} точек. Запросы: ${queryByDate.size} дней с данными.`);
+  console.log(
+    `Индексирование: ${indexingByDate.size} точек (сейчас в поиске: ${currentPagesInSearch ?? '—'}). ` +
+      `Запросы: ${queryByDate.size} дней с данными.`,
+  );
+
+  // Живое число страниц в поиске пишем в строку за сегодня — история от
+  // Яндекса отстаёт на дни, а карточка "Страниц в поиске" на странице
+  // "Показатели" берёт последнее непустое значение в периоде.
+  const today = isoDate(new Date());
+  if (currentPagesInSearch !== null) indexingByDate.set(today, currentPagesInSearch);
 
   const allDates = new Set([...indexingByDate.keys(), ...queryByDate.keys()]);
   const rows = [...allDates].map((date) => {
