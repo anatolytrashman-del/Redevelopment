@@ -1659,11 +1659,14 @@ export function DistrictGuidePage() {
                 <Link to="/minsk/one" className="transition-colors hover:text-ink">
                   Деловой центр Red One
                 </Link>
-                {/* Аудит поиска 2026-09-07: гайд ссылался на Red One, но не на
-                    каталог БЦ — каталог был «островом» без входящих ссылок. */}
-                <Link to="/minsk/bcminsk" className="transition-colors hover:text-ink">
-                  Бизнес-центры Минска
-                </Link>
+                {/* Аудит поиска 2026-09-07 добавил сюда пункт «Бизнес-центры
+                    Минска» → /minsk/bcminsk (каталог был «островом» без
+                    входящих ссылок). Владелец, 2026-09-16: каталог БЦ ещё не
+                    доделан — пока он не готов, гид по району на него не
+                    ссылается вообще. Текст про БЦ в самом районе остаётся,
+                    убраны только ссылки на наши страницы каталога. Вернуть
+                    этот пункт (и ссылки в секции #business-centers ниже),
+                    когда блок бизнес-центров будет закончен. */}
               </nav>
             </div>
           </div>
@@ -2197,12 +2200,15 @@ export function DistrictGuidePage() {
           </div>
         </div>
 
-        {/* Бизнес-центры Минск Мира — аудит поиска 2026-09-07: гайд ссылался
-            только на Red One, каталог БЦ и карточки МФЦ/Dana Center были
-            «островом» без входящих ссылок из самого релевантного контекста.
-            Факты — те же, что в карточках каталога (business_centers), без
-            новых цифр: класс, площадь, статус. Живой фетч не делаем — два
-            здания, данные меняются раз в год, а гид пререндерится. */}
+        {/* Бизнес-центры Минск Мира. Факты — те же, что в карточках каталога
+            (business_centers), без новых цифр: класс, площадь, статус. Живой
+            фетч не делаем — два здания, данные меняются раз в год, а гид
+            пререндерится. Аудит поиска 2026-09-07 сделал карточки ссылками на
+            /minsk/bcminsk/:slug плюс ссылку на каталог; владелец, 2026-09-16 —
+            пока блок бизнес-центров не доделан, ссылок на каталог с гида быть
+            не должно, поэтому карточки стали обычными плашками с тем же
+            текстом. Вернуть ссылки (и пункт меню в шапке), когда каталог будет
+            готов. */}
         <div id="business-centers" className={cn('flex scroll-mt-6 flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
           <div className="flex items-center gap-3">
             <Building2 className="h-5 w-5 shrink-0 text-ink" />
@@ -2215,20 +2221,12 @@ export function DistrictGuidePage() {
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {MINSK_MIR_BUSINESS_CENTERS.map((bc) => (
-              <Link
-                key={bc.slug}
-                to={`/minsk/bcminsk/${bc.slug}`}
-                className="flex flex-col gap-1 rounded-control border border-border bg-surface p-4 transition-colors hover:border-primary/40"
-              >
+              <div key={bc.slug} className="flex flex-col gap-1 rounded-control border border-border bg-surface p-4">
                 <span className="text-sm font-bold text-ink">{bc.name}</span>
                 <span className="text-xs text-ink-muted">{bc.facts}</span>
-                <span className="mt-1 text-xs font-semibold text-primary-hover">Карточка бизнес-центра →</span>
-              </Link>
+              </div>
             ))}
           </div>
-          <Link to="/minsk/bcminsk" className="w-fit text-sm font-semibold text-primary-hover hover:underline">
-            Все бизнес-центры Минска — каталог с классом, площадью и объявлениями →
-          </Link>
         </div>
 
 
