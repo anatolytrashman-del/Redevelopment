@@ -41,6 +41,13 @@ function fromRow(row: PurchaseOrderRow): PurchaseOrder {
     currency: (row.currency || 'RUB') as Currency,
     deliveryAddress: row.delivery_address ?? '',
     deliveryDue: row.delivery_due,
+    invoiceNumber: row.invoice_number ?? '',
+    invoiceDate: row.invoice_date,
+    invoiceFile: row.invoice_file ?? null,
+    paymentNumber: row.payment_number ?? '',
+    paymentDate: row.payment_date,
+    paymentAmount: num(row.payment_amount),
+    paymentFile: row.payment_file ?? null,
     comment: row.comment ?? '',
     createdBy: row.created_by ?? '',
     createdAt: row.created_at,
@@ -180,18 +187,46 @@ export function updatePurchaseOrderStatus(id: string, status: PurchaseOrderStatu
   });
 }
 
+// Пустая строка из <input type="date"> — это «не заполнено»: в колонку date
+// она уходит ошибкой «invalid input syntax for type date».
+function dateOrNull(value: string | null | undefined): string | null {
+  return value ? value : null;
+}
+
 export function updatePurchaseOrder(
   id: string,
-  patch: Partial<Pick<PurchaseOrder, 'deliveryAddress' | 'deliveryDue' | 'comment' | 'legalEntityId'>>,
+  patch: Partial<
+    Pick<
+      PurchaseOrder,
+      | 'deliveryAddress'
+      | 'deliveryDue'
+      | 'comment'
+      | 'legalEntityId'
+      | 'invoiceNumber'
+      | 'invoiceDate'
+      | 'invoiceFile'
+      | 'paymentNumber'
+      | 'paymentDate'
+      | 'paymentAmount'
+      | 'paymentFile'
+    >
+  >,
 ): Promise<PurchaseOrder> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('purchase_orders')
       .update({
         ...(patch.deliveryAddress !== undefined ? { delivery_address: patch.deliveryAddress } : {}),
-        ...(patch.deliveryDue !== undefined ? { delivery_due: patch.deliveryDue } : {}),
+        ...(patch.deliveryDue !== undefined ? { delivery_due: dateOrNull(patch.deliveryDue) } : {}),
         ...(patch.comment !== undefined ? { comment: patch.comment } : {}),
         ...(patch.legalEntityId !== undefined ? { legal_entity_id: patch.legalEntityId } : {}),
+        ...(patch.invoiceNumber !== undefined ? { invoice_number: patch.invoiceNumber } : {}),
+        ...(patch.invoiceDate !== undefined ? { invoice_date: dateOrNull(patch.invoiceDate) } : {}),
+        ...(patch.invoiceFile !== undefined ? { invoice_file: patch.invoiceFile } : {}),
+        ...(patch.paymentNumber !== undefined ? { payment_number: patch.paymentNumber } : {}),
+        ...(patch.paymentDate !== undefined ? { payment_date: dateOrNull(patch.paymentDate) } : {}),
+        ...(patch.paymentAmount !== undefined ? { payment_amount: patch.paymentAmount } : {}),
+        ...(patch.paymentFile !== undefined ? { payment_file: patch.paymentFile } : {}),
       })
       .eq('id', id)
       .select()

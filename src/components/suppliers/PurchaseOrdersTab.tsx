@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Package, Trash2 } from 'lucide-react';
+import { cn } from '../../lib/cn';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -24,6 +25,12 @@ import {
   updatePurchaseOrder,
   updatePurchaseOrderStatus,
 } from '../../lib/purchaseOrdersApi';
+import { deliveryProgress, receivedByItem, type PurchaseDelivery } from '../../data/purchaseDeliveries';
+import { fetchPurchaseDeliveriesByOrders } from '../../lib/purchaseDeliveriesApi';
+import { fetchPurchaseReceivers } from '../../lib/purchaseReceiversApi';
+import type { PurchaseReceiver } from '../../data/purchaseReceivers';
+import type { DocumentFile } from '../../data/contractorDocuments';
+import { DeliveriesBlock, DeliveryForm, FileField } from './PurchaseDeliveries';
 
 // Заказы поставщикам как раздел интерфейса (шаг 11b плана
 // docs/procurement-product-steps.md). Сами заказы рождаются на вкладке
@@ -86,14 +93,20 @@ function dateInputValue(iso: string | null): string {
 function OrderRow({
   order,
   categoryTitle,
+  deliveries,
   onOpen,
   showSupplier,
 }: {
   order: PurchaseOrder;
   categoryTitle: string | null;
+  deliveries: PurchaseDelivery[];
   onOpen: () => void;
   showSupplier: boolean;
 }) {
+  // Значок «получено N из M» показываем только когда поставки вообще
+  // заведены: у свежего заказа «получено 0 из 3» выглядело бы как проблема,
+  // хотя везти ещё никто ничего не обещал.
+  const progress = deliveryProgress(order.items, deliveries);
   return (
     <button
       type="button"
@@ -109,6 +122,11 @@ function OrderRow({
       </span>
       <span className="ml-auto font-semibold tabular-nums text-ink">{formatMoney(order.total, order.currency)}</span>
       <Badge tone={statusTone(order.status)}>{PURCHASE_ORDER_STATUS_LABELS[order.status]}</Badge>
+      {deliveries.length > 0 && progress.total > 0 && (
+        <Badge tone={progress.done === progress.total ? 'success' : progress.partial ? 'warning' : 'neutral'}>
+          получено {progress.done}/{progress.total}
+        </Badge>
+      )}
       <span className="w-full text-[11px] text-ink-faint">
         {formatDate(order.createdAt)}
         {order.createdBy ? ` · ${order.createdBy}` : ''}
@@ -125,12 +143,16 @@ function OrderRow({
 function PurchaseOrderModal({
   order,
   categoryTitle,
+  deliveries,
+  onDeliveriesChange,
   onClose,
   onChanged,
   onDeleted,
 }: {
   order: PurchaseOrder;
   categoryTitle: string | null;
+  deliveries: PurchaseDelivery[];
+  onDeliveriesChange: (next: PurchaseDelivery[]) => void;
   onClose: () => void;
   onChanged: (next: PurchaseOrder) => void;
   onDeleted: (id: string) => void;
@@ -140,11 +162,23 @@ function PurchaseOrderModal({
   const [deliveryAddress, setDeliveryAddress] = useState(order.deliveryAddress);
   const [deliveryDue, setDeliveryDue] = useState(dateInputValue(order.deliveryDue));
   const [comment, setComment] = useState(order.comment);
+  const [invoiceNumber, setInvoiceNumber] = useState(order.invoiceNumber);
+  const [invoiceDate, setInvoiceDate] = useState(dateInputValue(order.invoiceDate));
+  const [paymentNumber, setPaymentNumber] = useState(order.paymentNumber);
+  const [paymentDate, setPaymentDate] = useState(dateInputValue(order.paymentDate));
+  const [paymentAmount, setPaymentAmount] = useState(order.paymentAmount == null ? '' : String(order.paymentAmount));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Журнал перечитывается после смены статуса: событие пишет триггер в базе,
   // фронт его не знает и выдумывать не должен.
   const [journalTick, setJournalTick] = useState(0);
+  // Принимающие лица: список короткий, грузится один раз на открытие
+  // карточки. Пустой список не ошибка — первое лицо заводится прямо в форме
+  // поставки.
+  const [receivers, setReceivers] = useState<PurchaseReceiver[]>([]);
+  // null — карточка заказа, объект — открыта форма поставки ВМЕСТО неё
+  // (delivery: null — новая поставка).
+  const [editing, setEditing] = useState<{ delivery: PurchaseDelivery | null } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -161,25 +195,63 @@ function PurchaseOrderModal({
     };
   }, [order.id, journalTick]);
 
+  useEffect(() => {
+    let alive = true;
+    fetchPurchaseReceivers()
+      .then((list) => alive && setReceivers(list))
+      .catch(() => {
+        // Молча: без справочника форма поставки всё равно работает — лицо
+        // просто вводится руками и сохранится как новый шаблон.
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const dirty =
     deliveryAddress !== order.deliveryAddress ||
     deliveryDue !== dateInputValue(order.deliveryDue) ||
-    comment !== order.comment;
+    comment !== order.comment ||
+    invoiceNumber !== order.invoiceNumber ||
+    invoiceDate !== dateInputValue(order.invoiceDate) ||
+    paymentNumber !== order.paymentNumber ||
+    paymentDate !== dateInputValue(order.paymentDate) ||
+    paymentAmount !== (order.paymentAmount == null ? '' : String(order.paymentAmount));
 
   async function save() {
     setSaving(true);
     setError(null);
     try {
+      const amount = paymentAmount.replace(',', '.').trim();
       const next = await updatePurchaseOrder(order.id, {
         deliveryAddress,
         deliveryDue: deliveryDue || null,
         comment,
+        invoiceNumber,
+        invoiceDate: invoiceDate || null,
+        paymentNumber,
+        paymentDate: paymentDate || null,
+        // Нечисловую сумму не пишем: колонка numeric, и строка «оплачено»
+        // уедет ошибкой уже на сервере.
+        paymentAmount: amount && Number.isFinite(Number(amount)) ? Number(amount) : null,
       });
       onChanged(next);
     } catch (e) {
       setError(errorMessage(e, 'Не удалось сохранить заказ'));
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Файлы счёта и платёжки сохраняются сразу при загрузке, а не по кнопке
+  // «Сохранить»: человек грузит документ и уходит смотреть поставки, а файл
+  // при этом уже должен быть на заказе.
+  async function saveFile(field: 'invoiceFile' | 'paymentFile', file: DocumentFile | null) {
+    setError(null);
+    try {
+      onChanged(await updatePurchaseOrder(order.id, { [field]: file }));
+    } catch (e) {
+      setError(errorMessage(e, 'Не удалось сохранить файл'));
     }
   }
 
@@ -209,6 +281,31 @@ function PurchaseOrderModal({
   }
 
   const itemsTotal = purchaseOrderItemsTotal(order.items);
+  const received = receivedByItem(deliveries);
+
+  if (editing) {
+    return (
+      <Modal open onClose={onClose} title={<span className="min-w-0 break-words">Поставка · {order.number}</span>}>
+        <DeliveryForm
+          order={order}
+          delivery={editing.delivery}
+          deliveries={deliveries}
+          receivers={receivers}
+          onReceiversChange={setReceivers}
+          onSaved={(saved) => {
+            const exists = deliveries.some((d) => d.id === saved.id);
+            onDeliveriesChange(exists ? deliveries.map((d) => (d.id === saved.id ? saved : d)) : [...deliveries, saved]);
+            setEditing(null);
+          }}
+          onDeleted={(id) => {
+            onDeliveriesChange(deliveries.filter((d) => d.id !== id));
+            setEditing(null);
+          }}
+          onCancel={() => setEditing(null)}
+        />
+      </Modal>
+    );
+  }
 
   return (
     <Modal open onClose={onClose} title={<span className="min-w-0 break-words">{order.number} · {order.supplierName || 'Поставщик не назван'}</span>}>
@@ -236,18 +333,30 @@ function PurchaseOrderModal({
         <div className="flex flex-col gap-1">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Позиции</span>
           {order.items.length === 0 && <p className="text-sm text-ink-muted">Позиций нет.</p>}
-          {order.items.map((item) => (
-            <div key={item.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-t border-border py-2 text-sm first:border-t-0">
-              <span className="min-w-0 flex-1 text-ink">{item.name}</span>
-              <span className="whitespace-nowrap text-xs text-ink-muted">
-                {item.quantity ?? '—'} {item.unit} × {item.price != null ? formatMoney(item.price, order.currency) : '—'}
-              </span>
-              <span className="whitespace-nowrap font-semibold tabular-nums text-ink">
-                {formatMoney(purchaseItemTotal(item), order.currency)}
-              </span>
-              {item.note && <span className="w-full text-[11px] text-ink-faint">{item.note}</span>}
-            </div>
-          ))}
+          {order.items.map((item) => {
+            const got = received.get(item.id) ?? 0;
+            // «Получено» показываем только там, где есть с чем сравнивать:
+            // у строки доставки количества нет, и подпись «получено 0 из —»
+            // была бы шумом.
+            const full = item.quantity != null && got + 0.01 >= item.quantity;
+            return (
+              <div key={item.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-t border-border py-2 text-sm first:border-t-0">
+                <span className="min-w-0 flex-1 text-ink">{item.name}</span>
+                <span className="whitespace-nowrap text-xs text-ink-muted">
+                  {item.quantity ?? '—'} {item.unit} × {item.price != null ? formatMoney(item.price, order.currency) : '—'}
+                </span>
+                <span className="whitespace-nowrap font-semibold tabular-nums text-ink">
+                  {formatMoney(purchaseItemTotal(item), order.currency)}
+                </span>
+                {item.note && <span className="w-full text-[11px] text-ink-faint">{item.note}</span>}
+                {got > 0 && item.quantity != null && (
+                  <span className={cn('w-full text-[11px]', full ? 'text-success' : 'text-warning')}>
+                    получено {Math.round(got * 1000) / 1000} из {item.quantity} {item.unit}
+                  </span>
+                )}
+              </div>
+            );
+          })}
           <div className="flex items-baseline justify-between gap-2 border-t border-border pt-2 text-sm">
             <span className="text-ink-muted">Позиции</span>
             <span className="tabular-nums text-ink">{formatMoney(itemsTotal, order.currency)}</span>
@@ -262,6 +371,31 @@ function PurchaseOrderModal({
             <span className="text-ink">Итого</span>
             <span className="tabular-nums text-ink">{formatMoney(order.total, order.currency)}</span>
           </div>
+        </div>
+
+        {/* Счёт и оплата. Плановый платёж в «Транзакции» не заводится
+            (решение владельца 2026-09-16) — здесь только то, что уже
+            произошло: выставленный счёт и платёжка по нему. */}
+        <div className="flex flex-col gap-3">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Счёт и оплата</span>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input label="Счёт №" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="1806" />
+            <Input label="Дата счёта" type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+          </div>
+          <FileField label="Файл счёта" file={order.invoiceFile} onChange={(f) => void saveFile('invoiceFile', f)} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input label="Платёжка №" value={paymentNumber} onChange={(e) => setPaymentNumber(e.target.value)} placeholder="422" />
+            <Input label="Дата оплаты" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
+            <Input
+              label="Оплачено"
+              value={paymentAmount}
+              onChange={(e) => setPaymentAmount(e.target.value)}
+              inputMode="decimal"
+              placeholder={String(order.total)}
+              helperText="Сумма платежа — она может отличаться от суммы заказа (предоплата, округление)"
+            />
+          </div>
+          <FileField label="Файл платёжки" file={order.paymentFile} onChange={(f) => void saveFile('paymentFile', f)} />
         </div>
 
         <div className="flex flex-col gap-3">
@@ -287,6 +421,8 @@ function PurchaseOrderModal({
           </div>
         </div>
 
+        <DeliveriesBlock order={order} deliveries={deliveries} onEdit={(delivery) => setEditing({ delivery })} />
+
         <div className="flex flex-col gap-1">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Журнал</span>
           {eventsError && <p className="text-xs text-danger">{eventsError}</p>}
@@ -307,6 +443,46 @@ function PurchaseOrderModal({
   );
 }
 
+// Поставки сразу по всем видимым заказам: значок «получено N из M» нужен в
+// списке, а не только в карточке, и дёргать базу по разу на строку ради него
+// незачем. Ошибку глотаем молча — заказы важнее значка, и падать из-за него
+// весь список не должен.
+function useDeliveriesByOrder(orders: PurchaseOrder[]) {
+  const [byOrder, setByOrder] = useState<Map<string, PurchaseDelivery[]>>(new Map());
+
+  const ids = orders.map((o) => o.id).join(',');
+  useEffect(() => {
+    let alive = true;
+    if (!ids) {
+      setByOrder(new Map());
+      return;
+    }
+    fetchPurchaseDeliveriesByOrders(ids.split(','))
+      .then((list) => {
+        if (!alive) return;
+        const next = new Map<string, PurchaseDelivery[]>();
+        for (const delivery of list) {
+          const bucket = next.get(delivery.orderId);
+          if (bucket) bucket.push(delivery);
+          else next.set(delivery.orderId, [delivery]);
+        }
+        setByOrder(next);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [ids]);
+
+  function replace(orderId: string, next: PurchaseDelivery[]) {
+    setByOrder((prev) => new Map(prev).set(orderId, next));
+  }
+
+  return { byOrder, replace };
+}
+
+const NO_DELIVERIES: PurchaseDelivery[] = [];
+
 // ===========================================================================
 // Вкладка «Заказы» на странице «Закупки»
 // ===========================================================================
@@ -318,6 +494,7 @@ export function PurchaseOrdersTab({ categoryTitleById }: { categoryTitleById: Ma
   const [statusFilter, setStatusFilter] = useState<string>(ALL);
   const [supplierFilter, setSupplierFilter] = useState<string>(ALL);
   const [openId, setOpenId] = useState<string | null>(null);
+  const { byOrder, replace } = useDeliveriesByOrder(orders);
 
   useEffect(() => {
     let alive = true;
@@ -394,6 +571,7 @@ export function PurchaseOrdersTab({ categoryTitleById }: { categoryTitleById: Ma
                 key={order.id}
                 order={order}
                 categoryTitle={order.requestId ? categoryTitleById.get(order.requestId) ?? null : null}
+                deliveries={byOrder.get(order.id) ?? NO_DELIVERIES}
                 onOpen={() => setOpenId(order.id)}
                 showSupplier
               />
@@ -406,6 +584,8 @@ export function PurchaseOrdersTab({ categoryTitleById }: { categoryTitleById: Ma
         <PurchaseOrderModal
           order={open}
           categoryTitle={open.requestId ? categoryTitleById.get(open.requestId) ?? null : null}
+          deliveries={byOrder.get(open.id) ?? NO_DELIVERIES}
+          onDeliveriesChange={(next) => replace(open.id, next)}
           onClose={() => setOpenId(null)}
           onChanged={(next) => setOrders((prev) => prev.map((o) => (o.id === next.id ? next : o)))}
           onDeleted={(id) => {
@@ -427,6 +607,7 @@ export function SupplierOrdersSection({ supplierId }: { supplierId: string }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const { byOrder, replace } = useDeliveriesByOrder(orders);
 
   useEffect(() => {
     let alive = true;
@@ -470,12 +651,21 @@ export function SupplierOrdersSection({ supplierId }: { supplierId: string }) {
       {!loading &&
         !loadError &&
         orders.map((order) => (
-          <OrderRow key={order.id} order={order} categoryTitle={null} onOpen={() => setOpenId(order.id)} showSupplier={false} />
+          <OrderRow
+            key={order.id}
+            order={order}
+            categoryTitle={null}
+            deliveries={byOrder.get(order.id) ?? NO_DELIVERIES}
+            onOpen={() => setOpenId(order.id)}
+            showSupplier={false}
+          />
         ))}
       {open && (
         <PurchaseOrderModal
           order={open}
           categoryTitle={null}
+          deliveries={byOrder.get(open.id) ?? NO_DELIVERIES}
+          onDeliveriesChange={(next) => replace(open.id, next)}
           onClose={() => setOpenId(null)}
           onChanged={(next) => setOrders((prev) => prev.map((o) => (o.id === next.id ? next : o)))}
           onDeleted={(id) => {
