@@ -5,20 +5,18 @@ import {
   Award,
   BadgeCheck,
   Building2,
-  Calendar,
   DollarSign,
   HardHat,
-  Layers,
-  MapPin,
   Ruler,
   TrainFront,
 } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
-import { ObjectMapWidget } from '../components/objects/ObjectMapWidget';
 import { PhotoBlock, FactRow, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import { CatalogFilterPanel } from '../components/businessCenters/CatalogFilterPanel';
+import { CatalogTable } from '../components/businessCenters/CatalogTable';
+import { CatalogMap } from '../components/businessCenters/CatalogMap';
 import {
   setArticleJsonLd,
   setBreadcrumbJsonLd,
@@ -27,7 +25,7 @@ import {
   setNoIndex,
   clearNoIndex,
 } from '../lib/pageMeta';
-import { businessClassTone, shortAddress, shortMetro, shortName, streetOfAddress } from '../lib/businessCenterDisplay';
+import { businessClassTone, shortMetro, shortName, streetOfAddress } from '../lib/businessCenterDisplay';
 import {
   CLASS_SLUG_TO_VALUE,
   DISTRICT_SLUG_TO_NAME,
@@ -56,10 +54,13 @@ import {
   catalogSummary,
   hasActiveCatalogFilter,
   matchesCatalogFilter,
+  nearestMetroMeters,
   parseCatalogFilter,
   sortCatalogCenters,
   type CatalogFilterState,
+  type CatalogOfferIndex,
 } from '../lib/businessCenterCatalogFilter';
+import { buildBadgeContext, businessCenterBadge, type BusinessCenterBadge } from '../lib/businessCenterBadges';
 
 // Справочная SEO-страница по бизнес-центрам Минска (владелец, 2026-09-04) —
 // см. комментарий в data/businessCenters.ts про источник списка и принцип
@@ -95,19 +96,14 @@ const INTRO_TEXT =
 // результатам. Сам файл остался в public/ (compress-static-images.mjs его
 // по-прежнему знает) — если понадобится вернуть, он на месте.
 
-// Карта всех БЦ из списка (владелец, 2026-09-04) — тот же принцип, что и у
-// карты объекта в ObjectMapWidget.tsx: ссылка не из JS API/координат, а
-// готовая embed-ссылка из Яндекс.Карт Конструктора (constructor.yandex.ru),
-// куда владелец загрузил CSV/XLSX с координатами всех БЦ (см. журнал
-// docs/session-journal.md — там же про формат этого файла). Владелец прислал два варианта
-// встраивания — <script src="api-maps.yandex.ru/services/constructor/...">
-// и страницу yandex.ru/maps/?um=constructor:<id> — ни один не подходит как
-// src iframe (тот же нюанс, что уже задокументирован в ObjectMapWidget.tsx
-// и в docs/session-journal.md про карту объекта): нужен именно map-widget/v1 с тем же id.
-// Обновлено 2026-09-06 — владелец перезалил карту с координатами ВСЕХ 143 БЦ
-// (см. журнал docs/session-journal.md, запись про CSV для Конструктора) — новый id карты.
-const MAP_EMBED_URL =
-  'https://yandex.ru/map-widget/v1/?um=constructor:2faf8b114a74f188414091fd2e5e0f17d2fcde9f125ebbee51c25197b78c7736&source=constructorLink';
+// Карта всех БЦ на каталоге БЫЛА статичным embed'ом Яндекс.Конструктора
+// (владелец загружал туда CSV с координатами всех 143 БЦ). Убрана
+// 2026-09-16 по пункту К6 плана docs/bc-catalog-redesign-plan.md: она
+// показывала всегда все точки и никак не зависела от фильтра. Вместо неё —
+// вид «Карта» в переключателе над результатами
+// (components/businessCenters/CatalogMap.tsx): живая карта по
+// business_centers.lat/lng, рисует ровно отобранное, цвет метки по классу,
+// по клику — мини-карточка со ссылкой.
 
 // Только дата последнего пересмотра фактов/добавления БЦ — держать в одном
 // месте, тот же принцип, что и DATE_MODIFIED в DistrictGuidePage.tsx.
@@ -147,34 +143,44 @@ const OUT_OF_TOWN_DISTRICT = 'Великий камень';
 // раньше стоял content-visibility, см. комментарий в BusinessCenterCard).
 const CARDS_PAGE_SIZE = 48;
 
-// Компактная карточка на хабе, подробности — на отдельной странице
-// /minsk/bcminsk/:slug. Владелец, посмотрев на карточку с сеткой фактов
-// 2х3: "давай менять карточку на список полей друг под другом" — ровно 5
-// строго определённых строк (адрес без "г. Минск"/района — shortAddress() в
-// lib/businessCenterDisplay.ts, площадь, срок сдачи, этажность, метро
-// пешком), остальное (застройщик/парковка/описание) убрано с карточки
-// целиком — "прячь в подробно", видно только на отдельной странице БЦ.
-// Кнопка-пилюля "Подробнее →" — из прошлого захода (владелец: "неочевидно,
-// что на них надо нажимать"), не убиралась.
-function BusinessCenterCard({ center, metroStation }: { center: BusinessCenter; metroStation?: string | null }) {
-  // На хабе станции — точное расстояние 2GIS до неё вместо свободного текста
-  // `metro` (там может быть другая, более близкая станция).
-  const metroDistance = metroStation ? metroHubDistance(center, metroStation) : null;
+// Карточка каталога (К7 плана docs/bc-catalog-redesign-plan.md).
+//
+// Было: фото 16:10 и пять строк справочника — адрес, площадь, срок сдачи,
+// этажность, метро — плюс пилюля «Подробнее». По таким карточкам нельзя
+// было выбирать: 143 штуки подряд выглядели одинаково, а главного (сколько
+// стоит и есть ли вообще что снять) на них не было вовсе.
+//
+// Стало: фото ниже (16:9 вместо 16:10, по 4 в ряд на широком экране),
+// сверху — авто-бейдж «чем выделяется» (К8), в теле — то, по чему реально
+// сравнивают: метро в метрах, площадь и типовой этаж, ставка с числом
+// лотов, рейтинг 2ГИС, УК/ТС и парковка. Пилюля «Подробнее» убрана — вся
+// карточка и так ссылка, а место она занимала на каждой из 143 штук.
+//
+// Про «объявлений нет»: это ЧЕСТНАЯ строка, а не пробел. Здание без лотов
+// на Kufar и Realt — полезный факт (сдаёт через УК напрямую либо занято),
+// и молчать о нём хуже, чем сказать.
+function BusinessCenterCard({
+  center,
+  metroStation,
+  offers,
+  badge,
+}: {
+  center: BusinessCenter;
+  metroStation?: string | null;
+  offers: CatalogOfferIndex;
+  badge: BusinessCenterBadge | null;
+}) {
+  // На хабе станции — точное расстояние 2GIS до НЕЁ; иначе до ближайшей.
+  const metroDistance = metroStation ? metroHubDistance(center, metroStation) : nearestMetroMeters(center);
+  const metroLabel = metroStation
+    ? `«${metroStation}»`
+    : center.nearestMetroStations.length > 0
+      ? `«${[...center.nearestMetroStations].sort((a, b) => a.distanceMeters - b.distanceMeters)[0].name}»`
+      : null;
+  const rent = offers.rentBySlug.get(center.slug);
+  const sale = offers.saleBySlug.get(center.slug);
+
   return (
-    // Здесь СТОЯЛО `content-visibility: auto` + `contain-intrinsic-size:
-    // auto 420px` (PAGESPEED_PLAN.md, Э9): 143 карточки со «стеклом» и
-    // пятью инлайн-SVG браузер раскладывал разом до первого кадра.
-    // Убрано 2026-09-16 — владелец прислал скриншот прода, где карточки
-    // схлопнуты: у одних видно только фото без текста, у других не
-    // отрисовано вообще ничего. Это известная беда связки «пропущенная
-    // отрисовка + запоминаемый размер» (ключевое слово `auto` в
-    // contain-intrinsic-size): браузер запоминает размер, измеренный пока
-    // содержимое было пропущено, и дальше показывает карточку этой
-    // высотой. Headless не воспроизводит, то есть зависит от машины —
-    // чинить «на глаз» нельзя, поэтому конструкция убрана целиком.
-    // Скорость сохранена другим способом: карточек в DOM теперь не 143, а
-    // CARDS_PAGE_SIZE за раз (см. `visibleCount` на странице), а ссылки на
-    // все БЦ остались в блоке «Срезы каталога».
     <Link
       to={`/minsk/bcminsk/${center.slug}`}
       className={cn(
@@ -183,7 +189,7 @@ function BusinessCenterCard({ center, metroStation }: { center: BusinessCenter; 
       )}
       style={glassCardShadow}
     >
-      <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden">
+      <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden">
         <PhotoBlock center={center} variant="card" />
         <div className="absolute right-2 top-2 flex flex-wrap justify-end gap-1.5">
           {center.status === 'under_construction' && <Badge tone="warning">Строится</Badge>}
@@ -192,28 +198,48 @@ function BusinessCenterCard({ center, metroStation }: { center: BusinessCenter; 
           )}
         </div>
       </div>
-      <div className="flex flex-1 flex-col gap-2.5 p-4">
-        <h2 className="text-base font-bold leading-snug text-ink">{center.name}</h2>
+      <div className="flex flex-1 flex-col gap-2 p-4">
+        <h2 className="text-sm font-bold leading-snug text-ink">{shortName(center)}</h2>
+        {badge && (
+          <span
+            className={cn(
+              'w-fit rounded-full px-2 py-0.5 text-[11px] font-bold',
+              badge.tone === 'deal' ? 'bg-success-bg text-[#0f6b3d]' : 'bg-surface-muted text-ink-muted',
+            )}
+          >
+            {badge.text}
+          </span>
+        )}
 
-        <div className="flex flex-col gap-1.5">
-          <FactRow icon={MapPin}>{shortAddress(center.address)}</FactRow>
-          {center.totalArea != null && <FactRow icon={Ruler}>Площадь: {center.totalArea.toLocaleString('ru-RU')} м²</FactRow>}
-          {center.yearBuilt != null && <FactRow icon={Calendar}>Срок сдачи: {center.yearBuilt} г.</FactRow>}
-          {center.floors != null && <FactRow icon={Layers}>Этажность: {center.floors}</FactRow>}
-          {metroDistance !== null && metroStation ? (
+        <div className="flex flex-col gap-1">
+          {metroDistance != null && metroLabel ? (
             <FactRow icon={TrainFront}>
-              До «{metroStation}»: {metroDistance} м по прямой
+              {metroLabel} — {metroDistance} м
             </FactRow>
           ) : (
-            center.metro && <FactRow icon={TrainFront}>Метро: {shortMetro(center.metro)}</FactRow>
+            center.metro && <FactRow icon={TrainFront}>{shortMetro(center.metro)}</FactRow>
           )}
-        </div>
-
-        <div className="mt-auto flex justify-end pt-1">
-          <span className="flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-colors group-hover:bg-primary group-hover:text-white">
-            Подробнее
-            <ArrowRight className="h-3.5 w-3.5 shrink-0" />
-          </span>
+          {(center.totalArea != null || center.floorPlateArea != null) && (
+            <FactRow icon={Ruler}>
+              {center.totalArea != null ? `${center.totalArea.toLocaleString('ru-RU')} м²` : 'площадь неизвестна'}
+              {center.floorPlateArea != null && ` · этаж ${center.floorPlateArea.toLocaleString('ru-RU')} м²`}
+            </FactRow>
+          )}
+          {rent?.median != null || sale?.median != null ? (
+            <FactRow icon={DollarSign}>
+              {rent?.median != null && `аренда $${rent.median}/м²`}
+              {rent?.median != null && sale?.median != null && ' · '}
+              {sale?.median != null && `продажа $${Math.round(sale.median).toLocaleString('ru-RU')}/м²`}
+              {` · ${(rent?.n ?? 0) + (sale?.n ?? 0)} лотов`}
+            </FactRow>
+          ) : (
+            <FactRow icon={DollarSign}>объявлений сейчас нет</FactRow>
+          )}
+          <FactRow icon={Award}>
+            {center.gisRating != null ? `2ГИС ${center.gisRating}` : 'рейтинга нет'}
+            {center.managementType && ` · ${center.managementType === 'single_uk' ? 'единая УК' : 'ТС'}`}
+            {center.parkingRatio != null && ` · парковка ${center.parkingRatio}`}
+          </FactRow>
         </div>
       </div>
     </Link>
@@ -459,6 +485,13 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // Медианы и число объявлений по КОНКРЕТНОМУ зданию (Д3) — нужны и
   // тумблерам «есть аренда/продажа», и сортировке по ставке, и сводке.
   const offerIndex = useMemo(() => buildOfferIndex(officeSnapshots), [officeSnapshots]);
+  // Контекст авто-бейджей (К8) считается один раз от ВСЕГО каталога, не от
+  // отфильтрованной выборки: «самый большой в районе» — факт про район, он
+  // не должен меняться от того, что пользователь включил тумблер.
+  const badgeContext = useMemo(
+    () => buildBadgeContext(centers ?? [], officeSnapshots, offerIndex),
+    [centers, officeSnapshots, offerIndex],
+  );
 
   // Любая смена фильтра, сортировки или маршрута начинает список заново:
   // иначе «показать ещё» с прошлой выборки тихо переносился бы на новую.
@@ -835,7 +868,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           — простого `sticky top-0` на саму шапку достаточно для того же
           визуального эффекта, без дублирования логотипа отдельным узлом. */}
       <div className="sticky top-0 z-30 border-b border-border bg-bg/90 py-5 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-8">
           <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
             {/* text-primary-hover — как на гиде района: базовый красный на
                 полупрозрачной шапке даёт контраст ниже 4,5:1 (Accessibility). */}
@@ -849,7 +882,10 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
 
       {/* <main> — единственный main-landmark (Accessibility «Document does
           not have a main landmark»), шапка — вне него. */}
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-8">
+      {/* max-w-7xl, а не 6xl как на остальных страницах: каталог — это
+          таблица на 11 колонок и сетка по 4 карточки в ряд, на 1152 px и то
+          и другое приходилось прокручивать вбок. */}
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-8">
         <div className="flex flex-col gap-8">
           {/* К1: hero сжат до строки. Раньше здесь была карточка на пол-экрана
               с фотографией, под ней «Рынок в цифрах» на 8 плиток, сводка
@@ -931,11 +967,29 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 </button>
               )}
             </div>
+          ) : filter.view === 'table' ? (
+            /* В таблице показываем ВСЮ выборку без «показать ещё»: строка
+               без фото и «стекла» стоит браузеру копейки, а смысл вида —
+               именно увидеть всё разом и сравнить. */
+            <CatalogTable
+              centers={orderedCenters}
+              offers={offerIndex}
+              sort={filter.sort}
+              onSort={(key) => applyFilter({ ...filter, sort: key })}
+            />
+          ) : filter.view === 'map' ? (
+            <CatalogMap centers={orderedCenters} offers={offerIndex} />
           ) : (
             <div className="flex flex-col gap-6">
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {orderedCenters.slice(0, visibleCount).map((c) => (
-                  <BusinessCenterCard key={c.slug} center={c} metroStation={metroFilter} />
+                  <BusinessCenterCard
+                    key={c.slug}
+                    center={c}
+                    metroStation={metroFilter}
+                    offers={offerIndex}
+                    badge={businessCenterBadge(c, badgeContext)}
+                  />
                 ))}
               </div>
               {orderedCenters.length > visibleCount && (
@@ -950,12 +1004,6 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               )}
             </div>
           )}
-
-          {/* facade — iframe Яндекс.Карт монтируется только по клику
-              «Показать карту» (PAGESPEED_PLAN.md, Э9): сам виджет тянет
-              ~0,5 МБ JS Яндекса, ставит сторонние куки и держит главный
-              поток. Теперь он ещё и ниже результатов, а не над ними. */}
-          <ObjectMapWidget address="Бизнес-центры Минска" mapEmbedUrl={MAP_EMBED_URL} aspectClassName="aspect-[21/9]" facade />
 
             {/* Пока данные не пришли — та же карточка с невидимыми плитками
                 той же формы (PAGESPEED_PLAN.md, Э9): страница приходит

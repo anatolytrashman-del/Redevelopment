@@ -55,7 +55,19 @@ export interface CatalogFilterState {
   facts: string[];
   query: string;
   sort: CatalogSortKey;
+  // Вид результатов (К6): плитки / таблица / карта. Формально это не
+  // фильтр, но живёт в том же состоянии и в той же строке запроса —
+  // ссылкой «вот эти 12 зданий таблицей» делятся так же, как фильтром.
+  view: CatalogView;
 }
+
+export type CatalogView = 'cards' | 'table' | 'map';
+
+export const CATALOG_VIEWS: { key: CatalogView; label: string }[] = [
+  { key: 'cards', label: 'Плитки' },
+  { key: 'table', label: 'Таблица' },
+  { key: 'map', label: 'Карта' },
+];
 
 export const EMPTY_CATALOG_FILTER: CatalogFilterState = {
   classes: [],
@@ -64,6 +76,7 @@ export const EMPTY_CATALOG_FILTER: CatalogFilterState = {
   facts: [],
   query: '',
   sort: 'default',
+  view: 'cards',
 };
 
 export const METRO_WITHIN_OPTIONS: { value: number; label: string }[] = [
@@ -166,6 +179,7 @@ function splitList(raw: string | null): string[] {
 export function parseCatalogFilter(params: URLSearchParams): CatalogFilterState {
   const metroRaw = Number(params.get('metro'));
   const sortRaw = params.get('sort');
+  const viewRaw = params.get('view');
   return {
     classes: splitList(params.get('class')).filter((v) => ['A', 'B+', 'B', 'C'].includes(v)),
     districts: splitList(params.get('district')),
@@ -173,6 +187,7 @@ export function parseCatalogFilter(params: URLSearchParams): CatalogFilterState 
     facts: splitList(params.get('facts')).filter((id) => FACT_BY_ID.has(id)),
     query: params.get('q')?.trim() ?? '',
     sort: CATALOG_SORTS.some((s) => s.key === sortRaw) ? (sortRaw as CatalogSortKey) : 'default',
+    view: CATALOG_VIEWS.some((v) => v.key === viewRaw) ? (viewRaw as CatalogView) : 'cards',
   };
 }
 
@@ -188,12 +203,13 @@ export function catalogFilterToQuery(state: CatalogFilterState): string {
   if (state.facts.length > 0) params.set('facts', [...state.facts].sort().join(','));
   if (state.query) params.set('q', state.query);
   if (state.sort !== 'default') params.set('sort', state.sort);
+  if (state.view !== 'cards') params.set('view', state.view);
   const s = params.toString();
   return s ? `?${s}` : '';
 }
 
-// Сортировка и поиск — это не сужение выборки по осям, поэтому «фильтр
-// пуст» считается без них: строка «Подходит N из 143» и кнопка «Сбросить»
+// Сортировка, вид и поиск — это не сужение выборки по осям, поэтому
+// «фильтр пуст» считается без них: строка «Подходит N из 143» и кнопка «Сбросить»
 // должны реагировать на выбор класса или тумблера, а не на смену порядка.
 export function hasActiveCatalogFilter(state: CatalogFilterState): boolean {
   return (

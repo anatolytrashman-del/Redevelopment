@@ -7,9 +7,11 @@ import { SearchInput } from '../ui/SearchInput';
 import {
   CATALOG_FACTS,
   CATALOG_SORTS,
+  CATALOG_VIEWS,
   METRO_WITHIN_OPTIONS,
   type CatalogFilterState,
   type CatalogSortKey,
+  type CatalogView,
 } from '../../lib/businessCenterCatalogFilter';
 
 // Панель фильтров каталога БЦ (К2/К3/К5/К5a плана
@@ -218,6 +220,26 @@ export function CatalogFilterPanel({
           wrapperClassName="min-w-0 flex-1 basis-full sm:basis-56"
           aria-label="Поиск по бизнес-центрам"
         />
+
+        {/* Переключатель вида (К6). Стоит рядом с сортировкой, а не над
+            результатами: это одна и та же мысль — «как показать то, что
+            отобрано». */}
+        <div className="flex shrink-0 items-center gap-1 rounded-full border border-border bg-surface p-1">
+          {CATALOG_VIEWS.map((v) => (
+            <button
+              key={v.key}
+              type="button"
+              onClick={() => onChange({ ...state, view: v.key as CatalogView })}
+              aria-pressed={state.view === v.key}
+              className={cn(
+                'rounded-full px-3 py-1.5 text-sm font-semibold transition-colors',
+                state.view === v.key ? 'bg-primary text-white' : 'text-ink-muted hover:text-ink',
+              )}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
 
         <label className="relative flex shrink-0 items-center">
           <span className="sr-only">Сортировка</span>
