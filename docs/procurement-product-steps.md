@@ -640,15 +640,24 @@ Resend и матчинг ответов по заголовкам). Всё, чт
 - Данные: `src/data/purchases.ts` (`PurchaseItem` — позиция счёта со всеми
   полями сопоставления, тары и НДС), `suppliers.ts`, `supplierContacts.ts`,
   `supplierQuotes.ts` (`QuoteTerms` — девять полей условий), `units.ts`
-  (справочник единиц), `vat.ts` (ставки и приведение к «с НДС»).
+  (справочник единиц), `vat.ts` (ставки и приведение к «с НДС»),
+  `supplierResearch.ts` (`SupplierRequest.replyDueDays`, `SupplierOffer`
+  с `outcome`/`reminderStage`, `offerCommunicationStatus` — «на чём
+  остановилось», `offerFollowupState`/`followupCounts` — «не пора ли уже
+  что-то сделать»), `emailTemplates.ts` (`kind` — тип шаблона),
+  `emailAutoReply.ts` (ситуации и рубильники, включая `followupsEnabled`).
 - Доступ: `src/lib/suppliersApi.ts`, `supplierContactsApi.ts`,
-  `supplierResearchApi.ts`, `supplierQuotesApi.ts`; подсказка цены —
+  `supplierResearchApi.ts` (там же узкие `setSupplierOfferOutcome` и
+  `updateSupplierRequestReplyDue` — исход и срок формы карточки не знают и
+  затирать не должны), `supplierQuotesApi.ts`; подсказка цены —
   `src/lib/unitPriceGuess.ts`.
 - Экран: `src/pages/Suppliers.tsx` (вкладки категории), `SupplierDetail.tsx`
   (страница компании), `components/suppliers/PriceComparisonCard.tsx` +
   `priceComparisonModel.ts` (сравнение цен, расчётная часть отдельно от
-  отрисовки), `SupplierCorrespondenceTab.tsx` (переписка и форма
-  сопоставления счёта).
+  отрисовки), `SupplierCorrespondenceTab.tsx` (переписка, форма сопоставления
+  счёта, `FollowupPanel` — срок и воронка категории, `FollowupControls` —
+  исход поставщика в треде), `AutoReplyRules.tsx` (рубильники и ситуации),
+  `EmailTemplates.tsx` (шаблоны, в том числе напоминания).
 - Сервер: `api/purchase-email-webhook.js` (приём письма),
   `_invoiceRecognition.js` (распознавание счёта и условий),
   `_invoiceApply.js` (запись в базу), `_proposalMatches.js`
@@ -656,6 +665,14 @@ Resend и матчинг ответов по заголовкам). Всё, чт
 - Очереди: `supabase/functions/process-supplier-jobs`,
   `process-bulk-send-jobs`, `process-outgoing-emails` (крон раз в минуту
   через pg_cron) и `process-followups` (раз в час, дожим).
+  `cron.job`: jobid 1-3 — поминутные, jobid 4 — `process-followups`
+  (`17 * * * *`). Разбор входящей почты крона НЕ имеет: это Routine в
+  аккаунте владельца (`27 * * * *`), см. `docs/auto-reply-routine.md`.
+- В базе, чего не видно по коду: `auto_reply_apply` (десять аргументов,
+  десятый — исход дожима), `auto_reply_compose` (приветствие, подпись,
+  цитата), `auto_reply_queue` (кладёт письмо в очередь отправки),
+  `auto_reply_answer` (ответ по подсказке владельца). Определения смотреть
+  через `pg_get_functiondef`, править — миграцией в `supabase/migrations/`.
 
 **Что осталось незакрытым сознательно** (в самих шагах расписано подробнее):
 - «Запросить КП по ведомости» — не делается, действию нужен композер письма,
