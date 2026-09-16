@@ -450,6 +450,21 @@ export function SiteMetrics() {
     [goalCompletions, period],
   );
 
+  // Какие КАЛЕНДАРНЫЕ дни реально показаны. Периоды нарезаются по строкам
+  // массива, а не по датам (см. sliceCurrentPeriod), и строки приходят
+  // только за дни, где был хоть один визит — поэтому "Сегодня" молча
+  // показывал вчерашний день, если за сегодня визитов ещё не было или синк
+  // не успел отработать (владелец поймал 2026-09-16: карточки — за 15-е,
+  // подпись — "Сегодня"). Даты здесь берём из самих данных, без вычисления
+  // "сегодня" в часовом поясе счётчика: подпись остаётся верной в любом
+  // часовом поясе, а расхождение с Метрикой сразу видно глазами.
+  const periodDatesLabel = useMemo(() => {
+    if (currentPeriod.length === 0) return null;
+    const first = currentPeriod[0].date;
+    const last = currentPeriod[currentPeriod.length - 1].date;
+    return first === last ? `за ${formatDateShort(first)}` : `${formatDateShort(first)} — ${formatDateShort(last)}`;
+  }, [currentPeriod]);
+
   const currentWebmaster = useMemo(() => sliceCurrentPeriod(webmasterStats ?? [], period), [webmasterStats, period]);
   // "Страниц в поиске" — не сумма по дням (это счётчик состояния, не
   // событие), берём последнее известное значение в периоде.
@@ -512,6 +527,7 @@ export function SiteMetrics() {
               onChange={(label) => setPeriod(LABEL_TO_PERIOD[label])}
             />
             <div className="flex flex-col items-end gap-1 text-xs text-ink-muted">
+              {periodDatesLabel && <p className="font-semibold text-ink">Данные {periodDatesLabel}</p>}
               {maxUpdatedAt && (
                 <p>
                   Данные синка: {new Date(maxUpdatedAt).toLocaleString('ru-RU', { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' })}
