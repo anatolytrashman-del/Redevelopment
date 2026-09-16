@@ -282,6 +282,76 @@ export async function classifyCapture({ text, fileNames, sourceName, messageDate
   }
 }
 
+
+// --- Автопривязка к карточке по нику -----------------------------------
+// Владелец, 2026-09-16, увидев первую живую запись: «Не хочу выбирать контакт
+// вручную, ты видишь ник и сам понимаешь, к какому диалогу привязать».
+//
+// Ник Telegram — единственный надёжный ключ: он уникален, а имя в профиле
+// человек меняет как хочет («Дмитрий НиколаИч» в профиле против «Дмитрий
+// Иванцов (Мир НиколаИча)» в карточке коллаборации — одно и то же лицо, но
+// ни одна проверка по имени их не свяжет).
+//
+// БЛИЗНЕЦ: та же нормализация ника живёт на фронте в
+// src/lib/telegramHandle.ts (extractTelegramHandle). Serverless-функции —
+// голый JS и импортировать TypeScript из src/ не умеют. Правится одна
+// сторона — правится и вторая, иначе ссылка в карточке лида будет вести
+// туда, куда копилка не привязывает.
+const TELEGRAM_HANDLE_RE = /^[a-zA-Z][a-zA-Z0-9_]{4,31}$/;
+
+function normalizeHandle(value) {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed) return '';
+  const handle = trimmed
+    .replace(/^https?:\/\//i, '')
+    .replace(/^(t\.me|telegram\.me)\//i, '')
+    .replace(/^@/, '');
+  // Ники в Telegram регистронезависимы: @Dmitry_Nikolai4 и @dmitry_nikolai4 —
+  // один и тот же человек, а в карточке он записан как придётся.
+  return TELEGRAM_HANDLE_RE.test(handle) ? handle.toLowerCase() : '';
+}
+
+async function restSelect(path) {
+  const resp = await fetch(`${process.env.SUPABASE_URL}/rest/v1/${path}`, {
+    headers: {
+      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+  });
+  if (!resp.ok) throw new Error(`Supabase GET ${path}: ${resp.status} ${await resp.text()}`);
+  return resp.json();
+}
+
+// Возвращает { type, id } или null. Ищем только там, где Telegram-контакт
+// заводится руками и список обозримый: коллаборации (блогеры, партнёры) и
+// лиды. Поставщиков и подрядчиков сознательно не трогаем — их больше тысячи,
+// ник там попадается редко, а ошибочная привязка счёта к чужой карточке
+// дороже, чем пустое поле.
+//
+// Никогда не бросает: не нашли или база недоступна — запись просто ляжет без
+// привязки, её проставят руками.
+export async function resolveLink(username) {
+  const handle = normalizeHandle(username);
+  if (!handle) return null;
+  try {
+    const [collaborations, leads] = await Promise.all([
+      restSelect('collaborations?select=id,contact,contact_method'),
+      restSelect('leads?select=id,contact,contact_method'),
+    ]);
+    for (const [type, rows] of [
+      ['collaboration', collaborations],
+      ['lead', leads],
+    ]) {
+      const hit = rows.find((row) => normalizeHandle(row.contact) === handle);
+      if (hit) return { type, id: hit.id };
+    }
+    return null;
+  } catch (err) {
+    console.error('[telegram-capture] автопривязка не удалась:', err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
 async function insertCapture(row) {
   const resp = await fetch(
     `${process.env.SUPABASE_URL}/rest/v1/telegram_captures?on_conflict=chat_id,message_id`,
@@ -385,6 +455,11 @@ export async function handleTelegramUpdate(update) {
     }
   }
 
+  // Привязка ищется ДО вставки: это один короткий запрос в базу, и без неё
+  // запись показалась бы владельцу непривязанной ровно до следующего
+  // обновления страницы.
+  const link = await resolveLink(forward.username);
+
   // Сначала запись, потом модель: если функцию убьют по времени на разборе,
   // сама пересылка уже в базе, а повторную доставку погасит уникальный индекс.
   const created = await insertCapture({
@@ -398,6 +473,8 @@ export async function handleTelegramUpdate(update) {
     source_date: forward.date,
     text,
     files,
+    linked_type: link ? link.type : '',
+    linked_id: link ? link.id : null,
   });
   if (!created) return 'повторная доставка того же сообщения — пропущена';
 

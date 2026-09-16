@@ -14,6 +14,7 @@ import {
   type TelegramCapturePatch,
 } from '../../lib/telegramCapturesApi';
 import { fetchCollaborations } from '../../lib/collaborationsApi';
+import { fetchLeads } from '../../lib/leadsApi';
 import { fetchObjects } from '../../lib/objectsApi';
 import {
   TELEGRAM_CAPTURE_BOT,
@@ -61,7 +62,7 @@ function kindTone(kind: string): 'neutral' | 'warning' | 'danger' | 'success' {
 // (два объекта по одному адресу) склеятся в одну опцию — терпимо: выбор
 // всё равно подтверждается глазами, а тип и id хранятся отдельно.
 interface LinkOption {
-  type: 'collaboration' | 'object';
+  type: 'collaboration' | 'lead' | 'object';
   id: string;
   label: string;
 }
@@ -99,14 +100,22 @@ export function TelegramCapturesTab({ onCountsChange }: { onCountsChange?: (newC
   // можно читать и разбирать, просто селект будет пустым.
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchCollaborations(), fetchObjects()])
-      .then(([collaborations, objects]) => {
+    Promise.all([fetchCollaborations(), fetchLeads(), fetchObjects()])
+      .then(([collaborations, leads, objects]) => {
         if (cancelled) return;
+        // Порядок тот же, что у автопривязки на сервере (resolveLink в
+        // api/_telegramCapture.js): сначала коллаборации, потом лиды. Объекты
+        // только вручную — Telegram-контакта у объекта нет и быть не может.
         setLinkOptions([
           ...collaborations.map((item) => ({
             type: 'collaboration' as const,
             id: item.id,
             label: `Коллаборация: ${item.partner}`,
+          })),
+          ...leads.map((item) => ({
+            type: 'lead' as const,
+            id: item.id,
+            label: `Лид: ${item.name || item.contact}`,
           })),
           ...objects.map((item) => ({
             type: 'object' as const,
@@ -297,6 +306,10 @@ export function TelegramCapturesTab({ onCountsChange }: { onCountsChange?: (newC
             )}
 
             <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+              {/* Привязку в норме проставляет сервер по нику отправителя
+                  (resolveLink), руками её только поправляют — поэтому селект
+                  стоит спокойным первым элементом строки действий, а не
+                  требует внимания. */}
               <Select
                 placeholder={NO_LINK_LABEL}
                 options={[NO_LINK_LABEL, ...(linkMissing ? [MISSING_LINK_LABEL] : []), ...linkOptions.map((o) => o.label)]}
