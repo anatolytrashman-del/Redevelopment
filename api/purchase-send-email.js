@@ -66,6 +66,16 @@ function emailAddress(shortCode) {
   return `zakupki+${shortCode}@redevelopment.pro`;
 }
 
+// Общий ящик компании — страница "Почта" в админке (владелец, 2026-09-16:
+// "мне нужен общий блок с email-ящиком в интерфейсе... Ящик —
+// a@redevelopment.pro"). Единственное направление отправки без short_code:
+// адрес один на всю компанию, ответ прилетает на него же и ложится в ту же
+// ленту (см. ветку общего ящика в purchase-email-webhook.js).
+// Строкой, а не импортом из api/_emailMatch.js, — там значение то же самое,
+// но тащить сюда файл разбора входящих ради одной константы незачем;
+// меняется адрес — меняются оба места.
+const SHARED_MAILBOX_ADDRESS = 'a@redevelopment.pro';
+
 async function fetchShortCode(table, id) {
   const resp = await fetch(`${process.env.SUPABASE_URL}/rest/v1/${table}?id=eq.${id}&select=short_code`, {
     headers: {
@@ -329,10 +339,16 @@ export default async function handler(req, res) {
   // страницы "Закупки", владелец 2026-09-14). Сюда же, а не отдельным
   // эндпоинтом, по той же причине, что и предложения Ресерча: лимит в 12
   // serverless-функций на Hobby-плане уже выбран (см. шапку файла).
-  const { purchaseId, offerId, orderId, contractorId, toAddress, subject, body, attachments, asAiBuyer } =
+  const { purchaseId, offerId, orderId, contractorId, mailbox, toAddress, subject, body, attachments, asAiBuyer } =
     req.body ?? {};
 
-  if ((!purchaseId && !offerId && !contractorId) || !toAddress || !body) {
+  // mailbox:true — письмо из общего ящика компании (страница "Почта"),
+  // четвёртое направление в этом же эндпоинте по той же причине лимита
+  // функций. Адресата тут выбирает человек, а не карточка, поэтому ни
+  // purchaseId, ни offerId, ни short_code для него не нужны.
+  const isMailbox = Boolean(mailbox);
+
+  if ((!purchaseId && !offerId && !contractorId && !isMailbox) || !toAddress || !body) {
     res.status(400).json({ error: 'Заполните все поля' });
     return;
   }
@@ -348,25 +364,29 @@ export default async function handler(req, res) {
   // сюда), не из short_code офера. offer_id в самой записи письма всё равно
   // проставляется — общий счётчик непрочитанных по поставщику считает по
   // нему независимо от конкретной заявки (см. data/supplierOfferEmails.ts).
-  const shortCode = purchaseId
-    ? await fetchShortCode('purchases', purchaseId)
-    : contractorId
-      ? await fetchShortCode('work_contractors', contractorId)
-      : orderId
-        ? await fetchShortCode('supplier_orders', orderId)
-        : await fetchShortCode('supplier_research_offers', offerId);
-  if (!shortCode) {
+  const shortCode = isMailbox
+    ? null
+    : purchaseId
+      ? await fetchShortCode('purchases', purchaseId)
+      : contractorId
+        ? await fetchShortCode('work_contractors', contractorId)
+        : orderId
+          ? await fetchShortCode('supplier_orders', orderId)
+          : await fetchShortCode('supplier_research_offers', offerId);
+  if (!isMailbox && !shortCode) {
     res.status(404).json({ error: 'Не найдена закупка, предложение, заявка или подрядчик' });
     return;
   }
 
-  const fromAddress = emailAddress(shortCode);
-  const table = purchaseId
-    ? 'purchase_emails'
-    : contractorId
-      ? 'work_contractor_emails'
-      : 'supplier_offer_emails';
-  const defaultSubject = purchaseId ? 'Закупка' : contractorId ? 'Подрядчику' : 'Запрос цены';
+  const fromAddress = isMailbox ? SHARED_MAILBOX_ADDRESS : emailAddress(shortCode);
+  const table = isMailbox
+    ? 'mailbox_emails'
+    : purchaseId
+      ? 'purchase_emails'
+      : contractorId
+        ? 'work_contractor_emails'
+        : 'supplier_offer_emails';
+  const defaultSubject = isMailbox ? 'Письмо' : purchaseId ? 'Закупка' : contractorId ? 'Подрядчику' : 'Запрос цены';
 
   try {
     // Владелец, 2026-09-03: "прикрепление ведомостей материалов к письму" —
@@ -447,7 +467,14 @@ export default async function handler(req, res) {
       : { sent_by_profile_id: author?.id ?? null, sent_by_name: author?.display_name ?? null };
 
     const row = await insertEmailRow(table, {
-      ...(purchaseId
+      ...(isMailbox
+        ? {
+            // Привязки к карточке у общего ящика нет вовсе — только автор
+            // письма, чтобы в ленте было видно, кто писал.
+            sent_by_profile_id: author?.id ?? null,
+            sent_by_name: author?.display_name ?? null,
+          }
+        : purchaseId
         ? { purchase_id: purchaseId }
         : contractorId
           ? {
