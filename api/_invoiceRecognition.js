@@ -50,6 +50,8 @@ const SYSTEM_PROMPT = `Ты помогаешь понять, является л
 {"isInvoice": true или false, "confidence": число от 0 до 1,
  "price": число или null, "currency": "USD" или "EUR" или "BYN" или "RUB" или null,
  "supplierInn": "строка цифр" или null,
+ "supplierName": "строка" или null, "supplierEmail": "строка" или null,
+ "supplierSite": "строка" или null,
  "items": [{"name": "строка", "quantity": число или null, "unit": "строка", "price": число или null,
             "packQty": число или null, "packUnit": "строка" или null}],
  "terms": {"deliveryCost": число или null, "deliveryTerms": "строка" или null,
@@ -90,7 +92,16 @@ supplierInn — ИНН ПОСТАВЩИКА, то есть того, кто вы
 с КПП (9 цифр), БИК (9 цифр), ОГРН (13 или 15 цифр) и номером расчётного
 счёта (20 цифр): у ИНН ровно 10 цифр у организации или 12 у ИП. Если ИНН
 поставщика в документе не указан или непонятно, чей из двух — верни null,
-угадывать не нужно. items — позиции
+угадывать не нужно.
+
+supplierName, supplierEmail, supplierSite — название компании-ПОСТАВЩИКА (как
+написано в шапке, вместе с «ООО»/«ЧТУП»), её адрес почты и адрес сайта, если
+они есть в документе. Та же развилка, что и у ИНН: в счёте два участника, и
+нужен тот, кто выставил счёт, а не плательщик. По этим полям система находит
+поставщика у себя в базе, поэтому выдумывать их нельзя: чего в документе нет —
+null.
+
+items — позиции
 документа, если их можно выделить построчно; если документ не разбит на
 позиции (просто "услуга — сумма") — верни пустой массив, это поле не
 обязательно. Никогда не выдумывай числа — если сумму не удаётся уверенно
@@ -382,6 +393,14 @@ export function normalizeRecognized(parsed) {
       if (!raw) return null;
       return invalidInnReason(raw) ? null : raw;
     })(),
+    // Реквизиты поставщика из шапки документа. Нужны маршрутизации КП,
+    // загруженного руками (_invoiceRouting.js): по ним счёт находит свою
+    // карточку поставщика, когда ИНН в документе нет. Пустое значение — null,
+    // а не '': «в документе не написано» и «написано пусто» здесь одно и то
+    // же, а null не спутаешь с найденным.
+    supplierName: textOrNull(parsed.supplierName, 200),
+    supplierEmail: emailOrNull(parsed.supplierEmail),
+    supplierSite: textOrNull(parsed.supplierSite, 300),
     items: Array.isArray(parsed.items)
       ? parsed.items
           .filter((i) => i && typeof i.name === 'string' && i.name.trim())
@@ -398,6 +417,19 @@ export function normalizeRecognized(parsed) {
       : [],
     terms: normalizeTerms(parsed.terms),
   };
+}
+
+function textOrNull(value, max) {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  return text && text.toLowerCase() !== 'null' ? text.slice(0, max) : null;
+}
+
+// Модель охотно возвращает адресом почты строку вида «e-mail: info@dom.by» или
+// сразу два адреса через запятую. Берём первое, что похоже на адрес, и только
+// его: по этой строке ищется поставщик, мусор в ней даст ложное совпадение.
+function emailOrNull(value) {
+  const match = String(value ?? '').match(/[^\s<>,;"']+@[^\s<>,;"']+\.[a-z]{2,}/i);
+  return match ? match[0].toLowerCase() : null;
 }
 
 // Тара строки счёта: packQty/packUnit (шаг 7 плана закупок). Модель охотно

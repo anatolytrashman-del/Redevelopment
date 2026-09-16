@@ -112,6 +112,37 @@ async function alreadyApplied(email, sourceFile) {
   return null;
 }
 
+// Позиции ведомости поставки. Правило то же, что у api/_supplyDb.js
+// (fetchRequestPositions), и по той же причине: живая ведомость — это
+// материалы РАЗДЕЛА СМЕТЫ, к которому привязана поставка, а колонка
+// supplier_research_requests.items мертва с 2026-09-11. Скрипт голый .mjs и
+// импортировать хелпер api/ не может (тот ходит своим fetch по
+// SUPABASE_URL/SERVICE_ROLE), поэтому логика повторена здесь — правится одна
+// сторона, правится и вторая.
+async function requestPositions(requestId) {
+  const requests = await rest(`supplier_research_requests?id=eq.${requestId}&select=items,estimate_id,section_id`);
+  const request = requests[0];
+  if (!request) return [];
+  let raw = [];
+  if (request.estimate_id && request.section_id) {
+    const estimates = await rest(`estimates?id=eq.${request.estimate_id}&select=sections`);
+    const sections = Array.isArray(estimates[0]?.sections) ? estimates[0].sections : [];
+    raw = sections.find((s) => s?.id === request.section_id)?.materials ?? [];
+  }
+  if (raw.length === 0) raw = Array.isArray(request.items) ? request.items : [];
+  return raw
+    .filter((p) => p && typeof p.id === 'string' && typeof p.name === 'string' && p.name.trim())
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      quantity: typeof p.quantity === 'number' ? p.quantity : null,
+      unit: typeof p.unit === 'string' ? p.unit : '',
+      consumption: typeof p.consumption === 'number' ? p.consumption : null,
+      consumptionUnit: typeof p.consumptionUnit === 'string' ? p.consumptionUnit : null,
+      note: typeof p.note === 'string' ? p.note : '',
+    }));
+}
+
 // Прогон автосопоставления по уже лежащим в базе КП. Берём только строки без
 // sourceMaterialId: то, что человек или прошлый прогон уже привязали, не
 // трогаем — переписывать чужое решение моделью нельзя.
@@ -147,8 +178,7 @@ async function matchExistingQuotes() {
         continue;
       }
       if (!positionsByRequest.has(offer.request_id)) {
-        const requests = await rest(`supplier_research_requests?id=eq.${offer.request_id}&select=items`);
-        positionsByRequest.set(offer.request_id, Array.isArray(requests[0]?.items) ? requests[0].items : []);
+        positionsByRequest.set(offer.request_id, await requestPositions(offer.request_id));
       }
       const positions = positionsByRequest.get(offer.request_id);
       if (positions.length === 0) {
@@ -157,15 +187,7 @@ async function matchExistingQuotes() {
       }
 
       const matches = await suggestMatches({
-        positions: positions.map((p) => ({
-          id: p.id,
-          name: p.name,
-          quantity: p.quantity,
-          unit: p.unit,
-          consumption: p.consumption ?? null,
-          consumptionUnit: p.consumptionUnit ?? null,
-          note: p.note ?? '',
-        })),
+        positions,
         lines: unmatched.map((i) => ({
           id: i.id,
           supplier: offer.name ?? '',

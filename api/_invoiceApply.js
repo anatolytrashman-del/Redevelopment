@@ -37,41 +37,12 @@
 import { randomUUID } from 'node:crypto';
 import { suggestMatches } from './_proposalMatches.js';
 import { grossUp, vatRateForCountry } from './_vat.js';
+// REST-доступ и чтение ведомости — общие с маршрутизацией КП, загруженных
+// руками (_invoiceRouting.js). Почему ведомость нельзя читать из
+// supplier_research_requests.items — см. шапку _supplyDb.js.
+import { fetchRequestPositions, restGet, restInsert, restPatch } from './_supplyDb.js';
 
 const KNOWN_CURRENCIES = ['RUB', 'USD', 'EUR', 'BYN'];
-
-function authHeaders() {
-  return {
-    apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-  };
-}
-
-async function restGet(path) {
-  const resp = await fetch(`${process.env.SUPABASE_URL}/rest/v1/${path}`, { headers: authHeaders() });
-  if (!resp.ok) throw new Error(`Supabase GET ${path}: ${resp.status} ${await resp.text()}`);
-  return resp.json();
-}
-
-async function restPatch(path, body) {
-  const resp = await fetch(`${process.env.SUPABASE_URL}/rest/v1/${path}`, {
-    method: 'PATCH',
-    headers: { ...authHeaders(), 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-    body: JSON.stringify(body),
-  });
-  if (!resp.ok) throw new Error(`Supabase PATCH ${path}: ${resp.status} ${await resp.text()}`);
-}
-
-async function restInsert(table, body) {
-  const resp = await fetch(`${process.env.SUPABASE_URL}/rest/v1/${table}`, {
-    method: 'POST',
-    headers: { ...authHeaders(), 'Content-Type': 'application/json', Prefer: 'return=representation' },
-    body: JSON.stringify(body),
-  });
-  if (!resp.ok) throw new Error(`Supabase POST ${table}: ${resp.status} ${await resp.text()}`);
-  const rows = await resp.json();
-  return rows[0];
-}
 
 function normalizedCurrency(recognizedCurrency, fallback) {
   const value = String(recognizedCurrency || '').toUpperCase();
@@ -187,20 +158,11 @@ async function withMatches(items, { offerId, supplierName }) {
     const offers = await restGet(`supplier_research_offers?id=eq.${offerId}&select=request_id`);
     const requestId = offers[0]?.request_id;
     if (!requestId) return items;
-    const requests = await restGet(`supplier_research_requests?id=eq.${requestId}&select=items`);
-    const positions = Array.isArray(requests[0]?.items) ? requests[0].items : [];
+    const positions = await fetchRequestPositions(requestId);
     if (positions.length === 0) return items;
 
     const matches = await suggestMatches({
-      positions: positions.map((p) => ({
-        id: p.id,
-        name: p.name,
-        quantity: p.quantity,
-        unit: p.unit,
-        consumption: p.consumption ?? null,
-        consumptionUnit: p.consumptionUnit ?? null,
-        note: p.note ?? '',
-      })),
+      positions,
       lines: items.map((i) => ({
         id: i.id,
         supplier: supplierName ?? '',
@@ -245,6 +207,11 @@ export async function applyRecognizedInvoice({ emailId, offerId, orderId, subjec
   const needsCountryRate = recognized.terms?.vatIncluded === false && !recognized.terms?.vatRate;
   const newItems = withVat(matched, recognized.terms, needsCountryRate ? await legalEntityVatRate(offerId) : null);
   const itemIds = newItems.map((i) => i.id);
+  // Сколько строк счёта легло на позиции ведомости. Возвращается наружу ради
+  // ручной загрузки КП (_invoiceRouting.js): именно эти строки и попадают в
+  // «Сравнение цен», поэтому «записано 12 позиций» без этого числа ничего не
+  // говорит о том, увидит ли их закупщица в таблице.
+  const matchedCount = newItems.filter((i) => i.sourceMaterialId).length;
 
   // Дополнительная заявка (supplier_orders) ведёт свою переписку и свои
   // цены — владелец, 2026-09-03: "1 заявка на поставку — одна ветка".
@@ -270,6 +237,7 @@ export async function applyRecognizedInvoice({ emailId, offerId, orderId, subjec
       targetId: orderId,
       quoteId: null,
       itemIds,
+      matchedCount,
       fileUrl: sourceFile?.url ?? null,
       fileAdded: orderFiles.added,
       previous: { price: order.price, currency: order.currency, inn: null },
@@ -319,6 +287,7 @@ export async function applyRecognizedInvoice({ emailId, offerId, orderId, subjec
     targetId: offerId,
     quoteId: quote?.id ?? null,
     itemIds,
+    matchedCount,
     fileUrl: sourceFile?.url ?? null,
     fileAdded: offerFiles.added,
     previous: { price: offer.price, currency: offer.currency, inn: offer.inn },
