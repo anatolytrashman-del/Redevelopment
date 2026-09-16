@@ -53,7 +53,7 @@ create table if not exists telegram_captures (
   due_date date,
   counterparty text not null default '',
   status text not null default 'new' check (status in ('new','accepted','dismissed')),
-  -- Мягкая привязка к карточке: collaboration | object (без FK — копилка
+  -- Мягкая привязка к карточке: contact | object (без FK — копилка
   -- переживает удаление карточки, висящая ссылка просто не находит имя).
   linked_type text not null default '',
   linked_id uuid,

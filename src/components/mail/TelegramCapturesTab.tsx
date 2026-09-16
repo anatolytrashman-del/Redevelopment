@@ -13,7 +13,8 @@ import {
   updateTelegramCapture,
   type TelegramCapturePatch,
 } from '../../lib/telegramCapturesApi';
-import { fetchCollaborations } from '../../lib/collaborationsApi';
+import { fetchMailboxContacts } from '../../lib/mailboxContactsApi';
+import { contactLabel } from '../../data/mailbox';
 import { fetchObjects } from '../../lib/objectsApi';
 import {
   TELEGRAM_CAPTURE_BOT,
@@ -61,7 +62,9 @@ function kindTone(kind: string): 'neutral' | 'warning' | 'danger' | 'success' {
 // (два объекта по одному адресу) склеятся в одну опцию — терпимо: выбор
 // всё равно подтверждается глазами, а тип и id хранятся отдельно.
 interface LinkOption {
-  type: 'collaboration' | 'object';
+  // 'contact' — запись из вкладки «Контакты» того же ящика (бывшие
+  // «Коллаборации», слитые сюда 2026-09-16).
+  type: 'contact' | 'object';
   id: string;
   label: string;
 }
@@ -99,14 +102,14 @@ export function TelegramCapturesTab({ onCountsChange }: { onCountsChange?: (newC
   // можно читать и разбирать, просто селект будет пустым.
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchCollaborations(), fetchObjects()])
-      .then(([collaborations, objects]) => {
+    Promise.all([fetchMailboxContacts(), fetchObjects()])
+      .then(([contacts, objects]) => {
         if (cancelled) return;
         setLinkOptions([
-          ...collaborations.map((item) => ({
-            type: 'collaboration' as const,
+          ...contacts.map((item) => ({
+            type: 'contact' as const,
             id: item.id,
-            label: `Коллаборация: ${item.partner}`,
+            label: `Контакт: ${contactLabel(item)}`,
           })),
           ...objects.map((item) => ({
             type: 'object' as const,

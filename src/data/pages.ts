@@ -19,7 +19,6 @@ import {
   ShoppingCart,
   HardHat,
   BarChart3,
-  Handshake,
   Mail,
 } from 'lucide-react';
 
@@ -37,7 +36,6 @@ export type PageKey =
   | 'landings'
   | 'siteMetrics'
   | 'marketOffers'
-  | 'collaborations'
   | 'contractors'
   | 'mailbox'
   | 'objects'
@@ -80,7 +78,6 @@ export const ADMIN_PAGES: AdminPage[] = [
   // Светланы, staff-активность, RequireSuperAdmin, не в меню — см. Metrics.tsx).
   { key: 'siteMetrics', to: '/admin/site-metrics', label: 'Показатели', icon: BarChart3 },
   { key: 'marketOffers', to: '/admin/market-offers', label: 'Аналитика рынка', icon: ClipboardCheck },
-  { key: 'collaborations', to: '/admin/collaborations', label: 'Коллаборации', icon: Handshake },
   // "Команда" (бывшие "Подрядчики") — отдельный пункт сразу после "Объекты",
   // владелец явно поправил после первой версии (2026-08-29): "это страница
   // Команда, она должна быть в меню после Объектов" — не сливать с
@@ -139,7 +136,6 @@ export const VISIBLE_PAGE_KEYS: PageKey[] = [
   'landings',
   'siteMetrics',
   'marketOffers',
-  'collaborations',
   'leads',
   'transactions',
   'documents',
@@ -161,7 +157,7 @@ export const SIDEBAR_LAYOUT: SidebarEntry[] = [
   { type: 'page', key: 'mailbox' },
   { type: 'group', label: 'Стройка', keys: ['tz', 'estimates', 'purchases', 'workContractors', 'designProjects'] },
   { type: 'group', label: 'Финансы', keys: ['finModels', 'financing', 'transactions', 'documents'] },
-  { type: 'group', label: 'Маркетинг', keys: ['landings', 'siteMetrics', 'marketOffers', 'collaborations', 'leads'] },
+  { type: 'group', label: 'Маркетинг', keys: ['landings', 'siteMetrics', 'marketOffers', 'leads'] },
   { type: 'page', key: 'meetingSummaries' },
   { type: 'page', key: 'settings' },
 ];
