@@ -8,7 +8,9 @@
 // Два сегмента с реальными данными:
 // - 'ofisy_bc' (офисы в бизнес-центрах, city-wide) — из
 //   business_center_offers, привязка к business_centers.business_class/
-//   district; срезы city/class/district. Дедупликации Kufar↔Realt тут НЕТ —
+//   district; срезы city/class/district/building (building — slug БЦ, по
+//   зданию выборка почти всегда мала, поэтому читать её нужно вместе с n,
+//   см. MIN_RELIABLE_N на фронте). Дедупликации Kufar↔Realt тут НЕТ —
 //   у business_center_offers нет ни ручного review-флоу (см. комментарий в
 //   sync-business-center-offers.mjs), ни общего dedup-ключа между
 //   источниками — известное ограничение, отражено в /minsk/analytics/metodika.
@@ -135,10 +137,23 @@ async function main() {
     .select('slug,business_class,district');
   if (centersError) throw centersError;
 
-  const { data: bcOffers, error: bcOffersError } = await supabase
-    .from('business_center_offers')
-    .select('business_center_slug,deal_type,price_per_sqm,property_type');
-  if (bcOffersError) throw bcOffersError;
+  // PostgREST отдаёт максимум 1000 строк за запрос (см. CLAUDE.md) —
+  // объявлений в БЦ уже 618 и их число растёт с каждым синком, а хвост
+  // терялся бы МОЛЧА, занижая медианы. Листаем .range() до конца, как
+  // ниже у citywide_offers.
+  const bcOffers = [];
+  {
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from('business_center_offers')
+        .select('business_center_slug,deal_type,price_per_sqm,property_type')
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      bcOffers.push(...data);
+      if (data.length < PAGE) break;
+    }
+  }
 
   // Сегмент называется "офисы в бизнес-центрах" — но само здание может
   // сдавать/продавать не только офисные помещения (магазин на первом
@@ -157,6 +172,15 @@ async function main() {
     price_per_sqm: o.price_per_sqm,
     class: centerBySlug.get(o.business_center_slug)?.business_class ?? null,
     district: centerBySlug.get(o.business_center_slug)?.district ?? null,
+    // Срез по конкретному зданию (Д3 плана docs/bc-catalog-redesign-plan.md).
+    // Даёт две вещи, которых нет сейчас: сортировку каталога по ставке и
+    // сравнение «ставка здания против медианы класса/района/города» на
+    // карточке БЦ — обе стороны сравнения тогда считаны одинаково (те же
+    // «только офисы», та же обрезка перцентилями), а не из разных источников.
+    // building_center_offers синк полностью заменяет — истории у самих
+    // объявлений нет, поэтому месячный снимок здесь и есть единственная
+    // сохраняемая история по зданию.
+    building: centerBySlug.has(o.business_center_slug) ? o.business_center_slug : null,
   }));
   console.log(
     `Загружено ${centers.length} БЦ, ${bcOffers.length} объявлений в БЦ (${officeOnlyOffers.length} из них — офисы, остальные отфильтрованы из снимка сегмента).`,
@@ -165,6 +189,7 @@ async function main() {
     ...buildSnapshotsForSegment(officeRows, 'ofisy_bc', period, [
       { sliceType: 'class', field: 'class' },
       { sliceType: 'district', field: 'district' },
+      { sliceType: 'building', field: 'building' },
     ]),
   );
 

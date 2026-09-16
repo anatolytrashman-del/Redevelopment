@@ -125,6 +125,54 @@ export interface BusinessCenter {
   // BusinessCenter.metro), более ценный, чем метры по прямой. Оба поля
   // независимы, на карточке показываются оба, если оба заполнены.
   nearestMetroStations: NearestMetroStation[];
+  // --- Производные колонки (Д1/Д2 плана docs/bc-catalog-redesign-plan.md) ---
+  // Всё ниже НЕ редактируется из приложения: считает триггер в базе
+  // (supabase/migrations/20260916-bc-structured-tech-params.sql) — из
+  // technicalParams для техпараметров и из снимка 2GIS для координат.
+  // Смысл: по строкам label/value в technicalParams нельзя ни
+  // отфильтровать каталог, ни посчитать медиану класса; jsonb остаётся
+  // первоисточником и показывается на карточке с атрибуцией prometr.by, а
+  // эти колонки — то, чем оперируют фильтры, сортировки и сравнения.
+  // Любое из полей null = у источника этого параметра нет (не ноль и не
+  // «неизвестно, значит плохо») — блок/фильтр по такому зданию просто
+  // молчит, см. принцип «не выдумываем» в плане.
+  floorPlateArea: number | null;
+  officeArea: number | null;
+  // 'cabinet' | 'block' | 'open_space' — у prometr.by это мультивыбор
+  // («Open-space , кабинетная , блочная»), поэтому массив, а не одно значение.
+  layoutTypes: BusinessCenterLayoutType[];
+  elevators: number | null;
+  // Маш./100 м² — как у источника, не абсолютное число мест.
+  parkingRatio: number | null;
+  // В фактических данных встречаются только 'none' и 'partial'; 'full'
+  // разобран на будущее, если источник начнёт отдавать «Да».
+  airConditioning: 'none' | 'partial' | 'full' | null;
+  // Метры. Значения вне 2–6 м триггер считает ошибкой источника и не
+  // записывает (у «Титула» на prometr.by стоит «1.0»).
+  ceilingHeight: number | null;
+  // 'hoa' — товарищество собственников (много владельцев, условия и торг
+  // отличаются по этажам), 'single_uk' — единая управляющая компания.
+  managementType: 'hoa' | 'single_uk' | null;
+  // Категория удалённости у prometr.by (не метры — для метров есть
+  // nearestMetroStations): 'walking' | 'up_to_3_stops' | 'over_3_stops'.
+  metroDistanceBucket: 'walking' | 'up_to_3_stops' | 'over_3_stops' | null;
+  // Диапазон реально свободных площадей, м². У 113 из 143 зданий источник
+  // пишет «подлежат уточнению» — там null, а не 0. Одиночное значение
+  // («153.5 м²») даёт min = max.
+  freeSpaceMin: number | null;
+  freeSpaceMax: number | null;
+  // Словарь из 8 значений на всю базу («кафе», «магазин», «банк»,
+  // «кофепоинт», «банкомат», «фитнес-центр», «конференц-зал», «салон
+  // красоты») — хранится по-русски, как у источника, чтобы показывать без
+  // словаря переводов.
+  infraInternal: string[];
+  infraNearby: string[];
+  // Координаты здания. Первоисточник — business_center_2gis_snapshots.point
+  // (есть у всех 143), но та таблица закрыта для anon, а карта каталога и
+  // «соседи» на карточке БЦ нужны публично — поэтому продублированы сюда
+  // триггером, а не читаются join'ом.
+  lat: number | null;
+  lng: number | null;
   photos: string[];
   // 'built' по умолчанию. 'under_construction' — как МФЦ, ещё строится.
   status: 'built' | 'under_construction';
@@ -228,6 +276,21 @@ export interface BusinessCenterRow {
   tenant_organizations: TenantOrganization[] | null;
   technical_params: TechnicalParamGroup[] | null;
   nearest_metro_stations: NearestMetroStation[] | null;
+  floor_plate_area: number | null;
+  office_area: number | null;
+  layout_types: string[] | null;
+  elevators: number | null;
+  parking_ratio: number | null;
+  air_conditioning: string | null;
+  ceiling_height: number | null;
+  management_type: string | null;
+  metro_distance_bucket: string | null;
+  free_space_min: number | null;
+  free_space_max: number | null;
+  infra_internal: string[] | null;
+  infra_nearby: string[] | null;
+  lat: number | null;
+  lng: number | null;
   photos: string[] | null;
   status: string | null;
   sort_order: number;
@@ -235,3 +298,27 @@ export interface BusinessCenterRow {
 }
 
 export const BUSINESS_CENTER_CLASSES = ['A', 'B+', 'B', 'C'] as const;
+
+export type BusinessCenterLayoutType = 'cabinet' | 'block' | 'open_space';
+
+// Поля, которые считает база (триггер по technical_params и точке 2GIS) —
+// приложение их только читает. Вынесено отдельным типом, чтобы
+// BusinessCenterInput в lib/businessCentersApi.ts их исключал: иначе форма
+// в админке обязана была бы присылать вычисляемые значения, а триггер всё
+// равно перезаписал бы их своими.
+export type BusinessCenterDerivedField =
+  | 'floorPlateArea'
+  | 'officeArea'
+  | 'layoutTypes'
+  | 'elevators'
+  | 'parkingRatio'
+  | 'airConditioning'
+  | 'ceilingHeight'
+  | 'managementType'
+  | 'metroDistanceBucket'
+  | 'freeSpaceMin'
+  | 'freeSpaceMax'
+  | 'infraInternal'
+  | 'infraNearby'
+  | 'lat'
+  | 'lng';
