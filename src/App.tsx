@@ -94,7 +94,6 @@ const Landings = lazy(() => import('./pages/Landings').then((m) => ({ default: m
 // комментарий и комментарий у data/pages.ts).
 const SiteMetrics = lazy(() => import('./pages/SiteMetrics').then((m) => ({ default: m.SiteMetrics })));
 const MarketOffersReview = lazy(() => import('./pages/MarketOffersReview').then((m) => ({ default: m.MarketOffersReview })));
-const Collaborations = lazy(() => import('./pages/Collaborations').then((m) => ({ default: m.Collaborations })));
 const ActivityLog = lazy(() => import('./pages/ActivityLog').then((m) => ({ default: m.ActivityLog })));
 const Metrics = lazy(() => import('./pages/Metrics').then((m) => ({ default: m.Metrics })));
 const DesignProjectView = lazy(() => import('./pages/DesignProjectView').then((m) => ({ default: m.DesignProjectView })));
@@ -340,7 +339,9 @@ export default function App() {
             </RequirePage>
           }
         />
-        <Route path="collaborations" element={<RequirePage page="collaborations"><Collaborations /></RequirePage>} />
+        {/* Коллаборации переехали в «Почта» → вкладка «Контакты» (2026-09-16):
+            редирект, чтобы старые закладки и ссылки не упирались в 404. */}
+        <Route path="collaborations" element={<Navigate to="/admin/mail" replace />} />
         {/* Не в меню, не в data/pages.ts — гейт RequireSuperAdmin строже
             обычного RequirePage, не пропускает даже профили с pages:'all'
             (см. компонент и комментарий в data/accessProfiles.ts). */}
