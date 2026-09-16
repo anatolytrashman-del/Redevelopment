@@ -1,4 +1,4 @@
-// Раз в сутки (см. .github/workflows/sync-yandex-metrika.yml) забирает из
+// Раз в час (см. .github/workflows/sync-yandex-metrika.yml) забирает из
 // Яндекс.Метрики (Reporting/Stats API) статистику посещаемости сайта и
 // складывает в 4 таблицы Supabase — читает их страница «Показатели»
 // (/admin/metrics). Счётчик — тот же, что вшит в index.html и
