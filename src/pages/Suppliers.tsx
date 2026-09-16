@@ -65,6 +65,7 @@ import { SupplierMergeModal, type SupplierMergePlan } from '../components/suppli
 import { SupplierCatalog } from '../components/suppliers/SupplierCatalog';
 import { PriceComparisonCard, preparedBy as bestPricePreparedBy } from '../components/suppliers/PriceComparisonCard';
 import { BestPriceExportModal } from '../components/suppliers/BestPriceExportModal';
+import { QuoteUploadModal } from '../components/suppliers/QuoteUploadModal';
 import { buildBestPriceRows, buildLotRows, reportPositions, type BestPriceSection } from '../components/suppliers/bestPriceReport';
 import type { LedgerAttachment } from '../lib/materialLedgerXlsx';
 import type { EmailTemplate } from '../data/emailTemplates';
@@ -129,6 +130,15 @@ function errorMessage(err: unknown, fallback: string): string {
     return (err as { message: string }).message;
   }
   return fallback;
+}
+
+// Отпечаток списка КП: id + то, что реально влияет на таблицу сравнения
+// (цена и число строк). Нужен поллингу — заменять состояние целиком каждые
+// 20 секунд незачем: это лишние перерисовки всей вкладки сравнения и лишний
+// шанс затереть только что сохранённую правку сопоставления, которую ответ
+// сервера ещё не успел увидеть.
+function quotesSignature(quotes: SupplierQuote[]): string {
+  return quotes.map((q) => `${q.id}:${q.price}:${q.items.length}`).join('|');
 }
 
 function formatPrice(price: number, currency: Currency): string {
@@ -1286,6 +1296,10 @@ export function Suppliers() {
   // «все поставки», для которого нужны все запросы разом; карточка просто
   // открывает его на себе.
   const [bestPriceExport, setBestPriceExport] = useState<{ requestId?: string } | null>(null);
+  // Загрузка КП «в 1 клик» (владелец, 2026-09-16). Диалог тоже на уровне
+  // страницы, а не внутри карточки поставки: он как раз для случая, когда
+  // поставка заранее неизвестна — её определяет сервер по самому документу.
+  const [quoteUploadOpen, setQuoteUploadOpen] = useState(false);
   // Владелец, 2026-08-29: "слишком много инфы на превью, все вразнобой.
   // Давай выводить название + цену + статус + кнопка Подробнее" — остальные
   // поля (контакт/сайт/модель/срок/требования/файлы) и действия
@@ -1445,12 +1459,31 @@ export function Suppliers() {
       fetchSupplierEnrichmentJobs()
         .then(setEnrichmentJobs)
         .catch(() => {});
-      fetchSupplierOffers()
-        .then(setOffers)
-        .catch(() => {});
+      reloadQuotesAndOffers();
     }, 20000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Владелец, 2026-09-16: «после получения счёта пусть пересчитываются лучшие
+  // цены в блоках сравнения». Сравнение цен считается из offers и
+  // supplierQuotes прямо на экране (см. bestPriceSections и PriceComparisonCard)
+  // — пересчитать его значит перечитать эти два списка. До этой правки
+  // поллинг раз в 20 секунд перечитывал только offers: счёт, распознанный на
+  // приёме письма, заводит СТРОКУ КП (supplier_offer_quotes), и без неё
+  // таблица сравнения оставалась прежней до ручного F5 — ровно того «обновите
+  // страницу», которое владелец уже убирал у переписки 2026-09-03.
+  //
+  // Тот же вызов дёргает и ручная загрузка КП (QuoteUploadModal): результат
+  // виден в сравнении сразу после того, как счёт записан.
+  function reloadQuotesAndOffers() {
+    fetchSupplierOffers()
+      .then(setOffers)
+      .catch(() => {});
+    fetchSupplierQuotes()
+      .then((fresh) => setSupplierQuotes((prev) => (quotesSignature(prev) === quotesSignature(fresh) ? prev : fresh)))
+      .catch(() => {});
+  }
 
   // Оптимистично помечает входящие письма этого предложения прочитанными в
   // локальном состоянии сразу (счётчик гаснет мгновенно), запрос на сервер —
@@ -2404,18 +2437,27 @@ export function Suppliers() {
             Ширина пилюли ограничена внутри неё, длинная подпись задачи
             обрезается многоточием. */}
         <AiAgentStatusPill agentId="procurement" />
-        {/* Владелец, 2026-09-04: "перенеси Шаблоны направо, на уровень меню
-            Поставщики/Письма, но видна только когда открываешь Письма". */}
-        {tab === 'Письма' && (
-          <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
-            <Button type="button" variant="secondary" icon={<Bot className="h-4 w-4" />} onClick={() => setAutoRepliesModalOpen(true)}>
-              Автоответы
-            </Button>
-            <Button type="button" variant="secondary" icon={<FileText className="h-4 w-4" />} onClick={() => setTemplatesModalOpen(true)}>
-              Шаблоны
-            </Button>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+          {/* Владелец, 2026-09-16: «ручная загрузка новых КП от поставщиков в
+              1 клик». Кнопка на уровне меню раздела, а не внутри поставки:
+              закупщица приходит сюда с файлом на руках, не зная (и не обязана
+              знать), в какой поставке он должен оказаться. */}
+          <Button type="button" variant="secondary" icon={<Upload className="h-4 w-4" />} onClick={() => setQuoteUploadOpen(true)}>
+            Загрузить КП
+          </Button>
+          {/* Владелец, 2026-09-04: "перенеси Шаблоны направо, на уровень меню
+              Поставщики/Письма, но видна только когда открываешь Письма". */}
+          {tab === 'Письма' && (
+            <>
+              <Button type="button" variant="secondary" icon={<Bot className="h-4 w-4" />} onClick={() => setAutoRepliesModalOpen(true)}>
+                Автоответы
+              </Button>
+              <Button type="button" variant="secondary" icon={<FileText className="h-4 w-4" />} onClick={() => setTemplatesModalOpen(true)}>
+                Шаблоны
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {tab === 'Поставщики' && (
@@ -3524,6 +3566,16 @@ export function Suppliers() {
           }}
         />
       )}
+
+      <QuoteUploadModal
+        open={quoteUploadOpen}
+        onClose={() => setQuoteUploadOpen(false)}
+        onApplied={reloadQuotesAndOffers}
+        onOpenOffer={(offerId) => {
+          setQuoteUploadOpen(false);
+          setDetailOfferId(offerId);
+        }}
+      />
 
       {bestPriceExport && (
         <BestPriceExportModal
