@@ -9,7 +9,7 @@ import { MIN_INDEX_SUBSCALES, SUBSCALE_META, businessCenterIndex } from './busin
 
 function bc(over: Partial<BusinessCenter> & { slug: string }): BusinessCenter {
   return {
-    id: over.slug, slug: over.slug, name: over.slug, address: 'г. Минск, ул. Тестовая, 1', district: null,
+    id: over.slug, name: over.slug, address: 'г. Минск, ул. Тестовая, 1', district: null,
     microdistrict: null, businessClass: null, totalArea: null, yearBuilt: null, floors: null, developer: null,
     metro: null, parking: null, website: null, description: null, rentalInfo: null, highlights: [],
     mapSnapshotFiles: [], tenantOrganizations: [], technicalParams: [], nearestMetroStations: [], verdict: null,
