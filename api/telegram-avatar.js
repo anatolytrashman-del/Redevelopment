@@ -13,7 +13,18 @@
 // привязка к лиду делает клиент через уже существующий uploadLeadPhoto
 // (см. src/lib/leadsApi.ts, tryAutoFillTelegramAvatar).
 
+// ВТОРАЯ РОЛЬ ЭТОГО ФАЙЛА (2026-09-16) — вебхук бота-копилки. Отдельного
+// api/telegram-webhook.js быть не может: в api/ ровно 12 функций, что РОВНО
+// потолок Vercel Hobby, тринадцатая роняет деплой целиком. Поэтому здесь два
+// входа в одном файле, разведённые по методу запроса:
+//   GET  /api/telegram-avatar?handle=...  — аватар по юзернейму (за входом сотрудника)
+//   POST /api/telegram-webhook            — апдейт от Telegram (rewrite в vercel.json
+//                                           на этот же файл, проверка по secret_token)
+// Общего у них только слово Telegram в названии — не смешивать логику,
+// разбор апдейтов целиком живёт в _telegramCapture.js.
+
 import { requireStaffAuth } from './_auth.js';
+import { handleTelegramUpdate, secretMatches, telegramConfigured } from './_telegramCapture.js';
 
 const HANDLE_RE = /^[a-zA-Z][a-zA-Z0-9_]{4,31}$/;
 const FETCH_TIMEOUT_MS = 8000;
@@ -101,7 +112,38 @@ async function fetchImageWithLimit(url, maxBytes, timeoutMs) {
   }
 }
 
+// Вебхук бота-копилки. Отвечаем 200 почти всегда осознанно: любой другой код
+// заставляет Telegram доставлять тот же апдейт заново по нарастающей, а
+// единственная ситуация, когда повтор действительно нужен, — сбой записи в
+// базу (там 500 ниже).
+async function handleWebhook(req, res) {
+  if (!telegramConfigured()) {
+    console.error('[telegram-webhook] TELEGRAM_BOT_TOKEN/TELEGRAM_WEBHOOK_SECRET не настроены');
+    res.status(200).json({ skipped: 'не настроен' });
+    return;
+  }
+  if (!secretMatches(req.headers['x-telegram-bot-api-secret-token'])) {
+    // Без этой проверки любой, кто узнает адрес, клал бы в копилку что угодно
+    // от чьего угодно имени. Заголовок ставит сам Telegram по secret_token,
+    // переданному при setWebhook.
+    res.status(401).json({ error: 'Неверный секрет' });
+    return;
+  }
+  try {
+    const result = await handleTelegramUpdate(req.body);
+    console.log('[telegram-webhook]', result);
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error('[telegram-webhook] сбой:', err instanceof Error ? err.message : err);
+    res.status(500).json({ error: 'Не удалось сохранить сообщение' });
+  }
+}
+
 export default async function handler(req, res) {
+  if (req.method === 'POST') {
+    await handleWebhook(req, res);
+    return;
+  }
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' });
     return;
