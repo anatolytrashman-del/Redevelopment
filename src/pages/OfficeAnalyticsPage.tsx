@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Landmark, TrendingUp } from 'lucide-react';
+import { ArrowRight, Landmark } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import {
@@ -1299,25 +1299,10 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
           </div>
         </section>
 
-        <section className={cn('flex items-center justify-between gap-4 p-6', glassCardClass)} style={glassCardShadow}>
-          <div className="flex flex-col gap-1">
-            <span className="flex items-center gap-2 font-bold text-ink">
-              <TrendingUp className="h-4 w-4 shrink-0 text-primary-hover" />
-              {deal === 'rent' ? 'Кабинет в собственность вместо аренды' : 'Кабинеты 11–40 м² от $12 000'}
-            </span>
-            <span className="text-sm text-ink-muted">
-              {deal === 'rent'
-                ? 'Деловой центр Red One в Минск Мире — приватные кабинеты и рабочие места в собственность.'
-                : 'Деловой центр Red One в Минск Мире — приватные кабинеты в собственность вместо аренды.'}
-            </span>
-          </div>
-          <Link
-            to="/minsk/one"
-            className="shrink-0 rounded-control bg-primary px-4 py-2 text-sm font-bold text-white hover:bg-primary-hover"
-          >
-            Смотреть Red One
-          </Link>
-        </section>
+        {/* CTA-блок Red One убран 2026-09-16 по решению владельца: пока
+            здание не куплено, продавать его нечего, а страницу смотрят СМИ.
+            Вернуть вместе с остальными ссылками (гид по району, посадочные
+            Минск Мира, каталог БЦ), когда здание будет куплено. */}
       </main>
     </div>
   );
