@@ -42,8 +42,9 @@ Business**: на аккаунт с Premium вешается свой бот, о�
 1. **Создать бота.** В Telegram написать `@BotFather` → `/newbot` → имя и
    юзернейм (например `redevelopment_capture_bot`). В ответ придёт токен вида
    `8123456789:AAF...` — это пароль от бота, его нельзя публиковать.
-2. **Положить секреты в Vercel** (Settings → Environment Variables, все три
-   на Production):
+2. **Положить секреты в три места** — окружение сессии Claude, Vercel
+   (Production) и GitHub Secrets (правило владельца: секрет кладётся во все
+   три, даже если сейчас читает его только Vercel). Переменные:
    - `TELEGRAM_BOT_TOKEN` — токен из шага 1;
    - `TELEGRAM_WEBHOOK_SECRET` — любая случайная строка (например, вывод
      `openssl rand -hex 16`), ею подписываются входящие апдейты;
