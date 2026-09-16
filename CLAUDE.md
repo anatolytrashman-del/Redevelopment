@@ -264,6 +264,16 @@ curl -sS -X POST "https://api.supabase.com/v1/projects/iohcdylttyuhwovztrbk/data
   статусов — серое «движения нет», жёлтое «в работе», зелёное «довели до
   конца», красное «есть проблема» (см. `statusTone` в
   `components/suppliers/PurchaseOrdersTab.tsx`).
+- **Вложенных модалок у нас нет и быть не может.** У `Modal` (components/ui)
+  жёсткий `z-50` и СВОЙ обработчик Escape на каждую копию: вторая модалка
+  поверх первой рисуется только по порядку в DOM, а Escape закрывает обе
+  разом. Нужна «форма внутри карточки» — показывать её ВМЕСТО тела той же
+  модалки, с кнопкой «Назад» (так сделана форма поставки в
+  `components/suppliers/PurchaseDeliveries.tsx`).
+- **Пустая строка из `<input type="date">` — это не дата.** В колонку `date`
+  она уходит ошибкой `invalid input syntax for type date`, а не NULL'ом.
+  В `*Api.ts` любое поле даты писать через `value || null` (см. `dateOrNull`
+  в `purchaseOrdersApi.ts`) — иначе «очистил дату и сохранил» падает.
 - **`withRetry` (`src/lib/withRetry.ts`)** — таймаут (15с, 60с для аплоадов) + один
   молчаливый повтор через 1с. Существует специально из-за Supabase free-tier
   "холодного старта": первый запрос после паузы иногда рвётся `TypeError: Load failed`
