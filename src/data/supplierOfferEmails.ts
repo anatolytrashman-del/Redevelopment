@@ -1,3 +1,4 @@
+import type { QuoteTerms } from './supplierQuotes';
 import type { DocumentFile } from './contractorDocuments';
 import type { EmailSendStatus } from './emailSendStatus';
 
@@ -13,6 +14,11 @@ export interface EmailExtractionItem {
   quantity: number | null;
   unit: string;
   price: number | null;
+  // Тара строки: сколько и чего в ОДНОЙ единице `unit` (шаг 7 плана
+  // закупок, см. PurchaseItem.packQty). Заполняется распознаванием, только
+  // если объём фасовки прямо написан в документе.
+  packQty?: number | null;
+  packUnit?: string;
 }
 
 // sourceFile — какое именно вложение распознано (нужно, чтобы при
@@ -71,6 +77,11 @@ export interface EmailExtractionInvoice {
   // Снимок записи ИМЕННО этого счёта в базу (см. EmailExtractionApplied).
   // У первого счёта берётся из корня extraction — там он лежал всегда.
   applied: EmailExtractionApplied | null;
+  // Условия поставки, распознанные вместе со счётом (шаг 6 плана закупок).
+  // В базу они и так уезжают в supplier_offer_quotes.terms; здесь они нужны
+  // форме сопоставления — из них берётся, с НДС в счёте цены или без (шаг 7).
+  // Отсутствуют у записей, сделанных до появления условий.
+  terms?: QuoteTerms | null;
 }
 
 export interface EmailExtraction {

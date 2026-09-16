@@ -36,7 +36,8 @@ const SYSTEM_PROMPT = `Ты помогаешь понять, является л
 пояснений до или после, строго формат:
 {"isInvoice": true или false, "price": число или null, "currency": "USD" или "EUR" или "BYN" или "RUB" или null,
  "supplierInn": "строка цифр" или null,
- "items": [{"name": "строка", "quantity": число или null, "unit": "строка", "price": число или null}],
+ "items": [{"name": "строка", "quantity": число или null, "unit": "строка", "price": число или null,
+            "packQty": число или null, "packUnit": "строка" или null}],
  "terms": {"deliveryCost": число или null, "deliveryTerms": "строка" или null,
            "leadTimeDays": число или null, "availability": "in_stock" или "on_order" или null,
            "prepaymentPercent": число или null, "validUntil": "строка" или null,
@@ -71,6 +72,18 @@ supplierInn — ИНН ПОСТАВЩИКА, то есть того, кто вы
 позиции (просто "услуга — сумма") — верни пустой массив, это поле не
 обязательно. Никогда не выдумывай числа — если сумму не удаётся уверенно
 прочитать, верни isInvoice=false.
+
+packQty и packUnit — ТАРА строки: сколько и чего в ОДНОЙ единице, указанной
+в поле unit этой же строки. «Краска Euro 7 (9 л), 12 шт» → unit "шт",
+quantity 12, packQty 9, packUnit "л". «Смесь в мешках по 25 кг, 40 мешков»
+→ unit "мешок", quantity 40, packQty 25, packUnit "кг". Эти поля нужны,
+чтобы посчитать цену за литр или за килограмм, поэтому:
+- заполняй их, только если объём тары прямо написан в названии позиции или
+  в отдельной графе документа. Не додумывай «обычный объём» банки;
+- если строка и так штучная или измеряется в тех же единицах (unit "м2",
+  "кг", "шт" без указания фасовки) — оба поля null;
+- packUnit — единица содержимого («л», «кг», «м2», «шт», «м»), НЕ название
+  тары («банка», «мешок»): название тары — это unit.
 
 terms — условия поставки. В отличие от сумм и позиций, их можно брать И из
 документа, И из текста письма: менеджер обычно пишет срок и доставку именно
@@ -332,10 +345,30 @@ export async function recognizeInvoice(fileUrl, fileName, emailContext = null) {
             quantity: typeof i.quantity === 'number' ? i.quantity : null,
             unit: typeof i.unit === 'string' ? i.unit.trim() : '',
             price: typeof i.price === 'number' ? i.price : null,
+            // Тара строки (шаг 7 плана закупок). Обе половины или ничего:
+            // «9» без единицы и «л» без числа одинаково бесполезны для
+            // пересчёта, а в данных выглядели бы как знание.
+            ...packFields(i),
           }))
       : [],
     terms: normalizeTerms(parsed.terms),
   };
+}
+
+// Тара строки счёта: packQty/packUnit (шаг 7 плана закупок). Модель охотно
+// пишет «9 л» одной строкой в packQty и «банка» в packUnit — первое чистим
+// до числа, второе отбрасываем, если это название тары, а не единица
+// содержимого (название тары и так лежит в unit самой строки).
+const PACK_UNIT_MAX = 12;
+// Названия тары: в packUnit им не место — сколько «банок в банке», не знает
+// никто, а для пересчёта нужна единица содержимого.
+const CONTAINER_WORDS = /^(банк|мешк?|мешок|ведр|уп|упак|коробк?|короб|рулон|рул|пачк|пач|поддон|паллет|палет|бухт)/i;
+function packFields(raw) {
+  const qty = typeof raw.packQty === 'number' ? raw.packQty : Number(String(raw.packQty ?? '').replace(',', '.').replace(/[^\d.]/g, ''));
+  const unit = String(raw.packUnit ?? '').trim().slice(0, PACK_UNIT_MAX);
+  if (!Number.isFinite(qty) || qty <= 0 || !unit) return {};
+  if (CONTAINER_WORDS.test(unit.replace(/[\s.]/g, ''))) return {};
+  return { packQty: qty, packUnit: unit };
 }
 
 // Условия поставки из ответа модели (шаг 6 плана закупок). Чистим по каждому

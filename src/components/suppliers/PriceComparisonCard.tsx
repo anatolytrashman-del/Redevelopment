@@ -35,6 +35,7 @@ import { emailSignature } from './SupplierCorrespondenceTab';
 import { errorMessage } from '../../lib/errorMessage';
 import { sameUnit } from '../../lib/units';
 import { guessUnitPrice } from '../../lib/unitPriceGuess';
+import { grossUp, vatRateForCountry } from '../../data/vat';
 import {
   STALE_QUOTE_DAYS,
   buildColumns,
@@ -49,6 +50,7 @@ import {
   sectionCandidates,
   sumMoney,
   type Cell,
+  type CellVat,
   type Column,
   type MoneyPart,
   type UnmatchedLine,
@@ -150,6 +152,39 @@ function TermChips({ terms }: { terms: QuoteTerms | null }) {
   );
 }
 
+// Пометка про НДС у цены (шаг 7 плана закупок). Показываем только там, где
+// это меняет решение: цена без налога (поставщик выглядит дешевле, чем есть)
+// и цена, пересчитанная кодом (число в ячейке не равно числу в документе, и
+// человек должен понимать почему). «Про НДС не сказано» не помечаем — это
+// состояние почти всех счетов, и чип превратился бы в фон.
+function VatTag({ vat, rate }: { vat: CellVat; rate: number | null }) {
+  if (vat === 'converted') {
+    return (
+      <span
+        className="inline-block rounded-full bg-primary-soft px-1.5 py-px text-[10.5px] font-semibold leading-relaxed text-primary"
+        title={`В счёте цены без НДС. Цена за единицу приведена к цене с НДС по ставке ${rate}%.`}
+      >
+        +{rate}% НДС
+      </span>
+    );
+  }
+  if (vat === 'net') {
+    return (
+      <span
+        className="inline-block rounded-full bg-danger-bg px-1.5 py-px text-[10.5px] font-semibold leading-relaxed text-danger"
+        title={
+          rate != null
+            ? `В счёте цены без НДС (${rate}%), а цена за единицу не пересчитана — сравнение занижает этого поставщика. Пересчитайте её в форме сопоставления.`
+            : 'В счёте цены без НДС, ставка не названа — цена за единицу не пересчитана, сравнение занижает этого поставщика.'
+        }
+      >
+        без НДС
+      </span>
+    );
+  }
+  return null;
+}
+
 function ReviewTag({ confidence }: { confidence: number | null }) {
   return (
     <span
@@ -231,6 +266,11 @@ interface ItemPatch {
   unitPrice?: number | null;
   matchNote?: string;
   productUrl?: string;
+  // Чем считали НДС, когда получали цену за единицу (шаг 7 плана закупок):
+  // строка запоминает основание, иначе сравнение не отличит «пересчитано»
+  // от «забыли пересчитать» и пометит цену как заниженную.
+  vatIncluded?: boolean | null;
+  vatRate?: number | null;
 }
 
 interface SuggestionRow {
@@ -238,6 +278,8 @@ interface SuggestionRow {
   offerId: string;
   supplierName: string;
   item: PurchaseItem;
+  // Основание НДС строки — то же, с которым считалась цена (см. vatOf).
+  vat: { vatIncluded: boolean | null; vatRate: number | null; countryRate: number | null };
   positionId: string;
   kind: 'exact' | 'alternative' | 'check' | 'delivery' | 'none';
   unitPrice: string;
@@ -253,6 +295,7 @@ export function PriceComparisonCard({
   quotes,
   rate,
   estimates,
+  legalEntityCountry,
   onOpenDetail,
   onRequestSaved,
   onQuotesChange,
@@ -269,6 +312,12 @@ export function PriceComparisonCard({
   rate: ExchangeRate | undefined;
   // Все сметы — чтобы предложить раздел категории без привязки.
   estimates: Estimate[];
+  // Страна юрлица, от которого идёт закупка (SupplierRequest.legalEntityId →
+  // LegalEntity.country). Нужна ровно для одного: если счёт сказал «цены без
+  // НДС», но ставку не назвал, — взять ставку по стране (шаг 7 плана
+  // закупок). Пусто — пересчёта не будет, цена останется как в документе с
+  // пометкой «без НДС».
+  legalEntityCountry: string | null;
   onOpenDetail: (o: SupplierOffer) => void;
   onRequestSaved: (r: SupplierRequest) => void;
   onQuotesChange: (update: (prev: SupplierQuote[]) => SupplierQuote[]) => void;
@@ -443,6 +492,20 @@ export function PriceComparisonCard({
     void run('Не удалось изменить вид соответствия', () => applyPatches([{ offerId: cell.offerId, itemId: cell.itemId, patch: { matchKind: next } }]));
   }
 
+  // Что известно про НДС в строке счёта: сначала сама строка (её проставляет
+  // запись счёта), потом условия КП, потом условия карточки. Нужно, чтобы
+  // цена за единицу сметы всегда получалась «с НДС» — по этому соглашению
+  // живёт всё сравнение цен.
+  function vatOf(line: UnmatchedLine, o: SupplierOffer) {
+    const quote = line.quoteId ? quotes.find((q) => q.id === line.quoteId) : undefined;
+    const terms = quote?.terms ?? o.terms ?? null;
+    return {
+      vatIncluded: line.item.vatIncluded ?? terms?.vatIncluded ?? null,
+      vatRate: line.item.vatRate ?? terms?.vatRate ?? null,
+      countryRate: vatRateForCountry(legalEntityCountry),
+    };
+  }
+
   async function suggestMatches() {
     if (unmatchedAll.length === 0) return;
     setSuggesting(true);
@@ -462,6 +525,10 @@ export function PriceComparisonCard({
             unit: line.item.unit,
             quantity: line.item.quantity,
             price: line.item.price,
+            // Тара строки, если её распознал счёт (шаг 7 плана закупок):
+            // без неё модели остаётся выковыривать объём из названия.
+            packQty: line.item.packQty ?? null,
+            packUnit: line.item.packUnit ?? '',
             context: [line.quoteTitle, offer.termsNote].filter(Boolean).join(' · '),
           })),
         }),
@@ -474,14 +541,20 @@ export function PriceComparisonCard({
           const m = byLine.get(line.item.id);
           const positionId = m?.positionId ?? line.item.sourceMaterialId ?? '';
           const position = positions.find((p) => p.id === positionId);
-          const guessed = position ? guessUnitPrice(line.item, position) : null;
-          const unitPrice = m?.unitPrice ?? guessed?.unitPrice ?? null;
+          // Модель считает цену в той же базе НДС, в какой дан счёт (так ей
+          // и сказано в промпте), а приведение к цене с НДС — дело кода:
+          // налог по документу считается, а не угадывается.
+          const vat = vatOf(line, offer);
+          const guessed = position ? guessUnitPrice(line.item, position, vat) : null;
+          const fromModel = m?.unitPrice != null ? grossUp(m.unitPrice, vat, vat.countryRate).price : null;
+          const unitPrice = fromModel ?? guessed?.unitPrice ?? null;
           const kind: SuggestionRow['kind'] = m ? m.kind : positionId ? 'check' : 'none';
           return {
             lineId: line.item.id,
             offerId: offer.id,
             supplierName: offer.name,
             item: line.item,
+            vat,
             positionId: kind === 'delivery' || kind === 'none' ? '' : positionId,
             kind,
             unitPrice: unitPrice != null ? String(unitPrice) : '',
@@ -506,7 +579,15 @@ export function PriceComparisonCard({
       const patch: ItemPatch =
         r.kind === 'delivery'
           ? { sourceMaterialId: null, matchKind: 'delivery', unitPrice: null, matchNote: r.note || undefined }
-          : { sourceMaterialId: r.positionId, matchKind: r.kind as PurchaseItemMatchKind, unitPrice: Number.isFinite(unitPrice) && unitPrice > 0 ? unitPrice : null, matchNote: r.note || undefined };
+          : {
+              sourceMaterialId: r.positionId,
+              matchKind: r.kind as PurchaseItemMatchKind,
+              unitPrice: Number.isFinite(unitPrice) && unitPrice > 0 ? unitPrice : null,
+              matchNote: r.note || undefined,
+              ...(r.vat.vatIncluded != null || r.vat.vatRate != null
+                ? { vatIncluded: r.vat.vatIncluded, vatRate: r.vat.vatRate ?? (r.vat.vatIncluded === false ? r.vat.countryRate : null) }
+                : {}),
+            };
       return { offerId: r.offerId, itemId: r.lineId, patch };
     });
     const ok = await run('Не удалось сохранить сопоставление', () => applyPatches(patches).then(() => true));
@@ -626,7 +707,8 @@ export function PriceComparisonCard({
         <ShortfallLabel cell={cell} p={p} />
         <span className="mt-1 block text-[11.5px] leading-snug text-ink">
           <KindTag kind={cell.kind} onClick={() => cycleKind(cell)} title="Нажмите, чтобы сменить вид: ровно → аналог → уточнить" />{' '}
-          {needsReview(cell) && cell.kind !== 'check' && <ReviewTag confidence={cell.matchConfidence} />} {cell.note}
+          {needsReview(cell) && cell.kind !== 'check' && <ReviewTag confidence={cell.matchConfidence} />}{' '}
+          <VatTag vat={cell.vat} rate={cell.vatRate} /> {cell.note}
         </span>
         {cell.productUrl && (
           <span className="mt-1 block">
@@ -1122,7 +1204,8 @@ export function PriceComparisonCard({
                             </td>
                             <td className="px-3 py-2 text-[12px] leading-snug text-ink">
                               <KindTag kind={cell.kind} onClick={() => cycleKind(cell)} title="Нажмите, чтобы сменить вид" />{' '}
-                              {needsReview(cell) && cell.kind !== 'check' && <ReviewTag confidence={cell.matchConfidence} />} {cell.note}
+                              {needsReview(cell) && cell.kind !== 'check' && <ReviewTag confidence={cell.matchConfidence} />}{' '}
+                              <VatTag vat={cell.vat} rate={cell.vatRate} /> {cell.note}
                               {cell.productUrl && (
                                 <span className="block">
                                   <ProductLink url={cell.productUrl} />
@@ -1289,6 +1372,12 @@ export function PriceComparisonCard({
           </span>
           <span className="inline-flex items-center gap-1.5">
             <ReviewTag confidence={null} /> сопоставил ИИ-закупщик, уверенность ниже {Math.round(MATCH_CONFIDENCE_THRESHOLD * 100)}%
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <VatTag vat="converted" rate={22} /> цена приведена к цене с НДС
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <VatTag vat="net" rate={null} /> счёт без НДС, цена не пересчитана — поставщик выглядит дешевле, чем есть
           </span>
           <span>«+36 %» — разница к цене, отобранной в той же строке. Вид меняется кликом по метке, цена ведёт в карточку поставщика.</span>
         </div>

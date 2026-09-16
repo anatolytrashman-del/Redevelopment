@@ -41,6 +41,7 @@ import { currencies, type Currency } from '../../data/transactions';
 import { PURCHASE_ITEM_MATCH_KIND_LABELS, looksLikeDeliveryItem, type PurchaseItem, type PurchaseItemMatchKind } from '../../data/purchases';
 import { closeQuantity, sameUnit } from '../../lib/units';
 import { guessUnitPrice } from '../../lib/unitPriceGuess';
+import { vatRateForCountry } from '../../data/vat';
 import type { SupplierQuote } from '../../data/supplierQuotes';
 import { insertSupplierQuote, updateSupplierQuoteItems, deleteSupplierQuote } from '../../lib/supplierQuotesApi';
 import type { EmailAutoReplyLogEntry } from '../../data/emailAutoReply';
@@ -201,10 +202,65 @@ export interface MaterialMatch {
 
 const emptyMatch = (materialId = ''): MaterialMatch => ({ materialId, unitPrice: '', kind: 'exact', note: '', productUrl: '' });
 
+const VAT_CHOICES: { value: boolean | null; label: string }[] = [
+  { value: true, label: 'с НДС' },
+  { value: false, label: 'без НДС' },
+  { value: null, label: 'не указано' },
+];
+
+// Владелец, 2026-09-15: у МаксиКерам цены в строках без НДС, итог с НДС 22% —
+// без пересчёта поставщик выглядел бы на 22% дешевле. Шаг 7 плана закупок:
+// вместо кнопки «+22% НДС» у каждой строки — одно решение на весь счёт,
+// подставленное из распознанных условий. Отдельный компонент, чтобы его
+// можно было прогнать мок-тестом отдельно от всей переписки.
+export function InvoiceVatSwitch({ vat, onChange }: { vat: InvoiceVat; onChange: (next: InvoiceVat) => void }) {
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+        <span className="text-ink-muted">Цены в счёте:</span>
+        {VAT_CHOICES.map((choice) => (
+          <button
+            key={String(choice.value)}
+            type="button"
+            onClick={() => onChange({ ...vat, included: choice.value })}
+            className={cn(
+              'rounded-full border px-2 py-0.5 font-medium transition-colors',
+              vat.included === choice.value
+                ? 'border-primary bg-primary-soft text-primary'
+                : 'border-border bg-surface text-ink-muted hover:border-primary-hover',
+            )}
+          >
+            {choice.value === false && vat.rate != null ? `без НДС (+${vat.rate}%)` : choice.label}
+          </button>
+        ))}
+      </div>
+      {vat.included === false && vat.rate == null && (
+        <p className="text-xs text-warning">
+          Ставка НДС не названа ни в счёте, ни у страны юрлица категории — цены за единицу останутся как в документе.
+          Посчитайте их вручную, иначе поставщик будет выглядеть дешевле остальных.
+        </p>
+      )}
+    </>
+  );
+}
+
+// Что известно про НДС в ЭТОМ счёте (шаг 7 плана закупок). Одно значение на
+// весь документ: поставщик выставляет весь счёт в одной базе, и строка,
+// живущая по своим правилам, — это не строка счёта, а ошибка распознавания.
+export interface InvoiceVat {
+  // null — в счёте про НДС не сказано: цены берутся как есть.
+  included: boolean | null;
+  // Ставка счёта, если он её назвал; иначе — ставка страны юрлица.
+  rate: number | null;
+}
+
 // Что записать в PurchaseItem из формы сопоставления. Строка «доставка» —
 // без материала сметы (её некуда сопоставлять), но с видом, чтобы сравнение
 // цен отнесло её к доставке, а не потеряло.
-function matchFields(match: MaterialMatch | undefined): Pick<PurchaseItem, 'sourceMaterialId' | 'unitPrice' | 'matchKind' | 'matchNote' | 'productUrl'> {
+function matchFields(
+  match: MaterialMatch | undefined,
+  vat: InvoiceVat,
+): Pick<PurchaseItem, 'sourceMaterialId' | 'unitPrice' | 'matchKind' | 'matchNote' | 'productUrl' | 'vatIncluded' | 'vatRate'> {
   const unitPrice = match?.unitPrice ? Number(match.unitPrice) : NaN;
   const kind: PurchaseItemMatchKind | undefined = match?.kind === 'delivery' ? 'delivery' : match?.materialId ? match.kind : undefined;
   return {
@@ -213,6 +269,10 @@ function matchFields(match: MaterialMatch | undefined): Pick<PurchaseItem, 'sour
     matchKind: kind,
     matchNote: match?.note.trim() || undefined,
     productUrl: match?.productUrl.trim() || undefined,
+    // Основание НДС запоминается в самой позиции: по нему сравнение цен
+    // отличает «цена пересчитана» от «пересчитать забыли» (шаг 7 плана).
+    // Молчание счёта не записываем вовсе — пустое поле и значит «не сказано».
+    ...(vat.included != null ? { vatIncluded: vat.included, vatRate: vat.rate } : {}),
   };
 }
 
@@ -233,21 +293,22 @@ export interface EstimateMaterialOption {
   consumptionUnit?: string;
 }
 
-function computeUnitPriceGuess(it: EmailExtractionItem, materialId: string, allMaterials: EstimateMaterialOption[]): string {
-  const guess = unitPriceGuessFor(it, materialId, allMaterials);
+function computeUnitPriceGuess(it: EmailExtractionItem, materialId: string, allMaterials: EstimateMaterialOption[], vat: InvoiceVat): string {
+  const guess = unitPriceGuessFor(it, materialId, allMaterials, vat);
   return guess ? String(guess.unitPrice) : '';
 }
 
-function unitPriceGuessFor(it: EmailExtractionItem, materialId: string, allMaterials: EstimateMaterialOption[]) {
+function unitPriceGuessFor(it: EmailExtractionItem, materialId: string, allMaterials: EstimateMaterialOption[], vat: InvoiceVat) {
   const material = allMaterials.find((m) => m.item.sourceMaterialId === materialId);
   if (!material) return null;
   return guessUnitPrice(
-    { name: it.name, unit: it.unit, quantity: it.quantity, price: it.price },
+    { name: it.name, unit: it.unit, quantity: it.quantity, price: it.price, packQty: it.packQty ?? null, packUnit: it.packUnit ?? '' },
     { unit: material.item.unit, consumption: material.consumption, consumptionUnit: material.consumptionUnit },
+    { vatIncluded: vat.included, vatRate: vat.rate, countryRate: vat.rate },
   );
 }
 
-function extractionItemsToPurchaseItems(items: EmailExtractionItem[], materialMatches: Record<number, MaterialMatch>): PurchaseItem[] {
+function extractionItemsToPurchaseItems(items: EmailExtractionItem[], materialMatches: Record<number, MaterialMatch>, vat: InvoiceVat): PurchaseItem[] {
   return items.map((i, idx) => ({
     id: crypto.randomUUID(),
     name: i.name,
@@ -255,7 +316,10 @@ function extractionItemsToPurchaseItems(items: EmailExtractionItem[], materialMa
     quantity: i.quantity,
     price: i.price,
     note: '',
-    ...matchFields(materialMatches[idx]),
+    // Тара из счёта переезжает в позицию: подсказка цены за литр берёт её
+    // отсюда, а не вычитывает заново из названия (шаг 7 плана закупок).
+    ...(i.packQty != null && i.packUnit ? { packQty: i.packQty, packUnit: i.packUnit } : {}),
+    ...matchFields(materialMatches[idx], vat),
   }));
 }
 
@@ -393,11 +457,12 @@ function withMaterialMatches(
   items: PurchaseItem[],
   applied: EmailExtractionApplied,
   materialMatches: Record<number, MaterialMatch>,
+  vat: InvoiceVat,
 ): PurchaseItem[] {
   return items.map((item) => {
     const idx = applied.itemIds.indexOf(item.id);
     if (idx === -1) return item;
-    return { ...item, ...matchFields(materialMatches[idx]) };
+    return { ...item, ...matchFields(materialMatches[idx], vat) };
   });
 }
 
@@ -770,6 +835,12 @@ export function EmailThread({
   // в footer предпросмотра (ниже). Сбрасывается/предзаполняется подсказкой
   // при открытии предпросмотра нового счёта, см. эффект ниже.
   const [materialMatches, setMaterialMatches] = useState<Record<number, MaterialMatch>>({});
+  // НДС открытого счёта (шаг 7 плана закупок). Ставится из распознанных
+  // условий, а если счёт промолчал — остаётся «не указано», и закупщица
+  // отвечает за него одним переключателем на весь документ. Раньше на этом
+  // месте была кнопка «+22% НДС» у каждой строки: цены сходились ровно
+  // настолько, насколько закупщица успевала заметить приписку в документе.
+  const [invoiceVat, setInvoiceVat] = useState<InvoiceVat>({ included: null, rate: null });
 
   // Черновик по умолчанию завязан на конкретный тред (предложение + заявка) —
   // при переключении между тредами (вкладка "Переписка", в т.ч. между
@@ -978,8 +1049,19 @@ export function EmailThread({
   useEffect(() => {
     if (!previewExtraction) {
       setMaterialMatches({});
+      setInvoiceVat({ included: null, rate: null });
       return;
     }
+    // НДС счёта: что сказал сам документ (или письмо менеджера), а ставка —
+    // его собственная, иначе ставка страны юрлица категории (шаг 7 плана
+    // закупок). Ставка нужна ровно для случая «цены без НДС» без названного
+    // процента: без неё пересчёта не будет вовсе.
+    const terms = previewExtraction.invoice.terms ?? null;
+    const vat: InvoiceVat = {
+      included: terms?.vatIncluded ?? null,
+      rate: terms?.vatRate ?? vatRateForCountry(legalEntity?.country) ?? null,
+    };
+    setInvoiceVat(vat);
     // У автозаписанного счёта позиции уже лежат в карточке — если закупщица
     // их когда-то сверила, показываем СОХРАНЁННОЕ сопоставление, а не
     // подсказку заново (иначе повторное открытие счёта молча предлагало бы
@@ -1004,7 +1086,7 @@ export function EmailThread({
         return;
       }
       const suggestion = suggestMaterialMatch(it.name, allMaterials, it.quantity, it.unit);
-      if (suggestion) initial[idx] = { ...emptyMatch(suggestion), unitPrice: computeUnitPriceGuess(it, suggestion, allMaterials) };
+      if (suggestion) initial[idx] = { ...emptyMatch(suggestion), unitPrice: computeUnitPriceGuess(it, suggestion, allMaterials, vat) };
     });
     setMaterialMatches(initial);
     // Ключ — url открытого файла, а не id письма: у письма с двумя счетами
@@ -1012,6 +1094,25 @@ export function EmailThread({
     // одного счёта к другому.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewFile?.url]);
+
+  // Смена базы НДС пересчитывает подсказки цен — ровно то, ради чего
+  // переключатель и нужен. Цену, введённую руками, не трогаем: отличаем её
+  // по тому, что она не совпадает с подсказкой в прежней базе.
+  function changeInvoiceVat(next: InvoiceVat) {
+    const items = previewExtraction?.invoice.items ?? [];
+    setMaterialMatches((prev) => {
+      const updated: Record<number, MaterialMatch> = { ...prev };
+      items.forEach((it, idx) => {
+        const m = prev[idx];
+        if (!m?.materialId) return;
+        const before = computeUnitPriceGuess(it, m.materialId, allMaterials, invoiceVat);
+        if (m.unitPrice && m.unitPrice !== before) return;
+        updated[idx] = { ...m, unitPrice: computeUnitPriceGuess(it, m.materialId, allMaterials, next) };
+      });
+      return updated;
+    });
+    setInvoiceVat(next);
+  }
 
   async function handleConfirmAutoExtraction(e: SupplierOfferEmail, invoice: EmailExtractionInvoice) {
     if (!e.extraction || applyingExtraction) return;
@@ -1023,7 +1124,7 @@ export function EmailThread({
       // Позиции создаются ОДИН раз и в этом виде уходят и в карточку, и в
       // строку КП, и в снимок applied.itemIds — по нему потом находится,
       // какие строки карточки пришли именно из этого счёта.
-      const newItems = extractionItemsToPurchaseItems(invoice.items, materialMatches);
+      const newItems = extractionItemsToPurchaseItems(invoice.items, materialMatches, invoiceVat);
       const appliedAt = new Date().toISOString();
       let applied: EmailExtractionApplied;
       // order — текущий открытый тред (тот же, которому принадлежит это
@@ -1125,7 +1226,7 @@ export function EmailThread({
             currency: order.currency,
             deadline: order.deadline,
             requirements: order.requirements,
-            items: withMaterialMatches(order.items, applied, materialMatches),
+            items: withMaterialMatches(order.items, applied, materialMatches, invoiceVat),
             files: order.files,
           }),
         );
@@ -1147,7 +1248,7 @@ export function EmailThread({
             catalogModelPhoto: offer.catalogModelPhoto,
             price: offer.price,
             currency: offer.currency,
-            items: withMaterialMatches(offer.items, applied, materialMatches),
+            items: withMaterialMatches(offer.items, applied, materialMatches, invoiceVat),
             files: offer.files,
             verified: offer.verified,
             inn: offer.inn,
@@ -1166,6 +1267,7 @@ export function EmailThread({
             .filter((i): i is PurchaseItem => !!i),
           applied,
           materialMatches,
+          invoiceVat,
         );
         await updateSupplierQuoteItems(quoteId, quoteItems);
         onQuotesChange((prev) => prev.map((q) => (q.id === quoteId ? { ...q, items: quoteItems } : q)));
@@ -1937,6 +2039,7 @@ export function EmailThread({
                       знает, какому материалу сметы соответствует
                       распознанная строка счёта — сопоставление ручное, с
                       подсказкой по схожести названия (suggestMaterialMatch). */}
+                  <InvoiceVatSwitch vat={invoiceVat} onChange={changeInvoiceVat} />
                   <div className="flex flex-col gap-2">
                     {previewExtraction.invoice.items.map((it, idx) => {
                       const match = materialMatches[idx];
@@ -1976,7 +2079,7 @@ export function EmailThread({
                                   [idx]: {
                                     ...cur,
                                     materialId: value,
-                                    unitPrice: value ? computeUnitPriceGuess(it, value, allMaterials) : '',
+                                    unitPrice: value ? computeUnitPriceGuess(it, value, allMaterials, invoiceVat) : '',
                                     kind: cur.kind === 'delivery' ? 'exact' : cur.kind,
                                   },
                                 };
@@ -2012,7 +2115,7 @@ export function EmailThread({
                                 <span className="text-xs text-ink-muted">
                                   {previewExtraction.invoice.currency ?? ''} за {material.item.unit || 'ед.'} сметы, с НДС
                                   {(() => {
-                                    const g = unitPriceGuessFor(it, material.item.sourceMaterialId!, allMaterials);
+                                    const g = unitPriceGuessFor(it, material.item.sourceMaterialId!, allMaterials, invoiceVat);
                                     if (g) return <span className="block text-ink-faint">подсказка: {g.unitPrice} — {g.explanation}</span>;
                                     if (!sameUnit(material.item.unit, it.unit) && !(material.consumption ?? 0)) {
                                       return <span className="block text-ink-faint">единицы разные ({it.unit || '?'} в счёте, {material.item.unit || '?'} в смете): задайте расход у материала сметы, и цена посчитается из тары</span>;
@@ -2020,22 +2123,6 @@ export function EmailThread({
                                     return null;
                                   })()}
                                 </span>
-                                {/* Владелец, 2026-09-15: у МаксиКерам цены в строках без НДС, итог с НДС 22% — без пересчёта поставщик выглядел бы на 22% дешевле. */}
-                                {match?.unitPrice && (
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setMaterialMatches((prev) => ({
-                                        ...prev,
-                                        [idx]: { ...prev[idx], unitPrice: String(Math.round(Number(prev[idx].unitPrice) * 1.22 * 100) / 100) },
-                                      }))
-                                    }
-                                    className="text-xs font-medium text-primary-hover hover:underline"
-                                    title="Если в счёте цены без НДС — умножить на 1,22"
-                                  >
-                                    +22% НДС
-                                  </button>
-                                )}
                               </div>
                               {/* Владелец, 2026-09-15: «Грильято прислал аналог и получил бейдж лучшей цены» / керамогранит — ровно по артикулам ответил один из пяти. Вид соответствия и пометка живут рядом с ценой в сравнении, ссылка — на карточку товара (из письма менеджера или с сайта). */}
                               <div className="flex flex-wrap items-center gap-2">

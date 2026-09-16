@@ -26,3 +26,43 @@ describe('guessUnitPrice', () => {
     expect(guessUnitPrice({ name: 'Dali 12кг', unit: 'шт', quantity: 1, price: 100 }, { unit: 'м²', consumption: 0.3, consumptionUnit: 'л' })).toBeNull();
   });
 });
+
+describe('guessUnitPrice, шаг 7', () => {
+  it('считает цену за литр из тары, записанной данными счёта', () => {
+    // Приёмка шага 7: «банка 9 л, 4 500 ₽ без НДС» → цена за литр с НДС,
+    // без расхода и без ручного ввода.
+    const g = guessUnitPrice(
+      { name: 'Краска Euro 7 база А', unit: 'шт', quantity: 12, price: 4500, packQty: 9, packUnit: 'л' },
+      { unit: 'л' },
+      { vatIncluded: false, countryRate: 22 },
+    );
+    expect(g?.unitPrice).toBe(610);
+  });
+
+  it('данные счёта важнее объёма из названия', () => {
+    const g = guessUnitPrice(
+      { name: 'Плёнка 60 м в рулоне', unit: 'рул', quantity: 1, price: 1200, packQty: 200, packUnit: 'м2' },
+      { unit: 'м²' },
+    );
+    expect(g?.unitPrice).toBe(6);
+  });
+
+  it('пересчитывает единицы одной размерности', () => {
+    const g = guessUnitPrice({ name: 'Смесь', unit: 'кг', quantity: 500, price: 40 }, { unit: 'т' });
+    expect(g?.unitPrice).toBe(40000);
+  });
+
+  it('расход считает в его собственных единицах', () => {
+    // Тара в миллилитрах, расход в литрах — раньше такая пара давала null.
+    const g = guessUnitPrice(
+      { name: 'Грунт', unit: 'шт', quantity: 4, price: 900, packQty: 2500, packUnit: 'мл' },
+      { unit: 'м²', consumption: 0.25, consumptionUnit: 'л' },
+    );
+    expect(g?.unitPrice).toBe(90);
+  });
+
+  it('не накручивает НДС, когда счёт о нём молчит', () => {
+    const g = guessUnitPrice({ name: 'x', unit: 'м2', quantity: 10, price: 1200 }, { unit: 'м²' }, { countryRate: 22 });
+    expect(g?.unitPrice).toBe(1200);
+  });
+});
