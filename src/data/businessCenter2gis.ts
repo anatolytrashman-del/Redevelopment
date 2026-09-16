@@ -39,6 +39,18 @@ export interface Gis2AttributeGroup {
   attributes: string[];
 }
 
+// Организация, которая сидит в здании БЦ (2GIS Places API по building_id,
+// собирает scripts/sync-2gis-tenants.mjs). rubric — первичная рубрика 2GIS
+// как она называется у источника, industry — id общей рубрики (одна из 28,
+// подписи в data/tenantIndustries.ts); у организации без рубрик оба поля
+// null, такие считаются "Другое".
+export interface Gis2TenantOrganization {
+  name: string;
+  gisId: string | null;
+  rubric: string | null;
+  industry: string | null;
+}
+
 export interface BusinessCenter2gisSnapshot {
   slug: string;
   matchStatus: string;
@@ -48,6 +60,38 @@ export interface BusinessCenter2gisSnapshot {
   parking: Gis2Parking[];
   attributeGroups: Gis2AttributeGroup[];
   fetchedAt: string | null;
+  tenantOrganizations: Gis2TenantOrganization[];
+  // Сколько организаций 2GIS насчитал в здании и сколько из них реально
+  // удалось забрать: у ключа жёсткий потолок выдачи, поэтому у крупных
+  // зданий список может быть неполным — на карточке это подписывается
+  // честно, а не выдаётся за полный перечень.
+  tenantOrganizationsTotal: number | null;
+  tenantOrganizationsFetched: number | null;
+  tenantOrganizationsFetchedAt: string | null;
+}
+
+// Городской профиль отраслей — одна строка на весь справочник БЦ
+// (public.business_center_tenant_city_profile, пересчитывается тем же
+// скриптом). Нужен, чтобы показать не только "у нас 20% юристов", но и
+// "в среднем по БЦ Минска их 10%".
+export interface TenantIndustryShare {
+  industry: string;
+  orgCount: number;
+  buildingCount: number;
+}
+
+export interface TenantIndustryCityProfile {
+  industries: TenantIndustryShare[];
+  orgTotal: number;
+  buildingTotal: number;
+  computedAt: string | null;
+}
+
+export interface TenantIndustryCityProfileRow {
+  industries: unknown;
+  org_total: number | null;
+  building_total: number | null;
+  computed_at: string | null;
 }
 
 export interface BusinessCenter2gisSnapshotRow {
@@ -59,4 +103,8 @@ export interface BusinessCenter2gisSnapshotRow {
   links: unknown;
   attribute_groups: unknown;
   fetched_at: string | null;
+  tenant_organizations: unknown;
+  tenant_organizations_total: number | null;
+  tenant_organizations_fetched: number | null;
+  tenant_organizations_fetched_at: string | null;
 }
