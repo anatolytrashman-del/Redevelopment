@@ -4,10 +4,14 @@ import type {
   BusinessCenter2gisSnapshot,
   BusinessCenter2gisSnapshotRow,
   Gis2AttributeGroup,
+  Gis2TenantOrganization,
   Gis2Parking,
   Gis2Reviews,
   Gis2Rubric,
   Gis2Schedule,
+  TenantIndustryCityProfile,
+  TenantIndustryCityProfileRow,
+  TenantIndustryShare,
 } from '../data/businessCenter2gis';
 
 const SCHEDULE_DAY_KEYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
@@ -75,6 +79,19 @@ function parseAttributeGroups(raw: unknown): Gis2AttributeGroup[] {
     .filter((g) => g.attributes.length > 0);
 }
 
+function parseTenantOrganizations(raw: unknown): Gis2TenantOrganization[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((org): org is Record<string, unknown> => !!org && typeof org === 'object' && typeof org.name === 'string')
+    .map((org) => ({
+      name: (org.name as string).trim(),
+      gisId: typeof org.gis_id === 'string' ? org.gis_id : null,
+      rubric: typeof org.rubric === 'string' && org.rubric.trim() !== '' ? (org.rubric as string).trim() : null,
+      industry: typeof org.industry === 'string' && org.industry.trim() !== '' ? (org.industry as string).trim() : null,
+    }))
+    .filter((org) => org.name !== '');
+}
+
 function fromRow(row: BusinessCenter2gisSnapshotRow): BusinessCenter2gisSnapshot {
   return {
     slug: row.business_center_slug,
@@ -85,6 +102,10 @@ function fromRow(row: BusinessCenter2gisSnapshotRow): BusinessCenter2gisSnapshot
     parking: parseParking(row.links),
     attributeGroups: parseAttributeGroups(row.attribute_groups),
     fetchedAt: row.fetched_at,
+    tenantOrganizations: parseTenantOrganizations(row.tenant_organizations),
+    tenantOrganizationsTotal: row.tenant_organizations_total,
+    tenantOrganizationsFetched: row.tenant_organizations_fetched,
+    tenantOrganizationsFetchedAt: row.tenant_organizations_fetched_at,
   };
 }
 
@@ -98,10 +119,43 @@ export function fetchBusinessCenter2gisSnapshot(slug: string): Promise<BusinessC
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('business_center_2gis_snapshots')
-      .select('business_center_slug,match_status,rubrics,schedule,reviews,links,attribute_groups,fetched_at')
+      // Список колонок — одной строкой, не склейкой: из склейки supabase-js
+      // не выводит тип строки и data приезжает как GenericStringError.
+      .select('business_center_slug,match_status,rubrics,schedule,reviews,links,attribute_groups,fetched_at,tenant_organizations,tenant_organizations_total,tenant_organizations_fetched,tenant_organizations_fetched_at')
       .eq('business_center_slug', slug)
       .maybeSingle();
     if (error) throw error;
     return data ? fromRow(data as BusinessCenter2gisSnapshotRow) : null;
+  });
+}
+
+// Городской профиль отраслей — одна строка на всю базу, поэтому отдельным
+// запросом без фильтра. Отдаётся уже свёрнутым до 28 чисел (счёт по общим
+// рубрикам 2GIS), а не списком организаций всего города.
+export function fetchTenantIndustryCityProfile(): Promise<TenantIndustryCityProfile | null> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('business_center_tenant_city_profile')
+      .select('industries,org_total,building_total,computed_at')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    const row = data as TenantIndustryCityProfileRow;
+    const industries: TenantIndustryShare[] = Array.isArray(row.industries)
+      ? (row.industries as unknown[])
+          .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+          .map((item) => ({
+            industry: typeof item.industry === 'string' ? item.industry : 'other',
+            orgCount: typeof item.orgCount === 'number' ? item.orgCount : 0,
+            buildingCount: typeof item.buildingCount === 'number' ? item.buildingCount : 0,
+          }))
+          .filter((item) => item.orgCount > 0)
+      : [];
+    return {
+      industries,
+      orgTotal: row.org_total ?? 0,
+      buildingTotal: row.building_total ?? 0,
+      computedAt: row.computed_at,
+    };
   });
 }

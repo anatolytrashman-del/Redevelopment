@@ -1,0 +1,33 @@
+name: Sync 2GIS tenants (organizations in BC buildings)
+
+# Только ручной запуск, без крона: список организаций в здании меняется
+# медленно, а ключ 2GIS живёт с суточной квотой и при её превышении
+# блокируется целиком (поймано 2026-09-16). Прогон возобновляемый — если
+# квота кончилась на середине, следующий запуск доберёт остаток, повторять
+# можно хоть каждый день.
+on:
+  workflow_dispatch:
+    inputs:
+      all:
+        description: 'Пересобрать все здания, а не только не собранные за 30 дней (да/нет)'
+        required: false
+        default: 'нет'
+      deep:
+        description: 'Добирать список у зданий с >50 организаций срезами по рубрикам (дороже по квоте)'
+        required: false
+        default: 'нет'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/sync-2gis-tenants.mjs ${{ github.event.inputs.all == 'да' && '--all' || '' }} ${{ github.event.inputs.deep == 'да' && '--deep' || '' }}
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GIS_API_KEY: ${{ secrets.GIS_API_KEY }}

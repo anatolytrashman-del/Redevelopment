@@ -70,8 +70,13 @@ import type { BusinessCenterOffer } from '../data/businessCenterOffers';
 import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
 import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { MIN_RELIABLE_N, type MarketSnapshot } from '../data/marketSnapshots';
-import type { BusinessCenter2gisSnapshot, Gis2Schedule, Gis2ScheduleDay } from '../data/businessCenter2gis';
-import { fetchBusinessCenter2gisSnapshot } from '../lib/businessCenter2gisApi';
+import type {
+  BusinessCenter2gisSnapshot,
+  Gis2Schedule,
+  Gis2ScheduleDay,
+  TenantIndustryCityProfile,
+} from '../data/businessCenter2gis';
+import { fetchBusinessCenter2gisSnapshot, fetchTenantIndustryCityProfile } from '../lib/businessCenter2gisApi';
 import { buildOfferIndex } from '../lib/businessCenterCatalogFilter';
 import { buildMarketPosition } from '../lib/businessCenterMarketPosition';
 import { buildIndexMap } from '../lib/businessCenterIndex';
@@ -82,6 +87,7 @@ import {
   VerdictBlock,
   MarketPositionBlock,
   MoneyBlock,
+  TenantIndustriesBlock,
   TechTilesBlock,
   WhatTheySayBlock,
 } from '../components/businessCenters/BusinessCenterMarketBlocks';
@@ -139,6 +145,7 @@ export function BusinessCenterDetailPage() {
   const [offers, setOffers] = useState<BusinessCenterOffer[] | null>(null);
   const [gis2, setGis2] = useState<BusinessCenter2gisSnapshot | null>(null);
   const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(null);
+  const [tenantCityProfile, setTenantCityProfile] = useState<TenantIndustryCityProfile | null>(null);
 
   useEffect(() => {
     fetchBusinessCenters()
@@ -157,6 +164,18 @@ export function BusinessCenterDetailPage() {
       .then(setGis2)
       .catch(() => setGis2(null));
   }, [slug]);
+
+  // Городской профиль отраслей (Б9) — одна строка на весь каталог, но нужна
+  // только тем карточкам, где организации 2GIS реально собраны: запрашиваем
+  // после снапшота, а не вместе с ним, чтобы у зданий без арендаторов не
+  // было лишнего запроса.
+  const hasTenantOrganizations = (gis2?.tenantOrganizations.length ?? 0) > 0;
+  useEffect(() => {
+    if (!hasTenantOrganizations) return;
+    fetchTenantIndustryCityProfile()
+      .then(setTenantCityProfile)
+      .catch(() => setTenantCityProfile(null));
+  }, [hasTenantOrganizations]);
 
   // Объявления о продаже/аренде из business_center_offers (владелец,
   // 2026-09-05: "хочу спарсить объявления... эту инфу мы будем выводить в
@@ -346,12 +365,12 @@ export function BusinessCenterDetailPage() {
       has('offers', offers !== null),
       has('rental', Boolean(center.rentalInfo)),
       has('facts', visibleHighlights.length > 0),
-      has('tenants', center.tenantOrganizations.length > 0),
+      has('tenants', hasTenantOrganizations || center.tenantOrganizations.length > 0),
       has('reviews', center.gisRating != null || center.highlights.some((h) => h.icon === 'rating')),
       has('similar', true),
       has('faq', true),
     ].filter((v): v is { id: string; label: string } => v !== null);
-  }, [center, marketPosition, offers, visibleHighlights, ownIndex, verdict]);
+  }, [center, marketPosition, offers, visibleHighlights, ownIndex, verdict, hasTenantOrganizations]);
 
   useEffect(() => {
     if (!center) return;
@@ -883,7 +902,14 @@ export function BusinessCenterDetailPage() {
           </div>
         )}
 
-        {/* Организации внутри здания — владелец, 2026-09-06 (третий заход):
+        {/* Кто сидит в здании. Основной источник — организации 2GIS по
+            building_id с рубриками, из них считается диаграмма отраслей (Б9,
+            docs/bc-catalog-redesign-plan.md). Ниже — прежний блок из
+            веб-архива Яндекс.Карт, он остаётся фолбэком для зданий, куда
+            2GIS ещё не доехал: там есть названия и категории, но нет рубрик
+            2GIS, а значит и отраслей с городским сравнением не построить.
+
+            Организации внутри здания — владелец, 2026-09-06 (третий заход):
             "давай сделаем ещё блок арендаторов внутри БЦ... сгруппировать,
             на первое место ставь места с максимумом отзывов на картах".
             Источник — карусель "Организации внутри" на Яндекс.Картах
@@ -895,7 +921,16 @@ export function BusinessCenterDetailPage() {
             большим числом организаций первыми) как ближайший доступный
             прокси, без выдумывания цифр (см. комментарий у
             BusinessCenter.tenantOrganizations в data/businessCenters.ts). */}
-        {center.tenantOrganizations.length > 0 && <TenantOrganizationsBlock organizations={center.tenantOrganizations} />}
+        {gis2 && gis2.tenantOrganizations.length > 0 ? (
+          <TenantIndustriesBlock
+            organizations={gis2.tenantOrganizations}
+            total={gis2.tenantOrganizationsTotal}
+            fetchedAt={gis2.tenantOrganizationsFetchedAt}
+            cityProfile={tenantCityProfile}
+          />
+        ) : (
+          center.tenantOrganizations.length > 0 && <TenantOrganizationsBlock organizations={center.tenantOrganizations} />
+        )}
 
         {/* Условия для арендаторов с офиц. сайта БЦ (владелец, 2026-09-05,
             на примере "Проспект"/Elite Estate — по нему нет объявлений на
