@@ -43,8 +43,15 @@ import {
 } from '../lib/businessCenterHubs';
 import { BUSINESS_CENTER_CLASSES, type BusinessCenter } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
-import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
-import { MIN_RELIABLE_N, type MarketSnapshot } from '../data/marketSnapshots';
+import { fetchExternalMetrics, fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
+import { fetchBusinessCenterLotSizes } from '../lib/businessCenterOffersApi';
+import {
+  AvailableNowBlock,
+  DistrictDensityBlock,
+  ManagementBlock,
+  MarketContextBlock,
+} from '../components/businessCenters/CatalogMarketBlocks';
+import { MIN_RELIABLE_N, type ExternalMetric, type MarketSnapshot } from '../data/marketSnapshots';
 import {
   CATALOG_FACTS,
   EMPTY_CATALOG_FILTER,
@@ -287,6 +294,10 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   }>();
   const [centers, setCenters] = useState<BusinessCenter[] | null>(null);
   const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(null);
+  const [externalMetrics, setExternalMetrics] = useState<ExternalMetric[] | null>(null);
+  // Только слаг и площадь каждого лота (~618 строк, два поля) — для фильтра
+  // «нужен офис от N м²» и блока «Сейчас сдаётся» (К13).
+  const [lotSizes, setLotSizes] = useState<{ businessCenterSlug: string; size: number }[] | null>(null);
   // Состояние фильтра живёт в URL, не в useState (К4): хаб-URL задаёт одну
   // ось и остаётся индексируемым входом, всё остальное — query-параметры,
   // которыми можно поделиться ссылкой. Раньше клиентским был только
@@ -340,6 +351,12 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     fetchLatestMarketSnapshots('ofisy_bc')
       .then(setOfficeSnapshots)
       .catch(() => setOfficeSnapshots([]));
+    fetchBusinessCenterLotSizes()
+      .then(setLotSizes)
+      .catch(() => setLotSizes([]));
+    fetchExternalMetrics('ofisy_bc')
+      .then(setExternalMetrics)
+      .catch(() => setExternalMetrics([]));
   }, []);
 
   // Единственная ось — класс ИЛИ район (не комбо, не микрорайон/метро/
@@ -484,7 +501,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
 
   // Медианы и число объявлений по КОНКРЕТНОМУ зданию (Д3) — нужны и
   // тумблерам «есть аренда/продажа», и сортировке по ставке, и сводке.
-  const offerIndex = useMemo(() => buildOfferIndex(officeSnapshots), [officeSnapshots]);
+  const offerIndex = useMemo(() => buildOfferIndex(officeSnapshots, lotSizes), [officeSnapshots, lotSizes]);
   // Контекст авто-бейджей (К8) считается один раз от ВСЕГО каталога, не от
   // отфильтрованной выборки: «самый большой в районе» — факт про район, он
   // не должен меняться от того, что пользователь включил тумблер.
@@ -1103,6 +1120,43 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                   Подробная аналитика по офисам в БЦ
                   <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
+              </div>
+            )}
+
+            {/* Разбор рынка (К10–К13) — ПОД результатами: первый экран
+                отдан фильтру и карточкам, а это читают те, кто доскроллил.
+                Каждый блок ещё и кликабельный: строка района включает
+                фильтр по району, плитка УК/ТС — соответствующий тумблер. */}
+            {centers !== null && centers.length > 0 && (
+              <div className="flex flex-col gap-6">
+                <AvailableNowBlock
+                  centers={centers}
+                  offers={offerIndex}
+                  lotSize={filter.lotSize}
+                  onPickLotSize={(size) => applyFilter({ ...filter, lotSize: size })}
+                />
+                <DistrictDensityBlock
+                  centers={centers}
+                  snapshots={officeSnapshots}
+                  activeDistricts={filter.districts}
+                  onPickDistrict={(d) =>
+                    applyFilter({
+                      ...filter,
+                      districts: filter.districts.includes(d) ? filter.districts.filter((x) => x !== d) : [d],
+                    })
+                  }
+                />
+                <ManagementBlock
+                  centers={centers}
+                  activeFacts={filter.facts}
+                  onPickFact={(id) =>
+                    applyFilter({
+                      ...filter,
+                      facts: filter.facts.includes(id) ? filter.facts.filter((x) => x !== id) : [...filter.facts, id],
+                    })
+                  }
+                />
+                <MarketContextBlock metrics={externalMetrics} />
               </div>
             )}
 
