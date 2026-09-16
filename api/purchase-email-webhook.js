@@ -41,7 +41,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { extractEmailAttachments, fetchReceivedEmail } from './_attachments.js';
 import { isOutgoingEmailEvent, handleOutgoingEmailEvent } from './_emailEvents.js';
-import { isPurchasingInbox, referencedMessageIds } from './_emailMatch.js';
+import { headerValue, isPurchasingInbox, isSharedMailbox, SHARED_MAILBOX_ADDRESS, referencedMessageIds } from './_emailMatch.js';
 import { MIN_TEXT_LENGTH, recognizeAllInvoicesFromAttachments, recognizeInvoiceFromText } from './_invoiceRecognition.js';
 import { stripQuotedReply } from './_emailText.js';
 import { applyRecognizedInvoice, quoteTitle } from './_invoiceApply.js';
@@ -612,13 +612,16 @@ export default async function handler(req, res) {
 
     const toRaw = data.to;
     const toAddress = Array.isArray(toRaw) ? toRaw[0] : toRaw;
+    // Все получатели одной строкой — "to" у Resend массив, а общий ящик
+    // компании может стоять и вторым адресом (в копии).
+    const recipients = (Array.isArray(toRaw) ? toRaw.join(', ') : String(toRaw ?? '')).trim();
     const fromAddress = data.from ?? '';
     const subject = data.subject ?? '';
 
     const code = extractShortCode(toAddress);
     const messageId = data.email_id ?? data.id ?? null;
 
-    if (!code && !isPurchasingInbox(toAddress)) {
+    if (!code && !isPurchasingInbox(recipients) && !isSharedMailbox(recipients)) {
       // Письмо вообще не на закупочный ящик (MX стоит на весь домен, сюда
       // приносит любое письмо на redevelopment.pro) — не наша забота, но и
       // не ошибка самого вебхука: Resend не должен ретраить бесконечно.
@@ -636,6 +639,47 @@ export default async function handler(req, res) {
       if (!received) received = await fetchReceivedEmail([data.email_id, data.id]);
       return received;
     };
+
+    // Общий ящик компании (a@redevelopment.pro, страница "Почта" в админке —
+    // владелец, 2026-09-16). Ветка стоит ПЕРЕД сопоставлением с закупками:
+    // здесь нечего резолвить, у адреса нет plus-кода, письмо просто ложится
+    // в общую ленту mailbox_emails. Проверяем именно toRaw (весь список
+    // получателей), а не первый адрес: письмо, где общий ящик стоит в копии,
+    // — тоже наше.
+    //
+    // Порядок важен и в другую сторону: письмо, адресованное закупкам (с
+    // plus-кодом или на голый zakupki@), должно уехать в переписку закупки,
+    // даже если общий ящик стоит у него в копии — отсюда обе проверки перед
+    // isSharedMailbox.
+    if (!code && !isPurchasingInbox(recipients) && isSharedMailbox(recipients)) {
+      if (messageId && (await emailAlreadyStored('mailbox_emails', messageId))) {
+        console.warn('Повторная доставка вебхука — письмо общего ящика уже сохранено:', messageId);
+        res.status(200).json({ skipped: true, duplicate: true });
+        return;
+      }
+      const { body: mailboxBody, headers: mailboxHeaders } = await ensureReceived();
+      const mailboxFiles = (await extractEmailAttachments(data)).map(({ url, fileName }) => ({ url, fileName }));
+      const stored = await insertEmailRow('mailbox_emails', {
+        direction: 'in',
+        from_address: fromAddress,
+        // Кому реально написали: у письма в копии это не наш ящик, и в ленте
+        // полезно видеть исходную строку получателей как есть.
+        to_address: recipients || SHARED_MAILBOX_ADDRESS,
+        subject,
+        body: mailboxBody,
+        files: mailboxFiles,
+        resend_message_id: messageId,
+        // Собственный Message-ID входящего письма. Сейчас ни на что не
+        // влияет (лента общего ящика группируется по адресу собеседника, не
+        // по цепочке), но это единственный момент, когда заголовок вообще
+        // доступен — без него позднее связать ответ с конкретным письмом
+        // будет уже нечем.
+        message_id_header: headerValue(mailboxHeaders, 'message-id') || null,
+      });
+      console.log('[webhook] письмо в общий ящик:', JSON.stringify({ id: stored?.id ?? null }));
+      res.status(200).json({ mailbox: true, id: stored?.id ?? null });
+      return;
+    }
 
     // Таблицу определяет не префикс адреса (оба принимаются одинаково, см.
     // extractShortCode), а то, в какой из четырёх таблиц реально нашёлся

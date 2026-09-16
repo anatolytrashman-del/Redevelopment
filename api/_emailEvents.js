@@ -20,7 +20,10 @@
 // подписания соглашений, api/agreement-otp-request.js) — для них ни одна
 // таблица не совпадёт, и это норма, а не ошибка.
 
-const EMAIL_TABLES = ['supplier_offer_emails', 'purchase_emails', 'work_contractor_emails'];
+// mailbox_emails — общий ящик компании (страница "Почта", 2026-09-16):
+// письмам оттуда нужны те же отметки о доставке/отлупе, что и переписке
+// закупок, иначе «отправлено» в ленте значит только «Resend принял».
+const EMAIL_TABLES = ['supplier_offer_emails', 'purchase_emails', 'work_contractor_emails', 'mailbox_emails'];
 
 // Типы событий, которые мы действительно обрабатываем. email.sent не меняет
 // ничего в строке письма, но нужен ради заголовка Message-ID (см.

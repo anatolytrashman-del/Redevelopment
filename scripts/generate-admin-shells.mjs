@@ -59,6 +59,7 @@ const ADMIN_SHELLS = [
   { path: 'admin/collaborations', title: 'Коллаборации', description: 'Партнёрства и договорённости: контакты, статусы, ссылки.' },
   { path: 'admin/leads', title: 'Лиды', description: 'Заявки с сайта и из рекламы: контакты, требования, статусы.' },
   { path: 'admin/contractors', title: 'Команда', description: 'Подрядчики и сотрудники: контакты, специализация, дни рождения.' },
+  { path: 'admin/mail', title: 'Почта', description: 'Общий почтовый ящик компании и записная книжка адресов.' },
   { path: 'admin/meeting-summaries', title: 'Саммери встреч', description: 'Записи встреч и краткие итоги с задачами.' },
   { path: 'admin/settings', title: 'Настройки', description: 'Настройки админки: профили доступа, справочники, интеграции.' },
   { path: 'admin/backlog', title: 'Предложить идею', description: 'Бэклог идей и предложений по платформе.' },

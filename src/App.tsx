@@ -70,6 +70,7 @@ const Contractors = lazy(() => import('./pages/Contractors').then((m) => ({ defa
 const Suppliers = lazy(() => import('./pages/Suppliers').then((m) => ({ default: m.Suppliers })));
 const SupplierDetail = lazy(() => import('./pages/SupplierDetail').then((m) => ({ default: m.SupplierDetail })));
 const WorkContractors = lazy(() => import('./pages/WorkContractors').then((m) => ({ default: m.WorkContractors })));
+const Mail = lazy(() => import('./pages/Mail').then((m) => ({ default: m.Mail })));
 const Objects = lazy(() => import('./pages/Objects').then((m) => ({ default: m.Objects })));
 const ObjectDetail = lazy(() => import('./pages/ObjectDetail').then((m) => ({ default: m.ObjectDetail })));
 const Documents = lazy(() => import('./pages/Documents').then((m) => ({ default: m.Documents })));
@@ -371,6 +372,11 @@ export default function App() {
             (первая, слитая версия) — редиректы, чтобы не сломать уже
             сохранённые ссылки. */}
         <Route path="contractors" element={<RequirePage page="contractors"><Contractors /></RequirePage>} />
+        {/* "Почта" — общий ящик компании a@redevelopment.pro и записная
+            книжка адресов (владелец, 2026-09-16), пункт меню сразу после
+            "Команды". Адрес /admin/mail: /admin/mailbox не берём, чтобы не
+            путать со "страницей ящика" — здесь и переписка, и книжка. */}
+        <Route path="mail" element={<RequirePage page="mailbox"><Mail /></RequirePage>} />
         <Route path="purchases" element={<RequirePage page="purchases"><Suppliers /></RequirePage>} />
         {/* "Подрядчики" — отдельный пункт меню в группе "Стройка" под
             "Закупками" (владелец, 2026-09-14). Успело побывать вкладкой

@@ -20,6 +20,7 @@ import {
   HardHat,
   BarChart3,
   Handshake,
+  Mail,
 } from 'lucide-react';
 
 // Единый список страниц админки — здесь и маршрут, и ключ доступа (см.
@@ -38,6 +39,7 @@ export type PageKey =
   | 'marketOffers'
   | 'collaborations'
   | 'contractors'
+  | 'mailbox'
   | 'objects'
   | 'tz'
   | 'estimates'
@@ -86,6 +88,12 @@ export const ADMIN_PAGES: AdminPage[] = [
   // Ключ 'contractors' сохранён как есть (не заводили новый), в профиле
   // Светланы именно он, и на нём же завязан бейдж дней рождения в Sidebar.tsx.
   { key: 'contractors', to: '/admin/contractors', label: 'Команда', icon: UsersRound },
+  // "Почта" — общий ящик компании a@redevelopment.pro и записная книжка
+  // адресов (владелец, 2026-09-16: "мне нужен общий блок с email-ящиком в
+  // интерфейсе, ставь после блока Команда"). Именно после "Команды", не
+  // внутри "Закупок": закупочная переписка привязана к карточкам поставщиков
+  // и живёт там, а это обычный общий ящик на всю компанию.
+  { key: 'mailbox', to: '/admin/mail', label: 'Почта', icon: Mail },
   // "Закупки" — отдельный пункт внутри группы "Стройка". Ключ 'purchases' и
   // адрес /admin/purchases — исторические (страница существовала под этим
   // именем до слияния 2026-08-29), не переименовывали ради лишнего дифа в
@@ -120,6 +128,7 @@ export const VISIBLE_PAGE_KEYS: PageKey[] = [
   'tasks',
   'objects',
   'contractors',
+  'mailbox',
   'tz',
   'estimates',
   'purchases',
@@ -149,6 +158,7 @@ export const SIDEBAR_LAYOUT: SidebarEntry[] = [
   { type: 'page', key: 'tasks' },
   { type: 'page', key: 'objects' },
   { type: 'page', key: 'contractors' },
+  { type: 'page', key: 'mailbox' },
   { type: 'group', label: 'Стройка', keys: ['tz', 'estimates', 'purchases', 'workContractors', 'designProjects'] },
   { type: 'group', label: 'Финансы', keys: ['finModels', 'financing', 'transactions', 'documents'] },
   { type: 'group', label: 'Маркетинг', keys: ['landings', 'siteMetrics', 'marketOffers', 'collaborations', 'leads'] },
