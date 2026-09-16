@@ -36,6 +36,7 @@
 // serverless-функций Vercel Hobby (как _invoiceRecognition.js/_checko.js).
 import { randomUUID } from 'node:crypto';
 import { suggestMatches } from './_proposalMatches.js';
+import { grossUp, vatRateForCountry } from './_vat.js';
 
 const KNOWN_CURRENCIES = ['RUB', 'USD', 'EUR', 'BYN'];
 
@@ -92,7 +93,55 @@ function toPurchaseItems(items) {
     price: i.price ?? null,
     note: '',
     unitPrice: null,
+    // Тара строки (шаг 7 плана закупок): «12 шт по 9 л». Пишется в позицию,
+    // а не вычитывается заново из названия при каждом открытии формы —
+    // подсказка цены за литр берёт её отсюда (lib/unitPriceGuess.ts).
+    ...(i.packQty != null && i.packUnit ? { packQty: i.packQty, packUnit: i.packUnit } : {}),
   }));
+}
+
+// Ставка НДС по стране юрлица, от которого идёт закупка (шаг 7 плана).
+// Запасной вариант: нужна, только когда счёт прямо сказал «без НДС», а
+// ставку не назвал. Любая осечка — null: без ставки цена останется как в
+// документе с пометкой «НДС не указан», и это честнее выдуманного числа.
+async function legalEntityVatRate(offerId) {
+  try {
+    const offers = await restGet(`supplier_research_offers?id=eq.${offerId}&select=request_id`);
+    const requestId = offers[0]?.request_id;
+    if (!requestId) return null;
+    const requests = await restGet(`supplier_research_requests?id=eq.${requestId}&select=legal_entity_id`);
+    const entityId = requests[0]?.legal_entity_id;
+    if (!entityId) return null;
+    const entities = await restGet(`legal_entities?id=eq.${entityId}&select=country`);
+    return vatRateForCountry(entities[0]?.country);
+  } catch (err) {
+    console.error('Ставку НДС по юрлицу получить не удалось:', err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+// НДС в позициях счёта (шаг 7 плана закупок).
+//
+// Реальный случай МаксиКерам (2026-09-15): в строках цены без НДС, итог с
+// НДС 22% — без пересчёта поставщик выглядел на 22% дешевле остальных.
+// Раньше это чинила кнопка «+22% НДС», то есть зависело от того, заметила ли
+// закупщица приписку в документе. Теперь: `price` остаётся КАК В СЧЁТЕ
+// (документ мы не переписываем), а `unitPrice` — цена за единицу сметы — по
+// соглашению сравнения цен всегда с НДС, поэтому её и приводим. Условия
+// счёта записываются в саму позицию, чтобы в сравнении было видно, откуда
+// взялось число.
+function withVat(items, terms, countryRate) {
+  const basis = { vatIncluded: terms?.vatIncluded ?? null, vatRate: terms?.vatRate ?? null };
+  if (basis.vatIncluded == null && basis.vatRate == null) return items;
+  return items.map((item) => {
+    const gross = item.unitPrice != null && item.unitPrice > 0 ? grossUp(item.unitPrice, basis, countryRate) : null;
+    return {
+      ...item,
+      unitPrice: gross ? gross.price : item.unitPrice,
+      vatIncluded: basis.vatIncluded,
+      vatRate: basis.vatRate ?? (gross && gross.adjusted ? gross.rate : null),
+    };
+  });
 }
 
 // Возвращает и новый список файлов, и признак "файл добавлен именно этой
@@ -152,6 +201,8 @@ async function withMatches(items, { offerId, supplierName }) {
         quantity: i.quantity,
         unit: i.unit,
         price: i.price,
+        packQty: i.packQty ?? null,
+        packUnit: i.packUnit ?? '',
       })),
     });
 
@@ -181,7 +232,11 @@ export async function applyRecognizedInvoice({ emailId, offerId, orderId, subjec
     throw new Error('SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY не заданы — некуда записывать распознанный счёт');
   }
 
-  const newItems = await withMatches(toPurchaseItems(recognized.items), { offerId, supplierName });
+  const matched = await withMatches(toPurchaseItems(recognized.items), { offerId, supplierName });
+  // Ставка страны нужна только при «без НДС» без своей ставки — в остальных
+  // случаях лишнего запроса в базу не делаем.
+  const needsCountryRate = recognized.terms?.vatIncluded === false && !recognized.terms?.vatRate;
+  const newItems = withVat(matched, recognized.terms, needsCountryRate ? await legalEntityVatRate(offerId) : null);
   const itemIds = newItems.map((i) => i.id);
 
   // Дополнительная заявка (supplier_orders) ведёт свою переписку и свои

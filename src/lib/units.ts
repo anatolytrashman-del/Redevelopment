@@ -1,17 +1,18 @@
+import { canonicalUnit, squashUnit } from '../data/units';
+
 // «м²» в смете и «м2»/«кв.м»/«m2» в счёте — одна и та же единица;
 // распознавание счёта пишет как в документе, смета — как ввёл человек.
 // Общий модуль для сравнения цен (PriceComparisonCard) и формы
 // сопоставления счёта (SupplierCorrespondenceTab).
+//
+// С шага 7 плана закупок написания приводит справочник (data/units.ts): там
+// у каждой единицы канонический код, размерность и множитель. Здесь
+// остаётся только то, что нужно для сравнения строк; пересчёт величин — в
+// самом справочнике (convertQuantity/convertUnitPrice).
 export function normalizeUnit(u: string): string {
-  return u
-    .trim()
-    .toLowerCase()
-    .replace(/²/g, '2')
-    .replace(/³/g, '3')
-    .replace(/\s+|\./g, '')
-    .replace(/^кв\.?м$|^квм$|^sqm$|^m2$/i, 'м2')
-    .replace(/^m3$|^кубм$/i, 'м3')
-    .replace(/^шт\.?$|^pcs$|^pc$/i, 'шт');
+  // Незнакомую единицу возвращаем «сжатой», а не пустой: две одинаковые
+  // опечатки в счёте и смете по-прежнему должны считаться одной единицей.
+  return canonicalUnit(u) ?? squashUnit(u);
 }
 
 export function sameUnit(a: string, b: string): boolean {

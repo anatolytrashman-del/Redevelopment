@@ -117,6 +117,7 @@ import type { RealtyObject } from '../data/objects';
 import { fetchObjects } from '../lib/objectsApi';
 import type { LegalEntity } from '../data/legalEntities';
 import { fetchLegalEntities } from '../lib/legalEntitiesApi';
+import { resolveRequestLegalEntity } from '../lib/legalEntityAttachment';
 import { MaterialsTable, groupMaterials } from '../components/estimates/MaterialsTable';
 import { EstimateMaterialFormModal } from '../components/estimates/EstimateMaterialFormModal';
 import { EstimateMaterialCommentsModal } from '../components/estimates/EstimateMaterialCommentsModal';
@@ -2533,6 +2534,10 @@ export function Suppliers() {
                         quotes={supplierQuotes}
                         rate={rate}
                         estimates={estimates}
+                        // Страна юрлица категории — запасная ставка НДС для
+                        // счетов, где сказано «без НДС», но процент не назван
+                        // (шаг 7 плана закупок).
+                        legalEntityCountry={resolveRequestLegalEntity(r.legalEntityId, legalEntities)?.country ?? null}
                         onOpenDetail={(o) => setDetailOfferId(o.id)}
                         onRequestSaved={(saved) => setRequests((prev) => prev.map((x) => (x.id === saved.id ? saved : x)))}
                         onQuotesChange={setSupplierQuotes}

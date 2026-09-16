@@ -29,11 +29,40 @@ export interface Cell {
   // в обоих случаях это НЕ «низкая уверенность», и помечать такую ячейку
   // «проверить» не за что.
   matchConfidence: number | null;
+  // Что известно про НДС в цене этой ячейки (шаг 7 плана закупок).
+  vat: CellVat;
+  vatRate: number | null;
   usdUnit: number | null;
   // Как в счёте: объём и единица поставщика (владелец, 2026-09-15:
   // Keramogranit.ru посчитал 713 м² из 992 — ячейка должна это показывать).
   quotedQuantity: number | null;
   quotedUnit: string;
+}
+
+// Откуда взялась цена ячейки с точки зрения НДС:
+//   'gross'     — счёт прямо сказал, что цены с НДС;
+//   'converted' — счёт был без НДС, и цена за единицу пересчитана кодом;
+//   'net'       — счёт без НДС, а пересчёт не подтверждён: цена может быть
+//                 занижена на ставку, и поставщик выглядит дешевле, чем есть;
+//   'unknown'   — про НДС не сказано ничего (и все строки, записанные до
+//                 шага 7). Не помечаем: это состояние большинства старых
+//                 данных, и чип на каждой ячейке был бы шумом, а не сигналом.
+export type CellVat = 'gross' | 'converted' | 'net' | 'unknown';
+
+export function cellVat(item: PurchaseItem, terms: QuoteTerms | null): { vat: CellVat; rate: number | null } {
+  const included = item.vatIncluded ?? terms?.vatIncluded ?? null;
+  const rate = item.vatRate ?? terms?.vatRate ?? null;
+  if (included === true) return { vat: 'gross', rate };
+  if (included === false) {
+    // «Пересчитано» считаем только там, где пересчитывал код: он проставляет
+    // строке и признак, и ставку (withVat в api/_invoiceApply.js, та же
+    // логика в форме сопоставления). Если признака у строки нет, а «без НДС»
+    // сказано лишь в условиях КП, цена за единицу могла остаться без налога —
+    // и это ровно тот случай, ради которого шаг 7 затевался.
+    if (item.vatIncluded === false && item.vatRate != null) return { vat: 'converted', rate: item.vatRate };
+    return { vat: 'net', rate };
+  }
+  return { vat: 'unknown', rate };
 }
 
 export interface UnmatchedLine {
@@ -130,6 +159,10 @@ export function buildColumns(
           note: item.matchNote ?? '',
           productUrl: item.productUrl ?? '',
           matchConfidence: typeof item.matchConfidence === 'number' ? item.matchConfidence : null,
+          ...(() => {
+            const v = cellVat(item, src.terms);
+            return { vat: v.vat, vatRate: v.rate };
+          })(),
           usdUnit: convertToUsd(unitPrice, src.currency, rate),
           quotedQuantity: item.quantity,
           quotedUnit: item.unit,
