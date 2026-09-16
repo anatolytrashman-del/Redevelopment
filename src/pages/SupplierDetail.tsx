@@ -57,6 +57,7 @@ import {
   fetchSupplierReliability,
   fetchSupplierReliabilityChecks,
 } from '../lib/supplierReliabilityApi';
+import { SupplierOrdersSection } from '../components/suppliers/PurchaseOrdersTab';
 import { fetchSupplierOfferEmailsByOffers } from '../lib/supplierOfferEmailsApi';
 import { fetchSupplierQuotesByOffers, updateSupplierQuoteTerms } from '../lib/supplierQuotesApi';
 import {
@@ -80,9 +81,9 @@ import {
 // удобнее, не теряя таблицу. Перевод сравнения на страницу и удаление
 // модалки — шаг 4, где у страницы появятся разделы «Переписка» и «КП».
 
-type SupplierDetailTab = 'Обзор' | 'Контакты' | 'Переписка' | 'КП и цены' | 'Проверка' | 'Активность';
+type SupplierDetailTab = 'Обзор' | 'Контакты' | 'Переписка' | 'КП и цены' | 'Заказы' | 'Проверка' | 'Активность';
 
-const TABS: SupplierDetailTab[] = ['Обзор', 'Контакты', 'Переписка', 'КП и цены', 'Проверка', 'Активность'];
+const TABS: SupplierDetailTab[] = ['Обзор', 'Контакты', 'Переписка', 'КП и цены', 'Заказы', 'Проверка', 'Активность'];
 
 // Вкладка живёт в ?tab=, а не в стейте — как на странице «Закупки»
 // (владелец, 2026-09-04: «обновляешь — и всё слетело»). Слаги, не русские
@@ -92,6 +93,7 @@ const TAB_SLUGS: Record<SupplierDetailTab, string> = {
   Контакты: 'contacts',
   Переписка: 'emails',
   'КП и цены': 'quotes',
+  Заказы: 'orders',
   Проверка: 'reliability',
   Активность: 'activity',
 };
@@ -1296,6 +1298,11 @@ export function SupplierDetailView({
           <TermsFormModal quote={termsQuote} saving={savingTerms} onClose={() => setTermsQuote(null)} onSubmit={saveTerms} />
         </Card>
       )}
+
+      {/* Заказы и поставки (шаг 11b плана закупок). Раздел грузит заказы
+          компании сам — их единицы, общий список «Закупок» ради этого тянуть
+          не надо. */}
+      {tab === 'Заказы' && <SupplierOrdersSection supplierId={supplier.id} />}
 
       {tab === 'Проверка' && (
         <div className="space-y-4">

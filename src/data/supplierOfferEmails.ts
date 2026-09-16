@@ -169,10 +169,10 @@ export function extractionInvoices(extraction: EmailExtraction | null | undefine
 // см. data/supplierResearch.ts (supplierOfferEmailAddress) и
 // api/purchase-send-email.js/purchase-email-webhook.js (несмотря на имя,
 // обрабатывают оба направления переписки — закупки и Ресерч, см. комментарий
-// в самих файлах). Один в один PurchaseEmail (data/purchaseEmails.ts),
-// просто своя таблица — переписка по предложению до выбора поставщика и
-// переписка по уже оформленной закупке концептуально разные вещи (RFQ vs
-// твёрдый заказ), поэтому не смешиваем в одной таблице.
+// в самих файлах). Была ещё таблица-близнец purchase_emails — переписка по
+// оформленной закупке (Purchase); и сущность, и таблица удалены в шаге 11b
+// плана закупок пустыми, так что вся переписка с поставщиками теперь идёт
+// через эту таблицу.
 export interface SupplierOfferEmail {
   id: string;
   offerId: string;

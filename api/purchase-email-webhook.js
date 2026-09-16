@@ -5,18 +5,18 @@
 //
 // Несмотря на название файла (осталось от первой версии — переименовывать
 // не стали, чтобы не заставлять владельца ещё раз лезть в кабинет Resend и
-// менять зарегистрированный URL), обрабатывает ДВА разных случая по
-// префиксу адреса в "to": zakupki+<код>@ — переписка по закупке
-// (purchase_emails), research+<код>@ — переписка по предложению в
-// Ресерче поставщиков, ещё до того как оно превратилось в закупку
-// (supplier_offer_emails). Resend не даёт настроить доставку webhook по
-// конкретному адресу получателя — сюда прилетает вообще любое входящее
-// письмо на домене, дальше уже сами решаем, что с ним делать.
+// менять зарегистрированный URL), обрабатывает любое входящее письмо на
+// домене: Resend не даёт настроить доставку webhook по конкретному адресу
+// получателя, сюда прилетает всё, дальше уже сами решаем, в какую переписку
+// его положить — предложения поставщиков (supplier_offer_emails),
+// подрядчики (work_contractor_emails) или общий ящик (mailbox_emails).
+// Была ещё переписка по закупке (purchase_emails) — сущность Purchase и её
+// таблицы удалены пустыми в шаге 11b плана закупок, вместе с веткой здесь.
 //
 // <код> — короткий short_code (5 hex-символов), не полный id (владелец,
 // 2026-09-03: адрес с UUID был "очень длинный") — извлечённый код нужно
 // сначала резолвить в реальный id закупки/предложения отдельным запросом
-// (resolveIdByShortCode), сам FK-столбец purchase_id/offer_id как хранил,
+// (resolveIdByShortCode), сам FK-столбец offer_id/contractor_id как хранил,
 // так и хранит настоящий UUID.
 //
 // Resend подписывает вебхуки по протоколу Svix (заголовки svix-id/
@@ -214,7 +214,6 @@ async function resolveByMessageIdHeaders(messageIds) {
   };
   const targets = [
     { table: 'supplier_offer_emails', select: 'offer_id,order_id' },
-    { table: 'purchase_emails', select: 'purchase_id' },
     { table: 'work_contractor_emails', select: 'contractor_id' },
   ];
   for (const messageId of messageIds.slice(0, 10)) {
@@ -230,7 +229,6 @@ async function resolveByMessageIdHeaders(messageIds) {
         return {
           offerId: rows[0].offer_id ?? null,
           orderId: rows[0].order_id ?? null,
-          purchaseId: rows[0].purchase_id ?? null,
           contractorId: rows[0].contractor_id ?? null,
         };
       } catch (err) {
@@ -682,7 +680,7 @@ export default async function handler(req, res) {
     }
 
     // Таблицу определяет не префикс адреса (оба принимаются одинаково, см.
-    // extractShortCode), а то, в какой из четырёх таблиц реально нашёлся
+    // extractShortCode), а то, в какой из трёх таблиц реально нашёлся
     // short_code — проверяются по очереди, коллизия между ними технически
     // возможна, но при таком масштабе (десятки-сотни записей на компанию,
     // не тысячи) статистически ничтожна, отдельно не защищаемся.
@@ -691,22 +689,20 @@ export default async function handler(req, res) {
     // дополнительные заявки (supplier_orders) переписываются по своему
     // короткому коду; письмо в этом случае всё равно кладём под настоящий
     // offer_id (карточка поставщика), плюс order_id конкретной заявки.
-    let purchaseId = code ? await resolveIdByShortCode('purchases', code) : null;
-    const matchedOffer = !code || purchaseId ? null : await resolveIdByShortCode('supplier_research_offers', code);
-    const matchedOrder = !code || purchaseId || matchedOffer ? null : await resolveOrderByShortCode(code);
+    const matchedOffer = code ? await resolveIdByShortCode('supplier_research_offers', code) : null;
+    const matchedOrder = !code || matchedOffer ? null : await resolveOrderByShortCode(code);
     let offerId = matchedOffer ?? matchedOrder?.offerId ?? null;
     let orderId = matchedOrder?.id ?? null;
-    // Четвёртая таблица — подрядчики (вкладка "Подрядчики" страницы
+    // Третья таблица — подрядчики (вкладка "Подрядчики" страницы
     // "Закупки", владелец 2026-09-14). Проверяется последней из прямых
     // поисков: у поставщиков переписки на порядки больше, незачем на каждом
     // письме ходить сюда первым.
-    let contractorId =
-      !code || purchaseId || offerId ? null : await resolveIdByShortCode('work_contractors', code);
+    let contractorId = !code || offerId ? null : await resolveIdByShortCode('work_contractors', code);
 
     // Фолбэк по истории отправленных писем (см. комментарий у
     // resolveOfferIdByEmailHistory) — только когда прямой поиск по всем
-    // четырём таблицам ничего не дал.
-    if (code && !purchaseId && !offerId && !contractorId) {
+    // трём таблицам ничего не дал.
+    if (code && !offerId && !contractorId) {
       offerId = await resolveOfferIdByEmailHistory(code);
     }
 
@@ -716,8 +712,8 @@ export default async function handler(req, res) {
     // адресе ни во что не резолвится (например, закупку давно удалили).
     // Раньше такое письмо молча исчезало. Теперь у него ещё два пути, а
     // если не сработал ни один — своя очередь ручного разбора.
-    let matchedBy = code && (purchaseId || offerId || contractorId) ? 'plus-адрес' : null;
-    if (!purchaseId && !offerId && !contractorId) {
+    let matchedBy = code && (offerId || contractorId) ? 'plus-адрес' : null;
+    if (!offerId && !contractorId) {
       if (await unmatchedAlreadyStored(messageId)) {
         console.warn('Повторная доставка неразобранного письма, пропускаем:', messageId);
         res.status(200).json({ skipped: true, duplicate: true });
@@ -727,14 +723,13 @@ export default async function handler(req, res) {
       const { headers } = await ensureReceived();
       const byHeader = await resolveByMessageIdHeaders(referencedMessageIds(headers));
       if (byHeader) {
-        purchaseId = byHeader.purchaseId;
         offerId = byHeader.offerId;
         orderId = byHeader.orderId;
         contractorId = byHeader.contractorId;
         matchedBy = 'заголовок In-Reply-To';
       }
 
-      if (!purchaseId && !offerId && !contractorId) {
+      if (!offerId && !contractorId) {
         const candidates = await offerCandidatesByFromAddress(parseFromHeader(fromAddress).address);
         if (candidates.length === 1) {
           offerId = candidates[0];
@@ -765,11 +760,7 @@ export default async function handler(req, res) {
 
     // Повторная доставка того же письма (см. emailAlreadyStored) — отвечаем
     // 200 и ничего не делаем: письмо уже сохранено первым разом.
-    const targetTable = purchaseId
-      ? 'purchase_emails'
-      : contractorId
-      ? 'work_contractor_emails'
-      : 'supplier_offer_emails';
+    const targetTable = contractorId ? 'work_contractor_emails' : 'supplier_offer_emails';
     if (messageId && (await emailAlreadyStored(targetTable, messageId))) {
       console.warn('Повторная доставка вебхука — письмо уже сохранено, пропускаем:', messageId);
       res.status(200).json({ skipped: true, duplicate: true });
@@ -881,18 +872,7 @@ export default async function handler(req, res) {
       }
     }
 
-    const row = purchaseId
-      ? await insertEmailRow('purchase_emails', {
-          purchase_id: purchaseId,
-          direction: 'in',
-          from_address: fromAddress,
-          to_address: toAddress || '',
-          subject,
-          body,
-          files,
-          resend_message_id: data.email_id ?? data.id ?? null,
-        })
-      : contractorId
+    const row = contractorId
       ? // Переписка с подрядчиком: без extraction — распознавание счетов
         // выше запускается только при offerId (это про поставщиков
         // материалов), подрядчику мы пишем и читаем руками.

@@ -1,18 +1,20 @@
-// Vercel serverless function: отправка письма поставщику — из карточки
-// закупки (Purchases.tsx → lib/purchaseEmailsApi.ts → sendPurchaseEmail)
-// ИЛИ из предложения в Ресерче поставщиков (Suppliers.tsx →
-// lib/supplierOfferEmailsApi.ts → sendSupplierOfferEmail) ИЛИ подрядчику с
-// вкладки "Подрядчики" (lib/workContractorEmailsApi.ts →
-// sendWorkContractorEmail, добавлено 2026-09-14). Несмотря на имя
-// файла (осталось от первой версии), обрабатывает все три случая — так же, как
-// purchase-email-webhook.js уже объединяет приём входящих писем для них:
+// Vercel serverless function: отправка письма поставщику — из предложения в
+// Ресерче поставщиков (Suppliers.tsx → lib/supplierOfferEmailsApi.ts →
+// sendSupplierOfferEmail) ИЛИ подрядчику с вкладки "Подрядчики"
+// (lib/workContractorEmailsApi.ts → sendWorkContractorEmail, добавлено
+// 2026-09-14) ИЛИ из общего ящика компании (mailbox). Первым направлением
+// была переписка по закупке (Purchases.tsx → purchase_emails) — сущность
+// Purchase удалена пустой в шаге 11b плана закупок, вместе с веткой здесь.
+// Несмотря на имя файла (осталось от первой версии), обрабатывает все
+// оставшиеся случаи — так же, как purchase-email-webhook.js объединяет
+// приём входящих писем для них:
 // на Hobby-плане Vercel лимит 12 serverless-функций на деплой, отдельный
 // файл под каждую пару send/receive быстро упёрся бы в потолок (реальный
 // инцидент 2026-08-29 — деплой упал с "No more than 12 Serverless
 // Functions", после чего два файла отправки объединили в этот один).
 //
-// Письмо уходит через Resend с адреса-плюс-закупки/предложения
-// (purchaseEmailAddress/supplierOfferEmailAddress) — благодаря этому ответ
+// Письмо уходит через Resend с plus-адреса предложения/подрядчика
+// (supplierOfferEmailAddress) — благодаря этому ответ
 // прилетает на этот же адрес и матчится по id в локальной части, без
 // отдельного ящика на каждую сущность. Запись создаётся здесь же сервисным
 // ключом (таблицы закрыты RLS от anon — отправка письма не операция
@@ -339,16 +341,16 @@ export default async function handler(req, res) {
   // страницы "Закупки", владелец 2026-09-14). Сюда же, а не отдельным
   // эндпоинтом, по той же причине, что и предложения Ресерча: лимит в 12
   // serverless-функций на Hobby-плане уже выбран (см. шапку файла).
-  const { purchaseId, offerId, orderId, contractorId, mailbox, toAddress, subject, body, attachments, asAiBuyer } =
+  const { offerId, orderId, contractorId, mailbox, toAddress, subject, body, attachments, asAiBuyer } =
     req.body ?? {};
 
   // mailbox:true — письмо из общего ящика компании (страница "Почта"),
-  // четвёртое направление в этом же эндпоинте по той же причине лимита
+  // третье направление в этом же эндпоинте по той же причине лимита
   // функций. Адресата тут выбирает человек, а не карточка, поэтому ни
-  // purchaseId, ни offerId, ни short_code для него не нужны.
+  // offerId, ни short_code для него не нужны.
   const isMailbox = Boolean(mailbox);
 
-  if ((!purchaseId && !offerId && !contractorId && !isMailbox) || !toAddress || !body) {
+  if ((!offerId && !contractorId && !isMailbox) || !toAddress || !body) {
     res.status(400).json({ error: 'Заполните все поля' });
     return;
   }
@@ -366,27 +368,23 @@ export default async function handler(req, res) {
   // нему независимо от конкретной заявки (см. data/supplierOfferEmails.ts).
   const shortCode = isMailbox
     ? null
-    : purchaseId
-      ? await fetchShortCode('purchases', purchaseId)
-      : contractorId
-        ? await fetchShortCode('work_contractors', contractorId)
-        : orderId
-          ? await fetchShortCode('supplier_orders', orderId)
-          : await fetchShortCode('supplier_research_offers', offerId);
+    : contractorId
+      ? await fetchShortCode('work_contractors', contractorId)
+      : orderId
+        ? await fetchShortCode('supplier_orders', orderId)
+        : await fetchShortCode('supplier_research_offers', offerId);
   if (!isMailbox && !shortCode) {
-    res.status(404).json({ error: 'Не найдена закупка, предложение, заявка или подрядчик' });
+    res.status(404).json({ error: 'Не найдено предложение, заявка или подрядчик' });
     return;
   }
 
   const fromAddress = isMailbox ? SHARED_MAILBOX_ADDRESS : emailAddress(shortCode);
   const table = isMailbox
     ? 'mailbox_emails'
-    : purchaseId
-      ? 'purchase_emails'
-      : contractorId
-        ? 'work_contractor_emails'
-        : 'supplier_offer_emails';
-  const defaultSubject = isMailbox ? 'Письмо' : purchaseId ? 'Закупка' : contractorId ? 'Подрядчику' : 'Запрос цены';
+    : contractorId
+      ? 'work_contractor_emails'
+      : 'supplier_offer_emails';
+  const defaultSubject = isMailbox ? 'Письмо' : contractorId ? 'Подрядчику' : 'Запрос цены';
 
   try {
     // Владелец, 2026-09-03: "прикрепление ведомостей материалов к письму" —
@@ -448,10 +446,7 @@ export default async function handler(req, res) {
       deferred = err;
     }
 
-    // sent_by_* есть у supplier_offer_emails (переписка Ресерча) и
-    // work_contractor_emails (подрядчики) — в purchase_emails таких колонок
-    // нет, туда поля не подмешиваем.
-    const author = purchaseId ? null : await fetchAuthorProfile(user.id);
+    const author = await fetchAuthorProfile(user.id);
 
     // asAiBuyer — письмо с готовым текстом ИИ-закупщика: черновик автоответа,
     // который человек отправил кнопкой «Отправить», ничего в нём не меняя
@@ -474,8 +469,6 @@ export default async function handler(req, res) {
             sent_by_profile_id: author?.id ?? null,
             sent_by_name: author?.display_name ?? null,
           }
-        : purchaseId
-        ? { purchase_id: purchaseId }
         : contractorId
           ? {
               contractor_id: contractorId,

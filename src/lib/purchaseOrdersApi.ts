@@ -98,6 +98,24 @@ export function fetchPurchaseOrdersByRequest(requestId: string): Promise<Purchas
   });
 }
 
+// Заказы одной компании — для раздела «Заказы и поставки» на странице
+// поставщика. Отдельная выборка, а не фильтр общего списка: заказов у одной
+// компании единицы, тянуть ради них все заказы организации незачем.
+// У карточек, заведённых до шага 2 плана, supplier_id пуст — их заказы
+// видны только на «Закупках», и это ожидаемо.
+export function fetchPurchaseOrdersBySupplier(supplierId: string): Promise<PurchaseOrder[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('purchase_orders')
+      .select('*')
+      .eq('supplier_id', supplierId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return ((data ?? []) as PurchaseOrderRow[]).map(fromRow);
+  });
+}
+
 export function fetchPurchaseOrderEvents(orderId: string): Promise<PurchaseOrderEvent[]> {
   return withRetry(async () => {
     const { data, error } = await supabase
