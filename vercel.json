@@ -10,7 +10,8 @@
     "api/purchase-email-webhook.js": { "maxDuration": 300 },
     "api/meeting-ai.js": { "maxDuration": 300 },
     "api/supplier-web-search.js": { "maxDuration": 300 },
-    "api/tinypng-compress.js": { "maxDuration": 30 }
+    "api/tinypng-compress.js": { "maxDuration": 30 },
+    "api/telegram-avatar.js": { "maxDuration": 120 }
   },
   "headers": [
     {
@@ -47,6 +48,7 @@
     { "source": "/rayon-minsk-mir", "destination": "/minsk/minsk-mir", "permanent": true }
   ],
   "rewrites": [
+    { "source": "/api/telegram-webhook", "destination": "/api/telegram-avatar" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/tz/(.*)", "destination": "/tz.html" },
     { "source": "/estimate/(.*)", "destination": "/estimate.html" },

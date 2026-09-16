@@ -26,6 +26,7 @@ import { Textarea } from '../components/ui/Textarea';
 import { Modal } from '../components/ui/Modal';
 import { SearchInput } from '../components/ui/SearchInput';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
+import { TelegramCapturesTab } from '../components/mail/TelegramCapturesTab';
 import { cn } from '../lib/cn';
 import { fileToAttachment } from '../lib/legalEntityAttachment';
 import { fetchMailboxEmails, markMailboxEmailsRead, sendMailboxEmail } from '../lib/mailboxApi';
@@ -85,7 +86,19 @@ import { emailSendStatusLabel } from '../data/emailSendStatus';
 
 type EmailAttachment = { fileName: string; contentType: string; contentBase64: string };
 
-const TABS = ['Письма', 'Контакты', 'Шаблоны'];
+// Вкладки — именованными константами, а не по индексу массива.
+// Причина конкретная: при добавлении вкладки "Telegram" вторым пунктом
+// (2026-09-16) все прежние индексы разъехались на единицу, и страница молча
+// показала бы записную книжку под заголовком шаблонов. С именами такая
+// вставка не ломает ничего.
+const TAB_MAIL = 'Письма';
+const TAB_TELEGRAM = 'Telegram';
+// «Контакты», а не «Записная книжка»: сюда же в тот день переехали партнёры
+// из удалённого раздела «Коллаборации», и это единый список всех, с кем
+// общаемся вне карточек.
+const TAB_CONTACTS = 'Контакты';
+const TAB_TEMPLATES = 'Шаблоны';
+const TABS = [TAB_MAIL, TAB_TELEGRAM, TAB_CONTACTS, TAB_TEMPLATES];
 const ALL_CATEGORIES = 'Все категории';
 const ALL_STATUSES = 'Любой статус';
 
@@ -153,7 +166,10 @@ function buildThreads(emails: MailboxEmail[]): MailThread[] {
 }
 
 export function Mail() {
-  const [tab, setTab] = useState(TABS[0]);
+  const [tab, setTab] = useState(TAB_MAIL);
+  // Сколько записей копилки ещё не разобрано — для бейджа на вкладке.
+  // Считает сама вкладка при загрузке (второй запрос ради числа не нужен).
+  const [telegramNew, setTelegramNew] = useState(0);
   const [emails, setEmails] = useState<MailboxEmail[]>([]);
   const [contacts, setContacts] = useState<MailboxContact[]>([]);
   const [templates, setTemplates] = useState<MailboxTemplate[]>([]);
@@ -405,7 +421,7 @@ export function Mail() {
   function handleSent(email: MailboxEmail) {
     setEmails((prev) => [...prev, email]);
     setSelectedAddress(parseEmailAddress(email.toAddress));
-    setTab(TABS[0]);
+    setTab(TAB_MAIL);
   }
 
   return (
@@ -413,7 +429,7 @@ export function Mail() {
       <PageHeader
         title="Почта"
         action={
-          tab === TABS[0] ? (
+          tab === TAB_MAIL ? (
             <Button
               icon={<Plus className="h-4 w-4" />}
               onClick={() => {
@@ -423,36 +439,49 @@ export function Mail() {
             >
               Написать письмо
             </Button>
-          ) : tab === TABS[1] ? (
+          ) : tab === TAB_CONTACTS ? (
             <Button icon={<Plus className="h-4 w-4" />} onClick={() => openContactAdd()}>
               Добавить контакт
             </Button>
-          ) : (
+          ) : tab === TAB_TEMPLATES ? (
             <Button icon={<Plus className="h-4 w-4" />} onClick={openTemplateAdd}>
               Добавить шаблон
             </Button>
-          )
+          ) : null
         }
       />
 
       <div className="flex flex-col gap-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <ToggleGroup options={TABS} value={tab} onChange={setTab} badges={{ [TABS[0]]: unreadTotal }} />
+          <ToggleGroup
+            options={TABS}
+            value={tab}
+            onChange={setTab}
+            badges={{ [TAB_MAIL]: unreadTotal, [TAB_TELEGRAM]: telegramNew }}
+          />
           <div className="flex items-center gap-2 text-sm text-ink-muted">
             <MailIcon className="h-4 w-4 shrink-0 text-ink-faint" />
             Общий ящик компании: <span className="font-semibold text-ink">{SHARED_MAILBOX_ADDRESS}</span>
           </div>
         </div>
 
-        {loading && (
+        {loading && tab !== TAB_TELEGRAM && (
           <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
             <Loader2 className="h-4 w-4 animate-spin" />
             Загружаем почту...
           </Card>
         )}
-        {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
+        {!loading && loadError && tab !== TAB_TELEGRAM && (
+          <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>
+        )}
 
-        {!loading && !loadError && tab === TABS[0] && (
+        {/* Копилка Telegram живёт своей загрузкой: она не зависит ни от писем,
+            ни от записной книжки, и падение общего ящика не должно её
+            прятать — поэтому ветка стоит ДО общей проверки loading/loadError,
+            а не внутри неё. */}
+        {tab === TAB_TELEGRAM && <TelegramCapturesTab onCountsChange={setTelegramNew} />}
+
+        {!loading && !loadError && tab === TAB_MAIL && (
           <div className="grid gap-6 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
             {/* min-w-0 на колонке и на строке с именем — иначе длинное имя
                 собеседника не обрезается (truncate работает только когда у
@@ -531,7 +560,7 @@ export function Mail() {
           </div>
         )}
 
-        {!loading && !loadError && tab === TABS[1] && (
+        {!loading && !loadError && tab === TAB_CONTACTS && (
           <Card className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center gap-3">
               <SearchInput
@@ -691,7 +720,7 @@ export function Mail() {
             )}
           </Card>
         )}
-        {!loading && !loadError && tab === TABS[2] && (
+        {!loading && !loadError && tab === TAB_TEMPLATES && (
           <div className="flex flex-col gap-3">
             <div className="text-sm text-ink-muted">
               Шаблон подставляет тему и текст в письмо — дальше это обычный черновик, его можно править.{' '}
