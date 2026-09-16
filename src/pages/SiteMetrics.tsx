@@ -12,10 +12,10 @@ import {
   fetchMetrikaGoalCompletions,
 } from '../lib/metrikaStatsApi';
 import type { MetrikaDailyStat, MetrikaTrafficSource, MetrikaTopPage, MetrikaGoalCompletion } from '../data/metrikaStats';
-import { fetchYandexWebmasterStats } from '../lib/yandexWebmasterStatsApi';
-import type { YandexWebmasterStat } from '../data/yandexWebmasterStats';
-import { fetchGoogleSearchConsoleStats } from '../lib/googleSearchConsoleStatsApi';
-import type { GoogleSearchConsoleStat } from '../data/googleSearchConsoleStats';
+import { fetchYandexWebmasterStats, fetchYandexWebmasterQueries } from '../lib/yandexWebmasterStatsApi';
+import type { YandexWebmasterStat, YandexWebmasterQuery } from '../data/yandexWebmasterStats';
+import { fetchGoogleSearchConsoleStats, fetchGoogleSearchConsoleQueries } from '../lib/googleSearchConsoleStatsApi';
+import type { GoogleSearchConsoleStat, GoogleSearchConsoleQuery } from '../data/googleSearchConsoleStats';
 
 // Показатели посещаемости сайта из Яндекс.Метрики (счётчик 111858495) —
 // не отчёт по staff-активности (это отдельная /admin/metrics, RequireSuperAdmin,
@@ -55,6 +55,15 @@ import type { GoogleSearchConsoleStat } from '../data/googleSearchConsoleStats';
 // считается отдельным, медленным конвейером и может отставать от
 // реального индекса на недели (владелец спросил "это правда 0?", проверка
 // через URL Inspection API опровергла).
+//
+// 2026-09-16 — в оба блока добавлена РАЗБИВКА ПО ЗАПРОСАМ (владелец: «очень
+// интересно, по каким запросам идут показы и клики»). Данные — снимок за
+// окно целиком (yandex_webmaster_queries / google_search_console_queries),
+// поэтому переключатель периода 7/30/90 на них НЕ влияет, и это подписано
+// в самом блоке фактическими датами окна, как у «Источников трафика».
+// Гугловская таблица может быть пустой при ненулевых показах — Google
+// скрывает редкие запросы (см. комментарий в data/googleSearchConsoleStats.ts),
+// в этом случае показываем причину, а не «данных нет».
 //
 // Точная проверка по каждой странице (urlInspection.index:inspect,
 // google_search_console_page_index) по-прежнему собирается тем же
@@ -347,6 +356,137 @@ function Sparkbars({ data }: SparkbarsProps) {
   );
 }
 
+// Сколько строк таблицы запросов показываем до нажатия «показать ещё» —
+// столько же, сколько в «Топ страниц», чтобы блоки читались одинаково.
+const VISIBLE_QUERIES = 10;
+
+type QuerySort = 'impressions' | 'clicks';
+const QUERY_SORT_LABELS: Record<QuerySort, string> = {
+  impressions: 'По показам',
+  clicks: 'По кликам',
+};
+
+interface SearchQueryRow {
+  query: string;
+  impressions: number | null;
+  clicks: number | null;
+  avgPosition: number | null;
+  dateFrom: string | null;
+  dateTo: string | null;
+}
+
+function pluralQueries(n: number): string {
+  const mod100 = n % 100;
+  const mod10 = n % 10;
+  if (mod100 >= 11 && mod100 <= 14) return 'запросов';
+  if (mod10 === 1) return 'запрос';
+  if (mod10 >= 2 && mod10 <= 4) return 'запроса';
+  return 'запросов';
+}
+
+interface SearchQueriesTableProps {
+  title: string;
+  queries: SearchQueryRow[];
+  emptyText: string;
+}
+
+// Таблица «по каким запросам нас показывают и по каким кликают». Сортировка
+// переключается вручную не для красоты: клики у молодого сайта единичны, и
+// при сортировке по показам запросы С КЛИКАМИ (самое ценное, что тут есть)
+// оказываются в хвосте — по умолчанию открываем по показам, но переключить
+// на клики можно в один тык.
+function SearchQueriesTable({ title, queries, emptyText }: SearchQueriesTableProps) {
+  const [sort, setSort] = useState<QuerySort>('impressions');
+  const [expanded, setExpanded] = useState(false);
+
+  const sorted = useMemo(() => {
+    const primary = (q: SearchQueryRow) => (sort === 'clicks' ? q.clicks : q.impressions) ?? 0;
+    const secondary = (q: SearchQueryRow) => (sort === 'clicks' ? q.impressions : q.clicks) ?? 0;
+    return [...queries].sort((a, b) => primary(b) - primary(a) || secondary(b) - secondary(a));
+  }, [queries, sort]);
+
+  if (queries.length === 0) {
+    return (
+      <div className="flex flex-col gap-1 border-t border-border pt-3">
+        <h4 className="text-sm font-semibold text-ink">{title}</h4>
+        <p className="text-sm text-ink-muted">{emptyText}</p>
+      </div>
+    );
+  }
+
+  const visible = expanded ? sorted : sorted.slice(0, VISIBLE_QUERIES);
+  const maxValue = Math.max(1, ...sorted.map((q) => ((sort === 'clicks' ? q.clicks : q.impressions) ?? 0)));
+  const totalImpressions = sum(sorted.map((q) => q.impressions));
+  const totalClicks = sum(sorted.map((q) => q.clicks));
+  // Окно у всех строк снимка одно и то же (его ставит синк), берём из первой.
+  const { dateFrom, dateTo } = sorted[0];
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-border pt-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h4 className="text-sm font-semibold text-ink">{title}</h4>
+          <p className="text-xs text-ink-muted">
+            {dateFrom && dateTo
+              ? `${sorted.length} ${pluralQueries(sorted.length)} за ${formatDateShort(dateFrom)} — ${formatDateShort(dateTo)}`
+              : `${sorted.length} ${pluralQueries(sorted.length)}`}
+            {' · '}
+            {totalImpressions.toLocaleString('ru-RU')} показов, {totalClicks.toLocaleString('ru-RU')} кликов
+            {' · '}не зависит от выбранного периода выше
+          </p>
+        </div>
+        <ToggleGroup
+          label="Сортировка"
+          options={[QUERY_SORT_LABELS.impressions, QUERY_SORT_LABELS.clicks]}
+          value={QUERY_SORT_LABELS[sort]}
+          onChange={(label) => setSort(label === QUERY_SORT_LABELS.clicks ? 'clicks' : 'impressions')}
+        />
+      </div>
+
+      <div className="flex flex-col divide-y divide-border">
+        <div className="flex items-center gap-3 pb-1 text-xs text-ink-muted">
+          <span className="flex-1">Запрос</span>
+          <span className="w-16 shrink-0 text-right">Показы</span>
+          <span className="w-14 shrink-0 text-right">Клики</span>
+          <span className="w-16 shrink-0 text-right">Позиция</span>
+        </div>
+        {visible.map((q) => (
+          <div key={q.query} className="relative flex items-center gap-3 py-2 text-sm">
+            <div
+              className="absolute inset-y-0 left-0 -z-10 rounded bg-primary/10"
+              style={{ width: `${(((sort === 'clicks' ? q.clicks : q.impressions) ?? 0) / maxValue) * 100}%` }}
+            />
+            <span className="flex-1 truncate text-ink" title={q.query}>
+              {q.query}
+            </span>
+            <span className="w-16 shrink-0 text-right text-ink-muted">
+              {q.impressions !== null ? q.impressions.toLocaleString('ru-RU') : '—'}
+            </span>
+            <span className={cn('w-14 shrink-0 text-right', q.clicks ? 'font-semibold text-ink' : 'text-ink-muted')}>
+              {q.clicks !== null ? q.clicks.toLocaleString('ru-RU') : '—'}
+            </span>
+            <span className="w-16 shrink-0 text-right text-ink-muted">
+              {q.avgPosition !== null ? q.avgPosition.toFixed(1) : '—'}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {sorted.length > VISIBLE_QUERIES && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="self-start text-sm text-primary-hover hover:underline"
+        >
+          {expanded
+            ? 'Свернуть'
+            : `Показать ещё ${sorted.length - VISIBLE_QUERIES} ${pluralQueries(sorted.length - VISIBLE_QUERIES)}`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 interface TrendCardProps {
   title: string;
   data: MetrikaDailyStat[];
@@ -378,6 +518,8 @@ export function SiteMetrics() {
   const [goalCompletions, setGoalCompletions] = useState<MetrikaGoalCompletion[] | null>(null);
   const [webmasterStats, setWebmasterStats] = useState<YandexWebmasterStat[] | null>(null);
   const [googleStats, setGoogleStats] = useState<GoogleSearchConsoleStat[] | null>(null);
+  const [webmasterQueries, setWebmasterQueries] = useState<YandexWebmasterQuery[]>([]);
+  const [googleQueries, setGoogleQueries] = useState<GoogleSearchConsoleQuery[]>([]);
   const [error, setError] = useState('');
   const [period, setPeriod] = useState<Period>(30);
   const [topPagesExpanded, setTopPagesExpanded] = useState(false);
@@ -394,7 +536,7 @@ export function SiteMetrics() {
     inFlight.current = true;
     setRefreshing(true);
     try {
-      const [daily, traffic, pages, goals, webmaster, google] = await Promise.all([
+      const [daily, traffic, pages, goals, webmaster, google, webmasterQ, googleQ] = await Promise.all([
         fetchMetrikaDailyStats(),
         fetchMetrikaTrafficSources(),
         fetchMetrikaTopPages(),
@@ -405,6 +547,8 @@ export function SiteMetrics() {
         // всё равно Метрика.
         fetchYandexWebmasterStats().catch(() => []),
         fetchGoogleSearchConsoleStats().catch(() => []),
+        fetchYandexWebmasterQueries().catch(() => []),
+        fetchGoogleSearchConsoleQueries().catch(() => []),
       ]);
       setDailyStats(daily);
       setTrafficSources(traffic);
@@ -412,6 +556,8 @@ export function SiteMetrics() {
       setGoalCompletions(goals);
       setWebmasterStats(webmaster);
       setGoogleStats(google);
+      setWebmasterQueries(webmasterQ);
+      setGoogleQueries(googleQ);
       setLastCheckedAt(new Date());
       setError('');
     } catch {
@@ -665,6 +811,11 @@ export function SiteMetrics() {
                     .map((d) => ({ date: d.date, value: d.pagesInSearch as number }))}
                 />
               </div>
+              <SearchQueriesTable
+                title="По каким запросам показывают в Яндексе"
+                queries={webmasterQueries}
+                emptyText="Разбивка по запросам появится после ближайшего суточного синка Вебмастера — сами показы и клики выше уже посчитаны."
+              />
             </Card>
           )}
 
@@ -707,6 +858,15 @@ export function SiteMetrics() {
                   </div>
                 )}
               </div>
+              <SearchQueriesTable
+                title="По каким запросам показывают в Google"
+                queries={googleQueries}
+                emptyText={
+                  hasGoogleQueryData
+                    ? 'Google не раскрывает сами запросы, пока их задают единицы людей («анонимизированные запросы») — показы и клики выше он при этом считает. Список появится сам, когда запросов станет больше.'
+                    : 'Показов из Google пока нет — как только они появятся, здесь будут сами запросы.'
+                }
+              />
               <p className="text-xs text-ink-muted">
                 «Проиндексировано страниц» считается по отдельному, медленному отчёту Google и может отставать от
                 реального индекса на недели — реальный статус страницы может быть точнее, чем показывает эта цифра.
