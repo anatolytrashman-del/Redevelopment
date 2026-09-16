@@ -6,11 +6,13 @@ import {
   Clock,
   Eye,
   Loader2,
+  ExternalLink,
   Mail as MailIcon,
   Paperclip,
   Pencil,
   Plus,
   Trash2,
+  Users,
   X,
 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
@@ -48,8 +50,13 @@ import {
 } from '../data/mailboxTemplates';
 import {
   SHARED_MAILBOX_ADDRESS,
+  contactLabel,
+  contactStatusTone,
   counterpartyTitle,
+  formatAudience,
   mailboxContactCategories,
+  mailboxContactStatuses,
+  MAILBOX_STATUS_WRITTEN,
   mailboxCounterparty,
   parseEmailAddress,
   parseEmailDisplayName,
@@ -58,11 +65,17 @@ import {
 } from '../data/mailbox';
 import { emailSendStatusLabel } from '../data/emailSendStatus';
 
-// Страница "Почта" — общий ящик компании a@redevelopment.pro плюс записная
-// книжка адресов (владелец, 2026-09-16: "мне нужен общий блок с
-// email-ящиком в интерфейсе, ставь после блока Команда... И внутри сделай
-// записную книжку с названием, категорией, именем человека и самим
-// email-адресом"). Пункт меню стоит сразу за "Командой", как и просили.
+// Страница "Почта" — общий ящик компании a@redevelopment.pro плюс вкладка
+// "Контакты" (владелец, 2026-09-16: "мне нужен общий блок с email-ящиком в
+// интерфейсе, ставь после блока Команда... И внутри сделай записную книжку с
+// названием, категорией, именем человека и самим email-адресом"). Пункт меню
+// стоит сразу за "Командой", как и просили.
+//
+// В тот же день книжка стала единственным списком внешних контактов: раздел
+// "Коллаборации" делал ровно ту же работу другим экраном (там вели блогеров,
+// здесь — журналистов, часть людей попадала в оба списка), поэтому он
+// удалён, а его поля — telegram, ссылка на канал, подписчики, статус
+// общения, договорённости — переехали сюда, в карточку контакта.
 //
 // Почему не переиспользованы существующие ленты переписки (поставщики,
 // подрядчики): там письмо всегда привязано к карточке и уходит с
@@ -81,12 +94,43 @@ type EmailAttachment = { fileName: string; contentType: string; contentBase64: s
 // вставка не ломает ничего.
 const TAB_MAIL = 'Письма';
 const TAB_TELEGRAM = 'Telegram';
-const TAB_CONTACTS = 'Записная книжка';
+// «Контакты», а не «Записная книжка»: сюда же в тот день переехали партнёры
+// из удалённого раздела «Коллаборации», и это единый список всех, с кем
+// общаемся вне карточек.
+const TAB_CONTACTS = 'Контакты';
 const TAB_TEMPLATES = 'Шаблоны';
 const TABS = [TAB_MAIL, TAB_TELEGRAM, TAB_CONTACTS, TAB_TEMPLATES];
 const ALL_CATEGORIES = 'Все категории';
+const ALL_STATUSES = 'Любой статус';
 
-const emptyContactForm = { title: '', category: '', personName: '', email: '', note: '' };
+const emptyContactForm = {
+  title: '',
+  category: '',
+  personName: '',
+  email: '',
+  telegram: '',
+  link: '',
+  audienceSize: '',
+  status: '',
+  agreement: '',
+  note: '',
+};
+
+// Подписчиков вводят как придётся — «32 000», «32000»: оставляем цифры.
+// Пусто (или ничего не осталось) — данных нет, это null, а не ноль.
+function parseAudience(raw: string): number | null {
+  const digits = raw.replace(/[^\d]/g, '');
+  if (!digits) return null;
+  const n = Number(digits);
+  return Number.isFinite(n) ? n : null;
+}
+
+// Ник в Telegram → ссылка на диалог (как buildDialogLink в Leads.tsx, только
+// здесь поле всегда телеграмное). Пустая строка — значит ссылку не строим.
+function telegramLink(raw: string): string {
+  const handle = raw.trim().replace(/^https?:\/\//i, '').replace(/^t\.me\//i, '').replace(/^@/, '');
+  return /^[a-zA-Z][a-zA-Z0-9_]{4,31}$/.test(handle) ? `https://t.me/${handle}` : '';
+}
 const emptyTemplateForm = { name: '', subject: '', body: '' };
 
 function errorText(err: unknown, fallback: string): string {
@@ -147,6 +191,7 @@ export function Mail() {
 
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState(ALL_CATEGORIES);
+  const [status, setStatus] = useState(ALL_STATUSES);
 
   const [templateFormOpen, setTemplateFormOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<MailboxTemplate | null>(null);
@@ -216,14 +261,22 @@ export function Mail() {
     return [...new Set([...mailboxContactCategories, ...used])];
   }, [contacts]);
 
+  const statuses = useMemo(() => {
+    const used = contacts.map((c) => c.status).filter(Boolean);
+    return [...new Set([...mailboxContactStatuses, ...used])];
+  }, [contacts]);
+
   const visibleContacts = useMemo(() => {
     const query = search.trim().toLowerCase();
     return contacts.filter((c) => {
       if (category !== ALL_CATEGORIES && c.category !== category) return false;
+      if (status !== ALL_STATUSES && c.status !== status) return false;
       if (!query) return true;
-      return [c.title, c.category, c.personName, c.email, c.note].some((field) => field.toLowerCase().includes(query));
+      return [c.title, c.category, c.personName, c.email, c.telegram, c.link, c.agreement, c.note].some((field) =>
+        field.toLowerCase().includes(query),
+      );
     });
-  }, [contacts, search, category]);
+  }, [contacts, search, category, status]);
 
   function openContactAdd(prefill?: Partial<typeof emptyContactForm>) {
     setEditingContact(null);
@@ -239,6 +292,11 @@ export function Mail() {
       category: contact.category,
       personName: contact.personName,
       email: contact.email,
+      telegram: contact.telegram,
+      link: contact.link,
+      audienceSize: contact.audienceSize === null ? '' : String(contact.audienceSize),
+      status: contact.status,
+      agreement: contact.agreement,
       note: contact.note,
     });
     setContactError(null);
@@ -252,10 +310,18 @@ export function Mail() {
       category: contactForm.category.trim(),
       personName: contactForm.personName.trim(),
       email: contactForm.email.trim(),
+      telegram: contactForm.telegram.trim(),
+      link: contactForm.link.trim(),
+      audienceSize: parseAudience(contactForm.audienceSize),
+      status: contactForm.status.trim(),
+      agreement: contactForm.agreement.trim(),
       note: contactForm.note.trim(),
     };
-    if (!payload.email) {
-      setContactError('Укажите email — без него запись в книжке бесполезна');
+    // Раньше email был обязателен, теперь книжка — единый список всех
+    // контактов, и у блогера связь может быть только в Telegram. Обязателен
+    // хоть какой-то способ связи, иначе запись ни на что не годится.
+    if (!payload.email && !payload.telegram) {
+      setContactError('Укажите email или Telegram — без способа связи запись бесполезна');
       return;
     }
     if (!payload.title && !payload.personName) {
@@ -281,8 +347,8 @@ export function Mail() {
   }
 
   async function handleContactDelete(contact: MailboxContact) {
-    const label = contact.title || contact.personName || contact.email;
-    if (!window.confirm(`Удалить «${label}» из записной книжки? Переписка с этим адресом останется.`)) return;
+    const label = contactLabel(contact);
+    if (!window.confirm(`Удалить «${label}» из контактов? Переписка с этим адресом останется.`)) return;
     try {
       await deleteMailboxContact(contact.id);
       setContacts((prev) => prev.filter((c) => c.id !== contact.id));
@@ -353,10 +419,52 @@ export function Mail() {
     }
   }
 
+  // Письмо ушло — отмечаем это в карточке контакта. Владелец (2026-09-16):
+  // «отправил письма блогерам, но статус коммуникации не изменился» —
+  // статус приходилось руками переставлять на «Написали» после каждого
+  // письма, и по списку было не видно, кому уже написали. Трогаем только
+  // «пустой» статус («Не связывались» или не заполнен): дальше по воронке
+  // («Ответили», «Договорились», «Отказ») статус ведёт человек, и откатывать
+  // его назад новым письмом нельзя.
+  async function markContactWritten(address: string) {
+    const contact = contacts.find((c) => parseEmailAddress(c.email) === address);
+    if (!contact) return;
+    const current = contact.status.trim().toLowerCase();
+    if (current && current !== 'не связывались') return;
+    const updated = { ...contact, status: MAILBOX_STATUS_WRITTEN };
+    // Оптимистично — чтобы бейдж переключился сразу, не дожидаясь ответа базы.
+    setContacts((prev) => prev.map((c) => (c.id === contact.id ? updated : c)));
+    try {
+      await updateMailboxContact(contact.id, {
+        title: updated.title,
+        category: updated.category,
+        personName: updated.personName,
+        email: updated.email,
+        telegram: updated.telegram,
+        link: updated.link,
+        audienceSize: updated.audienceSize,
+        status: updated.status,
+        agreement: updated.agreement,
+        note: updated.note,
+      });
+    } catch (err) {
+      // Письмо уже отправлено — откатываем только бейдж и говорим почему.
+      setContacts((prev) => prev.map((c) => (c.id === contact.id ? contact : c)));
+      setLoadError(errorText(err, 'Письмо ушло, но статус контакта сохранить не удалось'));
+    }
+  }
+
   function handleSent(email: MailboxEmail) {
     setEmails((prev) => [...prev, email]);
-    setSelectedAddress(parseEmailAddress(email.toAddress));
-    setTab(TAB_MAIL);
+    const address = parseEmailAddress(email.toAddress);
+    void markContactWritten(address);
+    // Со вкладки «Контакты» остаёмся на ней (владелец, 2026-09-16: письма
+    // пишут списком, подряд, и переброс в переписку после каждого сбивал
+    // отбор — фильтр и место в списке терялись). Из ленты писем — как было,
+    // открываем тред адресата.
+    if (tab === TAB_MAIL) {
+      setSelectedAddress(address);
+    }
   }
 
   return (
@@ -376,7 +484,7 @@ export function Mail() {
             </Button>
           ) : tab === TAB_CONTACTS ? (
             <Button icon={<Plus className="h-4 w-4" />} onClick={() => openContactAdd()}>
-              Добавить запись
+              Добавить контакт
             </Button>
           ) : tab === TAB_TEMPLATES ? (
             <Button icon={<Plus className="h-4 w-4" />} onClick={openTemplateAdd}>
@@ -499,7 +607,7 @@ export function Mail() {
           <Card className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center gap-3">
               <SearchInput
-                placeholder="Поиск по названию, имени или адресу"
+                placeholder="Поиск по названию, имени, адресу или телеграму"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 wrapperClassName="min-w-[260px] flex-1"
@@ -511,12 +619,19 @@ export function Mail() {
                 onChange={setCategory}
                 triggerClassName="min-w-[200px]"
               />
+              <Select
+                pill
+                options={[ALL_STATUSES, ...statuses]}
+                value={status}
+                onChange={setStatus}
+                triggerClassName="min-w-[180px]"
+              />
             </div>
 
             {visibleContacts.length === 0 ? (
               <div className="py-10 text-center text-sm text-ink-muted">
                 {contacts.length === 0
-                  ? 'Записная книжка пустая. Добавьте первую запись — название, категорию, имя человека и адрес.'
+                  ? 'Контактов пока нет. Добавьте первый — название, категорию, способ связи.'
                   : 'Ничего не нашлось по этому запросу.'}
               </div>
             ) : (
@@ -526,8 +641,9 @@ export function Mail() {
                     <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-faint">
                       <th className="py-2 pr-3 font-semibold">Название</th>
                       <th className="py-2 pr-3 font-semibold">Категория</th>
+                      <th className="py-2 pr-3 font-semibold">Статус</th>
                       <th className="py-2 pr-3 font-semibold">Имя</th>
-                      <th className="py-2 pr-3 font-semibold">Email</th>
+                      <th className="py-2 pr-3 font-semibold">Связь</th>
                       <th className="py-2 font-semibold" />
                     </tr>
                   </thead>
@@ -535,39 +651,94 @@ export function Mail() {
                     {visibleContacts.map((contact) => (
                       <tr key={contact.id} className="border-b border-border/60 last:border-0">
                         <td className="py-2.5 pr-3">
-                          <div className="font-semibold text-ink">{contact.title || '—'}</div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold text-ink">{contact.title || '—'}</span>
+                            {contact.audienceSize !== null && (
+                              <span className="flex items-center gap-1 text-xs text-ink-muted">
+                                <Users className="h-3.5 w-3.5 shrink-0" />
+                                {formatAudience(contact.audienceSize)}
+                              </span>
+                            )}
+                          </div>
+                          {contact.link && (
+                            <a
+                              href={contact.link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-0.5 flex max-w-[420px] items-center gap-1 text-xs text-primary hover:underline"
+                            >
+                              <ExternalLink className="h-3 w-3 shrink-0" />
+                              <span className="truncate">{contact.link}</span>
+                            </a>
+                          )}
                           {/* Заметка — второй строкой под названием, а не своей
                               колонкой: она длинная и разная по длине, отдельный
                               столбец растянул бы таблицу и оставил пустоту у
-                              тех, у кого заметки нет. */}
+                              тех, у кого заметки нет. Договорённости туда же:
+                              они читаются как продолжение описания. */}
                           {contact.note && (
                             <div className="mt-0.5 max-w-[420px] text-xs leading-snug text-ink-muted">{contact.note}</div>
+                          )}
+                          {contact.agreement && (
+                            <div className="mt-0.5 max-w-[420px] text-xs leading-snug text-ink-muted">
+                              <span className="text-ink-faint">Договорённости: </span>
+                              {contact.agreement}
+                            </div>
                           )}
                         </td>
                         <td className="py-2.5 pr-3">
                           {contact.category ? <Badge>{contact.category}</Badge> : <span className="text-ink-faint">—</span>}
                         </td>
+                        <td className="py-2.5 pr-3">
+                          {contact.status ? (
+                            <Badge tone={contactStatusTone(contact.status)}>{contact.status}</Badge>
+                          ) : (
+                            <span className="text-ink-faint">—</span>
+                          )}
+                        </td>
                         <td className="py-2.5 pr-3 text-ink">{contact.personName || '—'}</td>
                         <td className="py-2.5 pr-3">
-                          <a href={`mailto:${contact.email}`} className="text-primary hover:underline">
-                            {contact.email}
-                          </a>
+                          <div className="flex flex-col gap-0.5">
+                            {contact.email && (
+                              <a href={`mailto:${contact.email}`} className="text-primary hover:underline">
+                                {contact.email}
+                              </a>
+                            )}
+                            {contact.telegram &&
+                              (telegramLink(contact.telegram) ? (
+                                <a
+                                  href={telegramLink(contact.telegram)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-primary hover:underline"
+                                >
+                                  {contact.telegram}
+                                </a>
+                              ) : (
+                                <span className="text-ink">{contact.telegram}</span>
+                              ))}
+                            {!contact.email && !contact.telegram && <span className="text-ink-faint">—</span>}
+                          </div>
                         </td>
                         <td className="py-2.5">
                           <div className="flex justify-end gap-1">
-                            <button
-                              type="button"
-                              title="Написать письмо"
-                              aria-label={`Написать на ${contact.email}`}
-                              onClick={() => handleWriteTo(contact.email)}
-                              className="flex h-8 w-8 items-center justify-center rounded-control text-ink-faint hover:bg-surface-muted hover:text-primary"
-                            >
-                              <MailIcon className="h-4 w-4" />
-                            </button>
+                            {/* Без адреса писать некуда — у блогеров связь
+                                бывает только в Telegram, кнопку им не рисуем. */}
+                            {contact.email && (
+                              <button
+                                type="button"
+                                title="Написать письмо"
+                                aria-label={`Написать на ${contact.email}`}
+                                onClick={() => handleWriteTo(contact.email)}
+                                className="flex h-8 w-8 items-center justify-center rounded-control text-ink-faint hover:bg-surface-muted hover:text-primary"
+                              >
+                                <MailIcon className="h-4 w-4" />
+                              </button>
+                            )}
                             <button
                               type="button"
                               title="Изменить"
-                              aria-label={`Изменить запись ${contact.email}`}
+                              aria-label={`Изменить контакт ${contactLabel(contact)}`}
                               onClick={() => openContactEdit(contact)}
                               className="flex h-8 w-8 items-center justify-center rounded-control text-ink-faint hover:bg-surface-muted hover:text-ink"
                             >
@@ -576,7 +747,7 @@ export function Mail() {
                             <button
                               type="button"
                               title="Удалить"
-                              aria-label={`Удалить запись ${contact.email}`}
+                              aria-label={`Удалить контакт ${contactLabel(contact)}`}
                               onClick={() => void handleContactDelete(contact)}
                               className="flex h-8 w-8 items-center justify-center rounded-control text-ink-faint hover:bg-surface-muted hover:text-danger"
                             >
@@ -596,7 +767,7 @@ export function Mail() {
           <div className="flex flex-col gap-3">
             <div className="text-sm text-ink-muted">
               Шаблон подставляет тему и текст в письмо — дальше это обычный черновик, его можно править.{' '}
-              {MAILBOX_PLACEHOLDER_HINT} — подставляются из записной книжки по адресу получателя.
+              {MAILBOX_PLACEHOLDER_HINT} — подставляются из контактов по адресу получателя.
             </div>
             {templates.length === 0 ? (
               <Card className="py-10 text-center text-sm text-ink-muted">
@@ -657,7 +828,7 @@ export function Mail() {
       <Modal
         open={contactFormOpen}
         onClose={() => setContactFormOpen(false)}
-        title={editingContact ? 'Запись в книжке' : 'Новая запись'}
+        title={editingContact ? 'Контакт' : 'Новый контакт'}
       >
         <div className="flex flex-col gap-4">
           <Input
@@ -680,19 +851,57 @@ export function Mail() {
             value={contactForm.personName}
             onChange={(e) => setContactForm((f) => ({ ...f, personName: e.target.value }))}
           />
-          <Input
-            label="Email"
-            type="email"
-            placeholder="mail@example.com"
-            value={contactForm.email}
-            onChange={(e) => setContactForm((f) => ({ ...f, email: e.target.value }))}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input
+              label="Email"
+              type="email"
+              placeholder="mail@example.com"
+              value={contactForm.email}
+              onChange={(e) => setContactForm((f) => ({ ...f, email: e.target.value }))}
+            />
+            <Input
+              label="Telegram"
+              placeholder="@nickname"
+              value={contactForm.telegram}
+              onChange={(e) => setContactForm((f) => ({ ...f, telegram: e.target.value }))}
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input
+              label="Ссылка на канал / сайт"
+              placeholder="https://..."
+              value={contactForm.link}
+              onChange={(e) => setContactForm((f) => ({ ...f, link: e.target.value }))}
+            />
+            <Input
+              label="Подписчики"
+              inputMode="numeric"
+              placeholder="32 000"
+              value={contactForm.audienceSize}
+              onChange={(e) => setContactForm((f) => ({ ...f, audienceSize: e.target.value }))}
+            />
+          </div>
+          <AddableSelect
+            label="Статус общения"
+            options={statuses}
+            value={contactForm.status}
+            onChange={(value) => setContactForm((f) => ({ ...f, status: value }))}
+            placeholder="Выберите статус"
+            newPlaceholder="Название нового статуса"
           />
           <Textarea
             label="Заметка"
             rows={3}
-            placeholder="Телефон, телеграм, чем занимается, что учесть перед письмом"
+            placeholder="Что за канал/издание, телефон, что учесть перед письмом"
             value={contactForm.note}
             onChange={(e) => setContactForm((f) => ({ ...f, note: e.target.value }))}
+          />
+          <Textarea
+            label="О чём договариваемся"
+            rows={2}
+            placeholder="Условия, детали сотрудничества..."
+            value={contactForm.agreement}
+            onChange={(e) => setContactForm((f) => ({ ...f, agreement: e.target.value }))}
           />
           {contactError && <div className="text-sm text-danger">{contactError}</div>}
           <div className="flex flex-wrap gap-3">
@@ -762,7 +971,7 @@ function ThreadPanel({
   onSent: (email: MailboxEmail) => void;
   onAddContact: () => void;
 }) {
-  const contact = contacts.find((c) => parseEmailAddress(c.email) === thread.address) ?? null;
+  const contact = contacts.find((c) => c.email && parseEmailAddress(c.email) === thread.address) ?? null;
   const known = contact !== null;
   const lastSubject = [...thread.emails].reverse().find((e) => e.subject)?.subject ?? '';
   const replySubject = lastSubject && !/^re:/i.test(lastSubject) ? `Re: ${lastSubject}` : lastSubject;
@@ -776,7 +985,7 @@ function ThreadPanel({
         </div>
         {!known && (
           <Button variant="secondary" icon={<BookUser className="h-4 w-4" />} onClick={onAddContact}>
-            В записную книжку
+            В контакты
           </Button>
         )}
       </div>
@@ -918,15 +1127,20 @@ function ComposeModal({
   }, [open, initialTo]);
 
   const address = parseEmailAddress(to);
-  const contact = contacts.find((c) => parseEmailAddress(c.email) === address) ?? null;
+
+  // В контактах теперь живут и те, у кого связь только в Telegram (блогеры,
+  // переехавшие из «Коллабораций»), — в выпадашке получателей им не место,
+  // письмо им отправить некуда.
+  const mailable = useMemo(() => contacts.filter((c) => c.email), [contacts]);
+  const contact = mailable.find((c) => parseEmailAddress(c.email) === address) ?? null;
 
   const bookOptions = useMemo(
     () =>
-      contacts.map((c) => {
+      mailable.map((c) => {
         const who = [c.title, c.personName].filter(Boolean).join(' — ');
         return who ? `${who} <${c.email}>` : c.email;
       }),
-    [contacts],
+    [mailable],
   );
 
   // Выпадашка книжки показывает именно того, кому пишем (владелец,
@@ -936,7 +1150,7 @@ function ComposeModal({
   // в поле "Кому", и тогда выбор в книжке обязан сняться сам, иначе он
   // показывал бы не того человека.
   const selectedBookOption = contact
-    ? (bookOptions[contacts.indexOf(contact)] ?? '')
+    ? (bookOptions[mailable.indexOf(contact)] ?? '')
     : '';
 
   return (
@@ -944,7 +1158,7 @@ function ComposeModal({
       <div className="flex flex-col gap-4">
         {bookOptions.length > 0 && (
           <Select
-            label="Из записной книжки"
+            label="Из контактов"
             placeholder="Выбрать адресата"
             options={bookOptions}
             value={selectedBookOption}

@@ -323,10 +323,16 @@ async function restSelect(path) {
 }
 
 // Возвращает { type, id } или null. Ищем только там, где Telegram-контакт
-// заводится руками и список обозримый: коллаборации (блогеры, партнёры) и
-// лиды. Поставщиков и подрядчиков сознательно не трогаем — их больше тысячи,
-// ник там попадается редко, а ошибочная привязка счёта к чужой карточке
-// дороже, чем пустое поле.
+// заводится руками и список обозримый: записная книжка ящика
+// (mailbox_contacts — туда 2026-09-16 переехали блогеры и партнёры из
+// «Коллабораций», ник лежит в отдельной колонке telegram) и лиды (ник в
+// contact, когда способ связи — Telegram). Поставщиков и подрядчиков
+// сознательно не трогаем: их больше тысячи, ник там попадается редко, а
+// ошибочная привязка к чужой карточке дороже, чем пустое поле.
+//
+// Список источников должен совпадать с тем, что предлагает селект привязки
+// на вкладке (TelegramCapturesTab): привязка к тому, чего в списке нет,
+// показывается как «Карточка удалена».
 //
 // Никогда не бросает: не нашли или база недоступна — запись просто ляжет без
 // привязки, её проставят руками.
@@ -334,15 +340,15 @@ export async function resolveLink(username) {
   const handle = normalizeHandle(username);
   if (!handle) return null;
   try {
-    const [collaborations, leads] = await Promise.all([
-      restSelect('collaborations?select=id,contact,contact_method'),
-      restSelect('leads?select=id,contact,contact_method'),
+    const [contacts, leads] = await Promise.all([
+      restSelect('mailbox_contacts?select=id,telegram'),
+      restSelect('leads?select=id,contact'),
     ]);
-    for (const [type, rows] of [
-      ['collaboration', collaborations],
-      ['lead', leads],
+    for (const [type, rows, field] of [
+      ['contact', contacts, 'telegram'],
+      ['lead', leads, 'contact'],
     ]) {
-      const hit = rows.find((row) => normalizeHandle(row.contact) === handle);
+      const hit = rows.find((row) => normalizeHandle(row[field]) === handle);
       if (hit) return { type, id: hit.id };
     }
     return null;

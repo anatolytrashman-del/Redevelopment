@@ -13,8 +13,9 @@ import {
   updateTelegramCapture,
   type TelegramCapturePatch,
 } from '../../lib/telegramCapturesApi';
-import { fetchCollaborations } from '../../lib/collaborationsApi';
+import { fetchMailboxContacts } from '../../lib/mailboxContactsApi';
 import { fetchLeads } from '../../lib/leadsApi';
+import { contactLabel } from '../../data/mailbox';
 import { fetchObjects } from '../../lib/objectsApi';
 import {
   TELEGRAM_CAPTURE_BOT,
@@ -62,7 +63,9 @@ function kindTone(kind: string): 'neutral' | 'warning' | 'danger' | 'success' {
 // (два объекта по одному адресу) склеятся в одну опцию — терпимо: выбор
 // всё равно подтверждается глазами, а тип и id хранятся отдельно.
 interface LinkOption {
-  type: 'collaboration' | 'lead' | 'object';
+  // 'contact' — запись из вкладки «Контакты» того же ящика (бывшие
+  // «Коллаборации», слитые сюда 2026-09-16).
+  type: 'contact' | 'lead' | 'object';
   id: string;
   label: string;
 }
@@ -100,17 +103,19 @@ export function TelegramCapturesTab({ onCountsChange }: { onCountsChange?: (newC
   // можно читать и разбирать, просто селект будет пустым.
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchCollaborations(), fetchLeads(), fetchObjects()])
-      .then(([collaborations, leads, objects]) => {
+    Promise.all([fetchMailboxContacts(), fetchLeads(), fetchObjects()])
+      .then(([contacts, leads, objects]) => {
         if (cancelled) return;
         // Порядок тот же, что у автопривязки на сервере (resolveLink в
-        // api/_telegramCapture.js): сначала коллаборации, потом лиды. Объекты
-        // только вручную — Telegram-контакта у объекта нет и быть не может.
+        // api/_telegramCapture.js): сначала записная книжка, потом лиды.
+        // Объекты только вручную — Telegram-контакта у объекта нет и быть не
+        // может. Набор источников менять сразу в обоих местах: привязка к
+        // тому, чего нет в этом списке, показывается как «Карточка удалена».
         setLinkOptions([
-          ...collaborations.map((item) => ({
-            type: 'collaboration' as const,
+          ...contacts.map((item) => ({
+            type: 'contact' as const,
             id: item.id,
-            label: `Коллаборация: ${item.partner}`,
+            label: `Контакт: ${contactLabel(item)}`,
           })),
           ...leads.map((item) => ({
             type: 'lead' as const,

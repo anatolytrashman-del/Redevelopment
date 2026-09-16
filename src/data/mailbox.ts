@@ -67,16 +67,34 @@ export interface MailboxEmailRow {
   created_at: string;
 }
 
-// Запись в записной книжке ящика. Ровно четыре поля, как просил владелец:
-// название (обычно организация), категория, имя человека и сам адрес.
-// Категория — открытый список (AddableSelect + пресет ниже), как
-// requirement/clientType у лидов: заранее все варианты не угадать.
+// Контакт — вкладка «Контакты» на странице «Почта». Начиналась как записная
+// книжка ящика из четырёх полей (название, категория, имя, адрес), а
+// 2026-09-16 стала единым списком всех, с кем общаемся вне карточек:
+// владелец заметил, что «Почта» и «Коллаборации» — две страницы под одну и ту
+// же работу («в почте я написал журналистам, а блогеры попали в
+// коллаборации»), и выбрал свести всё в почту. Поэтому здесь же живут поля
+// из бывших коллабораций: telegram, ссылка на канал, подписчики, статус
+// общения и договорённости. Категория и статус — открытые списки
+// (AddableSelect + пресеты ниже), как requirement/clientType у лидов.
 export interface MailboxContact {
   id: string;
   title: string;
   category: string;
   personName: string;
+  // Email может быть пустым: с 2026-09-16 книжка — единый список всех, с кем
+  // общаемся вне карточек (см. журнал, слияние с «Коллаборациями»), а у
+  // блогеров почты часто нет вовсе, связь только в Telegram.
   email: string;
+  telegram: string;
+  // Ссылка на канал/сайт собеседника.
+  link: string;
+  // Подписчики канала, «≈». null = не выясняли (0 — это именно ноль, поэтому
+  // не number, см. правило про числовые «нет данных» в CLAUDE.md).
+  audienceSize: number | null;
+  // Статус общения — открытый список (mailboxContactStatuses ниже).
+  status: string;
+  // О чём договариваемся — переехало из «Коллабораций» вместе с партнёрами.
+  agreement: string;
   // Заметка — пятое поле сверх тех четырёх, что просил владелец (2026-09-16,
   // импорт списка журналистов): в присланном списке у каждого контакта был
   // хвост, который больше некуда девать — телефон, телеграм, оговорка вида
@@ -93,12 +111,18 @@ export interface MailboxContactRow {
   category: string | null;
   person_name: string | null;
   email: string | null;
+  telegram: string | null;
+  link: string | null;
+  audience_size: number | null;
+  status: string | null;
+  agreement: string | null;
   note: string | null;
   created_at: string;
 }
 
 export const mailboxContactCategories = [
   'Журналисты',
+  'Блогеры и паблики',
   'Клиенты',
   'Поставщики',
   'Подрядчики',
@@ -108,6 +132,51 @@ export const mailboxContactCategories = [
   'Сервисы и подписки',
   'Прочее',
 ];
+
+// «Написали» страница «Почта» ставит контакту сама, когда письмо ему ушло
+// (см. markContactWritten в pages/Mail.tsx). Константа, а не строка по месту:
+// значение сверяется со списком ниже, и опечатка завела бы в открытый список
+// статусов второй, почти такой же.
+export const MAILBOX_STATUS_WRITTEN = 'Написали';
+
+// Статус общения с контактом — открытый список, как категория выше: можно
+// дописать свой прямо из формы. «Написали» проставляется автоматически по
+// факту отправки, дальше владелец ведёт руками.
+export const mailboxContactStatuses = [
+  'Не связывались',
+  MAILBOX_STATUS_WRITTEN,
+  'Ответили',
+  'Обсуждаем',
+  'Договорились',
+  'В работе',
+  'Отказ',
+  'Завершено',
+];
+
+// Цвет бейджа статуса. Не badgeColor (он красит по хешу строки, и
+// «Не связывались» выходил зелёным — читается как «дело сделано»), а рабочая
+// шкала из CLAUDE.md: серое «движения нет», жёлтое «в работе», зелёное
+// «довели до конца», красное «есть проблема».
+export function contactStatusTone(status: string): 'neutral' | 'success' | 'warning' | 'danger' {
+  const value = status.trim().toLowerCase();
+  if (value === 'отказ') return 'danger';
+  if (value === 'не связывались' || value === 'завершено') return 'neutral';
+  if (value === 'договорились') return 'success';
+  return 'warning';
+}
+
+// Подписчики в таблице — «32 000»: разряды по три цифры, обычным пробелом
+// вместо неразрывного (toLocaleString ставит nbsp).
+export function formatAudience(size: number | null): string {
+  if (size === null || !Number.isFinite(size)) return '';
+  return size.toLocaleString('ru-RU').replace(/\u00a0/g, ' ');
+}
+
+// Как звать контакт в списке и в подтверждениях: название, имя человека,
+// адрес — что первое нашлось.
+export function contactLabel(contact: MailboxContact): string {
+  return contact.title || contact.personName || contact.email || contact.telegram || 'без названия';
+}
 
 // Адрес собеседника у письма: у входящего это отправитель, у исходящего —
 // получатель. По нему лента ящика и группируется в треды.
@@ -146,7 +215,9 @@ export function counterpartyTitle(
   contacts: MailboxContact[],
   fallbackName = '',
 ): string {
-  const contact = contacts.find((c) => parseEmailAddress(c.email) === address);
+  // c.email может быть пустым (контакт только с Telegram) — такой контакт не
+  // должен «прилипать» к треду, поэтому сначала проверяем, что адрес есть.
+  const contact = contacts.find((c) => c.email && parseEmailAddress(c.email) === address);
   if (contact) {
     const person = contact.personName.trim();
     const title = contact.title.trim();
