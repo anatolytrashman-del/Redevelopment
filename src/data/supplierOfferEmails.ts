@@ -82,6 +82,16 @@ export interface EmailExtractionInvoice {
   // форме сопоставления — из них берётся, с НДС в счёте цены или без (шаг 7).
   // Отсутствуют у записей, сделанных до появления условий.
   terms?: QuoteTerms | null;
+  // Насколько модель уверена в распознанном (0-1, шаг 10 плана закупок).
+  // null или отсутствует — у записей до 2026-09-16 (уверенность тогда не
+  // спрашивали); такие счета записывались без порога, как и раньше.
+  confidence?: number | null;
+  // Откуда взяты цифры: 'attachment' — из вложенного счёта (и до шага 10
+  // других вариантов не было, поэтому отсутствие поля читается так же),
+  // 'email_body' — из текста самого письма. Разница видна закупщице: цену,
+  // набранную менеджером в письме, стоит перепроверить внимательнее, чем
+  // ту же цену в подписанном счёте.
+  sourceKind?: 'attachment' | 'email_body';
 }
 
 export interface EmailExtraction {
@@ -115,6 +125,10 @@ export interface EmailExtraction {
   additionalInvoices?: EmailExtractionInvoice[];
   // Копии ПЕРВОГО счёта другими файлами (см. EmailExtractionInvoice).
   duplicateFiles?: { url: string; fileName: string }[];
+  // См. одноимённые поля EmailExtractionInvoice — у ПЕРВОГО счёта они, как
+  // и всё остальное, лежат прямо в корне.
+  confidence?: number | null;
+  sourceKind?: 'attachment' | 'email_body';
   // Диагностика неудачи (заполняется только при status:'none').
   attempts?: { fileName: string; outcome: string }[];
   skipped?: { fileName: string; reason: string }[];
@@ -145,6 +159,8 @@ export function extractionInvoices(extraction: EmailExtraction | null | undefine
     sourceFile: extraction.sourceFile,
     duplicateFiles: extraction.duplicateFiles ?? [],
     applied: rootApplied,
+    confidence: extraction.confidence ?? null,
+    sourceKind: extraction.sourceKind ?? 'attachment',
   };
   return [first, ...(extraction.additionalInvoices ?? [])];
 }
