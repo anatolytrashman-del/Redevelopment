@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BarChart3, BookOpen, Building2, Lock } from 'lucide-react';
+import { ArrowRight, BookOpen, Lock } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setOrganizationJsonLd } from '../lib/pageMeta';
@@ -27,13 +27,14 @@ import { DISTRICTS, DISTRICTS_WITH_GUIDE } from '../data/districts';
 // статистики). Так же убраны ссылки и блоки Red One с гида по району,
 // посадочных Минск Мира, каталога БЦ и аналитических страниц; сам лендинг
 // /minsk/one остаётся доступным по прямой ссылке. Вернуть, когда здание
-// будет куплено. Осталась ссылка на каталог БЦ — она и держит справочник
-// в индексе.
-// ANALYTICSPLAN.md (2026-09-07) вернул раздел "Аналитика рынка" — на этот
-// раз не как ссылку на удалённую страницу, а на новый /minsk/analytics
-// (бенчмарк-страницы по ставкам аренды/продажи офисов из market_snapshots,
-// см. scripts/build-market-snapshots.mjs) — прямое поручение владельца по
-// новому плану, не отмена решения от 2026-08-25 задним числом.
+// будет куплено.
+// Владелец, 2026-09-16 (позже в тот же день): секция "Справочники и
+// объекты" убрана целиком — вместе с ней ушли ссылки на /minsk/bcminsk и
+// /minsk/analytics ("пока"). Обе страницы остаются доступны по прямым
+// ссылкам и в sitemap, но входящих ссылок с /minsk у них больше нет —
+// ровно та ситуация "острова", из-за которой их сюда возвращали 2026-09-07
+// (каталог БЦ) и по ANALYTICSPLAN.md 2026-09-07 (аналитика). Возвращать
+// секцию — по команде владельца.
 const TITLE = 'Коммерческая недвижимость в Минске — Redevelopment';
 const DESCRIPTION = 'Гиды по районам Минска для арендаторов и собственников коммерческой недвижимости.';
 const PAGE_URL = 'https://redevelopment.pro/minsk';
@@ -59,40 +60,6 @@ export function MinskHub() {
           <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">Коммерческая недвижимость в Минске</h1>
           <p className="max-w-2xl text-ink">Гиды по районам для арендаторов и собственников коммерческой недвижимости.</p>
         </div>
-
-        <section className="flex flex-col gap-4">
-          <h2 className="text-lg font-bold text-ink">Справочники и объекты</h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Link
-              to="/minsk/bcminsk"
-              className={cn('flex items-center justify-between gap-2 p-4 transition-colors hover:border-primary/40', glassCardClass)}
-              style={glassCardShadow}
-            >
-              <span className="flex flex-col gap-0.5">
-                <span className="flex items-center gap-2.5 font-medium text-ink">
-                  <Building2 className="h-4 w-4 shrink-0 text-ink-faint" />
-                  Бизнес-центры Минска
-                </span>
-                <span className="pl-6.5 text-xs text-ink-muted">Каталог: класс, площадь, метро, арендаторы, объявления</span>
-              </span>
-              <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
-            </Link>
-            <Link
-              to="/minsk/analytics"
-              className={cn('flex items-center justify-between gap-2 p-4 transition-colors hover:border-primary/40', glassCardClass)}
-              style={glassCardShadow}
-            >
-              <span className="flex flex-col gap-0.5">
-                <span className="flex items-center gap-2.5 font-medium text-ink">
-                  <BarChart3 className="h-4 w-4 shrink-0 text-ink-faint" />
-                  Аналитика рынка
-                </span>
-                <span className="pl-6.5 text-xs text-ink-muted">Ставки аренды и цены продажи офисов по классам и районам</span>
-              </span>
-              <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
-            </Link>
-          </div>
-        </section>
 
         <section className="flex flex-col gap-4">
           <h2 className="text-lg font-bold text-ink">Гиды по районам</h2>
