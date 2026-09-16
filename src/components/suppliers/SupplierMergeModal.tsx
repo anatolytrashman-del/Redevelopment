@@ -32,7 +32,9 @@ function movedContentLabel(counts: { emails: number; quotes: number; orders: num
   const parts: string[] = [];
   if (counts.emails > 0) parts.push(plural(counts.emails, 'письмо', 'письма', 'писем'));
   if (counts.quotes > 0) parts.push(plural(counts.quotes, 'КП', 'КП', 'КП'));
-  if (counts.orders > 0) parts.push(plural(counts.orders, 'заявка', 'заявки', 'заявок'));
+  // «Доп. заявка» — отдельная ветка переписки с тем же поставщиком
+  // (supplier_orders), не заказ поставщику: см. шаг 11b плана закупок.
+  if (counts.orders > 0) parts.push(plural(counts.orders, 'доп. заявка', 'доп. заявки', 'доп. заявок'));
   if (counts.files > 0) parts.push(plural(counts.files, 'файл', 'файла', 'файлов'));
   return parts.length > 0 ? `переедет: ${parts.join(', ')}` : 'переносить нечего — карточка пустая';
 }
@@ -116,7 +118,7 @@ export function SupplierMergeModal({
       </div>
 
       <p className="text-sm text-ink-muted">
-        Останется одна карточка в категории «{UNIVERSAL_SUPPLIERS_TITLE}» — вся переписка, КП, заявки и файлы будут в ней.
+        Останется одна карточка в категории «{UNIVERSAL_SUPPLIERS_TITLE}» — вся переписка, КП, доп. заявки и файлы будут в ней.
         {totalSources > 0 && ` Опустевшие карточки в профильных категориях (${totalSources}) удалим.`}
       </p>
 

@@ -65,6 +65,7 @@ import { SupplierMergeModal, type SupplierMergePlan } from '../components/suppli
 import { SupplierCatalog } from '../components/suppliers/SupplierCatalog';
 import { PriceComparisonCard, preparedBy as bestPricePreparedBy } from '../components/suppliers/PriceComparisonCard';
 import { BestPriceExportModal } from '../components/suppliers/BestPriceExportModal';
+import { PurchaseOrdersTab } from '../components/suppliers/PurchaseOrdersTab';
 import { buildBestPriceRows, buildLotRows, reportPositions, type BestPriceSection } from '../components/suppliers/bestPriceReport';
 import type { LedgerAttachment } from '../lib/materialLedgerXlsx';
 import type { EmailTemplate } from '../data/emailTemplates';
@@ -161,9 +162,12 @@ function siteLabel(url: string): string {
 // продумаю потом" — вкладка "Закупки" (компонент Purchases, embedded) и всё,
 // что с ней было связано на этой странице (кнопка "Создать закупку" у
 // предложения, черновик покупки), убраны тем же способом, что и "Каталог"
-// чуть выше — код удалён, не спрятан; сам Purchases.tsx/purchasesApi.ts и
-// таблицы purchases/purchase_emails в базе НЕ трогали (то же "пока" —
-// вернуться к архитектуре закупок отдельным заходом). На освободившееся
+// чуть выше — код удалён, не спрятан; сам Purchases.tsx/purchasesApi.ts
+// тогда оставили (то же "пока" — вернуться к архитектуре закупок отдельным
+// заходом). Вернулись в шаге 11b плана закупок: архитектура продумана,
+// заказ поставщику рождается из утверждённого отбора и живёт на вкладке
+// "Заказы" (components/suppliers/PurchaseOrdersTab.tsx), а Purchases.tsx,
+// purchasesApi.ts и обе их таблицы удалены — в них было ноль строк. На освободившееся
 // место — "Ведомости материалов" (владелец: "Поставщики - Ведомости
 // материалов - Письма. Вот эти сущности пока"): та же единая ведомость по
 // разделам сметы, что и на странице "Сметы" (EstimateMaterialsLedgerModal),
@@ -191,7 +195,7 @@ function siteLabel(url: string): string {
 // же днём убрал первую версию с редактируемым чек-листом категорий — "не
 // будем отмечать категории вручную". См.
 // components/suppliers/SupplierVerificationTab.tsx.
-const SUPPLIER_TABS = ['Поставщики', 'Верификация', 'Сравнение цен', 'Ведомости материалов', 'Письма'] as const;
+const SUPPLIER_TABS = ['Поставщики', 'Верификация', 'Сравнение цен', 'Заказы', 'Ведомости материалов', 'Письма'] as const;
 type SupplierTab = (typeof SUPPLIER_TABS)[number];
 
 // Владелец, 2026-09-15: "вкладку Верификация убираем из верхнего меню и
@@ -215,6 +219,7 @@ const SUPPLIER_TAB_SLUGS: Record<SupplierTab, string> = {
   'Поставщики': 'suppliers',
   'Верификация': 'verification',
   'Сравнение цен': 'comparison',
+  Заказы: 'orders',
   'Ведомости материалов': 'ledger',
   Письма: 'letters',
 };
@@ -2375,6 +2380,10 @@ export function Suppliers() {
 
   const unreadSupplierEmailsCount = countUnreadSupplierEmails(supplierEmails);
   const pendingVerificationCount = pendingVerificationHostCount(offers, siteSnapshots);
+  // Подписи категорий закупки для вкладки «Заказы»: заказ хранит request_id,
+  // а показывать надо название категории — запросы на странице и так есть,
+  // отдельным запросом их тянуть незачем.
+  const requestTitleById = useMemo(() => new Map(requests.map((r) => [r.id, r.title])), [requests]);
 
   // Редирект со старого адреса вкладки — после всех хуков (их порядок в
   // React менять нельзя), но до отрисовки самой страницы.
@@ -2614,6 +2623,11 @@ export function Suppliers() {
           })()}
         </div>
       )}
+
+      {/* Заказы поставщикам (шаг 11b плана закупок). Вкладка грузит их сама и
+          только когда открыта: на «Закупки» заходят прежде всего за письмами и
+          сравнением, а заказов за год накопятся сотни. */}
+      {tab === 'Заказы' && <PurchaseOrdersTab categoryTitleById={requestTitleById} />}
 
       {tab === 'Ведомости материалов' && (
         <div className="mt-6 flex flex-col gap-6">
