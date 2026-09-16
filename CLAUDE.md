@@ -98,6 +98,9 @@ WORKSTATION_AGREEMENT_TEMPLATE_ID            — тот же документ, �
 RENT_AGREEMENT_TEMPLATE_ID                   — то же самое соглашение, но текст про аренду кабинета
                                                 (2026-09-13+, см. docs/session-journal.md)
 RENT_WORKSTATION_AGREEMENT_TEMPLATE_ID       — аренда рабочего места (2026-09-13+)
+TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, TELEGRAM_ALLOWED_USER_IDS
+                                              — бот-копилка: пересланное из личных диалогов
+                                                (docs/telegram-capture-bot.md)
 KUFAR_BEARER_TOKEN, REALT_COOKIE, AVITO_COOKIE, MEGAPOLIS_COOKIE
                                               — авторизация в scripts/sync-*-stats.mjs
                                                 (крон раз в час, см. sync-demand-stats.yml)
