@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isPurchasingInbox, headerValue, referencedMessageIds } from './_emailMatch.js';
+import { isPurchasingInbox, isSharedMailbox, headerValue, referencedMessageIds } from './_emailMatch.js';
 
 describe('isPurchasingInbox', () => {
   it('пропускает закупочный ящик и с кодом, и без', () => {
@@ -18,6 +18,29 @@ describe('isPurchasingInbox', () => {
     expect(isPurchasingInbox('anatoly@redevelopment.pro')).toBe(false);
     expect(isPurchasingInbox('')).toBe(false);
     expect(isPurchasingInbox(null)).toBe(false);
+  });
+});
+
+describe('isSharedMailbox', () => {
+  it('узнаёт общий ящик компании — голый, с plus-адресацией и внутри заголовка', () => {
+    expect(isSharedMailbox('a@redevelopment.pro')).toBe(true);
+    expect(isSharedMailbox('a+rassylka@redevelopment.pro')).toBe(true);
+    expect(isSharedMailbox('"Общий ящик" <a@redevelopment.pro>')).toBe(true);
+  });
+
+  it('видит общий ящик в списке получателей (копия) — Resend отдаёт "to" массивом', () => {
+    expect(isSharedMailbox(['postavshik@example.com', 'a@redevelopment.pro'])).toBe(true);
+  });
+
+  it('не путает с другими адресами домена — иначе закупочная почта уедет в общий ящик', () => {
+    expect(isSharedMailbox('zakupki@redevelopment.pro')).toBe(false);
+    expect(isSharedMailbox('zakupki+805b3@redevelopment.pro')).toBe(false);
+    // Локальная часть должна быть ровно "a", а не заканчиваться на неё.
+    expect(isSharedMailbox('alfa@redevelopment.pro')).toBe(false);
+    expect(isSharedMailbox('anatoly@redevelopment.pro')).toBe(false);
+    expect(isSharedMailbox('a@example.com')).toBe(false);
+    expect(isSharedMailbox('')).toBe(false);
+    expect(isSharedMailbox(null)).toBe(false);
   });
 });
 

@@ -17,6 +17,26 @@ export function isPurchasingInbox(toAddress) {
   return PURCHASING_INBOX_RE.test(String(toAddress || ''));
 }
 
+// Общий ящик компании — страница "Почта" в админке (владелец, 2026-09-16:
+// "мне нужен общий блок с email-ящиком в интерфейсе... Ящик —
+// a@redevelopment.pro"). В отличие от закупочных адресов, здесь нет
+// plus-кода и нечего резолвить: любое письмо на этот адрес просто ложится
+// в общую ленту mailbox_emails. Plus-адресация всё же принимается
+// (a+что-угодно@) — почтовые клиенты и сервисы регистрации ей пользуются, и
+// такое письмо тоже наше.
+export const SHARED_MAILBOX_LOCAL = 'a';
+export const SHARED_MAILBOX_ADDRESS = 'a@redevelopment.pro';
+
+const SHARED_MAILBOX_RE = /(?:^|[\s<,:;"'])a(?:\+[^@\s>]*)?@redevelopment\.pro/i;
+
+// toAddress приходит и строкой, и массивом (Resend отдаёт "to" массивом),
+// и в виде заголовка «Имя <адрес>» — принимаем всё сразу: письмо на общий
+// ящик в копии остаётся письмом на общий ящик.
+export function isSharedMailbox(toAddress) {
+  const list = Array.isArray(toAddress) ? toAddress : [toAddress];
+  return list.some((value) => SHARED_MAILBOX_RE.test(` ${String(value || '')}`));
+}
+
 // Заголовки Resend отдаёт словарём (проверено на живом письме 2026-09-16:
 // {"in-reply-to": "<...>", "references": "<...> <...>"}), но формат ответа
 // у них уже менялся — читаем защитно и массив вида [{name, value}] тоже.
