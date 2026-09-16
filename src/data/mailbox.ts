@@ -29,6 +29,16 @@ export interface MailboxEmail {
   files: DocumentFile[];
   resendMessageId: string | null;
   readAt: string | null;
+  // Судьба исходящего письма по данным почтового сервера (события Resend,
+  // api/_emailEvents.js). Прочитано — это открытие письма получателем, а не
+  // наше «прочитал владелец»: для этого есть readAt выше. Открытия видны
+  // только при включённом на домене open tracking (включён 2026-09-16) и
+  // только если почтовый клиент получателя подгрузил картинки — отсутствие
+  // отметки НЕ означает «не прочитали».
+  deliveredAt: string | null;
+  openedAt: string | null;
+  bouncedAt: string | null;
+  complainedAt: string | null;
   sentByProfileId: string | null;
   sentByName: string | null;
   sendStatus: EmailSendStatus;
@@ -46,6 +56,10 @@ export interface MailboxEmailRow {
   files: DocumentFile[] | null;
   resend_message_id: string | null;
   read_at: string | null;
+  delivered_at?: string | null;
+  opened_at?: string | null;
+  bounced_at?: string | null;
+  complained_at?: string | null;
   sent_by_profile_id: string | null;
   sent_by_name: string | null;
   send_status: string | null;
