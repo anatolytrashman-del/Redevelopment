@@ -45,7 +45,14 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
 import { PhotoBlock, FactRow, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
-import { setBreadcrumbJsonLd, setFaqJsonLd, setNoIndex, clearNoIndex, setBusinessCenterPageMeta } from '../lib/pageMeta';
+import {
+  setBreadcrumbJsonLd,
+  setFaqJsonLd,
+  setNoIndex,
+  clearNoIndex,
+  setBusinessCenterPageMeta,
+  setPlaceJsonLd,
+} from '../lib/pageMeta';
 import { shortName, sortByShortName, mapRatingFromHighlights, streetOfAddress } from '../lib/businessCenterDisplay';
 import { nearestMetroStation } from '../lib/metroStations';
 import {
@@ -67,8 +74,12 @@ import type { BusinessCenter2gisSnapshot, Gis2Schedule, Gis2ScheduleDay } from '
 import { fetchBusinessCenter2gisSnapshot } from '../lib/businessCenter2gisApi';
 import { buildOfferIndex } from '../lib/businessCenterCatalogFilter';
 import { buildMarketPosition } from '../lib/businessCenterMarketPosition';
+import { buildIndexMap } from '../lib/businessCenterIndex';
+import { buildVerdictDraft } from '../lib/businessCenterVerdict';
 import {
   HistoryTimeline,
+  IndexBlock,
+  VerdictBlock,
   MarketPositionBlock,
   MoneyBlock,
   TechTilesBlock,
@@ -98,6 +109,8 @@ import { NeighboursBlock, SimilarCentersBlock } from '../components/businessCent
 // разметке; список самих пунктов собирается в pageSections по тому, какие
 // блоки реально отрисованы.
 const SECTION_LABELS: Record<string, string> = {
+  verdict: 'Кому подходит',
+  index: 'Индекс',
   market: 'Место на рынке',
   map: 'На карте',
   money: 'В деньгах',
@@ -265,6 +278,27 @@ export function BusinessCenterDetailPage() {
     };
     return { rent: byDeal('rent'), sale: byDeal('sale') };
   }, [offers]);
+  // Индекс и место в ряду — считаются от ВСЕГО каталога, иначе «5-е место»
+  // означало бы «пятое среди тех, кто случайно попал на эту страницу».
+  const indexBySlug = useMemo(() => buildIndexMap(centers ?? [], offerIndex), [centers, offerIndex]);
+  const ownIndex = center ? (indexBySlug.get(center.slug) ?? null) : null;
+  const indexRank = useMemo(() => {
+    if (!ownIndex) return null;
+    const values = [...indexBySlug.values()].map((i) => i.value).sort((a, b) => b - a);
+    return { rank: values.indexOf(ownIndex.value) + 1, total: values.length };
+  }, [indexBySlug, ownIndex]);
+
+  // Б2. Правленый вручную текст главнее сгенерированного: генерация никогда
+  // не перетирает то, что владелец написал сам (флаг verdictEdited).
+  const verdict = useMemo(() => {
+    if (!center) return null;
+    if (center.verdictEdited && (center.verdict || center.pros.length > 0 || center.cons.length > 0)) {
+      return { verdict: center.verdict ?? '', pros: center.pros, cons: center.cons, edited: true };
+    }
+    const draft = buildVerdictDraft(center, offerIndex, officeSnapshots);
+    return { ...draft, edited: false };
+  }, [center, offerIndex, officeSnapshots]);
+
   const marketPosition = useMemo(
     () => (center ? buildMarketPosition(center, centers ?? [], officeSnapshots, offerIndex) : null),
     [center, centers, officeSnapshots, offerIndex],
@@ -303,6 +337,8 @@ export function BusinessCenterDetailPage() {
     if (!center) return [];
     const has = (id: string, cond: boolean) => (cond ? { id, label: SECTION_LABELS[id] } : null);
     return [
+      has('verdict', verdict != null),
+      has('index', ownIndex != null),
       has('market', Boolean(marketPosition && (marketPosition.bars.length > 0 || marketPosition.areaRankCity))),
       has('map', center.lat != null && center.lng != null),
       has('money', true),
@@ -315,7 +351,7 @@ export function BusinessCenterDetailPage() {
       has('similar', true),
       has('faq', true),
     ].filter((v): v is { id: string; label: string } => v !== null);
-  }, [center, marketPosition, offers, visibleHighlights]);
+  }, [center, marketPosition, offers, visibleHighlights, ownIndex, verdict]);
 
   useEffect(() => {
     if (!center) return;
@@ -325,6 +361,23 @@ export function BusinessCenterDetailPage() {
       { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bcminsk' },
       { name: shortName(center) },
     ]);
+    // Б12: разметка самого здания. Удобства берём из уже собранных фактов
+    // (инфраструктура внутри, доступная среда, круглосуточный доступ) — не
+    // выдумываем список, которого нет в данных.
+    setPlaceJsonLd({
+      name: center.name,
+      url: `https://redevelopment.pro/minsk/bcminsk/${center.slug}`,
+      address: center.address,
+      image: center.photos[0],
+      lat: center.lat,
+      lng: center.lng,
+      amenities: [
+        ...center.infraInternal,
+        ...(center.is24x7 ? ['Круглосуточный доступ'] : []),
+        ...(center.accessibility.length > 0 ? ['Доступная среда'] : []),
+      ],
+    });
+    return () => setPlaceJsonLd(null);
   }, [center]);
 
   // FAQ по зданию (Fable-анализ, приоритет 1: "Какой класс?.. сколько
@@ -630,6 +683,8 @@ export function BusinessCenterDetailPage() {
             «много это или мало» и «где это», потом сырые характеристики.
             Каждый блок сам решает, показываться ли: нет данных — нет
             блока, заглушек не рисуем. */}
+        {verdict && <VerdictBlock {...verdict} />}
+        {ownIndex && <IndexBlock index={ownIndex} rank={indexRank?.rank ?? null} total={indexRank?.total ?? 0} />}
         {center && marketPosition && <MarketPositionBlock center={center} position={marketPosition} />}
         {center && <NeighboursBlock center={center} all={centers ?? []} offers={offerIndex} />}
         {center && <MoneyBlock center={center} offers={offerIndex} snapshots={officeSnapshots} />}
@@ -1019,6 +1074,27 @@ export function BusinessCenterDetailPage() {
 
         {center && <HistoryTimeline center={center} />}
         {center && <WhatTheySayBlock center={center} reviewQuotes={reviewQuotes} />}
+        {/* Б12. Собственникам и УК — способ поправить данные. Пишем прямо
+            в почту: отдельной формы с лидом здесь не заводим, это не заявка
+            на аренду, а правка справочника, и ответить на неё должен
+            человек. */}
+        {center && (
+          <div className={cn('mt-6 flex flex-col gap-2 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <h2 className="text-lg font-bold text-ink">Вы собственник или управляющая компания?</h2>
+            <p className="text-sm leading-relaxed text-ink-muted">
+              Данные по зданию собраны из открытых источников — prometr.by, 2ГИС, объявления Kufar и
+              Realt. Если что-то устарело или указано неверно, напишите: поправим и пересчитаем
+              сравнения и индекс.
+            </p>
+            <a
+              href={`mailto:anatoly.trashman@gmail.com?subject=${encodeURIComponent(`Данные бизнес-центра «${shortName(center)}»`)}`}
+              className="w-fit text-sm font-semibold text-primary-hover hover:underline"
+            >
+              anatoly.trashman@gmail.com
+            </a>
+          </div>
+        )}
+
         {center && <SimilarCentersBlock center={center} all={centers ?? []} offers={offerIndex} hubChips={hubChips} />}
 
         {faqItems.length > 0 && (

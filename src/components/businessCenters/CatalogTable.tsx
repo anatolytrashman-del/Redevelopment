@@ -31,7 +31,7 @@ interface Column {
   // расходились в порядке.
   sort?: CatalogSortKey;
   align?: 'right';
-  render: (c: BusinessCenter, offers: CatalogOfferIndex) => React.ReactNode;
+  render: (c: BusinessCenter, offers: CatalogOfferIndex, indexBySlug: Map<string, { value: number }>) => React.ReactNode;
 }
 
 const DASH = <span className="text-ink-faint">—</span>;
@@ -106,6 +106,13 @@ const COLUMNS: Column[] = [
     },
   },
   {
+    key: 'index',
+    label: 'Индекс',
+    sort: 'index',
+    align: 'right',
+    render: (c, _o, idx) => idx.get(c.slug)?.value ?? DASH,
+  },
+  {
     key: 'rating',
     label: '2ГИС',
     sort: 'rating',
@@ -117,11 +124,13 @@ const COLUMNS: Column[] = [
 export function CatalogTable({
   centers,
   offers,
+  indexBySlug,
   sort,
   onSort,
 }: {
   centers: BusinessCenter[];
   offers: CatalogOfferIndex;
+  indexBySlug: Map<string, { value: number }>;
   sort: CatalogSortKey;
   onSort: (key: CatalogSortKey) => void;
 }) {
@@ -172,10 +181,10 @@ export function CatalogTable({
                       открывают. */}
                   {i === 0 ? (
                     <Link to={`/minsk/bcminsk/${c.slug}`} className="hover:text-primary-hover">
-                      {col.render(c, offers)}
+                      {col.render(c, offers, indexBySlug)}
                     </Link>
                   ) : (
-                    col.render(c, offers)
+                    col.render(c, offers, indexBySlug)
                   )}
                 </td>
               ))}

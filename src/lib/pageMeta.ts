@@ -200,6 +200,57 @@ export function setItemListJsonLd(items: { name: string; url: string }[] | null)
   });
 }
 
+// Place — разметка здания на карточке БЦ (Б12 плана
+// docs/bc-catalog-redesign-plan.md). Именно Place, а не LocalBusiness:
+// бизнес-центр — это объект на карте, а не наша организация и не
+// организация владельца, о работе которой мы ничего не утверждаем.
+// AggregateRating сюда НЕ кладётся сознательно (решение из
+// BCMINSK_SEO_PLAN.md): чужие оценки мы показываем, но не выдаём за свои
+// агрегаты и не размечаем как рейтинг страницы.
+export function setPlaceJsonLd(
+  place: {
+    name: string;
+    url: string;
+    address: string;
+    image?: string;
+    lat?: number | null;
+    lng?: number | null;
+    amenities?: string[];
+  } | null,
+) {
+  const ld = document.getElementById('place-json-ld');
+  if (!ld) return;
+  if (!place) {
+    ld.textContent = '';
+    return;
+  }
+  ld.textContent = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'Place',
+    name: place.name,
+    url: place.url,
+    ...(place.image ? { image: place.image } : {}),
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: place.address,
+      addressLocality: 'Минск',
+      addressCountry: 'BY',
+    },
+    ...(place.lat != null && place.lng != null
+      ? { geo: { '@type': 'GeoCoordinates', latitude: place.lat, longitude: place.lng } }
+      : {}),
+    ...(place.amenities && place.amenities.length > 0
+      ? {
+          amenityFeature: place.amenities.map((name) => ({
+            '@type': 'LocationFeatureSpecification',
+            name,
+            value: true,
+          })),
+        }
+      : {}),
+  });
+}
+
 export function setOrganizationJsonLd(enabled: boolean) {
   const ld = document.getElementById('organization-json-ld');
   if (!ld) return;

@@ -204,6 +204,7 @@ const STATIC_PATHS = [
   'minsk/bcminsk',
   'minsk/bcminsk/stroyashchiesya',
   'minsk/bcminsk/reyting',
+  'minsk/bcminsk/metodika',
   ...CLASS_HUB_SLUGS.map((s) => `minsk/bcminsk/class/${s}`),
   ...DISTRICT_HUB_SLUGS.map((s) => `minsk/bcminsk/raion/${s}`),
 ];
