@@ -1,9 +1,10 @@
-import { useMemo, useState, type ReactNode } from 'react';
-import { Check, FileDown, Link2, Pencil, Send, Sparkles } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Check, FileDown, Link2, Package, Pencil, Send, Sparkles } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
+import { Select } from '../ui/Select';
 import { Textarea } from '../ui/Textarea';
 import { ToggleGroup } from '../ui/ToggleGroup';
 import { cn } from '../../lib/cn';
@@ -22,6 +23,14 @@ import {
   type SupplierRequest,
 } from '../../data/supplierResearch';
 import { PURCHASE_ITEM_MATCH_KIND_LABELS, type PurchaseItem, type PurchaseItemMatchKind } from '../../data/purchases';
+import {
+  PURCHASE_ORDER_STATUSES,
+  PURCHASE_ORDER_STATUS_LABELS,
+  buildPurchaseOrderDrafts,
+  type PurchaseOrder,
+  type PurchaseOrderStatus,
+} from '../../data/purchaseOrders';
+import { fetchPurchaseOrdersByRequest, insertPurchaseOrders, updatePurchaseOrderStatus } from '../../lib/purchaseOrdersApi';
 import type { QuoteTerms } from '../../data/supplierQuotes';
 import {
   updateSupplierOfferItems,
@@ -356,6 +365,27 @@ export function PriceComparisonCard({
   const [suggestions, setSuggestions] = useState<SuggestionRow[] | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
   const [sectionPick, setSectionPick] = useState('');
+  // Заказы поставщикам по этой категории (шаг 11 плана закупок). Грузятся
+  // отдельно от остального: карточка и так тянет счета, письма и снимки, а
+  // заказов на категорию — единицы.
+  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [creatingOrders, setCreatingOrders] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setOrdersError(null);
+    fetchPurchaseOrdersByRequest(request.id)
+      .then((rows) => {
+        if (!cancelled) setOrders(rows);
+      })
+      .catch((e) => {
+        if (!cancelled) setOrdersError(errorMessage(e, 'Не удалось загрузить заказы по этой категории'));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [request.id]);
 
   const offersInCountry = offers.filter((o) => (o.country || SUPPLIER_COUNTRIES[0]) === country);
   const confirmed = offersInCountry.filter((o) => offerCommunicationStatus(o, emails) === 'confirmed');
@@ -621,6 +651,58 @@ export function PriceComparisonCard({
 
   async function setReview(next: SupplierProposalReview | null) {
     await run('Не удалось сохранить статус согласования', async () => onRequestSaved(await updateSupplierRequestReview(request.id, next)));
+  }
+
+  // «Сформировать заказы» (шаг 11 плана закупок): утверждённый отбор
+  // превращается в заказы — по одному на поставщика. Статус ставится
+  // 'draft', а не 'ordered': поставщику ещё ничего не отправляли, письмо
+  // заказа — шаг 12. Повторное нажатие не запрещено (часть позиций могли
+  // отдать другому поставщику после первого раза), но спрашивает: заказы по
+  // категории уже есть.
+  async function createOrders() {
+    const drafts = buildPurchaseOrderDrafts(
+      picked.map(({ position, cell }) => ({
+        position: { id: position.id, name: position.name, unit: position.unit, quantity: position.quantity },
+        cell,
+      })),
+      [...columnById.values()].map((c) => ({
+        offerId: c.offer.id,
+        name: c.offer.name,
+        supplierId: c.offer.supplierId ?? null,
+        currency: c.offer.currency,
+        delivery: c.delivery,
+      })),
+    );
+    if (drafts.length === 0) {
+      setError('Нечего заказывать: в отборе нет ни одной позиции с ценой.');
+      return;
+    }
+    if (orders.length > 0) {
+      const ok = window.confirm(
+        `По этой категории уже есть заказы (${orders.length}). Создать ещё ${drafts.length} — по одному на поставщика из текущего отбора?`,
+      );
+      if (!ok) return;
+    }
+    setCreatingOrders(true);
+    setError(null);
+    try {
+      const created = await insertPurchaseOrders(drafts, { requestId: request.id, legalEntityId: request.legalEntityId });
+      setOrders((prev) => [...created, ...prev]);
+    } catch (e) {
+      setError(errorMessage(e, 'Не удалось создать заказы'));
+    } finally {
+      setCreatingOrders(false);
+    }
+  }
+
+  async function setOrderStatus(order: PurchaseOrder, status: PurchaseOrderStatus) {
+    if (status === order.status) return;
+    try {
+      const next = await updatePurchaseOrderStatus(order.id, status);
+      setOrders((prev) => prev.map((o) => (o.id === next.id ? next : o)));
+    } catch (e) {
+      setError(errorMessage(e, 'Не удалось сменить статус заказа'));
+    }
   }
 
   async function bindSection(sectionId: string) {
@@ -1484,6 +1566,11 @@ export function PriceComparisonCard({
                   </Button>
                 </>
               )}
+              {reviewStatus === 'approved' && (
+                <Button type="button" icon={<Package className="h-4 w-4" />} onClick={() => void createOrders()} disabled={creatingOrders || saving}>
+                  {creatingOrders ? 'Создаём заказы...' : 'Сформировать заказы'}
+                </Button>
+              )}
               {reviewStatus === 'draft' && (
                 <button
                   type="button"
@@ -1572,6 +1659,43 @@ export function PriceComparisonCard({
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Заказы по этой категории (шаг 11 плана закупок). Снаружи листа
+          согласования: отбор могут очистить или переиграть, а уже созданные
+          заказы обязаны остаться на виду. */}
+      {(orders.length > 0 || ordersError) && (
+        <div className="flex flex-col gap-2 rounded-control border border-border p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Заказы поставщикам</span>
+            <span className="text-[11px] text-ink-faint">Из утверждённого отбора, по одному на поставщика</span>
+          </div>
+          {ordersError && <p className="text-xs text-danger">{ordersError}</p>}
+          {orders.map((order) => (
+            <div key={order.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border pt-2 text-sm first:border-t-0 first:pt-0">
+              <span className="font-semibold text-ink">{order.number}</span>
+              <span className="text-ink">{order.supplierName}</span>
+              <span className="text-xs text-ink-muted">
+                {order.items.length} поз.{order.delivery != null ? ` + доставка ${formatMoney(order.delivery, order.currency)}` : ''}
+              </span>
+              <span className="ml-auto font-semibold tabular-nums text-ink">{formatMoney(order.total, order.currency)}</span>
+              <Select
+                options={PURCHASE_ORDER_STATUSES.map((st) => PURCHASE_ORDER_STATUS_LABELS[st])}
+                value={PURCHASE_ORDER_STATUS_LABELS[order.status]}
+                onChange={(label) => {
+                  const next = PURCHASE_ORDER_STATUSES.find((st) => PURCHASE_ORDER_STATUS_LABELS[st] === label);
+                  if (next) void setOrderStatus(order, next);
+                }}
+                pill
+                triggerClassName="py-1 text-xs"
+              />
+              <span className="w-full text-[11px] text-ink-faint">
+                {new Date(order.createdAt).toLocaleDateString('ru-RU')}
+                {order.createdBy ? ` · ${order.createdBy}` : ''}
+              </span>
+            </div>
+          ))}
         </div>
       )}
 
