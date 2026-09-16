@@ -264,7 +264,7 @@ export async function routeInvoice(recognized) {
 
   const [offers, requests] = await Promise.all([
     restGetAll('supplier_research_offers?deleted_at=is.null&select=id,request_id,name,inn,email,website_url&order=created_at.asc'),
-    restGet('supplier_research_requests?select=id,title,section_title,group,estimate_id,section_id,items&order=created_at.asc'),
+    restGet('supplier_research_requests?select=id,title,section_title,estimate_id,section_id,items&order=created_at.asc'),
   ]);
   const requestById = new Map(requests.map((r) => [r.id, r]));
   const matched = matchOffers(offers, supplier);
