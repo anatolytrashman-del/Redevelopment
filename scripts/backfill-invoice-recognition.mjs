@@ -30,10 +30,18 @@
 //   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... PROXYAPI_KEY=... \
 //     node scripts/backfill-invoice-recognition.mjs [--dry-run] [--limit=N]
 //
+// Отдельный режим --match (шаг 5 плана закупок): НИЧЕГО не распознаёт, а
+// прогоняет автосопоставление по уже записанным КП — тем строкам счетов,
+// которые лежат без привязки к позиции ведомости. Нужен ровно один раз, для
+// счетов, пришедших до появления автосопоставления на приёме письма; дальше
+// оно работает само. Запуск: `node scripts/backfill-invoice-recognition.mjs
+// --match [--dry-run] [--limit=N]`.
+//
 // CHECKO_API_KEY необязателен — без него просто не будет автопроверки
 // благонадёжности по найденным ИНН (она и так делается отдельно).
 import { recognizeAllInvoicesFromAttachments, estimatePdfPageCount } from '../api/_invoiceRecognition.js';
 import { applyRecognizedInvoice, quoteTitle } from '../api/_invoiceApply.js';
+import { suggestMatches } from '../api/_proposalMatches.js';
 import { saveReliabilityIfNew } from '../api/_checko.js';
 
 const DRY_RUN = process.argv.includes('--dry-run');
@@ -42,6 +50,7 @@ const LIMIT = Number(process.argv.find((a) => a.startsWith('--limit='))?.split('
 // показывает конкретную переписку, где счёт не распознался, гонять весь
 // архив ради неё незачем.
 const ONLY_EMAIL = process.argv.find((a) => a.startsWith('--email='))?.split('=')[1] ?? null;
+const MATCH_ONLY = process.argv.includes('--match');
 
 const auth = {
   apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -103,9 +112,111 @@ async function alreadyApplied(email, sourceFile) {
   return null;
 }
 
+// Прогон автосопоставления по уже лежащим в базе КП. Берём только строки без
+// sourceMaterialId: то, что человек или прошлый прогон уже привязали, не
+// трогаем — переписывать чужое решение моделью нельзя.
+async function matchExistingQuotes() {
+  const quotes = await rest('supplier_offer_quotes?deleted_at=is.null&select=id,offer_id,title,items&order=created_at.asc');
+  console.log(`КП в базе: ${quotes.length}${DRY_RUN ? ' (сухой прогон)' : ''}`);
+
+  const requestByOffer = new Map();
+  const positionsByRequest = new Map();
+  const stats = { quotes: 0, lines: 0, matched: 0, skipped: 0, failed: 0 };
+  let processed = 0;
+
+  for (const quote of quotes) {
+    if (LIMIT && processed >= LIMIT) break;
+    const items = Array.isArray(quote.items) ? quote.items : [];
+    const unmatched = items.filter((i) => !i.sourceMaterialId);
+    if (unmatched.length === 0) {
+      stats.skipped += 1;
+      continue;
+    }
+    processed += 1;
+    stats.quotes += 1;
+    stats.lines += unmatched.length;
+
+    try {
+      if (!requestByOffer.has(quote.offer_id)) {
+        const offers = await rest(`supplier_research_offers?id=eq.${quote.offer_id}&select=request_id,name`);
+        requestByOffer.set(quote.offer_id, offers[0] ?? null);
+      }
+      const offer = requestByOffer.get(quote.offer_id);
+      if (!offer?.request_id) {
+        stats.skipped += 1;
+        continue;
+      }
+      if (!positionsByRequest.has(offer.request_id)) {
+        const requests = await rest(`supplier_research_requests?id=eq.${offer.request_id}&select=items`);
+        positionsByRequest.set(offer.request_id, Array.isArray(requests[0]?.items) ? requests[0].items : []);
+      }
+      const positions = positionsByRequest.get(offer.request_id);
+      if (positions.length === 0) {
+        stats.skipped += 1;
+        continue;
+      }
+
+      const matches = await suggestMatches({
+        positions: positions.map((p) => ({
+          id: p.id,
+          name: p.name,
+          quantity: p.quantity,
+          unit: p.unit,
+          consumption: p.consumption ?? null,
+          consumptionUnit: p.consumptionUnit ?? null,
+          note: p.note ?? '',
+        })),
+        lines: unmatched.map((i) => ({
+          id: i.id,
+          supplier: offer.name ?? '',
+          name: i.name,
+          quantity: i.quantity,
+          unit: i.unit,
+          price: i.price,
+        })),
+      });
+
+      const byLine = new Map(matches.map((m) => [m.lineId, m]));
+      const nextItems = items.map((item) => {
+        const m = byLine.get(item.id);
+        if (!m || !m.positionId) return item;
+        return {
+          ...item,
+          sourceMaterialId: m.positionId,
+          unitPrice: m.unitPrice,
+          matchKind: m.kind === 'none' ? undefined : m.kind,
+          matchNote: m.note || '',
+          matchConfidence: m.confidence,
+        };
+      });
+      const changed = nextItems.filter((it, i) => it !== items[i]).length;
+      stats.matched += changed;
+      console.log(`  ${quote.title}: сопоставлено ${changed} из ${unmatched.length}`);
+      if (!DRY_RUN && changed > 0) {
+        await rest(`supplier_offer_quotes?id=eq.${quote.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ items: nextItems }),
+        });
+      }
+    } catch (err) {
+      stats.failed += 1;
+      console.error(`  ОШИБКА на КП ${quote.title}: ${err.message}`);
+    }
+  }
+
+  console.log(
+    `\nИтого: КП обработано ${stats.quotes}, строк без привязки ${stats.lines}, сопоставлено ${stats.matched}, пропущено ${stats.skipped}, ошибок ${stats.failed}`,
+  );
+}
+
 async function main() {
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error('Нужны SUPABASE_URL и SUPABASE_SERVICE_ROLE_KEY');
+  }
+
+  if (MATCH_ONLY) {
+    await matchExistingQuotes();
+    return;
   }
 
   const emails = await rest(
