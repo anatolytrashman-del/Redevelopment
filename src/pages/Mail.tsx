@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   BookUser,
+  Check,
   Clock,
+  Eye,
   Loader2,
   Mail as MailIcon,
   Paperclip,
@@ -782,7 +784,13 @@ function EmailBubble({ email }: { email: MailboxEmail }) {
         email.direction === 'out' ? 'ml-6 border border-border bg-surface' : 'mr-6 bg-surface-muted',
       )}
     >
-      <div className="flex items-center justify-between gap-2 text-xs text-ink-faint">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-ink-faint">
+        {/* Слева — «кто и чем это письмо является» (отправлено/в очереди/не
+            отправлено/вернулось плюс отметка почтового сервера), справа —
+            время. Обе левые подписи держим в одной группе, иначе отметка
+            «прочитано» уезжает на середину строки и читается как отдельная
+            колонка. */}
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span
           className={cn(
             'flex items-center gap-1',
@@ -797,8 +805,32 @@ function EmailBubble({ email }: { email: MailboxEmail }) {
             <AlertTriangle className="h-3 w-3" />
           )}
           {email.direction === 'out'
-            ? `${emailSendStatusLabel[email.sendStatus]}${email.sentByName ? ` · ${email.sentByName}` : ''}`
+            ? `${email.bouncedAt ? 'Вернулось' : emailSendStatusLabel[email.sendStatus]}${
+                email.sentByName ? ` · ${email.sentByName}` : ''
+              }`
             : 'Получено'}
+        </span>
+        {/* Судьба письма по данным почтового сервера (события Resend, см.
+            api/_emailEvents.js) — тот же вид, что в переписке с поставщиками.
+            Показываем самое позднее из известного: прочитано важнее
+            доставлено. Отсутствие отметки НЕ значит «не дошло»: открытие
+            видно только если почтовый клиент получателя подгрузил картинку-
+            пиксель (Gmail — почти всегда, корпоративная почта с блокировкой
+            картинок — никогда), а у писем до 16.09.2026 открытий нет вовсе,
+            потому что open tracking на домене был выключен. */}
+        {email.direction === 'out' && !email.bouncedAt && (email.openedAt || email.deliveredAt) && (
+          <span
+            className="flex items-center gap-1 text-ink-faint"
+            title={`${email.deliveredAt ? `Доставлено ${new Date(email.deliveredAt).toLocaleString('ru-RU')}` : ''}${
+              email.openedAt
+                ? `${email.deliveredAt ? ', ' : ''}открыто ${new Date(email.openedAt).toLocaleString('ru-RU')}`
+                : ''
+            }`}
+          >
+            {email.openedAt ? <Eye className="h-3 w-3" /> : <Check className="h-3 w-3" />}
+            {email.openedAt ? 'прочитано' : 'доставлено'}
+          </span>
+        )}
         </span>
         <span>{new Date(email.createdAt).toLocaleString('ru-RU')}</span>
       </div>
