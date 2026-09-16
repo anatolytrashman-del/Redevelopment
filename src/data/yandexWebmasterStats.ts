@@ -31,3 +31,37 @@ export interface YandexWebmasterStatRow {
   avg_click_position: number | null;
   updated_at: string;
 }
+
+// Разбивка тех же показов/кликов ПО ЗАПРОСАМ (2026-09-16, владелец: «очень
+// интересно, по каким запросам идут показы и клики»). Это СНИМОК за окно, а
+// не история по дням: Вебмастер отдаёт запросы только суммой за период
+// (/search-queries/popular), суточной разбивки по каждому запросу у него
+// нет. Таблица целиком перезаписывается синком, поэтому выбор периода
+// 7/30/90 на странице «Показатели» на неё НЕ влияет — фактические даты окна
+// лежат в самих строках (dateFrom/dateTo, приходят из ответа Яндекса, он
+// обрезает запрошенное окно своей глубиной истории) и подписываются в
+// интерфейсе.
+//
+// avgClickPosition пустой у запроса без кликов — это нормально, не дефект
+// синка (позицию клика считать не по чему).
+export interface YandexWebmasterQuery {
+  query: string;
+  impressions: number | null;
+  clicks: number | null;
+  avgPosition: number | null;
+  avgClickPosition: number | null;
+  dateFrom: string | null;
+  dateTo: string | null;
+  updatedAt: string;
+}
+
+export interface YandexWebmasterQueryRow {
+  query: string;
+  impressions: number | null;
+  clicks: number | null;
+  avg_position: number | null;
+  avg_click_position: number | null;
+  date_from: string | null;
+  date_to: string | null;
+  updated_at: string;
+}

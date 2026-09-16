@@ -30,3 +30,36 @@ export interface GoogleSearchConsoleStatRow {
   avg_position: number | null;
   updated_at: string;
 }
+
+// Разбивка показов/кликов ПО ЗАПРОСАМ — тот же снимок за окно, что и у
+// Яндекса (см. YandexWebmasterQuery), заполняется тем же синком
+// (scripts/sync-google-search-console-stats.mjs, dimensions=['query']).
+//
+// ПУСТАЯ ТАБЛИЦА ЗДЕСЬ — ОЖИДАЕМОЕ СОСТОЯНИЕ, а не «синк не отработал»:
+// Google не раскрывает редкие («анонимизированные») запросы, и пока
+// показов единицы, под фильтр попадают все до одного — живая проверка
+// 2026-09-16 показала 0 строк по запросам при ненулевых показах в тот же
+// период. У Яндекса такого фильтра нет, поэтому его список полный, а
+// гугловский может оставаться пустым ещё долго — страница обязана
+// объяснять это причиной, а не молчаливым «данных нет».
+export interface GoogleSearchConsoleQuery {
+  query: string;
+  impressions: number | null;
+  clicks: number | null;
+  ctr: number | null;
+  avgPosition: number | null;
+  dateFrom: string | null;
+  dateTo: string | null;
+  updatedAt: string;
+}
+
+export interface GoogleSearchConsoleQueryRow {
+  query: string;
+  impressions: number | null;
+  clicks: number | null;
+  ctr: number | null;
+  avg_position: number | null;
+  date_from: string | null;
+  date_to: string | null;
+  updated_at: string;
+}
