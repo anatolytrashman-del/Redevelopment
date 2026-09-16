@@ -115,10 +115,21 @@ const KIND_CYCLE: PurchaseItemMatchKind[] = ['exact', 'alternative', 'check'];
 const MATCH_CONFIDENCE_THRESHOLD = 0.8;
 
 // Ячейку помечаем «проверить», только когда есть за что: либо модель сама
-// разметила строку как расхождение, либо уверенность низкая. У строк,
-// сопоставленных человеком, confidence нет вовсе — они не «непроверенные».
-function needsReview(cell: { kind: PurchaseItemMatchKind; matchConfidence: number | null }): boolean {
+// разметила строку как расхождение, либо низка уверенность — в привязке к
+// позиции ведомости ИЛИ в чтении самого счёта. У строк, сопоставленных
+// человеком, confidence нет вовсе — они не «непроверенные».
+//
+// Второе (recognitionConfidence) появилось вместе с записью счёта без
+// порога (шаг 10, владелец 2026-09-16: «записывай по умолчанию»): раз
+// неуверенное распознавание больше не ждёт человека в переписке, единственное
+// место, где о нём можно узнать, — вот эта пометка.
+function needsReview(cell: {
+  kind: PurchaseItemMatchKind;
+  matchConfidence: number | null;
+  recognitionConfidence?: number | null;
+}): boolean {
   if (cell.kind === 'check') return true;
+  if (cell.recognitionConfidence != null && cell.recognitionConfidence < MATCH_CONFIDENCE_THRESHOLD) return true;
   return cell.matchConfidence != null && cell.matchConfidence < MATCH_CONFIDENCE_THRESHOLD;
 }
 
@@ -186,15 +197,19 @@ function VatTag({ vat, rate }: { vat: CellVat; rate: number | null }) {
   return null;
 }
 
-function ReviewTag({ confidence }: { confidence: number | null }) {
+function ReviewTag({ confidence, recognition }: { confidence: number | null; recognition?: number | null }) {
+  // Две разные причины — и подсказка должна говорить, какая именно: «строка
+  // не туда привязана» и «цену прочитали неуверенно» проверяются по-разному.
+  const lowRecognition = recognition != null && recognition < MATCH_CONFIDENCE_THRESHOLD;
+  const title = lowRecognition
+    ? `Счёт распознан автоматически, уверенность ${Math.round(recognition * 100)}%. Сверьте цену с самим счётом или письмом.`
+    : confidence != null
+      ? `Сопоставлено автоматически, уверенность ${Math.round(confidence * 100)}%. Проверьте строку счёта.`
+      : 'Есть расхождение — стоит уточнить у поставщика.';
   return (
     <span
       className="inline-block rounded-full bg-warning-bg px-1.5 py-px text-[10.5px] font-semibold leading-relaxed text-warning"
-      title={
-        confidence != null
-          ? `Сопоставлено автоматически, уверенность ${Math.round(confidence * 100)}%. Проверьте строку счёта.`
-          : 'Есть расхождение — стоит уточнить у поставщика.'
-      }
+      title={title}
     >
       проверить
     </span>
@@ -717,7 +732,9 @@ export function PriceComparisonCard({
         <ShortfallLabel cell={cell} p={p} />
         <span className="mt-1 block text-[11.5px] leading-snug text-ink">
           <KindTag kind={cell.kind} onClick={() => cycleKind(cell)} title="Нажмите, чтобы сменить вид: ровно → аналог → уточнить" />{' '}
-          {needsReview(cell) && cell.kind !== 'check' && <ReviewTag confidence={cell.matchConfidence} />}{' '}
+          {needsReview(cell) && cell.kind !== 'check' && (
+            <ReviewTag confidence={cell.matchConfidence} recognition={cell.recognitionConfidence} />
+          )}{' '}
           <VatTag vat={cell.vat} rate={cell.vatRate} /> {cell.note}
         </span>
         {cell.productUrl && (
@@ -1233,7 +1250,9 @@ export function PriceComparisonCard({
                             </td>
                             <td className="px-3 py-2 text-[12px] leading-snug text-ink">
                               <KindTag kind={cell.kind} onClick={() => cycleKind(cell)} title="Нажмите, чтобы сменить вид" />{' '}
-                              {needsReview(cell) && cell.kind !== 'check' && <ReviewTag confidence={cell.matchConfidence} />}{' '}
+                              {needsReview(cell) && cell.kind !== 'check' && (
+                                <ReviewTag confidence={cell.matchConfidence} recognition={cell.recognitionConfidence} />
+                              )}{' '}
                               <VatTag vat={cell.vat} rate={cell.vatRate} /> {cell.note}
                               {cell.productUrl && (
                                 <span className="block">
@@ -1400,7 +1419,8 @@ export function PriceComparisonCard({
             <KindTag kind="check" /> расхождение, нужен ответ поставщика
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <ReviewTag confidence={null} /> сопоставил ИИ-закупщик, уверенность ниже {Math.round(MATCH_CONFIDENCE_THRESHOLD * 100)}%
+            <ReviewTag confidence={null} /> распознал или сопоставил ИИ-закупщик, уверенность ниже{' '}
+            {Math.round(MATCH_CONFIDENCE_THRESHOLD * 100)}%
           </span>
           <span className="inline-flex items-center gap-1">
             <VatTag vat="converted" rate={22} /> цена приведена к цене с НДС

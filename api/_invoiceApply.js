@@ -83,7 +83,7 @@ function normalizedCurrency(recognizedCurrency, fallback) {
 // карточке, когда закупщица сопоставляет их со сметой или откатывает
 // ошибочную запись — искать по имени было бы ненадёжно (у поставщика может
 // быть две одинаковые строки в разных счетах).
-function toPurchaseItems(items) {
+function toPurchaseItems(items, recognitionConfidence = null) {
   return (Array.isArray(items) ? items : []).map((i) => ({
     id: randomUUID(),
     sourceMaterialId: null,
@@ -93,6 +93,13 @@ function toPurchaseItems(items) {
     price: i.price ?? null,
     note: '',
     unitPrice: null,
+    // Насколько модель уверена, что вообще правильно прочитала этот счёт
+    // (шаг 10 плана закупок). Владелец не открывает письма руками, поэтому
+    // записываем всегда и без порога — но неуверенное распознавание должно
+    // быть видно там, где смотрят на цифры: по этому полю сравнение цен
+    // помечает ячейку «проверить». Одно на все строки счёта: уверенность у
+    // модели в документе, а не в отдельной строке.
+    ...(typeof recognitionConfidence === 'number' ? { recognitionConfidence } : {}),
     // Тара строки (шаг 7 плана закупок): «12 шт по 9 л». Пишется в позицию,
     // а не вычитывается заново из названия при каждом открытии формы —
     // подсказка цены за литр берёт её отсюда (lib/unitPriceGuess.ts).
@@ -232,7 +239,7 @@ export async function applyRecognizedInvoice({ emailId, offerId, orderId, subjec
     throw new Error('SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY не заданы — некуда записывать распознанный счёт');
   }
 
-  const matched = await withMatches(toPurchaseItems(recognized.items), { offerId, supplierName });
+  const matched = await withMatches(toPurchaseItems(recognized.items, recognized.confidence ?? null), { offerId, supplierName });
   // Ставка страны нужна только при «без НДС» без своей ставки — в остальных
   // случаях лишнего запроса в базу не делаем.
   const needsCountryRate = recognized.terms?.vatIncluded === false && !recognized.terms?.vatRate;
