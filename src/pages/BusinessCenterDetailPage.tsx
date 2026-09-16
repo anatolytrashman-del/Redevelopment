@@ -10,6 +10,7 @@ import {
   Building,
   Building2,
   Calendar,
+  ChevronDown,
   Car,
   CheckCircle2,
   ChevronLeft,
@@ -47,7 +48,15 @@ import { PhotoBlock, FactRow, FactTile } from '../components/businessCenters/Bus
 import { setBreadcrumbJsonLd, setFaqJsonLd, setNoIndex, clearNoIndex, setBusinessCenterPageMeta } from '../lib/pageMeta';
 import { shortName, sortByShortName, mapRatingFromHighlights, streetOfAddress } from '../lib/businessCenterDisplay';
 import { nearestMetroStation } from '../lib/metroStations';
-import { metroHubDistance, metroHubUrl, streetHubUrl, districtDative } from '../lib/businessCenterHubs';
+import {
+  classHubUrl,
+  districtHubUrl,
+  metroHubDistance,
+  metroHubUrl,
+  microdistrictHubUrl,
+  streetHubUrl,
+  districtDative,
+} from '../lib/businessCenterHubs';
 import type { BusinessCenter, HighlightIconKey, TechnicalParam, TenantOrganization } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import type { BusinessCenterOffer } from '../data/businessCenterOffers';
@@ -56,6 +65,16 @@ import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { MIN_RELIABLE_N, type MarketSnapshot } from '../data/marketSnapshots';
 import type { BusinessCenter2gisSnapshot, Gis2Schedule, Gis2ScheduleDay } from '../data/businessCenter2gis';
 import { fetchBusinessCenter2gisSnapshot } from '../lib/businessCenter2gisApi';
+import { buildOfferIndex } from '../lib/businessCenterCatalogFilter';
+import { buildMarketPosition } from '../lib/businessCenterMarketPosition';
+import {
+  HistoryTimeline,
+  MarketPositionBlock,
+  MoneyBlock,
+  TechTilesBlock,
+  WhatTheySayBlock,
+} from '../components/businessCenters/BusinessCenterMarketBlocks';
+import { NeighboursBlock, SimilarCentersBlock } from '../components/businessCenters/BusinessCenterNeighbours';
 
 // Отдельная страница одного бизнес-центра (владелец, 2026-09-04: "для SEO
 // лучше хаб + отдельная страница на каждый БЦ" — согласился с этим доводом
@@ -75,6 +94,23 @@ import { fetchBusinessCenter2gisSnapshot } from '../lib/businessCenter2gisApi';
 // часть резонансных фактов — Onliner), показываются на КАЖДОЙ карточке
 // одинаково; официальный сайт самого здания (если найден) — отдельной
 // ссылкой следом, он специфичен для конкретного БЦ.
+// Подписи пунктов липкого меню «На странице» (Б7). Ключ — id блока в
+// разметке; список самих пунктов собирается в pageSections по тому, какие
+// блоки реально отрисованы.
+const SECTION_LABELS: Record<string, string> = {
+  market: 'Место на рынке',
+  map: 'На карте',
+  money: 'В деньгах',
+  tech: 'Характеристики',
+  offers: 'Предложения',
+  rental: 'Условия аренды',
+  facts: 'Факты',
+  tenants: 'Кто внутри',
+  reviews: 'Отзывы',
+  similar: 'Похожие',
+  faq: 'Вопросы',
+};
+
 const GENERAL_DATA_SOURCES = [
   { label: 'prometr.by', href: 'https://prometr.by/' },
   { label: 'Kufar', href: 'https://www.kufar.by/' },
@@ -189,7 +225,97 @@ export function BusinessCenterDetailPage() {
     const group = gis2?.attributeGroups.find((g) => g.name === 'Доступная среда');
     return group && group.attributes.length > 0 ? group.attributes.join(', ') : null;
   }, [gis2]);
-  const visibleHighlights = useMemo(() => center?.highlights.filter((h) => h.icon !== 'rating') ?? [], [center]);
+  // Из общего списка фактов исключаем то, что теперь показано отдельными
+  // авторскими блоками: рейтинг и отзывы уехали в «Что говорят» (Б11),
+  // история — в таймлайн (Б10). Дублировать один и тот же текст в двух
+  // местах страницы хуже, чем не показать его вовсе.
+  const visibleHighlights = useMemo(
+    () => center?.highlights.filter((h) => h.icon !== 'rating' && h.icon !== 'reviews' && h.icon !== 'history') ?? [],
+    [center],
+  );
+
+  // Медианы по зданиям (Д3) — те же, что в каталоге: и «Место на рынке», и
+  // соседи, и деньги должны считать ставку одинаково, иначе одна и та же
+  // цифра на двух страницах разойдётся.
+  const offerIndex = useMemo(() => buildOfferIndex(officeSnapshots), [officeSnapshots]);
+
+  // Б5: «Сейчас предлагается» — живая строка вместо голой таблицы. Важны
+  // ДИАПАЗОНЫ: «офисы от 50 до 400 м² по $10–18/м²» отвечает на вопрос
+  // «подойдёт ли мне», а таблица со средними по типу помещения — нет.
+  const offersSummary = useMemo(() => {
+    const byDeal = (deal: 'rent' | 'sale') => {
+      const rows = (offers ?? []).filter((o) => o.dealType === deal && o.size > 0 && o.pricePerSqm > 0);
+      if (rows.length === 0) return null;
+      const sizes = rows.map((o) => o.size);
+      const prices = rows.map((o) => o.pricePerSqm);
+      return {
+        count: rows.length,
+        sizeMin: Math.min(...sizes),
+        sizeMax: Math.max(...sizes),
+        priceMin: Math.min(...prices),
+        priceMax: Math.max(...prices),
+        // Ссылки на сами объявления: самое маленькое и самое большое
+        // помещение — крайние точки диапазона, который мы только что
+        // назвали, чтобы его можно было проверить одним кликом.
+        links: [
+          rows.reduce((a, b) => (a.size <= b.size ? a : b)),
+          rows.reduce((a, b) => (a.size >= b.size ? a : b)),
+        ],
+      };
+    };
+    return { rent: byDeal('rent'), sale: byDeal('sale') };
+  }, [offers]);
+  const marketPosition = useMemo(
+    () => (center ? buildMarketPosition(center, centers ?? [], officeSnapshots, offerIndex) : null),
+    [center, centers, officeSnapshots, offerIndex],
+  );
+  // Чипы-хабы вместо простого текста со ссылками (Б6): район, класс,
+  // станция, улица, микрорайон — только те, для которых хаб реально есть.
+  const hubChips = useMemo(() => {
+    if (!center) return [];
+    const street = streetOfAddress(center.address);
+    const station = center.nearestMetroStations.length > 0
+      ? [...center.nearestMetroStations].sort((a, b) => a.distanceMeters - b.distanceMeters)[0].name
+      : null;
+    return [
+      center.district ? { label: `${center.district} район`, url: districtHubUrl(center.district) } : null,
+      center.businessClass ? { label: `Класс ${center.businessClass}`, url: classHubUrl(center.businessClass) } : null,
+      station ? { label: `м. ${station}`, url: metroHubUrl(station) } : null,
+      { label: street, url: streetHubUrl(street) },
+      center.microdistrict ? { label: center.microdistrict, url: microdistrictHubUrl(center.microdistrict) } : null,
+    ].filter((c): c is { label: string; url: string } => c !== null && typeof c.url === 'string' && c.url.length > 0);
+  }, [center]);
+  // Цитаты отзывов из «Интересных фактов» — отдельным блоком «Что говорят»
+  // вместе с рейтингами (Б11), а не россыпью по странице.
+  const reviewQuotes = useMemo(
+    () =>
+      (center?.highlights ?? [])
+        .filter((h) => h.icon === 'reviews')
+        .flatMap((h) => h.text.split(/\n+/).map((l) => l.replace(/^[-–—•\s]+/, '').trim()).filter(Boolean))
+        .slice(0, 4),
+    [center],
+  );
+
+  // Б7: липкое меню «На странице». Пункт появляется только если
+  // соответствующий блок реально отрисован — ссылка на несуществующий
+  // якорь никуда не ведёт и выглядит поломкой.
+  const pageSections = useMemo(() => {
+    if (!center) return [];
+    const has = (id: string, cond: boolean) => (cond ? { id, label: SECTION_LABELS[id] } : null);
+    return [
+      has('market', Boolean(marketPosition && (marketPosition.bars.length > 0 || marketPosition.areaRankCity))),
+      has('map', center.lat != null && center.lng != null),
+      has('money', true),
+      has('tech', center.technicalParams.length > 0 || center.parkingRatio != null),
+      has('offers', offers !== null),
+      has('rental', Boolean(center.rentalInfo)),
+      has('facts', visibleHighlights.length > 0),
+      has('tenants', center.tenantOrganizations.length > 0),
+      has('reviews', center.gisRating != null || center.highlights.some((h) => h.icon === 'rating')),
+      has('similar', true),
+      has('faq', true),
+    ].filter((v): v is { id: string; label: string } => v !== null);
+  }, [center, marketPosition, offers, visibleHighlights]);
 
   useEffect(() => {
     if (!center) return;
@@ -301,6 +427,34 @@ export function BusinessCenterDetailPage() {
           Все бизнес-центры
         </Link>
       </div>
+
+      {/* Б7. Липкая мини-шапка: название, класс и ставка всегда перед
+          глазами, плюс меню по восьми-одиннадцати длинным блокам страницы.
+          Раньше единственным способом добраться до «Условий аренды» внизу
+          был скролл через всю страницу. */}
+      {pageSections.length > 0 && (
+        <div className="sticky top-0 z-30 -mx-4 mb-4 border-b border-border bg-bg/90 px-4 py-2 backdrop-blur-md">
+          <div className="mx-auto flex max-w-3xl flex-col gap-1.5">
+            <div className="flex items-baseline gap-2">
+              <span className="truncate text-sm font-bold text-ink">{shortName(center)}</span>
+              {center.businessClass && <span className="shrink-0 text-xs text-ink-muted">класс {center.businessClass}</span>}
+              {buildingRentMedian != null && (
+                <span className="shrink-0 text-xs text-ink-muted">${Math.round(buildingRentMedian)}/м²</span>
+              )}
+            </div>
+            {/* Горизонтальная прокрутка вместо переноса: меню обязано
+                оставаться одной строкой, иначе липкая шапка на телефоне
+                съест пол-экрана. */}
+            <nav className="-mx-1 flex gap-3 overflow-x-auto px-1 text-xs text-ink-muted">
+              {pageSections.map((sec) => (
+                <a key={sec.id} href={`#${sec.id}`} className="shrink-0 whitespace-nowrap hover:text-primary-hover">
+                  {sec.label}
+                </a>
+              ))}
+            </nav>
+          </div>
+        </div>
+      )}
 
       {/* Стрелки влево/вправо по краям экрана — тот же паттерн, что и в
           ImageLightbox.tsx. Только от lg — на мобильном места мало, там
@@ -471,6 +625,16 @@ export function BusinessCenterDetailPage() {
           </div>
         </div>
 
+        {/* Авторские блоки (Б1, Б3, Б8 плана docs/bc-catalog-redesign-plan.md)
+            стоят ВЫШЕ справочной таблицы техпараметров сознательно: сперва
+            «много это или мало» и «где это», потом сырые характеристики.
+            Каждый блок сам решает, показываться ли: нет данных — нет
+            блока, заглушек не рисуем. */}
+        {center && marketPosition && <MarketPositionBlock center={center} position={marketPosition} />}
+        {center && <NeighboursBlock center={center} all={centers ?? []} offers={offerIndex} />}
+        {center && <MoneyBlock center={center} offers={offerIndex} snapshots={officeSnapshots} />}
+        {center && <TechTilesBlock center={center} all={centers ?? []} />}
+
         {/* Технические характеристики — прямой парсинг структурных блоков
             .bccharacteristics с карточки здания на prometr.by. Изначально
             (2026-09-06) была одна плоская таблица параметр-значение — владелец
@@ -497,11 +661,17 @@ export function BusinessCenterDetailPage() {
             внизу блока, не гадаем, но и не отбрасываем. */}
         {center.technicalParams.length > 0 && (
           <div className={cn('mt-6 flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <ClipboardList className="h-5 w-5 shrink-0 text-primary" />
-              Технические характеристики
-            </h2>
-            <div className="flex flex-col gap-6">
+            {/* Б4: сырая выгрузка prometr.by уехала под спойлер — смысл
+                этих чисел страница показывает выше плитками «Что это
+                значит на практике». Атрибуция источника от этого не
+                теряется: она в самом заголовке и в подписях значений. */}
+            <details className="group flex flex-col gap-4">
+              <summary className="flex cursor-pointer list-none items-center gap-2 text-lg font-bold text-ink">
+                <ClipboardList className="h-5 w-5 shrink-0 text-primary" />
+                Все параметры по данным prometr.by
+                <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted transition-transform group-open:rotate-180" />
+              </summary>
+            <div className="mt-4 flex flex-col gap-6">
               {center.technicalParams.map((group, i) => {
                 const hideMetro = Boolean(nearestMetro || center.metro);
                 const hideClass = Boolean(center.businessClass);
@@ -599,6 +769,7 @@ export function BusinessCenterDetailPage() {
                 );
               })}
             </div>
+            </details>
           </div>
         )}
 
@@ -615,7 +786,7 @@ export function BusinessCenterDetailPage() {
             → Интересные факты → Условия для арендаторов → Объявления с
             Kufar и Realt. */}
         {visibleHighlights.length > 0 && (
-          <div className={cn('mt-6 flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+          <div id="facts" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
               <Sparkles className="h-5 w-5 shrink-0 text-primary" />
               Интересные факты
@@ -685,7 +856,7 @@ export function BusinessCenterDetailPage() {
             Каждое поле независимо может быть null — рисуем только то, что
             реально нашлось. */}
         {center.rentalInfo && (
-          <div className={cn('mt-6 flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+          <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
               <FileText className="h-5 w-5 shrink-0 text-primary" />
               Условия для арендаторов
@@ -732,8 +903,70 @@ export function BusinessCenterDetailPage() {
             секции, убранные прямые ссылки на Kufar/Realt) — см. запись
             2026-09-05 в docs/session-journal.md. */}
         {offers !== null && (
-          <div className={cn('mt-6 flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <h2 className="text-lg font-bold text-ink">Объявления с Kufar и Realt</h2>
+          <div id="offers" className={cn('mt-6 flex scroll-mt-32 flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <h2 className="text-lg font-bold text-ink">Сейчас предлагается</h2>
+            {/* Б5. Пусто — не пустая таблица и не исчезнувший блок, а
+                честный текст: отсутствие лотов на Kufar и Realt само по
+                себе факт (здание сдаёт через УК напрямую либо занято). */}
+            {offersSummary.rent === null && offersSummary.sale === null ? (
+              <div className="flex flex-col gap-2 text-sm text-ink-muted">
+                <p>
+                  На Kufar и Realt сейчас нет активных объявлений по этому зданию. Это не значит, что
+                  свободных площадей нет: часть бизнес-центров сдаёт офисы напрямую через управляющую
+                  компанию, минуя площадки.
+                </p>
+                {center.website ? (
+                  <a
+                    href={center.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-fit font-semibold text-primary-hover hover:underline"
+                  >
+                    Официальный сайт бизнес-центра →
+                  </a>
+                ) : (
+                  <Link to="/minsk/bcminsk?facts=rent" className="w-fit font-semibold text-primary-hover hover:underline">
+                    Посмотреть бизнес-центры, где объявления есть →
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {(['rent', 'sale'] as const).map((deal) => {
+                  const sum = offersSummary[deal];
+                  if (!sum) return null;
+                  // Знак доллара уже стоит у чисел ниже — в единице его
+                  // быть не должно, иначе получается «$13–$29 $/м²».
+                  const unit = deal === 'rent' ? '/м²/мес' : '/м²';
+                  return (
+                    <p key={deal} className="text-sm text-ink-muted">
+                      <span className="font-bold text-ink">{deal === 'rent' ? 'Аренда' : 'Продажа'}</span>:{' '}
+                      {sum.count} {sum.count === 1 ? 'лот' : 'лотов'}, площади{' '}
+                      <span className="font-semibold text-ink">
+                        {Math.round(sum.sizeMin).toLocaleString('ru-RU')}–{Math.round(sum.sizeMax).toLocaleString('ru-RU')} м²
+                      </span>
+                      , цены{' '}
+                      <span className="font-semibold text-ink">
+                        ${Math.round(sum.priceMin).toLocaleString('ru-RU')}–${Math.round(sum.priceMax).toLocaleString('ru-RU')}{unit}
+                      </span>
+                      {'. '}
+                      {sum.links.map((o, i) => (
+                        <a
+                          key={o.id}
+                          href={o.adLink}
+                          target="_blank"
+                          rel="noopener noreferrer nofollow"
+                          className="text-primary-hover hover:underline"
+                        >
+                          {i === 0 ? 'самый маленький' : 'самый большой'}
+                          {i === 0 && sum.links.length > 1 ? ' · ' : ''}
+                        </a>
+                      ))}
+                    </p>
+                  );
+                })}
+              </div>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full min-w-[480px] border-collapse text-sm">
                 <thead>
@@ -784,8 +1017,12 @@ export function BusinessCenterDetailPage() {
           </div>
         )}
 
+        {center && <HistoryTimeline center={center} />}
+        {center && <WhatTheySayBlock center={center} reviewQuotes={reviewQuotes} />}
+        {center && <SimilarCentersBlock center={center} all={centers ?? []} offers={offerIndex} hubChips={hubChips} />}
+
         {faqItems.length > 0 && (
-          <div className={cn('mt-6 flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+          <div id="faq" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="text-lg font-bold text-ink">Частые вопросы</h2>
             <div className="flex flex-col divide-y divide-border">
               {faqItems.map((item) => (
@@ -1014,7 +1251,7 @@ function TenantOrganizationsBlock({ organizations }: { organizations: TenantOrga
   const hiddenCount = groups.length - visibleGroups.length;
 
   return (
-    <div className={cn('mt-6 flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+    <div id="tenants" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
       <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
         <Building2 className="h-5 w-5 shrink-0 text-primary" />
         Организации в здании
