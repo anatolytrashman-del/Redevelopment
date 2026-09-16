@@ -9,7 +9,10 @@ export interface MarketSnapshot {
   period: string; // 'YYYY-MM-01'
   segment: string;
   deal: 'rent' | 'sale';
-  sliceType: 'city' | 'class' | 'district' | 'building_type';
+  // 'building' — срез по КОНКРЕТНОМУ зданию (slice_key = slug БЦ,
+  // сегмент 'ofisy_bc', см. Д3 в docs/bc-catalog-redesign-plan.md). Выборка
+  // по одному зданию почти всегда мала — читать только вместе с `n`.
+  sliceType: 'city' | 'class' | 'district' | 'building_type' | 'building';
   sliceKey: string;
   currency: string;
   unit: string; // 'usd_per_sqm' | 'usd_total'
