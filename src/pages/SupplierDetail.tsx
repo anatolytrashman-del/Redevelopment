@@ -14,6 +14,7 @@ import {
   Plus,
   Merge,
   RefreshCw,
+  SlidersHorizontal,
   ShieldCheck,
   Trash2,
 } from 'lucide-react';
@@ -32,7 +33,7 @@ import type { SupplierSiteSnapshot } from '../data/supplierSiteSnapshots';
 import type { SupplierReliability } from '../data/supplierReliability';
 import { CONTACT_SOURCE_LABEL, type SupplierContact } from '../data/supplierContacts';
 import type { SupplierOfferEmail } from '../data/supplierOfferEmails';
-import type { SupplierQuote } from '../data/supplierQuotes';
+import type { QuoteTerms, SupplierQuote } from '../data/supplierQuotes';
 import type { SupplierReliabilityCheck } from '../data/supplierReliability';
 import { currencySymbols } from '../data/transactions';
 import { purchaseItemTotal } from '../data/purchases';
@@ -57,7 +58,7 @@ import {
   fetchSupplierReliabilityChecks,
 } from '../lib/supplierReliabilityApi';
 import { fetchSupplierOfferEmailsByOffers } from '../lib/supplierOfferEmailsApi';
-import { fetchSupplierQuotesByOffers } from '../lib/supplierQuotesApi';
+import { fetchSupplierQuotesByOffers, updateSupplierQuoteTerms } from '../lib/supplierQuotesApi';
 import {
   deleteSupplierContact,
   fetchSupplierContacts,
@@ -250,6 +251,152 @@ interface ActivityEvent {
   title: string;
   detail: string;
   href?: string;
+}
+
+// Условия поставки человеческим языком — для показа в списке КП.
+function termsSummary(terms: QuoteTerms | null): string[] {
+  if (!terms) return [];
+  const out: string[] = [];
+  if (terms.leadTimeDays != null) out.push(`срок ${terms.leadTimeDays} дн.`);
+  if (terms.availability === 'in_stock') out.push('в наличии');
+  if (terms.availability === 'on_order') out.push('под заказ');
+  if (terms.prepaymentPercent != null) {
+    out.push(terms.prepaymentPercent === 0 ? 'оплата по факту' : `предоплата ${terms.prepaymentPercent}%`);
+  }
+  if (typeof terms.deliveryCost === 'number') {
+    out.push(terms.deliveryCost === 0 ? 'доставка бесплатно' : `доставка ${terms.deliveryCost.toLocaleString('ru-RU')}`);
+  }
+  if (terms.deliveryTerms) out.push(terms.deliveryTerms);
+  if (terms.vatIncluded === false) out.push('цены без НДС');
+  if (terms.vatIncluded === true && terms.vatRate != null) out.push(`НДС ${terms.vatRate}%`);
+  if (terms.minOrder) out.push(`мин. заказ: ${terms.minOrder}`);
+  if (terms.validUntil) out.push(`цена до ${terms.validUntil}`);
+  return out;
+}
+
+// Правка условий КП руками (шаг 6b плана закупок). Распознавание вытаскивает
+// их из счёта и письма, но менеджер мог назвать срок по телефону, а модель —
+// ошибиться в цифре: без формы исправить это было нечем.
+function TermsFormModal({
+  quote,
+  saving,
+  onClose,
+  onSubmit,
+}: {
+  quote: SupplierQuote | null;
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (terms: QuoteTerms | null) => void;
+}) {
+  const [form, setForm] = useState<{
+    leadTimeDays: string;
+    prepaymentPercent: string;
+    deliveryCost: string;
+    deliveryTerms: string;
+    availability: '' | 'in_stock' | 'on_order';
+    minOrder: string;
+    validUntil: string;
+    vat: '' | 'included' | 'excluded';
+    vatRate: string;
+  }>({
+    leadTimeDays: '', prepaymentPercent: '', deliveryCost: '', deliveryTerms: '',
+    availability: '', minOrder: '', validUntil: '', vat: '', vatRate: '',
+  });
+
+  useEffect(() => {
+    if (!quote) return;
+    const t = quote.terms;
+    setForm({
+      leadTimeDays: t?.leadTimeDays != null ? String(t.leadTimeDays) : '',
+      prepaymentPercent: t?.prepaymentPercent != null ? String(t.prepaymentPercent) : '',
+      deliveryCost: typeof t?.deliveryCost === 'number' ? String(t.deliveryCost) : '',
+      deliveryTerms: t?.deliveryTerms ?? '',
+      availability: t?.availability ?? '',
+      minOrder: t?.minOrder ?? '',
+      validUntil: t?.validUntil ?? '',
+      vat: t?.vatIncluded === true ? 'included' : t?.vatIncluded === false ? 'excluded' : '',
+      vatRate: t?.vatRate != null ? String(t.vatRate) : '',
+    });
+  }, [quote]);
+
+  function submit() {
+    const num = (v: string) => {
+      const n = Number(v.replace(',', '.').replace(/[^\d.]/g, ''));
+      return v.trim() && Number.isFinite(n) ? n : null;
+    };
+    const next: QuoteTerms = {
+      leadTimeDays: num(form.leadTimeDays),
+      prepaymentPercent: num(form.prepaymentPercent),
+      deliveryCost: num(form.deliveryCost),
+      deliveryTerms: form.deliveryTerms.trim(),
+      availability: form.availability || null,
+      minOrder: form.minOrder.trim(),
+      validUntil: form.validUntil.trim(),
+      vatIncluded: form.vat === 'included' ? true : form.vat === 'excluded' ? false : null,
+      vatRate: num(form.vatRate),
+    };
+    // Все поля пустые — это «условий нет», и хранить {} вместо null не надо:
+    // null читается однозначно и в базе, и в сравнении цен.
+    const hasAny = Object.values(next).some((v) => v !== null && v !== '');
+    onSubmit(hasAny ? next : null);
+  }
+
+  return (
+    <Modal open={quote !== null} onClose={onClose} title="Условия поставки">
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-ink-muted">
+          Эти значения видны в сравнении цен рядом с ценой. Пустое поле — «не указано», а не ноль.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input label="Срок поставки, дней" value={form.leadTimeDays} onChange={(e) => setForm((f) => ({ ...f, leadTimeDays: e.target.value }))} placeholder="7" />
+          <Input label="Предоплата, %" value={form.prepaymentPercent} onChange={(e) => setForm((f) => ({ ...f, prepaymentPercent: e.target.value }))} placeholder="100" />
+          <Input label="Доставка, сумма" value={form.deliveryCost} onChange={(e) => setForm((f) => ({ ...f, deliveryCost: e.target.value }))} placeholder="0 — если бесплатно" />
+          <Input label="Условие доставки" value={form.deliveryTerms} onChange={(e) => setForm((f) => ({ ...f, deliveryTerms: e.target.value }))} placeholder="бесплатно от 300 000" />
+          <Input label="Минимальный заказ" value={form.minOrder} onChange={(e) => setForm((f) => ({ ...f, minOrder: e.target.value }))} placeholder="паллета" />
+          <Input label="Цена действует до" value={form.validUntil} onChange={(e) => setForm((f) => ({ ...f, validUntil: e.target.value }))} placeholder="20.09.2026" />
+          <Input label="Ставка НДС, %" value={form.vatRate} onChange={(e) => setForm((f) => ({ ...f, vatRate: e.target.value }))} placeholder="20" />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {([['', 'наличие не указано'], ['in_stock', 'в наличии'], ['on_order', 'под заказ']] as const).map(([value, label]) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, availability: value }))}
+              className={cn(
+                'rounded-full border px-3 py-1 text-xs',
+                form.availability === value ? 'border-primary bg-primary-soft text-primary' : 'border-border text-ink-muted hover:text-ink',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {([['', 'про НДС не сказано'], ['included', 'цены с НДС'], ['excluded', 'цены без НДС']] as const).map(([value, label]) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, vat: value }))}
+              className={cn(
+                'rounded-full border px-3 py-1 text-xs',
+                form.vat === value ? 'border-primary bg-primary-soft text-primary' : 'border-border text-ink-muted hover:text-ink',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="mt-2 flex justify-end gap-2 border-t border-border pt-3">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Отмена
+          </Button>
+          <Button type="button" disabled={saving} onClick={submit}>
+            {saving ? 'Сохраняем...' : 'Сохранить'}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -639,6 +786,28 @@ export function SupplierDetailView({
       setActionError(errorMessage(err, 'Не удалось отправить в стоп-лист'));
     } finally {
       setBusyAction(null);
+    }
+  }
+
+  const [termsQuote, setTermsQuote] = useState<SupplierQuote | null>(null);
+  const [savingTerms, setSavingTerms] = useState(false);
+  // Список КП приходит пропсом от загрузчика, но правка условий меняет его
+  // прямо здесь — держим локальную копию поверх пропса, как со списком людей.
+  const [quotesState, setQuotesState] = useState<SupplierQuote[] | null>(null);
+  const shownQuotes = quotesState ?? quotes;
+
+  async function saveTerms(next: QuoteTerms | null) {
+    if (!termsQuote) return;
+    setSavingTerms(true);
+    setActionError(null);
+    try {
+      await updateSupplierQuoteTerms(termsQuote.id, next);
+      setQuotesState(shownQuotes.map((q) => (q.id === termsQuote.id ? { ...q, terms: next } : q)));
+      setTermsQuote(null);
+    } catch (err) {
+      setActionError(errorMessage(err, 'Не удалось сохранить условия'));
+    } finally {
+      setSavingTerms(false);
     }
   }
 
@@ -1049,15 +1218,15 @@ export function SupplierDetailView({
       {tab === 'КП и цены' && (
         <Card className="space-y-4">
           <h2 className="text-sm font-semibold text-ink">
-            Коммерческие предложения{quotes.length > 0 ? ` (${quotes.length})` : ''}
+            Коммерческие предложения{shownQuotes.length > 0 ? ` (${shownQuotes.length})` : ''}
           </h2>
-          {quotes.length === 0 ? (
+          {shownQuotes.length === 0 ? (
             <p className="text-sm text-ink-faint">
               КП ещё не получали. Они появляются сами, когда поставщик присылает счёт и распознавание его разбирает.
             </p>
           ) : (
             <ul className="space-y-3">
-              {quotes.map((q) => {
+              {shownQuotes.map((q) => {
                 const cat = categoryOf(q.offerId);
                 return (
                   <li key={q.id} className="rounded-control border border-border p-3">
@@ -1072,6 +1241,21 @@ export function SupplierDetailView({
                       <span>·</span>
                       <span>{formatDate(q.createdAt)}</span>
                       {q.isAlternative && <Badge tone="warning">аналог{q.alternativeNote ? `: ${q.alternativeNote}` : ''}</Badge>}
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      {termsSummary(q.terms).map((t) => (
+                        <span key={t} className="rounded-full bg-primary-soft px-2 py-px text-[11px] text-primary">
+                          {t}
+                        </span>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setTermsQuote(q)}
+                        className="inline-flex items-center gap-1 rounded-full border border-dashed border-border-strong px-2 py-px text-[11px] text-ink-muted hover:text-ink"
+                      >
+                        <SlidersHorizontal className="h-3 w-3" />
+                        {q.terms ? 'Изменить условия' : 'Указать условия'}
+                      </button>
                     </div>
                     {q.items.length > 0 && (
                       <div className="mt-2 overflow-x-auto rounded-control border border-border">
@@ -1109,6 +1293,7 @@ export function SupplierDetailView({
               })}
             </ul>
           )}
+          <TermsFormModal quote={termsQuote} saving={savingTerms} onClose={() => setTermsQuote(null)} onSubmit={saveTerms} />
         </Card>
       )}
 

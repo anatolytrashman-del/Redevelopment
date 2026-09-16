@@ -40,7 +40,7 @@
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { extractEmailAttachments, fetchReceivedEmailBody } from './_attachments.js';
-import { recognizeAllInvoicesFromAttachments } from './_invoiceRecognition.js';
+import { extractTermsFromEmailText, recognizeAllInvoicesFromAttachments } from './_invoiceRecognition.js';
 import { applyRecognizedInvoice, quoteTitle } from './_invoiceApply.js';
 import { saveReliabilityIfNew } from './_checko.js';
 
@@ -317,6 +317,42 @@ async function updateEmailExtraction(table, emailId, extraction) {
   if (!resp.ok) {
     throw new Error(`Не удалось обновить распознавание письма: ${await resp.text()}`);
   }
+}
+
+// Условия из текста письма → карточка поставщика. Сливаем, а не заменяем:
+// в одном письме менеджер назвал срок, в другом — доставку, и второе письмо
+// не должно стирать первое. Новое непустое значение перекрывает старое —
+// поставщик поменял условия, и последнее слово за ним.
+async function updateOfferTermsFromEmail(offerId, body) {
+  const text = String(body ?? '')
+    .replace(/<br\s*\/?>(?=)/gi, ' ')
+    .replace(/<[^>]+>/g, ' ');
+  const fresh = await extractTermsFromEmailText(text);
+  if (!fresh) return;
+
+  const authHeaders = {
+    apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+  };
+  const resp = await fetch(
+    `${process.env.SUPABASE_URL}/rest/v1/supplier_research_offers?id=eq.${offerId}&select=terms`,
+    { headers: authHeaders },
+  );
+  if (!resp.ok) return;
+  const rows = await resp.json();
+  const current = rows?.[0]?.terms ?? null;
+
+  const merged = { ...(current ?? {}) };
+  for (const [key, value] of Object.entries(fresh)) {
+    if (value === null || value === '') continue;
+    merged[key] = value;
+  }
+
+  await fetch(`${process.env.SUPABASE_URL}/rest/v1/supplier_research_offers?id=eq.${offerId}`, {
+    method: 'PATCH',
+    headers: { ...authHeaders, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify({ terms: merged }),
+  });
 }
 
 export default async function handler(req, res) {
@@ -643,6 +679,20 @@ export default async function handler(req, res) {
         await autoFillOfferContact(offerId, parseFromHeader(fromAddress));
       } catch (err) {
         console.error('Не удалось автозаполнить email/имя менеджера у предложения (не критично):', err);
+      }
+
+      // Условия поставки из письма БЕЗ счёта (шаг 6b плана закупок). Когда
+      // счёт распознан, условия уже вытащены вместе с ним и лежат на КП —
+      // повторно платить модели незачем. А вот «есть на складе, отгрузим за
+      // 5 дней, доставка бесплатно от 300 000» без вложения раньше не
+      // оставалось нигде, кроме глаз закупщика.
+      const invoiceRecognized = (recognizedInvoicesData?.allRecognized?.length ?? 0) > 0;
+      if (!invoiceRecognized) {
+        try {
+          await updateOfferTermsFromEmail(offerId, row?.body ?? '');
+        } catch (err) {
+          console.error('Не удалось разобрать условия из текста письма (не критично):', err instanceof Error ? err.message : err);
+        }
       }
     }
 
