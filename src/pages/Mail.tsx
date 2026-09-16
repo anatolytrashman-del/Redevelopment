@@ -155,6 +155,20 @@ export function Mail() {
   const selected = threads.find((t) => t.address === selectedAddress) ?? null;
   const unreadTotal = threads.reduce((sum, t) => sum + t.unread, 0);
 
+  // Пришло письмо — открываем его сразу, не заставляя искать нужную карточку
+  // в списке (владелец, 2026-09-16: «мне пришло письмо, но я не могу открыть
+  // его в интерфейсе»). Открывается самая свежая переписка с непрочитанным,
+  // один раз за визит на страницу: ref, а не стейт, чтобы возврат к списку
+  // (или чтение второго треда) не перекидывал обратно.
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (autoOpened.current || loading || selectedAddress) return;
+    const unread = threads.find((t) => t.unread > 0);
+    if (!unread) return;
+    autoOpened.current = true;
+    setSelectedAddress(unread.address);
+  }, [loading, selectedAddress, threads]);
+
   // Открыли тред — гасим его непрочитанные. Локальный стейт правим сразу,
   // не дожидаясь ответа: бейдж не должен висеть до перезагрузки страницы.
   useEffect(() => {
@@ -392,21 +406,43 @@ export function Mail() {
                   type="button"
                   onClick={() => setSelectedAddress(thread.address)}
                   className={cn(
-                    'flex min-w-0 flex-col gap-1 rounded-control border p-3 text-left transition-colors',
+                    'block w-full overflow-hidden rounded-control border p-3 text-left transition-colors',
                     thread.address === selectedAddress
                       ? 'border-primary bg-primary-soft/40'
                       : 'border-border bg-surface hover:border-border-strong',
                   )}
                 >
-                  <div className="flex min-w-0 items-center justify-between gap-2">
-                    <span className="truncate font-semibold text-ink">
-                      {counterpartyTitle(thread.address, contacts, thread.name)}
+                  {/* Разметка внутри кнопки — span'ы, а не div'ы, и флекс-контейнер
+                      здесь внутренний, а не сам <button>. Причина не в
+                      педантизме: у button по спецификации внутри только
+                      phrasing content, и WebKit (Safari) на такой вёрстке не
+                      даёт флекс-элементам внутри кнопки сжиматься — truncate
+                      молча перестаёт работать, длинное имя собеседника
+                      вылезает за карточку, а бейдж непрочитанных уезжает
+                      вправо под соседнюю панель, и о новом письме ничто не
+                      сообщает (владелец, 2026-09-16: «мне пришло письмо, но я
+                      не могу открыть его в интерфейсе»). Плюс overflow-hidden
+                      на самой кнопке — страховка на случай, если текст всё же
+                      не сожмётся: он обрежется по карточке, а не ляжет на
+                      переписку справа. */}
+                  <span className="flex w-full min-w-0 flex-col gap-1">
+                    <span className="flex w-full min-w-0 items-center gap-2">
+                      {/* Бейдж слева от имени, а не справа: справа он первым
+                          страдает от любой неудачной ширины, а это главный (и
+                          единственный) признак непрочитанного письма в списке. */}
+                      {thread.unread > 0 && (
+                        <Badge tone="danger" className="shrink-0 px-2">
+                          {thread.unread}
+                        </Badge>
+                      )}
+                      <span className="min-w-0 flex-1 truncate font-semibold text-ink">
+                        {counterpartyTitle(thread.address, contacts, thread.name)}
+                      </span>
                     </span>
-                    {thread.unread > 0 && <Badge tone="success">{thread.unread}</Badge>}
-                  </div>
-                  <span className="truncate text-xs text-ink-muted">{thread.address}</span>
-                  <span className="text-xs text-ink-faint">
-                    {new Date(thread.lastAt).toLocaleString('ru-RU')}
+                    <span className="block w-full truncate text-xs text-ink-muted">{thread.address}</span>
+                    <span className="block text-xs text-ink-faint">
+                      {new Date(thread.lastAt).toLocaleString('ru-RU')}
+                    </span>
                   </span>
                 </button>
               ))}
