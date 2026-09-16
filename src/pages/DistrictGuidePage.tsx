@@ -783,13 +783,6 @@ function buildMarketPivotGrouped(offers: MarketOffer[], dealType: 'sale' | 'rent
   return groups;
 }
 
-function countSmallFinishedOffices(offers: MarketOffer[], dealType: 'sale' | 'rent'): number {
-  return offers.filter(
-    (o) =>
-      o.reviewed && !o.rejected && o.dealType === dealType && o.propertyType === 'Офисы' && netSize(o) < 40 && o.finishStatus === 'с отделкой',
-  ).length;
-}
-
 
 const MONTH_NAMES = [
   'январь',
@@ -1267,7 +1260,7 @@ const districtFaq: FaqItem[] = [
   {
     question: 'В чём разница между первичным и вторичным рынком коммерческой недвижимости в Минск Мире?',
     answer:
-      'Первичный рынок — это предложения напрямую от застройщика (площадка bir.by): бизнес-апартаменты, торговые помещения, офисы и кладовые, цена указывается за чистый м² без учёта террас. Вторичный рынок — это уже готовые к сделке помещения от собственников, размещённые в открытых объявлениях (например, на Kufar), с готовой или черновой отделкой, на продажу или в аренду. Актуальную сводную статистику по количеству предложений и медианной цене за м² по обоим рынкам, с разбивкой по типу помещения и площади, можно посмотреть в соответствующих разделах этой страницы — данные обновляются регулярно.',
+      'Первичный рынок — это предложения напрямую от застройщика (площадка bir.by): бизнес-апартаменты, торговые помещения, офисы и кладовые, цена указывается за чистый м² без учёта террас. Вторичный рынок — это уже готовые к сделке помещения от собственников, размещённые в открытых объявлениях, с готовой или черновой отделкой, на продажу или в аренду. Актуальную сводную статистику по количеству предложений и медианной цене за м² по обоим рынкам, с разбивкой по типу помещения и площади, можно посмотреть в соответствующих разделах этой страницы — данные обновляются регулярно.',
   },
   // Два ценовых вопроса (2026-08-26, аудит: самый частотный коммерческий
   // интент «сколько стоит аренда/купить помещение» не был покрыт FAQ, а
@@ -2470,7 +2463,7 @@ export function DistrictGuidePage() {
             <CurrencyToggle value={marketCurrency} onChange={setMarketCurrency} />
           </div>
           {marketOffers && marketOffers.length > 0 && (
-            <span className="-mt-2 text-xs text-ink-muted">Kufar, Realt · {formatLatestUpdate(marketOffers)}</span>
+            <span className="-mt-2 text-xs text-ink-muted">{formatLatestUpdate(marketOffers)}</span>
           )}
           <p className="text-sm text-ink-muted">
             Действующие предложения продажи и аренды коммерческих помещений в Минск Мире — количество и медианная
@@ -2588,7 +2581,7 @@ export function DistrictGuidePage() {
                       <table className="w-full min-w-[640px] border-collapse text-sm">
                         <caption className="sr-only">
                           Вторичный рынок коммерческой недвижимости Минск Мира: количество предложений и цены за м² по
-                          типу помещения, с разбивкой по диапазону площади (данные Kufar, Realt)
+                          типу помещения, с разбивкой по диапазону площади
                         </caption>
                         <thead>
                           <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-ink-muted">
@@ -2656,23 +2649,6 @@ export function DistrictGuidePage() {
                   </>
                 );
               })()}
-
-              <div className="flex items-start gap-2.5 rounded-control border border-success/30 bg-success-bg px-4 py-3">
-                <Sparkles className="h-4 w-4 shrink-0 translate-y-0.5 text-success" />
-                <p className="text-sm text-ink">
-                  Небольших офисов (до 40 м²) с готовой отделкой в районе почти нет:{' '}
-                  {/* text-[#0f6b3d] — тот же контраст-фикс, что и у бейджа
-                      "Обновлено" выше (PAGESPEED_PLAN.md, Э8-3). */}
-                  <span className="font-semibold text-[#0f6b3d]">
-                    {countSmallFinishedOffices(marketOffers, 'sale')} предложение на продажу
-                  </span>{' '}
-                  и{' '}
-                  <span className="font-semibold text-[#0f6b3d]">
-                    {countSmallFinishedOffices(marketOffers, 'rent')} в аренду
-                  </span>{' '}
-                  на весь Минск Мир. Это устойчивый структурный дефицит формата, а не сезонное колебание.
-                </p>
-              </div>
             </>
           )}
         </div>
@@ -3191,22 +3167,16 @@ export function DistrictGuidePage() {
             владельца", что и у остальных Gemini-текстов страницы) и дополнен
             ссылками — URL'ы источников не выдуманы, взяты из уже
             используемых на сайте (GENERAL_DATA_SOURCES в
-            BusinessCenterDetailPage.tsx — Kufar/Realt/Яндекс.Карты;
+            BusinessCenterDetailPage.tsx — Яндекс.Карты;
             DEVELOPER_LINKS/MANAGEMENT_COMPANY этого же файла — bir.by/dpm.by).
+            Площадки объявлений из перечисления убраны по просьбе владельца
+            (2026-09-16) — вместе с их упоминанием в карточке вторичного рынка.
             Без glassCardClass намеренно — не карточка, просто текст в общем
             потоке страницы на фоне body. */}
         <p className="pt-2 text-xs leading-relaxed text-ink">
           Все товарные знаки, логотипы и наименования компаний, упомянутые на странице — в том числе{' '}
           <a href="https://yandex.by/maps/" target="_blank" rel="noopener noreferrer" className="underline hover:text-ink">
             Яндекс.Карты
-          </a>
-          ,{' '}
-          <a href="https://www.kufar.by/" target="_blank" rel="noopener noreferrer" className="underline hover:text-ink">
-            Kufar
-          </a>
-          ,{' '}
-          <a href="https://realt.by/" target="_blank" rel="noopener noreferrer" className="underline hover:text-ink">
-            Realt.by
           </a>
           ,{' '}
           <a href="https://bir.by" target="_blank" rel="noopener noreferrer" className="underline hover:text-ink">
