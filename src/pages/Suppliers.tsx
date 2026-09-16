@@ -1859,6 +1859,23 @@ export function Suppliers() {
     setOfferManualItemName('');
   }
 
+  // Завести поставщика руками. Форма и сохранение те же, что у правки
+  // (submitOffer уже умеет ветку «новая карточка»), просто до сих пор её
+  // нечем было открыть: единственный вход в модалку шёл из существующей
+  // карточки, и ветка создания была недостижима. Владельцу это нужно, когда
+  // поставщика нашли не веб-поиском, а по знакомству или на выставке.
+  function openNewOffer(requestId: string | null) {
+    setOfferRequestId(requestId ?? requests[0]?.id ?? null);
+    setEditingOffer(null);
+    setOfferForm(emptyOfferForm);
+    setOfferManualItemName('');
+    setOfferExtraction(null);
+    setOfferExtractionError(null);
+    setOfferNotInvoiceFile(null);
+    setOfferError(null);
+    setOfferModalOpen(true);
+  }
+
   function openEditOffer(o: SupplierOffer) {
     setOfferRequestId(o.requestId);
     setEditingOffer(o);
@@ -2064,6 +2081,29 @@ export function Suppliers() {
       if (twin) {
         setUniversalConflict({ name: twin.name, requestTitle: targetRequest.title });
         return;
+      }
+    }
+
+    // Дубль в той же категории (шаг 4c плана закупок). Поставщика теперь
+    // заводят и руками, а человек не помнит наизусть 1141 карточку: та же
+    // фирма легко заводится второй раз под другим написанием названия.
+    // Предупреждаем, но не запрещаем — решение за человеком, как и при
+    // объединении компаний: совпадение признаков не всегда значит одну фирму.
+    if (!editingOffer) {
+      const candidate = {
+        name: offerForm.name.trim(),
+        email: offerForm.email.trim(),
+        websiteUrl: offerForm.websiteUrl.trim(),
+        inn: offerForm.inn ?? null,
+        country: offerForm.country,
+      };
+      const twin = offers.find((o) => o.requestId === offerRequestId && isSameSupplier(o, candidate));
+      if (twin) {
+        const ok = window.confirm(
+          `Похоже, такой поставщик в этой категории уже есть: «${twin.name}».\n\n` +
+            'Совпали название, почта, сайт или ИНН. Всё равно завести вторую карточку?',
+        );
+        if (!ok) return;
       }
     }
 
@@ -2360,6 +2400,7 @@ export function Suppliers() {
             requests={requests}
             snapshotByHost={snapshotByHost}
             onOpenDetail={(o) => setDetailOfferId(o.id)}
+              onAddSupplier={() => openNewOffer(null)}
           />
         )}
 
@@ -2835,6 +2876,21 @@ export function Suppliers() {
 
       <Modal open={offerModalOpen} onClose={() => setOfferModalOpen(false)} title={editingOffer ? 'Редактировать предложение' : 'Новое предложение'}>
         <form onSubmit={submitOffer} className="flex flex-col gap-4">
+          {/* При правке категория уже известна из карточки и не меняется:
+              переезд поставщика в другую категорию — это не правка полей, а
+              отдельное действие. При создании её нужно выбрать. */}
+          {!editingOffer && (
+            <Select
+              label="Категория закупки"
+              placeholder="Не выбрана"
+              options={requests.map((r) => r.title)}
+              value={requests.find((r) => r.id === offerRequestId)?.title ?? ''}
+              onChange={(label) => {
+                const r = requests.find((x) => x.title === label);
+                if (r) setOfferRequestId(r.id);
+              }}
+            />
+          )}
           <Input
             label="Название"
             placeholder="Имя или название компании"

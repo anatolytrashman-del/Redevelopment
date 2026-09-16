@@ -12,6 +12,7 @@ import {
   Pencil,
   Phone,
   Plus,
+  Merge,
   RefreshCw,
   ShieldCheck,
   Trash2,
@@ -42,7 +43,12 @@ import {
   type SupplierMessengerContact,
 } from '../data/supplierResearch';
 import { RISK_LEVEL_LABEL, isReliabilityStale, riskSummary, shouldFlag } from '../data/supplierReliability';
-import { fetchSupplier, setSupplierBlocked } from '../lib/suppliersApi';
+import {
+  fetchSupplier,
+  fetchSupplierMergeCandidates,
+  mergeSuppliers,
+  setSupplierBlocked,
+} from '../lib/suppliersApi';
 import { fetchSupplierOffersByCompany, fetchSupplierRequests } from '../lib/supplierResearchApi';
 import { fetchSupplierSiteSnapshot, requestSiteSnapshotRefresh } from '../lib/supplierSiteSnapshotsApi';
 import {
@@ -560,6 +566,46 @@ export function SupplierDetailView({
     }
   }
 
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeCandidates, setMergeCandidates] = useState<Supplier[] | null>(null);
+  const [merging, setMerging] = useState(false);
+
+  async function openMerge() {
+    setMergeOpen(true);
+    setMergeCandidates(null);
+    setActionError(null);
+    setActionNote(null);
+    try {
+      setMergeCandidates(await fetchSupplierMergeCandidates(supplier.id));
+    } catch (err) {
+      setActionError(errorMessage(err, 'Не удалось найти кандидатов на объединение'));
+      setMergeOpen(false);
+    }
+  }
+
+  async function doMerge(source: Supplier) {
+    if (
+      !window.confirm(
+        `Объединить «${source.name}» в «${supplier.name}»?\n\nВсе карточки, контакты и проверки дубля переедут сюда, ` +
+          'пустые поля этой компании дополнятся его данными. Сам дубль скроется из каталога, но останется в базе.',
+      )
+    )
+      return;
+    setMerging(true);
+    setActionError(null);
+    try {
+      await mergeSuppliers(supplier.id, source.id);
+      const updated = await fetchSupplier(supplier.id);
+      if (updated) onSupplierChange(updated);
+      setMergeOpen(false);
+      setActionNote(`«${source.name}» объединён в эту компанию. Обновите страницу, чтобы увидеть переехавшие карточки.`);
+    } catch (err) {
+      setActionError(errorMessage(err, 'Не удалось объединить компании'));
+    } finally {
+      setMerging(false);
+    }
+  }
+
   async function toggleBlocked() {
     setActionError(null);
     setActionNote(null);
@@ -725,12 +771,54 @@ export function SupplierDetailView({
           type="button"
           variant="secondary"
           disabled={busyAction !== null}
+          icon={<Merge className="h-4 w-4" />}
+          onClick={openMerge}
+        >
+          Объединить с дублем
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={busyAction !== null}
           icon={busyAction === 'block' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
           onClick={toggleBlocked}
         >
           {supplier.blockedReason ? 'Вернуть в работу' : 'В стоп-лист'}
         </Button>
       </div>
+
+      <Modal open={mergeOpen} onClose={() => setMergeOpen(false)} title="Объединить с дублем">
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-ink-muted">
+            База предлагает компании, похожие на эту по ИНН, почте, домену или названию. Решает человек: одинаковое
+            название ещё не значит одну фирму — «ТЕХНОстрой» из Беларуси и «ТехноСтрой» из России разные компании.
+          </p>
+          {mergeCandidates === null ? (
+            <p className="flex items-center gap-2 text-sm text-ink-muted">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Ищем похожие компании...
+            </p>
+          ) : mergeCandidates.length === 0 ? (
+            <p className="text-sm text-ink-faint">Похожих компаний не нашлось.</p>
+          ) : (
+            <ul className="space-y-2">
+              {mergeCandidates.map((c) => (
+                <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border p-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-ink">{c.name}</p>
+                    <p className="text-xs text-ink-faint">
+                      {[c.websiteHost || 'без сайта', c.email || 'без почты', c.country].filter(Boolean).join(' · ')}
+                    </p>
+                  </div>
+                  <Button type="button" variant="secondary" disabled={merging} onClick={() => doMerge(c)}>
+                    {merging ? 'Объединяем...' : 'Объединить сюда'}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </Modal>
 
       {actionError && <p className="text-sm text-danger">{actionError}</p>}
       {actionNote && <p className="text-sm text-ink-muted">{actionNote}</p>}
