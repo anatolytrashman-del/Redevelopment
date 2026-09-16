@@ -158,11 +158,12 @@ export function BusinessCentersRankingPage() {
             <span className="font-black text-primary-hover">RED</span>EVELOPMENT
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted sm:flex">
+            {/* Владелец, 2026-09-16: пункт «Red One» → /minsk/one убран —
+                пока здание не куплено, продавать его нечего. Так же убраны
+                ссылки и блоки Red One с гида по району, посадочных Минск
+                Мира и карточек БЦ. Вернуть, когда здание будет куплено. */}
             <Link to="/minsk/bcminsk" className="whitespace-nowrap transition-colors hover:text-ink">
               Каталог
-            </Link>
-            <Link to="/minsk/one" className="whitespace-nowrap transition-colors hover:text-ink">
-              Red One
             </Link>
           </nav>
         </div>
