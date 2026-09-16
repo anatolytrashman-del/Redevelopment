@@ -38,6 +38,7 @@
 // убранной, как и была).
 import { requireStaffAuth } from './_auth.js';
 import { handleSuggestMatches } from './_proposalMatches.js';
+import { handleUploadQuote } from './_invoiceRouting.js';
 import { recognizeInvoice } from './_invoiceRecognition.js';
 import { checkReliability, checkoKeyProblem, invalidInnReason, saveReliabilityIfNew } from './_checko.js';
 
@@ -52,6 +53,14 @@ export default async function handler(req, res) {
   const action = (req.body ?? {}).action;
   if (action === 'recognize-invoice') {
     await handleRecognizeInvoice(req, res);
+    return;
+  }
+  // Загрузка КП «в 1 клик» (владелец, 2026-09-16): распознать документ и
+  // самому определить, к какой поставке и к какому поставщику он относится —
+  // см. api/_invoiceRouting.js. Здесь же, а не своим файлом, по той же
+  // причине лимита функций, что и остальные действия.
+  if (action === 'upload-quote') {
+    await handleUploadQuote(req, res);
     return;
   }
   if (action === 'check-reliability') {
