@@ -14,6 +14,7 @@ import {
   type TelegramCapturePatch,
 } from '../../lib/telegramCapturesApi';
 import { fetchMailboxContacts } from '../../lib/mailboxContactsApi';
+import { fetchLeads } from '../../lib/leadsApi';
 import { contactLabel } from '../../data/mailbox';
 import { fetchObjects } from '../../lib/objectsApi';
 import {
@@ -64,7 +65,7 @@ function kindTone(kind: string): 'neutral' | 'warning' | 'danger' | 'success' {
 interface LinkOption {
   // 'contact' — запись из вкладки «Контакты» того же ящика (бывшие
   // «Коллаборации», слитые сюда 2026-09-16).
-  type: 'contact' | 'object';
+  type: 'contact' | 'lead' | 'object';
   id: string;
   label: string;
 }
@@ -102,14 +103,24 @@ export function TelegramCapturesTab({ onCountsChange }: { onCountsChange?: (newC
   // можно читать и разбирать, просто селект будет пустым.
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchMailboxContacts(), fetchObjects()])
-      .then(([contacts, objects]) => {
+    Promise.all([fetchMailboxContacts(), fetchLeads(), fetchObjects()])
+      .then(([contacts, leads, objects]) => {
         if (cancelled) return;
+        // Порядок тот же, что у автопривязки на сервере (resolveLink в
+        // api/_telegramCapture.js): сначала записная книжка, потом лиды.
+        // Объекты только вручную — Telegram-контакта у объекта нет и быть не
+        // может. Набор источников менять сразу в обоих местах: привязка к
+        // тому, чего нет в этом списке, показывается как «Карточка удалена».
         setLinkOptions([
           ...contacts.map((item) => ({
             type: 'contact' as const,
             id: item.id,
             label: `Контакт: ${contactLabel(item)}`,
+          })),
+          ...leads.map((item) => ({
+            type: 'lead' as const,
+            id: item.id,
+            label: `Лид: ${item.name || item.contact}`,
           })),
           ...objects.map((item) => ({
             type: 'object' as const,
@@ -300,6 +311,10 @@ export function TelegramCapturesTab({ onCountsChange }: { onCountsChange?: (newC
             )}
 
             <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+              {/* Привязку в норме проставляет сервер по нику отправителя
+                  (resolveLink), руками её только поправляют — поэтому селект
+                  стоит спокойным первым элементом строки действий, а не
+                  требует внимания. */}
               <Select
                 placeholder={NO_LINK_LABEL}
                 options={[NO_LINK_LABEL, ...(linkMissing ? [MISSING_LINK_LABEL] : []), ...linkOptions.map((o) => o.label)]}
