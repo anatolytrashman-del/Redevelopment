@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, Search } from 'lucide-react';
+import { ChevronRight, Plus, Search } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button, buttonClasses } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -149,11 +149,16 @@ export function SupplierCatalog({
   requests,
   snapshotByHost,
   onOpenDetail,
+  onAddSupplier,
 }: {
   offers: SupplierOffer[];
   requests: SupplierRequest[];
   snapshotByHost: Map<string, SupplierSiteSnapshot>;
   onOpenDetail: (o: SupplierOffer) => void;
+  // Завести поставщика руками — когда его нашли не веб-поиском, а по
+  // знакомству или на выставке. До этого единственным способом добавить
+  // карточку был автосбор.
+  onAddSupplier: () => void;
 }) {
   const [country, setCountry] = useState<string>(SUPPLIER_COUNTRIES[0]);
   const [search, setSearch] = useState('');
@@ -277,6 +282,10 @@ export function SupplierCatalog({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-lg font-bold text-ink">Каталог поставщиков</span>
         <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onAddSupplier} className="px-4 py-1.5 text-sm">
+            <Plus className="h-4 w-4" />
+            Добавить поставщика
+          </Button>
           <SearchInput
             value={search}
             onChange={(e) => setSearch(e.target.value)}

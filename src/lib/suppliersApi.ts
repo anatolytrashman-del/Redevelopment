@@ -122,6 +122,29 @@ export function fetchBlockedSupplierIds(): Promise<Set<string>> {
   });
 }
 
+// Кандидаты на объединение — компании с тем же ИНН, почтой, доменом или
+// названием при совпадающей стране (те же признаки, что в isSameSupplier).
+// Ищет база: правило про нормализованное имя выражено SQL-функцией, и
+// повторять его на клиенте значило бы завести вторую версию той же логики.
+export function fetchSupplierMergeCandidates(supplierId: string): Promise<Supplier[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase.rpc('supplier_merge_candidates', { p_supplier: supplierId });
+    if (error) throw error;
+    return (data as SupplierRow[]).map(fromRow);
+  });
+}
+
+// Объединение: карточки, контакты и проверки дубля переезжают на основную
+// компанию, её пустые поля дополняются, дубль мягко удаляется. Всё одной
+// функцией в базе — оборвись операция посередине, часть карточек смотрела бы
+// на одну компанию, часть на другую.
+export function mergeSuppliers(targetId: string, sourceId: string): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase.rpc('merge_suppliers', { p_target: targetId, p_source: sourceId });
+    if (error) throw error;
+  });
+}
+
 export function fetchSupplier(id: string): Promise<Supplier | null> {
   return withRetry(async () => {
     const { data, error } = await supabase.from('suppliers').select('*').eq('id', id).maybeSingle();
