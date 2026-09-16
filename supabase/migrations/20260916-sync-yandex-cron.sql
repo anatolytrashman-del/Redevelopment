@@ -1,0 +1,53 @@
+-- Синки Яндекс.Метрики и Яндекс.Вебмастера — перевод с крона GitHub Actions
+-- на pg_cron + Edge Functions (2026-09-16).
+--
+-- Зачем. Крон GitHub Actions на бесплатном публичном репозитории — не
+-- расписание, а пожелание: при заявленных «раз в сутки в 23:00» реальные
+-- прогоны шли в 00:47, 01:08, 01:12, а часовой крон GitHub уже троттлил
+-- этому аккаунту (из-за чего очереди поставщиков переехали сюда 2026-09-11).
+-- Владелец сравнил «Показатели» с интерфейсом Метрики и увидел вчерашние
+-- цифры под подписью «Сегодня» — это и было расписание Actions в работе.
+-- Денег переезд не стоит: бесплатный план Supabase включает 500 000 вызовов
+-- Edge Functions в месяц, четыре существующие функции расходуют ~132 000,
+-- эти две добавляют ~760.
+--
+-- Минуты выбраны так, чтобы не совпадать с соседями: поминутные воркеры
+-- (:*), дожим поставщиков (:17), разбор почты (:27). Метрика — :37 каждый
+-- час, Вебмастер — 05:47 UTC (08:47 по Минску) раз в сутки: у Вебмастера на
+-- стороне Яндекса лаг в несколько суток, чаще спрашивать нечего.
+--
+-- ВЫПОЛНЕНО 2026-09-16 (cron.job, jobid 5 и 6) после деплоя обеих функций.
+-- Оставлено закомментированным, чтобы повторный прогон файла не пытался
+-- завести крон второй раз.
+-- ===========================================================================
+-- select cron.schedule(
+--   'sync-yandex-metrika',
+--   '37 * * * *',
+--   $cron$
+--   select net.http_post(
+--     url := 'https://iohcdylttyuhwovztrbk.supabase.co/functions/v1/sync-yandex-metrika',
+--     headers := jsonb_build_object(
+--       'Content-Type', 'application/json',
+--       'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'edge_service_role_key')
+--     ),
+--     body := '{}'::jsonb,
+--     timeout_milliseconds := 5000
+--   );
+--   $cron$
+-- );
+--
+-- select cron.schedule(
+--   'sync-yandex-webmaster',
+--   '47 5 * * *',
+--   $cron$
+--   select net.http_post(
+--     url := 'https://iohcdylttyuhwovztrbk.supabase.co/functions/v1/sync-yandex-webmaster',
+--     headers := jsonb_build_object(
+--       'Content-Type', 'application/json',
+--       'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'edge_service_role_key')
+--     ),
+--     body := '{}'::jsonb,
+--     timeout_milliseconds := 5000
+--   );
+--   $cron$
+-- );
