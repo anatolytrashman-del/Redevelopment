@@ -278,6 +278,10 @@ async function saveExtractionAsQuote(
     title,
     price: extraction.price ?? 0,
     currency,
+    // Условия (шаг 6 плана закупок) заполняет распознавание на приёме письма;
+    // ручное подтверждение старого письма их не знает — оставляем пустыми,
+    // человек допишет в карточке КП.
+    terms: null,
     items,
     files: sourceFile ? [{ url: sourceFile.url, fileName: sourceFile.fileName }] : [],
     // Ставит человек: по данным счёта не отличить "аналог" от того, что

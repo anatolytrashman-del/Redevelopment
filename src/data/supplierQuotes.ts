@@ -42,7 +42,34 @@ export interface SupplierQuote {
   // Письмо, из которого КП распознано (null — если письмо потом удалили или
   // КП завели руками).
   sourceEmailId: string | null;
+  // Условия поставки этого КП (шаг 6 плана закупок). null — в счёте и письме
+  // условий не нашли. Заполняет распознавание счёта на приёме письма; человек
+  // правит руками в карточке КП.
+  terms: QuoteTerms | null;
   createdAt: string;
+}
+
+// Условия, по которым выбирают поставщика наравне с ценой. До этого они жили
+// свободным текстом в SupplierOffer.termsNote — прочитать его человек мог, а
+// сравнить два предложения по сроку или посчитать «цена + доставка» нет.
+export interface QuoteTerms {
+  // Стоимость доставки числом, когда она названа суммой. Ноль — «бесплатно».
+  deliveryCost?: number | null;
+  // Условие словами, когда числом его не выразить: «бесплатно от 50 000 ₽»,
+  // «самовывоз со склада в Химках».
+  deliveryTerms?: string;
+  leadTimeDays?: number | null;
+  // 'in_stock' — есть на складе, 'on_order' — под заказ. null — не сказано.
+  availability?: 'in_stock' | 'on_order' | null;
+  prepaymentPercent?: number | null;
+  // До какого числа держат цену, как написано в документе.
+  validUntil?: string;
+  minOrder?: string;
+  // Включён ли НДС в цены КП и по какой ставке. null — не указано; это НЕ
+  // то же самое, что «без НДС», и подставлять ставку по стране на этом
+  // уровне нельзя (см. шаг 7 плана — там НДС станет настройкой).
+  vatIncluded?: boolean | null;
+  vatRate?: number | null;
 }
 
 export interface SupplierQuoteRow {
@@ -56,6 +83,7 @@ export interface SupplierQuoteRow {
   is_alternative: boolean;
   alternative_note: string | null;
   source_email_id: string | null;
+  terms: QuoteTerms | null;
   created_at: string;
   // Мягкое удаление (миграция 20260915-soft-delete-supplier-data.sql):
   // строка жива, но скрыта из интерфейса. NULL у всего активного.

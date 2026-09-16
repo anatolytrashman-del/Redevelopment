@@ -2240,6 +2240,9 @@ export function Suppliers() {
         title: quote.title,
         price: quote.price,
         currency: quote.currency,
+        // Условия правкой пометки «аналог» не трогаем — иначе отметка
+        // чекбокса стирала бы распознанные срок и доставку.
+        terms: quote.terms,
         items: quote.items,
         files: quote.files,
         isAlternative,

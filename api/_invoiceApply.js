@@ -247,6 +247,9 @@ export async function applyRecognizedInvoice({ emailId, offerId, orderId, subjec
     is_alternative: false,
     alternative_note: '',
     source_email_id: emailId ?? null,
+    // Условия поставки из счёта и текста письма (шаг 6 плана закупок):
+    // доставка, срок, предоплата, НДС. null — в тексте их не нашли.
+    terms: recognized.terms ?? null,
   });
 
   return {

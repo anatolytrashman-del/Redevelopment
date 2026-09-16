@@ -2,7 +2,7 @@ import { convertToUsd } from '../../lib/currencyConvert';
 import { currencySymbols, type Currency } from '../../data/transactions';
 import type { ExchangeRate } from '../../data/exchangeRates';
 import type { Estimate, EstimateMaterial, EstimateSection } from '../../data/estimates';
-import type { SupplierQuote } from '../../data/supplierQuotes';
+import type { QuoteTerms, SupplierQuote } from '../../data/supplierQuotes';
 import type { SupplierOffer, SupplierProposal, SupplierProposalSnapshot, SupplierRequest } from '../../data/supplierResearch';
 import { looksLikeDeliveryItem, purchaseItemTotal, type PurchaseItem, type PurchaseItemMatchKind } from '../../data/purchases';
 import { sameUnit } from '../../lib/units';
@@ -51,6 +51,9 @@ export interface Column {
   unmatched: UnmatchedLine[];
   quotesCount: number;
   lastQuoteAt: string | null;
+  // Условия последнего КП (шаг 6 плана закупок): срок, предоплата, НДС,
+  // доставка словами. Показываются в шапке столбца — там, где сравнивают.
+  terms: QuoteTerms | null;
 }
 
 // Цена за единицу сметы: введённая руками при сопоставлении, а без неё —
@@ -76,14 +79,22 @@ export function buildColumns(
     const quotes = quotesByOffer.get(offer.id) ?? [];
     // Счета — в хронологии, чтобы последняя цена перекрывала прежнюю. Без
     // строк КП (старые карточки, до 2026-09-11) — позиции самой карточки.
-    const sources: { id: string | null; title: string; items: PurchaseItem[]; currency: Currency; date: string | null }[] =
+    const sources: {
+      id: string | null;
+      title: string;
+      items: PurchaseItem[];
+      currency: Currency;
+      date: string | null;
+      terms: QuoteTerms | null;
+    }[] =
       quotes.length > 0
-        ? quotes.map((q) => ({ id: q.id, title: q.title, items: q.items, currency: q.currency, date: q.createdAt }))
-        : [{ id: null, title: 'Позиции карточки', items: offer.items, currency: offer.currency, date: null }];
+        ? quotes.map((q) => ({ id: q.id, title: q.title, items: q.items, currency: q.currency, date: q.createdAt, terms: q.terms }))
+        : [{ id: null, title: 'Позиции карточки', items: offer.items, currency: offer.currency, date: null, terms: null }];
     const cells = new Map<string, Cell>();
     let delivery: number | null = null;
     let unmatched: UnmatchedLine[] = [];
     let lastQuoteAt: string | null = null;
+    let terms: QuoteTerms | null = null;
     for (const src of sources) {
       let srcDelivery: number | null = null;
       const srcUnmatched: UnmatchedLine[] = [];
@@ -130,10 +141,17 @@ export function buildColumns(
       if (priced || srcDelivery != null || srcUnmatched.length > 0) {
         delivery = srcDelivery;
         unmatched = srcUnmatched;
+        // Условия берём того же КП, что и доставку: смешивать срок из одного
+        // счёта с ценой из другого нельзя.
+        terms = src.terms;
         if (src.date) lastQuoteAt = src.date;
       }
     }
-    return { offer, cells, delivery, unmatched, quotesCount: quotes.length, lastQuoteAt };
+    // Доставка: числом из строки счёта, а если её там нет — из условий КП
+    // (менеджер назвал сумму в письме). Приоритет у строки счёта: она
+    // подтверждена документом.
+    const deliveryTotal = delivery ?? (typeof terms?.deliveryCost === 'number' ? terms.deliveryCost : null);
+    return { offer, cells, delivery: deliveryTotal, unmatched, quotesCount: quotes.length, lastQuoteAt, terms };
   });
 }
 

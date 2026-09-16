@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import type { SupplierQuote, SupplierQuoteRow } from '../data/supplierQuotes';
+import type { QuoteTerms, SupplierQuote, SupplierQuoteRow } from '../data/supplierQuotes';
 import type { Currency } from '../data/transactions';
 import type { PurchaseItem } from '../data/purchases';
 
@@ -16,6 +16,7 @@ function fromRow(row: SupplierQuoteRow): SupplierQuote {
     isAlternative: row.is_alternative,
     alternativeNote: row.alternative_note ?? '',
     sourceEmailId: row.source_email_id,
+    terms: row.terms ?? null,
     createdAt: row.created_at,
   };
 }
@@ -64,6 +65,7 @@ export function insertSupplierQuote(input: Omit<SupplierQuote, 'id' | 'createdAt
         is_alternative: input.isAlternative,
         alternative_note: input.alternativeNote,
         source_email_id: input.sourceEmailId,
+        terms: input.terms,
       })
       .select()
       .single();
@@ -92,6 +94,17 @@ export function updateSupplierQuote(id: string, input: Omit<SupplierQuote, 'id' 
       .single();
     if (error) throw error;
     return fromRow(data as SupplierQuoteRow);
+  });
+}
+
+// Точечное обновление условий КП (шаг 6 плана закупок): человек поправил
+// срок или доставку в карточке. Отдельной функцией по той же причине, что и
+// позиции: полный payload здесь означал бы риск затереть распознанное тем,
+// что случайно оказалось в форме.
+export function updateSupplierQuoteTerms(id: string, terms: QuoteTerms | null): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase.from('supplier_offer_quotes').update({ terms }).eq('id', id);
+    if (error) throw error;
   });
 }
 
