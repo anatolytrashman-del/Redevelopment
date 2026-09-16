@@ -228,6 +228,14 @@ curl -sS -X POST "https://api.supabase.com/v1/projects/iohcdylttyuhwovztrbk/data
   аргументов падает с «function is not unique» — то есть ломается всё, что
   звало функцию раньше. Добавляешь параметр — сначала `drop function` со
   старой сигнатурой, в той же миграции (так сделано с `auto_reply_apply`).
+- **`revoke ... from anon, authenticated` НЕ закрывает функцию.** Postgres при
+  создании функции выдаёт EXECUTE роли PUBLIC, а anon/authenticated его
+  наследуют — отзыв у них персонально ничего не меняет, вызов через PostgREST
+  по-прежнему проходит. Так полгода была открыта `auto_reply_apply`
+  (SECURITY DEFINER, ставит письмо поставщику в очередь отправки), хотя в
+  документации значилось «права отозваны». Закрывать всегда
+  `revoke all on function … from public, anon, authenticated;` плюс явный
+  `grant execute … to service_role;`.
 - **`claude-sonnet-5` через ProxyAPI требует `thinking: {type: 'disabled'}`.**
   По умолчанию модель уходит в extended thinking и съедает им весь лимит
   вывода: ответ приходит с HTTP 200, `stop_reason: max_tokens` и ПУСТЫМ
