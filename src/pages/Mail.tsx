@@ -56,6 +56,7 @@ import {
   formatAudience,
   mailboxContactCategories,
   mailboxContactStatuses,
+  MAILBOX_STATUS_WRITTEN,
   mailboxCounterparty,
   parseEmailAddress,
   parseEmailDisplayName,
@@ -418,10 +419,52 @@ export function Mail() {
     }
   }
 
+  // Письмо ушло — отмечаем это в карточке контакта. Владелец (2026-09-16):
+  // «отправил письма блогерам, но статус коммуникации не изменился» —
+  // статус приходилось руками переставлять на «Написали» после каждого
+  // письма, и по списку было не видно, кому уже написали. Трогаем только
+  // «пустой» статус («Не связывались» или не заполнен): дальше по воронке
+  // («Ответили», «Договорились», «Отказ») статус ведёт человек, и откатывать
+  // его назад новым письмом нельзя.
+  async function markContactWritten(address: string) {
+    const contact = contacts.find((c) => parseEmailAddress(c.email) === address);
+    if (!contact) return;
+    const current = contact.status.trim().toLowerCase();
+    if (current && current !== 'не связывались') return;
+    const updated = { ...contact, status: MAILBOX_STATUS_WRITTEN };
+    // Оптимистично — чтобы бейдж переключился сразу, не дожидаясь ответа базы.
+    setContacts((prev) => prev.map((c) => (c.id === contact.id ? updated : c)));
+    try {
+      await updateMailboxContact(contact.id, {
+        title: updated.title,
+        category: updated.category,
+        personName: updated.personName,
+        email: updated.email,
+        telegram: updated.telegram,
+        link: updated.link,
+        audienceSize: updated.audienceSize,
+        status: updated.status,
+        agreement: updated.agreement,
+        note: updated.note,
+      });
+    } catch (err) {
+      // Письмо уже отправлено — откатываем только бейдж и говорим почему.
+      setContacts((prev) => prev.map((c) => (c.id === contact.id ? contact : c)));
+      setLoadError(errorText(err, 'Письмо ушло, но статус контакта сохранить не удалось'));
+    }
+  }
+
   function handleSent(email: MailboxEmail) {
     setEmails((prev) => [...prev, email]);
-    setSelectedAddress(parseEmailAddress(email.toAddress));
-    setTab(TAB_MAIL);
+    const address = parseEmailAddress(email.toAddress);
+    void markContactWritten(address);
+    // Со вкладки «Контакты» остаёмся на ней (владелец, 2026-09-16: письма
+    // пишут списком, подряд, и переброс в переписку после каждого сбивал
+    // отбор — фильтр и место в списке терялись). Из ленты писем — как было,
+    // открываем тред адресата.
+    if (tab === TAB_MAIL) {
+      setSelectedAddress(address);
+    }
   }
 
   return (
