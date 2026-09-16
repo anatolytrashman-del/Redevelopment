@@ -35,6 +35,22 @@
 // туда не попадают, проверено на двух таких). Поэтому история идёт в прошлые
 // дни как тренд, а в строку ЗА СЕГОДНЯ пишется живой count.
 //
+// РАЗБИВКА ПО ЗАПРОСАМ (2026-09-16, владелец: «очень интересно, по каким
+// запросам идут показы и клики»). Даёт её отдельная ручка
+// /search-queries/popular — суммы за период целиком, суточной разбивки по
+// каждому запросу у Вебмастера нет вообще, поэтому это СНИМОК (таблица
+// yandex_webmaster_queries переписывается на каждом прогоне), а не история.
+// Индикаторы запрашиваются тем же `query_indicator`, что и в истории — с
+// `indicators` ручка так же молча вернёт пустоту. Период просим с запасом,
+// но Яндекс сам обрезает его своей глубиной истории (на 16.09 запрос
+// 90 дней вернул 18.06—14.09, date_from/date_to в ответе — фактические, их
+// и сохраняем, чтобы на странице стояли настоящие даты, а не «за 90 дней»).
+// Сумма показов по всем запросам сходится с суммой по дням из истории
+// (проверено на живом хосте: 85 показов, 4 клика), то есть список полный, а
+// не «топ-N». Подстраховка на будущее: если запросов окажется больше лимита
+// выдачи, второй запрос с order_by=TOTAL_CLICKS доносит те, что с кликами —
+// иначе сортировка по показам обрезала бы как раз самое ценное.
+//
 // Тело запроса: {"dryRun":true} — ничего не писать, вернуть строки в ответе.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
@@ -50,6 +66,10 @@ const TARGET_DOMAIN = 'redevelopment.pro';
 // решит отдать, лишний охват окна ничего не портит.
 const QUERY_HISTORY_DAYS = 90;
 const QUERY_INDICATORS = ['TOTAL_SHOWS', 'TOTAL_CLICKS', 'AVG_SHOW_POSITION', 'AVG_CLICK_POSITION'];
+// Сколько запросов забирать в снимок разбивки. 500 — максимум выдачи ручки
+// popular за один вызов; на 16.09 у сайта всего 60 запросов за всю историю,
+// запас на вырост.
+const QUERY_LIST_LIMIT = 500;
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -144,6 +164,89 @@ async function fetchQueryHistory(
   return byDate;
 }
 
+interface QuerySnapshotRow {
+  query: string;
+  impressions: number | null;
+  clicks: number | null;
+  avg_position: number | null;
+  avg_click_position: number | null;
+  date_from: string | null;
+  date_to: string | null;
+  updated_at: string;
+}
+
+// Список запросов с показами/кликами/позицией за окно целиком. order_by
+// задаёт только порядок выдачи (и то, что попадёт в лимит, если запросов
+// станет больше 500) — цифры у запроса одни и те же при любой сортировке.
+async function fetchPopularQueries(
+  token: string,
+  userId: number,
+  hostId: string,
+  orderBy: 'TOTAL_SHOWS' | 'TOTAL_CLICKS',
+): Promise<{ count: number; dateFrom: string | null; dateTo: string | null; rows: QuerySnapshotRow[] }> {
+  const dateTo = new Date();
+  const dateFrom = new Date(dateTo);
+  dateFrom.setDate(dateFrom.getDate() - QUERY_HISTORY_DAYS);
+
+  const params = new URLSearchParams({
+    date_from: isoDate(dateFrom),
+    date_to: isoDate(dateTo),
+    order_by: orderBy,
+    limit: String(QUERY_LIST_LIMIT),
+  });
+  for (const indicator of QUERY_INDICATORS) params.append('query_indicator', indicator);
+
+  const data = await webmasterFetch(
+    token,
+    `/user/${userId}/hosts/${encodeURIComponent(hostId)}/search-queries/popular?${params.toString()}`,
+  );
+
+  const stamp = new Date().toISOString();
+  // Фактический период из ответа, а не тот, что просили: Яндекс обрезает
+  // окно своей глубиной истории, и подписывать снимок «за 90 дней», когда
+  // внутри 88, — врать на ровном месте.
+  const actualFrom = typeof data.date_from === 'string' ? data.date_from.slice(0, 10) : null;
+  const actualTo = typeof data.date_to === 'string' ? data.date_to.slice(0, 10) : null;
+
+  // deno-lint-ignore no-explicit-any
+  const rows: QuerySnapshotRow[] = (data.queries ?? []).map((q: any) => ({
+    query: q.query_text,
+    impressions: q.indicators?.TOTAL_SHOWS ?? null,
+    clicks: q.indicators?.TOTAL_CLICKS ?? null,
+    avg_position: q.indicators?.AVG_SHOW_POSITION ?? null,
+    avg_click_position: q.indicators?.AVG_CLICK_POSITION ?? null,
+    date_from: actualFrom,
+    date_to: actualTo,
+    updated_at: stamp,
+  // deno-lint-ignore no-explicit-any
+  })).filter((r: QuerySnapshotRow) => typeof r.query === 'string' && r.query.trim() !== '');
+
+  return { count: typeof data.count === 'number' ? data.count : rows.length, dateFrom: actualFrom, dateTo: actualTo, rows };
+}
+
+// Снимок запросов целиком: топ по показам плюс — только если запросов
+// больше, чем влезло в один ответ — топ по кликам (иначе сортировка по
+// показам выкинула бы как раз запросы, которые реально приводят людей).
+async function fetchQuerySnapshot(token: string, userId: number, hostId: string): Promise<QuerySnapshotRow[]> {
+  const byShows = await fetchPopularQueries(token, userId, hostId, 'TOTAL_SHOWS');
+  const rows = [...byShows.rows];
+
+  if (byShows.count > byShows.rows.length) {
+    const byClicks = await fetchPopularQueries(token, userId, hostId, 'TOTAL_CLICKS');
+    const merged = new Map<string, QuerySnapshotRow>();
+    for (const row of [...byShows.rows, ...byClicks.rows]) merged.set(row.query, row);
+    rows.length = 0;
+    rows.push(...merged.values());
+  }
+
+  // Один updated_at на весь снимок, проставляется ПОСЛЕ слияния: по нему
+  // потом удаляются строки, которых в этом прогоне не было, а два вызова
+  // ручки дают два разных времени — из второй пачки всё удалилось бы сразу
+  // после вставки.
+  const stamp = new Date().toISOString();
+  return rows.map((row) => ({ ...row, updated_at: stamp }));
+}
+
 Deno.serve(async (req) => {
   const log: string[] = [];
   try {
@@ -154,14 +257,15 @@ Deno.serve(async (req) => {
     const { userId, hostId } = await resolveHost(token);
     log.push(`Хост Вебмастера: ${hostId} (user_id=${userId})`);
 
-    const [indexingByDate, queryByDate, currentPagesInSearch] = await Promise.all([
+    const [indexingByDate, queryByDate, currentPagesInSearch, querySnapshot] = await Promise.all([
       fetchIndexingHistory(token, userId, hostId),
       fetchQueryHistory(token, userId, hostId),
       fetchCurrentPagesInSearch(token, userId, hostId),
+      fetchQuerySnapshot(token, userId, hostId),
     ]);
     log.push(
       `Индексирование: ${indexingByDate.size} точек (сейчас в поиске: ${currentPagesInSearch ?? '—'}). ` +
-        `Запросы: ${queryByDate.size} дней с данными.`,
+        `Запросы: ${queryByDate.size} дней с данными, ${querySnapshot.length} запросов в разбивке.`,
     );
 
     // Живое число страниц в поиске пишем в строку за сегодня — история от
@@ -184,16 +288,34 @@ Deno.serve(async (req) => {
       };
     });
 
-    if (rows.length === 0) {
+    if (rows.length === 0 && querySnapshot.length === 0) {
       log.push('Нет данных для сохранения.');
       return json({ ok: true, log });
     }
-    if (dryRun) return json({ ok: true, dryRun: true, log, rows });
+    if (dryRun) return json({ ok: true, dryRun: true, log, rows, queries: querySnapshot });
 
-    const { error } = await supabase.from('yandex_webmaster_stats').upsert(rows, { onConflict: 'date' });
-    if (error) throw error;
+    if (rows.length > 0) {
+      const { error } = await supabase.from('yandex_webmaster_stats').upsert(rows, { onConflict: 'date' });
+      if (error) throw error;
+      log.push(`Сохранено ${rows.length} записей в yandex_webmaster_stats.`);
+    }
 
-    log.push(`Сохранено ${rows.length} записей в yandex_webmaster_stats.`);
+    // Снимок запросов переписывается целиком: сначала upsert всех строк
+    // одним временем (updated_at у всех одинаковый — он же и метка прогона),
+    // потом удаление всего, что этот прогон не принёс. Обратный порядок
+    // (сначала delete) оставил бы страницу с пустой таблицей, если вставка
+    // упадёт; так в худшем случае останется вчерашний снимок целиком.
+    if (querySnapshot.length > 0) {
+      const stamp = querySnapshot[0].updated_at;
+      const { error: qError } = await supabase
+        .from('yandex_webmaster_queries')
+        .upsert(querySnapshot, { onConflict: 'query' });
+      if (qError) throw qError;
+      const { error: delError } = await supabase.from('yandex_webmaster_queries').delete().lt('updated_at', stamp);
+      if (delError) throw delError;
+      log.push(`Сохранено ${querySnapshot.length} запросов в yandex_webmaster_queries.`);
+    }
+
     return json({ ok: true, log });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

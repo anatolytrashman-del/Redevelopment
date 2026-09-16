@@ -2,7 +2,9 @@
 // забирает у Google Search Console индексацию сайта (сколько URL из
 // sitemap.xml реально проиндексировано) и статистику по поисковым
 // запросам (показы/клики/позиция) — сохраняет в
-// public.google_search_console_stats, одна строка на календарный день.
+// public.google_search_console_stats, одна строка на календарный день, плюс
+// разбивку тех же показов/кликов ПО ЗАПРОСАМ — снимком за окно в
+// public.google_search_console_queries (2026-09-16, см. fetchQueryBreakdown).
 // Ровно тот же принцип, что и у scripts/sync-yandex-webmaster-stats.mjs —
 // источник данных для блока "Индексация в Google" на странице "Показатели"
 // (владелец, 2026-09-10: "подключим гугл консоль в таком же формате").
@@ -85,6 +87,11 @@ const KEY_PAGE_PATHS = [
 // Сколько дней истории запросов подтягивать за один прогон — у Search
 // Console данные приходят с лагом 2-3 дня, запас с лихвой не портит.
 const QUERY_HISTORY_DAYS = 30;
+
+// Окно снимка разбивки ПО ЗАПРОСАМ (не по дням) — шире, чем история выше:
+// запросы у молодого сайта единичные, за 30 дней список был бы почти пустым.
+const QUERY_BREAKDOWN_DAYS = 90;
+const QUERY_BREAKDOWN_LIMIT = 500;
 
 if (!SUPABASE_SERVICE_ROLE_KEY) {
   console.error('Не задана переменная окружения SUPABASE_SERVICE_ROLE_KEY');
@@ -190,6 +197,49 @@ async function fetchQueryHistory(accessToken, siteUrl) {
   return byDate;
 }
 
+// Разбивка показов/кликов ПО ЗАПРОСАМ — тот же searchAnalytics, но
+// dimensions=['query'] вместо ['date']: суммы за окно целиком, снимок, а не
+// история (у Google есть и разбивка «запрос × день», но для сайта с
+// единицами показов это строки по 1 показу — смотреть нечего).
+//
+// ВАЖНО: пустой ответ здесь — норма, а не поломка. Google не показывает
+// «анонимизированные» запросы (редкие, задаваемые единицами людей), и пока
+// сайт молодой, под этот фильтр попадают ВСЕ запросы: живая проверка
+// 2026-09-16 на нашем свойстве — dimensions=['page'] отдаёт 5 страниц с 25
+// показами и 1 кликом, dimensions=['query'] за тот же период — 0 строк.
+// Поэтому страница «Показатели» в этом случае должна объяснять причину, а
+// не показывать «данных нет» рядом с ненулевыми показами. У Яндекса такого
+// фильтра нет — там все 60 запросов отдаются как есть.
+async function fetchQueryBreakdown(accessToken, siteUrl) {
+  const dateTo = new Date();
+  const dateFrom = new Date(dateTo);
+  dateFrom.setDate(dateFrom.getDate() - QUERY_BREAKDOWN_DAYS);
+
+  const body = {
+    startDate: isoDate(dateFrom),
+    endDate: isoDate(dateTo),
+    dimensions: ['query'],
+    rowLimit: QUERY_BREAKDOWN_LIMIT,
+  };
+
+  const path = `/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`;
+  const { rows } = await searchConsoleFetch(accessToken, path, { method: 'POST', body: JSON.stringify(body) });
+
+  const stamp = new Date().toISOString();
+  return (rows ?? [])
+    .map((row) => ({
+      query: row.keys?.[0],
+      impressions: row.impressions ?? null,
+      clicks: row.clicks ?? null,
+      ctr: row.ctr ?? null,
+      avg_position: row.position ?? null,
+      date_from: isoDate(dateFrom),
+      date_to: isoDate(dateTo),
+      updated_at: stamp,
+    }))
+    .filter((row) => typeof row.query === 'string' && row.query.trim() !== '');
+}
+
 async function fetchLandingPagePaths() {
   const { data, error } = await supabase.from('objects').select('landing_slug').not('landing_slug', 'is', null);
   if (error) throw new Error(`Не удалось прочитать objects.landing_slug: ${error.message}`);
@@ -286,11 +336,15 @@ async function main() {
   const siteUrl = await resolveSiteUrl(accessToken);
   console.log(`Свойство Search Console: ${siteUrl}`);
 
-  const [coverage, queryByDate] = await Promise.all([
+  const [coverage, queryByDate, queryBreakdown] = await Promise.all([
     fetchSitemapCoverage(accessToken, siteUrl),
     fetchQueryHistory(accessToken, siteUrl),
+    fetchQueryBreakdown(accessToken, siteUrl),
   ]);
-  console.log(`Sitemap: submitted=${coverage.submitted}, indexed=${coverage.indexed}. Запросы: ${queryByDate.size} дней с данными.`);
+  console.log(
+    `Sitemap: submitted=${coverage.submitted}, indexed=${coverage.indexed}. ` +
+      `Запросы: ${queryByDate.size} дней с данными, ${queryBreakdown.length} запросов в разбивке.`,
+  );
 
   const today = isoDate(new Date());
   const rows = [...queryByDate.entries()].map(([date, q]) => ({
@@ -331,6 +385,30 @@ async function main() {
     const { error } = await supabase.from('google_search_console_stats').upsert(rows, { onConflict: 'date' });
     if (error) throw error;
     console.log(`Сохранено ${rows.length} записей в google_search_console_stats.`);
+  }
+
+  // Снимок разбивки по запросам — целиком перезаписывается: upsert всех
+  // строк одним временем, затем удаление всего, что этот прогон не принёс.
+  // Пустой ответ (анонимизация Google, см. fetchQueryBreakdown) НЕ чистит
+  // таблицу: иначе один день без данных стирал бы уже показанную владельцу
+  // картину.
+  if (queryBreakdown.length === 0) {
+    console.log('Разбивка по запросам пуста — Google анонимизирует редкие запросы; прошлый снимок оставлен как есть.');
+  } else if (DRY_RUN) {
+    console.log('[dry-run] Записал бы в google_search_console_queries:');
+    console.log(JSON.stringify(queryBreakdown, null, 2));
+  } else {
+    const stamp = queryBreakdown[0].updated_at;
+    const { error: upsertError } = await supabase
+      .from('google_search_console_queries')
+      .upsert(queryBreakdown, { onConflict: 'query' });
+    if (upsertError) throw upsertError;
+    const { error: deleteError } = await supabase
+      .from('google_search_console_queries')
+      .delete()
+      .lt('updated_at', stamp);
+    if (deleteError) throw deleteError;
+    console.log(`Сохранено ${queryBreakdown.length} запросов в google_search_console_queries.`);
   }
 
   // Точная проверка ключевых страниц — отдельный шаг, не роняет сохранение
