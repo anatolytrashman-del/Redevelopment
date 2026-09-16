@@ -3,6 +3,7 @@ import type { DocumentFile } from './contractorDocuments';
 import type { PurchaseItem } from './purchases';
 import { RESEARCH_CURRENCIES, RESEARCH_CONTACT_METHODS, type ResearchContactMethod } from './contractorResearch';
 import type { SupplierOfferEmail } from './supplierOfferEmails';
+import type { QuoteTerms } from './supplierQuotes';
 
 // Валюты/способы связи — те же самые списки, что и у "Подрядчики → Ресерч"
 // (data/contractorResearch.ts), общие для любого сравнения предложений в
@@ -385,6 +386,11 @@ export interface SupplierOffer {
   // верификация), его не знают и не должны затирать — API пишет колонку
   // только когда поле передано явно.
   termsNote?: string;
+  // Последние условия, названные поставщиком в переписке БЕЗ счёта (шаг 6b
+  // плана закупок): срок, доставка, предоплата, наличие. У конкретного КП
+  // свои условия в SupplierQuote.terms — они важнее, эти показываются, когда
+  // у КП своих нет. Заполняет приём письма, руками не редактируется.
+  terms?: QuoteTerms | null;
   // Компания, к которой относится эта карточка (шаг 2 плана закупок,
   // таблица suppliers). Заполняет БАЗА, а не приложение: триггер
   // supplier_offer_attach_company на вставке находит фирму по домену, ИНН
@@ -424,6 +430,7 @@ export interface SupplierOfferRow {
   // Мягкое удаление (миграция 20260915-soft-delete-supplier-data.sql):
   // строка жива, но скрыта из интерфейса. NULL у всего активного.
   deleted_at?: string | null;
+  terms?: QuoteTerms | null;
   // Ссылка на компанию (миграция 20260915-suppliers-company-entity.sql),
   // проставляется триггером в БД.
   supplier_id?: string | null;

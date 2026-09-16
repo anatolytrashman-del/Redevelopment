@@ -150,8 +150,22 @@ export function buildColumns(
     // Доставка: числом из строки счёта, а если её там нет — из условий КП
     // (менеджер назвал сумму в письме). Приоритет у строки счёта: она
     // подтверждена документом.
-    const deliveryTotal = delivery ?? (typeof terms?.deliveryCost === 'number' ? terms.deliveryCost : null);
-    return { offer, cells, delivery: deliveryTotal, unmatched, quotesCount: quotes.length, lastQuoteAt, terms };
+    // Условия конкретного КП важнее: они описывают именно это предложение.
+    // Условия карточки (шаг 6b) — то, что поставщик сказал в переписке без
+    // счёта; показываем их, когда у КП своих нет, чтобы «срок 5 дней» из
+    // письма не пропадал только потому, что счёт пришёл раньше письма.
+    const effectiveTerms = terms ?? offer.terms ?? null;
+    const deliveryTotal =
+      delivery ?? (typeof effectiveTerms?.deliveryCost === 'number' ? effectiveTerms.deliveryCost : null);
+    return {
+      offer,
+      cells,
+      delivery: deliveryTotal,
+      unmatched,
+      quotesCount: quotes.length,
+      lastQuoteAt,
+      terms: effectiveTerms,
+    };
   });
 }
 
