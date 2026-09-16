@@ -141,6 +141,12 @@ const UPDATED_BADGE_LABEL = (() => {
 // фильтре и списке всегда последним, не по алфавиту вместе с районами.
 const OUT_OF_TOWN_DISTRICT = 'Великий камень';
 
+// Сколько карточек рисуем за раз. 48 — шестнадцать рядов по три на
+// десктопе: на любом экране это заведомо больше одного «пролистывания», а
+// красить 143 стеклянные карточки разом больше не приходится (ради этого
+// раньше стоял content-visibility, см. комментарий в BusinessCenterCard).
+const CARDS_PAGE_SIZE = 48;
+
 // Компактная карточка на хабе, подробности — на отдельной странице
 // /minsk/bcminsk/:slug. Владелец, посмотрев на карточку с сеткой фактов
 // 2х3: "давай менять карточку на список полей друг под другом" — ровно 5
@@ -155,18 +161,24 @@ function BusinessCenterCard({ center, metroStation }: { center: BusinessCenter; 
   // `metro` (там может быть другая, более близкая станция).
   const metroDistance = metroStation ? metroHubDistance(center, metroStation) : null;
   return (
-    // PAGESPEED_PLAN.md, Э9 — content-visibility:auto: 143 карточек, каждая
-    // со «стеклом» (backdrop-blur) и 5 инлайн-SVG — без этого браузер
-    // раскладывал и красил ВСЕ разом до первого кадра (локальная реплика:
-    // первая отрисовка через 2,3 с после прихода HTML, TBT 550 мс при
-    // монтировании React). С content-visibility карточки вне экрана не
-    // раскладываются, пока не доскроллили: первый кадр ~180 мс, TBT 80 мс.
-    // contain-intrinsic-size — примерная высота карточки, чтобы полоса
-    // прокрутки не прыгала; реальная высота подставится при показе.
+    // Здесь СТОЯЛО `content-visibility: auto` + `contain-intrinsic-size:
+    // auto 420px` (PAGESPEED_PLAN.md, Э9): 143 карточки со «стеклом» и
+    // пятью инлайн-SVG браузер раскладывал разом до первого кадра.
+    // Убрано 2026-09-16 — владелец прислал скриншот прода, где карточки
+    // схлопнуты: у одних видно только фото без текста, у других не
+    // отрисовано вообще ничего. Это известная беда связки «пропущенная
+    // отрисовка + запоминаемый размер» (ключевое слово `auto` в
+    // contain-intrinsic-size): браузер запоминает размер, измеренный пока
+    // содержимое было пропущено, и дальше показывает карточку этой
+    // высотой. Headless не воспроизводит, то есть зависит от машины —
+    // чинить «на глаз» нельзя, поэтому конструкция убрана целиком.
+    // Скорость сохранена другим способом: карточек в DOM теперь не 143, а
+    // CARDS_PAGE_SIZE за раз (см. `visibleCount` на странице), а ссылки на
+    // все БЦ остались в блоке «Срезы каталога».
     <Link
       to={`/minsk/bcminsk/${center.slug}`}
       className={cn(
-        'group flex flex-col overflow-hidden transition-transform hover:-translate-y-0.5 [contain-intrinsic-size:auto_420px] [content-visibility:auto]',
+        'group flex flex-col overflow-hidden transition-transform hover:-translate-y-0.5',
         glassCardClass,
       )}
       style={glassCardShadow}
@@ -255,6 +267,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // мультивыбор станций метро, и он молча терялся при любой навигации.
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [visibleCount, setVisibleCount] = useState(CARDS_PAGE_SIZE);
 
   const classFilter = classSlug ? (CLASS_SLUG_TO_VALUE[classSlug] ?? null) : null;
   const districtFilter = districtSlug ? (DISTRICT_SLUG_TO_NAME[districtSlug] ?? null) : null;
@@ -447,6 +460,12 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // тумблерам «есть аренда/продажа», и сортировке по ставке, и сводке.
   const offerIndex = useMemo(() => buildOfferIndex(officeSnapshots), [officeSnapshots]);
 
+  // Любая смена фильтра, сортировки или маршрута начинает список заново:
+  // иначе «показать ещё» с прошлой выборки тихо переносился бы на новую.
+  useEffect(() => {
+    setVisibleCount(CARDS_PAGE_SIZE);
+  }, [searchParams, classSlug, districtSlug, microdistrictSlug, metroSlug, streetSlug, underConstruction]);
+
   // Вселенная страницы: то, что отсекается САМИМ МАРШРУТОМ (микрорайон,
   // улица, станция метро, «строящиеся»). Панель чипов работает уже внутри
   // неё, и счётчики на чипах считаются от неё же — иначе на хабе станции
@@ -605,6 +624,11 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
 
   // «4 бизнес-центра», «24 бизнес-центра», «5 бизнес-центров» — склонение по
   // числу; пока список не загружен — просто «бизнес-центры» без числа.
+  const allCentersAlphabetical = useMemo(
+    () => [...(centers ?? [])].sort((a, b) => shortName(a).localeCompare(shortName(b), 'ru')),
+    [centers],
+  );
+
   const bcCountLabel = centers ? `${visibleCenters.length} ${pluralBusinessCenters(visibleCenters.length)}` : 'бизнес-центры';
 
   // Полоска сводки над сеткой (К1): пересчитывается под фильтр, в отличие
@@ -908,10 +932,22 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
-              {orderedCenters.map((c) => (
-                <BusinessCenterCard key={c.slug} center={c} metroStation={metroFilter} />
-              ))}
+            <div className="flex flex-col gap-6">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {orderedCenters.slice(0, visibleCount).map((c) => (
+                  <BusinessCenterCard key={c.slug} center={c} metroStation={metroFilter} />
+                ))}
+              </div>
+              {orderedCenters.length > visibleCount && (
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((n) => n + CARDS_PAGE_SIZE)}
+                  className="mx-auto rounded-full border border-border bg-surface px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-primary hover:text-primary-hover"
+                >
+                  Показать ещё {Math.min(CARDS_PAGE_SIZE, orderedCenters.length - visibleCount)} из{' '}
+                  {orderedCenters.length - visibleCount}
+                </button>
+              )}
             </div>
           )}
 
@@ -1097,6 +1133,28 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                     </div>
                   );
                 })}
+
+                {/* Все названия ссылками. Раньше этот список жил в боковом
+                    фильтре, теперь карточек в сетке рисуется по 48 — без
+                    него страница ссылалась бы только на треть каталога.
+                    Обычный текст, без «стекла» и фото: 143 ссылки здесь
+                    ничего не стоят браузеру. */}
+                <div className="flex flex-col gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                    Все бизнес-центры каталога
+                  </span>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+                    {allCentersAlphabetical.map((c) => (
+                      <Link
+                        key={c.slug}
+                        to={`/minsk/bcminsk/${c.slug}`}
+                        className="text-sm text-ink-muted transition-colors hover:text-primary-hover"
+                      >
+                        {shortName(c)}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 

@@ -340,6 +340,12 @@ export function BusinessCentersAdminTab() {
           .filter(Boolean),
         status: form.status,
         sortOrder: numOrNull(form.sortOrder) ?? 0,
+        // Вердикт и плюсы/минусы (Б2) в этой форме пока не редактируются —
+        // при правке сохраняем как было, у новой записи начинаем с пустого.
+        verdict: editing !== 'new' && editing ? editing.verdict : null,
+        pros: editing !== 'new' && editing ? editing.pros : [],
+        cons: editing !== 'new' && editing ? editing.cons : [],
+        verdictEdited: editing !== 'new' && editing ? editing.verdictEdited : false,
       };
       if (editing === 'new') {
         await insertBusinessCenter(payload);

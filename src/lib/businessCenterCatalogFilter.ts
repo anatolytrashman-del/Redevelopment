@@ -25,6 +25,7 @@ export type CatalogSortKey =
   | 'area'
   | 'metro'
   | 'offers'
+  | 'rating'
   | 'floor-plate'
   | 'name';
 
@@ -36,6 +37,7 @@ export const CATALOG_SORTS: { key: CatalogSortKey; label: string }[] = [
   { key: 'area', label: 'Площадь' },
   { key: 'metro', label: 'Ближе к метро' },
   { key: 'offers', label: 'Больше объявлений' },
+  { key: 'rating', label: 'Рейтинг 2ГИС' },
   { key: 'floor-plate', label: 'Типовой этаж' },
   { key: 'name', label: 'По алфавиту' },
 ];
@@ -139,6 +141,13 @@ export const CATALOG_FACTS: CatalogFactDef[] = [
     label: 'Известны свободные площади',
     test: (c) => c.freeSpaceMin != null,
   },
+  // Три параметра ниже пришли из 2ГИС (миграция
+  // 20260916-bc-2gis-and-verdict-columns.sql). Порог 4,5 — не «выше
+  // среднего»: средний рейтинг по 47 зданиям с оценками 4,77, скользящее
+  // сравнение пришлось бы объяснять, а прямой порог понятен.
+  { id: 'open24', label: 'Круглосуточно', test: (c) => c.is24x7 === true },
+  { id: 'accessible', label: 'Доступная среда', test: (c) => c.accessibility.length > 0 },
+  { id: 'rating45', label: 'Рейтинг 2ГИС от 4,5', test: (c) => c.gisRating != null && c.gisRating >= 4.5 },
   { id: 'under-construction', label: 'Строится', test: (c) => c.status === 'under_construction' },
 ];
 
@@ -274,6 +283,8 @@ export function sortCatalogCenters(
           return n > 0 ? n : null;
         }, 'desc'),
       );
+    case 'rating':
+      return list.sort(byNumber((c) => c.gisRating, 'desc'));
     case 'floor-plate':
       return list.sort(byNumber((c) => c.floorPlateArea, 'desc'));
     case 'name':
