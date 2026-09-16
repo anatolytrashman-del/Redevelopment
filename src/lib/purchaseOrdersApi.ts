@@ -48,6 +48,10 @@ function fromRow(row: PurchaseOrderRow): PurchaseOrder {
     paymentDate: row.payment_date,
     paymentAmount: num(row.payment_amount),
     paymentFile: row.payment_file ?? null,
+    receiverId: row.receiver_id,
+    poaNumber: row.poa_number ?? '',
+    poaDate: row.poa_date,
+    poaFile: row.poa_file ?? null,
     comment: row.comment ?? '',
     createdBy: row.created_by ?? '',
     createdAt: row.created_at,
@@ -209,6 +213,10 @@ export function updatePurchaseOrder(
       | 'paymentDate'
       | 'paymentAmount'
       | 'paymentFile'
+      | 'receiverId'
+      | 'poaNumber'
+      | 'poaDate'
+      | 'poaFile'
     >
   >,
 ): Promise<PurchaseOrder> {
@@ -227,6 +235,10 @@ export function updatePurchaseOrder(
         ...(patch.paymentDate !== undefined ? { payment_date: dateOrNull(patch.paymentDate) } : {}),
         ...(patch.paymentAmount !== undefined ? { payment_amount: patch.paymentAmount } : {}),
         ...(patch.paymentFile !== undefined ? { payment_file: patch.paymentFile } : {}),
+        ...(patch.receiverId !== undefined ? { receiver_id: patch.receiverId } : {}),
+        ...(patch.poaNumber !== undefined ? { poa_number: patch.poaNumber } : {}),
+        ...(patch.poaDate !== undefined ? { poa_date: dateOrNull(patch.poaDate) } : {}),
+        ...(patch.poaFile !== undefined ? { poa_file: patch.poaFile } : {}),
       })
       .eq('id', id)
       .select()

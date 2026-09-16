@@ -75,6 +75,16 @@ export interface PurchaseOrder {
   // с округлением, и не всегда ровно то, что в заказе.
   paymentAmount: number | null;
   paymentFile: DocumentFile | null;
+  // Ответственный за приёмку и доверенность на получение ТМЦ — на самом
+  // заказе (владелец, 2026-09-16: «Ответственного за приемку выводи на эту же
+  // страницу», «Сюда же форму загрузки доверенности»). Заказ оплачен и ждёт
+  // машину задолго до первой поставки, и кто принимает — известно уже тогда.
+  // Поставка берёт их по умолчанию и может переопределить: другая машина —
+  // другой человек и своя доверенность.
+  receiverId: string | null;
+  poaNumber: string;
+  poaDate: string | null;
+  poaFile: DocumentFile | null;
   comment: string;
   createdBy: string;
   createdAt: string;
@@ -102,6 +112,10 @@ export interface PurchaseOrderRow {
   payment_date: string | null;
   payment_amount: number | string | null;
   payment_file: DocumentFile | null;
+  receiver_id: string | null;
+  poa_number: string | null;
+  poa_date: string | null;
+  poa_file: DocumentFile | null;
   comment: string | null;
   created_by: string | null;
   created_at: string;
