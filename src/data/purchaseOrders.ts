@@ -1,4 +1,5 @@
 import type { Currency } from './transactions';
+import type { DocumentFile } from './contractorDocuments';
 import { purchaseItemTotal, type PurchaseItem, type PurchaseItemMatchKind } from './purchases';
 
 // Заказ поставщику (шаг 11 плана docs/procurement-product-steps.md, §4.1
@@ -61,6 +62,19 @@ export interface PurchaseOrder {
   currency: Currency;
   deliveryAddress: string;
   deliveryDue: string | null;
+  // Счёт поставщика и платёжка по нему — файлами и реквизитами (владелец,
+  // 2026-09-16: «Платежка (оплаченный счет поставщика)»). Плановый платёж в
+  // «Транзакциях» сознательно НЕ заводится — решение владельца того же дня;
+  // сверка позиций счёта с позициями заказа — шаг 12.
+  invoiceNumber: string;
+  invoiceDate: string | null;
+  invoiceFile: DocumentFile | null;
+  paymentNumber: string;
+  paymentDate: string | null;
+  // Сумма платежа отдельно от total: платят и частями (предоплата 50 %), и
+  // с округлением, и не всегда ровно то, что в заказе.
+  paymentAmount: number | null;
+  paymentFile: DocumentFile | null;
   comment: string;
   createdBy: string;
   createdAt: string;
@@ -81,6 +95,13 @@ export interface PurchaseOrderRow {
   currency: string;
   delivery_address: string | null;
   delivery_due: string | null;
+  invoice_number: string | null;
+  invoice_date: string | null;
+  invoice_file: DocumentFile | null;
+  payment_number: string | null;
+  payment_date: string | null;
+  payment_amount: number | string | null;
+  payment_file: DocumentFile | null;
   comment: string | null;
   created_by: string | null;
   created_at: string;
