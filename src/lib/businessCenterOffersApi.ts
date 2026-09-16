@@ -41,3 +41,26 @@ export function fetchAllBusinessCenterOffers(): Promise<BusinessCenterOffer[]> {
     return (data as BusinessCenterOfferRow[]).map(fromRow);
   });
 }
+
+// Только слаг и площадь каждого активного лота — для фильтра «нужно N м²»
+// и блока «Сейчас сдаётся» в каталоге (К13). Отдельно от
+// fetchAllBusinessCenterOffers: там тянутся все поля всех 618 строк, а
+// каталогу из них нужны два, и грузится он на каждый заход на страницу.
+// PostgREST отдаёт максимум 1000 строк — листаем .range(), иначе при росте
+// числа объявлений хвост пропадёт молча (см. CLAUDE.md).
+export function fetchBusinessCenterLotSizes(): Promise<{ businessCenterSlug: string; size: number }[]> {
+  return withRetry(async () => {
+    const rows: { business_center_slug: string; size: number }[] = [];
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from('business_center_offers')
+        .select('business_center_slug,size')
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      rows.push(...(data as { business_center_slug: string; size: number }[]));
+      if (data.length < PAGE) break;
+    }
+    return rows.map((r) => ({ businessCenterSlug: r.business_center_slug, size: r.size }));
+  });
+}

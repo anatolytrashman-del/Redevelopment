@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { BusinessCenter } from '../data/businessCenters';
 import type { MarketSnapshot } from '../data/marketSnapshots';
 import {
+  CATALOG_PRESETS,
   EMPTY_CATALOG_FILTER,
   buildOfferIndex,
   catalogFilterToQuery,
@@ -9,6 +10,7 @@ import {
   hasActiveCatalogFilter,
   matchesCatalogFilter,
   parseCatalogFilter,
+  isPresetActive,
   sortCatalogCenters,
 } from './businessCenterCatalogFilter';
 
@@ -183,6 +185,38 @@ describe('sortCatalogCenters', () => {
   it('по умолчанию — sort_order каталога', () => {
     const list = [bc({ slug: 'second', sortOrder: 2 }), bc({ slug: 'first', sortOrder: 1 })];
     expect(sortCatalogCenters(list, 'default', offers).map((c) => c.slug)).toEqual(['first', 'second']);
+  });
+});
+
+describe('фильтр по размеру лота (К13)', () => {
+  const offers = buildOfferIndex(
+    [],
+    [
+      { businessCenterSlug: 'small', size: 40 },
+      { businessCenterSlug: 'big', size: 40 },
+      { businessCenterSlug: 'big', size: 400 },
+    ],
+  );
+
+  it('подходит здание, где есть лот НЕ МЕНЬШЕ запрошенного', () => {
+    expect(matchesCatalogFilter(bc({ slug: 'big' }), { ...EMPTY_CATALOG_FILTER, lotSize: 100 }, offers)).toBe(true);
+    expect(matchesCatalogFilter(bc({ slug: 'small' }), { ...EMPTY_CATALOG_FILTER, lotSize: 100 }, offers)).toBe(false);
+  });
+
+  it('здание вообще без объявлений в выборку не попадает', () => {
+    expect(matchesCatalogFilter(bc({ slug: 'none' }), { ...EMPTY_CATALOG_FILTER, lotSize: 10 }, offers)).toBe(false);
+  });
+});
+
+describe('подборки (К15)', () => {
+  it('подборка активна только при точном совпадении состояния', () => {
+    const preset = CATALOG_PRESETS.find((p) => p.id === 'a-metro')!;
+    const exact = { ...EMPTY_CATALOG_FILTER, ...preset.patch };
+    expect(isPresetActive(preset, exact)).toBe(true);
+    // Сортировка и вид — не часть подборки, они её не ломают.
+    expect(isPresetActive(preset, { ...exact, sort: 'rent', view: 'table' })).toBe(true);
+    // А вот лишнее условие сверху — уже не эта подборка.
+    expect(isPresetActive(preset, { ...exact, facts: ['uk'] })).toBe(false);
   });
 });
 

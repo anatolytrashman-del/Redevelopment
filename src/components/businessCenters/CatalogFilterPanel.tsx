@@ -6,9 +6,12 @@ import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import { SearchInput } from '../ui/SearchInput';
 import {
   CATALOG_FACTS,
+  CATALOG_PRESETS,
   CATALOG_SORTS,
   CATALOG_VIEWS,
+  EMPTY_CATALOG_FILTER,
   METRO_WITHIN_OPTIONS,
+  isPresetActive,
   type CatalogFilterState,
   type CatalogSortKey,
   type CatalogView,
@@ -133,6 +136,31 @@ export function CatalogFilterPanel({
 
   const controls = (
     <div className="flex flex-col gap-3">
+      {/* К15: готовые подборки — ответы на то, что люди спрашивают словами,
+          а не осями фильтра. Клик ставит состояние целиком, повторный клик
+          снимает; сортировка и вид при этом не трогаются — переключать
+          подборку, теряя выбранную таблицу, было бы обидно. */}
+      <ChipRow label="Подборки">
+        {CATALOG_PRESETS.map((preset) => {
+          const active = isPresetActive(preset, state);
+          return (
+            <Chip
+              key={preset.id}
+              active={active}
+              onClick={() =>
+                onChange(
+                  active
+                    ? { ...EMPTY_CATALOG_FILTER, sort: state.sort, view: state.view }
+                    : { ...EMPTY_CATALOG_FILTER, ...preset.patch, sort: state.sort, view: state.view },
+                )
+              }
+            >
+              {preset.label}
+            </Chip>
+          );
+        })}
+      </ChipRow>
+
       <ChipRow label="Класс">
         {availableClasses.map((cls) => (
           <Chip

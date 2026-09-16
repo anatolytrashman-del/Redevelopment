@@ -52,6 +52,10 @@ export interface CatalogFilterState {
   // поиска или открывают её SEO-хаб, а «хочу рядом с метро, всё равно с
   // какой» — это именно расстояние, а не перебор чек-боксов.
   metroWithin: number | null;
+  // К13: «нужно N м²» — показать здания, где ЕСТЬ активный лот такого
+  // размера. Не «общая площадь здания от N» (это другой вопрос) и не
+  // «свободные площади» из prometr.by (те известны у 30 из 143).
+  lotSize: number | null;
   facts: string[];
   query: string;
   sort: CatalogSortKey;
@@ -73,6 +77,7 @@ export const EMPTY_CATALOG_FILTER: CatalogFilterState = {
   classes: [],
   districts: [],
   metroWithin: null,
+  lotSize: null,
   facts: [],
   query: '',
   sort: 'default',
@@ -92,21 +97,36 @@ export const METRO_WITHIN_OPTIONS: { value: number; label: string }[] = [
 export interface CatalogOfferIndex {
   rentBySlug: Map<string, MarketSnapshot>;
   saleBySlug: Map<string, MarketSnapshot>;
+  // Размеры активных лотов по зданию — для фильтра «нужно N м²» (К13).
+  // Берутся из business_center_offers, а не из снимков рынка: снимок хранит
+  // уже свёрнутые агрегаты, отдельных площадей в нём нет.
+  lotSizesBySlug: Map<string, number[]>;
 }
 
 export const EMPTY_OFFER_INDEX: CatalogOfferIndex = {
   rentBySlug: new Map(),
   saleBySlug: new Map(),
+  lotSizesBySlug: new Map(),
 };
 
-export function buildOfferIndex(snapshots: MarketSnapshot[] | null): CatalogOfferIndex {
+export function buildOfferIndex(
+  snapshots: MarketSnapshot[] | null,
+  lots: { businessCenterSlug: string; size: number }[] | null = null,
+): CatalogOfferIndex {
   const rentBySlug = new Map<string, MarketSnapshot>();
   const saleBySlug = new Map<string, MarketSnapshot>();
   for (const s of snapshots ?? []) {
     if (s.sliceType !== 'building') continue;
     (s.deal === 'rent' ? rentBySlug : saleBySlug).set(s.sliceKey, s);
   }
-  return { rentBySlug, saleBySlug };
+  const lotSizesBySlug = new Map<string, number[]>();
+  for (const l of lots ?? []) {
+    if (!(l.size > 0)) continue;
+    const arr = lotSizesBySlug.get(l.businessCenterSlug) ?? [];
+    arr.push(l.size);
+    lotSizesBySlug.set(l.businessCenterSlug, arr);
+  }
+  return { rentBySlug, saleBySlug, lotSizesBySlug };
 }
 
 // Расстояние до БЛИЖАЙШЕЙ станции метро, м (2GIS, по прямой). null — у
@@ -158,6 +178,17 @@ export const CATALOG_FACTS: CatalogFactDef[] = [
   // 20260916-bc-2gis-and-verdict-columns.sql). Порог 4,5 — не «выше
   // среднего»: средний рейтинг по 47 зданиям с оценками 4,77, скользящее
   // сравнение пришлось бы объяснять, а прямой порог понятен.
+  // Порог 60 м² — минимальный «отдельный офис на команду до пяти человек»;
+  // ниже начинаются кладовки и доли в коворкингах, выше — уже не «маленький».
+  { id: 'small-lot', label: 'Есть лот до 60 м²', test: (c, o) => (o.lotSizesBySlug.get(c.slug) ?? []).some((v) => v <= 60) },
+  {
+    id: 'cheap10',
+    label: 'Аренда дешевле $10/м²',
+    test: (c, o) => {
+      const m = o.rentBySlug.get(c.slug)?.median;
+      return m != null && m < 10;
+    },
+  },
   { id: 'open24', label: 'Круглосуточно', test: (c) => c.is24x7 === true },
   { id: 'accessible', label: 'Доступная среда', test: (c) => c.accessibility.length > 0 },
   { id: 'rating45', label: 'Рейтинг 2ГИС от 4,5', test: (c) => c.gisRating != null && c.gisRating >= 4.5 },
@@ -165,6 +196,44 @@ export const CATALOG_FACTS: CatalogFactDef[] = [
 ];
 
 const FACT_BY_ID = new Map(CATALOG_FACTS.map((f) => [f.id, f]));
+
+// --- К15. Пресеты-подборки ---------------------------------------------
+//
+// Готовые ответы на вопросы, которые люди задают словами, а не осями
+// фильтра: «что-нибудь класса A рядом с метро», «на команду из четырёх
+// человек», «подешевле». Каждый пресет — обычное состояние фильтра,
+// поэтому он и в URL попадает как обычный фильтр, и снимается одним
+// повторным кликом.
+export interface CatalogPreset {
+  id: string;
+  label: string;
+  patch: Partial<CatalogFilterState>;
+}
+
+export const CATALOG_PRESETS: CatalogPreset[] = [
+  { id: 'a-metro', label: 'Класс A у метро', patch: { classes: ['A'], metroWithin: 1000 } },
+  { id: 'small', label: 'Для маленького офиса', patch: { facts: ['small-lot'] } },
+  { id: 'uk-parking', label: 'Единая УК с парковкой', patch: { facts: ['uk', 'parking'] } },
+  { id: 'cheap', label: 'Дешевле $10/м²', patch: { facts: ['cheap10'] } },
+  { id: 'open-space', label: 'Open-space в аренду', patch: { facts: ['open-space', 'rent'] } },
+  { id: 'building', label: 'Строятся', patch: { facts: ['under-construction'] } },
+];
+
+// Пресет считается включённым, когда состояние фильтра совпадает с ним в
+// точности: иначе «Класс A у метро» подсвечивался бы и тогда, когда
+// пользователь вручную добавил сверху ещё три условия.
+export function isPresetActive(preset: CatalogPreset, state: CatalogFilterState): boolean {
+  const target = { ...EMPTY_CATALOG_FILTER, ...preset.patch };
+  const same = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
+  return (
+    same(target.classes, state.classes) &&
+    same(target.districts, state.districts) &&
+    same(target.facts, state.facts) &&
+    target.metroWithin === state.metroWithin &&
+    target.lotSize === state.lotSize &&
+    (target.query || '') === (state.query || '')
+  );
+}
 
 // --- URL ---------------------------------------------------------------
 
@@ -180,10 +249,12 @@ export function parseCatalogFilter(params: URLSearchParams): CatalogFilterState 
   const metroRaw = Number(params.get('metro'));
   const sortRaw = params.get('sort');
   const viewRaw = params.get('view');
+  const lotRaw = Number(params.get('lot'));
   return {
     classes: splitList(params.get('class')).filter((v) => ['A', 'B+', 'B', 'C'].includes(v)),
     districts: splitList(params.get('district')),
     metroWithin: METRO_WITHIN_OPTIONS.some((o) => o.value === metroRaw) ? metroRaw : null,
+    lotSize: Number.isFinite(lotRaw) && lotRaw > 0 ? Math.round(lotRaw) : null,
     facts: splitList(params.get('facts')).filter((id) => FACT_BY_ID.has(id)),
     query: params.get('q')?.trim() ?? '',
     sort: CATALOG_SORTS.some((s) => s.key === sortRaw) ? (sortRaw as CatalogSortKey) : 'default',
@@ -200,6 +271,7 @@ export function catalogFilterToQuery(state: CatalogFilterState): string {
   if (state.classes.length > 0) params.set('class', [...state.classes].sort().join(','));
   if (state.districts.length > 0) params.set('district', [...state.districts].sort().join(','));
   if (state.metroWithin != null) params.set('metro', String(state.metroWithin));
+  if (state.lotSize != null) params.set('lot', String(state.lotSize));
   if (state.facts.length > 0) params.set('facts', [...state.facts].sort().join(','));
   if (state.query) params.set('q', state.query);
   if (state.sort !== 'default') params.set('sort', state.sort);
@@ -216,6 +288,7 @@ export function hasActiveCatalogFilter(state: CatalogFilterState): boolean {
     state.classes.length > 0 ||
     state.districts.length > 0 ||
     state.metroWithin != null ||
+    state.lotSize != null ||
     state.facts.length > 0 ||
     state.query.length > 0
   );
@@ -255,6 +328,13 @@ export function matchesCatalogFilter(
   if (state.metroWithin != null) {
     const meters = nearestMetroMeters(center);
     if (meters === null || meters > state.metroWithin) return false;
+  }
+  if (state.lotSize != null) {
+    // Подходит лот НЕ МЕНЬШЕ запрошенного: снять 80 м², когда нужно 50, —
+    // рабочий вариант, а снять 30 вместо 50 — нет. Верхней границы нет
+    // намеренно, иначе «нужно 50» отсекало бы здания, где есть и 50, и 400.
+    const sizes = offers.lotSizesBySlug.get(center.slug);
+    if (!sizes || !sizes.some((s) => s >= (state.lotSize as number))) return false;
   }
   for (const id of state.facts) {
     const def = FACT_BY_ID.get(id);
