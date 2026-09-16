@@ -1,7 +1,12 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
 import { triggerPublicRebuild } from './publicRebuild';
-import type { BusinessCenter, BusinessCenterRow } from '../data/businessCenters';
+import type {
+  BusinessCenter,
+  BusinessCenterDerivedField,
+  BusinessCenterLayoutType,
+  BusinessCenterRow,
+} from '../data/businessCenters';
 
 function fromRow(row: BusinessCenterRow): BusinessCenter {
   return {
@@ -26,6 +31,21 @@ function fromRow(row: BusinessCenterRow): BusinessCenter {
     tenantOrganizations: row.tenant_organizations ?? [],
     technicalParams: row.technical_params ?? [],
     nearestMetroStations: row.nearest_metro_stations ?? [],
+    floorPlateArea: row.floor_plate_area,
+    officeArea: row.office_area,
+    layoutTypes: (row.layout_types ?? []) as BusinessCenterLayoutType[],
+    elevators: row.elevators,
+    parkingRatio: row.parking_ratio,
+    airConditioning: (row.air_conditioning as BusinessCenter['airConditioning']) ?? null,
+    ceilingHeight: row.ceiling_height,
+    managementType: (row.management_type as BusinessCenter['managementType']) ?? null,
+    metroDistanceBucket: (row.metro_distance_bucket as BusinessCenter['metroDistanceBucket']) ?? null,
+    freeSpaceMin: row.free_space_min,
+    freeSpaceMax: row.free_space_max,
+    infraInternal: row.infra_internal ?? [],
+    infraNearby: row.infra_nearby ?? [],
+    lat: row.lat,
+    lng: row.lng,
     photos: row.photos ?? [],
     status: (row.status as BusinessCenter['status']) ?? 'built',
     sortOrder: row.sort_order,
@@ -41,7 +61,10 @@ export function fetchBusinessCenters(): Promise<BusinessCenter[]> {
   });
 }
 
-type BusinessCenterInput = Omit<BusinessCenter, 'id' | 'createdAt'>;
+// Производные колонки в payload не входят вовсе — их считает триггер в
+// базе при каждой записи technical_params (см. миграцию
+// 20260916-bc-structured-tech-params.sql и BusinessCenterDerivedField).
+type BusinessCenterInput = Omit<BusinessCenter, 'id' | 'createdAt' | BusinessCenterDerivedField>;
 
 function toPayload(input: Partial<BusinessCenterInput>) {
   const payload: Record<string, unknown> = {};
