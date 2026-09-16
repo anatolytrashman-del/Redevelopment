@@ -798,24 +798,12 @@ export function BusinessCenterDetailPage() {
           </div>
         )}
 
-        {/* Ссылка на Red One с каждой карточки БЦ — аудит поиска 2026-09-07
-            («на каждой карточке — блок со ссылкой на Red One»): переходы из
-            справочника на /minsk/one — главная метрика всей SEO-линии.
-            Текст общий, без цен — цены живут на самом лендинге. */}
-        <div className={cn('mt-6 flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-          <div className="flex items-center gap-3">
-            <Store className="h-5 w-5 shrink-0 text-ink" />
-            <h2 className="text-lg font-bold text-ink">Нужен небольшой кабинет в собственность?</h2>
-          </div>
-          <p className="text-sm leading-relaxed text-ink-muted">
-            В бизнес-центрах офисы в основном сдаются в аренду большими блоками. Если нужен компактный кабинет или
-            фиксированное рабочее место в собственность — посмотрите деловой центр Red One в Минск Мире: готовая
-            отделка, парковка, онлайн-бронирование без предоплаты.
-          </p>
-          <Link to="/minsk/one" className="w-fit text-sm font-semibold text-primary-hover hover:underline">
-            Смотреть кабинеты в Red One →
-          </Link>
-        </div>
+        {/* Блок со ссылкой на Red One, стоявший на каждой карточке БЦ
+            (аудит поиска 2026-09-07 — переходы из справочника на /minsk/one
+            были главной метрикой SEO-линии), убран 2026-09-16 по решению
+            владельца: пока здание Red One не куплено, продавать его нечего.
+            Вернуть вместе с остальными ссылками (гид по району, посадочные
+            Минск Мира, каталог БЦ), когда здание будет куплено. */}
 
         <div className={cn('mt-6 flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
           <h2 className="text-lg font-bold text-ink">Источники</h2>

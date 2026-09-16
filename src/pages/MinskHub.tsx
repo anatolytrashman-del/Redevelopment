@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BarChart3, BookOpen, Building2, Lock, Store } from 'lucide-react';
+import { ArrowRight, BarChart3, BookOpen, Building2, Lock } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setOrganizationJsonLd } from '../lib/pageMeta';
@@ -21,9 +21,14 @@ import { DISTRICTS, DISTRICTS_WITH_GUIDE } from '../data/districts';
 // Аудит поиска 2026-09-07 вернул сюда две ссылки — на каталог БЦ и на Red
 // One: с /minsk не было ни одной входящей ссылки ни на /minsk/bcminsk, ни на
 // /minsk/one, каталог и все карточки БЦ оказались «островом» и не попали в
-// индекс ни Google, ни Яндекса. Это не прежняя секция «Комплексы» (список
-// всех объектов), а ровно две ссылки — каталог как справочник и Red One как
-// единственная продающая страница.
+// индекс ни Google, ни Яндекса.
+// Владелец, 2026-09-16: ссылка на Red One отсюда снова убрана — пока
+// здание не куплено, продавать его нечего (СМИ смотрят страницы
+// статистики). Так же убраны ссылки и блоки Red One с гида по району,
+// посадочных Минск Мира, каталога БЦ и аналитических страниц; сам лендинг
+// /minsk/one остаётся доступным по прямой ссылке. Вернуть, когда здание
+// будет куплено. Осталась ссылка на каталог БЦ — она и держит справочник
+// в индексе.
 // ANALYTICSPLAN.md (2026-09-07) вернул раздел "Аналитика рынка" — на этот
 // раз не как ссылку на удалённую страницу, а на новый /minsk/analytics
 // (бенчмарк-страницы по ставкам аренды/продажи офисов из market_snapshots,
@@ -69,20 +74,6 @@ export function MinskHub() {
                   Бизнес-центры Минска
                 </span>
                 <span className="pl-6.5 text-xs text-ink-muted">Каталог: класс, площадь, метро, арендаторы, объявления</span>
-              </span>
-              <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
-            </Link>
-            <Link
-              to="/minsk/one"
-              className={cn('flex items-center justify-between gap-2 p-4 transition-colors hover:border-primary/40', glassCardClass)}
-              style={glassCardShadow}
-            >
-              <span className="flex flex-col gap-0.5">
-                <span className="flex items-center gap-2.5 font-medium text-ink">
-                  <Store className="h-4 w-4 shrink-0 text-ink-faint" />
-                  Деловой центр Red One
-                </span>
-                <span className="pl-6.5 text-xs text-ink-muted">Кабинеты и рабочие места в собственность в Минск Мире</span>
               </span>
               <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
             </Link>

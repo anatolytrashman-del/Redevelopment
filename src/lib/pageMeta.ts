@@ -215,7 +215,7 @@ export function setOrganizationJsonLd(enabled: boolean) {
     logo: 'https://redevelopment.pro/apple-touch-icon.png',
     image: DEFAULT_OG_IMAGE,
     description:
-      'Редевелопмент коммерческой недвижимости в Минске: справочник бизнес-центров, гиды по районам и деловой центр Red One в Минск Мире.',
+      'Редевелопмент коммерческой недвижимости в Минске: справочник бизнес-центров, гиды по районам и аналитика рынка.',
     areaServed: { '@type': 'City', name: 'Минск' },
   });
 }
