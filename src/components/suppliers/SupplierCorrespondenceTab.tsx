@@ -1705,6 +1705,18 @@ export function EmailThread({
                       {invoice.items.length > 0 && ` · ${invoice.items.length} ${pluralPositions(invoice.items.length)}`}
                     </div>
                   );
+                  // Откуда цифры и насколько модель в них уверена (шаг 10
+                  // плана закупок). Без этой строки непонятно, почему одно
+                  // письмо записалось само, а соседнее ждёт подтверждения, —
+                  // и закупщица считает, что система «иногда не работает».
+                  const origin = (
+                    <div className="text-xs text-ink-faint">
+                      {invoice.sourceKind === 'email_body'
+                        ? 'Цены взяты из текста письма — счёта во вложениях не было'
+                        : 'Цены взяты из вложенного документа'}
+                      {invoice.confidence != null && ` · уверенность ${Math.round(invoice.confidence * 100)} %`}
+                    </div>
+                  );
                   return applied ? (
                     <div
                       key={invoice.sourceFile?.url ?? invoiceIdx}
@@ -1716,6 +1728,7 @@ export function EmailThread({
                       </div>
                       {label && <div className="text-xs text-ink-muted">{label}</div>}
                       {summary}
+                      {origin}
                       <div className="flex flex-wrap items-center gap-2">
                         {invoice.sourceFile && (
                           <Button
@@ -1748,6 +1761,7 @@ export function EmailThread({
                       </div>
                       {label && <div className="text-xs text-ink-muted">{label}</div>}
                       {summary}
+                      {origin}
                       {invoice.sourceFile ? (
                         <Button
                           type="button"
