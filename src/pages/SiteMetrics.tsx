@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Loader2, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Loader2, RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
+import { cn } from '../lib/cn';
 import {
   fetchMetrikaDailyStats,
   fetchMetrikaTrafficSources,
@@ -20,8 +21,8 @@ import type { GoogleSearchConsoleStat } from '../data/googleSearchConsoleStats';
 // не отчёт по staff-активности (это отдельная /admin/metrics, RequireSuperAdmin,
 // не путать), а посещаемость публичной части платформы: гид района, каталог
 // БЦ, лендинги объектов и т.д. Данные читаются уже готовыми из 4 таблиц
-// Supabase, заполняемых раз в сутки scripts/sync-yandex-metrika.mjs — сам
-// OAuth-токен на этой странице не фигурирует нигде.
+// Supabase, заполняемых раз в час scripts/sync-yandex-metrika.mjs (2026-09-16,
+// было раз в сутки) — сам OAuth-токен на этой странице не фигурирует нигде.
 //
 // "Визиты по дням"/"Достижение целей" — настоящий тренд, можно выбрать
 // период (7/30/90 дней), считается из уже загруженных daily/goal рядов на
@@ -70,9 +71,22 @@ import type { GoogleSearchConsoleStat } from '../data/googleSearchConsoleStats';
 // порядок ключей объекта — числовые ключи (7/30/90) в JS всегда
 // перечисляются раньше строковых ('yesterday'), это увело бы "Вчера" в конец
 // списка вместо начала.
-type Period = 'yesterday' | 7 | 30 | 90;
-const PERIOD_LABELS: Record<Period, string> = { yesterday: 'Вчера', 7: '7 дней', 30: '30 дней', 90: '90 дней' };
-const PERIOD_ORDER: Period[] = ['yesterday', 7, 30, 90];
+//
+// 2026-09-16 — добавлен период "Сегодня": синк переведён на часовой крон
+// (было раз в сутки), так что последняя строка данных внутри текущих суток
+// реально успевает обновиться несколько раз, а не только на завтра —
+// "Вчера"-only больше не отражал этого. Логика та же, что у "Вчера" —
+// последняя строка массива и есть "сегодня" (date2: 'today' в запросе к
+// Метрике), сравниваем с предыдущей (вчера).
+type Period = 'today' | 'yesterday' | 7 | 30 | 90;
+const PERIOD_LABELS: Record<Period, string> = {
+  today: 'Сегодня',
+  yesterday: 'Вчера',
+  7: '7 дней',
+  30: '30 дней',
+  90: '90 дней',
+};
+const PERIOD_ORDER: Period[] = ['today', 'yesterday', 7, 30, 90];
 const PERIOD_OPTIONS = PERIOD_ORDER.map((p) => PERIOD_LABELS[p]);
 const LABEL_TO_PERIOD = Object.fromEntries(
   PERIOD_ORDER.map((p) => [PERIOD_LABELS[p], p]),
@@ -84,11 +98,13 @@ const LABEL_TO_PERIOD = Object.fromEntries(
 // вручную через часовой пояс (так это остаётся верным независимо от того,
 // в каком часовом поясе Метрика считает границу суток).
 function sliceCurrentPeriod<T>(data: T[], period: Period): T[] {
+  if (period === 'today') return data.length >= 1 ? data.slice(-1) : [];
   if (period === 'yesterday') return data.length >= 2 ? data.slice(-2, -1) : [];
   return data.slice(-period);
 }
 
 function slicePreviousPeriod<T>(data: T[], period: Period): T[] {
+  if (period === 'today') return data.length >= 2 ? data.slice(-2, -1) : [];
   if (period === 'yesterday') return data.length >= 3 ? data.slice(-3, -2) : [];
   return data.slice(-period * 2, -period);
 }
@@ -239,6 +255,13 @@ function pluralPages(n: number): string {
 
 const VISIBLE_TOP_PAGES = 5;
 
+// 2026-09-16 — владелец: синк Метрики теперь раз в час, пусть страница сама
+// подтягивает свежие цифры, как /admin/metrics (см. REFRESH_INTERVAL_MS там).
+// Интервал длиннее минуты намеренно: сам источник (Метрика/Вебмастер/Google)
+// не обновляется чаще раза в час, минутный опрос просто дёргал бы Supabase
+// без единого шанса увидеть новые данные.
+const REFRESH_INTERVAL_MS = 5 * 60_000;
+
 interface ChangeBadgeProps {
   current: number;
   previous: number;
@@ -358,30 +381,63 @@ export function SiteMetrics() {
   const [error, setError] = useState('');
   const [period, setPeriod] = useState<Period>(30);
   const [topPagesExpanded, setTopPagesExpanded] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastCheckedAt, setLastCheckedAt] = useState<Date | null>(null);
+  const inFlight = useRef(false);
+
+  // Тот же паттерн, что на /admin/metrics: фоновый тик не сбрасывает уже
+  // показанные цифры (никакого мигания "Загрузка…" на автообновлении) —
+  // ошибка тоже не затирает старые данные, только показывается строкой
+  // сверху, пока следующий тик не подтянет данные успешно.
+  const load = useCallback(async () => {
+    if (inFlight.current) return; // предыдущий тик ещё идёт — не копим параллельные запросы
+    inFlight.current = true;
+    setRefreshing(true);
+    try {
+      const [daily, traffic, pages, goals, webmaster, google] = await Promise.all([
+        fetchMetrikaDailyStats(),
+        fetchMetrikaTrafficSources(),
+        fetchMetrikaTopPages(),
+        fetchMetrikaGoalCompletions(),
+        // Отдельный try/catch на каждый источник поисковой индексации: если
+        // синк ещё ни разу не прошёл, упал, или сервис ещё не подключён
+        // (Google), это не должно ронять всю страницу — её главный предмет
+        // всё равно Метрика.
+        fetchYandexWebmasterStats().catch(() => []),
+        fetchGoogleSearchConsoleStats().catch(() => []),
+      ]);
+      setDailyStats(daily);
+      setTrafficSources(traffic);
+      setTopPages(pages);
+      setGoalCompletions(goals);
+      setWebmasterStats(webmaster);
+      setGoogleStats(google);
+      setLastCheckedAt(new Date());
+      setError('');
+    } catch {
+      setError('Не удалось загрузить показатели.');
+    } finally {
+      inFlight.current = false;
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
-    Promise.all([
-      fetchMetrikaDailyStats(),
-      fetchMetrikaTrafficSources(),
-      fetchMetrikaTopPages(),
-      fetchMetrikaGoalCompletions(),
-      // Отдельный try/catch на каждый источник поисковой индексации: если
-      // синк ещё ни разу не прошёл, упал, или сервис ещё не подключён
-      // (Google), это не должно ронять всю страницу — её главный предмет
-      // всё равно Метрика.
-      fetchYandexWebmasterStats().catch(() => []),
-      fetchGoogleSearchConsoleStats().catch(() => []),
-    ])
-      .then(([daily, traffic, pages, goals, webmaster, google]) => {
-        setDailyStats(daily);
-        setTrafficSources(traffic);
-        setTopPages(pages);
-        setGoalCompletions(goals);
-        setWebmasterStats(webmaster);
-        setGoogleStats(google);
-      })
-      .catch(() => setError('Не удалось загрузить показатели.'));
-  }, []);
+    void load();
+    // Пока вкладка скрыта, базу не дёргаем — вместо этого обновляемся сразу
+    // при возврате, чтобы первый же взгляд на страницу видел свежие данные.
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void load();
+    }, REFRESH_INTERVAL_MS);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void load();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [load]);
 
   const loading = dailyStats === null || trafficSources === null || topPages === null || goalCompletions === null;
 
@@ -441,7 +497,7 @@ export function SiteMetrics() {
 
       {!loading && dailyStats!.length === 0 && (
         <Card className="text-sm text-ink-muted">
-          Данные ещё не собраны — первый синк со статистикой Яндекс.Метрики придёт по расписанию (раз в сутки) либо
+          Данные ещё не собраны — первый синк со статистикой Яндекс.Метрики придёт по расписанию (раз в час) либо
           после ручного запуска воркфлоу «Sync Yandex Metrika stats» на GitHub Actions.
         </Card>
       )}
@@ -455,11 +511,19 @@ export function SiteMetrics() {
               value={PERIOD_LABELS[period]}
               onChange={(label) => setPeriod(LABEL_TO_PERIOD[label])}
             />
-            {maxUpdatedAt && (
-              <p className="text-xs text-ink-muted">
-                Обновлено: {new Date(maxUpdatedAt).toLocaleString('ru-RU', { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' })}
-              </p>
-            )}
+            <div className="flex flex-col items-end gap-1 text-xs text-ink-muted">
+              {maxUpdatedAt && (
+                <p>
+                  Данные синка: {new Date(maxUpdatedAt).toLocaleString('ru-RU', { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                </p>
+              )}
+              <span className="inline-flex items-center gap-1">
+                <RefreshCw className={cn('h-3 w-3', refreshing && 'animate-spin')} />
+                {lastCheckedAt
+                  ? `проверено в ${lastCheckedAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} · автоматически раз в 5 минут`
+                  : 'проверка…'}
+              </span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
