@@ -29,6 +29,11 @@ export interface Cell {
   // в обоих случаях это НЕ «низкая уверенность», и помечать такую ячейку
   // «проверить» не за что.
   matchConfidence: number | null;
+  // Уверенность распознавания САМОГО счёта (шаг 10). Отдельно от
+  // matchConfidence: строка может быть уверенно привязана к позиции
+  // ведомости, но прочитана из письма, где цена стояла рядом с телефоном
+  // менеджера. Ячейку помечает «проверить» и то, и другое.
+  recognitionConfidence: number | null;
   // Что известно про НДС в цене этой ячейки (шаг 7 плана закупок).
   vat: CellVat;
   vatRate: number | null;
@@ -159,6 +164,7 @@ export function buildColumns(
           note: item.matchNote ?? '',
           productUrl: item.productUrl ?? '',
           matchConfidence: typeof item.matchConfidence === 'number' ? item.matchConfidence : null,
+          recognitionConfidence: typeof item.recognitionConfidence === 'number' ? item.recognitionConfidence : null,
           ...(() => {
             const v = cellVat(item, src.terms);
             return { vat: v.vat, vatRate: v.rate };
