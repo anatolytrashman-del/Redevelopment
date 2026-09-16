@@ -63,6 +63,13 @@ export interface MailboxContact {
   category: string;
   personName: string;
   email: string;
+  // Заметка — пятое поле сверх тех четырёх, что просил владелец (2026-09-16,
+  // импорт списка журналистов): в присланном списке у каждого контакта был
+  // хвост, который больше некуда девать — телефон, телеграм, оговорка вида
+  // "личный адрес не найден, использован общий" или "перепроверить перед
+  // отправкой". Без этого поля половина смысла списка терялась бы при
+  // переносе в книжку.
+  note: string;
   createdAt: string;
 }
 
@@ -72,10 +79,12 @@ export interface MailboxContactRow {
   category: string | null;
   person_name: string | null;
   email: string | null;
+  note: string | null;
   created_at: string;
 }
 
 export const mailboxContactCategories = [
+  'Журналисты',
   'Клиенты',
   'Поставщики',
   'Подрядчики',

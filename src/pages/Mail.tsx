@@ -62,7 +62,7 @@ type EmailAttachment = { fileName: string; contentType: string; contentBase64: s
 const TABS = ['Письма', 'Записная книжка'];
 const ALL_CATEGORIES = 'Все категории';
 
-const emptyContactForm = { title: '', category: '', personName: '', email: '' };
+const emptyContactForm = { title: '', category: '', personName: '', email: '', note: '' };
 
 function errorText(err: unknown, fallback: string): string {
   return err instanceof Error && err.message ? err.message : fallback;
@@ -166,7 +166,7 @@ export function Mail() {
     return contacts.filter((c) => {
       if (category !== ALL_CATEGORIES && c.category !== category) return false;
       if (!query) return true;
-      return [c.title, c.category, c.personName, c.email].some((field) => field.toLowerCase().includes(query));
+      return [c.title, c.category, c.personName, c.email, c.note].some((field) => field.toLowerCase().includes(query));
     });
   }, [contacts, search, category]);
 
@@ -184,6 +184,7 @@ export function Mail() {
       category: contact.category,
       personName: contact.personName,
       email: contact.email,
+      note: contact.note,
     });
     setContactError(null);
     setContactFormOpen(true);
@@ -196,6 +197,7 @@ export function Mail() {
       category: contactForm.category.trim(),
       personName: contactForm.personName.trim(),
       email: contactForm.email.trim(),
+      note: contactForm.note.trim(),
     };
     if (!payload.email) {
       setContactError('Укажите email — без него запись в книжке бесполезна');
@@ -380,7 +382,16 @@ export function Mail() {
                   <tbody>
                     {visibleContacts.map((contact) => (
                       <tr key={contact.id} className="border-b border-border/60 last:border-0">
-                        <td className="py-2.5 pr-3 font-semibold text-ink">{contact.title || '—'}</td>
+                        <td className="py-2.5 pr-3">
+                          <div className="font-semibold text-ink">{contact.title || '—'}</div>
+                          {/* Заметка — второй строкой под названием, а не своей
+                              колонкой: она длинная и разная по длине, отдельный
+                              столбец растянул бы таблицу и оставил пустоту у
+                              тех, у кого заметки нет. */}
+                          {contact.note && (
+                            <div className="mt-0.5 max-w-[420px] text-xs leading-snug text-ink-muted">{contact.note}</div>
+                          )}
+                        </td>
                         <td className="py-2.5 pr-3">
                           {contact.category ? <Badge>{contact.category}</Badge> : <span className="text-ink-faint">—</span>}
                         </td>
@@ -474,6 +485,13 @@ export function Mail() {
             placeholder="mail@example.com"
             value={contactForm.email}
             onChange={(e) => setContactForm((f) => ({ ...f, email: e.target.value }))}
+          />
+          <Textarea
+            label="Заметка"
+            rows={3}
+            placeholder="Телефон, телеграм, чем занимается, что учесть перед письмом"
+            value={contactForm.note}
+            onChange={(e) => setContactForm((f) => ({ ...f, note: e.target.value }))}
           />
           {contactError && <div className="text-sm text-danger">{contactError}</div>}
           <div className="flex flex-wrap gap-3">
