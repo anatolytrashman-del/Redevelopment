@@ -783,13 +783,6 @@ function buildMarketPivotGrouped(offers: MarketOffer[], dealType: 'sale' | 'rent
   return groups;
 }
 
-function countSmallFinishedOffices(offers: MarketOffer[], dealType: 'sale' | 'rent'): number {
-  return offers.filter(
-    (o) =>
-      o.reviewed && !o.rejected && o.dealType === dealType && o.propertyType === 'Офисы' && netSize(o) < 40 && o.finishStatus === 'с отделкой',
-  ).length;
-}
-
 
 const MONTH_NAMES = [
   'январь',
@@ -2470,7 +2463,7 @@ export function DistrictGuidePage() {
             <CurrencyToggle value={marketCurrency} onChange={setMarketCurrency} />
           </div>
           {marketOffers && marketOffers.length > 0 && (
-            <span className="-mt-2 text-xs text-ink-muted">Kufar, Realt · {formatLatestUpdate(marketOffers)}</span>
+            <span className="-mt-2 text-xs text-ink-muted">{formatLatestUpdate(marketOffers)}</span>
           )}
           <p className="text-sm text-ink-muted">
             Действующие предложения продажи и аренды коммерческих помещений в Минск Мире — количество и медианная
@@ -2588,7 +2581,7 @@ export function DistrictGuidePage() {
                       <table className="w-full min-w-[640px] border-collapse text-sm">
                         <caption className="sr-only">
                           Вторичный рынок коммерческой недвижимости Минск Мира: количество предложений и цены за м² по
-                          типу помещения, с разбивкой по диапазону площади (данные Kufar, Realt)
+                          типу помещения, с разбивкой по диапазону площади
                         </caption>
                         <thead>
                           <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-ink-muted">
@@ -2656,23 +2649,6 @@ export function DistrictGuidePage() {
                   </>
                 );
               })()}
-
-              <div className="flex items-start gap-2.5 rounded-control border border-success/30 bg-success-bg px-4 py-3">
-                <Sparkles className="h-4 w-4 shrink-0 translate-y-0.5 text-success" />
-                <p className="text-sm text-ink">
-                  Небольших офисов (до 40 м²) с готовой отделкой в районе почти нет:{' '}
-                  {/* text-[#0f6b3d] — тот же контраст-фикс, что и у бейджа
-                      "Обновлено" выше (PAGESPEED_PLAN.md, Э8-3). */}
-                  <span className="font-semibold text-[#0f6b3d]">
-                    {countSmallFinishedOffices(marketOffers, 'sale')} предложение на продажу
-                  </span>{' '}
-                  и{' '}
-                  <span className="font-semibold text-[#0f6b3d]">
-                    {countSmallFinishedOffices(marketOffers, 'rent')} в аренду
-                  </span>{' '}
-                  на весь Минск Мир. Это устойчивый структурный дефицит формата, а не сезонное колебание.
-                </p>
-              </div>
             </>
           )}
         </div>
