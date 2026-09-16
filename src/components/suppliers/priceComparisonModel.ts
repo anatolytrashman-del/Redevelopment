@@ -24,6 +24,11 @@ export interface Cell {
   kind: PurchaseItemMatchKind;
   note: string;
   productUrl: string;
+  // Уверенность автосопоставления (шаг 5 плана закупок), 0…1. null — строку
+  // сопоставлял человек либо счёт распознан до появления автосопоставления:
+  // в обоих случаях это НЕ «низкая уверенность», и помечать такую ячейку
+  // «проверить» не за что.
+  matchConfidence: number | null;
   usdUnit: number | null;
   // Как в счёте: объём и единица поставщика (владелец, 2026-09-15:
   // Keramogranit.ru посчитал 713 м² из 992 — ячейка должна это показывать).
@@ -113,6 +118,7 @@ export function buildColumns(
           kind: item.matchKind && item.matchKind !== 'delivery' ? item.matchKind : 'exact',
           note: item.matchNote ?? '',
           productUrl: item.productUrl ?? '',
+          matchConfidence: typeof item.matchConfidence === 'number' ? item.matchConfidence : null,
           usdUnit: convertToUsd(unitPrice, src.currency, rate),
           quotedQuantity: item.quantity,
           quotedUnit: item.unit,

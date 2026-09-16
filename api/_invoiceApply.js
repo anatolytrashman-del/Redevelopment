@@ -21,16 +21,21 @@
 //   • уже сохранённый ИНН не затирается пустым;
 //   • каждое распознавание = отдельная строка supplier_offer_quotes.
 //
-// Единственное отличие от ручного пути: позиции пишутся БЕЗ сопоставления
-// с материалами сметы (sourceMaterialId/unitPrice) — какой строке сметы
-// соответствует "Профиль h30 оцинк." и сколько литров в банке, знает
-// только человек (владелец, 2026-09-04: "давай сверять вручную"). Поэтому
-// сопоставление остаётся ручным шагом, но теперь это дополнение к уже
-// записанным данным, а не условие их попадания в базу.
+// С 2026-09-16 (шаг 5 плана закупок) позиции пишутся УЖЕ сопоставленными с
+// ведомостью запроса: та же модель и те же правила, что у кнопки «Предложить
+// сопоставление» (suggestMatches в _proposalMatches.js). Раньше здесь стояло
+// «сопоставление остаётся ручным шагом» со ссылкой на владельца («давай
+// сверять вручную», 2026-09-04) — ручная сверка никуда не делась, изменилось
+// другое: человек больше не перебивает вручную ВСЁ подряд, а проверяет только
+// то, где модель сама не уверена. Каждая позиция несёт matchConfidence, и
+// сравнение цен помечает «проверить» всё, что ниже порога или размечено как
+// 'check'. Сбой сопоставления не мешает записи счёта: позиции лягут без
+// привязки, ровно как раньше.
 //
 // Отдельный файл с "_" в начале — общий хелпер, не считается в лимит 12
 // serverless-функций Vercel Hobby (как _invoiceRecognition.js/_checko.js).
 import { randomUUID } from 'node:crypto';
+import { suggestMatches } from './_proposalMatches.js';
 
 const KNOWN_CURRENCIES = ['RUB', 'USD', 'EUR', 'BYN'];
 
@@ -117,12 +122,66 @@ export function quoteTitle(subject, fileName, severalInvoices) {
   return base ? `${base} — ${file}` : file;
 }
 
-export async function applyRecognizedInvoice({ emailId, offerId, orderId, subject, recognized, sourceFile, title }) {
+// Сопоставление строк счёта с позициями ведомости запроса. Возвращает НОВЫЙ
+// список позиций; при любой осечке — исходный, без привязки: счёт важнее
+// сопоставления, и терять распознанные цены из-за недоступной модели нельзя.
+async function withMatches(items, { offerId, supplierName }) {
+  if (items.length === 0) return items;
+  try {
+    const offers = await restGet(`supplier_research_offers?id=eq.${offerId}&select=request_id`);
+    const requestId = offers[0]?.request_id;
+    if (!requestId) return items;
+    const requests = await restGet(`supplier_research_requests?id=eq.${requestId}&select=items`);
+    const positions = Array.isArray(requests[0]?.items) ? requests[0].items : [];
+    if (positions.length === 0) return items;
+
+    const matches = await suggestMatches({
+      positions: positions.map((p) => ({
+        id: p.id,
+        name: p.name,
+        quantity: p.quantity,
+        unit: p.unit,
+        consumption: p.consumption ?? null,
+        consumptionUnit: p.consumptionUnit ?? null,
+        note: p.note ?? '',
+      })),
+      lines: items.map((i) => ({
+        id: i.id,
+        supplier: supplierName ?? '',
+        name: i.name,
+        quantity: i.quantity,
+        unit: i.unit,
+        price: i.price,
+      })),
+    });
+
+    const byLine = new Map(matches.map((m) => [m.lineId, m]));
+    return items.map((item) => {
+      const m = byLine.get(item.id);
+      if (!m) return item;
+      return {
+        ...item,
+        sourceMaterialId: m.positionId,
+        unitPrice: m.unitPrice,
+        // 'none' — строка вообще не про наши позиции (колеровка, образцы):
+        // вида соответствия у неё нет, и выдумывать его не надо.
+        matchKind: m.kind === 'none' ? undefined : m.kind,
+        matchNote: m.note || '',
+        matchConfidence: m.confidence,
+      };
+    });
+  } catch (err) {
+    console.error('Автосопоставление позиций счёта не удалось (счёт всё равно записан):', err instanceof Error ? err.message : err);
+    return items;
+  }
+}
+
+export async function applyRecognizedInvoice({ emailId, offerId, orderId, subject, recognized, sourceFile, title, supplierName }) {
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error('SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY не заданы — некуда записывать распознанный счёт');
   }
 
-  const newItems = toPurchaseItems(recognized.items);
+  const newItems = await withMatches(toPurchaseItems(recognized.items), { offerId, supplierName });
   const itemIds = newItems.map((i) => i.id);
 
   // Дополнительная заявка (supplier_orders) ведёт свою переписку и свои
