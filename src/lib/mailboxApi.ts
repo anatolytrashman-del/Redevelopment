@@ -44,6 +44,22 @@ export function fetchMailboxEmails(): Promise<MailboxEmail[]> {
   });
 }
 
+// Сколько входящих писем в общем ящике ещё не открывали — для бейджика в
+// боковом меню. Считаем на стороне базы (head + count), а не через
+// fetchMailboxEmails: сайдбар висит на каждой странице админки и опрашивает
+// счётчик по таймеру, тянуть ради числа пятьсот писем незачем.
+export function fetchMailboxUnreadCount(): Promise<number> {
+  return withRetry(async () => {
+    const { count, error } = await supabase
+      .from('mailbox_emails')
+      .select('id', { count: 'exact', head: true })
+      .eq('direction', 'in')
+      .is('read_at', null);
+    if (error) throw error;
+    return count ?? 0;
+  });
+}
+
 // Отметить прочитанными входящие письма одного собеседника — при открытии
 // его ленты. Адрес приходит уже нормализованным (parseEmailAddress), но в
 // базе from_address лежит как есть, вместе с именем («Имя <адрес>»), поэтому
