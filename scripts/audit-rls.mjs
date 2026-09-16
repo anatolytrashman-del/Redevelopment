@@ -37,7 +37,7 @@ const CLOSED = [
   // Общий ящик компании и его записная книжка (страница "Почта",
   // 2026-09-16): переписка и контакты — для сотрудников, anon тут нечего
   // ни читать, ни писать.
-  'mailbox_emails', 'mailbox_contacts',
+  'mailbox_emails', 'mailbox_contacts', 'mailbox_email_templates',
   // market_offers: 2026-09-06, PAGESPEED_PLAN.md Э5-1 — раньше был в
   // PUBLIC_SELECT_ALL с колоночным GRANT (P0.2, 2026-08-28), но
   // `select=*` при column-level privileges Postgres проваливает ВСЮ

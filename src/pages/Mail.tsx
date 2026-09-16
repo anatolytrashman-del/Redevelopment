@@ -32,6 +32,17 @@ import {
   updateMailboxContact,
 } from '../lib/mailboxContactsApi';
 import {
+  deleteMailboxTemplate,
+  fetchMailboxTemplates,
+  insertMailboxTemplate,
+  updateMailboxTemplate,
+} from '../lib/mailboxTemplatesApi';
+import {
+  MAILBOX_PLACEHOLDER_HINT,
+  renderMailboxTemplate,
+  type MailboxTemplate,
+} from '../data/mailboxTemplates';
+import {
   SHARED_MAILBOX_ADDRESS,
   counterpartyTitle,
   mailboxContactCategories,
@@ -59,10 +70,11 @@ import { emailSendStatusLabel } from '../data/emailSendStatus';
 
 type EmailAttachment = { fileName: string; contentType: string; contentBase64: string };
 
-const TABS = ['Письма', 'Записная книжка'];
+const TABS = ['Письма', 'Записная книжка', 'Шаблоны'];
 const ALL_CATEGORIES = 'Все категории';
 
 const emptyContactForm = { title: '', category: '', personName: '', email: '', note: '' };
+const emptyTemplateForm = { name: '', subject: '', body: '' };
 
 function errorText(err: unknown, fallback: string): string {
   return err instanceof Error && err.message ? err.message : fallback;
@@ -101,6 +113,7 @@ export function Mail() {
   const [tab, setTab] = useState(TABS[0]);
   const [emails, setEmails] = useState<MailboxEmail[]>([]);
   const [contacts, setContacts] = useState<MailboxContact[]>([]);
+  const [templates, setTemplates] = useState<MailboxTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
@@ -119,11 +132,18 @@ export function Mail() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState(ALL_CATEGORIES);
 
+  const [templateFormOpen, setTemplateFormOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<MailboxTemplate | null>(null);
+  const [templateForm, setTemplateForm] = useState(emptyTemplateForm);
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [templateError, setTemplateError] = useState<string | null>(null);
+
   useEffect(() => {
-    Promise.all([fetchMailboxEmails(), fetchMailboxContacts()])
-      .then(([loadedEmails, loadedContacts]) => {
+    Promise.all([fetchMailboxEmails(), fetchMailboxContacts(), fetchMailboxTemplates()])
+      .then(([loadedEmails, loadedContacts, loadedTemplates]) => {
         setEmails(loadedEmails);
         setContacts(loadedContacts);
+        setTemplates(loadedTemplates);
         setLoadError(null);
       })
       .catch((err) => setLoadError(errorText(err, 'Не удалось загрузить почту')))
@@ -241,6 +261,63 @@ export function Mail() {
     setComposeOpen(true);
   }
 
+  function openTemplateAdd() {
+    setEditingTemplate(null);
+    setTemplateForm(emptyTemplateForm);
+    setTemplateError(null);
+    setTemplateFormOpen(true);
+  }
+
+  function openTemplateEdit(template: MailboxTemplate) {
+    setEditingTemplate(template);
+    setTemplateForm({ name: template.name, subject: template.subject, body: template.body });
+    setTemplateError(null);
+    setTemplateFormOpen(true);
+  }
+
+  async function handleTemplateSave() {
+    if (templateSaving) return;
+    const payload = {
+      name: templateForm.name.trim(),
+      subject: templateForm.subject.trim(),
+      body: templateForm.body,
+    };
+    if (!payload.name) {
+      setTemplateError('Дайте шаблону название — по нему его выбирать в письме');
+      return;
+    }
+    if (!payload.body.trim()) {
+      setTemplateError('Шаблон без текста письма ничего не подставит');
+      return;
+    }
+    setTemplateSaving(true);
+    setTemplateError(null);
+    try {
+      if (editingTemplate) {
+        const updated = await updateMailboxTemplate(editingTemplate.id, payload);
+        setTemplates((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      } else {
+        const created = await insertMailboxTemplate(payload);
+        setTemplates((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      }
+      setTemplateFormOpen(false);
+    } catch (err) {
+      setTemplateError(errorText(err, 'Не удалось сохранить шаблон'));
+    } finally {
+      setTemplateSaving(false);
+    }
+  }
+
+  async function handleTemplateDelete(template: MailboxTemplate) {
+    if (!window.confirm(`Удалить шаблон «${template.name}»? Уже отправленные письма это не изменит.`)) return;
+    try {
+      await deleteMailboxTemplate(template.id);
+      setTemplates((prev) => prev.filter((t) => t.id !== template.id));
+    } catch (err) {
+      setLoadError(errorText(err, 'Не удалось удалить шаблон'));
+    }
+  }
+
   function handleSent(email: MailboxEmail) {
     setEmails((prev) => [...prev, email]);
     setSelectedAddress(parseEmailAddress(email.toAddress));
@@ -262,9 +339,13 @@ export function Mail() {
             >
               Написать письмо
             </Button>
-          ) : (
+          ) : tab === TABS[1] ? (
             <Button icon={<Plus className="h-4 w-4" />} onClick={() => openContactAdd()}>
               Добавить запись
+            </Button>
+          ) : (
+            <Button icon={<Plus className="h-4 w-4" />} onClick={openTemplateAdd}>
+              Добавить шаблон
             </Button>
           )
         }
@@ -330,6 +411,7 @@ export function Mail() {
                 key={selected.address}
                 thread={selected}
                 contacts={contacts}
+                templates={templates}
                 onSent={handleSent}
                 onAddContact={() =>
                   openContactAdd({ email: selected.address, personName: selected.name })
@@ -440,12 +522,61 @@ export function Mail() {
             )}
           </Card>
         )}
+        {!loading && !loadError && tab === TABS[2] && (
+          <div className="flex flex-col gap-3">
+            <div className="text-sm text-ink-muted">
+              Шаблон подставляет тему и текст в письмо — дальше это обычный черновик, его можно править.{' '}
+              {MAILBOX_PLACEHOLDER_HINT} — подставляются из записной книжки по адресу получателя.
+            </div>
+            {templates.length === 0 ? (
+              <Card className="py-10 text-center text-sm text-ink-muted">
+                Шаблонов пока нет. Добавьте первый — например, питч журналисту или ответ на запрос комментария.
+              </Card>
+            ) : (
+              templates.map((template) => (
+                <Card key={template.id} className="flex flex-col gap-2">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <div className="font-semibold text-ink">{template.name}</div>
+                      <div className="text-sm text-ink-muted">{template.subject || 'Без темы'}</div>
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        title="Изменить"
+                        aria-label={`Изменить шаблон ${template.name}`}
+                        onClick={() => openTemplateEdit(template)}
+                        className="flex h-8 w-8 items-center justify-center rounded-control text-ink-faint hover:bg-surface-muted hover:text-ink"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        title="Удалить"
+                        aria-label={`Удалить шаблон ${template.name}`}
+                        onClick={() => void handleTemplateDelete(template)}
+                        className="flex h-8 w-8 items-center justify-center rounded-control text-ink-faint hover:bg-surface-muted hover:text-danger"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                  {/* Текст целиком, не обрезкой в три строки: шаблон читают,
+                      чтобы решить, годится ли он сейчас, и обрезанный на
+                      середине абзац этот вопрос не закрывает. */}
+                  <div className="whitespace-pre-wrap border-t border-border pt-2 text-sm text-ink">{template.body}</div>
+                </Card>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       <ComposeModal
         open={composeOpen}
         initialTo={composeTo}
         contacts={contacts}
+        templates={templates}
         onClose={() => setComposeOpen(false)}
         onSent={(email) => {
           handleSent(email);
@@ -504,6 +635,44 @@ export function Mail() {
           </div>
         </div>
       </Modal>
+
+      <Modal
+        open={templateFormOpen}
+        onClose={() => setTemplateFormOpen(false)}
+        title={editingTemplate ? 'Шаблон письма' : 'Новый шаблон'}
+      >
+        <div className="flex flex-col gap-4">
+          <Input
+            label="Название шаблона"
+            placeholder="Например, «Питч журналисту»"
+            value={templateForm.name}
+            onChange={(e) => setTemplateForm((f) => ({ ...f, name: e.target.value }))}
+          />
+          <Input
+            label="Тема письма"
+            placeholder="Например, «Редевелопмент в Минске: цифры и фактура для материала»"
+            value={templateForm.subject}
+            onChange={(e) => setTemplateForm((f) => ({ ...f, subject: e.target.value }))}
+          />
+          <Textarea
+            label="Текст письма"
+            rows={10}
+            placeholder={`Здравствуйте, {имя}!\n\n...`}
+            value={templateForm.body}
+            onChange={(e) => setTemplateForm((f) => ({ ...f, body: e.target.value }))}
+          />
+          <div className="text-xs text-ink-faint">{MAILBOX_PLACEHOLDER_HINT}</div>
+          {templateError && <div className="text-sm text-danger">{templateError}</div>}
+          <div className="flex flex-wrap gap-3">
+            <Button onClick={() => void handleTemplateSave()} disabled={templateSaving}>
+              {templateSaving ? 'Сохраняем...' : 'Сохранить'}
+            </Button>
+            <Button variant="secondary" onClick={() => setTemplateFormOpen(false)}>
+              Отмена
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }
@@ -513,15 +682,18 @@ export function Mail() {
 function ThreadPanel({
   thread,
   contacts,
+  templates,
   onSent,
   onAddContact,
 }: {
   thread: MailThread;
   contacts: MailboxContact[];
+  templates: MailboxTemplate[];
   onSent: (email: MailboxEmail) => void;
   onAddContact: () => void;
 }) {
-  const known = contacts.some((c) => parseEmailAddress(c.email) === thread.address);
+  const contact = contacts.find((c) => parseEmailAddress(c.email) === thread.address) ?? null;
+  const known = contact !== null;
   const lastSubject = [...thread.emails].reverse().find((e) => e.subject)?.subject ?? '';
   const replySubject = lastSubject && !/^re:/i.test(lastSubject) ? `Re: ${lastSubject}` : lastSubject;
 
@@ -540,7 +712,14 @@ function ThreadPanel({
       </div>
 
       <div className="border-t border-border pt-4">
-        <Composer toAddress={thread.address} initialSubject={replySubject} onSent={onSent} submitLabel="Ответить" />
+        <Composer
+          toAddress={thread.address}
+          initialSubject={replySubject}
+          templates={templates}
+          contact={contact}
+          onSent={onSent}
+          submitLabel="Ответить"
+        />
       </div>
 
       <div className="flex flex-col gap-2 border-t border-border pt-4">
@@ -621,12 +800,14 @@ function ComposeModal({
   open,
   initialTo,
   contacts,
+  templates,
   onClose,
   onSent,
 }: {
   open: boolean;
   initialTo: string;
   contacts: MailboxContact[];
+  templates: MailboxTemplate[];
   onClose: () => void;
   onSent: (email: MailboxEmail) => void;
 }) {
@@ -635,6 +816,9 @@ function ComposeModal({
   useEffect(() => {
     if (open) setTo(initialTo);
   }, [open, initialTo]);
+
+  const address = parseEmailAddress(to);
+  const contact = contacts.find((c) => parseEmailAddress(c.email) === address) ?? null;
 
   const bookOptions = useMemo(
     () =>
@@ -645,6 +829,16 @@ function ComposeModal({
     [contacts],
   );
 
+  // Выпадашка книжки показывает именно того, кому пишем (владелец,
+  // 2026-09-16: "когда я нажимаю «Написать письмо» возле контакта, по
+  // умолчанию в следующем окне должен выбираться этот контакт"). Считается
+  // из адреса, а не хранится отдельным стейтом: адрес можно поправить руками
+  // в поле "Кому", и тогда выбор в книжке обязан сняться сам, иначе он
+  // показывал бы не того человека.
+  const selectedBookOption = contact
+    ? (bookOptions[contacts.indexOf(contact)] ?? '')
+    : '';
+
   return (
     <Modal open={open} onClose={onClose} title="Новое письмо">
       <div className="flex flex-col gap-4">
@@ -653,6 +847,7 @@ function ComposeModal({
             label="Из записной книжки"
             placeholder="Выбрать адресата"
             options={bookOptions}
+            value={selectedBookOption}
             onChange={(value) => setTo(parseEmailAddress(value))}
           />
         )}
@@ -665,8 +860,10 @@ function ComposeModal({
         />
         <Composer
           key={open ? 'open' : 'closed'}
-          toAddress={parseEmailAddress(to)}
+          toAddress={address}
           initialSubject=""
+          templates={templates}
+          contact={contact}
           onSent={onSent}
           submitLabel="Отправить"
           onCancel={onClose}
@@ -682,23 +879,44 @@ function ComposeModal({
 function Composer({
   toAddress,
   initialSubject,
+  templates,
+  contact,
   onSent,
   submitLabel,
   onCancel,
 }: {
   toAddress: string;
   initialSubject: string;
+  templates: MailboxTemplate[];
+  // Запись из книжки, если адресат в ней есть — из неё шаблон берёт имя,
+  // название и категорию для плейсхолдеров.
+  contact: MailboxContact | null;
   onSent: (email: MailboxEmail) => void;
   submitLabel: string;
   onCancel?: () => void;
 }) {
   const [subject, setSubject] = useState(initialSubject);
   const [body, setBody] = useState('');
+  const [templateName, setTemplateName] = useState('');
   const [attachments, setAttachments] = useState<EmailAttachment[]>([]);
   const [attaching, setAttaching] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Шаблон подставляет тему и текст и на этом заканчивается: дальше это
+  // обычный черновик. Поэтому выбор шаблона ПЕРЕЗАПИСЫВАЕТ уже набранное —
+  // спрашивать подтверждение не стали, но и не подставляем молча поверх
+  // непустого текста: сначала предупреждаем.
+  function handlePickTemplate(name: string) {
+    const template = templates.find((t) => t.name === name);
+    if (!template) return;
+    if (body.trim() && !window.confirm('Заменить набранный текст письма шаблоном?')) return;
+    const rendered = renderMailboxTemplate(template, { contact, address: toAddress });
+    setTemplateName(name);
+    setSubject(rendered.subject || subject);
+    setBody(rendered.body);
+  }
 
   async function handleFilesPicked(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -727,6 +945,7 @@ function Composer({
       onSent(email);
       setSubject('');
       setBody('');
+      setTemplateName('');
       setAttachments([]);
     } catch (err) {
       setSendError(errorText(err, 'Не удалось отправить письмо'));
@@ -737,6 +956,14 @@ function Composer({
 
   return (
     <div className="flex flex-col gap-2">
+      {templates.length > 0 && (
+        <Select
+          placeholder="Шаблон письма"
+          options={templates.map((t) => t.name)}
+          value={templateName}
+          onChange={handlePickTemplate}
+        />
+      )}
       <Input placeholder="Тема" value={subject} onChange={(e) => setSubject(e.target.value)} />
       <Textarea rows={6} placeholder="Текст письма" value={body} onChange={(e) => setBody(e.target.value)} />
 
