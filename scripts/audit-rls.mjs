@@ -62,7 +62,7 @@ const CLOSED = [
   'workstation_seat_leads',
   // external_api_tokens: OAuth-токен Яндекса (2026-09-10) — RLS включён БЕЗ
   // единой политики, как у deploy_debounce, доступен только service_role
-  // (читает scripts/sync-yandex-metrika.mjs). anon/authenticated тут делать
+  // (читает supabase/functions/sync-yandex-metrika). anon/authenticated тут делать
   // нечего вовсе, даже read — это секрет, не рабочие данные.
   'external_api_tokens',
   // yandex_metrika_* (2026-09-10): у anon вообще нет доступа (даже read) —

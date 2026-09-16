@@ -1,11 +1,15 @@
+# Ручной запуск синка Яндекс.Метрики. САМО РАСПИСАНИЕ ЗДЕСЬ БОЛЬШЕ НЕ ЖИВЁТ —
+# с 2026-09-16 синк выполняет Edge Function supabase/functions/sync-yandex-metrika
+# по pg_cron (раз в час, :37). Причина переезда — в шапке той функции: крон
+# GitHub Actions на бесплатном публичном репозитории отдавал прогоны с
+# задержкой от 20 минут до суток, и «часовой» синк часовым не был.
+#
+# Логики здесь нет НАМЕРЕННО: воркфлоу дёргает ту же функцию, что и крон, —
+# так нет второй копии кода, которая разойдётся с первой (см. про
+# файлы-близнецы в CLAUDE.md).
 name: Sync Yandex Metrika stats
 
 on:
-  schedule:
-    # Раз в час (владелец попросил чаще, 2026-09-16) — в отличие от
-    # Яндекс.Вебмастера/Search Console, у визитов Метрики нет многосуточного
-    # лага на стороне Яндекса, часовой опрос даёт реально новые данные.
-    - cron: '0 * * * *'
   workflow_dispatch:
     inputs:
       debug_filter:
@@ -17,14 +21,18 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: node scripts/sync-yandex-metrika.mjs ${{ inputs.debug_filter && '--debug-filter --json' || '' }}
+      - name: Вызвать Edge Function
         env:
-          # OAuth-токен Яндекса НЕ передаётся сюда секретом — скрипт читает
-          # его из таблицы external_api_tokens тем же сервисным ключом.
+          # Service-role ключ — он же валидный JWT для вызова функции.
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BODY: ${{ inputs.debug_filter && '{"debugFilter":true,"json":true}' || '{}' }}
+        run: |
+          set -euo pipefail
+          response=$(curl -sS -w '\n%{http_code}' -X POST \
+            "https://iohcdylttyuhwovztrbk.supabase.co/functions/v1/sync-yandex-metrika" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$BODY")
+          code=$(echo "$response" | tail -n1)
+          echo "$response" | sed '$d'
+          test "$code" = "200"

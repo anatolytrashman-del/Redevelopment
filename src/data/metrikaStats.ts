@@ -1,5 +1,5 @@
 // Статистика посещаемости из Яндекс.Метрики — четыре таблицы Supabase,
-// раз в сутки заполняются scripts/sync-yandex-metrika.mjs (сам OAuth-токен
+// раз в час заполняются supabase/functions/sync-yandex-metrika (pg_cron) (сам OAuth-токен
 // лежит отдельно в external_api_tokens, сюда не попадает ни разу — видны
 // только уже посчитанные цифры). RLS: select только authenticated (страница
 // «Показатели» внутри /admin), пишет исключительно сервисный ключ скрипта.
