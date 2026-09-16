@@ -9,6 +9,7 @@ function fromRow(row: MailboxContactRow): MailboxContact {
     category: row.category ?? '',
     personName: row.person_name ?? '',
     email: row.email ?? '',
+    note: row.note ?? '',
     createdAt: row.created_at,
   };
 }
@@ -19,6 +20,7 @@ function toRow(input: Omit<MailboxContact, 'id' | 'createdAt'>) {
     category: input.category,
     person_name: input.personName,
     email: input.email,
+    note: input.note,
   };
 }
 
