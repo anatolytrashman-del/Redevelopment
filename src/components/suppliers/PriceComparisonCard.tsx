@@ -15,6 +15,7 @@ import {
   PROPOSAL_REVIEW_STATUS_LABELS,
   SUPPLIER_COUNTRIES,
   offerCommunicationStatus,
+  followupCounts,
   type SupplierOffer,
   type SupplierProposal,
   type SupplierProposalReview,
@@ -368,7 +369,12 @@ export function PriceComparisonCard({
     const dates = mine.map((e) => e.createdAt).sort();
     const quotesCount = confirmed.reduce((a, o) => a + (quotesByOffer.get(o.id)?.length ?? 0), 0);
     const pricedPositions = positions.filter((p) => columns.some((c) => c.cells.has(p.id))).length;
+    // Дожим (шаг 8 плана закупок): из тех, кому написали, кого ещё
+    // дожимаем, кто отказался и кто так и не ответил. Без этих трёх чисел
+    // разрыв между «отправлено» и «ответили» ничего не объясняет.
+    const followup = followupCounts(offersInCountry, emails, request.replyDueDays);
     return {
+      followup,
       sent: sentIds.size,
       letters: out.length,
       replied: repliedIds.size,
@@ -379,7 +385,7 @@ export function PriceComparisonCard({
       first: dates[0] ?? null,
       last: dates.length > 0 ? dates[dates.length - 1] : null,
     };
-  }, [offersInCountry, emails, confirmed, quotesByOffer, positions, columns]);
+  }, [offersInCountry, emails, confirmed, quotesByOffer, positions, columns, request.replyDueDays]);
 
   const proposal = request.proposal ?? {};
   const review = request.review;
@@ -915,10 +921,24 @@ export function PriceComparisonCard({
       </div>
 
       {/* Воронка запроса */}
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-control border border-border bg-border md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-control border border-border bg-border md:grid-cols-5">
         {[
-          { n: funnel.sent, sub: funnel.letters ? `${funnel.letters} писем с напоминаниями` : 'писем ещё не было', label: 'Запрос отправлен' },
+          {
+            n: funnel.sent,
+            sub: funnel.letters
+              ? `${funnel.letters} писем${funnel.followup.reminders ? `, из них ${funnel.followup.reminders} напоминаний` : ''}`
+              : 'писем ещё не было',
+            label: 'Запрос отправлен',
+          },
           { n: funnel.replied, sub: `${funnel.repliedNoQuote} без КП`, label: 'Ответили' },
+          {
+            n: funnel.followup.followingUp,
+            sub:
+              funnel.followup.declined || funnel.followup.noAnswer
+                ? `${funnel.followup.declined} отказались, ${funnel.followup.noAnswer} без ответа`
+                : `срок ответа — ${request.replyDueDays} дн.`,
+            label: 'Дожимаем',
+          },
           { n: funnel.confirmed, sub: `${funnel.quotesCount} счетов`, label: 'КП получено' },
           {
             n: `${funnel.pricedPositions} из ${positions.length}`,

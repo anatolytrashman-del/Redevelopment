@@ -228,6 +228,8 @@ const emptyRequestForm = {
   sectionTitle: '',
   legalEntityId: '' as string,
   comparisonMode: 'material' as SupplierComparisonMode,
+  // Шаг 8 плана закупок: через сколько дней молчания ИИ-закупщик напомнит.
+  replyDueDays: 3,
 };
 
 const emptyOfferForm = {
@@ -1259,6 +1261,7 @@ export function Suppliers() {
   const [autoReplySettings, setAutoReplySettings] = useState<EmailAutoReplySettings>({
     enabled: false,
     minDelayMinutes: 20,
+    followupsEnabled: false,
     signature: DEFAULT_AUTO_REPLY_SIGNATURE,
   });
   const [autoReplyLoading, setAutoReplyLoading] = useState(true);
@@ -1781,6 +1784,7 @@ export function Suppliers() {
       sectionTitle: requestForm.sectionTitle,
       legalEntityId: requestForm.legalEntityId || null,
       comparisonMode: requestForm.comparisonMode,
+      replyDueDays: requestForm.replyDueDays,
     };
     try {
       if (editingRequest) {
@@ -2782,6 +2786,7 @@ export function Suppliers() {
             onEmailUpdated={handleSupplierEmailUpdated}
             pendingAutoReplies={pendingAutoReplies}
             onAutoReplyReviewed={handleAutoReplyReviewed}
+            onRequestSaved={(saved) => setRequests((prev) => prev.map((x) => (x.id === saved.id ? saved : x)))}
           />
         </div>
       )}
@@ -2869,6 +2874,21 @@ export function Suppliers() {
               }}
             />
           )}
+
+          {/* Шаг 8 плана закупок: после скольких дней молчания ИИ-закупщик
+              напомнит сам. У заведённой категории это же поле правится на
+              вкладке «Письма», в панели дожима. */}
+          <Input
+            label="Ждём ответ, дней"
+            type="number"
+            min={1}
+            max={60}
+            value={String(requestForm.replyDueDays)}
+            onChange={(e) => {
+              const parsed = Number.parseInt(e.target.value, 10);
+              setRequestForm((f) => ({ ...f, replyDueDays: Number.isFinite(parsed) ? parsed : 3 }));
+            }}
+          />
 
           {requestError && <p className="text-sm text-danger">{requestError}</p>}
           <div className="mt-2 flex justify-end gap-3">

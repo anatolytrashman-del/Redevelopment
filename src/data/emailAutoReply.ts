@@ -94,6 +94,11 @@ export interface EmailAutoReplySettings {
   // подпись: Анатолий Трэшмен" — подпись НЕ дублируется в тексте каждой
   // ситуации, её подставляет SQL-функция auto_reply_apply на отправке.
   signature: string;
+  // Дожим молчащих поставщиков (шаг 8 плана закупок): ИИ-закупщик сам
+  // отправляет напоминание через reply_due_days дней после нашего письма.
+  // Рубильник отдельный от enabled намеренно: отвечать на входящее и писать
+  // первым — разные по риску вещи. По умолчанию выключено, как и автоответы.
+  followupsEnabled: boolean;
 }
 
 export interface EmailAutoReplySettingsRow {
@@ -101,6 +106,7 @@ export interface EmailAutoReplySettingsRow {
   enabled: boolean;
   min_delay_minutes: number | null;
   signature: string | null;
+  followups_enabled?: boolean | null;
   updated_at: string;
 }
 

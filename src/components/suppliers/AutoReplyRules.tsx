@@ -466,6 +466,24 @@ export function AutoReplyRulesModal({
               </div>
               <span>минут после получения письма</span>
             </div>
+            <label className="flex items-start gap-2.5 text-sm text-ink">
+              <input
+                type="checkbox"
+                checked={settings.followupsEnabled}
+                disabled={savingSettings}
+                onChange={(e) => saveSettings({ ...settings, followupsEnabled: e.target.checked })}
+                className="mt-0.5 h-4 w-4 accent-primary"
+              />
+              <span>
+                <span className="font-medium">Напоминать молчащим поставщикам</span>
+                <span className="block text-xs text-ink-faint">
+                  Если поставщик не ответил за срок, заданный у категории («Ждём ответ N дней»), ИИ-закупщик сам
+                  отправляет напоминание № 1, через такой же срок — № 2, а ещё через столько же помечает карточку
+                  «без ответа». Тексты — в «Шаблонах писем», у них тип «Напоминание». Тем, кто уже ответил, прислал
+                  счёт или лежит в стоп-листе, не пишем.
+                </span>
+              </span>
+            </label>
             <div className="w-full">
               <Input
                 label="Подпись"

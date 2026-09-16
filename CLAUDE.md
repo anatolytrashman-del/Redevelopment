@@ -64,10 +64,14 @@
 конфигурация.
 
 **Фоновые очереди живут в Supabase, не в GitHub Actions (с 2026-09-11).**
-Две Edge Function в `supabase/functions/`: `process-supplier-jobs` разбирает
+Четыре Edge Function в `supabase/functions/`: `process-supplier-jobs` разбирает
 веб-поиск (`supplier_web_search_jobs`) и обогащение контактов
 (`supplier_enrichment_jobs`), `process-bulk-send-jobs` — массовую рассылку
-(`bulk_send_jobs`/`bulk_send_job_items`). Обе дёргает `pg_cron` раз в минуту
+(`bulk_send_jobs`/`bulk_send_job_items`), `process-outgoing-emails` — досылку
+одиночных писем (`outgoing_email_jobs`), `process-followups` — дожим молчащих
+поставщиков (раз в ЧАС, `17 * * * *`; рубильник
+`email_auto_reply_settings.followups_enabled`, по умолчанию выключен).
+Первые три дёргает `pg_cron` раз в минуту
 через `pg_net` (ключ для вызова лежит в Vault под именем
 `edge_service_role_key`). Секреты функций — `PROXYAPI_KEY` и `RESEND_API_KEY`
 (в секретах проекта Supabase, не в репозитории).
@@ -194,6 +198,11 @@ curl -sS -X POST "https://api.supabase.com/v1/projects/iohcdylttyuhwovztrbk/data
   выборка, где строк может стать больше, — постранично через `.range()`, иначе
   хвост теряется МОЛЧА, без ошибки. Так из приложения пропадали 141 карточка
   поставщика и 393 снимка сайтов (разбор 2026-09-15).
+- **`create or replace function` с ДРУГИМ числом аргументов не заменяет
+  функцию, а заводит вторую.** Дальше любой вызов со старым числом
+  аргументов падает с «function is not unique» — то есть ломается всё, что
+  звало функцию раньше. Добавляешь параметр — сначала `drop function` со
+  старой сигнатурой, в той же миграции (так сделано с `auto_reply_apply`).
 - **`claude-sonnet-5` через ProxyAPI требует `thinking: {type: 'disabled'}`.**
   По умолчанию модель уходит в extended thinking и съедает им весь лимит
   вывода: ответ приходит с HTTP 200, `stop_reason: max_tokens` и ПУСТЫМ
@@ -203,9 +212,11 @@ curl -sS -X POST "https://api.supabase.com/v1/projects/iohcdylttyuhwovztrbk/data
 - **Правила, общие для фронта и `api/*.js`, живут в ДВУХ файлах-близнецах.**
   Serverless-функции — голый JS и импортировать TypeScript из `src/` не
   умеют, поэтому такая логика дублируется (`src/data/vat.ts` ↔ `api/_vat.js`
-  — НДС). Правится одна сторона — правится и вторая: расхождение означает,
-  что счёт, записанный автоматически, и тот же счёт, подтверждённый руками,
-  дадут разные цены.
+  — НДС; `offerFollowupState` в `src/data/supplierResearch.ts` ↔
+  `supabase/functions/process-followups` — пороги дожима). Правится одна
+  сторона — правится и вторая: расхождение означает, что счёт, записанный
+  автоматически, и тот же счёт, подтверждённый руками, дадут разные цены, а
+  интерфейс покажет «пора напомнить» там, где воркер промолчит.
 - **Разовый прогон по живой базе не требует service-role ключа** (его в
   окружении сессии нет). Читать и писать можно через Management API
   (`SUPABASE_ACCESS_TOKEN`, см. раздел «SQL-миграции»), а модель дёргать

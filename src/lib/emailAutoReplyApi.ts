@@ -152,6 +152,7 @@ export function fetchEmailAutoReplySettings(): Promise<EmailAutoReplySettings> {
       enabled: row?.enabled ?? false,
       minDelayMinutes: row?.min_delay_minutes ?? 20,
       signature: row?.signature ?? DEFAULT_AUTO_REPLY_SIGNATURE,
+      followupsEnabled: row?.followups_enabled ?? false,
     };
   });
 }
@@ -166,6 +167,7 @@ export function updateEmailAutoReplySettings(input: EmailAutoReplySettings): Pro
           enabled: input.enabled,
           min_delay_minutes: input.minDelayMinutes,
           signature: input.signature,
+          followups_enabled: input.followupsEnabled,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'id' },
@@ -178,6 +180,7 @@ export function updateEmailAutoReplySettings(input: EmailAutoReplySettings): Pro
       enabled: row.enabled,
       minDelayMinutes: row.min_delay_minutes ?? 20,
       signature: row.signature ?? DEFAULT_AUTO_REPLY_SIGNATURE,
+      followupsEnabled: row.followups_enabled ?? false,
     };
   });
 }
