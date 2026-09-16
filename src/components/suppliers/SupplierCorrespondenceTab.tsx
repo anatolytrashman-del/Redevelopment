@@ -47,6 +47,12 @@ import type { SupplierQuote } from '../../data/supplierQuotes';
 import { insertSupplierQuote, updateSupplierQuoteItems, deleteSupplierQuote } from '../../lib/supplierQuotesApi';
 import type { EmailAutoReplyLogEntry } from '../../data/emailAutoReply';
 import { pendingIncomingEmails } from '../../lib/pendingEmails';
+import type { UnmatchedIncomingEmail } from '../../data/unmatchedIncomingEmails';
+import {
+  fetchUnmatchedIncomingEmails,
+  attachUnmatchedIncomingEmail,
+  dismissUnmatchedIncomingEmail,
+} from '../../lib/unmatchedIncomingEmailsApi';
 import { AUTO_REPLY_SENDER_NAME } from '../../data/emailAutoReply';
 import { markAutoReplyReviewed } from '../../lib/emailAutoReplyApi';
 
@@ -1513,7 +1519,27 @@ export function EmailThread({
                     ) : (
                       <AlertTriangle className="h-3 w-3" />
                     )}
-                    {e.direction === 'out' ? emailSendStatusLabel[e.sendStatus] : 'Получено'}
+                    {e.direction === 'out'
+                      ? e.bouncedAt
+                        ? 'Вернулось'
+                        : emailSendStatusLabel[e.sendStatus]
+                      : 'Получено'}
+                    {/* Судьба письма по данным почтового сервера (шаг 9,
+                        события Resend). Показываем самое позднее из
+                        известного: прочитано важнее доставлено. Отсутствие
+                        отметки НЕ значит «не дошло» — у писем до 2026-09-16
+                        событий не было вовсе, а открытия Resend видит только
+                        при включённом на домене open tracking. */}
+                    {e.direction === 'out' && !e.bouncedAt && (e.openedAt || e.deliveredAt) && (
+                      <span
+                        className="text-ink-faint"
+                        title={`${e.deliveredAt ? `Доставлено ${new Date(e.deliveredAt).toLocaleString('ru-RU')}` : ''}${
+                          e.openedAt ? `${e.deliveredAt ? ', ' : ''}открыто ${new Date(e.openedAt).toLocaleString('ru-RU')}` : ''
+                        }`}
+                      >
+                        · {e.openedAt ? 'прочитано' : 'доставлено'}
+                      </span>
+                    )}
                     {/* Пометка "писал не человек". Раньше тут стояло
                         "автоответ", но с 2026-09-15 под этим именем уходят и
                         письма, отправленные по подсказке владельца в разборе
@@ -1539,10 +1565,30 @@ export function EmailThread({
                       : `Почта временно недоступна — письмо уйдёт само, как только отправка заработает.${e.sendError ? ` Причина: ${e.sendError}` : ''}`}
                   </div>
                 )}
-                {e.direction === 'out' && e.sendStatus === 'failed' && (
+                {/* Письмо ушло, но почтовый сервер получателя вернул его.
+                    Это НЕ «не отправлено»: текст у поставщика не побывал, а
+                    адрес, скорее всего, мёртв — при постоянном отказе он уже
+                    помечен в карточке и выключен из рассылки и дожима
+                    (api/_emailEvents.js). */}
+                {e.direction === 'out' && e.bouncedAt ? (
                   <div className="text-xs text-danger">
-                    Письмо не отправлено{e.sendError ? `: ${e.sendError}` : ''}. Текст сохранён — можно скопировать и
-                    отправить заново.
+                    Письмо вернулось{e.bounceReason ? `: ${e.bounceReason}` : ''}. Проверьте адрес в карточке поставщика —
+                    пока он не исправлен, рассылка и напоминания туда не идут.
+                  </div>
+                ) : (
+                  e.direction === 'out' &&
+                  e.sendStatus === 'failed' && (
+                    <div className="text-xs text-danger">
+                      Письмо не отправлено{e.sendError ? `: ${e.sendError}` : ''}. Текст сохранён — можно скопировать и
+                      отправить заново.
+                    </div>
+                  )
+                )}
+                {/* Жалоба на спам — компания автоматически уходит в стоп-лист
+                    (suppliers.blocked_reason), писать ей дальше нельзя. */}
+                {e.direction === 'out' && e.complainedAt && (
+                  <div className="text-xs text-danger">
+                    Получатель пометил письмо как спам. Компания переведена в стоп-лист — рассылка ей больше не уходит.
                   </div>
                 )}
                 {e.subject && <div className="font-semibold text-ink">{e.subject}</div>}
@@ -2405,6 +2451,153 @@ function pluralDays(n: number): string {
   return 'дней';
 }
 
+// Ручной разбор письма, которое вебхук не смог привязать ни к одной
+// карточке (шаг 9 плана закупок). Три автоматических способа — plus-адрес,
+// заголовок In-Reply-To и однозначный адрес отправителя — описаны в
+// api/purchase-email-webhook.js; сюда попадает то, что не прошло ни одним.
+//
+// Показываем письмо целиком (тема, текст, вложения) — решение «чьё это»
+// принимается по содержимому, а не по адресу, раз уж адрес не помог. Поиск
+// по карточкам — по названию компании и адресу, а не список всех: карточек
+// больше тысячи, выпадающим списком такое не выбирается.
+export function UnmatchedEmailCard({
+  email,
+  offers,
+  requests,
+  onResolved,
+}: {
+  email: UnmatchedIncomingEmail;
+  offers: SupplierOffer[];
+  requests: SupplierRequest[];
+  // Привязанное письмо возвращается наверх, чтобы страница добавила его в
+  // переписку сразу; при «убрать» аргумента нет — добавлять нечего.
+  onResolved: (attached?: SupplierOfferEmail) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const requestTitle = (requestId: string) => requests.find((r) => r.id === requestId)?.title ?? 'Без категории';
+
+  // Кандидаты, которые вебхук уже нашёл по адресу отправителя, — всегда
+  // первыми и без поиска: в типичном случае («поставщик ответил на голый
+  // zakupki@, а карточек у него две») ответ уже здесь.
+  const suggested = useMemo(
+    () => email.candidateOfferIds.map((id) => offers.find((o) => o.id === id)).filter((o): o is SupplierOffer => !!o),
+    [email.candidateOfferIds, offers],
+  );
+
+  const found = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return offers
+      .filter((o) => o.name.toLowerCase().includes(q) || (o.email ?? '').toLowerCase().includes(q))
+      .slice(0, 12);
+  }, [offers, query]);
+
+  async function attach(offerId: string) {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const attached = await attachUnmatchedIncomingEmail(email, offerId, getCurrentProfile()?.displayName ?? null);
+      onResolved(attached);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось привязать письмо');
+      setBusy(false);
+    }
+  }
+
+  async function dismiss() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await dismissUnmatchedIncomingEmail(email.id, getCurrentProfile()?.displayName ?? null);
+      onResolved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось убрать письмо');
+      setBusy(false);
+    }
+  }
+
+  const offerLine = (o: SupplierOffer) => (
+    <button
+      key={o.id}
+      type="button"
+      disabled={busy}
+      onClick={() => attach(o.id)}
+      className="flex w-full flex-col items-start gap-0.5 rounded-control border border-border bg-surface px-3 py-2 text-left text-sm transition-colors hover:border-border-strong disabled:opacity-50"
+    >
+      <span className="font-medium text-ink">{o.name}</span>
+      <span className="text-xs text-ink-faint">
+        {requestTitle(o.requestId)}
+        {o.email ? ` · ${o.email}` : ''}
+      </span>
+    </button>
+  );
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <span className="text-lg font-bold text-ink">{email.subject || 'Без темы'}</span>
+        <span className="text-xs text-ink-faint">
+          {email.fromAddress} → {email.toAddress} · {new Date(email.createdAt).toLocaleString('ru-RU')}
+        </span>
+      </div>
+
+      {email.files.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {email.files.map((f, i) => (
+            <a
+              key={`${f.url}-${i}`}
+              href={f.url}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 rounded-control border border-border bg-surface px-2.5 py-1.5 text-xs text-ink hover:border-border-strong"
+            >
+              <Paperclip className="h-3 w-3" />
+              {f.fileName}
+            </a>
+          ))}
+        </div>
+      )}
+
+      <div className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-control border border-border bg-surface-muted p-3 text-sm text-ink">
+        {email.body || 'Письмо без текста.'}
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-semibold text-ink">К какому поставщику отнести</span>
+        {suggested.length > 0 && (
+          <>
+            <span className="text-xs text-ink-faint">С этого адреса уже переписывались — скорее всего, одна из этих карточек:</span>
+            {suggested.map(offerLine)}
+          </>
+        )}
+        <Input
+          label="Найти карточку"
+          placeholder="Название компании или адрес"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        {found.map(offerLine)}
+        {query.trim().length >= 2 && found.length === 0 && (
+          <span className="text-xs text-ink-faint">Ничего не нашлось. Заведите карточку поставщика в нужной категории и вернитесь сюда.</span>
+        )}
+      </div>
+
+      {error && <p className="text-sm text-danger">{error}</p>}
+
+      <div className="flex">
+        <Button type="button" variant="ghost" disabled={busy} onClick={dismiss}>
+          Это не по делу — убрать
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function threadStatus(emails: SupplierOfferEmail[]): { status: ThreadStatus; unreadCount: number } {
   // Не "все непрочитанные входящие", а только те, что ждут ответа — см.
   // lib/pendingEmails.ts (владелец, 2026-09-15: счётчик должен показывать
@@ -2587,6 +2780,25 @@ export function SupplierCorrespondenceTab({
   // выбор (тред уже выбранного поставщика остаётся открытым при переключении).
   const [countryFilter, setCountryFilter] = useState<string>(SUPPLIER_COUNTRIES[0]);
 
+  // Неразобранные входящие (шаг 9): письма на закупочный ящик, которые
+  // вебхук не смог привязать ни к одной карточке. Живут в своей таблице и
+  // грузятся отдельно — к offers/emails страницы они не относятся, пока их
+  // не привязали. Список короткий (единицы штук), поллинга не нужно:
+  // обновляется при открытии вкладки и после каждого разбора.
+  const [unmatched, setUnmatched] = useState<UnmatchedIncomingEmail[]>([]);
+  const [selectedUnmatchedId, setSelectedUnmatchedId] = useState<string | null>(null);
+
+  const reloadUnmatched = () => {
+    fetchUnmatchedIncomingEmails()
+      .then(setUnmatched)
+      .catch(() => {
+        // Очередь ручного разбора — вспомогательный список: если он не
+        // загрузился, переписка всё равно должна работать.
+      });
+  };
+
+  useEffect(reloadUnmatched, []);
+
   function handleTemplateSaved(saved: EmailTemplate) {
     onTemplatesChange(templates.some((t) => t.id === saved.id) ? templates.map((t) => (t.id === saved.id ? saved : t)) : [...templates, saved]);
   }
@@ -2647,13 +2859,21 @@ export function SupplierCorrespondenceTab({
   // осиротела, например запрос удалили), по умолчанию открываем
   // "Непрочитанные", если там есть что показать, иначе первую категорию
   // списка (уже отсортирована по непрочитанным — см. groups выше).
+  const categoryExists = (id: string) =>
+    id === 'unread'
+      ? totalUnread > 0
+      : id === 'unmatched'
+        ? unmatched.length > 0
+        : groups.some((g) => g.request.id === id);
   const effectiveRequestId =
-    selectedRequestId && (selectedRequestId === 'unread' ? totalUnread > 0 : groups.some((g) => g.request.id === selectedRequestId))
+    selectedRequestId && categoryExists(selectedRequestId)
       ? selectedRequestId
       : totalUnread > 0
         ? 'unread'
         : (groups[0]?.request.id ?? null);
   const isUnreadView = effectiveRequestId === 'unread';
+  const isUnmatchedView = effectiveRequestId === 'unmatched';
+  const selectedUnmatched = unmatched.find((u) => u.id === selectedUnmatchedId) ?? null;
   const selectedGroup = groups.find((g) => g.request.id === effectiveRequestId) ?? null;
 
   const categoryOptions = useMemo(() => {
@@ -2661,8 +2881,13 @@ export function SupplierCorrespondenceTab({
       const unread = g.offers.reduce((sum, x) => sum + threadStatus(x.emails).unreadCount, 0);
       return { id: g.request.id, label: unread > 0 ? `${g.request.title} (${unread})` : g.request.title };
     });
-    return totalUnread > 0 ? [{ id: 'unread', label: `Непрочитанные (${totalUnread})` }, ...base] : base;
-  }, [groups, totalUnread]);
+    const head = [];
+    if (totalUnread > 0) head.push({ id: 'unread', label: `Непрочитанные (${totalUnread})` });
+    // Псевдо-категория «Разобрать вручную» — только когда есть что
+    // разбирать: пустой пункт в селекторе каждый день мозолил бы глаза.
+    if (unmatched.length > 0) head.push({ id: 'unmatched', label: `Разобрать вручную (${unmatched.length})` });
+    return [...head, ...base];
+  }, [groups, totalUnread, unmatched.length]);
 
   const selected = useMemo(() => {
     if (!selectedOfferId) return null;
@@ -2830,7 +3055,7 @@ export function SupplierCorrespondenceTab({
               Владелец, 2026-09-04: в псевдо-категории "Непрочитанные" список
               и так уже смешивает все категории/страны — тумблер тут ни при
               чём, скрыт. */}
-          {!isUnreadView && (
+          {!isUnreadView && !isUnmatchedView && (
             <div className="flex w-fit gap-1 rounded-full border border-border bg-surface-muted p-1">
               {SUPPLIER_COUNTRIES.map((c) => (
                 <button
@@ -2887,7 +3112,26 @@ export function SupplierCorrespondenceTab({
               просто получил свою прокрутку — Select/тумблер страны/кнопка
               рассылки сверху всегда на виду. */}
           <div className="flex flex-col gap-1 roomy:min-h-0 roomy:flex-1 roomy:overflow-y-auto">
-            {isUnreadView
+            {isUnmatchedView
+              ? unmatched.map((u) => {
+                  const isSelected = selectedUnmatchedId === u.id;
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => setSelectedUnmatchedId(u.id)}
+                      className={cn(
+                        'flex flex-col items-start gap-0.5 rounded-control border px-3 py-2 text-left text-sm transition-colors',
+                        isSelected ? 'border-ink bg-surface-muted' : 'border-border bg-surface hover:border-border-strong',
+                      )}
+                    >
+                      <span className="w-full truncate font-medium text-ink">{u.subject || 'Без темы'}</span>
+                      <span className="w-full truncate text-xs text-ink-faint">{u.fromAddress}</span>
+                      <span className="text-xs text-ink-faint">{new Date(u.createdAt).toLocaleDateString('ru-RU')}</span>
+                    </button>
+                  );
+                })
+              : isUnreadView
               ? unreadEntries.map((entry) => {
                   const key = `${entry.offer.id}:${entry.orderId ?? 'main'}`;
                   const isSelected = selectedOfferId === entry.offer.id && (selectedOrderId ?? null) === entry.orderId;
@@ -2957,7 +3201,27 @@ export function SupplierCorrespondenceTab({
         </div>
 
         <Card className="flex-1 p-5 roomy:flex roomy:min-h-0 roomy:flex-col roomy:overflow-y-auto">
-          {!selected ? (
+          {isUnmatchedView ? (
+            selectedUnmatched ? (
+              <UnmatchedEmailCard
+                email={selectedUnmatched}
+                offers={offers}
+                requests={requests}
+                onResolved={(attached) => {
+                  setSelectedUnmatchedId(null);
+                  reloadUnmatched();
+                  // Письмо переехало в переписку поставщика — страница должна
+                  // его увидеть, иначе оно появится только после F5.
+                  if (attached) onEmailSent(attached);
+                }}
+              />
+            ) : (
+              <p className="text-sm text-ink-faint">
+                Эти письма пришли на закупочный ящик, но привязать их к карточке поставщика автоматически не вышло — выберите
+                письмо слева и укажите, чьё оно.
+              </p>
+            )
+          ) : !selected ? (
             <p className="text-sm text-ink-faint">Выберите поставщика слева, чтобы открыть переписку.</p>
           ) : (
             <div className="flex flex-col gap-3 roomy:min-h-0 roomy:flex-1">

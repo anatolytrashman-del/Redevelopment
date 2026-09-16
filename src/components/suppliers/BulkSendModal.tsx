@@ -303,6 +303,11 @@ export function BulkSendModal({
     () => (o: SupplierOffer) =>
       !!o.email &&
       o.verified &&
+      // Почта уже вернула постоянный отказ по этому адресу (шаг 9, событие
+      // Resend email.bounced). Рассылать туда — тратить квоту и портить
+      // репутацию домена отправителя; адрес чинится правкой карточки, и
+      // тогда отметка снимается сама (см. updateSupplierOffer).
+      !o.emailInvalidAt &&
       !(o.supplierId && blockedSupplierIds.has(o.supplierId)) &&
       (selectedCountry === ALL_COUNTRIES || (o.country || SUPPLIER_COUNTRIES[0]) === selectedCountry),
     [selectedCountry, blockedSupplierIds],

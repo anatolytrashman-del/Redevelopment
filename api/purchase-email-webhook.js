@@ -34,12 +34,14 @@
 // комментарий в _attachments.js): сам вебхук email.received несёт только
 // метаданные письма (from/to/subject/email_id/attachments-список без
 // содержимого) — тела ("text"/"html") в нём НЕТ, его нужно дотягивать
-// отдельным GET-запросом к api.resend.com (fetchReceivedEmailBody ниже).
+// отдельным GET-запросом к api.resend.com (fetchReceivedEmail ниже).
 // Раньше здесь ошибочно читалось data.text/data.html прямо из вебхука —
 // на первом же реальном письме body сохранился бы пустой строкой.
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { extractEmailAttachments, fetchReceivedEmailBody } from './_attachments.js';
+import { extractEmailAttachments, fetchReceivedEmail } from './_attachments.js';
+import { isOutgoingEmailEvent, handleOutgoingEmailEvent } from './_emailEvents.js';
+import { isPurchasingInbox, referencedMessageIds } from './_emailMatch.js';
 import { extractTermsFromEmailText, recognizeAllInvoicesFromAttachments } from './_invoiceRecognition.js';
 import { applyRecognizedInvoice, quoteTitle } from './_invoiceApply.js';
 import { saveReliabilityIfNew } from './_checko.js';
@@ -196,6 +198,121 @@ async function resolveOfferIdByEmailHistory(shortCode) {
   if (!resp.ok) return null;
   const rows = await resp.json();
   return rows[0]?.offer_id ?? null;
+}
+
+// Второй способ привязки: ответ ссылается на наше письмо заголовком
+// Message-ID. Сам заголовок лежит в message_id_header — он НЕ равен
+// resend_message_id (uuid из ответа Resend на отправку), см. подробный
+// разбор в api/_emailEvents.js; заполняется он при первом событии по
+// письму, поэтому у писем, отправленных до 2026-09-16, его может не быть —
+// для них остаётся третий способ, по адресу отправителя.
+async function resolveByMessageIdHeaders(messageIds) {
+  const authHeaders = {
+    apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+  };
+  const targets = [
+    { table: 'supplier_offer_emails', select: 'offer_id,order_id' },
+    { table: 'purchase_emails', select: 'purchase_id' },
+    { table: 'work_contractor_emails', select: 'contractor_id' },
+  ];
+  for (const messageId of messageIds.slice(0, 10)) {
+    for (const { table, select } of targets) {
+      try {
+        const resp = await fetch(
+          `${process.env.SUPABASE_URL}/rest/v1/${table}?message_id_header=eq.${encodeURIComponent(messageId)}&select=${select}&limit=1`,
+          { headers: authHeaders },
+        );
+        if (!resp.ok) continue;
+        const rows = await resp.json();
+        if (rows.length === 0) continue;
+        return {
+          offerId: rows[0].offer_id ?? null,
+          orderId: rows[0].order_id ?? null,
+          purchaseId: rows[0].purchase_id ?? null,
+          contractorId: rows[0].contractor_id ?? null,
+        };
+      } catch (err) {
+        console.error('Ошибка поиска письма по Message-ID:', err);
+      }
+    }
+  }
+  return null;
+}
+
+// Третий способ: тот же адрес уже встречался в переписке. Работает ТОЛЬКО
+// когда ответ однозначен — если с этим адресом связана не одна карточка, а
+// несколько (поставщик продаёт и плинтусы, и керамогранит, у каждой
+// категории своя карточка), угадывать нельзя: письмо со счётом уехало бы в
+// чужую категорию, а распознавание записало бы оттуда цены. В таком случае
+// возвращаем всех кандидатов, а решает человек.
+async function offerCandidatesByFromAddress(fromAddress) {
+  const address = String(fromAddress || '').trim().toLowerCase();
+  if (!address || !address.includes('@')) return [];
+  const authHeaders = {
+    apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+  };
+  const ids = new Set();
+  const queries = [
+    `supplier_offer_emails?direction=eq.out&to_address=ilike.${encodeURIComponent(address)}&select=offer_id&order=created_at.desc&limit=100`,
+    `supplier_research_offers?email=ilike.${encodeURIComponent(address)}&deleted_at=is.null&select=id&limit=100`,
+  ];
+  for (const query of queries) {
+    try {
+      const resp = await fetch(`${process.env.SUPABASE_URL}/rest/v1/${query}`, { headers: authHeaders });
+      if (!resp.ok) continue;
+      for (const row of await resp.json()) {
+        const id = row.offer_id ?? row.id;
+        if (id) ids.add(id);
+      }
+    } catch (err) {
+      console.error('Ошибка поиска карточки по адресу отправителя:', err);
+    }
+  }
+  return [...ids];
+}
+
+// Письмо, которое не удалось привязать ни одним способом. Сохраняем сразу и
+// целиком (тело + перезалитые вложения): download_url у вложений Resend
+// живёт час, «разберём завтра» означало бы письмо без файлов. Повторную
+// доставку отсекает уникальный индекс по resend_message_id — конфликт тут
+// не ошибка.
+async function storeUnmatchedEmail(payload) {
+  const resp = await fetch(`${process.env.SUPABASE_URL}/rest/v1/unmatched_incoming_emails`, {
+    method: 'POST',
+    headers: {
+      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation,resolution=ignore-duplicates',
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) {
+    throw new Error(`Не удалось сохранить неразобранное письмо: ${await resp.text()}`);
+  }
+  const rows = await resp.json();
+  return rows[0] ?? null;
+}
+
+async function unmatchedAlreadyStored(messageId) {
+  if (!messageId) return false;
+  try {
+    const resp = await fetch(
+      `${process.env.SUPABASE_URL}/rest/v1/unmatched_incoming_emails?select=id&resend_message_id=eq.${encodeURIComponent(messageId)}&limit=1`,
+      {
+        headers: {
+          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      },
+    );
+    if (!resp.ok) return false;
+    return (await resp.json()).length > 0;
+  } catch {
+    return false;
+  }
 }
 
 // Заголовок From письма обычно приходит в одном из двух видов —
@@ -403,21 +520,45 @@ export default async function handler(req, res) {
       }),
     );
 
+    // События по УЖЕ ОТПРАВЛЕННЫМ письмам (доставлено / открыто / отлуп /
+    // жалоба на спам). Этот endpoint подписан в Resend на весь список типов
+    // ещё с 2026-08-29, но до шага 9 плана закупок читались только входящие:
+    // у таких событий в "to" стоит адрес поставщика, plus-код оттуда не
+    // извлекается — и ответ почтового сервера «такого ящика нет» уходил в
+    // {skipped:true}. Разбор — в api/_emailEvents.js.
+    if (isOutgoingEmailEvent(payload.type)) {
+      const outcome = await handleOutgoingEmailEvent(payload.type, data);
+      console.log('[webhook] событие по отправленному письму:', JSON.stringify(outcome));
+      res.status(200).json(outcome);
+      return;
+    }
+
     const toRaw = data.to;
     const toAddress = Array.isArray(toRaw) ? toRaw[0] : toRaw;
     const fromAddress = data.from ?? '';
     const subject = data.subject ?? '';
 
     const code = extractShortCode(toAddress);
+    const messageId = data.email_id ?? data.id ?? null;
 
-    if (!code) {
-      // Письмо не на наш plus-адрес — не наша забота, но и не ошибка
-      // самого вебхука (Resend не должен ретраить бесконечно). Заодно не
-      // тратим лишний запрос к Resend API на тело письма, которое всё
+    if (!code && !isPurchasingInbox(toAddress)) {
+      // Письмо вообще не на закупочный ящик (MX стоит на весь домен, сюда
+      // приносит любое письмо на redevelopment.pro) — не наша забота, но и
+      // не ошибка самого вебхука: Resend не должен ретраить бесконечно.
+      // Заодно не тратим запрос к Resend API на тело письма, которое всё
       // равно никуда не сохраним.
       res.status(200).json({ skipped: true });
       return;
     }
+
+    // Тело и заголовки письма — одним запросом к Resend, лениво: при
+    // обычном письме с plus-кодом они нужны уже после сопоставления, а при
+    // письме без кода заголовки нужны, наоборот, для самого сопоставления.
+    let received = null;
+    const ensureReceived = async () => {
+      if (!received) received = await fetchReceivedEmail([data.email_id, data.id]);
+      return received;
+    };
 
     // Таблицу определяет не префикс адреса (оба принимаются одинаково, см.
     // extractShortCode), а то, в какой из четырёх таблиц реально нашёлся
@@ -429,37 +570,80 @@ export default async function handler(req, res) {
     // дополнительные заявки (supplier_orders) переписываются по своему
     // короткому коду; письмо в этом случае всё равно кладём под настоящий
     // offer_id (карточка поставщика), плюс order_id конкретной заявки.
-    const purchaseId = await resolveIdByShortCode('purchases', code);
-    const matchedOffer = purchaseId ? null : await resolveIdByShortCode('supplier_research_offers', code);
-    const matchedOrder = purchaseId || matchedOffer ? null : await resolveOrderByShortCode(code);
+    let purchaseId = code ? await resolveIdByShortCode('purchases', code) : null;
+    const matchedOffer = !code || purchaseId ? null : await resolveIdByShortCode('supplier_research_offers', code);
+    const matchedOrder = !code || purchaseId || matchedOffer ? null : await resolveOrderByShortCode(code);
     let offerId = matchedOffer ?? matchedOrder?.offerId ?? null;
-    const orderId = matchedOrder?.id ?? null;
+    let orderId = matchedOrder?.id ?? null;
     // Четвёртая таблица — подрядчики (вкладка "Подрядчики" страницы
     // "Закупки", владелец 2026-09-14). Проверяется последней из прямых
     // поисков: у поставщиков переписки на порядки больше, незачем на каждом
     // письме ходить сюда первым.
-    const contractorId =
-      purchaseId || offerId ? null : await resolveIdByShortCode('work_contractors', code);
+    let contractorId =
+      !code || purchaseId || offerId ? null : await resolveIdByShortCode('work_contractors', code);
 
     // Фолбэк по истории отправленных писем (см. комментарий у
     // resolveOfferIdByEmailHistory) — только когда прямой поиск по всем
     // четырём таблицам ничего не дал.
-    if (!purchaseId && !offerId && !contractorId) {
+    if (code && !purchaseId && !offerId && !contractorId) {
       offerId = await resolveOfferIdByEmailHistory(code);
     }
 
+    // Шаг 9 плана закупок: письмо пришло на закупочный ящик, но по адресу
+    // не привязалось — либо поставщик ответил на голый zakupki@ (его
+    // почтовик подставил адрес из подписи, а не из Reply-To), либо код в
+    // адресе ни во что не резолвится (например, закупку давно удалили).
+    // Раньше такое письмо молча исчезало. Теперь у него ещё два пути, а
+    // если не сработал ни один — своя очередь ручного разбора.
+    let matchedBy = code && (purchaseId || offerId || contractorId) ? 'plus-адрес' : null;
     if (!purchaseId && !offerId && !contractorId) {
-      // Код есть в адресе, но не резолвится ни в одну реальную запись —
-      // например, письмо на давно удалённую закупку. Логируем на всякий
-      // случай, но так же безобидно скипаем, как и совсем чужой адрес.
-      console.warn('Не удалось сопоставить short_code с записью:', code);
-      res.status(200).json({ skipped: true });
-      return;
+      if (await unmatchedAlreadyStored(messageId)) {
+        console.warn('Повторная доставка неразобранного письма, пропускаем:', messageId);
+        res.status(200).json({ skipped: true, duplicate: true });
+        return;
+      }
+
+      const { headers } = await ensureReceived();
+      const byHeader = await resolveByMessageIdHeaders(referencedMessageIds(headers));
+      if (byHeader) {
+        purchaseId = byHeader.purchaseId;
+        offerId = byHeader.offerId;
+        orderId = byHeader.orderId;
+        contractorId = byHeader.contractorId;
+        matchedBy = 'заголовок In-Reply-To';
+      }
+
+      if (!purchaseId && !offerId && !contractorId) {
+        const candidates = await offerCandidatesByFromAddress(parseFromHeader(fromAddress).address);
+        if (candidates.length === 1) {
+          offerId = candidates[0];
+          matchedBy = 'адрес отправителя';
+        } else {
+          const { body: unmatchedBody } = await ensureReceived();
+          const unmatchedFiles = (await extractEmailAttachments(data)).map(({ url, fileName }) => ({ url, fileName }));
+          const stored = await storeUnmatchedEmail({
+            resend_message_id: messageId,
+            from_address: fromAddress,
+            to_address: toAddress || '',
+            subject,
+            body: unmatchedBody,
+            files: unmatchedFiles,
+            headers: headers ?? null,
+            candidate_offer_ids: candidates,
+          });
+          console.warn(
+            '[webhook] письмо не привязано ни к одной карточке, отправлено в ручной разбор:',
+            JSON.stringify({ messageId, candidates: candidates.length }),
+          );
+          res.status(200).json({ unmatched: true, id: stored?.id ?? null, candidates: candidates.length });
+          return;
+        }
+      }
     }
+    console.log('[webhook] письмо привязано по:', matchedBy);
 
     // Повторная доставка того же письма (см. emailAlreadyStored) — отвечаем
     // 200 и ничего не делаем: письмо уже сохранено первым разом.
-    const messageId = data.email_id ?? data.id ?? null;
     const targetTable = purchaseId
       ? 'purchase_emails'
       : contractorId
@@ -471,8 +655,9 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Тело письма — отдельным запросом, см. комментарий в начале файла.
-    const body = await fetchReceivedEmailBody([data.email_id, data.id]);
+    // Тело письма — отдельным запросом, см. комментарий в начале файла
+    // (у писем без plus-кода оно уже получено выше, при сопоставлении).
+    const { body } = await ensureReceived();
     const attachments = await extractEmailAttachments(data);
     const files = attachments.map(({ url, fileName }) => ({ url, fileName }));
 
