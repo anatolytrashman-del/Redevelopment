@@ -7,6 +7,8 @@ import { getBacklogLastViewedAt, onBacklogViewed } from '../../lib/backlogSeen';
 import { fetchLeadsUnreadCount } from '../../lib/leadsApi';
 import { getLeadsLastViewedAt, onLeadsViewed } from '../../lib/leadsSeen';
 import { fetchContractorsWithBirthdayToday } from '../../lib/contractorsApi';
+import { fetchMailboxUnreadCount } from '../../lib/mailboxApi';
+import { onMailboxRead } from '../../lib/mailboxSeen';
 import { SIDEBAR_LAYOUT, findPage } from '../../data/pages';
 import { getCurrentProfile, isPageAllowed, isSuperAdminAllowed, signOutAndClearCache } from '../../lib/accessProfile';
 import { useOnlineVisitorsCount } from '../../lib/onlinePresence';
@@ -26,10 +28,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const [backlogUnread, setBacklogUnread] = useState(0);
   const [leadsUnread, setLeadsUnread] = useState(0);
   const [birthdayNames, setBirthdayNames] = useState<string[]>([]);
+  const [mailboxUnread, setMailboxUnread] = useState(0);
 
   const backlogAllowed = isPageAllowed(profile, 'backlog');
   const leadsAllowed = isPageAllowed(profile, 'leads');
   const contractorsAllowed = isPageAllowed(profile, 'contractors');
+  const mailboxAllowed = isPageAllowed(profile, 'mailbox');
   // Владелец, 2026-09-05: "даже если у кого-то включен Полный доступ, эта
   // страница будет только у меня" — 'metrics' сознательно НЕ заведён как
   // обычный PageKey в data/pages.ts: там pages:'all' автоматически даёт
@@ -80,6 +84,34 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       unsubscribe();
     };
   }, [leadsAllowed]);
+
+  // Непрочитанные письма общего ящика. Отметки "просмотрено" в localStorage
+  // тут нет вовсе: у письма есть своя колонка read_at, гасится она открытием
+  // треда на странице "Почта" (событие onMailboxRead) — то есть счётчик
+  // одинаковый на всех устройствах, а не у каждого браузера свой, как у
+  // лидов и бэклога.
+  //
+  // Почему ещё и таймер, а не только focus: письмо приходит вебхуком, пока
+  // вкладка открыта и никто никуда не переключается, — без опроса бейдж
+  // появился бы только после смены вкладки. Минута — компромисс между
+  // "узнать быстро" и "не долбить базу с каждой открытой админки".
+  useEffect(() => {
+    if (!mailboxAllowed) return;
+    function refresh() {
+      fetchMailboxUnreadCount()
+        .then(setMailboxUnread)
+        .catch(() => {});
+    }
+    refresh();
+    const timer = window.setInterval(refresh, 60_000);
+    window.addEventListener('focus', refresh);
+    const unsubscribe = onMailboxRead(refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      unsubscribe();
+    };
+  }, [mailboxAllowed]);
 
   // Без отметки "просмотрено" — в отличие от бэклога/лидов, тут не список,
   // который можно прочитать и закрыть, а факт "сегодня чей-то день рождения",
@@ -148,6 +180,15 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             title={`Сегодня день рождения: ${birthdayNames.join(', ')}`}
           >
             🎂
+          </span>
+        )}
+        {key === 'mailbox' && mailboxUnread > 0 && (
+          <span
+            className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white"
+            title={`Непрочитанных писем: ${mailboxUnread}`}
+            aria-label={`Непрочитанных писем: ${mailboxUnread}`}
+          >
+            {mailboxUnread}
           </span>
         )}
         {key === 'leads' && leadsUnread > 0 && (

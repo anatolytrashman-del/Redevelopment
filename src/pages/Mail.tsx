@@ -25,6 +25,7 @@ import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { cn } from '../lib/cn';
 import { fileToAttachment } from '../lib/legalEntityAttachment';
 import { fetchMailboxEmails, markMailboxEmailsRead, sendMailboxEmail } from '../lib/mailboxApi';
+import { notifyMailboxRead } from '../lib/mailboxSeen';
 import {
   deleteMailboxContact,
   fetchMailboxContacts,
@@ -168,10 +169,15 @@ export function Mail() {
         e.direction === 'in' && !e.readAt && mailboxCounterparty(e) === selectedAddress ? { ...e, readAt } : e,
       ),
     );
-    markMailboxEmailsRead(selectedAddress).catch(() => {
-      // Тихо: письма уже показаны прочитанными, следующая загрузка вернёт
-      // их как есть — не повод показывать ошибку поверх переписки.
-    });
+    markMailboxEmailsRead(selectedAddress)
+      // Бейдж в боковом меню считает по базе, поэтому зовём его пересчитаться
+      // только после ответа — на оптимистичном стейте он бы перезапросил
+      // старое число и мигнул бы им обратно.
+      .then(notifyMailboxRead)
+      .catch(() => {
+        // Тихо: письма уже показаны прочитанными, следующая загрузка вернёт
+        // их как есть — не повод показывать ошибку поверх переписки.
+      });
   }, [selectedAddress, emails]);
 
   // Категории для фильтра и формы: пресет + то, что реально встречается в
