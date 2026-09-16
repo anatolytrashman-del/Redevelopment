@@ -68,7 +68,7 @@ function snap(over: Partial<MarketSnapshot> & { sliceKey: string }): MarketSnaps
     segment: 'ofisy_bc',
     deal: 'rent',
     sliceType: 'building',
-    sliceKey: over.sliceKey,
+
     currency: 'USD',
     unit: 'usd_per_sqm',
     n: 10,
