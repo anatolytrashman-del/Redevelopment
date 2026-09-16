@@ -21,6 +21,7 @@ import {
   type SupplierRequest,
 } from '../../data/supplierResearch';
 import { PURCHASE_ITEM_MATCH_KIND_LABELS, type PurchaseItem, type PurchaseItemMatchKind } from '../../data/purchases';
+import type { QuoteTerms } from '../../data/supplierQuotes';
 import {
   updateSupplierOfferItems,
   updateSupplierRequestProposal,
@@ -116,6 +117,37 @@ const MATCH_CONFIDENCE_THRESHOLD = 0.8;
 function needsReview(cell: { kind: PurchaseItemMatchKind; matchConfidence: number | null }): boolean {
   if (cell.kind === 'check') return true;
   return cell.matchConfidence != null && cell.matchConfidence < MATCH_CONFIDENCE_THRESHOLD;
+}
+
+// Условия поставки как отдельные значения. Показываем только то, что реально
+// извлеклось: пустой чип «срок не указан» рядом с четырьмя другими
+// превратил бы шапку в кашу — отсутствие условия и так видно по тому, что
+// его нет.
+function TermChips({ terms }: { terms: QuoteTerms | null }) {
+  if (!terms) return null;
+  const chips: string[] = [];
+  if (terms.leadTimeDays != null) chips.push(`срок ${terms.leadTimeDays} дн.`);
+  if (terms.availability === 'in_stock') chips.push('в наличии');
+  if (terms.availability === 'on_order') chips.push('под заказ');
+  if (terms.prepaymentPercent != null) {
+    chips.push(terms.prepaymentPercent === 0 ? 'оплата по факту' : `предоплата ${terms.prepaymentPercent}%`);
+  }
+  // Доставку числом уже показывает соседний чип (он считается и из строки
+  // счёта), здесь — только словесное условие вроде «бесплатно от 50 000».
+  if (terms.deliveryTerms) chips.push(terms.deliveryTerms);
+  if (terms.vatIncluded === false) chips.push('цены без НДС');
+  if (terms.minOrder) chips.push(`мин. заказ: ${terms.minOrder}`);
+  if (terms.validUntil) chips.push(`цена до ${terms.validUntil}`);
+  if (chips.length === 0) return null;
+  return (
+    <>
+      {chips.map((c) => (
+        <span key={c} className="rounded-full bg-primary-soft px-1.5 py-px text-primary">
+          {c}
+        </span>
+      ))}
+    </>
+  );
 }
 
 function ReviewTag({ confidence }: { confidence: number | null }) {
@@ -735,6 +767,11 @@ export function PriceComparisonCard({
               {col.unmatched.length} {col.unmatched.length === 1 ? 'строка' : col.unmatched.length < 5 ? 'строки' : 'строк'} без привязки
             </span>
           )}
+          {/* Условия поставки числами (шаг 6 плана закупок): их извлекает
+              распознавание из счёта и текста письма. Раньше всё это жило одной
+              строкой свободного текста ниже — прочитать можно, сравнить два
+              предложения по сроку нельзя. */}
+          <TermChips terms={col.terms} />
         </span>
         <span className="mt-1 block text-[11px] font-normal leading-snug text-ink" title={col.offer.termsNote || 'Условия не записаны — правятся в карточке поставщика'}>
           {col.offer.termsNote ? <NoteWithLinks text={col.offer.termsNote} className="line-clamp-3" /> : <span className="text-ink-faint">условия не записаны</span>}
