@@ -42,7 +42,14 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { extractEmailAttachments, fetchReceivedEmail } from './_attachments.js';
 import { isOutgoingEmailEvent, handleOutgoingEmailEvent } from './_emailEvents.js';
 import { isPurchasingInbox, referencedMessageIds } from './_emailMatch.js';
-import { extractTermsFromEmailText, recognizeAllInvoicesFromAttachments } from './_invoiceRecognition.js';
+import {
+  EMAIL_BODY_CONFIDENCE_MIN,
+  INVOICE_CONFIDENCE_MIN,
+  MIN_TEXT_LENGTH,
+  recognizeAllInvoicesFromAttachments,
+  recognizeInvoiceFromText,
+} from './_invoiceRecognition.js';
+import { stripQuotedReply } from './_emailText.js';
 import { applyRecognizedInvoice, quoteTitle } from './_invoiceApply.js';
 import { saveReliabilityIfNew } from './_checko.js';
 
@@ -436,15 +443,17 @@ async function updateEmailExtraction(table, emailId, extraction) {
   }
 }
 
-// Условия из текста письма → карточка поставщика. Сливаем, а не заменяем:
+// Условия из письма → карточка поставщика. Сливаем, а не заменяем:
 // в одном письме менеджер назвал срок, в другом — доставку, и второе письмо
 // не должно стирать первое. Новое непустое значение перекрывает старое —
 // поставщик поменял условия, и последнее слово за ним.
-async function updateOfferTermsFromEmail(offerId, body) {
-  const text = String(body ?? '')
-    .replace(/<br\s*\/?>(?=)/gi, ' ')
-    .replace(/<[^>]+>/g, ' ');
-  const fresh = await extractTermsFromEmailText(text);
+//
+// 2026-09-16 (шаг 10): функция принимает уже готовые условия, а не текст
+// письма. Раньше она сама звала модель отдельным дешёвым промптом «достань
+// условия» — теперь условия приезжают тем же ЕДИНСТВЕННЫМ вызовом, что и
+// цены из тела письма (recognizeInvoiceFromText), второй вызов на то же
+// письмо был бы деньгами на пустом месте.
+async function mergeOfferTerms(offerId, fresh) {
   if (!fresh) return;
 
   const authHeaders = {
@@ -470,6 +479,83 @@ async function updateOfferTermsFromEmail(offerId, body) {
     headers: { ...authHeaders, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify({ terms: merged }),
   });
+}
+
+// Разбор ТЕЛА письма: цены (шаг 10) и условия поставки (шаг 6b) одним
+// вызовом модели. Возвращает новое extraction письма, если в теле нашлись
+// цены, и null во всех остальных случаях (условия при этом всё равно
+// сливаются в карточку — они полезны и без цен).
+//
+// Порядок здесь не случаен:
+//  1. Режем процитированную переписку (stripQuotedReply). Без этого модель
+//     читает НАШ же запрос с ведомостью как предложение поставщика — в
+//     ответе поставщика наше письмо лежит целиком, а в переторжке ещё и с
+//     ценами. Это главная ловушка всего шага.
+//  2. Один вызов на письмо. Промпт один и тот же и возвращает и позиции, и
+//     terms — отдельный вызов «а теперь достань условия» был бы деньгами на
+//     пустом месте.
+//  3. Порог уверенности для текста ВЫШЕ, чем для вложения
+//     (EMAIL_BODY_CONFIDENCE_MIN против INVOICE_CONFIDENCE_MIN): рядом с
+//     ценой в письме лежат телефон менеджера и километр МКАД, ошибиться
+//     легче. Не дотянул до порога — письмо остаётся со статусом 'pending',
+//     и в переписке рисуется обычная карточка «Похоже, это счёт» с кнопкой
+//     подтверждения; выдуманная цена не попадает в сравнение цен молча.
+async function recognizeFromEmailBody({ emailId, offerId, orderId, subject, body }) {
+  const { text, cut } = stripQuotedReply(body);
+  if (text.length < MIN_TEXT_LENGTH) {
+    console.log(`[webhook] тело письма ${emailId}: после снятия цитаты осталось ${text.length} символов — модель не зовём`);
+    return null;
+  }
+
+  const recognized = await recognizeInvoiceFromText(text, { subject });
+  if (!recognized) return null;
+  console.log(
+    `[webhook] тело письма ${emailId}: цитата — ${cut ?? 'не найдена'}, isInvoice=${recognized.isInvoice}, уверенность=${recognized.confidence ?? 'нет'}, позиций=${recognized.items.length}`,
+  );
+
+  if (!recognized.isInvoice) {
+    await mergeOfferTerms(offerId, recognized.terms);
+    return null;
+  }
+
+  const extraction = {
+    ...recognized,
+    // Счёт из текста письма: файла-источника нет вовсе. Интерфейс это уже
+    // умеет — карточка без sourceFile показывает кнопки подтверждения
+    // вместо «посмотреть файл» (SupplierCorrespondenceTab).
+    sourceFile: null,
+    sourceKind: 'email_body',
+    recognizedAt: new Date().toISOString(),
+    status: 'pending',
+  };
+
+  const sure = recognized.confidence != null && recognized.confidence >= EMAIL_BODY_CONFIDENCE_MIN;
+  if (!sure) {
+    // Условия поставки из того же ответа не пропадают: цены ждут человека,
+    // а «отгрузим за 5 дней» и так верно и полезно прямо сейчас.
+    await mergeOfferTerms(offerId, recognized.terms);
+    return extraction;
+  }
+
+  try {
+    const applied = await applyRecognizedInvoice({
+      emailId,
+      offerId,
+      orderId,
+      subject,
+      recognized,
+      sourceFile: null,
+      // «— цены из письма» в заголовке КП: в сравнении цен строка, набранная
+      // менеджером в теле письма, и строка из присланного счёта выглядели бы
+      // одинаково, а доверие к ним разное.
+      title: `${quoteTitle(subject, null, false)} — цены из письма`,
+    });
+    return { ...extraction, status: 'confirmed', appliedAutomatically: true, applied };
+  } catch (err) {
+    console.error('Не удалось записать цены из тела письма в карточку (останется ручное подтверждение):', err);
+    await mergeOfferTerms(offerId, recognized.terms);
+    return extraction;
+  }
 }
 
 export default async function handler(req, res) {
@@ -819,6 +905,17 @@ export default async function handler(req, res) {
       // было нельзя.
       const appliedByUrl = new Map();
       for (const invoice of recognizedInvoicesData.allRecognized) {
+        // Порог уверенности (шаг 10 плана закупок): счёт, в котором модель
+        // сама не уверена, в карточку автоматически не уезжает — остаётся
+        // карточка «Похоже, это счёт» с кнопкой подтверждения. null в
+        // confidence — ответ модели БЕЗ этого поля (так было до 2026-09-16):
+        // такие пишутся как раньше, иначе порог задним числом отменил бы
+        // автозапись для всего, что уже работало.
+        const confidence = invoice.recognized.confidence;
+        if (confidence != null && confidence < INVOICE_CONFIDENCE_MIN) {
+          console.log(`[webhook] счёт «${invoice.candidate.fileName}» не записан автоматически: уверенность ${confidence} ниже ${INVOICE_CONFIDENCE_MIN}`);
+          continue;
+        }
         try {
           const invoiceSourceFile = { url: invoice.candidate.url, fileName: invoice.candidate.fileName };
           const applied = await applyRecognizedInvoice({
@@ -866,17 +963,28 @@ export default async function handler(req, res) {
         console.error('Не удалось автозаполнить email/имя менеджера у предложения (не критично):', err);
       }
 
-      // Условия поставки из письма БЕЗ счёта (шаг 6b плана закупок). Когда
-      // счёт распознан, условия уже вытащены вместе с ним и лежат на КП —
-      // повторно платить модели незачем. А вот «есть на складе, отгрузим за
-      // 5 дней, доставка бесплатно от 300 000» без вложения раньше не
-      // оставалось нигде, кроме глаз закупщика.
+      // Цены и условия из ТЕЛА письма, когда счёта во вложениях не нашлось
+      // (шаг 6b — условия, шаг 10 — цены). Когда счёт распознан, и то и
+      // другое уже вытащено вместе с ним и лежит на КП — повторно платить
+      // модели незачем. А вот «плитка Alma 1 200 ₽/м², есть на складе,
+      // отгрузим за 5 дней» без единого вложения раньше не оставалось нигде,
+      // кроме глаз закупщика.
       const invoiceRecognized = (recognizedInvoicesData?.allRecognized?.length ?? 0) > 0;
-      if (!invoiceRecognized) {
+      if (!invoiceRecognized && row?.id) {
         try {
-          await updateOfferTermsFromEmail(offerId, row?.body ?? '');
+          const bodyExtraction = await recognizeFromEmailBody({
+            emailId: row.id,
+            offerId,
+            orderId,
+            subject,
+            body: row?.body ?? '',
+          });
+          if (bodyExtraction) {
+            await updateEmailExtraction('supplier_offer_emails', row.id, bodyExtraction);
+            row.extraction = bodyExtraction;
+          }
         } catch (err) {
-          console.error('Не удалось разобрать условия из текста письма (не критично):', err instanceof Error ? err.message : err);
+          console.error('Не удалось разобрать тело письма (не критично):', err instanceof Error ? err.message : err);
         }
       }
     }
