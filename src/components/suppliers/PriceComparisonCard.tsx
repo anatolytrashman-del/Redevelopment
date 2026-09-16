@@ -230,7 +230,7 @@ const SENT_TO_STORAGE_KEY = 'priceComparison.proposalSentTo';
 // Кто готовит предложение: вошедший сотрудник + отдел (владелец, 2026-09-15:
 // «не отдел снабжения, а бэкофис»). emailSignature() — тот же разворот
 // рабочего никнейма в полное имя, что и в подписи писем поставщикам.
-function preparedBy(): string {
+export function preparedBy(): string {
   // getCurrentProfile() возвращает undefined, пока справочник профилей не
   // загрузился (типы этого не отражают, а emailSignature читает displayName
   // без проверки) — подпись не должна ронять всю карточку сравнения.
@@ -325,6 +325,7 @@ export function PriceComparisonCard({
   onRequestSaved,
   onQuotesChange,
   onOfferUpdated,
+  onExportBestPrices,
   renderBadges,
 }: {
   request: SupplierRequest;
@@ -347,6 +348,9 @@ export function PriceComparisonCard({
   onRequestSaved: (r: SupplierRequest) => void;
   onQuotesChange: (update: (prev: SupplierQuote[]) => SupplierQuote[]) => void;
   onOfferUpdated: (o: SupplierOffer) => void;
+  // Открыть выгрузку «лучшие цены: оригинал и аналог» уже на этой поставке.
+  // Сам диалог живёт на странице: он умеет и охват «все поставки».
+  onExportBestPrices?: () => void;
   // Бейджи верификации/благонадёжности живут в Suppliers.tsx вместе со своим
   // состоянием — сюда приходят готовыми.
   renderBadges: (o: SupplierOffer) => ReactNode;
@@ -1013,8 +1017,13 @@ export function PriceComparisonCard({
               Очистить отбор
             </Button>
           )}
+          {onExportBestPrices && (
+            <Button type="button" variant="secondary" icon={<FileDown className="h-4 w-4" />} onClick={onExportBestPrices}>
+              Лучшие цены
+            </Button>
+          )}
           <Button type="button" variant="secondary" icon={<FileDown className="h-4 w-4" />} onClick={exportPdf}>
-            Скачать PDF
+            На утверждение
           </Button>
         </div>
       </div>

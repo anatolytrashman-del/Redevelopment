@@ -92,7 +92,7 @@ export interface Column {
 
 // Цена за единицу сметы: введённая руками при сопоставлении, а без неё —
 // цена строки, если единица счёта буквально совпадает с единицей сметы.
-export function unitPriceOf(item: PurchaseItem, position: EstimateMaterial): number | null {
+export function unitPriceOf(item: PurchaseItem, position: { unit: string }): number | null {
   if (item.unitPrice != null && item.unitPrice > 0) return item.unitPrice;
   if (item.price != null && item.price > 0 && sameUnit(item.unit, position.unit)) return item.price;
   return null;

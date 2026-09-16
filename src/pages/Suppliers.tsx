@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Bot, Check, ExternalLink, FileText, Globe, ImageOff, Loader2, Mail, MessageCircle, Paperclip, Pencil, Phone, Plus, Send, ShieldCheck, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, Bot, Check, ExternalLink, FileDown, FileText, Globe, ImageOff, Loader2, Mail, MessageCircle, Paperclip, Pencil, Phone, Plus, Send, ShieldCheck, Trash2, Upload, X } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -63,7 +63,9 @@ import { MasterLedgerCard } from '../components/suppliers/MasterLedgerCard';
 import { BulkSendModal } from '../components/suppliers/BulkSendModal';
 import { SupplierMergeModal, type SupplierMergePlan } from '../components/suppliers/SupplierMergeModal';
 import { SupplierCatalog } from '../components/suppliers/SupplierCatalog';
-import { PriceComparisonCard } from '../components/suppliers/PriceComparisonCard';
+import { PriceComparisonCard, preparedBy as bestPricePreparedBy } from '../components/suppliers/PriceComparisonCard';
+import { BestPriceExportModal } from '../components/suppliers/BestPriceExportModal';
+import { buildBestPriceRows, buildLotRows, reportPositions, type BestPriceSection } from '../components/suppliers/bestPriceReport';
 import type { LedgerAttachment } from '../lib/materialLedgerXlsx';
 import type { EmailTemplate } from '../data/emailTemplates';
 import { fetchEmailTemplates } from '../lib/emailTemplatesApi';
@@ -1279,6 +1281,11 @@ export function Suppliers() {
   // Все КП поставщиков (data/supplierQuotes.ts) — несколько счетов в одной
   // ветке переписки больше не схлопываются в карточку, см. сравнение цен.
   const [supplierQuotes, setSupplierQuotes] = useState<SupplierQuote[]>([]);
+  // Выгрузка «лучшие цены: оригинал и аналог» (владелец, 2026-09-16).
+  // Диалог живёт на странице, а не в карточке поставки: он умеет и охват
+  // «все поставки», для которого нужны все запросы разом; карточка просто
+  // открывает его на себе.
+  const [bestPriceExport, setBestPriceExport] = useState<{ requestId?: string } | null>(null);
   // Владелец, 2026-08-29: "слишком много инфы на превью, все вразнобой.
   // Давай выводить название + цену + статус + кнопка Подробнее" — остальные
   // поля (контакт/сайт/модель/срок/требования/файлы) и действия
@@ -1807,6 +1814,32 @@ export function Suppliers() {
   // категории "Универсальные поставщики". Подробности и сравнение карточек
   // — в data/supplierResearch.ts (isUniversalRequest/isSameSupplier),
   // перенос содержимого — в lib/supplierMergeApi.ts.
+  // Секции выгрузки «лучшие цены» — по одной на поставку, у которой есть
+  // хотя бы одно подтверждённое предложение (тот же отбор, что у самой
+  // вкладки «Сравнение цен»). Считаем здесь, а не в диалоге: охват «все
+  // поставки» иначе пришлось бы собирать из карточек, которые ничего друг о
+  // друге не знают.
+  const bestPriceSections = useMemo<BestPriceSection[]>(() => {
+    const quotesByOffer = new Map<string, SupplierQuote[]>();
+    supplierQuotes.forEach((q) => quotesByOffer.set(q.offerId, [...(quotesByOffer.get(q.offerId) ?? []), q]));
+    return requests
+      .map((request) => {
+        const requestOffers = offers.filter(
+          (o) => o.requestId === request.id && offerCommunicationStatus(o, supplierEmails) === 'confirmed',
+        );
+        if (requestOffers.length === 0) return null;
+        const positions =
+          estimates.find((e) => e.id === request.estimateId)?.sections.find((sec) => sec.id === request.sectionId)?.materials ?? [];
+        const lot = request.comparisonMode === 'lot';
+        const rows = lot
+          ? buildLotRows(request, positions, requestOffers, quotesByOffer, rate)
+          : buildBestPriceRows(reportPositions(positions, requestOffers, quotesByOffer), requestOffers, quotesByOffer, rate);
+        if (rows.length === 0) return null;
+        return { requestId: request.id, title: request.title, sectionTitle: request.sectionTitle ?? '', rows, lot };
+      })
+      .filter((s): s is BestPriceSection => !!s);
+  }, [requests, offers, supplierQuotes, estimates, supplierEmails, rate]);
+
   const universalRequest = useMemo(() => requests.find((r) => isUniversalRequest(r)) ?? null, [requests]);
   const universalOffers = useMemo(
     () => (universalRequest ? offers.filter((o) => o.requestId === universalRequest.id) : []),
@@ -2479,6 +2512,25 @@ export function Suppliers() {
           иначе сравнивать нечего. */}
       {tab === 'Сравнение цен' && (
         <div className="mt-6 flex flex-col gap-8">
+          {bestPriceSections.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border bg-surface px-4 py-3">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-ink">Лучшие цены: оригинал и аналог</div>
+                <p className="text-xs text-ink-muted">
+                  Таблица по позициям с двумя ценами рядом — то, что прикладывают к запросу поставщику. Можно выгрузить по
+                  всем поставкам сразу или по одной, лишние позиции снимаются галочками.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                icon={<FileDown className="h-4 w-4" />}
+                onClick={() => setBestPriceExport({})}
+              >
+                Выгрузить лучшие цены
+              </Button>
+            </div>
+          )}
           {loading && (
             <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -2530,6 +2582,7 @@ export function Suppliers() {
                       <PriceComparisonCard
                         key={r.id}
                         request={r}
+                        onExportBestPrices={() => setBestPriceExport({ requestId: r.id })}
                         positions={
                           estimates.find((e) => e.id === r.estimateId)?.sections.find((sec) => sec.id === r.sectionId)?.materials ?? []
                         }
@@ -3469,6 +3522,17 @@ export function Suppliers() {
             setBulkLedgerPickerRequest(null);
             setBulkSendConfig({ request, attachment });
           }}
+        />
+      )}
+
+      {bestPriceExport && (
+        <BestPriceExportModal
+          open
+          sections={bestPriceSections}
+          initialRequestId={bestPriceExport.requestId}
+          preparedBy={bestPricePreparedBy()}
+          onClose={() => setBestPriceExport(null)}
+          onError={(message) => setLoadError(message)}
         />
       )}
 
