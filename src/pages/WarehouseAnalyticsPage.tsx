@@ -103,12 +103,35 @@ export function WarehouseAnalyticsPage({ deal }: WarehouseAnalyticsPageProps) {
   // «Твоя столица» через prometr.by (годовой отчёт 2025, не тот же
   // ежемесячный мониторинг, что у офисов) — ставки только по аренде
   // (deal='rent' в базе), сток/прогноз ввода — не привязаны к сделке.
-  const rateAMin = externalMetrics.find((m) => m.metric === 'class_a_rate_usd_min' && m.deal === 'rent');
-  const rateAMax = externalMetrics.find((m) => m.metric === 'class_a_rate_usd_max' && m.deal === 'rent');
-  const rateB = externalMetrics.find((m) => m.metric === 'class_b_rate_usd' && m.deal === 'rent');
-  const totalStock = externalMetrics.find((m) => m.metric === 'total_stock');
-  const newSupplyForecast = externalMetrics.find((m) => m.metric === 'new_supply_forecast_2026');
+  // Источник у каждого лукапа указан явно: с 2026-09-16 по складам два
+  // внешних источника, и у обоих есть строка total_stock — без фильтра по
+  // source .find() вернул бы ту, что раньше лежит в выдаче (см. журнал,
+  // 2026-09-08, п.2 — тот же класс бага уже ловили на вакантности офисов).
+  const ts = (metric: string, dealFilter: 'rent' | null = null) =>
+    externalMetrics.find((m) => m.source === 'tvoya-stolitsa' && m.metric === metric && m.deal === dealFilter);
+  const rateAMin = ts('class_a_rate_usd_min', 'rent');
+  const rateAMax = ts('class_a_rate_usd_max', 'rent');
+  const rateB = ts('class_b_rate_usd', 'rent');
+  const totalStock = ts('total_stock');
+  const newSupplyForecast = ts('new_supply_forecast_2026');
   const showMarketWide = (deal === 'rent' && Boolean(rateAMin || rateAMax || rateB)) || Boolean(totalStock) || Boolean(newSupplyForecast);
+
+  // NAI Belarus — «Обзор складской недвижимости. Итоги 2025 года» (текст
+  // обзора опубликован на probusiness.io 25.02.2026). Считает только
+  // КАЧЕСТВЕННЫЕ склады Минска и агломерации — выборка уже, чем у Твоей
+  // столицы (вся производственно-складская недвижимость Минского региона),
+  // поэтому сток 1654 против 1861 — не расхождение, а разный периметр.
+  const nai = (metric: string, dealFilter: 'rent' | null = null) =>
+    externalMetrics.find((m) => m.source === 'nai-belarus' && m.metric === metric && m.deal === dealFilter);
+  const naiStock = nai('total_stock');
+  const naiNewSupply = nai('new_supply');
+  const naiObjects = nai('new_objects_count');
+  const naiRateMin = nai('class_a_rate_byn_min', 'rent');
+  const naiRateMax = nai('class_a_rate_byn_max', 'rent');
+  const naiVacantMin = nai('vacant_area_min');
+  const naiVacantMax = nai('vacant_area_max');
+  const naiUrl = naiStock?.url ?? naiNewSupply?.url ?? null;
+  const showNai = Boolean(naiStock || naiNewSupply || (deal === 'rent' && naiRateMin && naiRateMax) || (naiVacantMin && naiVacantMax));
 
   const city = useMemo(() => snapshots?.find((s) => s.sliceType === 'city'), [snapshots]);
   const periodInLabel = city ? formatPeriodIn(city.period) : null;
@@ -330,6 +353,72 @@ export function WarehouseAnalyticsPage({ deal }: WarehouseAnalyticsPageProps) {
           </section>
         )}
 
+        {showNai && (
+          <section className="flex flex-col gap-3">
+            <h2 className="text-lg font-bold text-ink">Итоги 2025 года по версии NAI Belarus</h2>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {naiStock && (
+                <div className={cn('flex flex-col gap-1 p-5', glassCardClass)} style={glassCardShadow}>
+                  <span className="text-xs font-medium uppercase tracking-wide text-ink-faint">
+                    Качественный сток (конец 2025)
+                  </span>
+                  <span className="text-2xl font-extrabold text-ink">{formatExternalMoney(naiStock)}</span>
+                </div>
+              )}
+              {naiNewSupply && (
+                <div className={cn('flex flex-col gap-1 p-5', glassCardClass)} style={glassCardShadow}>
+                  <span className="text-xs font-medium uppercase tracking-wide text-ink-faint">Введено за 2025</span>
+                  <span className="text-2xl font-extrabold text-ink">
+                    {formatExternalMoney(naiNewSupply)}
+                    {naiObjects && <span className="text-base font-semibold text-ink-muted"> / {naiObjects.value} объектов</span>}
+                  </span>
+                </div>
+              )}
+              {naiVacantMin && naiVacantMax && (
+                <div className={cn('flex flex-col gap-1 p-5', glassCardClass)} style={glassCardShadow}>
+                  <span className="text-xs font-medium uppercase tracking-wide text-ink-faint">
+                    Свободно (конец 2025)
+                  </span>
+                  <span className="text-2xl font-extrabold text-ink">
+                    {naiVacantMin.value}–{naiVacantMax.value} тыс. м²
+                  </span>
+                </div>
+              )}
+              {deal === 'rent' && naiRateMin && naiRateMax && (
+                <div className={cn('flex flex-col gap-1 p-5', glassCardClass)} style={glassCardShadow}>
+                  <span className="text-xs font-medium uppercase tracking-wide text-ink-faint">
+                    Ставка класс A (конец 2025)
+                  </span>
+                  <span className="text-2xl font-extrabold text-ink">
+                    {naiRateMin.value}–{naiRateMax.value} BYN/м²/мес
+                  </span>
+                  <span className="text-xs text-ink-faint">без НДС, ~€7,4–7,6 по оценке источника</span>
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-ink-faint">
+              По данным {SOURCE_LABELS['nai-belarus']}
+              {naiUrl && (
+                <>
+                  {' '}
+                  (
+                  <a href={naiUrl} target="_blank" rel="noreferrer" className="text-primary-hover hover:underline">
+                    «Обзор складской недвижимости. Итоги 2025 года», изложение на probusiness.io
+                  </a>
+                  )
+                </>
+              )}
+              . Источник считает только <strong>качественные</strong> склады Минска и агломерации — периметр уже, чем
+              у сводки «Твоей столицы» выше (вся производственно-складская недвижимость Минского региона), поэтому
+              1&nbsp;654 и 1&nbsp;861 тыс. м² — не расхождение, а разный охват. Свободные площади — это абсолютная
+              цифра из текста обзора («не более 8−10 тыс. разрозненных складских площадей»), процента вакантности
+              источник в тексте не приводит; от его же стока это меньше 1% — наш расчёт, не цифра источника. Ставки —
+              только по классу «А» и только аренда; специальные склады (лекарства, морепродукты) источник оценивает
+              от 45−50 BYN за м² и выше.
+            </p>
+          </section>
+        )}
+
         <section className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
           <h2 className="text-lg font-bold text-ink">Что это за цифры</h2>
           <p className="text-sm leading-relaxed text-ink-muted">
@@ -351,7 +440,7 @@ export function WarehouseAnalyticsPage({ deal }: WarehouseAnalyticsPageProps) {
               отдельной странице
             </Link>
             . Источники: Kufar (re.kufar.by), Realt.by
-            {externalMetrics.length > 0 && ', Твоя столица (через prometr.by)'}.
+            {externalMetrics.length > 0 && ', Твоя столица (через prometr.by), NAI Belarus (через probusiness.io)'}.
           </p>
         </section>
 

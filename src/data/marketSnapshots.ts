@@ -77,4 +77,5 @@ export const SOURCE_LABELS: Record<string, string> = {
   colliers: 'Colliers International',
   goskomimushchestvo: 'Госкомимущество',
   'rezultativnaya-nedvizhimost': 'Результативная недвижимость',
+  'nai-belarus': 'NAI Belarus',
 };
