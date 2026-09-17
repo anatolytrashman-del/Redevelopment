@@ -373,7 +373,7 @@ export function buildLotRows(
 }
 
 const KIND_LABEL: Record<PurchaseItemMatchKind, string> = {
-  exact: 'ровно по ведомости',
+  exact: 'позиция из ведомости',
   alternative: 'аналог',
   check: 'требует уточнения',
   delivery: 'доставка',

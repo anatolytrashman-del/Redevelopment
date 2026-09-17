@@ -3,8 +3,6 @@ import type { ExchangeRate } from '../../data/exchangeRates';
 import { PURCHASE_ITEM_MATCH_KIND_LABELS, type PurchaseItemMatchKind } from '../../data/purchases';
 import { PROPOSAL_REVIEW_STATUS_LABELS, type SupplierRequest } from '../../data/supplierResearch';
 import {
-  deltaToPicked,
-  formatDelta,
   formatMoney,
   formatUnit,
   sumMoney,
@@ -81,7 +79,30 @@ const withLinks = (text: string, style = '') =>
 const qty = (p: EstimateMaterial) => `${p.quantity != null ? p.quantity.toLocaleString('ru-RU') : '—'} ${esc(p.unit)}`;
 
 function kindLabel(kind: PurchaseItemMatchKind): string {
-  return kind === 'exact' ? 'ровно' : PURCHASE_ITEM_MATCH_KIND_LABELS[kind];
+  return PURCHASE_ITEM_MATCH_KIND_LABELS[kind];
+}
+
+// Цена за единицу ведомости с явной единицей и, где известен расход, за
+// единицу товара поставщика. Владелец, 2026-09-17: «цена за единицу —
+// непонятно, что там за единица; пиши за литр, раз это краска». Расход
+// (EstimateMaterial.consumption, «сколько литров на 1 м² с учётом слоёв»)
+// задан у красок, поэтому цена за литр считается из него, а не выдумывается:
+// нет расхода — нет и второй строки.
+function priceCell(cell: Cell, position: EstimateMaterial): string {
+  const perLedgerUnit = `${esc(formatUnit(cell.unitPrice, cell.currency))} / ${esc(position.unit || 'ед.')}`;
+  const consumption = position.consumption ?? null;
+  const goodsUnit = position.consumptionUnit ?? '';
+  if (!consumption || consumption <= 0 || !goodsUnit) return perLedgerUnit;
+  const perGoodsUnit = formatUnit(cell.unitPrice / consumption, cell.currency);
+  return `${perLedgerUnit}<span class="muted">${esc(perGoodsUnit)} за ${esc(goodsUnit)}</span>`;
+}
+
+// То же для письма: почтовые клиенты режут <style>, поэтому инлайн.
+function emailGoodsUnitPrice(cell: Cell, position: EstimateMaterial, muted: string): string {
+  const consumption = position.consumption ?? null;
+  const goodsUnit = position.consumptionUnit ?? '';
+  if (!consumption || consumption <= 0 || !goodsUnit) return '';
+  return `<span style="${muted}">${esc(formatUnit(cell.unitPrice / consumption, cell.currency))} за ${esc(goodsUnit)}</span>`;
 }
 
 function deliveryNames(doc: ComparisonDoc): string {
@@ -115,7 +136,7 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
         `<tr class="picked"><td>${esc(position.name)}<span class="muted">${qty(position)}</span></td>` +
         `<td>${esc(offer?.name ?? '')}</td>` +
         `<td>${kindTag(cell.kind)}${cell.note ? `<span class="muted">${withLinks(cell.note)}</span>` : ''}${cell.productUrl ? `<span class="muted">${linkHtml(cell.productUrl)}</span>` : ''}</td>` +
-        `<td class="num">${esc(formatUnit(cell.unitPrice, cell.currency))}</td>` +
+        `<td class="num">${priceCell(cell, position)}</td>` +
         `<td class="num strong">${esc(formatMoney(cell.unitPrice * (position.quantity ?? 0), cell.currency))}</td></tr>`
       );
     })
@@ -128,49 +149,11 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
     pickedCells.length === 0
       ? `<p class="note">Позиции ещё не отобраны. Откройте «Сравнение цен» и отметьте кнопкой «Выбрать», что выносится на утверждение — состав и сумма появятся здесь.</p>`
       : `<table class="grid">
-           <thead><tr><th>Позиция ведомости</th><th>Поставщик</th><th>Соответствие</th><th class="num">Цена за ед.</th><th class="num">Сумма</th></tr></thead>
+           <thead><tr><th>Позиция ведомости</th><th>Поставщик</th><th>Соответствие</th><th class="num">Цена</th><th class="num">Сумма</th></tr></thead>
            <tbody>${proposalRows}${deliveryRow}</tbody>
            <tfoot><tr><td colspan="4">Итого к утверждению, с НДС</td><td class="num total">${esc(doc.total)}</td></tr></tfoot>
          </table>
-         <p class="note">${pickedCells.length} из ${positions.length} позиций · поставщиков: ${pickedOfferIds.size} · ровно по ведомости ${kinds.exact ?? 0}, аналогов ${kinds.alternative ?? 0}, требуют уточнения ${kinds.check ?? 0}.</p>`;
-
-  const comparisonBlocks = positions
-    .map((p) => {
-      const offered = columns.filter((c) => c.cells.has(p.id));
-      const pickedCell = pickedCells.find((x) => x.position.id === p.id)?.cell ?? null;
-      const missing = columns.filter((c) => !c.cells.has(p.id)).map((c) => `${c.offer.name}${c.unmatched.length ? ' (строки не сопоставлены)' : ''}`);
-      const sorted = [...offered].sort((a, b) => (a.cells.get(p.id)!.usdUnit ?? a.cells.get(p.id)!.unitPrice) - (b.cells.get(p.id)!.usdUnit ?? b.cells.get(p.id)!.unitPrice));
-      const rows = sorted
-        .map((c) => {
-          const cell = c.cells.get(p.id)!;
-          const isPicked = pickedCell?.offerId === c.offer.id;
-          const delta = pickedCell && !isPicked ? deltaToPicked(cell, pickedCell) : null;
-          const flags = [
-            cell.isArchived ? `архив${cell.quoteDate ? `, счёт от ${new Date(cell.quoteDate).toLocaleDateString('ru-RU')}` : ''}` : '',
-            cell.excludedFromSupply ? 'не покупаем — цена для справки' : '',
-          ].filter(Boolean);
-          return (
-            `<tr class="${isPicked ? 'picked' : ''}"><td>${esc(c.offer.name)}${isPicked ? '<span class="pick">✓ на утверждение</span>' : ''}</td>` +
-            `<td>${kindTag(cell.kind)}${cell.note ? `<span class="muted">${withLinks(cell.note)}</span>` : ''}${cell.productUrl ? `<span class="muted">${linkHtml(cell.productUrl)}</span>` : ''}${flags.length ? `<span class="muted warn">${esc(flags.join(' · '))}</span>` : ''}</td>` +
-            `<td class="num">${esc(formatUnit(cell.unitPrice, cell.currency))}${delta != null ? `<span class="muted">${esc(formatDelta(delta))} к отобранному</span>` : ''}</td>` +
-            `<td class="num strong">${esc(formatMoney(cell.unitPrice * (p.quantity ?? 0), cell.currency))}</td></tr>`
-          );
-        })
-        .join('');
-      const exactCount = offered.filter((c) => c.cells.get(p.id)!.kind === 'exact').length;
-      return `<section class="block">
-          <h3>${esc(p.name)} <span class="qty">${qty(p)}</span></h3>
-          ${p.note ? `<p class="note">${withLinks(p.note)}</p>` : ''}
-          ${offered.length > 0 && exactCount === 0 ? '<p class="note warn">Ровно по ведомости не предложил никто — только аналоги или расхождения.</p>' : ''}
-          ${
-            offered.length === 0
-              ? '<p class="note">Цену на эту позицию не дал никто из приславших КП.</p>'
-              : `<table class="grid"><thead><tr><th>Поставщик</th><th>Что предлагают</th><th class="num">Цена за ед.</th><th class="num">На объём</th></tr></thead><tbody>${rows}</tbody></table>`
-          }
-          ${missing.length > 0 ? `<p class="note">Не предложили: ${esc(missing.join(', '))}.</p>` : ''}
-        </section>`;
-    })
-    .join('');
+         <p class="note">${pickedCells.length} из ${positions.length} позиций · поставщиков: ${pickedOfferIds.size} · из ведомости ${kinds.exact ?? 0}, аналогов ${kinds.alternative ?? 0}, требуют уточнения ${kinds.check ?? 0}.</p>`;
 
   const termsRows = columns
     .map(
@@ -190,16 +173,17 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
 <title>${esc(request.title)} — предложение на утверждение</title>
 <style>
   @page { size: A4 portrait; margin: 14mm 12mm; }
-  @font-face { font-family: 'Montserrat'; src: url('/fonts/Montserrat-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
-  @font-face { font-family: 'Montserrat'; src: url('/fonts/Montserrat-SemiBold.woff2') format('woff2'); font-weight: 600 700; font-display: swap; }
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body { margin: 0; background: #fff; color: #14151a; font-family: 'Montserrat', system-ui, sans-serif; font-size: 9.5pt; line-height: 1.35; }
+  /* Системный шрифт, а не наш Montserrat, намеренно: PDF собирается из
+     этого HTML растеризацией (src/lib/htmlToPdf.ts), а на self-hosted woff2
+     html2canvas теряет пробелы перед «₽» и «·» — «121,91₽», «10позиций».
+     Проверено сравнением двух рендеров одного документа. */
+  body { margin: 0; background: #fff; color: #14151a; font-family: Arial, Helvetica, 'Helvetica Neue', system-ui, sans-serif; font-size: 9.5pt; line-height: 1.35; }
   h1 { font-size: 17pt; margin: 0; letter-spacing: -.01em; }
   h2 { font-size: 12pt; margin: 0 0 6px; break-after: avoid; }
   h3 { font-size: 10.5pt; margin: 0 0 4px; break-after: avoid; }
   h3 .qty { font-weight: 400; color: #6b6d76; }
   header { border-bottom: 2px solid #14151a; padding-bottom: 8px; margin-bottom: 12px; }
-  .brand { font-size: 8pt; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: #9a9ba3; }
   .sub { color: #6b6d76; margin-top: 3px; }
   .status { margin-top: 4px; font-weight: 600; color: #157f42; }
   .block { break-inside: avoid; margin-bottom: 12px; }
@@ -227,16 +211,27 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
   .note { color: #6b6d76; margin: 6px 0 0; font-size: 8.5pt; }
   .note.warn { color: #906721; }
   .total-line { font-size: 20pt; font-weight: 700; color: #157f42; margin: 2px 0 8px; }
+  /* Подписи и строка решения — один блок: на разных страницах они
+     выглядят как потерянная строка. */
+  .sign-area { break-inside: avoid; }
   .signs { display: flex; gap: 14px; margin-top: 14px; break-inside: avoid; }
   .sign { flex: 1; }
   .sign .line { border-bottom: 1px solid #d8d6d2; min-height: 22px; padding-bottom: 2px; }
   .sign .cap { font-size: 7.5pt; text-transform: uppercase; letter-spacing: .04em; color: #9a9ba3; margin-top: 3px; }
-  .compare { break-before: page; }
+  /* Печать: документ не обязан помещаться на страницу, но рваться должен по
+     живому (владелец, 2026-09-17: «выгрузка в pdf разрывает страницу на
+     несколько, учти и адаптируй»). Строка таблицы, подписи и заголовок с
+     первой строкой раздела не разрываются, шапка длинной таблицы
+     повторяется на следующей странице. */
+  table.grid tr { break-inside: avoid; }
+  table.grid thead { display: table-header-group; }
+  table.grid tfoot { display: table-row-group; }
+  h2, h3 { break-after: avoid; }
+  section { break-inside: auto; }
 </style></head><body>
 <header>
-  <div class="brand">Redevelopment · Закупки · Сравнение цен</div>
   <h1>${esc(request.title)}</h1>
-  <div class="sub">${request.sectionTitle ? `Раздел сметы «${esc(request.sectionTitle)}», ` : ''}${positions.length} позиций · ${esc(doc.country)} · цены за единицу сметы с НДС × объём ведомости · сформировано ${new Date().toLocaleDateString('ru-RU')}</div>
+  <div class="sub">${request.sectionTitle ? `Раздел сметы «${esc(request.sectionTitle)}», ` : ''}${positions.length} позиций · ${esc(doc.country)} · цены с НДС × объём ведомости · сформировано ${new Date().toLocaleDateString('ru-RU')}</div>
   ${status ? `<div class="status">${esc(status)}</div>` : ''}
 </header>
 
@@ -244,28 +239,24 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
   <div><b>${funnel.sent}</b><span>запрос отправлен${funnel.letters ? `, ${funnel.letters} писем` : ''}</span></div>
   <div><b>${funnel.replied}</b><span>ответили, ${funnel.repliedNoQuote} без КП</span></div>
   <div><b>${funnel.confirmed}</b><span>прислали КП, ${funnel.quotesCount} счетов</span></div>
-  <div><b>${funnel.pricedPositions} из ${positions.length}</b><span>позиций с ценой</span></div>
 </div>
 
-<section class="block">
+<section>
   <h2>Предложение на утверждение</h2>
   ${pickedCells.length > 0 ? `<div class="total-line">${esc(doc.total)}</div>` : ''}
   ${proposalBlock}
-  <div class="signs">
-    ${signatureField('Подготовил', doc.preparedBy)}
-    ${signatureField('Дата', new Date().toLocaleDateString('ru-RU'))}
-    ${signatureField('Руководитель стройки, подпись')}
-    ${signatureField('Дата')}
+  <div class="sign-area">
+    <div class="signs">
+      ${signatureField('Подготовил', doc.preparedBy)}
+      ${signatureField('Дата', new Date().toLocaleDateString('ru-RU'))}
+      ${signatureField('Руководитель стройки, подпись')}
+      ${signatureField('Дата')}
+    </div>
+    <div class="signs">${signatureField('Решение: утвердить / вернуть на уточнение, комментарий')}</div>
   </div>
-  <div class="signs">${signatureField('Решение: утвердить / вернуть на уточнение, комментарий')}</div>
 </section>
 
-<div class="compare">
-  <h2>Все предложения по позициям</h2>
-  ${comparisonBlocks}
-</div>
-
-<section class="block">
+<section>
   <h2>Наличие, сроки и доставка</h2>
   <table class="grid"><thead><tr><th>Поставщик</th><th class="num">Доставка</th><th>Что написал менеджер</th></tr></thead><tbody>${termsRows}</tbody></table>
 </section>
@@ -276,7 +267,7 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
 // сводка по каждой позиции (кто ещё предлагал и почём). Inline-стили,
 // таблицы — иначе Gmail/Outlook разваливают вёрстку.
 export function buildProposalEmailHtml(doc: ComparisonDoc, message: string): { html: string; text: string } {
-  const { request, positions, columns, columnById, picked, pickedCells, pickedOfferIds, pickedDelivery, rate } = doc;
+  const { request, positions, columnById, picked, pickedCells, pickedOfferIds, pickedDelivery, rate } = doc;
   const td = 'padding:6px 8px;border-bottom:1px solid #e7e5e2;vertical-align:top;font-size:13px;';
   const th = 'padding:6px 8px;border-bottom:2px solid #14151a;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#6b6d76;';
   const muted = 'display:block;color:#6b6d76;font-size:12px;';
@@ -300,7 +291,7 @@ export function buildProposalEmailHtml(doc: ComparisonDoc, message: string): { h
         `<tr><td style="${td}">${esc(position.name)}<span style="${muted}">${qty(position)}</span></td>` +
         `<td style="${td}">${esc(offer?.name ?? '')}</td>` +
         `<td style="${td}">${tag(cell.kind)}${cell.note ? `<span style="${muted}">${withLinks(cell.note, lnk)}</span>` : ''}${cell.productUrl ? `<span style="${muted}">${linkHtml(cell.productUrl, lnk)}</span>` : ''}</td>` +
-        `<td style="${td}${num}">${esc(formatUnit(cell.unitPrice, cell.currency))}</td>` +
+        `<td style="${td}${num}">${esc(formatUnit(cell.unitPrice, cell.currency))} / ${esc(position.unit || 'ед.')}${emailGoodsUnitPrice(cell, position, muted)}</td>` +
         `<td style="${td}${num}font-weight:600;">${esc(formatMoney(cell.unitPrice * (position.quantity ?? 0), cell.currency))}</td></tr>`
       );
     })
@@ -310,43 +301,17 @@ export function buildProposalEmailHtml(doc: ComparisonDoc, message: string): { h
       ? `<tr><td style="${td}" colspan="4">Доставка: ${esc(deliveryNames(doc))}</td><td style="${td}${num}font-weight:600;">${esc(sumMoney(pickedDelivery, rate))}</td></tr>`
       : '';
 
-  const alternatives = positions
-    .map((p) => {
-      const offered = columns.filter((c) => c.cells.has(p.id));
-      if (offered.length === 0) return '';
-      const pickedCell = pickedCells.find((x) => x.position.id === p.id)?.cell ?? null;
-      const items = [...offered]
-        .sort((a, b) => (a.cells.get(p.id)!.usdUnit ?? a.cells.get(p.id)!.unitPrice) - (b.cells.get(p.id)!.usdUnit ?? b.cells.get(p.id)!.unitPrice))
-        .map((c) => {
-          const cell = c.cells.get(p.id)!;
-          const isPicked = pickedCell?.offerId === c.offer.id;
-          const delta = pickedCell && !isPicked ? deltaToPicked(cell, pickedCell) : null;
-          const flags = [
-            cell.isArchived ? `архив${cell.quoteDate ? `, счёт от ${new Date(cell.quoteDate).toLocaleDateString('ru-RU')}` : ''}` : '',
-            cell.excludedFromSupply ? 'не покупаем — цена для справки' : '',
-          ]
-            .filter(Boolean)
-            .join(' · ');
-          return `<li style="margin:2px 0;${isPicked ? 'font-weight:600;color:#157f42;' : ''}">${esc(c.offer.name)} — ${esc(formatUnit(cell.unitPrice, cell.currency))}/${esc(p.unit || 'ед.')} ${tag(cell.kind)}${cell.note ? ` <span style="color:#6b6d76;">${withLinks(cell.note, lnk)}</span>` : ''}${delta != null ? ` <span style="color:#6b6d76;">(${esc(formatDelta(delta))})</span>` : ''}${flags ? ` <span style="color:#906721;">${esc(flags)}</span>` : ''}${isPicked ? ' ✓' : ''}</li>`;
-        })
-        .join('');
-      return `<p style="margin:10px 0 2px;font-weight:600;font-size:13px;">${esc(p.name)} <span style="font-weight:400;color:#6b6d76;">${qty(p)}</span></p><ul style="margin:0;padding-left:18px;font-size:13px;">${items}</ul>`;
-    })
-    .join('');
-
   const html = `<div style="font-family:Montserrat,Arial,sans-serif;color:#14151a;max-width:760px;">
 ${message.trim() ? `<p style="white-space:pre-wrap;font-size:14px;line-height:1.45;">${esc(message.trim())}</p>` : ''}
 <h2 style="font-size:18px;margin:16px 0 2px;">${esc(request.title)}: предложение на утверждение</h2>
-<p style="margin:0 0 10px;color:#6b6d76;font-size:12px;">${request.sectionTitle ? `Раздел сметы «${esc(request.sectionTitle)}» · ` : ''}цены за единицу сметы с НДС × объём ведомости · ${new Date().toLocaleDateString('ru-RU')}</p>
+<p style="margin:0 0 10px;color:#6b6d76;font-size:12px;">${request.sectionTitle ? `Раздел сметы «${esc(request.sectionTitle)}» · ` : ''}цены с НДС × объём ведомости · ${new Date().toLocaleDateString('ru-RU')}</p>
 <p style="font-size:24px;font-weight:700;color:#157f42;margin:0 0 10px;">${esc(doc.total)}</p>
 <table style="border-collapse:collapse;width:100%;" cellpadding="0" cellspacing="0">
-<thead><tr><th style="${th}">Позиция ведомости</th><th style="${th}">Поставщик</th><th style="${th}">Соответствие</th><th style="${th}${num}">Цена за ед.</th><th style="${th}${num}">Сумма</th></tr></thead>
+<thead><tr><th style="${th}">Позиция ведомости</th><th style="${th}">Поставщик</th><th style="${th}">Соответствие</th><th style="${th}${num}">Цена</th><th style="${th}${num}">Сумма</th></tr></thead>
 <tbody>${rows}${deliveryRow}</tbody>
 <tfoot><tr><td style="${td}border-top:2px solid #14151a;border-bottom:0;font-weight:600;" colspan="4">Итого к утверждению, с НДС</td><td style="${td}${num}border-top:2px solid #14151a;border-bottom:0;font-weight:700;font-size:16px;color:#157f42;">${esc(doc.total)}</td></tr></tfoot>
 </table>
 <p style="color:#6b6d76;font-size:12px;">${pickedCells.length} из ${positions.length} позиций · поставщиков: ${pickedOfferIds.size}. Ответьте на это письмо: «утверждаю» или что нужно уточнить.</p>
-<h3 style="font-size:14px;margin:18px 0 4px;">Все предложения по позициям</h3>
-${alternatives}
 <p style="margin-top:18px;color:#6b6d76;font-size:12px;">Подготовил: ${esc(doc.preparedBy)}</p>
 </div>`;
 
