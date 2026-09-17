@@ -71,6 +71,28 @@ function diffNote(value: number, base: number, baseLabel: string, words: [string
   return `на ${p}% ${value < base ? words[0] : words[1]}, чем ${baseLabel}`;
 }
 
+function elevatorProvision(center: Pick<BusinessCenter, 'elevators' | 'totalArea'>): number | null {
+  if (center.elevators == null || center.totalArea == null || center.totalArea <= 0) return null;
+  return Math.round((center.elevators / center.totalArea) * 1_000_000) / 100;
+}
+
+function yearNote(value: number, base: number, businessClass: string): string {
+  const delta = Math.round(Math.abs(value - base) * 10) / 10;
+  if (delta === 0) return `на уровне медианного здания класса ${businessClass}`;
+  const integer = Number.isInteger(delta);
+  const rounded = Math.round(delta);
+  const mod10 = rounded % 10;
+  const mod100 = rounded % 100;
+  const unit = !integer
+    ? 'года'
+    : mod10 === 1 && mod100 !== 11
+      ? 'год'
+      : mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)
+        ? 'года'
+        : 'лет';
+  return `на ${delta.toLocaleString('ru-RU')} ${unit} ${value < base ? 'старше' : 'новее'}, чем медианное здание класса ${businessClass}`;
+}
+
 export function buildMarketPosition(
   center: BusinessCenter,
   all: BusinessCenter[],
@@ -105,6 +127,31 @@ export function buildMarketPosition(
     }
   }
 
+  // --- Цена продажи: здание против класса, района и города --------------
+  const buildingSale = offers.saleBySlug.get(center.slug)?.median ?? null;
+  if (buildingSale != null) {
+    const find = (type: MarketSnapshot['sliceType'], key: string) =>
+      (snapshots ?? []).find((s) => s.deal === 'sale' && s.sliceType === type && s.sliceKey === key)?.median ?? null;
+    const classMedian = center.businessClass ? find('class', center.businessClass) : null;
+    const districtMedian = center.district ? find('district', center.district) : null;
+    const cityMedian = find('city', 'all');
+    const baselines = [
+      classMedian != null && center.businessClass ? { label: `класс ${center.businessClass}`, value: classMedian } : null,
+      districtMedian != null && center.district ? { label: center.district, value: districtMedian } : null,
+      cityMedian != null ? { label: 'город', value: cityMedian } : null,
+    ].filter((b): b is { label: string; value: number } => b !== null);
+    if (baselines.length > 0) {
+      bars.push({
+        label: 'Цена продажи',
+        unit: '$/м²',
+        value: buildingSale,
+        baselines,
+        words: ['дешевле', 'дороже'],
+        note: diffNote(buildingSale, baselines[0].value, `медиана ${baselines[0].label}`, ['дешевле', 'дороже']),
+      });
+    }
+  }
+
   // --- До метро: здание против медианы класса ---------------------------
   const metro = nearestMetroMeters(center);
   if (metro != null && sameClass.length >= MIN_COMPARE_N) {
@@ -132,6 +179,58 @@ export function buildMarketPosition(
         baselines: [{ label: `класс ${center.businessClass}`, value: classParking }],
         words: ['меньше', 'больше'],
         note: diffNote(center.parkingRatio, classParking, `у медианного здания класса ${center.businessClass}`, ['меньше', 'больше']),
+      });
+    }
+  }
+
+  // --- Высота потолков --------------------------------------------------
+  if (center.ceilingHeight != null && center.businessClass) {
+    const classValues = sameClass.map((c) => c.ceilingHeight).filter((v): v is number => v != null);
+    const classCeiling = classValues.length >= MIN_COMPARE_N ? median(classValues) : null;
+    if (classCeiling != null) {
+      bars.push({
+        label: 'Высота потолков',
+        unit: 'м',
+        value: center.ceilingHeight,
+        baselines: [{ label: `класс ${center.businessClass}`, value: classCeiling }],
+        words: ['ниже', 'выше'],
+        note: diffNote(center.ceilingHeight, classCeiling, `у медианного здания класса ${center.businessClass}`, ['ниже', 'выше']),
+      });
+    }
+  }
+
+  // --- Лифты на 10 000 м² ----------------------------------------------
+  const buildingElevators = elevatorProvision(center);
+  if (buildingElevators != null && center.businessClass) {
+    const classValues = sameClass.map(elevatorProvision).filter((v): v is number => v != null);
+    const classElevators = classValues.length >= MIN_COMPARE_N ? median(classValues) : null;
+    if (classElevators != null) {
+      bars.push({
+        label: 'Лифты на 10 000 м²',
+        unit: 'шт.',
+        value: buildingElevators,
+        baselines: [{ label: `класс ${center.businessClass}`, value: classElevators }],
+        words: ['меньше', 'больше'],
+        note: diffNote(buildingElevators, classElevators, `у медианного здания класса ${center.businessClass}`, ['меньше', 'больше']),
+      });
+    }
+  }
+
+  // --- Год сдачи --------------------------------------------------------
+  if (center.status === 'built' && center.yearBuilt != null && center.businessClass) {
+    const classValues = sameClass
+      .filter((c) => c.status === 'built')
+      .map((c) => c.yearBuilt)
+      .filter((v): v is number => v != null);
+    const classYear = classValues.length >= MIN_COMPARE_N ? median(classValues) : null;
+    if (classYear != null) {
+      bars.push({
+        label: 'Год сдачи',
+        unit: 'г.',
+        value: center.yearBuilt,
+        baselines: [{ label: `класс ${center.businessClass}`, value: classYear }],
+        words: ['старше', 'новее'],
+        note: yearNote(center.yearBuilt, classYear, center.businessClass),
       });
     }
   }
