@@ -270,7 +270,7 @@ function BusinessCenterCard({
         <div className="flex flex-col gap-1.5">
           {metroDistance != null && metroLabel ? (
             <FactRow icon={TrainFront}>
-              {metroLabel} — {metroDistance} м
+              {metroLabel} — {metroDistance} м по прямой
             </FactRow>
           ) : (
             center.metro && <FactRow icon={TrainFront}>{shortMetro(center.metro)}</FactRow>

@@ -129,7 +129,7 @@ export function NeighboursBlock({
                   {n.businessClass && <span className="text-xs text-ink-muted">класс {n.businessClass}</span>}
                 </span>
                 <span className="text-xs text-ink-muted">
-                  {meters.toLocaleString('ru-RU')} м
+                  {meters.toLocaleString('ru-RU')} м по прямой
                   {rent != null && ` · аренда $${rent}/м²`}
                   {cheaper && ' — дешевле'}
                 </span>

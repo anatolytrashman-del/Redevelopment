@@ -57,7 +57,7 @@ const COLUMNS: Column[] = [
     align: 'right',
     render: (c) => {
       const m = nearestMetroMeters(c);
-      return m == null ? DASH : `${m.toLocaleString('ru-RU')} м`;
+      return m == null ? DASH : `${m.toLocaleString('ru-RU')} м по прямой`;
     },
   },
   {
