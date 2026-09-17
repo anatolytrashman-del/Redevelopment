@@ -49,7 +49,6 @@ export function buildVerdictDraft(
   const metro = nearestMetroMeters(center);
   const rent = offers.rentBySlug.get(center.slug)?.median ?? null;
   const classMedian = classRentMedian(snapshots, center.businessClass);
-  const lots = (offers.rentBySlug.get(center.slug)?.n ?? 0) + (offers.saleBySlug.get(center.slug)?.n ?? 0);
   const sameClass = center.businessClass
     ? allCenters.filter((candidate) => candidate.businessClass === center.businessClass)
     : [];
@@ -57,12 +56,21 @@ export function buildVerdictDraft(
     sameClass.length >= MIN_COMPARE_N
       ? median(sameClass.map((candidate) => candidate.parkingRatio).filter((value): value is number => value != null))
       : null;
+  const classMetroMedian =
+    sameClass.length >= MIN_COMPARE_N
+      ? median(sameClass.map(nearestMetroMeters).filter((value): value is number => value != null))
+      : null;
 
   // --- Плюсы -----------------------------------------------------------
   if (rent != null && classMedian != null && classMedian > 0 && rent <= classMedian * 0.9) {
     pros.push(`Ставка ниже медианы класса ${center.businessClass} на ${Math.round((1 - rent / classMedian) * 100)}%`);
   }
-  if (metro != null && metro <= 500) pros.push(`До метро ${metro} м по прямой`);
+  if (metro != null && classMetroMedian != null && classMetroMedian > 0 && metro < classMetroMedian) {
+    const metroAdvantage = Math.max(1, Math.round((1 - metro / classMetroMedian) * 100));
+    pros.push(
+      `До метро на ${metroAdvantage}% ближе, чем у медианного здания класса ${center.businessClass}`,
+    );
+  }
   if (
     center.parkingRatio != null &&
     classParkingMedian != null &&
@@ -77,17 +85,6 @@ export function buildVerdictDraft(
       `Парковочных мест на ${parkingAdvantage}% больше медианы класса ${center.businessClass}`,
     );
   }
-  if (center.managementType === 'single_uk') {
-    pros.push('Здание под единой управляющей компанией');
-  }
-  if (center.layoutTypes.includes('open_space')) pros.push('Есть open-space — гибче под рост команды');
-  if (center.ceilingHeight != null && center.ceilingHeight >= 3) {
-    pros.push(`Потолки ${center.ceilingHeight.toLocaleString('ru-RU')} м`);
-  }
-  if (lots >= 5) pros.push(`Сейчас ${lots} активных объявлений — есть из чего выбрать`);
-  if (center.gisRating != null && center.gisRating >= 4.5) pros.push(`Рейтинг 2ГИС ${center.gisRating}`);
-  if (center.is24x7) pros.push('Круглосуточный доступ');
-  if (center.accessibility.length >= 2) pros.push(`Доступная среда: ${center.accessibility.slice(0, 3).join(', ').toLowerCase()}`);
 
   // --- Вердикт ---------------------------------------------------------
   // Собирается из трёх осей: цена относительно класса, дорога и размер

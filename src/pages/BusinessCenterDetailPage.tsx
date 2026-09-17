@@ -422,8 +422,22 @@ export function BusinessCenterDetailPage() {
     if (!center) return null;
     const clean = (source: { verdict: string; pros: string[]; cons: string[]; edited: boolean }) => ({
       ...source,
-      // Эти факты уже есть в первом блоке и не должны повторяться в плюсах.
-      pros: source.pros.filter((item) => !item.trim().toLowerCase().startsWith('в самом здании:')),
+      // В плюсах остаются только выводы и сравнения. Факты, уже показанные
+      // в главной карточке или блоке предложений, повторно не выводим.
+      pros: source.pros.filter((item) => {
+        const normalized = item.trim().toLowerCase();
+        return ![
+          'в самом здании:',
+          'доступная среда:',
+          'круглосуточный доступ',
+          'до метро ',
+          'здание под единой управляющей компанией',
+          'есть open-space',
+          'потолки ',
+          'сейчас ',
+          'рейтинг 2гис ',
+        ].some((prefix) => normalized.startsWith(prefix));
+      }),
       // Минусы и стоп-факторы больше не выводятся в публичном блоке.
       cons: [],
     });
