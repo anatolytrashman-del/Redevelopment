@@ -88,7 +88,6 @@ import {
   HistoryTimeline,
   VerdictBlock,
   MarketPositionBlock,
-  MoneyBlock,
   TenantIndustriesBlock,
   TechTilesBlock,
   WhatTheySayBlock,
@@ -113,7 +112,6 @@ const SECTION_LABELS: Record<string, string> = {
   verdict: 'Кому подходит',
   market: 'БЦ на фоне конкурентов',
   map: 'Другие бизнес-центры рядом',
-  money: 'В деньгах',
   tech: 'Характеристики',
   offers: 'Предложения',
   rental: 'Условия аренды',
@@ -133,7 +131,6 @@ export function BusinessCenterDetailPage() {
     error: boolean;
   } | null>(null);
   const offers = offersResult && offersResult.slug === slug ? offersResult.offers : null;
-  const offersError = offersResult != null && offersResult.slug === slug && offersResult.error;
   const [gis2Result, setGis2Result] = useState<{ slug: string; data: BusinessCenter2gisSnapshot | null } | null>(null);
   const gis2 = gis2Result?.slug === slug ? gis2Result?.data ?? null : null;
   const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(null);
@@ -276,9 +273,8 @@ export function BusinessCenterDetailPage() {
     [center],
   );
 
-  // Медианы по зданиям (Д3) — те же, что в каталоге: и «БЦ на фоне конкурентов», и
-  // соседи, и деньги должны считать ставку одинаково, иначе одна и та же
-  // цифра на двух страницах разойдётся.
+  // Медианы по зданиям (Д3) — те же, что в каталоге и блоке
+  // «БЦ на фоне конкурентов», чтобы одна и та же ставка не расходилась.
   const offerIndex = useMemo(() => buildOfferIndex(officeSnapshots), [officeSnapshots]);
 
   // Б5: «Сейчас предлагается» — живая строка вместо голой таблицы. Важны
@@ -467,7 +463,6 @@ export function BusinessCenterDetailPage() {
       has('verdict', verdict != null),
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
       has('map', center.lat != null && center.lng != null),
-      has('money', offers === null || offers.length > 0),
       has('tech', center.technicalParams.length > 0 || center.parkingRatio != null),
       has('offers', offers !== null),
       has('rental', Boolean(center.rentalInfo)),
@@ -778,7 +773,6 @@ export function BusinessCenterDetailPage() {
         {verdict && <VerdictBlock {...verdict} />}
         {center && marketPosition && <MarketPositionBlock position={marketPosition} />}
         {center && <NeighboursBlock center={center} all={centers ?? []} />}
-        {center && <MoneyBlock offers={offers} error={offersError} />}
         {center && <TechTilesBlock center={center} all={centers ?? []} />}
 
         {/* Технические характеристики — прямой парсинг структурных блоков
