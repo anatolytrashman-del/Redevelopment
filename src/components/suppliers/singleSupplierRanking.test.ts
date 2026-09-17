@@ -33,6 +33,8 @@ function cell(unitPrice: number, kind: PurchaseItemMatchKind = 'exact', currency
     usdUnit: null,
     quotedQuantity: null,
     quotedUnit: '',
+    excludedFromSupply: false,
+    isArchived: false,
   };
 }
 
@@ -43,9 +45,14 @@ function column(
   delivery: number | null = null,
   offerCurrency: Currency = 'RUB',
 ): Column {
+  const cellsMap = new Map(Object.entries(cells));
+  // currentCells = cells, тот же принцип, что в buildColumns: без архивных и
+  // «не покупаем» — в этих тестах таких нет, поэтому оба поля совпадают.
+  const currentCells = new Map([...cellsMap].filter(([, c]) => !c.isArchived && !c.excludedFromSupply));
   return {
     offer: { id, name, currency: offerCurrency } as SupplierOffer,
-    cells: new Map(Object.entries(cells)),
+    cells: cellsMap,
+    currentCells,
     delivery,
     deliveryCurrency: offerCurrency,
     unmatched: [],

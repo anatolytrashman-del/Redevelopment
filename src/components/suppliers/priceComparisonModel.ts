@@ -42,6 +42,20 @@ export interface Cell {
   // Keramogranit.ru посчитал 713 м² из 992 — ячейка должна это показывать).
   quotedQuantity: number | null;
   quotedUnit: string;
+  // 1-клик «не покупаем у этого поставщика» (владелец, 2026-09-17): цена и
+  // позиция остаются в сравнении и в отчёте руководителю стройки — просто
+  // не идут в заказ. Хранится на самой строке счёта (PurchaseItem), тем же
+  // способом, что и matchKind, — не путать с ним: 'none' значит «это вообще
+  // не позиция ведомости», а excludedFromSupply — «позиция та, просто не у
+  // этого поставщика».
+  excludedFromSupply: boolean;
+  // Позиция есть в счёте поставщика, но НЕ в его самом последнем счёте —
+  // владелец, 2026-09-17: запросил у поставщиков новые счета только на
+  // финально отобранные материалы, и цены на остальные позиции ведомости
+  // не должны из-за этого пропадать из сравнения — они нужны в отчёте
+  // руководителю как цены альтернатив. true — цена архивная, из более
+  // раннего (обычно более широкого) КП того же поставщика.
+  isArchived: boolean;
 }
 
 // Откуда взялась цена ячейки с точки зрения НДС:
@@ -94,7 +108,19 @@ export interface AsideLine {
 
 export interface Column {
   offer: SupplierOffer;
+  // Все известные цены поставщика по позициям — включая архивные (не из
+  // последнего счёта) и «не покупаем» (excludedFromSupply). Для ЭКРАНА
+  // сравнения и отчёта руководителю: там нужны все цены, в том числе те,
+  // что не идут в заказ.
   cells: Map<string, Cell>;
+  // Подмножество cells, которое реально можно заказать у этого поставщика
+  // ПРЯМО СЕЙЧАС: без архивных цен (их нет в последнем счёте — поставщик мог
+  // их уже не подтвердить) и без вручную исключённых. Владелец, 2026-09-17:
+  // «Всё у одного», «Выбрать все» и ранжирование поставщиков (заказать всю
+  // ведомость у одного) должны считать по РЕАЛЬНОМУ покрытию, а не по
+  // случайно накопленной истории цен — иначе полный заказ у поставщика,
+  // который давно ничего не отвечал по половине позиций, выглядел бы полным.
+  currentCells: Map<string, Cell>;
   // Сумма строк-доставок из последнего счёта (null — в счёте доставки нет).
   delivery: number | null;
   // Валюта доставки — валюта того же счёта (или условий), откуда она взята.
@@ -136,12 +162,16 @@ export function buildColumns(
   const byId = new Map(positions.map((p) => [p.id, p]));
   return offers.map((offer) => {
     const quotes = quotesByOffer.get(offer.id) ?? [];
-    // Хронология нужна только чтобы найти ПОСЛЕДНИЙ счёт — позиции из него не
-    // смешиваются с более старыми. Владелец, 2026-09-17: закупка теперь идёт
-    // по частям ведомости у разных поставщиков (Банапал — свои позиции,
-    // Альбия — свои и т.д.), и новый узкий счёт на 2 позиции заменяет старый
-    // широкий на 5, а не дополняет его — иначе давно неактуальные строки
-    // продолжали бы висеть в сравнении просто потому, что когда-то пришли.
+    // Хронология: доставка, условия и непривязанные строки берутся из ОДНОГО
+    // — самого свежего — счёта, где вообще была хоть какая-то цена (см. ниже
+    // про currentSourceId). Цены за позиции — иначе: владелец, 2026-09-17,
+    // сузил закупку до финально отобранных материалов и запросил у
+    // поставщиков новые счета ТОЛЬКО на них, а цены на остальные позиции
+    // ведомости из старых широких счетов из-за этого пропадали из
+    // сравнения — хотя нужны в отчёте руководителю как цены альтернатив.
+    // Поэтому цены сводятся по ВСЕМ счетам поставщика: более новый счёт
+    // перекрывает цену на ту же позицию, а позиция, которой в новом узком
+    // счёте нет, остаётся ценой из более раннего (архивной, см. Cell.isArchived).
     // Без строк КП (старые карточки, до 2026-09-11) — позиции самой карточки.
     const sources: {
       id: string | null;
@@ -154,21 +184,8 @@ export function buildColumns(
       quotes.length > 0
         ? quotes.map((q) => ({ id: q.id, title: q.title, items: q.items, currency: q.currency, date: q.createdAt, terms: q.terms }))
         : [{ id: null, title: 'Позиции карточки', items: offer.items, currency: offer.currency, date: null, terms: null }];
-    let cells = new Map<string, Cell>();
-    let delivery: number | null = null;
-    let unmatched: UnmatchedLine[] = [];
-    let aside: AsideLine[] = [];
-    let lastQuoteAt: string | null = null;
-    let terms: QuoteTerms | null = null;
-    // Валюта счёта, из которого взяты доставка и условия, — ею и подписываем
-    // доставку (см. deliveryCurrency в Column).
-    let sourceCurrency: Currency | null = null;
-    // Идём от новых счетов к старым и останавливаемся на первом, где вообще
-    // была хоть какая-то цена (позиция, доставка или непривязанная строка):
-    // ведомость, случайно распознанная как «счёт» без цен, не должна
-    // вытеснять настоящий предыдущий счёт.
-    for (let srcIndex = sources.length - 1; srcIndex >= 0; srcIndex -= 1) {
-      const src = sources[srcIndex];
+
+    function readSource(src: (typeof sources)[number]) {
       const srcCells = new Map<string, Cell>();
       let srcDelivery: number | null = null;
       const srcUnmatched: UnmatchedLine[] = [];
@@ -222,24 +239,57 @@ export function buildColumns(
           usdUnit: convertToUsd(unitPrice, src.currency, rate),
           quotedQuantity: item.quantity,
           quotedUnit: item.unit,
+          excludedFromSupply: item.excludedFromSupply === true,
+          isArchived: false,
         });
       }
-      // Позиции, доставка и несопоставленные строки — все из ОДНОГО и того же
-      // счёта: смешивать цену за материал из одного счёта с доставкой или
-      // условиями из другого нельзя, а строки предыдущего (более раннего)
-      // счёта, которых в этом нет, считаются неактуальными и в cells не
-      // попадают вовсе.
-      if (priced || srcDelivery != null || srcUnmatched.length > 0) {
-        cells = srcCells;
-        delivery = srcDelivery;
-        unmatched = srcUnmatched;
-        aside = srcAside;
+      return { srcCells, srcDelivery, srcUnmatched, srcAside, priced };
+    }
+
+    const perSource = sources.map(readSource);
+
+    let delivery: number | null = null;
+    let unmatched: UnmatchedLine[] = [];
+    let aside: AsideLine[] = [];
+    let lastQuoteAt: string | null = null;
+    let terms: QuoteTerms | null = null;
+    // Валюта счёта, из которого взяты доставка и условия, — ею и подписываем
+    // доставку (см. deliveryCurrency в Column).
+    let sourceCurrency: Currency | null = null;
+    // id счёта, который считается «действующим» — от него берутся доставка,
+    // условия и непривязанные строки. Цены за позиции из него же — «свежие»,
+    // из более ранних счетов — архивные (Cell.isArchived).
+    let currentSourceId: string | null | undefined;
+    // Идём от новых счетов к старым и останавливаемся на первом, где вообще
+    // была хоть какая-то цена (позиция, доставка или непривязанная строка):
+    // ведомость, случайно распознанная как «счёт» без цен, не должна
+    // вытеснять настоящий предыдущий счёт.
+    for (let srcIndex = sources.length - 1; srcIndex >= 0; srcIndex -= 1) {
+      const src = sources[srcIndex];
+      const r = perSource[srcIndex];
+      if (r.priced || r.srcDelivery != null || r.srcUnmatched.length > 0) {
+        delivery = r.srcDelivery;
+        unmatched = r.srcUnmatched;
+        aside = r.srcAside;
         terms = src.terms;
         sourceCurrency = src.currency;
+        currentSourceId = src.id;
         if (src.date) lastQuoteAt = src.date;
         break;
       }
     }
+
+    // Цены по позициям — сведены по всем счетам: более новый счёт перекрывает
+    // цену на ту же позицию (sources идут от старых к новым), позиция без
+    // цены в новом счёте берёт цену из более старого (isArchived = true).
+    const cells = new Map<string, Cell>();
+    for (const r of perSource) {
+      r.srcCells.forEach((cell, positionId) => cells.set(positionId, cell));
+    }
+    cells.forEach((cell) => {
+      cell.isArchived = cell.quoteId !== currentSourceId;
+    });
+
     // Доставка: числом из строки счёта, а если её там нет — из условий КП
     // (менеджер назвал сумму в письме). Приоритет у строки счёта: она
     // подтверждена документом.
@@ -250,9 +300,11 @@ export function buildColumns(
     const effectiveTerms = terms ?? offer.terms ?? null;
     const deliveryTotal =
       delivery ?? (typeof effectiveTerms?.deliveryCost === 'number' ? effectiveTerms.deliveryCost : null);
+    const currentCells = new Map([...cells].filter(([, cell]) => !cell.isArchived && !cell.excludedFromSupply));
     return {
       offer,
       cells,
+      currentCells,
       delivery: deliveryTotal,
       // Доставка из строки счёта или из условий того же счёта — в его валюте;
       // доставка из условий карточки — в валюте карточки.

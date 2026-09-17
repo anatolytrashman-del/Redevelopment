@@ -124,3 +124,39 @@ describe('buildColumns: исход строки счёта', () => {
     expect(col.aside).toEqual([]);
   });
 });
+
+// Владелец, 2026-09-17: запросил у поставщиков новые счета только на
+// финально отобранные материалы — цены на остальные позиции ведомости из
+// более старых широких счетов не должны пропадать из сравнения, они нужны
+// в отчёте руководителю стройки как цены альтернатив.
+describe('buildColumns: цены сводятся по всем счетам, а не только по последнему', () => {
+  const primer = material('p2', 'Грунтовка', 400);
+
+  it('позиция, которой нет в новом узком счёте, берёт цену из старого широкого и помечается архивной', () => {
+    const wide = quote([
+      item({ id: 'a1', name: 'Краска G485', sourceMaterialId: 'p1', unitPrice: 200, matchKind: 'exact' }),
+      item({ id: 'a2', name: 'Грунтовка', sourceMaterialId: 'p2', unitPrice: 50, matchKind: 'exact' }),
+    ]);
+    const narrow = {
+      ...quote([item({ id: 'b1', name: 'Краска G485', sourceMaterialId: 'p1', unitPrice: 220, matchKind: 'exact' })]),
+      id: 'q2',
+      createdAt: '2026-09-17T10:00:00.000Z',
+    };
+    const col = buildColumns([offer], new Map([['o1', [wide, narrow]]]), [paint, primer], undefined)[0];
+    // Отобранный материал — свежая цена из узкого счёта.
+    expect(col.cells.get('p1')?.unitPrice).toBe(220);
+    expect(col.cells.get('p1')?.isArchived).toBe(false);
+    // Непокупаемая позиция — цена из старого счёта, но не пропала.
+    expect(col.cells.get('p2')?.unitPrice).toBe(50);
+    expect(col.cells.get('p2')?.isArchived).toBe(true);
+    // currentCells — только то, что реально поставят по действующему счёту.
+    expect([...col.currentCells.keys()]).toEqual(['p1']);
+  });
+
+  it('excludedFromSupply на строке счёта не убирает цену из cells, но убирает её из currentCells', () => {
+    const col = columnOf([item({ id: 'i1', name: 'Краска', sourceMaterialId: 'p1', unitPrice: 200, matchKind: 'exact', excludedFromSupply: true })]);
+    expect(col.cells.get('p1')?.unitPrice).toBe(200);
+    expect(col.cells.get('p1')?.excludedFromSupply).toBe(true);
+    expect(col.currentCells.has('p1')).toBe(false);
+  });
+});
