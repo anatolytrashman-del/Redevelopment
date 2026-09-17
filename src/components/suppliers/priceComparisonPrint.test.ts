@@ -17,6 +17,7 @@ function fixture(): ComparisonDoc {
     pickedDelivery: [{ amount: 2500, currency: 'RUB' }], kinds: { exact: 1 },
     funnel: { sent: 19, letters: 56, replied: 12, repliedNoQuote: 0, confirmed: 12, quotesCount: 17 },
     total: '17 526 ₽', preparedBy: 'Автор',
+    reliabilityByInn: new Map(),
   } as unknown as ComparisonDoc;
 }
 
@@ -43,8 +44,13 @@ describe('approval PDF', () => {
     const doc = fixture();
     doc.request = { ...doc.request, title: 'Плинтусы, панели и лепнина', sectionTitle: 'Плинтус' };
     doc.positions[0] = { ...doc.positions[0], name: 'Плинтус Stenopol C7157', quantity: 3540, unit: 'пог. метры' };
-    doc.columns[0] = { ...doc.columns[0], offer: { ...doc.columns[0].offer, name: 'DEARTIO' }, delivery: null };
+    doc.columns[0] = {
+      ...doc.columns[0],
+      offer: { ...doc.columns[0].offer, name: 'DEARTIO', websiteUrl: 'https://deartio.moscow', inn: '9727013880' },
+      delivery: null,
+    };
     doc.columnById = new Map(doc.columns.map((c) => [c.offer.id, c]));
+    doc.reliabilityByInn.set('9727013880', { company: { НаимСокр: 'ООО «ТМ»' } } as never);
 
     const html = buildPrintHtml(doc);
     expect(approvalPrintTitle(doc)).toBe('Плинтус');
@@ -52,6 +58,9 @@ describe('approval PDF', () => {
     expect(html).toContain('Объект: 1-й Геологический проезд, 1, посёлок Зелёный, Московская область');
     expect(html).toContain('<td class="num">В цене</td>');
     expect(html).toContain('<td>В наличии, доставка по запросу</td>');
+    expect(html).toContain('Юрлицо: ООО «ТМ»');
+    expect(html).toContain('ИНН: 9727013880');
+    expect(html).toContain('href="https://deartio.moscow"');
     expect(html).not.toContain('Получено КП:');
   });
 

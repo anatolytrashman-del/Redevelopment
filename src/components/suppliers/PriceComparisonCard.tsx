@@ -536,6 +536,7 @@ export function PriceComparisonCard({
     rate,
     preparedBy: preparedBy(),
     total,
+    reliabilityByInn,
   });
 
   async function run<T>(label: string, fn: () => Promise<T>): Promise<T | undefined> {
