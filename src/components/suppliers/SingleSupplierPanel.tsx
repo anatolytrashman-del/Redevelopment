@@ -92,8 +92,8 @@ export function SingleSupplierPanel({
               )}{' '}
               — закрывает {winner.covered} из {positions.length}{' '}
               {plural(positions.length, 'позиции', 'позиций', 'позиций')}, из них{' '}
-              <span className="font-semibold">{winner.exact} «ровно»</span>
-              {winner.bestExact > 0 && ` (${winner.bestExact} по лучшей цене среди «ровно»)`}
+              <span className="font-semibold">{winner.exact} из ведомости</span>
+              {winner.bestExact > 0 && ` (${winner.bestExact} по лучшей цене среди них)`}
               {winner.alternative > 0 && `, ${winner.alternative} ${plural(winner.alternative, 'аналог', 'аналога', 'аналогов')}`}
               {winner.check > 0 && `, ${winner.check} «уточнить»`}.
             </span>
@@ -176,7 +176,7 @@ export function SingleSupplierPanel({
                       {s.covered} из {positions.length}
                     </td>
                     <td className="whitespace-nowrap py-1.5 pr-2 text-ink-muted">
-                      <span className={cn(s.exact > 0 && 'font-semibold text-ink')}>ровно {s.exact}</span>
+                      <span className={cn(s.exact > 0 && 'font-semibold text-ink')}>из ведомости {s.exact}</span>
                       {s.bestExact > 0 && <span className="text-success"> ({s.bestExact} лучш.)</span>} · аналог {s.alternative} · уточнить {s.check}
                     </td>
                     <td className="whitespace-nowrap py-1.5 pr-2 text-right tabular-nums text-ink">{s.total != null ? formatMoney(s.total, currency) : '—'}</td>
@@ -226,7 +226,7 @@ export function SingleSupplierPanel({
                                   ) : line.diff != null && Math.round(line.diff) !== 0 ? (
                                     <span className={cn('text-[11px] tabular-nums', line.diff > 0 ? 'text-ink-muted' : 'text-success')}>
                                       {line.diff > 0 ? '+' : '−'}
-                                      {formatMoney(Math.abs(line.diff), currency)} к {line.referenceKind === 'any' ? 'лучшей замене' : 'лучшему «ровно»'} у «
+                                      {formatMoney(Math.abs(line.diff), currency)} к {line.referenceKind === 'any' ? 'лучшей замене' : 'лучшей цене из ведомости'} у «
                                       {line.referenceSupplier}»
                                     </span>
                                   ) : null}

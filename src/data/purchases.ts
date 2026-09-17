@@ -132,7 +132,9 @@ export type LedgerOverridableField = 'quantity' | 'note';
 export type PurchaseItemMatchKind = 'exact' | 'alternative' | 'check' | 'delivery' | 'none';
 
 export const PURCHASE_ITEM_MATCH_KIND_LABELS: Record<PurchaseItemMatchKind, string> = {
-  exact: 'ровно по ведомости',
+  // Владелец, 2026-09-17: «"Ровно" тут и везде в платформе замени на
+  // "Позиция из ведомости"».
+  exact: 'позиция из ведомости',
   alternative: 'аналог',
   check: 'уточнить',
   delivery: 'доставка',

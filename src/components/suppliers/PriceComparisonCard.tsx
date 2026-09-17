@@ -44,6 +44,7 @@ import { riskSummary, shouldFlag, type SupplierReliability } from '../../data/su
 import { authFetch } from '../../lib/authFetch';
 import { emailSignature } from './SupplierCorrespondenceTab';
 import { errorMessage } from '../../lib/errorMessage';
+import { downloadHtmlAsPdf } from '../../lib/htmlToPdf';
 import { sameUnit } from '../../lib/units';
 import { guessUnitPrice } from '../../lib/unitPriceGuess';
 import { grossUp, vatRateForCountry } from '../../data/vat';
@@ -252,7 +253,7 @@ export function preparedBy(): string {
 }
 
 function KindTag({ kind, onClick, title }: { kind: PurchaseItemMatchKind; onClick?: () => void; title?: string }) {
-  const label = kind === 'exact' ? 'ровно' : PURCHASE_ITEM_MATCH_KIND_LABELS[kind];
+  const label = PURCHASE_ITEM_MATCH_KIND_LABELS[kind];
   const className = cn('inline-block rounded-full px-1.5 py-px text-[10.5px] font-semibold leading-relaxed', KIND_TONE[kind], onClick && 'cursor-pointer hover:ring-1 hover:ring-current');
   if (!onClick) return <span className={className}>{label}</span>;
   return (
@@ -339,7 +340,6 @@ export function PriceComparisonCard({
   onRequestSaved,
   onQuotesChange,
   onOfferUpdated,
-  onExportBestPrices,
   renderBadges,
   reliabilityByInn,
 }: {
@@ -363,9 +363,6 @@ export function PriceComparisonCard({
   onRequestSaved: (r: SupplierRequest) => void;
   onQuotesChange: (update: (prev: SupplierQuote[]) => SupplierQuote[]) => void;
   onOfferUpdated: (o: SupplierOffer) => void;
-  // Открыть выгрузку «лучшие цены: оригинал и аналог» уже на этой поставке.
-  // Сам диалог живёт на странице: он умеет и охват «все поставки».
-  onExportBestPrices?: () => void;
   // Бейджи верификации/благонадёжности живут в Suppliers.tsx вместе со своим
   // состоянием — сюда приходят готовыми.
   renderBadges: (o: SupplierOffer) => ReactNode;
@@ -391,6 +388,7 @@ export function PriceComparisonCard({
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [creatingOrders, setCreatingOrders] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -449,7 +447,12 @@ export function PriceComparisonCard({
     const out = mine.filter((e) => e.direction === 'out');
     const inbound = mine.filter((e) => e.direction === 'in');
     const sentIds = new Set(out.map((e) => e.offerId));
-    const repliedIds = new Set(inbound.map((e) => e.offerId));
+    // Поставщик, приславший КП, ответил по определению — даже если самого
+    // ответа в переписке нет: счёт бывает залит руками, а договорённость —
+    // по телефону. Без объединения в отчёте выходило «ответили 10» рядом с
+    // «прислали КП 12» (владелец, 2026-09-17).
+    const confirmedIds = new Set(confirmed.map((o) => o.id));
+    const repliedIds = new Set([...inbound.map((e) => e.offerId), ...confirmedIds]);
     const dates = mine.map((e) => e.createdAt).sort();
     const quotesCount = confirmed.reduce((a, o) => a + (quotesByOffer.get(o.id)?.length ?? 0), 0);
     const pricedPositions = positions.filter((p) => columns.some((c) => c.cells.has(p.id))).length;
@@ -462,7 +465,7 @@ export function PriceComparisonCard({
       sent: sentIds.size,
       letters: out.length,
       replied: repliedIds.size,
-      repliedNoQuote: [...repliedIds].filter((id) => !confirmed.some((o) => o.id === id)).length,
+      repliedNoQuote: [...repliedIds].filter((id) => !confirmedIds.has(id)).length,
       confirmed: confirmed.length,
       quotesCount,
       pricedPositions,
@@ -813,17 +816,20 @@ export function PriceComparisonCard({
     );
   }
 
-  function exportPdf() {
-    const win = window.open('', '_blank', 'width=1000,height=800');
-    if (!win) {
-      setError('Браузер заблокировал окно печати — разрешите всплывающие окна для этого сайта.');
-      return;
+  // Владелец, 2026-09-17: «делай при клике на кнопку На утверждение сразу
+  // загрузку pdf файла» — раньше открывалось окно печати и человек сам
+  // выбирал «сохранить как PDF». Теперь файл собирается на месте
+  // (src/lib/htmlToPdf.ts) и сразу падает в загрузки.
+  async function exportPdf() {
+    setExportingPdf(true);
+    setError(null);
+    try {
+      await downloadHtmlAsPdf(buildPrintHtml(doc()), `${request.title} — на утверждение`);
+    } catch (e) {
+      setError(errorMessage(e, 'Не удалось собрать PDF'));
+    } finally {
+      setExportingPdf(false);
     }
-    win.document.write(buildPrintHtml(doc()));
-    win.document.close();
-    win.focus();
-    // Ждём подгрузку шрифта: без паузы Safari печатает системным.
-    setTimeout(() => win.print(), 500);
   }
 
   const emptyPositions = positions.length === 0;
@@ -844,8 +850,8 @@ export function PriceComparisonCard({
     if (s.offered === 0) return <span className="mt-1 block text-[11px] text-ink-faint">цен пока нет</span>;
     return (
       <span className={cn('mt-1 block text-[11px]', s.exact === 0 ? 'font-semibold text-warning' : 'text-ink-muted')}>
-        {s.exact === 0 ? '«ровно» нет ни у кого · ' : ''}
-        {s.exact ? `ровно ${s.exact}` : ''}
+        {s.exact === 0 ? 'позиции из ведомости нет ни у кого · ' : ''}
+        {s.exact ? `из ведомости ${s.exact}` : ''}
         {s.exact && (s.alternative || s.check) ? ' · ' : ''}
         {s.alternative ? `аналог ${s.alternative}` : ''}
         {s.alternative && s.check ? ' · ' : ''}
@@ -911,7 +917,7 @@ export function PriceComparisonCard({
         <DeltaLabel cell={cell} p={p} />
         <ShortfallLabel cell={cell} p={p} />
         <span className="mt-1 block text-[11.5px] leading-snug text-ink">
-          <KindTag kind={cell.kind} onClick={() => cycleKind(cell)} title="Нажмите, чтобы сменить вид: ровно → аналог → уточнить" />{' '}
+          <KindTag kind={cell.kind} onClick={() => cycleKind(cell)} title="Нажмите, чтобы сменить вид: позиция из ведомости → аналог → уточнить" />{' '}
           {needsReview(cell) && cell.kind !== 'check' && (
             <ReviewTag confidence={cell.matchConfidence} recognition={cell.recognitionConfidence} />
           )}{' '}
@@ -1148,11 +1154,6 @@ export function PriceComparisonCard({
               Очистить отбор
             </Button>
           )}
-          {onExportBestPrices && (
-            <Button type="button" variant="secondary" icon={<FileDown className="h-4 w-4" />} onClick={onExportBestPrices}>
-              Лучшие цены
-            </Button>
-          )}
           {!emptyPositions && columns.length > 0 && (
             <Button
               type="button"
@@ -1165,8 +1166,8 @@ export function PriceComparisonCard({
               Сформировать поставку
             </Button>
           )}
-          <Button type="button" variant="secondary" icon={<FileDown className="h-4 w-4" />} onClick={exportPdf}>
-            На утверждение
+          <Button type="button" variant="secondary" icon={<FileDown className="h-4 w-4" />} onClick={() => void exportPdf()} disabled={exportingPdf}>
+            {exportingPdf ? 'Готовим PDF…' : 'На утверждение'}
           </Button>
         </div>
       </div>
@@ -1238,11 +1239,11 @@ export function PriceComparisonCard({
         <div className="flex flex-col gap-0.5 rounded-control border border-border bg-surface-muted px-4 py-3">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Соответствие ведомости</span>
           <span className="text-xl font-bold tabular-nums text-ink">
-            {kinds.exact ?? 0} <span className="text-xs font-medium text-ink-muted">ровно</span> · {kinds.alternative ?? 0}{' '}
+            {kinds.exact ?? 0} <span className="text-xs font-medium text-ink-muted">из ведомости</span> · {kinds.alternative ?? 0}{' '}
             <span className="text-xs font-medium text-ink-muted">аналог</span> · {kinds.check ?? 0} <span className="text-xs font-medium text-ink-muted">уточнить</span>
           </span>
           <span className="text-xs text-ink-muted">
-            {kinds.check ? 'по позициям «уточнить» нужен ответ поставщика до заказа' : kinds.alternative ? 'аналоги согласовать по карточкам товара' : 'среди отобранного всё ровно по ведомости'}
+            {kinds.check ? 'по позициям «уточнить» нужен ответ поставщика до заказа' : kinds.alternative ? 'аналоги согласовать по карточкам товара' : 'всё отобранное — позиции из ведомости'}
           </span>
         </div>
         <div className="flex flex-col gap-0.5 rounded-control border border-border bg-surface-muted px-4 py-3">
@@ -1548,7 +1549,7 @@ export function PriceComparisonCard({
                               <span className="block text-[11px] text-ink-muted">{col.delivery != null ? `доставка ${formatMoney(col.delivery, col.deliveryCurrency)}` : 'доставка не названа'}</span>
                             </td>
                             <td className="px-3 py-2 text-[12px] leading-snug text-ink">
-                              <KindTag kind={cell.kind} onClick={() => cycleKind(cell)} title="Нажмите, чтобы сменить вид" />{' '}
+                              <KindTag kind={cell.kind} onClick={() => cycleKind(cell)} title="Нажмите, чтобы сменить вид: позиция из ведомости → аналог → уточнить" />{' '}
                               {needsReview(cell) && cell.kind !== 'check' && (
                                 <ReviewTag confidence={cell.matchConfidence} recognition={cell.recognitionConfidence} />
                               )}{' '}
