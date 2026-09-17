@@ -575,6 +575,29 @@ export function PriceComparisonCard({
     }
   }
 
+  // «Сформировать поставку» (владелец, 2026-09-17): после того как отбор
+  // кнопками «Выбрать» закончен, одним действием доводит решение до конца —
+  // всё, что НЕ отобрано и ещё не помечено «Не покупаем», переводится в «Не
+  // покупаем». Цена и позиция никуда не деваются — остаются в сравнении и
+  // пойдут в отчёт руководителю стройки — просто явно исключены из заказа,
+  // а не молча висят непонятым остатком. Заказы поставщикам эта кнопка не
+  // создаёт — для этого соседняя «Сформировать заказы».
+  async function formSupply() {
+    const patches: { offerId: string; itemId: string; patch: ItemPatch }[] = [];
+    for (const col of columns) {
+      col.cells.forEach((cell, positionId) => {
+        if (cell.excludedFromSupply) return;
+        if (proposal[positionId]?.offerId === cell.offerId) return;
+        patches.push({ offerId: cell.offerId, itemId: cell.itemId, patch: { excludedFromSupply: true } });
+      });
+    }
+    if (patches.length === 0) return;
+    const word = patches.length === 1 ? 'предложение' : patches.length < 5 ? 'предложения' : 'предложений';
+    const ok = window.confirm(`Отклонить ${patches.length} ${word}, которые не отобраны? Цены останутся в сравнении и в отчёте — просто выйдут из поставки.`);
+    if (!ok) return;
+    await run('Не удалось сформировать поставку', () => applyPatches(patches));
+  }
+
   function toggleColumn(col: Column) {
     // Массовое «Выбрать все» — только по реально покрытым позициям: архивные
     // и «не покупаем» цены отбором не трогает (см. Column.currentCells).
@@ -1128,6 +1151,18 @@ export function PriceComparisonCard({
           {onExportBestPrices && (
             <Button type="button" variant="secondary" icon={<FileDown className="h-4 w-4" />} onClick={onExportBestPrices}>
               Лучшие цены
+            </Button>
+          )}
+          {!emptyPositions && columns.length > 0 && (
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<Check className="h-4 w-4" />}
+              disabled={saving}
+              onClick={() => void formSupply()}
+              title="Все предложения, которые не отобраны кнопкой «Выбрать» и ещё не помечены «Не покупаем», станут «Не покупаем» — цены останутся в сравнении и в отчёте"
+            >
+              Сформировать поставку
             </Button>
           )}
           <Button type="button" variant="secondary" icon={<FileDown className="h-4 w-4" />} onClick={exportPdf}>
