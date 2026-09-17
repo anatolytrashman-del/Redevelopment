@@ -24,17 +24,33 @@ else
 fi
 
 # Учётные данные: либо уже лежат в ~/.codex/auth.json, либо приезжают из окружения.
+# CODEX_AUTH_JSON принимается в двух видах: сырой JSON или он же в base64.
+# Base64 — рабочий вариант для настроек окружения Claude Code на вебе: поле там в
+# формате .env (одна строка `KEY=value`), а auth.json многострочный, с кавычками и
+# пробелами — вставленный как есть, он ломает разбор («Couldn't parse … Use KEY=value
+# format», проверено 2026-09-17). Base64 не содержит ни переносов, ни кавычек.
 if [ ! -f "$HOME/.codex/auth.json" ]; then
   if [ -n "${CODEX_AUTH_JSON:-}" ]; then
     mkdir -p "$HOME/.codex"
-    printf '%s' "$CODEX_AUTH_JSON" > "$HOME/.codex/auth.json"
+    case "$(printf '%s' "$CODEX_AUTH_JSON" | cut -c1)" in
+      '{') printf '%s' "$CODEX_AUTH_JSON" > "$HOME/.codex/auth.json" ;;
+      *)   printf '%s' "$CODEX_AUTH_JSON" | tr -d '\n' | base64 -d > "$HOME/.codex/auth.json" 2>/dev/null || {
+             echo "[codex.sh] CODEX_AUTH_JSON не похож ни на JSON, ни на base64 от него." >&2
+             exit 3
+           } ;;
+    esac
     chmod 600 "$HOME/.codex/auth.json"
+    grep -q '"' "$HOME/.codex/auth.json" || {
+      echo "[codex.sh] Расшифрованный auth.json выглядит пустым или битым." >&2
+      exit 3
+    }
   else
     cat >&2 <<'MSG'
 Нет учётных данных Codex.
-Владельцу: на машине, где стоит Codex CLI, выполнить `codex login` (Sign in with ChatGPT)
-и положить содержимое ~/.codex/auth.json в переменную окружения CODEX_AUTH_JSON
-(настройки окружения Claude Code на вебе). Она подхватится СЛЕДУЮЩЕЙ сессией.
+Владельцу: на машине, где стоит Codex CLI, выполнить `codex login` (Sign in with ChatGPT),
+затем `base64 < ~/.codex/auth.json | tr -d '\n' | pbcopy` и вставить результат в переменную
+окружения CODEX_AUTH_JSON (настройки окружения Claude Code на вебе, формат KEY=value одной
+строкой). Она подхватится СЛЕДУЮЩЕЙ сессией.
 MSG
     exit 3
   fi
