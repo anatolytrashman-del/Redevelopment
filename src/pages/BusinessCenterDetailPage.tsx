@@ -797,7 +797,7 @@ export function BusinessCenterDetailPage() {
               одним revert без затрагивания остальных блоков страницы. */}
           <div className="grid lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
             <div className="relative aspect-[16/9] w-full overflow-hidden bg-surface-muted/70 lg:aspect-auto lg:min-h-[28rem]">
-              <PhotoBlock center={center} variant="detail" fit="contain" />
+              <PhotoBlock center={center} variant="detail" fit={center.slug === 'port' ? 'cover' : 'contain'} />
             </div>
 
             <div className="flex flex-col gap-3 p-5 sm:p-6">
