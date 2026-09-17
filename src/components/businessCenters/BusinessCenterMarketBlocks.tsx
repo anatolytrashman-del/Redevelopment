@@ -315,6 +315,21 @@ export function buildTechTiles(center: BusinessCenter, all: BusinessCenter[]): T
           : null,
     });
   }
+  // Офисная площадь известна у 137 зданий из 143 и до 2026-09-17 не
+  // показывалась нигде, хотя человек ищет именно её: сколько в здании
+  // собственно офисов, а не общая площадь со всеми техническими
+  // помещениями. Доля от общей — та же цифра, только понятнее.
+  if (center.officeArea != null) {
+    const share =
+      center.totalArea != null && center.totalArea > 0
+        ? Math.round((center.officeArea / center.totalArea) * 100)
+        : null;
+    tiles.push({
+      label: 'Офисная площадь',
+      value: `${center.officeArea.toLocaleString('ru-RU')} м²`,
+      note: share != null ? `${share}% от общей площади здания` : 'без технических и общих помещений',
+    });
+  }
   if (center.floorPlateArea != null) {
     const top = topPercent(
       center.floorPlateArea,
@@ -340,6 +355,7 @@ export function buildTechTiles(center: BusinessCenter, all: BusinessCenter[]): T
       note: center.layoutTypes.includes('open_space') ? 'open-space гибче под рост команды' : null,
     });
   }
+  // В данных встречается и «2.7», и «2,7» — при выводе всегда запятая.
   if (center.ceilingHeight != null) {
     const m = medianOf((c) => c.ceilingHeight, all);
     tiles.push({

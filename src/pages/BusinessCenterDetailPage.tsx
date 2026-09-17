@@ -252,6 +252,9 @@ export function BusinessCenterDetailPage() {
   // владелец попросил оставить (2026-09-06, вместе с часами работы, при
   // упразднении отдельного блока "Данные 2ГИС") — остальные группы
   // (аренда помещений и т.п.) больше нигде не показываются.
+  // Парковки из снимка 2ГИС: только автомобильные и только с именем —
+  // велопарковки в вопросе «где оставить машину» лишние.
+  const gis2Parkings = useMemo(() => (gis2?.parking ?? []).filter((pk) => pk.name), [gis2]);
   const accessibilityAttributes = useMemo(() => {
     const group = gis2?.attributeGroups.find((g) => g.name === 'Доступная среда');
     return group && group.attributes.length > 0 ? group.attributes.join(', ') : center?.accessibility.join(', ') || null;
@@ -357,6 +360,32 @@ export function BusinessCenterDetailPage() {
     if (center.status === 'under_construction') add('Здание уже построено?', 'Здание строится.');
     add(`Кто застройщик «${name}»?`, center.developer);
     add(`Какая парковка у «${name}»?`, center.parking);
+    if (gis2Parkings.length) {
+      add(
+        `Парковка у «${name}» платная и на сколько мест?`,
+        gis2Parkings
+          .map((pk) => {
+            const parts = [pk.isPaid ? 'платная' : 'бесплатная'];
+            if (pk.capacity != null) parts.push(`${pk.capacity.toLocaleString('ru-RU')} мест`);
+            return `${pk.name} — ${parts.join(', ')}`;
+          })
+          .join('; ') + ' (по данным 2ГИС; вместимость парковки не означает закреплённое место).',
+      );
+    }
+    if (center.officeArea != null) {
+      const share =
+        center.totalArea != null && center.totalArea > 0
+          ? ` — ${Math.round((center.officeArea / center.totalArea) * 100)}% от общей площади`
+          : '';
+      add(`Какая офисная площадь у «${name}»?`, `${fmt(center.officeArea)} м²${share}.`);
+    }
+    add(`Что известно о «${name}» из описания справочника?`, center.description);
+    if (gis2?.fetchedAt) {
+      add(
+        'На какую дату сведения 2ГИС?',
+        `Организации, рейтинг, часы работы, парковки и атрибуты здания — срез от ${new Date(gis2.fetchedAt).toLocaleDateString('ru-RU')}.`,
+      );
+    }
     if (nearestMetro) add(`Какое метро рядом с «${name}»?`, `«${nearestMetro.name}» — ${nearestMetro.distanceMeters} м по прямой.`);
     if (verdict) add('Кому подходит здание и какие особенности учитывать?', [verdict.verdict, verdict.pros.length ? `Плюсы: ${verdict.pros.join('; ')}` : '', verdict.cons.length ? `Ограничения: ${verdict.cons.join('; ')}` : ''].filter(Boolean).join(' '));
     for (const bar of marketPosition?.bars ?? []) {
@@ -430,7 +459,7 @@ export function BusinessCenterDetailPage() {
     if (similar.length) add('Какие бизнес-центры показаны как похожие?', similar.map(shortName).join(', '));
     if (hubChips.length) add('Какие связанные подборки доступны?', hubChips.map((c) => c.label).join(', '));
     return items;
-  }, [center, centers, nearestMetro, verdict, marketPosition, accessibilityAttributes, scheduleLines, offers, offersSummary, rentRows, saleRows, visibleHighlights, gis2, mapRating, reviewQuotes, hubChips]);
+  }, [center, centers, nearestMetro, verdict, marketPosition, accessibilityAttributes, scheduleLines, offers, offersSummary, rentRows, saleRows, visibleHighlights, gis2, gis2Parkings, mapRating, reviewQuotes, hubChips]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -712,6 +741,26 @@ export function BusinessCenterDetailPage() {
                 четвёртый заход: "паркинг - отдельный блок") — тот же
                 LabeledTextRow, что и в "Условиях для арендаторов" ниже. */}
             <LabeledTextRow icon={Car} label="Парковка" text={center.parking} />
+            {/* Парковки из 2ГИС (заполнены у 67 зданий из 143) — до
+                2026-09-17 лежали в снимке и не показывались нигде, хотя
+                платность и вместимость это ровно то, что спрашивают.
+                capacity проверяется на `!= null`, а не на истинность: ноль
+                мест — это факт, а не отсутствие данных. Вместимость
+                парковки — факт о здании; места конкретному арендатору она
+                не гарантирует, поэтому формулировка без обещаний. */}
+            {gis2Parkings.length > 0 && (
+              <LabeledTextRow
+                icon={Car}
+                label="Парковки по данным 2ГИС"
+                text={gis2Parkings
+                  .map((pk) => {
+                    const parts = [pk.isPaid ? 'платная' : 'бесплатная'];
+                    if (pk.capacity != null) parts.push(`${pk.capacity.toLocaleString('ru-RU')} мест`);
+                    return `${pk.name} — ${parts.join(', ')}`;
+                  })
+                  .join('; ')}
+              />
+            )}
 
             {/* Часы работы и доступная среда из 2GIS — переехали сюда из
                 отдельного блока "Данные 2ГИС" (владелец, 2026-09-06: "блок
@@ -720,6 +769,10 @@ export function BusinessCenterDetailPage() {
                 подпись про 2ГИС убираем"). Остальные разделы прежнего блока
                 (аренда помещений, парковка(2ГИС), прочие attributeGroups) —
                 намеренно нигде больше не показываются, не только эти два. */}
+            {/* Описание из справочника — есть у 27 зданий из 143, до
+                2026-09-17 не выводилось. Показываем как есть, без
+                домысливания; нет описания — нет строки. */}
+            {center.description && <LabeledTextRow icon={Building2} label="Описание" text={center.description} />}
             {center.infraInternal.length > 0 && <LabeledTextRow icon={Store} label="В здании" text={center.infraInternal.join(', ')} />}
             {center.infraNearby.length > 0 && <LabeledTextRow icon={MapPin} label="Инфраструктура рядом" text={center.infraNearby.join(', ')} />}
             {center.is24x7 != null && <LabeledTextRow icon={Clock} label="Круглосуточный доступ" text={center.is24x7 ? 'Указан' : 'Не предусмотрен по данным каталога'} />}
@@ -1228,6 +1281,15 @@ export function BusinessCenterDetailPage() {
 
         <div className={cn('mt-6 flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
           <h2 className="text-lg font-bold text-ink">Источники</h2>
+          {/* Организации, рейтинг, часы работы, атрибуты и парковки — это
+              срез 2ГИС на конкретную дату, а не «сейчас». Дата обязана
+              стоять рядом с данными, а не подразумеваться. */}
+          {gis2?.fetchedAt && (
+            <p className="text-sm text-ink-muted">
+              Данные 2ГИС (организации, рейтинг, часы работы, парковки, атрибуты здания) —
+              срез от {new Date(gis2.fetchedAt).toLocaleDateString('ru-RU')}.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             {GENERAL_DATA_SOURCES.map((source) => (
               <a
