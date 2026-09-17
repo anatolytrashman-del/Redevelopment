@@ -83,13 +83,11 @@ import { buildOfferIndex } from '../lib/businessCenterCatalogFilter';
 import { buildMarketPosition, nearestNeighbours } from '../lib/businessCenterMarketPosition';
 import { buildVerdictDraft } from '../lib/businessCenterVerdict';
 import {
-  buildTechTiles,
   extractHistoryPoints,
   HistoryTimeline,
   VerdictBlock,
   MarketPositionBlock,
   TenantIndustriesBlock,
-  TechTilesBlock,
   WhatTheySayBlock,
 } from '../components/businessCenters/BusinessCenterMarketBlocks';
 import { NeighboursBlock, SimilarCentersBlock, similarCenters } from '../components/businessCenters/BusinessCenterNeighbours';
@@ -385,10 +383,6 @@ export function BusinessCenterDetailPage() {
     }
     const neighbours = nearestNeighbours(center, centers ?? [], 5);
     if (neighbours.length) add('Какие бизнес-центры рядом на карте?', neighbours.map((n) => `${shortName(n.center)} — ${fmt(n.meters)} м по прямой`).join('; '));
-    for (const tile of buildTechTiles(center, centers ?? [])) {
-      // Числовое поле и строковые параметры prometr.by приводим к одной записи дробей.
-      add(`${tile.label} в «${name}» — что известно?`, `${tile.value.replace(/(\d)\.(\d)/g, '$1,$2')}${tile.note ? `. ${tile.note}` : ''}`);
-    }
     for (const [groupIndex, group] of center.technicalParams.entries()) {
       const params = group.params.filter((p) => p.value && !/метро/i.test(p.label) && !(TECH_PARAM_META[p.label]?.hideIfDuplicate === 'businessClass' && center.businessClass));
       if (params.length) add(`Какие технические характеристики у «${name}»${group.corpusLabel ? ` (${group.corpusLabel})` : center.technicalParams.length > 1 ? ` — часть ${groupIndex + 1}` : ''}?`, params.map((p) => `${p.label}: ${/потол/i.test(p.label) ? p.value.replace(/(\d)\.(\d)/g, '$1,$2') : p.value}`).join('; '));
@@ -463,7 +457,7 @@ export function BusinessCenterDetailPage() {
       has('verdict', verdict != null),
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
       has('map', center.lat != null && center.lng != null),
-      has('tech', center.technicalParams.length > 0 || center.parkingRatio != null),
+      has('tech', center.technicalParams.length > 0),
       has('offers', offers !== null),
       has('rental', Boolean(center.rentalInfo)),
       has('facts', visibleHighlights.length > 0),
@@ -765,46 +759,20 @@ export function BusinessCenterDetailPage() {
           </div>
         </div>
 
-        {/* Авторские блоки (Б1, Б3, Б8 плана docs/bc-catalog-redesign-plan.md)
-            стоят ВЫШЕ справочной таблицы техпараметров сознательно: сперва
-            «много это или мало» и «где это», потом сырые характеристики.
-            Каждый блок сам решает, показываться ли: нет данных — нет
-            блока, заглушек не рисуем. */}
+        {/* Аналитические блоки идут выше полного справочника параметров:
+            сначала выводы и расположение, затем исходные характеристики. */}
         {verdict && <VerdictBlock {...verdict} />}
         {center && marketPosition && <MarketPositionBlock position={marketPosition} />}
         {center && <NeighboursBlock center={center} all={centers ?? []} />}
-        {center && <TechTilesBlock center={center} all={centers ?? []} />}
 
-        {/* Технические характеристики — прямой парсинг структурных блоков
-            .bccharacteristics с карточки здания на prometr.by. Изначально
-            (2026-09-06) была одна плоская таблица параметр-значение — владелец
-            тем же днём позже: "часть данных типа класса здания дублируется,
-            остальное размещено нечитаемо, разбей на смысловые блоки и оформи
-            карточками/иконками в нашем стиле". Разложено на 3 смысловых блока
-            (TECH_GROUP_META/TECH_PARAM_META ниже) — короткие значения идут
-            мини-плитками в сетке, длинные перечисления (инфраструктура/
-            провайдеры/кондиционирование/управление) — обычными подписанными
-            строками. Пара строк с одинаковыми (по факту) с нашими полями
-            карточки данными (класс/метро) СКРЫВАЕТСЯ, только если у ЭТОЙ
-            конкретной записи есть свой источник этих данных выше на странице
-            (иначе, если наше поле пустое, а у prometr.by значение есть — это
-            единственный источник, не прячем). "Общая площадь"/"Этажность" НЕ
-            скрываются никогда, несмотря на потенциальное совпадение с нашими
-            полями — они специально подписаны "(по данным prometr.by)" именно
-            для честной сверки при расхождении (см. комментарий у
-            BusinessCenter.technicalParams в data/businessCenters.ts, кейс
-            "Стратег-1"/S Union/Призма) — эта атрибуция сохранена отдельной
-            подписью под значением, не спрятана. Для многокорпусных комплексов
-            (Riviera Plaza, Парк Плаза) — отдельный набор блоков на каждый
-            корпус. Параметр с незнакомым label (на случай, если prometr.by
-            заведёт новое поле) не теряется — попадает в резервную таблицу
-            внизу блока, не гадаем, но и не отбрасываем. */}
+        {/* Полный список характеристик из prometr.by. Значения
+            сгруппированы для чтения, но не дополняются оценками и медианами.
+            Класс и метро скрываются только при наличии тех же данных выше;
+            неизвестные новые поля сохраняются в резервной таблице. */}
         {center.technicalParams.length > 0 && (
-          <div className={cn('mt-6 flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            {/* Б4: сырая выгрузка prometr.by уехала под спойлер — смысл
-                этих чисел страница показывает выше плитками «Что это
-                значит на практике». Атрибуция источника от этого не
-                теряется: она в самом заголовке и в подписях значений. */}
+          <div id="tech" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            {/* Единственный полный список технических параметров. Отсюда
+                владелец будет распределять отдельные факты по блокам. */}
             <details className="group flex flex-col gap-4">
               <summary className="flex cursor-pointer list-none items-center gap-2 text-lg font-bold text-ink">
                 <ClipboardList className="h-5 w-5 shrink-0 text-primary" />
