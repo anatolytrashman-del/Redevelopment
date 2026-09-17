@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { ExternalLink, Loader2, RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -16,6 +16,8 @@ import { fetchYandexWebmasterStats, fetchYandexWebmasterQueries } from '../lib/y
 import type { YandexWebmasterStat, YandexWebmasterQuery } from '../data/yandexWebmasterStats';
 import { fetchGoogleSearchConsoleStats, fetchGoogleSearchConsoleQueries } from '../lib/googleSearchConsoleStatsApi';
 import type { GoogleSearchConsoleStat, GoogleSearchConsoleQuery } from '../data/googleSearchConsoleStats';
+import { fetchSiteBacklinks } from '../lib/siteBacklinksApi';
+import type { SiteBacklink } from '../data/siteBacklinks';
 
 // Показатели посещаемости сайта из Яндекс.Метрики (счётчик 111858495) —
 // не отчёт по staff-активности (это отдельная /admin/metrics, RequireSuperAdmin,
@@ -71,6 +73,14 @@ import type { GoogleSearchConsoleStat, GoogleSearchConsoleQuery } from '../data/
 // соответствующий блок с этой страницы ("не нужен"), данные не удалялись,
 // просто больше не выводятся здесь; смотреть напрямую в таблице, если
 // понадобится точный статус конкретной страницы.
+//
+// «Обратные ссылки» (2026-09-17) забираются тем же суточным синком из
+// официальной ручки Яндекс.Вебмастера /links/external/samples. У Google
+// отчёт Links существует в интерфейсе Search Console, но НЕ входит в
+// официальный Search Console API (там только Search Analytics, Sitemaps,
+// Sites и URL Inspection). Поэтому Google не подменяем Яндексом и не
+// скрейпим недокументированные ручки: показываем честный статус и прямую
+// ссылку на штатный отчёт Google.
 
 // 2026-09-13 — по просьбе владельца добавлен период "Вчера" (ровно один
 // календарный день, не "последний день из окна") — отдельно от 7/30/90,
@@ -487,6 +497,181 @@ function SearchQueriesTable({ title, queries, emptyText }: SearchQueriesTablePro
   );
 }
 
+const VISIBLE_BACKLINKS = 10;
+const GOOGLE_LINKS_REPORT_URL =
+  'https://search.google.com/search-console/links?resource_id=sc-domain%3Aredevelopment.pro';
+
+function safeHttpUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function backlinkSourceLabel(value: string): string {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.replace(/^www\./, '');
+    const path = url.pathname === '/' ? '' : url.pathname;
+    return `${host}${path}`;
+  } catch {
+    return value;
+  }
+}
+
+function backlinkDestinationLabel(value: string): string {
+  try {
+    const url = new URL(value);
+    return readablePageLabel(url.pathname + url.hash);
+  } catch {
+    return value;
+  }
+}
+
+function backlinkDomain(value: string): string {
+  try {
+    return new URL(value).hostname.replace(/^www\./, '');
+  } catch {
+    return value;
+  }
+}
+
+function formatBacklinkDate(value: string | null): string {
+  return value ? formatDateShort(value) : '—';
+}
+
+interface BacklinksCardProps {
+  backlinks: SiteBacklink[];
+}
+
+function BacklinksCard({ backlinks }: BacklinksCardProps) {
+  const [expanded, setExpanded] = useState(false);
+  const yandexLinks = useMemo(
+    () => backlinks.filter((link) => link.provider === 'yandex_webmaster'),
+    [backlinks],
+  );
+  const googleLinks = useMemo(
+    () => backlinks.filter((link) => link.provider === 'google_search_console'),
+    [backlinks],
+  );
+  const visible = expanded ? yandexLinks : yandexLinks.slice(0, VISIBLE_BACKLINKS);
+  const referringDomains = new Set(yandexLinks.map((link) => backlinkDomain(link.sourceUrl))).size;
+  const targetPages = new Set(yandexLinks.map((link) => link.destinationUrl)).size;
+
+  return (
+    <Card className="flex flex-col gap-4">
+      <div>
+        <h3 className="text-sm font-semibold text-ink">Обратные ссылки</h3>
+        <p className="text-xs text-ink-muted">
+          Кто ссылается на страницы redevelopment.pro и куда ведут ссылки. Снимок Яндекс.Вебмастера обновляется раз в сутки.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <KpiTile label="Ссылок нашёл Яндекс" value={yandexLinks.length.toLocaleString('ru-RU')} />
+        <KpiTile label="Ссылающихся доменов" value={referringDomains.toLocaleString('ru-RU')} />
+        <KpiTile label="Наших страниц со ссылками" value={targetPages.toLocaleString('ru-RU')} />
+      </div>
+
+      {yandexLinks.length > 0 ? (
+        <div className="flex flex-col divide-y divide-border">
+          <div className="grid grid-cols-[minmax(0,1fr)_6rem] gap-3 pb-1 text-xs text-ink-muted sm:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_7rem]">
+            <span>Откуда</span>
+            <span className="hidden sm:block">Куда</span>
+            <span className="text-right">Обнаружена</span>
+          </div>
+          {visible.map((link) => {
+            const sourceHref = safeHttpUrl(link.sourceUrl);
+            const destinationHref = safeHttpUrl(link.destinationUrl);
+            return (
+              <div
+                key={link.linkKey}
+                className="grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-3 py-2 text-sm sm:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_7rem]"
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <Badge tone="neutral">Яндекс</Badge>
+                  {sourceHref ? (
+                    <a
+                      className="flex min-w-0 items-center gap-1 text-ink hover:text-primary-hover hover:underline"
+                      href={sourceHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={link.sourceUrl}
+                    >
+                      <span className="truncate">{backlinkSourceLabel(link.sourceUrl)}</span>
+                      <ExternalLink className="h-3 w-3 shrink-0" />
+                    </a>
+                  ) : (
+                    <span className="truncate text-ink" title={link.sourceUrl}>{link.sourceUrl}</span>
+                  )}
+                </div>
+                <div className="hidden min-w-0 sm:block">
+                  {destinationHref ? (
+                    <a
+                      className="flex min-w-0 items-center gap-1 text-ink-muted hover:text-primary-hover hover:underline"
+                      href={destinationHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={link.destinationUrl}
+                    >
+                      <span className="truncate">{backlinkDestinationLabel(link.destinationUrl)}</span>
+                      <ExternalLink className="h-3 w-3 shrink-0" />
+                    </a>
+                  ) : (
+                    <span className="truncate text-ink-muted" title={link.destinationUrl}>{link.destinationUrl}</span>
+                  )}
+                </div>
+                <span className="text-right text-xs text-ink-muted" title={`Последний обход: ${formatBacklinkDate(link.sourceLastAccessDate)}`}>
+                  {formatBacklinkDate(link.discoveryDate)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-sm text-ink-muted">
+          Яндекс пока не нашёл внешних ссылок либо новый снимок ещё не успел пройти первый суточный синк.
+        </p>
+      )}
+
+      {yandexLinks.length > VISIBLE_BACKLINKS && (
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          className="self-start text-sm text-primary-hover hover:underline"
+        >
+          {expanded ? 'Свернуть' : `Показать ещё ${yandexLinks.length - VISIBLE_BACKLINKS} ссылок`}
+        </button>
+      )}
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <Badge tone="neutral">Google</Badge>
+            <span className="text-sm font-medium text-ink">
+              {googleLinks.length > 0 ? `${googleLinks.length.toLocaleString('ru-RU')} ссылок` : 'только в отчёте Search Console'}
+            </span>
+          </div>
+          <p className="text-xs text-ink-muted">
+            Официальный Search Console API не отдаёт отчёт Links, поэтому автоматически забрать его без ручного экспорта нельзя.
+          </p>
+        </div>
+        <a
+          className="inline-flex items-center gap-1 text-sm text-primary-hover hover:underline"
+          href={GOOGLE_LINKS_REPORT_URL}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Открыть ссылки в Google
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      </div>
+    </Card>
+  );
+}
+
 interface TrendCardProps {
   title: string;
   data: MetrikaDailyStat[];
@@ -520,6 +705,7 @@ export function SiteMetrics() {
   const [googleStats, setGoogleStats] = useState<GoogleSearchConsoleStat[] | null>(null);
   const [webmasterQueries, setWebmasterQueries] = useState<YandexWebmasterQuery[]>([]);
   const [googleQueries, setGoogleQueries] = useState<GoogleSearchConsoleQuery[]>([]);
+  const [backlinks, setBacklinks] = useState<SiteBacklink[] | null>(null);
   const [error, setError] = useState('');
   const [period, setPeriod] = useState<Period>(30);
   const [topPagesExpanded, setTopPagesExpanded] = useState(false);
@@ -536,7 +722,7 @@ export function SiteMetrics() {
     inFlight.current = true;
     setRefreshing(true);
     try {
-      const [daily, traffic, pages, goals, webmaster, google, webmasterQ, googleQ] = await Promise.all([
+      const [daily, traffic, pages, goals, webmaster, google, webmasterQ, googleQ, backlinkRows] = await Promise.all([
         fetchMetrikaDailyStats(),
         fetchMetrikaTrafficSources(),
         fetchMetrikaTopPages(),
@@ -549,6 +735,7 @@ export function SiteMetrics() {
         fetchGoogleSearchConsoleStats().catch(() => []),
         fetchYandexWebmasterQueries().catch(() => []),
         fetchGoogleSearchConsoleQueries().catch(() => []),
+        fetchSiteBacklinks().catch(() => []),
       ]);
       setDailyStats(daily);
       setTrafficSources(traffic);
@@ -558,6 +745,7 @@ export function SiteMetrics() {
       setGoogleStats(google);
       setWebmasterQueries(webmasterQ);
       setGoogleQueries(googleQ);
+      setBacklinks(backlinkRows);
       setLastCheckedAt(new Date());
       setError('');
     } catch {
@@ -879,6 +1067,8 @@ export function SiteMetrics() {
               владелец пройдёт разовую авторизацию (см. scripts/get-google-search-console-refresh-token.mjs).
             </Card>
           )}
+
+          {backlinks !== null && <BacklinksCard backlinks={backlinks} />}
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card className="flex flex-col gap-3">
