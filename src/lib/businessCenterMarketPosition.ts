@@ -136,21 +136,6 @@ export function buildMarketPosition(
     }
   }
 
-  // --- Типовой этаж -----------------------------------------------------
-  if (center.floorPlateArea != null && sameClass.length >= MIN_COMPARE_N) {
-    const classFloor = median(sameClass.map((c) => c.floorPlateArea).filter((v): v is number => v != null));
-    if (classFloor != null) {
-      bars.push({
-        label: 'Типовой этаж',
-        unit: 'м²',
-        value: center.floorPlateArea,
-        baselines: [{ label: `класс ${center.businessClass}`, value: classFloor }],
-        words: ['меньше', 'больше'],
-        note: diffNote(center.floorPlateArea, classFloor, `у медианного здания класса ${center.businessClass}`, ['меньше', 'больше']),
-      });
-    }
-  }
-
   return { bars };
 }
 
