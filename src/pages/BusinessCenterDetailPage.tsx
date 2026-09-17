@@ -40,7 +40,7 @@ import {
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
-import { PhotoBlock, FactRow, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
+import { PhotoBlock, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import {
   setBreadcrumbJsonLd,
   setFaqJsonLd,
@@ -261,6 +261,7 @@ export function BusinessCenterDetailPage() {
       firstBlockTechnicalRows: [] as { label: string; value: string }[],
       internalInfrastructureText: null as string | null,
       administrativeDistrictText: null as string | null,
+      readinessText: null as string | null,
     };
     if (!center) return empty;
 
@@ -356,7 +357,8 @@ export function BusinessCenterDetailPage() {
         buildingLabels.has(label) ||
         removedLabels.has(label) ||
         label === 'Внутренняя инфраструктура' ||
-        label === 'Административный район'
+        label === 'Административный район' ||
+        label === 'Степень готовности'
       ) continue;
       if (label === 'Класс бизнес-центра' && center.businessClass) continue;
       if ((label === 'Станция метро' || label === 'Удалённость от метро') && (nearestMetro || center.metro)) continue;
@@ -372,6 +374,7 @@ export function BusinessCenterDetailPage() {
           ? center.infraInternal.join(', ')
           : sourceValue('Внутренняя инфраструктура'),
       administrativeDistrictText: sourceValue('Административный район') ?? center.district,
+      readinessText: sourceValue('Степень готовности'),
     };
   }, [center, nearestMetro]);
   // Из общего списка фактов исключаем то, что теперь показано отдельными
@@ -465,6 +468,7 @@ export function BusinessCenterDetailPage() {
     if (center.floors != null) add(`Сколько этажей в «${name}»?`, String(center.floors));
     if (center.yearBuilt != null) add(`В каком году построен «${name}»?`, String(center.yearBuilt));
     if (center.status === 'under_construction') add('Здание уже построено?', 'Здание строится.');
+    add(`Какая степень готовности у «${name}»?`, redistributedTechnicalParams.readinessText);
     add(`Кто застройщик «${name}»?`, center.developer);
     add(`Какая парковка у «${name}»?`, center.parking);
     if (center.officeArea != null) {
@@ -474,7 +478,6 @@ export function BusinessCenterDetailPage() {
           : '';
       add(`Какая офисная площадь у «${name}»?`, `${fmt(center.officeArea)} м²${share}.`);
     }
-    add(`Что известно о «${name}» из описания справочника?`, center.description);
     if (gis2?.fetchedAt) {
       add(
         'На какую дату сведения 2ГИС?',
@@ -648,6 +651,12 @@ export function BusinessCenterDetailPage() {
   const displayAddress = /^г\.\s*Минск(?:,|\s)/i.test(center.address)
     ? center.address
     : `г. Минск, ${center.address}`;
+  const streetName = streetOfAddress(center.address);
+  const streetCatalogUrl = streetHubUrl(streetName);
+  const metroCatalogUrl =
+    nearestMetro && metroHubDistance(center, nearestMetro.name) !== null
+      ? metroHubUrl(nearestMetro.name)
+      : null;
 
   return (
     <div className="min-h-svh bg-bg px-4 py-8 sm:py-14">
@@ -742,15 +751,14 @@ export function BusinessCenterDetailPage() {
               сохранена в родительском коммите этой правки и откатывается
               одним revert без затрагивания остальных блоков страницы. */}
           <div className="grid lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-            <div className="relative aspect-[16/9] w-full overflow-hidden lg:aspect-auto lg:min-h-[28rem]">
-              <PhotoBlock center={center} variant="detail" />
+            <div className="relative aspect-[16/9] w-full overflow-hidden bg-surface-muted/70 lg:aspect-auto lg:min-h-[28rem]">
+              <PhotoBlock center={center} variant="detail" fit="contain" />
             </div>
 
             <div className="flex flex-col gap-3 p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <h1 className="text-2xl font-extrabold leading-tight text-ink">{center.name}</h1>
               <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                {center.status === 'under_construction' && <Badge tone="warning">Строится</Badge>}
                 {/* Рейтинг с Яндекс.Карт/2ГИС — владелец, 2026-09-06 (четвёртый
                     заход): "справа от заголовка рейтинг с яндекс.карт, а из
                     интересных фактов инфу про оценку убирай". Раньше рейтинг
@@ -781,6 +789,20 @@ export function BusinessCenterDetailPage() {
               </div>
             </div>
 
+            {(redistributedTechnicalParams.readinessText || center.status === 'under_construction') && (
+              <div>
+                <Badge
+                  tone={
+                    redistributedTechnicalParams.readinessText?.toLocaleLowerCase('ru-RU').includes('готов')
+                      ? 'success'
+                      : 'warning'
+                  }
+                >
+                  {redistributedTechnicalParams.readinessText ?? 'Строится'}
+                </Badge>
+              </div>
+            )}
+
             {/* Район, адрес и метро — три горизонтальные строки:
                 подпись, тире и значение находятся на одной базовой линии. */}
             <section className="rounded-2xl border border-border bg-surface-muted/60 px-3.5 py-3" aria-labelledby="location-summary-title">
@@ -805,17 +827,6 @@ export function BusinessCenterDetailPage() {
                   <span className="text-xs text-ink-muted" aria-hidden="true">—</span>
                   <p className="min-w-0 text-sm leading-snug text-ink">
                     {displayAddress}
-                    {streetHubUrl(streetOfAddress(center.address)) && (
-                      <>
-                        {' · '}
-                        <Link
-                          to={streetHubUrl(streetOfAddress(center.address)) as string}
-                          className="font-semibold text-primary-hover hover:underline"
-                        >
-                          все БЦ на этой улице
-                        </Link>
-                      </>
-                    )}
                   </p>
                 </div>
                 {(nearestMetro || center.metro) && (
@@ -826,17 +837,6 @@ export function BusinessCenterDetailPage() {
                       {nearestMetro ? (
                         <>
                           «{nearestMetro.name}» — {nearestMetro.distanceMeters} м по прямой
-                          {metroHubDistance(center, nearestMetro.name) !== null && metroHubUrl(nearestMetro.name) && (
-                            <>
-                              {' · '}
-                              <Link
-                                to={metroHubUrl(nearestMetro.name) as string}
-                                className="font-semibold text-primary-hover hover:underline"
-                              >
-                                все БЦ у станции
-                              </Link>
-                            </>
-                          )}
                         </>
                       ) : (
                         center.metro
@@ -846,7 +846,26 @@ export function BusinessCenterDetailPage() {
                 )}
               </div>
             </section>
-            {center.developer && <FactRow icon={Building2}>{center.developer}</FactRow>}
+            {(center.developer || center.website) && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-muted">
+                {center.developer && (
+                  <span>
+                    <span className="font-semibold text-ink">Застройщик:</span> {center.developer}
+                  </span>
+                )}
+                {center.website && (
+                  <a
+                    href={center.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-semibold text-primary-hover hover:underline"
+                  >
+                    Сайт БЦ
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )}
+              </div>
+            )}
 
             {/* Ровно 4 плитки — класс/площадь/год/этажность (владелец,
                 2026-09-06, четвёртый заход: "4 карточки - класс, площадь, год
@@ -858,19 +877,20 @@ export function BusinessCenterDetailPage() {
                 раньше был цветной Badge-пилюля вместо текста). */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {center.businessClass && (
-                <FactTile icon={Award} value={`Класс ${center.businessClass}`} label="Деловой класс" />
+                <FactTile icon={Award} value={`Класс ${center.businessClass}`} label="Деловой класс" tone="muted" />
               )}
               {center.totalArea != null && (
-                <FactTile icon={Ruler} value={`${center.totalArea.toLocaleString('ru-RU')} м²`} label="Общая площадь" />
+                <FactTile icon={Ruler} value={`${center.totalArea.toLocaleString('ru-RU')} м²`} label="Общая площадь" tone="muted" />
               )}
               {center.yearBuilt != null && (
                 <FactTile
                   icon={Calendar}
+                  tone="muted"
                   value={`${center.yearBuilt} г.`}
                   label={center.status === 'under_construction' ? 'Ожидаемая сдача' : 'Год сдачи'}
                 />
               )}
-              {center.floors != null && <FactTile icon={Layers} value={center.floors} label="Этажей" />}
+              {center.floors != null && <FactTile icon={Layers} value={center.floors} label="Этажей" tone="muted" />}
             </div>
             </div>
           </div>
@@ -887,14 +907,6 @@ export function BusinessCenterDetailPage() {
                 подпись про 2ГИС убираем"). Остальные разделы прежнего блока
                 (аренда помещений, парковка(2ГИС), прочие attributeGroups) —
                 намеренно нигде больше не показываются, не только эти два. */}
-            {/* Описание из справочника — есть у 27 зданий из 143, до
-                2026-09-17 не выводилось. Показываем как есть, без
-                домысливания; нет описания — нет строки. */}
-            {center.description && (
-              <div className="lg:col-span-2">
-                <LabeledTextRow icon={Building2} label="Описание" text={center.description} />
-              </div>
-            )}
             {redistributedTechnicalParams.internalInfrastructureText && (
               <LabeledTextRow icon={Store} label="В здании" text={redistributedTechnicalParams.internalInfrastructureText} />
             )}
@@ -909,19 +921,51 @@ export function BusinessCenterDetailPage() {
               <LabeledTextRow icon={CheckCircle2} label="Доступная среда" text={accessibilityAttributes} />
             )}
 
-            {center.website && (
-              <a
-                href={center.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline lg:col-span-2"
-              >
-                <Globe className="h-4 w-4 shrink-0" />
-                {center.website.replace(/^https?:\/\//, '')}
-              </a>
-            )}
           </div>
         </div>
+
+        {(streetCatalogUrl || metroCatalogUrl) && (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {streetCatalogUrl && (
+              <Link
+                to={streetCatalogUrl}
+                className={cn(
+                  'group flex items-center gap-3 p-4 text-ink transition-transform hover:-translate-y-0.5',
+                  glassCardClass,
+                )}
+                style={glassCardShadow}
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-muted text-primary">
+                  <MapPin className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-ink-muted">Улица</span>
+                  <span className="block font-bold">Все БЦ на этой улице</span>
+                </span>
+                <ChevronRight className="h-5 w-5 shrink-0 text-ink-faint transition-transform group-hover:translate-x-0.5" />
+              </Link>
+            )}
+            {metroCatalogUrl && nearestMetro && (
+              <Link
+                to={metroCatalogUrl}
+                className={cn(
+                  'group flex items-center gap-3 p-4 text-ink transition-transform hover:-translate-y-0.5',
+                  glassCardClass,
+                )}
+                style={glassCardShadow}
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-muted text-primary">
+                  <TrainFront className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-ink-muted">Метро</span>
+                  <span className="block font-bold">Все БЦ у станции «{nearestMetro.name}»</span>
+                </span>
+                <ChevronRight className="h-5 w-5 shrink-0 text-ink-faint transition-transform group-hover:translate-x-0.5" />
+              </Link>
+            )}
+          </div>
+        )}
 
         {/* Сначала аналитика и расположение, затем отдельная карточка
             с параметрами самого здания. */}
