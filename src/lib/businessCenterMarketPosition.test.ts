@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { haversineMeters, median, nearestNeighbours, rankOf } from './businessCenterMarketPosition';
+import { haversineMeters, median, nearestNeighbours } from './businessCenterMarketPosition';
 import type { BusinessCenter } from '../data/businessCenters';
 
 // Эти функции считают то, что страница ПУБЛИКУЕТ как факт про чужое здание
-// («23-й из 138 по площади», «в 273 м отсюда»), поэтому проверяются
+// («в 273 м отсюда»), поэтому проверяются
 // отдельно от вёрстки.
 
 function bc(slug: string, lat: number | null, lng: number | null): BusinessCenter {
@@ -30,13 +30,6 @@ describe('haversineMeters', () => {
 
   it('расстояние до самой себя — ноль', () => {
     expect(haversineMeters(53.9, 27.5, 53.9, 27.5)).toBe(0);
-  });
-});
-
-describe('rankOf', () => {
-  it('1-е место — у наибольшего, когда больше значит выше', () => {
-    expect(rankOf(9000, [100, 9000, 5000], 'desc')).toEqual({ rank: 1, total: 3 });
-    expect(rankOf(100, [100, 9000, 5000], 'desc')).toEqual({ rank: 3, total: 3 });
   });
 });
 

@@ -39,13 +39,6 @@ export function median(values: number[]): number | null {
   return Math.round(mid * 100) / 100;
 }
 
-// Место здания в ряду: 1 — лучшее. `direction` говорит, что считать
-// лучшим, чтобы «1-й из 143» всегда читалось одинаково.
-export function rankOf(value: number, values: number[], direction: 'desc' | 'asc'): { rank: number; total: number } {
-  const sorted = [...values].sort((a, b) => (direction === 'desc' ? b - a : a - b));
-  return { rank: sorted.findIndex((v) => v === value) + 1, total: sorted.length };
-}
-
 export interface ComparisonBar {
   label: string;
   unit: string;
@@ -65,10 +58,6 @@ export interface ComparisonBar {
 
 export interface MarketPosition {
   bars: ComparisonBar[];
-  // «N-й из 143 по площади» и «N-й в районе» — отдельно от полосок: это
-  // ранг, а не величина, полоской его рисовать нечестно.
-  areaRankCity: { rank: number; total: number } | null;
-  areaRankDistrict: { rank: number; total: number } | null;
 }
 
 function pct(value: number, base: number): number {
@@ -90,7 +79,6 @@ export function buildMarketPosition(
 ): MarketPosition {
   const bars: ComparisonBar[] = [];
   const sameClass = center.businessClass ? all.filter((c) => c.businessClass === center.businessClass) : [];
-  const sameDistrict = center.district ? all.filter((c) => c.district === center.district) : [];
 
   // --- Ставка аренды: здание против класса, района и города --------------
   const buildingRent = offers.rentBySlug.get(center.slug)?.median ?? null;
@@ -163,18 +151,7 @@ export function buildMarketPosition(
     }
   }
 
-  const areasCity = all.map((c) => c.totalArea).filter((v): v is number => v != null);
-  const areasDistrict = sameDistrict.map((c) => c.totalArea).filter((v): v is number => v != null);
-  return {
-    bars,
-    areaRankCity: center.totalArea != null && areasCity.length >= MIN_COMPARE_N
-      ? rankOf(center.totalArea, areasCity, 'desc')
-      : null,
-    areaRankDistrict:
-      center.totalArea != null && areasDistrict.length >= MIN_COMPARE_N
-        ? rankOf(center.totalArea, areasDistrict, 'desc')
-        : null,
-  };
+  return { bars };
 }
 
 export interface NeighbourCenter {

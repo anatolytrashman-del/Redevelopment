@@ -7,15 +7,13 @@
 // похвала у каждой карточки (тогда бейдж перестаёт что-либо значить).
 //
 // Почему пороги, а не «лучше среднего»: бейдж должен быть проверяемым
-// утверждением. «Самый большой в районе» можно перепроверить глазами по
-// каталогу, «чуть выше среднего» — нельзя.
+// утверждением: разницу со ставкой класса можно проверить по снимку рынка.
 import type { BusinessCenter } from '../data/businessCenters';
 import type { MarketSnapshot } from '../data/marketSnapshots';
 import { nearestMetroMeters, type CatalogOfferIndex } from './businessCenterCatalogFilter';
 
-// Район из одного-двух зданий — не выборка: «самый большой из двух» звучит
-// как достижение, а значит почти ничего. Ниже этого порога районные бейджи
-// не считаем вовсе.
+// Район из одного-двух зданий — не выборка. Ниже этого порога районные
+// бейджи не считаем вовсе.
 const MIN_DISTRICT_SIZE = 3;
 
 // Насколько ставка должна быть ниже медианы класса, чтобы об этом стоило
@@ -30,7 +28,6 @@ export interface BusinessCenterBadge {
 }
 
 export interface BadgeContext {
-  biggestInDistrict: Map<string, string>;
   nearestMetroInDistrict: Map<string, string>;
   soleClassInDistrict: Map<string, string>;
   classRentMedian: Map<string, number>;
@@ -50,18 +47,11 @@ export function buildBadgeContext(
     byDistrict.set(c.district, list);
   }
 
-  const biggestInDistrict = new Map<string, string>();
   const nearestMetroInDistrict = new Map<string, string>();
   const soleClassInDistrict = new Map<string, string>();
 
   for (const [district, list] of byDistrict) {
     if (list.length < MIN_DISTRICT_SIZE) continue;
-
-    const withArea = list.filter((c) => c.totalArea != null);
-    if (withArea.length >= MIN_DISTRICT_SIZE) {
-      const top = withArea.reduce((a, b) => ((a.totalArea ?? 0) >= (b.totalArea ?? 0) ? a : b));
-      biggestInDistrict.set(district, top.slug);
-    }
 
     const withMetro = list.filter((c) => nearestMetroMeters(c) != null);
     if (withMetro.length >= MIN_DISTRICT_SIZE) {
@@ -90,12 +80,12 @@ export function buildBadgeContext(
     if (s.sliceType === 'class' && s.deal === 'rent' && s.median != null) classRentMedian.set(s.sliceKey, s.median);
   }
 
-  return { biggestInDistrict, nearestMetroInDistrict, soleClassInDistrict, classRentMedian, offers };
+  return { nearestMetroInDistrict, soleClassInDistrict, classRentMedian, offers };
 }
 
 // Один бейдж на карточку: два-три ярлыка рядом читаются как реклама, а не
 // как факт. Порядок — по тому, что реально влияет на решение: сперва
-// деньги, потом редкость, потом размер и дорога.
+// деньги, потом редкость, потом дорога.
 export function businessCenterBadge(center: BusinessCenter, ctx: BadgeContext): BusinessCenterBadge | null {
   const rent = ctx.offers.rentBySlug.get(center.slug)?.median;
   const classMedian = center.businessClass ? ctx.classRentMedian.get(center.businessClass) : undefined;
@@ -110,9 +100,6 @@ export function businessCenterBadge(center: BusinessCenter, ctx: BadgeContext): 
     if (ctx.soleClassInDistrict.get(`${center.district}|${center.businessClass}`) === center.slug) {
       return { text: `Единственный класс ${center.businessClass} в районе`, tone: 'fact' };
     }
-  }
-  if (center.district && ctx.biggestInDistrict.get(center.district) === center.slug) {
-    return { text: 'Самый большой в районе', tone: 'fact' };
   }
   if (center.district && ctx.nearestMetroInDistrict.get(center.district) === center.slug) {
     const m = nearestMetroMeters(center);

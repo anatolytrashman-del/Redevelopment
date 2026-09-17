@@ -55,13 +55,11 @@ function Bar({
 }
 
 export function MarketPositionBlock({
-  center,
   position,
 }: {
-  center: BusinessCenter;
   position: MarketPosition;
 }) {
-  if (position.bars.length === 0 && position.areaRankCity === null) return null;
+  if (position.bars.length === 0) return null;
   return (
     // id — якорь для липкого меню «На странице» (Б7). scroll-mt — чтобы
     // заголовок не уезжал под липкую шапку при переходе по якорю.
@@ -76,27 +74,6 @@ export function MarketPositionBlock({
           остальное — по справочнику 143 бизнес-центров (prometr.by и 2ГИС).
         </p>
       </div>
-
-      {position.areaRankCity && (
-        <p className="text-sm text-ink-muted">
-          По площади это{' '}
-          <span className="font-bold text-ink">
-            {position.areaRankCity.rank}-й из {position.areaRankCity.total}
-          </span>{' '}
-          бизнес-центр в каталоге
-          {position.areaRankDistrict && center.district && (
-            <>
-              {' '}
-              и{' '}
-              <span className="font-bold text-ink">
-                {position.areaRankDistrict.rank}-й из {position.areaRankDistrict.total}
-              </span>{' '}
-              в своём районе ({center.district})
-            </>
-          )}
-          .
-        </p>
-      )}
 
       <div className="flex flex-col gap-5">
         {position.bars.map((bar) => {
