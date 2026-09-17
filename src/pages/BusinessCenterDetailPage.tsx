@@ -101,7 +101,7 @@ import { NeighboursBlock, SimilarCentersBlock, similarCenters } from '../compone
 // разметке; список самих пунктов собирается в pageSections по тому, какие
 // блоки реально отрисованы.
 const SECTION_LABELS: Record<string, string> = {
-  verdict: 'Кому подходит',
+  verdict: 'Плюсы бизнес-центра',
   market: 'БЦ на фоне конкурентов',
   map: 'Другие бизнес-центры рядом',
   tech: 'Информация о здании',
@@ -420,12 +420,19 @@ export function BusinessCenterDetailPage() {
   // не перетирает то, что владелец написал сам (флаг verdictEdited).
   const verdict = useMemo(() => {
     if (!center) return null;
+    const clean = (source: { verdict: string; pros: string[]; cons: string[]; edited: boolean }) => ({
+      ...source,
+      // Эти факты уже есть в первом блоке и не должны повторяться в плюсах.
+      pros: source.pros.filter((item) => !item.trim().toLowerCase().startsWith('в самом здании:')),
+      // Минусы и стоп-факторы больше не выводятся в публичном блоке.
+      cons: [],
+    });
     if (center.verdictEdited && (center.verdict || center.pros.length > 0 || center.cons.length > 0)) {
-      return { verdict: center.verdict ?? '', pros: center.pros, cons: center.cons, edited: true };
+      return clean({ verdict: center.verdict ?? '', pros: center.pros, cons: center.cons, edited: true });
     }
-    const draft = buildVerdictDraft(center, offerIndex, officeSnapshots);
-    return { ...draft, edited: false };
-  }, [center, offerIndex, officeSnapshots]);
+    const draft = buildVerdictDraft(center, centers ?? [], offerIndex, officeSnapshots);
+    return clean({ ...draft, edited: false });
+  }, [center, centers, offerIndex, officeSnapshots]);
 
   const marketPosition = useMemo(
     () => (center ? buildMarketPosition(center, centers ?? [], officeSnapshots, offerIndex) : null),
@@ -496,7 +503,9 @@ export function BusinessCenterDetailPage() {
       );
     }
     if (nearestMetro) add(`Какое метро рядом с «${name}»?`, `«${nearestMetro.name}» — ${nearestMetro.distanceMeters} м по прямой.`);
-    if (verdict) add('Кому подходит здание и какие особенности учитывать?', [verdict.verdict, verdict.pros.length ? `Плюсы: ${verdict.pros.join('; ')}` : '', verdict.cons.length ? `Ограничения: ${verdict.cons.join('; ')}` : ''].filter(Boolean).join(' '));
+    if (verdict?.pros.length) {
+      add(`Какие плюсы у «${name}»?`, verdict.pros.join('; '));
+    }
     for (const bar of marketPosition?.bars ?? []) {
       add(`${bar.label} в «${name}» — это много или мало для своего класса?`, `${fmt(bar.value)} ${bar.unit}; ${bar.baselines.map((b) => `${b.label}: ${fmt(b.value)} ${bar.unit}`).join('; ')}.${bar.note ? ` ${bar.note}.` : ''}`);
     }
@@ -584,7 +593,7 @@ export function BusinessCenterDetailPage() {
     if (!center) return [];
     const has = (id: string, cond: boolean) => (cond ? { id, label: SECTION_LABELS[id] } : null);
     return [
-      has('verdict', verdict != null),
+      has('verdict', Boolean(verdict?.pros.length)),
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
       has('map', center.lat != null && center.lng != null),
       has('tech', redistributedTechnicalParams.buildingInformationRows.some((row) => row.value != null)),
@@ -929,7 +938,7 @@ export function BusinessCenterDetailPage() {
 
         {/* Сначала аналитика и расположение, затем отдельная карточка
             с параметрами самого здания. */}
-        {verdict && <VerdictBlock {...verdict} />}
+        {verdict && <VerdictBlock pros={verdict.pros} />}
         {center && marketPosition && <MarketPositionBlock position={marketPosition} />}
         {center && <NeighboursBlock center={center} all={centers ?? []} />}
 

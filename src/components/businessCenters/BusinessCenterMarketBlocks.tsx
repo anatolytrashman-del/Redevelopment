@@ -7,7 +7,6 @@ import type { Gis2TenantOrganization, TenantIndustryCityProfile } from '../../da
 import { TENANT_INDUSTRY_OTHER, tenantIndustryLabel } from '../../data/tenantIndustries';
 import { mapRatingFromHighlights } from '../../lib/businessCenterDisplay';
 import type { MarketPosition } from '../../lib/businessCenterMarketPosition';
-import { VERDICT_SIGNATURE } from '../../lib/businessCenterVerdict';
 
 // Авторские блоки карточки БЦ (Б1, Б10, Б11 плана
 // docs/bc-catalog-redesign-plan.md) — то, чего на странице не было вовсе:
@@ -188,67 +187,27 @@ export function WhatTheySayBlock({ center, reviewQuotes }: { center: BusinessCen
   );
 }
 
-// --- Б2. Кому подходит --------------------------------------------------
+// --- Б2. Плюсы бизнес-центра -------------------------------------------
 //
-// Показывается правленый вручную текст, если он есть, иначе — авточерновик
-// из порогов (lib/businessCenterVerdict.ts). Так страница не ждёт, пока до
-// неё дойдут руки: у 116 зданий из 143 не было даже описания в прозе.
-// Подпись про оценку обязательна — читатель должен понимать, что это наш
-// вывод из открытых данных, а не позиция собственника.
+// Блок показывает только проверяемые преимущества. Описательный вердикт,
+// служебная подпись, минусы и повторы фактов из первого блока не выводятся.
 
-export function VerdictBlock({
-  verdict,
-  pros,
-  cons,
-  edited,
-}: {
-  verdict: string;
-  pros: string[];
-  cons: string[];
-  edited: boolean;
-}) {
-  if (!verdict && pros.length === 0 && cons.length === 0) return null;
+export function VerdictBlock({ pros }: { pros: string[] }) {
+  if (pros.length === 0) return null;
   return (
     <div id="verdict" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
       <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
         <Gauge className="h-5 w-5 shrink-0 text-ink-muted" />
-        Кому подходит
+        Плюсы бизнес-центра
       </h2>
-      {verdict && <p className="text-sm leading-relaxed text-ink">{verdict}</p>}
-      {(pros.length > 0 || cons.length > 0) && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {pros.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Плюсы</span>
-              <ul className="flex flex-col gap-1.5">
-                {pros.map((p) => (
-                  <li key={p} className="flex gap-2 text-sm leading-snug text-ink-muted">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
-                    {p}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {cons.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">На что смотреть</span>
-              <ul className="flex flex-col gap-1.5">
-                {cons.map((c) => (
-                  <li key={c} className="flex gap-2 text-sm leading-snug text-ink-muted">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-border-strong" />
-                    {c}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-      <p className="text-xs text-ink-faint">
-        {VERDICT_SIGNATURE}
-        {!edited && ' · собрано автоматически по порогам, без ручной правки'}
-      </p>
+      <ul className="flex flex-col gap-1.5">
+        {pros.map((item) => (
+          <li key={item} className="flex gap-2 text-sm leading-snug text-ink-muted">
+            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
+            {item}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
