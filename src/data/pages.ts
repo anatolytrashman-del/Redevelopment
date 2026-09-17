@@ -122,11 +122,11 @@ export const ADMIN_PAGES: AdminPage[] = [
 // Порядок и состав пунктов в основном меню сайдбара (без "Предложить
 // идею" — у него свой пункт снизу, как и раньше).
 export const VISIBLE_PAGE_KEYS: PageKey[] = [
+  'objects',
   'tasks',
   'mailbox',
   'contractors',
   'meetingSummaries',
-  'objects',
   'tz',
   'estimates',
   'purchases',
@@ -158,10 +158,10 @@ export type SidebarEntry =
   | { type: 'group'; label: string; keys: SidebarNavigationKey[] };
 
 export const SIDEBAR_LAYOUT: SidebarEntry[] = [
+  { type: 'page', key: 'objects' },
   { type: 'page', key: 'tasks' },
   { type: 'page', key: 'mailbox' },
   { type: 'group', label: 'HR', keys: ['contractors', 'staffMetrics', 'meetingSummaries'] },
-  { type: 'page', key: 'objects' },
   { type: 'group', label: 'Стройка', keys: ['tz', 'estimates', 'purchases', 'workContractors', 'designProjects'] },
   { type: 'group', label: 'Финансы', keys: ['finModels', 'financing', 'transactions', 'documents'] },
   { type: 'group', label: 'Маркетинг', keys: ['landings', 'siteMetrics', 'marketOffers', 'leads'] },
