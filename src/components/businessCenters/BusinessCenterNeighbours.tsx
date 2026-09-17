@@ -18,7 +18,7 @@ import { nearestNeighbours } from '../../lib/businessCenterMarketPosition';
 // и подписано: маршрутов у нас нет, и превращать 400 метров по воздуху в
 // «5 минут пешком» значило бы выдумать данные.
 
-const DEFAULT_ZOOM = 15;
+const DEFAULT_ZOOM = 13;
 
 function MiniMap({ center, neighbours }: { center: BusinessCenter; neighbours: { center: BusinessCenter }[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -59,6 +59,12 @@ function MiniMap({ center, neighbours }: { center: BusinessCenter; neighbours: {
             ),
           );
         }
+        // Масштабируем карту по всем шести меткам с запасом по краям,
+        // чтобы ни один сосед не оказывался за пределами видимой области.
+        const bounds = map.geoObjects.getBounds();
+        if (bounds) {
+          map.setBounds(bounds, { checkZoomRange: true, zoomMargin: 72 });
+        }
         mapRef.current = map;
         setStatus('ready');
       })
@@ -90,23 +96,19 @@ const DASH = <span className="text-ink-faint">—</span>;
 export function NeighboursBlock({
   center,
   all,
-  offers,
 }: {
   center: BusinessCenter;
   all: BusinessCenter[];
-  offers: CatalogOfferIndex;
 }) {
   const neighbours = useMemo(() => nearestNeighbours(center, all, 5), [center, all]);
   if (center.lat == null || center.lng == null) return null;
-
-  const ownRent = offers.rentBySlug.get(center.slug)?.median ?? null;
 
   return (
     <div id="map" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
       <div className="flex flex-col gap-1">
         <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
           <MapPin className="h-5 w-5 shrink-0 text-ink-muted" />
-          На карте и что рядом
+          Другие бизнес-центры рядом
         </h2>
         <p className="text-xs text-ink-faint">
           Пять ближайших зданий каталога — отобраны по расстоянию, независимо от класса
@@ -115,9 +117,8 @@ export function NeighboursBlock({
       </div>
       <MiniMap center={center} neighbours={neighbours} />
       {neighbours.length > 0 && (
-        // Таблица, а не список: смысл блока — сравнить соседей по одним и
-        // тем же величинам. Неизвестное обозначено прочерком явно, нулём
-        // или пустотой не подменяется.
+        // В таблице оставляем только устойчивые справочные признаки.
+        // Площадь и ставки есть не у всех соседей и здесь больше не выводятся.
         <div className="overflow-x-auto">
           <table className="w-full min-w-[420px] border-collapse text-sm">
             <thead>
@@ -125,42 +126,27 @@ export function NeighboursBlock({
                 <th scope="col" className="py-2 pr-3 text-left">Бизнес-центр</th>
                 <th scope="col" className="py-2 px-2 text-right">По прямой</th>
                 <th scope="col" className="py-2 px-2 text-left">Класс</th>
-                <th scope="col" className="py-2 px-2 text-right">Площадь</th>
-                <th scope="col" className="py-2 pl-2 text-right">Аренда</th>
+                <th scope="col" className="py-2 pl-2 text-right">Страница</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {neighbours.map(({ center: n, meters }) => {
-                const rent = offers.rentBySlug.get(n.slug)?.median ?? null;
-                // «Дешевле» пишем только когда есть обе ставки — иначе это
-                // было бы сравнение с пустотой.
-                const cheaper = ownRent != null && rent != null && rent < ownRent;
-                return (
-                  <tr key={n.slug}>
-                    <td className="py-2.5 pr-3">
-                      <Link to={`/minsk/bcminsk/${n.slug}`} className="font-medium text-ink hover:text-primary-hover">
-                        {shortName(n)}
-                      </Link>
-                    </td>
-                    <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-muted">
-                      {meters.toLocaleString('ru-RU')} м
-                    </td>
-                    <td className="py-2.5 px-2 text-ink-muted">{n.businessClass ?? DASH}</td>
-                    <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-muted">
-                      {n.totalArea != null ? `${n.totalArea.toLocaleString('ru-RU')} м²` : DASH}
-                    </td>
-                    <td className="whitespace-nowrap py-2.5 pl-2 text-right tabular-nums">
-                      {rent != null ? (
-                        <span className={cheaper ? 'font-semibold text-[#0f6b3d]' : 'text-ink-muted'}>
-                          ${rent}/м²
-                        </span>
-                      ) : (
-                        DASH
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+              {neighbours.map(({ center: n, meters }) => (
+                <tr key={n.slug}>
+                  <td className="py-2.5 pr-3 font-medium text-ink">{shortName(n)}</td>
+                  <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-muted">
+                    {meters.toLocaleString('ru-RU')} м
+                  </td>
+                  <td className="py-2.5 px-2 text-ink-muted">{n.businessClass ?? DASH}</td>
+                  <td className="whitespace-nowrap py-2.5 pl-2 text-right">
+                    <Link
+                      to={`/minsk/bcminsk/${n.slug}`}
+                      className="font-semibold text-primary-hover hover:underline"
+                    >
+                      Страница БЦ
+                    </Link>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -178,7 +164,7 @@ export function similarCenters(
   center: BusinessCenter,
   all: BusinessCenter[],
   limit = 6,
-  // Слаги, уже показанные в блоке «На карте и что рядом». Соседи и похожие —
+  // Слаги, уже показанные в блоке «Другие бизнес-центры рядом». Соседи и похожие —
   // ДВЕ РАЗНЫЕ подборки (одна про расположение, другая про замену), и одно и
   // то же здание в обеих читается как то, что список нечем наполнить.
   exclude: ReadonlySet<string> = new Set(),

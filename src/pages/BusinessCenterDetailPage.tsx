@@ -112,7 +112,7 @@ import { NeighboursBlock, SimilarCentersBlock, similarCenters } from '../compone
 const SECTION_LABELS: Record<string, string> = {
   verdict: 'Кому подходит',
   market: 'БЦ на фоне конкурентов',
-  map: 'На карте',
+  map: 'Другие бизнес-центры рядом',
   money: 'В деньгах',
   tech: 'Характеристики',
   offers: 'Предложения',
@@ -777,7 +777,7 @@ export function BusinessCenterDetailPage() {
             блока, заглушек не рисуем. */}
         {verdict && <VerdictBlock {...verdict} />}
         {center && marketPosition && <MarketPositionBlock position={marketPosition} />}
-        {center && <NeighboursBlock center={center} all={centers ?? []} offers={offerIndex} />}
+        {center && <NeighboursBlock center={center} all={centers ?? []} />}
         {center && <MoneyBlock offers={offers} error={offersError} />}
         {center && <TechTilesBlock center={center} all={centers ?? []} />}
 
