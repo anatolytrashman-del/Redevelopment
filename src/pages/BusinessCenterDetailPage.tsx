@@ -1,3 +1,5 @@
+import { GENERAL_DATA_SOURCES } from '../data/businessCenterSources';
+import { tenantIndustryLabel } from '../data/tenantIndustries';
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -47,6 +49,7 @@ import { Badge } from '../components/ui/Badge';
 import { PhotoBlock, FactRow, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import {
   setBreadcrumbJsonLd,
+  setFaqJsonLd,
   setNoIndex,
   clearNoIndex,
   setBusinessCenterPageMeta,
@@ -77,9 +80,11 @@ import type {
 } from '../data/businessCenter2gis';
 import { fetchBusinessCenter2gisSnapshot, fetchTenantIndustryCityProfile } from '../lib/businessCenter2gisApi';
 import { buildOfferIndex } from '../lib/businessCenterCatalogFilter';
-import { buildMarketPosition } from '../lib/businessCenterMarketPosition';
+import { buildMarketPosition, nearestNeighbours } from '../lib/businessCenterMarketPosition';
 import { buildVerdictDraft } from '../lib/businessCenterVerdict';
 import {
+  buildTechTiles,
+  extractHistoryPoints,
   HistoryTimeline,
   VerdictBlock,
   MarketPositionBlock,
@@ -88,7 +93,7 @@ import {
   TechTilesBlock,
   WhatTheySayBlock,
 } from '../components/businessCenters/BusinessCenterMarketBlocks';
-import { NeighboursBlock, SimilarCentersBlock } from '../components/businessCenters/BusinessCenterNeighbours';
+import { NeighboursBlock, SimilarCentersBlock, similarCenters } from '../components/businessCenters/BusinessCenterNeighbours';
 
 // Отдельная страница одного бизнес-центра (владелец, 2026-09-04: "для SEO
 // лучше хаб + отдельная страница на каждый БЦ" — согласился с этим доводом
@@ -101,13 +106,6 @@ import { NeighboursBlock, SimilarCentersBlock } from '../components/businessCent
 // так работает предсказуемо и при заходе по прямой ссылке из поиска, когда
 // в истории браузера страницы хаба вообще нет.
 
-// Общие источники данных для всего каталога БЦ (владелец, 2026-09-06: "давай
-// внизу напишем полный список источников, пусть будут кликабельными") — не
-// привязаны к конкретному БЦ (фото/теххарактеристики — prometr.by, метро/
-// рейтинг/организации — Яндекс.Карты и 2ГИС, объявления — Kufar и Realt,
-// часть резонансных фактов — Onliner), показываются на КАЖДОЙ карточке
-// одинаково; официальный сайт самого здания (если найден) — отдельной
-// ссылкой следом, он специфичен для конкретного БЦ.
 // Подписи пунктов липкого меню «На странице» (Б7). Ключ — id блока в
 // разметке; список самих пунктов собирается в pageSections по тому, какие
 // блоки реально отрисованы.
@@ -123,16 +121,8 @@ const SECTION_LABELS: Record<string, string> = {
   tenants: 'Кто внутри',
   reviews: 'Отзывы',
   similar: 'Похожие',
+  faq: 'Вопросы',
 };
-
-const GENERAL_DATA_SOURCES = [
-  { label: 'prometr.by', href: 'https://prometr.by/' },
-  { label: 'Kufar', href: 'https://www.kufar.by/' },
-  { label: 'Realt.by', href: 'https://realt.by/' },
-  { label: 'Onliner', href: 'https://www.onliner.by/' },
-  { label: 'Яндекс.Карты', href: 'https://yandex.by/maps/' },
-  { label: '2ГИС', href: 'https://2gis.by/' },
-] as const;
 
 export function BusinessCenterDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -144,7 +134,8 @@ export function BusinessCenterDetailPage() {
   } | null>(null);
   const offers = offersResult && offersResult.slug === slug ? offersResult.offers : null;
   const offersError = offersResult != null && offersResult.slug === slug && offersResult.error;
-  const [gis2, setGis2] = useState<BusinessCenter2gisSnapshot | null>(null);
+  const [gis2Result, setGis2Result] = useState<{ slug: string; data: BusinessCenter2gisSnapshot | null } | null>(null);
+  const gis2 = gis2Result?.slug === slug ? gis2Result?.data ?? null : null;
   const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(null);
   const [tenantCityProfile, setTenantCityProfile] = useState<TenantIndustryCityProfile | null>(null);
 
@@ -160,10 +151,11 @@ export function BusinessCenterDetailPage() {
   // отдельного запроса по слагу, что и у business_center_offers ниже.
   useEffect(() => {
     if (!slug) return;
-    setGis2(null);
+    let cancelled = false;
     fetchBusinessCenter2gisSnapshot(slug)
-      .then(setGis2)
-      .catch(() => setGis2(null));
+      .then((data) => { if (!cancelled) setGis2Result({ slug, data }); })
+      .catch(() => { if (!cancelled) setGis2Result({ slug, data: null }); });
+    return () => { cancelled = true; };
   }, [slug]);
 
   // Городской профиль отраслей (Б9) — одна строка на весь каталог, но нужна
@@ -262,8 +254,8 @@ export function BusinessCenterDetailPage() {
   // (аренда помещений и т.п.) больше нигде не показываются.
   const accessibilityAttributes = useMemo(() => {
     const group = gis2?.attributeGroups.find((g) => g.name === 'Доступная среда');
-    return group && group.attributes.length > 0 ? group.attributes.join(', ') : null;
-  }, [gis2]);
+    return group && group.attributes.length > 0 ? group.attributes.join(', ') : center?.accessibility.join(', ') || null;
+  }, [gis2, center]);
   // Из общего списка фактов исключаем то, что теперь показано отдельными
   // авторскими блоками: рейтинг и отзывы уехали в «Что говорят» (Б11),
   // история — в таймлайн (Б10). Дублировать один и тот же текст в двух
@@ -346,6 +338,97 @@ export function BusinessCenterDetailPage() {
     [center],
   );
 
+  // FAQ использует те же модели и выборки, что видимые блоки страницы.
+  const faqItems = useMemo(() => {
+    if (!center) return [];
+    const items: { question: string; answer: string }[] = [];
+    // Короткое имя, а не center.name: вопрос «Какой класс у «Бизнес-центр
+    // «Порт»»?» читается как опечатка.
+    const name = shortName(center);
+    const add = (question: string, answer: string | null | undefined) => {
+      if (answer?.trim()) items.push({ question, answer });
+    };
+    const fmt = (value: number) => value.toLocaleString('ru-RU');
+    add(`Где находится «${name}»?`, center.address);
+    if (center.businessClass) add(`Какой класс у «${name}»?`, `Класс ${center.businessClass}.`);
+    if (center.totalArea != null) add(`Какая общая площадь у «${name}»?`, `${fmt(center.totalArea)} м².`);
+    if (center.floors != null) add(`Сколько этажей в «${name}»?`, String(center.floors));
+    if (center.yearBuilt != null) add(`В каком году построен «${name}»?`, String(center.yearBuilt));
+    if (center.status === 'under_construction') add('Здание уже построено?', 'Здание строится.');
+    add(`Кто застройщик «${name}»?`, center.developer);
+    add(`Какая парковка у «${name}»?`, center.parking);
+    if (nearestMetro) add(`Какое метро рядом с «${name}»?`, `«${nearestMetro.name}» — ${nearestMetro.distanceMeters} м по прямой.`);
+    if (verdict) add('Кому подходит здание и какие особенности учитывать?', [verdict.verdict, verdict.pros.length ? `Плюсы: ${verdict.pros.join('; ')}` : '', verdict.cons.length ? `Ограничения: ${verdict.cons.join('; ')}` : ''].filter(Boolean).join(' '));
+    for (const bar of marketPosition?.bars ?? []) {
+      add(`${bar.label} в «${name}» — это много или мало для своего класса?`, `${fmt(bar.value)} ${bar.unit}; ${bar.baselines.map((b) => `${b.label}: ${fmt(b.value)} ${bar.unit}`).join('; ')}.${bar.note ? ` ${bar.note}.` : ''}`);
+    }
+    const neighbours = nearestNeighbours(center, centers ?? [], 5);
+    if (neighbours.length) add('Какие бизнес-центры рядом на карте?', neighbours.map((n) => `${shortName(n.center)} — ${fmt(n.meters)} м по прямой`).join('; '));
+    for (const tile of buildTechTiles(center, centers ?? [])) {
+      // Числовое поле и строковые параметры prometr.by приводим к одной записи дробей.
+      add(`${tile.label} в «${name}» — что известно?`, `${tile.value.replace(/(\d)\.(\d)/g, '$1,$2')}${tile.note ? `. ${tile.note}` : ''}`);
+    }
+    for (const [groupIndex, group] of center.technicalParams.entries()) {
+      const params = group.params.filter((p) => p.value && !/метро/i.test(p.label) && !(TECH_PARAM_META[p.label]?.hideIfDuplicate === 'businessClass' && center.businessClass));
+      if (params.length) add(`Какие технические характеристики у «${name}»${group.corpusLabel ? ` (${group.corpusLabel})` : center.technicalParams.length > 1 ? ` — часть ${groupIndex + 1}` : ''}?`, params.map((p) => `${p.label}: ${/потол/i.test(p.label) ? p.value.replace(/(\d)\.(\d)/g, '$1,$2') : p.value}`).join('; '));
+    }
+    if (center.infraInternal.length) add(`Что есть внутри «${name}»?`, center.infraInternal.join(', '));
+    if (center.infraNearby.length) add(`Какая инфраструктура рядом с «${name}»?`, center.infraNearby.join(', '));
+    if (center.is24x7 != null) add('Есть ли круглосуточный доступ?', center.is24x7 ? 'Круглосуточный доступ указан.' : 'Круглосуточный доступ не предусмотрен по данным каталога.');
+    add('Какие условия доступной среды указаны?', accessibilityAttributes);
+    add('Какие часы работы указаны?', scheduleLines.join('; '));
+    if (offers !== null) {
+      add('Сколько активных предложений аренды и продажи?', offers.length === 0
+        ? NO_ACTIVE_OFFERS_MESSAGE
+        : `Активных предложений: аренда — ${offers.filter((o) => o.dealType === 'rent').length}, продажа — ${offers.filter((o) => o.dealType === 'sale').length}.`);
+      for (const deal of ['rent', 'sale'] as const) {
+        const sum = offersSummary[deal];
+        if (sum) add(`Какие площади и ставки ${deal === 'rent' ? 'аренды' : 'продажи'} сейчас предлагаются?`, `${sum.count} лотов с указанными площадью и ставкой: ${fmt(Math.round(sum.sizeMin))}–${fmt(Math.round(sum.sizeMax))} м², $${fmt(Math.round(sum.priceMin))}–$${fmt(Math.round(sum.priceMax))}/м²${deal === 'rent' ? ' в месяц' : ''}.`);
+      }
+      for (const [label, rows] of [['Аренда', rentRows], ['Продажа', saleRows]] as const) {
+        if (rows.length) add(`Какие помещения в «${name}» сейчас ${label === 'Аренда' ? 'сдают' : 'продают'} и по какой цене?`, rows.map((row) => `${row.propertyType}: ${row.count} объявлений, ${Math.round(row.minSize).toLocaleString('ru-RU')}–${Math.round(row.maxSize).toLocaleString('ru-RU')} м², ${formatUsd(row.minPrice)}–${formatUsd(row.maxPrice)}/м² (медиана ${formatUsd(row.medianPrice)})`).join('; '));
+      }
+      const priced = offers.filter((o) => Number.isFinite(o.size) && o.size > 0 && Number.isFinite(o.pricePerSqm) && o.pricePerSqm >= 0);
+      if (priced.length) add('Сколько стоит помещение целиком по ставке объявления?', priced.map((o) => `${o.dealType === 'rent' ? 'Аренда' : 'Продажа'}, ${fmt(o.size)} м² по $${fmt(o.pricePerSqm)}/м²: около $${fmt(Math.round(o.size * o.pricePerSqm))}${o.dealType === 'rent' ? ' в месяц' : ''}`).join('; ') + '. Это площадь × ставка, а не итоговый платёж: состав коммунальных, эксплуатационных и других платежей не раскрыт. Уточняйте у автора объявления.');
+    }
+    if (center.rentalInfo) {
+      const info = center.rentalInfo;
+      add('Какие условия и контакты аренды опубликованы?', [info.caveat, info.terms, info.rates, info.sizes, info.parking, info.contacts].filter(Boolean).join(' ') + ' Актуальные условия уточняйте у арендодателя.');
+    }
+    if (visibleHighlights.length) add('Какие факты о здании опубликованы?', visibleHighlights.map((h) => [h.label, h.text].filter(Boolean).join(': ')).join('\n'));
+    const history = extractHistoryPoints(center);
+    if (history.length) add('Что известно об истории здания?', history.map((h) => `${h.year}: ${h.text}`).join('; '));
+    if (gis2?.tenantOrganizations.length) {
+      const industries = new Map<string, number>();
+      for (const org of gis2.tenantOrganizations) {
+        const label = tenantIndustryLabel(org.industry);
+        industries.set(label, (industries.get(label) ?? 0) + 1);
+      }
+      add('Сколько организаций в здании и каких отраслей?', `В списке 2ГИС ${gis2.tenantOrganizations.length} организаций: ${[...industries].map(([label, count]) => `${label} — ${count}`).join('; ')}. ${gis2.tenantOrganizationsTotal != null && gis2.tenantOrganizationsTotal > gis2.tenantOrganizations.length ? `Список неполный: в источнике указано ${gis2.tenantOrganizationsTotal} организаций. ` : ''}Это сведения о соседях и сервисах, не показатель загрузки здания или спроса.`);
+    } else if (center.tenantOrganizations.length) {
+      add('Какие организации и сервисы есть в здании?', `В списке ${center.tenantOrganizations.length} организаций: ${center.tenantOrganizations.map((o) => `${o.name}${o.category ? ` (${o.category})` : ''}`).join(', ')}.`);
+    }
+    // Рейтинг у нас приезжает из трёх мест (снимок 2ГИС, поле карточки,
+    // свободный текст фактов) — но для читателя это ОДИН вопрос. Три
+    // отдельных вопроса про одну и ту же оценку читаются как заполнение
+    // объёма, поэтому собираем их в один ответ.
+    const ratingParts = [
+      gis2?.reviews?.orgRating != null
+        ? `2ГИС — ${gis2.reviews.orgRating}${gis2.reviews.orgReviewCount != null ? ` (оценок: ${gis2.reviews.orgReviewCount})` : ''}`
+        : center.gisRating != null
+          ? `2ГИС — ${center.gisRating}${center.gisReviewCount != null ? ` (оценок: ${center.gisReviewCount})` : ''}`
+          : null,
+      mapRating ? `${mapRating.source} — ${mapRating.label}` : null,
+    ].filter(Boolean);
+    if (ratingParts.length) add(`Какая оценка у «${name}» на картах?`, `${ratingParts.join('; ')}.`);
+    if (reviewQuotes.length) add('Что пишут в отзывах?', reviewQuotes.join('\n'));
+    add('Как исправить сведения о здании?', 'Напишите на anatoly.trashman@gmail.com, указав бизнес-центр и сведения, которые устарели или требуют исправления.');
+    const similar = similarCenters(center, centers ?? []);
+    if (similar.length) add('Какие бизнес-центры показаны как похожие?', similar.map(shortName).join(', '));
+    if (hubChips.length) add('Какие связанные подборки доступны?', hubChips.map((c) => c.label).join(', '));
+    return items;
+  }, [center, centers, nearestMetro, verdict, marketPosition, accessibilityAttributes, scheduleLines, offers, offersSummary, rentRows, saleRows, visibleHighlights, gis2, mapRating, reviewQuotes, hubChips]);
+
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
   // якорь никуда не ведёт и выглядит поломкой.
@@ -364,8 +447,9 @@ export function BusinessCenterDetailPage() {
       has('tenants', hasTenantOrganizations || center.tenantOrganizations.length > 0),
       has('reviews', center.gisRating != null || center.highlights.some((h) => h.icon === 'rating')),
       has('similar', true),
+      has('faq', faqItems.length > 0),
     ].filter((v): v is { id: string; label: string } => v !== null);
-  }, [center, marketPosition, offers, visibleHighlights, verdict, hasTenantOrganizations]);
+  }, [center, marketPosition, offers, visibleHighlights, verdict, hasTenantOrganizations, faqItems]);
 
   useEffect(() => {
     if (!center) return;
@@ -393,6 +477,12 @@ export function BusinessCenterDetailPage() {
     });
     return () => setPlaceJsonLd(null);
   }, [center]);
+
+  // Метаданные страницы выше сбрасывают JSON-LD: FAQ записываем после них.
+  useEffect(() => {
+    setFaqJsonLd(faqItems);
+    return () => setFaqJsonLd([]);
+  }, [faqItems]);
 
   // Слаг не найден (опечатка в ссылке, удалённый БЦ) — soft-404: страница
   // остаётся доступной (200, не редирект), но не индексируется, тот же
@@ -627,6 +717,9 @@ export function BusinessCenterDetailPage() {
                 подпись про 2ГИС убираем"). Остальные разделы прежнего блока
                 (аренда помещений, парковка(2ГИС), прочие attributeGroups) —
                 намеренно нигде больше не показываются, не только эти два. */}
+            {center.infraInternal.length > 0 && <LabeledTextRow icon={Store} label="В здании" text={center.infraInternal.join(', ')} />}
+            {center.infraNearby.length > 0 && <LabeledTextRow icon={MapPin} label="Инфраструктура рядом" text={center.infraNearby.join(', ')} />}
+            {center.is24x7 != null && <LabeledTextRow icon={Clock} label="Круглосуточный доступ" text={center.is24x7 ? 'Указан' : 'Не предусмотрен по данным каталога'} />}
             {scheduleLines.length > 0 && (
               <LabeledTextRow icon={Clock} label="Часы работы" text={scheduleLines.join('\n')} />
             )}
@@ -1081,6 +1174,48 @@ export function BusinessCenterDetailPage() {
 
         {center && <SimilarCentersBlock center={center} all={centers ?? []} offers={offerIndex} hubChips={hubChips} />}
 
+        {/* Мобильная навигация "следующий/предыдущий" — фиксированные стрелки
+            выше скрыты до lg, здесь тот же переход обычной строкой кнопок. */}
+        {(prev || next) && (
+          <div className="mt-5 flex items-center justify-between gap-3 lg:hidden">
+            {prev ? (
+              <Link
+                to={`/minsk/bcminsk/${prev.slug}`}
+                className="flex items-center gap-1.5 text-sm font-semibold text-ink-muted transition-colors hover:text-ink"
+              >
+                <ChevronLeft className="h-4 w-4 shrink-0" />
+                {shortName(prev)}
+              </Link>
+            ) : (
+              <span />
+            )}
+            {next ? (
+              <Link
+                to={`/minsk/bcminsk/${next.slug}`}
+                className="flex items-center gap-1.5 text-right text-sm font-semibold text-ink-muted transition-colors hover:text-ink"
+              >
+                {shortName(next)}
+                <ChevronRight className="h-4 w-4 shrink-0" />
+              </Link>
+            ) : (
+              <span />
+            )}
+          </div>
+        )}
+        {faqItems.length > 0 && (
+          <div id="faq" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <h2 className="text-lg font-bold text-ink">Частые вопросы</h2>
+            <div className="flex flex-col divide-y divide-border">
+              {faqItems.map((item) => (
+                <div key={item.question} className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
+                  <p className="text-sm font-semibold text-ink">{item.question}</p>
+                  <p className="text-sm leading-relaxed text-ink-muted">{item.answer}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Блок со ссылкой на Red One, стоявший на каждой карточке БЦ
             (аудит поиска 2026-09-07 — переходы из справочника на /minsk/one
             были главной метрикой SEO-линии), убран 2026-09-16 по решению
@@ -1119,37 +1254,12 @@ export function BusinessCenterDetailPage() {
           </div>
           <p className="text-xs text-ink-muted">
             Данные о здании собраны из открытых источников — не всё относится к каждому конкретному БЦ.
+            Расстояния указаны по прямой. Стоимость помещения рассчитана как площадь × ставка объявления;
+            дополнительные платежи в источниках не раскрыты. Отсутствие объявлений не означает отсутствие
+            свободных помещений. Характеристики и условия требуют уточнения у владельца или автора объявления.
           </p>
         </div>
 
-        {/* Мобильная навигация "следующий/предыдущий" — фиксированные стрелки
-            выше скрыты до lg, здесь тот же переход обычной строкой кнопок. */}
-        {(prev || next) && (
-          <div className="mt-5 flex items-center justify-between gap-3 lg:hidden">
-            {prev ? (
-              <Link
-                to={`/minsk/bcminsk/${prev.slug}`}
-                className="flex items-center gap-1.5 text-sm font-semibold text-ink-muted transition-colors hover:text-ink"
-              >
-                <ChevronLeft className="h-4 w-4 shrink-0" />
-                {shortName(prev)}
-              </Link>
-            ) : (
-              <span />
-            )}
-            {next ? (
-              <Link
-                to={`/minsk/bcminsk/${next.slug}`}
-                className="flex items-center gap-1.5 text-right text-sm font-semibold text-ink-muted transition-colors hover:text-ink"
-              >
-                {shortName(next)}
-                <ChevronRight className="h-4 w-4 shrink-0" />
-              </Link>
-            ) : (
-              <span />
-            )}
-          </div>
-        )}
       </main>
     </div>
   );

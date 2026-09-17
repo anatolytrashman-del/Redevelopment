@@ -1,3 +1,4 @@
+import { GENERAL_DATA_SOURCES } from '../data/businessCenterSources';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -55,7 +56,7 @@ import {
   ManagementBlock,
   MarketContextBlock,
 } from '../components/businessCenters/CatalogMarketBlocks';
-import { MIN_RELIABLE_N, type ExternalMetric, type MarketSnapshot } from '../data/marketSnapshots';
+import { SOURCE_LABELS, MIN_RELIABLE_N, type ExternalMetric, type MarketSnapshot } from '../data/marketSnapshots';
 import {
   CATALOG_FACTS,
   EMPTY_CATALOG_FILTER,
@@ -709,36 +710,19 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     return counts;
   }, [centers]);
 
-  // Сводка по рынку (Fable-анализ, 2026-09-06, приоритет 1: "закрывает
-  // обещание аналитика... 5-8 цифр в плитках, считаются из базы"). Честно
-  // — только то, что реально можно посчитать по данным: средний год
-  // постройки НЕ включён (известен лишь у 21 из 145 записей — bad-faith
-  // "средняя" по 15% выборки выдавала бы её за общую), ставки НЕ включены
-  // (структурных данных по ставкам на уровне каталога нет вовсе, только у
-  // отдельных БЦ в "Объявления с Kufar и Realt"). Считается от
-  // `visibleCenters`, не от всего `centers` — на хаб-странице класса/района
-  // сводка автоматически становится сводкой по этому классу/району, не по
-  // всему городу.
+  // Сводка и FAQ считаются по одной текущей выборке; метро — по координатам.
   const marketStats = useMemo(() => {
     const withArea = visibleCenters.filter((c) => c.totalArea != null);
     const totalArea = withArea.reduce((sum, c) => sum + (c.totalArea ?? 0), 0);
-    const withMetro = visibleCenters.filter((c) => c.metro);
-    const nearMetro = withMetro.filter((c) => /пешком|шагов/i.test(c.metro ?? ''));
+    const withMetro = visibleCenters.filter((c) => nearestMetroMeters(c) != null);
+    const nearMetro = withMetro.filter((c) => nearestMetroMeters(c)! <= 800);
     const underConstruction = visibleCenters.filter((c) => c.status === 'under_construction').length;
     const byClass: Record<string, number> = {};
     for (const c of visibleCenters) if (c.businessClass) byClass[c.businessClass] = (byClass[c.businessClass] ?? 0) + 1;
     return { total: visibleCenters.length, totalArea, withAreaCount: withArea.length, nearMetro: nearMetro.length, withMetroCount: withMetro.length, underConstruction, byClass };
   }, [visibleCenters]);
 
-  // FAQ (Fable-анализ, приоритет 1: "5-8 вопросов, ответы короткие, с
-  // цифрами из базы" + FAQPage-разметка). Только вопросы, на которые честно
-  // есть ответ из реальных данных — "сколько стоит аренда офиса класса A"
-  // из исходного списка Fable НЕ включён (структурных данных по ставкам на
-  // уровне каталога нет, см. комментарий у marketStats выше). Скоуп — тот
-  // же отфильтрованный `visibleCenters`/`marketStats`, что и у сводки: на
-  // хаб-странице класса/района FAQ отвечает про этот класс/район, не про
-  // весь город. "Самый большой" — определённый максимум по `totalArea`
-  // среди visibleCenters, не выдумка.
+  // Подпись текущего раздела каталога для FAQ.
   const scopeLabel = underConstruction
     ? 'из строящихся в Минске'
     : metroFilter
@@ -754,10 +738,6 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           : microdistrictFilter
             ? `в ${microdistrictFilter}`
             : 'в Минске';
-  const biggest = useMemo(
-    () => visibleCenters.filter((c) => c.totalArea != null).sort((a, b) => (b.totalArea ?? 0) - (a.totalArea ?? 0))[0] ?? null,
-    [visibleCenters],
-  );
   const underConstructionNames = useMemo(
     () => visibleCenters.filter((c) => c.status === 'under_construction').map((c) => shortName(c)),
     [visibleCenters],
@@ -783,56 +763,72 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     [districtTotals],
   );
 
-  const showCatalogDataSummary = !classFilter && !districtFilter && !microdistrictFilter && !underConstruction && !metroFilter && !streetFilter && centers !== null && centers.length > 0;
+  const showCatalogSeoText = !classFilter && !districtFilter && !microdistrictFilter && !underConstruction && !metroFilter && !streetFilter && centers !== null && centers.length > 0;
+
+  const latestSnapshotPeriod = useMemo(() => {
+    const dates = (officeSnapshots ?? []).map((s) => s.period).filter(Boolean).sort();
+    return dates.at(-1)?.slice(0, 7) ?? null;
+  }, [officeSnapshots]);
+  const rentMethodology = summary.rentMedian != null
+    ? `Медиана аренды — $${summary.rentMedian}/м² в месяц, по ${summary.rentBuildings} зданиям текущей выборки с объявлениями. Сначала берётся медиана ставки объявлений каждого здания, затем медиана этих значений; при чётном числе — среднее двух центральных. Площадь здания не служит весом.`
+    : 'Медиана аренды для текущей выборки не рассчитана: нет доступных медиан по зданиям с объявлениями.';
 
   const faqItems = useMemo(() => {
+    if (centers === null) return [];
     const items: { question: string; answer: string }[] = [];
-    if (marketStats.total > 0) {
-      items.push({
-        question: `Сколько бизнес-центров ${scopeLabel} есть в каталоге?`,
-        answer: `В каталоге redevelopment.pro сейчас ${marketStats.total} бизнес-центров ${scopeLabel === 'в Минске' ? 'Минска' : scopeLabel}.`,
-      });
+    const add = (question: string, answer: string) => items.push({ question, answer });
+    add(`Сколько бизнес-центров ${scopeLabel} есть в текущей выборке?`, `Найдено ${marketStats.total} зданий с учётом выбранных фильтров.`);
+    if (marketStats.withAreaCount > 0) add('Какая суммарная площадь зданий?', `${Math.round(marketStats.totalArea).toLocaleString('ru-RU')} м²; площадь известна у ${marketStats.withAreaCount} из ${marketStats.total} зданий выборки.`);
+    if (Object.keys(marketStats.byClass).length) add('Как здания выборки распределены по классам?', Object.entries(marketStats.byClass).map(([cls, n]) => `Класс ${cls} — ${n}`).join('; '));
+    if (Object.keys(districtTotals).length) add('Как весь каталог распределён по районам?', Object.entries(districtTotals).map(([district, n]) => {
+      const area = (centers ?? []).filter((c) => c.district === district).reduce((sum, c) => sum + (c.totalArea ?? 0), 0);
+      const rate = (officeSnapshots ?? []).find((s) => s.sliceType === 'district' && s.deal === 'rent' && s.sliceKey === district)?.median;
+      return `${district}: ${n} БЦ${area > 0 ? `, ${Math.round(area).toLocaleString('ru-RU')} м² по заполненным площадям` : ''}${rate != null ? `, медиана аренды $${rate}/м²` : ''}`;
+    }).join('; '));
+    if (showCatalogSeoText && Object.keys(classDistrictBreakdown).length) add('Где чаще встречаются здания разных классов?', Object.entries(classDistrictBreakdown).map(([cls, district]) => `Класс ${cls} — ${district} район`).join('; '));
+    if (marketStats.withMetroCount > 0) add('Сколько зданий рядом с метро?', `${marketStats.nearMetro} из ${marketStats.withMetroCount} зданий выборки с известным расстоянием находятся не дальше 800 м по прямой от ближайшего метро. Это не длина пешего маршрута.`);
+    if (metroFilter && orderedCenters.length) {
+      const nearest = [...orderedCenters].sort((a, b) => (metroHubDistance(a, metroFilter) ?? Infinity) - (metroHubDistance(b, metroFilter) ?? Infinity))[0];
+      const distance = metroHubDistance(nearest, metroFilter);
+      if (distance != null) add(`Какой бизнес-центр ближе всего к метро «${metroFilter}»?`, `${shortName(nearest)} — ${distance} м по прямой. В подборку станции входят здания не дальше 1,5 км по прямой.`);
     }
-    if (metroFilter && orderedCenters.length > 0) {
-      const nearest = orderedCenters[0];
-      const d = metroHubDistance(nearest, metroFilter);
-      items.push({
-        question: `Какой бизнес-центр ближе всего к метро «${metroFilter}»?`,
-        answer: `${shortName(nearest)} — ${d} м по прямой от станции «${metroFilter}» (по данным 2GIS). Всего в радиусе 1,5 км от станции в каталоге — ${bcCountLabel}.`,
-      });
+    add('Сколько зданий в выборке строится?', `${marketStats.underConstruction}.${underConstructionNames.length ? ` Строятся: ${underConstructionNames.join(', ')}.` : ''}`);
+    if (summary.rentMedian != null) add('Какая медианная ставка аренды и как она рассчитана?', rentMethodology);
+    if (showRatesBlock) {
+      for (const [label, deal, rate] of [['аренды', 'rent', rateRent], ['продажи', 'sale', rateSale]] as const) {
+        if (rate?.median != null) add(`Какая ставка ${label} в блоке рыночных ставок?`, `${formatRate(rate.median, deal)} по ${rate.n} объявлениям Kufar и Realt${rate.period ? `, период ${rate.period.slice(0, 7)}` : ''}.${rate.n < MIN_RELIABLE_N ? ' Маленькая выборка: ориентировочное значение.' : ''} Это медиана объявлений соответствующего рыночного среза.`);
+      }
     }
-    if (biggest) {
-      items.push({
-        question: `Какой самый большой бизнес-центр ${scopeLabel}?`,
-        answer: `По площади в каталоге лидирует ${shortName(biggest)} — ${biggest.totalArea?.toLocaleString('ru-RU')} м².`,
-      });
-    }
-    // На хабе «Строящиеся» вопрос «какие строятся» — тавтология (весь список
-    // и есть ответ), вместо него — про сроки/доступность офисов.
-    if (underConstruction) {
-      items.push({
-        question: 'Можно ли уже купить или арендовать офис в строящемся бизнес-центре?',
-        answer:
-          'Пока здание не введено в эксплуатацию — нет: договоры аренды и продажи заключаются после сдачи. Готовые офисы сейчас — в общем каталоге бизнес-центров Минска.',
-      });
-    } else items.push({
-      question: `Какие бизнес-центры ${scopeLabel} сейчас строятся?`,
-      answer:
-        underConstructionNames.length > 0
-          ? `Строятся: ${underConstructionNames.join(', ')}.`
-          : `Среди бизнес-центров ${scopeLabel} в каталоге сейчас нет строящихся объектов.`,
+    const hoa = centers.filter((c) => c.managementType === 'hoa').length;
+    const uk = centers.filter((c) => c.managementType === 'single_uk').length;
+    if (hoa + uk > 0) add('Какие типы управления представлены в каталоге?', `Товарищество собственников — ${hoa}, единая управляющая компания — ${uk}; тип известен для ${hoa + uk} зданий. Плитки включают фильтр по типу управления.`);
+    const withLots = centers.filter((c) => (offerIndex.lotSizesBySlug.get(c.slug)?.length ?? 0) > 0);
+    if (withLots.length) add('Что показывает блок «Сейчас сдаётся и продаётся»?', `${withLots.length} зданий с активными объявлениями Kufar и Realt и данными о площади лотов. Показаны до десяти зданий с наибольшим числом лотов и диапазоны их площадей. Кнопки площади включают фильтр зданий с подходящими лотами; отсутствие объявления не означает отсутствие свободных помещений.`);
+    const contextMetrics = [
+      ['colliers', 'vacancy_rate', 'Вакантность по городу', '%'],
+      ['colliers', 'total_stock', 'Арендопригодные офисы', 'тыс. м²'],
+      ['colliers', 'new_supply', 'Ввод за 2025 год', 'тыс. м²'],
+      ['rezultativnaya-nedvizhimost', 'new_supply_forecast_2026', 'Прогноз ввода на 2026', 'тыс. м²'],
+      ['rezultativnaya-nedvizhimost', 'vacancy_rate', 'Вакантность качественных БЦ', '%'],
+      ['goskomimushchestvo', 'registered_deals', 'Сделки за первое полугодие 2026', ''],
+    ].flatMap(([source, metric, label, unit]) => {
+      const row = externalMetrics?.find((m) => m.source === source && m.metric === metric && m.sliceKey === null);
+      return row ? [`${label}: ${row.value} ${unit} (${SOURCE_LABELS[row.source] ?? row.source}, ${row.period})`] : [];
     });
-    items.push({
-      question: 'Чем класс A отличается от B+, B и C?',
-      answer:
-        'Класс A — самый высокий уровень: качественная инженерия (климат-контроль, резервное питание), развитая инфраструктура, вместительная парковка и расположение в деловых зонах. Класс B+ и B — хорошее качество отделки и инженерии, но менее престижное расположение или меньшая парковка. Класс C — более простая отделка и инженерные системы, обычно ниже ставки аренды.',
-    });
+    if (contextMetrics.length) add('Что показывает внешний контекст рынка офисов?', contextMetrics.join('; ') + '. Классификации внешних источников отличаются от классов каталога; эти значения не относятся к выбранному классу.');
+    add('Как работают фильтры и подборки?', 'Фильтры отбирают здания по заданным характеристикам и пересчитывают выдачу и её сводку. Сортировка меняет порядок. Карточки, таблица и карта помогают просматривать результаты, сравнение — сопоставлять выбранные здания. Подборки ведут к каталогам по классу, району, микрорайону, улице, метро и статусу строительства; список всех названий ведёт на страницы зданий.');
+    add('Что означает «параметр не известен»?', 'В источниках нет заполненного значения. Это не означает, что характеристики или услуги нет. Фильтр по признаку показывает только здания с данными, подтверждающими этот признак.');
+    if (showCatalogSeoText) {
+      add('Чем отличаются классы A, B+, B и C?', 'Классы описывают уровень инженерии, отделки и сервиса: от наиболее высокого A через B+ и B до более простого C. Конкретные характеристики следует проверять в карточке здания.');
+      add('На что смотреть при выборе офиса?', 'На класс и площадь, транспортную доступность, парковку, планировку, инфраструктуру внутри и рядом, управление, соседей и условия договора: срок, индексацию и состав эксплуатационных платежей.');
+      add('Из чего складывается стоимость аренды?', 'Из базовой аренды, эксплуатационных и коммунальных платежей, а при необходимости — бюджета на отделку. Состав платежей уточняйте по конкретному объявлению.');
+    }
     return items;
-  }, [marketStats.total, scopeLabel, biggest, underConstructionNames, underConstruction, metroFilter, orderedCenters, bcCountLabel]);
+  }, [centers, scopeLabel, marketStats, districtTotals, officeSnapshots, showCatalogSeoText, classDistrictBreakdown, metroFilter, orderedCenters, underConstructionNames, summary.rentMedian, rentMethodology, showRatesBlock, rateRent, rateSale, offerIndex, externalMetrics]);
 
   useEffect(() => {
-    if (notFound) return;
-    setFaqJsonLd(faqItems);
+    setFaqJsonLd(notFound ? [] : faqItems);
+    return () => setFaqJsonLd([]);
   }, [faqItems, notFound]);
 
   if (notFound) {
@@ -1060,7 +1056,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                     'Всего бизнес-центров',
                     'Суммарная площадь (по 000 из 000)',
                     'Строится',
-                    'В шаговой доступности от метро',
+                    'До 800 м по прямой от метро',
                     ...(classFilter ? [] : ['Класса A', 'Класса B+', 'Класса B', 'Класса C']),
                   ].map((label) => (
                     <div key={label} className="invisible">
@@ -1088,7 +1084,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                     <FactTile
                       icon={TrainFront}
                       value={`${marketStats.nearMetro} из ${marketStats.withMetroCount}`}
-                      label="В шаговой доступности от метро"
+                      label="До 800 м по прямой от метро"
                     />
                   )}
                   {/* Разбивка по классам — только когда сама сводка не по
@@ -1281,10 +1277,41 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               </div>
             )}
 
-            {showCatalogDataSummary && (
+            {showCatalogSeoText && (
               <div className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-                <h2 className="text-lg font-bold text-ink">География и строительство по данным каталога</h2>
+                <h2 className="text-lg font-bold text-ink">Как устроен рынок бизнес-центров в Минске</h2>
                 <div className="flex flex-col gap-4 text-sm leading-relaxed text-ink-muted">
+                  <p>
+                    В каталоге собрано {marketStats.total} бизнес-центров Минска — от небольших
+                    офисных зданий на несколько кабинетов до многокорпусных комплексов на
+                    десятки тысяч квадратных метров. Ниже — как устроена классификация, где
+                    физически сосредоточены объекты разного уровня и на что стоит смотреть,
+                    выбирая офис в аренду или для покупки.
+                  </p>
+
+                  <div className="flex flex-col gap-1.5">
+                    <h3 className="text-sm font-bold text-ink">Классы A, B+, B и C</h3>
+                    <p>
+                      Деловой класс бизнес-центра — это не маркетинговая метка, а сложившаяся на
+                      рынке коммерческой недвижимости система координат по качеству здания и
+                      уровню сервиса. <strong>Класс A</strong> — самый высокий уровень: современная
+                      инженерия (климат-контроль, резервное электропитание, скоростные лифты),
+                      профессиональная управляющая компания, достаточная парковка и, как правило,
+                      расположение в деловых зонах города. <strong>Класс B+</strong> обычно уступает
+                      классу A по расположению или инженерным системам, но сопоставим по качеству
+                      отделки и управлению зданием. <strong>Класс B</strong> — крепкий средний
+                      сегмент: хорошая для повседневной работы отделка и инженерия, но без
+                      премиальных опций класса A. <strong>Класс C</strong> — более простые здания,
+                      часто реконструированные под офисы из другого назначения, с базовой отделкой
+                      и минимальным набором сервисов; ставки аренды здесь обычно ниже, чем в
+                      других классах. Единой обязательной сертификации классов в Беларуси нет —
+                      застройщики и управляющие компании присваивают класс сами, ориентируясь на
+                      международную практику (стандарты вроде BOMA/Euromoney), поэтому у объектов
+                      одного и того же формального класса от разных застройщиков сервис может
+                      заметно отличаться.
+                    </p>
+                  </div>
+
                   <div className="flex flex-col gap-1.5">
                     <h3 className="text-sm font-bold text-ink">География: где сосредоточены бизнес-центры</h3>
                     <p>
@@ -1321,12 +1348,45 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                     </div>
                   )}
 
+                  <div className="flex flex-col gap-1.5">
+                    <h3 className="text-sm font-bold text-ink">На что смотреть при выборе офиса</h3>
+                    <p>
+                      Кроме класса и площади, на комфорт работы в здании и итоговую стоимость
+                      аренды влияет ряд менее очевидных параметров: транспортная доступность
+                      (расстояние до метро и наличие парковки — как для сотрудников, так и для
+                      посетителей), тип планировки (открытая планировка гибче под рост команды,
+                      кабинетная — привычнее для части бизнесов), состав инфраструктуры в самом
+                      здании и рядом с ним (кафе, банки, аптеки), качество управления зданием
+                      (скорость реакции на заявки, чистота, охрана) и состав соседей — в одном
+                      бизнес-центре с вами могут работать десятки других компаний, что важно и для
+                      деловых контактов, и для общей атмосферы. Отдельно стоит уточнять условия
+                      договора аренды: минимальный срок, порядок индексации ставки и то, что
+                      входит в эксплуатационные платежи помимо самой аренды.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <h3 className="text-sm font-bold text-ink">Из чего складывается ставка аренды</h3>
+                    <p>
+                      Итоговая ставка за квадратный метр обычно состоит из нескольких компонентов:
+                      базовой арендной платы (зависит в первую очередь от класса здания и
+                      расположения), эксплуатационных платежей (обслуживание инженерных систем,
+                      уборка, охрана общих зон — часто выставляются отдельной строкой), коммунальных
+                      платежей по факту потребления и, при необходимости отделки помещения под
+                      арендатора, отдельного бюджета на ремонт. Ставки в разных бизнес-центрах
+                      одного класса могут заметно различаться в зависимости от расположения,
+                      возраста здания и текущей заполняемости — актуальные предложения по
+                      конкретным зданиям смотрите в карточках объектов, в разделе «Объявления с
+                      Kufar и Realt».
+                    </p>
+                  </div>
+
                 </div>
               </div>
             )}
 
             {faqItems.length > 0 && (
-              <div className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+              <div id="faq" className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
                 <h2 className="text-lg font-bold text-ink">Частые вопросы</h2>
                 <div className="flex flex-col divide-y divide-border">
                   {faqItems.map((item) => (
@@ -1338,6 +1398,21 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 </div>
               </div>
             )}
+            <div className={cn('flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+              <h2 className="text-lg font-bold text-ink">Источники</h2>
+              <div className="flex flex-wrap gap-2">
+                {GENERAL_DATA_SOURCES.map((source) => (
+                  <a key={source.href} href={source.href} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-primary hover:text-primary">
+                    {source.label}
+                  </a>
+                ))}
+              </div>
+              <p className="text-xs text-ink-muted">Данные каталога собраны из открытых источников; не каждый источник содержит сведения о каждом здании. Единой даты обновления всех характеристик нет: сведения дополняются по мере получения.</p>
+              <p className="text-xs text-ink-muted">{latestSnapshotPeriod ? `Последний период загруженных рыночных снимков: ${latestSnapshotPeriod}. Точная дата обновления в данных не указана.` : 'Период рыночных снимков недоступен.'}</p>
+              <p className="text-xs text-ink-muted">{rentMethodology} Ставки — из объявлений, не из заключённых сделок; состав дополнительных платежей уточняйте у автора объявления.</p>
+              <p className="text-xs text-ink-muted">У части зданий параметры не заполнены. Суммарная площадь учитывает только известные значения, расстояния до метро указаны по прямой. Внешний контекст рынка подписан источником и периодом в соответствующем блоке.</p>
+            </div>
         </div>
       </main>
     </div>
