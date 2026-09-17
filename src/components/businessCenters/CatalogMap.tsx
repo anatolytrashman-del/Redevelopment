@@ -1,3 +1,4 @@
+import { NO_ACTIVE_OFFERS_SHORT } from '../../data/businessCenterOffers';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
@@ -36,11 +37,15 @@ const MINSK_CENTER: [number, number] = [53.9023, 27.5619];
 const DEFAULT_ZOOM = 11;
 
 function balloonHtml(center: BusinessCenter, offers: CatalogOfferIndex): string {
-  const rent = offers.rentBySlug.get(center.slug)?.median;
+  const rent = offers.rentBySlug.get(center.slug);
+  const sale = offers.saleBySlug.get(center.slug);
+  const lots = (rent?.n ?? 0) + (sale?.n ?? 0);
   const parts = [
     center.businessClass ? `Класс ${center.businessClass}` : null,
     center.totalArea != null ? `${center.totalArea.toLocaleString('ru-RU')} м²` : null,
-    rent != null ? `аренда $${rent}/м²` : 'объявлений нет',
+    rent?.median != null ? `аренда $${rent.median}/м²` : null,
+    sale?.median != null ? `продажа $${sale.median}/м²` : null,
+    lots === 0 ? NO_ACTIVE_OFFERS_SHORT : null,
   ].filter(Boolean);
   // Экранирование не нужно: сюда попадают только наши собственные поля из
   // Supabase, которые мы же и заполняем в админке, — не пользовательский

@@ -124,7 +124,7 @@ export function buildMarketPosition(
     if (classMetro != null) {
       bars.push({
         label: 'До метро',
-        unit: 'м',
+        unit: 'м по прямой',
         value: metro,
         baselines: [{ label: `класс ${center.businessClass}`, value: classMetro }],
         words: ['ближе', 'дальше'],

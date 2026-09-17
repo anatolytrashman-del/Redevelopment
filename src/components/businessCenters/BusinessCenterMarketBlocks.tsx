@@ -6,9 +6,8 @@ import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { BusinessCenter } from '../../data/businessCenters';
 import type { Gis2TenantOrganization, TenantIndustryCityProfile } from '../../data/businessCenter2gis';
 import { TENANT_INDUSTRY_OTHER, tenantIndustryLabel } from '../../data/tenantIndustries';
-import type { MarketSnapshot } from '../../data/marketSnapshots';
+import type { BusinessCenterOffer } from '../../data/businessCenterOffers';
 import { mapRatingFromHighlights } from '../../lib/businessCenterDisplay';
-import type { CatalogOfferIndex } from '../../lib/businessCenterCatalogFilter';
 import type { MarketPosition } from '../../lib/businessCenterMarketPosition';
 import { SUBSCALE_META, type BusinessCenterIndex } from '../../lib/businessCenterIndex';
 import { VERDICT_SIGNATURE } from '../../lib/businessCenterVerdict';
@@ -122,81 +121,66 @@ export function MarketPositionBlock({
 
 // --- Б8. Сколько это в реальных деньгах --------------------------------
 
-const OFFICE_SIZES = [50, 100, 200];
-
 export function MoneyBlock({
-  center,
   offers,
-  snapshots,
+  error = false,
 }: {
-  center: BusinessCenter;
-  offers: CatalogOfferIndex;
-  snapshots: MarketSnapshot[] | null;
+  offers: BusinessCenterOffer[] | null;
+  error?: boolean;
 }) {
-  const rentBuilding = offers.rentBySlug.get(center.slug)?.median ?? null;
-  const saleBuilding = offers.saleBySlug.get(center.slug)?.median ?? null;
-  const classRent =
-    center.businessClass
-      ? ((snapshots ?? []).find((s) => s.deal === 'rent' && s.sliceType === 'class' && s.sliceKey === center.businessClass)
-          ?.median ?? null)
-      : null;
-  const classSale =
-    center.businessClass
-      ? ((snapshots ?? []).find((s) => s.deal === 'sale' && s.sliceType === 'class' && s.sliceKey === center.businessClass)
-          ?.median ?? null)
-      : null;
-
-  // Ставка здания, если она есть; иначе — медиана класса С ЯВНОЙ ПОМЕТКОЙ.
-  // Молча подставить класс вместо здания нельзя: пользователь прочитает
-  // цифру как «столько стоит ЗДЕСЬ».
-  const rent = rentBuilding ?? classRent;
-  const sale = saleBuilding ?? classSale;
-  const rentIsClass = rentBuilding == null && classRent != null;
-  const saleIsClass = saleBuilding == null && classSale != null;
-  if (rent == null) return null;
-
-  // Окупаемость покупки: цена за м² делить на годовую аренду того же метра.
-  // Считаем только когда ОБЕ цифры про это здание — смешивать цену здания с
-  // арендой класса (или наоборот) значит получить число ни о чём.
-  const paybackYears =
-    rentBuilding != null && saleBuilding != null && rentBuilding > 0
-      ? Math.round((saleBuilding / (rentBuilding * 12)) * 10) / 10
-      : null;
-
+  // Единственное сообщение о пустой выборке — в секции «Сейчас предлагается».
+  if (!error && offers?.length === 0) return null;
   return (
-    <div className={cn('mt-6 flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+    <div id="money" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
       <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
         <Coins className="h-5 w-5 shrink-0 text-ink-muted" />
         Сколько это в деньгах
       </h2>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {OFFICE_SIZES.map((size) => (
-          <div key={size} className="flex flex-col gap-1 rounded-2xl bg-surface-muted p-4">
-            <span className="text-xs text-ink-muted">Офис {size} м² в аренду</span>
-            <span className="text-lg font-extrabold text-ink">
-              ≈ ${Math.round(size * rent).toLocaleString('ru-RU')}
-              <span className="text-sm font-semibold text-ink-muted"> / мес</span>
-            </span>
-            {sale != null && (
-              <span className="text-xs text-ink-faint">
-                купить ≈ ${Math.round(size * sale).toLocaleString('ru-RU')}
-              </span>
-            )}
+      {error ? (
+        <p className="text-sm text-ink-muted">Не удалось загрузить активные предложения. Попробуйте обновить страницу.</p>
+      ) : offers === null ? (
+        <p className="text-sm text-ink-muted">Загружаем активные предложения…</p>
+      ) : (
+        <>
+          <p className="text-sm text-ink-muted">
+            Активных предложений: аренда — {offers.filter((o) => o.dealType === 'rent').length}, продажа —{' '}
+            {offers.filter((o) => o.dealType === 'sale').length}.
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {offers.map((offer) => {
+              const isRent = offer.dealType === 'rent';
+              const hasSize = Number.isFinite(offer.size) && offer.size > 0;
+              const hasRate = Number.isFinite(offer.pricePerSqm) && offer.pricePerSqm >= 0;
+              return (
+                <div key={offer.id} className="flex flex-col gap-2 rounded-2xl bg-surface-muted p-4">
+                  <span className="text-sm font-bold text-ink">
+                    {isRent ? 'Аренда' : 'Продажа'} · {hasSize ? `${offer.size.toLocaleString('ru-RU')} м²` : 'Площадь не указана'}
+                  </span>
+                  <span className="text-sm text-ink-muted">
+                    {hasRate ? `$${offer.pricePerSqm.toLocaleString('ru-RU')}/м²${isRent ? ' в месяц' : ''}` : 'Ставка не указана'}
+                    {offer.floor != null && ` · этаж ${offer.floor}`}
+                  </span>
+                  <p className="text-sm font-semibold text-ink">
+                    {hasSize && hasRate
+                      ? `За всё помещение — около $${Math.round(offer.size * offer.pricePerSqm).toLocaleString('ru-RU')}${isRent ? ' в месяц' : ''} по указанной ставке.`
+                      : 'Недостаточно данных для расчёта стоимости всего помещения.'}
+                  </p>
+                  {offer.adLink && (
+                    <a href={offer.adLink} target="_blank" rel="noopener noreferrer nofollow" className="text-sm text-primary-hover hover:underline">
+                      Объявление на {offer.source}
+                    </a>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        ))}
-      </div>
-      {paybackYears != null && (
-        <p className="text-sm text-ink-muted">
-          При этих ставках покупка окупается арендой примерно за{' '}
-          <span className="font-bold text-ink">{paybackYears.toLocaleString('ru-RU')} года</span> — без учёта
-          эксплуатационных платежей, налогов и простоя.
-        </p>
+          <p className="text-xs text-ink-faint">
+            Стоимость целиком — пересчёт площади и ставки из объявления, а не итоговый платёж.
+            Состав платежей в наших данных не раскрыт: неизвестно, включены ли коммунальные,
+            эксплуатационные и другие дополнительные платежи. Уточняйте условия у автора объявления.
+          </p>
+        </>
       )}
-      <p className="text-xs text-ink-faint">
-        {rentIsClass || saleIsClass
-          ? `Расчёт по медиане класса ${center.businessClass} — по самому зданию активных объявлений сейчас нет.`
-          : 'Расчёт по медиане активных объявлений этого здания на Kufar и Realt. Это ориентир, а не оферта: реальная ставка зависит от этажа, отделки и срока договора.'}
-      </p>
     </div>
   );
 }
@@ -316,8 +300,8 @@ const LAYOUT_LABELS: Record<string, string> = {
 };
 
 const MANAGEMENT_HINT: Record<string, string> = {
-  hoa: 'здание в собственности многих владельцев — условия и торг могут отличаться по этажам',
-  single_uk: 'единые правила и один договор на всё здание; обычно дороже, чем у товарищества',
+  hoa: 'управление зданием — товарищество собственников',
+  single_uk: 'здание под единой управляющей компанией',
 };
 
 export interface TechTile {
@@ -413,7 +397,7 @@ export function buildTechTiles(center: BusinessCenter, all: BusinessCenter[]): T
         center.freeSpaceMax != null && center.freeSpaceMax !== center.freeSpaceMin
           ? `${center.freeSpaceMin.toLocaleString('ru-RU')}–${center.freeSpaceMax.toLocaleString('ru-RU')} м²`
           : `${center.freeSpaceMin.toLocaleString('ru-RU')} м²`,
-      note: 'по данным prometr.by, не по объявлениям',
+      note: 'Диапазон из справочника prometr.by, а не подтверждённый перечень доступных блоков. Наличие любого размера внутри диапазона не подтверждено.',
     });
   }
   return tiles;

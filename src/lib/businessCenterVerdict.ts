@@ -56,12 +56,12 @@ export function buildVerdictDraft(
   if (rent != null && classMedian != null && classMedian > 0 && rent <= classMedian * 0.9) {
     pros.push(`Ставка ниже медианы класса ${center.businessClass} на ${Math.round((1 - rent / classMedian) * 100)}%`);
   }
-  if (metro != null && metro <= 500) pros.push(`До метро ${metro} м по прямой — пешком пара минут`);
+  if (metro != null && metro <= 500) pros.push(`До метро ${metro} м по прямой`);
   if (center.parkingRatio != null && center.parkingRatio >= 1.5) {
-    pros.push(`Парковка ${center.parkingRatio.toLocaleString('ru-RU')} маш./100 м² — выше типичной для города`);
+    pros.push(`Парковка ${center.parkingRatio.toLocaleString('ru-RU')} маш./100 м²`);
   }
   if (center.managementType === 'single_uk') {
-    pros.push('Единая управляющая компания: один договор и одинаковые правила на всё здание');
+    pros.push('Здание под единой управляющей компанией');
   }
   if (center.layoutTypes.includes('open_space')) pros.push('Есть open-space — гибче под рост команды');
   if (center.ceilingHeight != null && center.ceilingHeight >= 3) {
@@ -76,19 +76,18 @@ export function buildVerdictDraft(
   // --- Минусы ----------------------------------------------------------
   // Каждый минус — только когда параметр ИЗВЕСТЕН и плох. Отсутствие
   // данных минусом не считается: мы не знаем, а не «там плохо».
-  if (metro != null && metro > 1000) cons.push(`До ближайшего метро ${metro} м — пешком далековато`);
+  if (metro != null && metro > 1000) cons.push(`До ближайшего метро ${metro} м по прямой`);
   if (center.parkingRatio != null && center.parkingRatio < 1) {
-    cons.push(`Парковка ${center.parkingRatio.toLocaleString('ru-RU')} маш./100 м² — мест мало`);
+    cons.push(`Парковка ${center.parkingRatio.toLocaleString('ru-RU')} маш./100 м²`);
   }
   if (center.airConditioning === 'none') cons.push('Центрального кондиционирования нет');
   if (center.managementType === 'hoa') {
-    cons.push('Товарищество собственников: условия и отделка отличаются от этажа к этажу, единого стандарта нет');
+    cons.push('Управление зданием — товарищество собственников');
   }
   if (center.ceilingHeight != null && center.ceilingHeight < 2.7) {
     cons.push(`Потолки ${center.ceilingHeight.toLocaleString('ru-RU')} м — ниже привычных`);
   }
   if (center.businessClass === 'C') cons.push('Класс C: базовая отделка и минимальный набор сервисов');
-  if (lots === 0) cons.push('Активных объявлений на Kufar и Realt сейчас нет — придётся писать в УК напрямую');
   if (rent != null && classMedian != null && classMedian > 0 && rent >= classMedian * 1.15) {
     cons.push(`Ставка выше медианы класса ${center.businessClass} на ${Math.round((rent / classMedian - 1) * 100)}%`);
   }
@@ -110,11 +109,11 @@ export function buildVerdictDraft(
       : 'Здание ещё строится — снять или купить офис здесь пока нельзя.';
   } else if (center.businessClass === 'A' && nearMetro) {
     verdict = pricey
-      ? 'Представительный офис в шаговой доступности от метро — и платить за это придётся выше медианы класса. Подойдёт компании, которой важно, как выглядит адрес.'
-      : 'Представительный офис в шаговой доступности от метро — редкое сочетание для Минска. Подойдёт компании, которой важен адрес и удобство для сотрудников.';
+      ? `Офис класса A: до ближайшего метро ${metro} м по прямой, ставка выше медианы класса.`
+      : `Офис класса A: до ближайшего метро ${metro} м по прямой.`;
   } else if (cheap && !nearMetro) {
     verdict =
-      'Вариант для тех, кому важнее стоимость метра, чем дорога: ставка ниже медианы своего класса, но до метро идти небыстро.';
+      'Ставка ниже медианы своего класса. Расположение и маршрут до метро стоит оценить отдельно.';
   } else if (cheap) {
     verdict = 'Крепкий вариант «цена — расположение»: ставка ниже медианы класса, метро рядом.';
   } else if (bigFloor) {
@@ -125,7 +124,7 @@ export function buildVerdictDraft(
   } else if (center.businessClass === 'C') {
     verdict = 'Рабочий вариант без переплаты за класс: базовая отделка и сервисы, зато цена метра обычно ниже.';
   } else {
-    verdict = `Типичный бизнес-центр класса ${center.businessClass ?? '—'} для своего района: без выраженных преимуществ и без явных проблем по имеющимся данным.`;
+    verdict = `Бизнес-центр класса ${center.businessClass ?? '—'}: по имеющимся данным здание не выделяется по ставке, расположению или размеру блока.`;
   }
 
   return { verdict, pros: pros.slice(0, MAX_ITEMS), cons: cons.slice(0, MAX_ITEMS) };

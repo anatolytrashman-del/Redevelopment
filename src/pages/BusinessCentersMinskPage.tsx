@@ -5,8 +5,11 @@ import {
   Award,
   BadgeCheck,
   Building2,
+  Calendar,
   DollarSign,
   HardHat,
+  Layers,
+  MapPin,
   Ruler,
   TrainFront,
 } from 'lucide-react';
@@ -26,7 +29,7 @@ import {
   setNoIndex,
   clearNoIndex,
 } from '../lib/pageMeta';
-import { businessClassTone, shortMetro, shortName, streetOfAddress } from '../lib/businessCenterDisplay';
+import { businessClassTone, shortAddress, shortMetro, shortName, streetOfAddress } from '../lib/businessCenterDisplay';
 import {
   CLASS_SLUG_TO_VALUE,
   DISTRICT_SLUG_TO_NAME,
@@ -67,10 +70,8 @@ import {
   parseCatalogFilter,
   sortCatalogCenters,
   type CatalogFilterState,
-  type CatalogOfferIndex,
 } from '../lib/businessCenterCatalogFilter';
-import { buildBadgeContext, businessCenterBadge, type BusinessCenterBadge } from '../lib/businessCenterBadges';
-import { buildIndexMap, type BusinessCenterIndex } from '../lib/businessCenterIndex';
+import { buildIndexMap } from '../lib/businessCenterIndex';
 
 // Справочная SEO-страница по бизнес-центрам Минска (владелец, 2026-09-04) —
 // см. комментарий в data/businessCenters.ts про источник списка и принцип
@@ -172,17 +173,11 @@ const CARDS_PAGE_SIZE = 48;
 function BusinessCenterCard({
   center,
   metroStation,
-  offers,
-  badge,
-  index,
   compared,
   onToggleCompare,
 }: {
   center: BusinessCenter;
   metroStation?: string | null;
-  offers: CatalogOfferIndex;
-  badge: BusinessCenterBadge | null;
-  index: BusinessCenterIndex | null;
   compared: boolean;
   onToggleCompare: (slug: string) => void;
 }) {
@@ -193,29 +188,16 @@ function BusinessCenterCard({
     : center.nearestMetroStations.length > 0
       ? `«${[...center.nearestMetroStations].sort((a, b) => a.distanceMeters - b.distanceMeters)[0].name}»`
       : null;
-  const rent = offers.rentBySlug.get(center.slug);
-  const sale = offers.saleBySlug.get(center.slug);
-
   return (
     <Link
       to={`/minsk/bcminsk/${center.slug}`}
       className={cn(
-        // min-h на карточке и на фотоблоке — страховка, а не вёрстка.
-        // Владелец дважды (2026-09-16 и 2026-09-17) присылал прод, где
-        // карточки схлопнуты в полоски высотой в пару пикселей: виден
-        // обрезанный кусок фото, текста нет вовсе. Headless-браузер этого
-        // не воспроизводит ни на 360, ни на 1280, ни на 2000 px, разметка
-        // и CSS на проде верные — то есть высоту теряет конкретный
-        // браузер, а не наш код. Пока причина не найдена, карточка не
-        // должна зависеть от того, сработает ли aspect-ratio: при любом
-        // исходе у неё есть собственная минимальная высота, и
-        // overflow-hidden больше нечего прятать.
-        'group flex min-h-[22rem] flex-col overflow-hidden transition-transform hover:-translate-y-0.5',
+        'group flex flex-col overflow-hidden transition-transform hover:-translate-y-0.5',
         glassCardClass,
       )}
       style={glassCardShadow}
     >
-      <div className="relative aspect-[16/10] min-h-[12rem] w-full shrink-0 overflow-hidden">
+      <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden">
         <PhotoBlock center={center} variant="card" />
         <div className="absolute right-2 top-2 flex flex-wrap justify-end gap-1.5">
           {center.status === 'under_construction' && <Badge tone="warning">Строится</Badge>}
@@ -223,17 +205,6 @@ function BusinessCenterCard({
             <Badge tone={businessClassTone[center.businessClass]}>Класс {center.businessClass}</Badge>
           )}
         </div>
-        {/* Индекс (К9) — в углу фото, чтобы его было видно при беглом
-            просмотре сетки. Числа нет, если посчитать не по чему (меньше
-            трёх подшкал) — пустого кружка тоже нет. */}
-        {index && (
-          <span
-            className="absolute bottom-2 left-2 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-sm font-extrabold text-ink shadow-sm"
-            title={`Индекс Redevelopment: ${index.value} из 100, по ${index.known} подшкалам из 5`}
-          >
-            {index.value}
-          </span>
-        )}
         {/* Отметка «сравнить» лежит поверх ссылки-карточки, поэтому клик
             обязан не всплывать: иначе отметка уводила бы на страницу БЦ. */}
         <button
@@ -253,48 +224,41 @@ function BusinessCenterCard({
           {compared ? 'В сравнении' : 'Сравнить'}
         </button>
       </div>
-      <div className="flex flex-1 flex-col gap-2.5 p-4">
+      {/* НЕ ставить сюда flex-1. Владелец дважды присылал прод, где текст
+          карточки обрезан, а один раз карточки были схлопнуты в полоски.
+          Причина: `flex-1` — это `flex: 1 1 0%`, то есть базовая высота
+          тела НОЛЬ. Высота карточки тогда складывается из одного фото,
+          тело получает только остаток, а `overflow-hidden` срезает
+          строки фактов. В Chrome автоминимум (`min-height: auto`) это
+          обычно спасает — поэтому headless-браузер показывал карточки
+          целыми и баг не воспроизводился, — а на машине владельца нет.
+          Нужно, чтобы тело растягивало карточку до общей высоты ряда —
+          для этого `grow` (`flex-grow: 1`, базис остаётся `auto`), а не
+          `flex-1`. */}
+      <div className="flex grow flex-col gap-2.5 p-4">
         <h2 className="text-base font-bold leading-snug text-ink">{center.name}</h2>
-        {badge && (
-          <span
-            className={cn(
-              'w-fit rounded-full px-2 py-0.5 text-[11px] font-bold',
-              badge.tone === 'deal' ? 'bg-success-bg text-[#0f6b3d]' : 'bg-surface-muted text-ink-muted',
-            )}
-          >
-            {badge.text}
-          </span>
-        )}
 
         <div className="flex flex-col gap-1.5">
+          <FactRow icon={MapPin}>{shortAddress(center.address)}</FactRow>
+          {center.totalArea != null && (
+            <FactRow icon={Ruler}>Площадь: {center.totalArea.toLocaleString('ru-RU')} м²</FactRow>
+          )}
+          {center.yearBuilt != null && <FactRow icon={Calendar}>Срок сдачи: {center.yearBuilt} г.</FactRow>}
+          {center.floors != null && <FactRow icon={Layers}>Этажность: {center.floors}</FactRow>}
           {metroDistance != null && metroLabel ? (
             <FactRow icon={TrainFront}>
-              {metroLabel} — {metroDistance} м
+              До {metroLabel}: {metroDistance} м по прямой
             </FactRow>
           ) : (
-            center.metro && <FactRow icon={TrainFront}>{shortMetro(center.metro)}</FactRow>
+            center.metro && <FactRow icon={TrainFront}>Метро: {shortMetro(center.metro)}</FactRow>
           )}
-          {(center.totalArea != null || center.floorPlateArea != null) && (
-            <FactRow icon={Ruler}>
-              {center.totalArea != null ? `${center.totalArea.toLocaleString('ru-RU')} м²` : 'площадь неизвестна'}
-              {center.floorPlateArea != null && ` · этаж ${center.floorPlateArea.toLocaleString('ru-RU')} м²`}
-            </FactRow>
-          )}
-          {rent?.median != null || sale?.median != null ? (
-            <FactRow icon={DollarSign}>
-              {rent?.median != null && `аренда $${rent.median}/м²`}
-              {rent?.median != null && sale?.median != null && ' · '}
-              {sale?.median != null && `продажа $${Math.round(sale.median).toLocaleString('ru-RU')}/м²`}
-              {` · ${(rent?.n ?? 0) + (sale?.n ?? 0)} лотов`}
-            </FactRow>
-          ) : (
-            <FactRow icon={DollarSign}>объявлений сейчас нет</FactRow>
-          )}
-          <FactRow icon={Award}>
-            {center.gisRating != null ? `2ГИС ${center.gisRating}` : 'рейтинга нет'}
-            {center.managementType && ` · ${center.managementType === 'single_uk' ? 'единая УК' : 'ТС'}`}
-            {center.parkingRatio != null && ` · парковка ${center.parkingRatio}`}
-          </FactRow>
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <span className="flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-colors group-hover:bg-primary group-hover:text-white">
+            Подробнее
+            <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+          </span>
         </div>
       </div>
     </Link>
@@ -550,17 +514,11 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // Медианы и число объявлений по КОНКРЕТНОМУ зданию (Д3) — нужны и
   // тумблерам «есть аренда/продажа», и сортировке по ставке, и сводке.
   const offerIndex = useMemo(() => buildOfferIndex(officeSnapshots, lotSizes), [officeSnapshots, lotSizes]);
-  // Контекст авто-бейджей (К8) считается один раз от ВСЕГО каталога, не от
-  // отфильтрованной выборки: «самый большой в районе» — факт про район, он
-  // не должен меняться от того, что пользователь включил тумблер.
   // Индекс Redevelopment (К9) — считается от всего каталога, а не от
   // выборки: это характеристика здания, а не места в текущем фильтре.
+  // На самой карточке его больше нет (владелец, 2026-09-17: вернуть
+  // прежний вид карточки), остаётся сортировка и табличный вид.
   const indexBySlug = useMemo(() => buildIndexMap(centers ?? [], offerIndex), [centers, offerIndex]);
-
-  const badgeContext = useMemo(
-    () => buildBadgeContext(centers ?? [], officeSnapshots, offerIndex),
-    [centers, officeSnapshots, offerIndex],
-  );
 
   // Любая смена фильтра, сортировки или маршрута начинает список заново:
   // иначе «показать ещё» с прошлой выборки тихо переносился бы на новую.
@@ -1084,9 +1042,6 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                     key={c.slug}
                     center={c}
                     metroStation={metroFilter}
-                    offers={offerIndex}
-                    badge={businessCenterBadge(c, badgeContext)}
-                    index={indexBySlug.get(c.slug) ?? null}
                     compared={filter.compare.includes(c.slug)}
                     onToggleCompare={toggleCompare}
                   />

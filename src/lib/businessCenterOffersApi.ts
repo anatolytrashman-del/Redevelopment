@@ -21,13 +21,21 @@ function fromRow(row: BusinessCenterOfferRow): BusinessCenterOffer {
 
 export function fetchBusinessCenterOffers(slug: string): Promise<BusinessCenterOffer[]> {
   return withRetry(async () => {
-    const { data, error } = await supabase
-      .from('business_center_offers')
-      .select('*')
-      .eq('business_center_slug', slug)
-      .order('price_per_sqm', { ascending: true });
-    if (error) throw error;
-    return (data as BusinessCenterOfferRow[]).map(fromRow);
+    const rows: BusinessCenterOfferRow[] = [];
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from('business_center_offers')
+        .select('*')
+        .eq('business_center_slug', slug)
+        .order('price_per_sqm', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      rows.push(...(data as BusinessCenterOfferRow[]));
+      if (data.length < PAGE) break;
+    }
+    return rows.map(fromRow);
   });
 }
 
