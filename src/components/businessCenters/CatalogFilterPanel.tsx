@@ -1,36 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, RotateCcw, SlidersHorizontal, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
-import { SearchInput } from '../ui/SearchInput';
 import {
-  CATALOG_PRESETS,
-  CATALOG_SORTS,
-  CATALOG_VIEWS,
-  EMPTY_CATALOG_FILTER,
+  MINSK_METRO_LINES,
   METRO_WITHIN_OPTIONS,
-  isPresetActive,
   type CatalogFilterState,
-  type CatalogSortKey,
-  type CatalogView,
 } from '../../lib/businessCenterCatalogFilter';
 
-// Фильтры в боковой колонке, как оглавление Минск Мира (владелец, 2026-09-17).
-// Все оси и счётчики сохранены; на мобильном — выдвижная панель.
-// Панель ничего не знает про маршруты и SEO-хабы: она отдаёт наружу новое
-// состояние через onChange, а страница уже решает, превратить его в
-// красивый URL хаба или в query-параметры (см. businessCenterCatalogFilter.ts
-// и urlForFilter в BusinessCentersMinskPage.tsx).
+// Фильтры в боковой колонке повторяют компактную структуру страницы Минск
+// Мира. На мобильном те же контролы открываются в native dialog.
 
 interface ChipProps {
   active: boolean;
   count?: number;
   onClick: () => void;
   children: React.ReactNode;
-  // Чип, который при count === 0 не исчезает, а гаснет: пропадающие на
-  // глазах варианты мешают понять, что вообще можно выбрать (и куда делся
-  // тот, по которому пользователь только что целился).
   disabled?: boolean;
 }
 
@@ -71,21 +57,197 @@ function ChipRow({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
+interface MultiSelectDropdownProps {
+  label: string;
+  options: string[];
+  selected: string[] | null;
+  counts: Record<string, number>;
+  onChange: (next: string[] | null) => void;
+}
+
+function MultiSelectDropdown({ label, options, selected, counts, onChange }: MultiSelectDropdownProps) {
+  const selectedSet = useMemo(() => new Set(selected ?? options), [selected, options]);
+  const summary =
+    selected === null
+      ? `Все (${options.length})`
+      : selected.length === 0
+        ? 'Ничего'
+        : selected.length === 1
+          ? selected[0]
+          : `${selected.length} выбрано`;
+
+  function toggle(value: string) {
+    const next = new Set(selected ?? options);
+    if (next.has(value)) next.delete(value);
+    else next.add(value);
+    onChange(next.size === options.length ? null : options.filter((option) => next.has(option)));
+  }
+
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{label}</span>
+      <details className="group relative">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-xl border border-border bg-surface px-3 py-2.5 text-xs font-semibold text-ink marker:hidden">
+          <span className="min-w-0 truncate">{summary}</span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="mt-2 rounded-xl border border-border bg-surface p-2 shadow-card">
+          <div className="mb-2 flex gap-2 border-b border-border pb-2">
+            <button
+              type="button"
+              onClick={() => onChange(null)}
+              className="text-xs font-semibold text-primary hover:text-primary-hover"
+            >
+              Выбрать все
+            </button>
+            <span className="text-ink-faint">·</span>
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="text-xs font-semibold text-ink-muted hover:text-ink"
+            >
+              Снять все
+            </button>
+          </div>
+          <div className="max-h-52 space-y-1 overflow-y-auto overscroll-contain">
+            {options.map((option) => (
+              <label
+                key={option}
+                className="flex cursor-pointer items-start gap-2 rounded-lg px-1.5 py-1.5 text-xs text-ink hover:bg-surface-muted"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedSet.has(option)}
+                  onChange={() => toggle(option)}
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-primary"
+                />
+                <span className="min-w-0 flex-1">{option}</span>
+                <span className="shrink-0 tabular-nums text-ink-faint">{counts[option] ?? 0}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </details>
+    </div>
+  );
+}
+
+const metroLineDot: Record<string, string> = {
+  blue: 'bg-[#1976c9]',
+  red: 'bg-[#e31d35]',
+  green: 'bg-[#169447]',
+};
+
+function stationKey(name: string): string {
+  return name.toLocaleLowerCase('ru').replaceAll('ё', 'е');
+}
+
+interface MetroStationSelectorProps {
+  stations: string[];
+  selected: string[];
+  counts: Record<string, number>;
+  onChange: (next: string[]) => void;
+}
+
+function MetroStationSelector({ stations, selected, counts, onChange }: MetroStationSelectorProps) {
+  const stationByKey = useMemo(() => new Map(stations.map((station) => [stationKey(station), station])), [stations]);
+  const groupedKeys = new Set<string>();
+  const groups = MINSK_METRO_LINES.map((line) => {
+    const lineStations = line.stations
+      .map((station) => stationByKey.get(stationKey(station)))
+      .filter((station): station is string => !!station);
+    lineStations.forEach((station) => groupedKeys.add(stationKey(station)));
+    return { ...line, stations: lineStations };
+  }).filter((line) => line.stations.length > 0);
+  const other = stations.filter((station) => !groupedKeys.has(stationKey(station)));
+  const summary = selected.length === 0 ? 'Любая станция' : selected.length === 1 ? selected[0] : `${selected.length} выбрано`;
+
+  function toggle(station: string) {
+    onChange(selected.includes(station) ? selected.filter((value) => value !== station) : [...selected, station]);
+  }
+
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Станции метро</span>
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-xl border border-border bg-surface px-3 py-2.5 text-xs font-semibold text-ink marker:hidden">
+          <span className="min-w-0 truncate">{summary}</span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="mt-2 max-h-80 space-y-3 overflow-y-auto overscroll-contain rounded-xl border border-border bg-surface p-2 shadow-card">
+          {selected.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="text-xs font-semibold text-primary hover:text-primary-hover"
+            >
+              Снять выбор
+            </button>
+          )}
+          {groups.map((line) => (
+            <div key={line.id}>
+              <div className="mb-1.5 flex items-center gap-2 px-1 text-[11px] font-bold uppercase tracking-wide text-ink-muted">
+                <span className={cn('h-2.5 w-2.5 shrink-0 rounded-full', metroLineDot[line.id])} />
+                {line.label}
+              </div>
+              <div className="space-y-1">
+                {line.stations.map((station) => (
+                  <label
+                    key={station}
+                    className="flex cursor-pointer items-start gap-2 rounded-lg px-1.5 py-1.5 text-xs text-ink hover:bg-surface-muted"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(station)}
+                      onChange={() => toggle(station)}
+                      className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-primary"
+                    />
+                    <span className="min-w-0 flex-1">{station}</span>
+                    <span className="shrink-0 tabular-nums text-ink-faint">{counts[station] ?? 0}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+          {other.length > 0 && (
+            <div>
+              <div className="mb-1.5 px-1 text-[11px] font-bold uppercase tracking-wide text-ink-muted">Другие</div>
+              {other.map((station) => (
+                <label
+                  key={station}
+                  className="flex cursor-pointer items-start gap-2 rounded-lg px-1.5 py-1.5 text-xs text-ink hover:bg-surface-muted"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(station)}
+                    onChange={() => toggle(station)}
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-primary"
+                  />
+                  <span className="min-w-0 flex-1">{station}</span>
+                  <span className="shrink-0 tabular-nums text-ink-faint">{counts[station] ?? 0}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      </details>
+    </div>
+  );
+}
+
 export interface CatalogFilterPanelProps {
   state: CatalogFilterState;
   onChange: (next: CatalogFilterState) => void;
   availableClasses: string[];
   districts: string[];
-  /** Сколько БЦ останется, если выбрать именно это значение (остальные фильтры как есть). */
+  microdistricts: string[];
   classCounts: Record<string, number>;
   districtCounts: Record<string, number>;
+  microdistrictCounts: Record<string, number>;
   metroCounts: Record<number, number>;
-  /** Станции метро, встречающиеся у зданий каталога (по алфавиту). */
   metroStations: string[];
   stationCounts: Record<string, number>;
-  /** Сколько зданий нельзя проверить по применённому фильтру: признака нет в данных. */
   unverifiableCount?: number;
-  /** Сколько подходит сейчас — для кнопки «Показать N» в мобильной шторке. */
   resultCount: number;
   resultLabel: string;
   hasActiveFilter: boolean;
@@ -105,8 +267,10 @@ export function CatalogFilterPanel({
   onChange,
   availableClasses,
   districts,
+  microdistricts,
   classCounts,
   districtCounts,
+  microdistrictCounts,
   metroCounts,
   metroStations,
   stationCounts,
@@ -137,45 +301,19 @@ export function CatalogFilterPanel({
     };
   }, [sheetOpen]);
 
-
   function toggleInList(list: string[], value: string): string[] {
-    return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
+    return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
   }
 
   const activeCount =
     state.classes.length +
-    state.districts.length +
+    (state.districts === null ? 0 : 1) +
+    (state.microdistricts === null ? 0 : 1) +
     state.metroStations.length +
-      (state.metroWithin != null ? 1 : 0) +
-    (state.query ? 1 : 0);
+    (state.metroWithin != null ? 1 : 0);
 
   const controls = (
-    <div className="flex flex-col gap-3">
-      {/* К15: готовые подборки — ответы на то, что люди спрашивают словами,
-          а не осями фильтра. Клик ставит состояние целиком, повторный клик
-          снимает; сортировка и вид при этом не трогаются — переключать
-          подборку, теряя выбранную таблицу, было бы обидно. */}
-      <ChipRow label="Подборки">
-        {CATALOG_PRESETS.map((preset) => {
-          const active = isPresetActive(preset, state);
-          return (
-            <Chip
-              key={preset.id}
-              active={active}
-              onClick={() =>
-                onChange(
-                  active
-                    ? { ...EMPTY_CATALOG_FILTER, sort: state.sort, view: state.view }
-                    : { ...EMPTY_CATALOG_FILTER, ...preset.patch, sort: state.sort, view: state.view },
-                )
-              }
-            >
-              {preset.label}
-            </Chip>
-          );
-        })}
-      </ChipRow>
-
+    <div className="flex flex-col gap-4">
       <ChipRow label="Класс">
         {availableClasses.map((cls) => (
           <Chip
@@ -190,114 +328,52 @@ export function CatalogFilterPanel({
         ))}
       </ChipRow>
 
-      <ChipRow label="Район">
-        {districts.map((d) => (
-          <Chip
-            key={d}
-            active={state.districts.includes(d)}
-            count={districtCounts[d] ?? 0}
-            disabled={!state.districts.includes(d) && (districtCounts[d] ?? 0) === 0}
-            onClick={() => onChange({ ...state, districts: toggleInList(state.districts, d) })}
-          >
-            {d}
-          </Chip>
-        ))}
-      </ChipRow>
+      <MultiSelectDropdown
+        label="Район"
+        options={districts}
+        selected={state.districts}
+        counts={districtCounts}
+        onChange={(next) => onChange({ ...state, districts: next })}
+      />
 
-      {/* Станция метро — множественный выбор (владелец, 2026-09-17).
-          Раньше конкретную станцию можно было найти только строкой поиска
-          или через её SEO-хаб, то есть «рядом с Уручьем ИЛИ с Борисовским
-          трактом» не выражалось никак. */}
+      <MultiSelectDropdown
+        label="Микрорайон"
+        options={microdistricts}
+        selected={state.microdistricts}
+        counts={microdistrictCounts}
+        onChange={(next) => onChange({ ...state, microdistricts: next })}
+      />
+
       {metroStations.length > 0 && (
-        <ChipRow label="Станция метро">
-          {metroStations.map((st) => (
-            <Chip
-              key={st}
-              active={state.metroStations.includes(st)}
-              count={stationCounts[st] ?? 0}
-              disabled={!state.metroStations.includes(st) && (stationCounts[st] ?? 0) === 0}
-              onClick={() => onChange({ ...state, metroStations: toggleInList(state.metroStations, st) })}
-            >
-              {st}
-            </Chip>
-          ))}
-        </ChipRow>
+        <MetroStationSelector
+          stations={metroStations}
+          selected={state.metroStations}
+          counts={stationCounts}
+          onChange={(next) => onChange({ ...state, metroStations: next })}
+        />
       )}
 
-      {/* Метро — расстояние, а не перебор 32 станций: «хочу рядом с метро,
-          всё равно с какой» раньше не выражалось вовсе. Конкретная станция
-          — через строку поиска или её собственный SEO-хаб. */}
       <ChipRow label="До метро">
-        {METRO_WITHIN_OPTIONS.map((o) => (
+        {METRO_WITHIN_OPTIONS.map((option) => (
           <Chip
-            key={o.value}
-            active={state.metroWithin === o.value}
-            count={metroCounts[o.value] ?? 0}
-            onClick={() => onChange({ ...state, metroWithin: state.metroWithin === o.value ? null : o.value })}
+            key={option.value}
+            active={state.metroWithin === option.value}
+            count={metroCounts[option.value] ?? 0}
+            onClick={() =>
+              onChange({ ...state, metroWithin: state.metroWithin === option.value ? null : option.value })
+            }
           >
-            {o.label}
+            {option.label}
           </Chip>
         ))}
       </ChipRow>
 
-      {/* Честная оговорка вместо молчания: у части зданий параметра нет в
-          источнике, и тумблер их не покажет — это «неизвестно», а не «нет»
-          (см. комментарий у CATALOG_FACTS). */}
       <p className="text-xs text-ink-faint">
         Фильтры отбирают здания, по которым признак известен.
         {unverifiableCount > 0 &&
           ` По выбранному фильтру ${unverifiableCount} ${plural(unverifiableCount, 'здание', 'здания', 'зданий')} проверить невозможно: признака нет в данных prometr.by и 2ГИС — они не попадают ни в совпадения, ни в несовпадения.`}
       </p>
     </div>
-  );
-
-  const toolbar = (
-      <div className="flex min-w-0 flex-col gap-3">
-        <SearchInput
-          value={state.query}
-          onChange={(e) => onChange({ ...state, query: e.target.value })}
-          placeholder="Название, адрес, метро"
-          wrapperClassName="w-full min-w-0"
-          aria-label="Поиск по бизнес-центрам"
-        />
-
-        {/* Переключатель вида (К6). Стоит рядом с сортировкой, а не над
-            результатами: это одна и та же мысль — «как показать то, что
-            отобрано». */}
-        <div className="flex items-center gap-1 rounded-full border border-border bg-surface p-1">
-          {CATALOG_VIEWS.map((v) => (
-            <button
-              key={v.key}
-              type="button"
-              onClick={() => onChange({ ...state, view: v.key as CatalogView })}
-              aria-pressed={state.view === v.key}
-              className={cn(
-                'flex-1 rounded-full px-2 py-1.5 text-xs font-semibold transition-colors',
-                state.view === v.key ? 'bg-primary text-white' : 'text-ink-muted hover:text-ink',
-              )}
-            >
-              {v.label}
-            </button>
-          ))}
-        </div>
-
-        <label className="relative flex min-w-0 items-center">
-          <span className="sr-only">Сортировка</span>
-          <select
-            value={state.sort}
-            onChange={(e) => onChange({ ...state, sort: e.target.value as CatalogSortKey })}
-            className="w-full min-w-0 appearance-none rounded-full border border-border bg-surface py-2.5 pl-4 pr-9 text-xs font-semibold text-ink outline-none focus:border-primary"
-          >
-            {CATALOG_SORTS.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-3 h-4 w-4 text-ink-muted" />
-        </label>
-
-      </div>
   );
 
   return (
@@ -312,22 +388,28 @@ export function CatalogFilterPanel({
         Фильтры {activeCount > 0 && <span>({activeCount})</span>}
       </button>
       <div
-        className={cn('hidden max-h-[calc(100dvh-7rem)] space-y-5 overflow-y-auto overscroll-contain p-3 lg:block', glassCardClass)}
+        className={cn(
+          'hidden max-h-[calc(100dvh-7rem)] space-y-5 overflow-y-auto overscroll-contain p-3 lg:block',
+          glassCardClass,
+        )}
         style={glassCardShadow}
       >
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Фильтры</h2>
           {hasActiveFilter && (
-            <button type="button" onClick={onReset} aria-label="Сбросить фильтры" className="rounded-full p-2 text-ink-muted hover:text-ink">
+            <button
+              type="button"
+              onClick={onReset}
+              aria-label="Сбросить фильтры"
+              className="rounded-full p-2 text-ink-muted hover:text-ink"
+            >
               <RotateCcw className="h-4 w-4" />
             </button>
           )}
         </div>
-        {toolbar}
         {controls}
       </div>
 
-      {/* Портал и native dialog: фокус остаётся в фильтрах, Escape закрывает панель. */}
       {sheetOpen && createPortal(
         <dialog
           ref={dialogRef}
@@ -335,11 +417,7 @@ export function CatalogFilterPanel({
           onCancel={(event) => { event.preventDefault(); setSheetOpen(false); }}
           className="fixed inset-0 m-0 h-svh max-h-none w-screen max-w-none border-0 bg-transparent p-0 text-ink backdrop:bg-transparent lg:hidden"
         >
-          <div
-            className="absolute inset-0 bg-ink/40"
-            onClick={() => setSheetOpen(false)}
-            aria-hidden="true"
-          />
+          <div className="absolute inset-0 bg-ink/40" onClick={() => setSheetOpen(false)} aria-hidden="true" />
           <div className="absolute inset-y-0 left-0 flex h-svh w-80 max-w-[90vw] flex-col border-r border-white/50 bg-white/95 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
               <span className="text-sm font-bold text-ink">Фильтры</span>
@@ -364,7 +442,7 @@ export function CatalogFilterPanel({
                 </button>
               </div>
             </div>
-            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4">{toolbar}{controls}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">{controls}</div>
             <div className="border-t border-border px-4 py-3">
               <button
                 type="button"

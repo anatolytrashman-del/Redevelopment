@@ -21,7 +21,6 @@ import { Badge } from '../components/ui/Badge';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { PhotoBlock, FactRow, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import { CatalogFilterPanel } from '../components/businessCenters/CatalogFilterPanel';
-import { CatalogMap } from '../components/businessCenters/CatalogMap';
 import { CatalogCompare } from '../components/businessCenters/CatalogCompare';
 import {
   setArticleJsonLd,
@@ -107,14 +106,8 @@ const HERO_IMAGES: string[] = ['/images/business-centers-hero/futuris-1600.jpg']
 const HERO_IMAGE_WIDTH = 1600;
 const HERO_IMAGE_HEIGHT = 1067;
 
-// Карта всех БЦ на каталоге БЫЛА статичным embed'ом Яндекс.Конструктора
-// (владелец загружал туда CSV с координатами всех 143 БЦ). Убрана
-// 2026-09-16 по пункту К6 плана docs/bc-catalog-redesign-plan.md: она
-// показывала всегда все точки и никак не зависела от фильтра. Вместо неё —
-// вид «Карта» в переключателе над результатами
-// (components/businessCenters/CatalogMap.tsx): живая карта по
-// business_centers.lat/lng, рисует ровно отобранное, цвет метки по классу,
-// по клику — мини-карточка со ссылкой.
+// Карта каталога и переключатель вида сняты с первого экрана 2026-09-17:
+// владелец оставил единый карточный режим и компактные фильтры в сайдбаре.
 
 // Только дата последнего пересмотра фактов/добавления БЦ — держать в одном
 // месте, тот же принцип, что и DATE_MODIFIED в DistrictGuidePage.tsx.
@@ -156,7 +149,7 @@ const CARDS_PAGE_SIZE = 48;
 
 // Параметры строки запроса, любое присутствие которых делает состояние
 // каталога неиндексируемым (см. filterIsIndexable ниже).
-const FILTER_QUERY_KEYS = ['class', 'district', 'metro', 'station', 'lot', 'facts', 'q', 'view', 'sort', 'compare'];
+const FILTER_QUERY_KEYS = ['class', 'district', 'microdistrict', 'metro', 'station', 'lot', 'facts', 'q', 'view', 'sort', 'compare'];
 
 // Карточка каталога (К7 плана docs/bc-catalog-redesign-plan.md).
 //
@@ -514,8 +507,9 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       ...queryFilter,
       classes: classFilter ? [classFilter] : queryFilter.classes,
       districts: districtFilter ? [districtFilter] : queryFilter.districts,
+      microdistricts: microdistrictFilter ? [microdistrictFilter] : queryFilter.microdistricts,
     }),
-    [queryFilter, classFilter, districtFilter],
+    [queryFilter, classFilter, districtFilter, microdistrictFilter],
   );
 
 
@@ -577,6 +571,12 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     const outOfCity = all.filter((d) => d === OUT_OF_TOWN_DISTRICT);
     return [...inCity, ...outOfCity];
   }, [centers]);
+  const filterMicrodistricts = useMemo(
+    () =>
+      Array.from(new Set((centers ?? []).map((c) => c.microdistrict).filter((value): value is string => !!value)))
+        .sort((a, b) => a.localeCompare(b, 'ru')),
+    [centers],
+  );
 
   // Счётчик на чипе = сколько БЦ останется, если выбрать ИМЕННО ЭТО
   // значение оси, сохранив остальные фильтры (nomads-стиль). Не «сколько
@@ -597,6 +597,14 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [districts, routeScoped, filter, offerIndex]);
+  const microdistrictCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const microdistrict of filterMicrodistricts) {
+      m[microdistrict] = countWith({ microdistricts: [microdistrict] });
+    }
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterMicrodistricts, routeScoped, filter, offerIndex]);
   const metroCounts = useMemo(() => {
     const m: Record<number, number> = {};
     for (const o of METRO_WITHIN_OPTIONS) m[o.value] = countWith({ metroWithin: o.value });
@@ -642,16 +650,38 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           : null;
 
   function urlForFilter(next: CatalogFilterState): string {
-    if (routeHubPath) return routeHubPath + catalogFilterToQuery(next);
-    const withoutAxes = catalogFilterToQuery({ ...next, classes: [], districts: [] });
-    if (next.classes.length === 1 && next.districts.length === 1) {
+    if (microdistrictFilter) {
+      const staysOnHub =
+        next.microdistricts?.length === 1 && next.microdistricts[0] === microdistrictFilter;
+      if (staysOnHub && routeHubPath) {
+        return routeHubPath + catalogFilterToQuery({ ...next, microdistricts: null });
+      }
+    } else if (routeHubPath) {
+      return routeHubPath + catalogFilterToQuery(next);
+    }
+
+    const withoutAxes = catalogFilterToQuery({
+      ...next,
+      classes: [],
+      districts: null,
+      microdistricts: null,
+    });
+    if (
+      next.microdistricts?.length === 1 &&
+      next.classes.length === 0 &&
+      next.districts === null
+    ) {
+      const url = microdistrictHubUrl(next.microdistricts[0]);
+      if (url) return url + withoutAxes;
+    }
+    if (next.classes.length === 1 && next.districts?.length === 1 && next.microdistricts === null) {
       const url = classDistrictHubUrl(next.classes[0] as NonNullable<BusinessCenter['businessClass']>, next.districts[0]);
       if (url) return url + withoutAxes;
     }
-    if (next.classes.length === 1 && next.districts.length === 0) {
+    if (next.classes.length === 1 && next.districts === null && next.microdistricts === null) {
       return classHubUrl(next.classes[0] as NonNullable<BusinessCenter['businessClass']>) + withoutAxes;
     }
-    if (next.classes.length === 0 && next.districts.length === 1) {
+    if (next.classes.length === 0 && next.districts?.length === 1 && next.microdistricts === null) {
       const url = districtHubUrl(next.districts[0]);
       if (url) return url + withoutAxes;
     }
@@ -676,7 +706,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   }
 
   function resetFilter() {
-    applyFilter({ ...EMPTY_CATALOG_FILTER, sort: filter.sort, view: filter.view, compare: filter.compare });
+    applyFilter({ ...EMPTY_CATALOG_FILTER, compare: filter.compare });
   }
 
   // Микрорайоны, станции и улицы больше не списки в боковом фильтре — они
@@ -931,8 +961,10 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             onChange={applyFilter}
             availableClasses={availableClasses}
             districts={districts}
+            microdistricts={filterMicrodistricts}
             classCounts={classCounts}
             districtCounts={districtCounts}
+            microdistrictCounts={microdistrictCounts}
             metroCounts={metroCounts}
             metroStations={metroStationList}
             stationCounts={stationCounts}
@@ -1044,8 +1076,6 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 </button>
               )}
             </div>
-          ) : filter.view === 'map' ? (
-            <CatalogMap centers={orderedCenters} offers={offerIndex} />
           ) : (
             <div className="space-y-6">
               <div className="grid grid-cols-1 items-start gap-5 sm:grid-cols-2">
@@ -1188,11 +1218,13 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 <DistrictDensityBlock
                   centers={centers}
                   snapshots={officeSnapshots}
-                  activeDistricts={filter.districts}
+                  activeDistricts={filter.districts ?? []}
                   onPickDistrict={(d) =>
                     applyFilter({
                       ...filter,
-                      districts: filter.districts.includes(d) ? filter.districts.filter((x) => x !== d) : [d],
+                      districts: (filter.districts ?? []).includes(d)
+                        ? (filter.districts ?? []).filter((x) => x !== d)
+                        : [d],
                     })
                   }
                 />
