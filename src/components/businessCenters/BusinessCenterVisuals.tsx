@@ -14,17 +14,50 @@ import { businessCenterPhotoSrc } from '../../lib/businessCenterDisplay';
 // страницы БЦ, это её LCP-элемент: eager + fetchpriority="high" (раньше
 // стояло loading="lazy", и PageSpeed прямо ругался "LCP resources should
 // not use loading=lazy", LCP 4,5с). width/height — под соотношение
-// контейнера (16:10 у карточки, 16:9 у страницы), фото всё равно
-// object-cover, значения нужны только чтобы браузер знал пропорцию до
-// загрузки (CLS) — не реальный размер файла.
-export function PhotoBlock({ center, variant }: { center: BusinessCenter; variant: 'card' | 'detail' }) {
-  if (center.photos.length > 0) {
-    const detail = variant === 'detail';
+// контейнера (16:10 у карточки, 16:9 у страницы). По умолчанию фото
+// заполняет контейнер через object-cover; fit='contain' сохраняет весь кадр
+// в компактной главной карточке. Значения нужны браузеру для CLS, это не
+// реальный размер файла.
+interface CuratedBusinessCenterPhoto {
+  src: string;
+  alt: string;
+}
+
+// Проверенное вручную фото для здания, у которого снимок из каталога не
+// подходит главной карточке. Карта живёт рядом с PhotoBlock, чтобы один и
+// тот же кадр использовался и в каталоге, и на отдельной странице БЦ.
+const CURATED_BUSINESS_CENTER_PHOTOS: Record<string, CuratedBusinessCenterPhoto> = {
+  port: {
+    src: '/images/business-centers/port-photo.jpg',
+    alt: 'Бизнес-центр «Порт» на проспекте Независимости, 177',
+  },
+};
+
+export function PhotoBlock({
+  center,
+  variant,
+  fit = 'cover',
+}: {
+  center: BusinessCenter;
+  variant: 'card' | 'detail';
+  fit?: 'cover' | 'contain';
+}) {
+  const detail = variant === 'detail';
+  const curatedPhoto = CURATED_BUSINESS_CENTER_PHOTOS[center.slug];
+  const fallbackPhoto = center.photos[0]
+    ? {
+        src: businessCenterPhotoSrc(center.photos[0], variant),
+        alt: center.name,
+      }
+    : null;
+  const photo = curatedPhoto ?? fallbackPhoto;
+
+  if (photo) {
     return (
       <img
-        src={businessCenterPhotoSrc(center.photos[0], variant)}
-        alt={center.name}
-        className="h-full w-full object-cover"
+        src={photo.src}
+        alt={photo.alt}
+        className={`h-full w-full ${fit === 'contain' ? 'object-contain' : 'object-cover'}`}
         loading={detail ? 'eager' : 'lazy'}
         fetchPriority={detail ? 'high' : 'auto'}
         width={detail ? 1200 : 640}
@@ -91,28 +124,42 @@ export function FactTile({
   label,
   text,
   span,
+  tone = 'default',
 }: {
-  icon: typeof Camera;
+  icon?: typeof Camera;
   value?: ReactNode;
   label?: ReactNode;
   text?: ReactNode;
   span?: 2 | 3 | 4;
+  tone?: 'default' | 'muted';
 }) {
+  const muted = tone === 'muted';
   return (
     <div
       className={
-        'flex flex-col gap-2 rounded-control border border-border/60 bg-white p-4 shadow-card' +
+        (muted
+          ? 'flex flex-col gap-1.5 rounded-control border border-border/70 bg-surface-muted/70 p-3'
+          : 'flex flex-col gap-2 rounded-control border border-border/60 bg-white p-4 shadow-card') +
         (span ? ` ${SPAN_CLASSES[span]}` : '')
       }
     >
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-muted text-ink">
-        <Icon className="h-4 w-4" />
-      </span>
+      {Icon && (
+        <span
+          className={
+            'flex shrink-0 items-center justify-center rounded-full ' +
+            (muted ? 'h-8 w-8 bg-white/70 text-ink-muted' : 'h-9 w-9 bg-surface-muted text-ink')
+          }
+        >
+          <Icon className="h-4 w-4" />
+        </span>
+      )}
       {text ? (
         <p className="text-sm font-semibold leading-snug text-ink">{text}</p>
       ) : (
         <>
-          <div className="text-lg font-extrabold leading-tight text-ink">{value}</div>
+          <div className={muted ? 'text-base font-bold leading-tight text-ink' : 'text-lg font-extrabold leading-tight text-ink'}>
+            {value}
+          </div>
           {label && <p className="text-xs leading-snug text-ink-muted">{label}</p>}
         </>
       )}

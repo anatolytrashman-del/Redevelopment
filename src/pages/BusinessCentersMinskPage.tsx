@@ -7,6 +7,7 @@ import {
   BadgeCheck,
   Building2,
   Calendar,
+  Camera,
   DollarSign,
   HardHat,
   Layers,
@@ -17,10 +18,9 @@ import {
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
+import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { PhotoBlock, FactRow, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import { CatalogFilterPanel } from '../components/businessCenters/CatalogFilterPanel';
-import { CatalogTable } from '../components/businessCenters/CatalogTable';
-import { CatalogMap } from '../components/businessCenters/CatalogMap';
 import { CatalogCompare } from '../components/businessCenters/CatalogCompare';
 import {
   setArticleJsonLd,
@@ -58,7 +58,6 @@ import {
 } from '../components/businessCenters/CatalogMarketBlocks';
 import { SOURCE_LABELS, MIN_RELIABLE_N, type ExternalMetric, type MarketSnapshot } from '../data/marketSnapshots';
 import {
-  CATALOG_FACTS,
   EMPTY_CATALOG_FILTER,
   MAX_COMPARE,
   METRO_WITHIN_OPTIONS,
@@ -68,7 +67,9 @@ import {
   hasActiveCatalogFilter,
   matchesCatalogFilter,
   nearestMetroMeters,
+  catalogMetroStations,
   parseCatalogFilter,
+  unverifiableByMetroStation,
   sortCatalogCenters,
   type CatalogFilterState,
 } from '../lib/businessCenterCatalogFilter';
@@ -99,22 +100,14 @@ const PAGE_H1 = 'Бизнес-центры Минска: аналитика дл
 const INTRO_TEXT =
   'Сравнивайте бизнес-центры Минска по классу, площади и расположению — для инвестиций, аренды или покупки офиса.';
 
-// Фото в hero каталога БЫЛО (owner подбирал сам, /images/business-centers-
-// hero/hero-1.webp, оно же LCP-картинка) — убрано 2026-09-16 по пункту К1
-// плана docs/bc-catalog-redesign-plan.md: hero занимал верх страницы
-// целиком, и первая карточка БЦ появлялась примерно на 1900-м пикселе.
-// Теперь hero — строка заголовка, а первый экран отдан фильтру и
-// результатам. Сам файл остался в public/ (compress-static-images.mjs его
-// по-прежнему знает) — если понадобится вернуть, он на месте.
+// Тот же снимок «Футуриса» в исходном размере 1600×1067 (Domovita).
+// Источник: https://domovita.by/bc-bcfuturis — фото 4.
+const HERO_IMAGES: string[] = ['/images/business-centers-hero/futuris-1600.jpg'];
+const HERO_IMAGE_WIDTH = 1600;
+const HERO_IMAGE_HEIGHT = 1067;
 
-// Карта всех БЦ на каталоге БЫЛА статичным embed'ом Яндекс.Конструктора
-// (владелец загружал туда CSV с координатами всех 143 БЦ). Убрана
-// 2026-09-16 по пункту К6 плана docs/bc-catalog-redesign-plan.md: она
-// показывала всегда все точки и никак не зависела от фильтра. Вместо неё —
-// вид «Карта» в переключателе над результатами
-// (components/businessCenters/CatalogMap.tsx): живая карта по
-// business_centers.lat/lng, рисует ровно отобранное, цвет метки по классу,
-// по клику — мини-карточка со ссылкой.
+// Карта каталога и переключатель вида сняты с первого экрана 2026-09-17:
+// владелец оставил единый карточный режим и компактные фильтры в сайдбаре.
 
 // Только дата последнего пересмотра фактов/добавления БЦ — держать в одном
 // месте, тот же принцип, что и DATE_MODIFIED в DistrictGuidePage.tsx.
@@ -154,6 +147,10 @@ const OUT_OF_TOWN_DISTRICT = 'Великий камень';
 // раньше стоял content-visibility, см. комментарий в BusinessCenterCard).
 const CARDS_PAGE_SIZE = 48;
 
+// Параметры строки запроса, любое присутствие которых делает состояние
+// каталога неиндексируемым (см. filterIsIndexable ниже).
+const FILTER_QUERY_KEYS = ['class', 'district', 'microdistrict', 'metro', 'station', 'lot', 'facts', 'q', 'view', 'sort', 'compare'];
+
 // Карточка каталога (К7 плана docs/bc-catalog-redesign-plan.md).
 //
 // Было: фото 16:10 и пять строк справочника — адрес, площадь, срок сдачи,
@@ -161,7 +158,7 @@ const CARDS_PAGE_SIZE = 48;
 // было выбирать: 143 штуки подряд выглядели одинаково, а главного (сколько
 // стоит и есть ли вообще что снять) на них не было вовсе.
 //
-// Стало: фото ниже (16:9 вместо 16:10, по 4 в ряд на широком экране),
+// Стало: фото ниже (16:9 вместо 16:10, по 3 в ряд на широком экране),
 // сверху — авто-бейдж «чем выделяется» (К8), в теле — то, по чему реально
 // сравнивают: метро в метрах, площадь и типовой этаж, ставка с числом
 // лотов, рейтинг 2ГИС, УК/ТС и парковка. Пилюля «Подробнее» убрана — вся
@@ -192,13 +189,15 @@ function BusinessCenterCard({
     <Link
       to={`/minsk/bcminsk/${center.slug}`}
       className={cn(
-        'group flex flex-col overflow-hidden transition-transform hover:-translate-y-0.5',
+        'group block min-w-0 self-start overflow-hidden transition-transform hover:-translate-y-0.5',
         glassCardClass,
       )}
       style={glassCardShadow}
     >
-      <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden">
-        <PhotoBlock center={center} variant="card" />
+      <div className="relative w-full overflow-hidden" style={{ paddingTop: '62.5%' }}>
+        <div className="absolute inset-0">
+          <PhotoBlock center={center} variant="card" />
+        </div>
         <div className="absolute right-2 top-2 flex flex-wrap justify-end gap-1.5">
           {center.status === 'under_construction' && <Badge tone="warning">Строится</Badge>}
           {center.businessClass && (
@@ -224,18 +223,9 @@ function BusinessCenterCard({
           {compared ? 'В сравнении' : 'Сравнить'}
         </button>
       </div>
-      {/* НЕ ставить сюда flex-1. Владелец дважды присылал прод, где текст
-          карточки обрезан, а один раз карточки были схлопнуты в полоски.
-          Причина: `flex-1` — это `flex: 1 1 0%`, то есть базовая высота
-          тела НОЛЬ. Высота карточки тогда складывается из одного фото,
-          тело получает только остаток, а `overflow-hidden` срезает
-          строки фактов. В Chrome автоминимум (`min-height: auto`) это
-          обычно спасает — поэтому headless-браузер показывал карточки
-          целыми и баг не воспроизводился, — а на машине владельца нет.
-          Нужно, чтобы тело растягивало карточку до общей высоты ряда —
-          для этого `grow` (`flex-grow: 1`, базис остаётся `auto`), а не
-          `flex-1`. */}
-      <div className="flex grow flex-col gap-2.5 p-4">
+      {/* Карточка — обычный блок: её высоту задают рамка фото и текст.
+          Процентная высота картинки не участвует в расчёте строки grid. */}
+      <div className="flex flex-col gap-2.5 p-4">
         <h2 className="text-base font-bold leading-snug text-ink">{center.name}</h2>
 
         <div className="flex flex-col gap-1.5">
@@ -398,8 +388,18 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     return `$${rounded.toLocaleString('ru-RU')}${deal === 'rent' ? '/м²/мес' : '/м²'}`;
   }
 
+  // Белый список индексируемых состояний (мастер-план, задача 8).
+  // Индексируем только сам каталог и его SEO-хабы: маршрут задаёт одну ось
+  // (класс, район, микрорайон, метро, улица, строящиеся), и у каждой свой
+  // H1, title и canonical. Любое состояние, набранное фильтром, сортировкой
+  // или поиском, по ссылке воспроизводится, но в индекс не идёт — в sitemap
+  // уже 286 путей, а комбинаций фильтра тысячи, и они съели бы краулинговый
+  // бюджет, ничего не добавив. Считаем прямо по строке запроса, а не по
+  // разобранному фильтру: эффект метатегов стоит выше его объявления.
+  const filterIsIndexable = !FILTER_QUERY_KEYS.some((k) => searchParams.has(k));
+
   useEffect(() => {
-    if (notFound) {
+    if (notFound || !filterIsIndexable) {
       setNoIndex();
       return () => clearNoIndex();
     }
@@ -487,7 +487,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               { name: 'Бизнес-центры Минска' },
             ],
     );
-  }, [classFilter, districtFilter, microdistrictFilter, underConstruction, metroFilter, streetFilter, notFound]);
+  }, [classFilter, districtFilter, microdistrictFilter, underConstruction, metroFilter, streetFilter, notFound, filterIsIndexable]);
 
   // --- Фильтр поверх маршрута (К2–К5 плана) ----------------------------
   //
@@ -507,9 +507,12 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       ...queryFilter,
       classes: classFilter ? [classFilter] : queryFilter.classes,
       districts: districtFilter ? [districtFilter] : queryFilter.districts,
+      microdistricts: microdistrictFilter ? [microdistrictFilter] : queryFilter.microdistricts,
     }),
-    [queryFilter, classFilter, districtFilter],
+    [queryFilter, classFilter, districtFilter, microdistrictFilter],
   );
+
+
 
   // Медианы и число объявлений по КОНКРЕТНОМУ зданию (Д3) — нужны и
   // тумблерам «есть аренда/продажа», и сортировке по ставке, и сводке.
@@ -568,6 +571,12 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     const outOfCity = all.filter((d) => d === OUT_OF_TOWN_DISTRICT);
     return [...inCity, ...outOfCity];
   }, [centers]);
+  const filterMicrodistricts = useMemo(
+    () =>
+      Array.from(new Set((centers ?? []).map((c) => c.microdistrict).filter((value): value is string => !!value)))
+        .sort((a, b) => a.localeCompare(b, 'ru')),
+    [centers],
+  );
 
   // Счётчик на чипе = сколько БЦ останется, если выбрать ИМЕННО ЭТО
   // значение оси, сохранив остальные фильтры (nomads-стиль). Не «сколько
@@ -588,20 +597,39 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [districts, routeScoped, filter, offerIndex]);
+  const microdistrictCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const microdistrict of filterMicrodistricts) {
+      m[microdistrict] = countWith({ microdistricts: [microdistrict] });
+    }
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterMicrodistricts, routeScoped, filter, offerIndex]);
   const metroCounts = useMemo(() => {
     const m: Record<number, number> = {};
     for (const o of METRO_WITHIN_OPTIONS) m[o.value] = countWith({ metroWithin: o.value });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeScoped, filter, offerIndex]);
-  const factCounts = useMemo(() => {
+  // Список станций и счётчики по ним — фильтр «станция метро» с
+  // множественным выбором (владелец, 2026-09-17).
+  const metroStationList = useMemo(() => catalogMetroStations(routeScoped), [routeScoped]);
+  const stationCounts = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const f of CATALOG_FACTS) {
-      m[f.id] = countWith({ facts: filter.facts.includes(f.id) ? filter.facts : [...filter.facts, f.id] });
+    for (const st of metroStationList) {
+      m[st] = countWith({
+        metroStations: filter.metroStations.includes(st) ? filter.metroStations : [...filter.metroStations, st],
+      });
     }
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeScoped, filter, offerIndex]);
+  }, [metroStationList, routeScoped, filter, offerIndex]);
+  // Сколько зданий нельзя проверить по применённому фильтру метро: у них
+  // не разобрана ни одна станция. «Не знаем» ≠ «не подходит».
+  const unverifiableCount = useMemo(
+    () => (filter.metroStations.length > 0 || filter.metroWithin != null ? unverifiableByMetroStation(routeScoped) : 0),
+    [filter.metroStations, filter.metroWithin, routeScoped],
+  );
 
   // Куда вести после клика по чипу. Одно значение одной оси — это ровно
   // тот срез, под который уже есть SEO-хаб: ведём на красивый URL, чтобы
@@ -622,16 +650,38 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           : null;
 
   function urlForFilter(next: CatalogFilterState): string {
-    if (routeHubPath) return routeHubPath + catalogFilterToQuery(next);
-    const withoutAxes = catalogFilterToQuery({ ...next, classes: [], districts: [] });
-    if (next.classes.length === 1 && next.districts.length === 1) {
+    if (microdistrictFilter) {
+      const staysOnHub =
+        next.microdistricts?.length === 1 && next.microdistricts[0] === microdistrictFilter;
+      if (staysOnHub && routeHubPath) {
+        return routeHubPath + catalogFilterToQuery({ ...next, microdistricts: null });
+      }
+    } else if (routeHubPath) {
+      return routeHubPath + catalogFilterToQuery(next);
+    }
+
+    const withoutAxes = catalogFilterToQuery({
+      ...next,
+      classes: [],
+      districts: null,
+      microdistricts: null,
+    });
+    if (
+      next.microdistricts?.length === 1 &&
+      next.classes.length === 0 &&
+      next.districts === null
+    ) {
+      const url = microdistrictHubUrl(next.microdistricts[0]);
+      if (url) return url + withoutAxes;
+    }
+    if (next.classes.length === 1 && next.districts?.length === 1 && next.microdistricts === null) {
       const url = classDistrictHubUrl(next.classes[0] as NonNullable<BusinessCenter['businessClass']>, next.districts[0]);
       if (url) return url + withoutAxes;
     }
-    if (next.classes.length === 1 && next.districts.length === 0) {
+    if (next.classes.length === 1 && next.districts === null && next.microdistricts === null) {
       return classHubUrl(next.classes[0] as NonNullable<BusinessCenter['businessClass']>) + withoutAxes;
     }
-    if (next.classes.length === 0 && next.districts.length === 1) {
+    if (next.classes.length === 0 && next.districts?.length === 1 && next.microdistricts === null) {
       const url = districtHubUrl(next.districts[0]);
       if (url) return url + withoutAxes;
     }
@@ -656,7 +706,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   }
 
   function resetFilter() {
-    applyFilter({ ...EMPTY_CATALOG_FILTER, sort: filter.sort, view: filter.view, compare: filter.compare });
+    applyFilter({ ...EMPTY_CATALOG_FILTER, compare: filter.compare });
   }
 
   // Микрорайоны, станции и улицы больше не списки в боковом фильтре — они
@@ -888,7 +938,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           — простого `sticky top-0` на саму шапку достаточно для того же
           визуального эффекта, без дублирования логотипа отдельным узлом. */}
       <div className="sticky top-0 z-30 border-b border-border bg-bg/90 py-5 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-8">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-8">
           <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
             {/* text-primary-hover — как на гиде района: базовый красный на
                 полупрозрачной шапке даёт контраст ниже 4,5:1 (Accessibility). */}
@@ -902,44 +952,69 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
 
       {/* <main> — единственный main-landmark (Accessibility «Document does
           not have a main landmark»), шапка — вне него. */}
-      {/* max-w-7xl, а не 6xl как на остальных страницах: каталог — это
-          таблица на 11 колонок и сетка по 4 карточки в ряд, на 1152 px и то
-          и другое приходилось прокручивать вбок. */}
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-8">
-        <div className="flex flex-col gap-8">
-          {/* К1: hero сжат до строки. Раньше здесь была карточка на пол-экрана
-              с фотографией, под ней «Рынок в цифрах» на 8 плиток, сводка
-              ставок и заглушка карты — первая карточка БЦ начиналась
-              примерно на 1900-м пикселе, то есть на первом экране каталога
-              не было ни одного бизнес-центра. Всё это никуда не делось, но
-              уехало ПОД результаты: наверху теперь заголовок, фильтр и
-              сетка. */}
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">{heroH1}</h1>
-              <span className="flex w-fit items-center gap-1.5 rounded-full border border-success/30 bg-success-bg px-3 py-1 text-xs font-semibold text-[#0f6b3d]">
-                <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
-                {UPDATED_BADGE_LABEL}
-              </span>
-            </div>
-            <p className="max-w-3xl text-sm text-ink-muted sm:text-base">{heroIntro}</p>
-          </div>
-
+      {/* Сетка и ширина основного контента — как на странице Минск Мира. */}
+      <main className="mx-auto max-w-6xl px-4 pt-6 pb-12 sm:px-8 sm:pt-12">
+        <div className="lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:items-start lg:gap-10">
+          <aside aria-label="Фильтры каталога" className="min-w-0 lg:sticky lg:top-24">
           <CatalogFilterPanel
             state={filter}
             onChange={applyFilter}
             availableClasses={availableClasses}
             districts={districts}
+            microdistricts={filterMicrodistricts}
             classCounts={classCounts}
             districtCounts={districtCounts}
+            microdistrictCounts={microdistrictCounts}
             metroCounts={metroCounts}
-            factCounts={factCounts}
+            metroStations={metroStationList}
+            stationCounts={stationCounts}
+            unverifiableCount={unverifiableCount}
             resultCount={visibleCenters.length}
             resultLabel={pluralBusinessCenters(visibleCenters.length)}
-            hiddenFactIds={underConstruction ? ['under-construction'] : []}
             hasActiveFilter={hasActiveCatalogFilter(filter)}
             onReset={resetFilter}
           />
+          </aside>
+          <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
+          <div
+            className={cn('flex flex-col gap-6 overflow-hidden p-6 sm:flex-row sm:items-center sm:p-8', glassCardClass)}
+            style={glassCardShadow}
+          >
+            <div className="contents sm:flex sm:min-w-0 sm:flex-[3] sm:flex-col sm:gap-3">
+              <h1 className="order-1 text-2xl font-extrabold leading-tight text-ink sm:order-none sm:text-3xl">{heroH1}</h1>
+              <p className="order-3 text-base text-ink-muted sm:order-none">{heroIntro}</p>
+              <span className="order-4 flex w-fit items-center gap-1.5 rounded-full border border-success/30 bg-success-bg px-3 py-1 text-xs font-semibold text-[#0f6b3d] sm:order-none">
+                <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
+                {UPDATED_BADGE_LABEL}
+              </span>
+            </div>
+            <div className="order-2 w-full min-w-0 sm:order-none sm:flex-[2]">
+              {/* Padding задаёт высоту по ширине независимо от Grid/Flex и
+                  процентной высоты вложенной картинки в Safari. */}
+              <div className="relative w-full pt-[56.25%] sm:pt-[125%]">
+                <div className="absolute inset-0">
+                  {HERO_IMAGES.length > 0 ? (
+                    <HeroImageSlider
+                      images={HERO_IMAGES}
+                      alt="Бизнес-центры Минска"
+                      aspectClassName="h-full"
+                      imageWidth={HERO_IMAGE_WIDTH}
+                      imageHeight={HERO_IMAGE_HEIGHT}
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center rounded-3xl bg-gradient-to-br from-surface-muted to-border">
+                      <span className="flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink-muted shadow-sm">
+                        <Camera className="h-3.5 w-3.5 shrink-0" />
+                        Фото скоро
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+
 
           {/* Живая сводка под фильтром (К1). Заменяет собой «Рынок в цифрах»
               в роли первого, что видно: та плитка считалась только от оси
@@ -1001,21 +1076,9 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 </button>
               )}
             </div>
-          ) : filter.view === 'table' ? (
-            /* В таблице показываем ВСЮ выборку без «показать ещё»: строка
-               без фото и «стекла» стоит браузеру копейки, а смысл вида —
-               именно увидеть всё разом и сравнить. */
-            <CatalogTable
-              centers={orderedCenters}
-              offers={offerIndex}
-              sort={filter.sort}
-              onSort={(key) => applyFilter({ ...filter, sort: key })}
-            />
-          ) : filter.view === 'map' ? (
-            <CatalogMap centers={orderedCenters} offers={offerIndex} />
           ) : (
-            <div className="flex flex-col gap-6">
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 items-start gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {orderedCenters.slice(0, visibleCount).map((c) => (
                   <BusinessCenterCard
                     key={c.slug}
@@ -1030,7 +1093,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 <button
                   type="button"
                   onClick={() => setVisibleCount((n) => n + CARDS_PAGE_SIZE)}
-                  className="mx-auto rounded-full border border-border bg-surface px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-primary hover:text-primary-hover"
+                  className="mx-auto block rounded-full border border-border bg-surface px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-primary hover:text-primary-hover"
                 >
                   Показать ещё {Math.min(CARDS_PAGE_SIZE, orderedCenters.length - visibleCount)} из{' '}
                   {orderedCenters.length - visibleCount}
@@ -1155,11 +1218,13 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 <DistrictDensityBlock
                   centers={centers}
                   snapshots={officeSnapshots}
-                  activeDistricts={filter.districts}
+                  activeDistricts={filter.districts ?? []}
                   onPickDistrict={(d) =>
                     applyFilter({
                       ...filter,
-                      districts: filter.districts.includes(d) ? filter.districts.filter((x) => x !== d) : [d],
+                      districts: (filter.districts ?? []).includes(d)
+                        ? (filter.districts ?? []).filter((x) => x !== d)
+                        : [d],
                     })
                   }
                 />
@@ -1408,11 +1473,13 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                   </a>
                 ))}
               </div>
+              <p className="text-xs text-ink-muted">Фото «Футуриса»: <a href="https://domovita.by/bc-bcfuturis" target="_blank" rel="noopener noreferrer" className="underline hover:text-ink">Domovita</a>.</p>
               <p className="text-xs text-ink-muted">Данные каталога собраны из открытых источников; не каждый источник содержит сведения о каждом здании. Единой даты обновления всех характеристик нет: сведения дополняются по мере получения.</p>
               <p className="text-xs text-ink-muted">{latestSnapshotPeriod ? `Последний период загруженных рыночных снимков: ${latestSnapshotPeriod}. Точная дата обновления в данных не указана.` : 'Период рыночных снимков недоступен.'}</p>
               <p className="text-xs text-ink-muted">{rentMethodology} Ставки — из объявлений, не из заключённых сделок; состав дополнительных платежей уточняйте у автора объявления.</p>
               <p className="text-xs text-ink-muted">У части зданий параметры не заполнены. Суммарная площадь учитывает только известные значения, расстояния до метро указаны по прямой. Внешний контекст рынка подписан источником и периодом в соответствующем блоке.</p>
             </div>
+          </div>
         </div>
       </main>
     </div>

@@ -6,47 +6,42 @@ import { Link, useParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowLeft,
-  ArrowUpDown,
   Award,
   Banknote,
-  Building,
   Building2,
-  Calendar,
-  ChevronDown,
   Car,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  ClipboardList,
   Clock,
+  Coffee,
+  CreditCard,
+  Dumbbell,
   ExternalLink,
   FileText,
   Globe,
   Info,
   Landmark,
-  Layers,
   Leaf,
   MapPin,
-  MapPinned,
   MessageSquareQuote,
   Newspaper,
   Palette,
   Phone,
   Ruler,
   ScrollText,
+  ShoppingBag,
   Snowflake,
   Sparkles,
   Star,
-  Store,
   TrainFront,
   Users,
   Wifi,
-  Wrench,
 } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
-import { PhotoBlock, FactRow, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
+import { PhotoBlock, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import {
   setBreadcrumbJsonLd,
   setFaqJsonLd,
@@ -55,7 +50,13 @@ import {
   setBusinessCenterPageMeta,
   setPlaceJsonLd,
 } from '../lib/pageMeta';
-import { shortName, sortByShortName, mapRatingFromHighlights, streetOfAddress } from '../lib/businessCenterDisplay';
+import {
+  businessCenterHomepageUrl,
+  shortName,
+  sortByShortName,
+  mapRatingFromHighlights,
+  streetOfAddress,
+} from '../lib/businessCenterDisplay';
 import { nearestMetroStation } from '../lib/metroStations';
 import {
   classHubUrl,
@@ -66,7 +67,7 @@ import {
   streetHubUrl,
   districtDative,
 } from '../lib/businessCenterHubs';
-import type { BusinessCenter, HighlightIconKey, TechnicalParam, TenantOrganization } from '../data/businessCenters';
+import type { BusinessCenter, HighlightIconKey, TenantOrganization } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import { NO_ACTIVE_OFFERS_MESSAGE, type BusinessCenterOffer } from '../data/businessCenterOffers';
 import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
@@ -81,16 +82,11 @@ import type {
 import { fetchBusinessCenter2gisSnapshot, fetchTenantIndustryCityProfile } from '../lib/businessCenter2gisApi';
 import { buildOfferIndex } from '../lib/businessCenterCatalogFilter';
 import { buildMarketPosition, nearestNeighbours } from '../lib/businessCenterMarketPosition';
-import { buildVerdictDraft } from '../lib/businessCenterVerdict';
 import {
-  buildTechTiles,
   extractHistoryPoints,
   HistoryTimeline,
-  VerdictBlock,
   MarketPositionBlock,
-  MoneyBlock,
   TenantIndustriesBlock,
-  TechTilesBlock,
   WhatTheySayBlock,
 } from '../components/businessCenters/BusinessCenterMarketBlocks';
 import { NeighboursBlock, SimilarCentersBlock, similarCenters } from '../components/businessCenters/BusinessCenterNeighbours';
@@ -110,18 +106,31 @@ import { NeighboursBlock, SimilarCentersBlock, similarCenters } from '../compone
 // разметке; список самих пунктов собирается в pageSections по тому, какие
 // блоки реально отрисованы.
 const SECTION_LABELS: Record<string, string> = {
-  verdict: 'Кому подходит',
-  market: 'Место на рынке',
-  map: 'На карте',
-  money: 'В деньгах',
-  tech: 'Характеристики',
-  offers: 'Предложения',
-  rental: 'Условия аренды',
+  market: 'БЦ на фоне конкурентов',
+  map: 'Другие бизнес-центры рядом',
+  tech: 'Информация о здании',
   facts: 'Факты',
   tenants: 'Кто внутри',
+  rental: 'Условия аренды',
+  offers: 'Предложения',
+  history: 'История здания',
   reviews: 'Отзывы',
   similar: 'Похожие',
   faq: 'Вопросы',
+};
+
+const SECTION_ICONS: Record<string, typeof FileText> = {
+  market: Award,
+  map: MapPin,
+  tech: Building2,
+  facts: Sparkles,
+  tenants: Users,
+  rental: FileText,
+  offers: Banknote,
+  history: Clock,
+  reviews: MessageSquareQuote,
+  similar: Building2,
+  faq: Info,
 };
 
 export function BusinessCenterDetailPage() {
@@ -133,7 +142,6 @@ export function BusinessCenterDetailPage() {
     error: boolean;
   } | null>(null);
   const offers = offersResult && offersResult.slug === slug ? offersResult.offers : null;
-  const offersError = offersResult != null && offersResult.slug === slug && offersResult.error;
   const [gis2Result, setGis2Result] = useState<{ slug: string; data: BusinessCenter2gisSnapshot | null } | null>(null);
   const gis2 = gis2Result?.slug === slug ? gis2Result?.data ?? null : null;
   const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(null);
@@ -237,10 +245,8 @@ export function BusinessCenterDetailPage() {
     [officeSnapshots, center],
   );
 
-  // Рейтинг с карт вынесен из общего списка "Интересные факты" в бейдж рядом
-  // с заголовком (см. комментарий у JSX ниже) — остальные блоки остаются в
-  // общем списке как были.
-  const ratingHighlight = useMemo(() => center?.highlights.find((h) => h.icon === 'rating') ?? null, [center]);
+  // Рейтинг Яндекс.Карт вынесен из общего списка фактов в короткий бейдж
+  // рядом с заголовком. Подробный исходный текст не используется как tooltip.
   const mapRating = useMemo(() => mapRatingFromHighlights(center?.highlights ?? []), [center]);
   // Точное расстояние до метро из 2GIS (владелец подключает в параллельной
   // ветке, 2026-09-06) — по прямой, в метрах. Когда есть — показывается
@@ -248,6 +254,17 @@ export function BusinessCenterDetailPage() {
   // только данные 2GIS"), не вместе с ним — см. JSX ниже.
   const nearestMetro = useMemo(() => nearestMetroStation(center?.nearestMetroStations ?? []), [center]);
   const scheduleLines = useMemo(() => (gis2?.schedule ? formatSchedule(gis2.schedule) : []), [gis2]);
+  // Расписание 2ГИС — единый источник режима доступа. Если подробного
+  // расписания в публичном снимке нет, используем сохранённый из него же
+  // признак 24/7, но всё равно показываем только одну строку.
+  const accessHoursText =
+    scheduleLines.length > 0
+      ? scheduleLines.join('\n')
+      : center?.is24x7 === true
+        ? 'Круглосуточно'
+        : center?.is24x7 === false
+          ? 'Не круглосуточно'
+          : null;
   // "Доступная среда" — единственная группа из gis2.attributeGroups, которую
   // владелец попросил оставить (2026-09-06, вместе с часами работы, при
   // упразднении отдельного блока "Данные 2ГИС") — остальные группы
@@ -256,6 +273,132 @@ export function BusinessCenterDetailPage() {
     const group = gis2?.attributeGroups.find((g) => g.name === 'Доступная среда');
     return group && group.attributes.length > 0 ? group.attributes.join(', ') : center?.accessibility.join(', ') || null;
   }, [gis2, center]);
+
+  // Поля prometr.by больше не показываются общей выгрузкой. Здесь они
+  // раскладываются между первым информационным блоком и отдельной карточкой
+  // здания. Значения нескольких корпусов сохраняются с подписями корпусов.
+  const redistributedTechnicalParams = useMemo(() => {
+    const empty = {
+      buildingInformationRows: [] as { label: string; value: string | null }[],
+      firstBlockTechnicalRows: [] as { label: string; value: string }[],
+      internalInfrastructureText: null as string | null,
+      administrativeDistrictText: null as string | null,
+      readinessText: null as string | null,
+    };
+    if (!center) return empty;
+
+    const byLabel = new Map<string, { corpusLabel: string | null; value: string }[]>();
+    for (const group of center.technicalParams) {
+      for (const param of group.params) {
+        const label = param.label.replace(/ \(по данным prometr\.by\)$/, '');
+        const entries = byLabel.get(label) ?? [];
+        entries.push({ corpusLabel: group.corpusLabel, value: param.value });
+        byLabel.set(label, entries);
+      }
+    }
+
+    const sourceValue = (label: string): string | null => {
+      const entries = byLabel.get(label) ?? [];
+      const unique = entries.filter(
+        (entry, index) =>
+          entries.findIndex(
+            (candidate) =>
+              candidate.corpusLabel === entry.corpusLabel && candidate.value === entry.value,
+          ) === index,
+      );
+      if (unique.length === 0) return null;
+      if (unique.length === 1) return unique[0].value;
+      return unique
+        .map((entry) => (entry.corpusLabel ? `${entry.corpusLabel}: ${entry.value}` : entry.value))
+        .join('; ');
+    };
+
+    const layoutLabels: Record<string, string> = {
+      cabinet: 'кабинетная',
+      block: 'блочная',
+      open_space: 'open-space',
+    };
+    const buildingInformationRows = [
+      {
+        label: 'Площадь типового этажа',
+        value:
+          sourceValue('Площадь типового этажа') ??
+          (center.floorPlateArea != null ? `${center.floorPlateArea.toLocaleString('ru-RU')} м²` : null),
+      },
+      {
+        label: 'Площадь офисов',
+        value:
+          sourceValue('Площадь офисов') ??
+          (center.officeArea != null ? `${center.officeArea.toLocaleString('ru-RU')} м²` : null),
+      },
+      {
+        label: 'Общая площадь',
+        value:
+          sourceValue('Общая площадь') ??
+          (center.totalArea != null ? `${center.totalArea.toLocaleString('ru-RU')} м²` : null),
+      },
+      {
+        label: 'Высота потолков типового этажа, м',
+        value:
+          sourceValue('Высота потолков типового этажа, м') ??
+          (center.ceilingHeight != null ? center.ceilingHeight.toLocaleString('ru-RU') : null),
+      },
+      {
+        label: 'Тип планировки',
+        value:
+          sourceValue('Тип планировки') ??
+          (center.layoutTypes.length > 0
+            ? center.layoutTypes.map((type) => layoutLabels[type] ?? type).join(', ')
+            : null),
+      },
+      {
+        label: 'Количество этажей',
+        value:
+          sourceValue('Количество этажей') ??
+          (center.floors != null ? String(center.floors) : null),
+      },
+      {
+        label: 'Количество лифтов',
+        value:
+          sourceValue('Количество лифтов') ??
+          (center.elevators != null ? String(center.elevators) : null),
+      },
+      {
+        label: 'Обеспеченность парковкой (маш./100 м²)',
+        value:
+          sourceValue('Обеспеченность парковкой (маш./100 м²)') ??
+          (center.parkingRatio != null ? center.parkingRatio.toLocaleString('ru-RU') : null),
+      },
+    ];
+
+    const buildingLabels = new Set(buildingInformationRows.map((row) => row.label));
+    const removedLabels = new Set(['Свободные площади', 'Инфраструктура в шаговой доступности']);
+    const firstBlockTechnicalRows: { label: string; value: string }[] = [];
+    for (const label of byLabel.keys()) {
+      if (
+        buildingLabels.has(label) ||
+        removedLabels.has(label) ||
+        label === 'Внутренняя инфраструктура' ||
+        label === 'Административный район' ||
+        label === 'Степень готовности'
+      ) continue;
+      if (label === 'Класс бизнес-центра' && center.businessClass) continue;
+      if ((label === 'Станция метро' || label === 'Удалённость от метро') && (nearestMetro || center.metro)) continue;
+      const value = sourceValue(label);
+      if (value) firstBlockTechnicalRows.push({ label, value });
+    }
+
+    return {
+      buildingInformationRows,
+      firstBlockTechnicalRows,
+      internalInfrastructureText:
+        center.infraInternal.length > 0
+          ? center.infraInternal.join(', ')
+          : sourceValue('Внутренняя инфраструктура'),
+      administrativeDistrictText: sourceValue('Административный район') ?? center.district,
+      readinessText: sourceValue('Степень готовности'),
+    };
+  }, [center, nearestMetro]);
   // Из общего списка фактов исключаем то, что теперь показано отдельными
   // авторскими блоками: рейтинг и отзывы уехали в «Что говорят» (Б11),
   // история — в таймлайн (Б10). Дублировать один и тот же текст в двух
@@ -265,9 +408,8 @@ export function BusinessCenterDetailPage() {
     [center],
   );
 
-  // Медианы по зданиям (Д3) — те же, что в каталоге: и «Место на рынке», и
-  // соседи, и деньги должны считать ставку одинаково, иначе одна и та же
-  // цифра на двух страницах разойдётся.
+  // Медианы по зданиям (Д3) — те же, что в каталоге и блоке
+  // «БЦ на фоне конкурентов», чтобы одна и та же ставка не расходилась.
   const offerIndex = useMemo(() => buildOfferIndex(officeSnapshots), [officeSnapshots]);
 
   // Б5: «Сейчас предлагается» — живая строка вместо голой таблицы. Важны
@@ -296,17 +438,6 @@ export function BusinessCenterDetailPage() {
     };
     return { rent: byDeal('rent'), sale: byDeal('sale') };
   }, [offers]);
-  // Б2. Правленый вручную текст главнее сгенерированного: генерация никогда
-  // не перетирает то, что владелец написал сам (флаг verdictEdited).
-  const verdict = useMemo(() => {
-    if (!center) return null;
-    if (center.verdictEdited && (center.verdict || center.pros.length > 0 || center.cons.length > 0)) {
-      return { verdict: center.verdict ?? '', pros: center.pros, cons: center.cons, edited: true };
-    }
-    const draft = buildVerdictDraft(center, offerIndex, officeSnapshots);
-    return { ...draft, edited: false };
-  }, [center, offerIndex, officeSnapshots]);
-
   const marketPosition = useMemo(
     () => (center ? buildMarketPosition(center, centers ?? [], officeSnapshots, offerIndex) : null),
     [center, centers, officeSnapshots, offerIndex],
@@ -350,33 +481,57 @@ export function BusinessCenterDetailPage() {
     };
     const fmt = (value: number) => value.toLocaleString('ru-RU');
     add(`Где находится «${name}»?`, center.address);
+    add(
+      `В каком административном районе находится «${name}»?`,
+      redistributedTechnicalParams.administrativeDistrictText,
+    );
     if (center.businessClass) add(`Какой класс у «${name}»?`, `Класс ${center.businessClass}.`);
     if (center.totalArea != null) add(`Какая общая площадь у «${name}»?`, `${fmt(center.totalArea)} м².`);
     if (center.floors != null) add(`Сколько этажей в «${name}»?`, String(center.floors));
     if (center.yearBuilt != null) add(`В каком году построен «${name}»?`, String(center.yearBuilt));
     if (center.status === 'under_construction') add('Здание уже построено?', 'Здание строится.');
+    add(`Какая степень готовности у «${name}»?`, redistributedTechnicalParams.readinessText);
     add(`Кто застройщик «${name}»?`, center.developer);
     add(`Какая парковка у «${name}»?`, center.parking);
+    if (center.officeArea != null) {
+      const share =
+        center.totalArea != null && center.totalArea > 0
+          ? ` — ${Math.round((center.officeArea / center.totalArea) * 100)}% от общей площади`
+          : '';
+      add(`Какая офисная площадь у «${name}»?`, `${fmt(center.officeArea)} м²${share}.`);
+    }
+    if (gis2?.fetchedAt) {
+      add(
+        'На какую дату сведения 2ГИС?',
+        `Организации, рейтинг, часы работы и атрибуты здания — срез от ${new Date(gis2.fetchedAt).toLocaleDateString('ru-RU')}.`,
+      );
+    }
     if (nearestMetro) add(`Какое метро рядом с «${name}»?`, `«${nearestMetro.name}» — ${nearestMetro.distanceMeters} м по прямой.`);
-    if (verdict) add('Кому подходит здание и какие особенности учитывать?', [verdict.verdict, verdict.pros.length ? `Плюсы: ${verdict.pros.join('; ')}` : '', verdict.cons.length ? `Ограничения: ${verdict.cons.join('; ')}` : ''].filter(Boolean).join(' '));
     for (const bar of marketPosition?.bars ?? []) {
       add(`${bar.label} в «${name}» — это много или мало для своего класса?`, `${fmt(bar.value)} ${bar.unit}; ${bar.baselines.map((b) => `${b.label}: ${fmt(b.value)} ${bar.unit}`).join('; ')}.${bar.note ? ` ${bar.note}.` : ''}`);
     }
     const neighbours = nearestNeighbours(center, centers ?? [], 5);
     if (neighbours.length) add('Какие бизнес-центры рядом на карте?', neighbours.map((n) => `${shortName(n.center)} — ${fmt(n.meters)} м по прямой`).join('; '));
-    for (const tile of buildTechTiles(center, centers ?? [])) {
-      // Числовое поле и строковые параметры prometr.by приводим к одной записи дробей.
-      add(`${tile.label} в «${name}» — что известно?`, `${tile.value.replace(/(\d)\.(\d)/g, '$1,$2')}${tile.note ? `. ${tile.note}` : ''}`);
+    const filledBuildingRows = redistributedTechnicalParams.buildingInformationRows.filter((row) => row.value);
+    if (filledBuildingRows.length) {
+      add(
+        `Какая информация о здании «${name}» указана?`,
+        filledBuildingRows.map((row) => `${row.label}: ${row.value}`).join('; '),
+      );
     }
-    for (const [groupIndex, group] of center.technicalParams.entries()) {
-      const params = group.params.filter((p) => p.value && !/метро/i.test(p.label) && !(TECH_PARAM_META[p.label]?.hideIfDuplicate === 'businessClass' && center.businessClass));
-      if (params.length) add(`Какие технические характеристики у «${name}»${group.corpusLabel ? ` (${group.corpusLabel})` : center.technicalParams.length > 1 ? ` — часть ${groupIndex + 1}` : ''}?`, params.map((p) => `${p.label}: ${/потол/i.test(p.label) ? p.value.replace(/(\d)\.(\d)/g, '$1,$2') : p.value}`).join('; '));
+    if (redistributedTechnicalParams.firstBlockTechnicalRows.length) {
+      add(
+        `Какие дополнительные характеристики есть у «${name}»?`,
+        redistributedTechnicalParams.firstBlockTechnicalRows
+          .map((row) => `${row.label}: ${row.value}`)
+          .join('; '),
+      );
     }
-    if (center.infraInternal.length) add(`Что есть внутри «${name}»?`, center.infraInternal.join(', '));
-    if (center.infraNearby.length) add(`Какая инфраструктура рядом с «${name}»?`, center.infraNearby.join(', '));
-    if (center.is24x7 != null) add('Есть ли круглосуточный доступ?', center.is24x7 ? 'Круглосуточный доступ указан.' : 'Круглосуточный доступ не предусмотрен по данным каталога.');
+    add(`Что есть внутри «${name}»?`, redistributedTechnicalParams.internalInfrastructureText);
+    // Инфраструктура рядом появится отдельным картографическим блоком и в
+    // карточке/FAQ пока не повторяется.
     add('Какие условия доступной среды указаны?', accessibilityAttributes);
-    add('Какие часы работы указаны?', scheduleLines.join('; '));
+    add('Какие часы работы указаны?', accessHoursText);
     if (offers !== null) {
       add('Сколько активных предложений аренды и продажи?', offers.length === 0
         ? NO_ACTIVE_OFFERS_MESSAGE
@@ -393,7 +548,7 @@ export function BusinessCenterDetailPage() {
     }
     if (center.rentalInfo) {
       const info = center.rentalInfo;
-      add('Какие условия и контакты аренды опубликованы?', [info.caveat, info.terms, info.rates, info.sizes, info.parking, info.contacts].filter(Boolean).join(' ') + ' Актуальные условия уточняйте у арендодателя.');
+      add('Какие условия и контакты аренды опубликованы?', [info.caveat, info.terms, info.rates, info.sizes, info.contacts].filter(Boolean).join(' ') + ' Актуальные условия уточняйте у арендодателя.');
     }
     if (visibleHighlights.length) add('Какие факты о здании опубликованы?', visibleHighlights.map((h) => [h.label, h.text].filter(Boolean).join(': ')).join('\n'));
     const history = extractHistoryPoints(center);
@@ -423,11 +578,14 @@ export function BusinessCenterDetailPage() {
     if (ratingParts.length) add(`Какая оценка у «${name}» на картах?`, `${ratingParts.join('; ')}.`);
     if (reviewQuotes.length) add('Что пишут в отзывах?', reviewQuotes.join('\n'));
     add('Как исправить сведения о здании?', 'Напишите на anatoly.trashman@gmail.com, указав бизнес-центр и сведения, которые устарели или требуют исправления.');
-    const similar = similarCenters(center, centers ?? []);
+    // Тот же вызов, что и в самом блоке «Похожие»: соседи из него
+    // исключены, иначе FAQ перечислял бы не то, что видно на странице.
+    const neighbourSlugs = new Set(neighbours.map((n) => n.center.slug));
+    const similar = similarCenters(center, centers ?? [], 6, neighbourSlugs);
     if (similar.length) add('Какие бизнес-центры показаны как похожие?', similar.map(shortName).join(', '));
     if (hubChips.length) add('Какие связанные подборки доступны?', hubChips.map((c) => c.label).join(', '));
     return items;
-  }, [center, centers, nearestMetro, verdict, marketPosition, accessibilityAttributes, scheduleLines, offers, offersSummary, rentRows, saleRows, visibleHighlights, gis2, mapRating, reviewQuotes, hubChips]);
+  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, visibleHighlights, gis2, mapRating, reviewQuotes, hubChips, redistributedTechnicalParams]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -436,20 +594,19 @@ export function BusinessCenterDetailPage() {
     if (!center) return [];
     const has = (id: string, cond: boolean) => (cond ? { id, label: SECTION_LABELS[id] } : null);
     return [
-      has('verdict', verdict != null),
+      has('facts', visibleHighlights.length > 0),
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
       has('map', center.lat != null && center.lng != null),
-      has('money', offers === null || offers.length > 0),
-      has('tech', center.technicalParams.length > 0 || center.parkingRatio != null),
-      has('offers', offers !== null),
-      has('rental', Boolean(center.rentalInfo)),
-      has('facts', visibleHighlights.length > 0),
+      has('tech', redistributedTechnicalParams.buildingInformationRows.some((row) => row.value != null)),
       has('tenants', hasTenantOrganizations || center.tenantOrganizations.length > 0),
-      has('reviews', center.gisRating != null || center.highlights.some((h) => h.icon === 'rating')),
+      has('rental', Boolean(center.rentalInfo)),
+      has('offers', offers !== null),
+      has('history', extractHistoryPoints(center).length >= 2),
+      has('reviews', center.gisRating != null || center.highlights.some((h) => h.icon === 'rating') || reviewQuotes.length > 0),
       has('similar', true),
       has('faq', faqItems.length > 0),
     ].filter((v): v is { id: string; label: string } => v !== null);
-  }, [center, marketPosition, offers, visibleHighlights, verdict, hasTenantOrganizations, faqItems]);
+  }, [center, marketPosition, offers, visibleHighlights, hasTenantOrganizations, faqItems, redistributedTechnicalParams, reviewQuotes]);
 
   useEffect(() => {
     if (!center) return;
@@ -514,9 +671,20 @@ export function BusinessCenterDetailPage() {
     );
   }
 
+  const displayAddress = /^г\.\s*Минск(?:,|\s)/i.test(center.address)
+    ? center.address
+    : `г. Минск, ${center.address}`;
+  const centerWebsiteUrl = businessCenterHomepageUrl(center.website);
+  const streetName = streetOfAddress(center.address);
+  const streetCatalogUrl = streetHubUrl(streetName);
+  const metroCatalogUrl =
+    nearestMetro && metroHubDistance(center, nearestMetro.name) !== null
+      ? metroHubUrl(nearestMetro.name)
+      : null;
+
   return (
     <div className="min-h-svh bg-bg px-4 py-8 sm:py-14">
-      <div className="mx-auto flex max-w-3xl items-center justify-between pb-5">
+      <div className="mx-auto flex max-w-7xl items-center justify-between pb-5">
         <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
           <span className="font-black text-primary-hover">RED</span>EVELOPMENT
         </Link>
@@ -541,13 +709,12 @@ export function BusinessCenterDetailPage() {
         </Link>
       </div>
 
-      {/* Б7. Липкая мини-шапка: название, класс и ставка всегда перед
-          глазами, плюс меню по восьми-одиннадцати длинным блокам страницы.
-          Раньше единственным способом добраться до «Условий аренды» внизу
-          был скролл через всю страницу. */}
+      {/* На телефоне остаётся компактная горизонтальная навигация:
+          постоянная боковая колонка появляется от lg, как на странице
+          Минск Мира. */}
       {pageSections.length > 0 && (
-        <div className="sticky top-0 z-30 -mx-4 mb-4 border-b border-border bg-bg/90 px-4 py-2 backdrop-blur-md">
-          <div className="mx-auto flex max-w-3xl flex-col gap-1.5">
+        <div className="sticky top-0 z-30 -mx-4 mb-4 border-b border-border bg-bg/90 px-4 py-2 backdrop-blur-md xl:hidden">
+          <div className="mx-auto flex max-w-5xl flex-col gap-1.5">
             <div className="flex items-baseline gap-2">
               <span className="truncate text-sm font-bold text-ink">{shortName(center)}</span>
               {center.businessClass && <span className="shrink-0 text-xs text-ink-muted">класс {center.businessClass}</span>}
@@ -555,10 +722,7 @@ export function BusinessCenterDetailPage() {
                 <span className="shrink-0 text-xs text-ink-muted">${Math.round(buildingRentMedian)}/м²</span>
               )}
             </div>
-            {/* Горизонтальная прокрутка вместо переноса: меню обязано
-                оставаться одной строкой, иначе липкая шапка на телефоне
-                съест пол-экрана. */}
-            <nav className="-mx-1 flex gap-3 overflow-x-auto px-1 text-xs text-ink-muted">
+            <nav aria-label="Навигация по странице" className="-mx-1 flex gap-3 overflow-x-auto px-1 text-xs text-ink-muted">
               {pageSections.map((sec) => (
                 <a key={sec.id} href={`#${sec.id}`} className="shrink-0 whitespace-nowrap hover:text-primary-hover">
                   {sec.label}
@@ -599,18 +763,65 @@ export function BusinessCenterDetailPage() {
         </Link>
       )}
 
-      {/* <main> — единственный main-landmark страницы (Accessibility). */}
-      <main className="mx-auto max-w-3xl">
-        <div className={cn('overflow-hidden', glassCardClass)} style={glassCardShadow}>
-          <div className="relative aspect-[16/9] w-full overflow-hidden">
-            <PhotoBlock center={center} variant="detail" />
-          </div>
+      <div
+        className={cn(
+          'mx-auto grid max-w-7xl items-start gap-6',
+          pageSections.length > 0 && 'xl:grid-cols-[15rem_minmax(0,1fr)]',
+        )}
+      >
+        {pageSections.length > 0 && (
+          <aside className="sticky top-6 hidden xl:block">
+            <nav
+              aria-label="Навигация по странице"
+              className={cn('max-h-[calc(100vh-3rem)] overflow-y-auto p-4', glassCardClass)}
+              style={glassCardShadow}
+            >
+              <p className="px-2 pb-2 text-xs font-bold uppercase tracking-wide text-ink-muted">На странице</p>
+              <div className="flex flex-col">
+                {pageSections.map((sec) => {
+                  const SectionIcon = SECTION_ICONS[sec.id] ?? FileText;
+                  return (
+                    <a
+                      key={sec.id}
+                      href={`#${sec.id}`}
+                      className="group flex items-start gap-3 rounded-xl px-2 py-2 text-sm leading-snug text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
+                    >
+                      <SectionIcon className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint transition-colors group-hover:text-primary" />
+                      <span>{sec.label}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </nav>
+          </aside>
+        )}
 
-          <div className="flex flex-col gap-4 p-6 sm:p-8">
-            <div className="flex flex-wrap items-start justify-between gap-2">
+        {/* <main> — единственный main-landmark страницы (Accessibility). */}
+        <main className="min-w-0">
+        <div className={cn('overflow-hidden', glassCardClass)} style={glassCardShadow}>
+          {/* Компактная версия первого экрана: на широком экране фото и
+              основная сводка стоят рядом. Прежняя вертикальная версия целиком
+              сохранена в родительском коммите этой правки и откатывается
+              одним revert без затрагивания остальных блоков страницы. */}
+          <div className="grid lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+            <div className="relative aspect-[16/9] w-full overflow-hidden bg-surface-muted/70 lg:aspect-auto lg:min-h-[28rem]">
+              <PhotoBlock
+                center={center}
+                variant="detail"
+                fit={center.slug === 'port' || center.slug === 'victoria-plaza' ? 'cover' : 'contain'}
+              />
+              <Badge
+                tone={center.status === 'under_construction' ? 'warning' : 'success'}
+                className="absolute right-4 top-4 shadow-sm backdrop-blur-sm"
+              >
+                {center.status === 'under_construction' ? 'Строится' : 'Построен'}
+              </Badge>
+            </div>
+
+            <div className="flex flex-col gap-3 p-5 sm:p-6">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
               <h1 className="text-2xl font-extrabold leading-tight text-ink">{center.name}</h1>
               <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                {center.status === 'under_construction' && <Badge tone="warning">Строится</Badge>}
                 {/* Рейтинг с Яндекс.Карт/2ГИС — владелец, 2026-09-06 (четвёртый
                     заход): "справа от заголовка рейтинг с яндекс.карт, а из
                     интересных фактов инфу про оценку убирай". Раньше рейтинг
@@ -621,9 +832,9 @@ export function BusinessCenterDetailPage() {
                     если формат не узнан, бейдж просто не показывается, ничего
                     не выдумываем. */}
                 {mapRating && (
-                  <Badge tone="neutral" title={ratingHighlight?.text}>
-                    <Star className="h-3 w-3 shrink-0 fill-current" />
-                    {mapRating.label} · {mapRating.source}
+                  <Badge tone="neutral">
+                    <Star className="h-3 w-3 shrink-0 translate-y-px fill-amber-400 text-amber-500" />
+                    {mapRating.label} · На Яндекс.Картах
                   </Badge>
                 )}
                 {/* Рейтинг 2ГИС — отдельный источник от Яндекс.Карт выше,
@@ -641,44 +852,68 @@ export function BusinessCenterDetailPage() {
               </div>
             </div>
 
-            <FactRow icon={MapPin}>
-              {center.address}
-              {/* Ссылка на хаб улицы (аудит 2026-09-07) — только если у этой
-                  улицы реально есть хаб (2+ БЦ, см. STREET_SLUGS). */}
-              {streetHubUrl(streetOfAddress(center.address)) && (
-                <>
-                  {' · '}
-                  <Link to={streetHubUrl(streetOfAddress(center.address)) as string} className="font-semibold text-primary-hover hover:underline">
-                    все БЦ на этой улице
-                  </Link>
-                </>
-              )}
-            </FactRow>
-            {/* Метро — одна строка, не две (владелец, 2026-09-06: "дублируется
-                метро и расстояние до него, оставь только данные 2GIS и убери
-                (2GIS), просто данные"). Когда есть точный геокод из 2GIS —
-                показываем только его (по прямой, в метрах, без подписи
-                источника в тексте); center.metro остаётся фолбэком для БЦ без
-                такого геокода (там пока только минуты пешком из веб-архивов
-                Яндекс.Карт, честно как есть, без выдуманных метров). */}
-            {nearestMetro ? (
-              <FactRow icon={TrainFront}>
-                «{nearestMetro.name}» — {nearestMetro.distanceMeters} м по прямой
-                {/* Ссылка на хаб станции (аудит 2026-09-07) — только если БЦ
-                    реально попадает в радиус хаба, иначе вела бы на список без него. */}
-                {metroHubDistance(center, nearestMetro.name) !== null && metroHubUrl(nearestMetro.name) && (
-                  <>
-                    {' · '}
-                    <Link to={metroHubUrl(nearestMetro.name) as string} className="font-semibold text-primary-hover hover:underline">
-                      все БЦ у этой станции
-                    </Link>
-                  </>
+            {/* Район, адрес и метро — три горизонтальные строки:
+                подпись, тире и значение находятся на одной базовой линии. */}
+            <section className="rounded-2xl border border-border bg-surface-muted/60 px-3.5 py-3" aria-labelledby="location-summary-title">
+              <h2 id="location-summary-title" className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                Расположение
+              </h2>
+              <div className="mt-2.5 space-y-2">
+                {redistributedTechnicalParams.administrativeDistrictText && (
+                  <div className="grid min-w-0 grid-cols-[max-content_auto_minmax(0,1fr)] items-baseline gap-x-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                      Административный район
+                    </p>
+                    <span className="text-xs text-ink-muted" aria-hidden="true">—</span>
+                    <p className="min-w-0 text-sm leading-snug text-ink">
+                      {redistributedTechnicalParams.administrativeDistrictText}
+                    </p>
+                  </div>
                 )}
-              </FactRow>
-            ) : (
-              center.metro && <FactRow icon={TrainFront}>{center.metro}</FactRow>
+                <div className="grid min-w-0 grid-cols-[max-content_auto_minmax(0,1fr)] items-baseline gap-x-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Адрес</p>
+                  <span className="text-xs text-ink-muted" aria-hidden="true">—</span>
+                  <p className="min-w-0 text-sm leading-snug text-ink">
+                    {displayAddress}
+                  </p>
+                </div>
+                {(nearestMetro || center.metro) && (
+                  <div className="grid min-w-0 grid-cols-[max-content_auto_minmax(0,1fr)] items-baseline gap-x-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Метро</p>
+                    <span className="text-xs text-ink-muted" aria-hidden="true">—</span>
+                    <p className="min-w-0 text-sm leading-snug text-ink">
+                      {nearestMetro ? (
+                        <>
+                          «{nearestMetro.name}» — {nearestMetro.distanceMeters} м по прямой
+                        </>
+                      ) : (
+                        center.metro
+                      )}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </section>
+            {(center.developer || centerWebsiteUrl) && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-muted">
+                {center.developer && (
+                  <span>
+                    <span className="font-semibold text-ink">Застройщик:</span> {center.developer}
+                  </span>
+                )}
+                {centerWebsiteUrl && (
+                  <a
+                    href={centerWebsiteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-semibold text-primary-hover hover:underline"
+                  >
+                    Сайт БЦ
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )}
+              </div>
             )}
-            {center.developer && <FactRow icon={Building2}>{center.developer}</FactRow>}
 
             {/* Ровно 4 плитки — класс/площадь/год/этажность (владелец,
                 2026-09-06, четвёртый заход: "4 карточки - класс, площадь, год
@@ -690,26 +925,28 @@ export function BusinessCenterDetailPage() {
                 раньше был цветной Badge-пилюля вместо текста). */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {center.businessClass && (
-                <FactTile icon={Award} value={`Класс ${center.businessClass}`} label="Деловой класс" />
+                <FactTile value={`Класс ${center.businessClass}`} label="Деловой класс" tone="muted" />
               )}
               {center.totalArea != null && (
-                <FactTile icon={Ruler} value={`${center.totalArea.toLocaleString('ru-RU')} м²`} label="Общая площадь" />
+                <FactTile value={`${center.totalArea.toLocaleString('ru-RU')} м²`} label="Общая площадь" tone="muted" />
               )}
               {center.yearBuilt != null && (
                 <FactTile
-                  icon={Calendar}
+                  tone="muted"
                   value={`${center.yearBuilt} г.`}
                   label={center.status === 'under_construction' ? 'Ожидаемая сдача' : 'Год сдачи'}
                 />
               )}
-              {center.floors != null && <FactTile icon={Layers} value={center.floors} label="Этажей" />}
+              {center.floors != null && <FactTile value={center.floors} label="Этажей" tone="muted" />}
             </div>
+            </div>
+          </div>
 
-            {/* Парковка — отдельный блок, не плитка (владелец, 2026-09-06,
-                четвёртый заход: "паркинг - отдельный блок") — тот же
-                LabeledTextRow, что и в "Условиях для арендаторов" ниже. */}
+          <div className="grid items-start gap-3 border-t border-border p-5 sm:p-6 lg:grid-cols-2">
+            {/* Парковка здания показывается один раз из профильного поля
+                карточки. Парковки 2ГИС относятся к окружению и будут
+                использованы в отдельной карте рядом. */}
             <LabeledTextRow icon={Car} label="Парковка" text={center.parking} />
-
             {/* Часы работы и доступная среда из 2GIS — переехали сюда из
                 отдельного блока "Данные 2ГИС" (владелец, 2026-09-06: "блок
                 Данные 2GIS не нужен, добавим эту инфу в главный блок... часы
@@ -717,176 +954,63 @@ export function BusinessCenterDetailPage() {
                 подпись про 2ГИС убираем"). Остальные разделы прежнего блока
                 (аренда помещений, парковка(2ГИС), прочие attributeGroups) —
                 намеренно нигде больше не показываются, не только эти два. */}
-            {center.infraInternal.length > 0 && <LabeledTextRow icon={Store} label="В здании" text={center.infraInternal.join(', ')} />}
-            {center.infraNearby.length > 0 && <LabeledTextRow icon={MapPin} label="Инфраструктура рядом" text={center.infraNearby.join(', ')} />}
-            {center.is24x7 != null && <LabeledTextRow icon={Clock} label="Круглосуточный доступ" text={center.is24x7 ? 'Указан' : 'Не предусмотрен по данным каталога'} />}
-            {scheduleLines.length > 0 && (
-              <LabeledTextRow icon={Clock} label="Часы работы" text={scheduleLines.join('\n')} />
+            {redistributedTechnicalParams.internalInfrastructureText && (
+              <InternalInfrastructureRow text={redistributedTechnicalParams.internalInfrastructureText} />
             )}
+            {redistributedTechnicalParams.firstBlockTechnicalRows.map((row) => {
+              const RowIcon = TECH_PARAM_ICONS[row.label] ?? FileText;
+              return <LabeledTextRow key={row.label} icon={RowIcon} label={row.label} text={row.value} />;
+            })}
+            {/* Инфраструктуру рядом вернём отдельной картой; здесь остаётся
+                только то, что находится внутри самого здания. */}
+            {accessHoursText && <LabeledTextRow icon={Clock} label="Часы работы" text={accessHoursText} />}
             {accessibilityAttributes && (
               <LabeledTextRow icon={CheckCircle2} label="Доступная среда" text={accessibilityAttributes} />
             )}
 
-            {center.website && (
-              <a
-                href={center.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline"
-              >
-                <Globe className="h-4 w-4 shrink-0" />
-                {center.website.replace(/^https?:\/\//, '')}
-              </a>
-            )}
           </div>
         </div>
 
-        {/* Авторские блоки (Б1, Б3, Б8 плана docs/bc-catalog-redesign-plan.md)
-            стоят ВЫШЕ справочной таблицы техпараметров сознательно: сперва
-            «много это или мало» и «где это», потом сырые характеристики.
-            Каждый блок сам решает, показываться ли: нет данных — нет
-            блока, заглушек не рисуем. */}
-        {verdict && <VerdictBlock {...verdict} />}
-        {center && marketPosition && <MarketPositionBlock position={marketPosition} />}
-        {center && <NeighboursBlock center={center} all={centers ?? []} offers={offerIndex} />}
-        {center && <MoneyBlock offers={offers} error={offersError} />}
-        {center && <TechTilesBlock center={center} all={centers ?? []} />}
-
-        {/* Технические характеристики — прямой парсинг структурных блоков
-            .bccharacteristics с карточки здания на prometr.by. Изначально
-            (2026-09-06) была одна плоская таблица параметр-значение — владелец
-            тем же днём позже: "часть данных типа класса здания дублируется,
-            остальное размещено нечитаемо, разбей на смысловые блоки и оформи
-            карточками/иконками в нашем стиле". Разложено на 3 смысловых блока
-            (TECH_GROUP_META/TECH_PARAM_META ниже) — короткие значения идут
-            мини-плитками в сетке, длинные перечисления (инфраструктура/
-            провайдеры/кондиционирование/управление) — обычными подписанными
-            строками. Пара строк с одинаковыми (по факту) с нашими полями
-            карточки данными (класс/метро) СКРЫВАЕТСЯ, только если у ЭТОЙ
-            конкретной записи есть свой источник этих данных выше на странице
-            (иначе, если наше поле пустое, а у prometr.by значение есть — это
-            единственный источник, не прячем). "Общая площадь"/"Этажность" НЕ
-            скрываются никогда, несмотря на потенциальное совпадение с нашими
-            полями — они специально подписаны "(по данным prometr.by)" именно
-            для честной сверки при расхождении (см. комментарий у
-            BusinessCenter.technicalParams в data/businessCenters.ts, кейс
-            "Стратег-1"/S Union/Призма) — эта атрибуция сохранена отдельной
-            подписью под значением, не спрятана. Для многокорпусных комплексов
-            (Riviera Plaza, Парк Плаза) — отдельный набор блоков на каждый
-            корпус. Параметр с незнакомым label (на случай, если prometr.by
-            заведёт новое поле) не теряется — попадает в резервную таблицу
-            внизу блока, не гадаем, но и не отбрасываем. */}
-        {center.technicalParams.length > 0 && (
-          <div className={cn('mt-6 flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            {/* Б4: сырая выгрузка prometr.by уехала под спойлер — смысл
-                этих чисел страница показывает выше плитками «Что это
-                значит на практике». Атрибуция источника от этого не
-                теряется: она в самом заголовке и в подписях значений. */}
-            <details className="group flex flex-col gap-4">
-              <summary className="flex cursor-pointer list-none items-center gap-2 text-lg font-bold text-ink">
-                <ClipboardList className="h-5 w-5 shrink-0 text-primary" />
-                Все параметры по данным prometr.by
-                <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted transition-transform group-open:rotate-180" />
-              </summary>
-            <div className="mt-4 flex flex-col gap-6">
-              {center.technicalParams.map((group, i) => {
-                const hideMetro = Boolean(nearestMetro || center.metro);
-                const hideClass = Boolean(center.businessClass);
-                const visibleParams = group.params.filter((p) => {
-                  const meta = TECH_PARAM_META[p.label];
-                  if (meta?.hideIfDuplicate === 'metro' && hideMetro) return false;
-                  if (meta?.hideIfDuplicate === 'businessClass' && hideClass) return false;
-                  return true;
-                });
-                if (visibleParams.length === 0) return null;
-
-                const byGroup: Record<TechGroupKey, TechnicalParam[]> = { general: [], space: [], amenities: [] };
-                const unknown: TechnicalParam[] = [];
-                for (const p of visibleParams) {
-                  const meta = TECH_PARAM_META[p.label];
-                  if (meta) byGroup[meta.group].push(p);
-                  else unknown.push(p);
-                }
-
-                return (
-                  <div key={i} className="flex flex-col gap-5">
-                    {group.corpusLabel && <p className="text-sm font-bold text-ink">{group.corpusLabel}</p>}
-
-                    {(['general', 'space', 'amenities'] as const).map((groupKey) => {
-                      const params = byGroup[groupKey];
-                      if (params.length === 0) return null;
-                      const { icon: GroupIcon, title } = TECH_GROUP_META[groupKey];
-
-                      return (
-                        <div key={groupKey} className="flex flex-col gap-2">
-                          <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-ink-muted">
-                            <GroupIcon className="h-3.5 w-3.5 shrink-0 text-primary" />
-                            {title}
-                          </h3>
-                          <div className="overflow-hidden rounded-control border border-border">
-                            <table className="w-full border-collapse text-sm">
-                              <tbody>
-                                {params.map((p, j) => {
-                                  const suffix = ' (по данным prometr.by)';
-                                  const hasAttribution = p.label.endsWith(suffix);
-                                  const shortLabel = hasAttribution ? p.label.slice(0, -suffix.length) : p.label;
-                                  return (
-                                    <tr key={j} className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
-                                      <th
-                                        scope="row"
-                                        className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
-                                      >
-                                        {shortLabel}
-                                        {hasAttribution && (
-                                          <span className="mt-0.5 block text-[10px] font-normal normal-case text-ink-muted">
-                                            по данным prometr.by
-                                          </span>
-                                        )}
-                                      </th>
-                                      <td className="py-2 pl-2 pr-3 text-ink">{p.value}</td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {unknown.length > 0 && (
-                      <div className="overflow-hidden rounded-control border border-border">
-                        <table className="w-full border-collapse text-sm">
-                          <tbody>
-                            {unknown.map((p, j) => (
-                              <tr key={j} className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
-                                <th
-                                  scope="row"
-                                  className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
-                                >
-                                  {p.label}
-                                </th>
-                                <td className="py-2 pl-2 pr-3 text-ink">{p.value}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-
-                    <a
-                      href={group.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-ink-muted hover:text-primary-hover hover:underline"
-                    >
-                      Источник: prometr.by
-                    </a>
-                  </div>
-                );
-              })}
-            </div>
-            </details>
+        {(streetCatalogUrl || metroCatalogUrl) && (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {streetCatalogUrl && (
+              <Link
+                to={streetCatalogUrl}
+                className={cn(
+                  'group flex items-center gap-3 p-4 text-ink transition-transform hover:-translate-y-0.5',
+                  glassCardClass,
+                )}
+                style={glassCardShadow}
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-muted text-primary">
+                  <MapPin className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-ink-muted">Улица</span>
+                  <span className="block font-bold">Все БЦ на этой улице</span>
+                </span>
+                <ChevronRight className="h-5 w-5 shrink-0 text-ink-faint transition-transform group-hover:translate-x-0.5" />
+              </Link>
+            )}
+            {metroCatalogUrl && nearestMetro && (
+              <Link
+                to={metroCatalogUrl}
+                className={cn(
+                  'group flex items-center gap-3 p-4 text-ink transition-transform hover:-translate-y-0.5',
+                  glassCardClass,
+                )}
+                style={glassCardShadow}
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-muted text-primary">
+                  <TrainFront className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-ink-muted">Метро</span>
+                  <span className="block font-bold">Все БЦ у станции «{nearestMetro.name}»</span>
+                </span>
+                <ChevronRight className="h-5 w-5 shrink-0 text-ink-faint transition-transform group-hover:translate-x-0.5" />
+              </Link>
+            )}
           </div>
         )}
 
@@ -899,9 +1023,9 @@ export function BusinessCenterDetailPage() {
             BusinessCenter.highlights в data/businessCenters.ts). icon
             'warning' — единственная особая: выносится наверх акцентным
             жёлтым блоком (как caveat в RentalInfo), а не в общий список.
-            Порядок блоков на странице (владелец, 2026-09-06): главный блок
-            → Интересные факты → Условия для арендаторов → Объявления с
-            Kufar и Realt. */}
+            По решению владельца от 2026-09-17 блок расположен сразу после
+            главной карточки и связанных подборок, перед сравнением с
+            конкурентами. */}
         {visibleHighlights.length > 0 && (
           <div id="facts" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
@@ -944,6 +1068,37 @@ export function BusinessCenterDetailPage() {
             </div>
           </div>
         )}
+
+        {/* Сначала аналитика и расположение, затем отдельная карточка
+            с параметрами самого здания. */}
+        {center && marketPosition && <MarketPositionBlock position={marketPosition} />}
+        {center && <NeighboursBlock center={center} all={centers ?? []} />}
+
+        <div id="tech" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+          <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+            <Building2 className="h-5 w-5 shrink-0 text-primary" />
+            Информация о здании
+          </h2>
+          <div className="overflow-hidden rounded-control border border-border">
+            <table className="w-full border-collapse text-sm">
+              <tbody>
+                {redistributedTechnicalParams.buildingInformationRows.map((row) => (
+                  <tr key={row.label} className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
+                    <th
+                      scope="row"
+                      className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
+                    >
+                      {row.label}
+                    </th>
+                    <td className={cn('py-2 pl-2 pr-3', row.value ? 'text-ink' : 'text-ink-faint')}>
+                      {row.value ?? '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
         {/* Кто сидит в здании. Основной источник — организации 2GIS по
             building_id с рубриками, из них считается диаграмма отраслей (Б9,
@@ -1006,7 +1161,6 @@ export function BusinessCenterDetailPage() {
               <LabeledTextRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
               <LabeledTextRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
               <LabeledTextRow icon={Ruler} label="Площади и типы помещений" text={center.rentalInfo.sizes} />
-              <LabeledTextRow icon={Car} label="Парковка" text={center.rentalInfo.parking} />
               <LabeledTextRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
             </div>
 
@@ -1045,9 +1199,9 @@ export function BusinessCenterDetailPage() {
                   свободных площадей нет: часть бизнес-центров сдаёт офисы напрямую через управляющую
                   компанию, минуя площадки.
                 </p>
-                {center.website ? (
+                {centerWebsiteUrl ? (
                   <a
-                    href={center.website}
+                    href={centerWebsiteUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-fit font-semibold text-primary-hover hover:underline"
@@ -1177,7 +1331,7 @@ export function BusinessCenterDetailPage() {
         {/* Мобильная навигация "следующий/предыдущий" — фиксированные стрелки
             выше скрыты до lg, здесь тот же переход обычной строкой кнопок. */}
         {(prev || next) && (
-          <div className="mt-5 flex items-center justify-between gap-3 lg:hidden">
+          <div className="mt-5 flex items-center justify-between gap-3 xl:hidden">
             {prev ? (
               <Link
                 to={`/minsk/bcminsk/${prev.slug}`}
@@ -1225,6 +1379,15 @@ export function BusinessCenterDetailPage() {
 
         <div className={cn('mt-6 flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
           <h2 className="text-lg font-bold text-ink">Источники</h2>
+          {/* Организации, рейтинг, часы работы и атрибуты — это
+              срез 2ГИС на конкретную дату, а не «сейчас». Дата обязана
+              стоять рядом с данными, а не подразумеваться. */}
+          {gis2?.fetchedAt && (
+            <p className="text-sm text-ink-muted">
+              Данные 2ГИС (организации, рейтинг, часы работы, атрибуты здания) —
+              срез от {new Date(gis2.fetchedAt).toLocaleDateString('ru-RU')}.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             {GENERAL_DATA_SOURCES.map((source) => (
               <a
@@ -1240,9 +1403,9 @@ export function BusinessCenterDetailPage() {
                 {source.label}
               </a>
             ))}
-            {center.website && (
+            {centerWebsiteUrl && (
               <a
-                href={center.website}
+                href={centerWebsiteUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-primary hover:text-primary"
@@ -1260,50 +1423,23 @@ export function BusinessCenterDetailPage() {
           </p>
         </div>
 
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
 
-// Смысловая группировка "Технических характеристик" (см. комментарий в самом
-// рендере блока) — один и тот же фиксированный набор из 18 label'ов, которые
-// реально встречаются в спарсенных с prometr.by данных (см. журнал docs/session-journal.md,
-// запись про технические характеристики от 2026-09-06). style: 'tile' —
-// короткое значение (число/пара слов), 'text' — обычно перечисление,
-// удобнее строкой. hideIfDuplicate — прячет строку, только если у ЭТОЙ
-// записи выше на странице уже есть та же информация из другого поля (см.
-// использование в рендере).
-type TechGroupKey = 'general' | 'space' | 'amenities';
-
-const TECH_GROUP_META: Record<TechGroupKey, { icon: typeof FileText; title: string }> = {
-  general: { icon: Building, title: 'Статус и локация' },
-  space: { icon: Ruler, title: 'Площади и планировка' },
-  amenities: { icon: Wrench, title: 'Инфраструктура и сервис' },
-};
-
-const TECH_PARAM_META: Record<
-  string,
-  { group: TechGroupKey; icon: typeof FileText; style: 'tile' | 'text'; hideIfDuplicate?: 'metro' | 'businessClass' }
-> = {
-  'Класс бизнес-центра': { group: 'general', icon: Award, style: 'tile', hideIfDuplicate: 'businessClass' },
-  'Административный район': { group: 'general', icon: MapPin, style: 'tile' },
-  'Степень готовности': { group: 'general', icon: CheckCircle2, style: 'tile' },
-  'Свободные площади': { group: 'general', icon: Ruler, style: 'tile' },
-  'Станция метро': { group: 'general', icon: TrainFront, style: 'tile', hideIfDuplicate: 'metro' },
-  'Удалённость от метро': { group: 'general', icon: TrainFront, style: 'tile', hideIfDuplicate: 'metro' },
-  'Общая площадь (по данным prometr.by)': { group: 'space', icon: Ruler, style: 'tile' },
-  'Площадь офисов': { group: 'space', icon: Ruler, style: 'tile' },
-  'Площадь типового этажа': { group: 'space', icon: Ruler, style: 'tile' },
-  'Высота потолков типового этажа, м': { group: 'space', icon: Layers, style: 'tile' },
-  'Тип планировки': { group: 'space', icon: Layers, style: 'tile' },
-  'Количество этажей (по данным prometr.by)': { group: 'space', icon: Layers, style: 'tile' },
-  'Количество лифтов': { group: 'amenities', icon: ArrowUpDown, style: 'tile' },
-  'Обеспеченность парковкой (маш./100 м²)': { group: 'amenities', icon: Car, style: 'tile' },
-  'Система кондиционирования': { group: 'amenities', icon: Snowflake, style: 'text' },
-  'Управление БЦ': { group: 'amenities', icon: Users, style: 'text' },
-  'Внутренняя инфраструктура': { group: 'amenities', icon: Store, style: 'text' },
-  'Инфраструктура в шаговой доступности': { group: 'amenities', icon: MapPinned, style: 'text' },
-  'Интернет-провайдеры': { group: 'amenities', icon: Wifi, style: 'text' },
+// Иконки параметров prometr.by, перенесённых в первый информационный блок.
+// Неизвестное новое поле получает универсальную иконку FileText.
+const TECH_PARAM_ICONS: Record<string, typeof FileText> = {
+  'Класс бизнес-центра': Award,
+  'Административный район': MapPin,
+  'Степень готовности': CheckCircle2,
+  'Станция метро': TrainFront,
+  'Удалённость от метро': TrainFront,
+  'Система кондиционирования': Snowflake,
+  'Управление БЦ': Users,
+  'Интернет-провайдеры': Wifi,
 };
 
 // Одна строка блока "Условия для арендаторов" — иконка + подпись раздела +
@@ -1485,6 +1621,45 @@ function LabeledTextRow({
       <div className="min-w-0 flex-1">
         {label && <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{label}</p>}
         <div className={cn('text-sm leading-relaxed text-ink-muted', label && 'mt-1')}>{renderRentalText(text)}</div>
+      </div>
+    </div>
+  );
+}
+
+const INTERNAL_INFRASTRUCTURE_ICONS: { pattern: RegExp; icon: typeof FileText }[] = [
+  { pattern: /банкомат/i, icon: CreditCard },
+  { pattern: /банк/i, icon: Landmark },
+  { pattern: /кофе|кафе/i, icon: Coffee },
+  { pattern: /магазин/i, icon: ShoppingBag },
+  { pattern: /фитнес|спортзал/i, icon: Dumbbell },
+];
+
+function InternalInfrastructureRow({ text }: { text: string }) {
+  const items = text
+    .split(/[,;]\s*/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (items.length === 0) return null;
+
+  return (
+    <div className="flex gap-3 py-3 first:pt-0 last:pb-0">
+      <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted" />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">В здании</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {items.map((item) => {
+            const ItemIcon = INTERNAL_INFRASTRUCTURE_ICONS.find(({ pattern }) => pattern.test(item))?.icon ?? Building2;
+            return (
+              <span
+                key={item}
+                className="inline-flex items-center gap-1.5 rounded-full bg-surface-muted px-2.5 py-1.5 text-xs font-medium text-ink-muted"
+              >
+                <ItemIcon className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
+                {item}
+              </span>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

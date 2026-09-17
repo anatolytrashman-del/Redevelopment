@@ -1,7 +1,8 @@
 import type { EstimateMaterial } from '../../data/estimates';
 import type { ExchangeRate } from '../../data/exchangeRates';
 import { PURCHASE_ITEM_MATCH_KIND_LABELS, type PurchaseItemMatchKind } from '../../data/purchases';
-import { PROPOSAL_REVIEW_STATUS_LABELS, type SupplierRequest } from '../../data/supplierResearch';
+import type { SupplierReliability } from '../../data/supplierReliability';
+import type { SupplierRequest } from '../../data/supplierResearch';
 import {
   formatMoney,
   formatUnit,
@@ -35,6 +36,7 @@ export interface ComparisonFunnel {
 
 export interface ComparisonDoc {
   request: SupplierRequest;
+  estimateTitle?: string | null;
   positions: EstimateMaterial[];
   country: string;
   columns: Column[];
@@ -49,6 +51,7 @@ export interface ComparisonDoc {
   rate: ExchangeRate | undefined;
   preparedBy: string;
   total: string;
+  reliabilityByInn: Map<string, SupplierReliability>;
 }
 
 export const esc = (v: string) =>
@@ -112,21 +115,55 @@ function deliveryNames(doc: ComparisonDoc): string {
     .join(', ');
 }
 
-function statusLine(doc: ComparisonDoc): string {
-  const review = doc.request.review;
-  if (!review || review.status === 'draft') return '';
-  const parts = [PROPOSAL_REVIEW_STATUS_LABELS[review.status]];
-  if (review.sentAt) parts.push(`отправлено ${new Date(review.sentAt).toLocaleDateString('ru-RU')}${review.sentTo ? ` (${review.sentTo})` : ''}`);
-  if (review.decidedAt) parts.push(`решение ${new Date(review.decidedAt).toLocaleDateString('ru-RU')}`);
-  if (review.comment) parts.push(`«${review.comment}»`);
-  return parts.join(' · ');
+function supplierLegalName(doc: ComparisonDoc, inn: string | null): string {
+  if (!inn) return '';
+  const company = doc.reliabilityByInn.get(inn)?.company;
+  if (!company) return '';
+  if (company['ФИО']) return `ИП ${String(company['ФИО'])}`;
+  return String(company['НаимСокр'] || company['НаимПолн'] || '');
+}
+
+const GREEN_OBJECT_ADDRESS = '1-й Геологический проезд, 1, посёлок Зелёный, Московская область';
+
+function isGreenObjectEstimate(doc: ComparisonDoc): boolean {
+  return doc.country === 'Россия'
+    && /^(?:смета\s+)?зел[её]ный$/iu.test(doc.estimateTitle?.trim() ?? '');
+}
+
+// Редакционные данные конкретных отчётов из заданий владельца 17.09.2026.
+// Не подставляем адрес и подтверждённое наличие в другие сметы и закупки.
+function isPaintApproval(doc: ComparisonDoc): boolean {
+  return doc.request.title === 'Краски, обои и декоративные покрытия'
+    && doc.request.sectionTitle === 'Краски'
+    && isGreenObjectEstimate(doc);
+}
+
+function isPlinthApproval(doc: ComparisonDoc): boolean {
+  return doc.request.title === 'Плинтусы, панели и лепнина'
+    && doc.request.sectionTitle === 'Плинтус'
+    && isGreenObjectEstimate(doc);
+}
+
+export function approvalPrintTitle(doc: ComparisonDoc): string {
+  if (isPaintApproval(doc)) return 'Поставка красок';
+  if (isPlinthApproval(doc)) return 'Плинтус';
+  return doc.request.title;
 }
 
 export function buildPrintHtml(doc: ComparisonDoc): string {
-  const { request, positions, columns, columnById, picked, pickedCells, pickedOfferIds, pickedDelivery, kinds, funnel, rate } = doc;
+  const { columns, columnById, picked, pickedCells, pickedOfferIds, pickedDelivery, funnel, rate } = doc;
+  const paintApproval = isPaintApproval(doc);
+  const plinthApproval = isPlinthApproval(doc);
+  const greenObjectApproval = paintApproval || plinthApproval;
+  const title = approvalPrintTitle(doc);
   const kindTag = (kind: PurchaseItemMatchKind) => `<span class="tag ${kind}">${esc(kindLabel(kind))}</span>`;
+  const sortedPicked = [...picked].sort((a, b) => {
+    const aSupplier = a.cell ? (columnById.get(a.cell.offerId)?.offer.name ?? '') : '\uffff';
+    const bSupplier = b.cell ? (columnById.get(b.cell.offerId)?.offer.name ?? '') : '\uffff';
+    return aSupplier.localeCompare(bSupplier, 'ru');
+  });
 
-  const proposalRows = picked
+  const proposalRows = sortedPicked
     .map(({ position, cell }) => {
       if (!cell) {
         return `<tr class="empty"><td>${esc(position.name)}<span class="muted">${qty(position)}</span></td><td colspan="4">не отобрано</td></tr>`;
@@ -135,7 +172,7 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
       return (
         `<tr class="picked"><td>${esc(position.name)}<span class="muted">${qty(position)}</span></td>` +
         `<td>${esc(offer?.name ?? '')}</td>` +
-        `<td>${kindTag(cell.kind)}${cell.note ? `<span class="muted">${withLinks(cell.note)}</span>` : ''}${cell.productUrl ? `<span class="muted">${linkHtml(cell.productUrl)}</span>` : ''}</td>` +
+        `<td>${paintApproval && cell.kind === 'exact' && /кристально\s+белая/iu.test(position.name) ? '<span class="tag exact">подходит под ТЗ</span>' : kindTag(cell.kind)}${cell.note ? `<span class="muted">${withLinks(cell.note)}</span>` : ''}${cell.productUrl ? `<span class="muted">${linkHtml(cell.productUrl)}</span>` : ''}</td>` +
         `<td class="num">${priceCell(cell, position)}</td>` +
         `<td class="num strong">${esc(formatMoney(cell.unitPrice * (position.quantity ?? 0), cell.currency))}</td></tr>`
       );
@@ -151,56 +188,60 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
       : `<table class="grid">
            <thead><tr><th>Позиция ведомости</th><th>Поставщик</th><th>Соответствие</th><th class="num">Цена</th><th class="num">Сумма</th></tr></thead>
            <tbody>${proposalRows}${deliveryRow}</tbody>
-           <tfoot><tr><td colspan="4">Итого к утверждению, с НДС</td><td class="num total">${esc(doc.total)}</td></tr></tfoot>
-         </table>
-         <p class="note">${pickedCells.length} из ${positions.length} позиций · поставщиков: ${pickedOfferIds.size} · из ведомости ${kinds.exact ?? 0}, аналогов ${kinds.alternative ?? 0}, требуют уточнения ${kinds.check ?? 0}.</p>`;
+         </table>`;
 
   const termsRows = columns
-    .map(
-      (c) =>
-        `<tr><td>${esc(c.offer.name)}${c.lastQuoteAt ? `<span class="muted">счёт от ${new Date(c.lastQuoteAt).toLocaleDateString('ru-RU')}</span>` : ''}</td>` +
-        `<td>${c.delivery != null ? esc(formatMoney(c.delivery, c.deliveryCurrency)) : 'в счёте нет'}</td>` +
-        `<td>${c.offer.termsNote ? withLinks(c.offer.termsNote) : '—'}</td></tr>`,
-    )
+    .filter((c) => pickedOfferIds.has(c.offer.id))
+    .map((c) => {
+      const legalName = supplierLegalName(doc, c.offer.inn);
+      const supplierDetails = [
+        legalName ? `Юрлицо: ${esc(legalName)}` : '',
+        c.offer.inn ? `ИНН: ${esc(c.offer.inn)}` : '',
+        c.offer.websiteUrl ? `Сайт: ${linkHtml(c.offer.websiteUrl)}` : '',
+        c.lastQuoteAt ? `счёт от ${new Date(c.lastQuoteAt).toLocaleDateString('ru-RU')}` : '',
+      ].filter(Boolean).map((line) => `<span class="muted">${line}</span>`).join('');
+      return `<tr><td><strong>${esc(c.offer.name)}</strong>${supplierDetails}</td>` +
+        `<td class="num">${plinthApproval ? 'В цене' : c.delivery != null ? esc(formatMoney(c.delivery, c.deliveryCurrency)) : 'в счёте нет'}</td>` +
+        `<td>${paintApproval ? 'Все в наличии. Доставка в течение нескольких дней по запросу' : plinthApproval ? 'В наличии, доставка по запросу' : c.offer.termsNote ? withLinks(c.offer.termsNote) : '—'}</td></tr>`;
+    })
     .join('');
 
   const signatureField = (caption: string, value = '') =>
     `<div class="sign"><div class="line">${esc(value)}</div><div class="cap">${esc(caption)}</div></div>`;
 
-  const status = statusLine(doc);
-
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8">
-<title>${esc(request.title)} — предложение на утверждение</title>
+<title>${esc(title)} — предложение на утверждение</title>
 <style>
   @page { size: A4 portrait; margin: 14mm 12mm; }
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  /* Системный шрифт, а не наш Montserrat, намеренно: PDF собирается из
-     этого HTML растеризацией (src/lib/htmlToPdf.ts), а на self-hosted woff2
-     html2canvas теряет пробелы перед «₽» и «·» — «121,91₽», «10позиций».
-     Проверено сравнением двух рендеров одного документа. */
-  body { margin: 0; background: #fff; color: #14151a; font-family: Arial, Helvetica, 'Helvetica Neue', system-ui, sans-serif; font-size: 9.5pt; line-height: 1.35; }
-  h1 { font-size: 17pt; margin: 0; letter-spacing: -.01em; }
-  h2 { font-size: 12pt; margin: 0 0 6px; break-after: avoid; }
+  @font-face { font-family: Montserrat; src: url('/fonts/Montserrat-Regular.woff2') format('woff2'); font-weight: 400; }
+  @font-face { font-family: Montserrat; src: url('/fonts/Montserrat-SemiBold.woff2') format('woff2'); font-weight: 600; }
+  @font-face { font-family: Montserrat; src: url('/fonts/Montserrat-ExtraBold.woff2') format('woff2'); font-weight: 700 900; }
+  /* Ненулевой letter-spacing включает посимвольный рендер html2canvas:
+     пробелы в Montserrat сохраняются, включая разделители сумм и ₽. */
+  body { margin: 0; background: #fff; color: #14151a; font-family: Montserrat, Arial, sans-serif; font-size: 9pt; line-height: 1.35; letter-spacing: .01px; }
+  body { min-height: 1094px; display: flex; flex-direction: column; padding-bottom: 20px; }
+  h1 { font-size: 17pt; margin: 0; }
+  h2 { font-size: 12pt; margin: 0 0 10px; break-after: avoid; }
   h3 { font-size: 10.5pt; margin: 0 0 4px; break-after: avoid; }
   h3 .qty { font-weight: 400; color: #6b6d76; }
-  header { border-bottom: 2px solid #14151a; padding-bottom: 8px; margin-bottom: 12px; }
-  .sub { color: #6b6d76; margin-top: 3px; }
-  .status { margin-top: 4px; font-weight: 600; color: #157f42; }
+  header { border-bottom: 2px solid #14151a; padding-bottom: 10px; margin-bottom: 18px; }
+  .sub { color: #6b6d76; margin-top: 5px; }
   .block { break-inside: avoid; margin-bottom: 12px; }
-  .funnel { display: flex; gap: 10px; margin-bottom: 12px; }
-  .funnel div { flex: 1; border: 1px solid #e7e5e2; border-radius: 6px; padding: 6px 8px; }
-  .funnel b { display: block; font-size: 14pt; line-height: 1.1; }
-  .funnel span { color: #6b6d76; font-size: 8pt; }
+  .funnel { display: flex; gap: 12px; margin-bottom: 22px; }
+  .funnel div { flex: 0 1 calc(50% - 6px); display: flex; align-items: baseline; gap: 7px; border: 1px solid #e7e5e2; border-radius: 6px; padding: 10px 12px; }
+  .funnel b { font-size: 14pt; line-height: 1.1; }
+  .funnel span { color: #6b6d76; font-size: 8.5pt; }
   table.grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  table.grid th { text-align: left; font-size: 8pt; text-transform: uppercase; letter-spacing: .04em; color: #6b6d76; font-weight: 600; border-bottom: 1px solid #d8d6d2; padding: 4px 6px; }
-  table.grid td { border-bottom: 1px solid #e7e5e2; padding: 5px 6px; vertical-align: top; word-wrap: break-word; }
+  table.grid th { text-align: left; font-size: 8pt; text-transform: uppercase; letter-spacing: .04em; color: #6b6d76; font-weight: 600; border-bottom: 1px solid #d8d6d2; padding: 7px; }
+  table.grid td { border-bottom: 1px solid #e7e5e2; padding: 8px 7px; vertical-align: top; word-wrap: break-word; }
   table.grid td.num, table.grid th.num { text-align: right; white-space: nowrap; width: 17%; }
   table.grid td.strong { font-weight: 600; }
   table.grid tfoot td { border-top: 1.5px solid #14151a; border-bottom: 0; font-weight: 600; padding-top: 6px; }
   td.total { font-size: 12pt; color: #157f42; }
   tr.picked td { background: #e6f6ed; }
   tr.empty td { color: #9a9ba3; }
-  .muted { display: block; color: #6b6d76; font-size: 8.5pt; }
+  .muted { display: block; color: #6b6d76; font-size: 8pt; }
   .pick { display: block; color: #157f42; font-weight: 600; font-size: 8pt; }
   .tag { display: inline-block; border-radius: 20px; padding: 0 6px; font-size: 8pt; font-weight: 600; }
   .tag.exact { background: #e6f6ed; color: #157f42; }
@@ -208,16 +249,16 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
   .tag.check { background: #fce9eb; color: #d21e34; }
   .tag.delivery { background: #f5f4f2; color: #6b6d76; }
   .lnk { color: #14151a; text-decoration: none; border-bottom: 1px dotted #9a9ba3; }
-  .note { color: #6b6d76; margin: 6px 0 0; font-size: 8.5pt; }
+  .note { color: #6b6d76; margin: 6px 0 0; font-size: 8pt; }
   .note.warn { color: #906721; }
-  .total-line { font-size: 20pt; font-weight: 700; color: #157f42; margin: 2px 0 8px; }
-  /* Подписи и строка решения — один блок: на разных страницах они
-     выглядят как потерянная строка. */
-  .sign-area { break-inside: avoid; }
-  .signs { display: flex; gap: 14px; margin-top: 14px; break-inside: avoid; }
+  .total-line { font-size: 20pt; font-weight: 700; color: #157f42; margin: 4px 0 14px; }
+  .signs { display: flex; gap: 24px; break-inside: avoid; }
   .sign { flex: 1; }
   .sign .line { border-bottom: 1px solid #d8d6d2; min-height: 22px; padding-bottom: 2px; }
-  .sign .cap { font-size: 7.5pt; text-transform: uppercase; letter-spacing: .04em; color: #9a9ba3; margin-top: 3px; }
+  /* У подписи отдельная высокая строка: Montserrat на малом кегле иначе
+     обрезается html2canvas по нижней границе line box. */
+  .sign .cap { height: 28px; padding: 5px 0 9px; font-size: 8pt; line-height: 14px; letter-spacing: .02em; color: #9a9ba3; }
+  .prepared { margin-top: auto; margin-bottom: 12px; padding-top: 24px; break-inside: avoid; }
   /* Печать: документ не обязан помещаться на страницу, но рваться должен по
      живому (владелец, 2026-09-17: «выгрузка в pdf разрывает страницу на
      несколько, учти и адаптируй»). Строка таблицы, подписи и заголовок с
@@ -227,39 +268,36 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
   table.grid thead { display: table-header-group; }
   table.grid tfoot { display: table-row-group; }
   h2, h3 { break-after: avoid; }
-  section { break-inside: auto; }
+  section { break-inside: auto; margin-bottom: 24px; }
+  section.terms-section { margin-bottom: 0; }
+  .terms th:first-child { width: 30%; }
 </style></head><body>
 <header>
-  <h1>${esc(request.title)}</h1>
-  <div class="sub">${request.sectionTitle ? `Раздел сметы «${esc(request.sectionTitle)}», ` : ''}${positions.length} позиций · ${esc(doc.country)} · цены с НДС × объём ведомости · сформировано ${new Date().toLocaleDateString('ru-RU')}</div>
-  ${status ? `<div class="status">${esc(status)}</div>` : ''}
+  <h1>${esc(title)}</h1>
+  ${greenObjectApproval ? `<div class="sub">Объект: ${GREEN_OBJECT_ADDRESS}</div>` : ''}
 </header>
 
 <div class="funnel">
-  <div><b>${funnel.sent}</b><span>запрос отправлен${funnel.letters ? `, ${funnel.letters} писем` : ''}</span></div>
-  <div><b>${funnel.replied}</b><span>ответили, ${funnel.repliedNoQuote} без КП</span></div>
-  <div><b>${funnel.confirmed}</b><span>прислали КП, ${funnel.quotesCount} счетов</span></div>
+  <div><span>Проработано поставщиков:</span><b>${funnel.sent}</b></div>
 </div>
 
 <section>
   <h2>Предложение на утверждение</h2>
   ${pickedCells.length > 0 ? `<div class="total-line">${esc(doc.total)}</div>` : ''}
   ${proposalBlock}
-  <div class="sign-area">
-    <div class="signs">
-      ${signatureField('Подготовил', doc.preparedBy)}
-      ${signatureField('Дата', new Date().toLocaleDateString('ru-RU'))}
-      ${signatureField('Руководитель стройки, подпись')}
-      ${signatureField('Дата')}
-    </div>
-    <div class="signs">${signatureField('Решение: утвердить / вернуть на уточнение, комментарий')}</div>
-  </div>
 </section>
 
-<section>
-  <h2>Наличие, сроки и доставка</h2>
-  <table class="grid"><thead><tr><th>Поставщик</th><th class="num">Доставка</th><th>Что написал менеджер</th></tr></thead><tbody>${termsRows}</tbody></table>
+<section class="terms-section">
+  <h2>Наличие и доставка</h2>
+  <table class="grid terms"><thead><tr><th>Поставщик</th><th class="num">Доставка</th><th>Наличие и срок</th></tr></thead><tbody>${termsRows}</tbody></table>
 </section>
+
+<footer class="prepared">
+  <div class="signs">
+    ${signatureField('Подготовил', doc.preparedBy)}
+    ${signatureField('Дата', new Date().toLocaleDateString('ru-RU'))}
+  </div>
+</footer>
 </body></html>`;
 }
 

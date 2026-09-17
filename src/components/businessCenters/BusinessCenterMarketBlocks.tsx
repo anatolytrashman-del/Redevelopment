@@ -1,22 +1,20 @@
 import { useMemo, useState } from 'react';
-import { Building2, Coins, Gauge, History, MessageSquare, Star } from 'lucide-react';
+import { Building2, Gauge, History, MessageSquare, Star } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { BusinessCenter } from '../../data/businessCenters';
 import type { Gis2TenantOrganization, TenantIndustryCityProfile } from '../../data/businessCenter2gis';
 import { TENANT_INDUSTRY_OTHER, tenantIndustryLabel } from '../../data/tenantIndustries';
-import type { BusinessCenterOffer } from '../../data/businessCenterOffers';
 import { mapRatingFromHighlights } from '../../lib/businessCenterDisplay';
 import type { MarketPosition } from '../../lib/businessCenterMarketPosition';
-import { VERDICT_SIGNATURE } from '../../lib/businessCenterVerdict';
 
-// Авторские блоки карточки БЦ (Б1, Б8, Б10, Б11 плана
+// Авторские блоки карточки БЦ (Б1, Б10, Б11 плана
 // docs/bc-catalog-redesign-plan.md) — то, чего на странице не было вовсе:
 // до 2026-09-16 карточка отвечала «какая тут площадь», но не «много это или
 // мало». Общая идея взята у аналитики Минск Мира: каждое число стоит рядом
 // с базой сравнения и выводом, а не само по себе.
 
-// --- Б1. Место на рынке ------------------------------------------------
+// --- Б1. БЦ на фоне конкурентов ----------------------------------------
 
 function Bar({
   label,
@@ -62,16 +60,10 @@ export function MarketPositionBlock({
     // id — якорь для липкого меню «На странице» (Б7). scroll-mt — чтобы
     // заголовок не уезжал под липкую шапку при переходе по якорю.
     <div id="market" className={cn('mt-6 flex scroll-mt-32 flex-col gap-5 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-      <div className="flex flex-col gap-1">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-          <Gauge className="h-5 w-5 shrink-0 text-ink-muted" />
-          Место на рынке
-        </h2>
-        <p className="text-xs text-ink-faint">
-          Сравнение с медианами по классу, району и городу: ставки — по объявлениям Kufar и Realt,
-          остальное — по справочнику 143 бизнес-центров (prometr.by и 2ГИС).
-        </p>
-      </div>
+      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+        <Gauge className="h-5 w-5 shrink-0 text-ink-muted" />
+        БЦ на фоне конкурентов
+      </h2>
 
       <div className="flex flex-col gap-5">
         {position.bars.map((bar) => {
@@ -90,72 +82,6 @@ export function MarketPositionBlock({
           );
         })}
       </div>
-    </div>
-  );
-}
-
-// --- Б8. Сколько это в реальных деньгах --------------------------------
-
-export function MoneyBlock({
-  offers,
-  error = false,
-}: {
-  offers: BusinessCenterOffer[] | null;
-  error?: boolean;
-}) {
-  // Единственное сообщение о пустой выборке — в секции «Сейчас предлагается».
-  if (!error && offers?.length === 0) return null;
-  return (
-    <div id="money" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-        <Coins className="h-5 w-5 shrink-0 text-ink-muted" />
-        Сколько это в деньгах
-      </h2>
-      {error ? (
-        <p className="text-sm text-ink-muted">Не удалось загрузить активные предложения. Попробуйте обновить страницу.</p>
-      ) : offers === null ? (
-        <p className="text-sm text-ink-muted">Загружаем активные предложения…</p>
-      ) : (
-        <>
-          <p className="text-sm text-ink-muted">
-            Активных предложений: аренда — {offers.filter((o) => o.dealType === 'rent').length}, продажа —{' '}
-            {offers.filter((o) => o.dealType === 'sale').length}.
-          </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {offers.map((offer) => {
-              const isRent = offer.dealType === 'rent';
-              const hasSize = Number.isFinite(offer.size) && offer.size > 0;
-              const hasRate = Number.isFinite(offer.pricePerSqm) && offer.pricePerSqm >= 0;
-              return (
-                <div key={offer.id} className="flex flex-col gap-2 rounded-2xl bg-surface-muted p-4">
-                  <span className="text-sm font-bold text-ink">
-                    {isRent ? 'Аренда' : 'Продажа'} · {hasSize ? `${offer.size.toLocaleString('ru-RU')} м²` : 'Площадь не указана'}
-                  </span>
-                  <span className="text-sm text-ink-muted">
-                    {hasRate ? `$${offer.pricePerSqm.toLocaleString('ru-RU')}/м²${isRent ? ' в месяц' : ''}` : 'Ставка не указана'}
-                    {offer.floor != null && ` · этаж ${offer.floor}`}
-                  </span>
-                  <p className="text-sm font-semibold text-ink">
-                    {hasSize && hasRate
-                      ? `За всё помещение — около $${Math.round(offer.size * offer.pricePerSqm).toLocaleString('ru-RU')}${isRent ? ' в месяц' : ''} по указанной ставке.`
-                      : 'Недостаточно данных для расчёта стоимости всего помещения.'}
-                  </p>
-                  {offer.adLink && (
-                    <a href={offer.adLink} target="_blank" rel="noopener noreferrer nofollow" className="text-sm text-primary-hover hover:underline">
-                      Объявление на {offer.source}
-                    </a>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <p className="text-xs text-ink-faint">
-            Стоимость целиком — пересчёт площади и ставки из объявления, а не итоговый платёж.
-            Состав платежей в наших данных не раскрыт: неизвестно, включены ли коммунальные,
-            эксплуатационные и другие дополнительные платежи. Уточняйте условия у автора объявления.
-          </p>
-        </>
-      )}
     </div>
   );
 }
@@ -257,216 +183,6 @@ export function WhatTheySayBlock({ center, reviewQuotes }: { center: BusinessCen
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-// --- Б4. Техпараметры интерпретированными плитками ----------------------
-//
-// Сырая таблица prometr.by отвечает «1,5», но не «это много или мало».
-// Здесь у каждого числа есть вторая строка с базой сравнения, а сама
-// таблица уезжает в раскрывающийся блок «Все параметры» — атрибуция
-// источника сохраняется, но первой страница показывает смысл, а не выгрузку.
-
-const LAYOUT_LABELS: Record<string, string> = {
-  cabinet: 'кабинетная',
-  block: 'блочная',
-  open_space: 'open-space',
-};
-
-const MANAGEMENT_HINT: Record<string, string> = {
-  hoa: 'управление зданием — товарищество собственников',
-  single_uk: 'здание под единой управляющей компанией',
-};
-
-export interface TechTile {
-  label: string;
-  value: string;
-  note: string | null;
-}
-
-// Доля зданий, у которых значение МЕНЬШЕ — чтобы сказать «топ-15% по
-// городу». Считается по тем, у кого параметр вообще известен, и об этом
-// честно сказано в подписи блока.
-function topPercent(value: number, all: number[]): number | null {
-  if (all.length < 10) return null;
-  const below = all.filter((v) => v < value).length;
-  return Math.max(1, Math.round((1 - below / all.length) * 100));
-}
-
-export function buildTechTiles(center: BusinessCenter, all: BusinessCenter[]): TechTile[] {
-  const tiles: TechTile[] = [];
-  const sameClass = center.businessClass ? all.filter((c) => c.businessClass === center.businessClass) : [];
-  const medianOf = (pick: (c: BusinessCenter) => number | null, list: BusinessCenter[]) => {
-    const vals = list.map(pick).filter((v): v is number => v != null);
-    if (vals.length < 5) return null;
-    const s = [...vals].sort((a, b) => a - b);
-    return s.length % 2 === 1 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
-  };
-
-  if (center.parkingRatio != null) {
-    const m = medianOf((c) => c.parkingRatio, sameClass);
-    tiles.push({
-      label: 'Парковка',
-      value: `${center.parkingRatio.toLocaleString('ru-RU')} маш./100 м²`,
-      note:
-        m != null
-          ? `${center.parkingRatio >= m ? 'выше' : 'ниже'} медианы класса ${center.businessClass} (${m.toLocaleString('ru-RU')})`
-          : null,
-    });
-  }
-  if (center.floorPlateArea != null) {
-    const top = topPercent(
-      center.floorPlateArea,
-      all.map((c) => c.floorPlateArea).filter((v): v is number => v != null),
-    );
-    tiles.push({
-      label: 'Типовой этаж',
-      value: `${center.floorPlateArea.toLocaleString('ru-RU')} м²`,
-      note: top != null ? `топ-${top}% по городу` : null,
-    });
-  }
-  if (center.managementType) {
-    tiles.push({
-      label: 'Управление',
-      value: center.managementType === 'single_uk' ? 'Единая УК' : 'Товарищество собственников',
-      note: MANAGEMENT_HINT[center.managementType] ?? null,
-    });
-  }
-  if (center.layoutTypes.length > 0) {
-    tiles.push({
-      label: 'Планировка',
-      value: center.layoutTypes.map((t) => LAYOUT_LABELS[t] ?? t).join(', '),
-      note: center.layoutTypes.includes('open_space') ? 'open-space гибче под рост команды' : null,
-    });
-  }
-  if (center.ceilingHeight != null) {
-    const m = medianOf((c) => c.ceilingHeight, all);
-    tiles.push({
-      label: 'Потолки',
-      value: `${center.ceilingHeight.toLocaleString('ru-RU')} м`,
-      note: m != null ? `медиана по каталогу — ${m.toLocaleString('ru-RU')} м` : null,
-    });
-  }
-  if (center.elevators != null) {
-    tiles.push({
-      label: 'Лифтов',
-      value: String(center.elevators),
-      note:
-        center.totalArea != null && center.elevators > 0
-          ? `по одному на ${Math.round(center.totalArea / center.elevators).toLocaleString('ru-RU')} м²`
-          : null,
-    });
-  }
-  if (center.airConditioning) {
-    tiles.push({
-      label: 'Кондиционирование',
-      value: center.airConditioning === 'none' ? 'нет' : center.airConditioning === 'partial' ? 'частично' : 'есть',
-      note: center.airConditioning === 'partial' ? 'не во всех помещениях — уточнять по конкретному блоку' : null,
-    });
-  }
-  if (center.freeSpaceMin != null) {
-    tiles.push({
-      label: 'Свободные площади',
-      value:
-        center.freeSpaceMax != null && center.freeSpaceMax !== center.freeSpaceMin
-          ? `${center.freeSpaceMin.toLocaleString('ru-RU')}–${center.freeSpaceMax.toLocaleString('ru-RU')} м²`
-          : `${center.freeSpaceMin.toLocaleString('ru-RU')} м²`,
-      note: 'Диапазон из справочника prometr.by, а не подтверждённый перечень доступных блоков. Наличие любого размера внутри диапазона не подтверждено.',
-    });
-  }
-  return tiles;
-}
-
-export function TechTilesBlock({ center, all }: { center: BusinessCenter; all: BusinessCenter[] }) {
-  const tiles = useMemo(() => buildTechTiles(center, all), [center, all]);
-  if (tiles.length === 0) return null;
-  return (
-    <div id="tech" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-      <div className="flex flex-col gap-1">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-          <Gauge className="h-5 w-5 shrink-0 text-ink-muted" />
-          Что это значит на практике
-        </h2>
-        <p className="text-xs text-ink-faint">
-          Сравнение считается по зданиям, у которых параметр известен, — у части каталога его нет в
-          источнике.
-        </p>
-      </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {tiles.map((t) => (
-          <div key={t.label} className="flex flex-col gap-1 rounded-2xl bg-surface-muted p-4">
-            <span className="text-xs text-ink-muted">{t.label}</span>
-            <span className="text-base font-bold leading-snug text-ink">{t.value}</span>
-            {t.note && <span className="text-xs leading-snug text-ink-faint">{t.note}</span>}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// --- Б2. Кому подходит --------------------------------------------------
-//
-// Показывается правленый вручную текст, если он есть, иначе — авточерновик
-// из порогов (lib/businessCenterVerdict.ts). Так страница не ждёт, пока до
-// неё дойдут руки: у 116 зданий из 143 не было даже описания в прозе.
-// Подпись про оценку обязательна — читатель должен понимать, что это наш
-// вывод из открытых данных, а не позиция собственника.
-
-export function VerdictBlock({
-  verdict,
-  pros,
-  cons,
-  edited,
-}: {
-  verdict: string;
-  pros: string[];
-  cons: string[];
-  edited: boolean;
-}) {
-  if (!verdict && pros.length === 0 && cons.length === 0) return null;
-  return (
-    <div id="verdict" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-        <Gauge className="h-5 w-5 shrink-0 text-ink-muted" />
-        Кому подходит
-      </h2>
-      {verdict && <p className="text-sm leading-relaxed text-ink">{verdict}</p>}
-      {(pros.length > 0 || cons.length > 0) && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {pros.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Плюсы</span>
-              <ul className="flex flex-col gap-1.5">
-                {pros.map((p) => (
-                  <li key={p} className="flex gap-2 text-sm leading-snug text-ink-muted">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
-                    {p}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {cons.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">На что смотреть</span>
-              <ul className="flex flex-col gap-1.5">
-                {cons.map((c) => (
-                  <li key={c} className="flex gap-2 text-sm leading-snug text-ink-muted">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-border-strong" />
-                    {c}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-      <p className="text-xs text-ink-faint">
-        {VERDICT_SIGNATURE}
-        {!edited && ' · собрано автоматически по порогам, без ручной правки'}
-      </p>
     </div>
   );
 }

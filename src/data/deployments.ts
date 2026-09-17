@@ -1,9 +1,8 @@
-// Прод-деплои redevelopment.pro — единственный измеримый след работы
-// ИИ-кодера (Claude Code): в activity_log он не пишет, кнопок в админке не
-// жмёт, он пишет код и публикует релизы.
+// Деплои redevelopment.pro — измеримый след работы ИИ-кодеров: прод-релизы
+// считаются для Claude Code, а сборки стабильной ветки preview — для Codex.
 //
-// Строки создаёт последним шагом прод-сборки scripts/record-deployment.mjs
-// (см. `npm run build`), история до 2026-09-15 залита бэкфиллом из Vercel
+// Строки создаёт последним шагом Vercel-сборки scripts/record-deployment.mjs
+// (см. `npm run build`), история прода до 2026-09-15 залита бэкфиллом из Vercel
 // API. Схема — supabase/migrations/20260915-deployments.sql.
 
 // Состояние сборки на Vercel. Билд-скрипт пишет только READY (он выполняется

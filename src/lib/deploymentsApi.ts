@@ -11,20 +11,31 @@ export interface DeploymentMetric {
   deployedAt: string;
   state: DeploymentState;
   commitMessage: string;
+  commitRef: string;
 }
 
 export function fetchDeploymentMetrics(sinceIso: string): Promise<DeploymentMetric[]> {
   return withRetry(async () => {
-    const { data, error } = await supabase
-      .from('deployments')
-      .select('deployed_at, state, commit_message')
-      .gte('deployed_at', sinceIso)
-      .order('deployed_at', { ascending: true });
-    if (error) throw error;
-    return (data as Pick<DeploymentRow, 'deployed_at' | 'state' | 'commit_message'>[]).map((row) => ({
+    type MetricRow = Pick<DeploymentRow, 'id' | 'deployed_at' | 'state' | 'commit_message' | 'commit_ref'>;
+    const rows: MetricRow[] = [];
+    const pageSize = 1000;
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from('deployments')
+        .select('id, deployed_at, state, commit_message, commit_ref')
+        .gte('deployed_at', sinceIso)
+        .order('deployed_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      rows.push(...(data as MetricRow[]));
+      if (data.length < pageSize) break;
+    }
+    return rows.map((row) => ({
       deployedAt: row.deployed_at,
       state: (row.state as DeploymentState) ?? 'READY',
       commitMessage: row.commit_message ?? '',
+      commitRef: row.commit_ref ?? '',
     }));
   });
 }

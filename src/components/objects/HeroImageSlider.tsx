@@ -18,12 +18,12 @@ const PRELOAD_LEAD_MS = 1500;
 // Диагональные скосы у двух противоположных углов (верхний правый и нижний
 // левый) вместо стандартных скруглений — одна и та же форма используется и
 // для самой картинки, и для подложки под ней (см. ниже), чтобы срезы совпадали.
-const CLIP_PATH =
-  'polygon(0 0, calc(100% - 56px) 0, 100% 56px, 100% 100%, 56px 100%, 0 calc(100% - 56px))';
 
 interface HeroImageSliderProps {
   images: string[];
   alt?: string;
+  // Размер диагональных скосов; компактный hero каталога использует 28 px.
+  cornerCut?: number;
   // По умолчанию альбомный (16:9) — рендеры кабинетов на /one. Гид района
   // передаёт вертикальный aspect-[4/5] под реальные портретные аэрофото —
   // не разводить два похожих компонента ради одной пропорции.
@@ -41,6 +41,7 @@ interface HeroImageSliderProps {
 export function HeroImageSlider({
   images,
   alt = '',
+  cornerCut = 56,
   aspectClassName = 'aspect-video',
   imageWidth,
   imageHeight,
@@ -109,7 +110,7 @@ export function HeroImageSlider({
       <div
         className="relative h-full w-full overflow-hidden bg-surface-muted"
         style={{
-          clipPath: CLIP_PATH,
+          clipPath: `polygon(0 0, calc(100% - ${cornerCut}px) 0, 100% ${cornerCut}px, 100% 100%, ${cornerCut}px 100%, 0 calc(100% - ${cornerCut}px))`,
           filter:
             'drop-shadow(0 16px 32px rgb(0 0 0 / 0.16)) drop-shadow(0 4px 10px rgb(0 0 0 / 0.10))',
         }}

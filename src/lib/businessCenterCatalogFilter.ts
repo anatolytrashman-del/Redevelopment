@@ -8,8 +8,8 @@
 // хаб-URL, микрорайон, улица, станция метро, «строящиеся») по-прежнему
 // живут в пути и остаются индексируемыми входами — см. businessCenterHubs.ts.
 // Всё, что здесь, — это ДОБАВОЧНЫЙ слой поверх маршрута, живущий в
-// query-параметрах: мультивыбор класса и района, расстояние до метро,
-// тумблеры-факты, поиск и сортировка. Query не индексируется (canonical
+// query-параметрах: мультивыбор класса, района и микрорайона, станции и
+// расстояние до метро, тумблеры-факты. Query не индексируется (canonical
 // всегда указывает на ближайший одноосевой хаб), поэтому комбинации не
 // плодят тонкие страницы, но ссылкой с отфильтрованным списком можно
 // поделиться.
@@ -46,12 +46,23 @@ export const CATALOG_SORTS: { key: CatalogSortKey; label: string }[] = [
 
 export interface CatalogFilterState {
   classes: string[];
-  districts: string[];
+  // null = выбраны все значения; [] = пользователь явно снял все галочки.
+  // Различие нужно селекторам района и микрорайона: раньше пустой массив
+  // одновременно означал и «все», и «ничего», поэтому «Снять все» не могло
+  // дать пустую выдачу.
+  districts: string[] | null;
+  microdistricts: string[] | null;
   // Метры до ближайшей станции метро (500 / 1000 / 1500). Заменяет список
   // из 32 станций в старом сайдбаре: станцию по имени теперь ищут строкой
   // поиска или открывают её SEO-хаб, а «хочу рядом с метро, всё равно с
   // какой» — это именно расстояние, а не перебор чек-боксов.
   metroWithin: number | null;
+  // Станции метро, выбранные явно (можно несколько сразу) — владелец,
+  // 2026-09-17. Это не то же, что metroWithin: «рядом с метро, всё равно
+  // с каким» и «рядом с Уручьем или Борисовским трактом» — разные вопросы,
+  // и оба нужны. Здание подходит, если хотя бы одна из его ближайших
+  // станций выбрана.
+  metroStations: string[];
   // К13: «нужно N м²» — показать здания, где ЕСТЬ активный лот такого
   // размера. Не «общая площадь здания от N» (это другой вопрос) и не
   // «свободные площади» из prometr.by (те известны у 30 из 143).
@@ -59,9 +70,8 @@ export interface CatalogFilterState {
   facts: string[];
   query: string;
   sort: CatalogSortKey;
-  // Вид результатов (К6): плитки / таблица / карта. Формально это не
-  // фильтр, но живёт в том же состоянии и в той же строке запроса —
-  // ссылкой «вот эти 12 зданий таблицей» делятся так же, как фильтром.
+  // Поля query/sort/view оставлены в типе для совместимости внутренних
+  // функций и старых ссылок. Публичный фильтр их больше не меняет.
   view: CatalogView;
   // К14: слаги зданий, отмеченных для сравнения (до MAX_COMPARE). Живут в
   // URL вместе с фильтром — сравнение можно отправить ссылкой, ради чего
@@ -71,18 +81,22 @@ export interface CatalogFilterState {
 
 export const MAX_COMPARE = 4;
 
-export type CatalogView = 'cards' | 'table' | 'map';
+// Табличный вид снят с сайта 2026-09-17 (решение владельца: «табличный вид
+// вообще убираем»). Значение 'table' в старых ссылках больше не существует —
+// parseCatalogFilter отдаёт на него 'cards', см. тест.
+export type CatalogView = 'cards' | 'map';
 
 export const CATALOG_VIEWS: { key: CatalogView; label: string }[] = [
   { key: 'cards', label: 'Плитки' },
-  { key: 'table', label: 'Таблица' },
   { key: 'map', label: 'Карта' },
 ];
 
 export const EMPTY_CATALOG_FILTER: CatalogFilterState = {
   classes: [],
-  districts: [],
+  districts: null,
+  microdistricts: null,
   metroWithin: null,
+  metroStations: [],
   lotSize: null,
   facts: [],
   query: '',
@@ -96,6 +110,67 @@ export const METRO_WITHIN_OPTIONS: { value: number; label: string }[] = [
   { value: 1000, label: 'до 1 км' },
   { value: 1500, label: 'до 1,5 км' },
 ];
+
+// Порядок станций по официальной схеме Минского метрополитена. В фильтре
+// показываем только станции, реально встречающиеся у БЦ, но сохраняем их
+// положение на линии. Сравнение имён ниже регистронезависимое: источники
+// расходятся в написании «Каменная Горка» / «Каменная горка».
+export const MINSK_METRO_LINES = [
+  {
+    id: 'blue',
+    label: 'Московская линия',
+    stations: [
+      'Малиновка',
+      'Петровщина',
+      'Михалово',
+      'Грушевка',
+      'Институт культуры',
+      'Площадь Ленина',
+      'Октябрьская',
+      'Площадь Победы',
+      'Площадь Якуба Коласа',
+      'Академия наук',
+      'Парк Челюскинцев',
+      'Московская',
+      'Восток',
+      'Борисовский тракт',
+      'Уручье',
+    ],
+  },
+  {
+    id: 'red',
+    label: 'Автозаводская линия',
+    stations: [
+      'Каменная горка',
+      'Кунцевщина',
+      'Спортивная',
+      'Пушкинская',
+      'Молодёжная',
+      'Фрунзенская',
+      'Немига',
+      'Купаловская',
+      'Первомайская',
+      'Пролетарская',
+      'Тракторный завод',
+      'Партизанская',
+      'Автозаводская',
+      'Могилёвская',
+    ],
+  },
+  {
+    id: 'green',
+    label: 'Зеленолужская линия',
+    stations: [
+      'Юбилейная площадь',
+      'Площадь Франтишка Богушевича',
+      'Вокзальная',
+      'Ковальская Слобода',
+      'Аэродромная',
+      'Неморшанский сад',
+      'Слуцкий Гостинец',
+    ],
+  },
+] as const;
 
 // Снимки рынка по зданию (Д3) — медиана ставки и число объявлений по слагу.
 // Передаются в фильтр и сортировку явным аргументом, а не берутся из
@@ -232,11 +307,15 @@ export const CATALOG_PRESETS: CatalogPreset[] = [
 export function isPresetActive(preset: CatalogPreset, state: CatalogFilterState): boolean {
   const target = { ...EMPTY_CATALOG_FILTER, ...preset.patch };
   const same = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
+  const sameNullable = (a: string[] | null, b: string[] | null) =>
+    a === null || b === null ? a === b : same(a, b);
   return (
     same(target.classes, state.classes) &&
-    same(target.districts, state.districts) &&
+    sameNullable(target.districts, state.districts) &&
+    sameNullable(target.microdistricts, state.microdistricts) &&
     same(target.facts, state.facts) &&
     target.metroWithin === state.metroWithin &&
+    same(target.metroStations, state.metroStations) &&
     target.lotSize === state.lotSize &&
     (target.query || '') === (state.query || '')
   );
@@ -252,20 +331,26 @@ function splitList(raw: string | null): string[] {
     .filter(Boolean);
 }
 
+function parseSelection(params: URLSearchParams, key: string): string[] | null {
+  return params.has(key) ? splitList(params.get(key)) : null;
+}
+
 export function parseCatalogFilter(params: URLSearchParams): CatalogFilterState {
   const metroRaw = Number(params.get('metro'));
-  const sortRaw = params.get('sort');
-  const viewRaw = params.get('view');
   const lotRaw = Number(params.get('lot'));
   return {
     classes: splitList(params.get('class')).filter((v) => ['A', 'B+', 'B', 'C'].includes(v)),
-    districts: splitList(params.get('district')),
+    districts: parseSelection(params, 'district'),
+    microdistricts: parseSelection(params, 'microdistrict'),
     metroWithin: METRO_WITHIN_OPTIONS.some((o) => o.value === metroRaw) ? metroRaw : null,
+    metroStations: splitList(params.get('station')),
     lotSize: Number.isFinite(lotRaw) && lotRaw > 0 ? Math.round(lotRaw) : null,
     facts: splitList(params.get('facts')).filter((id) => FACT_BY_ID.has(id)),
-    query: params.get('q')?.trim() ?? '',
-    sort: CATALOG_SORTS.some((s) => s.key === sortRaw) ? (sortRaw as CatalogSortKey) : 'default',
-    view: CATALOG_VIEWS.some((v) => v.key === viewRaw) ? (viewRaw as CatalogView) : 'cards',
+    // Поиск, переключатель карты и сортировка сняты с первого экрана.
+    // Старые ссылки с q/sort/view открываются в новом стандартном виде.
+    query: '',
+    sort: 'default',
+    view: 'cards',
     compare: splitList(params.get('compare')).slice(0, MAX_COMPARE),
   };
 }
@@ -277,13 +362,12 @@ export function parseCatalogFilter(params: URLSearchParams): CatalogFilterState 
 export function catalogFilterToQuery(state: CatalogFilterState): string {
   const params = new URLSearchParams();
   if (state.classes.length > 0) params.set('class', [...state.classes].sort().join(','));
-  if (state.districts.length > 0) params.set('district', [...state.districts].sort().join(','));
+  if (state.districts !== null) params.set('district', [...state.districts].sort().join(','));
+  if (state.microdistricts !== null) params.set('microdistrict', [...state.microdistricts].sort().join(','));
   if (state.metroWithin != null) params.set('metro', String(state.metroWithin));
+  if (state.metroStations.length > 0) params.set('station', [...state.metroStations].sort().join(','));
   if (state.lotSize != null) params.set('lot', String(state.lotSize));
   if (state.facts.length > 0) params.set('facts', [...state.facts].sort().join(','));
-  if (state.query) params.set('q', state.query);
-  if (state.sort !== 'default') params.set('sort', state.sort);
-  if (state.view !== 'cards') params.set('view', state.view);
   // Порядок сравнения — тот, в котором отмечал пользователь: колонки не
   // должны переставляться сами при перезагрузке страницы.
   if (state.compare.length > 0) params.set('compare', state.compare.join(','));
@@ -297,8 +381,10 @@ export function catalogFilterToQuery(state: CatalogFilterState): string {
 export function hasActiveCatalogFilter(state: CatalogFilterState): boolean {
   return (
     state.classes.length > 0 ||
-    state.districts.length > 0 ||
+    state.districts !== null ||
+    state.microdistricts !== null ||
     state.metroWithin != null ||
+    state.metroStations.length > 0 ||
     state.lotSize != null ||
     state.facts.length > 0 ||
     state.query.length > 0
@@ -333,8 +419,20 @@ export function matchesCatalogFilter(
   if (state.classes.length > 0 && (center.businessClass === null || !state.classes.includes(center.businessClass))) {
     return false;
   }
-  if (state.districts.length > 0 && (center.district === null || !state.districts.includes(center.district))) {
+  if (state.districts !== null && (center.district === null || !state.districts.includes(center.district))) {
     return false;
+  }
+  if (
+    state.microdistricts !== null &&
+    (center.microdistrict === null || !state.microdistricts.includes(center.microdistrict))
+  ) {
+    return false;
+  }
+  if (state.metroStations.length > 0) {
+    // Неизвестное не считается несовпадением «по вине здания»: у БЦ без
+    // разобранных станций признак просто не проверить, и такие здания
+    // считаются отдельно (см. unverifiableByMetroStation).
+    if (!center.nearestMetroStations.some((st) => state.metroStations.includes(st.name))) return false;
   }
   if (state.metroWithin != null) {
     const meters = nearestMetroMeters(center);
@@ -431,4 +529,34 @@ export function catalogSummary(centers: BusinessCenter[], offers: CatalogOfferIn
     rentMedian: mid === null ? null : Math.round(mid * 10) / 10,
     rentBuildings: medians.length,
   };
+}
+
+
+function metroStationKey(name: string): string {
+  return name.toLocaleLowerCase('ru').replaceAll('ё', 'е');
+}
+
+// Берём только станции из данных, а справочник линий используем для порядка.
+// Новая или нестандартно названная станция не теряется: она уходит в конец.
+export function catalogMetroStations(centers: BusinessCenter[]): string[] {
+  const set = new Set<string>();
+  for (const c of centers) for (const st of c.nearestMetroStations) set.add(st.name);
+  const order = new Map<string, number>();
+  let index = 0;
+  for (const line of MINSK_METRO_LINES) {
+    for (const station of line.stations) order.set(metroStationKey(station), index++);
+  }
+  return [...set].sort((a, b) => {
+    const ai = order.get(metroStationKey(a)) ?? Number.MAX_SAFE_INTEGER;
+    const bi = order.get(metroStationKey(b)) ?? Number.MAX_SAFE_INTEGER;
+    return ai - bi || a.localeCompare(b, 'ru');
+  });
+}
+
+// Сколько зданий выборки НЕЛЬЗЯ проверить по признаку «метро»: у них не
+// разобрана ни одна ближайшая станция. Это не «не подходят» — это «не
+// знаем», и говорить об этом надо отдельно (требование мастер-плана:
+// неизвестное значение не должно превращаться в недостаток).
+export function unverifiableByMetroStation(centers: BusinessCenter[]): number {
+  return centers.filter((c) => c.nearestMetroStations.length === 0).length;
 }

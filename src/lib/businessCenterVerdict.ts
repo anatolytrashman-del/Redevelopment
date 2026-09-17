@@ -17,8 +17,7 @@ import type { BusinessCenter } from '../data/businessCenters';
 import type { MarketSnapshot } from '../data/marketSnapshots';
 import type { CatalogOfferIndex } from './businessCenterCatalogFilter';
 import { nearestMetroMeters } from './businessCenterCatalogFilter';
-
-export const VERDICT_SIGNATURE = 'Оценка Redevelopment по данным prometr.by и 2ГИС';
+import { median, MIN_COMPARE_N } from './businessCenterMarketPosition';
 
 // Больше пяти пунктов с каждой стороны никто не читает, а список из
 // пятнадцати плюсов перестаёт значить что-либо. Порядок добавления ниже и
@@ -41,55 +40,50 @@ function classRentMedian(snapshots: MarketSnapshot[] | null, businessClass: stri
 
 export function buildVerdictDraft(
   center: BusinessCenter,
+  allCenters: BusinessCenter[],
   offers: CatalogOfferIndex,
   snapshots: MarketSnapshot[] | null,
 ): VerdictDraft {
   const pros: string[] = [];
-  const cons: string[] = [];
 
   const metro = nearestMetroMeters(center);
   const rent = offers.rentBySlug.get(center.slug)?.median ?? null;
   const classMedian = classRentMedian(snapshots, center.businessClass);
-  const lots = (offers.rentBySlug.get(center.slug)?.n ?? 0) + (offers.saleBySlug.get(center.slug)?.n ?? 0);
+  const sameClass = center.businessClass
+    ? allCenters.filter((candidate) => candidate.businessClass === center.businessClass)
+    : [];
+  const classParkingMedian =
+    sameClass.length >= MIN_COMPARE_N
+      ? median(sameClass.map((candidate) => candidate.parkingRatio).filter((value): value is number => value != null))
+      : null;
+  const classMetroMedian =
+    sameClass.length >= MIN_COMPARE_N
+      ? median(sameClass.map(nearestMetroMeters).filter((value): value is number => value != null))
+      : null;
 
   // --- Плюсы -----------------------------------------------------------
   if (rent != null && classMedian != null && classMedian > 0 && rent <= classMedian * 0.9) {
     pros.push(`Ставка ниже медианы класса ${center.businessClass} на ${Math.round((1 - rent / classMedian) * 100)}%`);
   }
-  if (metro != null && metro <= 500) pros.push(`До метро ${metro} м по прямой`);
-  if (center.parkingRatio != null && center.parkingRatio >= 1.5) {
-    pros.push(`Парковка ${center.parkingRatio.toLocaleString('ru-RU')} маш./100 м²`);
+  if (metro != null && classMetroMedian != null && classMetroMedian > 0 && metro < classMetroMedian) {
+    const metroAdvantage = Math.max(1, Math.round((1 - metro / classMetroMedian) * 100));
+    pros.push(
+      `До метро на ${metroAdvantage}% ближе, чем у медианного здания класса ${center.businessClass}`,
+    );
   }
-  if (center.managementType === 'single_uk') {
-    pros.push('Здание под единой управляющей компанией');
-  }
-  if (center.layoutTypes.includes('open_space')) pros.push('Есть open-space — гибче под рост команды');
-  if (center.ceilingHeight != null && center.ceilingHeight >= 3) {
-    pros.push(`Потолки ${center.ceilingHeight.toLocaleString('ru-RU')} м`);
-  }
-  if (lots >= 5) pros.push(`Сейчас ${lots} активных объявлений — есть из чего выбрать`);
-  if (center.gisRating != null && center.gisRating >= 4.5) pros.push(`Рейтинг 2ГИС ${center.gisRating}`);
-  if (center.is24x7) pros.push('Круглосуточный доступ');
-  if (center.infraInternal.length >= 3) pros.push(`В самом здании: ${center.infraInternal.slice(0, 4).join(', ')}`);
-  if (center.accessibility.length >= 2) pros.push(`Доступная среда: ${center.accessibility.slice(0, 3).join(', ').toLowerCase()}`);
-
-  // --- Минусы ----------------------------------------------------------
-  // Каждый минус — только когда параметр ИЗВЕСТЕН и плох. Отсутствие
-  // данных минусом не считается: мы не знаем, а не «там плохо».
-  if (metro != null && metro > 1000) cons.push(`До ближайшего метро ${metro} м по прямой`);
-  if (center.parkingRatio != null && center.parkingRatio < 1) {
-    cons.push(`Парковка ${center.parkingRatio.toLocaleString('ru-RU')} маш./100 м²`);
-  }
-  if (center.airConditioning === 'none') cons.push('Центрального кондиционирования нет');
-  if (center.managementType === 'hoa') {
-    cons.push('Управление зданием — товарищество собственников');
-  }
-  if (center.ceilingHeight != null && center.ceilingHeight < 2.7) {
-    cons.push(`Потолки ${center.ceilingHeight.toLocaleString('ru-RU')} м — ниже привычных`);
-  }
-  if (center.businessClass === 'C') cons.push('Класс C: базовая отделка и минимальный набор сервисов');
-  if (rent != null && classMedian != null && classMedian > 0 && rent >= classMedian * 1.15) {
-    cons.push(`Ставка выше медианы класса ${center.businessClass} на ${Math.round((rent / classMedian - 1) * 100)}%`);
+  if (
+    center.parkingRatio != null &&
+    classParkingMedian != null &&
+    classParkingMedian > 0 &&
+    center.parkingRatio > classParkingMedian
+  ) {
+    const parkingAdvantage = Math.max(
+      1,
+      Math.round((center.parkingRatio / classParkingMedian - 1) * 100),
+    );
+    pros.push(
+      `Парковочных мест на ${parkingAdvantage}% больше медианы класса ${center.businessClass}`,
+    );
   }
 
   // --- Вердикт ---------------------------------------------------------
@@ -127,5 +121,5 @@ export function buildVerdictDraft(
     verdict = `Бизнес-центр класса ${center.businessClass ?? '—'}: по имеющимся данным здание не выделяется по ставке, расположению или размеру блока.`;
   }
 
-  return { verdict, pros: pros.slice(0, MAX_ITEMS), cons: cons.slice(0, MAX_ITEMS) };
+  return { verdict, pros: pros.slice(0, MAX_ITEMS), cons: [] };
 }

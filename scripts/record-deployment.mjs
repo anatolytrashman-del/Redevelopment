@@ -1,5 +1,5 @@
-// Запись прод-деплоя в таблицу deployments — источник метрики «релизов на
-// прод» у ИИ-кодера (Claude Code) на /admin/metrics.
+// Запись деплоя в таблицу deployments — источник метрики «релизов на
+// прод» у Claude Code и «деплоев на превью» у Codex на /admin/metrics.
 //
 // Владелец, 2026-09-15: «можем вывести метрику по количеству деплоев на
 // страницу метрики для ИИ-сотрудника Claude Code». У Claude Code нет следов
@@ -16,19 +16,26 @@
 //
 // Запускается последним шагом `npm run build` — то есть уже после
 // пререндера и OG-обложек, за секунды до того, как деплой станет READY.
-// Только на прод-сборках Vercel: превью-ветки и локальные прогоны не
-// должны попадать в счётчик релизов (та же логика, что в notify-indexnow.mjs).
+// Пишем прод и единственную стабильную preview-ветку. Прочие preview-сборки
+// сознательно не считаем работой Codex (vercel.json и так деплоит только две ветки).
 //
 // Сетевая ошибка НЕ валит сборку: потерять цифру в метрике — мелочь, уронить
 // из-за неё прод-деплой — нет.
 import { createClient } from '@supabase/supabase-js';
+import { previewDeploymentBackfill } from './preview-deployment-backfill.mjs';
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 async function main() {
-  if (process.env.VERCEL_ENV !== 'production') {
-    console.log(`[record-deployment] не прод-сборка Vercel (VERCEL_ENV=${process.env.VERCEL_ENV ?? 'нет'}) — пропускаем`);
+  const environment = process.env.VERCEL_ENV;
+  const commitRef = process.env.VERCEL_GIT_COMMIT_REF ?? null;
+  const isProduction = environment === 'production';
+  const isStablePreview = environment === 'preview' && commitRef === 'preview';
+  if (!isProduction && !isStablePreview) {
+    console.log(
+      `[record-deployment] не целевая Vercel-сборка (VERCEL_ENV=${environment ?? 'нет'}, ref=${commitRef ?? 'нет'}) — пропускаем`,
+    );
     return;
   }
   if (!SUPABASE_SERVICE_ROLE_KEY) {
@@ -37,6 +44,17 @@ async function main() {
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  if (isStablePreview) {
+    const { error: backfillError } = await supabase
+      .from('deployments')
+      .upsert(previewDeploymentBackfill, { onConflict: 'deployment_id', ignoreDuplicates: true });
+    if (backfillError) {
+      console.warn('[record-deployment] не дозалили историю preview-деплоев:', backfillError.message);
+    } else {
+      console.log(`[record-deployment] проверен бэкфилл ${previewDeploymentBackfill.length} preview-деплоев`);
+    }
+  }
+
   const row = {
     deployment_id: process.env.VERCEL_DEPLOYMENT_ID ?? null,
     deployment_url: process.env.VERCEL_URL ?? null,
@@ -44,7 +62,7 @@ async function main() {
     // В сообщении мерж-коммита вторая строка — заголовок PR; в метрике нужна
     // одна строка, полный текст всегда есть в гите.
     commit_message: (process.env.VERCEL_GIT_COMMIT_MESSAGE ?? '').split('\n')[0].slice(0, 300) || null,
-    commit_ref: process.env.VERCEL_GIT_COMMIT_REF ?? null,
+    commit_ref: commitRef,
     commit_author: process.env.VERCEL_GIT_COMMIT_AUTHOR_LOGIN ?? null,
     state: 'READY',
     source: 'build',
@@ -61,7 +79,9 @@ async function main() {
     console.warn('[record-deployment] не записали деплой:', error.message);
     return;
   }
-  console.log(`[record-deployment] записан деплой ${row.deployment_id ?? row.deployment_url ?? 'без id'} (${row.commit_sha?.slice(0, 7) ?? 'без sha'})`);
+  console.log(
+    `[record-deployment] записан ${isProduction ? 'прод' : 'preview'}-деплой ${row.deployment_id ?? row.deployment_url ?? 'без id'} (${row.commit_sha?.slice(0, 7) ?? 'без sha'})`,
+  );
 }
 
 main().catch((err) => {

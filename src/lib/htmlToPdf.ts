@@ -1,3 +1,6 @@
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
+
 // Готовый HTML-документ → скачанный PDF, без диалога печати (владелец,
 // 2026-09-17: «делай при клике на кнопку На утверждение сразу загрузку pdf
 // файла»).
@@ -78,8 +81,6 @@ export function safeFileName(name: string): string {
 }
 
 export async function downloadHtmlAsPdf(html: string, filename: string): Promise<void> {
-  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
-
   const frame = document.createElement('iframe');
   frame.setAttribute('aria-hidden', 'true');
   frame.style.cssText = `position:fixed;left:-10000px;top:0;width:${PAPER_WIDTH_PX}px;height:1200px;border:0;opacity:0;`;

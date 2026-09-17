@@ -6,12 +6,14 @@ import {
   EMPTY_CATALOG_FILTER,
   buildOfferIndex,
   catalogFilterToQuery,
+  catalogMetroStations,
   catalogSummary,
   hasActiveCatalogFilter,
+  isPresetActive,
   matchesCatalogFilter,
   parseCatalogFilter,
-  isPresetActive,
   sortCatalogCenters,
+  unverifiableByMetroStation,
 } from './businessCenterCatalogFilter';
 
 // Фильтр каталога БЦ считает то, что видит пользователь на первом экране
@@ -121,6 +123,16 @@ describe('matchesCatalogFilter', () => {
     expect(matchesCatalogFilter(b, state, offers)).toBe(false);
   });
 
+  it('район и микрорайон различают «все» и «ничего»', () => {
+    const c = bc({ slug: 'a', district: 'Центральный', microdistrict: 'Комаровка' });
+    expect(matchesCatalogFilter(c, EMPTY_CATALOG_FILTER, offers)).toBe(true);
+    expect(matchesCatalogFilter(c, { ...EMPTY_CATALOG_FILTER, districts: [] }, offers)).toBe(false);
+    expect(matchesCatalogFilter(c, { ...EMPTY_CATALOG_FILTER, microdistricts: [] }, offers)).toBe(false);
+    expect(
+      matchesCatalogFilter(c, { ...EMPTY_CATALOG_FILTER, microdistricts: ['Комаровка'] }, offers),
+    ).toBe(true);
+  });
+
   it('здание без класса не попадает в выборку по классу', () => {
     const noClass = bc({ slug: 'x' });
     expect(matchesCatalogFilter(noClass, { ...EMPTY_CATALOG_FILTER, classes: ['A'] }, offers)).toBe(false);
@@ -214,13 +226,24 @@ describe('подборки (К15)', () => {
     const exact = { ...EMPTY_CATALOG_FILTER, ...preset.patch };
     expect(isPresetActive(preset, exact)).toBe(true);
     // Сортировка и вид — не часть подборки, они её не ломают.
-    expect(isPresetActive(preset, { ...exact, sort: 'rent', view: 'table' })).toBe(true);
+    expect(isPresetActive(preset, { ...exact, sort: 'rent', view: 'map' })).toBe(true);
     // А вот лишнее условие сверху — уже не эта подборка.
     expect(isPresetActive(preset, { ...exact, facts: ['uk'] })).toBe(false);
   });
 });
 
 describe('URL фильтра', () => {
+  it('старые поиск, карта и сортировка открывают стандартную выдачу', () => {
+    const state = parseCatalogFilter(new URLSearchParams('view=map&q=титан&sort=metro&class=A'));
+    expect(state.view).toBe('cards');
+    expect(state.query).toBe('');
+    expect(state.sort).toBe('default');
+    expect(state.classes).toEqual(['A']);
+    expect(catalogFilterToQuery(state)).not.toContain('view=');
+    expect(catalogFilterToQuery(state)).not.toContain('q=');
+    expect(catalogFilterToQuery(state)).not.toContain('sort=');
+  });
+
   it('старый sort=index сохраняет фильтры и выдаёт здания в обычном порядке', () => {
     const state = parseCatalogFilter(new URLSearchParams('sort=index&class=A'));
     const offers = buildOfferIndex([]);
@@ -243,7 +266,14 @@ describe('URL фильтра', () => {
   });
 
   it('разбор возвращает то же состояние и отбрасывает мусор', () => {
-    const state = { ...EMPTY_CATALOG_FILTER, classes: ['A'], metroWithin: 1000, facts: ['uk'], sort: 'rent' as const };
+    const state = {
+      ...EMPTY_CATALOG_FILTER,
+      classes: ['A'],
+      districts: ['Центральный'],
+      microdistricts: ['Комаровка'],
+      metroWithin: 1000,
+      facts: ['uk'],
+    };
     const parsed = parseCatalogFilter(new URLSearchParams(catalogFilterToQuery(state).slice(1)));
     expect(parsed).toEqual(state);
     const junk = parseCatalogFilter(new URLSearchParams('class=Z&metro=777&facts=nope&sort=nope'));
@@ -253,6 +283,14 @@ describe('URL фильтра', () => {
   it('сортировка и пустой фильтр не считаются активным фильтром', () => {
     expect(hasActiveCatalogFilter({ ...EMPTY_CATALOG_FILTER, sort: 'area' })).toBe(false);
     expect(hasActiveCatalogFilter({ ...EMPTY_CATALOG_FILTER, facts: ['uk'] })).toBe(true);
+  });
+
+  it('явно снятые районы сохраняются в URL как пустое значение', () => {
+    const query = catalogFilterToQuery({ ...EMPTY_CATALOG_FILTER, districts: [], microdistricts: [] });
+    const parsed = parseCatalogFilter(new URLSearchParams(query.slice(1)));
+    expect(parsed.districts).toEqual([]);
+    expect(parsed.microdistricts).toEqual([]);
+    expect(hasActiveCatalogFilter(parsed)).toBe(true);
   });
 });
 
@@ -275,5 +313,36 @@ describe('catalogSummary', () => {
     const s = catalogSummary([bc({ slug: 'a' })], buildOfferIndex([]));
     expect(s.rentMedian).toBeNull();
     expect(s.rentBuildings).toBe(0);
+  });
+});
+
+describe('фильтр по станциям метро (задача 8)', () => {
+  const near = (name: string, meters: number) => ({ name, distanceMeters: meters, line: null, color: null });
+
+  it('здание подходит, если выбрана хотя бы одна из его станций', () => {
+    const c = bc({ slug: 'a', nearestMetroStations: [near('Уручье', 310), near('Борисовский тракт', 900)] });
+    const state = { ...EMPTY_CATALOG_FILTER, metroStations: ['Борисовский тракт', 'Малиновка'] };
+    expect(matchesCatalogFilter(c, state, buildOfferIndex([]))).toBe(true);
+  });
+
+  it('здание без разобранных станций не выдаётся за совпадение', () => {
+    const c = bc({ slug: 'b', nearestMetroStations: [] });
+    const state = { ...EMPTY_CATALOG_FILTER, metroStations: ['Уручье'] };
+    expect(matchesCatalogFilter(c, state, buildOfferIndex([]))).toBe(false);
+    expect(unverifiableByMetroStation([c])).toBe(1);
+  });
+
+  it('станции переживают ссылку: разбор и сборка строки запроса', () => {
+    const state = parseCatalogFilter(new URLSearchParams('station=Уручье,Малиновка'));
+    expect(state.metroStations.sort()).toEqual(['Малиновка', 'Уручье']);
+    expect(catalogFilterToQuery(state)).toContain('station=');
+  });
+
+  it('список станций собирается без повторов и идёт по порядку линий', () => {
+    const list = catalogMetroStations([
+      bc({ slug: 'a', nearestMetroStations: [near('Уручье', 300)] }),
+      bc({ slug: 'b', nearestMetroStations: [near('Малиновка', 400), near('Уручье', 900)] }),
+    ]);
+    expect(list).toEqual(['Малиновка', 'Уручье']);
   });
 });
