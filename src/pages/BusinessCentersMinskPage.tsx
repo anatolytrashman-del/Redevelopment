@@ -101,15 +101,11 @@ const PAGE_H1 = 'Бизнес-центры Минска: аналитика дл
 const INTRO_TEXT =
   'Сравнивайте бизнес-центры Минска по классу, площади и расположению — для инвестиций, аренды или покупки офиса.';
 
-// Фото hero — владелец подбирает сам ("фотки я сейчас поищу сам"), пополняется
-// по мере присылки. HeroImageSlider (см. DistrictGuidePage.tsx/
-// ObjectLandingPage.tsx) при пустом массиве не рендерит ничего — плейсхолдер
-// ниже занимает его место, пока список пуст.
-// Исходный JPEG (640×387, 43 КиБ) без повторного WebP-сжатия.
-// Компактный размер фото уменьшает растягивание портретного кропа.
-const HERO_IMAGES: string[] = ['/images/business-centers-hero/hero-1.jpg'];
-const HERO_IMAGE_WIDTH = 640;
-const HERO_IMAGE_HEIGHT = 387;
+// Тот же снимок «Футуриса» в исходном размере 1600×1067 (Domovita).
+// Источник: https://domovita.by/bc-bcfuturis — фото 4.
+const HERO_IMAGES: string[] = ['/images/business-centers-hero/futuris-1600.jpg'];
+const HERO_IMAGE_WIDTH = 1600;
+const HERO_IMAGE_HEIGHT = 1067;
 
 // Карта всех БЦ на каталоге БЫЛА статичным embed'ом Яндекс.Конструктора
 // (владелец загружал туда CSV с координатами всех 143 БЦ). Убрана
@@ -912,7 +908,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           — простого `sticky top-0` на саму шапку достаточно для того же
           визуального эффекта, без дублирования логотипа отдельным узлом. */}
       <div className="sticky top-0 z-30 border-b border-border bg-bg/90 py-5 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-8">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-8">
           <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
             {/* text-primary-hover — как на гиде района: базовый красный на
                 полупрозрачной шапке даёт контраст ниже 4,5:1 (Accessibility). */}
@@ -926,50 +922,10 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
 
       {/* <main> — единственный main-landmark (Accessibility «Document does
           not have a main landmark»), шапка — вне него. */}
-      {/* max-w-7xl, а не 6xl как на остальных страницах: каталог — это
-          таблица на 11 колонок и сетка по 4 карточки в ряд, на 1152 px и то
-          и другое приходилось прокручивать вбок. */}
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-8">
-        <div className="space-y-8">
-          <div
-            className={cn('flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:p-4', glassCardClass)}
-            style={{ ...glassCardShadow, borderRadius: '0.75rem' }}
-          >
-            <div className="flex min-w-0 flex-col gap-2 sm:flex-1">
-              <h1 className="text-xl font-extrabold leading-tight text-ink sm:text-2xl">{heroH1}</h1>
-              <p className="text-sm text-ink-muted">{heroIntro}</p>
-              <span className="flex w-fit items-center gap-1.5 rounded-full border border-success/30 bg-success-bg px-3 py-1 text-xs font-semibold text-[#0f6b3d]">
-                <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
-                {UPDATED_BADGE_LABEL}
-              </span>
-            </div>
-            <div className="mx-auto w-full max-w-40 shrink-0 sm:mx-0 sm:w-1/5 sm:max-w-none">
-              {/* Padding задаёт высоту по ширине независимо от Grid/Flex и
-                  процентной высоты вложенной картинки в Safari. */}
-              <div className="relative w-full" style={{ paddingTop: '125%' }}>
-                <div className="absolute inset-0">
-                  {HERO_IMAGES.length > 0 ? (
-                    <HeroImageSlider
-                      images={HERO_IMAGES}
-                      alt="Бизнес-центры Минска"
-                      aspectClassName="h-full"
-                      cornerCut={28}
-                      imageWidth={HERO_IMAGE_WIDTH}
-                      imageHeight={HERO_IMAGE_HEIGHT}
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center rounded-3xl bg-gradient-to-br from-surface-muted to-border">
-                      <span className="flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink-muted shadow-sm">
-                        <Camera className="h-3.5 w-3.5 shrink-0" />
-                        Фото скоро
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
+      {/* Сетка и ширина основного контента — как на странице Минск Мира. */}
+      <main className="mx-auto max-w-6xl px-4 pt-6 pb-12 sm:px-8 sm:pt-12">
+        <div className="lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:items-start lg:gap-10">
+          <aside aria-label="Фильтры каталога" className="min-w-0 lg:sticky lg:top-24">
           <CatalogFilterPanel
             state={filter}
             onChange={applyFilter}
@@ -986,6 +942,47 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             hasActiveFilter={hasActiveCatalogFilter(filter)}
             onReset={resetFilter}
           />
+          </aside>
+          <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
+          <div
+            className={cn('flex flex-col gap-6 overflow-hidden p-6 sm:flex-row sm:items-center sm:p-8', glassCardClass)}
+            style={glassCardShadow}
+          >
+            <div className="contents sm:flex sm:min-w-0 sm:flex-[3] sm:flex-col sm:gap-3">
+              <h1 className="order-1 text-2xl font-extrabold leading-tight text-ink sm:order-none sm:text-3xl">{heroH1}</h1>
+              <p className="order-3 text-base text-ink-muted sm:order-none">{heroIntro}</p>
+              <span className="order-4 flex w-fit items-center gap-1.5 rounded-full border border-success/30 bg-success-bg px-3 py-1 text-xs font-semibold text-[#0f6b3d] sm:order-none">
+                <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
+                {UPDATED_BADGE_LABEL}
+              </span>
+            </div>
+            <div className="order-2 w-full min-w-0 sm:order-none sm:flex-[2]">
+              {/* Padding задаёт высоту по ширине независимо от Grid/Flex и
+                  процентной высоты вложенной картинки в Safari. */}
+              <div className="relative w-full pt-[56.25%] sm:pt-[125%]">
+                <div className="absolute inset-0">
+                  {HERO_IMAGES.length > 0 ? (
+                    <HeroImageSlider
+                      images={HERO_IMAGES}
+                      alt="Бизнес-центры Минска"
+                      aspectClassName="h-full"
+                      imageWidth={HERO_IMAGE_WIDTH}
+                      imageHeight={HERO_IMAGE_HEIGHT}
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center rounded-3xl bg-gradient-to-br from-surface-muted to-border">
+                      <span className="flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink-muted shadow-sm">
+                        <Camera className="h-3.5 w-3.5 shrink-0" />
+                        Фото скоро
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+
 
           {/* Живая сводка под фильтром (К1). Заменяет собой «Рынок в цифрах»
               в роли первого, что видно: та плитка считалась только от оси
@@ -1051,7 +1048,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             <CatalogMap centers={orderedCenters} offers={offerIndex} />
           ) : (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 items-start gap-5 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 items-start gap-5 sm:grid-cols-2">
                 {orderedCenters.slice(0, visibleCount).map((c) => (
                   <BusinessCenterCard
                     key={c.slug}
@@ -1444,11 +1441,13 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                   </a>
                 ))}
               </div>
+              <p className="text-xs text-ink-muted">Фото «Футуриса»: <a href="https://domovita.by/bc-bcfuturis" target="_blank" rel="noopener noreferrer" className="underline hover:text-ink">Domovita</a>.</p>
               <p className="text-xs text-ink-muted">Данные каталога собраны из открытых источников; не каждый источник содержит сведения о каждом здании. Единой даты обновления всех характеристик нет: сведения дополняются по мере получения.</p>
               <p className="text-xs text-ink-muted">{latestSnapshotPeriod ? `Последний период загруженных рыночных снимков: ${latestSnapshotPeriod}. Точная дата обновления в данных не указана.` : 'Период рыночных снимков недоступен.'}</p>
               <p className="text-xs text-ink-muted">{rentMethodology} Ставки — из объявлений, не из заключённых сделок; состав дополнительных платежей уточняйте у автора объявления.</p>
               <p className="text-xs text-ink-muted">У части зданий параметры не заполнены. Суммарная площадь учитывает только известные значения, расстояния до метро указаны по прямой. Внешний контекст рынка подписан источником и периодом в соответствующем блоке.</p>
             </div>
+          </div>
         </div>
       </main>
     </div>
