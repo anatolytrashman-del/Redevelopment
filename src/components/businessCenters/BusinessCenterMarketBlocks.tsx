@@ -16,7 +16,7 @@ import { VERDICT_SIGNATURE } from '../../lib/businessCenterVerdict';
 // мало». Общая идея взята у аналитики Минск Мира: каждое число стоит рядом
 // с базой сравнения и выводом, а не само по себе.
 
-// --- Б1. Место на рынке ------------------------------------------------
+// --- Б1. БЦ на фоне конкурентов ----------------------------------------
 
 function Bar({
   label,
@@ -62,16 +62,10 @@ export function MarketPositionBlock({
     // id — якорь для липкого меню «На странице» (Б7). scroll-mt — чтобы
     // заголовок не уезжал под липкую шапку при переходе по якорю.
     <div id="market" className={cn('mt-6 flex scroll-mt-32 flex-col gap-5 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-      <div className="flex flex-col gap-1">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-          <Gauge className="h-5 w-5 shrink-0 text-ink-muted" />
-          Место на рынке
-        </h2>
-        <p className="text-xs text-ink-faint">
-          Сравнение с медианами по классу, району и городу: ставки — по объявлениям Kufar и Realt,
-          остальное — по справочнику 143 бизнес-центров (prometr.by и 2ГИС).
-        </p>
-      </div>
+      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+        <Gauge className="h-5 w-5 shrink-0 text-ink-muted" />
+        БЦ на фоне конкурентов
+      </h2>
 
       <div className="flex flex-col gap-5">
         {position.bars.map((bar) => {
