@@ -1,4 +1,4 @@
-import { convertToUsd } from '../../lib/currencyConvert';
+import { convertCurrency, convertToUsd } from '../../lib/currencyConvert';
 import { currencySymbols, type Currency } from '../../data/transactions';
 import type { ExchangeRate } from '../../data/exchangeRates';
 import type { Estimate, EstimateMaterial, EstimateSection } from '../../data/estimates';
@@ -74,6 +74,10 @@ export interface UnmatchedLine {
   item: PurchaseItem;
   quoteId: string | null;
   quoteTitle: string;
+  // Валюта СЧЁТА, из которого строка (а не карточки поставщика): счёт
+  // приходит в рублях, пока карточка по умолчанию заведена в долларах, и
+  // подписывать такую строку знаком доллара нельзя.
+  currency: Currency;
 }
 
 // Строка счёта, про которую человек уже решил, что она не позиция ведомости
@@ -85,6 +89,7 @@ export interface AsideLine {
   quoteId: string | null;
   quoteTitle: string;
   total: number;
+  currency: Currency;
 }
 
 export interface Column {
@@ -92,6 +97,12 @@ export interface Column {
   cells: Map<string, Cell>;
   // Сумма строк-доставок из последнего счёта (null — в счёте доставки нет).
   delivery: number | null;
+  // Валюта доставки — валюта того же счёта (или условий), откуда она взята.
+  // Отдельным полем, потому что offer.currency у карточки поставщика живёт
+  // своей жизнью: у половины российских карточек там остался дефолтный USD,
+  // а счета рублёвые (владелец, 2026-09-17: «плинтус посчитался в долларах,
+  // хотя поставка рублевая»).
+  deliveryCurrency: Currency;
   // Строки последнего счёта с ценой, не привязанные ни к позиции, ни к доставке.
   unmatched: UnmatchedLine[];
   // Строки того же счёта, помеченные «не позиция ведомости», и их сумма.
@@ -144,6 +155,9 @@ export function buildColumns(
     let aside: AsideLine[] = [];
     let lastQuoteAt: string | null = null;
     let terms: QuoteTerms | null = null;
+    // Валюта счёта, из которого взяты доставка и условия, — ею и подписываем
+    // доставку (см. deliveryCurrency в Column).
+    let sourceCurrency: Currency | null = null;
     for (const src of sources) {
       let srcDelivery: number | null = null;
       const srcUnmatched: UnmatchedLine[] = [];
@@ -156,7 +170,7 @@ export function buildColumns(
         // ... подъём» из счёта КраскиТорг иначе утекла бы в доставку.
         if (item.matchKind === 'none') {
           const total = purchaseItemTotal(item) || item.price || 0;
-          if (total > 0) srcAside.push({ item, quoteId: src.id, quoteTitle: src.title, total });
+          if (total > 0) srcAside.push({ item, quoteId: src.id, quoteTitle: src.title, total, currency: src.currency });
           continue;
         }
         if (isDeliveryItem(item)) {
@@ -166,14 +180,14 @@ export function buildColumns(
         }
         const position = item.sourceMaterialId ? byId.get(item.sourceMaterialId) : undefined;
         if (!position) {
-          if (item.price != null && item.price > 0) srcUnmatched.push({ item, quoteId: src.id, quoteTitle: src.title });
+          if (item.price != null && item.price > 0) srcUnmatched.push({ item, quoteId: src.id, quoteTitle: src.title, currency: src.currency });
           continue;
         }
         const unitPrice = unitPriceOf(item, position);
         if (unitPrice == null) {
           // Привязана, но цену за единицу сметы никто не посчитал — для
           // человека это тоже «не привязано до конца».
-          if (item.price != null && item.price > 0) srcUnmatched.push({ item, quoteId: src.id, quoteTitle: src.title });
+          if (item.price != null && item.price > 0) srcUnmatched.push({ item, quoteId: src.id, quoteTitle: src.title, currency: src.currency });
           continue;
         }
         priced = true;
@@ -211,6 +225,7 @@ export function buildColumns(
         // Условия берём того же КП, что и доставку: смешивать срок из одного
         // счёта с ценой из другого нельзя.
         terms = src.terms;
+        sourceCurrency = src.currency;
         if (src.date) lastQuoteAt = src.date;
       }
     }
@@ -228,6 +243,9 @@ export function buildColumns(
       offer,
       cells,
       delivery: deliveryTotal,
+      // Доставка из строки счёта или из условий того же счёта — в его валюте;
+      // доставка из условий карточки — в валюте карточки.
+      deliveryCurrency: (delivery != null || terms != null ? sourceCurrency : null) ?? offer.currency,
       unmatched,
       aside,
       asideTotal: aside.reduce((sum, line) => sum + line.total, 0),
@@ -255,23 +273,36 @@ export interface MoneyPart {
   currency: Currency;
 }
 
+// В какой валюте показывать смешанный набор сумм: в той, в которой названо
+// БОЛЬШИНСТВО из них, а не в долларах всегда. Владелец, 2026-09-17: «почему-то
+// плинтус посчитался в долларах, хотя поставка рублевая» — там из пяти счетов
+// рублёвыми были четыре, а доллар вылезал из пятого (и из дефолтной валюты
+// карточек поставщиков). Считаем по числу сумм, при равенстве — валюта первой:
+// порядок столбцов не случаен, слева идёт самое выгодное предложение.
+export function dominantCurrency(parts: MoneyPart[]): Currency | null {
+  if (parts.length === 0) return null;
+  const counts = new Map<Currency, number>();
+  for (const p of parts) counts.set(p.currency, (counts.get(p.currency) ?? 0) + 1);
+  let best = parts[0].currency;
+  for (const p of parts) {
+    if ((counts.get(p.currency) ?? 0) > (counts.get(best) ?? 0)) best = p.currency;
+  }
+  return best;
+}
+
 // Сумма набора «сумма в валюте» → одна строка: если валюта одна — в ней,
-// иначе в долларах по курсу дня (два поставщика из разных стран в одном
-// отборе — редкость, но не ошибка).
+// иначе в валюте большинства по курсу дня (два поставщика из разных стран в
+// одном отборе — редкость, но не ошибка).
 export function sumMoney(parts: MoneyPart[], rate: ExchangeRate | undefined): string {
   if (parts.length === 0) return '—';
-  const currencies = new Set(parts.map((p) => p.currency));
-  if (currencies.size === 1) {
-    const currency = parts[0].currency;
-    return formatMoney(parts.reduce((a, p) => a + p.amount, 0), currency);
-  }
-  let usd = 0;
+  const currency = dominantCurrency(parts)!;
+  let sum = 0;
   for (const p of parts) {
-    const v = convertToUsd(p.amount, p.currency, rate);
+    const v = convertCurrency(p.amount, p.currency, currency, rate);
     if (v == null) return 'разные валюты, нет курса';
-    usd += v;
+    sum += v;
   }
-  return formatMoney(usd, 'USD');
+  return formatMoney(sum, currency);
 }
 
 // Отношение цены ячейки к цене отобранной в той же строке: «+36 %» / «−2 %».

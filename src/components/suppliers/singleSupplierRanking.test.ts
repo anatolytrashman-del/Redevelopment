@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildRanking, rankingWinner } from './singleSupplierRanking';
+import { buildRanking, rankingWinner, type RiskLookup } from './singleSupplierRanking';
 import type { Cell, Column } from './priceComparisonModel';
 import type { EstimateMaterial } from '../../data/estimates';
 import type { SupplierOffer } from '../../data/supplierResearch';
 import type { PurchaseItemMatchKind } from '../../data/purchases';
+import type { Currency } from '../../data/transactions';
 
 // Что проверяем: ровно те решения, из-за которых панель либо отвечает на
 // «где заказать всё», либо советует не то — что считается эталонной ценой,
@@ -13,7 +14,7 @@ function material(id: string, name: string, quantity: number): EstimateMaterial 
   return { id, name, unit: 'м2', quantity, note: '', comments: [], group: '' } as EstimateMaterial;
 }
 
-function cell(unitPrice: number, kind: PurchaseItemMatchKind = 'exact'): Cell {
+function cell(unitPrice: number, kind: PurchaseItemMatchKind = 'exact', currency: Currency = 'RUB'): Cell {
   return {
     offerId: '',
     itemId: '',
@@ -21,7 +22,7 @@ function cell(unitPrice: number, kind: PurchaseItemMatchKind = 'exact'): Cell {
     quoteTitle: '',
     quoteDate: null,
     unitPrice,
-    currency: 'RUB',
+    currency,
     kind,
     note: '',
     productUrl: '',
@@ -35,11 +36,18 @@ function cell(unitPrice: number, kind: PurchaseItemMatchKind = 'exact'): Cell {
   };
 }
 
-function column(id: string, name: string, cells: Record<string, Cell>, delivery: number | null = null): Column {
+function column(
+  id: string,
+  name: string,
+  cells: Record<string, Cell>,
+  delivery: number | null = null,
+  offerCurrency: Currency = 'RUB',
+): Column {
   return {
-    offer: { id, name, currency: 'RUB' } as SupplierOffer,
+    offer: { id, name, currency: offerCurrency } as SupplierOffer,
     cells: new Map(Object.entries(cells)),
     delivery,
+    deliveryCurrency: offerCurrency,
     unmatched: [],
     aside: [],
     asideTotal: 0,
@@ -112,5 +120,39 @@ describe('buildRanking', () => {
   it('один поставщик — это не выбор, победителя не называем', () => {
     const ranking = buildRanking([column('a', 'A', { p1: cell(100, 'exact') })], [paint], undefined);
     expect(rankingWinner(ranking)).toBeNull();
+  });
+});
+
+// Владелец, 2026-09-17: «Мы никогда не ставим на первое место поставщика с
+// красными флагами, возникшими в ходе проверки по ИНН. Побеждает всегда
+// самое выгодное предложение из безопасных».
+describe('buildRanking: риск по ИНН', () => {
+  it('поставщик с более выгодным предложением, но опасным риском, уступает первое место безопасному', () => {
+    const cheapButDanger = column('a', 'Дёшево и опасно', { p1: cell(100, 'exact') });
+    const safe = column('b', 'Дороже, но чисто', { p1: cell(150, 'exact') });
+    const riskOf: RiskLookup = (o) => (o.id === 'a' ? { level: 'danger', summary: 'банкротство' } : null);
+    const ranking = buildRanking([cheapButDanger, safe], [paint], undefined, riskOf);
+    expect(rankingWinner(ranking)!.name).toBe('Дороже, но чисто');
+    expect(ranking.riskyLeader!.name).toBe('Дёшево и опасно');
+  });
+
+  it('«warn» тоже уступает чистому поставщику, но идёт впереди «danger»', () => {
+    const warnSupplier = column('a', 'Молодое юрлицо', { p1: cell(100, 'exact') });
+    const dangerSupplier = column('b', 'Банкрот', { p1: cell(90, 'exact') });
+    const safe = column('c', 'Чисто', { p1: cell(120, 'exact') });
+    const riskOf: RiskLookup = (o) =>
+      o.id === 'a' ? { level: 'warn', summary: 'молодое юрлицо' } : o.id === 'b' ? { level: 'danger', summary: 'банкротство' } : null;
+    const ranking = buildRanking([warnSupplier, dangerSupplier, safe], [paint], undefined, riskOf);
+    expect(ranking.scores.map((s) => s.name)).toEqual(['Чисто', 'Молодое юрлицо', 'Банкрот']);
+  });
+
+  it('если рискованы все, побеждает самый выгодный из них — деться некуда, но безопасных нет', () => {
+    const a = column('a', 'A', { p1: cell(100, 'exact') });
+    const b = column('b', 'B', { p1: cell(90, 'exact') });
+    const riskOf: RiskLookup = () => ({ level: 'warn', summary: 'молодое юрлицо' });
+    const ranking = buildRanking([a, b], [paint], undefined, riskOf);
+    expect(rankingWinner(ranking)!.name).toBe('B');
+    // Все рискованы — объяснять подмену нечем, riskyLeader пуст.
+    expect(ranking.riskyLeader).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildColumns } from './priceComparisonModel';
+import { buildColumns, dominantCurrency, sumMoney } from './priceComparisonModel';
 import type { EstimateMaterial } from '../../data/estimates';
 import type { PurchaseItem } from '../../data/purchases';
 import type { SupplierQuote } from '../../data/supplierQuotes';
@@ -40,6 +40,45 @@ const offer = { id: 'o1', name: 'Краски Здесь', currency: 'RUB' } as 
 function columnOf(items: PurchaseItem[]) {
   return buildColumns([offer], new Map([['o1', [quote(items)]]]), [paint], undefined)[0];
 }
+
+// Владелец, 2026-09-17: «почему-то плинтус посчитался в долларах, хотя
+// поставка рублевая» — карточка поставщика была заведена в USD (поле по
+// умолчанию), а счёт и доставка пришли в рублях.
+describe('доставка и итог считаются в валюте счёта, а не карточки поставщика', () => {
+  it('доставка из рублёвого счёта показывается в рублях, даже если карточка в USD', () => {
+    const rubOffer = { id: 'o1', name: 'ЭКСТ-ДЕКОР', currency: 'USD' } as SupplierOffer;
+    const rubQuote = quote([
+      item({ id: 'a1', name: 'Плинтус', sourceMaterialId: 'p1', unitPrice: 175.38, matchKind: 'exact', quantity: 1_770, price: 350_760 }),
+      item({ id: 'a2', name: 'Доставка', matchKind: 'delivery', quantity: 1, price: 1_080 }),
+    ]);
+    rubQuote.currency = 'RUB';
+    const col = buildColumns([rubOffer], new Map([['o1', [rubQuote]]]), [paint], undefined)[0];
+    expect(col.delivery).toBe(1_080);
+    expect(col.deliveryCurrency).toBe('RUB');
+  });
+
+  it('dominantCurrency выбирает валюту большинства сумм, а не доллар по умолчанию', () => {
+    expect(
+      dominantCurrency([
+        { amount: 1, currency: 'RUB' },
+        { amount: 1, currency: 'RUB' },
+        { amount: 1, currency: 'USD' },
+      ]),
+    ).toBe('RUB');
+  });
+
+  it('sumMoney складывает в валюте большинства без курса, если он не нужен', () => {
+    expect(
+      sumMoney(
+        [
+          { amount: 100, currency: 'RUB' },
+          { amount: 200, currency: 'RUB' },
+        ],
+        undefined,
+      ),
+    ).toBe('300 ₽');
+  });
+});
 
 describe('buildColumns: исход строки счёта', () => {
   it('колеровка, помеченная «не позиция ведомости», уходит в разобранное, а не в «не привязаны»', () => {
