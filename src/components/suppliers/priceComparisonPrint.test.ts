@@ -30,13 +30,29 @@ describe('approval PDF', () => {
     expect(html).toContain('375,65 ₽ за л');
     expect(html).toContain('Доставка: Альбия');
     expect(html).toContain('Проработано поставщиков:</span><b>19</b>');
-    expect(html).toContain('Получено КП:</span><b>12</b>');
+    expect(html).not.toContain('Получено КП:');
     expect(html).toContain('<h2>Наличие и доставка</h2>');
     expect(html).not.toContain('Руководитель стройки');
     expect(html).not.toContain('Решение: утвердить');
     expect(html.match(/17 526 ₽/g)).toHaveLength(1);
     expect(html.match(/Все в наличии\. Доставка в течение нескольких дней по запросу/g)).toHaveLength(1);
     for (const removed of ['Не выбранный поставщик', 'Итого к утверждению', 'сформировано', 'решение 17.09.2026', 'из ведомости 1', 'Раздел сметы']) expect(html).not.toContain(removed);
+  });
+
+  it('applies the agreed title, address and delivery wording to the Green object plinth report', () => {
+    const doc = fixture();
+    doc.request = { ...doc.request, title: 'Плинтусы, панели и лепнина', sectionTitle: 'Плинтус' };
+    doc.positions[0] = { ...doc.positions[0], name: 'Плинтус Stenopol C7157', quantity: 3540, unit: 'пог. метры' };
+    doc.columns[0] = { ...doc.columns[0], offer: { ...doc.columns[0].offer, name: 'DEARTIO' }, delivery: null };
+    doc.columnById = new Map(doc.columns.map((c) => [c.offer.id, c]));
+
+    const html = buildPrintHtml(doc);
+    expect(approvalPrintTitle(doc)).toBe('Плинтус');
+    expect(html).toContain('<h1>Плинтус</h1>');
+    expect(html).toContain('Объект: 1-й Геологический проезд, 1, посёлок Зелёный, Московская область');
+    expect(html).toContain('<td class="num">В цене</td>');
+    expect(html).toContain('<td>В наличии, доставка по запросу</td>');
+    expect(html).not.toContain('Получено КП:');
   });
 
   it.each(['Другая смета', null, undefined])('does not apply paint editorial facts to another or unknown estimate: %s', (estimateTitle) => {
