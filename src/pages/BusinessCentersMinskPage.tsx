@@ -200,13 +200,15 @@ function BusinessCenterCard({
     <Link
       to={`/minsk/bcminsk/${center.slug}`}
       className={cn(
-        'group flex flex-col overflow-hidden transition-transform hover:-translate-y-0.5',
+        'group block min-w-0 self-start overflow-hidden transition-transform hover:-translate-y-0.5',
         glassCardClass,
       )}
       style={glassCardShadow}
     >
-      <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden">
-        <PhotoBlock center={center} variant="card" />
+      <div className="relative w-full overflow-hidden" style={{ paddingTop: '62.5%' }}>
+        <div className="absolute inset-0">
+          <PhotoBlock center={center} variant="card" />
+        </div>
         <div className="absolute right-2 top-2 flex flex-wrap justify-end gap-1.5">
           {center.status === 'under_construction' && <Badge tone="warning">Строится</Badge>}
           {center.businessClass && (
@@ -232,18 +234,9 @@ function BusinessCenterCard({
           {compared ? 'В сравнении' : 'Сравнить'}
         </button>
       </div>
-      {/* НЕ ставить сюда flex-1. Владелец дважды присылал прод, где текст
-          карточки обрезан, а один раз карточки были схлопнуты в полоски.
-          Причина: `flex-1` — это `flex: 1 1 0%`, то есть базовая высота
-          тела НОЛЬ. Высота карточки тогда складывается из одного фото,
-          тело получает только остаток, а `overflow-hidden` срезает
-          строки фактов. В Chrome автоминимум (`min-height: auto`) это
-          обычно спасает — поэтому headless-браузер показывал карточки
-          целыми и баг не воспроизводился, — а на машине владельца нет.
-          Нужно, чтобы тело растягивало карточку до общей высоты ряда —
-          для этого `grow` (`flex-grow: 1`, базис остаётся `auto`), а не
-          `flex-1`. */}
-      <div className="flex grow flex-col gap-2.5 p-4">
+      {/* Карточка — обычный блок: её высоту задают рамка фото и текст.
+          Процентная высота картинки не участвует в расчёте строки grid. */}
+      <div className="flex flex-col gap-2.5 p-4">
         <h2 className="text-base font-bold leading-snug text-ink">{center.name}</h2>
 
         <div className="flex flex-col gap-1.5">
@@ -937,12 +930,12 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           таблица на 11 колонок и сетка по 4 карточки в ряд, на 1152 px и то
           и другое приходилось прокручивать вбок. */}
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-8">
-        <div className="flex flex-col gap-8">
+        <div className="space-y-8">
           <div
-            className={cn('grid grid-cols-1 gap-6 p-6 sm:grid-cols-[3fr_2fr] sm:items-center sm:p-8', glassCardClass)}
+            className={cn('flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:p-8', glassCardClass)}
             style={glassCardShadow}
           >
-            <div className="flex flex-col gap-3">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-1">
               <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">{heroH1}</h1>
               <p className="text-base text-ink-muted">{heroIntro}</p>
               <span className="flex w-fit items-center gap-1.5 rounded-full border border-success/30 bg-success-bg px-3 py-1 text-xs font-semibold text-[#0f6b3d]">
@@ -950,23 +943,29 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 {UPDATED_BADGE_LABEL}
               </span>
             </div>
-            <div className="mx-auto w-full max-w-xs sm:max-w-none">
+            <div className="mx-auto w-full max-w-xs shrink-0 sm:mx-0 sm:w-2/5 sm:max-w-none">
+              {/* Padding задаёт высоту по ширине независимо от Grid/Flex и
+                  процентной высоты вложенной картинки в Safari. */}
+              <div className="relative w-full" style={{ paddingTop: '125%' }}>
+                <div className="absolute inset-0">
               {HERO_IMAGES.length > 0 ? (
                 <HeroImageSlider
                   images={HERO_IMAGES}
                   alt="Бизнес-центры Минска"
-                  aspectClassName="aspect-[4/5]"
+                  aspectClassName="h-full"
                   imageWidth={HERO_IMAGE_WIDTH}
                   imageHeight={HERO_IMAGE_HEIGHT}
                 />
               ) : (
-                <div className="flex aspect-[4/5] w-full items-center justify-center rounded-3xl bg-gradient-to-br from-surface-muted to-border">
+                <div className="flex h-full w-full items-center justify-center rounded-3xl bg-gradient-to-br from-surface-muted to-border">
                   <span className="flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink-muted shadow-sm">
                     <Camera className="h-3.5 w-3.5 shrink-0" />
                     Фото скоро
                   </span>
                 </div>
               )}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1050,8 +1049,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           ) : filter.view === 'map' ? (
             <CatalogMap centers={orderedCenters} offers={offerIndex} />
           ) : (
-            <div className="flex flex-col gap-6">
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 items-start gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {orderedCenters.slice(0, visibleCount).map((c) => (
                   <BusinessCenterCard
                     key={c.slug}
@@ -1066,7 +1065,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 <button
                   type="button"
                   onClick={() => setVisibleCount((n) => n + CARDS_PAGE_SIZE)}
-                  className="mx-auto rounded-full border border-border bg-surface px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-primary hover:text-primary-hover"
+                  className="mx-auto block rounded-full border border-border bg-surface px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-primary hover:text-primary-hover"
                 >
                   Показать ещё {Math.min(CARDS_PAGE_SIZE, orderedCenters.length - visibleCount)} из{' '}
                   {orderedCenters.length - visibleCount}
