@@ -5,7 +5,6 @@ import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import { SearchInput } from '../ui/SearchInput';
 import {
-  CATALOG_FACTS,
   CATALOG_PRESETS,
   CATALOG_SORTS,
   CATALOG_VIEWS,
@@ -90,17 +89,25 @@ export interface CatalogFilterPanelProps {
   classCounts: Record<string, number>;
   districtCounts: Record<string, number>;
   metroCounts: Record<number, number>;
-  factCounts: Record<string, number>;
+  /** Станции метро, встречающиеся у зданий каталога (по алфавиту). */
+  metroStations: string[];
+  stationCounts: Record<string, number>;
+  /** Сколько зданий нельзя проверить по применённому фильтру: признака нет в данных. */
+  unverifiableCount?: number;
   /** Сколько подходит сейчас — для кнопки «Показать N» в мобильной шторке. */
   resultCount: number;
   resultLabel: string;
-  /** Скрыть тумблер, дублирующий ось самого маршрута (например «Строится» на хабе строящихся). */
-  hiddenFactIds?: string[];
   hasActiveFilter: boolean;
   onReset: () => void;
 }
 
-const VISIBLE_FACTS = 6;
+function plural(n: number, one: string, few: string, many: string): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+  return many;
+}
 
 export function CatalogFilterPanel({
   state,
@@ -110,18 +117,16 @@ export function CatalogFilterPanel({
   classCounts,
   districtCounts,
   metroCounts,
-  factCounts,
+  metroStations,
+  stationCounts,
+  unverifiableCount = 0,
   resultCount,
   resultLabel,
-  hiddenFactIds = [],
   hasActiveFilter,
   onReset,
 }: CatalogFilterPanelProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [factsExpanded, setFactsExpanded] = useState(false);
 
-  const facts = CATALOG_FACTS.filter((f) => !hiddenFactIds.includes(f.id));
-  const shownFacts = factsExpanded ? facts : facts.slice(0, VISIBLE_FACTS);
 
   function toggleInList(list: string[], value: string): string[] {
     return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
@@ -130,8 +135,7 @@ export function CatalogFilterPanel({
   const activeCount =
     state.classes.length +
     state.districts.length +
-    state.facts.length +
-    (state.metroWithin != null ? 1 : 0) +
+      (state.metroWithin != null ? 1 : 0) +
     (state.query ? 1 : 0);
 
   const controls = (
@@ -189,6 +193,26 @@ export function CatalogFilterPanel({
         ))}
       </ChipRow>
 
+      {/* Станция метро — множественный выбор (владелец, 2026-09-17).
+          Раньше конкретную станцию можно было найти только строкой поиска
+          или через её SEO-хаб, то есть «рядом с Уручьем ИЛИ с Борисовским
+          трактом» не выражалось никак. */}
+      {metroStations.length > 0 && (
+        <ChipRow label="Станция метро">
+          {metroStations.map((st) => (
+            <Chip
+              key={st}
+              active={state.metroStations.includes(st)}
+              count={stationCounts[st] ?? 0}
+              disabled={!state.metroStations.includes(st) && (stationCounts[st] ?? 0) === 0}
+              onClick={() => onChange({ ...state, metroStations: toggleInList(state.metroStations, st) })}
+            >
+              {st}
+            </Chip>
+          ))}
+        </ChipRow>
+      )}
+
       {/* Метро — расстояние, а не перебор 32 станций: «хочу рядом с метро,
           всё равно с какой» раньше не выражалось вовсе. Конкретная станция
           — через строку поиска или её собственный SEO-хаб. */}
@@ -205,35 +229,13 @@ export function CatalogFilterPanel({
         ))}
       </ChipRow>
 
-      <ChipRow label="Что внутри">
-        {shownFacts.map((f) => (
-          <Chip
-            key={f.id}
-            active={state.facts.includes(f.id)}
-            count={factCounts[f.id] ?? 0}
-            disabled={!state.facts.includes(f.id) && (factCounts[f.id] ?? 0) === 0}
-            onClick={() => onChange({ ...state, facts: toggleInList(state.facts, f.id) })}
-          >
-            {f.label}
-          </Chip>
-        ))}
-        {facts.length > VISIBLE_FACTS && (
-          <button
-            type="button"
-            onClick={() => setFactsExpanded((v) => !v)}
-            className="shrink-0 rounded-full px-2 py-1.5 text-sm font-semibold text-primary-hover hover:underline"
-          >
-            {factsExpanded ? 'Свернуть' : `Ещё ${facts.length - VISIBLE_FACTS}`}
-          </button>
-        )}
-      </ChipRow>
-
       {/* Честная оговорка вместо молчания: у части зданий параметра нет в
           источнике, и тумблер их не покажет — это «неизвестно», а не «нет»
           (см. комментарий у CATALOG_FACTS). */}
       <p className="text-xs text-ink-faint">
-        Тумблеры отбирают здания, по которым параметр известен: у части БЦ его нет в данных
-        prometr.by и 2ГИС — такие в выборку не попадают.
+        Фильтры отбирают здания, по которым признак известен.
+        {unverifiableCount > 0 &&
+          ` По выбранному фильтру ${unverifiableCount} ${plural(unverifiableCount, 'здание', 'здания', 'зданий')} проверить невозможно: признака нет в данных prometr.by и 2ГИС — они не попадают ни в совпадения, ни в несовпадения.`}
       </p>
     </div>
   );

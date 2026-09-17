@@ -6,12 +6,14 @@ import {
   EMPTY_CATALOG_FILTER,
   buildOfferIndex,
   catalogFilterToQuery,
+  catalogMetroStations,
   catalogSummary,
   hasActiveCatalogFilter,
+  isPresetActive,
   matchesCatalogFilter,
   parseCatalogFilter,
-  isPresetActive,
   sortCatalogCenters,
+  unverifiableByMetroStation,
 } from './businessCenterCatalogFilter';
 
 // Фильтр каталога БЦ считает то, что видит пользователь на первом экране
@@ -282,5 +284,36 @@ describe('catalogSummary', () => {
     const s = catalogSummary([bc({ slug: 'a' })], buildOfferIndex([]));
     expect(s.rentMedian).toBeNull();
     expect(s.rentBuildings).toBe(0);
+  });
+});
+
+describe('фильтр по станциям метро (задача 8)', () => {
+  const near = (name: string, meters: number) => ({ name, distanceMeters: meters, line: null, color: null });
+
+  it('здание подходит, если выбрана хотя бы одна из его станций', () => {
+    const c = bc({ slug: 'a', nearestMetroStations: [near('Уручье', 310), near('Борисовский тракт', 900)] });
+    const state = { ...EMPTY_CATALOG_FILTER, metroStations: ['Борисовский тракт', 'Малиновка'] };
+    expect(matchesCatalogFilter(c, state, buildOfferIndex([]))).toBe(true);
+  });
+
+  it('здание без разобранных станций не выдаётся за совпадение', () => {
+    const c = bc({ slug: 'b', nearestMetroStations: [] });
+    const state = { ...EMPTY_CATALOG_FILTER, metroStations: ['Уручье'] };
+    expect(matchesCatalogFilter(c, state, buildOfferIndex([]))).toBe(false);
+    expect(unverifiableByMetroStation([c])).toBe(1);
+  });
+
+  it('станции переживают ссылку: разбор и сборка строки запроса', () => {
+    const state = parseCatalogFilter(new URLSearchParams('station=Уручье,Малиновка'));
+    expect(state.metroStations.sort()).toEqual(['Малиновка', 'Уручье']);
+    expect(catalogFilterToQuery(state)).toContain('station=');
+  });
+
+  it('список станций собирается из данных каталога, без повторов и по алфавиту', () => {
+    const list = catalogMetroStations([
+      bc({ slug: 'a', nearestMetroStations: [near('Уручье', 300)] }),
+      bc({ slug: 'b', nearestMetroStations: [near('Малиновка', 400), near('Уручье', 900)] }),
+    ]);
+    expect(list).toEqual(['Малиновка', 'Уручье']);
   });
 });

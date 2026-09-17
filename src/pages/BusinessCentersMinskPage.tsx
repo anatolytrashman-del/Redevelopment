@@ -57,7 +57,6 @@ import {
 } from '../components/businessCenters/CatalogMarketBlocks';
 import { SOURCE_LABELS, MIN_RELIABLE_N, type ExternalMetric, type MarketSnapshot } from '../data/marketSnapshots';
 import {
-  CATALOG_FACTS,
   EMPTY_CATALOG_FILTER,
   MAX_COMPARE,
   METRO_WITHIN_OPTIONS,
@@ -67,7 +66,9 @@ import {
   hasActiveCatalogFilter,
   matchesCatalogFilter,
   nearestMetroMeters,
+  catalogMetroStations,
   parseCatalogFilter,
+  unverifiableByMetroStation,
   sortCatalogCenters,
   type CatalogFilterState,
 } from '../lib/businessCenterCatalogFilter';
@@ -152,6 +153,10 @@ const OUT_OF_TOWN_DISTRICT = 'Великий камень';
 // красить 143 стеклянные карточки разом больше не приходится (ради этого
 // раньше стоял content-visibility, см. комментарий в BusinessCenterCard).
 const CARDS_PAGE_SIZE = 48;
+
+// Параметры строки запроса, любое присутствие которых делает состояние
+// каталога неиндексируемым (см. filterIsIndexable ниже).
+const FILTER_QUERY_KEYS = ['class', 'district', 'metro', 'station', 'lot', 'facts', 'q', 'view', 'sort', 'compare'];
 
 // Карточка каталога (К7 плана docs/bc-catalog-redesign-plan.md).
 //
@@ -397,8 +402,18 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     return `$${rounded.toLocaleString('ru-RU')}${deal === 'rent' ? '/м²/мес' : '/м²'}`;
   }
 
+  // Белый список индексируемых состояний (мастер-план, задача 8).
+  // Индексируем только сам каталог и его SEO-хабы: маршрут задаёт одну ось
+  // (класс, район, микрорайон, метро, улица, строящиеся), и у каждой свой
+  // H1, title и canonical. Любое состояние, набранное фильтром, сортировкой
+  // или поиском, по ссылке воспроизводится, но в индекс не идёт — в sitemap
+  // уже 286 путей, а комбинаций фильтра тысячи, и они съели бы краулинговый
+  // бюджет, ничего не добавив. Считаем прямо по строке запроса, а не по
+  // разобранному фильтру: эффект метатегов стоит выше его объявления.
+  const filterIsIndexable = !FILTER_QUERY_KEYS.some((k) => searchParams.has(k));
+
   useEffect(() => {
-    if (notFound) {
+    if (notFound || !filterIsIndexable) {
       setNoIndex();
       return () => clearNoIndex();
     }
@@ -486,7 +501,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               { name: 'Бизнес-центры Минска' },
             ],
     );
-  }, [classFilter, districtFilter, microdistrictFilter, underConstruction, metroFilter, streetFilter, notFound]);
+  }, [classFilter, districtFilter, microdistrictFilter, underConstruction, metroFilter, streetFilter, notFound, filterIsIndexable]);
 
   // --- Фильтр поверх маршрута (К2–К5 плана) ----------------------------
   //
@@ -509,6 +524,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     }),
     [queryFilter, classFilter, districtFilter],
   );
+
+
 
   // Медианы и число объявлений по КОНКРЕТНОМУ зданию (Д3) — нужны и
   // тумблерам «есть аренда/продажа», и сортировке по ставке, и сводке.
@@ -593,14 +610,25 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeScoped, filter, offerIndex]);
-  const factCounts = useMemo(() => {
+  // Список станций и счётчики по ним — фильтр «станция метро» с
+  // множественным выбором (владелец, 2026-09-17).
+  const metroStationList = useMemo(() => catalogMetroStations(routeScoped), [routeScoped]);
+  const stationCounts = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const f of CATALOG_FACTS) {
-      m[f.id] = countWith({ facts: filter.facts.includes(f.id) ? filter.facts : [...filter.facts, f.id] });
+    for (const st of metroStationList) {
+      m[st] = countWith({
+        metroStations: filter.metroStations.includes(st) ? filter.metroStations : [...filter.metroStations, st],
+      });
     }
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeScoped, filter, offerIndex]);
+  }, [metroStationList, routeScoped, filter, offerIndex]);
+  // Сколько зданий нельзя проверить по применённому фильтру метро: у них
+  // не разобрана ни одна станция. «Не знаем» ≠ «не подходит».
+  const unverifiableCount = useMemo(
+    () => (filter.metroStations.length > 0 || filter.metroWithin != null ? unverifiableByMetroStation(routeScoped) : 0),
+    [filter.metroStations, filter.metroWithin, routeScoped],
+  );
 
   // Куда вести после клика по чипу. Одно значение одной оси — это ровно
   // тот срез, под который уже есть SEO-хаб: ведём на красивый URL, чтобы
@@ -932,10 +960,11 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             classCounts={classCounts}
             districtCounts={districtCounts}
             metroCounts={metroCounts}
-            factCounts={factCounts}
+            metroStations={metroStationList}
+            stationCounts={stationCounts}
+            unverifiableCount={unverifiableCount}
             resultCount={visibleCenters.length}
             resultLabel={pluralBusinessCenters(visibleCenters.length)}
-            hiddenFactIds={underConstruction ? ['under-construction'] : []}
             hasActiveFilter={hasActiveCatalogFilter(filter)}
             onReset={resetFilter}
           />

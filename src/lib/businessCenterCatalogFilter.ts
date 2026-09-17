@@ -52,6 +52,12 @@ export interface CatalogFilterState {
   // поиска или открывают её SEO-хаб, а «хочу рядом с метро, всё равно с
   // какой» — это именно расстояние, а не перебор чек-боксов.
   metroWithin: number | null;
+  // Станции метро, выбранные явно (можно несколько сразу) — владелец,
+  // 2026-09-17. Это не то же, что metroWithin: «рядом с метро, всё равно
+  // с каким» и «рядом с Уручьем или Борисовским трактом» — разные вопросы,
+  // и оба нужны. Здание подходит, если хотя бы одна из его ближайших
+  // станций выбрана.
+  metroStations: string[];
   // К13: «нужно N м²» — показать здания, где ЕСТЬ активный лот такого
   // размера. Не «общая площадь здания от N» (это другой вопрос) и не
   // «свободные площади» из prometr.by (те известны у 30 из 143).
@@ -85,6 +91,7 @@ export const EMPTY_CATALOG_FILTER: CatalogFilterState = {
   classes: [],
   districts: [],
   metroWithin: null,
+  metroStations: [],
   lotSize: null,
   facts: [],
   query: '',
@@ -239,6 +246,7 @@ export function isPresetActive(preset: CatalogPreset, state: CatalogFilterState)
     same(target.districts, state.districts) &&
     same(target.facts, state.facts) &&
     target.metroWithin === state.metroWithin &&
+    same(target.metroStations, state.metroStations) &&
     target.lotSize === state.lotSize &&
     (target.query || '') === (state.query || '')
   );
@@ -263,6 +271,7 @@ export function parseCatalogFilter(params: URLSearchParams): CatalogFilterState 
     classes: splitList(params.get('class')).filter((v) => ['A', 'B+', 'B', 'C'].includes(v)),
     districts: splitList(params.get('district')),
     metroWithin: METRO_WITHIN_OPTIONS.some((o) => o.value === metroRaw) ? metroRaw : null,
+    metroStations: splitList(params.get('station')),
     lotSize: Number.isFinite(lotRaw) && lotRaw > 0 ? Math.round(lotRaw) : null,
     facts: splitList(params.get('facts')).filter((id) => FACT_BY_ID.has(id)),
     query: params.get('q')?.trim() ?? '',
@@ -281,6 +290,7 @@ export function catalogFilterToQuery(state: CatalogFilterState): string {
   if (state.classes.length > 0) params.set('class', [...state.classes].sort().join(','));
   if (state.districts.length > 0) params.set('district', [...state.districts].sort().join(','));
   if (state.metroWithin != null) params.set('metro', String(state.metroWithin));
+  if (state.metroStations.length > 0) params.set('station', [...state.metroStations].sort().join(','));
   if (state.lotSize != null) params.set('lot', String(state.lotSize));
   if (state.facts.length > 0) params.set('facts', [...state.facts].sort().join(','));
   if (state.query) params.set('q', state.query);
@@ -301,6 +311,7 @@ export function hasActiveCatalogFilter(state: CatalogFilterState): boolean {
     state.classes.length > 0 ||
     state.districts.length > 0 ||
     state.metroWithin != null ||
+    state.metroStations.length > 0 ||
     state.lotSize != null ||
     state.facts.length > 0 ||
     state.query.length > 0
@@ -337,6 +348,12 @@ export function matchesCatalogFilter(
   }
   if (state.districts.length > 0 && (center.district === null || !state.districts.includes(center.district))) {
     return false;
+  }
+  if (state.metroStations.length > 0) {
+    // Неизвестное не считается несовпадением «по вине здания»: у БЦ без
+    // разобранных станций признак просто не проверить, и такие здания
+    // считаются отдельно (см. unverifiableByMetroStation).
+    if (!center.nearestMetroStations.some((st) => state.metroStations.includes(st.name))) return false;
   }
   if (state.metroWithin != null) {
     const meters = nearestMetroMeters(center);
@@ -433,4 +450,22 @@ export function catalogSummary(centers: BusinessCenter[], offers: CatalogOfferIn
     rentMedian: mid === null ? null : Math.round(mid * 10) / 10,
     rentBuildings: medians.length,
   };
+}
+
+
+// Все станции, встречающиеся у зданий каталога, по алфавиту — источник
+// списка для фильтра. Берём из данных, а не из захардкоженного перечня:
+// станций в Минске больше, чем тех, рядом с которыми есть бизнес-центры.
+export function catalogMetroStations(centers: BusinessCenter[]): string[] {
+  const set = new Set<string>();
+  for (const c of centers) for (const st of c.nearestMetroStations) set.add(st.name);
+  return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
+}
+
+// Сколько зданий выборки НЕЛЬЗЯ проверить по признаку «метро»: у них не
+// разобрана ни одна ближайшая станция. Это не «не подходят» — это «не
+// знаем», и говорить об этом надо отдельно (требование мастер-плана:
+// неизвестное значение не должно превращаться в недостаток).
+export function unverifiableByMetroStation(centers: BusinessCenter[]): number {
+  return centers.filter((c) => c.nearestMetroStations.length === 0).length;
 }
