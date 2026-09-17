@@ -102,13 +102,28 @@ const SECTION_LABELS: Record<string, string> = {
   market: 'БЦ на фоне конкурентов',
   map: 'Другие бизнес-центры рядом',
   tech: 'Информация о здании',
-  offers: 'Предложения',
-  rental: 'Условия аренды',
   facts: 'Факты',
   tenants: 'Кто внутри',
+  rental: 'Условия аренды',
+  offers: 'Предложения',
+  history: 'История здания',
   reviews: 'Отзывы',
   similar: 'Похожие',
   faq: 'Вопросы',
+};
+
+const SECTION_ICONS: Record<string, typeof FileText> = {
+  market: Award,
+  map: MapPin,
+  tech: Building2,
+  facts: Sparkles,
+  tenants: Users,
+  rental: FileText,
+  offers: Banknote,
+  history: Clock,
+  reviews: MessageSquareQuote,
+  similar: Building2,
+  faq: Info,
 };
 
 export function BusinessCenterDetailPage() {
@@ -575,15 +590,16 @@ export function BusinessCenterDetailPage() {
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
       has('map', center.lat != null && center.lng != null),
       has('tech', redistributedTechnicalParams.buildingInformationRows.some((row) => row.value != null)),
-      has('offers', offers !== null),
-      has('rental', Boolean(center.rentalInfo)),
       has('facts', visibleHighlights.length > 0),
       has('tenants', hasTenantOrganizations || center.tenantOrganizations.length > 0),
-      has('reviews', center.gisRating != null || center.highlights.some((h) => h.icon === 'rating')),
+      has('rental', Boolean(center.rentalInfo)),
+      has('offers', offers !== null),
+      has('history', extractHistoryPoints(center).length >= 2),
+      has('reviews', center.gisRating != null || center.highlights.some((h) => h.icon === 'rating') || reviewQuotes.length > 0),
       has('similar', true),
       has('faq', faqItems.length > 0),
     ].filter((v): v is { id: string; label: string } => v !== null);
-  }, [center, marketPosition, offers, visibleHighlights, hasTenantOrganizations, faqItems, redistributedTechnicalParams]);
+  }, [center, marketPosition, offers, visibleHighlights, hasTenantOrganizations, faqItems, redistributedTechnicalParams, reviewQuotes]);
 
   useEffect(() => {
     if (!center) return;
@@ -660,7 +676,7 @@ export function BusinessCenterDetailPage() {
 
   return (
     <div className="min-h-svh bg-bg px-4 py-8 sm:py-14">
-      <div className="mx-auto flex max-w-3xl items-center justify-between pb-5">
+      <div className="mx-auto flex max-w-7xl items-center justify-between pb-5">
         <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
           <span className="font-black text-primary-hover">RED</span>EVELOPMENT
         </Link>
@@ -685,13 +701,12 @@ export function BusinessCenterDetailPage() {
         </Link>
       </div>
 
-      {/* Б7. Липкая мини-шапка: название, класс и ставка всегда перед
-          глазами, плюс меню по восьми-одиннадцати длинным блокам страницы.
-          Раньше единственным способом добраться до «Условий аренды» внизу
-          был скролл через всю страницу. */}
+      {/* На телефоне остаётся компактная горизонтальная навигация:
+          постоянная боковая колонка появляется от lg, как на странице
+          Минск Мира. */}
       {pageSections.length > 0 && (
-        <div className="sticky top-0 z-30 -mx-4 mb-4 border-b border-border bg-bg/90 px-4 py-2 backdrop-blur-md">
-          <div className="mx-auto flex max-w-3xl flex-col gap-1.5">
+        <div className="sticky top-0 z-30 -mx-4 mb-4 border-b border-border bg-bg/90 px-4 py-2 backdrop-blur-md xl:hidden">
+          <div className="mx-auto flex max-w-5xl flex-col gap-1.5">
             <div className="flex items-baseline gap-2">
               <span className="truncate text-sm font-bold text-ink">{shortName(center)}</span>
               {center.businessClass && <span className="shrink-0 text-xs text-ink-muted">класс {center.businessClass}</span>}
@@ -699,10 +714,7 @@ export function BusinessCenterDetailPage() {
                 <span className="shrink-0 text-xs text-ink-muted">${Math.round(buildingRentMedian)}/м²</span>
               )}
             </div>
-            {/* Горизонтальная прокрутка вместо переноса: меню обязано
-                оставаться одной строкой, иначе липкая шапка на телефоне
-                съест пол-экрана. */}
-            <nav className="-mx-1 flex gap-3 overflow-x-auto px-1 text-xs text-ink-muted">
+            <nav aria-label="Навигация по странице" className="-mx-1 flex gap-3 overflow-x-auto px-1 text-xs text-ink-muted">
               {pageSections.map((sec) => (
                 <a key={sec.id} href={`#${sec.id}`} className="shrink-0 whitespace-nowrap hover:text-primary-hover">
                   {sec.label}
@@ -743,8 +755,41 @@ export function BusinessCenterDetailPage() {
         </Link>
       )}
 
-      {/* <main> — единственный main-landmark страницы (Accessibility). */}
-      <main className="mx-auto max-w-5xl">
+      <div
+        className={cn(
+          'mx-auto grid max-w-7xl items-start gap-6',
+          pageSections.length > 0 && 'xl:grid-cols-[15rem_minmax(0,1fr)]',
+        )}
+      >
+        {pageSections.length > 0 && (
+          <aside className="sticky top-6 hidden xl:block">
+            <nav
+              aria-label="Навигация по странице"
+              className={cn('max-h-[calc(100vh-3rem)] overflow-y-auto p-4', glassCardClass)}
+              style={glassCardShadow}
+            >
+              <p className="px-2 pb-2 text-xs font-bold uppercase tracking-wide text-ink-muted">На странице</p>
+              <div className="flex flex-col">
+                {pageSections.map((sec) => {
+                  const SectionIcon = SECTION_ICONS[sec.id] ?? FileText;
+                  return (
+                    <a
+                      key={sec.id}
+                      href={`#${sec.id}`}
+                      className="group flex items-start gap-3 rounded-xl px-2 py-2 text-sm leading-snug text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
+                    >
+                      <SectionIcon className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint transition-colors group-hover:text-primary" />
+                      <span>{sec.label}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </nav>
+          </aside>
+        )}
+
+        {/* <main> — единственный main-landmark страницы (Accessibility). */}
+        <main className="min-w-0">
         <div className={cn('overflow-hidden', glassCardClass)} style={glassCardShadow}>
           {/* Компактная версия первого экрана: на широком экране фото и
               основная сводка стоят рядом. Прежняя вертикальная версия целиком
@@ -1284,7 +1329,7 @@ export function BusinessCenterDetailPage() {
         {/* Мобильная навигация "следующий/предыдущий" — фиксированные стрелки
             выше скрыты до lg, здесь тот же переход обычной строкой кнопок. */}
         {(prev || next) && (
-          <div className="mt-5 flex items-center justify-between gap-3 lg:hidden">
+          <div className="mt-5 flex items-center justify-between gap-3 xl:hidden">
             {prev ? (
               <Link
                 to={`/minsk/bcminsk/${prev.slug}`}
@@ -1376,7 +1421,8 @@ export function BusinessCenterDetailPage() {
           </p>
         </div>
 
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
