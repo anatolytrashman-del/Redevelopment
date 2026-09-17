@@ -587,10 +587,9 @@ export function Metrics() {
     [outgoingEmailsInRange],
   );
 
-  // Рядом блоки ИИ-сотрудников стоят только там, где у обоих по две плитки, —
-  // то есть в периоде "Сегодня" (см. комментарий у самого ряда ниже).
-  const sideBySideAiRow = period === 'today';
-  const aiTileColsClass = sideBySideAiRow ? 'lg:grid-cols-2' : 'lg:grid-cols-4';
+  // Закупщик занимает отдельную строку: сегодня у него две плитки, а за
+  // неделю/месяц — четыре в один ряд. Два ИИ-кодера стоят рядом выше.
+  const aiBuyerTileColsClass = period === 'today' ? 'lg:grid-cols-2' : 'lg:grid-cols-4';
 
   const loading =
     entries === null ||
@@ -635,20 +634,76 @@ export function Metrics() {
           </div>
           <div className="text-xs text-ink-faint">{formatPeriodCaption(period, start, end)}</div>
 
-          {/* Ряд ИИ-сотрудников: в периоде "Сегодня" закупщик и Claude Code стоят
-              рядом, а Codex занимает следующую строку целиком. Так две его плитки не
-              сжимаются в треть экрана.
-              За неделю/месяц у кодера добавляются ещё две плитки (дни с
-              релизами, среднее за день), вчетвером в половине ширины они уже
-              не читаются, поэтому там блоки идут друг под другом на всю
-              ширину, как у людей (владелец, 2026-09-14: "за сегодня выводи
-              как я сказал, а за неделю и 30 дней друг под другом"). На узком
-              экране блоки встают друг под друга в любом случае. */}
-          <div className={cn('grid grid-cols-1 gap-4', sideBySideAiRow && 'lg:grid-cols-2')}>
+          {/* Claude Code и Codex — одна строка ИИ-кодеров; ИИ-закупщик
+              занимает отдельную строку ниже. На узком экране все карточки
+              по-прежнему встают друг под друга. */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <PersonSection
+              name={AI_CODER_NAME}
+              subtitle="ИИ-кодер: разработка платформы и публикация релизов на прод"
+              tileColsClass="lg:grid-cols-2"
+              icon={
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d97757]/15 text-[#d97757]">
+                  <ClaudeLogo className="h-5 w-5" />
+                </span>
+              }
+            >
+              <StatTile
+                label="Деплоев на прод"
+                value={productionDeployStats.total}
+                hint="Успешные сборки, выехавшие на redevelopment.pro"
+              />
+              {/* В периоде "Сегодня" эти две плитки были бы копией первой
+                  (дней всегда 1, среднее равно общему числу) — показываем их
+                  только там, где в периоде больше одного дня. */}
+              {period !== 'today' && (
+                <>
+                  <StatTile
+                    label="Дней с релизами"
+                    value={productionDeployStats.days}
+                    hint="Разных дней периода, когда что-то выезжало"
+                  />
+                  <StatTile
+                    label="В среднем за день"
+                    value={productionDeployStats.perDay.toLocaleString('ru-RU', { maximumFractionDigits: 1 })}
+                    hint="Считается по дням, когда релизы были"
+                  />
+                </>
+              )}
+              <StatTile
+                label="Последний релиз"
+                value={productionDeployStats.lastAt ? formatActivityTime(productionDeployStats.lastAt) : '—'}
+                hint={productionDeployStats.lastMessage || 'За период релизов не было'}
+              />
+            </PersonSection>
+
+            <PersonSection
+              name={CODEX_NAME}
+              subtitle="ИИ-кодер: разработка платформы и публикация сборок на превью"
+              tileColsClass="lg:grid-cols-2"
+              icon={
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-info-bg text-info-text">
+                  <Bot className="h-4 w-4" />
+                </span>
+              }
+            >
+              <StatTile
+                label="Деплоев на превью"
+                value={previewDeployStats.total}
+                hint="Успешные сборки стабильной ветки preview"
+              />
+              <StatTile
+                label="Последний релиз"
+                value={previewDeployStats.lastAt ? formatActivityTime(previewDeployStats.lastAt) : '—'}
+                hint={previewDeployStats.lastMessage || 'За период релизов на превью не было'}
+              />
+            </PersonSection>
+
             <PersonSection
               name={AI_BUYER_NAME}
               subtitle="ИИ-закупщик: переписка с поставщиками — сам и по вашим подсказкам"
-              tileColsClass={aiTileColsClass}
+              className="lg:col-span-2"
+              tileColsClass={aiBuyerTileColsClass}
               icon={
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                   <Bot className="h-4 w-4" />
@@ -690,68 +745,6 @@ export function Metrics() {
                   />
                 </>
               )}
-            </PersonSection>
-
-            <PersonSection
-              name={AI_CODER_NAME}
-              subtitle="ИИ-кодер: разработка платформы и публикация релизов на прод"
-              tileColsClass={aiTileColsClass}
-              icon={
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d97757]/15 text-[#d97757]">
-                  <ClaudeLogo className="h-5 w-5" />
-                </span>
-              }
-            >
-              <StatTile
-                label="Деплоев на прод"
-                value={productionDeployStats.total}
-                hint="Успешные сборки, выехавшие на redevelopment.pro"
-              />
-              {/* В периоде "Сегодня" эти две плитки были бы копией первой
-                  (дней всегда 1, среднее равно общему числу) — показываем их
-                  только там, где в периоде больше одного дня. */}
-              {period !== 'today' && (
-                <>
-                  <StatTile
-                    label="Дней с релизами"
-                    value={productionDeployStats.days}
-                    hint="Разных дней периода, когда что-то выезжало"
-                  />
-                  <StatTile
-                    label="В среднем за день"
-                    value={productionDeployStats.perDay.toLocaleString('ru-RU', { maximumFractionDigits: 1 })}
-                    hint="Считается по дням, когда релизы были"
-                  />
-                </>
-              )}
-              <StatTile
-                label="Последний релиз"
-                value={productionDeployStats.lastAt ? formatActivityTime(productionDeployStats.lastAt) : '—'}
-                hint={productionDeployStats.lastMessage || 'За период релизов не было'}
-              />
-            </PersonSection>
-
-            <PersonSection
-              name={CODEX_NAME}
-              subtitle="ИИ-кодер: разработка платформы и публикация сборок на превью"
-              className={sideBySideAiRow ? 'lg:col-span-2' : undefined}
-              tileColsClass="lg:grid-cols-2"
-              icon={
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-info-bg text-info-text">
-                  <Bot className="h-4 w-4" />
-                </span>
-              }
-            >
-              <StatTile
-                label="Деплоев на превью"
-                value={previewDeployStats.total}
-                hint="Успешные сборки стабильной ветки preview"
-              />
-              <StatTile
-                label="Последний релиз"
-                value={previewDeployStats.lastAt ? formatActivityTime(previewDeployStats.lastAt) : '—'}
-                hint={previewDeployStats.lastMessage || 'За период релизов на превью не было'}
-              />
             </PersonSection>
           </div>
 
