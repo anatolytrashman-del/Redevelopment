@@ -7,6 +7,7 @@ import {
   BadgeCheck,
   Building2,
   Calendar,
+  Camera,
   DollarSign,
   HardHat,
   Layers,
@@ -17,6 +18,7 @@ import {
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
+import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { PhotoBlock, FactRow, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import { CatalogFilterPanel } from '../components/businessCenters/CatalogFilterPanel';
 import { CatalogMap } from '../components/businessCenters/CatalogMap';
@@ -99,13 +101,15 @@ const PAGE_H1 = 'Бизнес-центры Минска: аналитика дл
 const INTRO_TEXT =
   'Сравнивайте бизнес-центры Минска по классу, площади и расположению — для инвестиций, аренды или покупки офиса.';
 
-// Фото в hero каталога БЫЛО (owner подбирал сам, /images/business-centers-
-// hero/hero-1.webp, оно же LCP-картинка) — убрано 2026-09-16 по пункту К1
-// плана docs/bc-catalog-redesign-plan.md: hero занимал верх страницы
-// целиком, и первая карточка БЦ появлялась примерно на 1900-м пикселе.
-// Теперь hero — строка заголовка, а первый экран отдан фильтру и
-// результатам. Сам файл остался в public/ (compress-static-images.mjs его
-// по-прежнему знает) — если понадобится вернуть, он на месте.
+// Фото hero — владелец подбирает сам ("фотки я сейчас поищу сам"), пополняется
+// по мере присылки. HeroImageSlider (см. DistrictGuidePage.tsx/
+// ObjectLandingPage.tsx) при пустом массиве не рендерит ничего — плейсхолдер
+// ниже занимает его место, пока список пуст.
+// PAGESPEED_PLAN.md, Э9 — WebP (640×387, 43→25 КиБ), JPEG-оригинал рядом
+// оставлен как источник. Это LCP-картинка каталога.
+const HERO_IMAGES: string[] = ['/images/business-centers-hero/hero-1.webp'];
+const HERO_IMAGE_WIDTH = 640;
+const HERO_IMAGE_HEIGHT = 387;
 
 // Карта всех БЦ на каталоге БЫЛА статичным embed'ом Яндекс.Конструктора
 // (владелец загружал туда CSV с координатами всех 143 БЦ). Убрана
@@ -934,22 +938,36 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           и другое приходилось прокручивать вбок. */}
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-8">
         <div className="flex flex-col gap-8">
-          {/* К1: hero сжат до строки. Раньше здесь была карточка на пол-экрана
-              с фотографией, под ней «Рынок в цифрах» на 8 плиток, сводка
-              ставок и заглушка карты — первая карточка БЦ начиналась
-              примерно на 1900-м пикселе, то есть на первом экране каталога
-              не было ни одного бизнес-центра. Всё это никуда не делось, но
-              уехало ПОД результаты: наверху теперь заголовок, фильтр и
-              сетка. */}
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <div
+            className={cn('grid grid-cols-1 gap-6 p-6 sm:grid-cols-[3fr_2fr] sm:items-center sm:p-8', glassCardClass)}
+            style={glassCardShadow}
+          >
+            <div className="flex flex-col gap-3">
               <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">{heroH1}</h1>
+              <p className="text-base text-ink-muted">{heroIntro}</p>
               <span className="flex w-fit items-center gap-1.5 rounded-full border border-success/30 bg-success-bg px-3 py-1 text-xs font-semibold text-[#0f6b3d]">
                 <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
                 {UPDATED_BADGE_LABEL}
               </span>
             </div>
-            <p className="max-w-3xl text-sm text-ink-muted sm:text-base">{heroIntro}</p>
+            <div className="mx-auto w-full max-w-xs sm:max-w-none">
+              {HERO_IMAGES.length > 0 ? (
+                <HeroImageSlider
+                  images={HERO_IMAGES}
+                  alt="Бизнес-центры Минска"
+                  aspectClassName="aspect-[4/5]"
+                  imageWidth={HERO_IMAGE_WIDTH}
+                  imageHeight={HERO_IMAGE_HEIGHT}
+                />
+              ) : (
+                <div className="flex aspect-[4/5] w-full items-center justify-center rounded-3xl bg-gradient-to-br from-surface-muted to-border">
+                  <span className="flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink-muted shadow-sm">
+                    <Camera className="h-3.5 w-3.5 shrink-0" />
+                    Фото скоро
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           <CatalogFilterPanel
