@@ -226,10 +226,8 @@ export function BusinessCenterDetailPage() {
     [officeSnapshots, center],
   );
 
-  // Рейтинг с карт вынесен из общего списка "Интересные факты" в бейдж рядом
-  // с заголовком (см. комментарий у JSX ниже) — остальные блоки остаются в
-  // общем списке как были.
-  const ratingHighlight = useMemo(() => center?.highlights.find((h) => h.icon === 'rating') ?? null, [center]);
+  // Рейтинг Яндекс.Карт вынесен из общего списка фактов в короткий бейдж
+  // рядом с заголовком. Подробный исходный текст не используется как tooltip.
   const mapRating = useMemo(() => mapRatingFromHighlights(center?.highlights ?? []), [center]);
   // Точное расстояние до метро из 2GIS (владелец подключает в параллельной
   // ветке, 2026-09-06) — по прямой, в метрах. Когда есть — показывается
@@ -774,9 +772,9 @@ export function BusinessCenterDetailPage() {
                     если формат не узнан, бейдж просто не показывается, ничего
                     не выдумываем. */}
                 {mapRating && (
-                  <Badge tone="neutral" title={ratingHighlight?.text}>
-                    <Star className="h-3 w-3 shrink-0 fill-current" />
-                    {mapRating.label} · {mapRating.source}
+                  <Badge tone="neutral">
+                    <Star className="h-3 w-3 shrink-0 fill-amber-400 text-amber-500" />
+                    {mapRating.label} · На Яндекс.Картах
                   </Badge>
                 )}
                 {/* Рейтинг 2ГИС — отдельный источник от Яндекс.Карт выше,
@@ -794,18 +792,29 @@ export function BusinessCenterDetailPage() {
               </div>
             </div>
 
-            {/* Адрес, метро и район образуют один смысловой блок. Компактная
-                сетка экономит высоту главной карточки и сохраняет ссылки на
-                хабы улицы и станции. */}
+            {/* Район, адрес и метро — три горизонтальные строки:
+                подпись, тире и значение находятся на одной базовой линии. */}
             <section className="rounded-2xl border border-border bg-surface-muted/60 px-3.5 py-3" aria-labelledby="location-summary-title">
               <h2 id="location-summary-title" className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
                 <MapPin className="h-4 w-4 shrink-0 text-primary" />
                 Расположение
               </h2>
-              <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
-                <div className="min-w-0 sm:col-span-2">
+              <div className="mt-2.5 space-y-2">
+                {redistributedTechnicalParams.administrativeDistrictText && (
+                  <div className="grid min-w-0 grid-cols-[max-content_auto_minmax(0,1fr)] items-baseline gap-x-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                      Административный район
+                    </p>
+                    <span className="text-xs text-ink-muted" aria-hidden="true">—</span>
+                    <p className="min-w-0 text-sm leading-snug text-ink">
+                      {redistributedTechnicalParams.administrativeDistrictText}
+                    </p>
+                  </div>
+                )}
+                <div className="grid min-w-0 grid-cols-[max-content_auto_minmax(0,1fr)] items-baseline gap-x-2">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Адрес</p>
-                  <p className="mt-0.5 text-sm leading-snug text-ink">
+                  <span className="text-xs text-ink-muted" aria-hidden="true">—</span>
+                  <p className="min-w-0 text-sm leading-snug text-ink">
                     {displayAddress}
                     {streetHubUrl(streetOfAddress(center.address)) && (
                       <>
@@ -821,12 +830,10 @@ export function BusinessCenterDetailPage() {
                   </p>
                 </div>
                 {(nearestMetro || center.metro) && (
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
-                      <TrainFront className="h-3.5 w-3.5 shrink-0" />
-                      Метро
-                    </p>
-                    <p className="mt-0.5 text-sm leading-snug text-ink">
+                  <div className="grid min-w-0 grid-cols-[max-content_auto_minmax(0,1fr)] items-baseline gap-x-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Метро</p>
+                    <span className="text-xs text-ink-muted" aria-hidden="true">—</span>
+                    <p className="min-w-0 text-sm leading-snug text-ink">
                       {nearestMetro ? (
                         <>
                           «{nearestMetro.name}» — {nearestMetro.distanceMeters} м по прямой
@@ -845,16 +852,6 @@ export function BusinessCenterDetailPage() {
                       ) : (
                         center.metro
                       )}
-                    </p>
-                  </div>
-                )}
-                {redistributedTechnicalParams.administrativeDistrictText && (
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
-                      Административный район
-                    </p>
-                    <p className="mt-0.5 text-sm leading-snug text-ink">
-                      {redistributedTechnicalParams.administrativeDistrictText}
                     </p>
                   </div>
                 )}
