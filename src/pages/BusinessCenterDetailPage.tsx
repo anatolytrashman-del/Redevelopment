@@ -265,6 +265,7 @@ export function BusinessCenterDetailPage() {
       buildingInformationRows: [] as { label: string; value: string | null }[],
       firstBlockTechnicalRows: [] as { label: string; value: string }[],
       internalInfrastructureText: null as string | null,
+      administrativeDistrictText: null as string | null,
     };
     if (!center) return empty;
 
@@ -356,7 +357,12 @@ export function BusinessCenterDetailPage() {
     const removedLabels = new Set(['Свободные площади', 'Инфраструктура в шаговой доступности']);
     const firstBlockTechnicalRows: { label: string; value: string }[] = [];
     for (const label of byLabel.keys()) {
-      if (buildingLabels.has(label) || removedLabels.has(label) || label === 'Внутренняя инфраструктура') continue;
+      if (
+        buildingLabels.has(label) ||
+        removedLabels.has(label) ||
+        label === 'Внутренняя инфраструктура' ||
+        label === 'Административный район'
+      ) continue;
       if (label === 'Класс бизнес-центра' && center.businessClass) continue;
       if ((label === 'Станция метро' || label === 'Удалённость от метро') && (nearestMetro || center.metro)) continue;
       const value = sourceValue(label);
@@ -370,6 +376,7 @@ export function BusinessCenterDetailPage() {
         center.infraInternal.length > 0
           ? center.infraInternal.join(', ')
           : sourceValue('Внутренняя инфраструктура'),
+      administrativeDistrictText: sourceValue('Административный район') ?? center.district,
     };
   }, [center, nearestMetro]);
   // Из общего списка фактов исключаем то, что теперь показано отдельными
@@ -465,6 +472,10 @@ export function BusinessCenterDetailPage() {
     };
     const fmt = (value: number) => value.toLocaleString('ru-RU');
     add(`Где находится «${name}»?`, center.address);
+    add(
+      `В каком административном районе находится «${name}»?`,
+      redistributedTechnicalParams.administrativeDistrictText,
+    );
     if (center.businessClass) add(`Какой класс у «${name}»?`, `Класс ${center.businessClass}.`);
     if (center.totalArea != null) add(`Какая общая площадь у «${name}»?`, `${fmt(center.totalArea)} м².`);
     if (center.floors != null) add(`Сколько этажей в «${name}»?`, String(center.floors));
@@ -652,6 +663,10 @@ export function BusinessCenterDetailPage() {
     );
   }
 
+  const displayAddress = /^г\.\s*Минск(?:,|\s)/i.test(center.address)
+    ? center.address
+    : `г. Минск, ${center.address}`;
+
   return (
     <div className="min-h-svh bg-bg px-4 py-8 sm:py-14">
       <div className="mx-auto flex max-w-3xl items-center justify-between pb-5">
@@ -744,7 +759,7 @@ export function BusinessCenterDetailPage() {
             <PhotoBlock center={center} variant="detail" />
           </div>
 
-          <div className="flex flex-col gap-4 p-6 sm:p-8">
+          <div className="flex flex-col gap-3 p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <h1 className="text-2xl font-extrabold leading-tight text-ink">{center.name}</h1>
               <div className="flex shrink-0 flex-wrap items-center gap-1.5">
@@ -779,43 +794,72 @@ export function BusinessCenterDetailPage() {
               </div>
             </div>
 
-            <FactRow icon={MapPin}>
-              {center.address}
-              {/* Ссылка на хаб улицы (аудит 2026-09-07) — только если у этой
-                  улицы реально есть хаб (2+ БЦ, см. STREET_SLUGS). */}
-              {streetHubUrl(streetOfAddress(center.address)) && (
-                <>
-                  {' · '}
-                  <Link to={streetHubUrl(streetOfAddress(center.address)) as string} className="font-semibold text-primary-hover hover:underline">
-                    все БЦ на этой улице
-                  </Link>
-                </>
-              )}
-            </FactRow>
-            {/* Метро — одна строка, не две (владелец, 2026-09-06: "дублируется
-                метро и расстояние до него, оставь только данные 2GIS и убери
-                (2GIS), просто данные"). Когда есть точный геокод из 2GIS —
-                показываем только его (по прямой, в метрах, без подписи
-                источника в тексте); center.metro остаётся фолбэком для БЦ без
-                такого геокода (там пока только минуты пешком из веб-архивов
-                Яндекс.Карт, честно как есть, без выдуманных метров). */}
-            {nearestMetro ? (
-              <FactRow icon={TrainFront}>
-                «{nearestMetro.name}» — {nearestMetro.distanceMeters} м по прямой
-                {/* Ссылка на хаб станции (аудит 2026-09-07) — только если БЦ
-                    реально попадает в радиус хаба, иначе вела бы на список без него. */}
-                {metroHubDistance(center, nearestMetro.name) !== null && metroHubUrl(nearestMetro.name) && (
-                  <>
-                    {' · '}
-                    <Link to={metroHubUrl(nearestMetro.name) as string} className="font-semibold text-primary-hover hover:underline">
-                      все БЦ у этой станции
-                    </Link>
-                  </>
+            {/* Адрес, метро и район образуют один смысловой блок. Компактная
+                сетка экономит высоту главной карточки и сохраняет ссылки на
+                хабы улицы и станции. */}
+            <section className="rounded-2xl border border-border bg-surface-muted/60 px-3.5 py-3" aria-labelledby="location-summary-title">
+              <h2 id="location-summary-title" className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                <MapPin className="h-4 w-4 shrink-0 text-primary" />
+                Расположение
+              </h2>
+              <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
+                <div className="min-w-0 sm:col-span-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Адрес</p>
+                  <p className="mt-0.5 text-sm leading-snug text-ink">
+                    {displayAddress}
+                    {streetHubUrl(streetOfAddress(center.address)) && (
+                      <>
+                        {' · '}
+                        <Link
+                          to={streetHubUrl(streetOfAddress(center.address)) as string}
+                          className="font-semibold text-primary-hover hover:underline"
+                        >
+                          все БЦ на этой улице
+                        </Link>
+                      </>
+                    )}
+                  </p>
+                </div>
+                {(nearestMetro || center.metro) && (
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                      <TrainFront className="h-3.5 w-3.5 shrink-0" />
+                      Метро
+                    </p>
+                    <p className="mt-0.5 text-sm leading-snug text-ink">
+                      {nearestMetro ? (
+                        <>
+                          «{nearestMetro.name}» — {nearestMetro.distanceMeters} м по прямой
+                          {metroHubDistance(center, nearestMetro.name) !== null && metroHubUrl(nearestMetro.name) && (
+                            <>
+                              {' · '}
+                              <Link
+                                to={metroHubUrl(nearestMetro.name) as string}
+                                className="font-semibold text-primary-hover hover:underline"
+                              >
+                                все БЦ у станции
+                              </Link>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        center.metro
+                      )}
+                    </p>
+                  </div>
                 )}
-              </FactRow>
-            ) : (
-              center.metro && <FactRow icon={TrainFront}>{center.metro}</FactRow>
-            )}
+                {redistributedTechnicalParams.administrativeDistrictText && (
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                      Административный район
+                    </p>
+                    <p className="mt-0.5 text-sm leading-snug text-ink">
+                      {redistributedTechnicalParams.administrativeDistrictText}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </section>
             {center.developer && <FactRow icon={Building2}>{center.developer}</FactRow>}
 
             {/* Ровно 4 плитки — класс/площадь/год/этажность (владелец,
