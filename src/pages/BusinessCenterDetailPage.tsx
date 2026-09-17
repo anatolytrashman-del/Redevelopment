@@ -75,11 +75,9 @@ import type {
 import { fetchBusinessCenter2gisSnapshot, fetchTenantIndustryCityProfile } from '../lib/businessCenter2gisApi';
 import { buildOfferIndex } from '../lib/businessCenterCatalogFilter';
 import { buildMarketPosition, nearestNeighbours } from '../lib/businessCenterMarketPosition';
-import { buildVerdictDraft } from '../lib/businessCenterVerdict';
 import {
   extractHistoryPoints,
   HistoryTimeline,
-  VerdictBlock,
   MarketPositionBlock,
   TenantIndustriesBlock,
   WhatTheySayBlock,
@@ -101,7 +99,6 @@ import { NeighboursBlock, SimilarCentersBlock, similarCenters } from '../compone
 // разметке; список самих пунктов собирается в pageSections по тому, какие
 // блоки реально отрисованы.
 const SECTION_LABELS: Record<string, string> = {
-  verdict: 'Плюсы бизнес-центра',
   market: 'БЦ на фоне конкурентов',
   map: 'Другие бизнес-центры рядом',
   tech: 'Информация о здании',
@@ -416,38 +413,6 @@ export function BusinessCenterDetailPage() {
     };
     return { rent: byDeal('rent'), sale: byDeal('sale') };
   }, [offers]);
-  // Б2. Правленый вручную текст главнее сгенерированного: генерация никогда
-  // не перетирает то, что владелец написал сам (флаг verdictEdited).
-  const verdict = useMemo(() => {
-    if (!center) return null;
-    const clean = (source: { verdict: string; pros: string[]; cons: string[]; edited: boolean }) => ({
-      ...source,
-      // В плюсах остаются только выводы и сравнения. Факты, уже показанные
-      // в главной карточке или блоке предложений, повторно не выводим.
-      pros: source.pros.filter((item) => {
-        const normalized = item.trim().toLowerCase();
-        return ![
-          'в самом здании:',
-          'доступная среда:',
-          'круглосуточный доступ',
-          'до метро ',
-          'здание под единой управляющей компанией',
-          'есть open-space',
-          'потолки ',
-          'сейчас ',
-          'рейтинг 2гис ',
-        ].some((prefix) => normalized.startsWith(prefix));
-      }),
-      // Минусы и стоп-факторы больше не выводятся в публичном блоке.
-      cons: [],
-    });
-    if (center.verdictEdited && (center.verdict || center.pros.length > 0 || center.cons.length > 0)) {
-      return clean({ verdict: center.verdict ?? '', pros: center.pros, cons: center.cons, edited: true });
-    }
-    const draft = buildVerdictDraft(center, centers ?? [], offerIndex, officeSnapshots);
-    return clean({ ...draft, edited: false });
-  }, [center, centers, offerIndex, officeSnapshots]);
-
   const marketPosition = useMemo(
     () => (center ? buildMarketPosition(center, centers ?? [], officeSnapshots, offerIndex) : null),
     [center, centers, officeSnapshots, offerIndex],
@@ -517,9 +482,6 @@ export function BusinessCenterDetailPage() {
       );
     }
     if (nearestMetro) add(`Какое метро рядом с «${name}»?`, `«${nearestMetro.name}» — ${nearestMetro.distanceMeters} м по прямой.`);
-    if (verdict?.pros.length) {
-      add(`Какие плюсы у «${name}»?`, verdict.pros.join('; '));
-    }
     for (const bar of marketPosition?.bars ?? []) {
       add(`${bar.label} в «${name}» — это много или мало для своего класса?`, `${fmt(bar.value)} ${bar.unit}; ${bar.baselines.map((b) => `${b.label}: ${fmt(b.value)} ${bar.unit}`).join('; ')}.${bar.note ? ` ${bar.note}.` : ''}`);
     }
@@ -598,7 +560,7 @@ export function BusinessCenterDetailPage() {
     if (similar.length) add('Какие бизнес-центры показаны как похожие?', similar.map(shortName).join(', '));
     if (hubChips.length) add('Какие связанные подборки доступны?', hubChips.map((c) => c.label).join(', '));
     return items;
-  }, [center, centers, nearestMetro, verdict, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, visibleHighlights, gis2, mapRating, reviewQuotes, hubChips, redistributedTechnicalParams]);
+  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, visibleHighlights, gis2, mapRating, reviewQuotes, hubChips, redistributedTechnicalParams]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -607,7 +569,6 @@ export function BusinessCenterDetailPage() {
     if (!center) return [];
     const has = (id: string, cond: boolean) => (cond ? { id, label: SECTION_LABELS[id] } : null);
     return [
-      has('verdict', Boolean(verdict?.pros.length)),
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
       has('map', center.lat != null && center.lng != null),
       has('tech', redistributedTechnicalParams.buildingInformationRows.some((row) => row.value != null)),
@@ -619,7 +580,7 @@ export function BusinessCenterDetailPage() {
       has('similar', true),
       has('faq', faqItems.length > 0),
     ].filter((v): v is { id: string; label: string } => v !== null);
-  }, [center, marketPosition, offers, visibleHighlights, verdict, hasTenantOrganizations, faqItems, redistributedTechnicalParams]);
+  }, [center, marketPosition, offers, visibleHighlights, hasTenantOrganizations, faqItems, redistributedTechnicalParams]);
 
   useEffect(() => {
     if (!center) return;
@@ -952,7 +913,6 @@ export function BusinessCenterDetailPage() {
 
         {/* Сначала аналитика и расположение, затем отдельная карточка
             с параметрами самого здания. */}
-        {verdict && <VerdictBlock pros={verdict.pros} />}
         {center && marketPosition && <MarketPositionBlock position={marketPosition} />}
         {center && <NeighboursBlock center={center} all={centers ?? []} />}
 
