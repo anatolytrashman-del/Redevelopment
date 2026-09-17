@@ -81,6 +81,26 @@
     <script type="application/ld+json" id="place-json-ld"></script>
     <script type="application/ld+json" id="dataset-json-ld"></script>
 
+    <!-- Признак «это не человек» — общий для Метрики, VK-пикселя ниже и для
+         счётчика «N онлайн» в админке (src/lib/botDetection.ts читает
+         window.__isLikelyBot). Проверка стоит здесь, а не только в бандле,
+         потому что счётчики инициализируются раньше, чем грузится бандл:
+         иначе визит ИИ-агента/скрейпера, выполняющего JS, успевал уйти в
+         Метрику до любой проверки на уровне React. Headless-браузеры
+         (Playwright/Puppeteer/Selenium — на них работает большинство
+         агентов) выставляют navigator.webdriver, обычный браузер человека —
+         никогда; плюс список UA известных ботов и AI-краулеров.
+         ФАЙЛ-БЛИЗНЕЦ: регулярка продублирована в src/lib/botDetection.ts,
+         правится всегда в обоих местах (см. CLAUDE.md). -->
+    <script type="text/javascript">
+      window.__isLikelyBot = (function () {
+        try {
+          if (navigator.webdriver) { return true; }
+          return /bot|spider|crawl|slurp|headless|puppeteer|playwright|selenium|phantomjs|gptbot|chatgpt-user|oai-searchbot|claudebot|anthropic-ai|ccbot|perplexitybot|bytespider|petalbot|mj12bot|dotbot|ahrefsbot|semrushbot|facebookexternalhit|telegrambot|discordbot|whatsapp/i.test(navigator.userAgent);
+        } catch (e) { return false; }
+      })();
+    </script>
+
     <!-- Yandex.Metrika counter — ?prerender=1 в URL ставит только
          scripts/prerender.mjs при снятии build-time снапшота (SEO_PLAN.md,
          Э2-1): без этой проверки каждый деплой/пересборка слал бы в
@@ -108,7 +128,7 @@
          оптионал-чейнят вызов ym()/_tmr, ничего дополнительно чинить в них
          не нужно. -->
     <script type="text/javascript">
-      if (location.search.indexOf('prerender=1') === -1 && location.pathname.indexOf('/admin') !== 0) {
+      if (!window.__isLikelyBot && location.search.indexOf('prerender=1') === -1 && location.pathname.indexOf('/admin') !== 0) {
         (function (m, e, t, r, i, k, a) {
           m[i] = m[i] || function () { (m[i].a = m[i].a || []).push(arguments) };
           m[i].l = 1 * new Date();
@@ -135,7 +155,7 @@
          /admin/* исключён тем же принципом, что и у Метрики выше — сотрудники
          CRM не должны пополнять ретаргетинговую аудиторию VK-рекламы. -->
     <script type="text/javascript">
-      if (location.search.indexOf('prerender=1') === -1 && location.pathname.indexOf('/admin') !== 0) {
+      if (!window.__isLikelyBot && location.search.indexOf('prerender=1') === -1 && location.pathname.indexOf('/admin') !== 0) {
         var _tmr = window._tmr || (window._tmr = []);
         _tmr.push({ id: '3793248', type: 'pageView', start: (new Date()).getTime() });
         (function (d, w) {

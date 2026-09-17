@@ -43,7 +43,10 @@
 //
 // Тело запроса (всё необязательно): {"dryRun":true} — не писать в Supabase,
 // только вернуть сводку; {"json":true} — вернуть сырые ответы API целиком;
-// {"debugFilter":true} — A/B-проверка admin-фильтра, ничего не пишет.
+// {"debugFilter":true} — A/B-проверка admin-фильтра, ничего не пишет;
+// {"debugRobots":true} — сколько в данных роботов и работает ли фильтр по
+// ним, тоже ничего не пишет; {"backfillDays":N} — РУЧНОЙ пересчёт дневных
+// рядов за N последних дней (обычный прогон трогает только вчера+сегодня).
 //
 // 2026-09-10 — исключение /admin/* (владелец: «нужна только клиентская
 // часть», внутренняя CRM не должна попадать в статистику посещаемости).
@@ -66,6 +69,46 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 const ADMIN_EXCLUDE_FILTER_SESSION = "NONE(ym:pv:URLPathFull=~'^/admin')";
 const ADMIN_EXCLUDE_FILTER_PAGEVIEW = "ym:pv:URLPathFull!~'^/admin'";
+
+// 2026-09-17 — исключение роботов (владелец: «очисти онлайн и цифры метрики
+// от ИИ-агентов, работающих на сайте»). Вопреки расхожему «Метрика их и так
+// не показывает», у НАШЕГО счётчика роботы лежат прямо в данных: настройка
+// filter_robots = 1 («только по строгим правилам»), и замер за 90 дней дал
+// 292 визита без фильтра против 273 с ним — 19 визитов роботов, из них 6 с
+// UA HeadlessChrome (наши же прогоны Playwright по проду). Фильтр нужен ЯВНО.
+//
+// Этот фильтр чистит уже накопленную историю. Чтобы агенты не попадали в
+// счётчик ВООБЩЕ, счётчик Метрики теперь не инициализируется у
+// headless-браузеров — см. window.__isLikelyBot в index.html и
+// src/lib/botDetection.ts.
+const ROBOT_EXCLUDE_FILTER_SESSION = "ym:s:isRobot=='No'";
+
+// ВАЖНО, проверено запросами 2026-09-17. У Stats API условие по isRobot
+// НЕЛЬЗЯ соединять с любым другим условием: `ym:s:isRobot=='No' AND <что
+// угодно>` не отдаёт ошибку, а МОЛЧА схлопывает весь отчёт до ОДНОЙ строки
+// (7 дней визитов превращаются в один день, два источника трафика — в один).
+// Скобки, порядок условий и явный group=day не помогают; то же самое
+// происходит, если вместо фильтра добавить измерение ym:s:isRobot к любому
+// запросу с фильтром. Ровно тот же класс тихого сбоя, что и с NOT EXISTS
+// в истории этого файла, только без 400-го ответа — заметить можно лишь по
+// цифрам.
+//
+// Поэтому у сессионных запросов ОДНО условие — про роботов, а админ-фильтр
+// (NONE(ym:pv:URLPathFull=~'^/admin')) из них убран. Это безопасно: с
+// 2026-09-10 счётчик на /admin вообще не инициализируется, и проверка по
+// живым данным показала в накопленном окне НОЛЬ просмотров страниц /admin —
+// фильтр стал защитой от истории, которой больше нет (её очистили
+// 2026-09-11). Если /admin когда-нибудь снова начнёт слать хиты, чинить надо
+// там, а не здесь: второе условие сюда не добавить.
+const SESSION_FILTER = ROBOT_EXCLUDE_FILTER_SESSION;
+
+// Топ страниц — запрос pageview-уровня, и там отсечь роботов нечем: и
+// ym:pv:isRobot в фильтре, и он же в измерениях схлопывают отчёт до одной
+// строки (та же ловушка, что выше). Остаётся прежний админ-фильтр — он на
+// pv-уровне работает нормально. Следствие: в топе страниц роботы из уже
+// накопленной истории остаются (в окне это 4 просмотра из 174); новых не
+// будет — их отсекает botDetection ещё до отправки хита.
+const PAGEVIEW_FILTER = ADMIN_EXCLUDE_FILTER_PAGEVIEW;
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -95,7 +138,7 @@ const GOAL_IDENTIFIER = 'booking_submitted';
 // TREND_WINDOW_DAYS, а не на 90: лучше показать меньше, чем вернуть старьё.
 const TREND_WINDOW_DAYS = 2;
 
-type Flags = { dryRun: boolean; json: boolean; debugFilter: boolean };
+type Flags = { dryRun: boolean; json: boolean; debugFilter: boolean; debugRobots: boolean; backfillDays: number | null };
 type SnapshotWindow = { date1: string; date2: string; windowDays: number };
 
 async function fetchYandexToken(): Promise<string> {
@@ -157,8 +200,22 @@ function windowDateParams() {
   return { date1: `${WINDOW_DAYS - 1}daysAgo`, date2: 'today' };
 }
 
-function trendWindowDateParams() {
-  return { date1: `${TREND_WINDOW_DAYS - 1}daysAgo`, date2: 'today' };
+// Обычный прогон тянет только «вчера+сегодня» (см. TREND_WINDOW_DAYS выше —
+// так очищенная вручную история не перезатягивается заново). Ручной режим
+// {"backfillDays":N} — единственный способ ПЕРЕСЧИТАТЬ уже лежащие дни: нужен
+// после любой правки фильтров, иначе новые правила действуют только на
+// свежие дни, а старые так и остаются посчитанными по-старому (именно так
+// 2026-09-17 переписывались дни, накопленные вместе с роботами). Кроном не
+// вызывается никогда — только руками.
+function normalizeBackfillDays(value: unknown): number | null {
+  const days = typeof value === 'number' ? Math.floor(value) : NaN;
+  if (!Number.isFinite(days) || days < 1) return null;
+  return Math.min(days, WINDOW_DAYS);
+}
+
+function trendWindowDateParams(flags?: Flags) {
+  const days = flags?.backfillDays ?? TREND_WINDOW_DAYS;
+  return { date1: `${days - 1}daysAgo`, date2: 'today' };
 }
 
 // Окно для снимков (2)/(3) — от первой даты в накопленной дневной истории до
@@ -207,9 +264,9 @@ async function syncDailyStats(token: string, flags: Flags, log: string[], raw: R
     metrics: 'ym:s:visits,ym:s:users,ym:s:pageviews,ym:s:bounceRate,ym:s:pageDepth,ym:s:avgVisitDurationSeconds',
     dimensions: 'ym:s:date',
     sort: 'ym:s:date',
-    limit: TREND_WINDOW_DAYS + 5,
-    filters: ADMIN_EXCLUDE_FILTER_SESSION,
-    ...trendWindowDateParams(),
+    limit: (flags.backfillDays ?? TREND_WINDOW_DAYS) + 5,
+    filters: SESSION_FILTER,
+    ...trendWindowDateParams(flags),
   });
   if (flags.json) raw['daily-stats'] = body;
 
@@ -250,7 +307,7 @@ async function syncTrafficSources(
     dimensions: 'ym:s:lastTrafficSource',
     sort: '-ym:s:visits',
     limit: 30,
-    filters: ADMIN_EXCLUDE_FILTER_SESSION,
+    filters: SESSION_FILTER,
     date1: snapshotWindow.date1,
     date2: snapshotWindow.date2,
   });
@@ -288,7 +345,7 @@ async function syncTopPages(
     dimensions: 'ym:pv:URLPathFull',
     sort: '-ym:pv:pageviews',
     limit: 30,
-    filters: ADMIN_EXCLUDE_FILTER_PAGEVIEW,
+    filters: PAGEVIEW_FILTER,
     date1: snapshotWindow.date1,
     date2: snapshotWindow.date2,
   });
@@ -322,9 +379,9 @@ async function syncGoalCompletions(token: string, flags: Flags, log: string[], r
     metrics: `ym:s:goal${goalId}reaches,ym:s:goal${goalId}conversionRate`,
     dimensions: 'ym:s:date',
     sort: 'ym:s:date',
-    limit: TREND_WINDOW_DAYS + 5,
-    filters: ADMIN_EXCLUDE_FILTER_SESSION,
-    ...trendWindowDateParams(),
+    limit: (flags.backfillDays ?? TREND_WINDOW_DAYS) + 5,
+    filters: SESSION_FILTER,
+    ...trendWindowDateParams(flags),
   });
   if (flags.json) raw['goal-completions'] = body;
 
@@ -385,19 +442,93 @@ async function debugAdminFilter(token: string, flags: Flags, log: string[], raw:
   }
 }
 
+// Разведка по роботам (ничего не пишет): что вообще Метрика считает роботом
+// на нашем счётчике и работает ли фильтр `ym:s:isRobot`. Нужна ровно затем
+// же, зачем debugAdminFilter выше, — увидеть ЦИФРЫ, а не поверить в то, что
+// фильтр применился. Заодно печатает настройку счётчика filter_robots
+// (1 — только строгие правила, 2 — строгие + поведенческие).
+async function debugRobots(token: string, flags: Flags, log: string[], raw: Record<string, unknown>) {
+  try {
+    const counter = await metrikaFetch(token, `/management/v1/counter/${COUNTER_ID}`, {});
+    log.push(`Настройка счётчика filter_robots = ${counter?.counter?.filter_robots}`);
+    if (flags.json) raw['counter'] = counter;
+  } catch (err) {
+    log.push(`Настройки счётчика не прочитались: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // Группировка по дням нужна не ради самих дней, а чтобы в логе было видно
+  // ЧИСЛО СТРОК: связка isRobot с любым вторым условием схлопывает отчёт до
+  // одной строки молча, и увидеть это можно только так (см. комментарий у
+  // SESSION_FILTER).
+  const base = {
+    ids: COUNTER_ID,
+    metrics: 'ym:s:visits,ym:s:users',
+    dimensions: 'ym:s:date',
+    sort: 'ym:s:date',
+    limit: WINDOW_DAYS + 10,
+    ...windowDateParams(),
+  };
+  // deno-lint-ignore no-explicit-any
+  const totals = (body: any) =>
+    `${(body?.totals ?? []).map((n: number) => Math.round(n ?? 0)).join(' / ')} (строк: ${(body?.data ?? []).length})`;
+
+  for (const [label, filters] of [
+    ['без фильтров', null],
+    ['ym:s:isRobot==\'No\'', "ym:s:isRobot=='No'"],
+    ['ym:s:isRobot==\'Yes\'', "ym:s:isRobot=='Yes'"],
+    ['admin + isRobot==\'No\'', `${ADMIN_EXCLUDE_FILTER_SESSION} AND ym:s:isRobot=='No'`],
+  ] as [string, string | null][]) {
+    try {
+      const body = await metrikaFetch(token, '/stat/v1/data', filters ? { ...base, filters } : base);
+      log.push(`Визиты/посетители за ${WINDOW_DAYS} дн. (${label}): ${totals(body)}`);
+    } catch (err) {
+      log.push(`ОШИБКА на "${label}": ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Отдельно pageview-уровень (топ страниц) — у него своё пространство имён,
+  // и существует ли там ym:pv:isRobot, проверяется только запросом.
+  for (const [label, filters] of [
+    ['без фильтров', null],
+    ['ym:pv:isRobot==\'No\'', "ym:pv:isRobot=='No'"],
+  ] as [string, string | null][]) {
+    const params = {
+      ids: COUNTER_ID,
+      metrics: 'ym:pv:pageviews',
+      dimensions: 'ym:pv:URLPathFull',
+      sort: '-ym:pv:pageviews',
+      limit: 30,
+      ...windowDateParams(),
+    };
+    try {
+      const body = await metrikaFetch(token, '/stat/v1/data', filters ? { ...params, filters } : params);
+      log.push(`Просмотры за ${WINDOW_DAYS} дн. (${label}): ${totals(body)}`);
+    } catch (err) {
+      log.push(`ОШИБКА на pageview "${label}": ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+}
+
 Deno.serve(async (req) => {
   const log: string[] = [];
   const raw: Record<string, unknown> = {};
-  let flags: Flags = { dryRun: false, json: false, debugFilter: false };
+  let flags: Flags = { dryRun: false, json: false, debugFilter: false, debugRobots: false, backfillDays: null };
   try {
     const body = await req.json().catch(() => ({}));
     flags = {
       dryRun: body?.dryRun === true,
       json: body?.json === true,
       debugFilter: body?.debugFilter === true,
+      debugRobots: body?.debugRobots === true,
+      backfillDays: normalizeBackfillDays(body?.backfillDays),
     };
 
     const token = await fetchYandexToken();
+
+    if (flags.debugRobots) {
+      await debugRobots(token, flags, log, raw);
+      return json({ ok: true, debugRobots: true, log, ...(flags.json ? { raw } : {}) });
+    }
 
     if (flags.debugFilter) {
       await debugAdminFilter(token, flags, log, raw);
