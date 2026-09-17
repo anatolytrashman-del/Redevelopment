@@ -218,6 +218,7 @@ export function reportPositions(positions: EstimateMaterial[], offers: SupplierO
     for (const item of items) {
       const id = item.sourceMaterialId;
       if (!id || known.has(id)) continue;
+      if (item.matchKind === 'none') continue;
       if (isDeliveryItem(item) || looksLikeDeliveryItem(item.name) || looksLikeServiceItem(item) || services.has(item.id)) continue;
       if (!(item.price != null && item.price > 0)) continue;
       const seen = orphans.get(id) ?? { exact: null, any: item.name };
@@ -244,6 +245,10 @@ export function buildBestPriceRows(
     const items = quote ? quote.items ?? [] : offer.items ?? [];
     const services = serviceLineIds(items);
     for (const item of items) {
+      // Явное решение человека «это не позиция ведомости» сильнее любой из
+      // эвристик ниже: их придумывали как раз затем, чтобы угадывать то, что
+      // теперь просто записано в строке.
+      if (item.matchKind === 'none') continue;
       if (isDeliveryItem(item) || looksLikeDeliveryItem(item.name) || looksLikeServiceItem(item) || services.has(item.id)) continue;
       if (!item.sourceMaterialId) continue;
       const position = positions.find((p) => p.id === item.sourceMaterialId);
@@ -364,6 +369,7 @@ const KIND_LABEL: Record<PurchaseItemMatchKind, string> = {
   alternative: 'аналог',
   check: 'требует уточнения',
   delivery: 'доставка',
+  none: 'не позиция ведомости',
 };
 
 function vatHint(option: PriceOption): string {

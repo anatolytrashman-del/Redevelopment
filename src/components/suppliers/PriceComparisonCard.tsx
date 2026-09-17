@@ -112,9 +112,20 @@ const KIND_TONE: Record<PurchaseItemMatchKind, string> = {
   alternative: 'bg-warning-bg text-warning',
   check: 'bg-danger-bg text-danger',
   delivery: 'bg-surface-muted text-ink-muted',
+  none: 'bg-surface-muted text-ink-faint',
 };
 
 const KIND_CYCLE: PurchaseItemMatchKind[] = ['exact', 'alternative', 'check'];
+
+// Подсказку модели есть что записать, если человек её принял И у строки есть
+// исход: позиция ведомости, доставка либо явное «это не позиция ведомости»
+// (колеровка в цене краски, товар не из ведомости). Последнее с 2026-09-17
+// тоже пишется в базу — раньше выбор «не материал ведомости» не сохранялся
+// никак, и строка возвращалась в «не привязаны» при следующем открытии.
+function applicableSuggestion(r: SuggestionRow): boolean {
+  if (!r.accepted) return false;
+  return r.kind === 'delivery' || r.kind === 'none' || !!r.positionId;
+}
 
 // Ниже этого порога автосопоставление (шаг 5 плана закупок) просит человека
 // взглянуть. 0.8 выбрано по живому прогону на счёте КраскиТорг 2026-09-16:
@@ -362,6 +373,7 @@ export function PriceComparisonCard({
   const [error, setError] = useState<string | null>(null);
   const [quickMatch, setQuickMatch] = useState<{ offerId: string; positionId: string } | null>(null);
   const [showUnmatched, setShowUnmatched] = useState(false);
+  const [showAside, setShowAside] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [suggestions, setSuggestions] = useState<SuggestionRow[] | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
@@ -458,6 +470,10 @@ export function PriceComparisonCard({
 
   const unmatchedAll: { line: UnmatchedLine; offer: SupplierOffer }[] = columns.flatMap((c) => c.unmatched.map((line) => ({ line, offer: c.offer })));
   const unmatchedSuppliers = columns.filter((c) => c.unmatched.length > 0);
+  // Разобранные строки «не позиция ведомости» — отдельно от «не привязаны»:
+  // по ним решение принято, и требовать внимания они не должны.
+  const asideSuppliers = columns.filter((c) => c.aside.length > 0);
+  const asideCount = asideSuppliers.reduce((n, c) => n + c.aside.length, 0);
 
   // Сумма после отправки разошлась со снимком — новый счёт поставщика
   // поменял цены, руководитель утверждал другое.
@@ -629,21 +645,23 @@ export function PriceComparisonCard({
 
   async function applySuggestions() {
     if (!suggestions) return;
-    const rows = suggestions.filter((r) => r.accepted && (r.kind === 'delivery' || (r.positionId && r.kind !== 'none')));
+    const rows = suggestions.filter((r) => applicableSuggestion(r));
     const patches = rows.map((r) => {
       const unitPrice = r.unitPrice ? Number(r.unitPrice) : NaN;
       const patch: ItemPatch =
         r.kind === 'delivery'
           ? { sourceMaterialId: null, matchKind: 'delivery', unitPrice: null, matchNote: r.note || undefined }
-          : {
-              sourceMaterialId: r.positionId,
-              matchKind: r.kind as PurchaseItemMatchKind,
-              unitPrice: Number.isFinite(unitPrice) && unitPrice > 0 ? unitPrice : null,
-              matchNote: r.note || undefined,
-              ...(r.vat.vatIncluded != null || r.vat.vatRate != null
-                ? { vatIncluded: r.vat.vatIncluded, vatRate: r.vat.vatRate ?? (r.vat.vatIncluded === false ? r.vat.countryRate : null) }
-                : {}),
-            };
+          : r.kind === 'none'
+            ? { sourceMaterialId: null, matchKind: 'none', unitPrice: null, matchNote: r.note || undefined }
+            : {
+                sourceMaterialId: r.positionId,
+                matchKind: r.kind as PurchaseItemMatchKind,
+                unitPrice: Number.isFinite(unitPrice) && unitPrice > 0 ? unitPrice : null,
+                matchNote: r.note || undefined,
+                ...(r.vat.vatIncluded != null || r.vat.vatRate != null
+                  ? { vatIncluded: r.vat.vatIncluded, vatRate: r.vat.vatRate ?? (r.vat.vatIncluded === false ? r.vat.countryRate : null) }
+                  : {}),
+              };
       return { offerId: r.offerId, itemId: r.lineId, patch };
     });
     const ok = await run('Не удалось сохранить сопоставление', () => applyPatches(patches).then(() => true));
@@ -1183,7 +1201,7 @@ export function PriceComparisonCard({
                               onChange={(e) => {
                                 const v = e.target.value;
                                 if (v === '__delivery') update({ kind: 'delivery', positionId: '', accepted: true });
-                                else if (!v) update({ kind: 'none', positionId: '', accepted: false });
+                                else if (!v) update({ kind: 'none', positionId: '', accepted: true });
                                 else {
                                   const pos = positions.find((p) => p.id === v);
                                   const g = pos ? guessUnitPrice(r.item, pos) : null;
@@ -1240,8 +1258,8 @@ export function PriceComparisonCard({
                 </table>
               </div>
               <div className="flex items-center gap-3">
-                <Button type="button" onClick={() => void applySuggestions()} disabled={saving || !suggestions.some((r) => r.accepted && (r.kind === 'delivery' || (r.positionId && r.kind !== 'none')))}>
-                  Применить {suggestions.filter((r) => r.accepted && (r.kind === 'delivery' || (r.positionId && r.kind !== 'none'))).length}
+                <Button type="button" onClick={() => void applySuggestions()} disabled={saving || !suggestions.some((r) => applicableSuggestion(r))}>
+                  Применить {suggestions.filter((r) => applicableSuggestion(r)).length}
                 </Button>
                 <button type="button" onClick={() => setSuggestions(null)} className="text-xs font-medium text-ink-muted hover:text-ink">
                   Отменить
@@ -1268,6 +1286,43 @@ export function PriceComparisonCard({
           )}
         </div>
       )}
+
+      {/* Разобрано и в сравнение не идёт. Отдельно от оранжевого блока выше:
+          там строки ЖДУТ решения, здесь оно уже принято (колеровка в цене
+          краски, товар не из ведомости). Владелец, 2026-09-17: «мне нужно
+          полностью распознанные счета» — счёт распознан полностью ровно
+          тогда, когда у каждой его строки есть исход, а не когда исходов нет
+          совсем. */}
+      {!emptyPositions && asideCount > 0 && (
+        <div className="flex flex-col gap-1.5 rounded-control border border-border bg-surface-muted px-4 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs text-ink-muted">
+              <span className="font-semibold text-ink">{asideCount}</span> {asideCount === 1 ? 'строка' : asideCount < 5 ? 'строки' : 'строк'} счетов разобраны как «не позиция
+              ведомости» и в сравнении не участвуют: {asideSuppliers.map((c) => `${c.offer.name} (${c.aside.length})`).join(', ')}
+            </span>
+            <button type="button" onClick={() => setShowAside((v) => !v)} className="text-xs font-medium text-ink-muted hover:text-ink">
+              {showAside ? 'Скрыть строки' : 'Показать строки'}
+            </button>
+          </div>
+          {showAside && (
+            <div className="flex flex-col gap-1">
+              {asideSuppliers.map((c) =>
+                c.aside.map((line) => (
+                  <div key={`${c.offer.id}-${line.item.id}`} className="flex flex-wrap items-baseline gap-x-2 text-xs">
+                    <span className="font-medium text-ink">{c.offer.name}:</span>
+                    <span className="min-w-0 flex-1 text-ink">{line.item.name}</span>
+                    <span className="tabular-nums text-ink-muted">
+                      {line.item.quantity ?? '—'} {line.item.unit} · {formatMoney(line.total, c.offer.currency)}
+                    </span>
+                    {line.item.matchNote && <span className="w-full text-[11px] text-ink-faint">{line.item.matchNote}</span>}
+                  </div>
+                )),
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
 
       {emptyPositions ? (
         <div className="flex flex-col gap-2 text-sm text-ink-muted">

@@ -41,6 +41,8 @@ function column(id: string, name: string, cells: Record<string, Cell>, delivery:
     cells: new Map(Object.entries(cells)),
     delivery,
     unmatched: [],
+    aside: [],
+    asideTotal: 0,
     quotesCount: 1,
     lastQuoteAt: null,
     terms: null,

@@ -282,6 +282,7 @@ export function buildProposalEmailHtml(doc: ComparisonDoc, message: string): { h
     alternative: 'background:#fbf1de;color:#906721;',
     check: 'background:#fce9eb;color:#d21e34;',
     delivery: 'background:#f5f4f2;color:#6b6d76;',
+    none: 'background:#f5f4f2;color:#9a9ba1;',
   };
   const tag = (kind: PurchaseItemMatchKind) =>
     `<span style="display:inline-block;border-radius:20px;padding:0 7px;font-size:11px;font-weight:600;${tagStyle[kind]}">${esc(kindLabel(kind))}</span>`;

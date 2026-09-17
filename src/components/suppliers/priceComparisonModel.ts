@@ -76,6 +76,17 @@ export interface UnmatchedLine {
   quoteTitle: string;
 }
 
+// Строка счёта, про которую человек уже решил, что она не позиция ведомости
+// ('none'): колеровка, учтённая в цене краски, товар не из ведомости. В
+// сравнении не участвует и внимания не просит, но из счёта не исчезает —
+// иначе «полностью распознанный счёт» на экране не сходится с бумажным.
+export interface AsideLine {
+  item: PurchaseItem;
+  quoteId: string | null;
+  quoteTitle: string;
+  total: number;
+}
+
 export interface Column {
   offer: SupplierOffer;
   cells: Map<string, Cell>;
@@ -83,6 +94,9 @@ export interface Column {
   delivery: number | null;
   // Строки последнего счёта с ценой, не привязанные ни к позиции, ни к доставке.
   unmatched: UnmatchedLine[];
+  // Строки того же счёта, помеченные «не позиция ведомости», и их сумма.
+  aside: AsideLine[];
+  asideTotal: number;
   quotesCount: number;
   lastQuoteAt: string | null;
   // Условия последнего КП (шаг 6 плана закупок): срок, предоплата, НДС,
@@ -127,13 +141,24 @@ export function buildColumns(
     const cells = new Map<string, Cell>();
     let delivery: number | null = null;
     let unmatched: UnmatchedLine[] = [];
+    let aside: AsideLine[] = [];
     let lastQuoteAt: string | null = null;
     let terms: QuoteTerms | null = null;
     for (const src of sources) {
       let srcDelivery: number | null = null;
       const srcUnmatched: UnmatchedLine[] = [];
+      const srcAside: AsideLine[] = [];
       let priced = false;
       for (const item of src.items) {
+        // Человек уже сказал, что это не позиция ведомости — счёт по ней
+        // разобран, и место такой строки в отдельном тихом списке, а не в
+        // оранжевом «не привязаны». Проверка стоит до доставки: «Колеровка
+        // ... подъём» из счёта КраскиТорг иначе утекла бы в доставку.
+        if (item.matchKind === 'none') {
+          const total = purchaseItemTotal(item) || item.price || 0;
+          if (total > 0) srcAside.push({ item, quoteId: src.id, quoteTitle: src.title, total });
+          continue;
+        }
         if (isDeliveryItem(item)) {
           const total = purchaseItemTotal(item) || item.price || 0;
           if (total > 0) srcDelivery = (srcDelivery ?? 0) + total;
@@ -180,6 +205,9 @@ export function buildColumns(
       if (priced || srcDelivery != null || srcUnmatched.length > 0) {
         delivery = srcDelivery;
         unmatched = srcUnmatched;
+        // Разобранные строки берём из того же счёта, что доставку и цены:
+        // счёт, состоящий из одних колеровок, не должен вытеснять настоящий.
+        aside = srcAside;
         // Условия берём того же КП, что и доставку: смешивать срок из одного
         // счёта с ценой из другого нельзя.
         terms = src.terms;
@@ -201,6 +229,8 @@ export function buildColumns(
       cells,
       delivery: deliveryTotal,
       unmatched,
+      aside,
+      asideTotal: aside.reduce((sum, line) => sum + line.total, 0),
       quotesCount: quotes.length,
       lastQuoteAt,
       terms: effectiveTerms,
