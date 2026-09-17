@@ -9,18 +9,19 @@ import {
   Award,
   Banknote,
   Building2,
-  Calendar,
   Car,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock,
+  Coffee,
+  CreditCard,
+  Dumbbell,
   ExternalLink,
   FileText,
   Globe,
   Info,
   Landmark,
-  Layers,
   Leaf,
   MapPin,
   MessageSquareQuote,
@@ -29,10 +30,10 @@ import {
   Phone,
   Ruler,
   ScrollText,
+  ShoppingBag,
   Snowflake,
   Sparkles,
   Star,
-  Store,
   TrainFront,
   Users,
   Wifi,
@@ -49,7 +50,13 @@ import {
   setBusinessCenterPageMeta,
   setPlaceJsonLd,
 } from '../lib/pageMeta';
-import { shortName, sortByShortName, mapRatingFromHighlights, streetOfAddress } from '../lib/businessCenterDisplay';
+import {
+  businessCenterHomepageUrl,
+  shortName,
+  sortByShortName,
+  mapRatingFromHighlights,
+  streetOfAddress,
+} from '../lib/businessCenterDisplay';
 import { nearestMetroStation } from '../lib/metroStations';
 import {
   classHubUrl,
@@ -587,10 +594,10 @@ export function BusinessCenterDetailPage() {
     if (!center) return [];
     const has = (id: string, cond: boolean) => (cond ? { id, label: SECTION_LABELS[id] } : null);
     return [
+      has('facts', visibleHighlights.length > 0),
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
       has('map', center.lat != null && center.lng != null),
       has('tech', redistributedTechnicalParams.buildingInformationRows.some((row) => row.value != null)),
-      has('facts', visibleHighlights.length > 0),
       has('tenants', hasTenantOrganizations || center.tenantOrganizations.length > 0),
       has('rental', Boolean(center.rentalInfo)),
       has('offers', offers !== null),
@@ -667,6 +674,7 @@ export function BusinessCenterDetailPage() {
   const displayAddress = /^г\.\s*Минск(?:,|\s)/i.test(center.address)
     ? center.address
     : `г. Минск, ${center.address}`;
+  const centerWebsiteUrl = businessCenterHomepageUrl(center.website);
   const streetName = streetOfAddress(center.address);
   const streetCatalogUrl = streetHubUrl(streetName);
   const metroCatalogUrl =
@@ -797,11 +805,21 @@ export function BusinessCenterDetailPage() {
               одним revert без затрагивания остальных блоков страницы. */}
           <div className="grid lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
             <div className="relative aspect-[16/9] w-full overflow-hidden bg-surface-muted/70 lg:aspect-auto lg:min-h-[28rem]">
-              <PhotoBlock center={center} variant="detail" fit={center.slug === 'port' ? 'cover' : 'contain'} />
+              <PhotoBlock
+                center={center}
+                variant="detail"
+                fit={center.slug === 'port' || center.slug === 'victoria-plaza' ? 'cover' : 'contain'}
+              />
+              <Badge
+                tone={center.status === 'under_construction' ? 'warning' : 'success'}
+                className="absolute right-4 top-4 shadow-sm backdrop-blur-sm"
+              >
+                {center.status === 'under_construction' ? 'Строится' : 'Построен'}
+              </Badge>
             </div>
 
             <div className="flex flex-col gap-3 p-5 sm:p-6">
-            <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
               <h1 className="text-2xl font-extrabold leading-tight text-ink">{center.name}</h1>
               <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                 {/* Рейтинг с Яндекс.Карт/2ГИС — владелец, 2026-09-06 (четвёртый
@@ -815,7 +833,7 @@ export function BusinessCenterDetailPage() {
                     не выдумываем. */}
                 {mapRating && (
                   <Badge tone="neutral">
-                    <Star className="h-3 w-3 shrink-0 fill-amber-400 text-amber-500" />
+                    <Star className="h-3 w-3 shrink-0 translate-y-px fill-amber-400 text-amber-500" />
                     {mapRating.label} · На Яндекс.Картах
                   </Badge>
                 )}
@@ -834,25 +852,10 @@ export function BusinessCenterDetailPage() {
               </div>
             </div>
 
-            {(redistributedTechnicalParams.readinessText || center.status === 'under_construction') && (
-              <div>
-                <Badge
-                  tone={
-                    redistributedTechnicalParams.readinessText?.toLocaleLowerCase('ru-RU').includes('готов')
-                      ? 'success'
-                      : 'warning'
-                  }
-                >
-                  {redistributedTechnicalParams.readinessText ?? 'Строится'}
-                </Badge>
-              </div>
-            )}
-
             {/* Район, адрес и метро — три горизонтальные строки:
                 подпись, тире и значение находятся на одной базовой линии. */}
             <section className="rounded-2xl border border-border bg-surface-muted/60 px-3.5 py-3" aria-labelledby="location-summary-title">
               <h2 id="location-summary-title" className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                <MapPin className="h-4 w-4 shrink-0 text-primary" />
                 Расположение
               </h2>
               <div className="mt-2.5 space-y-2">
@@ -891,16 +894,16 @@ export function BusinessCenterDetailPage() {
                 )}
               </div>
             </section>
-            {(center.developer || center.website) && (
+            {(center.developer || centerWebsiteUrl) && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-muted">
                 {center.developer && (
                   <span>
                     <span className="font-semibold text-ink">Застройщик:</span> {center.developer}
                   </span>
                 )}
-                {center.website && (
+                {centerWebsiteUrl && (
                   <a
-                    href={center.website}
+                    href={centerWebsiteUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 font-semibold text-primary-hover hover:underline"
@@ -922,20 +925,19 @@ export function BusinessCenterDetailPage() {
                 раньше был цветной Badge-пилюля вместо текста). */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {center.businessClass && (
-                <FactTile icon={Award} value={`Класс ${center.businessClass}`} label="Деловой класс" tone="muted" />
+                <FactTile value={`Класс ${center.businessClass}`} label="Деловой класс" tone="muted" />
               )}
               {center.totalArea != null && (
-                <FactTile icon={Ruler} value={`${center.totalArea.toLocaleString('ru-RU')} м²`} label="Общая площадь" tone="muted" />
+                <FactTile value={`${center.totalArea.toLocaleString('ru-RU')} м²`} label="Общая площадь" tone="muted" />
               )}
               {center.yearBuilt != null && (
                 <FactTile
-                  icon={Calendar}
                   tone="muted"
                   value={`${center.yearBuilt} г.`}
                   label={center.status === 'under_construction' ? 'Ожидаемая сдача' : 'Год сдачи'}
                 />
               )}
-              {center.floors != null && <FactTile icon={Layers} value={center.floors} label="Этажей" tone="muted" />}
+              {center.floors != null && <FactTile value={center.floors} label="Этажей" tone="muted" />}
             </div>
             </div>
           </div>
@@ -953,7 +955,7 @@ export function BusinessCenterDetailPage() {
                 (аренда помещений, парковка(2ГИС), прочие attributeGroups) —
                 намеренно нигде больше не показываются, не только эти два. */}
             {redistributedTechnicalParams.internalInfrastructureText && (
-              <LabeledTextRow icon={Store} label="В здании" text={redistributedTechnicalParams.internalInfrastructureText} />
+              <InternalInfrastructureRow text={redistributedTechnicalParams.internalInfrastructureText} />
             )}
             {redistributedTechnicalParams.firstBlockTechnicalRows.map((row) => {
               const RowIcon = TECH_PARAM_ICONS[row.label] ?? FileText;
@@ -1012,37 +1014,6 @@ export function BusinessCenterDetailPage() {
           </div>
         )}
 
-        {/* Сначала аналитика и расположение, затем отдельная карточка
-            с параметрами самого здания. */}
-        {center && marketPosition && <MarketPositionBlock position={marketPosition} />}
-        {center && <NeighboursBlock center={center} all={centers ?? []} />}
-
-        <div id="tech" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-          <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-            <Building2 className="h-5 w-5 shrink-0 text-primary" />
-            Информация о здании
-          </h2>
-          <div className="overflow-hidden rounded-control border border-border">
-            <table className="w-full border-collapse text-sm">
-              <tbody>
-                {redistributedTechnicalParams.buildingInformationRows.map((row) => (
-                  <tr key={row.label} className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
-                    <th
-                      scope="row"
-                      className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
-                    >
-                      {row.label}
-                    </th>
-                    <td className={cn('py-2 pl-2 pr-3', row.value ? 'text-ink' : 'text-ink-faint')}>
-                      {row.value ?? '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
         {/* "Интересные факты" — произвольный набор блоков, разный у каждого
             БЦ (владелец, 2026-09-06, второй заход: "старайся делать
             кастомную страницу под каждый БЦ. Если у БЦ нет наград, не
@@ -1052,9 +1023,9 @@ export function BusinessCenterDetailPage() {
             BusinessCenter.highlights в data/businessCenters.ts). icon
             'warning' — единственная особая: выносится наверх акцентным
             жёлтым блоком (как caveat в RentalInfo), а не в общий список.
-            Порядок блоков на странице (владелец, 2026-09-06): главный блок
-            → Интересные факты → Условия для арендаторов → Объявления с
-            Kufar и Realt. */}
+            По решению владельца от 2026-09-17 блок расположен сразу после
+            главной карточки и связанных подборок, перед сравнением с
+            конкурентами. */}
         {visibleHighlights.length > 0 && (
           <div id="facts" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
@@ -1097,6 +1068,37 @@ export function BusinessCenterDetailPage() {
             </div>
           </div>
         )}
+
+        {/* Сначала аналитика и расположение, затем отдельная карточка
+            с параметрами самого здания. */}
+        {center && marketPosition && <MarketPositionBlock position={marketPosition} />}
+        {center && <NeighboursBlock center={center} all={centers ?? []} />}
+
+        <div id="tech" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+          <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+            <Building2 className="h-5 w-5 shrink-0 text-primary" />
+            Информация о здании
+          </h2>
+          <div className="overflow-hidden rounded-control border border-border">
+            <table className="w-full border-collapse text-sm">
+              <tbody>
+                {redistributedTechnicalParams.buildingInformationRows.map((row) => (
+                  <tr key={row.label} className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
+                    <th
+                      scope="row"
+                      className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
+                    >
+                      {row.label}
+                    </th>
+                    <td className={cn('py-2 pl-2 pr-3', row.value ? 'text-ink' : 'text-ink-faint')}>
+                      {row.value ?? '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
         {/* Кто сидит в здании. Основной источник — организации 2GIS по
             building_id с рубриками, из них считается диаграмма отраслей (Б9,
@@ -1197,9 +1199,9 @@ export function BusinessCenterDetailPage() {
                   свободных площадей нет: часть бизнес-центров сдаёт офисы напрямую через управляющую
                   компанию, минуя площадки.
                 </p>
-                {center.website ? (
+                {centerWebsiteUrl ? (
                   <a
-                    href={center.website}
+                    href={centerWebsiteUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-fit font-semibold text-primary-hover hover:underline"
@@ -1401,9 +1403,9 @@ export function BusinessCenterDetailPage() {
                 {source.label}
               </a>
             ))}
-            {center.website && (
+            {centerWebsiteUrl && (
               <a
-                href={center.website}
+                href={centerWebsiteUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-primary hover:text-primary"
@@ -1619,6 +1621,45 @@ function LabeledTextRow({
       <div className="min-w-0 flex-1">
         {label && <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{label}</p>}
         <div className={cn('text-sm leading-relaxed text-ink-muted', label && 'mt-1')}>{renderRentalText(text)}</div>
+      </div>
+    </div>
+  );
+}
+
+const INTERNAL_INFRASTRUCTURE_ICONS: { pattern: RegExp; icon: typeof FileText }[] = [
+  { pattern: /банкомат/i, icon: CreditCard },
+  { pattern: /банк/i, icon: Landmark },
+  { pattern: /кофе|кафе/i, icon: Coffee },
+  { pattern: /магазин/i, icon: ShoppingBag },
+  { pattern: /фитнес|спортзал/i, icon: Dumbbell },
+];
+
+function InternalInfrastructureRow({ text }: { text: string }) {
+  const items = text
+    .split(/[,;]\s*/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (items.length === 0) return null;
+
+  return (
+    <div className="flex gap-3 py-3 first:pt-0 last:pb-0">
+      <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted" />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">В здании</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {items.map((item) => {
+            const ItemIcon = INTERNAL_INFRASTRUCTURE_ICONS.find(({ pattern }) => pattern.test(item))?.icon ?? Building2;
+            return (
+              <span
+                key={item}
+                className="inline-flex items-center gap-1.5 rounded-full bg-surface-muted px-2.5 py-1.5 text-xs font-medium text-ink-muted"
+              >
+                <ItemIcon className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
+                {item}
+              </span>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

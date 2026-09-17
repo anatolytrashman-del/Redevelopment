@@ -125,6 +125,43 @@ export function businessCenterPhotoSrc(path: string, variant: 'card' | 'detail')
   return `/images/business-centers/${m[1]}${variant === 'card' ? '-card' : ''}.webp`;
 }
 
+// В базе встречаются как главные страницы БЦ, так и вложенные страницы
+// конкретного корпуса у застройщика. Такие вложенные URL устаревают чаще
+// всего, поэтому публичная карточка всегда ведёт на проверяемую главную
+// страницу того же сайта. Поддерживаем и адреса без протокола из админки;
+// всё кроме http(s) не превращаем в ссылку.
+// Результат ручной проверки всех 55 уникальных доменов каталога
+// 2026-09-17. null скрывает заведомо нерабочую ссылку; строки исправляют
+// протокол/поддомен там, где сохранённый HTTPS даёт ошибку сертификата, а
+// каноническая главная открывается. Это не заменяет данные БЦ, а лишь не
+// отправляет посетителя на уже проверенную ошибку.
+const BUSINESS_CENTER_WEBSITE_OVERRIDES: Record<string, string | null> = {
+  'impersky.by': null,
+  'kiroff.by': null,
+  'sit.by': null,
+  'svplaza.by': null,
+  'teamb.by': null,
+  'www.bc.by': null,
+  'krasavikbc.by': 'http://krasavikbc.by/',
+  'www.strateg.by': 'https://strateg.by/',
+  'xn--80ajibqcvj.xn--90ais': 'http://xn--80ajibqcvj.xn--90ais/',
+};
+
+export function businessCenterHomepageUrl(website: string | null): string | null {
+  const trimmed = website?.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    if (url.host in BUSINESS_CENTER_WEBSITE_OVERRIDES) {
+      return BUSINESS_CENTER_WEBSITE_OVERRIDES[url.host];
+    }
+    return `${url.protocol}//${url.host}/`;
+  } catch {
+    return null;
+  }
+}
+
 export function sortByShortName(centers: BusinessCenter[]): BusinessCenter[] {
   return [...centers].sort((a, b) => shortName(a).localeCompare(shortName(b), 'ru'));
 }

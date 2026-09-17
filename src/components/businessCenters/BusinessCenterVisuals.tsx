@@ -126,7 +126,7 @@ export function FactTile({
   span,
   tone = 'default',
 }: {
-  icon: typeof Camera;
+  icon?: typeof Camera;
   value?: ReactNode;
   label?: ReactNode;
   text?: ReactNode;
@@ -143,14 +143,16 @@ export function FactTile({
         (span ? ` ${SPAN_CLASSES[span]}` : '')
       }
     >
-      <span
-        className={
-          'flex shrink-0 items-center justify-center rounded-full ' +
-          (muted ? 'h-8 w-8 bg-white/70 text-ink-muted' : 'h-9 w-9 bg-surface-muted text-ink')
-        }
-      >
-        <Icon className="h-4 w-4" />
-      </span>
+      {Icon && (
+        <span
+          className={
+            'flex shrink-0 items-center justify-center rounded-full ' +
+            (muted ? 'h-8 w-8 bg-white/70 text-ink-muted' : 'h-9 w-9 bg-surface-muted text-ink')
+          }
+        >
+          <Icon className="h-4 w-4" />
+        </span>
+      )}
       {text ? (
         <p className="text-sm font-semibold leading-snug text-ink">{text}</p>
       ) : (
