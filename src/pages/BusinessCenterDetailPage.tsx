@@ -735,13 +735,18 @@ export function BusinessCenterDetailPage() {
       )}
 
       {/* <main> — единственный main-landmark страницы (Accessibility). */}
-      <main className="mx-auto max-w-3xl">
+      <main className="mx-auto max-w-5xl">
         <div className={cn('overflow-hidden', glassCardClass)} style={glassCardShadow}>
-          <div className="relative aspect-[16/9] w-full overflow-hidden">
-            <PhotoBlock center={center} variant="detail" />
-          </div>
+          {/* Компактная версия первого экрана: на широком экране фото и
+              основная сводка стоят рядом. Прежняя вертикальная версия целиком
+              сохранена в родительском коммите этой правки и откатывается
+              одним revert без затрагивания остальных блоков страницы. */}
+          <div className="grid lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+            <div className="relative aspect-[16/9] w-full overflow-hidden lg:aspect-auto lg:min-h-[28rem]">
+              <PhotoBlock center={center} variant="detail" />
+            </div>
 
-          <div className="flex flex-col gap-3 p-5 sm:p-6">
+            <div className="flex flex-col gap-3 p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <h1 className="text-2xl font-extrabold leading-tight text-ink">{center.name}</h1>
               <div className="flex shrink-0 flex-wrap items-center gap-1.5">
@@ -867,7 +872,10 @@ export function BusinessCenterDetailPage() {
               )}
               {center.floors != null && <FactTile icon={Layers} value={center.floors} label="Этажей" />}
             </div>
+            </div>
+          </div>
 
+          <div className="grid items-start gap-3 border-t border-border p-5 sm:p-6 lg:grid-cols-2">
             {/* Парковка здания показывается один раз из профильного поля
                 карточки. Парковки 2ГИС относятся к окружению и будут
                 использованы в отдельной карте рядом. */}
@@ -882,7 +890,11 @@ export function BusinessCenterDetailPage() {
             {/* Описание из справочника — есть у 27 зданий из 143, до
                 2026-09-17 не выводилось. Показываем как есть, без
                 домысливания; нет описания — нет строки. */}
-            {center.description && <LabeledTextRow icon={Building2} label="Описание" text={center.description} />}
+            {center.description && (
+              <div className="lg:col-span-2">
+                <LabeledTextRow icon={Building2} label="Описание" text={center.description} />
+              </div>
+            )}
             {redistributedTechnicalParams.internalInfrastructureText && (
               <LabeledTextRow icon={Store} label="В здании" text={redistributedTechnicalParams.internalInfrastructureText} />
             )}
@@ -902,7 +914,7 @@ export function BusinessCenterDetailPage() {
                 href={center.website}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline"
+                className="flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline lg:col-span-2"
               >
                 <Globe className="h-4 w-4 shrink-0" />
                 {center.website.replace(/^https?:\/\//, '')}
