@@ -22,6 +22,7 @@
 // Сетевая ошибка НЕ валит сборку: потерять цифру в метрике — мелочь, уронить
 // из-за неё прод-деплой — нет.
 import { createClient } from '@supabase/supabase-js';
+import { previewDeploymentBackfill } from './preview-deployment-backfill.mjs';
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -43,6 +44,17 @@ async function main() {
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  if (isStablePreview) {
+    const { error: backfillError } = await supabase
+      .from('deployments')
+      .upsert(previewDeploymentBackfill, { onConflict: 'deployment_id', ignoreDuplicates: true });
+    if (backfillError) {
+      console.warn('[record-deployment] не дозалили историю preview-деплоев:', backfillError.message);
+    } else {
+      console.log(`[record-deployment] проверен бэкфилл ${previewDeploymentBackfill.length} preview-деплоев`);
+    }
+  }
+
   const row = {
     deployment_id: process.env.VERCEL_DEPLOYMENT_ID ?? null,
     deployment_url: process.env.VERCEL_URL ?? null,

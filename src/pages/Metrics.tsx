@@ -250,16 +250,6 @@ function StatTile({ label, value, hint }: StatTileProps) {
   );
 }
 
-function formatReleaseDate(iso: string): string {
-  return new Date(iso).toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
 function PersonSection({
   name,
   subtitle,
@@ -759,7 +749,7 @@ export function Metrics() {
               />
               <StatTile
                 label="Последний релиз"
-                value={previewDeployStats.lastAt ? formatReleaseDate(previewDeployStats.lastAt) : '—'}
+                value={previewDeployStats.lastAt ? formatActivityTime(previewDeployStats.lastAt) : '—'}
                 hint={previewDeployStats.lastMessage || 'За период релизов на превью не было'}
               />
             </PersonSection>
