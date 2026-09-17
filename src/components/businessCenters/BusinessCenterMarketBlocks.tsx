@@ -187,31 +187,6 @@ export function WhatTheySayBlock({ center, reviewQuotes }: { center: BusinessCen
   );
 }
 
-// --- Б2. Плюсы бизнес-центра -------------------------------------------
-//
-// Блок показывает только проверяемые преимущества. Описательный вердикт,
-// служебная подпись, минусы и повторы фактов из первого блока не выводятся.
-
-export function VerdictBlock({ pros }: { pros: string[] }) {
-  if (pros.length === 0) return null;
-  return (
-    <div id="verdict" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-        <Gauge className="h-5 w-5 shrink-0 text-ink-muted" />
-        Плюсы бизнес-центра
-      </h2>
-      <ul className="flex flex-col gap-1.5">
-        {pros.map((item) => (
-          <li key={item} className="flex gap-2 text-sm leading-snug text-ink-muted">
-            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
-            {item}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 // --- Б9. Кто сидит в здании ---------------------------------------------
 //
 // Диаграмма отраслей арендаторов из справочника 2GIS (организации в здании
