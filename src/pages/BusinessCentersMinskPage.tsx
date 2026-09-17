@@ -158,7 +158,7 @@ const FILTER_QUERY_KEYS = ['class', 'district', 'microdistrict', 'metro', 'stati
 // было выбирать: 143 штуки подряд выглядели одинаково, а главного (сколько
 // стоит и есть ли вообще что снять) на них не было вовсе.
 //
-// Стало: фото ниже (16:9 вместо 16:10, по 4 в ряд на широком экране),
+// Стало: фото ниже (16:9 вместо 16:10, по 3 в ряд на широком экране),
 // сверху — авто-бейдж «чем выделяется» (К8), в теле — то, по чему реально
 // сравнивают: метро в метрах, площадь и типовой этаж, ставка с числом
 // лотов, рейтинг 2ГИС, УК/ТС и парковка. Пилюля «Подробнее» убрана — вся
@@ -1078,7 +1078,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 items-start gap-5 sm:grid-cols-2">
+              <div className="grid grid-cols-1 items-start gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {orderedCenters.slice(0, visibleCount).map((c) => (
                   <BusinessCenterCard
                     key={c.slug}
