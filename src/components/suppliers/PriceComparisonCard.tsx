@@ -67,7 +67,7 @@ import {
   type MoneyPart,
   type UnmatchedLine,
 } from './priceComparisonModel';
-import { buildPrintHtml, buildProposalEmailHtml, hostOf, hrefOf, type ComparisonDoc } from './priceComparisonPrint';
+import { approvalPrintTitle, buildPrintHtml, buildProposalEmailHtml, hostOf, hrefOf, type ComparisonDoc } from './priceComparisonPrint';
 import { SingleSupplierPanel } from './SingleSupplierPanel';
 
 // Владелец, 2026-09-15: «Пришла пора разобраться со сравнением цен... исходя
@@ -521,6 +521,7 @@ export function PriceComparisonCard({
 
   const doc = (): ComparisonDoc => ({
     request,
+    estimateTitle: estimates.find((estimate) => estimate.id === request.estimateId)?.title,
     positions,
     country,
     columns,
@@ -824,7 +825,8 @@ export function PriceComparisonCard({
     setExportingPdf(true);
     setError(null);
     try {
-      await downloadHtmlAsPdf(buildPrintHtml(doc()), `${request.title} — на утверждение`);
+      const report = doc();
+      await downloadHtmlAsPdf(buildPrintHtml(report), `${approvalPrintTitle(report)} — на утверждение`);
     } catch (e) {
       setError(errorMessage(e, 'Не удалось собрать PDF'));
     } finally {
