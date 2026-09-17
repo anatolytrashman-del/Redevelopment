@@ -1,16 +1,15 @@
 import { useMemo, useState } from 'react';
-import { Building2, Coins, Gauge, History, MessageSquare, Star } from 'lucide-react';
+import { Building2, Gauge, History, MessageSquare, Star } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { BusinessCenter } from '../../data/businessCenters';
 import type { Gis2TenantOrganization, TenantIndustryCityProfile } from '../../data/businessCenter2gis';
 import { TENANT_INDUSTRY_OTHER, tenantIndustryLabel } from '../../data/tenantIndustries';
-import type { BusinessCenterOffer } from '../../data/businessCenterOffers';
 import { mapRatingFromHighlights } from '../../lib/businessCenterDisplay';
 import type { MarketPosition } from '../../lib/businessCenterMarketPosition';
 import { VERDICT_SIGNATURE } from '../../lib/businessCenterVerdict';
 
-// Авторские блоки карточки БЦ (Б1, Б8, Б10, Б11 плана
+// Авторские блоки карточки БЦ (Б1, Б10, Б11 плана
 // docs/bc-catalog-redesign-plan.md) — то, чего на странице не было вовсе:
 // до 2026-09-16 карточка отвечала «какая тут площадь», но не «много это или
 // мало». Общая идея взята у аналитики Минск Мира: каждое число стоит рядом
@@ -84,72 +83,6 @@ export function MarketPositionBlock({
           );
         })}
       </div>
-    </div>
-  );
-}
-
-// --- Б8. Сколько это в реальных деньгах --------------------------------
-
-export function MoneyBlock({
-  offers,
-  error = false,
-}: {
-  offers: BusinessCenterOffer[] | null;
-  error?: boolean;
-}) {
-  // Единственное сообщение о пустой выборке — в секции «Сейчас предлагается».
-  if (!error && offers?.length === 0) return null;
-  return (
-    <div id="money" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-        <Coins className="h-5 w-5 shrink-0 text-ink-muted" />
-        Сколько это в деньгах
-      </h2>
-      {error ? (
-        <p className="text-sm text-ink-muted">Не удалось загрузить активные предложения. Попробуйте обновить страницу.</p>
-      ) : offers === null ? (
-        <p className="text-sm text-ink-muted">Загружаем активные предложения…</p>
-      ) : (
-        <>
-          <p className="text-sm text-ink-muted">
-            Активных предложений: аренда — {offers.filter((o) => o.dealType === 'rent').length}, продажа —{' '}
-            {offers.filter((o) => o.dealType === 'sale').length}.
-          </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {offers.map((offer) => {
-              const isRent = offer.dealType === 'rent';
-              const hasSize = Number.isFinite(offer.size) && offer.size > 0;
-              const hasRate = Number.isFinite(offer.pricePerSqm) && offer.pricePerSqm >= 0;
-              return (
-                <div key={offer.id} className="flex flex-col gap-2 rounded-2xl bg-surface-muted p-4">
-                  <span className="text-sm font-bold text-ink">
-                    {isRent ? 'Аренда' : 'Продажа'} · {hasSize ? `${offer.size.toLocaleString('ru-RU')} м²` : 'Площадь не указана'}
-                  </span>
-                  <span className="text-sm text-ink-muted">
-                    {hasRate ? `$${offer.pricePerSqm.toLocaleString('ru-RU')}/м²${isRent ? ' в месяц' : ''}` : 'Ставка не указана'}
-                    {offer.floor != null && ` · этаж ${offer.floor}`}
-                  </span>
-                  <p className="text-sm font-semibold text-ink">
-                    {hasSize && hasRate
-                      ? `За всё помещение — около $${Math.round(offer.size * offer.pricePerSqm).toLocaleString('ru-RU')}${isRent ? ' в месяц' : ''} по указанной ставке.`
-                      : 'Недостаточно данных для расчёта стоимости всего помещения.'}
-                  </p>
-                  {offer.adLink && (
-                    <a href={offer.adLink} target="_blank" rel="noopener noreferrer nofollow" className="text-sm text-primary-hover hover:underline">
-                      Объявление на {offer.source}
-                    </a>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <p className="text-xs text-ink-faint">
-            Стоимость целиком — пересчёт площади и ставки из объявления, а не итоговый платёж.
-            Состав платежей в наших данных не раскрыт: неизвестно, включены ли коммунальные,
-            эксплуатационные и другие дополнительные платежи. Уточняйте условия у автора объявления.
-          </p>
-        </>
-      )}
     </div>
   );
 }
