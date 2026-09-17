@@ -172,7 +172,7 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
     .map(
       (c) =>
         `<tr><td>${esc(c.offer.name)}${c.lastQuoteAt ? `<span class="muted">счёт от ${new Date(c.lastQuoteAt).toLocaleDateString('ru-RU')}</span>` : ''}</td>` +
-        `<td>${c.delivery != null ? esc(formatMoney(c.delivery, c.offer.currency)) : 'в счёте нет'}</td>` +
+        `<td>${c.delivery != null ? esc(formatMoney(c.delivery, c.deliveryCurrency)) : 'в счёте нет'}</td>` +
         `<td>${c.offer.termsNote ? withLinks(c.offer.termsNote) : '—'}</td></tr>`,
     )
     .join('');

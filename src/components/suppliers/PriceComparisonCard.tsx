@@ -40,6 +40,7 @@ import {
 } from '../../lib/supplierResearchApi';
 import { updateSupplierQuoteItems } from '../../lib/supplierQuotesApi';
 import { getCurrentProfile } from '../../lib/accessProfile';
+import { riskSummary, shouldFlag, type SupplierReliability } from '../../data/supplierReliability';
 import { authFetch } from '../../lib/authFetch';
 import { emailSignature } from './SupplierCorrespondenceTab';
 import { errorMessage } from '../../lib/errorMessage';
@@ -339,6 +340,7 @@ export function PriceComparisonCard({
   onOfferUpdated,
   onExportBestPrices,
   renderBadges,
+  reliabilityByInn,
 }: {
   request: SupplierRequest;
   // Материалы раздела сметы, к которому привязан запрос, — то, что реально
@@ -366,6 +368,10 @@ export function PriceComparisonCard({
   // Бейджи верификации/благонадёжности живут в Suppliers.tsx вместе со своим
   // состоянием — сюда приходят готовыми.
   renderBadges: (o: SupplierOffer) => ReactNode;
+  // Проверка по ИНН (Checko) — та же карта, что и у RiskBadge выше по дереву.
+  // Нужна панели «Заказать всё у одного»: владелец, 2026-09-17, «мы никогда
+  // не ставим на первое место поставщика с красными флагами».
+  reliabilityByInn: Map<string, SupplierReliability>;
 }) {
   const [country, setCountry] = useState<string>(SUPPLIER_COUNTRIES[0]);
   const [view, setView] = useState<'Таблица' | 'По позициям'>('Таблица');
@@ -460,7 +466,7 @@ export function PriceComparisonCard({
   const pickedDelivery: MoneyPart[] = [...pickedOfferIds]
     .map((id) => columnById.get(id))
     .filter((c): c is Column => !!c && c.delivery != null)
-    .map((c) => ({ amount: c.delivery!, currency: c.offer.currency }));
+    .map((c) => ({ amount: c.delivery!, currency: c.deliveryCurrency }));
   const kinds = pickedCells.reduce(
     (acc, x) => ({ ...acc, [x.cell.kind]: (acc[x.cell.kind] ?? 0) + 1 }),
     {} as Partial<Record<PurchaseItemMatchKind, number>>,
@@ -688,7 +694,7 @@ export function PriceComparisonCard({
         offerId: c.offer.id,
         name: c.offer.name,
         supplierId: c.offer.supplierId ?? null,
-        currency: c.offer.currency,
+        currency: c.deliveryCurrency,
         delivery: c.delivery,
       })),
     );
@@ -880,7 +886,7 @@ export function PriceComparisonCard({
         <select value={lineId} onChange={(e) => pickLine(e.target.value)} className="rounded-control border border-border bg-surface-muted px-2 py-1 text-xs text-ink outline-none focus:border-primary">
           {col.unmatched.map((l) => (
             <option key={l.item.id} value={l.item.id}>
-              {l.item.name} · {l.item.quantity ?? '—'} {l.item.unit} · {l.item.price != null ? formatUnit(l.item.price, col.offer.currency) : ''}
+              {l.item.name} · {l.item.quantity ?? '—'} {l.item.unit} · {l.item.price != null ? formatUnit(l.item.price, l.currency) : ''}
             </option>
           ))}
         </select>
@@ -970,7 +976,7 @@ export function PriceComparisonCard({
           )}
           {col.quotesCount > 1 && <span className="rounded-full bg-surface px-1.5 py-px text-ink-muted">{col.quotesCount} {col.quotesCount < 5 ? 'счёта' : 'счетов'}, последние цены</span>}
           <span className={cn('rounded-full px-1.5 py-px', col.delivery != null ? 'bg-surface text-ink' : 'bg-surface text-ink-faint')}>
-            {col.delivery != null ? `доставка ${formatMoney(col.delivery, col.offer.currency)}` : 'доставка не названа'}
+            {col.delivery != null ? `доставка ${formatMoney(col.delivery, col.deliveryCurrency)}` : 'доставка не названа'}
           </span>
           {col.unmatched.length > 0 && (
             <span className="rounded-full bg-warning-bg px-1.5 py-px text-warning">
@@ -1011,7 +1017,7 @@ export function PriceComparisonCard({
     const partsPicked: MoneyPart[] = mine.map((p) => ({ amount: col.cells.get(p.id)!.unitPrice * (p.quantity ?? 0), currency: col.cells.get(p.id)!.currency }));
     const covered = positions.filter((p) => col.cells.has(p.id));
     const partsAll: MoneyPart[] = covered.map((p) => ({ amount: col.cells.get(p.id)!.unitPrice * (p.quantity ?? 0), currency: col.cells.get(p.id)!.currency }));
-    const delivery: MoneyPart[] = col.delivery != null ? [{ amount: col.delivery, currency: col.offer.currency }] : [];
+    const delivery: MoneyPart[] = col.delivery != null ? [{ amount: col.delivery, currency: col.deliveryCurrency }] : [];
     return { mine, partsPicked, covered, partsAll, delivery };
   }
 
@@ -1135,7 +1141,17 @@ export function PriceComparisonCard({
       {/* Ответ на «где заказать всё сразу» — до таблицы: сетка из позиций и
           поставщиков глазами не сравнивается (владелец, 2026-09-17). */}
       {!emptyPositions && columns.length > 1 && (
-        <SingleSupplierPanel columns={columns} positions={positions} rate={rate} saving={saving} onPickAll={toggleColumn} />
+        <SingleSupplierPanel
+          columns={columns}
+          positions={positions}
+          rate={rate}
+          saving={saving}
+          onPickAll={toggleColumn}
+          riskOf={(o) => {
+            const r = o.inn ? reliabilityByInn.get(o.inn) ?? null : null;
+            return shouldFlag(r) && r ? { level: r.riskLevel === 'danger' ? 'danger' : 'warn', summary: riskSummary(r) } : null;
+          }}
+        />
       )}
 
       {error && <p className="text-sm text-danger">{error}</p>}
@@ -1276,7 +1292,7 @@ export function PriceComparisonCard({
                     {line.item.quantity != null && ` · ${line.item.quantity} ${line.item.unit}`}
                     {line.item.sourceMaterialId && <span className="text-warning"> · привязана, но без цены за единицу сметы</span>}
                   </span>
-                  <span className="tabular-nums text-ink-muted">{line.item.price != null ? formatUnit(line.item.price, offer.currency) : ''}</span>
+                  <span className="tabular-nums text-ink-muted">{line.item.price != null ? formatUnit(line.item.price, line.currency) : ''}</span>
                   <button type="button" onClick={() => onOpenDetail(offer)} className="inline-flex items-center gap-1 font-semibold text-ink underline decoration-dotted underline-offset-2 hover:decoration-solid">
                     <Check className="h-3 w-3" /> В переписке
                   </button>
@@ -1312,7 +1328,7 @@ export function PriceComparisonCard({
                     <span className="font-medium text-ink">{c.offer.name}:</span>
                     <span className="min-w-0 flex-1 text-ink">{line.item.name}</span>
                     <span className="tabular-nums text-ink-muted">
-                      {line.item.quantity ?? '—'} {line.item.unit} · {formatMoney(line.total, c.offer.currency)}
+                      {line.item.quantity ?? '—'} {line.item.unit} · {formatMoney(line.total, line.currency)}
                     </span>
                     {line.item.matchNote && <span className="w-full text-[11px] text-ink-faint">{line.item.matchNote}</span>}
                   </div>
@@ -1390,7 +1406,7 @@ export function PriceComparisonCard({
                                 {col.offer.name}
                               </button>
                               <span className="mt-0.5 flex flex-wrap items-center gap-1">{renderBadges(col.offer)}</span>
-                              <span className="block text-[11px] text-ink-muted">{col.delivery != null ? `доставка ${formatMoney(col.delivery, col.offer.currency)}` : 'доставка не названа'}</span>
+                              <span className="block text-[11px] text-ink-muted">{col.delivery != null ? `доставка ${formatMoney(col.delivery, col.deliveryCurrency)}` : 'доставка не названа'}</span>
                             </td>
                             <td className="px-3 py-2 text-[12px] leading-snug text-ink">
                               <KindTag kind={cell.kind} onClick={() => cycleKind(cell)} title="Нажмите, чтобы сменить вид" />{' '}

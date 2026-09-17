@@ -2656,6 +2656,7 @@ export function Suppliers() {
                             <RiskBadge inn={o.inn} reliabilityByInn={reliabilityByInn} />
                           </>
                         )}
+                        reliabilityByInn={reliabilityByInn}
                       />
                     ),
                   )}

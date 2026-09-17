@@ -193,7 +193,10 @@ export interface OrderDraftSupplier {
   offerId: string;
   name: string;
   supplierId: string | null;
-  // Валюта карточки поставщика и сумма строк-доставок из последнего счёта.
+  // Валюта СУММЫ ДОСТАВКИ (строки последнего счёта или условий того же
+  // счёта), а не валюта карточки поставщика по умолчанию — иначе рублёвая
+  // доставка при долларовой карточке молча выпадала бы из заказа (сверка
+  // currency === draft.currency ниже её бы не нашла).
   currency: Currency;
   delivery: number | null;
 }

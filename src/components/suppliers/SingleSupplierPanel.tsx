@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, Trophy } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Trophy } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { PURCHASE_ITEM_MATCH_KIND_LABELS } from '../../data/purchases';
 import type { EstimateMaterial } from '../../data/estimates';
 import type { ExchangeRate } from '../../data/exchangeRates';
 import { formatMoney, formatUnit, type Column } from './priceComparisonModel';
-import { buildRanking, rankingWinner, type SupplierScore } from './singleSupplierRanking';
+import { buildRanking, rankingWinner, type RiskLookup, type SupplierScore } from './singleSupplierRanking';
 
 // «Заказать всё в одном месте» — экранная часть расчёта из
 // singleSupplierRanking.ts (там же, в шапке, почему эталон собирается по
@@ -28,14 +28,19 @@ export function SingleSupplierPanel({
   rate,
   saving,
   onPickAll,
+  riskOf,
 }: {
   columns: Column[];
   positions: EstimateMaterial[];
   rate: ExchangeRate | undefined;
   saving: boolean;
   onPickAll: (col: Column) => void;
+  // Риск по ИНН (Checko) — владелец, 2026-09-17: «мы никогда не ставим на
+  // первое место поставщика с красными флагами, возникшими в ходе проверки
+  // по ИНН. Побеждает всегда самое выгодное предложение из безопасных».
+  riskOf: RiskLookup;
 }) {
-  const ranking = useMemo(() => buildRanking(columns, positions, rate), [columns, positions, rate]);
+  const ranking = useMemo(() => buildRanking(columns, positions, rate, riskOf), [columns, positions, rate, riskOf]);
   const winner = rankingWinner(ranking);
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -76,7 +81,16 @@ export function SingleSupplierPanel({
           <div className="min-w-0">
             <span className="block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Заказать всё у одного</span>
             <span className="mt-0.5 block text-sm text-ink">
-              <span className="text-base font-bold">{winner.name}</span> — закрывает {winner.covered} из {positions.length}{' '}
+              <span className="text-base font-bold">{winner.name}</span>{' '}
+              {winner.risk && (
+                <span
+                  title={winner.risk.summary}
+                  className={cn('inline-flex items-center gap-1 rounded-full px-1.5 py-px text-[10.5px] font-semibold align-middle', winner.risk.level === 'danger' ? 'bg-danger-bg text-danger' : 'bg-warning-bg text-warning')}
+                >
+                  <AlertTriangle className="h-3 w-3" /> есть риски по ИНН
+                </span>
+              )}{' '}
+              — закрывает {winner.covered} из {positions.length}{' '}
               {plural(positions.length, 'позиции', 'позиций', 'позиций')}, из них{' '}
               <span className="font-semibold">{winner.exact} «ровно»</span>
               {winner.bestExact > 0 && ` (${winner.bestExact} по лучшей цене среди «ровно»)`}
@@ -122,6 +136,11 @@ export function SingleSupplierPanel({
           лучшей ценой считается лучшая замена.
         </p>
       )}
+      {ranking.riskyLeader && (
+        <p className="text-xs text-warning">
+          «{ranking.riskyLeader.name}» был бы выгоднее, но у него риски по проверке ИНН ({ranking.riskyLeader.risk!.summary}) — на первое место не ставим.
+        </p>
+      )}
       {ranking.incomparable && (
         <p className="text-xs text-warning">Часть цен в другой валюте, а курса на сегодня нет — эти суммы в расчёт не вошли.</p>
       )}
@@ -145,7 +164,14 @@ export function SingleSupplierPanel({
                 const isOpen = expanded === s.column.offer.id;
                 return [
                   <tr key={s.column.offer.id} className={cn('border-t border-border align-top', s === winner && 'bg-success-bg/40')}>
-                    <td className="py-1.5 pr-2 font-semibold text-ink">{s.name}</td>
+                    <td className="py-1.5 pr-2 font-semibold text-ink">
+                      {s.name}
+                      {s.risk && (
+                        <span title={s.risk.summary} className={cn('ml-1 inline-flex align-middle', s.risk.level === 'danger' ? 'text-danger' : 'text-warning')}>
+                          <AlertTriangle className="h-3 w-3" />
+                        </span>
+                      )}
+                    </td>
                     <td className="whitespace-nowrap py-1.5 pr-2 tabular-nums text-ink">
                       {s.covered} из {positions.length}
                     </td>
