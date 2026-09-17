@@ -27,6 +27,10 @@ export async function extractXlsxText(buffer) {
 
   const sharedFile = zip.file('xl/sharedStrings.xml');
   const shared = sharedFile ? parseSharedStrings(await sharedFile.async('string')) : [];
+  // У Ultrawood знак ₽ есть только в числовом формате, а <v> содержит
+  // 250/280. Без styles.xml модель получает цены без валюты.
+  const stylesFile = zip.file('xl/styles.xml');
+  const formats = stylesFile ? parseCellFormats(await stylesFile.async('string')) : [];
 
   const sheets = zip
     .file(/^xl\/worksheets\/sheet\d+\.xml$/)
@@ -35,7 +39,7 @@ export async function extractXlsxText(buffer) {
 
   const parts = [];
   for (const sheet of sheets) {
-    const text = sheetXmlToText(await sheet.async('string'), shared);
+    const text = sheetXmlToText(await sheet.async('string'), shared, formats);
     if (text) parts.push(text);
   }
   return parts.join('\n\n').slice(0, MAX_CHARS).trim();
@@ -56,12 +60,28 @@ function parseSharedStrings(xml) {
   );
 }
 
-function sheetXmlToText(xml, shared) {
+function parseCellFormats(xml) {
+  const custom = new Map();
+  for (const match of xml.matchAll(/<numFmt\b([^>]*)\/?\s*>/g)) {
+    const id = /\bnumFmtId="(\d+)"/.exec(match[1])?.[1];
+    const code = /\bformatCode="([^"]*)"/.exec(match[1])?.[1];
+    if (id != null && code != null) custom.set(id, decodeXml(code));
+  }
+  const cellXfs = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(xml)?.[1] ?? '';
+  // Не угадываем валюту по встроенному numFmtId: его отображение зависит
+  // от локали Excel. Явный formatCode сохраняем даже для встроенного id
+  // (исходный файл Ultrawood переопределяет id=8 рублёвым форматом).
+  return [...cellXfs.matchAll(/<xf\b([^>]*)>/g)].map((match) =>
+    custom.get(/\bnumFmtId="(\d+)"/.exec(match[1])?.[1]) ?? '',
+  );
+}
+
+function sheetXmlToText(xml, shared, formats) {
   const rows = [];
   for (const rowMatch of xml.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
     const cells = [];
-    for (const cellMatch of rowMatch[1].matchAll(/<c\b([^>]*)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
-      cells.push(cellValue(cellMatch[1], cellMatch[2] ?? '', shared));
+    for (const cellMatch of rowMatch[1].matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+      cells.push(cellValue(cellMatch[1], cellMatch[2] ?? '', shared, formats));
     }
     // Пустые строки (разделители, форматирование) в текст не тащим — они
     // только раздувают промпт.
@@ -70,7 +90,7 @@ function sheetXmlToText(xml, shared) {
   return rows.join('\n');
 }
 
-function cellValue(attrs, inner, shared) {
+function cellValue(attrs, inner, shared, formats) {
   const type = /\bt="([^"]+)"/.exec(attrs)?.[1] ?? 'n';
   // t="inlineStr" — строка лежит прямо в ячейке, t="s" — ссылка номером в
   // общий словарь sharedStrings, всё остальное (число, дата, формула) —
@@ -84,7 +104,14 @@ function cellValue(attrs, inner, shared) {
     const idx = Number(decodeXml(raw));
     return Number.isInteger(idx) ? (shared[idx] ?? '') : '';
   }
-  return decodeXml(raw);
+  const value = decodeXml(raw);
+  const style = Number(/\bs="(\d+)"/.exec(attrs)?.[1] ?? 0);
+  const format = formats[style];
+  // Сохраняем исходное число (включая результат формулы), а формат
+  // передаём отдельно как данные документа. Текстовые ячейки не меняем.
+  return type === 'n' && format && value.trim() !== '' && Number.isFinite(Number(value))
+    ? `${value} (формат Excel: ${format})`
+    : value;
 }
 
 function decodeXml(value) {

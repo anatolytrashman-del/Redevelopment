@@ -1,8 +1,8 @@
 // Синк Яндекс.Вебмастера — Supabase Edge Function, крон раз в сутки (pg_cron).
 // Забирает историю индексирования (сколько страниц сайта реально в поиске) и
-// статистику по поисковым запросам (показы/клики/позиция) — сохраняет в
-// public.yandex_webmaster_stats, одна строка на календарный день. Источник
-// данных для блока «Индексация и поисковые запросы» страницы «Показатели».
+// статистику по поисковым запросам (показы/клики/позиция) и внешние ссылки —
+// сохраняет в public.yandex_webmaster_stats / yandex_webmaster_queries /
+// site_backlinks. Источник данных для поисковых блоков страницы «Показатели».
 //
 // 2026-09-16 — переехало из scripts/sync-yandex-webmaster-stats.mjs (GitHub
 // Actions) сюда, вместе с синком Метрики; причины и контекст — в шапке
@@ -70,6 +70,7 @@ const QUERY_INDICATORS = ['TOTAL_SHOWS', 'TOTAL_CLICKS', 'AVG_SHOW_POSITION', 'A
 // popular за один вызов; на 16.09 у сайта всего 60 запросов за всю историю,
 // запас на вырост.
 const QUERY_LIST_LIMIT = 500;
+const BACKLINK_PAGE_SIZE = 100; // максимум ручки /links/external/samples
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -247,6 +248,64 @@ async function fetchQuerySnapshot(token: string, userId: number, hostId: string)
   return rows.map((row) => ({ ...row, updated_at: stamp }));
 }
 
+interface BacklinkSnapshotRow {
+  link_key: string;
+  provider: 'yandex_webmaster';
+  source_url: string;
+  destination_url: string;
+  discovery_date: string | null;
+  source_last_access_date: string | null;
+  updated_at: string;
+}
+
+async function sha256(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+// Вебмастер отдаёт максимум 100 внешних ссылок за запрос. Проходим весь
+// доступный снимок по offset/count, а не сохраняем только первую страницу —
+// иначе число ссылок и топ ссылающихся доменов стали бы неверными без ошибки.
+async function fetchBacklinkSnapshot(
+  token: string,
+  userId: number,
+  hostId: string,
+): Promise<BacklinkSnapshotRow[]> {
+  const links: { source_url: string; destination_url: string; discovery_date?: string; source_last_access_date?: string }[] = [];
+  let offset = 0;
+  let count = 0;
+
+  do {
+    const data = await webmasterFetch(
+      token,
+      `/user/${userId}/hosts/${encodeURIComponent(hostId)}/links/external/samples?offset=${offset}&limit=${BACKLINK_PAGE_SIZE}`,
+    );
+    const page = Array.isArray(data.links) ? data.links : [];
+    count = typeof data.count === 'number' ? data.count : page.length;
+    links.push(...page);
+    if (page.length === 0) break;
+    offset += page.length;
+  } while (offset < count);
+
+  const stamp = new Date().toISOString();
+  const rows = await Promise.all(
+    links
+      .filter((link) => typeof link.source_url === 'string' && typeof link.destination_url === 'string')
+      .map(async (link) => ({
+        link_key: await sha256(`yandex_webmaster\n${link.source_url}\n${link.destination_url}`),
+        provider: 'yandex_webmaster' as const,
+        source_url: link.source_url,
+        destination_url: link.destination_url,
+        discovery_date: link.discovery_date?.slice(0, 10) ?? null,
+        source_last_access_date: link.source_last_access_date?.slice(0, 10) ?? null,
+        updated_at: stamp,
+      })),
+  );
+
+  // На случай, если API вернёт одну и ту же пару на границе страниц.
+  return [...new Map(rows.map((row) => [row.link_key, row])).values()];
+}
+
 Deno.serve(async (req) => {
   const log: string[] = [];
   try {
@@ -257,15 +316,17 @@ Deno.serve(async (req) => {
     const { userId, hostId } = await resolveHost(token);
     log.push(`Хост Вебмастера: ${hostId} (user_id=${userId})`);
 
-    const [indexingByDate, queryByDate, currentPagesInSearch, querySnapshot] = await Promise.all([
+    const [indexingByDate, queryByDate, currentPagesInSearch, querySnapshot, backlinkSnapshot] = await Promise.all([
       fetchIndexingHistory(token, userId, hostId),
       fetchQueryHistory(token, userId, hostId),
       fetchCurrentPagesInSearch(token, userId, hostId),
       fetchQuerySnapshot(token, userId, hostId),
+      fetchBacklinkSnapshot(token, userId, hostId),
     ]);
     log.push(
       `Индексирование: ${indexingByDate.size} точек (сейчас в поиске: ${currentPagesInSearch ?? '—'}). ` +
-        `Запросы: ${queryByDate.size} дней с данными, ${querySnapshot.length} запросов в разбивке.`,
+        `Запросы: ${queryByDate.size} дней с данными, ${querySnapshot.length} запросов в разбивке. ` +
+        `Внешние ссылки: ${backlinkSnapshot.length}.`,
     );
 
     // Живое число страниц в поиске пишем в строку за сегодня — история от
@@ -288,11 +349,17 @@ Deno.serve(async (req) => {
       };
     });
 
-    if (rows.length === 0 && querySnapshot.length === 0) {
-      log.push('Нет данных для сохранения.');
-      return json({ ok: true, log });
+    if (dryRun) {
+      return json({
+        ok: true,
+        dryRun: true,
+        log,
+        rows,
+        queries: querySnapshot,
+        backlinkCount: backlinkSnapshot.length,
+        backlinkSample: backlinkSnapshot.slice(0, 10),
+      });
     }
-    if (dryRun) return json({ ok: true, dryRun: true, log, rows, queries: querySnapshot });
 
     if (rows.length > 0) {
       const { error } = await supabase.from('yandex_webmaster_stats').upsert(rows, { onConflict: 'date' });
@@ -315,6 +382,31 @@ Deno.serve(async (req) => {
       if (delError) throw delError;
       log.push(`Сохранено ${querySnapshot.length} запросов в yandex_webmaster_queries.`);
     }
+
+    // Снимок ссылок тоже заменяется без «пустого окна»: сначала новая версия
+    // пачками, затем старые строки этого provider. Нулевой валидный ответ API
+    // означает, что ссылок больше нет, — тогда старый снимок удаляем целиком.
+    if (backlinkSnapshot.length > 0) {
+      const stamp = backlinkSnapshot[0].updated_at;
+      for (let from = 0; from < backlinkSnapshot.length; from += 500) {
+        const batch = backlinkSnapshot.slice(from, from + 500);
+        // deno-lint-ignore no-await-in-loop
+        const { error: backlinkError } = await supabase
+          .from('site_backlinks')
+          .upsert(batch, { onConflict: 'link_key' });
+        if (backlinkError) throw backlinkError;
+      }
+      const { error: staleError } = await supabase
+        .from('site_backlinks')
+        .delete()
+        .eq('provider', 'yandex_webmaster')
+        .lt('updated_at', stamp);
+      if (staleError) throw staleError;
+    } else {
+      const { error: staleError } = await supabase.from('site_backlinks').delete().eq('provider', 'yandex_webmaster');
+      if (staleError) throw staleError;
+    }
+    log.push(`Сохранено ${backlinkSnapshot.length} внешних ссылок в site_backlinks.`);
 
     return json({ ok: true, log });
   } catch (err) {
