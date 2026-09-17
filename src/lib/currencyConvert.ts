@@ -45,3 +45,22 @@ export function convertToByn(amount: number, currency: Currency, rate: ExchangeR
   if (currency === 'EUR') return amount * rate.eurByn;
   return amount * rate.rubByn;
 }
+
+// Перевод между двумя произвольными валютами через тот же BYN-мостик.
+// Нужен там, где общий знаменатель НЕ доллар: сравнение цен поставщиков
+// сводит суммы к валюте, в которой выставлено большинство счетов (владелец,
+// 2026-09-17: «почему-то плинтус посчитался в долларах, хотя поставка
+// рублевая»). null — курса на день нет, считать нечем.
+export function convertCurrency(
+  amount: number,
+  from: Currency,
+  to: Currency,
+  rate: ExchangeRate | null | undefined,
+): number | null {
+  if (from === to) return amount;
+  const byn = convertToByn(amount, from, rate);
+  if (byn == null) return null;
+  if (to === 'BYN') return byn;
+  if (!rate) return null;
+  return byn / (to === 'USD' ? rate.usdByn : to === 'EUR' ? rate.eurByn : rate.rubByn);
+}
