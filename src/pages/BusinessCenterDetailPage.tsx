@@ -111,7 +111,7 @@ import { NeighboursBlock, SimilarCentersBlock, similarCenters } from '../compone
 // блоки реально отрисованы.
 const SECTION_LABELS: Record<string, string> = {
   verdict: 'Кому подходит',
-  market: 'Место на рынке',
+  market: 'БЦ на фоне конкурентов',
   map: 'На карте',
   money: 'В деньгах',
   tech: 'Характеристики',
@@ -276,7 +276,7 @@ export function BusinessCenterDetailPage() {
     [center],
   );
 
-  // Медианы по зданиям (Д3) — те же, что в каталоге: и «Место на рынке», и
+  // Медианы по зданиям (Д3) — те же, что в каталоге: и «БЦ на фоне конкурентов», и
   // соседи, и деньги должны считать ставку одинаково, иначе одна и та же
   // цифра на двух страницах разойдётся.
   const offerIndex = useMemo(() => buildOfferIndex(officeSnapshots), [officeSnapshots]);
