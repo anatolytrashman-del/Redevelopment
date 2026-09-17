@@ -248,13 +248,21 @@ export function BusinessCenterDetailPage() {
   // только данные 2GIS"), не вместе с ним — см. JSX ниже.
   const nearestMetro = useMemo(() => nearestMetroStation(center?.nearestMetroStations ?? []), [center]);
   const scheduleLines = useMemo(() => (gis2?.schedule ? formatSchedule(gis2.schedule) : []), [gis2]);
+  // Расписание 2ГИС — единый источник режима доступа. Если подробного
+  // расписания в публичном снимке нет, используем сохранённый из него же
+  // признак 24/7, но всё равно показываем только одну строку.
+  const accessHoursText =
+    scheduleLines.length > 0
+      ? scheduleLines.join('\n')
+      : center?.is24x7 === true
+        ? 'Круглосуточно'
+        : center?.is24x7 === false
+          ? 'Не круглосуточно'
+          : null;
   // "Доступная среда" — единственная группа из gis2.attributeGroups, которую
   // владелец попросил оставить (2026-09-06, вместе с часами работы, при
   // упразднении отдельного блока "Данные 2ГИС") — остальные группы
   // (аренда помещений и т.п.) больше нигде не показываются.
-  // Парковки из снимка 2ГИС: только автомобильные и только с именем —
-  // велопарковки в вопросе «где оставить машину» лишние.
-  const gis2Parkings = useMemo(() => (gis2?.parking ?? []).filter((pk) => pk.name), [gis2]);
   const accessibilityAttributes = useMemo(() => {
     const group = gis2?.attributeGroups.find((g) => g.name === 'Доступная среда');
     return group && group.attributes.length > 0 ? group.attributes.join(', ') : center?.accessibility.join(', ') || null;
@@ -360,18 +368,6 @@ export function BusinessCenterDetailPage() {
     if (center.status === 'under_construction') add('Здание уже построено?', 'Здание строится.');
     add(`Кто застройщик «${name}»?`, center.developer);
     add(`Какая парковка у «${name}»?`, center.parking);
-    if (gis2Parkings.length) {
-      add(
-        `Парковка у «${name}» платная и на сколько мест?`,
-        gis2Parkings
-          .map((pk) => {
-            const parts = [pk.isPaid ? 'платная' : 'бесплатная'];
-            if (pk.capacity != null) parts.push(`${pk.capacity.toLocaleString('ru-RU')} мест`);
-            return `${pk.name} — ${parts.join(', ')}`;
-          })
-          .join('; ') + ' (по данным 2ГИС; вместимость парковки не означает закреплённое место).',
-      );
-    }
     if (center.officeArea != null) {
       const share =
         center.totalArea != null && center.totalArea > 0
@@ -383,7 +379,7 @@ export function BusinessCenterDetailPage() {
     if (gis2?.fetchedAt) {
       add(
         'На какую дату сведения 2ГИС?',
-        `Организации, рейтинг, часы работы, парковки и атрибуты здания — срез от ${new Date(gis2.fetchedAt).toLocaleDateString('ru-RU')}.`,
+        `Организации, рейтинг, часы работы и атрибуты здания — срез от ${new Date(gis2.fetchedAt).toLocaleDateString('ru-RU')}.`,
       );
     }
     if (nearestMetro) add(`Какое метро рядом с «${name}»?`, `«${nearestMetro.name}» — ${nearestMetro.distanceMeters} м по прямой.`);
@@ -402,10 +398,10 @@ export function BusinessCenterDetailPage() {
       if (params.length) add(`Какие технические характеристики у «${name}»${group.corpusLabel ? ` (${group.corpusLabel})` : center.technicalParams.length > 1 ? ` — часть ${groupIndex + 1}` : ''}?`, params.map((p) => `${p.label}: ${/потол/i.test(p.label) ? p.value.replace(/(\d)\.(\d)/g, '$1,$2') : p.value}`).join('; '));
     }
     if (center.infraInternal.length) add(`Что есть внутри «${name}»?`, center.infraInternal.join(', '));
-    if (center.infraNearby.length) add(`Какая инфраструктура рядом с «${name}»?`, center.infraNearby.join(', '));
-    if (center.is24x7 != null) add('Есть ли круглосуточный доступ?', center.is24x7 ? 'Круглосуточный доступ указан.' : 'Круглосуточный доступ не предусмотрен по данным каталога.');
+    // Инфраструктура рядом появится отдельным картографическим блоком и в
+    // карточке/FAQ пока не повторяется.
     add('Какие условия доступной среды указаны?', accessibilityAttributes);
-    add('Какие часы работы указаны?', scheduleLines.join('; '));
+    add('Какие часы работы указаны?', accessHoursText);
     if (offers !== null) {
       add('Сколько активных предложений аренды и продажи?', offers.length === 0
         ? NO_ACTIVE_OFFERS_MESSAGE
@@ -422,7 +418,7 @@ export function BusinessCenterDetailPage() {
     }
     if (center.rentalInfo) {
       const info = center.rentalInfo;
-      add('Какие условия и контакты аренды опубликованы?', [info.caveat, info.terms, info.rates, info.sizes, info.parking, info.contacts].filter(Boolean).join(' ') + ' Актуальные условия уточняйте у арендодателя.');
+      add('Какие условия и контакты аренды опубликованы?', [info.caveat, info.terms, info.rates, info.sizes, info.contacts].filter(Boolean).join(' ') + ' Актуальные условия уточняйте у арендодателя.');
     }
     if (visibleHighlights.length) add('Какие факты о здании опубликованы?', visibleHighlights.map((h) => [h.label, h.text].filter(Boolean).join(': ')).join('\n'));
     const history = extractHistoryPoints(center);
@@ -459,7 +455,7 @@ export function BusinessCenterDetailPage() {
     if (similar.length) add('Какие бизнес-центры показаны как похожие?', similar.map(shortName).join(', '));
     if (hubChips.length) add('Какие связанные подборки доступны?', hubChips.map((c) => c.label).join(', '));
     return items;
-  }, [center, centers, nearestMetro, verdict, marketPosition, accessibilityAttributes, scheduleLines, offers, offersSummary, rentRows, saleRows, visibleHighlights, gis2, gis2Parkings, mapRating, reviewQuotes, hubChips]);
+  }, [center, centers, nearestMetro, verdict, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, visibleHighlights, gis2, mapRating, reviewQuotes, hubChips]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -737,31 +733,10 @@ export function BusinessCenterDetailPage() {
               {center.floors != null && <FactTile icon={Layers} value={center.floors} label="Этажей" />}
             </div>
 
-            {/* Парковка — отдельный блок, не плитка (владелец, 2026-09-06,
-                четвёртый заход: "паркинг - отдельный блок") — тот же
-                LabeledTextRow, что и в "Условиях для арендаторов" ниже. */}
+            {/* Парковка здания показывается один раз из профильного поля
+                карточки. Парковки 2ГИС относятся к окружению и будут
+                использованы в отдельной карте рядом. */}
             <LabeledTextRow icon={Car} label="Парковка" text={center.parking} />
-            {/* Парковки из 2ГИС (заполнены у 67 зданий из 143) — до
-                2026-09-17 лежали в снимке и не показывались нигде, хотя
-                платность и вместимость это ровно то, что спрашивают.
-                capacity проверяется на `!= null`, а не на истинность: ноль
-                мест — это факт, а не отсутствие данных. Вместимость
-                парковки — факт о здании; места конкретному арендатору она
-                не гарантирует, поэтому формулировка без обещаний. */}
-            {gis2Parkings.length > 0 && (
-              <LabeledTextRow
-                icon={Car}
-                label="Парковки по данным 2ГИС"
-                text={gis2Parkings
-                  .map((pk) => {
-                    const parts = [pk.isPaid ? 'платная' : 'бесплатная'];
-                    if (pk.capacity != null) parts.push(`${pk.capacity.toLocaleString('ru-RU')} мест`);
-                    return `${pk.name} — ${parts.join(', ')}`;
-                  })
-                  .join('; ')}
-              />
-            )}
-
             {/* Часы работы и доступная среда из 2GIS — переехали сюда из
                 отдельного блока "Данные 2ГИС" (владелец, 2026-09-06: "блок
                 Данные 2GIS не нужен, добавим эту инфу в главный блок... часы
@@ -774,11 +749,9 @@ export function BusinessCenterDetailPage() {
                 домысливания; нет описания — нет строки. */}
             {center.description && <LabeledTextRow icon={Building2} label="Описание" text={center.description} />}
             {center.infraInternal.length > 0 && <LabeledTextRow icon={Store} label="В здании" text={center.infraInternal.join(', ')} />}
-            {center.infraNearby.length > 0 && <LabeledTextRow icon={MapPin} label="Инфраструктура рядом" text={center.infraNearby.join(', ')} />}
-            {center.is24x7 != null && <LabeledTextRow icon={Clock} label="Круглосуточный доступ" text={center.is24x7 ? 'Указан' : 'Не предусмотрен по данным каталога'} />}
-            {scheduleLines.length > 0 && (
-              <LabeledTextRow icon={Clock} label="Часы работы" text={scheduleLines.join('\n')} />
-            )}
+            {/* Инфраструктуру рядом вернём отдельной картой; здесь остаётся
+                только то, что находится внутри самого здания. */}
+            {accessHoursText && <LabeledTextRow icon={Clock} label="Часы работы" text={accessHoursText} />}
             {accessibilityAttributes && (
               <LabeledTextRow icon={CheckCircle2} label="Доступная среда" text={accessibilityAttributes} />
             )}
@@ -1062,7 +1035,6 @@ export function BusinessCenterDetailPage() {
               <LabeledTextRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
               <LabeledTextRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
               <LabeledTextRow icon={Ruler} label="Площади и типы помещений" text={center.rentalInfo.sizes} />
-              <LabeledTextRow icon={Car} label="Парковка" text={center.rentalInfo.parking} />
               <LabeledTextRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
             </div>
 
@@ -1281,12 +1253,12 @@ export function BusinessCenterDetailPage() {
 
         <div className={cn('mt-6 flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
           <h2 className="text-lg font-bold text-ink">Источники</h2>
-          {/* Организации, рейтинг, часы работы, атрибуты и парковки — это
+          {/* Организации, рейтинг, часы работы и атрибуты — это
               срез 2ГИС на конкретную дату, а не «сейчас». Дата обязана
               стоять рядом с данными, а не подразумеваться. */}
           {gis2?.fetchedAt && (
             <p className="text-sm text-ink-muted">
-              Данные 2ГИС (организации, рейтинг, часы работы, парковки, атрибуты здания) —
+              Данные 2ГИС (организации, рейтинг, часы работы, атрибуты здания) —
               срез от {new Date(gis2.fetchedAt).toLocaleDateString('ru-RU')}.
             </p>
           )}
