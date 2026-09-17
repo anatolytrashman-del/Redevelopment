@@ -16,6 +16,7 @@ import {
   PROPOSAL_REVIEW_STATUS_LABELS,
   SUPPLIER_COUNTRIES,
   offerCommunicationStatus,
+  offerFollowupState,
   followupCounts,
   type SupplierOffer,
   type SupplierProposal,
@@ -38,7 +39,7 @@ import {
   updateSupplierRequestReview,
   updateSupplierRequestSection,
 } from '../../lib/supplierResearchApi';
-import { updateSupplierQuoteItems } from '../../lib/supplierQuotesApi';
+import { updateSupplierQuoteItems, updateSupplierQuoteTerms } from '../../lib/supplierQuotesApi';
 import { getCurrentProfile } from '../../lib/accessProfile';
 import { riskSummary, shouldFlag, type SupplierReliability } from '../../data/supplierReliability';
 import { authFetch } from '../../lib/authFetch';
@@ -66,7 +67,7 @@ import {
   type MoneyPart,
   type UnmatchedLine,
 } from './priceComparisonModel';
-import { buildPrintHtml, buildProposalEmailHtml, hostOf, hrefOf, type ComparisonDoc } from './priceComparisonPrint';
+import { buildPrintHtml, buildProposalEmailHtml, hostOf, hrefOf, type ComparisonDoc, type OutreachRow } from './priceComparisonPrint';
 import { SingleSupplierPanel } from './SingleSupplierPanel';
 
 // Владелец, 2026-09-15: «Пришла пора разобраться со сравнением цен... исходя
@@ -163,8 +164,9 @@ function TermChips({ terms }: { terms: QuoteTerms | null }) {
   if (!terms) return null;
   const chips: string[] = [];
   if (terms.leadTimeDays != null) chips.push(`срок ${terms.leadTimeDays} дн.`);
-  if (terms.availability === 'in_stock') chips.push('в наличии');
-  if (terms.availability === 'on_order') chips.push('под заказ');
+  // Наличие рисует соседний чип — он кликабельный (см. AvailabilityChip):
+  // это единственное условие, которое правят прямо из сравнения, потому что
+  // оно уходит бейджем в отчёт руководителю стройки.
   if (terms.prepaymentPercent != null) {
     chips.push(terms.prepaymentPercent === 0 ? 'оплата по факту' : `предоплата ${terms.prepaymentPercent}%`);
   }
@@ -490,6 +492,25 @@ export function PriceComparisonCard({
   const total = sumMoney([...pickedParts, ...pickedDelivery], rate);
   const pickedCellByPosition = new Map(pickedCells.map((x) => [x.position.id, x.cell]));
 
+  // Охват работы для отчёта руководителю стройки (владелец, 2026-09-17:
+  // «сколько поставщиков я проработал, сколько КП получено»). Считается по
+  // ВСЕМ карточкам категории в стране, а не только по приславшим КП: отказы
+  // и молчание — это тоже проработанные поставщики, и без них цифра «12
+  // прислали КП» выглядит взятой с потолка.
+  const outreach: OutreachRow[] = offersInCountry
+    .map((offer) => {
+      const column = columnById.get(offer.id) ?? null;
+      return {
+        name: offer.name,
+        stage: offerFollowupState(offer, emails, request.replyDueDays).stage,
+        letters: emails.filter((e) => e.offerId === offer.id && e.direction === 'out').length,
+        quotes: quotesByOffer.get(offer.id)?.length ?? 0,
+        priced: column ? column.cells.size : 0,
+        picked: column ? [...column.cells.keys()].filter((pid) => proposal[pid]?.offerId === offer.id).length : 0,
+      };
+    })
+    .sort((a, b) => b.picked - a.picked || b.priced - a.priced || b.quotes - a.quotes || a.name.localeCompare(b.name, 'ru'));
+
   const unmatchedAll: { line: UnmatchedLine; offer: SupplierOffer }[] = columns.flatMap((c) => c.unmatched.map((line) => ({ line, offer: c.offer })));
   // «Не привязаны» и «привязаны, но без цены» — разные ситуации: у первых
   // нет sourceMaterialId вовсе, у вторых позиция уже выбрана (например,
@@ -529,6 +550,7 @@ export function PriceComparisonCard({
     pickedDelivery,
     kinds,
     funnel,
+    outreach,
     rate,
     preparedBy: preparedBy(),
     total,
@@ -573,6 +595,27 @@ export function PriceComparisonCard({
       delete nextProposal[p.id];
       void saveProposal(nextProposal);
     }
+  }
+
+  // Наличие — единственное условие, которое правится прямо из сравнения:
+  // в отчёте руководителю стройки оно стоит бейджем напротив каждой
+  // отобранной позиции, а до этого заполнялось только распознаванием счёта
+  // (на 2026-09-17 — у 2 счетов из 45) или руками в карточке поставщика.
+  // Пишется в условия ДЕЙСТВУЮЩЕГО счёта — того же, откуда цены.
+  async function cycleAvailability(col: Column) {
+    const quoteId = col.currentQuoteId;
+    if (!quoteId) {
+      setError('Наличие хранится в условиях счёта, а счетов у этой карточки нет — заполните условия в карточке поставщика.');
+      return;
+    }
+    const quote = quotes.find((q) => q.id === quoteId);
+    const current = quote?.terms?.availability ?? null;
+    const next: QuoteTerms['availability'] = current == null ? 'in_stock' : current === 'in_stock' ? 'on_order' : null;
+    const terms: QuoteTerms = { ...(quote?.terms ?? {}), availability: next };
+    await run('Не удалось изменить наличие', async () => {
+      await updateSupplierQuoteTerms(quoteId, terms);
+      onQuotesChange((prev) => prev.map((q) => (q.id === quoteId ? { ...q, terms } : q)));
+    });
   }
 
   // «Сформировать поставку» (владелец, 2026-09-17): после того как отбор
@@ -1071,6 +1114,22 @@ export function PriceComparisonCard({
         <span className="block text-[13px] font-bold text-ink">{col.offer.name}</span>
         <span className="mt-1 flex flex-wrap items-center gap-1">{renderBadges(col.offer)}</span>
         <span className="mt-1 flex flex-wrap gap-1 text-[10.5px] font-medium">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void cycleAvailability(col)}
+            title="Наличие из условий счёта — уходит бейджем в отчёт руководителю напротив каждой позиции. Нажмите, чтобы сменить: не указано → в наличии → под заказ"
+            className={cn(
+              'rounded-full px-1.5 py-px',
+              col.terms?.availability === 'in_stock'
+                ? 'bg-success-bg text-success'
+                : col.terms?.availability === 'on_order'
+                  ? 'bg-warning-bg text-warning'
+                  : 'bg-surface text-ink-faint hover:text-ink',
+            )}
+          >
+            {col.terms?.availability === 'in_stock' ? 'в наличии' : col.terms?.availability === 'on_order' ? 'под заказ' : 'наличие не указано'}
+          </button>
           {col.lastQuoteAt && (
             <span className={cn('rounded-full px-1.5 py-px', age != null && age > STALE_QUOTE_DAYS ? 'bg-warning-bg text-warning' : 'bg-surface text-ink-muted')}>
               счёт от {formatDate(col.lastQuoteAt)}

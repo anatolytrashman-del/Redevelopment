@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildColumns, dominantCurrency, sumMoney } from './priceComparisonModel';
+import { bestOfPosition, buildColumns, dominantCurrency, pickLines, positionOffers, savingsSummary, sumMoney } from './priceComparisonModel';
 import type { EstimateMaterial } from '../../data/estimates';
 import type { PurchaseItem } from '../../data/purchases';
 import type { SupplierQuote } from '../../data/supplierQuotes';
@@ -158,5 +158,66 @@ describe('buildColumns: цены сводятся по всем счетам, а
     expect(col.cells.get('p1')?.unitPrice).toBe(200);
     expect(col.cells.get('p1')?.excludedFromSupply).toBe(true);
     expect(col.currentCells.has('p1')).toBe(false);
+  });
+});
+
+// Отчёт руководителю стройки (владелец, 2026-09-17): «сколько поставщиков
+// проработал», «из чего выбирали» и «сколько на этом сэкономили» считаются
+// по тем же ячейкам, что и экран, — здесь проверяется сама арифметика.
+describe('отчёт руководителю: лучшие предложения и экономия', () => {
+  function columnsOf(byOffer: Record<string, PurchaseItem[]>) {
+    const offers = Object.keys(byOffer).map((id) => ({ id, name: id, currency: 'RUB' }) as SupplierOffer);
+    const quotes = new Map<string, SupplierQuote[]>(
+      Object.entries(byOffer).map(([id, items]) => [id, [{ ...quote(items), id: `q-${id}`, offerId: id }]]),
+    );
+    return buildColumns(offers, quotes, [paint], undefined);
+  }
+
+  it('лучший оригинал — самый дешёвый «ровно», лучшая замена — самый дешёвый аналог', () => {
+    const columns = columnsOf({
+      o1: [item({ id: 'a', name: 'Ровно дорого', sourceMaterialId: 'p1', unitPrice: 200, matchKind: 'exact' })],
+      o2: [item({ id: 'b', name: 'Ровно дешевле', sourceMaterialId: 'p1', unitPrice: 150, matchKind: 'exact' })],
+      o3: [item({ id: 'c', name: 'Аналог', sourceMaterialId: 'p1', unitPrice: 90, matchKind: 'alternative' })],
+    });
+    const offers = positionOffers(columns, 'p1');
+    // Отсортировано от дешёвого к дорогому — в документе порядок тот же.
+    expect(offers.map((o) => o.cell.unitPrice)).toEqual([90, 150, 200]);
+    const best = bestOfPosition(offers);
+    expect(best.original?.unitPrice).toBe(150);
+    expect(best.alternative?.unitPrice).toBe(90);
+    expect(best.alternativeIsCheck).toBe(false);
+  });
+
+  it('замен нет — в колонку замены идёт «уточнить», но с оговоркой', () => {
+    const columns = columnsOf({
+      o1: [item({ id: 'a', name: 'Ровно', sourceMaterialId: 'p1', unitPrice: 200, matchKind: 'exact' })],
+      o2: [item({ id: 'b', name: 'Спорная', sourceMaterialId: 'p1', unitPrice: 120, matchKind: 'check' })],
+    });
+    const best = bestOfPosition(positionOffers(columns, 'p1'));
+    expect(best.alternative?.unitPrice).toBe(120);
+    expect(best.alternativeIsCheck).toBe(true);
+  });
+
+  it('экономия считается к самому дорогому и к среднему предложению', () => {
+    const columns = columnsOf({
+      o1: [item({ id: 'a', name: 'Наш выбор', sourceMaterialId: 'p1', unitPrice: 100, matchKind: 'exact' })],
+      o2: [item({ id: 'b', name: 'Дороже', sourceMaterialId: 'p1', unitPrice: 200, matchKind: 'exact' })],
+      o3: [item({ id: 'c', name: 'Самый дорогой', sourceMaterialId: 'p1', unitPrice: 300, matchKind: 'exact' })],
+    });
+    const columnById = new Map(columns.map((c) => [c.offer.id, c]));
+    const picked = pickLines([paint], { p1: { offerId: 'o1', itemId: 'a' } }, columnById);
+    const savings = savingsSummary(picked, columns, undefined)!;
+    // Объём позиции — 2 229 м²: экономия считается на весь объём, а не за единицу.
+    expect(savings.picked).toBe(222_900);
+    expect(savings.worst).toBe(668_700);
+    expect(savings.average).toBe(445_800);
+    expect(savings.compared).toBe(1);
+  });
+
+  it('позиция с единственной ценой в экономию не идёт — выбирать там было не из чего', () => {
+    const columns = columnsOf({ o1: [item({ id: 'a', name: 'Одна цена', sourceMaterialId: 'p1', unitPrice: 100, matchKind: 'exact' })] });
+    const columnById = new Map(columns.map((c) => [c.offer.id, c]));
+    const picked = pickLines([paint], { p1: { offerId: 'o1', itemId: 'a' } }, columnById);
+    expect(savingsSummary(picked, columns, undefined)).toBeNull();
   });
 });
