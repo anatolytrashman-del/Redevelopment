@@ -185,6 +185,22 @@ describe('buildLotRows', () => {
     expect(row.others[0].total).toBe(4000);
   });
 
+  it('счёт не по этой поставке убирается из сравнения и не вытесняет настоящий', () => {
+    // Владелец, 2026-09-17: ГРИЛЬЯТО-Мастер прислал счёт на Грильято 75×75
+    // белый — другой товар, залитый позже настоящих. Раз счета берутся за
+    // последний день, он один и остался бы за поставщика. Все его строки
+    // помечены «не позиция ведомости», комплекта в нём нет.
+    const quotes = byOffer(
+      quote('real', 'o1', [item({ id: 'i1', name: 'Рейка 100х100 чёрная', unit: 'шт', quantity: 100, price: 30 })], { createdAt: '2026-09-14T09:00:00.000Z' }),
+      quote('alien', 'o1', [item({ id: 'i2', name: 'Рейка 75х75 белая', unit: 'шт', quantity: 100, price: 5, matchKind: 'none' })], {
+        createdAt: '2026-09-17T09:00:00.000Z',
+      }),
+    );
+    const [row] = buildLotRows(request, positions, [offer('o1', 'ГРИЛЬЯТО-Мастер')], quotes, undefined);
+    expect(row.original?.total).toBe(3000);
+    expect(row.others).toHaveLength(0);
+  });
+
   it('комплект, помеченный альтернативой, идёт в колонку аналога', () => {
     const quotes = byOffer(
       quote('q1', 'o1', [item({ id: 'i1', name: 'Профиль h40', unit: 'шт', quantity: 100, price: 40 })]),
