@@ -42,6 +42,12 @@ export interface Cell {
   // Keramogranit.ru посчитал 713 м² из 992 — ячейка должна это показывать).
   quotedQuantity: number | null;
   quotedUnit: string;
+  // Наличие из условий ТОГО счёта, откуда взята цена (QuoteTerms.availability):
+  // 'in_stock' — есть на складе, 'on_order' — под заказ, null — не сказано.
+  // Нужно отчёту руководителю стройки: напротив каждой отобранной позиции
+  // стоит бейдж наличия (владелец, 2026-09-17). Врать за поставщика нельзя —
+  // где не сказано, там и в отчёте «наличие уточняется».
+  availability: 'in_stock' | 'on_order' | null;
   // 1-клик «не покупаем у этого поставщика» (владелец, 2026-09-17): цена и
   // позиция остаются в сравнении и в отчёте руководителю стройки — просто
   // не идут в заказ. Хранится на самой строке счёта (PurchaseItem), тем же
@@ -136,6 +142,10 @@ export interface Column {
   asideTotal: number;
   quotesCount: number;
   lastQuoteAt: string | null;
+  // id «действующего» счёта — того, откуда взяты доставка, условия и
+  // непривязанные строки. null — счетов у карточки нет вовсе (цены из
+  // offer.items). По нему правится наличие прямо из шапки столбца.
+  currentQuoteId: string | null;
   // Условия последнего КП (шаг 6 плана закупок): срок, предоплата, НДС,
   // доставка словами. Показываются в шапке столбца — там, где сравнивают.
   terms: QuoteTerms | null;
@@ -239,6 +249,7 @@ export function buildColumns(
           usdUnit: convertToUsd(unitPrice, src.currency, rate),
           quotedQuantity: item.quantity,
           quotedUnit: item.unit,
+          availability: src.terms?.availability ?? null,
           excludedFromSupply: item.excludedFromSupply === true,
           isArchived: false,
         });
@@ -314,6 +325,7 @@ export function buildColumns(
       asideTotal: aside.reduce((sum, line) => sum + line.total, 0),
       quotesCount: quotes.length,
       lastQuoteAt,
+      currentQuoteId: currentSourceId ?? null,
       terms: effectiveTerms,
     };
   });
@@ -409,6 +421,69 @@ export function pickLines(positions: EstimateMaterial[], proposal: SupplierPropo
     const cell = pick ? columnById.get(pick.offerId)?.cells.get(p.id) : undefined;
     return { position: p, cell: cell && cell.itemId === pick?.itemId ? cell : (cell ?? null) };
   });
+}
+
+// Все предложения по позиции — от дешёвого к дорогому. Включая архивные и
+// «не покупаем»: отчёт руководителю стройки показывает, ИЗ ЧЕГО выбирали, а
+// не только то, что осталось в поставке.
+export function positionOffers(columns: Column[], positionId: string): { column: Column; cell: Cell }[] {
+  return columns
+    .filter((c) => c.cells.has(positionId))
+    .map((c) => ({ column: c, cell: c.cells.get(positionId)! }))
+    .sort((a, b) => (a.cell.usdUnit ?? a.cell.unitPrice) - (b.cell.usdUnit ?? b.cell.unitPrice));
+}
+
+// Лучшее предложение «ровно по ведомости» и лучшая замена по позиции — те же
+// две колонки, что в выгрузке «Лучшие цены» (bestPriceReport.ts), но
+// посчитанные по ячейкам сравнения. Замен нет — берём лучшее из «уточнить»:
+// молчать о единственной цене вреднее, чем показать её с оговоркой.
+export function bestOfPosition(offers: { column: Column; cell: Cell }[]): { original: Cell | null; alternative: Cell | null; alternativeIsCheck: boolean } {
+  const cheapest = (kind: PurchaseItemMatchKind) => offers.find((o) => o.cell.kind === kind)?.cell ?? null;
+  const alternative = cheapest('alternative');
+  const check = alternative ? null : cheapest('check');
+  return { original: cheapest('exact'), alternative: alternative ?? check, alternativeIsCheck: !alternative && !!check };
+}
+
+// Экономия отбора: сколько стоил бы тот же объём по самому дорогому и по
+// среднему предложению рынка. Владелец, 2026-09-17: отчёту руководителю
+// стройки нужно показывать не только «сколько отдаём», но и «из чего
+// выбирали и сколько на этом сэкономили».
+//
+// Считается только по позициям, где предложений больше одного и известен
+// объём: на позиции с единственной ценой экономии нет, и разбавлять ею
+// процент нельзя.
+export interface SavingsSummary {
+  currency: Currency;
+  picked: number;
+  worst: number;
+  average: number;
+  // По скольким позициям было из чего выбирать.
+  compared: number;
+}
+
+export function savingsSummary(picked: PickedLine[], columns: Column[], rate: ExchangeRate | undefined): SavingsSummary | null {
+  const lines = picked.filter((x): x is { position: EstimateMaterial; cell: Cell } => !!x.cell && (x.position.quantity ?? 0) > 0);
+  const base = dominantCurrency(lines.map((x) => ({ amount: x.cell.unitPrice, currency: x.cell.currency })));
+  if (!base) return null;
+  let pickedTotal = 0;
+  let worstTotal = 0;
+  let averageTotal = 0;
+  let compared = 0;
+  for (const { position, cell } of lines) {
+    const quantity = position.quantity ?? 0;
+    const pickedUnit = convertCurrency(cell.unitPrice, cell.currency, base, rate);
+    if (pickedUnit == null) continue;
+    const units = positionOffers(columns, position.id)
+      .map((o) => convertCurrency(o.cell.unitPrice, o.cell.currency, base, rate))
+      .filter((v): v is number => v != null);
+    if (units.length < 2) continue;
+    compared += 1;
+    pickedTotal += pickedUnit * quantity;
+    worstTotal += Math.max(...units) * quantity;
+    averageTotal += (units.reduce((a, v) => a + v, 0) / units.length) * quantity;
+  }
+  if (compared === 0) return null;
+  return { currency: base, picked: pickedTotal, worst: worstTotal, average: averageTotal, compared };
 }
 
 export function buildSnapshot(

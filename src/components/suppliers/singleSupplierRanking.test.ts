@@ -33,6 +33,7 @@ function cell(unitPrice: number, kind: PurchaseItemMatchKind = 'exact', currency
     usdUnit: null,
     quotedQuantity: null,
     quotedUnit: '',
+    availability: null,
     excludedFromSupply: false,
     isArchived: false,
   };
@@ -60,6 +61,7 @@ function column(
     asideTotal: 0,
     quotesCount: 1,
     lastQuoteAt: null,
+    currentQuoteId: null,
     terms: null,
   };
 }
