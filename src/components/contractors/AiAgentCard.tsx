@@ -18,11 +18,22 @@ import { aiAgentStatusStyles } from './aiAgentStatusStyles';
 // отсчёт онлайна от реальной функции, которая заявлена для агента"): берём
 // время последней задачи этого агента и сверяем с heartbeat из
 // data/aiAgents.ts — как часто заявленная функция обязана срабатывать.
-// Страница перечитывает активность раз в минуту (см. Contractors.tsx),
-// поэтому статус протухает сам, без перезагрузки.
-export function AiAgentCard({ agent, activity: liveActivity }: { agent: AiAgent; activity?: AiAgentActivity | null }) {
+// Страница перечитывает активность раз в минуту (useAiAgentsActivity),
+// поэтому статус протухает сам, без перезагрузки. Оттуда же приходит `now`:
+// считать время от него, а не от new Date() внутри рендера, — единственный
+// способ сдвинуть подпись у агентов со статичной последней задачей (Claude
+// Code, Codex), у которых ответ RPC от тика к тику не меняется.
+export function AiAgentCard({
+  agent,
+  activity: liveActivity,
+  now = new Date(),
+}: {
+  agent: AiAgent;
+  activity?: AiAgentActivity | null;
+  now?: Date;
+}) {
   const activity = liveActivity ?? agent.staticActivity ?? null;
-  const status = getAiAgentStatus(agent.heartbeat, activity);
+  const status = getAiAgentStatus(agent.heartbeat, activity, now);
   const statusStyle = aiAgentStatusStyles[status.tone];
   return (
     <div className={cn('flex w-full flex-col gap-2 p-4', glassCardClass)} style={glassCardShadow}>
@@ -60,7 +71,7 @@ export function AiAgentCard({ agent, activity: liveActivity }: { agent: AiAgent;
           <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-faint" />
           <span className="min-w-0">
             <span className="block truncate">{activity.label}</span>
-            <span className="block text-xs text-ink-faint">Выполнено {formatActivityTime(activity.doneAt)}</span>
+            <span className="block text-xs text-ink-faint">Выполнено {formatActivityTime(activity.doneAt, now)}</span>
           </span>
         </div>
       )}

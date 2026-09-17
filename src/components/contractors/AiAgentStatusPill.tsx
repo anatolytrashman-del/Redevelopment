@@ -17,12 +17,12 @@ import { aiAgentStatusStyles } from './aiAgentStatusStyles';
 // Если агента с таким id нет в data/aiAgents.ts — не рисуем ничего: пусть
 // лучше пропадёт декоративная строка, чем упадёт страница.
 export function AiAgentStatusPill({ agentId, className }: { agentId: string; className?: string }) {
-  const activityByAgent = useAiAgentsActivity();
+  const { activity: activityByAgent, now } = useAiAgentsActivity();
   const agent = aiAgents.find((a) => a.id === agentId);
   if (!agent) return null;
 
   const activity = activityByAgent[agent.id] ?? agent.staticActivity ?? null;
-  const status = getAiAgentStatus(agent.heartbeat, activity);
+  const status = getAiAgentStatus(agent.heartbeat, activity, now);
   const statusStyle = aiAgentStatusStyles[status.tone];
 
   return (
@@ -54,7 +54,7 @@ export function AiAgentStatusPill({ agentId, className }: { agentId: string; cla
           {/* Обрезается только подпись задачи: "5 мин назад" — самое ценное в
               строке, поэтому время стоит отдельным shrink-0 и не режется. */}
           <span className="truncate">{activity ? activity.label : 'Задач пока не было'}</span>
-          {activity && <span className="shrink-0">· {formatActivityTime(activity.doneAt)}</span>}
+          {activity && <span className="shrink-0">· {formatActivityTime(activity.doneAt, now)}</span>}
         </span>
       </span>
     </div>

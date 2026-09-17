@@ -99,7 +99,7 @@ export function Contractors() {
   // ломать страницу команды из-за декоративной строки не надо. Сам опрос (раз
   // в минуту, с паузой на скрытой вкладке) — в useAiAgentsActivity: то же
   // самое нужно пилюле ИИ-закупщика над вкладками «Закупок».
-  const agentActivity = useAiAgentsActivity();
+  const { activity: agentActivity, now: agentsNow } = useAiAgentsActivity();
 
   useEffect(() => {
     fetchContractors()
@@ -330,7 +330,7 @@ export function Contractors() {
             <div className="text-lg font-bold text-ink">ИИ-агенты</div>
             <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
               {aiAgents.map((agent) => (
-                <AiAgentCard key={agent.id} agent={agent} activity={agentActivity[agent.id]} />
+                <AiAgentCard key={agent.id} agent={agent} activity={agentActivity[agent.id]} now={agentsNow} />
               ))}
             </div>
           </div>
