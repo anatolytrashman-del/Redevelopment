@@ -469,7 +469,22 @@ export function PriceComparisonCard({
   const pickedCellByPosition = new Map(pickedCells.map((x) => [x.position.id, x.cell]));
 
   const unmatchedAll: { line: UnmatchedLine; offer: SupplierOffer }[] = columns.flatMap((c) => c.unmatched.map((line) => ({ line, offer: c.offer })));
-  const unmatchedSuppliers = columns.filter((c) => c.unmatched.length > 0);
+  // «Не привязаны» и «привязаны, но без цены» — разные ситуации: у первых
+  // нет sourceMaterialId вовсе, у вторых позиция уже выбрана (например,
+  // подсказкой модели), просто цену за единицу сметы никто не посчитал —
+  // единицы счёта и позиции не совпадают буквально, а перевод (тара в кг при
+  // расходе в литрах и т.п.) без выдумывания не сделать. Раньше обе группы
+  // считались вместе под шапкой «не привязаны к ведомости и не участвуют в
+  // сравнении» — владелец, 2026-09-17: строка с уже выбранной позицией это
+  // сообщение не заслуживает, оно про другое.
+  const unmatchedUnlinked = unmatchedAll.filter(({ line }) => !line.item.sourceMaterialId);
+  const unmatchedLinkedNoPrice = unmatchedAll.filter(({ line }) => !!line.item.sourceMaterialId);
+  const unmatchedSuppliers = columns
+    .map((c) => ({ offer: c.offer, count: c.unmatched.filter((l) => !l.item.sourceMaterialId).length }))
+    .filter((x) => x.count > 0);
+  const linkedNoPriceSuppliers = columns
+    .map((c) => ({ offer: c.offer, count: c.unmatched.filter((l) => !!l.item.sourceMaterialId).length }))
+    .filter((x) => x.count > 0);
   // Разобранные строки «не позиция ведомости» — отдельно от «не привязаны»:
   // по ним решение принято, и требовать внимания они не должны.
   const asideSuppliers = columns.filter((c) => c.aside.length > 0);
@@ -1146,12 +1161,26 @@ export function PriceComparisonCard({
       {!emptyPositions && unmatchedAll.length > 0 && (
         <div className="flex flex-col gap-2 rounded-control border border-warning/40 bg-warning-bg/60 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-sm text-ink">
-              <span className="font-semibold">
-                {unmatchedAll.length} {unmatchedAll.length === 1 ? 'строка' : unmatchedAll.length < 5 ? 'строки' : 'строк'} счетов
-              </span>{' '}
-              у {unmatchedSuppliers.length} {unmatchedSuppliers.length === 1 ? 'поставщика' : 'поставщиков'} не привязаны к ведомости и не участвуют в сравнении:{' '}
-              {unmatchedSuppliers.map((c) => `${c.offer.name} (${c.unmatched.length})`).join(', ')}
+            <span className="flex flex-col gap-1 text-sm text-ink">
+              {unmatchedUnlinked.length > 0 && (
+                <span>
+                  <span className="font-semibold">
+                    {unmatchedUnlinked.length} {unmatchedUnlinked.length === 1 ? 'строка' : unmatchedUnlinked.length < 5 ? 'строки' : 'строк'} счетов
+                  </span>{' '}
+                  у {unmatchedSuppliers.length} {unmatchedSuppliers.length === 1 ? 'поставщика' : 'поставщиков'} не привязаны к ведомости и не участвуют в сравнении:{' '}
+                  {unmatchedSuppliers.map((c) => `${c.offer.name} (${c.count})`).join(', ')}
+                </span>
+              )}
+              {unmatchedLinkedNoPrice.length > 0 && (
+                <span>
+                  <span className="font-semibold">
+                    {unmatchedLinkedNoPrice.length} {unmatchedLinkedNoPrice.length === 1 ? 'строка' : unmatchedLinkedNoPrice.length < 5 ? 'строки' : 'строк'} счетов
+                  </span>{' '}
+                  у {linkedNoPriceSuppliers.length} {linkedNoPriceSuppliers.length === 1 ? 'поставщика' : 'поставщиков'} уже привязаны к позиции ведомости, но без цены за единицу сметы —
+                  впишите цену вручную, чтобы они попали в сравнение:{' '}
+                  {linkedNoPriceSuppliers.map((c) => `${c.offer.name} (${c.count})`).join(', ')}
+                </span>
+              )}
             </span>
             <span className="flex flex-wrap items-center gap-2">
               <Button type="button" variant="secondary" icon={<Sparkles className="h-4 w-4" />} onClick={() => void suggestMatches()} disabled={suggesting || saving}>
