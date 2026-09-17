@@ -131,8 +131,13 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
   const paintApproval = isPaintApproval(doc);
   const title = approvalPrintTitle(doc);
   const kindTag = (kind: PurchaseItemMatchKind) => `<span class="tag ${kind}">${esc(kindLabel(kind))}</span>`;
+  const sortedPicked = [...picked].sort((a, b) => {
+    const aSupplier = a.cell ? (columnById.get(a.cell.offerId)?.offer.name ?? '') : '\uffff';
+    const bSupplier = b.cell ? (columnById.get(b.cell.offerId)?.offer.name ?? '') : '\uffff';
+    return aSupplier.localeCompare(bSupplier, 'ru');
+  });
 
-  const proposalRows = picked
+  const proposalRows = sortedPicked
     .map(({ position, cell }) => {
       if (!cell) {
         return `<tr class="empty"><td>${esc(position.name)}<span class="muted">${qty(position)}</span></td><td colspan="4">не отобрано</td></tr>`;
@@ -164,7 +169,7 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
     .map(
       (c) =>
         `<tr><td>${esc(c.offer.name)}${c.lastQuoteAt ? `<span class="muted">счёт от ${new Date(c.lastQuoteAt).toLocaleDateString('ru-RU')}</span>` : ''}</td>` +
-        `<td>${c.delivery != null ? esc(formatMoney(c.delivery, c.deliveryCurrency)) : 'в счёте нет'}</td>` +
+        `<td class="num">${c.delivery != null ? esc(formatMoney(c.delivery, c.deliveryCurrency)) : 'в счёте нет'}</td>` +
         `<td>${paintApproval ? 'Все в наличии. Доставка в течение нескольких дней по запросу' : c.offer.termsNote ? withLinks(c.offer.termsNote) : '—'}</td></tr>`,
     )
     .join('');
@@ -182,21 +187,22 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
   @font-face { font-family: Montserrat; src: url('/fonts/Montserrat-ExtraBold.woff2') format('woff2'); font-weight: 700 900; }
   /* Ненулевой letter-spacing включает посимвольный рендер html2canvas:
      пробелы в Montserrat сохраняются, включая разделители сумм и ₽. */
-  body { margin: 0; background: #fff; color: #14151a; font-family: Montserrat, Arial, sans-serif; font-size: 9pt; line-height: 1.3; letter-spacing: .01px; }
+  body { margin: 0; background: #fff; color: #14151a; font-family: Montserrat, Arial, sans-serif; font-size: 9pt; line-height: 1.35; letter-spacing: .01px; }
+  body.paint-approval { min-height: 1094px; display: flex; flex-direction: column; padding-bottom: 12px; }
   h1 { font-size: 17pt; margin: 0; }
-  h2 { font-size: 12pt; margin: 0 0 6px; break-after: avoid; }
+  h2 { font-size: 12pt; margin: 0 0 10px; break-after: avoid; }
   h3 { font-size: 10.5pt; margin: 0 0 4px; break-after: avoid; }
   h3 .qty { font-weight: 400; color: #6b6d76; }
-  header { border-bottom: 2px solid #14151a; padding-bottom: 8px; margin-bottom: 12px; }
-  .sub { color: #6b6d76; margin-top: 3px; }
+  header { border-bottom: 2px solid #14151a; padding-bottom: 10px; margin-bottom: 18px; }
+  .sub { color: #6b6d76; margin-top: 5px; }
   .block { break-inside: avoid; margin-bottom: 12px; }
-  .funnel { display: flex; gap: 10px; margin-bottom: 12px; }
-  .funnel div { flex: 1; border: 1px solid #e7e5e2; border-radius: 6px; padding: 6px 8px; }
-  .funnel b { display: block; font-size: 14pt; line-height: 1.1; }
-  .funnel span { color: #6b6d76; font-size: 8pt; }
+  .funnel { display: flex; gap: 12px; margin-bottom: 22px; }
+  .funnel div { flex: 1; display: flex; align-items: baseline; gap: 7px; border: 1px solid #e7e5e2; border-radius: 6px; padding: 10px 12px; }
+  .funnel b { font-size: 14pt; line-height: 1.1; }
+  .funnel span { color: #6b6d76; font-size: 8.5pt; }
   table.grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  table.grid th { text-align: left; font-size: 8pt; text-transform: uppercase; letter-spacing: .04em; color: #6b6d76; font-weight: 600; border-bottom: 1px solid #d8d6d2; padding: 4px 6px; }
-  table.grid td { border-bottom: 1px solid #e7e5e2; padding: 5px 6px; vertical-align: top; word-wrap: break-word; }
+  table.grid th { text-align: left; font-size: 8pt; text-transform: uppercase; letter-spacing: .04em; color: #6b6d76; font-weight: 600; border-bottom: 1px solid #d8d6d2; padding: 7px; }
+  table.grid td { border-bottom: 1px solid #e7e5e2; padding: 8px 7px; vertical-align: top; word-wrap: break-word; }
   table.grid td.num, table.grid th.num { text-align: right; white-space: nowrap; width: 17%; }
   table.grid td.strong { font-weight: 600; }
   table.grid tfoot td { border-top: 1.5px solid #14151a; border-bottom: 0; font-weight: 600; padding-top: 6px; }
@@ -213,14 +219,12 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
   .lnk { color: #14151a; text-decoration: none; border-bottom: 1px dotted #9a9ba3; }
   .note { color: #6b6d76; margin: 6px 0 0; font-size: 8pt; }
   .note.warn { color: #906721; }
-  .total-line { font-size: 20pt; font-weight: 700; color: #157f42; margin: 2px 0 8px; }
-  /* Подписи и строка решения — один блок: на разных страницах они
-     выглядят как потерянная строка. */
-  .sign-area { break-inside: avoid; }
-  .signs { display: flex; gap: 14px; margin-top: 14px; break-inside: avoid; }
+  .total-line { font-size: 20pt; font-weight: 700; color: #157f42; margin: 4px 0 14px; }
+  .signs { display: flex; gap: 24px; break-inside: avoid; }
   .sign { flex: 1; }
   .sign .line { border-bottom: 1px solid #d8d6d2; min-height: 22px; padding-bottom: 2px; }
   .sign .cap { font-size: 7.5pt; text-transform: uppercase; letter-spacing: .04em; color: #9a9ba3; margin-top: 3px; }
+  .prepared { margin-top: auto; padding-top: 24px; break-inside: avoid; }
   /* Печать: документ не обязан помещаться на страницу, но рваться должен по
      живому (владелец, 2026-09-17: «выгрузка в pdf разрывает страницу на
      несколько, учти и адаптируй»). Строка таблицы, подписи и заголовок с
@@ -230,39 +234,37 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
   table.grid thead { display: table-header-group; }
   table.grid tfoot { display: table-row-group; }
   h2, h3 { break-after: avoid; }
-  section { break-inside: auto; margin-bottom: 14px; }
+  section { break-inside: auto; margin-bottom: 24px; }
+  section.terms-section { margin-bottom: 0; }
   .terms th:first-child { width: 30%; }
-</style></head><body>
+</style></head><body class="${paintApproval ? 'paint-approval' : ''}">
 <header>
   <h1>${esc(title)}</h1>
   ${paintApproval ? '<div class="sub">Объект: 1-й Геологический проезд, 1, посёлок Зелёный, Московская область</div>' : ''}
 </header>
 
 <div class="funnel">
-  <div><b>${funnel.sent}</b><span>запрос отправлен${funnel.letters ? `, ${funnel.letters} писем` : ''}</span></div>
-  <div><b>${funnel.replied}</b><span>ответили, ${funnel.repliedNoQuote} без КП</span></div>
-  <div><b>${funnel.confirmed}</b><span>прислали КП, ${funnel.quotesCount} счетов</span></div>
+  <div><span>Проработано поставщиков:</span><b>${funnel.sent}</b></div>
+  <div><span>Получено КП:</span><b>${funnel.confirmed}</b></div>
 </div>
 
 <section>
   <h2>Предложение на утверждение</h2>
   ${pickedCells.length > 0 ? `<div class="total-line">${esc(doc.total)}</div>` : ''}
   ${proposalBlock}
-  <div class="sign-area">
-    <div class="signs">
-      ${signatureField('Подготовил', doc.preparedBy)}
-      ${signatureField('Дата', new Date().toLocaleDateString('ru-RU'))}
-      ${signatureField('Руководитель стройки, подпись')}
-      ${signatureField('Дата')}
-    </div>
-    <div class="signs">${signatureField('Решение: утвердить / вернуть на уточнение, комментарий')}</div>
-  </div>
 </section>
 
-<section>
-  <h2>Наличие, сроки и доставка</h2>
+<section class="terms-section">
+  <h2>Наличие и доставка</h2>
   <table class="grid terms"><thead><tr><th>Поставщик</th><th class="num">Доставка</th><th>Наличие и срок</th></tr></thead><tbody>${termsRows}</tbody></table>
 </section>
+
+<footer class="prepared">
+  <div class="signs">
+    ${signatureField('Подготовил', doc.preparedBy)}
+    ${signatureField('Дата', new Date().toLocaleDateString('ru-RU'))}
+  </div>
+</footer>
 </body></html>`;
 }
 

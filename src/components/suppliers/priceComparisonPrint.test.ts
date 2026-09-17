@@ -29,6 +29,11 @@ describe('approval PDF', () => {
     expect(html).toContain('75,13 ₽ / м2');
     expect(html).toContain('375,65 ₽ за л');
     expect(html).toContain('Доставка: Альбия');
+    expect(html).toContain('Проработано поставщиков:</span><b>19</b>');
+    expect(html).toContain('Получено КП:</span><b>12</b>');
+    expect(html).toContain('<h2>Наличие и доставка</h2>');
+    expect(html).not.toContain('Руководитель стройки');
+    expect(html).not.toContain('Решение: утвердить');
     expect(html.match(/17 526 ₽/g)).toHaveLength(1);
     expect(html.match(/Все в наличии\. Доставка в течение нескольких дней по запросу/g)).toHaveLength(1);
     for (const removed of ['Не выбранный поставщик', 'Итого к утверждению', 'сформировано', 'решение 17.09.2026', 'из ведомости 1', 'Раздел сметы']) expect(html).not.toContain(removed);
@@ -57,5 +62,17 @@ describe('approval PDF', () => {
     const html = buildPrintHtml(doc);
     expect(html).toContain('Позиции ещё не отобраны');
     expect(html).not.toContain('Все в наличии');
+  });
+
+  it('groups proposal rows by supplier name', () => {
+    const doc = fixture();
+    const secondPosition = { ...doc.positions[0], id: 'black', name: 'Чёрная краска' };
+    const secondCell = { ...doc.picked[0].cell!, offerId: 'other' };
+    const thirdPosition = { ...doc.positions[0], id: 'ceiling', name: 'Краска для потолка' };
+    const thirdCell = { ...doc.picked[0].cell! };
+    doc.picked = [doc.picked[0], { position: secondPosition, cell: secondCell }, { position: thirdPosition, cell: thirdCell }];
+    const html = buildPrintHtml(doc);
+    expect(html.indexOf('Матовая для потолков кристально белая')).toBeLessThan(html.indexOf('Краска для потолка'));
+    expect(html.indexOf('Краска для потолка')).toBeLessThan(html.indexOf('Чёрная краска'));
   });
 });
