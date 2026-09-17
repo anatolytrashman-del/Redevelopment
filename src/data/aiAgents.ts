@@ -69,6 +69,20 @@ export const aiAgents: AiAgent[] = [
     // релиза это не авария, а просто день без задач.
     heartbeat: { staleAfterMinutes: 24 * 60, scheduled: false, cadence: 'по запросу' },
   },
+  // Владелец, 2026-09-17: «добавь ChatGPT сразу после Claude, бейдж Pro,
+  // тайтл ИИ-кодер, обязанности такие же, как у Клода».
+  // RPC не отдаёт следов ChatGPT, поэтому staticActivity не задаём:
+  // без реальной активности карточка честно показывает «Ожидает задач».
+  // Пока нет точного SVG знака OpenAI, используем стандартного робота.
+  {
+    id: 'chatgpt',
+    name: 'ChatGPT',
+    role: 'ИИ-кодер',
+    tasks: ['Разработка и правки платформы', 'Публикация релизов на прод'],
+    icon: 'bot',
+    tag: 'Pro',
+    heartbeat: { staleAfterMinutes: 24 * 60, scheduled: false, cadence: 'по запросу' },
+  },
   {
     id: 'procurement',
     name: 'ИИ-закупщик',

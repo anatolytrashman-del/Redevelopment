@@ -66,4 +66,9 @@ fi
 
 # exec — неинтерактивный режим; правки в рабочем дереве, без своих коммитов:
 # ветку, коммит и PR делает вызывающая сторона, чтобы соблюсти правила ветвления.
-exec codex exec --skip-git-repo-check "$PROMPT"
+#
+# --sandbox workspace-write обязателен: по умолчанию `codex exec` идёт в read-only и
+# молча не может записать ни одного файла — задача «отвечает», но диф пустой
+# (проверено 2026-09-17 на первом живом запуске). Переопределяется переменной
+# CODEX_SANDBOX, если понадобится read-only для чисто аналитической задачи.
+exec codex exec --skip-git-repo-check --sandbox "${CODEX_SANDBOX:-workspace-write}" "$PROMPT"
