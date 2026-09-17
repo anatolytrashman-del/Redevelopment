@@ -25,5 +25,6 @@ jobs:
       - run: npm run lint
       - run: npx tsc -b
       - run: npm test
-      - run: npm run build
+      # Пререндер требует Chromium из среды Vercel; здесь проверяем приложение.
+      - run: npm run build:app
       - run: npm run audit:rls
