@@ -58,6 +58,9 @@ export function formatActivityTime(iso: string, now: Date = new Date()): string 
 //  online — функция отработала внутри своего срока;
 //  idle   — событийный агент давно без работы (это не поломка);
 //  down   — функция по расписанию молчит дольше срока, чинить.
+// Отдельный случай — heartbeat.staleAfterMinutes === null: внешний сервис,
+// который отвечает по запросу (ChatGPT/Codex). У него молчание вообще ничего
+// не значит, он онлайн всегда, а последняя задача идёт в подсказку справкой.
 export type AiAgentStatusTone = 'online' | 'idle' | 'down';
 
 export interface AiAgentStatus {
@@ -74,6 +77,19 @@ export function getAiAgentStatus(
 ): AiAgentStatus {
   const iso = activity?.doneAt ?? '';
   const doneAt = new Date(iso);
+  // Сервис по запросу: статус не зависит ни от следа в базе, ни от его
+  // давности. «Ожидает задач» здесь было прямой неправдой — карточка писала
+  // это в тот момент, когда Codex работал над задачей (владелец, 2026-09-17).
+  if (heartbeat.staleAfterMinutes === null) {
+    const ago = iso && !Number.isNaN(doneAt.getTime()) ? formatActivityTime(iso, now) : '';
+    return {
+      tone: 'online',
+      label: 'Онлайн',
+      hint: ago
+        ? `Доступен всегда, работает ${heartbeat.cadence}. Последняя задача ${ago}`
+        : `Доступен всегда, работает ${heartbeat.cadence}`,
+    };
+  }
   // Нет следа вообще: у крона это «не запускался ни разу», у событийного —
   // «ещё не было задач». Для scheduled это поломка, для остальных — простой.
   if (!iso || Number.isNaN(doneAt.getTime())) {
