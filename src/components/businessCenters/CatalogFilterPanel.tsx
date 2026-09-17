@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, RotateCcw, SlidersHorizontal, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
@@ -16,13 +16,8 @@ import {
   type CatalogView,
 } from '../../lib/businessCenterCatalogFilter';
 
-// Панель фильтров каталога БЦ (К2/К3/К5/К5a плана
-// docs/bc-catalog-redesign-plan.md). Решение владельца 2026-09-16: чипы
-// СВЕРХУ, левой колонки фильтра не остаётся вовсе — вся ширина уходит под
-// результаты. До этого фильтр был колонкой слева длиной в три экрана, где
-// каждая ось сбрасывала другую, а первая карточка БЦ появлялась примерно на
-// 1900-м пикселе.
-//
+// Фильтры в боковой колонке, как оглавление Минск Мира (владелец, 2026-09-17).
+// Все оси и счётчики сохранены; на мобильном — выдвижная панель.
 // Панель ничего не знает про маршруты и SEO-хабы: она отдаёт наружу новое
 // состояние через onChange, а страница уже решает, превратить его в
 // красивый URL хаба или в query-параметры (см. businessCenterCatalogFilter.ts
@@ -47,7 +42,7 @@ function Chip({ active, count, onClick, children, disabled }: ChipProps) {
       disabled={disabled}
       aria-pressed={active}
       className={cn(
-        'flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors',
+        'flex max-w-full items-center gap-1.5 rounded-full border px-2 py-1.5 text-left text-xs font-semibold transition-colors',
         active
           ? 'border-primary bg-primary text-white'
           : disabled
@@ -67,15 +62,11 @@ function Chip({ active, count, onClick, children, disabled }: ChipProps) {
 
 function ChipRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
-      <span className="shrink-0 pt-1.5 text-xs font-semibold uppercase tracking-wide text-ink-muted sm:w-20">
+    <div className="flex min-w-0 flex-col gap-2">
+      <span className="shrink-0 pt-1.5 text-xs font-semibold uppercase tracking-wide text-ink-muted">
         {label}
       </span>
-      {/* Горизонтальная прокрутка вместо переноса — на узком экране ряд
-          чипов остаётся одной строкой и не съедает первый экран целиком.
-          -mx-1/px-1 — чтобы обводка активного чипа не обрезалась краем
-          скролл-контейнера. */}
-      <div className="-mx-1 flex flex-wrap gap-2 overflow-x-auto px-1 pb-0.5 max-sm:flex-nowrap">{children}</div>
+      <div className="flex min-w-0 flex-wrap gap-1.5">{children}</div>
     </div>
   );
 }
@@ -126,6 +117,25 @@ export function CatalogFilterPanel({
   onReset,
 }: CatalogFilterPanelProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    if (!sheetOpen) return;
+    const dialog = dialogRef.current;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    dialog?.showModal();
+    document.body.style.overflow = 'hidden';
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    const closeOnDesktop = () => { if (desktop.matches) setSheetOpen(false); };
+    desktop.addEventListener('change', closeOnDesktop);
+    return () => {
+      desktop.removeEventListener('change', closeOnDesktop);
+      dialog?.close();
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus();
+    };
+  }, [sheetOpen]);
 
 
   function toggleInList(list: string[], value: string): string[] {
@@ -135,6 +145,7 @@ export function CatalogFilterPanel({
   const activeCount =
     state.classes.length +
     state.districts.length +
+    state.metroStations.length +
       (state.metroWithin != null ? 1 : 0) +
     (state.query ? 1 : 0);
 
@@ -240,21 +251,20 @@ export function CatalogFilterPanel({
     </div>
   );
 
-  return (
-    <div className={cn('flex flex-col gap-4 p-4 sm:p-5', glassCardClass)} style={glassCardShadow}>
-      <div className="flex flex-wrap items-center gap-2">
+  const toolbar = (
+      <div className="flex min-w-0 flex-col gap-3">
         <SearchInput
           value={state.query}
           onChange={(e) => onChange({ ...state, query: e.target.value })}
-          placeholder="Название, улица, микрорайон, станция метро"
-          wrapperClassName="min-w-0 flex-1 basis-full sm:basis-56"
+          placeholder="Название, адрес, метро"
+          wrapperClassName="w-full min-w-0"
           aria-label="Поиск по бизнес-центрам"
         />
 
         {/* Переключатель вида (К6). Стоит рядом с сортировкой, а не над
             результатами: это одна и та же мысль — «как показать то, что
             отобрано». */}
-        <div className="flex shrink-0 items-center gap-1 rounded-full border border-border bg-surface p-1">
+        <div className="flex items-center gap-1 rounded-full border border-border bg-surface p-1">
           {CATALOG_VIEWS.map((v) => (
             <button
               key={v.key}
@@ -262,7 +272,7 @@ export function CatalogFilterPanel({
               onClick={() => onChange({ ...state, view: v.key as CatalogView })}
               aria-pressed={state.view === v.key}
               className={cn(
-                'rounded-full px-3 py-1.5 text-sm font-semibold transition-colors',
+                'flex-1 rounded-full px-2 py-1.5 text-xs font-semibold transition-colors',
                 state.view === v.key ? 'bg-primary text-white' : 'text-ink-muted hover:text-ink',
               )}
             >
@@ -271,12 +281,12 @@ export function CatalogFilterPanel({
           ))}
         </div>
 
-        <label className="relative flex shrink-0 items-center">
+        <label className="relative flex min-w-0 items-center">
           <span className="sr-only">Сортировка</span>
           <select
             value={state.sort}
             onChange={(e) => onChange({ ...state, sort: e.target.value as CatalogSortKey })}
-            className="appearance-none rounded-full border border-border bg-surface py-2.5 pl-4 pr-9 text-sm font-semibold text-ink outline-none focus:border-primary"
+            className="w-full min-w-0 appearance-none rounded-full border border-border bg-surface py-2.5 pl-4 pr-9 text-xs font-semibold text-ink outline-none focus:border-primary"
           >
             {CATALOG_SORTS.map((s) => (
               <option key={s.key} value={s.key}>
@@ -287,48 +297,50 @@ export function CatalogFilterPanel({
           <ChevronDown className="pointer-events-none absolute right-3 h-4 w-4 text-ink-muted" />
         </label>
 
-        {/* Ниже lg панель схлопнута в одну кнопку — шторка снизу с «Показать
-            N» (К5a): на телефоне четыре ряда чипов заняли бы весь первый
-            экран, ради которого всё и переделывалось. */}
-        <button
-          type="button"
-          onClick={() => setSheetOpen(true)}
-          className={cn(
-            'flex shrink-0 items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold transition-colors lg:hidden',
-            activeCount > 0 ? 'border-primary bg-primary text-white' : 'border-border bg-surface text-ink',
-          )}
-        >
-          <SlidersHorizontal className="h-4 w-4 shrink-0" />
-          Фильтры
-          {activeCount > 0 && <span className="text-xs font-bold tabular-nums">{activeCount}</span>}
-        </button>
+      </div>
+  );
 
-        {hasActiveFilter && (
-          <button
-            type="button"
-            onClick={onReset}
-            className="hidden shrink-0 items-center gap-1.5 rounded-full px-3 py-2.5 text-sm font-semibold text-ink-muted transition-colors hover:text-ink lg:flex"
-          >
-            <RotateCcw className="h-3.5 w-3.5 shrink-0" />
-            Сбросить
-          </button>
-        )}
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setSheetOpen(true)}
+        aria-expanded={sheetOpen}
+        className="fixed bottom-4 right-4 z-30 flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-3 text-sm font-semibold text-ink shadow-card lg:hidden"
+      >
+        <SlidersHorizontal className="h-4 w-4" />
+        Фильтры {activeCount > 0 && <span>({activeCount})</span>}
+      </button>
+      <div
+        className={cn('hidden max-h-[calc(100dvh-7rem)] space-y-5 overflow-y-auto overscroll-contain p-3 lg:block', glassCardClass)}
+        style={glassCardShadow}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Фильтры</h2>
+          {hasActiveFilter && (
+            <button type="button" onClick={onReset} aria-label="Сбросить фильтры" className="rounded-full p-2 text-ink-muted hover:text-ink">
+              <RotateCcw className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        {toolbar}
+        {controls}
       </div>
 
-      <div className="hidden lg:block">{controls}</div>
-
-      {/* Шторка уходит ПОРТАЛОМ в body: у стеклянной карточки вокруг —
-          backdrop-blur, а он создаёт содержащий блок для position:fixed, и
-          «шторка снизу» прилипала к верху карточки, накрывая шапку сайта
-          вместо нижнего края экрана. */}
+      {/* Портал и native dialog: фокус остаётся в фильтрах, Escape закрывает панель. */}
       {sheetOpen && createPortal(
-        <div className="fixed inset-0 z-50 lg:hidden">
+        <dialog
+          ref={dialogRef}
+          aria-label="Фильтры каталога"
+          onCancel={(event) => { event.preventDefault(); setSheetOpen(false); }}
+          className="fixed inset-0 m-0 h-svh max-h-none w-screen max-w-none border-0 bg-transparent p-0 text-ink backdrop:bg-transparent lg:hidden"
+        >
           <div
             className="absolute inset-0 bg-ink/40"
             onClick={() => setSheetOpen(false)}
             aria-hidden="true"
           />
-          <div className="absolute inset-x-0 bottom-0 flex max-h-[85svh] flex-col rounded-t-3xl border-t border-white/50 bg-white/95 backdrop-blur-xl">
+          <div className="absolute inset-y-0 left-0 flex h-svh w-80 max-w-[90vw] flex-col border-r border-white/50 bg-white/95 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
               <span className="text-sm font-bold text-ink">Фильтры</span>
               <div className="flex items-center gap-2">
@@ -352,7 +364,7 @@ export function CatalogFilterPanel({
                 </button>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto px-4 py-4">{controls}</div>
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4">{toolbar}{controls}</div>
             <div className="border-t border-border px-4 py-3">
               <button
                 type="button"
@@ -363,9 +375,9 @@ export function CatalogFilterPanel({
               </button>
             </div>
           </div>
-        </div>,
+        </dialog>,
         document.body,
       )}
-    </div>
+    </>
   );
 }
