@@ -205,7 +205,7 @@ function BusinessCenterCard({
       )}
       style={glassCardShadow}
     >
-      <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden">
+      <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden">
         <PhotoBlock center={center} variant="card" />
         <div className="absolute right-2 top-2 flex flex-wrap justify-end gap-1.5">
           {center.status === 'under_construction' && <Badge tone="warning">Строится</Badge>}
@@ -243,8 +243,8 @@ function BusinessCenterCard({
           {compared ? 'В сравнении' : 'Сравнить'}
         </button>
       </div>
-      <div className="flex flex-1 flex-col gap-2 p-4">
-        <h2 className="text-sm font-bold leading-snug text-ink">{shortName(center)}</h2>
+      <div className="flex flex-1 flex-col gap-2.5 p-4">
+        <h2 className="text-base font-bold leading-snug text-ink">{center.name}</h2>
         {badge && (
           <span
             className={cn(
@@ -256,7 +256,7 @@ function BusinessCenterCard({
           </span>
         )}
 
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1.5">
           {metroDistance != null && metroLabel ? (
             <FactRow icon={TrainFront}>
               {metroLabel} — {metroDistance} м
@@ -1068,7 +1068,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             <CatalogMap centers={orderedCenters} offers={offerIndex} />
           ) : (
             <div className="flex flex-col gap-6">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {orderedCenters.slice(0, visibleCount).map((c) => (
                   <BusinessCenterCard
                     key={c.slug}
