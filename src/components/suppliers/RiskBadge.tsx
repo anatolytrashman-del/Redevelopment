@@ -21,25 +21,47 @@ import { riskSummary, shouldFlag } from '../../data/supplierReliability';
 export function RiskBadge({
   inn,
   reliabilityByInn,
+  onClick,
 }: {
   inn: string | null;
   reliabilityByInn: Map<string, SupplierReliability>;
+  // На экранах сравнения значок открывает карточку поставщика, где блок
+  // благонадёжности расположен вверху и показывает риски полностью.
+  onClick?: () => void;
 }) {
   const reliability = inn ? reliabilityByInn.get(inn) ?? null : null;
   if (!shouldFlag(reliability) || !reliability) return null;
 
   const danger = reliability.riskLevel === 'danger';
+  const summary = riskSummary(reliability);
+  const className = `inline-flex shrink-0 items-center rounded-sm ${danger ? 'text-danger' : 'text-warning'}`;
+  const icon = <AlertTriangle className="h-4 w-4" />;
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        title={`Посмотреть риски: ${summary}`}
+        aria-label={`Посмотреть риски поставщика: ${summary}`}
+        className={`${className} cursor-pointer hover:bg-warning-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-warning`}
+      >
+        {icon}
+      </button>
+    );
+  }
+
   return (
     <span
       // title, а не кастомный тултип: текст рисков может быть длинным
       // ("22736 дел как ответчик, на 571 398 489 297 ₽"), а нативная
       // подсказка браузера переносит его сама и не ломает вёрстку строки
       // списка. Подробности всё равно есть в карточке.
-      title={riskSummary(reliability)}
-      aria-label={riskSummary(reliability)}
-      className={`inline-flex shrink-0 items-center ${danger ? 'text-danger' : 'text-warning'}`}
+      title={summary}
+      aria-label={summary}
+      className={className}
     >
-      <AlertTriangle className="h-4 w-4" />
+      {icon}
     </span>
   );
 }
