@@ -113,22 +113,38 @@ function deliveryNames(doc: ComparisonDoc): string {
     .join(', ');
 }
 
-// Редакционные данные конкретного отчёта из задания владельца 17.09.2026.
-// Не подставляем адрес и подтверждённое наличие в другие категории закупок.
-function isPaintApproval(doc: ComparisonDoc): boolean {
-  return doc.request.title === 'Краски, обои и декоративные покрытия'
-    && doc.request.sectionTitle === 'Краски'
-    && doc.country === 'Россия'
+const GREEN_OBJECT_ADDRESS = '1-й Геологический проезд, 1, посёлок Зелёный, Московская область';
+
+function isGreenObjectEstimate(doc: ComparisonDoc): boolean {
+  return doc.country === 'Россия'
     && /^(?:смета\s+)?зел[её]ный$/iu.test(doc.estimateTitle?.trim() ?? '');
 }
 
+// Редакционные данные конкретных отчётов из заданий владельца 17.09.2026.
+// Не подставляем адрес и подтверждённое наличие в другие сметы и закупки.
+function isPaintApproval(doc: ComparisonDoc): boolean {
+  return doc.request.title === 'Краски, обои и декоративные покрытия'
+    && doc.request.sectionTitle === 'Краски'
+    && isGreenObjectEstimate(doc);
+}
+
+function isPlinthApproval(doc: ComparisonDoc): boolean {
+  return doc.request.title === 'Плинтусы, панели и лепнина'
+    && doc.request.sectionTitle === 'Плинтус'
+    && isGreenObjectEstimate(doc);
+}
+
 export function approvalPrintTitle(doc: ComparisonDoc): string {
-  return isPaintApproval(doc) ? 'Поставка красок' : doc.request.title;
+  if (isPaintApproval(doc)) return 'Поставка красок';
+  if (isPlinthApproval(doc)) return 'Плинтус';
+  return doc.request.title;
 }
 
 export function buildPrintHtml(doc: ComparisonDoc): string {
   const { columns, columnById, picked, pickedCells, pickedOfferIds, pickedDelivery, funnel, rate } = doc;
   const paintApproval = isPaintApproval(doc);
+  const plinthApproval = isPlinthApproval(doc);
+  const greenObjectApproval = paintApproval || plinthApproval;
   const title = approvalPrintTitle(doc);
   const kindTag = (kind: PurchaseItemMatchKind) => `<span class="tag ${kind}">${esc(kindLabel(kind))}</span>`;
   const sortedPicked = [...picked].sort((a, b) => {
@@ -169,8 +185,8 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
     .map(
       (c) =>
         `<tr><td>${esc(c.offer.name)}${c.lastQuoteAt ? `<span class="muted">счёт от ${new Date(c.lastQuoteAt).toLocaleDateString('ru-RU')}</span>` : ''}</td>` +
-        `<td class="num">${c.delivery != null ? esc(formatMoney(c.delivery, c.deliveryCurrency)) : 'в счёте нет'}</td>` +
-        `<td>${paintApproval ? 'Все в наличии. Доставка в течение нескольких дней по запросу' : c.offer.termsNote ? withLinks(c.offer.termsNote) : '—'}</td></tr>`,
+        `<td class="num">${plinthApproval ? 'В цене' : c.delivery != null ? esc(formatMoney(c.delivery, c.deliveryCurrency)) : 'в счёте нет'}</td>` +
+        `<td>${paintApproval ? 'Все в наличии. Доставка в течение нескольких дней по запросу' : plinthApproval ? 'В наличии, доставка по запросу' : c.offer.termsNote ? withLinks(c.offer.termsNote) : '—'}</td></tr>`,
     )
     .join('');
 
@@ -188,7 +204,7 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
   /* Ненулевой letter-spacing включает посимвольный рендер html2canvas:
      пробелы в Montserrat сохраняются, включая разделители сумм и ₽. */
   body { margin: 0; background: #fff; color: #14151a; font-family: Montserrat, Arial, sans-serif; font-size: 9pt; line-height: 1.35; letter-spacing: .01px; }
-  body.paint-approval { min-height: 1094px; display: flex; flex-direction: column; padding-bottom: 12px; }
+  body { min-height: 1094px; display: flex; flex-direction: column; padding-bottom: 20px; }
   h1 { font-size: 17pt; margin: 0; }
   h2 { font-size: 12pt; margin: 0 0 10px; break-after: avoid; }
   h3 { font-size: 10.5pt; margin: 0 0 4px; break-after: avoid; }
@@ -197,7 +213,7 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
   .sub { color: #6b6d76; margin-top: 5px; }
   .block { break-inside: avoid; margin-bottom: 12px; }
   .funnel { display: flex; gap: 12px; margin-bottom: 22px; }
-  .funnel div { flex: 1; display: flex; align-items: baseline; gap: 7px; border: 1px solid #e7e5e2; border-radius: 6px; padding: 10px 12px; }
+  .funnel div { flex: 0 1 calc(50% - 6px); display: flex; align-items: baseline; gap: 7px; border: 1px solid #e7e5e2; border-radius: 6px; padding: 10px 12px; }
   .funnel b { font-size: 14pt; line-height: 1.1; }
   .funnel span { color: #6b6d76; font-size: 8.5pt; }
   table.grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -223,8 +239,10 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
   .signs { display: flex; gap: 24px; break-inside: avoid; }
   .sign { flex: 1; }
   .sign .line { border-bottom: 1px solid #d8d6d2; min-height: 22px; padding-bottom: 2px; }
-  .sign .cap { font-size: 7.5pt; text-transform: uppercase; letter-spacing: .04em; color: #9a9ba3; margin-top: 3px; }
-  .prepared { margin-top: auto; padding-top: 24px; break-inside: avoid; }
+  /* У подписи отдельная высокая строка: Montserrat на малом кегле иначе
+     обрезается html2canvas по нижней границе line box. */
+  .sign .cap { height: 28px; padding: 5px 0 9px; font-size: 8pt; line-height: 14px; letter-spacing: .02em; color: #9a9ba3; }
+  .prepared { margin-top: auto; margin-bottom: 12px; padding-top: 24px; break-inside: avoid; }
   /* Печать: документ не обязан помещаться на страницу, но рваться должен по
      живому (владелец, 2026-09-17: «выгрузка в pdf разрывает страницу на
      несколько, учти и адаптируй»). Строка таблицы, подписи и заголовок с
@@ -237,15 +255,14 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
   section { break-inside: auto; margin-bottom: 24px; }
   section.terms-section { margin-bottom: 0; }
   .terms th:first-child { width: 30%; }
-</style></head><body class="${paintApproval ? 'paint-approval' : ''}">
+</style></head><body>
 <header>
   <h1>${esc(title)}</h1>
-  ${paintApproval ? '<div class="sub">Объект: 1-й Геологический проезд, 1, посёлок Зелёный, Московская область</div>' : ''}
+  ${greenObjectApproval ? `<div class="sub">Объект: ${GREEN_OBJECT_ADDRESS}</div>` : ''}
 </header>
 
 <div class="funnel">
   <div><span>Проработано поставщиков:</span><b>${funnel.sent}</b></div>
-  <div><span>Получено КП:</span><b>${funnel.confirmed}</b></div>
 </div>
 
 <section>
