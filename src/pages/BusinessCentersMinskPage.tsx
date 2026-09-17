@@ -19,7 +19,6 @@ import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
 import { PhotoBlock, FactRow, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import { CatalogFilterPanel } from '../components/businessCenters/CatalogFilterPanel';
-import { CatalogTable } from '../components/businessCenters/CatalogTable';
 import { CatalogMap } from '../components/businessCenters/CatalogMap';
 import { CatalogCompare } from '../components/businessCenters/CatalogCompare';
 import {
@@ -1001,16 +1000,6 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 </button>
               )}
             </div>
-          ) : filter.view === 'table' ? (
-            /* В таблице показываем ВСЮ выборку без «показать ещё»: строка
-               без фото и «стекла» стоит браузеру копейки, а смысл вида —
-               именно увидеть всё разом и сравнить. */
-            <CatalogTable
-              centers={orderedCenters}
-              offers={offerIndex}
-              sort={filter.sort}
-              onSort={(key) => applyFilter({ ...filter, sort: key })}
-            />
           ) : filter.view === 'map' ? (
             <CatalogMap centers={orderedCenters} offers={offerIndex} />
           ) : (

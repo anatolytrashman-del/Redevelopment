@@ -214,13 +214,20 @@ describe('подборки (К15)', () => {
     const exact = { ...EMPTY_CATALOG_FILTER, ...preset.patch };
     expect(isPresetActive(preset, exact)).toBe(true);
     // Сортировка и вид — не часть подборки, они её не ломают.
-    expect(isPresetActive(preset, { ...exact, sort: 'rent', view: 'table' })).toBe(true);
+    expect(isPresetActive(preset, { ...exact, sort: 'rent', view: 'map' })).toBe(true);
     // А вот лишнее условие сверху — уже не эта подборка.
     expect(isPresetActive(preset, { ...exact, facts: ['uk'] })).toBe(false);
   });
 });
 
 describe('URL фильтра', () => {
+  it('старая ссылка ?view=table открывает карточки, а не пустую страницу', () => {
+    const state = parseCatalogFilter(new URLSearchParams('view=table&class=A'));
+    expect(state.view).toBe('cards');
+    expect(state.classes).toEqual(['A']);
+    expect(catalogFilterToQuery(state)).not.toContain('view=');
+  });
+
   it('старый sort=index сохраняет фильтры и выдаёт здания в обычном порядке', () => {
     const state = parseCatalogFilter(new URLSearchParams('sort=index&class=A'));
     const offers = buildOfferIndex([]);

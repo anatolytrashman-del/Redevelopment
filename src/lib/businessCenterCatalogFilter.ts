@@ -71,11 +71,13 @@ export interface CatalogFilterState {
 
 export const MAX_COMPARE = 4;
 
-export type CatalogView = 'cards' | 'table' | 'map';
+// Табличный вид снят с сайта 2026-09-17 (решение владельца: «табличный вид
+// вообще убираем»). Значение 'table' в старых ссылках больше не существует —
+// parseCatalogFilter отдаёт на него 'cards', см. тест.
+export type CatalogView = 'cards' | 'map';
 
 export const CATALOG_VIEWS: { key: CatalogView; label: string }[] = [
   { key: 'cards', label: 'Плитки' },
-  { key: 'table', label: 'Таблица' },
   { key: 'map', label: 'Карта' },
 ];
 
