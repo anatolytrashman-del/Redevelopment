@@ -123,9 +123,10 @@ export const ADMIN_PAGES: AdminPage[] = [
 // идею" — у него свой пункт снизу, как и раньше).
 export const VISIBLE_PAGE_KEYS: PageKey[] = [
   'tasks',
-  'objects',
-  'contractors',
   'mailbox',
+  'contractors',
+  'meetingSummaries',
+  'objects',
   'tz',
   'estimates',
   'purchases',
@@ -139,7 +140,6 @@ export const VISIBLE_PAGE_KEYS: PageKey[] = [
   'leads',
   'transactions',
   'documents',
-  'meetingSummaries',
   'settings',
 ];
 
@@ -148,17 +148,23 @@ export const VISIBLE_PAGE_KEYS: PageKey[] = [
 // Sidebar.tsx) — например "Маркетинг" объединяет "Лендинги" и "Лиды", когда
 // пунктов в этой теме набирается больше одного. Остальные пункты остаются
 // плоским списком, как раньше.
-export type SidebarEntry = { type: 'page'; key: PageKey } | { type: 'group'; label: string; keys: PageKey[] };
+// staffMetrics — специальный пункт /admin/metrics, который не входит в
+// ADMIN_PAGES и не наследует обычный pages:'all': он виден только владельцу
+// через isSuperAdminAllowed (см. Sidebar.tsx и RequireSuperAdmin в App.tsx).
+// Сентинел позволяет поставить его внутрь HR, не ослабляя модель доступа.
+export type SidebarNavigationKey = PageKey | 'staffMetrics';
+export type SidebarEntry =
+  | { type: 'page'; key: PageKey }
+  | { type: 'group'; label: string; keys: SidebarNavigationKey[] };
 
 export const SIDEBAR_LAYOUT: SidebarEntry[] = [
   { type: 'page', key: 'tasks' },
-  { type: 'page', key: 'objects' },
-  { type: 'page', key: 'contractors' },
   { type: 'page', key: 'mailbox' },
+  { type: 'group', label: 'HR', keys: ['contractors', 'staffMetrics', 'meetingSummaries'] },
+  { type: 'page', key: 'objects' },
   { type: 'group', label: 'Стройка', keys: ['tz', 'estimates', 'purchases', 'workContractors', 'designProjects'] },
   { type: 'group', label: 'Финансы', keys: ['finModels', 'financing', 'transactions', 'documents'] },
   { type: 'group', label: 'Маркетинг', keys: ['landings', 'siteMetrics', 'marketOffers', 'leads'] },
-  { type: 'page', key: 'meetingSummaries' },
   { type: 'page', key: 'settings' },
 ];
 
