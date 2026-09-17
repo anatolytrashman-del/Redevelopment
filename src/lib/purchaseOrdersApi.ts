@@ -12,6 +12,7 @@ import {
   type PurchaseOrderStatus,
 } from '../data/purchaseOrders';
 import type { Currency } from '../data/transactions';
+import type { PurchaseItem } from '../data/purchases';
 
 // Заказы поставщикам (шаг 11 плана закупок). Шаблон тот же, что у
 // data/leads.ts + lib/leadsApi.ts.
@@ -44,6 +45,7 @@ function fromRow(row: PurchaseOrderRow): PurchaseOrder {
     invoiceNumber: row.invoice_number ?? '',
     invoiceDate: row.invoice_date,
     invoiceFile: row.invoice_file ?? null,
+    invoiceAmount: num(row.invoice_amount),
     paymentNumber: row.payment_number ?? '',
     paymentDate: row.payment_date,
     paymentAmount: num(row.payment_amount),
@@ -209,6 +211,7 @@ export function updatePurchaseOrder(
       | 'invoiceNumber'
       | 'invoiceDate'
       | 'invoiceFile'
+      | 'invoiceAmount'
       | 'paymentNumber'
       | 'paymentDate'
       | 'paymentAmount'
@@ -231,6 +234,7 @@ export function updatePurchaseOrder(
         ...(patch.invoiceNumber !== undefined ? { invoice_number: patch.invoiceNumber } : {}),
         ...(patch.invoiceDate !== undefined ? { invoice_date: dateOrNull(patch.invoiceDate) } : {}),
         ...(patch.invoiceFile !== undefined ? { invoice_file: patch.invoiceFile } : {}),
+        ...(patch.invoiceAmount !== undefined ? { invoice_amount: patch.invoiceAmount } : {}),
         ...(patch.paymentNumber !== undefined ? { payment_number: patch.paymentNumber } : {}),
         ...(patch.paymentDate !== undefined ? { payment_date: dateOrNull(patch.paymentDate) } : {}),
         ...(patch.paymentAmount !== undefined ? { payment_amount: patch.paymentAmount } : {}),
@@ -240,6 +244,27 @@ export function updatePurchaseOrder(
         ...(patch.poaDate !== undefined ? { poa_date: dateOrNull(patch.poaDate) } : {}),
         ...(patch.poaFile !== undefined ? { poa_file: patch.poaFile } : {}),
       })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return fromRow(data as PurchaseOrderRow);
+  });
+}
+
+// Удаление ОДНОЙ позиции из уже созданного заказа (не всего заказа целиком —
+// для этого есть deletePurchaseOrder ниже). Нужна, когда часть отобранного у
+// поставщика по факту стала неактуальной (например, решили заказать эти
+// позиции у другой компании), а остальной заказ менять не хотят. total
+// пересчитываем тем же способом, что и при создании (purchaseOrderTotal), а
+// не оставляем как есть — иначе после удаления строки сумма заказа продолжала
+// бы включать её цену.
+export function updatePurchaseOrderItems(id: string, items: PurchaseItem[], delivery: number | null): Promise<PurchaseOrder> {
+  return withRetry(async () => {
+    const total = purchaseOrderTotal({ items, delivery });
+    const { data, error } = await supabase
+      .from('purchase_orders')
+      .update({ items, delivery, total })
       .eq('id', id)
       .select()
       .single();

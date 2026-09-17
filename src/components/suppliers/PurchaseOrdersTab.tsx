@@ -23,6 +23,7 @@ import {
   fetchPurchaseOrders,
   fetchPurchaseOrdersBySupplier,
   updatePurchaseOrder,
+  updatePurchaseOrderItems,
   updatePurchaseOrderStatus,
 } from '../../lib/purchaseOrdersApi';
 import { deliveryProgress, receivedByItem, type PurchaseDelivery } from '../../data/purchaseDeliveries';
@@ -137,6 +138,9 @@ function OrderRow({
         {order.delivery != null ? ` + доставка ${formatMoney(order.delivery, order.currency)}` : ''}
       </span>
       <span className="ml-auto font-semibold tabular-nums text-ink">{formatMoney(order.total, order.currency)}</span>
+      {order.invoiceAmount != null && (
+        <span className="text-xs text-ink-muted">по счёту {formatMoney(order.invoiceAmount, order.currency)}</span>
+      )}
       <Badge tone={statusTone(order.status)}>{PURCHASE_ORDER_STATUS_LABELS[order.status]}</Badge>
       {deliveries.length > 0 && progress.total > 0 && (
         <Badge tone={progress.done === progress.total ? 'success' : progress.partial ? 'warning' : 'neutral'}>
@@ -180,6 +184,7 @@ function PurchaseOrderModal({
   const [comment, setComment] = useState(order.comment);
   const [invoiceNumber, setInvoiceNumber] = useState(order.invoiceNumber);
   const [invoiceDate, setInvoiceDate] = useState(dateInputValue(order.invoiceDate));
+  const [invoiceAmount, setInvoiceAmount] = useState(order.invoiceAmount == null ? '' : String(order.invoiceAmount));
   const [paymentNumber, setPaymentNumber] = useState(order.paymentNumber);
   const [paymentDate, setPaymentDate] = useState(dateInputValue(order.paymentDate));
   const [paymentAmount, setPaymentAmount] = useState(order.paymentAmount == null ? '' : String(order.paymentAmount));
@@ -281,6 +286,7 @@ function PurchaseOrderModal({
     comment !== order.comment ||
     invoiceNumber !== order.invoiceNumber ||
     invoiceDate !== dateInputValue(order.invoiceDate) ||
+    invoiceAmount !== (order.invoiceAmount == null ? '' : String(order.invoiceAmount)) ||
     paymentNumber !== order.paymentNumber ||
     paymentDate !== dateInputValue(order.paymentDate) ||
     paymentAmount !== (order.paymentAmount == null ? '' : String(order.paymentAmount)) ||
@@ -296,12 +302,15 @@ function PurchaseOrderModal({
       const persisted = await persistReceiverDraft(receiver, receivers, order.legalEntityId);
       if (persisted.receivers !== receivers) setReceivers(persisted.receivers);
       const amount = paymentAmount.replace(',', '.').trim();
+      const invoiceAmountValue = invoiceAmount.replace(',', '.').trim();
       const next = await updatePurchaseOrder(order.id, {
         deliveryAddress,
         deliveryDue: deliveryDue || null,
         comment,
         invoiceNumber,
         invoiceDate: invoiceDate || null,
+        // Нечисловую сумму не пишем — та же причина, что у paymentAmount ниже.
+        invoiceAmount: invoiceAmountValue && Number.isFinite(Number(invoiceAmountValue)) ? Number(invoiceAmountValue) : null,
         paymentNumber,
         paymentDate: paymentDate || null,
         // Нечисловую сумму не пишем: колонка numeric, и строка «оплачено»
@@ -355,6 +364,26 @@ function PurchaseOrderModal({
       onDeleted(order.id);
     } catch (e) {
       setError(errorMessage(e, 'Не удалось удалить заказ'));
+    }
+  }
+
+  // Удаление одной позиции из заказа — когда часть отобранного у поставщика
+  // по факту стала неактуальной (заказали в другом месте), а весь заказ
+  // из-за этого не отменяют. total пересчитывается сразу (updatePurchaseOrderItems).
+  async function removeItem(itemId: string) {
+    const item = order.items.find((it) => it.id === itemId);
+    if (!item) return;
+    if (!window.confirm(`Убрать позицию «${item.name}» из заказа?`)) return;
+    setError(null);
+    try {
+      const next = await updatePurchaseOrderItems(
+        order.id,
+        order.items.filter((it) => it.id !== itemId),
+        order.delivery,
+      );
+      onChanged(next);
+    } catch (e) {
+      setError(errorMessage(e, 'Не удалось убрать позицию'));
     }
   }
 
@@ -426,6 +455,15 @@ function PurchaseOrderModal({
                 <span className="whitespace-nowrap font-semibold tabular-nums text-ink">
                   {formatMoney(purchaseItemTotal(item), order.currency)}
                 </span>
+                <button
+                  type="button"
+                  onClick={() => void removeItem(item.id)}
+                  aria-label="Убрать позицию из заказа"
+                  title="Убрать позицию из заказа"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-danger"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
                 {item.note && <span className="w-full text-[11px] text-ink-faint">{item.note}</span>}
                 {got > 0 && item.quantity != null && (
                   <span className={cn('w-full text-[11px]', full ? 'text-success' : 'text-warning')}>
@@ -449,6 +487,12 @@ function PurchaseOrderModal({
             <span className="text-ink">Итого</span>
             <span className="tabular-nums text-ink">{formatMoney(order.total, order.currency)}</span>
           </div>
+          {order.invoiceAmount != null && (
+            <div className="flex items-baseline justify-between gap-2 text-sm">
+              <span className="text-ink-muted">Сумма по счёту{order.invoiceNumber ? ` № ${order.invoiceNumber}` : ''}</span>
+              <span className="tabular-nums text-ink">{formatMoney(order.invoiceAmount, order.currency)}</span>
+            </div>
+          )}
         </div>
 
         {/* Счёт и оплата. Плановый платёж в «Транзакции» не заводится
@@ -459,6 +503,14 @@ function PurchaseOrderModal({
           <div className="grid gap-3 sm:grid-cols-2">
             <Input label="Счёт №" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="1806" />
             <Input label="Дата счёта" type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+            <Input
+              label="Сумма по счёту"
+              value={invoiceAmount}
+              onChange={(e) => setInvoiceAmount(e.target.value)}
+              inputMode="decimal"
+              placeholder={String(order.total)}
+              helperText="Фактическая сумма счёта — может отличаться от суммы заказа (целые упаковки вместо объёма ведомости)"
+            />
           </div>
           <FileField label="Файл счёта" file={order.invoiceFile} onChange={(f) => void saveFile('invoiceFile', f)} />
           <div className="grid gap-3 sm:grid-cols-2">

@@ -69,6 +69,11 @@ export interface PurchaseOrder {
   invoiceNumber: string;
   invoiceDate: string | null;
   invoiceFile: DocumentFile | null;
+  // Сумма по самому счёту — отдельно от total (тот считается по цене за
+  // единицу ВЕДОМОСТИ) и от paymentAmount (что реально заплатили): счёт
+  // приходит на целые упаковки и почти всегда чуть отличается от объёмного
+  // расчёта, а платить могли ещё не успеть.
+  invoiceAmount: number | null;
   paymentNumber: string;
   paymentDate: string | null;
   // Сумма платежа отдельно от total: платят и частями (предоплата 50 %), и
@@ -108,6 +113,7 @@ export interface PurchaseOrderRow {
   invoice_number: string | null;
   invoice_date: string | null;
   invoice_file: DocumentFile | null;
+  invoice_amount: number | string | null;
   payment_number: string | null;
   payment_date: string | null;
   payment_amount: number | string | null;
@@ -193,7 +199,10 @@ export interface OrderDraftSupplier {
   offerId: string;
   name: string;
   supplierId: string | null;
-  // Валюта карточки поставщика и сумма строк-доставок из последнего счёта.
+  // Валюта СУММЫ ДОСТАВКИ (строки последнего счёта или условий того же
+  // счёта), а не валюта карточки поставщика по умолчанию — иначе рублёвая
+  // доставка при долларовой карточке молча выпадала бы из заказа (сверка
+  // currency === draft.currency ниже её бы не нашла).
   currency: Currency;
   delivery: number | null;
 }

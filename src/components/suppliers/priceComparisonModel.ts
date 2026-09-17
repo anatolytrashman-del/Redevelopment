@@ -1,4 +1,4 @@
-import { convertToUsd } from '../../lib/currencyConvert';
+import { convertCurrency, convertToUsd } from '../../lib/currencyConvert';
 import { currencySymbols, type Currency } from '../../data/transactions';
 import type { ExchangeRate } from '../../data/exchangeRates';
 import type { Estimate, EstimateMaterial, EstimateSection } from '../../data/estimates';
@@ -42,6 +42,20 @@ export interface Cell {
   // Keramogranit.ru посчитал 713 м² из 992 — ячейка должна это показывать).
   quotedQuantity: number | null;
   quotedUnit: string;
+  // 1-клик «не покупаем у этого поставщика» (владелец, 2026-09-17): цена и
+  // позиция остаются в сравнении и в отчёте руководителю стройки — просто
+  // не идут в заказ. Хранится на самой строке счёта (PurchaseItem), тем же
+  // способом, что и matchKind, — не путать с ним: 'none' значит «это вообще
+  // не позиция ведомости», а excludedFromSupply — «позиция та, просто не у
+  // этого поставщика».
+  excludedFromSupply: boolean;
+  // Позиция есть в счёте поставщика, но НЕ в его самом последнем счёте —
+  // владелец, 2026-09-17: запросил у поставщиков новые счета только на
+  // финально отобранные материалы, и цены на остальные позиции ведомости
+  // не должны из-за этого пропадать из сравнения — они нужны в отчёте
+  // руководителю как цены альтернатив. true — цена архивная, из более
+  // раннего (обычно более широкого) КП того же поставщика.
+  isArchived: boolean;
 }
 
 // Откуда взялась цена ячейки с точки зрения НДС:
@@ -74,15 +88,52 @@ export interface UnmatchedLine {
   item: PurchaseItem;
   quoteId: string | null;
   quoteTitle: string;
+  // Валюта СЧЁТА, из которого строка (а не карточки поставщика): счёт
+  // приходит в рублях, пока карточка по умолчанию заведена в долларах, и
+  // подписывать такую строку знаком доллара нельзя.
+  currency: Currency;
+}
+
+// Строка счёта, про которую человек уже решил, что она не позиция ведомости
+// ('none'): колеровка, учтённая в цене краски, товар не из ведомости. В
+// сравнении не участвует и внимания не просит, но из счёта не исчезает —
+// иначе «полностью распознанный счёт» на экране не сходится с бумажным.
+export interface AsideLine {
+  item: PurchaseItem;
+  quoteId: string | null;
+  quoteTitle: string;
+  total: number;
+  currency: Currency;
 }
 
 export interface Column {
   offer: SupplierOffer;
+  // Все известные цены поставщика по позициям — включая архивные (не из
+  // последнего счёта) и «не покупаем» (excludedFromSupply). Для ЭКРАНА
+  // сравнения и отчёта руководителю: там нужны все цены, в том числе те,
+  // что не идут в заказ.
   cells: Map<string, Cell>;
+  // Подмножество cells, которое реально можно заказать у этого поставщика
+  // ПРЯМО СЕЙЧАС: без архивных цен (их нет в последнем счёте — поставщик мог
+  // их уже не подтвердить) и без вручную исключённых. Владелец, 2026-09-17:
+  // «Всё у одного», «Выбрать все» и ранжирование поставщиков (заказать всю
+  // ведомость у одного) должны считать по РЕАЛЬНОМУ покрытию, а не по
+  // случайно накопленной истории цен — иначе полный заказ у поставщика,
+  // который давно ничего не отвечал по половине позиций, выглядел бы полным.
+  currentCells: Map<string, Cell>;
   // Сумма строк-доставок из последнего счёта (null — в счёте доставки нет).
   delivery: number | null;
+  // Валюта доставки — валюта того же счёта (или условий), откуда она взята.
+  // Отдельным полем, потому что offer.currency у карточки поставщика живёт
+  // своей жизнью: у половины российских карточек там остался дефолтный USD,
+  // а счета рублёвые (владелец, 2026-09-17: «плинтус посчитался в долларах,
+  // хотя поставка рублевая»).
+  deliveryCurrency: Currency;
   // Строки последнего счёта с ценой, не привязанные ни к позиции, ни к доставке.
   unmatched: UnmatchedLine[];
+  // Строки того же счёта, помеченные «не позиция ведомости», и их сумма.
+  aside: AsideLine[];
+  asideTotal: number;
   quotesCount: number;
   lastQuoteAt: string | null;
   // Условия последнего КП (шаг 6 плана закупок): срок, предоплата, НДС,
@@ -111,8 +162,17 @@ export function buildColumns(
   const byId = new Map(positions.map((p) => [p.id, p]));
   return offers.map((offer) => {
     const quotes = quotesByOffer.get(offer.id) ?? [];
-    // Счета — в хронологии, чтобы последняя цена перекрывала прежнюю. Без
-    // строк КП (старые карточки, до 2026-09-11) — позиции самой карточки.
+    // Хронология: доставка, условия и непривязанные строки берутся из ОДНОГО
+    // — самого свежего — счёта, где вообще была хоть какая-то цена (см. ниже
+    // про currentSourceId). Цены за позиции — иначе: владелец, 2026-09-17,
+    // сузил закупку до финально отобранных материалов и запросил у
+    // поставщиков новые счета ТОЛЬКО на них, а цены на остальные позиции
+    // ведомости из старых широких счетов из-за этого пропадали из
+    // сравнения — хотя нужны в отчёте руководителю как цены альтернатив.
+    // Поэтому цены сводятся по ВСЕМ счетам поставщика: более новый счёт
+    // перекрывает цену на ту же позицию, а позиция, которой в новом узком
+    // счёте нет, остаётся ценой из более раннего (архивной, см. Cell.isArchived).
+    // Без строк КП (старые карточки, до 2026-09-11) — позиции самой карточки.
     const sources: {
       id: string | null;
       title: string;
@@ -124,16 +184,23 @@ export function buildColumns(
       quotes.length > 0
         ? quotes.map((q) => ({ id: q.id, title: q.title, items: q.items, currency: q.currency, date: q.createdAt, terms: q.terms }))
         : [{ id: null, title: 'Позиции карточки', items: offer.items, currency: offer.currency, date: null, terms: null }];
-    const cells = new Map<string, Cell>();
-    let delivery: number | null = null;
-    let unmatched: UnmatchedLine[] = [];
-    let lastQuoteAt: string | null = null;
-    let terms: QuoteTerms | null = null;
-    for (const src of sources) {
+
+    function readSource(src: (typeof sources)[number]) {
+      const srcCells = new Map<string, Cell>();
       let srcDelivery: number | null = null;
       const srcUnmatched: UnmatchedLine[] = [];
+      const srcAside: AsideLine[] = [];
       let priced = false;
       for (const item of src.items) {
+        // Человек уже сказал, что это не позиция ведомости — счёт по ней
+        // разобран, и место такой строки в отдельном тихом списке, а не в
+        // оранжевом «не привязаны». Проверка стоит до доставки: «Колеровка
+        // ... подъём» из счёта КраскиТорг иначе утекла бы в доставку.
+        if (item.matchKind === 'none') {
+          const total = purchaseItemTotal(item) || item.price || 0;
+          if (total > 0) srcAside.push({ item, quoteId: src.id, quoteTitle: src.title, total, currency: src.currency });
+          continue;
+        }
         if (isDeliveryItem(item)) {
           const total = purchaseItemTotal(item) || item.price || 0;
           if (total > 0) srcDelivery = (srcDelivery ?? 0) + total;
@@ -141,18 +208,18 @@ export function buildColumns(
         }
         const position = item.sourceMaterialId ? byId.get(item.sourceMaterialId) : undefined;
         if (!position) {
-          if (item.price != null && item.price > 0) srcUnmatched.push({ item, quoteId: src.id, quoteTitle: src.title });
+          if (item.price != null && item.price > 0) srcUnmatched.push({ item, quoteId: src.id, quoteTitle: src.title, currency: src.currency });
           continue;
         }
         const unitPrice = unitPriceOf(item, position);
         if (unitPrice == null) {
           // Привязана, но цену за единицу сметы никто не посчитал — для
           // человека это тоже «не привязано до конца».
-          if (item.price != null && item.price > 0) srcUnmatched.push({ item, quoteId: src.id, quoteTitle: src.title });
+          if (item.price != null && item.price > 0) srcUnmatched.push({ item, quoteId: src.id, quoteTitle: src.title, currency: src.currency });
           continue;
         }
         priced = true;
-        cells.set(position.id, {
+        srcCells.set(position.id, {
           offerId: offer.id,
           itemId: item.id,
           quoteId: src.id,
@@ -172,20 +239,57 @@ export function buildColumns(
           usdUnit: convertToUsd(unitPrice, src.currency, rate),
           quotedQuantity: item.quantity,
           quotedUnit: item.unit,
+          excludedFromSupply: item.excludedFromSupply === true,
+          isArchived: false,
         });
       }
-      // Доставку и несопоставленные строки берём из последнего счёта, где
-      // вообще были цены: наша ведомость, распознанная как «счёт» без цен,
-      // не должна стирать доставку из настоящего счёта.
-      if (priced || srcDelivery != null || srcUnmatched.length > 0) {
-        delivery = srcDelivery;
-        unmatched = srcUnmatched;
-        // Условия берём того же КП, что и доставку: смешивать срок из одного
-        // счёта с ценой из другого нельзя.
+      return { srcCells, srcDelivery, srcUnmatched, srcAside, priced };
+    }
+
+    const perSource = sources.map(readSource);
+
+    let delivery: number | null = null;
+    let unmatched: UnmatchedLine[] = [];
+    let aside: AsideLine[] = [];
+    let lastQuoteAt: string | null = null;
+    let terms: QuoteTerms | null = null;
+    // Валюта счёта, из которого взяты доставка и условия, — ею и подписываем
+    // доставку (см. deliveryCurrency в Column).
+    let sourceCurrency: Currency | null = null;
+    // id счёта, который считается «действующим» — от него берутся доставка,
+    // условия и непривязанные строки. Цены за позиции из него же — «свежие»,
+    // из более ранних счетов — архивные (Cell.isArchived).
+    let currentSourceId: string | null | undefined;
+    // Идём от новых счетов к старым и останавливаемся на первом, где вообще
+    // была хоть какая-то цена (позиция, доставка или непривязанная строка):
+    // ведомость, случайно распознанная как «счёт» без цен, не должна
+    // вытеснять настоящий предыдущий счёт.
+    for (let srcIndex = sources.length - 1; srcIndex >= 0; srcIndex -= 1) {
+      const src = sources[srcIndex];
+      const r = perSource[srcIndex];
+      if (r.priced || r.srcDelivery != null || r.srcUnmatched.length > 0) {
+        delivery = r.srcDelivery;
+        unmatched = r.srcUnmatched;
+        aside = r.srcAside;
         terms = src.terms;
+        sourceCurrency = src.currency;
+        currentSourceId = src.id;
         if (src.date) lastQuoteAt = src.date;
+        break;
       }
     }
+
+    // Цены по позициям — сведены по всем счетам: более новый счёт перекрывает
+    // цену на ту же позицию (sources идут от старых к новым), позиция без
+    // цены в новом счёте берёт цену из более старого (isArchived = true).
+    const cells = new Map<string, Cell>();
+    for (const r of perSource) {
+      r.srcCells.forEach((cell, positionId) => cells.set(positionId, cell));
+    }
+    cells.forEach((cell) => {
+      cell.isArchived = cell.quoteId !== currentSourceId;
+    });
+
     // Доставка: числом из строки счёта, а если её там нет — из условий КП
     // (менеджер назвал сумму в письме). Приоритет у строки счёта: она
     // подтверждена документом.
@@ -196,11 +300,18 @@ export function buildColumns(
     const effectiveTerms = terms ?? offer.terms ?? null;
     const deliveryTotal =
       delivery ?? (typeof effectiveTerms?.deliveryCost === 'number' ? effectiveTerms.deliveryCost : null);
+    const currentCells = new Map([...cells].filter(([, cell]) => !cell.isArchived && !cell.excludedFromSupply));
     return {
       offer,
       cells,
+      currentCells,
       delivery: deliveryTotal,
+      // Доставка из строки счёта или из условий того же счёта — в его валюте;
+      // доставка из условий карточки — в валюте карточки.
+      deliveryCurrency: (delivery != null || terms != null ? sourceCurrency : null) ?? offer.currency,
       unmatched,
+      aside,
+      asideTotal: aside.reduce((sum, line) => sum + line.total, 0),
       quotesCount: quotes.length,
       lastQuoteAt,
       terms: effectiveTerms,
@@ -225,23 +336,36 @@ export interface MoneyPart {
   currency: Currency;
 }
 
+// В какой валюте показывать смешанный набор сумм: в той, в которой названо
+// БОЛЬШИНСТВО из них, а не в долларах всегда. Владелец, 2026-09-17: «почему-то
+// плинтус посчитался в долларах, хотя поставка рублевая» — там из пяти счетов
+// рублёвыми были четыре, а доллар вылезал из пятого (и из дефолтной валюты
+// карточек поставщиков). Считаем по числу сумм, при равенстве — валюта первой:
+// порядок столбцов не случаен, слева идёт самое выгодное предложение.
+export function dominantCurrency(parts: MoneyPart[]): Currency | null {
+  if (parts.length === 0) return null;
+  const counts = new Map<Currency, number>();
+  for (const p of parts) counts.set(p.currency, (counts.get(p.currency) ?? 0) + 1);
+  let best = parts[0].currency;
+  for (const p of parts) {
+    if ((counts.get(p.currency) ?? 0) > (counts.get(best) ?? 0)) best = p.currency;
+  }
+  return best;
+}
+
 // Сумма набора «сумма в валюте» → одна строка: если валюта одна — в ней,
-// иначе в долларах по курсу дня (два поставщика из разных стран в одном
-// отборе — редкость, но не ошибка).
+// иначе в валюте большинства по курсу дня (два поставщика из разных стран в
+// одном отборе — редкость, но не ошибка).
 export function sumMoney(parts: MoneyPart[], rate: ExchangeRate | undefined): string {
   if (parts.length === 0) return '—';
-  const currencies = new Set(parts.map((p) => p.currency));
-  if (currencies.size === 1) {
-    const currency = parts[0].currency;
-    return formatMoney(parts.reduce((a, p) => a + p.amount, 0), currency);
-  }
-  let usd = 0;
+  const currency = dominantCurrency(parts)!;
+  let sum = 0;
   for (const p of parts) {
-    const v = convertToUsd(p.amount, p.currency, rate);
+    const v = convertCurrency(p.amount, p.currency, currency, rate);
     if (v == null) return 'разные валюты, нет курса';
-    usd += v;
+    sum += v;
   }
-  return formatMoney(usd, 'USD');
+  return formatMoney(sum, currency);
 }
 
 // Отношение цены ячейки к цене отобранной в той же строке: «+36 %» / «−2 %».

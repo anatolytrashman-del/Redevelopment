@@ -40,9 +40,11 @@ import {
 } from '../../lib/supplierResearchApi';
 import { updateSupplierQuoteItems } from '../../lib/supplierQuotesApi';
 import { getCurrentProfile } from '../../lib/accessProfile';
+import { riskSummary, shouldFlag, type SupplierReliability } from '../../data/supplierReliability';
 import { authFetch } from '../../lib/authFetch';
 import { emailSignature } from './SupplierCorrespondenceTab';
 import { errorMessage } from '../../lib/errorMessage';
+import { downloadHtmlAsPdf } from '../../lib/htmlToPdf';
 import { sameUnit } from '../../lib/units';
 import { guessUnitPrice } from '../../lib/unitPriceGuess';
 import { grossUp, vatRateForCountry } from '../../data/vat';
@@ -66,6 +68,7 @@ import {
   type UnmatchedLine,
 } from './priceComparisonModel';
 import { buildPrintHtml, buildProposalEmailHtml, hostOf, hrefOf, type ComparisonDoc } from './priceComparisonPrint';
+import { SingleSupplierPanel } from './SingleSupplierPanel';
 
 // Владелец, 2026-09-15: «Пришла пора разобраться со сравнением цен... исходя
 // из этой страницы я ничего не понимаю». Старое сравнение группировало
@@ -111,9 +114,20 @@ const KIND_TONE: Record<PurchaseItemMatchKind, string> = {
   alternative: 'bg-warning-bg text-warning',
   check: 'bg-danger-bg text-danger',
   delivery: 'bg-surface-muted text-ink-muted',
+  none: 'bg-surface-muted text-ink-faint',
 };
 
 const KIND_CYCLE: PurchaseItemMatchKind[] = ['exact', 'alternative', 'check'];
+
+// Подсказку модели есть что записать, если человек её принял И у строки есть
+// исход: позиция ведомости, доставка либо явное «это не позиция ведомости»
+// (колеровка в цене краски, товар не из ведомости). Последнее с 2026-09-17
+// тоже пишется в базу — раньше выбор «не материал ведомости» не сохранялся
+// никак, и строка возвращалась в «не привязаны» при следующем открытии.
+function applicableSuggestion(r: SuggestionRow): boolean {
+  if (!r.accepted) return false;
+  return r.kind === 'delivery' || r.kind === 'none' || !!r.positionId;
+}
 
 // Ниже этого порога автосопоставление (шаг 5 плана закупок) просит человека
 // взглянуть. 0.8 выбрано по живому прогону на счёте КраскиТорг 2026-09-16:
@@ -239,7 +253,7 @@ export function preparedBy(): string {
 }
 
 function KindTag({ kind, onClick, title }: { kind: PurchaseItemMatchKind; onClick?: () => void; title?: string }) {
-  const label = kind === 'exact' ? 'ровно' : PURCHASE_ITEM_MATCH_KIND_LABELS[kind];
+  const label = PURCHASE_ITEM_MATCH_KIND_LABELS[kind];
   const className = cn('inline-block rounded-full px-1.5 py-px text-[10.5px] font-semibold leading-relaxed', KIND_TONE[kind], onClick && 'cursor-pointer hover:ring-1 hover:ring-current');
   if (!onClick) return <span className={className}>{label}</span>;
   return (
@@ -296,6 +310,7 @@ interface ItemPatch {
   // от «забыли пересчитать» и пометит цену как заниженную.
   vatIncluded?: boolean | null;
   vatRate?: number | null;
+  excludedFromSupply?: boolean;
 }
 
 interface SuggestionRow {
@@ -325,8 +340,8 @@ export function PriceComparisonCard({
   onRequestSaved,
   onQuotesChange,
   onOfferUpdated,
-  onExportBestPrices,
   renderBadges,
+  reliabilityByInn,
 }: {
   request: SupplierRequest;
   // Материалы раздела сметы, к которому привязан запрос, — то, что реально
@@ -348,12 +363,13 @@ export function PriceComparisonCard({
   onRequestSaved: (r: SupplierRequest) => void;
   onQuotesChange: (update: (prev: SupplierQuote[]) => SupplierQuote[]) => void;
   onOfferUpdated: (o: SupplierOffer) => void;
-  // Открыть выгрузку «лучшие цены: оригинал и аналог» уже на этой поставке.
-  // Сам диалог живёт на странице: он умеет и охват «все поставки».
-  onExportBestPrices?: () => void;
   // Бейджи верификации/благонадёжности живут в Suppliers.tsx вместе со своим
   // состоянием — сюда приходят готовыми.
   renderBadges: (o: SupplierOffer) => ReactNode;
+  // Проверка по ИНН (Checko) — та же карта, что и у RiskBadge выше по дереву.
+  // Нужна панели «Заказать всё у одного»: владелец, 2026-09-17, «мы никогда
+  // не ставим на первое место поставщика с красными флагами».
+  reliabilityByInn: Map<string, SupplierReliability>;
 }) {
   const [country, setCountry] = useState<string>(SUPPLIER_COUNTRIES[0]);
   const [view, setView] = useState<'Таблица' | 'По позициям'>('Таблица');
@@ -361,6 +377,7 @@ export function PriceComparisonCard({
   const [error, setError] = useState<string | null>(null);
   const [quickMatch, setQuickMatch] = useState<{ offerId: string; positionId: string } | null>(null);
   const [showUnmatched, setShowUnmatched] = useState(false);
+  const [showAside, setShowAside] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [suggestions, setSuggestions] = useState<SuggestionRow[] | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
@@ -371,6 +388,7 @@ export function PriceComparisonCard({
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [creatingOrders, setCreatingOrders] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -398,13 +416,28 @@ export function PriceComparisonCard({
     return map;
   }, [quotes]);
 
+  // Поставщик, у которого уже выбрана хоть одна позиция (лежит в
+  // request.proposal), — всегда вперёд остальных, даже если по числу
+  // закрытых позиций он не лидирует. Владелец, 2026-09-17: закупка теперь
+  // идёт по частям ведомости у разных поставщиков (Банапал — свои позиции,
+  // Альбия — свои, ООО «СтройТерминал Центр Красок» — свои), и поставщик с
+  // 2 закрытыми, но выбранными позициями не должен уезжать в конец таблицы
+  // только потому, что у него меньше позиций, чем у никем не выбранного.
+  const proposalOfferIds = useMemo(() => new Set(Object.values(request.proposal ?? {}).map((p) => p.offerId)), [request.proposal]);
+
   const columns = useMemo(() => {
     const cols = buildColumns(confirmed, quotesByOffer, positions, rate);
-    // Порядок столбцов — по числу закрытых позиций, потом по имени; от цены
-    // не зависит (см. шапку файла про минимум).
-    return cols.sort((a, b) => b.cells.size - a.cells.size || a.offer.name.localeCompare(b.offer.name, 'ru'));
+    // Порядок столбцов: сначала выбранные поставщики, среди них и среди
+    // остальных — по числу закрытых позиций, потом по имени; от цены не
+    // зависит (см. шапку файла про минимум).
+    return cols.sort((a, b) => {
+      const aPicked = proposalOfferIds.has(a.offer.id);
+      const bPicked = proposalOfferIds.has(b.offer.id);
+      if (aPicked !== bPicked) return aPicked ? -1 : 1;
+      return b.currentCells.size - a.currentCells.size || a.offer.name.localeCompare(b.offer.name, 'ru');
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [confirmed.map((o) => o.id + o.items.length).join(','), quotesByOffer, positions, rate]);
+  }, [confirmed.map((o) => o.id + o.items.length).join(','), quotesByOffer, positions, rate, proposalOfferIds]);
 
   // Воронка запроса — по всем поставщикам выбранной страны, не только по
   // приславшим КП (владелец: «сколько отправлено — главная отправная точка»).
@@ -414,7 +447,12 @@ export function PriceComparisonCard({
     const out = mine.filter((e) => e.direction === 'out');
     const inbound = mine.filter((e) => e.direction === 'in');
     const sentIds = new Set(out.map((e) => e.offerId));
-    const repliedIds = new Set(inbound.map((e) => e.offerId));
+    // Поставщик, приславший КП, ответил по определению — даже если самого
+    // ответа в переписке нет: счёт бывает залит руками, а договорённость —
+    // по телефону. Без объединения в отчёте выходило «ответили 10» рядом с
+    // «прислали КП 12» (владелец, 2026-09-17).
+    const confirmedIds = new Set(confirmed.map((o) => o.id));
+    const repliedIds = new Set([...inbound.map((e) => e.offerId), ...confirmedIds]);
     const dates = mine.map((e) => e.createdAt).sort();
     const quotesCount = confirmed.reduce((a, o) => a + (quotesByOffer.get(o.id)?.length ?? 0), 0);
     const pricedPositions = positions.filter((p) => columns.some((c) => c.cells.has(p.id))).length;
@@ -427,7 +465,7 @@ export function PriceComparisonCard({
       sent: sentIds.size,
       letters: out.length,
       replied: repliedIds.size,
-      repliedNoQuote: [...repliedIds].filter((id) => !confirmed.some((o) => o.id === id)).length,
+      repliedNoQuote: [...repliedIds].filter((id) => !confirmedIds.has(id)).length,
       confirmed: confirmed.length,
       quotesCount,
       pricedPositions,
@@ -447,7 +485,7 @@ export function PriceComparisonCard({
   const pickedDelivery: MoneyPart[] = [...pickedOfferIds]
     .map((id) => columnById.get(id))
     .filter((c): c is Column => !!c && c.delivery != null)
-    .map((c) => ({ amount: c.delivery!, currency: c.offer.currency }));
+    .map((c) => ({ amount: c.delivery!, currency: c.deliveryCurrency }));
   const kinds = pickedCells.reduce(
     (acc, x) => ({ ...acc, [x.cell.kind]: (acc[x.cell.kind] ?? 0) + 1 }),
     {} as Partial<Record<PurchaseItemMatchKind, number>>,
@@ -456,7 +494,26 @@ export function PriceComparisonCard({
   const pickedCellByPosition = new Map(pickedCells.map((x) => [x.position.id, x.cell]));
 
   const unmatchedAll: { line: UnmatchedLine; offer: SupplierOffer }[] = columns.flatMap((c) => c.unmatched.map((line) => ({ line, offer: c.offer })));
-  const unmatchedSuppliers = columns.filter((c) => c.unmatched.length > 0);
+  // «Не привязаны» и «привязаны, но без цены» — разные ситуации: у первых
+  // нет sourceMaterialId вовсе, у вторых позиция уже выбрана (например,
+  // подсказкой модели), просто цену за единицу сметы никто не посчитал —
+  // единицы счёта и позиции не совпадают буквально, а перевод (тара в кг при
+  // расходе в литрах и т.п.) без выдумывания не сделать. Раньше обе группы
+  // считались вместе под шапкой «не привязаны к ведомости и не участвуют в
+  // сравнении» — владелец, 2026-09-17: строка с уже выбранной позицией это
+  // сообщение не заслуживает, оно про другое.
+  const unmatchedUnlinked = unmatchedAll.filter(({ line }) => !line.item.sourceMaterialId);
+  const unmatchedLinkedNoPrice = unmatchedAll.filter(({ line }) => !!line.item.sourceMaterialId);
+  const unmatchedSuppliers = columns
+    .map((c) => ({ offer: c.offer, count: c.unmatched.filter((l) => !l.item.sourceMaterialId).length }))
+    .filter((x) => x.count > 0);
+  const linkedNoPriceSuppliers = columns
+    .map((c) => ({ offer: c.offer, count: c.unmatched.filter((l) => !!l.item.sourceMaterialId).length }))
+    .filter((x) => x.count > 0);
+  // Разобранные строки «не позиция ведомости» — отдельно от «не привязаны»:
+  // по ним решение принято, и требовать внимания они не должны.
+  const asideSuppliers = columns.filter((c) => c.aside.length > 0);
+  const asideCount = asideSuppliers.reduce((n, c) => n + c.aside.length, 0);
 
   // Сумма после отправки разошлась со снимком — новый счёт поставщика
   // поменял цены, руководитель утверждал другое.
@@ -504,10 +561,52 @@ export function PriceComparisonCard({
     void saveProposal(next);
   }
 
+  // 1-клик «не покупаем у этого поставщика» (владелец, 2026-09-17): цена и
+  // позиция остаются в сравнении и в отчёте руководителю — просто выходят
+  // из заказа. Если строка была отобрана («✓ Отобрано»), выключение из
+  // поставки снимает и отбор — иначе позиция «не покупаем» продолжила бы
+  // считаться в сумме к утверждению.
+  async function toggleExclude(cell: Cell, p: EstimateMaterial) {
+    const next = !cell.excludedFromSupply;
+    const ok = await run('Не удалось изменить статус позиции', () =>
+      applyPatches([{ offerId: cell.offerId, itemId: cell.itemId, patch: { excludedFromSupply: next } }]).then(() => true),
+    );
+    if (ok && next && proposal[p.id]?.offerId === cell.offerId) {
+      const nextProposal = { ...proposal };
+      delete nextProposal[p.id];
+      void saveProposal(nextProposal);
+    }
+  }
+
+  // «Сформировать поставку» (владелец, 2026-09-17): после того как отбор
+  // кнопками «Выбрать» закончен, одним действием доводит решение до конца —
+  // всё, что НЕ отобрано и ещё не помечено «Не покупаем», переводится в «Не
+  // покупаем». Цена и позиция никуда не деваются — остаются в сравнении и
+  // пойдут в отчёт руководителю стройки — просто явно исключены из заказа,
+  // а не молча висят непонятым остатком. Заказы поставщикам эта кнопка не
+  // создаёт — для этого соседняя «Сформировать заказы».
+  async function formSupply() {
+    const patches: { offerId: string; itemId: string; patch: ItemPatch }[] = [];
+    for (const col of columns) {
+      col.cells.forEach((cell, positionId) => {
+        if (cell.excludedFromSupply) return;
+        if (proposal[positionId]?.offerId === cell.offerId) return;
+        patches.push({ offerId: cell.offerId, itemId: cell.itemId, patch: { excludedFromSupply: true } });
+      });
+    }
+    if (patches.length === 0) return;
+    const word = patches.length === 1 ? 'предложение' : patches.length < 5 ? 'предложения' : 'предложений';
+    const ok = window.confirm(`Отклонить ${patches.length} ${word}, которые не отобраны? Цены останутся в сравнении и в отчёте — просто выйдут из поставки.`);
+    if (!ok) return;
+    await run('Не удалось сформировать поставку', () => applyPatches(patches));
+  }
+
   function toggleColumn(col: Column) {
-    const all = [...col.cells.keys()].every((pid) => proposal[pid]?.offerId === col.offer.id);
+    // Массовое «Выбрать все» — только по реально покрытым позициям: архивные
+    // и «не покупаем» цены отбором не трогает (см. Column.currentCells).
+    const all = [...col.currentCells.keys()].every((pid) => proposal[pid]?.offerId === col.offer.id);
     const next = { ...proposal };
-    col.cells.forEach((cell, pid) => {
+    col.currentCells.forEach((cell, pid) => {
       if (all) delete next[pid];
       else next[pid] = { offerId: col.offer.id, itemId: cell.itemId };
     });
@@ -628,21 +727,23 @@ export function PriceComparisonCard({
 
   async function applySuggestions() {
     if (!suggestions) return;
-    const rows = suggestions.filter((r) => r.accepted && (r.kind === 'delivery' || (r.positionId && r.kind !== 'none')));
+    const rows = suggestions.filter((r) => applicableSuggestion(r));
     const patches = rows.map((r) => {
       const unitPrice = r.unitPrice ? Number(r.unitPrice) : NaN;
       const patch: ItemPatch =
         r.kind === 'delivery'
           ? { sourceMaterialId: null, matchKind: 'delivery', unitPrice: null, matchNote: r.note || undefined }
-          : {
-              sourceMaterialId: r.positionId,
-              matchKind: r.kind as PurchaseItemMatchKind,
-              unitPrice: Number.isFinite(unitPrice) && unitPrice > 0 ? unitPrice : null,
-              matchNote: r.note || undefined,
-              ...(r.vat.vatIncluded != null || r.vat.vatRate != null
-                ? { vatIncluded: r.vat.vatIncluded, vatRate: r.vat.vatRate ?? (r.vat.vatIncluded === false ? r.vat.countryRate : null) }
-                : {}),
-            };
+          : r.kind === 'none'
+            ? { sourceMaterialId: null, matchKind: 'none', unitPrice: null, matchNote: r.note || undefined }
+            : {
+                sourceMaterialId: r.positionId,
+                matchKind: r.kind as PurchaseItemMatchKind,
+                unitPrice: Number.isFinite(unitPrice) && unitPrice > 0 ? unitPrice : null,
+                matchNote: r.note || undefined,
+                ...(r.vat.vatIncluded != null || r.vat.vatRate != null
+                  ? { vatIncluded: r.vat.vatIncluded, vatRate: r.vat.vatRate ?? (r.vat.vatIncluded === false ? r.vat.countryRate : null) }
+                  : {}),
+              };
       return { offerId: r.offerId, itemId: r.lineId, patch };
     });
     const ok = await run('Не удалось сохранить сопоставление', () => applyPatches(patches).then(() => true));
@@ -669,7 +770,7 @@ export function PriceComparisonCard({
         offerId: c.offer.id,
         name: c.offer.name,
         supplierId: c.offer.supplierId ?? null,
-        currency: c.offer.currency,
+        currency: c.deliveryCurrency,
         delivery: c.delivery,
       })),
     );
@@ -715,17 +816,20 @@ export function PriceComparisonCard({
     );
   }
 
-  function exportPdf() {
-    const win = window.open('', '_blank', 'width=1000,height=800');
-    if (!win) {
-      setError('Браузер заблокировал окно печати — разрешите всплывающие окна для этого сайта.');
-      return;
+  // Владелец, 2026-09-17: «делай при клике на кнопку На утверждение сразу
+  // загрузку pdf файла» — раньше открывалось окно печати и человек сам
+  // выбирал «сохранить как PDF». Теперь файл собирается на месте
+  // (src/lib/htmlToPdf.ts) и сразу падает в загрузки.
+  async function exportPdf() {
+    setExportingPdf(true);
+    setError(null);
+    try {
+      await downloadHtmlAsPdf(buildPrintHtml(doc()), `${request.title} — на утверждение`);
+    } catch (e) {
+      setError(errorMessage(e, 'Не удалось собрать PDF'));
+    } finally {
+      setExportingPdf(false);
     }
-    win.document.write(buildPrintHtml(doc()));
-    win.document.close();
-    win.focus();
-    // Ждём подгрузку шрифта: без паузы Safari печатает системным.
-    setTimeout(() => win.print(), 500);
   }
 
   const emptyPositions = positions.length === 0;
@@ -746,8 +850,8 @@ export function PriceComparisonCard({
     if (s.offered === 0) return <span className="mt-1 block text-[11px] text-ink-faint">цен пока нет</span>;
     return (
       <span className={cn('mt-1 block text-[11px]', s.exact === 0 ? 'font-semibold text-warning' : 'text-ink-muted')}>
-        {s.exact === 0 ? '«ровно» нет ни у кого · ' : ''}
-        {s.exact ? `ровно ${s.exact}` : ''}
+        {s.exact === 0 ? 'позиции из ведомости нет ни у кого · ' : ''}
+        {s.exact ? `из ведомости ${s.exact}` : ''}
         {s.exact && (s.alternative || s.check) ? ' · ' : ''}
         {s.alternative ? `аналог ${s.alternative}` : ''}
         {s.alternative && s.check ? ' · ' : ''}
@@ -813,18 +917,48 @@ export function PriceComparisonCard({
         <DeltaLabel cell={cell} p={p} />
         <ShortfallLabel cell={cell} p={p} />
         <span className="mt-1 block text-[11.5px] leading-snug text-ink">
-          <KindTag kind={cell.kind} onClick={() => cycleKind(cell)} title="Нажмите, чтобы сменить вид: ровно → аналог → уточнить" />{' '}
+          <KindTag kind={cell.kind} onClick={() => cycleKind(cell)} title="Нажмите, чтобы сменить вид: позиция из ведомости → аналог → уточнить" />{' '}
           {needsReview(cell) && cell.kind !== 'check' && (
             <ReviewTag confidence={cell.matchConfidence} recognition={cell.recognitionConfidence} />
           )}{' '}
           <VatTag vat={cell.vat} rate={cell.vatRate} /> {cell.note}
         </span>
+        {cell.isArchived && (
+          <span
+            className="mt-1 block text-[11px] font-semibold text-ink-faint"
+            title="Этой позиции нет в самом последнем счёте поставщика — цена из более раннего КП, оставлена для отчёта"
+          >
+            архив{cell.quoteDate ? ` · счёт от ${formatDate(cell.quoteDate)}` : ''}
+          </span>
+        )}
+        {cell.excludedFromSupply && <span className="mt-1 block text-[11px] font-semibold text-warning">не покупаем — цена для отчёта</span>}
         {cell.productUrl && (
           <span className="mt-1 block">
             <ProductLink url={cell.productUrl} />
           </span>
         )}
       </>
+    );
+  }
+
+  // 1-клик «не покупаем у этого поставщика»: рядом с «Выбрать», не заменяет
+  // его — владелец, 2026-09-17, специально просил уровень ячейки (материал ×
+  // поставщик), а не всю строку ведомости.
+  function ExcludeToggle({ cell, p, className }: { cell: Cell; p: EstimateMaterial; className?: string }) {
+    return (
+      <button
+        type="button"
+        disabled={saving}
+        onClick={() => void toggleExclude(cell, p)}
+        title={cell.excludedFromSupply ? 'Вернуть позицию в возможную поставку' : 'Не покупаем эту позицию у этого поставщика — цена останется в сравнении и в отчёте'}
+        className={cn(
+          'rounded-full border px-2.5 py-0.5 text-[11px] font-semibold',
+          cell.excludedFromSupply ? 'border-warning bg-warning-bg text-warning' : 'border-border-strong bg-surface text-ink-faint hover:border-ink hover:text-ink',
+          className,
+        )}
+      >
+        {cell.excludedFromSupply ? '↺ Вернуть' : '✕ Не покупаем'}
+      </button>
     );
   }
 
@@ -861,7 +995,7 @@ export function PriceComparisonCard({
         <select value={lineId} onChange={(e) => pickLine(e.target.value)} className="rounded-control border border-border bg-surface-muted px-2 py-1 text-xs text-ink outline-none focus:border-primary">
           {col.unmatched.map((l) => (
             <option key={l.item.id} value={l.item.id}>
-              {l.item.name} · {l.item.quantity ?? '—'} {l.item.unit} · {l.item.price != null ? formatUnit(l.item.price, col.offer.currency) : ''}
+              {l.item.name} · {l.item.quantity ?? '—'} {l.item.unit} · {l.item.price != null ? formatUnit(l.item.price, l.currency) : ''}
             </option>
           ))}
         </select>
@@ -935,8 +1069,8 @@ export function PriceComparisonCard({
   }
 
   function ColumnHeader({ col }: { col: Column }) {
-    const mine = [...col.cells.keys()].filter((pid) => proposal[pid]?.offerId === col.offer.id).length;
-    const all = col.cells.size;
+    const mine = [...col.currentCells.keys()].filter((pid) => proposal[pid]?.offerId === col.offer.id).length;
+    const all = col.currentCells.size;
     const age = quoteAgeDays(col.lastQuoteAt);
     return (
       <>
@@ -951,7 +1085,7 @@ export function PriceComparisonCard({
           )}
           {col.quotesCount > 1 && <span className="rounded-full bg-surface px-1.5 py-px text-ink-muted">{col.quotesCount} {col.quotesCount < 5 ? 'счёта' : 'счетов'}, последние цены</span>}
           <span className={cn('rounded-full px-1.5 py-px', col.delivery != null ? 'bg-surface text-ink' : 'bg-surface text-ink-faint')}>
-            {col.delivery != null ? `доставка ${formatMoney(col.delivery, col.offer.currency)}` : 'доставка не названа'}
+            {col.delivery != null ? `доставка ${formatMoney(col.delivery, col.deliveryCurrency)}` : 'доставка не названа'}
           </span>
           {col.unmatched.length > 0 && (
             <span className="rounded-full bg-warning-bg px-1.5 py-px text-warning">
@@ -990,9 +1124,12 @@ export function PriceComparisonCard({
   function columnTotals(col: Column) {
     const mine = positions.filter((p) => proposal[p.id]?.offerId === col.offer.id && col.cells.has(p.id));
     const partsPicked: MoneyPart[] = mine.map((p) => ({ amount: col.cells.get(p.id)!.unitPrice * (p.quantity ?? 0), currency: col.cells.get(p.id)!.currency }));
-    const covered = positions.filter((p) => col.cells.has(p.id));
-    const partsAll: MoneyPart[] = covered.map((p) => ({ amount: col.cells.get(p.id)!.unitPrice * (p.quantity ?? 0), currency: col.cells.get(p.id)!.currency }));
-    const delivery: MoneyPart[] = col.delivery != null ? [{ amount: col.delivery, currency: col.offer.currency }] : [];
+    // «Всё у одного» — только по currentCells: архивная (не из последнего
+    // счёта) или исключённая цена не значит, что поставщик реально поставит
+    // это сегодня.
+    const covered = positions.filter((p) => col.currentCells.has(p.id));
+    const partsAll: MoneyPart[] = covered.map((p) => ({ amount: col.currentCells.get(p.id)!.unitPrice * (p.quantity ?? 0), currency: col.currentCells.get(p.id)!.currency }));
+    const delivery: MoneyPart[] = col.delivery != null ? [{ amount: col.delivery, currency: col.deliveryCurrency }] : [];
     return { mine, partsPicked, covered, partsAll, delivery };
   }
 
@@ -1017,13 +1154,20 @@ export function PriceComparisonCard({
               Очистить отбор
             </Button>
           )}
-          {onExportBestPrices && (
-            <Button type="button" variant="secondary" icon={<FileDown className="h-4 w-4" />} onClick={onExportBestPrices}>
-              Лучшие цены
+          {!emptyPositions && columns.length > 0 && (
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<Check className="h-4 w-4" />}
+              disabled={saving}
+              onClick={() => void formSupply()}
+              title="Все предложения, которые не отобраны кнопкой «Выбрать» и ещё не помечены «Не покупаем», станут «Не покупаем» — цены останутся в сравнении и в отчёте"
+            >
+              Сформировать поставку
             </Button>
           )}
-          <Button type="button" variant="secondary" icon={<FileDown className="h-4 w-4" />} onClick={exportPdf}>
-            На утверждение
+          <Button type="button" variant="secondary" icon={<FileDown className="h-4 w-4" />} onClick={() => void exportPdf()} disabled={exportingPdf}>
+            {exportingPdf ? 'Готовим PDF…' : 'На утверждение'}
           </Button>
         </div>
       </div>
@@ -1095,11 +1239,11 @@ export function PriceComparisonCard({
         <div className="flex flex-col gap-0.5 rounded-control border border-border bg-surface-muted px-4 py-3">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Соответствие ведомости</span>
           <span className="text-xl font-bold tabular-nums text-ink">
-            {kinds.exact ?? 0} <span className="text-xs font-medium text-ink-muted">ровно</span> · {kinds.alternative ?? 0}{' '}
+            {kinds.exact ?? 0} <span className="text-xs font-medium text-ink-muted">из ведомости</span> · {kinds.alternative ?? 0}{' '}
             <span className="text-xs font-medium text-ink-muted">аналог</span> · {kinds.check ?? 0} <span className="text-xs font-medium text-ink-muted">уточнить</span>
           </span>
           <span className="text-xs text-ink-muted">
-            {kinds.check ? 'по позициям «уточнить» нужен ответ поставщика до заказа' : kinds.alternative ? 'аналоги согласовать по карточкам товара' : 'среди отобранного всё ровно по ведомости'}
+            {kinds.check ? 'по позициям «уточнить» нужен ответ поставщика до заказа' : kinds.alternative ? 'аналоги согласовать по карточкам товара' : 'всё отобранное — позиции из ведомости'}
           </span>
         </div>
         <div className="flex flex-col gap-0.5 rounded-control border border-border bg-surface-muted px-4 py-3">
@@ -1113,6 +1257,22 @@ export function PriceComparisonCard({
         </div>
       </div>
 
+      {/* Ответ на «где заказать всё сразу» — до таблицы: сетка из позиций и
+          поставщиков глазами не сравнивается (владелец, 2026-09-17). */}
+      {!emptyPositions && columns.length > 1 && (
+        <SingleSupplierPanel
+          columns={columns}
+          positions={positions}
+          rate={rate}
+          saving={saving}
+          onPickAll={toggleColumn}
+          riskOf={(o) => {
+            const r = o.inn ? reliabilityByInn.get(o.inn) ?? null : null;
+            return shouldFlag(r) && r ? { level: r.riskLevel === 'danger' ? 'danger' : 'warn', summary: riskSummary(r) } : null;
+          }}
+        />
+      )}
+
       {error && <p className="text-sm text-danger">{error}</p>}
 
       {/* Строки счетов без привязки — заметно и сверху, а не свёрнуто внизу:
@@ -1121,12 +1281,26 @@ export function PriceComparisonCard({
       {!emptyPositions && unmatchedAll.length > 0 && (
         <div className="flex flex-col gap-2 rounded-control border border-warning/40 bg-warning-bg/60 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-sm text-ink">
-              <span className="font-semibold">
-                {unmatchedAll.length} {unmatchedAll.length === 1 ? 'строка' : unmatchedAll.length < 5 ? 'строки' : 'строк'} счетов
-              </span>{' '}
-              у {unmatchedSuppliers.length} {unmatchedSuppliers.length === 1 ? 'поставщика' : 'поставщиков'} не привязаны к ведомости и не участвуют в сравнении:{' '}
-              {unmatchedSuppliers.map((c) => `${c.offer.name} (${c.unmatched.length})`).join(', ')}
+            <span className="flex flex-col gap-1 text-sm text-ink">
+              {unmatchedUnlinked.length > 0 && (
+                <span>
+                  <span className="font-semibold">
+                    {unmatchedUnlinked.length} {unmatchedUnlinked.length === 1 ? 'строка' : unmatchedUnlinked.length < 5 ? 'строки' : 'строк'} счетов
+                  </span>{' '}
+                  у {unmatchedSuppliers.length} {unmatchedSuppliers.length === 1 ? 'поставщика' : 'поставщиков'} не привязаны к ведомости и не участвуют в сравнении:{' '}
+                  {unmatchedSuppliers.map((c) => `${c.offer.name} (${c.count})`).join(', ')}
+                </span>
+              )}
+              {unmatchedLinkedNoPrice.length > 0 && (
+                <span>
+                  <span className="font-semibold">
+                    {unmatchedLinkedNoPrice.length} {unmatchedLinkedNoPrice.length === 1 ? 'строка' : unmatchedLinkedNoPrice.length < 5 ? 'строки' : 'строк'} счетов
+                  </span>{' '}
+                  у {linkedNoPriceSuppliers.length} {linkedNoPriceSuppliers.length === 1 ? 'поставщика' : 'поставщиков'} уже привязаны к позиции ведомости, но без цены за единицу сметы —
+                  впишите цену вручную, чтобы они попали в сравнение:{' '}
+                  {linkedNoPriceSuppliers.map((c) => `${c.offer.name} (${c.count})`).join(', ')}
+                </span>
+              )}
             </span>
             <span className="flex flex-wrap items-center gap-2">
               <Button type="button" variant="secondary" icon={<Sparkles className="h-4 w-4" />} onClick={() => void suggestMatches()} disabled={suggesting || saving}>
@@ -1176,7 +1350,7 @@ export function PriceComparisonCard({
                               onChange={(e) => {
                                 const v = e.target.value;
                                 if (v === '__delivery') update({ kind: 'delivery', positionId: '', accepted: true });
-                                else if (!v) update({ kind: 'none', positionId: '', accepted: false });
+                                else if (!v) update({ kind: 'none', positionId: '', accepted: true });
                                 else {
                                   const pos = positions.find((p) => p.id === v);
                                   const g = pos ? guessUnitPrice(r.item, pos) : null;
@@ -1233,8 +1407,8 @@ export function PriceComparisonCard({
                 </table>
               </div>
               <div className="flex items-center gap-3">
-                <Button type="button" onClick={() => void applySuggestions()} disabled={saving || !suggestions.some((r) => r.accepted && (r.kind === 'delivery' || (r.positionId && r.kind !== 'none')))}>
-                  Применить {suggestions.filter((r) => r.accepted && (r.kind === 'delivery' || (r.positionId && r.kind !== 'none'))).length}
+                <Button type="button" onClick={() => void applySuggestions()} disabled={saving || !suggestions.some((r) => applicableSuggestion(r))}>
+                  Применить {suggestions.filter((r) => applicableSuggestion(r)).length}
                 </Button>
                 <button type="button" onClick={() => setSuggestions(null)} className="text-xs font-medium text-ink-muted hover:text-ink">
                   Отменить
@@ -1251,7 +1425,7 @@ export function PriceComparisonCard({
                     {line.item.quantity != null && ` · ${line.item.quantity} ${line.item.unit}`}
                     {line.item.sourceMaterialId && <span className="text-warning"> · привязана, но без цены за единицу сметы</span>}
                   </span>
-                  <span className="tabular-nums text-ink-muted">{line.item.price != null ? formatUnit(line.item.price, offer.currency) : ''}</span>
+                  <span className="tabular-nums text-ink-muted">{line.item.price != null ? formatUnit(line.item.price, line.currency) : ''}</span>
                   <button type="button" onClick={() => onOpenDetail(offer)} className="inline-flex items-center gap-1 font-semibold text-ink underline decoration-dotted underline-offset-2 hover:decoration-solid">
                     <Check className="h-3 w-3" /> В переписке
                   </button>
@@ -1261,6 +1435,43 @@ export function PriceComparisonCard({
           )}
         </div>
       )}
+
+      {/* Разобрано и в сравнение не идёт. Отдельно от оранжевого блока выше:
+          там строки ЖДУТ решения, здесь оно уже принято (колеровка в цене
+          краски, товар не из ведомости). Владелец, 2026-09-17: «мне нужно
+          полностью распознанные счета» — счёт распознан полностью ровно
+          тогда, когда у каждой его строки есть исход, а не когда исходов нет
+          совсем. */}
+      {!emptyPositions && asideCount > 0 && (
+        <div className="flex flex-col gap-1.5 rounded-control border border-border bg-surface-muted px-4 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs text-ink-muted">
+              <span className="font-semibold text-ink">{asideCount}</span> {asideCount === 1 ? 'строка' : asideCount < 5 ? 'строки' : 'строк'} счетов разобраны как «не позиция
+              ведомости» и в сравнении не участвуют: {asideSuppliers.map((c) => `${c.offer.name} (${c.aside.length})`).join(', ')}
+            </span>
+            <button type="button" onClick={() => setShowAside((v) => !v)} className="text-xs font-medium text-ink-muted hover:text-ink">
+              {showAside ? 'Скрыть строки' : 'Показать строки'}
+            </button>
+          </div>
+          {showAside && (
+            <div className="flex flex-col gap-1">
+              {asideSuppliers.map((c) =>
+                c.aside.map((line) => (
+                  <div key={`${c.offer.id}-${line.item.id}`} className="flex flex-wrap items-baseline gap-x-2 text-xs">
+                    <span className="font-medium text-ink">{c.offer.name}:</span>
+                    <span className="min-w-0 flex-1 text-ink">{line.item.name}</span>
+                    <span className="tabular-nums text-ink-muted">
+                      {line.item.quantity ?? '—'} {line.item.unit} · {formatMoney(line.total, line.currency)}
+                    </span>
+                    {line.item.matchNote && <span className="w-full text-[11px] text-ink-faint">{line.item.matchNote}</span>}
+                  </div>
+                )),
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
 
       {emptyPositions ? (
         <div className="flex flex-col gap-2 text-sm text-ink-muted">
@@ -1322,20 +1533,33 @@ export function PriceComparisonCard({
                         const cell = col.cells.get(p.id)!;
                         const isPicked = proposal[p.id]?.offerId === col.offer.id;
                         return (
-                          <tr key={col.offer.id} className={cn('border-t border-border align-top first:border-t-0', isPicked && 'bg-success-bg shadow-[inset_3px_0_0_var(--color-success)]')}>
+                          <tr
+                            key={col.offer.id}
+                            className={cn(
+                              'border-t border-border align-top first:border-t-0',
+                              isPicked && 'bg-success-bg shadow-[inset_3px_0_0_var(--color-success)]',
+                              cell.excludedFromSupply && 'opacity-60',
+                            )}
+                          >
                             <td className="w-[26%] px-3 py-2">
                               <button type="button" onClick={() => onOpenDetail(col.offer)} className={cn('text-left font-semibold hover:underline', isPicked ? 'text-success' : 'text-ink')}>
                                 {col.offer.name}
                               </button>
                               <span className="mt-0.5 flex flex-wrap items-center gap-1">{renderBadges(col.offer)}</span>
-                              <span className="block text-[11px] text-ink-muted">{col.delivery != null ? `доставка ${formatMoney(col.delivery, col.offer.currency)}` : 'доставка не названа'}</span>
+                              <span className="block text-[11px] text-ink-muted">{col.delivery != null ? `доставка ${formatMoney(col.delivery, col.deliveryCurrency)}` : 'доставка не названа'}</span>
                             </td>
                             <td className="px-3 py-2 text-[12px] leading-snug text-ink">
-                              <KindTag kind={cell.kind} onClick={() => cycleKind(cell)} title="Нажмите, чтобы сменить вид" />{' '}
+                              <KindTag kind={cell.kind} onClick={() => cycleKind(cell)} title="Нажмите, чтобы сменить вид: позиция из ведомости → аналог → уточнить" />{' '}
                               {needsReview(cell) && cell.kind !== 'check' && (
                                 <ReviewTag confidence={cell.matchConfidence} recognition={cell.recognitionConfidence} />
                               )}{' '}
                               <VatTag vat={cell.vat} rate={cell.vatRate} /> {cell.note}
+                              {cell.isArchived && (
+                                <span className="block text-ink-faint" title="Этой позиции нет в самом последнем счёте поставщика — цена из более раннего КП">
+                                  архив{cell.quoteDate ? ` · счёт от ${formatDate(cell.quoteDate)}` : ''}
+                                </span>
+                              )}
+                              {cell.excludedFromSupply && <span className="block font-semibold text-warning">не покупаем — цена для отчёта</span>}
                               {cell.productUrl && (
                                 <span className="block">
                                   <ProductLink url={cell.productUrl} />
@@ -1351,7 +1575,10 @@ export function PriceComparisonCard({
                             </td>
                             <td className="w-[16%] whitespace-nowrap px-3 py-2 text-right text-ink-muted">{p.quantity != null ? formatMoney(cell.unitPrice * p.quantity, cell.currency) : '—'}</td>
                             <td className="w-[12%] px-3 py-2 text-right">
-                              <PickButton cell={cell} p={p} />
+                              <span className="flex flex-wrap items-center justify-end gap-1.5">
+                                {!cell.excludedFromSupply && <PickButton cell={cell} p={p} />}
+                                <ExcludeToggle cell={cell} p={p} />
+                              </span>
                             </td>
                           </tr>
                         );
@@ -1420,9 +1647,15 @@ export function PriceComparisonCard({
                     }
                     const isPicked = proposal[p.id]?.offerId === col.offer.id;
                     return (
-                      <td key={col.offer.id} className={cn('px-3 py-2.5', isPicked && 'bg-success-bg shadow-[inset_3px_0_0_var(--color-success)]')}>
+                      <td
+                        key={col.offer.id}
+                        className={cn('px-3 py-2.5', isPicked && 'bg-success-bg shadow-[inset_3px_0_0_var(--color-success)]', cell.excludedFromSupply && 'opacity-60')}
+                      >
                         <CellBody cell={cell} p={p} col={col} />
-                        <PickButton cell={cell} p={p} className="mt-1.5 block" />
+                        <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          {!cell.excludedFromSupply && <PickButton cell={cell} p={p} />}
+                          <ExcludeToggle cell={cell} p={p} />
+                        </span>
                       </td>
                     );
                   })}
