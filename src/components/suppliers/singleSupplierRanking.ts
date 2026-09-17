@@ -120,8 +120,8 @@ function money(amount: number, currency: Currency, base: Currency, rate: Exchang
 function baseCurrency(columns: Column[]): Currency {
   const parts: MoneyPart[] = [];
   for (const col of columns) {
-    for (const cell of col.cells.values()) parts.push({ amount: cell.unitPrice, currency: cell.currency });
-    if (col.cells.size > 0 && col.delivery != null) parts.push({ amount: col.delivery, currency: col.deliveryCurrency });
+    for (const cell of col.currentCells.values()) parts.push({ amount: cell.unitPrice, currency: cell.currency });
+    if (col.currentCells.size > 0 && col.delivery != null) parts.push({ amount: col.delivery, currency: col.deliveryCurrency });
   }
   if (parts.length > 0) return dominantCurrency(parts)!;
   return dominantCurrency(columns.map((c) => ({ amount: 0, currency: c.offer.currency }))) ?? 'USD';
@@ -144,7 +144,12 @@ export function buildRanking(
     let bestExact: { unit: number; supplier: string } | null = null;
     let bestAny: { unit: number; supplier: string } | null = null;
     for (const col of columns) {
-      const cell = col.cells.get(p.id);
+      // Эталон и покрытие считаем по currentCells: архивная (не из
+      // последнего счёта) или исключённая цена — не то, что поставщик
+      // реально поставит сегодня (владелец, 2026-09-17: цены на непокупаемые
+      // позиции остаются в сравнении для отчёта, но не должны красть
+      // рейтинг «заказать всё у одного»).
+      const cell = col.currentCells.get(p.id);
       if (!cell) continue;
       const value = comparable(cell, base, rate);
       if (value == null) {
@@ -163,7 +168,7 @@ export function buildRanking(
 
   const scores: SupplierScore[] = [];
   for (const col of columns) {
-    if (col.cells.size === 0) continue;
+    if (col.currentCells.size === 0) continue;
     const lines: RankingLine[] = [];
     const missing: EstimateMaterial[] = [];
     let covered = 0;
@@ -174,7 +179,7 @@ export function buildRanking(
     let total: number | null = 0;
     let overpay: number | null = 0;
     for (const p of positions) {
-      const cell = col.cells.get(p.id) ?? null;
+      const cell = col.currentCells.get(p.id) ?? null;
       const ref = reference.get(p.id) ?? null;
       if (!cell) {
         missing.push(p);

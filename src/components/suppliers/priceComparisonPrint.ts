@@ -145,9 +145,13 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
           const cell = c.cells.get(p.id)!;
           const isPicked = pickedCell?.offerId === c.offer.id;
           const delta = pickedCell && !isPicked ? deltaToPicked(cell, pickedCell) : null;
+          const flags = [
+            cell.isArchived ? `архив${cell.quoteDate ? `, счёт от ${new Date(cell.quoteDate).toLocaleDateString('ru-RU')}` : ''}` : '',
+            cell.excludedFromSupply ? 'не покупаем — цена для справки' : '',
+          ].filter(Boolean);
           return (
             `<tr class="${isPicked ? 'picked' : ''}"><td>${esc(c.offer.name)}${isPicked ? '<span class="pick">✓ на утверждение</span>' : ''}</td>` +
-            `<td>${kindTag(cell.kind)}${cell.note ? `<span class="muted">${withLinks(cell.note)}</span>` : ''}${cell.productUrl ? `<span class="muted">${linkHtml(cell.productUrl)}</span>` : ''}</td>` +
+            `<td>${kindTag(cell.kind)}${cell.note ? `<span class="muted">${withLinks(cell.note)}</span>` : ''}${cell.productUrl ? `<span class="muted">${linkHtml(cell.productUrl)}</span>` : ''}${flags.length ? `<span class="muted warn">${esc(flags.join(' · '))}</span>` : ''}</td>` +
             `<td class="num">${esc(formatUnit(cell.unitPrice, cell.currency))}${delta != null ? `<span class="muted">${esc(formatDelta(delta))} к отобранному</span>` : ''}</td>` +
             `<td class="num strong">${esc(formatMoney(cell.unitPrice * (p.quantity ?? 0), cell.currency))}</td></tr>`
           );
@@ -317,7 +321,13 @@ export function buildProposalEmailHtml(doc: ComparisonDoc, message: string): { h
           const cell = c.cells.get(p.id)!;
           const isPicked = pickedCell?.offerId === c.offer.id;
           const delta = pickedCell && !isPicked ? deltaToPicked(cell, pickedCell) : null;
-          return `<li style="margin:2px 0;${isPicked ? 'font-weight:600;color:#157f42;' : ''}">${esc(c.offer.name)} — ${esc(formatUnit(cell.unitPrice, cell.currency))}/${esc(p.unit || 'ед.')} ${tag(cell.kind)}${cell.note ? ` <span style="color:#6b6d76;">${withLinks(cell.note, lnk)}</span>` : ''}${delta != null ? ` <span style="color:#6b6d76;">(${esc(formatDelta(delta))})</span>` : ''}${isPicked ? ' ✓' : ''}</li>`;
+          const flags = [
+            cell.isArchived ? `архив${cell.quoteDate ? `, счёт от ${new Date(cell.quoteDate).toLocaleDateString('ru-RU')}` : ''}` : '',
+            cell.excludedFromSupply ? 'не покупаем — цена для справки' : '',
+          ]
+            .filter(Boolean)
+            .join(' · ');
+          return `<li style="margin:2px 0;${isPicked ? 'font-weight:600;color:#157f42;' : ''}">${esc(c.offer.name)} — ${esc(formatUnit(cell.unitPrice, cell.currency))}/${esc(p.unit || 'ед.')} ${tag(cell.kind)}${cell.note ? ` <span style="color:#6b6d76;">${withLinks(cell.note, lnk)}</span>` : ''}${delta != null ? ` <span style="color:#6b6d76;">(${esc(formatDelta(delta))})</span>` : ''}${flags ? ` <span style="color:#906721;">${esc(flags)}</span>` : ''}${isPicked ? ' ✓' : ''}</li>`;
         })
         .join('');
       return `<p style="margin:10px 0 2px;font-weight:600;font-size:13px;">${esc(p.name)} <span style="font-weight:400;color:#6b6d76;">${qty(p)}</span></p><ul style="margin:0;padding-left:18px;font-size:13px;">${items}</ul>`;

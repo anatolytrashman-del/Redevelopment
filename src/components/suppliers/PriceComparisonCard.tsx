@@ -309,6 +309,7 @@ interface ItemPatch {
   // от «забыли пересчитать» и пометит цену как заниженную.
   vatIncluded?: boolean | null;
   vatRate?: number | null;
+  excludedFromSupply?: boolean;
 }
 
 interface SuggestionRow {
@@ -435,7 +436,7 @@ export function PriceComparisonCard({
       const aPicked = proposalOfferIds.has(a.offer.id);
       const bPicked = proposalOfferIds.has(b.offer.id);
       if (aPicked !== bPicked) return aPicked ? -1 : 1;
-      return b.cells.size - a.cells.size || a.offer.name.localeCompare(b.offer.name, 'ru');
+      return b.currentCells.size - a.currentCells.size || a.offer.name.localeCompare(b.offer.name, 'ru');
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [confirmed.map((o) => o.id + o.items.length).join(','), quotesByOffer, positions, rate, proposalOfferIds]);
@@ -557,10 +558,29 @@ export function PriceComparisonCard({
     void saveProposal(next);
   }
 
+  // 1-клик «не покупаем у этого поставщика» (владелец, 2026-09-17): цена и
+  // позиция остаются в сравнении и в отчёте руководителю — просто выходят
+  // из заказа. Если строка была отобрана («✓ Отобрано»), выключение из
+  // поставки снимает и отбор — иначе позиция «не покупаем» продолжила бы
+  // считаться в сумме к утверждению.
+  async function toggleExclude(cell: Cell, p: EstimateMaterial) {
+    const next = !cell.excludedFromSupply;
+    const ok = await run('Не удалось изменить статус позиции', () =>
+      applyPatches([{ offerId: cell.offerId, itemId: cell.itemId, patch: { excludedFromSupply: next } }]).then(() => true),
+    );
+    if (ok && next && proposal[p.id]?.offerId === cell.offerId) {
+      const nextProposal = { ...proposal };
+      delete nextProposal[p.id];
+      void saveProposal(nextProposal);
+    }
+  }
+
   function toggleColumn(col: Column) {
-    const all = [...col.cells.keys()].every((pid) => proposal[pid]?.offerId === col.offer.id);
+    // Массовое «Выбрать все» — только по реально покрытым позициям: архивные
+    // и «не покупаем» цены отбором не трогает (см. Column.currentCells).
+    const all = [...col.currentCells.keys()].every((pid) => proposal[pid]?.offerId === col.offer.id);
     const next = { ...proposal };
-    col.cells.forEach((cell, pid) => {
+    col.currentCells.forEach((cell, pid) => {
       if (all) delete next[pid];
       else next[pid] = { offerId: col.offer.id, itemId: cell.itemId };
     });
@@ -874,12 +894,42 @@ export function PriceComparisonCard({
           )}{' '}
           <VatTag vat={cell.vat} rate={cell.vatRate} /> {cell.note}
         </span>
+        {cell.isArchived && (
+          <span
+            className="mt-1 block text-[11px] font-semibold text-ink-faint"
+            title="Этой позиции нет в самом последнем счёте поставщика — цена из более раннего КП, оставлена для отчёта"
+          >
+            архив{cell.quoteDate ? ` · счёт от ${formatDate(cell.quoteDate)}` : ''}
+          </span>
+        )}
+        {cell.excludedFromSupply && <span className="mt-1 block text-[11px] font-semibold text-warning">не покупаем — цена для отчёта</span>}
         {cell.productUrl && (
           <span className="mt-1 block">
             <ProductLink url={cell.productUrl} />
           </span>
         )}
       </>
+    );
+  }
+
+  // 1-клик «не покупаем у этого поставщика»: рядом с «Выбрать», не заменяет
+  // его — владелец, 2026-09-17, специально просил уровень ячейки (материал ×
+  // поставщик), а не всю строку ведомости.
+  function ExcludeToggle({ cell, p, className }: { cell: Cell; p: EstimateMaterial; className?: string }) {
+    return (
+      <button
+        type="button"
+        disabled={saving}
+        onClick={() => void toggleExclude(cell, p)}
+        title={cell.excludedFromSupply ? 'Вернуть позицию в возможную поставку' : 'Не покупаем эту позицию у этого поставщика — цена останется в сравнении и в отчёте'}
+        className={cn(
+          'rounded-full border px-2.5 py-0.5 text-[11px] font-semibold',
+          cell.excludedFromSupply ? 'border-warning bg-warning-bg text-warning' : 'border-border-strong bg-surface text-ink-faint hover:border-ink hover:text-ink',
+          className,
+        )}
+      >
+        {cell.excludedFromSupply ? '↺ Вернуть' : '✕ Не покупаем'}
+      </button>
     );
   }
 
@@ -990,8 +1040,8 @@ export function PriceComparisonCard({
   }
 
   function ColumnHeader({ col }: { col: Column }) {
-    const mine = [...col.cells.keys()].filter((pid) => proposal[pid]?.offerId === col.offer.id).length;
-    const all = col.cells.size;
+    const mine = [...col.currentCells.keys()].filter((pid) => proposal[pid]?.offerId === col.offer.id).length;
+    const all = col.currentCells.size;
     const age = quoteAgeDays(col.lastQuoteAt);
     return (
       <>
@@ -1045,8 +1095,11 @@ export function PriceComparisonCard({
   function columnTotals(col: Column) {
     const mine = positions.filter((p) => proposal[p.id]?.offerId === col.offer.id && col.cells.has(p.id));
     const partsPicked: MoneyPart[] = mine.map((p) => ({ amount: col.cells.get(p.id)!.unitPrice * (p.quantity ?? 0), currency: col.cells.get(p.id)!.currency }));
-    const covered = positions.filter((p) => col.cells.has(p.id));
-    const partsAll: MoneyPart[] = covered.map((p) => ({ amount: col.cells.get(p.id)!.unitPrice * (p.quantity ?? 0), currency: col.cells.get(p.id)!.currency }));
+    // «Всё у одного» — только по currentCells: архивная (не из последнего
+    // счёта) или исключённая цена не значит, что поставщик реально поставит
+    // это сегодня.
+    const covered = positions.filter((p) => col.currentCells.has(p.id));
+    const partsAll: MoneyPart[] = covered.map((p) => ({ amount: col.currentCells.get(p.id)!.unitPrice * (p.quantity ?? 0), currency: col.currentCells.get(p.id)!.currency }));
     const delivery: MoneyPart[] = col.delivery != null ? [{ amount: col.delivery, currency: col.deliveryCurrency }] : [];
     return { mine, partsPicked, covered, partsAll, delivery };
   }
@@ -1444,7 +1497,14 @@ export function PriceComparisonCard({
                         const cell = col.cells.get(p.id)!;
                         const isPicked = proposal[p.id]?.offerId === col.offer.id;
                         return (
-                          <tr key={col.offer.id} className={cn('border-t border-border align-top first:border-t-0', isPicked && 'bg-success-bg shadow-[inset_3px_0_0_var(--color-success)]')}>
+                          <tr
+                            key={col.offer.id}
+                            className={cn(
+                              'border-t border-border align-top first:border-t-0',
+                              isPicked && 'bg-success-bg shadow-[inset_3px_0_0_var(--color-success)]',
+                              cell.excludedFromSupply && 'opacity-60',
+                            )}
+                          >
                             <td className="w-[26%] px-3 py-2">
                               <button type="button" onClick={() => onOpenDetail(col.offer)} className={cn('text-left font-semibold hover:underline', isPicked ? 'text-success' : 'text-ink')}>
                                 {col.offer.name}
@@ -1458,6 +1518,12 @@ export function PriceComparisonCard({
                                 <ReviewTag confidence={cell.matchConfidence} recognition={cell.recognitionConfidence} />
                               )}{' '}
                               <VatTag vat={cell.vat} rate={cell.vatRate} /> {cell.note}
+                              {cell.isArchived && (
+                                <span className="block text-ink-faint" title="Этой позиции нет в самом последнем счёте поставщика — цена из более раннего КП">
+                                  архив{cell.quoteDate ? ` · счёт от ${formatDate(cell.quoteDate)}` : ''}
+                                </span>
+                              )}
+                              {cell.excludedFromSupply && <span className="block font-semibold text-warning">не покупаем — цена для отчёта</span>}
                               {cell.productUrl && (
                                 <span className="block">
                                   <ProductLink url={cell.productUrl} />
@@ -1473,7 +1539,10 @@ export function PriceComparisonCard({
                             </td>
                             <td className="w-[16%] whitespace-nowrap px-3 py-2 text-right text-ink-muted">{p.quantity != null ? formatMoney(cell.unitPrice * p.quantity, cell.currency) : '—'}</td>
                             <td className="w-[12%] px-3 py-2 text-right">
-                              <PickButton cell={cell} p={p} />
+                              <span className="flex flex-wrap items-center justify-end gap-1.5">
+                                {!cell.excludedFromSupply && <PickButton cell={cell} p={p} />}
+                                <ExcludeToggle cell={cell} p={p} />
+                              </span>
                             </td>
                           </tr>
                         );
@@ -1542,9 +1611,15 @@ export function PriceComparisonCard({
                     }
                     const isPicked = proposal[p.id]?.offerId === col.offer.id;
                     return (
-                      <td key={col.offer.id} className={cn('px-3 py-2.5', isPicked && 'bg-success-bg shadow-[inset_3px_0_0_var(--color-success)]')}>
+                      <td
+                        key={col.offer.id}
+                        className={cn('px-3 py-2.5', isPicked && 'bg-success-bg shadow-[inset_3px_0_0_var(--color-success)]', cell.excludedFromSupply && 'opacity-60')}
+                      >
                         <CellBody cell={cell} p={p} col={col} />
-                        <PickButton cell={cell} p={p} className="mt-1.5 block" />
+                        <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          {!cell.excludedFromSupply && <PickButton cell={cell} p={p} />}
+                          <ExcludeToggle cell={cell} p={p} />
+                        </span>
                       </td>
                     );
                   })}
