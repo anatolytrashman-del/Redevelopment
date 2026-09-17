@@ -287,7 +287,8 @@ curl -sS -X POST "https://api.supabase.com/v1/projects/iohcdylttyuhwovztrbk/data
 - **Правила, общие для фронта и `api/*.js`, живут в ДВУХ файлах-близнецах.**
   Serverless-функции — голый JS и импортировать TypeScript из `src/` не
   умеют, поэтому такая логика дублируется (`src/data/vat.ts` ↔ `api/_vat.js`
-  — НДС; `offerFollowupState` в `src/data/supplierResearch.ts` ↔
+  — НДС; регулярка определения ботов в `src/lib/botDetection.ts` ↔ инлайн-скрипт
+  в `index.html` (счётчики стартуют до бандла; копии сверяет тест); `offerFollowupState` в `src/data/supplierResearch.ts` ↔
   `supabase/functions/process-followups` — пороги дожима). Правится одна
   сторона — правится и вторая: расхождение означает, что счёт, записанный
   автоматически, и тот же счёт, подтверждённый руками, дадут разные цены, а
