@@ -29,6 +29,22 @@ const PRESENCE_KEY_STORAGE = 'online-visitor-key';
 // мигает единицей в сайдбаре.
 const JOIN_AFTER_VISIBLE_MS = 12_000;
 
+// Пульс присутствия (2026-09-17, второй заход: у владельца счётчик завис на
+// семи посетителях и не двигался часами). Разбор показал, что presence сам по
+// себе НЕ истекает: запись живёт, пока жив сокет, а фоновая вкладка держит
+// сокет сколько угодно — семь записей провисели три часа при восьми визитах в
+// Метрике за весь день. Поэтому вкладка теперь регулярно продлевает свою
+// запись, а читатель считает только продлённые: не продлена — значит того, кто
+// её поставил, на сайте уже нет, и ждать «выхода» от сервера не нужно.
+const HEARTBEAT_MS = 45_000;
+// Запас в три пульса: одна потерянная отметка (спящий таймер, моргнувшая сеть)
+// не должна выкидывать живого человека из счётчика.
+const STALE_AFTER_MS = 150_000;
+// Пересчёт по таймеру нужен отдельно от события sync: sync приходит, только
+// когда кто-то вошёл или вышел, а протухание — это молчание, события у него
+// нет.
+const RECOUNT_MS = 20_000;
+
 function randomPresenceKey(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
@@ -52,6 +68,8 @@ export function useOnlinePresenceTracker(active: boolean): void {
     let channel: ReturnType<typeof supabase.channel> | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
+    let heartbeat: ReturnType<typeof setInterval> | null = null;
+
     const join = () => {
       if (channel) return;
       channel = supabase.channel(CHANNEL_NAME, {
@@ -62,9 +80,14 @@ export function useOnlinePresenceTracker(active: boolean): void {
           channel?.track({ online_at: Date.now() });
         }
       });
+      heartbeat = setInterval(() => {
+        channel?.track({ online_at: Date.now() });
+      }, HEARTBEAT_MS);
     };
 
     const leave = () => {
+      if (heartbeat) clearInterval(heartbeat);
+      heartbeat = null;
       if (!channel) return;
       supabase.removeChannel(channel);
       channel = null;
@@ -110,11 +133,25 @@ export function useOnlineVisitorsCount(active: boolean): number | null {
       return;
     }
     const channel = supabase.channel(CHANNEL_NAME);
-    channel.on('presence', { event: 'sync' }, () => {
-      setCount(Object.keys(channel.presenceState()).length);
-    });
+
+    // Считаем не все ключи подряд, а только те, чей пульс свежий (см.
+    // HEARTBEAT_MS). Так в счётчик не попадают ни зависшие записи вкладок,
+    // брошенных открытыми часы назад, ни клиенты старой сборки, которые
+    // продлевать свою запись не умеют вовсе.
+    const recount = () => {
+      const state = channel.presenceState<{ online_at?: number }>();
+      const now = Date.now();
+      const live = Object.values(state).filter((metas) =>
+        metas.some((meta) => typeof meta.online_at === 'number' && now - meta.online_at < STALE_AFTER_MS),
+      );
+      setCount(live.length);
+    };
+
+    channel.on('presence', { event: 'sync' }, recount);
     channel.subscribe();
+    const timer = setInterval(recount, RECOUNT_MS);
     return () => {
+      clearInterval(timer);
       supabase.removeChannel(channel);
     };
   }, [active]);
