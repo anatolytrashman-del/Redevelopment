@@ -142,7 +142,13 @@ const GENERAL_DATA_SOURCES = [
 export function BusinessCenterDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const [centers, setCenters] = useState<BusinessCenter[] | null>(null);
-  const [offers, setOffers] = useState<BusinessCenterOffer[] | null>(null);
+  const [offersResult, setOffersResult] = useState<{
+    slug: string;
+    offers: BusinessCenterOffer[] | null;
+    error: boolean;
+  } | null>(null);
+  const offers = offersResult && offersResult.slug === slug ? offersResult.offers : null;
+  const offersError = offersResult != null && offersResult.slug === slug && offersResult.error;
   const [gis2, setGis2] = useState<BusinessCenter2gisSnapshot | null>(null);
   const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(null);
   const [tenantCityProfile, setTenantCityProfile] = useState<TenantIndustryCityProfile | null>(null);
@@ -185,10 +191,16 @@ export function BusinessCenterDetailPage() {
   // slug) список объявлений сам перезапрашивается под новый БЦ.
   useEffect(() => {
     if (!slug) return;
-    setOffers(null);
+    let cancelled = false;
+    setOffersResult(null);
     fetchBusinessCenterOffers(slug)
-      .then(setOffers)
-      .catch(() => setOffers([]));
+      .then((data) => {
+        if (!cancelled) setOffersResult({ slug, offers: data, error: false });
+      })
+      .catch(() => {
+        if (!cancelled) setOffersResult({ slug, offers: null, error: true });
+      });
+    return () => { cancelled = true; };
   }, [slug]);
 
   // Сравнение со средней по классу/району (ANALYTICSPLAN.md §4.2) — тот же
@@ -706,7 +718,7 @@ export function BusinessCenterDetailPage() {
         {ownIndex && <IndexBlock index={ownIndex} rank={indexRank?.rank ?? null} total={indexRank?.total ?? 0} />}
         {center && marketPosition && <MarketPositionBlock center={center} position={marketPosition} />}
         {center && <NeighboursBlock center={center} all={centers ?? []} offers={offerIndex} />}
-        {center && <MoneyBlock center={center} offers={offerIndex} snapshots={officeSnapshots} />}
+        {center && <MoneyBlock offers={offers} error={offersError} />}
         {center && <TechTilesBlock center={center} all={centers ?? []} />}
 
         {/* Технические характеристики — прямой парсинг структурных блоков
@@ -998,10 +1010,10 @@ export function BusinessCenterDetailPage() {
             {/* Б5. Пусто — не пустая таблица и не исчезнувший блок, а
                 честный текст: отсутствие лотов на Kufar и Realt само по
                 себе факт (здание сдаёт через УК напрямую либо занято). */}
-            {offersSummary.rent === null && offersSummary.sale === null ? (
+            {offers.length === 0 ? (
               <div className="flex flex-col gap-2 text-sm text-ink-muted">
                 <p>
-                  На Kufar и Realt сейчас нет активных объявлений по этому зданию. Это не значит, что
+                  Активных предложений в наших источниках нет. Это не значит, что
                   свободных площадей нет: часть бизнес-центров сдаёт офисы напрямую через управляющую
                   компанию, минуя площадки.
                 </p>
