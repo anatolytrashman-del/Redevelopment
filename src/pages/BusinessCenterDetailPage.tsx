@@ -78,11 +78,9 @@ import type {
 import { fetchBusinessCenter2gisSnapshot, fetchTenantIndustryCityProfile } from '../lib/businessCenter2gisApi';
 import { buildOfferIndex } from '../lib/businessCenterCatalogFilter';
 import { buildMarketPosition } from '../lib/businessCenterMarketPosition';
-import { buildIndexMap } from '../lib/businessCenterIndex';
 import { buildVerdictDraft } from '../lib/businessCenterVerdict';
 import {
   HistoryTimeline,
-  IndexBlock,
   VerdictBlock,
   MarketPositionBlock,
   MoneyBlock,
@@ -115,7 +113,6 @@ import { NeighboursBlock, SimilarCentersBlock } from '../components/businessCent
 // блоки реально отрисованы.
 const SECTION_LABELS: Record<string, string> = {
   verdict: 'Кому подходит',
-  index: 'Индекс',
   market: 'Место на рынке',
   map: 'На карте',
   money: 'В деньгах',
@@ -307,16 +304,6 @@ export function BusinessCenterDetailPage() {
     };
     return { rent: byDeal('rent'), sale: byDeal('sale') };
   }, [offers]);
-  // Индекс и место в ряду — считаются от ВСЕГО каталога, иначе «5-е место»
-  // означало бы «пятое среди тех, кто случайно попал на эту страницу».
-  const indexBySlug = useMemo(() => buildIndexMap(centers ?? [], offerIndex), [centers, offerIndex]);
-  const ownIndex = center ? (indexBySlug.get(center.slug) ?? null) : null;
-  const indexRank = useMemo(() => {
-    if (!ownIndex) return null;
-    const values = [...indexBySlug.values()].map((i) => i.value).sort((a, b) => b - a);
-    return { rank: values.indexOf(ownIndex.value) + 1, total: values.length };
-  }, [indexBySlug, ownIndex]);
-
   // Б2. Правленый вручную текст главнее сгенерированного: генерация никогда
   // не перетирает то, что владелец написал сам (флаг verdictEdited).
   const verdict = useMemo(() => {
@@ -367,7 +354,6 @@ export function BusinessCenterDetailPage() {
     const has = (id: string, cond: boolean) => (cond ? { id, label: SECTION_LABELS[id] } : null);
     return [
       has('verdict', verdict != null),
-      has('index', ownIndex != null),
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
       has('map', center.lat != null && center.lng != null),
       has('money', offers === null || offers.length > 0),
@@ -379,7 +365,7 @@ export function BusinessCenterDetailPage() {
       has('reviews', center.gisRating != null || center.highlights.some((h) => h.icon === 'rating')),
       has('similar', true),
     ].filter((v): v is { id: string; label: string } => v !== null);
-  }, [center, marketPosition, offers, visibleHighlights, ownIndex, verdict, hasTenantOrganizations]);
+  }, [center, marketPosition, offers, visibleHighlights, verdict, hasTenantOrganizations]);
 
   useEffect(() => {
     if (!center) return;
@@ -668,7 +654,6 @@ export function BusinessCenterDetailPage() {
             Каждый блок сам решает, показываться ли: нет данных — нет
             блока, заглушек не рисуем. */}
         {verdict && <VerdictBlock {...verdict} />}
-        {ownIndex && <IndexBlock index={ownIndex} rank={indexRank?.rank ?? null} total={indexRank?.total ?? 0} />}
         {center && marketPosition && <MarketPositionBlock position={marketPosition} />}
         {center && <NeighboursBlock center={center} all={centers ?? []} offers={offerIndex} />}
         {center && <MoneyBlock offers={offers} error={offersError} />}

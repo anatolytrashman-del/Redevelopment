@@ -71,7 +71,6 @@ import {
   sortCatalogCenters,
   type CatalogFilterState,
 } from '../lib/businessCenterCatalogFilter';
-import { buildIndexMap } from '../lib/businessCenterIndex';
 
 // Справочная SEO-страница по бизнес-центрам Минска (владелец, 2026-09-04) —
 // см. комментарий в data/businessCenters.ts про источник списка и принцип
@@ -514,12 +513,6 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // Медианы и число объявлений по КОНКРЕТНОМУ зданию (Д3) — нужны и
   // тумблерам «есть аренда/продажа», и сортировке по ставке, и сводке.
   const offerIndex = useMemo(() => buildOfferIndex(officeSnapshots, lotSizes), [officeSnapshots, lotSizes]);
-  // Индекс Redevelopment (К9) — считается от всего каталога, а не от
-  // выборки: это характеристика здания, а не места в текущем фильтре.
-  // На самой карточке его больше нет (владелец, 2026-09-17: вернуть
-  // прежний вид карточки), остаётся сортировка и табличный вид.
-  const indexBySlug = useMemo(() => buildIndexMap(centers ?? [], offerIndex), [centers, offerIndex]);
-
   // Любая смена фильтра, сортировки или маршрута начинает список заново:
   // иначе «показать ещё» с прошлой выборки тихо переносился бы на новую.
   useEffect(() => {
@@ -556,8 +549,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
         (a, b) => (metroHubDistance(a, metroFilter) ?? Infinity) - (metroHubDistance(b, metroFilter) ?? Infinity),
       );
     }
-    return sortCatalogCenters(visibleCenters, filter.sort, offerIndex, indexBySlug);
-  }, [visibleCenters, metroFilter, filter.sort, offerIndex, indexBySlug]);
+    return sortCatalogCenters(visibleCenters, filter.sort, offerIndex);
+  }, [visibleCenters, metroFilter, filter.sort, offerIndex]);
 
   // Классы и районы для чипов — весь набор, встречающийся в данных (не
   // урезанный по другой оси, как было у старого сайдбара): вместо того
@@ -989,7 +982,6 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 .map((slug) => centers.find((c) => c.slug === slug))
                 .filter((c): c is BusinessCenter => Boolean(c))}
               offers={offerIndex}
-              indexBySlug={indexBySlug}
               onRemove={(slug) => toggleCompare(slug)}
               onClear={() => applyFilter({ ...filter, compare: [] })}
             />
@@ -1020,7 +1012,6 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             <CatalogTable
               centers={orderedCenters}
               offers={offerIndex}
-              indexBySlug={indexBySlug}
               sort={filter.sort}
               onSort={(key) => applyFilter({ ...filter, sort: key })}
             />

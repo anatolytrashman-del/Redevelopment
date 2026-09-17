@@ -5,7 +5,6 @@ import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { BusinessCenter } from '../../data/businessCenters';
 import { shortName } from '../../lib/businessCenterDisplay';
 import { nearestMetroMeters, type CatalogOfferIndex } from '../../lib/businessCenterCatalogFilter';
-import type { BusinessCenterIndex } from '../../lib/businessCenterIndex';
 
 // К14 плана docs/bc-catalog-redesign-plan.md — сравнение до четырёх БЦ.
 //
@@ -24,17 +23,11 @@ type Direction = 'higher' | 'lower' | null;
 interface CompareRow {
   label: string;
   better: Direction;
-  value: (c: BusinessCenter, offers: CatalogOfferIndex, index: BusinessCenterIndex | null) => number | null;
+  value: (c: BusinessCenter, offers: CatalogOfferIndex) => number | null;
   format: (v: number) => string;
 }
 
 const ROWS: CompareRow[] = [
-  {
-    label: 'Индекс Redevelopment',
-    better: 'higher',
-    value: (_c, _o, index) => index?.value ?? null,
-    format: (v) => String(v),
-  },
   {
     label: 'Аренда, $/м²',
     better: 'lower',
@@ -99,13 +92,11 @@ const TEXT_ROWS: { label: string; value: (c: BusinessCenter) => string | null }[
 export function CatalogCompare({
   centers,
   offers,
-  indexBySlug,
   onRemove,
   onClear,
 }: {
   centers: BusinessCenter[];
   offers: CatalogOfferIndex;
-  indexBySlug: Map<string, BusinessCenterIndex>;
   onRemove: (slug: string) => void;
   onClear: () => void;
 }) {
@@ -155,13 +146,13 @@ export function CatalogCompare({
               </th>
               {centers.map((c) => (
                 <td key={c.slug} className="px-2 py-2 text-ink">
-                  {row.value(c) ?? <span className="text-ink-faint">—</span>}
+                  {row.value(c) ?? <span className="text-ink-faint">Нет данных</span>}
                 </td>
               ))}
             </tr>
           ))}
           {ROWS.map((row) => {
-            const values = centers.map((c) => row.value(c, offers, indexBySlug.get(c.slug) ?? null));
+            const values = centers.map((c) => row.value(c, offers));
             const known = values.filter((v): v is number => v != null);
             // Выделяем лучшее только когда есть что сравнивать: при одной
             // известной цифре «лучшая» из одной — это не сравнение.
@@ -184,7 +175,7 @@ export function CatalogCompare({
                       v != null && best != null && v === best ? 'font-bold text-[#0f6b3d]' : 'text-ink',
                     )}
                   >
-                    {v == null ? <span className="text-ink-faint">—</span> : row.format(v)}
+                    {v == null ? <span className="text-ink-faint">Нет данных</span> : row.format(v)}
                   </td>
                 ))}
               </tr>
