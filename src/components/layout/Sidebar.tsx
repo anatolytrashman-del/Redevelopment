@@ -9,7 +9,7 @@ import { getLeadsLastViewedAt, onLeadsViewed } from '../../lib/leadsSeen';
 import { fetchContractorsWithBirthdayToday } from '../../lib/contractorsApi';
 import { fetchMailboxUnreadCount } from '../../lib/mailboxApi';
 import { onMailboxRead } from '../../lib/mailboxSeen';
-import { SIDEBAR_LAYOUT, findPage } from '../../data/pages';
+import { SIDEBAR_LAYOUT, findPage, type SidebarNavigationKey } from '../../data/pages';
 import { getCurrentProfile, isPageAllowed, isSuperAdminAllowed, signOutAndClearCache } from '../../lib/accessProfile';
 import { useOnlineVisitorsCount } from '../../lib/onlinePresence';
 
@@ -200,6 +200,31 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     );
   }
 
+  function renderSidebarItem(key: SidebarNavigationKey, indented = false) {
+    if (key === 'staffMetrics') {
+      if (!metricsAllowed) return null;
+      return (
+        <NavLink
+          key={key}
+          to="/admin/metrics"
+          onClick={onClose}
+          className={({ isActive }) =>
+            cn(
+              'flex items-center gap-3 rounded-control py-2.5 text-sm font-medium transition-colors',
+              indented ? 'pl-6 pr-3' : 'px-3',
+              isActive ? 'text-primary' : 'text-ink hover:text-primary',
+            )
+          }
+        >
+          <BarChart3 className="h-5 w-5" />
+          KPI
+        </NavLink>
+      );
+    }
+
+    return renderNavItem(findPage(key), indented);
+  }
+
   return (
     <>
       {/* Подложка-затемнение позади шторки — только когда она открыта и
@@ -245,26 +270,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               entry.type === 'group' ? (
                 <div key={entry.label} className="flex flex-col gap-1 pt-3 first:pt-0">
                   <span className="px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">{entry.label}</span>
-                  {entry.keys.map((key) => renderNavItem(findPage(key), true))}
+                  {entry.keys.map((key) => renderSidebarItem(key, true))}
                 </div>
               ) : (
-                renderNavItem(findPage(entry.key))
+                renderSidebarItem(entry.key)
               ),
-            )}
-            {metricsAllowed && (
-              <NavLink
-                to="/admin/metrics"
-                onClick={onClose}
-                className={({ isActive }) =>
-                  cn(
-                    'flex items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium transition-colors',
-                    isActive ? 'text-primary' : 'text-ink hover:text-primary',
-                  )
-                }
-              >
-                <BarChart3 className="h-5 w-5" />
-                Метрики
-              </NavLink>
             )}
           </nav>
         </div>
