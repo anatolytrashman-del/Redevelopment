@@ -290,6 +290,14 @@ export function lotTotal(quote: SupplierQuote): { items: number; delivery: numbe
   let items = 0;
   let delivery = 0;
   for (const item of quote.items ?? []) {
+    // Строка, помеченная «не позиция ведомости», в комплект не входит. Так
+    // же убирается из сравнения и ЦЕЛЫЙ счёт, пришедший не по этой поставке:
+    // все его строки помечаются 'none', итог комплекта становится нулевым, и
+    // buildLotRows такой счёт не берёт (владелец, 2026-09-17: «Грильято 75
+    // на 75 — это не та позиция, вообще убирай её из сравнения»). Сам счёт
+    // при этом остаётся в карточке поставщика документом, как и был:
+    // «не участвует в сравнении» и «удалён» — разные вещи.
+    if (item.matchKind === 'none') continue;
     const sum = (item.quantity ?? 0) * (item.price ?? 0);
     if (sum <= 0) continue;
     if (isDeliveryItem(item) || looksLikeDeliveryItem(item.name)) delivery += sum;

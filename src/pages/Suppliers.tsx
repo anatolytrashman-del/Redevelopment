@@ -67,7 +67,7 @@ import { PriceComparisonCard, preparedBy as bestPricePreparedBy } from '../compo
 import { BestPriceExportModal } from '../components/suppliers/BestPriceExportModal';
 import { PurchaseOrdersTab } from '../components/suppliers/PurchaseOrdersTab';
 import { QuoteUploadModal } from '../components/suppliers/QuoteUploadModal';
-import { buildBestPriceRows, buildLotRows, reportPositions, type BestPriceSection } from '../components/suppliers/bestPriceReport';
+import { buildBestPriceRows, buildLotRows, lotTotal, reportPositions, type BestPriceSection } from '../components/suppliers/bestPriceReport';
 import type { LedgerAttachment } from '../lib/materialLedgerXlsx';
 import type { EmailTemplate } from '../data/emailTemplates';
 import { fetchEmailTemplates } from '../lib/emailTemplatesApi';
@@ -490,13 +490,19 @@ function OfferTotalComparison({
                 <span className="text-xs font-medium text-ink-muted">Получено КП: {offerQuotes.length}</span>
                 {offerQuotes.map((q) => (
                   <div key={q.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
-                    <span className="min-w-0 flex-1 truncate text-ink">{q.title}</span>
+                    <span className={cn('min-w-0 flex-1 truncate', lotTotal(q).items > 0 ? 'text-ink' : 'text-ink-faint line-through')}>{q.title}</span>
                     {q.isAlternative && (
                       <span className="rounded-full bg-warning-bg px-2 py-0.5 text-[11px] font-semibold text-warning">
                         аналог
                       </span>
                     )}
-                    <span className="tabular-nums font-medium text-ink">
+                    {/* Счёт не по этой поставке: все строки помечены «не
+                        позиция ведомости», комплекта в нём нет. Документ
+                        остаётся на виду — иначе непонятно, куда он делся. */}
+                    {lotTotal(q).items === 0 && (
+                      <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[11px] font-semibold text-ink-muted">вне сравнения</span>
+                    )}
+                    <span className={cn('tabular-nums font-medium', lotTotal(q).items > 0 ? 'text-ink' : 'text-ink-faint')}>
                       {q.price > 0 ? formatPrice(q.price, q.currency) : '—'}
                     </span>
                   </div>
