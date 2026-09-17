@@ -1,6 +1,7 @@
 import type { EstimateMaterial } from '../../data/estimates';
 import type { ExchangeRate } from '../../data/exchangeRates';
 import { PURCHASE_ITEM_MATCH_KIND_LABELS, type PurchaseItemMatchKind } from '../../data/purchases';
+import type { SupplierReliability } from '../../data/supplierReliability';
 import type { SupplierRequest } from '../../data/supplierResearch';
 import {
   formatMoney,
@@ -50,6 +51,7 @@ export interface ComparisonDoc {
   rate: ExchangeRate | undefined;
   preparedBy: string;
   total: string;
+  reliabilityByInn: Map<string, SupplierReliability>;
 }
 
 export const esc = (v: string) =>
@@ -111,6 +113,14 @@ function deliveryNames(doc: ComparisonDoc): string {
     .filter((id) => doc.columnById.get(id)?.delivery != null)
     .map((id) => doc.columnById.get(id)!.offer.name)
     .join(', ');
+}
+
+function supplierLegalName(doc: ComparisonDoc, inn: string | null): string {
+  if (!inn) return '';
+  const company = doc.reliabilityByInn.get(inn)?.company;
+  if (!company) return '';
+  if (company['ФИО']) return `ИП ${String(company['ФИО'])}`;
+  return String(company['НаимСокр'] || company['НаимПолн'] || '');
 }
 
 const GREEN_OBJECT_ADDRESS = '1-й Геологический проезд, 1, посёлок Зелёный, Московская область';
@@ -182,12 +192,18 @@ export function buildPrintHtml(doc: ComparisonDoc): string {
 
   const termsRows = columns
     .filter((c) => pickedOfferIds.has(c.offer.id))
-    .map(
-      (c) =>
-        `<tr><td>${esc(c.offer.name)}${c.lastQuoteAt ? `<span class="muted">счёт от ${new Date(c.lastQuoteAt).toLocaleDateString('ru-RU')}</span>` : ''}</td>` +
+    .map((c) => {
+      const legalName = supplierLegalName(doc, c.offer.inn);
+      const supplierDetails = [
+        legalName ? `Юрлицо: ${esc(legalName)}` : '',
+        c.offer.inn ? `ИНН: ${esc(c.offer.inn)}` : '',
+        c.offer.websiteUrl ? `Сайт: ${linkHtml(c.offer.websiteUrl)}` : '',
+        c.lastQuoteAt ? `счёт от ${new Date(c.lastQuoteAt).toLocaleDateString('ru-RU')}` : '',
+      ].filter(Boolean).map((line) => `<span class="muted">${line}</span>`).join('');
+      return `<tr><td><strong>${esc(c.offer.name)}</strong>${supplierDetails}</td>` +
         `<td class="num">${plinthApproval ? 'В цене' : c.delivery != null ? esc(formatMoney(c.delivery, c.deliveryCurrency)) : 'в счёте нет'}</td>` +
-        `<td>${paintApproval ? 'Все в наличии. Доставка в течение нескольких дней по запросу' : plinthApproval ? 'В наличии, доставка по запросу' : c.offer.termsNote ? withLinks(c.offer.termsNote) : '—'}</td></tr>`,
-    )
+        `<td>${paintApproval ? 'Все в наличии. Доставка в течение нескольких дней по запросу' : plinthApproval ? 'В наличии, доставка по запросу' : c.offer.termsNote ? withLinks(c.offer.termsNote) : '—'}</td></tr>`;
+    })
     .join('');
 
   const signatureField = (caption: string, value = '') =>
