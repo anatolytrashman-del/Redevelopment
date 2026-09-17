@@ -4,8 +4,8 @@ import type { MarketSnapshot } from '../data/marketSnapshots';
 import { buildOfferIndex } from './businessCenterCatalogFilter';
 import { buildBadgeContext, businessCenterBadge } from './businessCenterBadges';
 
-// Авто-бейдж — публичное утверждение про чужое здание («самый большой»,
-// «дешевле медианы на 25%»). Ошибка здесь не падает, а выходит в прод
+// Авто-бейдж — публичное утверждение про чужое здание
+// («дешевле медианы на 25%»). Ошибка здесь не падает, а выходит в прод
 // неправдой, поэтому пороги и «когда бейджа нет» проверяются тестом.
 
 function bc(over: Partial<BusinessCenter> & { slug: string }): BusinessCenter {
@@ -101,24 +101,6 @@ describe('businessCenterBadge', () => {
     expect(businessCenterBadge(almost, ctx)).toBeNull();
   });
 
-  it('в районе из двух зданий районных бейджей нет — «самый большой из двух» ничего не значит', () => {
-    const a = bc({ slug: 'a', district: D, totalArea: 9000 });
-    const b = bc({ slug: 'b', district: D, totalArea: 100 });
-    const ctx = ctxOf([a, b], []);
-    expect(businessCenterBadge(a, ctx)).toBeNull();
-  });
-
-  it('«самый большой в районе» — по максимуму площади, остальным бейдж не достаётся', () => {
-    const list = [
-      bc({ slug: 'big', district: D, totalArea: 9000 }),
-      bc({ slug: 'mid', district: D, totalArea: 5000 }),
-      bc({ slug: 'small', district: D, totalArea: 100 }),
-    ];
-    const ctx = ctxOf(list, []);
-    expect(businessCenterBadge(list[0], ctx)?.text).toBe('Самый большой в районе');
-    expect(businessCenterBadge(list[1], ctx)).toBeNull();
-  });
-
   it('«единственный класс» — только для A и B+; единственный класс C отличием не считается', () => {
     const list = [
       bc({ slug: 'onlyA', district: D, businessClass: 'A' }),
@@ -136,13 +118,5 @@ describe('businessCenterBadge', () => {
     expect(businessCenterBadge(lonely, ctxOf([lonely], []))).toBeNull();
   });
 
-  it('деньги важнее размера: при обоих условиях побеждает бейдж про ставку', () => {
-    const list = [
-      bc({ slug: 'big', district: D, businessClass: 'B', totalArea: 9000 }),
-      bc({ slug: 'm1', district: D, businessClass: 'B', totalArea: 100 }),
-      bc({ slug: 'm2', district: D, businessClass: 'B', totalArea: 200 }),
-    ];
-    const ctx = ctxOf(list, [snap({ sliceKey: 'B', sliceType: 'class', median: 20 }), snap({ sliceKey: 'big', median: 10 })]);
-    expect(businessCenterBadge(list[0], ctx)?.tone).toBe('deal');
-  });
+
 });

@@ -221,6 +221,21 @@ describe('подборки (К15)', () => {
 });
 
 describe('URL фильтра', () => {
+  it('старый sort=index сохраняет фильтры и выдаёт здания в обычном порядке', () => {
+    const state = parseCatalogFilter(new URLSearchParams('sort=index&class=A'));
+    const offers = buildOfferIndex([]);
+    const centers = [
+      bc({ slug: 'second', businessClass: 'A', sortOrder: 2 }),
+      bc({ slug: 'excluded', businessClass: 'B', sortOrder: 0 }),
+      bc({ slug: 'first', businessClass: 'A', sortOrder: 1 }),
+    ];
+    expect(state.sort).toBe('default');
+    expect(state.classes).toEqual(['A']);
+    const visible = centers.filter((c) => matchesCatalogFilter(c, state, offers));
+    expect(sortCatalogCenters(visible, state.sort, offers).map((c) => c.slug)).toEqual(['first', 'second']);
+    expect(catalogFilterToQuery(state)).not.toContain('sort=');
+  });
+
   it('один и тот же набор фильтров даёт одну строку запроса', () => {
     const a = { ...EMPTY_CATALOG_FILTER, classes: ['B+', 'A'], facts: ['uk', 'rent'] };
     const b = { ...EMPTY_CATALOG_FILTER, classes: ['A', 'B+'], facts: ['rent', 'uk'] };

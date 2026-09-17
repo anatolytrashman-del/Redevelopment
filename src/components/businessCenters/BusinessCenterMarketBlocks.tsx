@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Building2, Coins, Gauge, Gem, History, MessageSquare, Star } from 'lucide-react';
+import { Building2, Coins, Gauge, History, MessageSquare, Star } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { BusinessCenter } from '../../data/businessCenters';
@@ -9,7 +8,6 @@ import { TENANT_INDUSTRY_OTHER, tenantIndustryLabel } from '../../data/tenantInd
 import type { BusinessCenterOffer } from '../../data/businessCenterOffers';
 import { mapRatingFromHighlights } from '../../lib/businessCenterDisplay';
 import type { MarketPosition } from '../../lib/businessCenterMarketPosition';
-import { SUBSCALE_META, type BusinessCenterIndex } from '../../lib/businessCenterIndex';
 import { VERDICT_SIGNATURE } from '../../lib/businessCenterVerdict';
 
 // Авторские блоки карточки БЦ (Б1, Б8, Б10, Б11 плана
@@ -55,13 +53,11 @@ function Bar({
 }
 
 export function MarketPositionBlock({
-  center,
   position,
 }: {
-  center: BusinessCenter;
   position: MarketPosition;
 }) {
-  if (position.bars.length === 0 && position.areaRankCity === null) return null;
+  if (position.bars.length === 0) return null;
   return (
     // id — якорь для липкого меню «На странице» (Б7). scroll-mt — чтобы
     // заголовок не уезжал под липкую шапку при переходе по якорю.
@@ -76,27 +72,6 @@ export function MarketPositionBlock({
           остальное — по справочнику 143 бизнес-центров (prometr.by и 2ГИС).
         </p>
       </div>
-
-      {position.areaRankCity && (
-        <p className="text-sm text-ink-muted">
-          По площади это{' '}
-          <span className="font-bold text-ink">
-            {position.areaRankCity.rank}-й из {position.areaRankCity.total}
-          </span>{' '}
-          бизнес-центр в каталоге
-          {position.areaRankDistrict && center.district && (
-            <>
-              {' '}
-              и{' '}
-              <span className="font-bold text-ink">
-                {position.areaRankDistrict.rank}-й из {position.areaRankDistrict.total}
-              </span>{' '}
-              в своём районе ({center.district})
-            </>
-          )}
-          .
-        </p>
-      )}
 
       <div className="flex flex-col gap-5">
         {position.bars.map((bar) => {
@@ -427,60 +402,6 @@ export function TechTilesBlock({ center, all }: { center: BusinessCenter; all: B
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-// --- К9. Индекс Redevelopment на карточке -------------------------------
-//
-// Число само по себе ничего не объясняет, поэтому рядом всегда: разбивка по
-// подшкалам, сколько подшкал удалось посчитать и ссылка на открытую
-// методику. Собственник здания с низким индексом должен за два клика
-// увидеть, из чего он сложился.
-
-export function IndexBlock({ index, rank, total }: { index: BusinessCenterIndex; rank: number | null; total: number }) {
-  return (
-    <div id="index" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-        <Gem className="h-5 w-5 shrink-0 text-ink-muted" />
-        Индекс Redevelopment
-      </h2>
-      <div className="flex flex-wrap items-center gap-4">
-        <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary text-2xl font-extrabold text-white">
-          {index.value}
-        </span>
-        <div className="flex flex-col gap-0.5">
-          <span className="text-sm text-ink-muted">
-            из 100, посчитан по {index.known} {index.known === 1 ? 'подшкале' : 'подшкалам'} из 5
-          </span>
-          {rank != null && (
-            <span className="text-sm text-ink-muted">
-              <span className="font-bold text-ink">
-                {rank}-е место из {total}
-              </span>{' '}
-              среди бизнес-центров каталога с посчитанным индексом
-            </span>
-          )}
-        </div>
-      </div>
-      <div className="flex flex-col gap-2">
-        {index.subscales.map((s) => (
-          <div key={s.key} className="flex items-center gap-3">
-            <span className="w-28 shrink-0 text-xs text-ink-muted sm:w-36">{SUBSCALE_META[s.key].label}</span>
-            <span className="h-2 flex-1 overflow-hidden rounded-full bg-surface-muted">
-              <span className="block h-full rounded-full bg-border-strong" style={{ width: `${s.score}%` }} />
-            </span>
-            <span className="w-8 shrink-0 text-right text-xs font-bold tabular-nums text-ink">{s.score}</span>
-          </div>
-        ))}
-      </div>
-      <p className="text-xs text-ink-faint">
-        Только измеримые параметры здания: расстояния, класс, парковка, инфраструктура, наличие
-        активных объявлений. Усреднённых оценок пользователей в индексе нет.{' '}
-        <Link to="/minsk/bcminsk/metodika" className="font-semibold text-primary-hover hover:underline">
-          Как считается
-        </Link>
-      </p>
     </div>
   );
 }

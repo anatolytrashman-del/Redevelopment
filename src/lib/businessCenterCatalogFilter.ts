@@ -21,7 +21,6 @@ import { shortName, streetOfAddress } from './businessCenterDisplay';
 
 export type CatalogSortKey =
   | 'default'
-  | 'index'
   | 'rent'
   | 'area'
   | 'metro'
@@ -34,7 +33,6 @@ export const CATALOG_SORTS: { key: CatalogSortKey; label: string }[] = [
   // По умолчанию — sort_order каталога (примерно по частотности поисковых
   // запросов, см. BusinessCenter.sortOrder), а не алфавит.
   { key: 'default', label: 'По умолчанию' },
-  { key: 'index', label: 'Индекс Redevelopment' },
   { key: 'rent', label: 'Ставка аренды' },
   { key: 'area', label: 'Площадь' },
   { key: 'metro', label: 'Ближе к метро' },
@@ -376,14 +374,9 @@ export function sortCatalogCenters(
   centers: BusinessCenter[],
   sort: CatalogSortKey,
   offers: CatalogOfferIndex,
-  // Индекс считается от всего каталога сразу (см. lib/businessCenterIndex),
-  // поэтому приходит готовой картой, а не считается тут по одному зданию.
-  indexBySlug?: Map<string, { value: number }>,
 ): BusinessCenter[] {
   const list = [...centers];
   switch (sort) {
-    case 'index':
-      return list.sort(byNumber((c) => indexBySlug?.get(c.slug)?.value ?? null, 'desc'));
     case 'rent':
       return list.sort(byNumber((c) => offers.rentBySlug.get(c.slug)?.median ?? null, 'asc'));
     case 'area':
