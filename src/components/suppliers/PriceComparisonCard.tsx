@@ -66,6 +66,7 @@ import {
   type UnmatchedLine,
 } from './priceComparisonModel';
 import { buildPrintHtml, buildProposalEmailHtml, hostOf, hrefOf, type ComparisonDoc } from './priceComparisonPrint';
+import { SingleSupplierPanel } from './SingleSupplierPanel';
 
 // Владелец, 2026-09-15: «Пришла пора разобраться со сравнением цен... исходя
 // из этой страницы я ничего не понимаю». Старое сравнение группировало
@@ -1112,6 +1113,12 @@ export function PriceComparisonCard({
           </span>
         </div>
       </div>
+
+      {/* Ответ на «где заказать всё сразу» — до таблицы: сетка из позиций и
+          поставщиков глазами не сравнивается (владелец, 2026-09-17). */}
+      {!emptyPositions && columns.length > 1 && (
+        <SingleSupplierPanel columns={columns} positions={positions} rate={rate} saving={saving} onPickAll={toggleColumn} />
+      )}
 
       {error && <p className="text-sm text-danger">{error}</p>}
 
