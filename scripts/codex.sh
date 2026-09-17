@@ -16,9 +16,22 @@ if [ "$#" -eq 0 ]; then
   exit 2
 fi
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Файлы заданий в docs/codex-tasks/ написаны под облачный Codex и велят завести
+# ветку и открыть PR. В канале 1 это не так: ветку сессии назначает харнесс, а
+# PR открывает Claude (gh в контейнере нет). Поэтому к любому ТЗ из файла
+# автоматически подклеивается приписка с правилами этого канала — чтобы каждая
+# новая сессия не сочиняла её заново и не забывала.
+ADDENDUM="$REPO_ROOT/docs/codex-tasks/_cli-addendum.md"
+
 if [ "${1:-}" = "-f" ]; then
   [ -f "${2:-}" ] || { echo "Файл с ТЗ не найден: ${2:-<не задан>}" >&2; exit 2; }
   PROMPT="$(cat "$2")"
+  if [ -f "$ADDENDUM" ]; then
+    PROMPT="$PROMPT
+$(cat "$ADDENDUM")"
+  fi
 else
   PROMPT="$*"
 fi
