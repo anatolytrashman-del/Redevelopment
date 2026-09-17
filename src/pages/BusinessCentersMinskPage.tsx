@@ -948,22 +948,22 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                   процентной высоты вложенной картинки в Safari. */}
               <div className="relative w-full" style={{ paddingTop: '125%' }}>
                 <div className="absolute inset-0">
-              {HERO_IMAGES.length > 0 ? (
-                <HeroImageSlider
-                  images={HERO_IMAGES}
-                  alt="Бизнес-центры Минска"
-                  aspectClassName="h-full"
-                  imageWidth={HERO_IMAGE_WIDTH}
-                  imageHeight={HERO_IMAGE_HEIGHT}
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center rounded-3xl bg-gradient-to-br from-surface-muted to-border">
-                  <span className="flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink-muted shadow-sm">
-                    <Camera className="h-3.5 w-3.5 shrink-0" />
-                    Фото скоро
-                  </span>
-                </div>
-              )}
+                  {HERO_IMAGES.length > 0 ? (
+                    <HeroImageSlider
+                      images={HERO_IMAGES}
+                      alt="Бизнес-центры Минска"
+                      aspectClassName="h-full"
+                      imageWidth={HERO_IMAGE_WIDTH}
+                      imageHeight={HERO_IMAGE_HEIGHT}
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center rounded-3xl bg-gradient-to-br from-surface-muted to-border">
+                      <span className="flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink-muted shadow-sm">
+                        <Camera className="h-3.5 w-3.5 shrink-0" />
+                        Фото скоро
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
