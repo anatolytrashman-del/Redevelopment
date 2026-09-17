@@ -35,9 +35,8 @@ describe('MoneyBlock', () => {
     expect(html).not.toContain('в месяц');
   });
 
-  it('reports absence in sources only after a successful empty response', () => {
-    expect(render([])).toContain('Активных предложений в наших источниках нет');
-    expect(render([])).toContain('Это не означает, что в здании нет свободных помещений');
+  it('hides the empty money block and keeps loading and errors distinct', () => {
+    expect(render([])).toBe('');
     expect(render(null)).toContain('Загружаем');
     expect(render(null, true)).toContain('Не удалось загрузить');
     expect(render(null, true)).not.toContain('Активных предложений в наших источниках нет');

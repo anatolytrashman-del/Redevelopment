@@ -1,3 +1,4 @@
+import { NO_ACTIVE_OFFERS_SHORT } from '../data/businessCenterOffers';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -288,7 +289,11 @@ function BusinessCenterCard({
               {` · ${(rent?.n ?? 0) + (sale?.n ?? 0)} лотов`}
             </FactRow>
           ) : (
-            <FactRow icon={DollarSign}>объявлений сейчас нет</FactRow>
+            <FactRow icon={DollarSign}>
+              {(rent?.n ?? 0) + (sale?.n ?? 0) > 0
+                ? `${(rent?.n ?? 0) + (sale?.n ?? 0)} лотов · ставки не указаны`
+                : NO_ACTIVE_OFFERS_SHORT}
+            </FactRow>
           )}
           <FactRow icon={Award}>
             {center.gisRating != null ? `2ГИС ${center.gisRating}` : 'рейтинга нет'}

@@ -66,7 +66,7 @@ import {
 } from '../lib/businessCenterHubs';
 import type { BusinessCenter, HighlightIconKey, TechnicalParam, TenantOrganization } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
-import type { BusinessCenterOffer } from '../data/businessCenterOffers';
+import { NO_ACTIVE_OFFERS_MESSAGE, type BusinessCenterOffer } from '../data/businessCenterOffers';
 import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
 import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { MIN_RELIABLE_N, type MarketSnapshot } from '../data/marketSnapshots';
@@ -372,7 +372,7 @@ export function BusinessCenterDetailPage() {
       has('index', ownIndex != null),
       has('market', Boolean(marketPosition && (marketPosition.bars.length > 0 || marketPosition.areaRankCity))),
       has('map', center.lat != null && center.lng != null),
-      has('money', true),
+      has('money', offers === null || offers.length > 0),
       has('tech', center.technicalParams.length > 0 || center.parkingRatio != null),
       has('offers', offers !== null),
       has('rental', Boolean(center.rentalInfo)),
@@ -1007,13 +1007,10 @@ export function BusinessCenterDetailPage() {
         {offers !== null && (
           <div id="offers" className={cn('mt-6 flex scroll-mt-32 flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="text-lg font-bold text-ink">Сейчас предлагается</h2>
-            {/* Б5. Пусто — не пустая таблица и не исчезнувший блок, а
-                честный текст: отсутствие лотов на Kufar и Realt само по
-                себе факт (здание сдаёт через УК напрямую либо занято). */}
             {offers.length === 0 ? (
               <div className="flex flex-col gap-2 text-sm text-ink-muted">
                 <p>
-                  Активных предложений в наших источниках нет. Это не значит, что
+                  {NO_ACTIVE_OFFERS_MESSAGE} Это не значит, что
                   свободных площадей нет: часть бизнес-центров сдаёт офисы напрямую через управляющую
                   компанию, минуя площадки.
                 </p>
@@ -1069,30 +1066,32 @@ export function BusinessCenterDetailPage() {
                 })}
               </div>
             )}
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[480px] border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                    <th scope="col" className="py-2 pr-3 text-left">
-                      Тип помещения
-                    </th>
-                    <th scope="col" className="py-2 px-2 text-right">
-                      Объявлений
-                    </th>
-                    <th scope="col" className="py-2 px-2 text-right">
-                      Площадь
-                    </th>
-                    <th scope="col" className="py-2 pl-2 text-right">
-                      Цена за м²
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  <OfferDealSection title="Продажа" rows={saleRows} />
-                  <OfferDealSection title="Аренда" rows={rentRows} />
-                </tbody>
-              </table>
-            </div>
+            {offers.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[480px] border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                      <th scope="col" className="py-2 pr-3 text-left">
+                        Тип помещения
+                      </th>
+                      <th scope="col" className="py-2 px-2 text-right">
+                        Объявлений
+                      </th>
+                      <th scope="col" className="py-2 px-2 text-right">
+                        Площадь
+                      </th>
+                      <th scope="col" className="py-2 pl-2 text-right">
+                        Цена за м²
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    <OfferDealSection title="Продажа" rows={saleRows} />
+                    <OfferDealSection title="Аренда" rows={rentRows} />
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* Сравнение со средней по классу/району (ANALYTICSPLAN.md
                 §4.2) — медиана этого конкретного здания против медиан
@@ -1508,12 +1507,9 @@ function renderBold(text: string): ReactNode {
   );
 }
 
-// Одна строка таблицы — либо реальная разбивка по типу помещения (для
-// сделки, где объявления есть), либо единственная строка-заглушка "нет
-// объявлений" (propertyType: null), когда по этой сделке сейчас пусто —
-// владелец: "Продажа" должна быть видна явной строкой, а не пропадать.
+// Таблица содержит только реальные предложения, без пустых строк-заглушек.
 interface OfferRow {
-  propertyType: string | null;
+  propertyType: string;
   count: number;
   minSize: number;
   maxSize: number;
@@ -1524,9 +1520,7 @@ interface OfferRow {
 
 function computeOfferRows(offers: BusinessCenterOffer[], dealType: BusinessCenterOffer['dealType']): OfferRow[] {
   const filtered = offers.filter((o) => o.dealType === dealType);
-  if (filtered.length === 0) {
-    return [{ propertyType: null, count: 0, minSize: 0, maxSize: 0, minPrice: 0, medianPrice: 0, maxPrice: 0 }];
-  }
+  if (filtered.length === 0) return [];
 
   const groups = new Map<string, BusinessCenterOffer[]>();
   for (const o of filtered) {
@@ -1627,6 +1621,7 @@ function RateComparisonNote({
 // повторять текст на каждой строке разбивки), а строка-разделитель на всю
 // ширину таблицы, за ней сразу строки по типу помещения.
 function OfferDealSection({ title, rows }: { title: string; rows: OfferRow[] }) {
+  if (rows.length === 0) return null;
   return (
     <>
       <tr>
@@ -1634,30 +1629,22 @@ function OfferDealSection({ title, rows }: { title: string; rows: OfferRow[] }) 
           {title}
         </td>
       </tr>
-      {rows.map((row) =>
-        row.propertyType === null ? (
-          <tr key="empty">
-            <td colSpan={4} className="py-3 text-ink-muted">
-              Нет активных объявлений
-            </td>
-          </tr>
-        ) : (
-          <tr key={row.propertyType}>
-            <td className="py-3 pr-3 font-medium text-ink">{row.propertyType}</td>
-            <td className="py-3 px-2 text-right tabular-nums text-ink-muted">{row.count}</td>
-            <td className="whitespace-nowrap py-3 px-2 text-right tabular-nums text-ink-muted">
-              {row.minSize === row.maxSize
-                ? `${row.minSize.toLocaleString('ru-RU')} м²`
-                : `${row.minSize.toLocaleString('ru-RU')}–${row.maxSize.toLocaleString('ru-RU')} м²`}
-            </td>
-            <td className="whitespace-nowrap py-3 pl-2 text-right tabular-nums font-semibold text-ink">
-              {row.minPrice === row.maxPrice
-                ? `${formatUsd(row.minPrice)}/м²`
-                : `${formatUsd(row.minPrice)}–${formatUsd(row.maxPrice)}/м² (медиана ${formatUsd(row.medianPrice)})`}
-            </td>
-          </tr>
-        ),
-      )}
+      {rows.map((row) => (
+        <tr key={row.propertyType}>
+          <td className="py-3 pr-3 font-medium text-ink">{row.propertyType}</td>
+          <td className="py-3 px-2 text-right tabular-nums text-ink-muted">{row.count}</td>
+          <td className="whitespace-nowrap py-3 px-2 text-right tabular-nums text-ink-muted">
+            {row.minSize === row.maxSize
+              ? `${row.minSize.toLocaleString('ru-RU')} м²`
+              : `${row.minSize.toLocaleString('ru-RU')}–${row.maxSize.toLocaleString('ru-RU')} м²`}
+          </td>
+          <td className="whitespace-nowrap py-3 pl-2 text-right tabular-nums font-semibold text-ink">
+            {row.minPrice === row.maxPrice
+              ? `${formatUsd(row.minPrice)}/м²`
+              : `${formatUsd(row.minPrice)}–${formatUsd(row.maxPrice)}/м² (медиана ${formatUsd(row.medianPrice)})`}
+          </td>
+        </tr>
+      ))}
     </>
   );
 }

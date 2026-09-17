@@ -88,7 +88,6 @@ export function buildVerdictDraft(
     cons.push(`Потолки ${center.ceilingHeight.toLocaleString('ru-RU')} м — ниже привычных`);
   }
   if (center.businessClass === 'C') cons.push('Класс C: базовая отделка и минимальный набор сервисов');
-  if (lots === 0) cons.push('Активных объявлений на Kufar и Realt сейчас нет — придётся писать в УК напрямую');
   if (rent != null && classMedian != null && classMedian > 0 && rent >= classMedian * 1.15) {
     cons.push(`Ставка выше медианы класса ${center.businessClass} на ${Math.round((rent / classMedian - 1) * 100)}%`);
   }

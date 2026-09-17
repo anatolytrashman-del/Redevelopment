@@ -128,6 +128,8 @@ export function MoneyBlock({
   offers: BusinessCenterOffer[] | null;
   error?: boolean;
 }) {
+  // Единственное сообщение о пустой выборке — в секции «Сейчас предлагается».
+  if (!error && offers?.length === 0) return null;
   return (
     <div id="money" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
       <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
@@ -144,47 +146,39 @@ export function MoneyBlock({
             Активных предложений: аренда — {offers.filter((o) => o.dealType === 'rent').length}, продажа —{' '}
             {offers.filter((o) => o.dealType === 'sale').length}.
           </p>
-          {offers.length === 0 ? (
-            <p className="text-sm text-ink-muted">
-              Активных предложений в наших источниках нет. Это не означает, что в здании нет свободных помещений.
-            </p>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {offers.map((offer) => {
-                  const isRent = offer.dealType === 'rent';
-                  const hasSize = Number.isFinite(offer.size) && offer.size > 0;
-                  const hasRate = Number.isFinite(offer.pricePerSqm) && offer.pricePerSqm >= 0;
-                  return (
-                    <div key={offer.id} className="flex flex-col gap-2 rounded-2xl bg-surface-muted p-4">
-                      <span className="text-sm font-bold text-ink">
-                        {isRent ? 'Аренда' : 'Продажа'} · {hasSize ? `${offer.size.toLocaleString('ru-RU')} м²` : 'Площадь не указана'}
-                      </span>
-                      <span className="text-sm text-ink-muted">
-                        {hasRate ? `$${offer.pricePerSqm.toLocaleString('ru-RU')}/м²${isRent ? ' в месяц' : ''}` : 'Ставка не указана'}
-                        {offer.floor != null && ` · этаж ${offer.floor}`}
-                      </span>
-                      <p className="text-sm font-semibold text-ink">
-                        {hasSize && hasRate
-                          ? `За всё помещение — около $${Math.round(offer.size * offer.pricePerSqm).toLocaleString('ru-RU')}${isRent ? ' в месяц' : ''} по указанной ставке.`
-                          : 'Недостаточно данных для расчёта стоимости всего помещения.'}
-                      </p>
-                      {offer.adLink && (
-                        <a href={offer.adLink} target="_blank" rel="noopener noreferrer nofollow" className="text-sm text-primary-hover hover:underline">
-                          Объявление на {offer.source}
-                        </a>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <p className="text-xs text-ink-faint">
-                Стоимость целиком — пересчёт площади и ставки из объявления, а не итоговый платёж.
-                Состав платежей в наших данных не раскрыт: неизвестно, включены ли коммунальные,
-                эксплуатационные и другие дополнительные платежи. Уточняйте условия у автора объявления.
-              </p>
-            </>
-          )}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {offers.map((offer) => {
+              const isRent = offer.dealType === 'rent';
+              const hasSize = Number.isFinite(offer.size) && offer.size > 0;
+              const hasRate = Number.isFinite(offer.pricePerSqm) && offer.pricePerSqm >= 0;
+              return (
+                <div key={offer.id} className="flex flex-col gap-2 rounded-2xl bg-surface-muted p-4">
+                  <span className="text-sm font-bold text-ink">
+                    {isRent ? 'Аренда' : 'Продажа'} · {hasSize ? `${offer.size.toLocaleString('ru-RU')} м²` : 'Площадь не указана'}
+                  </span>
+                  <span className="text-sm text-ink-muted">
+                    {hasRate ? `$${offer.pricePerSqm.toLocaleString('ru-RU')}/м²${isRent ? ' в месяц' : ''}` : 'Ставка не указана'}
+                    {offer.floor != null && ` · этаж ${offer.floor}`}
+                  </span>
+                  <p className="text-sm font-semibold text-ink">
+                    {hasSize && hasRate
+                      ? `За всё помещение — около $${Math.round(offer.size * offer.pricePerSqm).toLocaleString('ru-RU')}${isRent ? ' в месяц' : ''} по указанной ставке.`
+                      : 'Недостаточно данных для расчёта стоимости всего помещения.'}
+                  </p>
+                  {offer.adLink && (
+                    <a href={offer.adLink} target="_blank" rel="noopener noreferrer nofollow" className="text-sm text-primary-hover hover:underline">
+                      Объявление на {offer.source}
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-xs text-ink-faint">
+            Стоимость целиком — пересчёт площади и ставки из объявления, а не итоговый платёж.
+            Состав платежей в наших данных не раскрыт: неизвестно, включены ли коммунальные,
+            эксплуатационные и другие дополнительные платежи. Уточняйте условия у автора объявления.
+          </p>
         </>
       )}
     </div>
@@ -403,7 +397,7 @@ export function buildTechTiles(center: BusinessCenter, all: BusinessCenter[]): T
         center.freeSpaceMax != null && center.freeSpaceMax !== center.freeSpaceMin
           ? `${center.freeSpaceMin.toLocaleString('ru-RU')}–${center.freeSpaceMax.toLocaleString('ru-RU')} м²`
           : `${center.freeSpaceMin.toLocaleString('ru-RU')} м²`,
-      note: 'по данным prometr.by, не по объявлениям',
+      note: 'Диапазон из справочника prometr.by, а не подтверждённый перечень доступных блоков. Наличие любого размера внутри диапазона не подтверждено.',
     });
   }
   return tiles;
