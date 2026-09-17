@@ -462,7 +462,7 @@ function OfferTotalComparison({
               <div className="flex min-w-0 items-center gap-2">
                 <span className="truncate font-medium text-ink">{o.name}</span>
                 <VerificationBadge offer={o} enrichmentState={enrichmentState} />
-                <RiskBadge inn={o.inn} reliabilityByInn={reliabilityByInn} />
+                <RiskBadge inn={o.inn} reliabilityByInn={reliabilityByInn} onClick={() => onOpenDetail(o)} />
                 {isCheapest && (
                   <span className="rounded-full bg-success px-2 py-0.5 text-[11px] font-semibold text-white">
                     лучшая цена
@@ -2604,10 +2604,10 @@ export function Suppliers() {
                         onRequestSaved={(saved) => setRequests((prev) => prev.map((x) => (x.id === saved.id ? saved : x)))}
                         onQuotesChange={setSupplierQuotes}
                         onOfferUpdated={handleSupplierOfferUpdated}
-                        renderBadges={(o) => (
+                        renderBadges={(o, actions) => (
                           <>
                             <VerificationBadge offer={o} enrichmentState={enrichmentState} />
-                            <RiskBadge inn={o.inn} reliabilityByInn={reliabilityByInn} />
+                            <RiskBadge inn={o.inn} reliabilityByInn={reliabilityByInn} onClick={actions?.onRiskClick} />
                           </>
                         )}
                         reliabilityByInn={reliabilityByInn}

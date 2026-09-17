@@ -365,7 +365,7 @@ export function PriceComparisonCard({
   onOfferUpdated: (o: SupplierOffer) => void;
   // Бейджи верификации/благонадёжности живут в Suppliers.tsx вместе со своим
   // состоянием — сюда приходят готовыми.
-  renderBadges: (o: SupplierOffer) => ReactNode;
+  renderBadges: (o: SupplierOffer, actions?: { onRiskClick?: () => void }) => ReactNode;
   // Проверка по ИНН (Checko) — та же карта, что и у RiskBadge выше по дереву.
   // Нужна панели «Заказать всё у одного»: владелец, 2026-09-17, «мы никогда
   // не ставим на первое место поставщика с красными флагами».
@@ -1077,7 +1077,9 @@ export function PriceComparisonCard({
     return (
       <>
         <span className="block text-[13px] font-bold text-ink">{col.offer.name}</span>
-        <span className="mt-1 flex flex-wrap items-center gap-1">{renderBadges(col.offer)}</span>
+        <span className="mt-1 flex flex-wrap items-center gap-1">
+          {renderBadges(col.offer, { onRiskClick: () => onOpenDetail(col.offer) })}
+        </span>
         <span className="mt-1 flex flex-wrap gap-1 text-[10.5px] font-medium">
           {col.lastQuoteAt && (
             <span className={cn('rounded-full px-1.5 py-px', age != null && age > STALE_QUOTE_DAYS ? 'bg-warning-bg text-warning' : 'bg-surface text-ink-muted')}>
@@ -1547,7 +1549,9 @@ export function PriceComparisonCard({
                               <button type="button" onClick={() => onOpenDetail(col.offer)} className={cn('text-left font-semibold hover:underline', isPicked ? 'text-success' : 'text-ink')}>
                                 {col.offer.name}
                               </button>
-                              <span className="mt-0.5 flex flex-wrap items-center gap-1">{renderBadges(col.offer)}</span>
+                              <span className="mt-0.5 flex flex-wrap items-center gap-1">
+                                {renderBadges(col.offer, { onRiskClick: () => onOpenDetail(col.offer) })}
+                              </span>
                               <span className="block text-[11px] text-ink-muted">{col.delivery != null ? `доставка ${formatMoney(col.delivery, col.deliveryCurrency)}` : 'доставка не названа'}</span>
                             </td>
                             <td className="px-3 py-2 text-[12px] leading-snug text-ink">
