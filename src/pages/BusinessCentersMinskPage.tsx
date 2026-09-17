@@ -200,12 +200,22 @@ function BusinessCenterCard({
     <Link
       to={`/minsk/bcminsk/${center.slug}`}
       className={cn(
-        'group flex flex-col overflow-hidden transition-transform hover:-translate-y-0.5',
+        // min-h на карточке и на фотоблоке — страховка, а не вёрстка.
+        // Владелец дважды (2026-09-16 и 2026-09-17) присылал прод, где
+        // карточки схлопнуты в полоски высотой в пару пикселей: виден
+        // обрезанный кусок фото, текста нет вовсе. Headless-браузер этого
+        // не воспроизводит ни на 360, ни на 1280, ни на 2000 px, разметка
+        // и CSS на проде верные — то есть высоту теряет конкретный
+        // браузер, а не наш код. Пока причина не найдена, карточка не
+        // должна зависеть от того, сработает ли aspect-ratio: при любом
+        // исходе у неё есть собственная минимальная высота, и
+        // overflow-hidden больше нечего прятать.
+        'group flex min-h-[22rem] flex-col overflow-hidden transition-transform hover:-translate-y-0.5',
         glassCardClass,
       )}
       style={glassCardShadow}
     >
-      <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden">
+      <div className="relative aspect-[16/10] min-h-[12rem] w-full shrink-0 overflow-hidden">
         <PhotoBlock center={center} variant="card" />
         <div className="absolute right-2 top-2 flex flex-wrap justify-end gap-1.5">
           {center.status === 'under_construction' && <Badge tone="warning">Строится</Badge>}
