@@ -105,9 +105,9 @@ const INTRO_TEXT =
 // по мере присылки. HeroImageSlider (см. DistrictGuidePage.tsx/
 // ObjectLandingPage.tsx) при пустом массиве не рендерит ничего — плейсхолдер
 // ниже занимает его место, пока список пуст.
-// PAGESPEED_PLAN.md, Э9 — WebP (640×387, 43→25 КиБ), JPEG-оригинал рядом
-// оставлен как источник. Это LCP-картинка каталога.
-const HERO_IMAGES: string[] = ['/images/business-centers-hero/hero-1.webp'];
+// Исходный JPEG (640×387, 43 КиБ) без повторного WebP-сжатия.
+// Компактный размер фото уменьшает растягивание портретного кропа.
+const HERO_IMAGES: string[] = ['/images/business-centers-hero/hero-1.jpg'];
 const HERO_IMAGE_WIDTH = 640;
 const HERO_IMAGE_HEIGHT = 387;
 
@@ -932,18 +932,18 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-8">
         <div className="space-y-8">
           <div
-            className={cn('flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:p-8', glassCardClass)}
-            style={glassCardShadow}
+            className={cn('flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:p-4', glassCardClass)}
+            style={{ ...glassCardShadow, borderRadius: '0.75rem' }}
           >
-            <div className="flex min-w-0 flex-col gap-3 sm:flex-1">
-              <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">{heroH1}</h1>
-              <p className="text-base text-ink-muted">{heroIntro}</p>
+            <div className="flex min-w-0 flex-col gap-2 sm:flex-1">
+              <h1 className="text-xl font-extrabold leading-tight text-ink sm:text-2xl">{heroH1}</h1>
+              <p className="text-sm text-ink-muted">{heroIntro}</p>
               <span className="flex w-fit items-center gap-1.5 rounded-full border border-success/30 bg-success-bg px-3 py-1 text-xs font-semibold text-[#0f6b3d]">
                 <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
                 {UPDATED_BADGE_LABEL}
               </span>
             </div>
-            <div className="mx-auto w-full max-w-xs shrink-0 sm:mx-0 sm:w-2/5 sm:max-w-none">
+            <div className="mx-auto w-full max-w-40 shrink-0 sm:mx-0 sm:w-1/5 sm:max-w-none">
               {/* Padding задаёт высоту по ширине независимо от Grid/Flex и
                   процентной высоты вложенной картинки в Safari. */}
               <div className="relative w-full" style={{ paddingTop: '125%' }}>
@@ -953,6 +953,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                       images={HERO_IMAGES}
                       alt="Бизнес-центры Минска"
                       aspectClassName="h-full"
+                      cornerCut={28}
                       imageWidth={HERO_IMAGE_WIDTH}
                       imageHeight={HERO_IMAGE_HEIGHT}
                     />
