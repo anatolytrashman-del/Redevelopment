@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Bot, Loader2, RefreshCw } from 'lucide-react';
+import { Bot, Loader2 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
@@ -146,6 +146,10 @@ import { AUTO_REPLY_SENDER_NAME } from '../data/emailAutoReply';
 // тянулись `select('*')`, то есть body каждого письма и весь JSON
 // результатов каждого поиска; на разовом открытии страницы это было
 // незаметно, на ежеминутном опросе — уже нет.
+// 2026-09-17 — владелец: "инфа в интерфейсе о времени обновления мне не
+// нужна". Подпись "обновлено в 12:34:56 · автоматически раз в минуту" со
+// значком-вертушкой убрана; сам опрос не тронут — он и был сделан ради того,
+// чтобы за временем обновления не следить.
 
 type Period = 'today' | 'week' | 'month' | 'custom';
 
@@ -364,8 +368,6 @@ export function Metrics() {
   const [incomingInvoices, setIncomingInvoices] = useState<IncomingInvoiceMetric[] | null>(null);
   const [deployments, setDeployments] = useState<DeploymentMetric[] | null>(null);
   const [error, setError] = useState('');
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const inFlight = useRef(false);
 
   const [period, setPeriod] = useState<Period>('today');
@@ -382,7 +384,6 @@ export function Metrics() {
   const load = useCallback(async () => {
     if (inFlight.current) return; // предыдущий заход ещё идёт — пропускаем тик, а не копим параллельные запросы
     inFlight.current = true;
-    setRefreshing(true);
     try {
       const [logEntries, offerEmails, jobs, replyLog, invoices, deploys] = await Promise.all([
         fetchActivityLog(),
@@ -401,13 +402,11 @@ export function Metrics() {
       setAutoReplyLog(replyLog);
       setIncomingInvoices(invoices);
       setDeployments(deploys);
-      setLastUpdatedAt(new Date());
       setError('');
     } catch {
       setError('Не удалось загрузить метрики.');
     } finally {
       inFlight.current = false;
-      setRefreshing(false);
     }
   }, [start]);
 
@@ -605,15 +604,7 @@ export function Metrics() {
               />
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-faint">
-            <span>{formatPeriodCaption(period, start, end)}</span>
-            <span className="inline-flex items-center gap-1">
-              <RefreshCw className={cn('h-3 w-3', refreshing && 'animate-spin')} />
-              {lastUpdatedAt
-                ? `обновлено в ${lastUpdatedAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} · автоматически раз в минуту`
-                : 'обновление…'}
-            </span>
-          </div>
+          <div className="text-xs text-ink-faint">{formatPeriodCaption(period, start, end)}</div>
 
           {/* Ряд ИИ-сотрудников: в периоде "Сегодня" у обоих ровно по две
               плитки, поэтому они стоят рядом — закупщик слева, кодер справа.
