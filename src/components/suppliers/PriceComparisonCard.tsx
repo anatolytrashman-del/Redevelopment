@@ -417,13 +417,28 @@ export function PriceComparisonCard({
     return map;
   }, [quotes]);
 
+  // Поставщик, у которого уже выбрана хоть одна позиция (лежит в
+  // request.proposal), — всегда вперёд остальных, даже если по числу
+  // закрытых позиций он не лидирует. Владелец, 2026-09-17: закупка теперь
+  // идёт по частям ведомости у разных поставщиков (Банапал — свои позиции,
+  // Альбия — свои, ООО «СтройТерминал Центр Красок» — свои), и поставщик с
+  // 2 закрытыми, но выбранными позициями не должен уезжать в конец таблицы
+  // только потому, что у него меньше позиций, чем у никем не выбранного.
+  const proposalOfferIds = useMemo(() => new Set(Object.values(request.proposal ?? {}).map((p) => p.offerId)), [request.proposal]);
+
   const columns = useMemo(() => {
     const cols = buildColumns(confirmed, quotesByOffer, positions, rate);
-    // Порядок столбцов — по числу закрытых позиций, потом по имени; от цены
-    // не зависит (см. шапку файла про минимум).
-    return cols.sort((a, b) => b.cells.size - a.cells.size || a.offer.name.localeCompare(b.offer.name, 'ru'));
+    // Порядок столбцов: сначала выбранные поставщики, среди них и среди
+    // остальных — по числу закрытых позиций, потом по имени; от цены не
+    // зависит (см. шапку файла про минимум).
+    return cols.sort((a, b) => {
+      const aPicked = proposalOfferIds.has(a.offer.id);
+      const bPicked = proposalOfferIds.has(b.offer.id);
+      if (aPicked !== bPicked) return aPicked ? -1 : 1;
+      return b.cells.size - a.cells.size || a.offer.name.localeCompare(b.offer.name, 'ru');
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [confirmed.map((o) => o.id + o.items.length).join(','), quotesByOffer, positions, rate]);
+  }, [confirmed.map((o) => o.id + o.items.length).join(','), quotesByOffer, positions, rate, proposalOfferIds]);
 
   // Воронка запроса — по всем поставщикам выбранной страны, не только по
   // приславшим КП (владелец: «сколько отправлено — главная отправная точка»).

@@ -136,8 +136,13 @@ export function buildColumns(
   const byId = new Map(positions.map((p) => [p.id, p]));
   return offers.map((offer) => {
     const quotes = quotesByOffer.get(offer.id) ?? [];
-    // Счета — в хронологии, чтобы последняя цена перекрывала прежнюю. Без
-    // строк КП (старые карточки, до 2026-09-11) — позиции самой карточки.
+    // Хронология нужна только чтобы найти ПОСЛЕДНИЙ счёт — позиции из него не
+    // смешиваются с более старыми. Владелец, 2026-09-17: закупка теперь идёт
+    // по частям ведомости у разных поставщиков (Банапал — свои позиции,
+    // Альбия — свои и т.д.), и новый узкий счёт на 2 позиции заменяет старый
+    // широкий на 5, а не дополняет его — иначе давно неактуальные строки
+    // продолжали бы висеть в сравнении просто потому, что когда-то пришли.
+    // Без строк КП (старые карточки, до 2026-09-11) — позиции самой карточки.
     const sources: {
       id: string | null;
       title: string;
@@ -149,7 +154,7 @@ export function buildColumns(
       quotes.length > 0
         ? quotes.map((q) => ({ id: q.id, title: q.title, items: q.items, currency: q.currency, date: q.createdAt, terms: q.terms }))
         : [{ id: null, title: 'Позиции карточки', items: offer.items, currency: offer.currency, date: null, terms: null }];
-    const cells = new Map<string, Cell>();
+    let cells = new Map<string, Cell>();
     let delivery: number | null = null;
     let unmatched: UnmatchedLine[] = [];
     let aside: AsideLine[] = [];
@@ -158,7 +163,13 @@ export function buildColumns(
     // Валюта счёта, из которого взяты доставка и условия, — ею и подписываем
     // доставку (см. deliveryCurrency в Column).
     let sourceCurrency: Currency | null = null;
-    for (const src of sources) {
+    // Идём от новых счетов к старым и останавливаемся на первом, где вообще
+    // была хоть какая-то цена (позиция, доставка или непривязанная строка):
+    // ведомость, случайно распознанная как «счёт» без цен, не должна
+    // вытеснять настоящий предыдущий счёт.
+    for (let srcIndex = sources.length - 1; srcIndex >= 0; srcIndex -= 1) {
+      const src = sources[srcIndex];
+      const srcCells = new Map<string, Cell>();
       let srcDelivery: number | null = null;
       const srcUnmatched: UnmatchedLine[] = [];
       const srcAside: AsideLine[] = [];
@@ -191,7 +202,7 @@ export function buildColumns(
           continue;
         }
         priced = true;
-        cells.set(position.id, {
+        srcCells.set(position.id, {
           offerId: offer.id,
           itemId: item.id,
           quoteId: src.id,
@@ -213,20 +224,20 @@ export function buildColumns(
           quotedUnit: item.unit,
         });
       }
-      // Доставку и несопоставленные строки берём из последнего счёта, где
-      // вообще были цены: наша ведомость, распознанная как «счёт» без цен,
-      // не должна стирать доставку из настоящего счёта.
+      // Позиции, доставка и несопоставленные строки — все из ОДНОГО и того же
+      // счёта: смешивать цену за материал из одного счёта с доставкой или
+      // условиями из другого нельзя, а строки предыдущего (более раннего)
+      // счёта, которых в этом нет, считаются неактуальными и в cells не
+      // попадают вовсе.
       if (priced || srcDelivery != null || srcUnmatched.length > 0) {
+        cells = srcCells;
         delivery = srcDelivery;
         unmatched = srcUnmatched;
-        // Разобранные строки берём из того же счёта, что доставку и цены:
-        // счёт, состоящий из одних колеровок, не должен вытеснять настоящий.
         aside = srcAside;
-        // Условия берём того же КП, что и доставку: смешивать срок из одного
-        // счёта с ценой из другого нельзя.
         terms = src.terms;
         sourceCurrency = src.currency;
         if (src.date) lastQuoteAt = src.date;
+        break;
       }
     }
     // Доставка: числом из строки счёта, а если её там нет — из условий КП
