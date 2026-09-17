@@ -161,7 +161,7 @@ export const SIDEBAR_LAYOUT: SidebarEntry[] = [
   { type: 'page', key: 'objects' },
   { type: 'page', key: 'tasks' },
   { type: 'page', key: 'mailbox' },
-  { type: 'group', label: 'HR', keys: ['contractors', 'staffMetrics', 'meetingSummaries'] },
+  { type: 'group', label: 'Кадры', keys: ['contractors', 'staffMetrics', 'meetingSummaries'] },
   { type: 'group', label: 'Стройка', keys: ['tz', 'estimates', 'purchases', 'workContractors', 'designProjects'] },
   { type: 'group', label: 'Финансы', keys: ['finModels', 'financing', 'transactions', 'documents'] },
   { type: 'group', label: 'Маркетинг', keys: ['landings', 'siteMetrics', 'marketOffers', 'leads'] },
