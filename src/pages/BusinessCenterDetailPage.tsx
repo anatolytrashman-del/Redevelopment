@@ -423,7 +423,10 @@ export function BusinessCenterDetailPage() {
     if (ratingParts.length) add(`Какая оценка у «${name}» на картах?`, `${ratingParts.join('; ')}.`);
     if (reviewQuotes.length) add('Что пишут в отзывах?', reviewQuotes.join('\n'));
     add('Как исправить сведения о здании?', 'Напишите на anatoly.trashman@gmail.com, указав бизнес-центр и сведения, которые устарели или требуют исправления.');
-    const similar = similarCenters(center, centers ?? []);
+    // Тот же вызов, что и в самом блоке «Похожие»: соседи из него
+    // исключены, иначе FAQ перечислял бы не то, что видно на странице.
+    const neighbourSlugs = new Set(neighbours.map((n) => n.center.slug));
+    const similar = similarCenters(center, centers ?? [], 6, neighbourSlugs);
     if (similar.length) add('Какие бизнес-центры показаны как похожие?', similar.map(shortName).join(', '));
     if (hubChips.length) add('Какие связанные подборки доступны?', hubChips.map((c) => c.label).join(', '));
     return items;
