@@ -1,0 +1,25 @@
+name: tmp-2gis-key-check
+
+# Разовая диагностика: проверяет, рабочий ли GIS_API_KEY в GitHub Secrets,
+# не печатая само значение никуда — только код ответа 2ГИС. Файл временный,
+# удаляется вместе с веткой сразу после проверки (см. session-journal.md).
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping 2GIS with GIS_API_KEY (no secret in output)
+        env:
+          GIS_API_KEY: ${{ secrets.GIS_API_KEY }}
+        run: |
+          if [ -z "$GIS_API_KEY" ]; then
+            echo "RESULT: secret is empty/not set"
+            exit 1
+          fi
+          body=$(curl -sS "https://catalog.api.2gis.com/3.0/items?q=%D0%9C%D0%B8%D0%BD%D1%81%D0%BA&page_size=1&key=$GIS_API_KEY")
+          code=$(echo "$body" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(d)?.meta?.code)}catch{console.log('parse-error')}})")
+          type=$(echo "$body" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(d)?.meta?.error?.type||'none')}catch{console.log('parse-error')}})")
+          echo "RESULT: meta.code=$code meta.error.type=$type"
