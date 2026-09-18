@@ -12,14 +12,35 @@ const RADIUS_METERS = 500;
 const PAGE_SIZE = 50;
 const GIS_API_KEY = process.env.GIS_API_KEY;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const ACCESS_TOKEN = process.env.SUPABASE_ACCESS_TOKEN;
+const PROJECT_REF = 'iohcdylttyuhwovztrbk';
 
-if (!GIS_API_KEY || !SERVICE_ROLE_KEY) {
-  console.error('Нужны GIS_API_KEY и SUPABASE_SERVICE_ROLE_KEY');
+if (!GIS_API_KEY || (!SERVICE_ROLE_KEY && !ACCESS_TOKEN)) {
+  console.error('Нужен GIS_API_KEY и один из SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ACCESS_TOKEN');
   process.exit(1);
 }
 
-const { createClient } = await import('@supabase/supabase-js');
-const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+let supabase = null;
+if (SERVICE_ROLE_KEY) {
+  const { createClient } = await import('@supabase/supabase-js');
+  supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+}
+
+async function runSql(query) {
+  const response = await fetch(`https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`Management API ${response.status}: ${text.slice(0, 300)}`);
+  return JSON.parse(text);
+}
+
+function sqlLiteral(value) {
+  if (value == null) return 'null';
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
 
 class ApiError extends Error {}
 
@@ -162,25 +183,46 @@ async function main() {
     collectNearbyPlaces(),
   ]);
 
-  const { error: tenantError } = await supabase
-    .from('business_center_2gis_snapshots')
-    .update({
-      tenant_organizations: organizations,
-      tenant_organizations_total: total,
-      tenant_organizations_fetched: organizations.length,
-      tenant_organizations_fetched_at: new Date().toISOString(),
-    })
-    .eq('business_center_slug', PORT_SLUG);
-  if (tenantError) throw tenantError;
+  if (supabase) {
+    const { error: tenantError } = await supabase
+      .from('business_center_2gis_snapshots')
+      .update({
+        tenant_organizations: organizations,
+        tenant_organizations_total: total,
+        tenant_organizations_fetched: organizations.length,
+        tenant_organizations_fetched_at: new Date().toISOString(),
+      })
+      .eq('business_center_slug', PORT_SLUG);
+    if (tenantError) throw tenantError;
 
-  const { error: deleteError } = await supabase
-    .from('business_center_nearby_places')
-    .delete()
-    .eq('business_center_slug', PORT_SLUG);
-  if (deleteError) throw deleteError;
-  if (nearbyPlaces.length > 0) {
-    const { error: insertError } = await supabase.from('business_center_nearby_places').insert(nearbyPlaces);
-    if (insertError) throw insertError;
+    const { error: deleteError } = await supabase
+      .from('business_center_nearby_places')
+      .delete()
+      .eq('business_center_slug', PORT_SLUG);
+    if (deleteError) throw deleteError;
+    if (nearbyPlaces.length > 0) {
+      const { error: insertError } = await supabase.from('business_center_nearby_places').insert(nearbyPlaces);
+      if (insertError) throw insertError;
+    }
+  } else {
+    const values = nearbyPlaces.map((place) => `(
+      ${sqlLiteral(place.business_center_slug)}, ${sqlLiteral(place.source_place_id)}, ${sqlLiteral(place.name)},
+      ${sqlLiteral(place.category)}, ${sqlLiteral(place.subcategory)}, ${sqlLiteral(place.address)},
+      ${place.lat}, ${place.lng}, ${place.distance_meters}, ${sqlLiteral(place.source)},
+      ${sqlLiteral(place.source_url)}, ${sqlLiteral(place.collected_at)}::timestamptz
+    )`).join(',');
+    await runSql(`
+      update public.business_center_2gis_snapshots set
+        tenant_organizations = ${sqlLiteral(JSON.stringify(organizations))}::jsonb,
+        tenant_organizations_total = ${total},
+        tenant_organizations_fetched = ${organizations.length},
+        tenant_organizations_fetched_at = now()
+      where business_center_slug = ${sqlLiteral(PORT_SLUG)};
+      delete from public.business_center_nearby_places where business_center_slug = ${sqlLiteral(PORT_SLUG)};
+      ${values ? `insert into public.business_center_nearby_places
+        (business_center_slug, source_place_id, name, category, subcategory, address, lat, lng,
+         distance_meters, source, source_url, collected_at) values ${values};` : ''}
+    `);
   }
 
   console.log(`Порт: организаций ${organizations.length} из ${total}; инфраструктура ${nearbyPlaces.length} точек`);
