@@ -352,5 +352,12 @@ for (const entry of entries) {
   await fs.writeFile(path.join(dir, `${stamp}.json`), JSON.stringify(completed, null, 2));
   await fs.writeFile(path.join(dir, 'latest.json.tmp'), JSON.stringify(completed, null, 2));
   await fs.rename(path.join(dir, 'latest.json.tmp'), path.join(dir, 'latest.json'));
+  // saveCheckpoint() пишет в БД только из onProgress — а он ни разу не
+  // срабатывает, если организаций 0 (found.size никогда не становится
+  // больше previous=0). Без этой безусловной записи такой БЦ каждый раз
+  // проваливал --skip-collected и пересобирался заново (так было с aden).
+  if (writeDb) {
+    await writeSnapshot({ slug: entry.slug, address: entry.address ?? '', sourceUrl, capturedAt, organizations });
+  }
   console.log(`${entry.slug}: сохранено ${organizations.length} организаций`);
 }
