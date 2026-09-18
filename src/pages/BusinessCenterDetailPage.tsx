@@ -865,7 +865,7 @@ export function BusinessCenterDetailPage() {
         )}
 
         {/* <main> — единственный main-landmark страницы (Accessibility). */}
-        <main className="min-w-0">
+        <main className="min-w-0 xl:pt-11">
         <div className={cn('overflow-hidden', glassCardClass)} style={glassCardShadow}>
           {/* Компактная версия первого экрана: на широком экране фото и
               основная сводка стоят рядом. Прежняя вертикальная версия целиком
