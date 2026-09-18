@@ -931,7 +931,7 @@ export function BusinessCenterDetailPage() {
             {/* Ровно 4 плитки — класс/площадь/год/этажность (владелец,
                 2026-09-06, четвёртый заход: "4 карточки - класс, площадь, год
                 сдачи, этажность") — метро/застройщик переехали в обычные
-                строки выше, парковка — в сводку внизу этой же карточки.
+                строки выше, парковка — в блок «Информация о здании».
                 Класс — обычный текст, как у
                 остальных плиток (владелец, 2026-09-06, пятый заход: "дизайн
                 Класса отличается от других заголовков, сделай одинаково" —
@@ -962,23 +962,6 @@ export function BusinessCenterDetailPage() {
               />
             )}
 
-            {/* Экспериментальная компоновка: эксплуатационные параметры
-                находятся внутри главной карточки. Фото сохраняет прежнюю
-                ширину, а карточка растёт по высоте вместе с правой колонкой. */}
-            {(center.parking || accessHoursText || accessibilityAttributes) && (
-              <div className="grid grid-cols-1 overflow-hidden rounded-2xl border border-border bg-surface-muted/40 sm:grid-cols-2">
-                {center.parking && <HeroSummaryCell icon={Car} label="Парковка" text={center.parking} />}
-                {accessHoursText && (
-                  <HeroSummaryCell
-                    icon={Clock}
-                    label="Часы работы"
-                    text={accessHoursText.toLocaleLowerCase('ru-RU') === 'круглосуточно' ? '24/7' : accessHoursText}
-                    className="border-t border-border sm:border-l sm:border-t-0"
-                  />
-                )}
-                {accessibilityAttributes && <AccessibilityRow text={accessibilityAttributes} compact />}
-              </div>
-            )}
             </div>
           </div>
         </div>
@@ -1091,6 +1074,24 @@ export function BusinessCenterDetailPage() {
             <Building2 className="h-5 w-5 shrink-0 text-primary" />
             Информация о здании
           </h2>
+          {(center.parking || accessHoursText || accessibilityAttributes) && (
+            <section className="flex flex-col gap-2" aria-labelledby="operations-title">
+              <h3 id="operations-title" className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                Эксплуатация и доступность
+              </h3>
+              <div className="overflow-hidden rounded-control border border-border">
+                {center.parking && <OperationalInfoRow icon={Car} label="Парковка" text={center.parking} />}
+                {accessHoursText && (
+                  <OperationalInfoRow
+                    icon={Clock}
+                    label="Часы работы"
+                    text={accessHoursText.toLocaleLowerCase('ru-RU') === 'круглосуточно' ? '24/7' : accessHoursText}
+                  />
+                )}
+                {accessibilityAttributes && <AccessibilityRow text={accessibilityAttributes} />}
+              </div>
+            </section>
+          )}
           <div className="overflow-hidden rounded-control border border-border">
             <table className="w-full border-collapse text-sm">
               <tbody>
@@ -1625,24 +1626,22 @@ function LabeledTextRow({
   );
 }
 
-function HeroSummaryCell({
+function OperationalInfoRow({
   icon: Icon,
   label,
   text,
-  className,
 }: {
   icon: typeof FileText;
   label: string;
   text: string;
-  className?: string;
 }) {
   return (
-    <div className={cn('flex min-h-28 flex-col p-4', className)}>
-      <div className="flex items-center gap-2">
+    <div className="grid gap-2 border-b border-border px-3 py-3 last:border-b-0 sm:grid-cols-[minmax(11rem,2fr)_3fr] sm:items-start">
+      <div className="flex items-center gap-2 text-ink-muted">
         <Icon className="h-4 w-4 shrink-0 text-ink-muted" />
-        <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{label}</p>
+        <p className="text-sm font-medium">{label}</p>
       </div>
-      <div className="mt-3 whitespace-pre-line text-sm leading-relaxed text-ink-muted">{text}</div>
+      <div className="whitespace-pre-line text-sm leading-relaxed text-ink">{text}</div>
     </div>
   );
 }
@@ -1700,7 +1699,7 @@ const ACCESSIBILITY_ICONS: { pattern: RegExp; icon: typeof FileText }[] = [
   { pattern: /двер|вход|доступн/i, icon: DoorOpen },
 ];
 
-function AccessibilityRow({ text, compact = false }: { text: string; compact?: boolean }) {
+function AccessibilityRow({ text }: { text: string }) {
   const items = text
     .split(/[,;]\s*/)
     .map((item) => item.trim())
@@ -1708,28 +1707,21 @@ function AccessibilityRow({ text, compact = false }: { text: string; compact?: b
   if (items.length === 0) return null;
 
   return (
-    <div
-      className={cn(
-        'flex flex-col',
-        compact ? 'min-h-28 border-t border-border p-4 sm:col-span-2' : 'min-h-40 p-5 sm:p-6',
-      )}
-    >
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <Accessibility className="h-4 w-4 shrink-0 text-ink-muted" />
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Доступная среда</p>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+    <div className="grid gap-2 px-3 py-3 sm:grid-cols-[minmax(11rem,2fr)_3fr] sm:items-start">
+      <div className="flex items-center gap-2 text-ink-muted">
+        <Accessibility className="h-4 w-4 shrink-0" />
+        <p className="text-sm font-medium">Доступная среда</p>
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-2">
           {items.map((item) => {
             const ItemIcon = ACCESSIBILITY_ICONS.find(({ pattern }) => pattern.test(item))?.icon ?? CheckCircle2;
             return (
-              <span key={item} className="inline-flex items-center gap-1.5 text-sm text-ink-muted">
+              <span key={item} className="inline-flex items-center gap-1.5 text-sm text-ink">
                 <ItemIcon className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
                 {item}
               </span>
             );
           })}
-        </div>
       </div>
     </div>
   );
