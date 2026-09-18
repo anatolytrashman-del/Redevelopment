@@ -818,10 +818,10 @@ export function BusinessCenterDetailPage() {
               </Badge>
             </div>
 
-            <div className="flex flex-col gap-3 p-5 sm:p-6">
+            <div className="flex flex-col gap-4 p-5 sm:p-6">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
               <h1 className="text-2xl font-extrabold leading-tight text-ink">{center.name}</h1>
-              <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+              <div className="flex shrink-0 flex-wrap items-center gap-3 text-sm font-semibold text-ink-muted">
                 {/* Рейтинг с Яндекс.Карт/2ГИС — владелец, 2026-09-06 (четвёртый
                     заход): "справа от заголовка рейтинг с яндекс.карт, а из
                     интересных фактов инфу про оценку убирай". Раньше рейтинг
@@ -832,10 +832,10 @@ export function BusinessCenterDetailPage() {
                     если формат не узнан, бейдж просто не показывается, ничего
                     не выдумываем. */}
                 {mapRating && (
-                  <Badge tone="neutral">
+                  <span className="inline-flex items-center gap-1.5 leading-none">
                     <Star className="h-3 w-3 shrink-0 translate-y-px fill-amber-400 text-amber-500" />
                     {mapRating.label} · На Яндекс.Картах
-                  </Badge>
+                  </span>
                 )}
                 {/* Рейтинг 2ГИС — отдельный источник от Яндекс.Карт выше,
                     оба честно подписаны, не смешиваются в один бейдж
@@ -843,11 +843,11 @@ export function BusinessCenterDetailPage() {
                     спарсили"). org_review_count может быть null у части
                     записей (реже — только рейтинг без числа оценок). */}
                 {gis2?.reviews?.orgRating != null && (
-                  <Badge tone="neutral">
+                  <span className="inline-flex items-center gap-1.5 leading-none">
                     <Star className="h-3 w-3 shrink-0 fill-current" />
                     {gis2.reviews.orgRating.toLocaleString('ru-RU')} · 2ГИС
                     {gis2.reviews.orgReviewCount != null && ` (${gis2.reviews.orgReviewCount})`}
-                  </Badge>
+                  </span>
                 )}
               </div>
             </div>
@@ -860,28 +860,28 @@ export function BusinessCenterDetailPage() {
               </h2>
               <div className="mt-2.5 space-y-2">
                 {redistributedTechnicalParams.administrativeDistrictText && (
-                  <div className="grid min-w-0 grid-cols-[max-content_auto_minmax(0,1fr)] items-baseline gap-x-2">
+                  <div className="grid min-w-0 items-baseline gap-x-2 sm:grid-cols-[max-content_auto_minmax(0,1fr)]">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
                       Административный район
                     </p>
-                    <span className="text-xs text-ink-muted" aria-hidden="true">—</span>
-                    <p className="min-w-0 text-sm leading-snug text-ink">
+                    <span className="hidden text-xs text-ink-muted sm:inline" aria-hidden="true">—</span>
+                    <p className="mt-0.5 min-w-0 text-sm leading-snug text-ink sm:mt-0">
                       {redistributedTechnicalParams.administrativeDistrictText}
                     </p>
                   </div>
                 )}
-                <div className="grid min-w-0 grid-cols-[max-content_auto_minmax(0,1fr)] items-baseline gap-x-2">
+                <div className="grid min-w-0 items-baseline gap-x-2 sm:grid-cols-[max-content_auto_minmax(0,1fr)]">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Адрес</p>
-                  <span className="text-xs text-ink-muted" aria-hidden="true">—</span>
-                  <p className="min-w-0 text-sm leading-snug text-ink">
+                  <span className="hidden text-xs text-ink-muted sm:inline" aria-hidden="true">—</span>
+                  <p className="mt-0.5 min-w-0 text-sm leading-snug text-ink sm:mt-0">
                     {displayAddress}
                   </p>
                 </div>
                 {(nearestMetro || center.metro) && (
-                  <div className="grid min-w-0 grid-cols-[max-content_auto_minmax(0,1fr)] items-baseline gap-x-2">
+                  <div className="grid min-w-0 items-baseline gap-x-2 sm:grid-cols-[max-content_auto_minmax(0,1fr)]">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Метро</p>
-                    <span className="text-xs text-ink-muted" aria-hidden="true">—</span>
-                    <p className="min-w-0 text-sm leading-snug text-ink">
+                    <span className="hidden text-xs text-ink-muted sm:inline" aria-hidden="true">—</span>
+                    <p className="mt-0.5 min-w-0 text-sm leading-snug text-ink sm:mt-0">
                       {nearestMetro ? (
                         <>
                           «{nearestMetro.name}» — {nearestMetro.distanceMeters} м по прямой
@@ -939,6 +939,15 @@ export function BusinessCenterDetailPage() {
               )}
               {center.floors != null && <FactTile value={center.floors} label="Этажей" tone="muted" />}
             </div>
+
+            {/* Внутренняя инфраструктура относится к основной сводке и на
+                широком экране заполняет свободную область справа от фото. */}
+            {redistributedTechnicalParams.internalInfrastructureText && (
+              <InternalInfrastructureRow
+                text={redistributedTechnicalParams.internalInfrastructureText}
+                compact
+              />
+            )}
             </div>
           </div>
 
@@ -954,9 +963,6 @@ export function BusinessCenterDetailPage() {
                 подпись про 2ГИС убираем"). Остальные разделы прежнего блока
                 (аренда помещений, парковка(2ГИС), прочие attributeGroups) —
                 намеренно нигде больше не показываются, не только эти два. */}
-            {redistributedTechnicalParams.internalInfrastructureText && (
-              <InternalInfrastructureRow text={redistributedTechnicalParams.internalInfrastructureText} />
-            )}
             {redistributedTechnicalParams.firstBlockTechnicalRows.map((row) => {
               const RowIcon = TECH_PARAM_ICONS[row.label] ?? FileText;
               return <LabeledTextRow key={row.label} icon={RowIcon} label={row.label} text={row.value} />;
@@ -1634,7 +1640,7 @@ const INTERNAL_INFRASTRUCTURE_ICONS: { pattern: RegExp; icon: typeof FileText }[
   { pattern: /фитнес|спортзал/i, icon: Dumbbell },
 ];
 
-function InternalInfrastructureRow({ text }: { text: string }) {
+function InternalInfrastructureRow({ text, compact = false }: { text: string; compact?: boolean }) {
   const items = text
     .split(/[,;]\s*/)
     .map((item) => item.trim())
@@ -1642,17 +1648,25 @@ function InternalInfrastructureRow({ text }: { text: string }) {
   if (items.length === 0) return null;
 
   return (
-    <div className="flex gap-3 py-3 first:pt-0 last:pb-0">
-      <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted" />
+    <div
+      className={cn(
+        'flex gap-3',
+        compact ? 'rounded-2xl border border-border bg-surface-muted/60 px-3.5 py-3' : 'py-3 first:pt-0 last:pb-0',
+      )}
+    >
+      {!compact && <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted" />}
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">В здании</p>
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
           {items.map((item) => {
             const ItemIcon = INTERNAL_INFRASTRUCTURE_ICONS.find(({ pattern }) => pattern.test(item))?.icon ?? Building2;
             return (
               <span
                 key={item}
-                className="inline-flex items-center gap-1.5 rounded-full bg-surface-muted px-2.5 py-1.5 text-xs font-medium text-ink-muted"
+                className={cn(
+                  'inline-flex items-center gap-1.5 text-sm text-ink-muted',
+                  !compact && 'rounded-full bg-surface-muted px-2.5 py-1.5 text-xs font-medium',
+                )}
               >
                 <ItemIcon className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
                 {item}
