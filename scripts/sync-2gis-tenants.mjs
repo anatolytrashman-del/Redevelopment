@@ -10,14 +10,11 @@
 // адресует ЗДАНИЕ, а не организацию в нём — запрос по нему отдаёт ровно
 // арендаторов этого дома, без соседей по улице.
 //
-// Ограничения ключа (проверено вживую 2026-09-16): page_size максимум 10,
-// page максимум 5 — то есть за один набор параметров отдаётся не больше 50
-// организаций, сколько бы их в здании ни было (у "Титана" их 325). Обойти
-// это можно только СУЗИВ запрос — с ключом --deep список у таких зданий
-// добирается срезами building_id + rubric_id по 28 "общим рубрикам" 2GIS
-// (rubric_id с КОНКРЕТНОЙ рубрикой работает точно, с общей — проверить не
-// успели, см. DEEP ниже). Пустое здание отвечает 404 itemNotFound — это не
-// ошибка, а "организаций нет" (5 зданий из 143).
+// Демо-ключ ограничивал выдачу десятью результатами и пятью страницами,
+// поэтому прежний сбор останавливался на 50 организациях. У production-
+// подписки Places API page_size допускает 50, а page — полноценную
+// пагинацию: идём до result.total и получаем весь список здания. Пустое
+// здание отвечает 404 itemNotFound — это не ошибка, а "организаций нет".
 //
 // Отрасль организации НЕ угадывается по названию: у каждой рубрики 2GIS
 // parent_id указывает ровно на одну общую рубрику (проверено на живой
@@ -50,15 +47,8 @@ const ACCESS_TOKEN = process.env.SUPABASE_ACCESS_TOKEN;
 // ключом --all.
 const STALE_DAYS = 30;
 const REFETCH_ALL = process.argv.includes('--all');
-// Добор списка по срезам общим рубрикам (см. ниже) — ПОД ФЛАГОМ и по
-// умолчанию выключен: проверить его на живом ключе не успели (ключ
-// заблокировался раньше), а один такой прогон добавляет по 28 запросов на
-// каждое крупное здание. Обычный прогон берёт по 50 организаций на здание,
-// и карточка честно подписывает "50 из 93", а не выдаёт часть за целое.
-const DEEP = process.argv.includes('--deep');
-const PAGE_SIZE = 10;
-const MAX_PAGE = 5; // потолок ключа: page_size * MAX_PAGE = 50 за один набор параметров
-const SLICE_THRESHOLD = 50; // больше — добираем по общим рубрикам
+const TARGET_SLUG = process.argv.find((arg) => arg.startsWith('--slug='))?.slice('--slug='.length) || null;
+const PAGE_SIZE = 50;
 const REQUEST_PAUSE_MS = 120;
 
 if (!GIS_API_KEY) {
@@ -107,6 +97,7 @@ async function loadBuildings() {
       .select('business_center_slug,gis_building_id,tenant_organizations_fetched_at')
       .not('gis_building_id', 'is', null)
       .order('business_center_slug');
+    if (TARGET_SLUG) query = query.eq('business_center_slug', TARGET_SLUG);
     if (!REFETCH_ALL) query = query.or(`tenant_organizations_fetched_at.is.null,tenant_organizations_fetched_at.lt.${staleBefore}`);
     const { data, error } = await query;
     if (error) throw error;
@@ -117,7 +108,7 @@ async function loadBuildings() {
     : ` and (tenant_organizations_fetched_at is null or tenant_organizations_fetched_at < ${sqlLiteral(staleBefore)}::timestamptz)`;
   const rows = await runSql(
     'select business_center_slug, gis_building_id from business_center_2gis_snapshots ' +
-      `where gis_building_id is not null${freshness} order by business_center_slug;`,
+      `where gis_building_id is not null${TARGET_SLUG ? ` and business_center_slug = ${sqlLiteral(TARGET_SLUG)}` : ''}${freshness} order by business_center_slug;`,
   );
   return rows.map((row) => ({ slug: row.business_center_slug, buildingId: row.gis_building_id }));
 }
@@ -191,21 +182,6 @@ async function fetchPage({ buildingId, rubricId, page }) {
   throw lastError;
 }
 
-// Общие рубрики 2GIS — берём из самого API, а не списком в коде: он нужен
-// только чтобы нарезать запрос, и если 2GIS однажды добавит рубрику, срез по
-// ней появится сам. region_id=32 — Минск.
-async function fetchGeneralRubricIds() {
-  const url = new URL('https://catalog.api.2gis.com/2.0/catalog/rubric/list');
-  url.searchParams.set('key', GIS_API_KEY);
-  url.searchParams.set('region_id', '32');
-  const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
-  const body = await response.json();
-  if (body?.meta?.code !== 200) throw new Error(`2GIS rubric/list: ${body?.meta?.error?.message ?? body?.meta?.code}`);
-  return (body.result?.items ?? [])
-    .filter((item) => item?.type === 'general_rubric' && typeof item.id === 'string')
-    .map((item) => item.id);
-}
-
 function collectItems(items, seen, organizations) {
   for (const item of items) {
     const name = typeof item?.name === 'string' ? item.name.trim() : '';
@@ -229,7 +205,7 @@ function collectItems(items, seen, organizations) {
 
 async function fetchWithParams(buildingId, rubricId, seen, organizations) {
   let total = 0;
-  for (let page = 1; page <= MAX_PAGE; page += 1) {
+  for (let page = 1; page === 1 || (page - 1) * PAGE_SIZE < total; page += 1) {
     const result = await fetchPage({ buildingId, rubricId, page });
     if (page === 1) total = result.total;
     if (result.items.length === 0) break;
@@ -240,16 +216,10 @@ async function fetchWithParams(buildingId, rubricId, seen, organizations) {
   return total;
 }
 
-async function fetchBuildingTenants(buildingId, generalRubricIds) {
+async function fetchBuildingTenants(buildingId) {
   const seen = new Set();
   const organizations = [];
   const total = await fetchWithParams(buildingId, null, seen, organizations);
-  if (DEEP && total > SLICE_THRESHOLD) {
-    for (const rubricId of generalRubricIds) {
-      await new Promise((resolve) => setTimeout(resolve, REQUEST_PAUSE_MS));
-      await fetchWithParams(buildingId, rubricId, seen, organizations);
-    }
-  }
   return { organizations, total: Math.max(total, organizations.length) };
 }
 
@@ -259,10 +229,7 @@ async function main() {
     console.log('Нечего собирать: все здания собраны меньше 30 дней назад (полный пересбор — с ключом --all)');
     return;
   }
-  const generalRubricIds = DEEP ? await fetchGeneralRubricIds() : [];
-  console.log(
-    `К сбору зданий: ${buildings.length}` + (DEEP ? `, срезов по общим рубрикам: ${generalRubricIds.length}` : ''),
-  );
+  console.log(`К сбору зданий: ${buildings.length}`);
 
   let savedBuildings = 0;
   let savedOrganizations = 0;
@@ -270,7 +237,7 @@ async function main() {
 
   for (const building of buildings) {
     try {
-      const { organizations, total } = await fetchBuildingTenants(building.buildingId, generalRubricIds);
+      const { organizations, total } = await fetchBuildingTenants(building.buildingId);
       await saveTenants(building.slug, organizations, total);
       savedBuildings += 1;
       savedOrganizations += organizations.length;
