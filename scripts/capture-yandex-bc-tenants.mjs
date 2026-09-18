@@ -120,9 +120,8 @@ async function saveWebarchive(file, html, url) {
 // <Категория> [офис N[, этаж M] | этаж M] [Вход ...] [В подборке ...]
 // [Акция]" — категория лежит строго между статусом работы и первым из
 // стоп-слов (офис/этаж/Вход/В подборке/Акция).
-const STATUS_RE = /(Открыто(?: до \d{1,2}:\d{2})?|Закрыто(?: до [^\s]+)?|До закрытия \d+ мин|До открытия \d+ мин|Круглосуточно|График работы не указан)/;
+const STATUS_RE = /(Открыто(?: до \d{1,2}:\d{2})?|Закрыто(?: до [^\s]+)?|До закрытия \d+ мин|До открытия \d+ мин|Круглосуточно|График работы не указан|Организация переехала)/;
 const CATEGORY_STOP_RE = /\s+(?:офис\s|этаж\s|Вход\s|В подборке|Акция)/;
-const LOCATION_RE = /^(?:офис\s+[^,\s]+(?:,\s*этаж\s+\S+)?|этаж\s+\S+)/;
 
 function parseCardText(rawText) {
   const text = normalizeText(rawText);
@@ -132,18 +131,12 @@ function parseCardText(rawText) {
   const reviewCount = reviewMatch ? Number(reviewMatch[1]) : null;
   const statusMatch = text.match(STATUS_RE);
   let category = null;
-  let location = null;
   if (statusMatch) {
     const after = text.slice(statusMatch.index + statusMatch[0].length).trim();
     const stopMatch = after.match(CATEGORY_STOP_RE);
     category = (stopMatch ? after.slice(0, stopMatch.index) : after).trim() || null;
-    if (stopMatch) {
-      const rest = after.slice(stopMatch.index).trim();
-      const locationMatch = rest.match(LOCATION_RE);
-      location = locationMatch ? locationMatch[0].trim() : null;
-    }
   }
-  return { rating, reviewCount, category, location, rawText: text || null };
+  return { rating, reviewCount, category, rawText: text || null };
 }
 
 async function pauseForUser(message) {
