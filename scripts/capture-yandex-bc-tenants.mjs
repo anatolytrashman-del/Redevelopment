@@ -120,45 +120,6 @@ async function pauseForUser(message) {
   rl.close();
 }
 
-async function captchaVisible(page) {
-  if (/showcaptcha|captcha/i.test(page.url())) return true;
-  const bodyText = await page.locator('body').innerText().catch(() => '');
-  return /captcha|не робот|подтвердите, что (запросы|вы)/i.test(bodyText);
-}
-
-// Открывает вкладку «Организации внутри» самостоятельным кликом по реальной
-// вкладке (а не угадыванием через URL — так уже пытались, ?tab=inside один
-// раз попал не туда и на «Парусе» тихо сохранил 3 организации вместо 173,
-// см. журнал сессии). Любая неопределённость — вкладка не нашлась, после
-// клика карточки не появились, встретилась капча — уходит в старую ручную
-// паузу, а не молча продолжает с непроверенными данными.
-async function openOrganizationsTab(page, entry) {
-  await page.waitForTimeout(1500);
-  if (await captchaVisible(page)) {
-    await pauseForUser(`Яндекс показал CAPTCHA для «${entry.address}». Пройдите её в открытом Chrome и откройте вкладку «Организации внутри».`);
-    return;
-  }
-
-  const tab = page.getByText(/^Организации/, { exact: false }).first();
-  try {
-    await tab.waitFor({ state: 'visible', timeout: 8000 });
-    await tab.click();
-  } catch {
-    await pauseForUser(`Не нашёл вкладку «Организации внутри» для «${entry.address}» — откройте её вручную (или пройдите CAPTCHA, если она есть).`);
-    return;
-  }
-
-  try {
-    await page.locator('.search-business-snippet-view').first().waitFor({ state: 'visible', timeout: 10_000 });
-  } catch {
-    if (await captchaVisible(page)) {
-      await pauseForUser(`Яндекс показал CAPTCHA для «${entry.address}». Пройдите её в открытом Chrome.`);
-    } else {
-      await pauseForUser(`После клика на «Организации внутри» карточки не появились для «${entry.address}» — проверьте вручную.`);
-    }
-  }
-}
-
 async function collectLive(entry, initialOrganizations, onProgress) {
   const context = await chromium.launchPersistentContext(profileDir, {
     headless: false, executablePath: chromePath, viewport: null,
@@ -167,7 +128,7 @@ async function collectLive(entry, initialOrganizations, onProgress) {
   const page = context.pages()[0] ?? await context.newPage();
   const url = entry.yandexUrl ?? `https://yandex.by/maps/157/minsk/search/${encodeURIComponent(entry.address)}/`;
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-  await openOrganizationsTab(page, entry);
+  await pauseForUser(`Проверьте адрес «${entry.address}». Если Яндекс показал CAPTCHA, пройдите её. Откройте вкладку «Организации внутри».`);
 
   const found = new Map(initialOrganizations.map((organization) => [organization.sourceId, organization]));
   let unchanged = 0;
