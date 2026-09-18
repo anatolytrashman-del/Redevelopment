@@ -338,6 +338,7 @@ for (const entry of entries) {
       organizations = result.organizations;
       sourceUrl = result.finalUrl;
       const dir = path.join(outputRoot, entry.slug);
+      await fs.mkdir(dir, { recursive: true });
       const stamp = capturedAt.replaceAll(':', '-');
       const suffix = buildings.length > 1 ? `-building-${index + 1}` : '';
       await fs.writeFile(path.join(dir, `${stamp}${suffix}.html`), result.html);
