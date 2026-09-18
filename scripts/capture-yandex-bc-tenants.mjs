@@ -22,7 +22,9 @@ const has = (name) => args.includes(name);
 const inputPath = valueOf('--input');
 const archivePath = valueOf('--webarchive');
 const onlySlug = valueOf('--slug');
+const limit = Number(valueOf('--limit') ?? 0);
 const writeDb = has('--write-db');
+const listOnly = has('--list');
 const outputRoot = path.resolve(valueOf('--output') ?? 'tmp/yandex-bc-tenants');
 const profileDir = path.resolve(valueOf('--profile') ?? 'tmp/yandex-maps-profile');
 const chromeCandidates = process.platform === 'darwin'
@@ -36,12 +38,13 @@ const chromeCandidates = process.platform === 'darwin'
     : ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
 const chromePath = process.env.CHROME_PATH ?? chromeCandidates.find((candidate) => candidate && existsSync(candidate));
 const supabaseUrl = process.env.SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
+const anonKey = process.env.SUPABASE_ANON_KEY ?? 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const accessToken = process.env.SUPABASE_ACCESS_TOKEN;
 const projectRef = 'iohcdylttyuhwovztrbk';
 
-if ((!inputPath && !archivePath) || (archivePath && !onlySlug)) {
-  console.error('Использование: --input addresses.json [--slug port] или --webarchive file.webarchive --slug port [--write-db]');
+if (archivePath && !onlySlug) {
+  console.error('Для импорта архива укажите --slug');
   process.exit(1);
 }
 if (!archivePath && !chromePath) {
@@ -201,11 +204,57 @@ async function readCheckpoint(slug) {
   }
 }
 
+async function catalogEntries() {
+  const client = createClient(supabaseUrl, anonKey);
+  let centersQuery = client
+    .from('business_centers')
+    .select('slug,name,address,status,sort_order')
+    .eq('status', 'built')
+    .order('sort_order', { ascending: true });
+  if (onlySlug) centersQuery = centersQuery.eq('slug', onlySlug);
+  if (limit > 0) centersQuery = centersQuery.limit(limit);
+  const { data: centers, error: centersError } = await centersQuery;
+  if (centersError) throw centersError;
+
+  const slugs = (centers ?? []).map((center) => center.slug);
+  let buildingPages = [];
+  if (slugs.length > 0) {
+    const { data, error } = await client
+      .from('business_center_yandex_buildings')
+      .select('business_center_slug,address,yandex_url,sort_order')
+      .in('business_center_slug', slugs)
+      .order('sort_order', { ascending: true });
+    // До применения миграции PostgREST вернёт 42P01. Обычные однокорпусные
+    // здания всё равно можно собрать по адресу из business_centers.
+    if (!error) buildingPages = data ?? [];
+    else if (error.code !== '42P01' && error.code !== 'PGRST205') throw error;
+  }
+
+  return (centers ?? []).map((center) => {
+    const buildings = buildingPages
+      .filter((building) => building.business_center_slug === center.slug)
+      .map((building) => ({ address: building.address, yandexUrl: building.yandex_url }));
+    return {
+      slug: center.slug,
+      name: center.name,
+      address: center.address,
+      buildings: buildings.length > 0 ? buildings : [{ address: center.address }],
+    };
+  });
+}
+
 let entries;
 if (archivePath) entries = [{ slug: onlySlug, address: '', archivePath }];
-else {
+else if (inputPath) {
   entries = JSON.parse(await fs.readFile(path.resolve(inputPath), 'utf8'));
   if (onlySlug) entries = entries.filter((entry) => entry.slug === onlySlug);
+  if (limit > 0) entries = entries.slice(0, limit);
+} else entries = await catalogEntries();
+
+if (entries.length === 0) throw new Error('Не найдено ни одного БЦ для обработки');
+if (listOnly) {
+  console.log(JSON.stringify(entries, null, 2));
+  process.exit(0);
 }
 
 for (const entry of entries) {
