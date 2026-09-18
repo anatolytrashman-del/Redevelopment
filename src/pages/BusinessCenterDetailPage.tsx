@@ -70,6 +70,8 @@ import {
 } from '../lib/businessCenterHubs';
 import type { BusinessCenter, HighlightIconKey, TenantOrganization } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
+import type { BusinessCenterNearbyPlace } from '../data/businessCenterNearbyPlaces';
+import { fetchBusinessCenterNearbyPlaces } from '../lib/businessCenterNearbyPlacesApi';
 import { NO_ACTIVE_OFFERS_MESSAGE, type BusinessCenterOffer } from '../data/businessCenterOffers';
 import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
 import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
@@ -90,7 +92,7 @@ import {
   TenantIndustriesBlock,
   WhatTheySayBlock,
 } from '../components/businessCenters/BusinessCenterMarketBlocks';
-import { NeighboursBlock, SimilarCentersBlock, similarCenters } from '../components/businessCenters/BusinessCenterNeighbours';
+import { NearbyInfrastructureBlock, SimilarCentersBlock, similarCenters } from '../components/businessCenters/BusinessCenterNeighbours';
 
 // Отдельная страница одного бизнес-центра (владелец, 2026-09-04: "для SEO
 // лучше хаб + отдельная страница на каждый БЦ" — согласился с этим доводом
@@ -110,7 +112,7 @@ const SECTION_LABELS: Record<string, string> = {
   facts: 'Факты',
   metroCenters: 'БЦ у метро',
   market: 'БЦ на фоне конкурентов',
-  map: 'Другие бизнес-центры рядом',
+  map: 'Инфраструктура рядом',
   tech: 'Информация о здании',
   streetCenters: 'БЦ на улице',
   tenants: 'Кто внутри',
@@ -138,6 +140,8 @@ const SECTION_ICONS: Record<string, typeof FileText> = {
   faq: Info,
 };
 
+const EMPTY_NEARBY_PLACES: BusinessCenterNearbyPlace[] = [];
+
 export function BusinessCenterDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const [centers, setCenters] = useState<BusinessCenter[] | null>(null);
@@ -151,6 +155,10 @@ export function BusinessCenterDetailPage() {
   const gis2 = gis2Result?.slug === slug ? gis2Result?.data ?? null : null;
   const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(null);
   const [tenantCityProfile, setTenantCityProfile] = useState<TenantIndustryCityProfile | null>(null);
+  const [nearbyPlacesResult, setNearbyPlacesResult] = useState<{
+    slug: string;
+    places: BusinessCenterNearbyPlace[];
+  } | null>(null);
 
   useEffect(() => {
     fetchBusinessCenters()
@@ -168,6 +176,17 @@ export function BusinessCenterDetailPage() {
     fetchBusinessCenter2gisSnapshot(slug)
       .then((data) => { if (!cancelled) setGis2Result({ slug, data }); })
       .catch(() => { if (!cancelled) setGis2Result({ slug, data: null }); });
+    return () => { cancelled = true; };
+  }, [slug]);
+
+  // Сохранённый снимок инфраструктуры: публичная страница никогда не
+  // обращается к Places API напрямую и не расходует квоту на просмотры.
+  useEffect(() => {
+    if (!slug) return;
+    let cancelled = false;
+    fetchBusinessCenterNearbyPlaces(slug)
+      .then((places) => { if (!cancelled) setNearbyPlacesResult({ slug, places }); })
+      .catch(() => { if (!cancelled) setNearbyPlacesResult({ slug, places: [] }); });
     return () => { cancelled = true; };
   }, [slug]);
 
@@ -218,6 +237,9 @@ export function BusinessCenterDetailPage() {
   // пользователь уже видел в списке до перехода сюда.
   const sorted = useMemo(() => sortByShortName(centers ?? []), [centers]);
   const center = useMemo(() => sorted.find((c) => c.slug === slug) ?? null, [sorted, slug]);
+  const nearbyPlaces = nearbyPlacesResult?.slug === slug
+    ? nearbyPlacesResult?.places ?? EMPTY_NEARBY_PLACES
+    : EMPTY_NEARBY_PLACES;
   const index = center ? sorted.findIndex((c) => c.slug === center.slug) : -1;
   const prev = index > 0 ? sorted[index - 1] : null;
   const next = index >= 0 && index < sorted.length - 1 ? sorted[index + 1] : null;
@@ -556,8 +578,14 @@ export function BusinessCenterDetailPage() {
     for (const bar of marketPosition?.bars ?? []) {
       add(`${bar.label} в «${name}» — это много или мало для своего класса?`, `${fmt(bar.value)} ${bar.unit}; ${bar.baselines.map((b) => `${b.label}: ${fmt(b.value)} ${bar.unit}`).join('; ')}.${bar.note ? ` ${bar.note}.` : ''}`);
     }
-    const neighbours = nearestNeighbours(center, centers ?? [], 5);
-    if (neighbours.length) add('Какие бизнес-центры рядом на карте?', neighbours.map((n) => `${shortName(n.center)} — ${fmt(n.meters)} м по прямой`).join('; '));
+    if (nearbyPlaces.length) {
+      const categoryCounts = new Map<string, number>();
+      for (const place of nearbyPlaces) categoryCounts.set(place.category, (categoryCounts.get(place.category) ?? 0) + 1);
+      add(
+        `Какая инфраструктура есть рядом с «${name}»?`,
+        `В радиусе 500 м отмечено ${nearbyPlaces.length} объектов: ${[...categoryCounts.values()].reduce((sum, count) => sum + count, 0)} точек на карте.`,
+      );
+    }
     const filledBuildingRows = redistributedTechnicalParams.buildingInformationRows.filter((row) => row.value);
     if (filledBuildingRows.length) {
       add(
@@ -626,12 +654,12 @@ export function BusinessCenterDetailPage() {
     add('Как исправить сведения о здании?', 'Напишите на anatoly.trashman@gmail.com, указав бизнес-центр и сведения, которые устарели или требуют исправления.');
     // Тот же вызов, что и в самом блоке «Похожие»: соседи из него
     // исключены, иначе FAQ перечислял бы не то, что видно на странице.
-    const neighbourSlugs = new Set(neighbours.map((n) => n.center.slug));
+    const neighbourSlugs = new Set(nearestNeighbours(center, centers ?? [], 5).map((n) => n.center.slug));
     const similar = similarCenters(center, centers ?? [], 6, neighbourSlugs);
     if (similar.length) add('Какие бизнес-центры показаны как похожие?', similar.map(shortName).join(', '));
     if (hubChips.length) add('Какие связанные подборки доступны?', hubChips.map((c) => c.label).join(', '));
     return items;
-  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, visibleHighlights, gis2, mapRating, reviewQuotes, hubChips, redistributedTechnicalParams]);
+  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, visibleHighlights, gis2, mapRating, reviewQuotes, hubChips, redistributedTechnicalParams, nearbyPlaces]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -643,7 +671,7 @@ export function BusinessCenterDetailPage() {
       has('facts', visibleHighlights.length > 0),
       has('metroCenters', relatedCenters.metro.length > 0),
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
-      has('map', center.lat != null && center.lng != null),
+      has('map', center.lat != null && center.lng != null && nearbyPlaces.length > 0),
       has(
         'tech',
         redistributedTechnicalParams.buildingInformationRows.length > 0 ||
@@ -670,6 +698,7 @@ export function BusinessCenterDetailPage() {
     relatedCenters,
     accessHoursText,
     accessibilityAttributes,
+    nearbyPlaces,
   ]);
 
   useEffect(() => {
@@ -1090,7 +1119,7 @@ export function BusinessCenterDetailPage() {
         {/* Сначала аналитика и расположение, затем отдельная карточка
             с параметрами самого здания. */}
         {center && marketPosition && <MarketPositionBlock position={marketPosition} />}
-        {center && <NeighboursBlock center={center} all={centers ?? []} />}
+        {center && <NearbyInfrastructureBlock center={center} places={nearbyPlaces} />}
 
         <div id="tech" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
           <h2 className="flex items-center gap-2 text-lg font-bold text-ink">

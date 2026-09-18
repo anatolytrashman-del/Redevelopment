@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, MapPin } from 'lucide-react';
+import { Banknote, Building2, BusFront, Coffee, Dumbbell, Landmark, MapPin, Pill, ShoppingBag, TrainFront, Utensils } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { BusinessCenter } from '../../data/businessCenters';
@@ -9,6 +9,7 @@ import { loadYmaps } from '../../lib/yandexMaps';
 import { useInView } from '../../lib/useInView';
 import type { CatalogOfferIndex } from '../../lib/businessCenterCatalogFilter';
 import { nearestNeighbours } from '../../lib/businessCenterMarketPosition';
+import type { BusinessCenterNearbyPlace, NearbyPlaceCategory } from '../../data/businessCenterNearbyPlaces';
 
 // Б3 и Б6 плана docs/bc-catalog-redesign-plan.md — карта здания с соседями и
 // похожие БЦ. До 2026-09-16 на карточке бизнес-центра НЕ БЫЛО КАРТЫ ВООБЩЕ:
@@ -18,9 +19,29 @@ import { nearestNeighbours } from '../../lib/businessCenterMarketPosition';
 // и подписано: маршрутов у нас нет, и превращать 400 метров по воздуху в
 // «5 минут пешком» значило бы выдумать данные.
 
-const DEFAULT_ZOOM = 13;
+const DEFAULT_ZOOM = 16;
 
-function MiniMap({ center, neighbours }: { center: BusinessCenter; neighbours: { center: BusinessCenter }[] }) {
+const CATEGORY_META: Record<NearbyPlaceCategory, { label: string; color: string; icon: typeof MapPin }> = {
+  metro: { label: 'Метро', color: '#e4152b', icon: TrainFront },
+  transport_stop: { label: 'Остановки', color: '#2563eb', icon: BusFront },
+  cafe: { label: 'Кафе', color: '#b45309', icon: Coffee },
+  restaurant: { label: 'Рестораны', color: '#c2410c', icon: Utensils },
+  grocery: { label: 'Продукты', color: '#15803d', icon: ShoppingBag },
+  shop: { label: 'Магазины', color: '#7c3aed', icon: ShoppingBag },
+  pharmacy: { label: 'Аптеки', color: '#059669', icon: Pill },
+  bank: { label: 'Банки', color: '#475569', icon: Landmark },
+  atm: { label: 'Банкоматы', color: '#64748b', icon: Banknote },
+  fitness: { label: 'Фитнес', color: '#db2777', icon: Dumbbell },
+  other: { label: 'Другое', color: '#6e7781', icon: MapPin },
+};
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>'"]/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
+  })[char] ?? char);
+}
+
+function MiniMap({ center, places }: { center: BusinessCenter; places: BusinessCenterNearbyPlace[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -46,24 +67,25 @@ function MiniMap({ center, neighbours }: { center: BusinessCenter; neighbours: {
             { preset: 'islands#dotIcon', iconColor: '#d1002a' },
           ),
         );
-        for (const n of neighbours) {
-          if (n.center.lat == null || n.center.lng == null) continue;
+        map.geoObjects.add(
+          new ymaps.Circle(
+            [[center.lat as number, center.lng as number], 500],
+            {},
+            { fillColor: '#e4152b0d', strokeColor: '#e4152b66', strokeWidth: 1 },
+          ),
+        );
+        for (const place of places) {
+          const meta = CATEGORY_META[place.category] ?? CATEGORY_META.other;
           map.geoObjects.add(
             new ymaps.Placemark(
-              [n.center.lat, n.center.lng],
+              [place.lat, place.lng],
               {
-                hintContent: shortName(n.center),
-                balloonContent: `<a href="/minsk/bcminsk/${n.center.slug}" style="font-weight:600">${shortName(n.center)}</a>`,
+                hintContent: place.name,
+                balloonContent: `<strong>${escapeHtml(place.name)}</strong><br>${meta.label} · ${place.distanceMeters} м от БЦ`,
               },
-              { preset: 'islands#dotIcon', iconColor: '#6e7781' },
+              { preset: 'islands#dotIcon', iconColor: meta.color },
             ),
           );
-        }
-        // Масштабируем карту по всем шести меткам с запасом по краям,
-        // чтобы ни один сосед не оказывался за пределами видимой области.
-        const bounds = map.geoObjects.getBounds();
-        if (bounds) {
-          map.setBounds(bounds, { checkZoomRange: true, zoomMargin: 72 });
         }
         mapRef.current = map;
         setStatus('ready');
@@ -77,7 +99,7 @@ function MiniMap({ center, neighbours }: { center: BusinessCenter; neighbours: {
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inView, center.slug]);
+  }, [inView, center.slug, places]);
 
   return (
     <div ref={viewportRef} className="relative h-64 w-full overflow-hidden rounded-2xl bg-surface-muted sm:h-80">
@@ -91,66 +113,72 @@ function MiniMap({ center, neighbours }: { center: BusinessCenter; neighbours: {
   );
 }
 
-const DASH = <span className="text-ink-faint">—</span>;
-
-export function NeighboursBlock({
+export function NearbyInfrastructureBlock({
   center,
-  all,
+  places,
 }: {
   center: BusinessCenter;
-  all: BusinessCenter[];
+  places: BusinessCenterNearbyPlace[];
 }) {
-  const neighbours = useMemo(() => nearestNeighbours(center, all, 5), [center, all]);
-  if (center.lat == null || center.lng == null) return null;
+  const categories = useMemo(() => {
+    const counts = new Map<NearbyPlaceCategory, number>();
+    for (const place of places) counts.set(place.category, (counts.get(place.category) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [places]);
+  const [activeCategories, setActiveCategories] = useState<Set<NearbyPlaceCategory>>(new Set());
+  const visiblePlaces = useMemo(
+    () => activeCategories.size === 0 ? places : places.filter((place) => activeCategories.has(place.category)),
+    [activeCategories, places],
+  );
+  if (center.lat == null || center.lng == null || places.length === 0) return null;
+
+  const toggleCategory = (category: NearbyPlaceCategory) => {
+    setActiveCategories((current) => {
+      const next = new Set(current);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
+  };
 
   return (
     <div id="map" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
       <div className="flex flex-col gap-1">
         <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
           <MapPin className="h-5 w-5 shrink-0 text-ink-muted" />
-          Другие бизнес-центры рядом
+          Инфраструктура рядом
         </h2>
         <p className="text-xs text-ink-faint">
-          Пять ближайших зданий каталога — отобраны по расстоянию, независимо от класса
-          и района. Расстояния по прямой, по координатам 2ГИС.
+          Метро, остановки, магазины и сервисы в радиусе 500 метров. Точки собраны заранее и периодически обновляются.
         </p>
       </div>
-      <MiniMap center={center} neighbours={neighbours} />
-      {neighbours.length > 0 && (
-        // В таблице оставляем только устойчивые справочные признаки.
-        // Площадь и ставки есть не у всех соседей и здесь больше не выводятся.
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[420px] border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                <th scope="col" className="py-2 pr-3 text-left">Бизнес-центр</th>
-                <th scope="col" className="py-2 px-2 text-right">По прямой</th>
-                <th scope="col" className="py-2 px-2 text-left">Класс</th>
-                <th scope="col" className="py-2 pl-2 text-right">Страница</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {neighbours.map(({ center: n, meters }) => (
-                <tr key={n.slug}>
-                  <td className="py-2.5 pr-3 font-medium text-ink">{shortName(n)}</td>
-                  <td className="whitespace-nowrap py-2.5 px-2 text-right tabular-nums text-ink-muted">
-                    {meters.toLocaleString('ru-RU')} м
-                  </td>
-                  <td className="py-2.5 px-2 text-ink-muted">{n.businessClass ?? DASH}</td>
-                  <td className="whitespace-nowrap py-2.5 pl-2 text-right">
-                    <Link
-                      to={`/minsk/bcminsk/${n.slug}`}
-                      className="font-semibold text-primary-hover hover:underline"
-                    >
-                      Страница БЦ
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <div className="flex flex-wrap gap-2" aria-label="Фильтры объектов инфраструктуры">
+        {categories.map(([category, count]) => {
+          const meta = CATEGORY_META[category] ?? CATEGORY_META.other;
+          const Icon = meta.icon;
+          const active = activeCategories.size === 0 || activeCategories.has(category);
+          return (
+            <button
+              key={category}
+              type="button"
+              onClick={() => toggleCategory(category)}
+              aria-pressed={active}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                active ? 'border-border bg-surface text-ink' : 'border-transparent bg-surface-muted text-ink-faint',
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {meta.label} · {count}
+            </button>
+          );
+        })}
+      </div>
+      <MiniMap center={center} places={visiblePlaces} />
+      <p className="text-xs text-ink-faint">
+        Данные на {new Date(Math.max(...places.map((place) => new Date(place.collectedAt).getTime()))).toLocaleDateString('ru-RU')}.
+        Расстояния указаны по прямой.
+      </p>
     </div>
   );
 }
