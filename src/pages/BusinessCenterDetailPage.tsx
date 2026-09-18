@@ -931,8 +931,8 @@ export function BusinessCenterDetailPage() {
             {/* Ровно 4 плитки — класс/площадь/год/этажность (владелец,
                 2026-09-06, четвёртый заход: "4 карточки - класс, площадь, год
                 сдачи, этажность") — метро/застройщик переехали в обычные
-                строки выше, парковка — в отдельный блок ниже (см.
-                LabeledTextRow "Парковка"). Класс — обычный текст, как у
+                строки выше, парковка — в сводку внизу этой же карточки.
+                Класс — обычный текст, как у
                 остальных плиток (владелец, 2026-09-06, пятый заход: "дизайн
                 Класса отличается от других заголовков, сделай одинаково" —
                 раньше был цветной Badge-пилюля вместо текста). */}
@@ -961,36 +961,26 @@ export function BusinessCenterDetailPage() {
                 compact
               />
             )}
+
+            {/* Экспериментальная компоновка: эксплуатационные параметры
+                находятся внутри главной карточки. Фото сохраняет прежнюю
+                ширину, а карточка растёт по высоте вместе с правой колонкой. */}
+            {(center.parking || accessHoursText || accessibilityAttributes) && (
+              <div className="grid grid-cols-1 overflow-hidden rounded-2xl border border-border bg-surface-muted/40 sm:grid-cols-2">
+                {center.parking && <HeroSummaryCell icon={Car} label="Парковка" text={center.parking} />}
+                {accessHoursText && (
+                  <HeroSummaryCell
+                    icon={Clock}
+                    label="Часы работы"
+                    text={accessHoursText.toLocaleLowerCase('ru-RU') === 'круглосуточно' ? '24/7' : accessHoursText}
+                    className="border-t border-border sm:border-l sm:border-t-0"
+                  />
+                )}
+                {accessibilityAttributes && <AccessibilityRow text={accessibilityAttributes} compact />}
+              </div>
+            )}
             </div>
           </div>
-        </div>
-
-        {/* Три самостоятельные секции внутри одной оболочки: общий фон и
-            тонкие разделители не дают блоку превратиться в россыпь плиток. */}
-        <div
-          className={cn(
-            'mt-4 grid grid-cols-1 divide-y divide-border overflow-hidden sm:grid-flow-col sm:auto-cols-fr sm:divide-x sm:divide-y-0',
-            glassCardClass,
-          )}
-          style={glassCardShadow}
-        >
-            {/* Парковка здания показывается один раз из профильного поля
-                карточки. Парковки 2ГИС относятся к окружению и будут
-                использованы в отдельной карте рядом. */}
-            {center.parking && <SummaryCell icon={Car} label="Парковка" text={center.parking} />}
-            {/* Часы работы и доступная среда из 2GIS — переехали сюда из
-                отдельного блока "Данные 2ГИС" (владелец, 2026-09-06: "блок
-                Данные 2GIS не нужен, добавим эту инфу в главный блок... часы
-                работы и доступная среда оставляем, аренда помещений убираем,
-                подпись про 2ГИС убираем"). Остальные разделы прежнего блока
-                (аренда помещений, парковка(2ГИС), прочие attributeGroups) —
-                намеренно нигде больше не показываются, не только эти два. */}
-            {/* Инфраструктуру рядом вернём отдельной картой; здесь остаётся
-                только то, что находится внутри самого здания. */}
-            {accessHoursText && <SummaryCell icon={Clock} label="Часы работы" text={accessHoursText} />}
-            {accessibilityAttributes && (
-              <AccessibilityRow text={accessibilityAttributes} />
-            )}
         </div>
 
         {(streetCatalogUrl || metroCatalogUrl) && (
@@ -1635,17 +1625,19 @@ function LabeledTextRow({
   );
 }
 
-function SummaryCell({
+function HeroSummaryCell({
   icon: Icon,
   label,
   text,
+  className,
 }: {
   icon: typeof FileText;
   label: string;
   text: string;
+  className?: string;
 }) {
   return (
-    <div className="flex min-h-40 flex-col p-5 sm:p-6">
+    <div className={cn('flex min-h-28 flex-col p-4', className)}>
       <div className="flex items-center gap-2">
         <Icon className="h-4 w-4 shrink-0 text-ink-muted" />
         <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{label}</p>
@@ -1703,12 +1695,12 @@ function InternalInfrastructureRow({ text, compact = false }: { text: string; co
 }
 
 const ACCESSIBILITY_ICONS: { pattern: RegExp; icon: typeof FileText }[] = [
-  { pattern: /пандус|инвалид|доступн/i, icon: Accessibility },
+  { pattern: /пандус|инвалид/i, icon: Accessibility },
   { pattern: /лифт/i, icon: ArrowUpDown },
-  { pattern: /двер|вход/i, icon: DoorOpen },
+  { pattern: /двер|вход|доступн/i, icon: DoorOpen },
 ];
 
-function AccessibilityRow({ text }: { text: string }) {
+function AccessibilityRow({ text, compact = false }: { text: string; compact?: boolean }) {
   const items = text
     .split(/[,;]\s*/)
     .map((item) => item.trim())
@@ -1716,7 +1708,12 @@ function AccessibilityRow({ text }: { text: string }) {
   if (items.length === 0) return null;
 
   return (
-    <div className="flex min-h-40 flex-col p-5 sm:p-6">
+    <div
+      className={cn(
+        'flex flex-col',
+        compact ? 'min-h-28 border-t border-border p-4 sm:col-span-2' : 'min-h-40 p-5 sm:p-6',
+      )}
+    >
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <Accessibility className="h-4 w-4 shrink-0 text-ink-muted" />
