@@ -27,6 +27,14 @@ const writeDb = has('--write-db');
 const listOnly = has('--list');
 const outputRoot = path.resolve(valueOf('--output') ?? 'tmp/yandex-bc-tenants');
 const profileDir = path.resolve(valueOf('--profile') ?? 'tmp/yandex-maps-profile');
+// Половина экрана, а не --start-maximized — чтобы окно Chrome не закрывало
+// собой терминал, где нужно нажимать Enter. Подобрано под типичный ноутбучный
+// экран (~1512–1728 логических px в ширину); если не подходит под ваш
+// монитор — переопределить через CHROME_WINDOW_SIZE="ШxВ" и
+// CHROME_WINDOW_POSITION="X,Y" (например CHROME_WINDOW_SIZE=960,1080
+// CHROME_WINDOW_POSITION=960,0 для широкого монитора).
+const windowSize = process.env.CHROME_WINDOW_SIZE ?? '760,900';
+const windowPosition = process.env.CHROME_WINDOW_POSITION ?? '760,0';
 const chromeCandidates = process.platform === 'darwin'
   ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Chromium.app/Contents/MacOS/Chromium']
   : process.platform === 'win32'
@@ -110,7 +118,7 @@ async function pauseForUser(message) {
 async function collectLive(entry, initialOrganizations, onProgress) {
   const context = await chromium.launchPersistentContext(profileDir, {
     headless: false, executablePath: chromePath, viewport: null,
-    args: ['--start-maximized'],
+    args: [`--window-size=${windowSize}`, `--window-position=${windowPosition}`],
   });
   const page = context.pages()[0] ?? await context.newPage();
   const url = entry.yandexUrl ?? `https://yandex.by/maps/157/minsk/search/${encodeURIComponent(entry.address)}/`;
