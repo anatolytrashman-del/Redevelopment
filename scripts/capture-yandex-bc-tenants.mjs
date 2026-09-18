@@ -114,6 +114,21 @@ async function saveWebarchive(file, html, url) {
   return true;
 }
 
+// Лучшее приближение без живого браузера под рукой: точной разметки карточки
+// не видели (нет доступа к странице вживую), поэтому регулярками достаём
+// только структурно предсказуемые куски (рейтинг вида "4,8", "N оценок"/
+// "N отзывов"), а весь текст карточки сохраняем как есть в rawText — чтобы
+// категорию можно было выделить точно после того, как увидим реальные
+// примеры с тестовой партии, а не гадать вслепую и один раз ещё раз.
+function parseCardText(rawText) {
+  const text = normalizeText(rawText);
+  const ratingMatch = text.match(/(?:^|\s)([1-5][.,]\d)(?=\s|$)/);
+  const rating = ratingMatch ? Number(ratingMatch[1].replace(',', '.')) : null;
+  const reviewMatch = text.match(/(\d+)\s*(?:оцен\w*|отзыв\w*)/i);
+  const reviewCount = reviewMatch ? Number(reviewMatch[1]) : null;
+  return { rating, reviewCount, rawText: text || null };
+}
+
 async function pauseForUser(message) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   await rl.question(`${message}\nНажмите Enter, когда страница готова… `);
@@ -142,9 +157,9 @@ async function collectLive(entry, initialOrganizations, onProgress) {
     const extracted = await page.evaluate(() => [...document.querySelectorAll('.search-business-snippet-view')].map((card) => {
       const titleEl = card.querySelector('.search-business-snippet-view__title');
       const linkEl = card.querySelector('a[href*="/org/"]');
-      return [titleEl?.textContent ?? '', linkEl?.getAttribute('href') ?? null];
+      return [titleEl?.textContent ?? '', linkEl?.getAttribute('href') ?? null, card.innerText ?? ''];
     }));
-    for (const [rawTitle, href] of extracted) {
+    for (const [rawTitle, href, cardText] of extracted) {
       const title = normalizeText(rawTitle);
       const id = href?.match(/\/org\/[^/]+\/(\d+)/)?.[1];
       if (title && id) found.set(id, {
@@ -153,6 +168,7 @@ async function collectLive(entry, initialOrganizations, onProgress) {
         sourceUrl: new URL(href, page.url()).href,
         buildingAddress: entry.address,
         buildingUrl: url,
+        ...parseCardText(cardText),
       });
     }
     unchanged = found.size === previous ? unchanged + 1 : 0;
