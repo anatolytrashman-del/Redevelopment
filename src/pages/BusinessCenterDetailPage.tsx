@@ -865,7 +865,7 @@ export function BusinessCenterDetailPage() {
         )}
 
         {/* <main> — единственный main-landmark страницы (Accessibility). */}
-        <main className="min-w-0 xl:pt-11">
+        <main className="min-w-0 xl:pt-[7.75rem]">
         <div className={cn('overflow-hidden', glassCardClass)} style={glassCardShadow}>
           {/* Компактная версия первого экрана: на широком экране фото и
               основная сводка стоят рядом. Прежняя вертикальная версия целиком
@@ -1507,7 +1507,7 @@ function RelatedCentersSection({
             <Link
               to={`/minsk/bcminsk/${related.slug}`}
               aria-label={`Открыть страницу ${related.name}`}
-              className="block aspect-square overflow-hidden bg-surface-muted"
+              className="block aspect-square overflow-hidden rounded-2xl bg-surface-muted"
             >
               <PhotoBlock center={related} variant="card" fit="contain" />
             </Link>
@@ -1518,7 +1518,7 @@ function RelatedCentersSection({
               )}
               {metro?.distanceMeters != null && (
                 <p className="text-sm leading-snug text-ink-muted">
-                  До метро «{metro.name}» — {metro.distanceMeters.toLocaleString('ru-RU')} м по прямой
+                  {metro.distanceMeters.toLocaleString('ru-RU')} м до метро
                 </p>
               )}
               <Link
