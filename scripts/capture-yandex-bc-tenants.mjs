@@ -25,6 +25,7 @@ const onlySlug = valueOf('--slug');
 const limit = Number(valueOf('--limit') ?? 0);
 const writeDb = has('--write-db');
 const listOnly = has('--list');
+const skipCollected = has('--skip-collected');
 const outputRoot = path.resolve(valueOf('--output') ?? 'tmp/yandex-bc-tenants');
 const profileDir = path.resolve(valueOf('--profile') ?? 'tmp/yandex-maps-profile');
 // Половина экрана, а не --start-maximized — чтобы окно Chrome не закрывало
@@ -65,6 +66,10 @@ if (archivePath && process.platform !== 'darwin') {
 }
 if (writeDb && !serviceRoleKey && !accessToken) {
   console.error('Для --write-db нужен SUPABASE_SERVICE_ROLE_KEY или SUPABASE_ACCESS_TOKEN');
+  process.exit(1);
+}
+if (skipCollected && !serviceRoleKey && !accessToken) {
+  console.error('Для --skip-collected нужен SUPABASE_SERVICE_ROLE_KEY или SUPABASE_ACCESS_TOKEN (anon-ключу таблица снимков закрыта)');
   process.exit(1);
 }
 
@@ -219,6 +224,29 @@ async function readCheckpoint(slug) {
   }
 }
 
+// Слаги, у которых уже есть снимок source=yandex_maps — тот же дуальный
+// доступ (service-role или Management API), что и у writeSnapshot: таблице
+// business_center_tenant_source_snapshots анон-ключ закрыт миграцией.
+async function collectedSlugs() {
+  if (serviceRoleKey) {
+    const client = createClient(supabaseUrl, serviceRoleKey);
+    const { data, error } = await client
+      .from('business_center_tenant_source_snapshots')
+      .select('business_center_slug')
+      .eq('source', 'yandex_maps');
+    if (error) throw error;
+    return new Set((data ?? []).map((row) => row.business_center_slug));
+  }
+  const response = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: "select business_center_slug from public.business_center_tenant_source_snapshots where source = 'yandex_maps';" }),
+  });
+  if (!response.ok) throw new Error(`Supabase Management API ${response.status}: ${(await response.text()).slice(0, 300)}`);
+  const rows = await response.json();
+  return new Set(rows.map((row) => row.business_center_slug));
+}
+
 async function catalogEntries() {
   const client = createClient(supabaseUrl, anonKey);
   let centersQuery = client
@@ -227,11 +255,21 @@ async function catalogEntries() {
     .eq('status', 'built')
     .order('sort_order', { ascending: true });
   if (onlySlug) centersQuery = centersQuery.eq('slug', onlySlug);
-  if (limit > 0) centersQuery = centersQuery.limit(limit);
-  const { data: centers, error: centersError } = await centersQuery;
+  // При --skip-collected лимит применяем ПОСЛЕ фильтрации уже собранных —
+  // иначе --limit по sort_order мог бы целиком попасть на готовые БЦ и
+  // вернуть пустой список, хотя дальше в каталоге есть несобранные.
+  if (limit > 0 && !skipCollected) centersQuery = centersQuery.limit(limit);
+  const { data: rawCenters, error: centersError } = await centersQuery;
   if (centersError) throw centersError;
 
-  const slugs = (centers ?? []).map((center) => center.slug);
+  let centers = rawCenters ?? [];
+  if (skipCollected) {
+    const done = await collectedSlugs();
+    centers = centers.filter((center) => !done.has(center.slug));
+    if (limit > 0) centers = centers.slice(0, limit);
+  }
+
+  const slugs = centers.map((center) => center.slug);
   let buildingPages = [];
   if (slugs.length > 0) {
     const { data, error } = await client
@@ -245,7 +283,7 @@ async function catalogEntries() {
     else if (error.code !== '42P01' && error.code !== 'PGRST205') throw error;
   }
 
-  return (centers ?? []).map((center) => {
+  return centers.map((center) => {
     const buildings = buildingPages
       .filter((building) => building.business_center_slug === center.slug)
       .map((building) => ({ address: building.address, yandexUrl: building.yandex_url }));
