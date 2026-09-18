@@ -84,7 +84,7 @@ async function pauseForUser(message) {
   rl.close();
 }
 
-async function collectLive(entry) {
+async function collectLive(entry, initialOrganizations, onProgress) {
   const context = await chromium.launchPersistentContext(profileDir, {
     headless: false, executablePath: chromePath, viewport: null,
     args: ['--start-maximized'],
@@ -94,7 +94,7 @@ async function collectLive(entry) {
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await pauseForUser(`Проверьте адрес «${entry.address}». Если Яндекс показал CAPTCHA, пройдите её. Откройте вкладку «Организации внутри».`);
 
-  const found = new Map();
+  const found = new Map(initialOrganizations.map((organization) => [organization.sourceId, organization]));
   let unchanged = 0;
   let previous = 0;
   while (unchanged < 6) {
@@ -107,6 +107,7 @@ async function collectLive(entry) {
       if (title && id) found.set(id, { name: title, sourceId: id, sourceUrl: new URL(href, page.url()).href });
     }
     unchanged = found.size === previous ? unchanged + 1 : 0;
+    if (found.size > previous) await onProgress([...found.values()], page.url());
     previous = found.size;
     await page.locator('.scroll__container').last().evaluate((el) => { el.scrollTop = el.scrollHeight; });
     await page.waitForTimeout(1200);
@@ -142,6 +143,38 @@ async function writeSnapshot(snapshot) {
 }
 
 await fs.mkdir(outputRoot, { recursive: true });
+
+async function saveCheckpoint(entry, organizations, sourceUrl, capturedAt) {
+  const dir = path.join(outputRoot, entry.slug);
+  await fs.mkdir(dir, { recursive: true });
+  const target = path.join(dir, 'latest.json');
+  const temporary = `${target}.tmp`;
+  const snapshot = { ...entry, sourceUrl, capturedAt, complete: false, organizations };
+  await fs.writeFile(temporary, JSON.stringify(snapshot, null, 2));
+  await fs.rename(temporary, target);
+  if (writeDb) {
+    await writeSnapshot({
+      slug: entry.slug,
+      address: entry.address ?? '',
+      sourceUrl,
+      capturedAt,
+      organizations,
+    });
+  }
+  console.log(`${entry.slug}: контрольная точка — ${organizations.length} организаций`);
+}
+
+async function readCheckpoint(slug) {
+  try {
+    const raw = await fs.readFile(path.join(outputRoot, slug, 'latest.json'), 'utf8');
+    const snapshot = JSON.parse(raw);
+    return Array.isArray(snapshot.organizations) ? snapshot.organizations : [];
+  } catch (error) {
+    if (error?.code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
 let entries;
 if (archivePath) entries = [{ slug: onlySlug, address: '', archivePath }];
 else {
@@ -151,20 +184,28 @@ else {
 
 for (const entry of entries) {
   if (!entry.slug) throw new Error('У записи нет slug');
+  const capturedAt = new Date().toISOString();
   let html, sourceUrl, organizations;
   if (entry.archivePath) {
     html = await webarchiveHtml(entry.archivePath);
     sourceUrl = html.match(/<base[^>]+href="([^"]+)"/)?.[1] ?? 'https://yandex.by/maps/';
     organizations = extractFromHtml(html, sourceUrl);
+    await saveCheckpoint(entry, organizations, sourceUrl, capturedAt);
   } else {
-    ({ html, finalUrl: sourceUrl, organizations } = await collectLive(entry));
+    const initialOrganizations = await readCheckpoint(entry.slug);
+    ({ html, finalUrl: sourceUrl, organizations } = await collectLive(
+      entry,
+      initialOrganizations,
+      (currentOrganizations, currentUrl) => saveCheckpoint(entry, currentOrganizations, currentUrl, capturedAt),
+    ));
   }
-  const capturedAt = new Date().toISOString();
   const dir = path.join(outputRoot, entry.slug);
   await fs.mkdir(dir, { recursive: true });
   const stamp = capturedAt.replaceAll(':', '-');
-  await fs.writeFile(path.join(dir, `${stamp}.json`), JSON.stringify({ ...entry, sourceUrl, capturedAt, organizations }, null, 2));
+  const completed = { ...entry, sourceUrl, capturedAt, complete: true, organizations };
+  await fs.writeFile(path.join(dir, `${stamp}.json`), JSON.stringify(completed, null, 2));
+  await fs.writeFile(path.join(dir, 'latest.json.tmp'), JSON.stringify(completed, null, 2));
+  await fs.rename(path.join(dir, 'latest.json.tmp'), path.join(dir, 'latest.json'));
   await saveWebarchive(path.join(dir, `${stamp}.webarchive`), html, sourceUrl);
   console.log(`${entry.slug}: сохранено ${organizations.length} организаций`);
-  if (writeDb) await writeSnapshot({ slug: entry.slug, address: entry.address ?? '', sourceUrl, capturedAt, organizations });
 }
