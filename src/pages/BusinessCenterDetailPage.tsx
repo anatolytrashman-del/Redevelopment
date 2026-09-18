@@ -1079,12 +1079,11 @@ export function BusinessCenterDetailPage() {
         {metroCatalogUrl && nearestMetro && relatedCenters.metro.length > 0 && (
           <RelatedCentersSection
             id="metroCenters"
-            icon={TrainFront}
-            eyebrow="Метро"
             title={`Бизнес-центры у станции «${nearestMetro.name}»`}
             centers={relatedCenters.metro}
             catalogUrl={metroCatalogUrl}
             catalogLabel={`Все БЦ у станции «${nearestMetro.name}»`}
+            stationName={nearestMetro.name}
           />
         )}
 
@@ -1140,8 +1139,6 @@ export function BusinessCenterDetailPage() {
         {streetCatalogUrl && relatedCenters.street.length > 0 && (
           <RelatedCentersSection
             id="streetCenters"
-            icon={MapPin}
-            eyebrow="Улица"
             title="Бизнес-центры на этой улице"
             centers={relatedCenters.street}
             catalogUrl={streetCatalogUrl}
@@ -1480,55 +1477,69 @@ export function BusinessCenterDetailPage() {
 
 function RelatedCentersSection({
   id,
-  icon: Icon,
-  eyebrow,
   title,
   centers,
   catalogUrl,
   catalogLabel,
+  stationName,
 }: {
   id: string;
-  icon: typeof MapPin;
-  eyebrow: string;
   title: string;
   centers: BusinessCenter[];
   catalogUrl: string;
   catalogLabel: string;
+  stationName?: string;
 }) {
-  const visible = centers.slice(0, 3);
+  const visible = centers.slice(0, 2);
   return (
     <section id={id} className={cn('mt-6 scroll-mt-32 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-      <div className="mb-4 flex items-center gap-3">
-        <Icon className="h-5 w-5 shrink-0 text-primary" />
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{eyebrow}</p>
-          <h2 className="text-lg font-bold text-ink">{title}</h2>
-        </div>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {visible.map((related) => (
-          <Link
+      <h2 className="mb-4 text-lg font-bold text-ink">{title}</h2>
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_minmax(12rem,1fr)]">
+        {visible.map((related) => {
+          const metro = stationName
+            ? { name: stationName, distanceMeters: metroHubDistance(related, stationName) }
+            : nearestMetroStation(related.nearestMetroStations);
+          return (
+          <article
             key={related.slug}
-            to={`/minsk/bcminsk/${related.slug}`}
-            className="group overflow-hidden rounded-2xl border border-border bg-surface transition-transform hover:-translate-y-0.5"
+            className="overflow-hidden rounded-2xl border border-border bg-surface sm:grid sm:grid-cols-[10rem_minmax(0,1fr)] lg:block xl:grid xl:grid-cols-[10rem_minmax(0,1fr)]"
           >
-            <div className="aspect-[4/3] overflow-hidden bg-surface-muted">
-              <PhotoBlock center={related} variant="card" />
+            <Link
+              to={`/minsk/bcminsk/${related.slug}`}
+              aria-label={`Открыть страницу ${related.name}`}
+              className="block aspect-square overflow-hidden bg-surface-muted"
+            >
+              <PhotoBlock center={related} variant="card" fit="contain" />
+            </Link>
+            <div className="flex min-w-0 flex-col items-start justify-center gap-2 p-4">
+              <h3 className="text-base font-bold leading-snug text-ink">{shortName(related)}</h3>
+              {related.businessClass && (
+                <p className="text-sm text-ink-muted">Класс {related.businessClass}</p>
+              )}
+              {metro?.distanceMeters != null && (
+                <p className="text-sm leading-snug text-ink-muted">
+                  До метро «{metro.name}» — {metro.distanceMeters.toLocaleString('ru-RU')} м по прямой
+                </p>
+              )}
+              <Link
+                to={`/minsk/bcminsk/${related.slug}`}
+                className="mt-auto inline-flex items-center gap-1 text-sm font-semibold text-primary-hover hover:underline"
+              >
+                Подробнее
+                <ChevronRight className="h-4 w-4" />
+              </Link>
             </div>
-            <p className="px-4 py-3 text-sm font-bold leading-snug text-ink transition-colors group-hover:text-primary-hover">
-              {shortName(related)}
-            </p>
-          </Link>
-        ))}
-        {centers.length > 3 && (
+          </article>
+          );
+        })}
+        {centers.length > 2 && (
           <Link
             to={catalogUrl}
-            className="group flex min-h-40 flex-col justify-between rounded-2xl border border-primary/20 bg-primary-soft p-5 text-ink transition-transform hover:-translate-y-0.5"
+            className="group flex min-h-40 items-center justify-center rounded-2xl border border-border bg-surface-muted p-6 text-center text-ink transition-transform hover:-translate-y-0.5 hover:bg-border/50"
           >
-            <Icon className="h-7 w-7 text-primary" />
-            <span className="flex items-end justify-between gap-3">
-              <span className="text-sm font-bold leading-snug">{catalogLabel}</span>
-              <ChevronRight className="h-5 w-5 shrink-0 text-primary transition-transform group-hover:translate-x-0.5" />
+            <span className="flex items-center gap-2 text-lg font-bold leading-snug">
+              {catalogLabel}
+              <ChevronRight className="h-5 w-5 shrink-0 text-ink-muted transition-transform group-hover:translate-x-0.5" />
             </span>
           </Link>
         )}
