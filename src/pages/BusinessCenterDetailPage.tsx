@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
+  Accessibility,
   AlertTriangle,
+  ArrowUpDown,
   ArrowLeft,
   Award,
   Banknote,
@@ -17,6 +19,7 @@ import {
   Coffee,
   CreditCard,
   Dumbbell,
+  DoorOpen,
   ExternalLink,
   FileText,
   Globe,
@@ -368,6 +371,18 @@ export function BusinessCenterDetailPage() {
         value:
           sourceValue('Обеспеченность парковкой (маш./100 м²)') ??
           (center.parkingRatio != null ? center.parkingRatio.toLocaleString('ru-RU') : null),
+      },
+      {
+        label: 'Управление БЦ',
+        value: sourceValue('Управление БЦ'),
+      },
+      {
+        label: 'Интернет-провайдеры',
+        value: sourceValue('Интернет-провайдеры'),
+      },
+      {
+        label: 'Система кондиционирования',
+        value: sourceValue('Система кондиционирования'),
       },
     ];
 
@@ -977,7 +992,7 @@ export function BusinessCenterDetailPage() {
                 только то, что находится внутри самого здания. */}
             {accessHoursText && <LabeledTextRow icon={Clock} label="Часы работы" text={accessHoursText} />}
             {accessibilityAttributes && (
-              <LabeledTextRow icon={CheckCircle2} label="Доступная среда" text={accessibilityAttributes} />
+              <AccessibilityRow text={accessibilityAttributes} />
             )}
         </div>
 
@@ -1672,6 +1687,39 @@ function InternalInfrastructureRow({ text, compact = false }: { text: string; co
                   !compact && 'rounded-full bg-surface-muted px-2.5 py-1.5 text-xs font-medium',
                 )}
               >
+                <ItemIcon className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
+                {item}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const ACCESSIBILITY_ICONS: { pattern: RegExp; icon: typeof FileText }[] = [
+  { pattern: /пандус|инвалид|доступн/i, icon: Accessibility },
+  { pattern: /лифт/i, icon: ArrowUpDown },
+  { pattern: /двер|вход/i, icon: DoorOpen },
+];
+
+function AccessibilityRow({ text }: { text: string }) {
+  const items = text
+    .split(/[,;]\s*/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (items.length === 0) return null;
+
+  return (
+    <div className="flex gap-3 py-3 first:pt-0 last:pb-0 lg:col-span-2">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Доступная среда</p>
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+          {items.map((item) => {
+            const ItemIcon = ACCESSIBILITY_ICONS.find(({ pattern }) => pattern.test(item))?.icon ?? CheckCircle2;
+            return (
+              <span key={item} className="inline-flex items-center gap-1.5 text-sm text-ink-muted">
                 <ItemIcon className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
                 {item}
               </span>
