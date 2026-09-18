@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 // Локальный полуавтоматический сбор организаций из открытой страницы Яндекс Карт.
-// Не обходит CAPTCHA: при проверке пользователь завершает её в открытом Chrome и нажимает Enter.
+// Не обходит CAPTCHA: при её появлении пользователь проходит её сам в открытом
+// Chrome и нажимает Enter. Вкладку «Организации внутри» скрипт открывает сам
+// (параметр ?tab=inside в URL) — без капчи весь БЦ проходит без участия
+// человека; ручная пауза наступает только когда Яндекс реально показал капчу
+// или карточки организаций не появились за отведённое время (см.
+// ensureOrganizationsTab) — тогда лучше перестраховаться и спросить, чем
+// молча прогнать пустой скролл.
 
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -107,15 +113,43 @@ async function pauseForUser(message) {
   rl.close();
 }
 
+// Открывает вкладку «Организации внутри» без ручного клика (параметр
+// tab=inside в URL) и ждёт, что произойдёт раньше: появятся карточки
+// организаций (едем дальше сами), появится CAPTCHA (просим пройти руками,
+// саму капчу не обходим) или истечёт время ожидания (тоже просим проверить
+// руками — молча гонять пустой скролл хуже, чем один раз переспросить).
+async function ensureOrganizationsTab(page, url, entry) {
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+
+  const cardsLocator = page.locator('.search-business-snippet-view');
+  const deadline = Date.now() + 12_000;
+  let captchaSeen = false;
+  while (Date.now() < deadline) {
+    if (await cardsLocator.count() > 0) return;
+    const currentUrl = page.url();
+    const bodyText = await page.locator('body').innerText().catch(() => '');
+    if (/showcaptcha|captcha/i.test(currentUrl) || /captcha|не робот|подтвердите, что запросы/i.test(bodyText)) {
+      captchaSeen = true;
+      break;
+    }
+    await page.waitForTimeout(500);
+  }
+  if (captchaSeen) {
+    await pauseForUser(`Яндекс показал CAPTCHA для «${entry.address}». Пройдите её в открытом Chrome.`);
+    return;
+  }
+  await pauseForUser(`Не удалось автоматически открыть «Организации внутри» для «${entry.address}» — проверьте адрес и вкладку вручную.`);
+}
+
 async function collectLive(entry, initialOrganizations, onProgress) {
   const context = await chromium.launchPersistentContext(profileDir, {
     headless: false, executablePath: chromePath, viewport: null,
     args: ['--start-maximized'],
   });
   const page = context.pages()[0] ?? await context.newPage();
-  const url = entry.yandexUrl ?? `https://yandex.by/maps/157/minsk/search/${encodeURIComponent(entry.address)}/`;
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-  await pauseForUser(`Проверьте адрес «${entry.address}». Если Яндекс показал CAPTCHA, пройдите её. Откройте вкладку «Организации внутри».`);
+  const baseUrl = entry.yandexUrl ?? `https://yandex.by/maps/157/minsk/search/${encodeURIComponent(entry.address)}/`;
+  const url = baseUrl.includes('?') ? `${baseUrl}&tab=inside` : `${baseUrl}?tab=inside`;
+  await ensureOrganizationsTab(page, url, entry);
 
   const found = new Map(initialOrganizations.map((organization) => [organization.sourceId, organization]));
   let unchanged = 0;
