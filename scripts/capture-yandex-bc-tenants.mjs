@@ -121,11 +121,18 @@ async function collectLive(entry, initialOrganizations, onProgress) {
   let unchanged = 0;
   let previous = 0;
   while (unchanged < 6) {
-    const cards = page.locator('.search-business-snippet-view');
-    for (let i = 0, count = await cards.count(); i < count; i += 1) {
-      const card = cards.nth(i);
-      const title = normalizeText(await card.locator('.search-business-snippet-view__title').first().textContent().catch(() => ''));
-      const href = await card.locator('a[href*="/org/"]').first().getAttribute('href').catch(() => null);
+    // Раньше карточки читались по одной через Playwright-локаторы (два
+    // круговых обращения к браузеру на каждую, включая уже известные) —
+    // на большом здании (90+ организаций) это заметно накапливалось на
+    // каждой итерации скролла. Один page.evaluate() читает все карточки
+    // разом внутри браузера — тот же результат, без повторных round-trip.
+    const extracted = await page.evaluate(() => [...document.querySelectorAll('.search-business-snippet-view')].map((card) => {
+      const titleEl = card.querySelector('.search-business-snippet-view__title');
+      const linkEl = card.querySelector('a[href*="/org/"]');
+      return [titleEl?.textContent ?? '', linkEl?.getAttribute('href') ?? null];
+    }));
+    for (const [rawTitle, href] of extracted) {
+      const title = normalizeText(rawTitle);
       const id = href?.match(/\/org\/[^/]+\/(\d+)/)?.[1];
       if (title && id) found.set(id, {
         name: title,
