@@ -950,8 +950,14 @@ export function BusinessCenterDetailPage() {
             )}
             </div>
           </div>
+        </div>
 
-          <div className="grid items-start gap-3 border-t border-border p-5 sm:p-6 lg:grid-cols-2">
+        {/* Остальные параметры намеренно отделены от главной карточки:
+            владелец будет дальше вручную распределять их по разделам. */}
+        <div
+          className={cn('mt-4 grid items-start gap-3 p-5 sm:p-6 lg:grid-cols-2', glassCardClass)}
+          style={glassCardShadow}
+        >
             {/* Парковка здания показывается один раз из профильного поля
                 карточки. Парковки 2ГИС относятся к окружению и будут
                 использованы в отдельной карте рядом. */}
@@ -973,8 +979,6 @@ export function BusinessCenterDetailPage() {
             {accessibilityAttributes && (
               <LabeledTextRow icon={CheckCircle2} label="Доступная среда" text={accessibilityAttributes} />
             )}
-
-          </div>
         </div>
 
         {(streetCatalogUrl || metroCatalogUrl) && (
