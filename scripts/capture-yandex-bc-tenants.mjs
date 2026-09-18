@@ -114,19 +114,36 @@ async function saveWebarchive(file, html, url) {
   return true;
 }
 
-// Лучшее приближение без живого браузера под рукой: точной разметки карточки
-// не видели (нет доступа к странице вживую), поэтому регулярками достаём
-// только структурно предсказуемые куски (рейтинг вида "4,8", "N оценок"/
-// "N отзывов"), а весь текст карточки сохраняем как есть в rawText — чтобы
-// категорию можно было выделить точно после того, как увидим реальные
-// примеры с тестовой партии, а не гадать вслепую и один раз ещё раз.
+// Категория/этаж выделены по реальным примерам card.innerText (тестовая
+// партия из 10 БЦ, 2026-09-18) — не угадывались вслепую. Карточка идёт как
+// "Фото [N] Название Рейтинг X,Y N оценок N оценок <статус работы>
+// <Категория> [офис N[, этаж M] | этаж M] [Вход ...] [В подборке ...]
+// [Акция]" — категория лежит строго между статусом работы и первым из
+// стоп-слов (офис/этаж/Вход/В подборке/Акция).
+const STATUS_RE = /(Открыто(?: до \d{1,2}:\d{2})?|Закрыто(?: до [^\s]+)?|До закрытия \d+ мин|До открытия \d+ мин|Круглосуточно|График работы не указан)/;
+const CATEGORY_STOP_RE = /\s+(?:офис\s|этаж\s|Вход\s|В подборке|Акция)/;
+const LOCATION_RE = /^(?:офис\s+[^,\s]+(?:,\s*этаж\s+\S+)?|этаж\s+\S+)/;
+
 function parseCardText(rawText) {
   const text = normalizeText(rawText);
   const ratingMatch = text.match(/(?:^|\s)([1-5][.,]\d)(?=\s|$)/);
   const rating = ratingMatch ? Number(ratingMatch[1].replace(',', '.')) : null;
   const reviewMatch = text.match(/(\d+)\s*(?:оцен\w*|отзыв\w*)/i);
   const reviewCount = reviewMatch ? Number(reviewMatch[1]) : null;
-  return { rating, reviewCount, rawText: text || null };
+  const statusMatch = text.match(STATUS_RE);
+  let category = null;
+  let location = null;
+  if (statusMatch) {
+    const after = text.slice(statusMatch.index + statusMatch[0].length).trim();
+    const stopMatch = after.match(CATEGORY_STOP_RE);
+    category = (stopMatch ? after.slice(0, stopMatch.index) : after).trim() || null;
+    if (stopMatch) {
+      const rest = after.slice(stopMatch.index).trim();
+      const locationMatch = rest.match(LOCATION_RE);
+      location = locationMatch ? locationMatch[0].trim() : null;
+    }
+  }
+  return { rating, reviewCount, category, location, rawText: text || null };
 }
 
 async function pauseForUser(message) {
