@@ -34,12 +34,10 @@ import {
   Ruler,
   ScrollText,
   ShoppingBag,
-  Snowflake,
   Sparkles,
   Star,
   TrainFront,
   Users,
-  Wifi,
 } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
@@ -967,16 +965,19 @@ export function BusinessCenterDetailPage() {
           </div>
         </div>
 
-        {/* Остальные параметры намеренно отделены от главной карточки:
-            владелец будет дальше вручную распределять их по разделам. */}
+        {/* Три самостоятельные секции внутри одной оболочки: общий фон и
+            тонкие разделители не дают блоку превратиться в россыпь плиток. */}
         <div
-          className={cn('mt-4 grid items-start gap-3 p-5 sm:p-6 lg:grid-cols-2', glassCardClass)}
+          className={cn(
+            'mt-4 grid grid-cols-1 divide-y divide-border overflow-hidden sm:grid-flow-col sm:auto-cols-fr sm:divide-x sm:divide-y-0',
+            glassCardClass,
+          )}
           style={glassCardShadow}
         >
             {/* Парковка здания показывается один раз из профильного поля
                 карточки. Парковки 2ГИС относятся к окружению и будут
                 использованы в отдельной карте рядом. */}
-            <LabeledTextRow icon={Car} label="Парковка" text={center.parking} />
+            {center.parking && <SummaryCell icon={Car} label="Парковка" text={center.parking} />}
             {/* Часы работы и доступная среда из 2GIS — переехали сюда из
                 отдельного блока "Данные 2ГИС" (владелец, 2026-09-06: "блок
                 Данные 2GIS не нужен, добавим эту инфу в главный блок... часы
@@ -984,13 +985,9 @@ export function BusinessCenterDetailPage() {
                 подпись про 2ГИС убираем"). Остальные разделы прежнего блока
                 (аренда помещений, парковка(2ГИС), прочие attributeGroups) —
                 намеренно нигде больше не показываются, не только эти два. */}
-            {redistributedTechnicalParams.firstBlockTechnicalRows.map((row) => {
-              const RowIcon = TECH_PARAM_ICONS[row.label] ?? FileText;
-              return <LabeledTextRow key={row.label} icon={RowIcon} label={row.label} text={row.value} />;
-            })}
             {/* Инфраструктуру рядом вернём отдельной картой; здесь остаётся
                 только то, что находится внутри самого здания. */}
-            {accessHoursText && <LabeledTextRow icon={Clock} label="Часы работы" text={accessHoursText} />}
+            {accessHoursText && <SummaryCell icon={Clock} label="Часы работы" text={accessHoursText} />}
             {accessibilityAttributes && (
               <AccessibilityRow text={accessibilityAttributes} />
             )}
@@ -1454,19 +1451,6 @@ export function BusinessCenterDetailPage() {
   );
 }
 
-// Иконки параметров prometr.by, перенесённых в первый информационный блок.
-// Неизвестное новое поле получает универсальную иконку FileText.
-const TECH_PARAM_ICONS: Record<string, typeof FileText> = {
-  'Класс бизнес-центра': Award,
-  'Административный район': MapPin,
-  'Степень готовности': CheckCircle2,
-  'Станция метро': TrainFront,
-  'Удалённость от метро': TrainFront,
-  'Система кондиционирования': Snowflake,
-  'Управление БЦ': Users,
-  'Интернет-провайдеры': Wifi,
-};
-
 // Одна строка блока "Условия для арендаторов" — иконка + подпись раздела +
 // Иконка на раздел "Интересных фактов" по ключу из HighlightSection.icon —
 // 'warning' в общий список не попадает (свой рендер, акцентный блок выше),
@@ -1651,6 +1635,26 @@ function LabeledTextRow({
   );
 }
 
+function SummaryCell({
+  icon: Icon,
+  label,
+  text,
+}: {
+  icon: typeof FileText;
+  label: string;
+  text: string;
+}) {
+  return (
+    <div className="flex min-h-40 flex-col p-5 sm:p-6">
+      <div className="flex items-center gap-2">
+        <Icon className="h-4 w-4 shrink-0 text-ink-muted" />
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{label}</p>
+      </div>
+      <div className="mt-3 whitespace-pre-line text-sm leading-relaxed text-ink-muted">{text}</div>
+    </div>
+  );
+}
+
 const INTERNAL_INFRASTRUCTURE_ICONS: { pattern: RegExp; icon: typeof FileText }[] = [
   { pattern: /банкомат/i, icon: CreditCard },
   { pattern: /банк/i, icon: Landmark },
@@ -1712,10 +1716,13 @@ function AccessibilityRow({ text }: { text: string }) {
   if (items.length === 0) return null;
 
   return (
-    <div className="flex gap-3 py-3 first:pt-0 last:pb-0 lg:col-span-2">
+    <div className="flex min-h-40 flex-col p-5 sm:p-6">
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Доступная среда</p>
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+        <div className="flex items-center gap-2">
+          <Accessibility className="h-4 w-4 shrink-0 text-ink-muted" />
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Доступная среда</p>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
           {items.map((item) => {
             const ItemIcon = ACCESSIBILITY_ICONS.find(({ pattern }) => pattern.test(item))?.icon ?? CheckCircle2;
             return (
