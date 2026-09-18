@@ -20,6 +20,7 @@ import { businessCenterPhotoSrc } from '../../lib/businessCenterDisplay';
 // реальный размер файла.
 interface CuratedBusinessCenterPhoto {
   src: string;
+  detailSrc?: string;
   alt: string;
 }
 
@@ -29,6 +30,7 @@ interface CuratedBusinessCenterPhoto {
 const CURATED_BUSINESS_CENTER_PHOTOS: Record<string, CuratedBusinessCenterPhoto> = {
   port: {
     src: '/images/business-centers/port-photo.jpg',
+    detailSrc: '/images/business-centers/port-photo-portrait.jpg',
     alt: 'Бизнес-центр «Порт» на проспекте Независимости, 177',
   },
 };
@@ -43,7 +45,13 @@ export function PhotoBlock({
   fit?: 'cover' | 'contain';
 }) {
   const detail = variant === 'detail';
-  const curatedPhoto = CURATED_BUSINESS_CENTER_PHOTOS[center.slug];
+  const curatedSource = CURATED_BUSINESS_CENTER_PHOTOS[center.slug];
+  const curatedPhoto = curatedSource
+    ? {
+        src: detail ? (curatedSource.detailSrc ?? curatedSource.src) : curatedSource.src,
+        alt: curatedSource.alt,
+      }
+    : null;
   const fallbackPhoto = center.photos[0]
     ? {
         src: businessCenterPhotoSrc(center.photos[0], variant),
