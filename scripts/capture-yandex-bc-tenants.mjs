@@ -3,6 +3,7 @@
 // Не обходит CAPTCHA: при проверке пользователь завершает её в открытом Chrome и нажимает Enter.
 
 import fs from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline/promises';
@@ -24,7 +25,16 @@ const onlySlug = valueOf('--slug');
 const writeDb = has('--write-db');
 const outputRoot = path.resolve(valueOf('--output') ?? 'tmp/yandex-bc-tenants');
 const profileDir = path.resolve(valueOf('--profile') ?? 'tmp/yandex-maps-profile');
-const chromePath = process.env.CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const chromeCandidates = process.platform === 'darwin'
+  ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Chromium.app/Contents/MacOS/Chromium']
+  : process.platform === 'win32'
+    ? [
+        `${process.env.PROGRAMFILES ?? 'C:\\Program Files'}\\Google\\Chrome\\Application\\chrome.exe`,
+        `${process.env['PROGRAMFILES(X86)'] ?? 'C:\\Program Files (x86)'}\\Google\\Chrome\\Application\\chrome.exe`,
+        `${process.env.LOCALAPPDATA ?? ''}\\Google\\Chrome\\Application\\chrome.exe`,
+      ]
+    : ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
+const chromePath = process.env.CHROME_PATH ?? chromeCandidates.find((candidate) => candidate && existsSync(candidate));
 const supabaseUrl = process.env.SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const accessToken = process.env.SUPABASE_ACCESS_TOKEN;
@@ -32,6 +42,14 @@ const projectRef = 'iohcdylttyuhwovztrbk';
 
 if ((!inputPath && !archivePath) || (archivePath && !onlySlug)) {
   console.error('Использование: --input addresses.json [--slug port] или --webarchive file.webarchive --slug port [--write-db]');
+  process.exit(1);
+}
+if (!archivePath && !chromePath) {
+  console.error('Chrome не найден. Укажите полный путь через переменную CHROME_PATH');
+  process.exit(1);
+}
+if (archivePath && process.platform !== 'darwin') {
+  console.error('Импорт Apple .webarchive поддерживается только на macOS; живой сбор работает на macOS, Windows и Linux');
   process.exit(1);
 }
 if (writeDb && !serviceRoleKey && !accessToken) {
@@ -73,9 +91,11 @@ function xmlEscape(value) {
 }
 
 async function saveWebarchive(file, html, url) {
+  if (process.platform !== 'darwin') return false;
   const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>WebMainResource</key><dict><key>WebResourceData</key><data>${Buffer.from(html).toString('base64')}</data><key>WebResourceFrameName</key><string></string><key>WebResourceMIMEType</key><string>text/html</string><key>WebResourceTextEncodingName</key><string>UTF-8</string><key>WebResourceURL</key><string>${xmlEscape(url)}</string></dict></dict></plist>`;
   await fs.writeFile(file, xml);
   await execFileAsync('plutil', ['-convert', 'binary1', file]);
+  return true;
 }
 
 async function pauseForUser(message) {
@@ -104,7 +124,13 @@ async function collectLive(entry, initialOrganizations, onProgress) {
       const title = normalizeText(await card.locator('.search-business-snippet-view__title').first().textContent().catch(() => ''));
       const href = await card.locator('a[href*="/org/"]').first().getAttribute('href').catch(() => null);
       const id = href?.match(/\/org\/[^/]+\/(\d+)/)?.[1];
-      if (title && id) found.set(id, { name: title, sourceId: id, sourceUrl: new URL(href, page.url()).href });
+      if (title && id) found.set(id, {
+        name: title,
+        sourceId: id,
+        sourceUrl: new URL(href, page.url()).href,
+        buildingAddress: entry.address,
+        buildingUrl: url,
+      });
     }
     unchanged = found.size === previous ? unchanged + 1 : 0;
     if (found.size > previous) await onProgress([...found.values()], page.url());
@@ -185,19 +211,36 @@ else {
 for (const entry of entries) {
   if (!entry.slug) throw new Error('У записи нет slug');
   const capturedAt = new Date().toISOString();
-  let html, sourceUrl, organizations;
+  let sourceUrl, organizations;
   if (entry.archivePath) {
-    html = await webarchiveHtml(entry.archivePath);
+    const html = await webarchiveHtml(entry.archivePath);
     sourceUrl = html.match(/<base[^>]+href="([^"]+)"/)?.[1] ?? 'https://yandex.by/maps/';
     organizations = extractFromHtml(html, sourceUrl);
     await saveCheckpoint(entry, organizations, sourceUrl, capturedAt);
+    const dir = path.join(outputRoot, entry.slug);
+    const stamp = capturedAt.replaceAll(':', '-');
+    await fs.writeFile(path.join(dir, `${stamp}.html`), html);
+    await saveWebarchive(path.join(dir, `${stamp}.webarchive`), html, sourceUrl);
   } else {
-    const initialOrganizations = await readCheckpoint(entry.slug);
-    ({ html, finalUrl: sourceUrl, organizations } = await collectLive(
-      entry,
-      initialOrganizations,
-      (currentOrganizations, currentUrl) => saveCheckpoint(entry, currentOrganizations, currentUrl, capturedAt),
-    ));
+    const buildings = Array.isArray(entry.buildings) && entry.buildings.length > 0
+      ? entry.buildings
+      : [{ address: entry.address, yandexUrl: entry.yandexUrl }];
+    organizations = await readCheckpoint(entry.slug);
+    for (let index = 0; index < buildings.length; index += 1) {
+      const building = { ...entry, ...buildings[index], buildings: undefined };
+      const result = await collectLive(
+        building,
+        organizations,
+        (currentOrganizations, currentUrl) => saveCheckpoint(entry, currentOrganizations, currentUrl, capturedAt),
+      );
+      organizations = result.organizations;
+      sourceUrl = result.finalUrl;
+      const dir = path.join(outputRoot, entry.slug);
+      const stamp = capturedAt.replaceAll(':', '-');
+      const suffix = buildings.length > 1 ? `-building-${index + 1}` : '';
+      await fs.writeFile(path.join(dir, `${stamp}${suffix}.html`), result.html);
+      await saveWebarchive(path.join(dir, `${stamp}${suffix}.webarchive`), result.html, sourceUrl);
+    }
   }
   const dir = path.join(outputRoot, entry.slug);
   await fs.mkdir(dir, { recursive: true });
@@ -206,6 +249,5 @@ for (const entry of entries) {
   await fs.writeFile(path.join(dir, `${stamp}.json`), JSON.stringify(completed, null, 2));
   await fs.writeFile(path.join(dir, 'latest.json.tmp'), JSON.stringify(completed, null, 2));
   await fs.rename(path.join(dir, 'latest.json.tmp'), path.join(dir, 'latest.json'));
-  await saveWebarchive(path.join(dir, `${stamp}.webarchive`), html, sourceUrl);
   console.log(`${entry.slug}: сохранено ${organizations.length} организаций`);
 }
