@@ -1,5 +1,5 @@
 import { GENERAL_DATA_SOURCES } from '../data/businessCenterSources';
-import { tenantIndustryLabel } from '../data/tenantIndustries';
+import { tenantDirectionLabel } from '../data/tenantIndustries';
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -70,7 +70,7 @@ import {
   streetHubUrl,
   districtDative,
 } from '../lib/businessCenterHubs';
-import type { BusinessCenter, HighlightIconKey, TenantOrganization } from '../data/businessCenters';
+import type { BusinessCenter, HighlightIconKey } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import type { BusinessCenterNearbyPlace } from '../data/businessCenterNearbyPlaces';
 import { fetchBusinessCenterNearbyPlaces } from '../lib/businessCenterNearbyPlacesApi';
@@ -86,16 +86,24 @@ import type {
   BusinessCenter2gisSnapshot,
   Gis2Schedule,
   Gis2ScheduleDay,
-  TenantIndustryCityProfile,
 } from '../data/businessCenter2gis';
-import { fetchBusinessCenter2gisSnapshot, fetchTenantIndustryCityProfile } from '../lib/businessCenter2gisApi';
+import { fetchBusinessCenter2gisSnapshot } from '../lib/businessCenter2gisApi';
+import { fetchBusinessCenterTenantSnapshot } from '../lib/businessCenterTenantsApi';
+import {
+  buildFloorGroups,
+  buildTenantsFromGis2,
+  buildTenantsFromLegacyList,
+  buildTenantsFromSnapshot,
+  formatFloorLabel,
+} from '../lib/businessCenterTenants';
+import { TenantDirectory } from '../components/businessCenters/TenantDirectory';
+import type { BusinessCenterTenantSnapshot } from '../data/businessCenterTenants';
 import { buildOfferIndex } from '../lib/businessCenterCatalogFilter';
 import { buildMarketPosition, haversineMeters, nearestNeighbours } from '../lib/businessCenterMarketPosition';
 import {
   extractHistoryPoints,
   HistoryTimeline,
   MarketPositionBlock,
-  TenantIndustriesBlock,
   WhatTheySayBlock,
 } from '../components/businessCenters/BusinessCenterMarketBlocks';
 import { NearbyInfrastructureBlock, SimilarCentersBlock, similarCenters } from '../components/businessCenters/BusinessCenterNeighbours';
@@ -167,7 +175,11 @@ export function BusinessCenterDetailPage() {
   const [gis2Result, setGis2Result] = useState<{ slug: string; data: BusinessCenter2gisSnapshot | null } | null>(null);
   const gis2 = gis2Result?.slug === slug ? gis2Result?.data ?? null : null;
   const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(null);
-  const [tenantCityProfile, setTenantCityProfile] = useState<TenantIndustryCityProfile | null>(null);
+  const [tenantSnapshotResult, setTenantSnapshotResult] = useState<{
+    slug: string;
+    data: BusinessCenterTenantSnapshot | null;
+  } | null>(null);
+  const tenantSnapshot = tenantSnapshotResult?.slug === slug ? tenantSnapshotResult?.data ?? null : null;
   const [nearbyPlacesResult, setNearbyPlacesResult] = useState<{
     slug: string;
     places: BusinessCenterNearbyPlace[];
@@ -190,6 +202,19 @@ export function BusinessCenterDetailPage() {
     fetchBusinessCenter2gisSnapshot(slug)
       .then((data) => { if (!cancelled) setGis2Result({ slug, data }); })
       .catch(() => { if (!cancelled) setGis2Result({ slug, data: null }); });
+    return () => { cancelled = true; };
+  }, [slug]);
+
+  // Организации в здании по Яндекс.Картам — основной источник арендаторов с
+  // 2026-09-19 (Б13 в docs/bc-catalog-redesign-plan.md): 7608 организаций по
+  // 139 зданиям против 4614 у 2GIS, плюс этаж, офис, рейтинг и ссылка на
+  // карточку, которых у 2GIS нет. 2GIS ниже остаётся фолбэком.
+  useEffect(() => {
+    if (!slug) return;
+    let cancelled = false;
+    fetchBusinessCenterTenantSnapshot(slug)
+      .then((data) => { if (!cancelled) setTenantSnapshotResult({ slug, data }); })
+      .catch(() => { if (!cancelled) setTenantSnapshotResult({ slug, data: null }); });
     return () => { cancelled = true; };
   }, [slug]);
 
@@ -216,18 +241,6 @@ export function BusinessCenterDetailPage() {
       .catch(() => { if (!cancelled) setReviewsResult({ slug, reviews: [] }); });
     return () => { cancelled = true; };
   }, [slug]);
-
-  // Городской профиль отраслей (Б9) — одна строка на весь каталог, но нужна
-  // только тем карточкам, где организации 2GIS реально собраны: запрашиваем
-  // после снапшота, а не вместе с ним, чтобы у зданий без арендаторов не
-  // было лишнего запроса.
-  const hasTenantOrganizations = (gis2?.tenantOrganizations.length ?? 0) > 0;
-  useEffect(() => {
-    if (!hasTenantOrganizations) return;
-    fetchTenantIndustryCityProfile()
-      .then(setTenantCityProfile)
-      .catch(() => setTenantCityProfile(null));
-  }, [hasTenantOrganizations]);
 
   // Объявления о продаже/аренде из business_center_offers (владелец,
   // 2026-09-05: "хочу спарсить объявления... эту инфу мы будем выводить в
@@ -264,6 +277,41 @@ export function BusinessCenterDetailPage() {
   // пользователь уже видел в списке до перехода сюда.
   const sorted = useMemo(() => sortByShortName(centers ?? []), [centers]);
   const center = useMemo(() => sorted.find((c) => c.slug === slug) ?? null, [sorted, slug]);
+
+  // Организации здания и оборудование (банкоматы, кофейные автоматы) —
+  // разложены по разные стороны: см. buildTenantsFromSnapshot.
+  //
+  // Источника три, по убыванию полноты. Живой срез Яндекса
+  // (business_center_tenant_source_snapshots) — единственный, где есть этаж,
+  // офис и ссылка на карточку. Материализованный список в самой строке БЦ
+  // (business_centers.tenant_organizations) — тот же Яндекс, но разложенный
+  // по колонке раньше и без места в здании; остаётся для БЦ, которых в срезе
+  // нет. 2GIS — последний: владелец отказался от платного API, но собранное
+  // не выбрасываем, а отрасль там приходит готовой и ложится в ту же шкалу.
+  const yandexTenants = useMemo(
+    () =>
+      tenantSnapshot
+        ? buildTenantsFromSnapshot(tenantSnapshot.organizations, center?.name, center?.altNames ?? [])
+        : null,
+    [tenantSnapshot, center],
+  );
+  const legacyTenants = useMemo(
+    () => (center ? buildTenantsFromLegacyList(center.tenantOrganizations, center.name, center.altNames) : null),
+    [center],
+  );
+  const tenantSource: 'yandex_maps' | '2gis' =
+    (yandexTenants?.tenants.length ?? 0) > 0 || (legacyTenants?.tenants.length ?? 0) > 0 ? 'yandex_maps' : '2gis';
+  const tenantOrganizations = useMemo(() => {
+    if (yandexTenants && yandexTenants.tenants.length > 0) return yandexTenants.tenants;
+    if (legacyTenants && legacyTenants.tenants.length > 0) return legacyTenants.tenants;
+    return gis2 ? buildTenantsFromGis2(gis2.tenantOrganizations) : [];
+  }, [yandexTenants, legacyTenants, gis2]);
+  const tenantAmenities = useMemo(() => {
+    if (yandexTenants && yandexTenants.tenants.length > 0) return yandexTenants.amenities;
+    if (legacyTenants && legacyTenants.tenants.length > 0) return legacyTenants.amenities;
+    return [];
+  }, [yandexTenants, legacyTenants]);
+
   const nearbyPlaces = nearbyPlacesResult?.slug === slug
     ? nearbyPlacesResult?.places ?? EMPTY_NEARBY_PLACES
     : EMPTY_NEARBY_PLACES;
@@ -581,6 +629,12 @@ export function BusinessCenterDetailPage() {
     };
     const fmt = (value: number) => value.toLocaleString('ru-RU');
     add(`Где находится «${name}»?`, center.address);
+    if (center.altNames.length > 0) {
+      add(
+        `Как ещё называют «${name}»?`,
+        `${center.altNames.map((alt) => `«${alt}»`).join(', ')} — то же самое здание по адресу ${center.address}: одно здание с двумя названиями, а не два разных бизнес-центра.`,
+      );
+    }
     add(
       `В каком административном районе находится «${name}»?`,
       redistributedTechnicalParams.administrativeDistrictText,
@@ -600,10 +654,19 @@ export function BusinessCenterDetailPage() {
           : '';
       add(`Какая офисная площадь у «${name}»?`, `${fmt(center.officeArea)} м²${share}.`);
     }
+    // Организации с 2026-09-19 приезжают из Яндекс.Карт, а рейтинг здания,
+    // часы работы и атрибуты — по-прежнему из 2ГИС. Это два разных среза на
+    // две разные даты, и в ответе они не должны слипаться в один.
+    if (tenantSource === 'yandex_maps' && tenantSnapshot?.capturedAt) {
+      add(
+        'На какую дату список организаций?',
+        `Организации в здании — срез Яндекс.Карт от ${new Date(tenantSnapshot.capturedAt).toLocaleDateString('ru-RU')}.`,
+      );
+    }
     if (gis2?.fetchedAt) {
       add(
         'На какую дату сведения 2ГИС?',
-        `Организации, рейтинг, часы работы и атрибуты здания — срез от ${new Date(gis2.fetchedAt).toLocaleDateString('ru-RU')}.`,
+        `${tenantSource === 'yandex_maps' ? 'Рейтинг, часы работы и атрибуты здания' : 'Организации, рейтинг, часы работы и атрибуты здания'} — срез от ${new Date(gis2.fetchedAt).toLocaleDateString('ru-RU')}.`,
       );
     }
     if (nearestMetro) add(`Какое метро рядом с «${name}»?`, `«${nearestMetro.name}» — ${nearestMetro.distanceMeters} м по прямой.`);
@@ -659,15 +722,46 @@ export function BusinessCenterDetailPage() {
     if (visibleHighlights.length) add('Какие факты о здании опубликованы?', visibleHighlights.map((h) => [h.label, h.text].filter(Boolean).join(': ')).join('\n'));
     const history = extractHistoryPoints(center);
     if (history.length) add('Что известно об истории здания?', history.map((h) => `${h.year}: ${h.text}`).join('; '));
-    if (gis2?.tenantOrganizations.length) {
-      const industries = new Map<string, number>();
-      for (const org of gis2.tenantOrganizations) {
-        const label = tenantIndustryLabel(org.industry);
-        industries.set(label, (industries.get(label) ?? 0) + 1);
+    // FAQ описывает ВСЁ, что есть на странице (правило владельца, CLAUDE.md:
+    // "берем за практику описывать в faq вообще все, что описываем на
+    // странице"), поэтому про организации здесь три вопроса, а не один: сам
+    // список с отраслями, этажи и оборудование. Ответы собираются из тех же
+    // данных, что нарисованы в каталоге арендаторов, — нет данных, нет вопроса.
+    if (tenantOrganizations.length) {
+      // Направления — ровно то, чем фильтруется каталог на странице: FAQ
+      // обязан описывать её содержимое, а не отдельную классификацию.
+      const directionCounts = new Map<string, number>();
+      for (const org of tenantOrganizations) {
+        const label = tenantDirectionLabel(org.industry);
+        directionCounts.set(label, (directionCounts.get(label) ?? 0) + 1);
       }
-      add('Сколько организаций в здании и каких отраслей?', `В списке 2ГИС ${gis2.tenantOrganizations.length} организаций: ${[...industries].map(([label, count]) => `${label} — ${count}`).join('; ')}. ${gis2.tenantOrganizationsTotal != null && gis2.tenantOrganizationsTotal > gis2.tenantOrganizations.length ? `Список неполный: в источнике указано ${gis2.tenantOrganizationsTotal} организаций. ` : ''}Это сведения о соседях и сервисах, не показатель загрузки здания или спроса.`);
-    } else if (center.tenantOrganizations.length) {
-      add('Какие организации и сервисы есть в здании?', `В списке ${center.tenantOrganizations.length} организаций: ${center.tenantOrganizations.map((o) => `${o.name}${o.category ? ` (${o.category})` : ''}`).join(', ')}.`);
+      // По убыванию — как в выпадающем фильтре; вразнобой читается как свалка.
+      const directions = [...directionCounts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ru'));
+      const reported = tenantSource === '2gis' ? gis2?.tenantOrganizationsTotal ?? null : null;
+      const partialNote =
+        reported != null && reported > tenantOrganizations.length
+          ? `Список неполный: в источнике указано ${reported} организаций. `
+          : '';
+      add(
+        'Сколько организаций в здании и по каким направлениям?',
+        `В списке ${tenantSource === '2gis' ? '2ГИС' : 'Яндекс.Карт'} ${tenantOrganizations.length} организаций: ${directions.map(([label, count]) => `${label} — ${count}`).join('; ')}. ${partialNote}Это сведения о соседях и сервисах, не показатель загрузки здания или спроса.`,
+      );
+      // Тот же расклад по этажам, что нарисован в каталоге, — из общей
+      // функции: FAQ обязан повторять страницу, а не считать своё.
+      const floors = buildFloorGroups(tenantOrganizations);
+      if (floors.length > 0) {
+        const withFloor = floors.reduce((sum, group) => sum + group.count, 0);
+        add(
+          'На каких этажах сидят организации?',
+          `${floors.map((group) => `${formatFloorLabel(group.floor)} — ${group.count}`).join('; ')}. Этаж известен у ${withFloor} организаций из ${tenantOrganizations.length}.`,
+        );
+      }
+      if (tenantAmenities.length > 0) {
+        add(
+          'Что есть в здании кроме офисов?',
+          `${tenantAmenities.map((item) => (item.count > 1 ? `${item.category} (${item.count})` : item.category)).join(', ')}. Это оборудование и точки самообслуживания, в списке организаций они не учтены.`,
+        );
+      }
     }
     // Рейтинг у нас приезжает из трёх мест (снимок 2ГИС, поле карточки,
     // свободный текст фактов) — но для читателя это ОДИН вопрос. Три
@@ -709,7 +803,7 @@ export function BusinessCenterDetailPage() {
     if (similar.length) add('Какие бизнес-центры показаны как похожие?', similar.map(shortName).join(', '));
     if (hubChips.length) add('Какие связанные подборки доступны?', hubChips.map((c) => c.label).join(', '));
     return items;
-  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, visibleHighlights, gis2, mapRating, reviewQuotes, hubChips, redistributedTechnicalParams, nearbyPlaces]);
+  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, tenantSnapshot, mapRating, reviewQuotes, hubChips, redistributedTechnicalParams, nearbyPlaces]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -728,7 +822,7 @@ export function BusinessCenterDetailPage() {
           Boolean(center.parking || accessHoursText || accessibilityAttributes),
       ),
       has('streetCenters', relatedCenters.street.length > 0),
-      has('tenants', hasTenantOrganizations || center.tenantOrganizations.length > 0),
+      has('tenants', tenantOrganizations.length > 0),
       has('rental', Boolean(center.rentalInfo)),
       has('offers', offers !== null),
       has('history', extractHistoryPoints(center).length >= 2),
@@ -741,7 +835,7 @@ export function BusinessCenterDetailPage() {
     marketPosition,
     offers,
     visibleHighlights,
-    hasTenantOrganizations,
+    tenantOrganizations,
     faqItems,
     redistributedTechnicalParams,
     reviewQuotes,
@@ -752,9 +846,24 @@ export function BusinessCenterDetailPage() {
     reviews,
   ]);
 
+  // «Что там есть» — состав здания в description сниппета. Источник тот же
+  // список организаций и та же инфраструктура, что нарисованы на странице
+  // (замер Wordstat 18.08–18.09.2026: отраслевые формулировки — ноль,
+  // «бизнес центр аякс минск что там есть» — 5/мес; см. К16 в
+  // docs/bc-catalog-redesign-plan.md). Пока срез Яндекса не приехал,
+  // tenantOrganizations уже отдаёт материализованный список из самой строки
+  // БЦ — то есть у пререндера состав есть с первого кадра.
+  const pageComposition = useMemo(
+    () => ({
+      organizationCount: tenantOrganizations.length,
+      infrastructure: center?.infraInternal ?? [],
+    }),
+    [tenantOrganizations, center],
+  );
+
   useEffect(() => {
     if (!center) return;
-    setBusinessCenterPageMeta(center.slug, center, center.photos[0]);
+    setBusinessCenterPageMeta(center.slug, center, center.photos[0], pageComposition);
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
       { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bcminsk' },
@@ -765,6 +874,7 @@ export function BusinessCenterDetailPage() {
     // выдумываем список, которого нет в данных.
     setPlaceJsonLd({
       name: center.name,
+      altNames: center.altNames,
       url: `https://redevelopment.pro/minsk/bcminsk/${center.slug}`,
       address: center.address,
       image: center.photos[0],
@@ -777,7 +887,7 @@ export function BusinessCenterDetailPage() {
       ],
     });
     return () => setPlaceJsonLd(null);
-  }, [center]);
+  }, [center, pageComposition]);
 
   // Метаданные страницы выше сбрасывают JSON-LD: FAQ записываем после них.
   useEffect(() => {
@@ -968,7 +1078,19 @@ export function BusinessCenterDetailPage() {
 
             <div className="flex flex-col gap-4 p-5 sm:p-6">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-              <h1 className="text-2xl font-extrabold leading-tight text-ink">{center.name}</h1>
+              {/* Второе имя здания — сразу под заголовком, а не только в
+                  title: по Wordstat БЦ «V» ищут как «Столица» чаще, чем под
+                  основным именем, и человек, пришедший по такому запросу,
+                  должен увидеть знакомое слово на первом экране, иначе
+                  решит, что попал не туда. */}
+              <div className="flex flex-col gap-0.5">
+                <h1 className="text-2xl font-extrabold leading-tight text-ink">{center.name}</h1>
+                {center.altNames.length > 0 && (
+                  <p className="text-sm text-ink-muted">
+                    Также известен как {center.altNames.map((alt) => `«${alt}»`).join(', ')}
+                  </p>
+                )}
+              </div>
               <div className="flex shrink-0 flex-wrap items-center gap-3 text-sm font-semibold text-ink-muted">
                 {/* Рейтинг с Яндекс.Карт/2ГИС — владелец, 2026-09-06 (четвёртый
                     заход): "справа от заголовка рейтинг с яндекс.карт, а из
@@ -1021,8 +1143,25 @@ export function BusinessCenterDetailPage() {
                 <div className="grid min-w-0 items-baseline gap-x-2 sm:grid-cols-[max-content_auto_minmax(0,1fr)]">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Адрес</p>
                   <span className="hidden text-xs text-ink-muted sm:inline" aria-hidden="true">—</span>
+                  {/* Улица внутри адреса — ссылка на уличный хаб каталога.
+                      Замер Wordstat 18.08–18.09.2026 плюс разбор запросов
+                      Вебмастера: семь запросов приходят буквально адресом
+                      («минск, улица филимонова, 57»), и адрес должен быть не
+                      только текстом, но и точкой входа с якорем из имени
+                      улицы. Хаб есть не у каждой улицы (STREET_SLUGS) —
+                      тогда строка остаётся обычным текстом. */}
                   <p className="mt-0.5 min-w-0 text-sm leading-snug text-ink sm:mt-0">
-                    {displayAddress}
+                    {streetCatalogUrl && displayAddress.includes(streetName) ? (
+                      <>
+                        {displayAddress.slice(0, displayAddress.indexOf(streetName))}
+                        <Link to={streetCatalogUrl} className="font-semibold text-primary-hover hover:underline">
+                          {streetName}
+                        </Link>
+                        {displayAddress.slice(displayAddress.indexOf(streetName) + streetName.length)}
+                      </>
+                    ) : (
+                      displayAddress
+                    )}
                   </p>
                 </div>
                 {(nearestMetro || center.metro) && (
@@ -1090,9 +1229,10 @@ export function BusinessCenterDetailPage() {
 
             {/* Внутренняя инфраструктура относится к основной сводке и на
                 широком экране заполняет свободную область справа от фото. */}
-            {redistributedTechnicalParams.internalInfrastructureText && (
+            {(redistributedTechnicalParams.internalInfrastructureText || tenantOrganizations.length > 0) && (
               <InternalInfrastructureRow
-                text={redistributedTechnicalParams.internalInfrastructureText}
+                text={redistributedTechnicalParams.internalInfrastructureText ?? ''}
+                organizationCount={tenantOrganizations.length}
                 compact
               />
             )}
@@ -1226,34 +1366,30 @@ export function BusinessCenterDetailPage() {
           />
         )}
 
-        {/* Кто сидит в здании. Основной источник — организации 2GIS по
-            building_id с рубриками, из них считается диаграмма отраслей (Б9,
-            docs/bc-catalog-redesign-plan.md). Ниже — прежний блок из
-            веб-архива Яндекс.Карт, он остаётся фолбэком для зданий, куда
-            2GIS ещё не доехал: там есть названия и категории, но нет рубрик
-            2GIS, а значит и отраслей с городским сравнением не построить.
+        {/* Каталог арендаторов. Источник с 2026-09-19 — срез Яндекс.Карт
+            (владелец отказался от платного 2GIS API, деньги вернули): 7608
+            организаций по 139 зданиям против 4614 у 2GIS, и на организацию
+            есть этаж, офис, рейтинг и ссылка на карточку. Старые данные 2GIS
+            не выбрасываем — они остались фолбэком для зданий без яндексовского
+            списка, отрасль у них приходит готовой и попадает в ту же шкалу.
 
-            Организации внутри здания — владелец, 2026-09-06 (третий заход):
-            "давай сделаем ещё блок арендаторов внутри БЦ... сгруппировать,
-            на первое место ставь места с максимумом отзывов на картах".
-            Источник — карусель "Организации внутри" на Яндекс.Картах
-            (веб-архив) — она отдаёт только название+категорию на каждую
-            организацию, БЕЗ числа отзывов на неё саму (в отличие от
-            рейтинга/отзывов всего здания в блоке выше). Настоящей сортировки
-            "по числу отзывов" на уровне отдельной организации из этих данных
-            не построить — группы отсортированы по размеру (категории с
-            большим числом организаций первыми) как ближайший доступный
-            прокси, без выдумывания цифр (см. комментарий у
-            BusinessCenter.tenantOrganizations в data/businessCenters.ts). */}
-        {gis2 && gis2.tenantOrganizations.length > 0 ? (
-          <TenantIndustriesBlock
-            organizations={gis2.tenantOrganizations}
-            total={gis2.tenantOrganizationsTotal}
-            fetchedAt={gis2.tenantOrganizationsFetchedAt}
-            cityProfile={tenantCityProfile}
+            Сортировка по отзывам наконец честная: владелец просил её ещё
+            2026-09-06 ("на первое место ставь места с максимумом отзывов на
+            картах"), но тогда рейтинг был известен только по зданию целиком —
+            теперь число оценок есть на саму организацию. */}
+        {tenantOrganizations.length > 0 && (
+          <TenantDirectory
+            organizations={tenantOrganizations}
+            amenities={tenantAmenities}
+            source={tenantSource}
+            capturedAt={
+              tenantSource === '2gis' ? gis2?.tenantOrganizationsFetchedAt ?? null : tenantSnapshot?.capturedAt ?? null
+            }
+            // Потолок выдачи — беда только 2GIS (50 организаций на здание);
+            // яндексовский срез снимается прокруткой до конца списка, и
+            // оговорка про неполноту там была бы неправдой.
+            reportedTotal={tenantSource === '2gis' ? gis2?.tenantOrganizationsTotal ?? null : null}
           />
-        ) : (
-          center.tenantOrganizations.length > 0 && <TenantOrganizationsBlock organizations={center.tenantOrganizations} />
         )}
 
         {/* Условия для арендаторов с офиц. сайта БЦ (владелец, 2026-09-05,
@@ -1515,12 +1651,19 @@ export function BusinessCenterDetailPage() {
 
         <div className={cn('mt-6 flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
           <h2 className="text-lg font-bold text-ink">Источники</h2>
-          {/* Организации, рейтинг, часы работы и атрибуты — это
-              срез 2ГИС на конкретную дату, а не «сейчас». Дата обязана
-              стоять рядом с данными, а не подразумеваться. */}
+          {/* Организации, рейтинг, часы работы и атрибуты — это срезы на
+              конкретную дату, а не «сейчас». Дата обязана стоять рядом с
+              данными, а не подразумеваться. Источников теперь два: организации
+              с 2026-09-19 из Яндекс.Карт, остальное — по-прежнему 2ГИС. */}
+          {tenantSource === 'yandex_maps' && tenantSnapshot?.capturedAt && (
+            <p className="text-sm text-ink-muted">
+              Организации в здании — срез Яндекс.Карт от{' '}
+              {new Date(tenantSnapshot.capturedAt).toLocaleDateString('ru-RU')}.
+            </p>
+          )}
           {gis2?.fetchedAt && (
             <p className="text-sm text-ink-muted">
-              Данные 2ГИС (организации, рейтинг, часы работы, атрибуты здания) —
+              Данные 2ГИС ({tenantSource === 'yandex_maps' ? 'рейтинг, часы работы, атрибуты здания' : 'организации, рейтинг, часы работы, атрибуты здания'}) —
               срез от {new Date(gis2.fetchedAt).toLocaleDateString('ru-RU')}.
             </p>
           )}
@@ -1714,90 +1857,10 @@ function formatSchedule(schedule: Gis2Schedule): string[] {
   return lines;
 }
 
-// Сколько категорий показывать сразу — у части БЦ (владелец, 2026-09-06:
-// "ограничь список видимых категорий с кнопкой «показать ещё»") реальная
-// страница "Организации внутри" на Яндекс.Картах даёт не карусель из
-// 6-10 позиций, а полный список зарегистрированных на адрес юрлиц — у
-// "Паруса", например, 160+ категорий одним полотном. Первый экран остаётся
-// компактным, весь список доступен по клику, без ограничения на бэкенде.
-const VISIBLE_TENANT_CATEGORIES = 8;
 
-// "5 категорий"/"2 категории"/"1 категорию" — числительное требует разного
-// падежа/числа (тот же принцип, что и pluralOrganizations в DistrictQuarterMap.tsx).
-function pluralCategories(n: number): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return 'категорию';
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'категории';
-  return 'категорий';
-}
 
-function TenantOrganizationsBlock({ organizations }: { organizations: TenantOrganization[] }) {
-  const [expanded, setExpanded] = useState(false);
-  const groups = useMemo(() => groupTenantOrganizations(organizations), [organizations]);
-  const visibleGroups = expanded ? groups : groups.slice(0, VISIBLE_TENANT_CATEGORIES);
-  const hiddenCount = groups.length - visibleGroups.length;
 
-  return (
-    <div id="tenants" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-        <Building2 className="h-5 w-5 shrink-0 text-primary" />
-        Организации в здании
-      </h2>
-      {/* Владелец, 2026-09-06 (третий заход): "предложи более компактный
-          способ — плитки занимают слишком много места, а полезной инфы
-          немного". Раньше на каждую категорию уходило 2 строки (заголовок
-          категории отдельно + отдельный ряд плашек-названий) — теперь
-          категория и список названий в одной строке ("Категория (N):
-          названия через запятую"), обычным текстом без плашек-фонов —
-          при 150+ категориях у "Паруса" разница в высоте блока в разы. */}
-      <div className="flex flex-col divide-y divide-border">
-        {visibleGroups.map((group) => (
-          <p key={group.category} className="py-1.5 text-sm leading-relaxed first:pt-0 last:pb-0">
-            <span className="font-semibold text-ink">
-              {group.category} <span className="text-ink-muted">({group.items.length})</span>:
-            </span>{' '}
-            <span className="text-ink-muted">{group.items.join(', ')}</span>
-          </p>
-        ))}
-      </div>
-      {groups.length > VISIBLE_TENANT_CATEGORIES && (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="self-start text-sm font-semibold text-primary-hover hover:underline"
-        >
-          {expanded ? 'Свернуть' : `Показать ещё ${hiddenCount} ${pluralCategories(hiddenCount)}`}
-        </button>
-      )}
-      <p className="text-xs text-ink-muted">
-        Информация из Яндекс.Карт — полный список организаций мог измениться.
-      </p>
-    </div>
-  );
-}
 
-// Группировка "Организации в здании" по категории — без реального числа
-// отзывов на каждую организацию (см. комментарий в JSX выше) сортируем
-// группы по размеру (больше организаций одной категории — выше), внутри
-// группы — по алфавиту. "Без категории" (пустая строка из формы) — всегда
-// последней группой, не мешает содержательным категориям наверху.
-function groupTenantOrganizations(orgs: TenantOrganization[]): { category: string; items: string[] }[] {
-  const groups = new Map<string, string[]>();
-  for (const org of orgs) {
-    const category = org.category.trim() || 'Без категории';
-    if (!groups.has(category)) groups.set(category, []);
-    groups.get(category)!.push(org.name);
-  }
-  return Array.from(groups.entries())
-    .map(([category, items]) => ({ category, items: [...items].sort((a, b) => a.localeCompare(b, 'ru')) }))
-    .sort((a, b) => {
-      if (a.category === 'Без категории') return 1;
-      if (b.category === 'Без категории') return -1;
-      if (b.items.length !== a.items.length) return b.items.length - a.items.length;
-      return a.category.localeCompare(b.category, 'ru');
-    });
-}
 
 // сам текст, ничего не рендерит, если по этому разделу нашлось не найдено
 // (text === null) — не показываем пустые подписи.
@@ -1850,12 +1913,26 @@ const INTERNAL_INFRASTRUCTURE_ICONS: { pattern: RegExp; icon: typeof FileText }[
   { pattern: /фитнес|спортзал/i, icon: Dumbbell },
 ];
 
-function InternalInfrastructureRow({ text, compact = false }: { text: string; compact?: boolean }) {
+// organizationCount — первая плитка строки «В здании» на первом экране
+// (замер Wordstat 18.08–18.09.2026: спрос сформулирован как «…что там
+// есть», а не по отраслям). Ведёт якорем в сам справочник арендаторов
+// ниже по странице, чтобы ответ «сколько их» и список не были в разных
+// концах документа. Строка рисуется и когда инфраструктура не заполнена, —
+// одного числа организаций для неё достаточно.
+function InternalInfrastructureRow({
+  text,
+  compact = false,
+  organizationCount = 0,
+}: {
+  text: string;
+  compact?: boolean;
+  organizationCount?: number;
+}) {
   const items = text
     .split(/[,;]\s*/)
     .map((item) => item.trim())
     .filter(Boolean);
-  if (items.length === 0) return null;
+  if (items.length === 0 && organizationCount === 0) return null;
 
   return (
     <div
@@ -1868,6 +1945,18 @@ function InternalInfrastructureRow({ text, compact = false }: { text: string; co
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">В здании</p>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+          {organizationCount > 0 && (
+            <a
+              href="#tenants"
+              className={cn(
+                'inline-flex items-center gap-1.5 text-sm font-semibold text-primary-hover hover:underline',
+                !compact && 'rounded-full bg-surface-muted px-2.5 py-1.5 text-xs',
+              )}
+            >
+              <Users className="h-3.5 w-3.5 shrink-0" />
+              {organizationCount} {pluralRu(organizationCount, 'организация', 'организации', 'организаций')}
+            </a>
+          )}
           {items.map((item) => {
             const ItemIcon = INTERNAL_INFRASTRUCTURE_ICONS.find(({ pattern }) => pattern.test(item))?.icon ?? Building2;
             return (

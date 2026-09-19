@@ -34,6 +34,12 @@ const CLOSED = [
   'people', 'pledges', 'supplier_research_offers', 'supplier_research_requests',
   'tasks', 'transaction_comments', 'transactions', 'purchases', 'purchase_emails',
   'supplier_offer_emails',
+  // Срез арендаторов из Яндекс.Карт. Не «закрыт» в обычном смысле: anon читает
+  // из него шесть колонок по column-level grant (их и рисует карточка БЦ), но
+  // select=* — то, чем проверяет этот скрипт — отбивается 401 из-за id и
+  // address_query, которые наружу не отдаются. Для аудита это то же самое, что
+  // закрытая таблица, и проверка ловит главное: anon в неё не пишет.
+  'business_center_tenant_source_snapshots',
   // Общий ящик компании и его записная книжка (страница "Почта",
   // 2026-09-16): переписка и контакты — для сотрудников, anon тут нечего
   // ни читать, ни писать.
@@ -96,6 +102,18 @@ const CLOSED = [
 const PUBLIC_SELECT_ALL = [
   'objects', 'building_plans', 'building_plan_zones', 'public_market_offers',
   'primary_market_offers', 'exchange_rates',
+  // Городской срез рубрик арендаторов: читает публичная карточка БЦ, пишет
+  // только пересчёт через service_role. Добавлен 2026-09-19 вместе с переездом
+  // арендаторов на базу Яндекса — Supabase по умолчанию раздал новой таблице
+  // anon ВСЕ права (insert/update/delete), и держала её одна лишь политика на
+  // чтение; права отозваны, а проверка остаётся здесь, чтобы это не повторилось.
+  'business_center_tenant_city_categories',
+  // Отзывы с Яндекс.Карт для блока «Что говорят»: читает публичная карточка
+  // БЦ, пишет точечный импорт. Добавлена другой сессией 2026-09-19 и в аудит
+  // тогда не попала — а Supabase раздал anon ровно тот же полный набор прав
+  // (insert/update/delete/truncate), несмотря на явный grant select в
+  // миграции. Отозвано 20260920-bc-reviews-anon-revoke.sql.
+  'business_center_review_snapshots',
 ];
 // select по токену (share_token) — сама выборка со стороны anon фильтром не
 // ограничена (PostgREST этого не видит), но RLS должна пускать только строки
