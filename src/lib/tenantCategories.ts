@@ -68,12 +68,52 @@ export function primaryTenantCategory(raw: string | null | undefined): string | 
 // внутри», и без отсечки карточка врёт дважды — «организаций в здании» выше
 // реального, а в отраслях появляется мусор. Пункты выдачи сюда сознательно НЕ
 // входят: ПВЗ арендует помещение, это настоящий арендатор.
-const AMENITY_RE =
-  /(туалет|банкомат|криптомат|кофейный автомат|вендинг|торговый автомат|платёжный терминал|платежный терминал|инфокиоск|постамат|вендомат|аренда зарядных устройств|зарядная станция)/iu;
+//
+// Подпись всегда каноническая, а не как назвали точку в источнике: в одном
+// «Метрополе» лежат «Кофейный автомат», «Кофейный автомат Альфа-Бизнес Хаб» и
+// «Кофейный автомат, кофе с собой» — строка «в здании также есть» из таких
+// имён читается как список опечаток, а не как список сервисов.
+const AMENITY_LABELS: { re: RegExp; label: string }[] = [
+  { re: /туалет/iu, label: 'Туалет' },
+  { re: /банкомат/iu, label: 'Банкомат' },
+  { re: /криптомат/iu, label: 'Криптомат' },
+  { re: /кофейный автомат|кофемашина самообслуживания/iu, label: 'Кофейный автомат' },
+  { re: /вендинг|вендомат|торговый автомат/iu, label: 'Вендинговый автомат' },
+  { re: /платёжный терминал|платежный терминал|инфокиоск/iu, label: 'Платёжный терминал' },
+  { re: /постамат/iu, label: 'Постамат' },
+  { re: /аренда зарядных устройств|зарядная станция/iu, label: 'Зарядная станция' },
+];
+
+/** Каноническая подпись оборудования или null, если это настоящая организация. */
+export function tenantAmenityLabel(raw: string | null | undefined, name?: string | null): string | null {
+  const clean = cleanTenantCategory(raw) ?? '';
+  for (const item of AMENITY_LABELS) {
+    if (item.re.test(clean)) return item.label;
+  }
+  for (const item of AMENITY_LABELS) {
+    if (item.re.test(name ?? '')) return item.label;
+  }
+  return null;
+}
 
 export function isTenantAmenity(raw: string | null | undefined, name?: string | null): boolean {
-  const clean = cleanTenantCategory(raw);
-  return AMENITY_RE.test(clean ?? '') || AMENITY_RE.test(name ?? '');
+  return tenantAmenityLabel(raw, name) !== null;
+}
+
+// Карточка самого здания в списке его же организаций: «Порт» с рубрикой
+// «Бизнес-центр», «Метрополь» с рубрикой «Торговый центр». Арендатором здание
+// себе не является, а его рейтинг уже показан отдельным блоком выше.
+const BUILDING_RUBRIC_RE =
+  /^(бизнес[\s-]*центр|деловой центр|бизнес-парк|торгов(ый|о-развлекательный) центр|административное здание)(?![\p{L}])/iu;
+
+export function isBuildingOwnCard(raw: string | null | undefined, nameMatchesBuilding: boolean): boolean {
+  const clean = cleanTenantCategory(raw) ?? '';
+  if (!BUILDING_RUBRIC_RE.test(clean)) return false;
+  // Рубрика «Бизнес-центр» — это всегда само здание (то же правило уже стояло
+  // в каталоге арендаторов и в миграции очистки, 2026-09-19). Для остальных
+  // типов зданий («Торговый центр») требуем ещё и совпадения названия: ТЦ на
+  // первом этаже БЦ — законный арендатор.
+  return /^бизнес[\s-]*центр/iu.test(clean) || nameMatchesBuilding;
 }
 
 // Правила «рубрика → отрасль», первое совпадение выигрывает, поэтому порядок

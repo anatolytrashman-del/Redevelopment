@@ -6,6 +6,7 @@
 // название и рубрика). Блок на карточке один и просто не рисует то, чего в
 // данных нет.
 import type { Gis2TenantOrganization, TenantIndustryCityProfile } from '../data/businessCenter2gis';
+import type { TenantOrganization } from '../data/businessCenters';
 import type {
   TenantCityCategories,
   TenantOrganizationView,
@@ -15,8 +16,10 @@ import { TENANT_INDUSTRY_OTHER } from '../data/tenantIndustries';
 import {
   cleanTenantCategory,
   formatTenantPlacement,
+  isBuildingOwnCard,
   isTenantAmenity,
   parseTenantPlacement,
+  tenantAmenityLabel,
   tenantIndustryFromCategory,
 } from './tenantCategories';
 
@@ -65,17 +68,15 @@ export function buildTenantsFromSnapshot(
 
   for (const org of organizations) {
     const rubric = cleanTenantCategory(org.category);
-    // Карточка самого здания лежит в том же списке «Организации внутри»
-    // («Порт», рубрика «Бизнес-центр»), но арендатором оно себе не является,
-    // а его рейтинг уже показан выше отдельным блоком.
-    if (buildingKey && rubric?.startsWith('Бизнес-центр') && normalizeBuildingName(org.name) === buildingKey) continue;
-    // Подпись берём у того, что СОВПАЛО: у «Туалета» с рубрикой «Офис
-    // организации» (такие в срезе есть) подпись по рубрике дала бы
-    // бессмысленное «В здании также есть: Офис организации».
-    const amenityByRubric = isTenantAmenity(org.category);
-    if (amenityByRubric || isTenantAmenity(null, org.name)) {
-      const label = amenityByRubric ? rubric ?? org.name : org.name;
-      amenityCounts.set(label, (amenityCounts.get(label) ?? 0) + 1);
+    // Карточка самого здания («Порт» с рубрикой «Бизнес-центр», «Метрополь» с
+    // «Торговый центр») — не арендатор.
+    if (isBuildingOwnCard(org.category, normalizeBuildingName(org.name) === buildingKey && buildingKey !== null)) continue;
+    // Подпись берём каноническую, а не как назвали точку в источнике:
+    // «Кофейный автомат», «Кофейный автомат Альфа-Бизнес Хаб» и «Кофейный
+    // автомат, кофе с собой» — одно и то же оборудование.
+    const amenityLabel = tenantAmenityLabel(org.category, org.name);
+    if (amenityLabel) {
+      amenityCounts.set(amenityLabel, (amenityCounts.get(amenityLabel) ?? 0) + 1);
       continue;
     }
     const placement = parseTenantPlacement(org.rawText);
@@ -104,6 +105,31 @@ export function buildTenantsFromSnapshot(
     .sort((a, b) => b.count - a.count || a.category.localeCompare(b.category, 'ru'));
 
   return { tenants, amenities };
+}
+
+/**
+ * Организации из материализованного списка в строке БЦ
+ * (`business_centers.tenant_organizations`). Это тот же Яндекс, разложенный по
+ * колонке отдельным проходом: название, рубрика, рейтинг и число оценок есть,
+ * места в здании и ссылки на карточку — нет (их видит только живой срез).
+ * Остаётся для зданий, которых в срезе ещё нет.
+ */
+export function buildTenantsFromLegacyList(
+  organizations: TenantOrganization[],
+  buildingName?: string | null,
+): BuildingTenants {
+  return buildTenantsFromSnapshot(
+    organizations.map((org) => ({
+      name: org.name,
+      sourceId: null,
+      sourceUrl: null,
+      category: org.category || null,
+      rating: org.rating ?? null,
+      reviewCount: org.reviewCount ?? null,
+      rawText: null,
+    })),
+    buildingName,
+  );
 }
 
 /** Тот же вид для фолбэка на 2GIS: места, рейтинга и ссылки там нет. */

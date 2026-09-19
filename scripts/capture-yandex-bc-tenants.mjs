@@ -74,6 +74,19 @@ if (skipCollected && !serviceRoleKey && !accessToken) {
 }
 
 const normalizeText = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
+const DEFAULT_ORGANIZATION_CATEGORY = 'Офис организации';
+// Яндекс включает сам объект БЦ в список «Организации внутри» (например,
+// «Порт» с категорией «Бизнес-центр подъезд 1»). Это карточка здания, а не
+// арендатор. Удаляем её до записи чекпоинта и БД, чтобы следующий сбор не
+// возвращал такие записи. Кириллическую границу проверяем Unicode-lookahead,
+// потому что \b в JavaScript работает только с ASCII.
+const BUSINESS_CENTER_CATEGORY_RE = /^бизнес[\s-]*центр(?![\p{L}])/iu;
+const withDefaultCategory = (organizations) => organizations
+  .map((organization) => ({
+    ...organization,
+    category: normalizeText(organization.category) || DEFAULT_ORGANIZATION_CATEGORY,
+  }))
+  .filter((organization) => !BUSINESS_CENTER_CATEGORY_RE.test(organization.category));
 const decodeHtml = (value) => value
   .replaceAll('&amp;', '&').replaceAll('&quot;', '"').replaceAll('&#39;', "'")
   .replaceAll('&lt;', '<').replaceAll('&gt;', '>').replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
@@ -89,7 +102,7 @@ function extractFromHtml(html, sourceUrl) {
     if (!name || !link) continue;
     const id = link[2];
     const url = new URL(decodeHtml(link[1]), sourceUrl).href;
-    organizations.set(id, { name, sourceId: id, sourceUrl: url });
+    organizations.set(id, { name, sourceId: id, sourceUrl: url, category: DEFAULT_ORGANIZATION_CATEGORY });
   }
   return [...organizations.values()];
 }
@@ -120,7 +133,7 @@ async function saveWebarchive(file, html, url) {
 // <Категория> [офис N[, этаж M] | этаж M] [Вход ...] [В подборке ...]
 // [Акция]" — категория лежит строго между статусом работы и первым из
 // стоп-слов (офис/этаж/Вход/В подборке/Акция).
-const STATUS_RE = /(Открыто(?: до \d{1,2}:\d{2})?|Закрыто(?: до [^\s]+)?|До закрытия \d+ мин|До открытия \d+ мин|Круглосуточно|График работы не указан|Организация переехала)/;
+const STATUS_RE = /(Открыто(?: до \S+)?|Закрыто(?: до \S+)?|До закрытия \d+ мин|До открытия \d+ мин|Круглосуточно|График работы не указан|Организация переехала|Больше не работает)/;
 const CATEGORY_STOP_RE = /\s+(?:офис\s|этаж\s|Вход\s|В подборке|Акция)/;
 
 function parseCardText(rawText) {
@@ -136,7 +149,7 @@ function parseCardText(rawText) {
     const stopMatch = after.match(CATEGORY_STOP_RE);
     category = (stopMatch ? after.slice(0, stopMatch.index) : after).trim() || null;
   }
-  return { rating, reviewCount, category, rawText: text || null };
+  return { rating, reviewCount, category: category || DEFAULT_ORGANIZATION_CATEGORY, rawText: text || null };
 }
 
 async function pauseForUser(message) {
@@ -194,23 +207,29 @@ async function collectLive(entry, initialOrganizations, onProgress) {
 }
 
 async function writeSnapshot(snapshot) {
+  const organizations = withDefaultCategory(snapshot.organizations);
   const row = {
     business_center_slug: snapshot.slug,
     source: 'yandex_maps',
     source_url: snapshot.sourceUrl,
     address_query: snapshot.address,
-    organizations: snapshot.organizations,
-    organization_count: snapshot.organizations.length,
+    organizations,
+    organization_count: organizations.length,
     captured_at: snapshot.capturedAt,
   };
   if (serviceRoleKey) {
     const client = createClient(supabaseUrl, serviceRoleKey);
     const { error } = await client.from('business_center_tenant_source_snapshots').upsert(row, { onConflict: 'business_center_slug,source' });
     if (error) throw error;
+    const { error: centerError } = await client
+      .from('business_centers')
+      .update({ tenant_organizations: organizations })
+      .eq('slug', snapshot.slug);
+    if (centerError) throw centerError;
     return;
   }
   const literal = (v) => `'${String(v).replaceAll("'", "''")}'`;
-  const sql = `insert into public.business_center_tenant_source_snapshots (business_center_slug,source,source_url,address_query,organizations,organization_count,captured_at) values (${literal(row.business_center_slug)},'yandex_maps',${literal(row.source_url)},${literal(row.address_query)},${literal(JSON.stringify(row.organizations))}::jsonb,${row.organization_count},${literal(row.captured_at)}::timestamptz) on conflict (business_center_slug,source) do update set source_url=excluded.source_url,address_query=excluded.address_query,organizations=excluded.organizations,organization_count=excluded.organization_count,captured_at=excluded.captured_at;`;
+  const sql = `insert into public.business_center_tenant_source_snapshots (business_center_slug,source,source_url,address_query,organizations,organization_count,captured_at) values (${literal(row.business_center_slug)},'yandex_maps',${literal(row.source_url)},${literal(row.address_query)},${literal(JSON.stringify(row.organizations))}::jsonb,${row.organization_count},${literal(row.captured_at)}::timestamptz) on conflict (business_center_slug,source) do update set source_url=excluded.source_url,address_query=excluded.address_query,organizations=excluded.organizations,organization_count=excluded.organization_count,captured_at=excluded.captured_at; update public.business_centers set tenant_organizations = ${literal(JSON.stringify(organizations))}::jsonb where slug = ${literal(snapshot.slug)};`;
   const response = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
     method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ query: sql }),
   });
@@ -220,11 +239,12 @@ async function writeSnapshot(snapshot) {
 await fs.mkdir(outputRoot, { recursive: true });
 
 async function saveCheckpoint(entry, organizations, sourceUrl, capturedAt) {
+  const cleanedOrganizations = withDefaultCategory(organizations);
   const dir = path.join(outputRoot, entry.slug);
   await fs.mkdir(dir, { recursive: true });
   const target = path.join(dir, 'latest.json');
   const temporary = `${target}.tmp`;
-  const snapshot = { ...entry, sourceUrl, capturedAt, complete: false, organizations };
+  const snapshot = { ...entry, sourceUrl, capturedAt, complete: false, organizations: cleanedOrganizations };
   await fs.writeFile(temporary, JSON.stringify(snapshot, null, 2));
   await fs.rename(temporary, target);
   if (writeDb) {
@@ -233,10 +253,10 @@ async function saveCheckpoint(entry, organizations, sourceUrl, capturedAt) {
       address: entry.address ?? '',
       sourceUrl,
       capturedAt,
-      organizations,
+      organizations: cleanedOrganizations,
     });
   }
-  console.log(`${entry.slug}: контрольная точка — ${organizations.length} организаций`);
+  console.log(`${entry.slug}: контрольная точка — ${cleanedOrganizations.length} организаций`);
 }
 
 async function readCheckpoint(slug) {
@@ -374,6 +394,7 @@ for (const entry of entries) {
   const dir = path.join(outputRoot, entry.slug);
   await fs.mkdir(dir, { recursive: true });
   const stamp = capturedAt.replaceAll(':', '-');
+  organizations = withDefaultCategory(organizations);
   const completed = { ...entry, sourceUrl, capturedAt, complete: true, organizations };
   await fs.writeFile(path.join(dir, `${stamp}.json`), JSON.stringify(completed, null, 2));
   await fs.writeFile(path.join(dir, 'latest.json.tmp'), JSON.stringify(completed, null, 2));

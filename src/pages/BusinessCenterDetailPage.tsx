@@ -68,7 +68,7 @@ import {
   streetHubUrl,
   districtDative,
 } from '../lib/businessCenterHubs';
-import type { BusinessCenter, HighlightIconKey, TenantOrganization } from '../data/businessCenters';
+import type { BusinessCenter, HighlightIconKey } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import type { BusinessCenterNearbyPlace } from '../data/businessCenterNearbyPlaces';
 import { fetchBusinessCenterNearbyPlaces } from '../lib/businessCenterNearbyPlacesApi';
@@ -89,10 +89,12 @@ import { fetchBusinessCenterTenantSnapshot, fetchTenantCityCategories } from '..
 import {
   buildFloorGroups,
   buildTenantsFromGis2,
+  buildTenantsFromLegacyList,
   buildTenantsFromSnapshot,
   foldCityCategoriesToIndustries,
   formatFloorLabel,
 } from '../lib/businessCenterTenants';
+import { TenantDirectory } from '../components/businessCenters/TenantDirectory';
 import type { BusinessCenterTenantSnapshot } from '../data/businessCenterTenants';
 import { buildOfferIndex } from '../lib/businessCenterCatalogFilter';
 import { buildMarketPosition, haversineMeters, nearestNeighbours } from '../lib/businessCenterMarketPosition';
@@ -100,7 +102,6 @@ import {
   extractHistoryPoints,
   HistoryTimeline,
   MarketPositionBlock,
-  TenantIndustriesBlock,
   WhatTheySayBlock,
 } from '../components/businessCenters/BusinessCenterMarketBlocks';
 import { NearbyInfrastructureBlock, SimilarCentersBlock, similarCenters } from '../components/businessCenters/BusinessCenterNeighbours';
@@ -264,15 +265,34 @@ export function BusinessCenterDetailPage() {
 
   // Организации здания и оборудование (банкоматы, кофейные автоматы) —
   // разложены по разные стороны: см. buildTenantsFromSnapshot.
+  //
+  // Источника три, по убыванию полноты. Живой срез Яндекса
+  // (business_center_tenant_source_snapshots) — единственный, где есть этаж,
+  // офис и ссылка на карточку. Материализованный список в самой строке БЦ
+  // (business_centers.tenant_organizations) — тот же Яндекс, но разложенный
+  // по колонке раньше и без места в здании; остаётся для БЦ, которых в срезе
+  // нет. 2GIS — последний: владелец отказался от платного API, но собранное
+  // не выбрасываем, а отрасль там приходит готовой и ложится в ту же шкалу.
   const yandexTenants = useMemo(
     () => (tenantSnapshot ? buildTenantsFromSnapshot(tenantSnapshot.organizations, center?.name) : null),
     [tenantSnapshot, center],
   );
-  const usesYandexTenants = (yandexTenants?.tenants.length ?? 0) > 0;
+  const legacyTenants = useMemo(
+    () => (center ? buildTenantsFromLegacyList(center.tenantOrganizations, center.name) : null),
+    [center],
+  );
+  const tenantSource: 'yandex_maps' | '2gis' =
+    (yandexTenants?.tenants.length ?? 0) > 0 || (legacyTenants?.tenants.length ?? 0) > 0 ? 'yandex_maps' : '2gis';
   const tenantOrganizations = useMemo(() => {
-    if (usesYandexTenants && yandexTenants) return yandexTenants.tenants;
+    if (yandexTenants && yandexTenants.tenants.length > 0) return yandexTenants.tenants;
+    if (legacyTenants && legacyTenants.tenants.length > 0) return legacyTenants.tenants;
     return gis2 ? buildTenantsFromGis2(gis2.tenantOrganizations) : [];
-  }, [usesYandexTenants, yandexTenants, gis2]);
+  }, [yandexTenants, legacyTenants, gis2]);
+  const tenantAmenities = useMemo(() => {
+    if (yandexTenants && yandexTenants.tenants.length > 0) return yandexTenants.amenities;
+    if (legacyTenants && legacyTenants.tenants.length > 0) return legacyTenants.amenities;
+    return [];
+  }, [yandexTenants, legacyTenants]);
 
   // Городской профиль отраслей (Б9) — одна строка на весь каталог, но нужна
   // только тем карточкам, где организации реально собраны: запрашиваем
@@ -289,14 +309,14 @@ export function BusinessCenterDetailPage() {
   useEffect(() => {
     if (!hasTenantOrganizations) return;
     let cancelled = false;
-    const load = usesYandexTenants
+    const load = tenantSource === 'yandex_maps'
       ? fetchTenantCityCategories().then((city) => (city ? foldCityCategoriesToIndustries(city) : null))
       : fetchTenantIndustryCityProfile();
     load
       .then((profile) => { if (!cancelled) setTenantCityProfile(profile); })
       .catch(() => { if (!cancelled) setTenantCityProfile(null); });
     return () => { cancelled = true; };
-  }, [hasTenantOrganizations, usesYandexTenants]);
+  }, [hasTenantOrganizations, tenantSource]);
   const nearbyPlaces = nearbyPlacesResult?.slug === slug
     ? nearbyPlacesResult?.places ?? EMPTY_NEARBY_PLACES
     : EMPTY_NEARBY_PLACES;
@@ -631,7 +651,7 @@ export function BusinessCenterDetailPage() {
     // Организации с 2026-09-19 приезжают из Яндекс.Карт, а рейтинг здания,
     // часы работы и атрибуты — по-прежнему из 2ГИС. Это два разных среза на
     // две разные даты, и в ответе они не должны слипаться в один.
-    if (usesYandexTenants && tenantSnapshot?.capturedAt) {
+    if (tenantSource === 'yandex_maps' && tenantSnapshot?.capturedAt) {
       add(
         'На какую дату список организаций?',
         `Организации в здании — срез Яндекс.Карт от ${new Date(tenantSnapshot.capturedAt).toLocaleDateString('ru-RU')}.`,
@@ -640,7 +660,7 @@ export function BusinessCenterDetailPage() {
     if (gis2?.fetchedAt) {
       add(
         'На какую дату сведения 2ГИС?',
-        `${usesYandexTenants ? 'Рейтинг, часы работы и атрибуты здания' : 'Организации, рейтинг, часы работы и атрибуты здания'} — срез от ${new Date(gis2.fetchedAt).toLocaleDateString('ru-RU')}.`,
+        `${tenantSource === 'yandex_maps' ? 'Рейтинг, часы работы и атрибуты здания' : 'Организации, рейтинг, часы работы и атрибуты здания'} — срез от ${new Date(gis2.fetchedAt).toLocaleDateString('ru-RU')}.`,
       );
     }
     if (nearestMetro) add(`Какое метро рядом с «${name}»?`, `«${nearestMetro.name}» — ${nearestMetro.distanceMeters} м по прямой.`);
@@ -700,26 +720,25 @@ export function BusinessCenterDetailPage() {
     // "берем за практику описывать в faq вообще все, что описываем на
     // странице"), поэтому про организации здесь три вопроса, а не один: сам
     // список с отраслями, этажи и оборудование. Ответы собираются из тех же
-    // данных, что нарисованы выше, — нет данных, нет вопроса.
+    // данных, что нарисованы в каталоге арендаторов, — нет данных, нет вопроса.
     if (tenantOrganizations.length) {
       const industryCounts = new Map<string, number>();
       for (const org of tenantOrganizations) {
         const label = tenantIndustryLabel(org.industry);
         industryCounts.set(label, (industryCounts.get(label) ?? 0) + 1);
       }
-      // По убыванию — как полосы в блоке; вразнобой ответ читается как свалка.
+      // По убыванию — как полосы в разборе; вразнобой ответ читается как свалка.
       const industries = [...industryCounts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ru'));
-      const sourceLabel = usesYandexTenants ? 'Яндекс.Карт' : '2ГИС';
-      const reported = usesYandexTenants ? null : gis2?.tenantOrganizationsTotal ?? null;
+      const reported = tenantSource === '2gis' ? gis2?.tenantOrganizationsTotal ?? null : null;
       const partialNote =
         reported != null && reported > tenantOrganizations.length
           ? `Список неполный: в источнике указано ${reported} организаций. `
           : '';
       add(
         'Сколько организаций в здании и каких отраслей?',
-        `В списке ${sourceLabel} ${tenantOrganizations.length} организаций: ${industries.map(([label, count]) => `${label} — ${count}`).join('; ')}. ${partialNote}Это сведения о соседях и сервисах, не показатель загрузки здания или спроса.`,
+        `В списке ${tenantSource === '2gis' ? '2ГИС' : 'Яндекс.Карт'} ${tenantOrganizations.length} организаций: ${industries.map(([label, count]) => `${label} — ${count}`).join('; ')}. ${partialNote}Это сведения о соседях и сервисах, не показатель загрузки здания или спроса.`,
       );
-      // Тот же расклад по этажам, что нарисован в блоке выше, — из общей
+      // Тот же расклад по этажам, что нарисован в каталоге, — из общей
       // функции: FAQ обязан повторять страницу, а не считать своё.
       const floors = buildFloorGroups(tenantOrganizations);
       if (floors.length > 0) {
@@ -729,14 +748,12 @@ export function BusinessCenterDetailPage() {
           `${floors.map((group) => `${formatFloorLabel(group.floor)} — ${group.count}`).join('; ')}. Этаж известен у ${withFloor} организаций из ${tenantOrganizations.length}.`,
         );
       }
-      if (usesYandexTenants && yandexTenants && yandexTenants.amenities.length > 0) {
+      if (tenantAmenities.length > 0) {
         add(
           'Что есть в здании кроме офисов?',
-          `${yandexTenants.amenities.map((item) => (item.count > 1 ? `${item.category} (${item.count})` : item.category)).join(', ')}. Это оборудование и точки самообслуживания, в списке организаций они не учтены.`,
+          `${tenantAmenities.map((item) => (item.count > 1 ? `${item.category} (${item.count})` : item.category)).join(', ')}. Это оборудование и точки самообслуживания, в списке организаций они не учтены.`,
         );
       }
-        } else if (center.tenantOrganizations.length) {
-      add('Какие организации и сервисы есть в здании?', `В списке ${center.tenantOrganizations.length} организаций: ${center.tenantOrganizations.map((o) => `${o.name}${o.category ? ` (${o.category})` : ''}`).join(', ')}.`);
     }
     // Рейтинг у нас приезжает из трёх мест (снимок 2ГИС, поле карточки,
     // свободный текст фактов) — но для читателя это ОДИН вопрос. Три
@@ -760,7 +777,7 @@ export function BusinessCenterDetailPage() {
     if (similar.length) add('Какие бизнес-центры показаны как похожие?', similar.map(shortName).join(', '));
     if (hubChips.length) add('Какие связанные подборки доступны?', hubChips.map((c) => c.label).join(', '));
     return items;
-  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, visibleHighlights, gis2, tenantOrganizations, usesYandexTenants, yandexTenants, tenantSnapshot, mapRating, reviewQuotes, hubChips, redistributedTechnicalParams, nearbyPlaces]);
+  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, mapRating, reviewQuotes, hubChips, redistributedTechnicalParams, nearbyPlaces]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -1276,34 +1293,31 @@ export function BusinessCenterDetailPage() {
           />
         )}
 
-        {/* Кто сидит в здании. Основной источник с 2026-09-19 — срез
-            Яндекс.Карт (Б13 в docs/bc-catalog-redesign-plan.md): 7608
+        {/* Каталог арендаторов. Источник с 2026-09-19 — срез Яндекс.Карт
+            (владелец отказался от платного 2GIS API, деньги вернули): 7608
             организаций по 139 зданиям против 4614 у 2GIS, и на организацию
-            есть этаж, офис, рейтинг и ссылка на карточку. 2GIS остался
-            фолбэком для зданий, которых в срезе нет: там только название и
-            рубрика, зато отрасль приходит готовой. Совсем старый список из
-            веб-архива (BusinessCenter.tenantOrganizations) — третий эшелон,
-            для зданий, где нет ни того, ни другого.
+            есть этаж, офис, рейтинг и ссылка на карточку. Старые данные 2GIS
+            не выбрасываем — они остались фолбэком для зданий без яндексовского
+            списка, отрасль у них приходит готовой и попадает в ту же шкалу.
 
-            Сортировка списка наконец честная: владелец ещё 2026-09-06 просил
-            "на первое место ставь места с максимумом отзывов на картах", но
-            карусель Яндекса и выдача 2GIS отдавали рейтинг только по зданию
-            целиком — приходилось сортировать группы по размеру. В срезе число
-            оценок есть на саму организацию, и список идёт по нему. */}
-        {tenantOrganizations.length > 0 ? (
-          <TenantIndustriesBlock
+            Сортировка по отзывам наконец честная: владелец просил её ещё
+            2026-09-06 ("на первое место ставь места с максимумом отзывов на
+            картах"), но тогда рейтинг был известен только по зданию целиком —
+            теперь число оценок есть на саму организацию. */}
+        {tenantOrganizations.length > 0 && (
+          <TenantDirectory
             organizations={tenantOrganizations}
-            amenities={usesYandexTenants ? yandexTenants?.amenities : undefined}
+            amenities={tenantAmenities}
+            cityProfile={tenantCityProfile}
+            source={tenantSource}
+            capturedAt={
+              tenantSource === '2gis' ? gis2?.tenantOrganizationsFetchedAt ?? null : tenantSnapshot?.capturedAt ?? null
+            }
             // Потолок выдачи — беда только 2GIS (50 организаций на здание);
             // яндексовский срез снимается прокруткой до конца списка, и
             // оговорка про неполноту там была бы неправдой.
-            total={usesYandexTenants ? null : gis2?.tenantOrganizationsTotal ?? null}
-            fetchedAt={usesYandexTenants ? tenantSnapshot?.capturedAt ?? null : gis2?.tenantOrganizationsFetchedAt ?? null}
-            cityProfile={tenantCityProfile}
-            source={usesYandexTenants ? 'yandex_maps' : '2gis'}
+            reportedTotal={tenantSource === '2gis' ? gis2?.tenantOrganizationsTotal ?? null : null}
           />
-        ) : (
-          center.tenantOrganizations.length > 0 && <TenantOrganizationsBlock organizations={center.tenantOrganizations} />
         )}
 
         {/* Условия для арендаторов с офиц. сайта БЦ (владелец, 2026-09-05,
@@ -1569,7 +1583,7 @@ export function BusinessCenterDetailPage() {
               конкретную дату, а не «сейчас». Дата обязана стоять рядом с
               данными, а не подразумеваться. Источников теперь два: организации
               с 2026-09-19 из Яндекс.Карт, остальное — по-прежнему 2ГИС. */}
-          {usesYandexTenants && tenantSnapshot?.capturedAt && (
+          {tenantSource === 'yandex_maps' && tenantSnapshot?.capturedAt && (
             <p className="text-sm text-ink-muted">
               Организации в здании — срез Яндекс.Карт от{' '}
               {new Date(tenantSnapshot.capturedAt).toLocaleDateString('ru-RU')}.
@@ -1577,7 +1591,7 @@ export function BusinessCenterDetailPage() {
           )}
           {gis2?.fetchedAt && (
             <p className="text-sm text-ink-muted">
-              Данные 2ГИС ({usesYandexTenants ? 'рейтинг, часы работы, атрибуты здания' : 'организации, рейтинг, часы работы, атрибуты здания'}) —
+              Данные 2ГИС ({tenantSource === 'yandex_maps' ? 'рейтинг, часы работы, атрибуты здания' : 'организации, рейтинг, часы работы, атрибуты здания'}) —
               срез от {new Date(gis2.fetchedAt).toLocaleDateString('ru-RU')}.
             </p>
           )}
@@ -1771,90 +1785,10 @@ function formatSchedule(schedule: Gis2Schedule): string[] {
   return lines;
 }
 
-// Сколько категорий показывать сразу — у части БЦ (владелец, 2026-09-06:
-// "ограничь список видимых категорий с кнопкой «показать ещё»") реальная
-// страница "Организации внутри" на Яндекс.Картах даёт не карусель из
-// 6-10 позиций, а полный список зарегистрированных на адрес юрлиц — у
-// "Паруса", например, 160+ категорий одним полотном. Первый экран остаётся
-// компактным, весь список доступен по клику, без ограничения на бэкенде.
-const VISIBLE_TENANT_CATEGORIES = 8;
 
-// "5 категорий"/"2 категории"/"1 категорию" — числительное требует разного
-// падежа/числа (тот же принцип, что и pluralOrganizations в DistrictQuarterMap.tsx).
-function pluralCategories(n: number): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return 'категорию';
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'категории';
-  return 'категорий';
-}
 
-function TenantOrganizationsBlock({ organizations }: { organizations: TenantOrganization[] }) {
-  const [expanded, setExpanded] = useState(false);
-  const groups = useMemo(() => groupTenantOrganizations(organizations), [organizations]);
-  const visibleGroups = expanded ? groups : groups.slice(0, VISIBLE_TENANT_CATEGORIES);
-  const hiddenCount = groups.length - visibleGroups.length;
 
-  return (
-    <div id="tenants" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-        <Building2 className="h-5 w-5 shrink-0 text-primary" />
-        Организации в здании
-      </h2>
-      {/* Владелец, 2026-09-06 (третий заход): "предложи более компактный
-          способ — плитки занимают слишком много места, а полезной инфы
-          немного". Раньше на каждую категорию уходило 2 строки (заголовок
-          категории отдельно + отдельный ряд плашек-названий) — теперь
-          категория и список названий в одной строке ("Категория (N):
-          названия через запятую"), обычным текстом без плашек-фонов —
-          при 150+ категориях у "Паруса" разница в высоте блока в разы. */}
-      <div className="flex flex-col divide-y divide-border">
-        {visibleGroups.map((group) => (
-          <p key={group.category} className="py-1.5 text-sm leading-relaxed first:pt-0 last:pb-0">
-            <span className="font-semibold text-ink">
-              {group.category} <span className="text-ink-muted">({group.items.length})</span>:
-            </span>{' '}
-            <span className="text-ink-muted">{group.items.join(', ')}</span>
-          </p>
-        ))}
-      </div>
-      {groups.length > VISIBLE_TENANT_CATEGORIES && (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="self-start text-sm font-semibold text-primary-hover hover:underline"
-        >
-          {expanded ? 'Свернуть' : `Показать ещё ${hiddenCount} ${pluralCategories(hiddenCount)}`}
-        </button>
-      )}
-      <p className="text-xs text-ink-muted">
-        Информация из Яндекс.Карт — полный список организаций мог измениться.
-      </p>
-    </div>
-  );
-}
 
-// Группировка "Организации в здании" по категории — без реального числа
-// отзывов на каждую организацию (см. комментарий в JSX выше) сортируем
-// группы по размеру (больше организаций одной категории — выше), внутри
-// группы — по алфавиту. "Без категории" (пустая строка из формы) — всегда
-// последней группой, не мешает содержательным категориям наверху.
-function groupTenantOrganizations(orgs: TenantOrganization[]): { category: string; items: string[] }[] {
-  const groups = new Map<string, string[]>();
-  for (const org of orgs) {
-    const category = org.category.trim() || 'Без категории';
-    if (!groups.has(category)) groups.set(category, []);
-    groups.get(category)!.push(org.name);
-  }
-  return Array.from(groups.entries())
-    .map(([category, items]) => ({ category, items: [...items].sort((a, b) => a.localeCompare(b, 'ru')) }))
-    .sort((a, b) => {
-      if (a.category === 'Без категории') return 1;
-      if (b.category === 'Без категории') return -1;
-      if (b.items.length !== a.items.length) return b.items.length - a.items.length;
-      return a.category.localeCompare(b.category, 'ru');
-    });
-}
 
 // сам текст, ничего не рендерит, если по этому разделу нашлось не найдено
 // (text === null) — не показываем пустые подписи.
