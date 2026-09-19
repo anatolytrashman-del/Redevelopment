@@ -8,7 +8,7 @@ import type { BusinessCenter } from '../data/businessCenters';
 
 function bc(slug: string, lat: number | null, lng: number | null): BusinessCenter {
   return {
-    id: slug, slug, name: slug, address: 'г. Минск, ул. Тестовая, 1', district: null, microdistrict: null,
+    id: slug, slug, name: slug, altNames: [], address: 'г. Минск, ул. Тестовая, 1', district: null, microdistrict: null,
     businessClass: null, totalArea: null, yearBuilt: null, floors: null, developer: null, metro: null,
     parking: null, website: null, description: null, rentalInfo: null, highlights: [], mapSnapshotFiles: [],
     tenantOrganizations: [], technicalParams: [], nearestMetroStations: [], verdict: null, pros: [], cons: [],

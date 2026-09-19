@@ -67,6 +67,9 @@ function splitLines(value: string): string[] {
 interface FormState {
   slug: string;
   name: string;
+  // Вторые названия одной строкой через запятую — в базе это text[], но в
+  // форме массив из одного-двух значений не стоит отдельного редактора.
+  altNames: string;
   address: string;
   district: string;
   businessClass: string; // 'Не указан' | 'A' | 'B+' | 'B' | 'C'
@@ -100,6 +103,7 @@ interface FormState {
 const EMPTY_FORM: FormState = {
   slug: '',
   name: '',
+  altNames: '',
   address: '',
   district: '',
   businessClass: 'Не указан',
@@ -134,6 +138,7 @@ function centerToForm(c: BusinessCenter): FormState {
   return {
     slug: c.slug,
     name: c.name,
+    altNames: c.altNames.join(', '),
     address: c.address,
     district: c.district ?? '',
     businessClass: c.businessClass ?? 'Не указан',
@@ -325,6 +330,10 @@ export function BusinessCentersAdminTab() {
       const payload = {
         slug: form.slug.trim(),
         name: form.name.trim(),
+        altNames: form.altNames
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean),
         address: form.address.trim(),
         district: form.district.trim() || null,
         businessClass: (form.businessClass === 'Не указан' ? null : form.businessClass) as BusinessCenter['businessClass'],
@@ -487,6 +496,17 @@ export function BusinessCentersAdminTab() {
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input label="Название" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+            {/* Второе имя того же здания, если его ищут ещё как-то (БЦ «V» =
+                «Столица»). Не для перевода названия и не для имени
+                управляющей компании — только для того, под чем здание
+                действительно ищут: это имя попадёт в title, под заголовок,
+                в описание и в FAQ. */}
+            <Input
+              label="Другие названия (через запятую)"
+              value={form.altNames}
+              onChange={(e) => setForm({ ...form, altNames: e.target.value })}
+              placeholder="Столица"
+            />
             <Input
               label="Slug (для URL/путей фото)"
               value={form.slug}
