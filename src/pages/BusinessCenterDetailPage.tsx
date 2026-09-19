@@ -56,6 +56,8 @@ import {
   shortName,
   sortByShortName,
   mapRatingFromHighlights,
+  parseHighlightRatings,
+  parseReviewQuote,
   streetOfAddress,
 } from '../lib/businessCenterDisplay';
 import { nearestMetroStation } from '../lib/metroStations';
@@ -541,7 +543,11 @@ export function BusinessCenterDetailPage() {
       (center?.highlights ?? [])
         .filter((h) => h.icon === 'reviews')
         .flatMap((h) => h.text.split(/\n+/).map((l) => l.replace(/^[-–—•\s]+/, '').trim()).filter(Boolean))
-        .slice(0, 4),
+        // Было 4 — у «Порта» это молча отрезало 5-ю, критичную цитату
+        // (единственную про холодные этажи с оговоркой). Порог поднят, а не
+        // убран: 6 — чтобы блок не превращался в бесконечную ленту у БЦ с
+        // особо длинным списком.
+        .slice(0, 6),
     [center],
   );
 
@@ -649,16 +655,34 @@ export function BusinessCenterDetailPage() {
     // свободный текст фактов) — но для читателя это ОДИН вопрос. Три
     // отдельных вопроса про одну и ту же оценку читаются как заполнение
     // объёма, поэтому собираем их в один ответ.
+    const yandexRatings = parseHighlightRatings(center.highlights);
     const ratingParts = [
       gis2?.reviews?.orgRating != null
         ? `2ГИС — ${gis2.reviews.orgRating}${gis2.reviews.orgReviewCount != null ? ` (оценок: ${gis2.reviews.orgReviewCount})` : ''}`
         : center.gisRating != null
           ? `2ГИС — ${center.gisRating}${center.gisReviewCount != null ? ` (оценок: ${center.gisReviewCount})` : ''}`
           : null,
-      mapRating ? `${mapRating.source} — ${mapRating.label}` : null,
+      // mapRatingFromHighlights берёт только первую строку/первое число —
+      // годится как общий индикатор для порога рейтинга (используется и в
+      // ranking-странице), но для читаемого текста тут нужен именно
+      // parseHighlightRatings: он не путает вступительное предложение с
+      // названием источника у зданий с несколькими карточками Яндекс.Карт
+      // (см. WhatTheySayBlock).
+      ...yandexRatings.map(
+        (r) =>
+          `${r.source} — ${r.value}${r.totalCount != null ? ` (оценок: ${r.totalCount})` : ''}${r.corpusCount > 1 ? `, ${r.corpusCount} корпуса` : ''}`,
+      ),
     ].filter(Boolean);
     if (ratingParts.length) add(`Какая оценка у «${name}» на картах?`, `${ratingParts.join('; ')}.`);
-    if (reviewQuotes.length) add('Что пишут в отзывах?', reviewQuotes.join('\n'));
+    if (reviewQuotes.length) {
+      add(
+        'Что пишут в отзывах?',
+        reviewQuotes
+          .map(parseReviewQuote)
+          .map((q) => `${q.author ? `${q.author}: ` : ''}${q.isQuote ? `«${q.text}»` : q.text}`)
+          .join('\n'),
+      );
+    }
     add('Как исправить сведения о здании?', 'Напишите на anatoly.trashman@gmail.com, указав бизнес-центр и сведения, которые устарели или требуют исправления.');
     // Тот же вызов, что и в самом блоке «Похожие»: соседи из него
     // исключены, иначе FAQ перечислял бы не то, что видно на странице.
