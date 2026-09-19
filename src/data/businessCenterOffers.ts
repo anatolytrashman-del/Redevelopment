@@ -36,7 +36,7 @@ export interface BusinessCenterOfferRow {
 }
 
 // При пустой выборке updatedAt лотов недоступен: дату синка не выдумываем.
-export const NO_ACTIVE_OFFERS_MESSAGE = 'Активных предложений в наших источниках нет. Источники: Kufar, Realt.';
+export const NO_ACTIVE_OFFERS_MESSAGE = 'Активных предложений в наших источниках нет. Источники: Kufar, Realt, Domovita.';
 
 // Тот же смысл в одну строку — для карточки каталога и балуна на карте,
 // где на факт отведена строка, а не абзац. Полная формулировка с

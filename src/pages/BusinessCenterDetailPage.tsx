@@ -1406,8 +1406,8 @@ export function BusinessCenterDetailPage() {
           <div className={cn('mt-6 flex flex-col gap-2 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="text-lg font-bold text-ink">Вы собственник или управляющая компания?</h2>
             <p className="text-sm leading-relaxed text-ink-muted">
-              Данные по зданию собраны из открытых источников — prometr.by, 2ГИС, объявления Kufar и
-              Realt. Если что-то устарело или указано неверно, напишите: поправим и пересчитаем
+              Данные по зданию собраны из открытых источников — prometr.by, 2ГИС, объявления Kufar,
+              Realt и Domovita. Если что-то устарело или указано неверно, напишите: поправим и пересчитаем
               сравнения и индекс.
             </p>
             <a
