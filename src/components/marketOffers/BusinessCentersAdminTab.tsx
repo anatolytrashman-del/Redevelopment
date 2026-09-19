@@ -252,6 +252,12 @@ export function BusinessCentersAdminTab() {
   // по каталогу нужен явный список адресов на каждое здание, а не переход в
   // форму редактирования ради одного поля.
   const [buildingAddressesBySlug, setBuildingAddressesBySlug] = useState<Record<string, string[]>>({});
+  // Раньше приложенные файлы (не разобранные на отзывы — см. предупреждение
+  // в тексте поля ниже) путали при беглом взгляде: похожи на "уже сделано",
+  // хотя это старые файлы без отзывов. Владелец, 2026-09-20: "путаница...
+  // просто выведи отображение для загрузки, а остальное убери из поля
+  // зрения" — сворачиваем их за один клик, открытое поле загрузки — на виду.
+  const [showOldSnapshotFiles, setShowOldSnapshotFiles] = useState(false);
 
   useEffect(() => {
     load();
@@ -283,12 +289,14 @@ export function BusinessCentersAdminTab() {
     setEditing(c);
     setForm(centerToForm(c));
     setFormError('');
+    setShowOldSnapshotFiles(false);
   }
 
   function openNew() {
     setEditing('new');
     setForm({ ...EMPTY_FORM, sortOrder: String((centers?.length ?? 0)) });
     setFormError('');
+    setShowOldSnapshotFiles(false);
   }
 
   function closeEdit() {
@@ -582,21 +590,42 @@ export function BusinessCentersAdminTab() {
               обновляются без ручной работы — просто прикрепите файл и сохраните карточку. Файлы, приложенные
               раньше (до 2026-09-20), повторно не разбираются — их нужно приложить заново, если нужны отзывы.
             </p>
-            {form.mapSnapshotFiles.map((file, i) => (
-              <div key={file.url} className="flex items-center gap-2 rounded-control border border-border px-3 py-2 text-sm text-ink">
-                <a href={file.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-primary-hover hover:underline">
-                  {file.fileName}
-                </a>
+            {form.mapSnapshotFiles.length > 0 && (
+              showOldSnapshotFiles ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowOldSnapshotFiles(false)}
+                    className="self-start text-xs font-semibold text-primary-hover hover:underline"
+                  >
+                    Скрыть старые файлы
+                  </button>
+                  {form.mapSnapshotFiles.map((file, i) => (
+                    <div key={file.url} className="flex items-center gap-2 rounded-control border border-border px-3 py-2 text-sm text-ink">
+                      <a href={file.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-primary-hover hover:underline">
+                        {file.fileName}
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, mapSnapshotFiles: f.mapSnapshotFiles.filter((_, idx) => idx !== i) }))}
+                        aria-label="Убрать файл"
+                        className="flex h-6 w-6 shrink-0 items-center justify-center text-ink-faint hover:text-danger"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </>
+              ) : (
                 <button
                   type="button"
-                  onClick={() => setForm((f) => ({ ...f, mapSnapshotFiles: f.mapSnapshotFiles.filter((_, idx) => idx !== i) }))}
-                  aria-label="Убрать файл"
-                  className="flex h-6 w-6 shrink-0 items-center justify-center text-ink-faint hover:text-danger"
+                  onClick={() => setShowOldSnapshotFiles(true)}
+                  className="self-start text-xs text-ink-faint hover:text-ink-muted hover:underline"
                 >
-                  <X className="h-4 w-4" />
+                  Старых файлов: {form.mapSnapshotFiles.length} (не отзывы, скрыто — показать)
                 </button>
-              </div>
-            ))}
+              )
+            )}
             {form.pendingMapSnapshotFiles.map((file, i) => (
               <div key={`pending-${i}`} className="flex items-center gap-2 rounded-control border border-dashed border-border px-3 py-2 text-sm text-ink-muted">
                 <span className="min-w-0 flex-1 truncate">{file.name} (загрузится при сохранении)</span>
