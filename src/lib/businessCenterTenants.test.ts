@@ -99,3 +99,34 @@ describe('buildTenantsFromSnapshot', () => {
     expect(buildTenantsFromSnapshot([])).toEqual({ tenants: [], amenities: [] });
   });
 });
+
+describe('вторые названия здания', () => {
+  // В яндексовском срезе БЦ «V» лежат две организации с именем «Столица» и
+  // пустой рубрикой — это карточки самого здания под его вторым именем
+  // (alt_names), а не арендаторы. До 2026-09-20 они показывались в списке.
+  const orgs = [
+    { name: 'Столица', sourceId: null, sourceUrl: null, category: null, rating: null, reviewCount: null, rawText: null },
+    { name: 'Столица', sourceId: null, sourceUrl: null, category: null, rating: null, reviewCount: null, rawText: null },
+    { name: 'Atevi Systems', sourceId: null, sourceUrl: null, category: 'IT-компания', rating: null, reviewCount: null, rawText: null },
+  ];
+
+  it('выкидывает карточку здания под вторым именем', () => {
+    const built = buildTenantsFromSnapshot(orgs, 'Бизнес-центр «V»', ['Столица']);
+    expect(built.tenants.map((t) => t.name)).toEqual(['Atevi Systems']);
+  });
+
+  it('без вторых имён та же карточка остаётся арендатором — правило не срабатывает вслепую', () => {
+    const built = buildTenantsFromSnapshot(orgs, 'Бизнес-центр «V»');
+    expect(built.tenants.map((t) => t.name).sort()).toEqual(['Atevi Systems', 'Столица', 'Столица']);
+  });
+
+  it('одноимённая со зданием компания С рубрикой остаётся арендатором', () => {
+    const built = buildTenantsFromSnapshot(
+      [{ name: 'Столица', sourceId: null, sourceUrl: null, category: 'Кафе', rating: null, reviewCount: null, rawText: null }],
+      'Бизнес-центр «V»',
+      ['Столица'],
+    );
+    expect(built.tenants.map((t) => t.name)).toEqual(['Столица']);
+  });
+});
+

@@ -16,6 +16,13 @@ export interface BusinessCenter {
   id: string;
   slug: string;
   name: string;
+  // Другие названия ТОГО ЖЕ здания, под которыми его ищут. Завелось из-за
+  // БЦ «V» на пр-те Победителей, 59: комплекс «Виктория» управляется КУП
+  // «Бизнес-центр "Столица"», и по Wordstat «бизнес центр столица минск»
+  // (23 + 9 запросов в месяц) — вторая по частоте позиция во всём топе
+  // «бизнес центр минск», а слова «Столица» на странице не было вовсе.
+  // Заводить вторую запись нельзя: один адрес, одно здание, дубль карточки.
+  altNames: string[];
   address: string;
   // Административный район Минска (Центральный/Советский/Первомайский/...)
   // — открытый список, растёт из AddableSelect в форме. "За городом" — для
@@ -284,6 +291,7 @@ export interface BusinessCenterRow {
   id: string;
   slug: string;
   name: string;
+  alt_names: string[] | null;
   address: string;
   district: string | null;
   microdistrict: string | null;

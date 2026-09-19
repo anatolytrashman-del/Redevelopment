@@ -108,6 +108,13 @@ const BUILDING_RUBRIC_RE =
 
 export function isBuildingOwnCard(raw: string | null | undefined, nameMatchesBuilding: boolean): boolean {
   const clean = cleanTenantCategory(raw) ?? '';
+  // Карточка без рубрики, но с названием самого здания — тоже здание, а не
+  // арендатор. Живой случай: в срезе БЦ «V» лежат две организации с именем
+  // «Столица» (второе название здания, см. alt_names) и пустой рубрикой.
+  // Правило узкое сознательно — совпадения имени МАЛО, если рубрика есть:
+  // одноимённая с домом компания на первом этаже бывает настоящим
+  // арендатором.
+  if (!clean) return nameMatchesBuilding;
   if (!BUILDING_RUBRIC_RE.test(clean)) return false;
   // Рубрика «Бизнес-центр» — это всегда само здание (то же правило уже стояло
   // в каталоге арендаторов и в миграции очистки, 2026-09-19). Для остальных

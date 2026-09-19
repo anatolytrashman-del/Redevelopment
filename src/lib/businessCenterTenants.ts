@@ -55,8 +55,13 @@ export interface BuildingTenants {
 export function buildTenantsFromSnapshot(
   organizations: TenantSourceOrganization[],
   buildingName?: string | null,
+  buildingAltNames: string[] = [],
 ): BuildingTenants {
-  const buildingKey = normalizeBuildingName(buildingName);
+  // Имён у здания может быть несколько (BusinessCenter.altNames): БЦ «V» он
+  // же «Столица». Карточку самого здания надо отсеять под ЛЮБЫМ из них.
+  const buildingKeys = new Set(
+    [buildingName, ...buildingAltNames].map(normalizeBuildingName).filter((key): key is string => key !== null),
+  );
   const tenants: TenantOrganizationView[] = [];
   const amenityCounts = new Map<string, number>();
 
@@ -64,7 +69,8 @@ export function buildTenantsFromSnapshot(
     const rubric = cleanTenantCategory(org.category);
     // Карточка самого здания («Порт» с рубрикой «Бизнес-центр», «Метрополь» с
     // «Торговый центр») — не арендатор.
-    if (isBuildingOwnCard(org.category, normalizeBuildingName(org.name) === buildingKey && buildingKey !== null)) continue;
+    const orgKey = normalizeBuildingName(org.name);
+    if (isBuildingOwnCard(org.category, orgKey !== null && buildingKeys.has(orgKey))) continue;
     // Подпись берём каноническую, а не как назвали точку в источнике:
     // «Кофейный автомат», «Кофейный автомат Альфа-Бизнес Хаб» и «Кофейный
     // автомат, кофе с собой» — одно и то же оборудование.
@@ -111,6 +117,7 @@ export function buildTenantsFromSnapshot(
 export function buildTenantsFromLegacyList(
   organizations: TenantOrganization[],
   buildingName?: string | null,
+  buildingAltNames: string[] = [],
 ): BuildingTenants {
   return buildTenantsFromSnapshot(
     organizations.map((org) => ({
@@ -123,6 +130,7 @@ export function buildTenantsFromLegacyList(
       rawText: null,
     })),
     buildingName,
+    buildingAltNames,
   );
 }
 

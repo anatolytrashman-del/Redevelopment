@@ -1342,7 +1342,12 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                         to={`/minsk/bcminsk/${c.slug}`}
                         className="text-sm text-ink-muted transition-colors hover:text-primary-hover"
                       >
+                        {/* Второе название здания — прямо в алфавитном
+                            перечне: человек, который знает БЦ «V» только как
+                            «Столица», иначе не найдёт его в списке из 143
+                            имён. */}
                         {shortName(c)}
+                        {c.altNames.length > 0 && ` (${c.altNames.join(', ')})`}
                       </Link>
                     ))}
                   </div>

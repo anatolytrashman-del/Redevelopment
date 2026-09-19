@@ -212,6 +212,7 @@ export function setItemListJsonLd(items: { name: string; url: string }[] | null)
 export function setPlaceJsonLd(
   place: {
     name: string;
+    altNames?: string[];
     url: string;
     address: string;
     image?: string;
@@ -230,6 +231,11 @@ export function setPlaceJsonLd(
     '@context': 'https://schema.org',
     '@type': 'Place',
     name: place.name,
+    // alternateName — стандартное место для второго имени здания (БЦ «V» =
+    // «Столица»): тот же объект, а не отдельное место на карте.
+    ...(place.altNames && place.altNames.length > 0
+      ? { alternateName: place.altNames.length === 1 ? place.altNames[0] : place.altNames }
+      : {}),
     url: place.url,
     ...(place.image ? { image: place.image } : {}),
     address: {
@@ -335,9 +341,15 @@ export interface BusinessCenterComposition {
   infrastructure: string[];
 }
 
+// Вторые названия здания в кавычках-ёлочках: «Столица» или «Столица», «Виктория».
+function quoteNames(names: string[]): string {
+  return names.map((name) => `«${name.replace(/^[«"']|[»"']$/gu, '')}»`).join(', ');
+}
+
 export function fallbackBusinessCenterMeta(
   center: {
     name: string;
+    altNames?: string[];
     address: string;
     businessClass: string | null;
     totalArea: number | null;
@@ -346,7 +358,13 @@ export function fallbackBusinessCenterMeta(
   },
   composition?: BusinessCenterComposition | null,
 ): PageMeta {
-  const title = `${center.name} — ${center.address}`;
+  // Второе имя обязано стоять в title: по Wordstat «бизнес центр столица
+  // минск» ищут чаще, чем это же здание под его основным именем «V», а до
+  // 2026-09-20 слова «Столица» на странице не было вовсе.
+  const altNames = (center.altNames ?? []).filter((name) => name.trim());
+  const title = altNames.length > 0
+    ? `${center.name} (${quoteNames(altNames)}) — ${center.address}`
+    : `${center.name} — ${center.address}`;
   const parts: string[] = [];
   if (center.businessClass) parts.push(`класс ${center.businessClass}`);
   if (center.totalArea) parts.push(`${center.totalArea.toLocaleString('ru-RU')} м²`);
@@ -375,9 +393,10 @@ export function fallbackBusinessCenterMeta(
   // поэтому в ОПИСАНИИ он из адреса вырезается. В title адрес остаётся
   // целиком, вместе с «г. Минск», — там он работает на адресные запросы.
   const addressWithoutCity = center.address.replace(/^г\.\s*Минск,\s*/i, '');
+  const alsoKnown = altNames.length > 0 ? ` Здание также известно как ${quoteNames(altNames)}.` : '';
   const description = inside.length > 0
-    ? `Бизнес-центр в Минске, ${addressWithoutCity}. В здании ${inside.join(': ')}.${facts ? ` ${capitalizeFirst(facts)}` : ''}`
-    : `Бизнес-центр в Минске: ${[...parts, addressWithoutCity].join(', ')}.`;
+    ? `Бизнес-центр в Минске, ${addressWithoutCity}.${alsoKnown} В здании ${inside.join(': ')}.${facts ? ` ${capitalizeFirst(facts)}` : ''}`
+    : `Бизнес-центр в Минске: ${[...parts, addressWithoutCity].join(', ')}.${alsoKnown}`;
 
   return { title, description };
 }
@@ -390,6 +409,7 @@ export function setBusinessCenterPageMeta(
   slug: string,
   center: {
     name: string;
+    altNames?: string[];
     address: string;
     businessClass: string | null;
     totalArea: number | null;

@@ -271,11 +271,14 @@ export function BusinessCenterDetailPage() {
   // нет. 2GIS — последний: владелец отказался от платного API, но собранное
   // не выбрасываем, а отрасль там приходит готовой и ложится в ту же шкалу.
   const yandexTenants = useMemo(
-    () => (tenantSnapshot ? buildTenantsFromSnapshot(tenantSnapshot.organizations, center?.name) : null),
+    () =>
+      tenantSnapshot
+        ? buildTenantsFromSnapshot(tenantSnapshot.organizations, center?.name, center?.altNames ?? [])
+        : null,
     [tenantSnapshot, center],
   );
   const legacyTenants = useMemo(
-    () => (center ? buildTenantsFromLegacyList(center.tenantOrganizations, center.name) : null),
+    () => (center ? buildTenantsFromLegacyList(center.tenantOrganizations, center.name, center.altNames) : null),
     [center],
   );
   const tenantSource: 'yandex_maps' | '2gis' =
@@ -603,6 +606,12 @@ export function BusinessCenterDetailPage() {
     };
     const fmt = (value: number) => value.toLocaleString('ru-RU');
     add(`Где находится «${name}»?`, center.address);
+    if (center.altNames.length > 0) {
+      add(
+        `Как ещё называют «${name}»?`,
+        `${center.altNames.map((alt) => `«${alt}»`).join(', ')} — то же самое здание по адресу ${center.address}: одно здание с двумя названиями, а не два разных бизнес-центра.`,
+      );
+    }
     add(
       `В каком административном районе находится «${name}»?`,
       redistributedTechnicalParams.administrativeDistrictText,
@@ -823,6 +832,7 @@ export function BusinessCenterDetailPage() {
     // выдумываем список, которого нет в данных.
     setPlaceJsonLd({
       name: center.name,
+      altNames: center.altNames,
       url: `https://redevelopment.pro/minsk/bcminsk/${center.slug}`,
       address: center.address,
       image: center.photos[0],
@@ -1026,7 +1036,19 @@ export function BusinessCenterDetailPage() {
 
             <div className="flex flex-col gap-4 p-5 sm:p-6">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-              <h1 className="text-2xl font-extrabold leading-tight text-ink">{center.name}</h1>
+              {/* Второе имя здания — сразу под заголовком, а не только в
+                  title: по Wordstat БЦ «V» ищут как «Столица» чаще, чем под
+                  основным именем, и человек, пришедший по такому запросу,
+                  должен увидеть знакомое слово на первом экране, иначе
+                  решит, что попал не туда. */}
+              <div className="flex flex-col gap-0.5">
+                <h1 className="text-2xl font-extrabold leading-tight text-ink">{center.name}</h1>
+                {center.altNames.length > 0 && (
+                  <p className="text-sm text-ink-muted">
+                    Также известен как {center.altNames.map((alt) => `«${alt}»`).join(', ')}
+                  </p>
+                )}
+              </div>
               <div className="flex shrink-0 flex-wrap items-center gap-3 text-sm font-semibold text-ink-muted">
                 {/* Рейтинг с Яндекс.Карт/2ГИС — владелец, 2026-09-06 (четвёртый
                     заход): "справа от заголовка рейтинг с яндекс.карт, а из

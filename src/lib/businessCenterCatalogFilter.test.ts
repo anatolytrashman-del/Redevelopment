@@ -25,6 +25,7 @@ function bc(over: Partial<BusinessCenter> & { slug: string }): BusinessCenter {
   return {
     id: over.slug,
     name: `БЦ ${over.slug}`,
+    altNames: [],
     address: 'г. Минск, ул. Тестовая, 1',
     district: null,
     microdistrict: null,

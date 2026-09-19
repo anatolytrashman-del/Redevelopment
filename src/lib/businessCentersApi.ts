@@ -13,6 +13,7 @@ function fromRow(row: BusinessCenterRow): BusinessCenter {
     id: row.id,
     slug: row.slug,
     name: row.name,
+    altNames: Array.isArray(row.alt_names) ? row.alt_names.filter((n) => typeof n === 'string' && n.trim()) : [],
     address: row.address,
     district: row.district,
     microdistrict: row.microdistrict,
@@ -78,6 +79,7 @@ function toPayload(input: Partial<BusinessCenterInput>) {
   const payload: Record<string, unknown> = {};
   if (input.slug !== undefined) payload.slug = input.slug;
   if (input.name !== undefined) payload.name = input.name;
+  if (input.altNames !== undefined) payload.alt_names = input.altNames;
   if (input.address !== undefined) payload.address = input.address;
   if (input.district !== undefined) payload.district = input.district;
   if (input.microdistrict !== undefined) payload.microdistrict = input.microdistrict;
