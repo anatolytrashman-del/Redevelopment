@@ -8,7 +8,30 @@ function fromRow(row: WorkContractorRow): WorkContractor {
     avitoUrl: row.avito_url ?? '',
     email: row.email ?? '',
     shortCode: row.short_code,
+    companyName: row.company_name ?? '',
+    website: row.website ?? '',
+    phone: row.phone ?? '',
+    services: row.services ?? '',
+    address: row.address ?? '',
+    note: row.note ?? '',
+    category: row.category ?? '',
+    extraEmails: row.extra_emails ?? [],
     createdAt: row.created_at,
+  };
+}
+
+function toRow(input: Omit<WorkContractor, 'id' | 'createdAt' | 'shortCode'>) {
+  return {
+    avito_url: input.avitoUrl,
+    email: input.email,
+    company_name: input.companyName,
+    website: input.website,
+    phone: input.phone,
+    services: input.services,
+    address: input.address,
+    note: input.note,
+    category: input.category,
+    extra_emails: input.extraEmails,
   };
 }
 
@@ -30,11 +53,7 @@ export function insertWorkContractor(
   input: Omit<WorkContractor, 'id' | 'createdAt' | 'shortCode'>,
 ): Promise<WorkContractor> {
   return withRetry(async () => {
-    const { data, error } = await supabase
-      .from('work_contractors')
-      .insert({ avito_url: input.avitoUrl, email: input.email })
-      .select()
-      .single();
+    const { data, error } = await supabase.from('work_contractors').insert(toRow(input)).select().single();
     if (error) throw error;
     return fromRow(data as WorkContractorRow);
   });
@@ -47,7 +66,7 @@ export function updateWorkContractor(
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('work_contractors')
-      .update({ avito_url: input.avitoUrl, email: input.email })
+      .update(toRow(input))
       .eq('id', id)
       .select()
       .single();

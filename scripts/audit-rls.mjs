@@ -83,6 +83,13 @@ const CLOSED = [
   // RLS включён БЕЗ единой политики, доступ только через Management API
   // (эта сессия), anon/authenticated тут делать нечего вовсе.
   'sentry_processed_issues',
+  // Реестр подрядчиков (страница "Подрядчики", 2026-09-14) — переписка и
+  // карточки только для сотрудников, anon тут нечего ни читать, ни писать.
+  // work_contractors/work_contractor_emails пропущены в этом списке с самого
+  // заведения таблиц — закрыто заодно с добавлением остальных трёх
+  // (2026-09-19: шаблоны писем и массовая рассылка по категории).
+  'work_contractors', 'work_contractor_emails', 'work_contractor_email_templates',
+  'work_contractor_bulk_send_jobs', 'work_contractor_bulk_send_job_items',
 ];
 
 // anon select ожидаемо разрешён (публичные лендинги/гид района), запись — нет.
