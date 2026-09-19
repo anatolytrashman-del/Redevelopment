@@ -11,9 +11,22 @@
 // идём на bnb.by. Таблица закрыта RLS от анонимной записи (см. миграцию) —
 // пишем сервисным ключом, чтобы никто не мог подсунуть поддельный курс
 // через публичный anon-ключ.
+//
+// ВТОРАЯ РОЛЬ ЭТОГО ФАЙЛА (2026-09-20) — импорт отзывов БЦ из
+// BusinessCentersAdminTab.tsx. Отдельного api/import-business-center-
+// reviews.js быть не может: в api/ ровно 12 функций, потолок Vercel
+// Hobby, тринадцатая роняет весь деплой (см. тот же приём и тот же
+// комментарий в api/telegram-avatar.js, 2026-09-16 — тут копия того же
+// решения). Разведены по методу запроса:
+//   GET  /api/exchange-rate                    — курс валют (как раньше)
+//   POST /api/import-business-center-reviews   — импорт отзывов (rewrite
+//                                                 в vercel.json на этот файл)
+// Общего у них только соседство в одном файле — не смешивать логику,
+// импорт отзывов живёт в отдельной функции ниже и не трогает курсы.
 
 const RATES_URL = 'https://bnb.by/kursy-valyut/nbrb/';
 const FETCH_TIMEOUT_MS = 10000;
+const MAX_REVIEWS_PER_REQUEST = 500;
 
 function todayIsoDate() {
   const d = new Date();
@@ -81,12 +94,72 @@ async function fetchRateFromBnb() {
   return parseRatesHtml(html);
 }
 
-export default async function handler(req, res) {
-  if (req.method !== 'GET') {
-    res.status(405).json({ error: 'Method not allowed' });
+// --- Импорт отзывов БЦ (см. комментарий у ВТОРОЙ РОЛИ ЭТОГО ФАЙЛА выше) ---
+// Разбор в браузере — src/lib/businessCenterSnapshotParser.ts,
+// extractReviewsFromHtml, вызывается из BusinessCentersAdminTab.tsx при
+// сохранении формы. Таблица business_center_review_snapshots закрыта RLS от
+// анонимной записи — пишем сервисным ключом тем же supabaseRequest, что и
+// курсы валют выше.
+
+function validateReview(row) {
+  if (typeof row?.body !== 'string' || !row.body.trim()) return null;
+  if (typeof row?.publishedAt !== 'string' || Number.isNaN(Date.parse(row.publishedAt))) return null;
+  const rating = row.rating == null ? null : Number(row.rating);
+  if (rating != null && (!Number.isFinite(rating) || rating < 1 || rating > 5)) return null;
+  const likes = Number(row.likes ?? 0);
+  const dislikes = Number(row.dislikes ?? 0);
+  if (!Number.isFinite(likes) || likes < 0 || !Number.isFinite(dislikes) || dislikes < 0) return null;
+  return {
+    author: typeof row.author === 'string' && row.author.trim() ? row.author.trim().slice(0, 200) : null,
+    rating,
+    body: row.body.trim().slice(0, 5000),
+    likes: Math.round(likes),
+    dislikes: Math.round(dislikes),
+    published_at: row.publishedAt,
+  };
+}
+
+async function handleImportReviews(req, res) {
+  const { slug, reviews } = req.body ?? {};
+  if (typeof slug !== 'string' || !slug.trim()) {
+    res.status(400).json({ error: 'Не указан slug бизнес-центра' });
+    return;
+  }
+  if (!Array.isArray(reviews) || reviews.length === 0) {
+    res.status(400).json({ error: 'Пустой список отзывов' });
+    return;
+  }
+  if (reviews.length > MAX_REVIEWS_PER_REQUEST) {
+    res.status(400).json({ error: `Слишком много отзывов за один раз (${reviews.length}) — максимум ${MAX_REVIEWS_PER_REQUEST}` });
     return;
   }
 
+  const rows = reviews
+    .map(validateReview)
+    .filter((r) => r !== null)
+    .map((r) => ({ ...r, business_center_slug: slug, source: 'yandex_maps' }));
+
+  if (rows.length === 0) {
+    res.status(400).json({ error: 'Ни один отзыв не прошёл проверку формата' });
+    return;
+  }
+
+  try {
+    await supabaseRequest('business_center_review_snapshots?on_conflict=business_center_slug,author,published_at', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(rows),
+    });
+    res.status(200).json({ saved: rows.length, skipped: reviews.length - rows.length });
+  } catch (err) {
+    console.error(err);
+    res.status(502).json({ error: err instanceof Error ? err.message : 'Не удалось сохранить отзывы' });
+  }
+}
+
+// --- Курс валют (исходная роль файла) -------------------------------------
+
+async function handleExchangeRate(req, res) {
   const date = todayIsoDate();
 
   try {
@@ -108,4 +181,16 @@ export default async function handler(req, res) {
     console.error(err);
     res.status(502).json({ error: err instanceof Error ? err.message : 'Не удалось получить курс' });
   }
+}
+
+export default async function handler(req, res) {
+  if (req.method === 'POST') {
+    await handleImportReviews(req, res);
+    return;
+  }
+  if (req.method !== 'GET') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+  await handleExchangeRate(req, res);
 }
