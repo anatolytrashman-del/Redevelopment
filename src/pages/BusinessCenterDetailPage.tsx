@@ -74,6 +74,8 @@ import type { BusinessCenter, HighlightIconKey, TenantOrganization } from '../da
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import type { BusinessCenterNearbyPlace } from '../data/businessCenterNearbyPlaces';
 import { fetchBusinessCenterNearbyPlaces } from '../lib/businessCenterNearbyPlacesApi';
+import type { BusinessCenterReview } from '../data/businessCenterReviews';
+import { fetchBusinessCenterReviews } from '../lib/businessCenterReviewsApi';
 import { NO_ACTIVE_OFFERS_MESSAGE, type BusinessCenterOffer } from '../data/businessCenterOffers';
 import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
 import { dedupeOffers } from '../lib/businessCenterOfferDuplicates';
@@ -145,6 +147,7 @@ const SECTION_ICONS: Record<string, typeof FileText> = {
 };
 
 const EMPTY_NEARBY_PLACES: BusinessCenterNearbyPlace[] = [];
+const EMPTY_REVIEWS: BusinessCenterReview[] = [];
 
 export function BusinessCenterDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -169,6 +172,7 @@ export function BusinessCenterDetailPage() {
     slug: string;
     places: BusinessCenterNearbyPlace[];
   } | null>(null);
+  const [reviewsResult, setReviewsResult] = useState<{ slug: string; reviews: BusinessCenterReview[] } | null>(null);
 
   useEffect(() => {
     fetchBusinessCenters()
@@ -197,6 +201,19 @@ export function BusinessCenterDetailPage() {
     fetchBusinessCenterNearbyPlaces(slug)
       .then((places) => { if (!cancelled) setNearbyPlacesResult({ slug, places }); })
       .catch(() => { if (!cancelled) setNearbyPlacesResult({ slug, places: [] }); });
+    return () => { cancelled = true; };
+  }, [slug]);
+
+  // Реальные отзывы с Яндекс.Карт (не ручные цитаты из highlights) — пока
+  // собраны точечным импортом .webarchive для части БЦ (2026-09-19), у
+  // остальных запрос просто вернёт пустой список, и WhatTheySayBlock
+  // откатится на старые ручные цитаты.
+  useEffect(() => {
+    if (!slug) return;
+    let cancelled = false;
+    fetchBusinessCenterReviews(slug)
+      .then((reviews) => { if (!cancelled) setReviewsResult({ slug, reviews }); })
+      .catch(() => { if (!cancelled) setReviewsResult({ slug, reviews: [] }); });
     return () => { cancelled = true; };
   }, [slug]);
 
@@ -250,6 +267,7 @@ export function BusinessCenterDetailPage() {
   const nearbyPlaces = nearbyPlacesResult?.slug === slug
     ? nearbyPlacesResult?.places ?? EMPTY_NEARBY_PLACES
     : EMPTY_NEARBY_PLACES;
+  const reviews = reviewsResult?.slug === slug ? reviewsResult?.reviews ?? EMPTY_REVIEWS : EMPTY_REVIEWS;
   const index = center ? sorted.findIndex((c) => c.slug === center.slug) : -1;
   const prev = index > 0 ? sorted[index - 1] : null;
   const next = index >= 0 && index < sorted.length - 1 ? sorted[index + 1] : null;
@@ -714,7 +732,7 @@ export function BusinessCenterDetailPage() {
       has('rental', Boolean(center.rentalInfo)),
       has('offers', offers !== null),
       has('history', extractHistoryPoints(center).length >= 2),
-      has('reviews', center.gisRating != null || center.highlights.some((h) => h.icon === 'rating') || reviewQuotes.length > 0),
+      has('reviews', center.gisRating != null || center.highlights.some((h) => h.icon === 'rating') || reviewQuotes.length > 0 || reviews.length > 0),
       has('similar', true),
       has('faq', faqItems.length > 0),
     ].filter((v): v is { id: string; label: string } => v !== null);
@@ -731,6 +749,7 @@ export function BusinessCenterDetailPage() {
     accessHoursText,
     accessibilityAttributes,
     nearbyPlaces,
+    reviews,
   ]);
 
   useEffect(() => {
@@ -1421,7 +1440,7 @@ export function BusinessCenterDetailPage() {
         )}
 
         {center && <HistoryTimeline center={center} />}
-        {center && <WhatTheySayBlock center={center} reviewQuotes={reviewQuotes} />}
+        {center && <WhatTheySayBlock center={center} reviewQuotes={reviewQuotes} reviews={reviews} />}
         {/* Б12. Собственникам и УК — способ поправить данные. Пишем прямо
             в почту: отдельной формы с лидом здесь не заводим, это не заявка
             на аренду, а правка справочника, и ответить на неё должен
