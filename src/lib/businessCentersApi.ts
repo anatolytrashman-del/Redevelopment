@@ -110,8 +110,11 @@ function toPayload(input: Partial<BusinessCenterInput>) {
   return payload;
 }
 
-// Правка бизнес-центра в админке → пересборка каталога БЦ на проде (scope
-// 'business_centers' — карточки и хабы БЦ, см. lib/publicRebuild.ts). До
+// Правка бизнес-центра в админке → отметка «данные изменились» со scope
+// 'business_centers' (карточки и хабы БЦ, см. lib/publicRebuild.ts).
+// Пересборка по этой отметке идёт раз в час, не сразу: сохранений БЦ за
+// сеанс бывают десятки, а scope 'business_centers' — это полный рендер ~285
+// страниц по 6-7 минут (разбор 2026-09-19 в api/trigger-rebuild.js). До
 // 2026-09-12 правки БЦ пересборку не запускали вовсе и попадали на прод
 // только попутно, с ближайшим полным рендером по другой причине.
 export async function insertBusinessCenter(input: BusinessCenterInput): Promise<BusinessCenter> {

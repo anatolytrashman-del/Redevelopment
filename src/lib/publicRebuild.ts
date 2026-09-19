@@ -9,9 +9,14 @@ export type PublicRebuildScope = 'objects' | 'business_centers';
 
 // Пререндеренный при сборке HTML публичных страниц (scripts/prerender.mjs,
 // SEO_PLAN.md Э2-1) хранит title/meta/цены на момент последней сборки — без
-// этого хука они протухали бы до следующего обычного пуша. Best-effort, не
-// блокирует сохранение в админке: ошибку/недоступный хук просто глотаем,
-// api/trigger-rebuild.js сам логирует детали и держит 5-минутный debounce.
+// этой отметки они протухали бы до следующего обычного пуша. Best-effort, не
+// блокирует сохранение в админке: ошибку просто глотаем.
+//
+// Сборку этот вызов НЕ запускает (2026-09-19): он лишь отмечает в
+// deploy_debounce, что данные изменились, а сама пересборка идёт раз в час
+// по pg_cron (см. api/trigger-rebuild.js и миграцию
+// 20260919-rebuild-hourly-cron.sql). Правка не теряется, но на публичных
+// страницах появляется в пределах часа, а не сразу.
 export function triggerPublicRebuild(scope: PublicRebuildScope): void {
   authFetch('/api/trigger-rebuild', {
     method: 'POST',

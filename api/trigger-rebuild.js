@@ -1,20 +1,32 @@
-// Vercel serverless function: дёргает Vercel Deploy Hook, чтобы пересобрать
-// прод сразу после сохранения объекта в админке (см. lib/objectsApi.ts) —
-// иначе пререндеренный при сборке HTML (scripts/prerender.mjs, SEO_PLAN.md
-// Э2-1) хранит старые title/meta/цену объекта до следующего обычного пуша.
-// URL хука — секрет (POST на него запускает реальную пересборку прода,
-// незачем светить его в клиентском бандле), лежит только в переменных
-// окружения Vercel: VERCEL_DEPLOY_HOOK_URL.
+// Vercel serverless function: отмечает в deploy_debounce, что данные для
+// публичных страниц изменились (сохранён объект или бизнес-центр в админке,
+// см. lib/objectsApi.ts / lib/businessCentersApi.ts) — иначе пререндеренный
+// при сборке HTML (scripts/prerender.mjs, SEO_PLAN.md Э2-1) хранит старые
+// title/meta/цену до следующего обычного пуша.
 //
-// Best-effort: если хук не настроен или Vercel недоступен, отвечаем 200 —
-// это не должно ронять сохранение объекта в админке, только логируется.
+// САМУ СБОРКУ ЭТОТ ЭНДПОИНТ НЕ ЗАПУСКАЕТ (2026-09-19). Раньше он дёргал
+// Vercel Deploy Hook напрямую, с дебаунсом в 5 минут. Реальный инцидент
+// того же дня: непрерывная правка карточек БЦ в админке держала прод в
+// режиме «каждые 5-6 минут новая полная пересборка» больше часа — один и
+// тот же коммит ad16fdf собран в прод пять раз подряд (18:25, 18:31,
+// 18:36, 18:42, 18:48), каждая сборка по 6-7 минут, потому что scope
+// business_centers означает полный рендер ~285 страниц. Владелец: «я не
+// вношу новые правки и жду старые, а оно продолжает грузить всё новые
+// деплои». Дебаунс тут не спасал by design: он ограничивает ЧАСТОТУ, а не
+// общее число сборок за долгий сеанс правок.
+//
+// Теперь сборку запускает почасовой pg_cron (см. миграцию
+// 20260919-rebuild-hourly-cron.sql): раз в час он смотрит, есть ли
+// непотреблённая отметка, и только тогда дёргает Deploy Hook. Владелец,
+// 2026-09-19: «готов запускать перерендер каждый час, если сможем хранить
+// данные». Данные и хранятся: scope накапливается (mergeScope), consumed_at
+// сбрасывается в null при каждом сохранении, так что ни одна правка не
+// теряется — она просто уезжает на публичные страницы в пределах часа.
 //
 // P0.3 аудита безопасности: требует сессию сотрудника (раньше — вообще без
-// проверки, любой мог дёргать реальную пересборку прода) + дебаунс — не
-// чаще одной пересборки за DEBOUNCE_MS, даже если сохранили несколько
-// объектов подряд за одну правку. Отметка времени — в таблице
-// deploy_debounce (RLS без единой политики — доступна только service_role,
-// как и должно быть для чисто служебной метки).
+// проверки, любой мог дёргать реальную пересборку прода). Отметка — в
+// таблице deploy_debounce (RLS без единой политики — доступна только
+// service_role, как и должно быть для чисто служебной метки).
 //
 // 2026-09-10 — эта же строка одновременно служит сигналом для prerender.mjs
 // («нужен настоящий полный рендер, не быстрое копирование живого прода» —
@@ -62,8 +74,6 @@
 import { requireStaffAuth } from './_auth.js';
 import { mergeScope, normalizeScope } from './_rebuildScope.js';
 
-const DEBOUNCE_MS = 5 * 60_000;
-
 const GITHUB_OWNER = 'anatolytrashman-del';
 const GITHUB_REPO = 'redevelopment';
 const GITHUB_REF = 'claude/redevelopment-platform-prototype-oodobu';
@@ -100,9 +110,11 @@ async function dispatchWorkflow(res, workflowFile) {
   }
 }
 
-// Строка debounce целиком: когда дёргали, потреблена ли уже сборкой и ЧТО
-// менялось (scope, см. ./_rebuildScope.js) — scripts/prerender.mjs по scope
-// решает, рендерить ли все ~286 страниц или только лендинги объектов.
+// Строка отметки целиком: когда последний раз менялись данные, забрала ли
+// её уже сборка и ЧТО менялось (scope, см. ./_rebuildScope.js) —
+// scripts/prerender.mjs по scope решает, рендерить ли все ~286 страниц или
+// только лендинги объектов, а почасовой pg_cron по consumed_at решает,
+// нужна ли вообще сборка в этот час.
 async function getDebounceRow() {
   const resp = await fetch(
     `${process.env.SUPABASE_URL}/rest/v1/deploy_debounce?id=eq.default&select=triggered_at,consumed_at,scope`,
@@ -116,23 +128,6 @@ async function getDebounceRow() {
   if (!resp.ok) return null;
   const rows = await resp.json();
   return rows[0] ?? null;
-}
-
-// Срабатывание в окне debounce новую сборку не запускает, но его scope не
-// должен потеряться: если предыдущий флаг ещё не потреблён сборкой —
-// расширяем его (objects + business_centers → всё), чтобы та сборка, что
-// его заберёт, отрендерила всё нужное. Уже потреблённый флаг не трогаем —
-// ровно как раньше (5-минутный debounce принят владельцем).
-async function widenPendingScope(scope) {
-  await fetch(`${process.env.SUPABASE_URL}/rest/v1/deploy_debounce?id=eq.default&consumed_at=is.null`, {
-    method: 'PATCH',
-    headers: {
-      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ scope }),
-  });
 }
 
 // consumed_at сбрасывается на null ЯВНО каждый раз — merge-duplicates upsert
@@ -176,32 +171,12 @@ export default async function handler(req, res) {
     return;
   }
 
-  const hookUrl = process.env.VERCEL_DEPLOY_HOOK_URL;
-  if (!hookUrl) {
-    console.warn('[trigger-rebuild] VERCEL_DEPLOY_HOOK_URL не настроен — пересборка не запущена');
-    res.status(200).json({ triggered: false, reason: 'no deploy hook configured' });
-    return;
-  }
-
+  // Непотреблённый флаг (сборка его ещё не забрала) — его scope объединяем с
+  // новым, чтобы не потерять то, что он должен был отрендерить: два разных
+  // scope за один час дают 'all'. Потреблённый — перезаписываем своим.
   const last = await getDebounceRow();
-  const pending = Boolean(last && !last.consumed_at); // флаг ещё не забрала ни одна сборка
-  if (last?.triggered_at && Date.now() - new Date(last.triggered_at).getTime() < DEBOUNCE_MS) {
-    if (pending) await widenPendingScope(mergeScope(last.scope, scope));
-    res.status(200).json({ triggered: false, reason: 'debounced' });
-    return;
-  }
-  // Отметку ставим до самого вызова хука — минимизирует (не гарантирует
-  // абсолютно, тут не транзакция) окно, в котором два почти одновременных
-  // сохранения объекта обе проскочат проверку выше.
-  // Непотреблённый флаг старше окна (сборка так и не случилась) — его scope
-  // объединяем с новым, чтобы не потерять то, что он должен был отрендерить.
+  const pending = Boolean(last && !last.consumed_at);
   await setLastTriggeredAt(new Date().toISOString(), pending ? mergeScope(last.scope, scope) : scope);
 
-  try {
-    const hookRes = await fetch(hookUrl, { method: 'POST' });
-    res.status(200).json({ triggered: hookRes.ok });
-  } catch (err) {
-    console.error('[trigger-rebuild] не удалось дёрнуть Deploy Hook:', err);
-    res.status(200).json({ triggered: false, reason: 'fetch failed' });
-  }
+  res.status(200).json({ queued: true });
 }
