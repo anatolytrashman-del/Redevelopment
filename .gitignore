@@ -5,6 +5,7 @@ dist
 ui-audit-report
 .prerender-result.json
 .claude/worktrees/
+.claude/settings.local.json
 
 # Рабочие файлы пошаговой переклассификации (см. scripts/supply-categories/README.md)
 scripts/supply-categories/out/
