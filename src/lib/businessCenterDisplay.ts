@@ -196,10 +196,28 @@ export function shortMetro(metro: string): string {
 // через админку в Supabase Storage) возвращаются как есть.
 const LOCAL_BC_PHOTO_RE = /^\/images\/business-centers\/([^/]+)\.jpe?g$/i;
 
+// Фото БЦ лежат по ПОСТОЯННЫМ именам (`<slug>.jpg`), а `/images/(.*)` отдаётся
+// с `Cache-Control: public, max-age=2592000` (vercel.json) — тридцать дней.
+// Когда содержимое файла меняется, а имя нет, вернувшийся посетитель ещё месяц
+// видит старую картинку: ровно это случилось 2026-09-20 при замене пакета фото
+// (владелец открыл превью и увидел прежний снимок «Паруса», с ноутбука без
+// кэша — уже новый). Версия в query лечит это без переименований: другой
+// адрес — другая запись в кэше, а пути в `business_centers.photos` трогать не
+// надо. ПОДНИМАТЬ ПРИ КАЖДОЙ ЗАМЕНЕ ПАКЕТА ФОТО — иначе правка не доедет до
+// тех, кто уже был на сайте.
+export const BC_PHOTO_VERSION = '3';
+
+// Версия дописывается только к нашим закоммиченным файлам. Пути из Supabase
+// Storage (загрузки через админку) приходят с собственными query и именами —
+// их не трогаем.
+export function withBcPhotoVersion(path: string): string {
+  return LOCAL_BC_PHOTO_RE.test(path) ? `${path}?v=${BC_PHOTO_VERSION}` : path;
+}
+
 export function businessCenterPhotoSrc(path: string, variant: 'card' | 'detail'): string {
   const m = path.match(LOCAL_BC_PHOTO_RE);
   if (!m) return path;
-  return `/images/business-centers/${m[1]}${variant === 'card' ? '-card' : ''}.webp`;
+  return `/images/business-centers/${m[1]}${variant === 'card' ? '-card' : ''}.webp?v=${BC_PHOTO_VERSION}`;
 }
 
 // В базе встречаются как главные страницы БЦ, так и вложенные страницы
