@@ -70,30 +70,6 @@ export interface BusinessCenter2gisSnapshot {
   tenantOrganizationsFetchedAt: string | null;
 }
 
-// Городской профиль отраслей — одна строка на весь справочник БЦ
-// (public.business_center_tenant_city_profile, пересчитывается тем же
-// скриптом). Нужен, чтобы показать не только "у нас 20% юристов", но и
-// "в среднем по БЦ Минска их 10%".
-export interface TenantIndustryShare {
-  industry: string;
-  orgCount: number;
-  buildingCount: number;
-}
-
-export interface TenantIndustryCityProfile {
-  industries: TenantIndustryShare[];
-  orgTotal: number;
-  buildingTotal: number;
-  computedAt: string | null;
-}
-
-export interface TenantIndustryCityProfileRow {
-  industries: unknown;
-  org_total: number | null;
-  building_total: number | null;
-  computed_at: string | null;
-}
-
 export interface BusinessCenter2gisSnapshotRow {
   business_center_slug: string;
   match_status: string | null;

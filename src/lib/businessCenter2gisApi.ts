@@ -9,9 +9,6 @@ import type {
   Gis2Reviews,
   Gis2Rubric,
   Gis2Schedule,
-  TenantIndustryCityProfile,
-  TenantIndustryCityProfileRow,
-  TenantIndustryShare,
 } from '../data/businessCenter2gis';
 
 const SCHEDULE_DAY_KEYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
@@ -126,36 +123,5 @@ export function fetchBusinessCenter2gisSnapshot(slug: string): Promise<BusinessC
       .maybeSingle();
     if (error) throw error;
     return data ? fromRow(data as BusinessCenter2gisSnapshotRow) : null;
-  });
-}
-
-// Городской профиль отраслей — одна строка на всю базу, поэтому отдельным
-// запросом без фильтра. Отдаётся уже свёрнутым до 28 чисел (счёт по общим
-// рубрикам 2GIS), а не списком организаций всего города.
-export function fetchTenantIndustryCityProfile(): Promise<TenantIndustryCityProfile | null> {
-  return withRetry(async () => {
-    const { data, error } = await supabase
-      .from('business_center_tenant_city_profile')
-      .select('industries,org_total,building_total,computed_at')
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) return null;
-    const row = data as TenantIndustryCityProfileRow;
-    const industries: TenantIndustryShare[] = Array.isArray(row.industries)
-      ? (row.industries as unknown[])
-          .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
-          .map((item) => ({
-            industry: typeof item.industry === 'string' ? item.industry : 'other',
-            orgCount: typeof item.orgCount === 'number' ? item.orgCount : 0,
-            buildingCount: typeof item.buildingCount === 'number' ? item.buildingCount : 0,
-          }))
-          .filter((item) => item.orgCount > 0)
-      : [];
-    return {
-      industries,
-      orgTotal: row.org_total ?? 0,
-      buildingTotal: row.building_total ?? 0,
-      computedAt: row.computed_at,
-    };
   });
 }

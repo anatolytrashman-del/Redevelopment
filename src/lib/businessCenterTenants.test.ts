@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTenantsFromSnapshot, foldCityCategoriesToIndustries } from './businessCenterTenants';
+import { buildTenantsFromSnapshot } from './businessCenterTenants';
 import type { TenantSourceOrganization } from '../data/businessCenterTenants';
 
 // Реальные карточки из среза «Порта» (просп. Независимости, 177) — с тем же
@@ -97,39 +97,5 @@ describe('buildTenantsFromSnapshot', () => {
 
   it('пустой срез — пустой список, без выдуманных нулей', () => {
     expect(buildTenantsFromSnapshot([])).toEqual({ tenants: [], amenities: [] });
-  });
-});
-
-describe('foldCityCategoriesToIndustries', () => {
-  // Город приходит из SQL сырыми рубриками (SQL про отрасли ничего не знает),
-  // и свернуть его обязана та же карта, что считает отрасли здания.
-  const city = foldCityCategoriesToIndustries({
-    categories: [
-      ['IT-компания', 193, 60],
-      ['Программное обеспечение', 146, 55],
-      ['Бухгалтерские услуги', 86, 40],
-      ['Банкомат', 40, 30],
-      ['этаж 1', 72, 30],
-    ],
-    orgTotal: 537,
-    buildingTotal: 138,
-    computedAt: '2026-09-19T10:00:00Z',
-  });
-
-  it('складывает рубрики одной отрасли', () => {
-    expect(city.industries.find((i) => i.industry === '19532')?.orgCount).toBe(339);
-  });
-
-  it('выкидывает оборудование — город должен считаться так же, как здание', () => {
-    expect(city.industries.some((i) => i.industry === '969' && i.orgCount === 86)).toBe(true);
-    expect(city.orgTotal).toBe(497);
-  });
-
-  it('рубрика, в которой лежало только место, уходит в «Другое», а не теряется', () => {
-    expect(city.industries.find((i) => i.industry === 'other')?.orgCount).toBe(72);
-  });
-
-  it('число зданий берёт из среза, а не суммирует по рубрикам', () => {
-    expect(city.buildingTotal).toBe(138);
   });
 });

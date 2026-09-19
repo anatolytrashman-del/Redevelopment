@@ -3,9 +3,6 @@ import { withRetry } from './withRetry';
 import type {
   BusinessCenterTenantSnapshot,
   BusinessCenterTenantSnapshotRow,
-  TenantCityCategories,
-  TenantCityCategoriesRow,
-  TenantCityCategoryTuple,
   TenantSourceOrganization,
 } from '../data/businessCenterTenants';
 
@@ -55,40 +52,5 @@ export function fetchBusinessCenterTenantSnapshot(slug: string): Promise<Busines
       .maybeSingle();
     if (error) throw error;
     return data ? fromRow(data as BusinessCenterTenantSnapshotRow) : null;
-  });
-}
-
-function parseCategories(raw: unknown): TenantCityCategoryTuple[] {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .filter(
-      (item): item is [string, number, number] =>
-        Array.isArray(item) && typeof item[0] === 'string' && typeof item[1] === 'number',
-    )
-    .map((item) => [item[0], item[1], typeof item[2] === 'number' ? item[2] : 0] as TenantCityCategoryTuple)
-    .filter((item) => item[1] > 0);
-}
-
-// Городской срез — одна строка на всю базу, отдельным запросом без фильтра.
-// Карточка БЦ его больше не запрашивает (полосы сравнения с каталогом убраны
-// 2026-09-19); остаётся для отраслевых хабов — К16 в плане каталога.
-// Свёрнут по рубрикам, а не по отраслям: карта «рубрика → отрасль» живёт в
-// lib/tenantCategories.ts, и держать её вторую копию в SQL нельзя (см.
-// комментарий там же). Сворачивает срез в отрасли foldCityCategoriesToIndustries.
-export function fetchTenantCityCategories(): Promise<TenantCityCategories | null> {
-  return withRetry(async () => {
-    const { data, error } = await supabase
-      .from('business_center_tenant_city_categories')
-      .select('categories,org_total,building_total,computed_at')
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) return null;
-    const row = data as TenantCityCategoriesRow;
-    return {
-      categories: parseCategories(row.categories),
-      orgTotal: row.org_total ?? 0,
-      buildingTotal: row.building_total ?? 0,
-      computedAt: row.computed_at,
-    };
   });
 }

@@ -795,9 +795,24 @@ export function BusinessCenterDetailPage() {
     nearbyPlaces,
   ]);
 
+  // «Что там есть» — состав здания в description сниппета. Источник тот же
+  // список организаций и та же инфраструктура, что нарисованы на странице
+  // (замер Wordstat 18.08–18.09.2026: отраслевые формулировки — ноль,
+  // «бизнес центр аякс минск что там есть» — 5/мес; см. К16 в
+  // docs/bc-catalog-redesign-plan.md). Пока срез Яндекса не приехал,
+  // tenantOrganizations уже отдаёт материализованный список из самой строки
+  // БЦ — то есть у пререндера состав есть с первого кадра.
+  const pageComposition = useMemo(
+    () => ({
+      organizationCount: tenantOrganizations.length,
+      infrastructure: center?.infraInternal ?? [],
+    }),
+    [tenantOrganizations, center],
+  );
+
   useEffect(() => {
     if (!center) return;
-    setBusinessCenterPageMeta(center.slug, center, center.photos[0]);
+    setBusinessCenterPageMeta(center.slug, center, center.photos[0], pageComposition);
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
       { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bcminsk' },
@@ -820,7 +835,7 @@ export function BusinessCenterDetailPage() {
       ],
     });
     return () => setPlaceJsonLd(null);
-  }, [center]);
+  }, [center, pageComposition]);
 
   // Метаданные страницы выше сбрасывают JSON-LD: FAQ записываем после них.
   useEffect(() => {
@@ -1064,8 +1079,25 @@ export function BusinessCenterDetailPage() {
                 <div className="grid min-w-0 items-baseline gap-x-2 sm:grid-cols-[max-content_auto_minmax(0,1fr)]">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Адрес</p>
                   <span className="hidden text-xs text-ink-muted sm:inline" aria-hidden="true">—</span>
+                  {/* Улица внутри адреса — ссылка на уличный хаб каталога.
+                      Замер Wordstat 18.08–18.09.2026 плюс разбор запросов
+                      Вебмастера: семь запросов приходят буквально адресом
+                      («минск, улица филимонова, 57»), и адрес должен быть не
+                      только текстом, но и точкой входа с якорем из имени
+                      улицы. Хаб есть не у каждой улицы (STREET_SLUGS) —
+                      тогда строка остаётся обычным текстом. */}
                   <p className="mt-0.5 min-w-0 text-sm leading-snug text-ink sm:mt-0">
-                    {displayAddress}
+                    {streetCatalogUrl && displayAddress.includes(streetName) ? (
+                      <>
+                        {displayAddress.slice(0, displayAddress.indexOf(streetName))}
+                        <Link to={streetCatalogUrl} className="font-semibold text-primary-hover hover:underline">
+                          {streetName}
+                        </Link>
+                        {displayAddress.slice(displayAddress.indexOf(streetName) + streetName.length)}
+                      </>
+                    ) : (
+                      displayAddress
+                    )}
                   </p>
                 </div>
                 {(nearestMetro || center.metro) && (
@@ -1133,9 +1165,10 @@ export function BusinessCenterDetailPage() {
 
             {/* Внутренняя инфраструктура относится к основной сводке и на
                 широком экране заполняет свободную область справа от фото. */}
-            {redistributedTechnicalParams.internalInfrastructureText && (
+            {(redistributedTechnicalParams.internalInfrastructureText || tenantOrganizations.length > 0) && (
               <InternalInfrastructureRow
-                text={redistributedTechnicalParams.internalInfrastructureText}
+                text={redistributedTechnicalParams.internalInfrastructureText ?? ''}
+                organizationCount={tenantOrganizations.length}
                 compact
               />
             )}
@@ -1816,12 +1849,26 @@ const INTERNAL_INFRASTRUCTURE_ICONS: { pattern: RegExp; icon: typeof FileText }[
   { pattern: /фитнес|спортзал/i, icon: Dumbbell },
 ];
 
-function InternalInfrastructureRow({ text, compact = false }: { text: string; compact?: boolean }) {
+// organizationCount — первая плитка строки «В здании» на первом экране
+// (замер Wordstat 18.08–18.09.2026: спрос сформулирован как «…что там
+// есть», а не по отраслям). Ведёт якорем в сам справочник арендаторов
+// ниже по странице, чтобы ответ «сколько их» и список не были в разных
+// концах документа. Строка рисуется и когда инфраструктура не заполнена, —
+// одного числа организаций для неё достаточно.
+function InternalInfrastructureRow({
+  text,
+  compact = false,
+  organizationCount = 0,
+}: {
+  text: string;
+  compact?: boolean;
+  organizationCount?: number;
+}) {
   const items = text
     .split(/[,;]\s*/)
     .map((item) => item.trim())
     .filter(Boolean);
-  if (items.length === 0) return null;
+  if (items.length === 0 && organizationCount === 0) return null;
 
   return (
     <div
@@ -1834,6 +1881,18 @@ function InternalInfrastructureRow({ text, compact = false }: { text: string; co
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">В здании</p>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+          {organizationCount > 0 && (
+            <a
+              href="#tenants"
+              className={cn(
+                'inline-flex items-center gap-1.5 text-sm font-semibold text-primary-hover hover:underline',
+                !compact && 'rounded-full bg-surface-muted px-2.5 py-1.5 text-xs',
+              )}
+            >
+              <Users className="h-3.5 w-3.5 shrink-0" />
+              {organizationCount} {pluralRu(organizationCount, 'организация', 'организации', 'организаций')}
+            </a>
+          )}
           {items.map((item) => {
             const ItemIcon = INTERNAL_INFRASTRUCTURE_ICONS.find(({ pattern }) => pattern.test(item))?.icon ?? Building2;
             return (

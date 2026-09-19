@@ -5,6 +5,8 @@
 // подменяет теги на актуальные при монтировании ObjectLandingPage — статика
 // в index.html остаётся верным дефолтом до первой перерисовки и для ботов,
 // которые не выполняют JS (у Яндекса это менее надёжно, чем у Google).
+import { pluralRu } from './pluralRu';
+
 export interface PageMeta {
   title: string;
   description: string;
@@ -322,14 +324,28 @@ function setLinkHref(selector: string, href: string) {
 // бронирования). Title/description собираются из реальных полей записи —
 // вручную подобранных SEO_OVERRIDES для конкретных БЦ пока нет (можно
 // завести по аналогии, если понадобится точечная подгонка под запрос).
-export function fallbackBusinessCenterMeta(center: {
-  name: string;
-  address: string;
-  businessClass: string | null;
-  totalArea: number | null;
-  yearBuilt: number | null;
-  status: string;
-}): PageMeta {
+// Состав здания для description — «что там есть» (Wordstat 18.08–18.09.2026:
+// «бизнес центр аякс минск что там есть», 5 запросов в месяц при нулевой
+// частотности любых отраслевых формулировок, см. К16 в
+// docs/bc-catalog-redesign-plan.md). Числа приходят из того же списка
+// организаций, который нарисован на странице, — иначе сниппет обещал бы не
+// то, что человек увидит, перейдя по нему.
+export interface BusinessCenterComposition {
+  organizationCount: number;
+  infrastructure: string[];
+}
+
+export function fallbackBusinessCenterMeta(
+  center: {
+    name: string;
+    address: string;
+    businessClass: string | null;
+    totalArea: number | null;
+    yearBuilt: number | null;
+    status: string;
+  },
+  composition?: BusinessCenterComposition | null,
+): PageMeta {
   const title = `${center.name} — ${center.address}`;
   const parts: string[] = [];
   if (center.businessClass) parts.push(`класс ${center.businessClass}`);
@@ -337,8 +353,37 @@ export function fallbackBusinessCenterMeta(center: {
   if (center.yearBuilt) {
     parts.push(center.status === 'under_construction' ? `сдача в ${center.yearBuilt} г.` : `сдан в ${center.yearBuilt} г.`);
   }
-  parts.push(center.address);
-  return { title, description: `Бизнес-центр в Минске: ${parts.join(', ')}.` };
+  // Адрес стоит ОДИН раз — в начале (адресные запросы: «бизнес центр минск
+  // адрес» 7/мес плюс семь буквально адресных запросов в Вебмастере), а не
+  // ещё и хвостом, как было раньше: бюджет сниппета (~160 знаков) дороже
+  // потратить на состав здания. В варианте без состава хвост остаётся —
+  // иначе описание совсем короткое.
+  // Последним пунктом часто идёт «сдан в 2011 г.» — точка в нём уже есть,
+  // второй быть не должно.
+  const factsBody = parts.join(', ');
+  const facts = factsBody ? (factsBody.endsWith('.') ? factsBody : `${factsBody}.`) : '';
+
+  const inside: string[] = [];
+  if (composition && composition.organizationCount > 0) {
+    inside.push(`${composition.organizationCount} ${pluralRu(composition.organizationCount, 'организация', 'организации', 'организаций')}`);
+  }
+  if (composition && composition.infrastructure.length > 0) {
+    inside.push(composition.infrastructure.slice(0, 4).join(', '));
+  }
+
+  // «Бизнес-центр в Минске, г. Минск, …» — масло масляное: город уже назван,
+  // поэтому в ОПИСАНИИ он из адреса вырезается. В title адрес остаётся
+  // целиком, вместе с «г. Минск», — там он работает на адресные запросы.
+  const addressWithoutCity = center.address.replace(/^г\.\s*Минск,\s*/i, '');
+  const description = inside.length > 0
+    ? `Бизнес-центр в Минске, ${addressWithoutCity}. В здании ${inside.join(': ')}.${facts ? ` ${capitalizeFirst(facts)}` : ''}`
+    : `Бизнес-центр в Минске: ${[...parts, addressWithoutCity].join(', ')}.`;
+
+  return { title, description };
+}
+
+function capitalizeFirst(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 export function setBusinessCenterPageMeta(
@@ -352,8 +397,9 @@ export function setBusinessCenterPageMeta(
     status: string;
   },
   image?: string,
+  composition?: BusinessCenterComposition | null,
 ) {
-  const meta = fallbackBusinessCenterMeta(center);
+  const meta = fallbackBusinessCenterMeta(center, composition);
   const url = `https://redevelopment.pro/minsk/bcminsk/${slug}`;
   // Фото БЦ хранятся локальными путями (public/images/business-centers/...,
   // см. data/businessCenters.ts), не абсолютными URL, как у Supabase Storage

@@ -924,7 +924,15 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           ? `${bcCountLabel} в ${districtPrepositional(districtFilter)} районе Минска — сравнивайте по классу, площади и расположению.`
           : microdistrictFilter
             ? `${bcCountLabel} в микрорайоне ${microdistrictFilter} (Минск) — адреса, деловой класс, площадь, метро.`
-          : INTRO_TEXT;
+          : centers
+            // Голова каталога отвечает на «бизнес центры г минска» (Wordstat
+            // 18.08–18.09.2026: 35 запросов в месяц — больше, чем у любого
+            // отдельного здания). Запрос списочный, поэтому подзаголовок,
+            // как и у всех хабов ниже, начинается со ЧИСЛА зданий, а не с
+            // призыва сравнивать. Пока каталог не загрузился, остаётся
+            // статичный INTRO_TEXT.
+            ? `${bcCountLabel} Минска в справочнике: адрес, деловой класс, площадь, год постройки и метро у каждого — плюс объявления об аренде и продаже офисов.`
+            : INTRO_TEXT;
 
   return (
     <div className="min-h-svh bg-bg">

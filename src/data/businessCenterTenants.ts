@@ -43,25 +43,6 @@ export interface BusinessCenterTenantSnapshotRow {
   captured_at: string | null;
 }
 
-// Городской срез по рубрикам: [рубрика, организаций, зданий]. Компактными
-// тройками, а не объектами с ключами, — строка едет целиком на каждую
-// карточку БЦ, а рубрик в ней под две с половиной тысячи.
-export type TenantCityCategoryTuple = [string, number, number];
-
-export interface TenantCityCategories {
-  categories: TenantCityCategoryTuple[];
-  orgTotal: number;
-  buildingTotal: number;
-  computedAt: string | null;
-}
-
-export interface TenantCityCategoriesRow {
-  categories: unknown;
-  org_total: number | null;
-  building_total: number | null;
-  computed_at: string | null;
-}
-
 // Организация в том виде, в каком её рисует карточка БЦ. Общий тип для обоих
 // источников: у 2GIS placement/rating/reviewCount/url всегда null, и блок
 // просто не рисует то, чего нет, — вместо двух почти одинаковых компонентов.

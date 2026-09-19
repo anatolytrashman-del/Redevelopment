@@ -1,23 +1,17 @@
-// Сборка организаций здания к виду, в котором их рисует карточка БЦ, и
-// сворачивание городского среза рубрик в отрасли.
+// Сборка организаций здания к виду, в котором их рисует карточка БЦ.
 //
 // Два источника приводятся к одному типу TenantOrganizationView: Яндекс
 // (основной, с этажом, офисом, рейтингом и ссылкой) и 2GIS (фолбэк, только
 // название и рубрика). Блок на карточке один и просто не рисует то, чего в
 // данных нет.
-import type { Gis2TenantOrganization, TenantIndustryCityProfile } from '../data/businessCenter2gis';
+import type { Gis2TenantOrganization } from '../data/businessCenter2gis';
 import type { TenantOrganization } from '../data/businessCenters';
-import type {
-  TenantCityCategories,
-  TenantOrganizationView,
-  TenantSourceOrganization,
-} from '../data/businessCenterTenants';
+import type { TenantOrganizationView, TenantSourceOrganization } from '../data/businessCenterTenants';
 import { TENANT_INDUSTRY_OTHER } from '../data/tenantIndustries';
 import {
   cleanTenantCategory,
   formatTenantPlacement,
   isBuildingOwnCard,
-  isTenantAmenity,
   parseTenantPlacement,
   tenantAmenityLabel,
   tenantIndustryFromCategory,
@@ -146,57 +140,6 @@ export function buildTenantsFromGis2(organizations: Gis2TenantOrganization[]): T
   }));
 }
 
-/**
- * Городской срез рубрик → городской профиль отраслей.
- *
- * На карточке БЦ сейчас не используется: полосы «здание против каталога»
- * владелец убрал 2026-09-19 («разбор по отраслям вообще не нужен»). Функция
- * живёт дальше ради отраслевых хабов каталога (К16 в
- * docs/bc-catalog-redesign-plan.md) — им нужен ровно этот свод, и он уже
- * покрыт тестами.
- *
- * SQL складывает город по сырым рубрикам и про отрасли ничего не знает
- * (см. refresh_bc_tenant_city_categories и комментарий в tenantCategories.ts),
- * поэтому свернуть его в 28 отраслей — работа клиента. Считается ровно той же
- * картой, что и отрасли конкретного здания, иначе полоса здания и метка
- * города меряли бы разными линейками.
- *
- * Оборудование выкидывается и здесь — город должен считаться так же, как
- * здание, иначе сравнение врёт на долю банкоматов.
- */
-export function foldCityCategoriesToIndustries(city: TenantCityCategories): TenantIndustryCityProfile {
-  const orgCounts = new Map<string, number>();
-  const buildingCounts = new Map<string, number>();
-  let orgTotal = 0;
-
-  for (const [category, orgCount, buildingCount] of city.categories) {
-    if (isTenantAmenity(category)) continue;
-    const industry = tenantIndustryFromCategory(category);
-    orgCounts.set(industry, (orgCounts.get(industry) ?? 0) + orgCount);
-    // Зданий по отрасли — сумма по рубрикам, то есть ВЕРХНЯЯ оценка: одно и то
-    // же здание считается в каждой своей рубрике этой отрасли. На карточке это
-    // число не показывается (нужен только buildingTotal), оно нужно будущим
-    // отраслевым хабам — К16 в плане каталога; там его придётся считать
-    // запросом по зданиям, а не отсюда.
-    buildingCounts.set(industry, (buildingCounts.get(industry) ?? 0) + buildingCount);
-    orgTotal += orgCount;
-  }
-
-  const industries = Array.from(orgCounts.entries())
-    .map(([industry, orgCount]) => ({
-      industry,
-      orgCount,
-      buildingCount: buildingCounts.get(industry) ?? 0,
-    }))
-    .sort((a, b) => b.orgCount - a.orgCount || a.industry.localeCompare(b.industry));
-
-  return {
-    industries,
-    orgTotal,
-    buildingTotal: city.buildingTotal,
-    computedAt: city.computedAt,
-  };
-}
 
 export interface FloorGroup {
   floor: string;
