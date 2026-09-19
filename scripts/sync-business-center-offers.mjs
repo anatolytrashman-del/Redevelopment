@@ -129,10 +129,15 @@ function normalizeForMatch(s) {
 // внутри "2к1", ложное совпадение чужого дома на той же улице. Номер дома
 // сверяем как отдельный токен (границы — не буква/цифра с обеих сторон),
 // не подстрокой — "1" после этого совпадает только с "1", не с "21"/"2к1".
+// Тот же набор префиксов, что снимается перед сверкой адреса ниже.
+function stripStreetType(street) {
+  return street.replace(/^(ул\.|пр-т|просп\.|пер\.|пр\.|б-р|бул\.|наб\.)\s*/i, '');
+}
+
 function addressMatchesBuilding(adAddress, street, house) {
   if (!adAddress) return false;
   const norm = normalizeForMatch(adAddress);
-  const streetNorm = normalizeForMatch(street.replace(/^(ул\.|пр-т|просп\.|пер\.|пр\.)\s*/i, ''));
+  const streetNorm = normalizeForMatch(stripStreetType(street));
   if (!norm.includes(streetNorm)) return false;
 
   const houseNorm = normalizeForMatch(house);
@@ -252,7 +257,15 @@ async function collectKufarOffers(centers) {
       console.log(`Kufar: пропускаю «${center.name}» — не удалось выделить номер дома из адреса`);
       continue;
     }
-    const query = `${street} ${house}`;
+    // Тип улицы из запроса убираем: полнотекстовый поиск Kufar на нём
+    // спотыкается. Проверено вживую 2026-09-19 — «пр-т Независимости 177»
+    // находит 1 объявление по чужому дому, «Независимости 177» — оба
+    // объявления по нужному (в адресах самого Kufar тип пишется иначе:
+    // «Независимости пр, 177»). Замер по всем 143 зданиям: без типа улицы
+    // находится 702 подходящих объявления против 589 с типом, +120 новых в
+    // 40 зданиях. Фильтр addressMatchesBuilding ниже тот же самый — он и
+    // так сверяет улицу без типа, так что лишнего запрос не принесёт.
+    const query = `${stripStreetType(street)} ${house}`;
     for (const section of KUFAR_SECTIONS) {
       console.log(`Kufar (${section.slug}): ищу «${query}» (${center.slug})...`);
       let ads;
