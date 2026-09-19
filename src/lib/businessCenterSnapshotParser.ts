@@ -42,9 +42,26 @@ export interface ParsedSnapshotRating {
   reviewCount: number | null;
 }
 
+// Отзывы — ИСКЛЮЧЕНИЕ из правила выше ("текстовые факты вручную, не
+// автоматически"): это не сгенерированный текст и не наш пересказ, а
+// verbatim-текст реальных людей с самого Яндекса, извлечённый структурным
+// разбором разметки (author/rating/likes — из itemprop/aria-label, не
+// придумано). Тот же класс риска, что у списка организаций и рейтинга, не
+// у "Интересных фактов". См. docs/session-journal.md, 2026-09-19/20 — блок
+// «Что говорят» на публичной карточке БЦ.
+export interface ParsedSnapshotReview {
+  author: string | null;
+  rating: number | null;
+  body: string;
+  likes: number;
+  dislikes: number;
+  publishedAt: string | null;
+}
+
 export interface ParsedBusinessCenterSnapshot {
   tenantOrganizations: TenantOrganization[];
   rating: ParsedSnapshotRating | null;
+  reviews: ParsedSnapshotReview[];
 }
 
 function decodeSnapshotHtml(buffer: ArrayBuffer): string {
@@ -101,8 +118,40 @@ function extractRatingFromHtml(html: string): ParsedSnapshotRating | null {
   };
 }
 
+// Карточки .business-review-view — только на вкладке «Отзывы» конкретной
+// организации (не на toponym-странице адреса, где живёт список organizаций).
+// Владелец, 2026-09-19 (владелец сохранил вкладку «Отзывы» «Порта» через
+// Cmd+S и прислал файл): 134 карточки на странице, 3 — дубликат виджета
+// «похожих» вверху (тот же автор+дата), дедуп по этой паре.
+function extractReviewsFromHtml(html: string): ParsedSnapshotReview[] {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const cards = doc.querySelectorAll('.business-review-view');
+
+  const seen = new Set<string>();
+  const reviews: ParsedSnapshotReview[] = [];
+  for (const card of cards) {
+    const author = card.querySelector('[itemprop="author"] [itemprop="name"]')?.textContent?.trim() || null;
+    const publishedAt = card.querySelector('[itemprop="datePublished"]')?.getAttribute('content') ?? null;
+    const body = card.querySelector('.spoiler-view__text-container')?.textContent?.trim() ?? '';
+    if (!author || !publishedAt || !body) continue;
+
+    const key = `${author}__${publishedAt}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const rating = numberFromElement(card.querySelector('[itemprop="ratingValue"]'));
+    const likeButton = card.querySelector('[aria-label="Лайк"]');
+    const dislikeButton = card.querySelector('[aria-label="Дизлайк"]');
+    const likes = likeButton ? Number(likeButton.querySelector('.business-reactions-view__counter')?.textContent ?? '0') : 0;
+    const dislikes = dislikeButton ? Number(dislikeButton.querySelector('.business-reactions-view__counter')?.textContent ?? '0') : 0;
+
+    reviews.push({ author, rating, body, likes, dislikes, publishedAt });
+  }
+  return reviews;
+}
+
 export async function parseBusinessCenterSnapshot(file: File): Promise<ParsedBusinessCenterSnapshot> {
-  const empty: ParsedBusinessCenterSnapshot = { tenantOrganizations: [], rating: null };
+  const empty: ParsedBusinessCenterSnapshot = { tenantOrganizations: [], rating: null, reviews: [] };
   let html: string;
   try {
     html = decodeSnapshotHtml(await file.arrayBuffer());
@@ -126,7 +175,14 @@ export async function parseBusinessCenterSnapshot(file: File): Promise<ParsedBus
     rating = null;
   }
 
-  return { tenantOrganizations, rating };
+  let reviews: ParsedSnapshotReview[] = [];
+  try {
+    reviews = extractReviewsFromHtml(html);
+  } catch {
+    reviews = [];
+  }
+
+  return { tenantOrganizations, rating, reviews };
 }
 
 // Формат строки, который уже понимает extractMapRating в

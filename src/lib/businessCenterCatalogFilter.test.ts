@@ -67,6 +67,7 @@ function bc(over: Partial<BusinessCenter> & { slug: string }): BusinessCenter {
     pros: [],
     cons: [],
     verdictEdited: false,
+    reviewsChecked: false,
     photos: [],
     status: 'built',
     sortOrder: 0,
