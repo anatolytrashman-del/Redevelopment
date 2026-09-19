@@ -627,15 +627,15 @@ export function BusinessCenterDetailPage() {
     if (visibleHighlights.length) add('Какие факты о здании опубликованы?', visibleHighlights.map((h) => [h.label, h.text].filter(Boolean).join(': ')).join('\n'));
     const history = extractHistoryPoints(center);
     if (history.length) add('Что известно об истории здания?', history.map((h) => `${h.year}: ${h.text}`).join('; '));
-    if (gis2?.tenantOrganizations.length) {
+    if (center.tenantOrganizations.length) {
+      add('Какие организации и сервисы есть в здании?', `В списке ${center.tenantOrganizations.length} организаций (по данным Яндекс.Карт): ${center.tenantOrganizations.map((o) => `${o.name}${o.category ? ` (${o.category})` : ''}`).join(', ')}.`);
+    } else if (gis2?.tenantOrganizations.length) {
       const industries = new Map<string, number>();
       for (const org of gis2.tenantOrganizations) {
         const label = tenantIndustryLabel(org.industry);
         industries.set(label, (industries.get(label) ?? 0) + 1);
       }
       add('Сколько организаций в здании и каких отраслей?', `В списке 2ГИС ${gis2.tenantOrganizations.length} организаций: ${[...industries].map(([label, count]) => `${label} — ${count}`).join('; ')}. ${gis2.tenantOrganizationsTotal != null && gis2.tenantOrganizationsTotal > gis2.tenantOrganizations.length ? `Список неполный: в источнике указано ${gis2.tenantOrganizationsTotal} организаций. ` : ''}Это сведения о соседях и сервисах, не показатель загрузки здания или спроса.`);
-    } else if (center.tenantOrganizations.length) {
-      add('Какие организации и сервисы есть в здании?', `В списке ${center.tenantOrganizations.length} организаций: ${center.tenantOrganizations.map((o) => `${o.name}${o.category ? ` (${o.category})` : ''}`).join(', ')}.`);
     }
     // Рейтинг у нас приезжает из трёх мест (снимок 2ГИС, поле карточки,
     // свободный текст фактов) — но для читателя это ОДИН вопрос. Три
@@ -1175,34 +1175,33 @@ export function BusinessCenterDetailPage() {
           />
         )}
 
-        {/* Кто сидит в здании. Основной источник — организации 2GIS по
-            building_id с рубриками, из них считается диаграмма отраслей (Б9,
-            docs/bc-catalog-redesign-plan.md). Ниже — прежний блок из
-            веб-архива Яндекс.Карт, он остаётся фолбэком для зданий, куда
-            2GIS ещё не доехал: там есть названия и категории, но нет рубрик
-            2GIS, а значит и отраслей с городским сравнением не построить.
-
-            Организации внутри здания — владелец, 2026-09-06 (третий заход):
+        {/* Кто сидит в здании. Основной источник (с 2026-09-19) —
+            Яндекс.Карты, живой ручной сбор по каталогу
+            (business_center_tenant_source_snapshots, source=yandex_maps,
+            139 из 143 БЦ) — владелец отказался от платного 2GIS API
+            (возврат средств оформлен), дальше его не используем. 2GIS-блок
+            (business_center_2gis_snapshots, с отраслевой разбивкой и
+            городским сравнением — то, что Яндекс-данные дать не могут, нет
+            рубрик) остаётся фолбэком только для БЦ без Яндекс-списка — на
+            практике почти не используется, но старые собранные данные не
+            выбрасываем. Организации внутри здания — владелец, 2026-09-06:
             "давай сделаем ещё блок арендаторов внутри БЦ... сгруппировать,
-            на первое место ставь места с максимумом отзывов на картах".
-            Источник — карусель "Организации внутри" на Яндекс.Картах
-            (веб-архив) — она отдаёт только название+категорию на каждую
-            организацию, БЕЗ числа отзывов на неё саму (в отличие от
-            рейтинга/отзывов всего здания в блоке выше). Настоящей сортировки
-            "по числу отзывов" на уровне отдельной организации из этих данных
-            не построить — группы отсортированы по размеру (категории с
-            большим числом организаций первыми) как ближайший доступный
-            прокси, без выдумывания цифр (см. комментарий у
-            BusinessCenter.tenantOrganizations в data/businessCenters.ts). */}
-        {gis2 && gis2.tenantOrganizations.length > 0 ? (
-          <TenantIndustriesBlock
-            organizations={gis2.tenantOrganizations}
-            total={gis2.tenantOrganizationsTotal}
-            fetchedAt={gis2.tenantOrganizationsFetchedAt}
-            cityProfile={tenantCityProfile}
-          />
+            на первое место ставь места с максимумом отзывов на картах" —
+            теперь карточка Яндекса даёт и rating/reviewCount, сортировка по
+            отзывам реальная (см. groupTenantOrganizations ниже), раньше
+            была прокси по размеру категории (см. журнал сессий,
+            2026-09-18/19). */}
+        {center.tenantOrganizations.length > 0 ? (
+          <TenantOrganizationsBlock organizations={center.tenantOrganizations} />
         ) : (
-          center.tenantOrganizations.length > 0 && <TenantOrganizationsBlock organizations={center.tenantOrganizations} />
+          gis2 && gis2.tenantOrganizations.length > 0 && (
+            <TenantIndustriesBlock
+              organizations={gis2.tenantOrganizations}
+              total={gis2.tenantOrganizationsTotal}
+              fetchedAt={gis2.tenantOrganizationsFetchedAt}
+              cityProfile={tenantCityProfile}
+            />
+          )
         )}
 
         {/* Условия для арендаторов с офиц. сайта БЦ (владелец, 2026-09-05,
@@ -1716,26 +1715,37 @@ function TenantOrganizationsBlock({ organizations }: { organizations: TenantOrga
   );
 }
 
-// Группировка "Организации в здании" по категории — без реального числа
-// отзывов на каждую организацию (см. комментарий в JSX выше) сортируем
-// группы по размеру (больше организаций одной категории — выше), внутри
-// группы — по алфавиту. "Без категории" (пустая строка из формы) — всегда
-// последней группой, не мешает содержательным категориям наверху.
+// Группировка "Организации в здании" по категории — теперь есть реальное
+// число отзывов на карточке (собрано вместе с категорией, 2026-09-19),
+// поэтому внутри группы сортируем по нему (больше отзывов — выше, при
+// равенстве/отсутствии — по алфавиту), а группы — по максимуму отзывов
+// внутри группы (та же логика владельца "на первое место ставь места с
+// максимумом отзывов", раньше не строилась без этих чисел — см. журнал
+// сессий 2026-09-18/19). "Без категории" — всегда последней группой.
 function groupTenantOrganizations(orgs: TenantOrganization[]): { category: string; items: string[] }[] {
-  const groups = new Map<string, string[]>();
+  const groups = new Map<string, { name: string; reviewCount: number }[]>();
   for (const org of orgs) {
     const category = org.category.trim() || 'Без категории';
     if (!groups.has(category)) groups.set(category, []);
-    groups.get(category)!.push(org.name);
+    groups.get(category)!.push({ name: org.name, reviewCount: org.reviewCount ?? 0 });
   }
   return Array.from(groups.entries())
-    .map(([category, items]) => ({ category, items: [...items].sort((a, b) => a.localeCompare(b, 'ru')) }))
+    .map(([category, entries]) => ({
+      category,
+      maxReviewCount: Math.max(...entries.map((e) => e.reviewCount)),
+      count: entries.length,
+      items: [...entries]
+        .sort((a, b) => b.reviewCount - a.reviewCount || a.name.localeCompare(b.name, 'ru'))
+        .map((e) => e.name),
+    }))
     .sort((a, b) => {
       if (a.category === 'Без категории') return 1;
       if (b.category === 'Без категории') return -1;
-      if (b.items.length !== a.items.length) return b.items.length - a.items.length;
+      if (b.maxReviewCount !== a.maxReviewCount) return b.maxReviewCount - a.maxReviewCount;
+      if (b.count !== a.count) return b.count - a.count;
       return a.category.localeCompare(b.category, 'ru');
-    });
+    })
+    .map(({ category, items }) => ({ category, items }));
 }
 
 // сам текст, ничего не рендерит, если по этому разделу нашлось не найдено
