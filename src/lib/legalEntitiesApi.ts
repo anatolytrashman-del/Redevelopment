@@ -88,11 +88,11 @@ export async function setLegalEntityDefault(id: string, entities: LegalEntity[])
 // "Информация по доставке" (lib/deliveryInfoDocx.ts отдаёт готовый File) —
 // бакет и форма результата {url, fileName} у обоих файлов юрлица одни и те же.
 export function uploadLegalEntityFile(file: File): Promise<LegalEntity['cardFile']> {
+  const ext = file.name.split('.').pop() ?? 'bin';
+  const path = `${crypto.randomUUID()}.${ext}`;
   return withRetry(
     async () => {
-      const ext = file.name.split('.').pop() ?? 'bin';
-      const path = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from('object-documents').upload(path, file);
+      const { error } = await supabase.storage.from('object-documents').upload(path, file, { upsert: true });
       if (error) throw error;
       const { data } = supabase.storage.from('object-documents').getPublicUrl(path);
       return { url: data.publicUrl, fileName: file.name };
