@@ -35,6 +35,7 @@ function bc(over: Partial<BusinessCenter> & { slug: string }): BusinessCenter {
     pros: [],
     cons: [],
     verdictEdited: false,
+    reviewsChecked: false,
     floorPlateArea: null,
     officeArea: null,
     layoutTypes: [],
