@@ -74,6 +74,11 @@ if (skipCollected && !serviceRoleKey && !accessToken) {
 }
 
 const normalizeText = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
+const DEFAULT_ORGANIZATION_CATEGORY = 'Офис организации';
+const withDefaultCategory = (organizations) => organizations.map((organization) => ({
+  ...organization,
+  category: normalizeText(organization.category) || DEFAULT_ORGANIZATION_CATEGORY,
+}));
 const decodeHtml = (value) => value
   .replaceAll('&amp;', '&').replaceAll('&quot;', '"').replaceAll('&#39;', "'")
   .replaceAll('&lt;', '<').replaceAll('&gt;', '>').replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
@@ -89,7 +94,7 @@ function extractFromHtml(html, sourceUrl) {
     if (!name || !link) continue;
     const id = link[2];
     const url = new URL(decodeHtml(link[1]), sourceUrl).href;
-    organizations.set(id, { name, sourceId: id, sourceUrl: url });
+    organizations.set(id, { name, sourceId: id, sourceUrl: url, category: DEFAULT_ORGANIZATION_CATEGORY });
   }
   return [...organizations.values()];
 }
@@ -136,7 +141,7 @@ function parseCardText(rawText) {
     const stopMatch = after.match(CATEGORY_STOP_RE);
     category = (stopMatch ? after.slice(0, stopMatch.index) : after).trim() || null;
   }
-  return { rating, reviewCount, category, rawText: text || null };
+  return { rating, reviewCount, category: category || DEFAULT_ORGANIZATION_CATEGORY, rawText: text || null };
 }
 
 async function pauseForUser(message) {
@@ -194,23 +199,29 @@ async function collectLive(entry, initialOrganizations, onProgress) {
 }
 
 async function writeSnapshot(snapshot) {
+  const organizations = withDefaultCategory(snapshot.organizations);
   const row = {
     business_center_slug: snapshot.slug,
     source: 'yandex_maps',
     source_url: snapshot.sourceUrl,
     address_query: snapshot.address,
-    organizations: snapshot.organizations,
-    organization_count: snapshot.organizations.length,
+    organizations,
+    organization_count: organizations.length,
     captured_at: snapshot.capturedAt,
   };
   if (serviceRoleKey) {
     const client = createClient(supabaseUrl, serviceRoleKey);
     const { error } = await client.from('business_center_tenant_source_snapshots').upsert(row, { onConflict: 'business_center_slug,source' });
     if (error) throw error;
+    const { error: centerError } = await client
+      .from('business_centers')
+      .update({ tenant_organizations: organizations })
+      .eq('slug', snapshot.slug);
+    if (centerError) throw centerError;
     return;
   }
   const literal = (v) => `'${String(v).replaceAll("'", "''")}'`;
-  const sql = `insert into public.business_center_tenant_source_snapshots (business_center_slug,source,source_url,address_query,organizations,organization_count,captured_at) values (${literal(row.business_center_slug)},'yandex_maps',${literal(row.source_url)},${literal(row.address_query)},${literal(JSON.stringify(row.organizations))}::jsonb,${row.organization_count},${literal(row.captured_at)}::timestamptz) on conflict (business_center_slug,source) do update set source_url=excluded.source_url,address_query=excluded.address_query,organizations=excluded.organizations,organization_count=excluded.organization_count,captured_at=excluded.captured_at;`;
+  const sql = `insert into public.business_center_tenant_source_snapshots (business_center_slug,source,source_url,address_query,organizations,organization_count,captured_at) values (${literal(row.business_center_slug)},'yandex_maps',${literal(row.source_url)},${literal(row.address_query)},${literal(JSON.stringify(row.organizations))}::jsonb,${row.organization_count},${literal(row.captured_at)}::timestamptz) on conflict (business_center_slug,source) do update set source_url=excluded.source_url,address_query=excluded.address_query,organizations=excluded.organizations,organization_count=excluded.organization_count,captured_at=excluded.captured_at; update public.business_centers set tenant_organizations = ${literal(JSON.stringify(organizations))}::jsonb where slug = ${literal(snapshot.slug)};`;
   const response = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
     method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ query: sql }),
   });
