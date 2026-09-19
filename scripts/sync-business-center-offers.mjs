@@ -172,11 +172,23 @@ function isPlausiblePrice(dealType, pricePerSqm) {
   return pricePerSqm >= bounds.min && pricePerSqm <= bounds.max;
 }
 
-async function fetchKufarForQuery(query) {
+// Сегмент типа сделки в пути ОБЯЗАТЕЛЕН: у Kufar `/l/minsk/kommercheskaya`
+// (и синоним `/l/minsk/kupit/kommercheskaya`) отдаёт ТОЛЬКО продажу, аренда
+// живёт на `/l/minsk/snyat/kommercheskaya`. До 2026-09-19 скрипт ходил на
+// путь без сегмента и получал одну продажу — ветка `ad.type === 'let'` в
+// extractKufarOffer была мёртвой, аренды с Kufar не было ни по одному
+// зданию (в базе: 162 продажи, 0 аренд). Те же слаги, что в
+// sync-kufar-market-offers.mjs (DEAL_TYPES).
+const KUFAR_SECTIONS = [
+  { slug: 'kupit', dealType: 'sale' },
+  { slug: 'snyat', dealType: 'rent' },
+];
+
+async function fetchKufarForQuery(query, sectionSlug) {
   const all = [];
   let cursor = null;
   for (let page = 0; page < MAX_PAGES; page++) {
-    const url = new URL('https://re.kufar.by/l/minsk/kommercheskaya');
+    const url = new URL(`https://re.kufar.by/l/minsk/${sectionSlug}/kommercheskaya`);
     url.searchParams.set('query', query);
     url.searchParams.set('size', '30');
     if (cursor) url.searchParams.set('cursor', cursor);
@@ -184,14 +196,14 @@ async function fetchKufarForQuery(query) {
     const res = await fetch(url, {
       headers: { 'User-Agent': GOOGLEBOT_UA, Accept: 'text/html', 'Accept-Language': 'ru' },
     });
-    if (!res.ok) throw new Error(`Kufar (query="${query}") вернул ${res.status}`);
+    if (!res.ok) throw new Error(`Kufar (${sectionSlug}, query="${query}") вернул ${res.status}`);
 
     const html = await res.text();
     const match = html.match(/<script id="__NEXT_DATA__"[^>]*>(.*?)<\/script>/s);
-    if (!match) throw new Error(`Kufar (query="${query}"): не нашёл __NEXT_DATA__`);
+    if (!match) throw new Error(`Kufar (${sectionSlug}, query="${query}"): не нашёл __NEXT_DATA__`);
     const data = JSON.parse(match[1]);
     const listing = data?.props?.initialState?.listing;
-    if (!listing) throw new Error(`Kufar (query="${query}"): не нашёл listing`);
+    if (!listing) throw new Error(`Kufar (${sectionSlug}, query="${query}"): не нашёл listing`);
 
     all.push(...(listing.ads || []));
     const nextPage = (listing.pagination || []).find((p) => p.label === 'next');
@@ -241,19 +253,21 @@ async function collectKufarOffers(centers) {
       continue;
     }
     const query = `${street} ${house}`;
-    console.log(`Kufar: ищу «${query}» (${center.slug})...`);
-    let ads;
-    try {
-      ads = await fetchKufarForQuery(query);
-    } catch (err) {
-      console.error(`Kufar (${center.slug}): ${err.message}`);
-      continue;
+    for (const section of KUFAR_SECTIONS) {
+      console.log(`Kufar (${section.slug}): ищу «${query}» (${center.slug})...`);
+      let ads;
+      try {
+        ads = await fetchKufarForQuery(query, section.slug);
+      } catch (err) {
+        console.error(`Kufar (${section.slug}, ${center.slug}): ${err.message}`);
+        continue;
+      }
+      for (const ad of ads) {
+        const offer = extractKufarOffer(ad, center.slug, street, house);
+        if (offer) offers.push(offer);
+      }
+      await new Promise((r) => setTimeout(r, 400)); // не спамить источник частыми запросами подряд
     }
-    for (const ad of ads) {
-      const offer = extractKufarOffer(ad, center.slug, street, house);
-      if (offer) offers.push(offer);
-    }
-    await new Promise((r) => setTimeout(r, 400)); // не спамить источник частыми запросами подряд
   }
   return offers;
 }

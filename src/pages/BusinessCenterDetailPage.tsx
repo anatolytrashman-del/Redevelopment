@@ -74,6 +74,8 @@ import type { BusinessCenterNearbyPlace } from '../data/businessCenterNearbyPlac
 import { fetchBusinessCenterNearbyPlaces } from '../lib/businessCenterNearbyPlacesApi';
 import { NO_ACTIVE_OFFERS_MESSAGE, type BusinessCenterOffer } from '../data/businessCenterOffers';
 import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
+import { dedupeOffers } from '../lib/businessCenterOfferDuplicates';
+import { pluralRu } from '../lib/pluralRu';
 import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { MIN_RELIABLE_N, type MarketSnapshot } from '../data/marketSnapshots';
 import type {
@@ -150,7 +152,13 @@ export function BusinessCenterDetailPage() {
     offers: BusinessCenterOffer[] | null;
     error: boolean;
   } | null>(null);
-  const offers = offersResult && offersResult.slug === slug ? offersResult.offers : null;
+  const rawOffers = offersResult && offersResult.slug === slug ? offersResult.offers : null;
+  // Один и тот же лот приходит сразу с нескольких площадок — считаем его
+  // одним (см. lib/businessCenterOfferDuplicates.ts). Схлопываем СРАЗУ
+  // после загрузки, чтобы дальше — и в сводке, и в таблице, и в медиане
+  // здания, и в FAQ — везде было одно и то же число.
+  const offers = useMemo(() => (rawOffers === null ? null : dedupeOffers(rawOffers)), [rawOffers]);
+  const collapsedDuplicates = (rawOffers?.length ?? 0) - (offers?.length ?? 0);
   const [gis2Result, setGis2Result] = useState<{ slug: string; data: BusinessCenter2gisSnapshot | null } | null>(null);
   const gis2 = gis2Result?.slug === slug ? gis2Result?.data ?? null : null;
   const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(null);
@@ -1351,6 +1359,16 @@ export function BusinessCenterDetailPage() {
                   </tbody>
                 </table>
               </div>
+            )}
+            {/* Честная оговорка: у нас лотов меньше, чем объявлений на самих
+                площадках, и это не потеря данных. Агентство выкладывает один
+                кабинет и на Kufar, и на Realt — мы считаем его одним лотом
+                (lib/businessCenterOfferDuplicates.ts). */}
+            {collapsedDuplicates > 0 && (
+              <p className="text-xs text-ink-muted">
+                {collapsedDuplicates} {pluralRu(collapsedDuplicates, 'объявление', 'объявления', 'объявлений')} —
+                это те же помещения, выложенные ещё и на другой площадке; в подсчёте они учтены один раз.
+              </p>
             )}
 
             {/* Сравнение со средней по классу/району (ANALYTICSPLAN.md
