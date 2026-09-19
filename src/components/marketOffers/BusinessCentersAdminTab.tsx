@@ -22,6 +22,9 @@ import {
   mergeTenantOrganizations,
   parseBusinessCenterSnapshot,
 } from '../../lib/businessCenterSnapshotParser';
+import type { ParsedSnapshotReview } from '../../lib/businessCenterSnapshotParser';
+import { parseHighlightRatings } from '../../lib/businessCenterDisplay';
+import { supabase } from '../../lib/supabase';
 import { BUSINESS_CENTER_CLASSES } from '../../data/businessCenters';
 import type { BusinessCenter, HighlightIconKey, HighlightSection, RentalInfo, TenantOrganization } from '../../data/businessCenters';
 import type { DocumentFile } from '../../data/contractorDocuments';
@@ -242,9 +245,27 @@ export function BusinessCentersAdminTab() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Адреса отдельных корпусов — структурная таблица, которую заполняет
+  // scripts/capture-yandex-bc-tenants.mjs (сейчас есть только у «Проспекта»,
+  // 4 строения). Владелец, 2026-09-20: "выводить адрес БЦ, включая разные
+  // корпуса, чтобы можно было быстро в Яндексе искать" — для сбора отзывов
+  // по каталогу нужен явный список адресов на каждое здание, а не переход в
+  // форму редактирования ради одного поля.
+  const [buildingAddressesBySlug, setBuildingAddressesBySlug] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     load();
+    supabase
+      .from('business_center_yandex_buildings')
+      .select('business_center_slug,address,sort_order')
+      .order('sort_order', { ascending: true })
+      .then(({ data }) => {
+        const grouped: Record<string, string[]> = {};
+        for (const row of data ?? []) {
+          (grouped[row.business_center_slug] ??= []).push(row.address);
+        }
+        setBuildingAddressesBySlug(grouped);
+      });
   }, []);
 
   function load() {
@@ -308,16 +329,27 @@ export function BusinessCentersAdminTab() {
       // файла не должен ронять сохранение самой формы.
       let autoTenantOrganizations: TenantOrganization[] = [];
       let autoRating: Awaited<ReturnType<typeof parseBusinessCenterSnapshot>>['rating'] = null;
+      // Отзывы — тот же лучшее-усилие разбор, что и организации/рейтинг выше,
+      // но пишутся не в highlights, а отдельной таблицей (см. отправку после
+      // сохранения ниже): для здания с несколькими корпусами Светлана
+      // прикладывает несколько файлов «Отзывы» разом, дедуп по автор+дата
+      // между ними — тот же принцип, что уже собирает org-список.
+      const autoReviewsBySlugKey = new Map<string, ParsedSnapshotReview>();
       for (const file of form.pendingMapSnapshotFiles) {
         try {
           const parsed = await parseBusinessCenterSnapshot(file);
           autoTenantOrganizations = mergeTenantOrganizations(autoTenantOrganizations, parsed.tenantOrganizations);
           if (parsed.rating) autoRating = parsed.rating; // последний файл с рейтингом побеждает
+          for (const review of parsed.reviews) {
+            const key = `${review.author}__${review.publishedAt}`;
+            if (!autoReviewsBySlugKey.has(key)) autoReviewsBySlugKey.set(key, review);
+          }
         } catch {
           // не смогли распознать конкретный файл — пропускаем, это бонус,
           // не обязательный шаг
         }
       }
+      const autoReviews = [...autoReviewsBySlugKey.values()];
 
       let highlightsForSave = buildHighlights(form);
       if (autoRating) {
@@ -382,6 +414,23 @@ export function BusinessCentersAdminTab() {
       } else if (editing) {
         await updateBusinessCenter(editing.id, payload);
       }
+      // Отзывы пишутся в отдельную таблицу через сервисный ключ (RLS не
+      // пускает анонимную запись — см. api/import-business-center-reviews.js),
+      // а не в payload выше как highlights. Лучшее усилие: форма уже
+      // сохранена, сбой импорта отзывов не должен выглядеть как ошибка
+      // сохранения всей карточки.
+      if (autoReviews.length > 0) {
+        try {
+          await fetch('/api/import-business-center-reviews', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ slug: payload.slug, reviews: autoReviews }),
+          });
+        } catch {
+          // не критично — карточка уже сохранена без отзывов, попробовать
+          // можно ещё раз тем же файлом при следующем сохранении формы
+        }
+      }
       closeEdit();
       load();
     } catch (err) {
@@ -436,6 +485,7 @@ export function BusinessCentersAdminTab() {
             <thead>
               <tr className="border-b border-border text-xs uppercase tracking-wide text-ink-faint">
                 <th className="px-4 py-3">Название</th>
+                <th className="px-4 py-3">Адрес</th>
                 <th className="px-4 py-3">Район</th>
                 <th className="px-4 py-3">Класс</th>
                 <th className="px-4 py-3">Площадь</th>
@@ -446,9 +496,32 @@ export function BusinessCentersAdminTab() {
               </tr>
             </thead>
             <tbody>
-              {(centers ?? []).map((c) => (
+              {(centers ?? []).map((c) => {
+                const buildingAddresses = buildingAddressesBySlug[c.slug];
+                // Несколько отдельных карточек на Яндекс.Картах на одно
+                // здание (напр. «Порт» — 3 очереди) видно только из текста
+                // рейтинга (нет структурного списка адресов, в отличие от
+                // «Проспекта») — см. parseHighlightRatings в
+                // businessCenterDisplay.ts, тот же разбор, что и в блоке
+                // «Что говорят».
+                const multiCardHint = parseHighlightRatings(c.highlights).some((r) => r.corpusCount > 1);
+                return (
                 <tr key={c.id} className="border-b border-border last:border-0">
                   <td className="max-w-[240px] px-4 py-3 font-medium text-ink">{c.name}</td>
+                  <td className="max-w-[280px] px-4 py-3 text-xs text-ink-muted">
+                    {buildingAddresses && buildingAddresses.length > 1 ? (
+                      <div className="flex flex-col gap-0.5">
+                        {buildingAddresses.map((addr) => (
+                          <span key={addr}>{addr}</span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span>{c.address}</span>
+                    )}
+                    {multiCardHint && (
+                      <span className="mt-0.5 block text-ink-faint">(на Яндекс.Картах — несколько отдельных карточек)</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-ink-muted">{c.district ?? '—'}</td>
                   <td className="px-4 py-3">
                     {c.businessClass ? <Badge tone="primary">Класс {c.businessClass}</Badge> : <Badge>Не указан</Badge>}
@@ -479,10 +552,11 @@ export function BusinessCentersAdminTab() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {centers && centers.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-sm text-ink-faint">
+                  <td colSpan={9} className="px-4 py-6 text-center text-sm text-ink-faint">
                     Пока пусто — добавьте первый бизнес-центр.
                   </td>
                 </tr>
@@ -494,6 +568,66 @@ export function BusinessCentersAdminTab() {
 
       <Modal open={editing !== null} onClose={closeEdit} title={editing === 'new' ? 'Новый бизнес-центр' : 'Редактировать БЦ'}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {/* Временно вынесено в начало формы (было в самом низу) — владелец,
+              2026-09-20: Светлана обходит весь каталог ради отзывов, скроллить
+              вниз на каждой из ~140 карточек не нужно. Вернуть на обычное
+              место (после организаций) можно после того, как каталог будет
+              пройден. */}
+          <div className="flex flex-col gap-2 rounded-2xl border border-dashed border-border-strong p-4">
+            <p className="text-sm font-semibold text-ink">Файлы для ресерча (Яндекс.Карты, 2ГИС и т.п.)</p>
+            <p className="text-xs text-ink-faint">
+              Сохранённая страница организации на Яндекс.Картах, вкладка «Отзывы» (в Safari — «Сохранить как» →
+              Web Archive, в Chrome — «Сохранить страницу» → .html). При сохранении формы файл разбирается
+              автоматически: список организаций в здании, рейтинг и сами отзывы (текст, звёзды, лайки/дизлайки)
+              обновляются без ручной работы — просто прикрепите файл и сохраните карточку. Файлы, приложенные
+              раньше (до 2026-09-20), повторно не разбираются — их нужно приложить заново, если нужны отзывы.
+            </p>
+            {form.mapSnapshotFiles.map((file, i) => (
+              <div key={file.url} className="flex items-center gap-2 rounded-control border border-border px-3 py-2 text-sm text-ink">
+                <a href={file.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-primary-hover hover:underline">
+                  {file.fileName}
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, mapSnapshotFiles: f.mapSnapshotFiles.filter((_, idx) => idx !== i) }))}
+                  aria-label="Убрать файл"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center text-ink-faint hover:text-danger"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+            {form.pendingMapSnapshotFiles.map((file, i) => (
+              <div key={`pending-${i}`} className="flex items-center gap-2 rounded-control border border-dashed border-border px-3 py-2 text-sm text-ink-muted">
+                <span className="min-w-0 flex-1 truncate">{file.name} (загрузится при сохранении)</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm((f) => ({ ...f, pendingMapSnapshotFiles: f.pendingMapSnapshotFiles.filter((_, idx) => idx !== i) }))
+                  }
+                  aria-label="Убрать файл"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center text-ink-faint hover:text-danger"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+            <label className="flex w-fit cursor-pointer items-center gap-2 rounded-control border border-dashed border-border px-4 py-2.5 text-sm text-ink-muted hover:border-border-strong">
+              <Upload className="h-4 w-4" />
+              Добавить файл
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const picked = Array.from(e.target.files ?? []);
+                  e.target.value = '';
+                  if (picked.length) setForm((f) => ({ ...f, pendingMapSnapshotFiles: [...f.pendingMapSnapshotFiles, ...picked] }));
+                }}
+              />
+            </label>
+          </div>
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input label="Название" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
             {/* Второе имя того же здания, если его ищут ещё как-то (БЦ «V» =
@@ -818,59 +952,6 @@ export function BusinessCentersAdminTab() {
                 Добавить из списка
               </Button>
             </div>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <p className="text-sm font-semibold text-ink">Файлы для ресерча (Яндекс.Карты, 2ГИС и т.п.)</p>
-            <p className="text-xs text-ink-faint">
-              Сохранённая страница организации (в Safari — «Сохранить как» → Web Archive, в Chrome — «Сохранить
-              страницу» → .html/.mhtml). Файл не разбирается автоматически — просто хранится здесь, чтобы можно
-              было выгрузить и разобрать данные (рейтинг/отзывы) вручную в следующий раз.
-            </p>
-            {form.mapSnapshotFiles.map((file, i) => (
-              <div key={file.url} className="flex items-center gap-2 rounded-control border border-border px-3 py-2 text-sm text-ink">
-                <a href={file.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-primary-hover hover:underline">
-                  {file.fileName}
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, mapSnapshotFiles: f.mapSnapshotFiles.filter((_, idx) => idx !== i) }))}
-                  aria-label="Убрать файл"
-                  className="flex h-6 w-6 shrink-0 items-center justify-center text-ink-faint hover:text-danger"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-            {form.pendingMapSnapshotFiles.map((file, i) => (
-              <div key={`pending-${i}`} className="flex items-center gap-2 rounded-control border border-dashed border-border px-3 py-2 text-sm text-ink-muted">
-                <span className="min-w-0 flex-1 truncate">{file.name} (загрузится при сохранении)</span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setForm((f) => ({ ...f, pendingMapSnapshotFiles: f.pendingMapSnapshotFiles.filter((_, idx) => idx !== i) }))
-                  }
-                  aria-label="Убрать файл"
-                  className="flex h-6 w-6 shrink-0 items-center justify-center text-ink-faint hover:text-danger"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-            <label className="flex w-fit cursor-pointer items-center gap-2 rounded-control border border-dashed border-border px-4 py-2.5 text-sm text-ink-muted hover:border-border-strong">
-              <Upload className="h-4 w-4" />
-              Добавить файл
-              <input
-                type="file"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  const picked = Array.from(e.target.files ?? []);
-                  e.target.value = '';
-                  if (picked.length) setForm((f) => ({ ...f, pendingMapSnapshotFiles: [...f.pendingMapSnapshotFiles, ...picked] }));
-                }}
-              />
-            </label>
           </div>
 
           <Textarea
