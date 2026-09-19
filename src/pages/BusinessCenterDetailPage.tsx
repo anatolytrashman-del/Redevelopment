@@ -32,6 +32,7 @@ import {
   Palette,
   Phone,
   Ruler,
+  Search,
   ScrollText,
   ShoppingBag,
   Sparkles,
@@ -1652,100 +1653,198 @@ function formatSchedule(schedule: Gis2Schedule): string[] {
   return lines;
 }
 
-// Сколько категорий показывать сразу — у части БЦ (владелец, 2026-09-06:
-// "ограничь список видимых категорий с кнопкой «показать ещё»") реальная
-// страница "Организации внутри" на Яндекс.Картах даёт не карусель из
-// 6-10 позиций, а полный список зарегистрированных на адрес юрлиц — у
-// "Паруса", например, 160+ категорий одним полотном. Первый экран остаётся
-// компактным, весь список доступен по клику, без ограничения на бэкенде.
-const VISIBLE_TENANT_CATEGORIES = 8;
+const TENANT_PAGE_SIZE = 16;
+const ALL_TENANT_SEGMENTS = 'Все';
 
-// "5 категорий"/"2 категории"/"1 категорию" — числительное требует разного
-// падежа/числа (тот же принцип, что и pluralOrganizations в DistrictQuarterMap.tsx).
-function pluralCategories(n: number): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return 'категорию';
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'категории';
-  return 'категорий';
-}
+type TenantDirectoryEntry = TenantOrganization & { segment: string };
 
 function TenantOrganizationsBlock({ organizations }: { organizations: TenantOrganization[] }) {
-  const [expanded, setExpanded] = useState(false);
-  const groups = useMemo(() => groupTenantOrganizations(organizations), [organizations]);
-  const visibleGroups = expanded ? groups : groups.slice(0, VISIBLE_TENANT_CATEGORIES);
-  const hiddenCount = groups.length - visibleGroups.length;
+  const [query, setQuery] = useState('');
+  const [activeSegment, setActiveSegment] = useState(ALL_TENANT_SEGMENTS);
+  const [visibleCount, setVisibleCount] = useState(TENANT_PAGE_SIZE);
+  const entries = useMemo<TenantDirectoryEntry[]>(() => organizations
+    .map((organization) => ({
+      ...organization,
+      category: organization.category.trim() || 'Офис организации',
+      segment: tenantSegment(organization),
+    }))
+    .sort((a, b) => (b.reviewCount ?? 0) - (a.reviewCount ?? 0) || a.name.localeCompare(b.name, 'ru')), [organizations]);
+  const segments = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const entry of entries) counts.set(entry.segment, (counts.get(entry.segment) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ru'));
+  }, [entries]);
+  const normalizedQuery = query.trim().toLocaleLowerCase('ru-RU');
+  const filtered = entries.filter((entry) => {
+    const matchesSegment = activeSegment === ALL_TENANT_SEGMENTS || entry.segment === activeSegment;
+    const matchesQuery = !normalizedQuery || `${entry.name} ${entry.category}`.toLocaleLowerCase('ru-RU').includes(normalizedQuery);
+    return matchesSegment && matchesQuery;
+  });
+  const visibleEntries = filtered.slice(0, visibleCount);
+  const totalReviews = entries.reduce((sum, entry) => sum + (entry.reviewCount ?? 0), 0);
+  const rated = entries.filter((entry) => entry.rating != null);
+  const averageRating = rated.length > 0
+    ? rated.reduce((sum, entry) => sum + (entry.rating ?? 0), 0) / rated.length
+    : null;
+  const maxSegmentCount = segments[0]?.[1] ?? 1;
+
+  useEffect(() => setVisibleCount(TENANT_PAGE_SIZE), [query, activeSegment]);
 
   return (
-    <div id="tenants" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-        <Building2 className="h-5 w-5 shrink-0 text-primary" />
-        Организации в здании
-      </h2>
-      {/* Владелец, 2026-09-06 (третий заход): "предложи более компактный
-          способ — плитки занимают слишком много места, а полезной инфы
-          немного". Раньше на каждую категорию уходило 2 строки (заголовок
-          категории отдельно + отдельный ряд плашек-названий) — теперь
-          категория и список названий в одной строке ("Категория (N):
-          названия через запятую"), обычным текстом без плашек-фонов —
-          при 150+ категориях у "Паруса" разница в высоте блока в разы. */}
-      <div className="flex flex-col divide-y divide-border">
-        {visibleGroups.map((group) => (
-          <p key={group.category} className="py-1.5 text-sm leading-relaxed first:pt-0 last:pb-0">
-            <span className="font-semibold text-ink">
-              {group.category} <span className="text-ink-muted">({group.items.length})</span>:
-            </span>{' '}
-            <span className="text-ink-muted">{group.items.join(', ')}</span>
+    <div id="tenants" className={cn('mt-6 scroll-mt-32 overflow-hidden', glassCardClass)} style={glassCardShadow}>
+      <div className="flex flex-col gap-6 p-6 sm:p-8">
+        <div>
+          <h2 className="flex items-center gap-2 text-xl font-bold text-ink">
+            <Building2 className="h-5 w-5 shrink-0 text-primary" />
+            Каталог арендаторов
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-ink-muted">
+            Компании и сервисы внутри здания. Выберите направление или найдите конкретного арендатора.
           </p>
-        ))}
+        </div>
+
+        <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-border bg-border xl:grid-cols-4">
+          <TenantStat icon={Users} value={String(entries.length)} label="организаций" />
+          <TenantStat icon={Building2} value={String(segments.length)} label="направлений" />
+          <TenantStat icon={MessageSquareQuote} value={formatCompactNumber(totalReviews)} label="отзывов суммарно" />
+          <TenantStat icon={Star} value={averageRating?.toFixed(1) ?? '—'} label={rated.length > 0 ? `средний рейтинг · ${rated.length} оценено` : 'рейтинг не указан'} />
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.55fr)]">
+          <div>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-ink-muted">Направления арендаторов</p>
+            <div className="flex flex-wrap gap-2">
+              <TenantSegmentButton
+                label={ALL_TENANT_SEGMENTS}
+                count={entries.length}
+                active={activeSegment === ALL_TENANT_SEGMENTS}
+                onClick={() => setActiveSegment(ALL_TENANT_SEGMENTS)}
+              />
+              {segments.map(([segment, count]) => (
+                <TenantSegmentButton
+                  key={segment}
+                  label={segment}
+                  count={count}
+                  active={activeSegment === segment}
+                  onClick={() => setActiveSegment(segment)}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="rounded-2xl bg-surface-muted/70 p-4">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-ink-muted">Структура</p>
+            <div className="space-y-2.5">
+              {segments.slice(0, 5).map(([segment, count]) => (
+                <button key={segment} type="button" onClick={() => setActiveSegment(segment)} className="block w-full text-left">
+                  <span className="mb-1 flex items-center justify-between gap-3 text-xs">
+                    <span className="truncate font-medium text-ink">{segment}</span>
+                    <span className="shrink-0 text-ink-muted">{count} · {Math.round(count / entries.length * 100)}%</span>
+                  </span>
+                  <span className="block h-1.5 overflow-hidden rounded-full bg-white/80">
+                    <span className="block h-full rounded-full bg-primary/75" style={{ width: `${Math.max(7, count / maxSegmentCount * 100)}%` }} />
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <label className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-border bg-white/65 px-3 sm:max-w-md">
+            <Search className="h-4 w-4 shrink-0 text-ink-muted" />
+            <input
+              type="search"
+              aria-label="Поиск организаций"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Найти компанию или услугу"
+              className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
+            />
+          </label>
+          <p className="text-sm text-ink-muted">Найдено: <span className="font-semibold text-ink">{filtered.length}</span></p>
+        </div>
+
+        {visibleEntries.length > 0 ? (
+          <div className="grid gap-px overflow-hidden rounded-2xl border border-border bg-border md:grid-cols-2">
+            {visibleEntries.map((entry, index) => (
+              <div key={`${entry.name}-${entry.category}-${index}`} className="flex min-w-0 flex-col justify-between gap-3 bg-white/72 p-4 sm:p-5">
+                <div className="min-w-0">
+                  <p className="font-semibold leading-snug text-ink">{entry.name}</p>
+                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ink-muted">{entry.category}</p>
+                </div>
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className="truncate text-ink-muted">{entry.segment}</span>
+                  {entry.rating != null && (
+                    <span className="flex shrink-0 items-center gap-1 font-semibold text-ink">
+                      <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
+                      {entry.rating.toFixed(1)}
+                      {entry.reviewCount != null && <span className="font-normal text-ink-muted">· {entry.reviewCount}</span>}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-border px-5 py-10 text-center text-sm text-ink-muted">
+            По этому запросу организаций не найдено.
+          </div>
+        )}
+
+        {visibleCount < filtered.length && (
+          <button type="button" onClick={() => setVisibleCount((count) => count + TENANT_PAGE_SIZE)} className="self-center rounded-full border border-border bg-white/70 px-5 py-2.5 text-sm font-semibold text-ink transition hover:border-primary/30 hover:text-primary">
+            Показать ещё {Math.min(TENANT_PAGE_SIZE, filtered.length - visibleCount)}
+          </button>
+        )}
+        <p className="text-xs text-ink-muted">Источник — Яндекс Карты. Состав организаций может меняться.</p>
       </div>
-      {groups.length > VISIBLE_TENANT_CATEGORIES && (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="self-start text-sm font-semibold text-primary-hover hover:underline"
-        >
-          {expanded ? 'Свернуть' : `Показать ещё ${hiddenCount} ${pluralCategories(hiddenCount)}`}
-        </button>
-      )}
-      <p className="text-xs text-ink-muted">
-        Информация из Яндекс.Карт — полный список организаций мог измениться.
-      </p>
     </div>
   );
 }
 
-// Группировка "Организации в здании" по категории — теперь есть реальное
-// число отзывов на карточке (собрано вместе с категорией, 2026-09-19),
-// поэтому внутри группы сортируем по нему (больше отзывов — выше, при
-// равенстве/отсутствии — по алфавиту), а группы — по максимуму отзывов
-// внутри группы (та же логика владельца "на первое место ставь места с
-// максимумом отзывов", раньше не строилась без этих чисел — см. журнал
-// сессий 2026-09-18/19). "Без категории" — всегда последней группой.
-function groupTenantOrganizations(orgs: TenantOrganization[]): { category: string; items: string[] }[] {
-  const groups = new Map<string, { name: string; reviewCount: number }[]>();
-  for (const org of orgs) {
-    const category = org.category.trim() || 'Без категории';
-    if (!groups.has(category)) groups.set(category, []);
-    groups.get(category)!.push({ name: org.name, reviewCount: org.reviewCount ?? 0 });
-  }
-  return Array.from(groups.entries())
-    .map(([category, entries]) => ({
-      category,
-      maxReviewCount: Math.max(...entries.map((e) => e.reviewCount)),
-      count: entries.length,
-      items: [...entries]
-        .sort((a, b) => b.reviewCount - a.reviewCount || a.name.localeCompare(b.name, 'ru'))
-        .map((e) => e.name),
-    }))
-    .sort((a, b) => {
-      if (a.category === 'Без категории') return 1;
-      if (b.category === 'Без категории') return -1;
-      if (b.maxReviewCount !== a.maxReviewCount) return b.maxReviewCount - a.maxReviewCount;
-      if (b.count !== a.count) return b.count - a.count;
-      return a.category.localeCompare(b.category, 'ru');
-    })
-    .map(({ category, items }) => ({ category, items }));
+function TenantStat({ icon: Icon, value, label }: { icon: typeof Users; value: string; label: string }) {
+  return (
+    <div className="flex min-h-24 items-center gap-3 bg-white/72 p-4 sm:p-5">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/8 text-primary">
+        <Icon className="h-5 w-5" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-xl font-bold leading-none text-ink">{value}</span>
+        <span className="mt-1.5 block text-xs leading-snug text-ink-muted">{label}</span>
+      </span>
+    </div>
+  );
+}
+
+function TenantSegmentButton({ label, count, active, onClick }: { label: string; count: number; active: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className={cn('rounded-full border px-3 py-2 text-xs font-semibold transition', active ? 'border-primary bg-primary text-white' : 'border-border bg-white/65 text-ink-muted hover:border-primary/30 hover:text-ink')}>
+      {label} <span className={active ? 'text-white/75' : 'text-ink-faint'}>{count}</span>
+    </button>
+  );
+}
+
+function tenantSegment(organization: TenantOrganization): string {
+  const text = `${organization.category} ${organization.name}`.toLocaleLowerCase('ru-RU');
+  if (/банк|финанс|лизинг|кредит|страх|обмен валют|банкомат|терминал/.test(text)) return 'Финансы';
+  if (/кафе|кофе|ресторан|бар|пицц|бургер|еда|питани|кондитер|пекар|булоч/.test(text)) return 'Еда и кофе';
+  if (/клиник|медицин|аптек|стомат|ветеринар|здоров|оптик|лаборатор/.test(text)) return 'Медицина';
+  if (/салон красоты|парикмах|космет|бров|маникюр|эпиляц|массаж|спа/.test(text)) return 'Красота';
+  if (/фитнес|спорт|тренаж|танц|йог|единобор|бассейн/.test(text)) return 'Спорт';
+  if (/магазин|шоурум|одежд|обув|ткан|техник|мебел|товар|торгов|паркет|стекло/.test(text)) return 'Магазины';
+  if (/школ|образован|учеб|курс|детский|развит|автошкол|университет/.test(text)) return 'Образование';
+  if (/it|айти|программ|разработ|интернет|телеком|связ|веб|web|digital/.test(text)) return 'IT и связь';
+  if (/авто|логист|транспорт|достав|груз|тамож|шиномонтаж/.test(text)) return 'Авто и логистика';
+  if (/турист|туроператор|путешеств|турагент/.test(text)) return 'Туризм';
+  if (/юрид|бухгалтер|консалт|аудит|недвижим|реклам|кадров|проект|архитект|инжинир/.test(text)) return 'Деловые услуги';
+  if (/офис организации/.test(text)) return 'Офисы компаний';
+  return 'Другие услуги';
+}
+
+function formatCompactNumber(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)} млн`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)} тыс.`;
+  return String(value);
 }
 
 // сам текст, ничего не рендерит, если по этому разделу нашлось не найдено
