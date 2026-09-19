@@ -6,18 +6,15 @@ import {
   Award,
   BadgeCheck,
   Building2,
-  Calendar,
   Camera,
   DollarSign,
   HardHat,
-  Layers,
   MapPin,
   Ruler,
   TrainFront,
 } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
-import { Badge } from '../components/ui/Badge';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { PhotoBlock, FactRow, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import { CatalogFilterPanel } from '../components/businessCenters/CatalogFilterPanel';
@@ -30,7 +27,7 @@ import {
   setNoIndex,
   clearNoIndex,
 } from '../lib/pageMeta';
-import { businessClassTone, shortAddress, shortMetro, shortName, streetOfAddress } from '../lib/businessCenterDisplay';
+import { shortAddress, shortName, streetOfAddress } from '../lib/businessCenterDisplay';
 import {
   CLASS_SLUG_TO_VALUE,
   DISTRICT_SLUG_TO_NAME,
@@ -151,40 +148,15 @@ const CARDS_PAGE_SIZE = 48;
 // каталога неиндексируемым (см. filterIsIndexable ниже).
 const FILTER_QUERY_KEYS = ['class', 'district', 'microdistrict', 'metro', 'station', 'lot', 'facts', 'q', 'view', 'sort', 'compare'];
 
-// Карточка каталога (К7 плана docs/bc-catalog-redesign-plan.md).
-//
-// Было: фото 16:10 и пять строк справочника — адрес, площадь, срок сдачи,
-// этажность, метро — плюс пилюля «Подробнее». По таким карточкам нельзя
-// было выбирать: 143 штуки подряд выглядели одинаково, а главного (сколько
-// стоит и есть ли вообще что снять) на них не было вовсе.
-//
-// Стало: фото ниже (16:9 вместо 16:10, по 3 в ряд на широком экране),
-// сверху — авто-бейдж «чем выделяется» (К8), в теле — то, по чему реально
-// сравнивают: метро в метрах, площадь и типовой этаж, ставка с числом
-// лотов, рейтинг 2ГИС, УК/ТС и парковка. Пилюля «Подробнее» убрана — вся
-// карточка и так ссылка, а место она занимала на каждой из 143 штук.
-//
-// Про «объявлений нет»: это ЧЕСТНАЯ строка, а не пробел. Здание без лотов
-// на Kufar и Realt — полезный факт (сдаёт через УК напрямую либо занято),
-// и молчать о нём хуже, чем сказать.
-function BusinessCenterCard({
-  center,
-  metroStation,
-  compared,
-  onToggleCompare,
-}: {
-  center: BusinessCenter;
-  metroStation?: string | null;
-  compared: boolean;
-  onToggleCompare: (slug: string) => void;
-}) {
-  // На хабе станции — точное расстояние 2GIS до НЕЁ; иначе до ближайшей.
-  const metroDistance = metroStation ? metroHubDistance(center, metroStation) : nearestMetroMeters(center);
-  const metroLabel = metroStation
-    ? `«${metroStation}»`
-    : center.nearestMetroStations.length > 0
-      ? `«${[...center.nearestMetroStations].sort((a, b) => a.distanceMeters - b.distanceMeters)[0].name}»`
-      : null;
+// Карточка каталога — упрощённый вид (владелец, 2026-09-19: квадратные
+// фото под новую фотосъёмку БЦ, карточка сведена к минимуму — фото,
+// название, адрес, кнопка «Подробнее»). Класс/статус, площадь/этажность/
+// метро и отметка «Сравнить» с карточки убраны сознательно — это осознанный
+// откат от плотной карточки К7/К8 (docs/bc-catalog-redesign-plan.md) к
+// простому виду для нового набора фото. «Сравнить» остаётся доступным по
+// прямой ссылке (?compare=slug,slug — CatalogCompare.tsx), просто больше не
+// включается кликом на карточке.
+function BusinessCenterCard({ center }: { center: BusinessCenter }) {
   return (
     <Link
       to={`/minsk/bcminsk/${center.slug}`}
@@ -194,58 +166,14 @@ function BusinessCenterCard({
       )}
       style={glassCardShadow}
     >
-      <div className="relative w-full overflow-hidden" style={{ paddingTop: '62.5%' }}>
-        <div className="absolute inset-0">
-          <PhotoBlock center={center} variant="card" />
-        </div>
-        <div className="absolute right-2 top-2 flex flex-wrap justify-end gap-1.5">
-          {center.status === 'under_construction' && <Badge tone="warning">Строится</Badge>}
-          {center.businessClass && (
-            <Badge tone={businessClassTone[center.businessClass]}>Класс {center.businessClass}</Badge>
-          )}
-        </div>
-        {/* Отметка «сравнить» лежит поверх ссылки-карточки, поэтому клик
-            обязан не всплывать: иначе отметка уводила бы на страницу БЦ. */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onToggleCompare(center.slug);
-          }}
-          aria-pressed={compared}
-          aria-label={compared ? 'Убрать из сравнения' : 'Добавить к сравнению'}
-          className={cn(
-            'absolute bottom-2 right-2 rounded-full px-2.5 py-1 text-xs font-bold shadow-sm transition-colors',
-            compared ? 'bg-primary text-white' : 'bg-white/90 text-ink-muted hover:text-ink',
-          )}
-        >
-          {compared ? 'В сравнении' : 'Сравнить'}
-        </button>
+      <div className="aspect-square w-full overflow-hidden">
+        <PhotoBlock center={center} variant="card" />
       </div>
-      {/* Карточка — обычный блок: её высоту задают рамка фото и текст.
-          Процентная высота картинки не участвует в расчёте строки grid. */}
       <div className="flex flex-col gap-2.5 p-4">
         <h2 className="text-base font-bold leading-snug text-ink">{center.name}</h2>
-
-        <div className="flex flex-col gap-1.5">
-          <FactRow icon={MapPin}>{shortAddress(center.address)}</FactRow>
-          {center.totalArea != null && (
-            <FactRow icon={Ruler}>Площадь: {center.totalArea.toLocaleString('ru-RU')} м²</FactRow>
-          )}
-          {center.yearBuilt != null && <FactRow icon={Calendar}>Срок сдачи: {center.yearBuilt} г.</FactRow>}
-          {center.floors != null && <FactRow icon={Layers}>Этажность: {center.floors}</FactRow>}
-          {metroDistance != null && metroLabel ? (
-            <FactRow icon={TrainFront}>
-              До {metroLabel}: {metroDistance} м по прямой
-            </FactRow>
-          ) : (
-            center.metro && <FactRow icon={TrainFront}>Метро: {shortMetro(center.metro)}</FactRow>
-          )}
-        </div>
-
+        <FactRow icon={MapPin}>{shortAddress(center.address)}</FactRow>
         <div className="flex justify-end pt-1">
-          <span className="flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-colors group-hover:bg-primary group-hover:text-white">
+          <span className="flex items-center gap-1 rounded-full bg-ink-muted/10 px-3 py-1.5 text-xs font-bold text-ink-muted transition-colors group-hover:bg-ink-muted group-hover:text-white">
             Подробнее
             <ArrowRight className="h-3.5 w-3.5 shrink-0" />
           </span>
@@ -1088,13 +1016,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             <div className="space-y-6">
               <div className="grid grid-cols-1 items-start gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {orderedCenters.slice(0, visibleCount).map((c) => (
-                  <BusinessCenterCard
-                    key={c.slug}
-                    center={c}
-                    metroStation={metroFilter}
-                    compared={filter.compare.includes(c.slug)}
-                    onToggleCompare={toggleCompare}
-                  />
+                  <BusinessCenterCard key={c.slug} center={c} />
                 ))}
               </div>
               {orderedCenters.length > visibleCount && (
