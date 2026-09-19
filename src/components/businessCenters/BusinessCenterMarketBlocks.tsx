@@ -190,14 +190,20 @@ export function WhatTheySayBlock({
   // говорит ("много парковки" и "нет парковки" — одна и та же тема): "давай
   // просто выводить самые залайканные комменты, неважно хорошие они или
   // плохие" — голосуют читатели Яндекса, не мы.
-  // "Показать все" — тот же паттерн, что пагинация в каталоге арендаторов
-  // (TenantDirectory; раньше здесь стояла ссылка на отраслевой блок Б9,
-  // но его удалили вместе с отменой К16):
-  // владелец, 2026-09-19: "можем показывать вообще все отзывы... как
-  // организации?" — по клику весь список, а не по умолчанию: сотня карточек
-  // сразу удлиняет страницу больше, чем окупает.
-  const [showAllReviews, setShowAllReviews] = useState(false);
-  const visibleReviews = showAllReviews ? reviews : reviews.slice(0, MAX_REAL_REVIEWS);
+  // Постраничный вывод — тот же паттерн, что в каталоге арендаторов
+  // (TenantDirectory) ниже на странице. Первая версия ("Показать все") по
+  // клику разворачивала все 131 карточки в один подвал — владелец,
+  // 2026-09-19: "не надо раскрывать все отзывы сразу, сделай постраничный
+  // вывод, как на превью в каталоге арендаторов". Страница сбрасывается на 0,
+  // если сменился сам список отзывов (переход на другой БЦ — см.
+  // key={center.slug} у вызова этого блока), иначе при переходе со страницы N
+  // одного здания на здание с меньшим числом отзывов страница могла бы
+  // указывать за пределы списка.
+  const [page, setPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(reviews.length / MAX_REAL_REVIEWS));
+  const clampedPage = Math.min(page, pageCount - 1);
+  const pageStart = clampedPage * MAX_REAL_REVIEWS;
+  const visibleReviews = reviews.slice(pageStart, pageStart + MAX_REAL_REVIEWS);
   if (yandexRatings.length === 0 && !hasGis && quotes.length === 0 && visibleReviews.length === 0) return null;
   return (
     <div id="reviews" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
@@ -260,14 +266,34 @@ export function WhatTheySayBlock({
           ))}
         </div>
       ) : null}
-      {reviews.length > MAX_REAL_REVIEWS && (
-        <button
-          type="button"
-          onClick={() => setShowAllReviews((v) => !v)}
-          className="self-start text-sm font-semibold text-primary-hover hover:underline"
-        >
-          {showAllReviews ? 'Свернуть' : `Показать все отзывы (${reviews.length})`}
-        </button>
+      {/* Те же классы кнопок, что у пагинации в TenantDirectory ниже на
+          странице — владелец просил именно "как на превью в каталоге
+          арендаторов", два разных пагинатора на одной странице разным
+          стилем читались бы как две разные системы. */}
+      {pageCount > 1 && (
+        <div className="flex justify-end text-xs text-ink-muted">
+          <div className="flex items-center gap-2">
+            <span className="mr-1">
+              {pageStart + 1}–{Math.min(pageStart + MAX_REAL_REVIEWS, reviews.length)} из {reviews.length}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={clampedPage === 0}
+              className="rounded-lg border border-border bg-white/70 px-3 py-1.5 font-semibold text-ink transition hover:border-primary/30 disabled:cursor-default disabled:opacity-35"
+            >
+              Назад
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              disabled={clampedPage >= pageCount - 1}
+              className="rounded-lg border border-border bg-white/70 px-3 py-1.5 font-semibold text-ink transition hover:border-primary/30 disabled:cursor-default disabled:opacity-35"
+            >
+              Дальше
+            </button>
+          </div>
+        </div>
       )}
       {visibleReviews.length === 0 && (
         quotes.length > 0 && (

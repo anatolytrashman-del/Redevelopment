@@ -1576,7 +1576,7 @@ export function BusinessCenterDetailPage() {
         )}
 
         {center && <HistoryTimeline center={center} />}
-        {center && <WhatTheySayBlock center={center} reviewQuotes={reviewQuotes} reviews={reviews} />}
+        {center && <WhatTheySayBlock key={center.slug} center={center} reviewQuotes={reviewQuotes} reviews={reviews} />}
         {/* Б12. Собственникам и УК — способ поправить данные. Пишем прямо
             в почту: отдельной формы с лидом здесь не заводим, это не заявка
             на аренду, а правка справочника, и ответить на неё должен
