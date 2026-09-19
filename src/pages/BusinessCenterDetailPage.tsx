@@ -59,6 +59,7 @@ import {
   parseHighlightRatings,
   parseReviewQuote,
   streetOfAddress,
+  withBcPhotoVersion,
 } from '../lib/businessCenterDisplay';
 import { nearestMetroStation } from '../lib/metroStations';
 import {
@@ -863,7 +864,7 @@ export function BusinessCenterDetailPage() {
 
   useEffect(() => {
     if (!center) return;
-    setBusinessCenterPageMeta(center.slug, center, center.photos[0], pageComposition);
+    setBusinessCenterPageMeta(center.slug, center, withBcPhotoVersion(center.photos[0] ?? ''), pageComposition);
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
       { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bcminsk' },
@@ -877,7 +878,7 @@ export function BusinessCenterDetailPage() {
       altNames: center.altNames,
       url: `https://redevelopment.pro/minsk/bcminsk/${center.slug}`,
       address: center.address,
-      image: center.photos[0],
+      image: center.photos[0] ? withBcPhotoVersion(center.photos[0]) : undefined,
       lat: center.lat,
       lng: center.lng,
       amenities: [
