@@ -37,6 +37,7 @@ import {
   markWorkContractorEmailsRead,
   sendWorkContractorEmail,
 } from '../lib/workContractorEmailsApi';
+import { notifyWorkContractorsRead } from '../lib/workContractorsSeen';
 import {
   deleteWorkContractorTemplate,
   fetchWorkContractorTemplates,
@@ -191,10 +192,15 @@ export function WorkContractors() {
     setEmails((prev) =>
       prev.map((e) => (e.contractorId === selectedId && e.direction === 'in' && !e.readAt ? { ...e, readAt } : e)),
     );
-    markWorkContractorEmailsRead(selectedId).catch(() => {
-      // Тихо: письма уже показаны прочитанными, следующая загрузка страницы
-      // вернёт их как есть — не повод показывать ошибку поверх переписки.
-    });
+    markWorkContractorEmailsRead(selectedId)
+      // Бейдж в боковом меню считает по базе, поэтому зовём его пересчитаться
+      // только после ответа — на оптимистичном стейте он бы перезапросил
+      // старое число и мигнул бы им обратно (тот же приём, что у "Почты").
+      .then(notifyWorkContractorsRead)
+      .catch(() => {
+        // Тихо: письма уже показаны прочитанными, следующая загрузка страницы
+        // вернёт их как есть — не повод показывать ошибку поверх переписки.
+      });
   }, [selectedId, emails]);
 
   function openAdd() {

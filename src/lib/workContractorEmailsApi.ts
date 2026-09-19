@@ -24,6 +24,21 @@ function fromRow(row: WorkContractorEmailRow): WorkContractorEmail {
   };
 }
 
+// Непрочитанные ответы подрядчиков разом по всем карточкам — бейджик в
+// боковом меню (Sidebar.tsx), тем же способом, что fetchMailboxUnreadCount
+// у общего ящика.
+export function fetchWorkContractorsUnreadCount(): Promise<number> {
+  return withRetry(async () => {
+    const { count, error } = await supabase
+      .from('work_contractor_emails')
+      .select('id', { count: 'exact', head: true })
+      .eq('direction', 'in')
+      .is('read_at', null);
+    if (error) throw error;
+    return count ?? 0;
+  });
+}
+
 // Вся переписка по всем подрядчикам разом — объём маленький (вкладка только
 // заведена), один запрос без пагинации, как и у поставщиков.
 export function fetchAllWorkContractorEmails(): Promise<WorkContractorEmail[]> {
