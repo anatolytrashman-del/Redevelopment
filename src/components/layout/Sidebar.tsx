@@ -9,6 +9,8 @@ import { getLeadsLastViewedAt, onLeadsViewed } from '../../lib/leadsSeen';
 import { fetchContractorsWithBirthdayToday } from '../../lib/contractorsApi';
 import { fetchMailboxUnreadCount } from '../../lib/mailboxApi';
 import { onMailboxRead } from '../../lib/mailboxSeen';
+import { fetchWorkContractorsUnreadCount } from '../../lib/workContractorEmailsApi';
+import { onWorkContractorsRead } from '../../lib/workContractorsSeen';
 import { SIDEBAR_LAYOUT, findPage, type SidebarNavigationKey } from '../../data/pages';
 import { getCurrentProfile, isPageAllowed, isSuperAdminAllowed, signOutAndClearCache } from '../../lib/accessProfile';
 import { useOnlineVisitorsCount } from '../../lib/onlinePresence';
@@ -29,11 +31,13 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const [leadsUnread, setLeadsUnread] = useState(0);
   const [birthdayNames, setBirthdayNames] = useState<string[]>([]);
   const [mailboxUnread, setMailboxUnread] = useState(0);
+  const [workContractorsUnread, setWorkContractorsUnread] = useState(0);
 
   const backlogAllowed = isPageAllowed(profile, 'backlog');
   const leadsAllowed = isPageAllowed(profile, 'leads');
   const contractorsAllowed = isPageAllowed(profile, 'contractors');
   const mailboxAllowed = isPageAllowed(profile, 'mailbox');
+  const workContractorsAllowed = isPageAllowed(profile, 'workContractors');
   // Владелец, 2026-09-05: "даже если у кого-то включен Полный доступ, эта
   // страница будет только у меня" — 'metrics' сознательно НЕ заведён как
   // обычный PageKey в data/pages.ts: там pages:'all' автоматически даёт
@@ -112,6 +116,28 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       unsubscribe();
     };
   }, [mailboxAllowed]);
+
+  // Непрочитанные ответы подрядчиков (страница "Подрядчики") — один в один
+  // логика непрочитанных писем общего ящика выше: у письма своя колонка
+  // read_at, поэтому опрос (минута + фокус окна) плюс событие
+  // onWorkContractorsRead, а не отметка "просмотрено" в localStorage.
+  useEffect(() => {
+    if (!workContractorsAllowed) return;
+    function refresh() {
+      fetchWorkContractorsUnreadCount()
+        .then(setWorkContractorsUnread)
+        .catch(() => {});
+    }
+    refresh();
+    const timer = window.setInterval(refresh, 60_000);
+    window.addEventListener('focus', refresh);
+    const unsubscribe = onWorkContractorsRead(refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      unsubscribe();
+    };
+  }, [workContractorsAllowed]);
 
   // Без отметки "просмотрено" — в отличие от бэклога/лидов, тут не список,
   // который можно прочитать и закрыть, а факт "сегодня чей-то день рождения",
@@ -194,6 +220,15 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         {key === 'leads' && leadsUnread > 0 && (
           <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">
             {leadsUnread}
+          </span>
+        )}
+        {key === 'workContractors' && workContractorsUnread > 0 && (
+          <span
+            className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white"
+            title={`Непрочитанных писем: ${workContractorsUnread}`}
+            aria-label={`Непрочитанных писем: ${workContractorsUnread}`}
+          >
+            {workContractorsUnread}
           </span>
         )}
       </NavLink>
