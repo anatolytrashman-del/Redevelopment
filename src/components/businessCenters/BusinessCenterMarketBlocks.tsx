@@ -192,8 +192,13 @@ export function WhatTheySayBlock({
   // говорит ("много парковки" и "нет парковки" — одна и та же тема): "давай
   // просто выводить самые залайканные комменты, неважно хорошие они или
   // плохие" — голосуют читатели Яндекса, не мы.
-  const topReviews = reviews.slice(0, MAX_REAL_REVIEWS);
-  if (yandexRatings.length === 0 && !hasGis && quotes.length === 0 && topReviews.length === 0) return null;
+  // "Показать все" — тот же паттерн, что список организаций в Б9 ниже:
+  // владелец, 2026-09-19: "можем показывать вообще все отзывы... как
+  // организации?" — по клику весь список, а не по умолчанию: сотня карточек
+  // сразу удлиняет страницу больше, чем окупает.
+  const [showAllReviews, setShowAllReviews] = useState(false);
+  const visibleReviews = showAllReviews ? reviews : reviews.slice(0, MAX_REAL_REVIEWS);
+  if (yandexRatings.length === 0 && !hasGis && quotes.length === 0 && visibleReviews.length === 0) return null;
   return (
     <div id="reviews" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
       <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
@@ -225,9 +230,9 @@ export function WhatTheySayBlock({
           </div>
         ))}
       </div>
-      {topReviews.length > 0 ? (
+      {visibleReviews.length > 0 ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          {topReviews.map((r) => (
+          {visibleReviews.map((r) => (
             <div key={r.id} className="flex flex-col gap-2 rounded-2xl bg-surface-muted px-4 py-3.5">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
@@ -254,7 +259,17 @@ export function WhatTheySayBlock({
             </div>
           ))}
         </div>
-      ) : (
+      ) : null}
+      {reviews.length > MAX_REAL_REVIEWS && (
+        <button
+          type="button"
+          onClick={() => setShowAllReviews((v) => !v)}
+          className="self-start text-sm font-semibold text-primary-hover hover:underline"
+        >
+          {showAllReviews ? 'Свернуть' : `Показать все отзывы (${reviews.length})`}
+        </button>
+      )}
+      {visibleReviews.length === 0 && (
         quotes.length > 0 && (
           <div className="grid gap-3 sm:grid-cols-2">
             {quotes.map((q, i) => (
