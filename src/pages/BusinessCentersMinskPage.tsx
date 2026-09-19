@@ -172,7 +172,7 @@ function BusinessCenterCard({ center }: { center: BusinessCenter }) {
       <div className="flex flex-col gap-2.5 p-4">
         <h2 className="text-base font-bold leading-snug text-ink">{center.name}</h2>
         <FactRow icon={MapPin}>{shortAddress(center.address)}</FactRow>
-        <div className="flex justify-end pt-1">
+        <div className="flex justify-start pt-1">
           <span className="flex items-center gap-1 rounded-full bg-ink-muted/10 px-3 py-1.5 text-xs font-bold text-ink-muted transition-colors group-hover:bg-ink-muted group-hover:text-white">
             Подробнее
             <ArrowRight className="h-3.5 w-3.5 shrink-0" />
