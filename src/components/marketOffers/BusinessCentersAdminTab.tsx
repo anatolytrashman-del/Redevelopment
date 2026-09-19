@@ -16,7 +16,6 @@ import {
   updateBusinessCenter,
   deleteBusinessCenter,
 } from '../../lib/businessCentersApi';
-import { uploadObjectDocument } from '../../lib/objectsApi';
 import {
   formatRatingHighlightText,
   mergeTenantOrganizations,
@@ -280,24 +279,20 @@ export function BusinessCentersAdminTab() {
     setSaving(true);
     setFormError('');
     try {
-      let uploadedSnapshots: DocumentFile[] = [];
-      try {
-        uploadedSnapshots = await Promise.all(form.pendingMapSnapshotFiles.map(uploadObjectDocument));
-      } catch (err) {
-        // Владелец, 2026-09-05: ".webarchive не загружается, жду и ничего
-        // не происходит" — реальная причина в 9 из 10 случаев это лимит
-        // Supabase Storage на 50 МБ на файл (общий на весь проект, поднять
-        // его без платного тарифа нельзя — проверено напрямую через
-        // Management API, PATCH .../config/storage отвечает "upgrade the
-        // project to a paid plan"). Полный .webarchive страницы Яндекс.Карт
-        // с фото/тайлами легко превышает это — сообщаем причину явно, а не
-        // просто "не удалось сохранить".
-        throw new Error(
-          `Не удалось загрузить файл «${form.pendingMapSnapshotFiles[0]?.name ?? ''}»: ${errorMessage(err, 'ошибка загрузки')}. ` +
-            'Если файл больше 50 МБ — это лимит Supabase Storage на текущем тарифе (поднять нельзя без перехода на платный тариф). ' +
-            'Попробуйте сохранить страницу компактнее (например, «Сохранить как → Веб-страница, только HTML» вместо полного Web Archive/mhtml).',
-        );
-      }
+      // Веб-архивы БОЛЬШЕ НЕ ЗАГРУЖАЮТСЯ в Storage (2026-09-20). Разбор и так
+      // идёт в браузере из локального File (parseBusinessCenterSnapshot читает
+      // arrayBuffer), а хранение самого архива не давало ничего: его никто не
+      // перечитывал — публичные страницы к нему не обращаются, повторного
+      // разбора нет, в админке он только висел строкой со ссылкой.
+      //
+      // Платили за это квотой: 22 архива занимали 425 МБ — больше, чем все
+      // остальные 833 файла бакета вместе, и 47% всего Storage проекта при
+      // лимите бесплатного тарифа в 1 ГБ. Организация уже вышла за квоту.
+      // Плюс каждый архив протухает: если данные понадобится перечитать,
+      // брать надо свежий снимок, а не полугодовой.
+      //
+      // Заодно это снимает старую боль с лимитом 50 МБ на файл: грузить
+      // больше нечего, а разбирается архив любого размера.
       // Владелец, 2026-09-06: "если в карточку БЦ загружается новый веб-архив,
       // система будет автоматически запускать обновление по этому БЦ и
       // менять контент на странице карточки БЦ". Реализовано узко (см.
@@ -348,7 +343,9 @@ export function BusinessCentersAdminTab() {
         rentalInfo: buildRentalInfo(form),
         highlights: highlightsForSave,
         tenantOrganizations: mergeTenantOrganizations(buildTenantOrganizations(form), autoTenantOrganizations),
-        mapSnapshotFiles: [...form.mapSnapshotFiles, ...uploadedSnapshots],
+        // Старые записи сохраняются как есть, чтобы их можно было отвязать
+        // руками; новых здесь больше не появляется.
+        mapSnapshotFiles: form.mapSnapshotFiles,
         // Не редактируется в этой форме (см. комментарий у
         // BusinessCenter.technicalParams в data/businessCenters.ts — заполняется
         // отдельным ресерчем, не вручную) — при правке сохраняем как было, у
@@ -824,8 +821,9 @@ export function BusinessCentersAdminTab() {
             <p className="text-sm font-semibold text-ink">Файлы для ресерча (Яндекс.Карты, 2ГИС и т.п.)</p>
             <p className="text-xs text-ink-faint">
               Сохранённая страница организации (в Safari — «Сохранить как» → Web Archive, в Chrome — «Сохранить
-              страницу» → .html/.mhtml). Файл не разбирается автоматически — просто хранится здесь, чтобы можно
-              было выгрузить и разобрать данные (рейтинг/отзывы) вручную в следующий раз.
+              страницу» → .html/.mhtml). Файл разбирается прямо в браузере при сохранении формы: из него
+              достаются организации в здании и рейтинг. Сам файл никуда не загружается и не хранится — держать
+              архив по 20 МБ ради данных, которые уже легли в базу, незачем.
             </p>
             {form.mapSnapshotFiles.map((file, i) => (
               <div key={file.url} className="flex items-center gap-2 rounded-control border border-border px-3 py-2 text-sm text-ink">
@@ -844,7 +842,7 @@ export function BusinessCentersAdminTab() {
             ))}
             {form.pendingMapSnapshotFiles.map((file, i) => (
               <div key={`pending-${i}`} className="flex items-center gap-2 rounded-control border border-dashed border-border px-3 py-2 text-sm text-ink-muted">
-                <span className="min-w-0 flex-1 truncate">{file.name} (загрузится при сохранении)</span>
+                <span className="min-w-0 flex-1 truncate">{file.name} (разберётся при сохранении)</span>
                 <button
                   type="button"
                   onClick={() =>
