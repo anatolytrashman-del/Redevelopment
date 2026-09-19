@@ -373,6 +373,139 @@ async function collectRealtOffers(centers) {
   return offers;
 }
 
+// ---------- Domovita ----------
+// Третий источник (2026-09-19). Проверка перед тем, как его заводить:
+// из 530 объявлений Domovita по офисам Минска 153 попадают в наши здания,
+// и 45 лотов в 26 зданиях у нас не было вовсе — в том числе 14 в зданиях,
+// где карточка писала «предложений в наших источниках нет» (Royal Plaza,
+// «Антарес» и другие). То есть это не перепечатка Kufar/Realt, а свой пул:
+// часть собственников выкладывается только сюда.
+//
+// Разбор идёт по листингу, внутрь объявлений не заходим — в карточке уже
+// есть всё нужное. Карточка обёрнута в `<div class="found_full">` (ровно 20
+// на страницу), внутри: заголовок с адресом, площадь, цена сразу в
+// нескольких валютах (берём доллары за м² — та же величина, что у Kufar и
+// Realt), этаж и дата. Свой числовой id объявления лежит в атрибуте
+// `data-object-button-ajax`, ссылка — первая ссылка на объявление внутри
+// карточки (вторая уже принадлежит следующей, поэтому кусок обрезается по
+// ней же).
+const DOMOVITA_SECTIONS = [
+  { path: 'office', propertyType: 'Офисы' },
+  { path: 'shopping', propertyType: 'Торговые помещения' },
+  { path: 'warehouses', propertyType: 'Кладовые' },
+  { path: 'service', propertyType: 'Сфера услуг' },
+];
+const DOMOVITA_DEALS = [
+  { slug: 'rent', dealType: 'rent' },
+  { slug: 'sale', dealType: 'sale' },
+];
+// Разделы Domovita длиннее, чем срез Realt по одному району: офисы в аренду
+// — 16 страниц по 20 объявлений.
+const DOMOVITA_MAX_PAGES = 30;
+const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+
+function domovitaCardText(cardHtml) {
+  return cardHtml
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, '|')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/(\|\s*)+/g, '|');
+}
+
+function parseDomovitaCards(html, dealSlug) {
+  const cards = html.split('class="found_full"').slice(1);
+  const parsed = [];
+  for (const rawCard of cards) {
+    const links = [...rawCard.matchAll(/href="(https:\/\/domovita\.by\/minsk\/[a-z-]+\/(?:rent|sale)\/[^"]+)"/g)];
+    if (links.length === 0) continue;
+    // Обрезаем по началу следующей карточки, чтобы её площадь и цена не
+    // затекли в эту.
+    const card = links.length > 1 ? rawCard.slice(0, links[1].index) : rawCard;
+    const text = domovitaCardText(card);
+
+    const adId = card.match(/data-object-button-ajax="(\d+)"/)?.[1] ?? null;
+    // "Офис в Минске, ул. Бирюзова, д. 10А" — адрес после города.
+    const address = text.match(/в Минске,\s*([^|]+)/)?.[1]?.trim() ?? null;
+    // "|151м|2|" — именно площадь; "36 р. за м|2|" и "1001 ₽/м|2|" под это
+    // не подходят, там между числом и "м" стоит валюта.
+    const sizeRaw = text.match(/\|(\d[\d\s]*(?:[.,]\d+)?)м\|2\|/)?.[1] ?? null;
+    const priceRaw = text.match(/\|(\d[\d\s]*(?:[.,]\d+)?)\s*\$\/м\|2\|/)?.[1] ?? null;
+    const floorRaw = text.match(/(\d+)\s*этаж из/)?.[1] ?? null;
+    if (!adId || !address || !sizeRaw || !priceRaw) continue;
+
+    const toNumber = (v) => Number(v.replace(/\s/g, '').replace(',', '.'));
+    parsed.push({
+      adId,
+      address,
+      size: toNumber(sizeRaw),
+      pricePerSqm: toNumber(priceRaw),
+      floor: floorRaw ? Number(floorRaw) : null,
+      adLink: links[0][1],
+      dealSlug,
+    });
+  }
+  return parsed;
+}
+
+async function fetchDomovitaPage(sectionPath, dealSlug, page) {
+  const url = new URL(`https://domovita.by/minsk/${sectionPath}/${dealSlug}`);
+  if (page > 1) url.searchParams.set('page', String(page));
+  const res = await fetch(url, {
+    headers: { 'User-Agent': BROWSER_UA, Accept: 'text/html', 'Accept-Language': 'ru' },
+  });
+  if (!res.ok) throw new Error(`Domovita (${sectionPath}/${dealSlug}, стр. ${page}) вернул ${res.status}`);
+  return res.text();
+}
+
+async function collectDomovitaOffers(centers) {
+  const known = [];
+  for (const center of centers) {
+    const { street, house } = splitStreetHouse(shortAddress(center.address));
+    if (house) known.push({ slug: center.slug, street, house });
+  }
+
+  const offers = [];
+  for (const section of DOMOVITA_SECTIONS) {
+    for (const deal of DOMOVITA_DEALS) {
+      console.log(`Domovita: тяну ${section.path}/${deal.slug}...`);
+      for (let page = 1; page <= DOMOVITA_MAX_PAGES; page++) {
+        let html;
+        try {
+          html = await fetchDomovitaPage(section.path, deal.slug, page);
+        } catch (err) {
+          console.error(err.message);
+          break;
+        }
+        const cards = parseDomovitaCards(html, deal.slug);
+        if (cards.length === 0) break;
+        for (const card of cards) {
+          const match = known.find((c) => addressMatchesBuilding(card.address, c.street, c.house));
+          if (!match) continue;
+          if (!isPlausiblePrice(deal.dealType, card.pricePerSqm)) continue;
+          offers.push({
+            business_center_slug: match.slug,
+            source: 'Domovita',
+            ad_id: card.adId,
+            deal_type: deal.dealType,
+            property_type: section.propertyType,
+            size: card.size,
+            price_per_sqm: card.pricePerSqm,
+            floor: card.floor,
+            address: card.address,
+            ad_link: card.adLink,
+          });
+        }
+        // Следующая страница существует, пока на текущей есть ссылка на неё.
+        if (!html.includes(`page=${page + 1}`)) break;
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    }
+  }
+  return offers;
+}
+
 // ---------- main ----------
 
 async function main() {
@@ -390,7 +523,10 @@ async function main() {
   const realtOffers = await collectRealtOffers(scopedCenters);
   console.log(`Realt: найдено ${realtOffers.length} подходящих объявлений.`);
 
-  const offers = [...kufarOffers, ...realtOffers];
+  const domovitaOffers = await collectDomovitaOffers(scopedCenters);
+  console.log(`Domovita: найдено ${domovitaOffers.length} подходящих объявлений.`);
+
+  const offers = [...kufarOffers, ...realtOffers, ...domovitaOffers];
 
   if (JSON_OUT) {
     console.log(JSON.stringify(offers));
@@ -421,7 +557,7 @@ async function main() {
     .upsert(payload, { onConflict: 'business_center_slug,source,ad_id' });
   if (upsertError) throw upsertError;
 
-  for (const source of ['Kufar', 'Realt']) {
+  for (const source of ['Kufar', 'Realt', 'Domovita']) {
     const idsThisRun = offers.filter((o) => o.source === source).map((o) => o.ad_id);
     const { error: deleteError } = await supabase
       .from('business_center_offers')
