@@ -1,5 +1,5 @@
 import { GENERAL_DATA_SOURCES } from '../data/businessCenterSources';
-import { tenantIndustryLabel } from '../data/tenantIndustries';
+import { tenantDirectionLabel } from '../data/tenantIndustries';
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -82,16 +82,14 @@ import type {
   BusinessCenter2gisSnapshot,
   Gis2Schedule,
   Gis2ScheduleDay,
-  TenantIndustryCityProfile,
 } from '../data/businessCenter2gis';
-import { fetchBusinessCenter2gisSnapshot, fetchTenantIndustryCityProfile } from '../lib/businessCenter2gisApi';
-import { fetchBusinessCenterTenantSnapshot, fetchTenantCityCategories } from '../lib/businessCenterTenantsApi';
+import { fetchBusinessCenter2gisSnapshot } from '../lib/businessCenter2gisApi';
+import { fetchBusinessCenterTenantSnapshot } from '../lib/businessCenterTenantsApi';
 import {
   buildFloorGroups,
   buildTenantsFromGis2,
   buildTenantsFromLegacyList,
   buildTenantsFromSnapshot,
-  foldCityCategoriesToIndustries,
   formatFloorLabel,
 } from '../lib/businessCenterTenants';
 import { TenantDirectory } from '../components/businessCenters/TenantDirectory';
@@ -172,7 +170,6 @@ export function BusinessCenterDetailPage() {
   const [gis2Result, setGis2Result] = useState<{ slug: string; data: BusinessCenter2gisSnapshot | null } | null>(null);
   const gis2 = gis2Result?.slug === slug ? gis2Result?.data ?? null : null;
   const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(null);
-  const [tenantCityProfile, setTenantCityProfile] = useState<TenantIndustryCityProfile | null>(null);
   const [tenantSnapshotResult, setTenantSnapshotResult] = useState<{
     slug: string;
     data: BusinessCenterTenantSnapshot | null;
@@ -294,29 +291,6 @@ export function BusinessCenterDetailPage() {
     return [];
   }, [yandexTenants, legacyTenants]);
 
-  // Городской профиль отраслей (Б9) — одна строка на весь каталог, но нужна
-  // только тем карточкам, где организации реально собраны: запрашиваем
-  // после снапшота, а не вместе с ним, чтобы у зданий без арендаторов не
-  // было лишнего запроса.
-  //
-  // У двух источников он считается по-разному. 2GIS отдаёт отрасль готовой,
-  // и город сложен по отраслям прямо в SQL. У Яндекса отрасли нет вовсе —
-  // SQL складывает город по СЫРЫМ рубрикам, а сворачивает их в отрасли та же
-  // карта, что и на этой странице (lib/tenantCategories.ts): вторая копия
-  // карты в SQL означала бы, что полоса здания и метка города меряют разными
-  // линейками, и заметить это было бы нечем.
-  const hasTenantOrganizations = tenantOrganizations.length > 0;
-  useEffect(() => {
-    if (!hasTenantOrganizations) return;
-    let cancelled = false;
-    const load = tenantSource === 'yandex_maps'
-      ? fetchTenantCityCategories().then((city) => (city ? foldCityCategoriesToIndustries(city) : null))
-      : fetchTenantIndustryCityProfile();
-    load
-      .then((profile) => { if (!cancelled) setTenantCityProfile(profile); })
-      .catch(() => { if (!cancelled) setTenantCityProfile(null); });
-    return () => { cancelled = true; };
-  }, [hasTenantOrganizations, tenantSource]);
   const nearbyPlaces = nearbyPlacesResult?.slug === slug
     ? nearbyPlacesResult?.places ?? EMPTY_NEARBY_PLACES
     : EMPTY_NEARBY_PLACES;
@@ -722,21 +696,23 @@ export function BusinessCenterDetailPage() {
     // список с отраслями, этажи и оборудование. Ответы собираются из тех же
     // данных, что нарисованы в каталоге арендаторов, — нет данных, нет вопроса.
     if (tenantOrganizations.length) {
-      const industryCounts = new Map<string, number>();
+      // Направления — ровно то, чем фильтруется каталог на странице: FAQ
+      // обязан описывать её содержимое, а не отдельную классификацию.
+      const directionCounts = new Map<string, number>();
       for (const org of tenantOrganizations) {
-        const label = tenantIndustryLabel(org.industry);
-        industryCounts.set(label, (industryCounts.get(label) ?? 0) + 1);
+        const label = tenantDirectionLabel(org.industry);
+        directionCounts.set(label, (directionCounts.get(label) ?? 0) + 1);
       }
-      // По убыванию — как полосы в разборе; вразнобой ответ читается как свалка.
-      const industries = [...industryCounts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ru'));
+      // По убыванию — как в выпадающем фильтре; вразнобой читается как свалка.
+      const directions = [...directionCounts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ru'));
       const reported = tenantSource === '2gis' ? gis2?.tenantOrganizationsTotal ?? null : null;
       const partialNote =
         reported != null && reported > tenantOrganizations.length
           ? `Список неполный: в источнике указано ${reported} организаций. `
           : '';
       add(
-        'Сколько организаций в здании и каких отраслей?',
-        `В списке ${tenantSource === '2gis' ? '2ГИС' : 'Яндекс.Карт'} ${tenantOrganizations.length} организаций: ${industries.map(([label, count]) => `${label} — ${count}`).join('; ')}. ${partialNote}Это сведения о соседях и сервисах, не показатель загрузки здания или спроса.`,
+        'Сколько организаций в здании и по каким направлениям?',
+        `В списке ${tenantSource === '2gis' ? '2ГИС' : 'Яндекс.Карт'} ${tenantOrganizations.length} организаций: ${directions.map(([label, count]) => `${label} — ${count}`).join('; ')}. ${partialNote}Это сведения о соседях и сервисах, не показатель загрузки здания или спроса.`,
       );
       // Тот же расклад по этажам, что нарисован в каталоге, — из общей
       // функции: FAQ обязан повторять страницу, а не считать своё.
@@ -777,7 +753,7 @@ export function BusinessCenterDetailPage() {
     if (similar.length) add('Какие бизнес-центры показаны как похожие?', similar.map(shortName).join(', '));
     if (hubChips.length) add('Какие связанные подборки доступны?', hubChips.map((c) => c.label).join(', '));
     return items;
-  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, mapRating, reviewQuotes, hubChips, redistributedTechnicalParams, nearbyPlaces]);
+  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, tenantSnapshot, mapRating, reviewQuotes, hubChips, redistributedTechnicalParams, nearbyPlaces]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -796,7 +772,7 @@ export function BusinessCenterDetailPage() {
           Boolean(center.parking || accessHoursText || accessibilityAttributes),
       ),
       has('streetCenters', relatedCenters.street.length > 0),
-      has('tenants', hasTenantOrganizations || center.tenantOrganizations.length > 0),
+      has('tenants', tenantOrganizations.length > 0),
       has('rental', Boolean(center.rentalInfo)),
       has('offers', offers !== null),
       has('history', extractHistoryPoints(center).length >= 2),
@@ -809,7 +785,7 @@ export function BusinessCenterDetailPage() {
     marketPosition,
     offers,
     visibleHighlights,
-    hasTenantOrganizations,
+    tenantOrganizations,
     faqItems,
     redistributedTechnicalParams,
     reviewQuotes,
@@ -1308,7 +1284,6 @@ export function BusinessCenterDetailPage() {
           <TenantDirectory
             organizations={tenantOrganizations}
             amenities={tenantAmenities}
-            cityProfile={tenantCityProfile}
             source={tenantSource}
             capturedAt={
               tenantSource === '2gis' ? gis2?.tenantOrganizationsFetchedAt ?? null : tenantSnapshot?.capturedAt ?? null
