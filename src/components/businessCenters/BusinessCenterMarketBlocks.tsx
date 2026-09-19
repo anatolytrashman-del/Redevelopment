@@ -3,7 +3,9 @@ import { Building2, Gauge, History, MessageSquare, Star } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { BusinessCenter } from '../../data/businessCenters';
-import type { Gis2TenantOrganization, TenantIndustryCityProfile } from '../../data/businessCenter2gis';
+import type { TenantIndustryCityProfile } from '../../data/businessCenter2gis';
+import type { TenantOrganizationView } from '../../data/businessCenterTenants';
+import { buildFloorGroups, formatFloorLabel, type TenantAmenity } from '../../lib/businessCenterTenants';
 import { TENANT_INDUSTRY_OTHER, tenantIndustryLabel } from '../../data/tenantIndustries';
 import { mapRatingFromHighlights } from '../../lib/businessCenterDisplay';
 import type { MarketPosition } from '../../lib/businessCenterMarketPosition';
@@ -223,41 +225,34 @@ interface IndustryRow {
   count: number;
   share: number;
   cityShare: number | null;
-  rubrics: { rubric: string; names: string[] }[];
 }
 
 function buildIndustryRows(
-  organizations: Gis2TenantOrganization[],
+  organizations: TenantOrganizationView[],
   cityProfile: TenantIndustryCityProfile | null,
 ): IndustryRow[] {
-  const byIndustry = new Map<string, { count: number; rubrics: Map<string, string[]> }>();
+  const byIndustry = new Map<string, number>();
   for (const org of organizations) {
     const industry = org.industry ?? TENANT_INDUSTRY_OTHER;
-    if (!byIndustry.has(industry)) byIndustry.set(industry, { count: 0, rubrics: new Map() });
-    const bucket = byIndustry.get(industry)!;
-    bucket.count += 1;
-    const rubric = org.rubric ?? 'Без рубрики';
-    if (!bucket.rubrics.has(rubric)) bucket.rubrics.set(rubric, []);
-    bucket.rubrics.get(rubric)!.push(org.name);
+    byIndustry.set(industry, (byIndustry.get(industry) ?? 0) + 1);
   }
 
   const cityTotal = cityProfile?.orgTotal ?? 0;
   const cityByIndustry = new Map(cityProfile?.industries.map((item) => [item.industry, item.orgCount]) ?? []);
 
   return Array.from(byIndustry.entries())
-    .map(([industry, bucket]) => ({
+    .map(([industry, count]) => ({
       industry,
       label: tenantIndustryLabel(industry === TENANT_INDUSTRY_OTHER ? null : industry),
-      count: bucket.count,
-      share: bucket.count / organizations.length,
+      count,
+      share: count / organizations.length,
       cityShare: cityTotal > 0 ? (cityByIndustry.get(industry) ?? 0) / cityTotal : null,
-      rubrics: Array.from(bucket.rubrics.entries())
-        .map(([rubric, names]) => ({ rubric, names: [...names].sort((a, b) => a.localeCompare(b, 'ru')) }))
-        .sort((a, b) => b.names.length - a.names.length || a.rubric.localeCompare(b.rubric, 'ru')),
     }))
     .sort((a, b) => {
-      // "Другое" — всегда последним, как и в старом блоке: это не отрасль,
-      // а остаток, наверху шкалы ему не место.
+      // "Другое" — всегда последним: это не отрасль, а остаток, наверху шкалы
+      // ему не место. У яндексовской базы он крупный и честный — 871
+      // организация из 7608 сидит в рубрике "Офис организации", про которую
+      // источник не говорит ничего, кроме того, что это офис.
       if (a.industry === TENANT_INDUSTRY_OTHER) return 1;
       if (b.industry === TENANT_INDUSTRY_OTHER) return -1;
       return b.count - a.count || a.label.localeCompare(b.label, 'ru');
@@ -272,22 +267,47 @@ function formatDelta(share: number, cityShare: number): string | null {
   return `${delta > 0 ? '+' : '−'}${Math.abs(delta)} п.п. к городу`;
 }
 
+function pluralReviews(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'оценка';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'оценки';
+  return 'оценок';
+}
+
+// Сколько организаций показывать в списке сразу: у крупных зданий их под
+// сотню, и вываливать всё полотном первым экраном незачем.
+const VISIBLE_TENANTS = 12;
+
+// Этажи показываем, только когда они известны хотя бы у трети арендаторов:
+// на десятке из девяноста "по этажам" — не срез здания, а случайная выборка.
+const FLOOR_SUMMARY_MIN_SHARE = 0.3;
+
 export function TenantIndustriesBlock({
   organizations,
+  amenities,
   total,
   fetchedAt,
   cityProfile,
+  source,
 }: {
-  organizations: Gis2TenantOrganization[];
+  organizations: TenantOrganizationView[];
+  amenities?: TenantAmenity[];
   total: number | null;
   fetchedAt: string | null;
   cityProfile: TenantIndustryCityProfile | null;
+  source: 'yandex_maps' | '2gis';
 }) {
   const [expanded, setExpanded] = useState(false);
   const [listOpen, setListOpen] = useState(false);
+  const [listExpanded, setListExpanded] = useState(false);
   const rows = useMemo(() => buildIndustryRows(organizations, cityProfile), [organizations, cityProfile]);
+  const floorGroups = useMemo(() => buildFloorGroups(organizations), [organizations]);
   const visibleRows = expanded ? rows : rows.slice(0, VISIBLE_INDUSTRIES);
   const hiddenCount = rows.length - visibleRows.length;
+  const visibleTenants = listExpanded ? organizations : organizations.slice(0, VISIBLE_TENANTS);
+  const withFloor = organizations.filter((org) => org.floor).length;
+  const showFloors = organizations.length > 0 && withFloor / organizations.length >= FLOOR_SUMMARY_MIN_SHARE;
   // Шкала общая для полосы здания и метки города, иначе метка врёт: рисуем
   // её от максимума из обоих значений, а не от 100% — при 26 отраслях
   // самая крупная редко занимает больше четверти, и шкала на 100% дала бы
@@ -367,6 +387,30 @@ export function TenantIndustriesBlock({
         </p>
       )}
 
+      {/* Этажи — то, чего нет ни в данных 2GIS, ни в старом списке из
+          веб-архива: арендатору важно не только "кто здесь", но и "сколько
+          соседей на моём этаже". Считаем только по тем, у кого этаж известен,
+          и подписываем это, а не выдаём за полный расклад по зданию. */}
+      {showFloors && (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-semibold text-ink">По этажам</p>
+          <div className="flex flex-wrap gap-1.5">
+            {floorGroups.map((group) => (
+              <span
+                key={group.floor}
+                className="rounded-full bg-surface-muted px-2.5 py-1 text-xs text-ink-muted"
+                title={`${formatFloorLabel(group.floor)}: ${group.count} ${pluralOrganizations(group.count)}`}
+              >
+                {formatFloorLabel(group.floor)} <span className="font-bold text-ink">{group.count}</span>
+              </span>
+            ))}
+          </div>
+          <p className="text-xs text-ink-faint">
+            Этаж известен у {withFloor} из {organizations.length} организаций.
+          </p>
+        </div>
+      )}
+
       <div className="flex flex-col gap-2">
         <button
           type="button"
@@ -376,28 +420,78 @@ export function TenantIndustriesBlock({
           {listOpen ? 'Скрыть список организаций' : 'Показать список организаций'}
         </button>
         {listOpen && (
-          <div className="flex flex-col divide-y divide-border">
-            {rows.flatMap((row) =>
-              row.rubrics.map((group) => (
-                <p key={`${row.industry}-${group.rubric}`} className="py-1.5 text-sm leading-relaxed first:pt-0 last:pb-0">
-                  <span className="font-semibold text-ink">
-                    {group.rubric} <span className="text-ink-muted">({group.names.length})</span>:
-                  </span>{' '}
-                  <span className="text-ink-muted">{group.names.join(', ')}</span>
-                </p>
-              )),
+          <>
+            <ul className="flex flex-col divide-y divide-border">
+              {visibleTenants.map((org, index) => (
+                <li
+                  key={`${org.name}-${org.url ?? index}`}
+                  className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 py-1.5 text-sm first:pt-0"
+                >
+                  {org.url ? (
+                    // Внешняя ссылка на карточку источника: nofollow, потому
+                    // что это атрибуция, а не рекомендация.
+                    <a
+                      href={org.url}
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      className="font-semibold text-ink hover:text-primary-hover hover:underline"
+                    >
+                      {org.name}
+                    </a>
+                  ) : (
+                    <span className="font-semibold text-ink">{org.name}</span>
+                  )}
+                  {org.rubric && <span className="text-ink-muted">{org.rubric}</span>}
+                  {org.placement && <span className="text-ink-faint">{org.placement}</span>}
+                  {org.rating != null && (
+                    <span className="tabular-nums text-ink-faint">
+                      {org.rating.toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                      {org.reviewCount != null && (
+                        <>
+                          {' '}
+                          · {org.reviewCount} {pluralReviews(org.reviewCount)}
+                        </>
+                      )}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {organizations.length > VISIBLE_TENANTS && (
+              <button
+                type="button"
+                onClick={() => setListExpanded((v) => !v)}
+                className="self-start text-sm font-semibold text-primary-hover hover:underline"
+              >
+                {listExpanded
+                  ? 'Свернуть список'
+                  : `Показать все ${organizations.length} ${pluralOrganizations(organizations.length)}`}
+              </button>
             )}
-          </div>
+          </>
         )}
       </div>
 
+      {/* Оборудование и точки самообслуживания идут отдельной строкой, а не в
+          списке арендаторов: банкомат и туалет — не организация, снявшая
+          помещение, и в отраслях они дают ложные "Места". */}
+      {amenities && amenities.length > 0 && (
+        <p className="text-sm text-ink-muted">
+          <span className="font-semibold text-ink">В здании также есть:</span>{' '}
+          {amenities
+            .map((item) => (item.count > 1 ? `${item.category} (${item.count})` : item.category))
+            .join(', ')}
+          .
+        </p>
+      )}
+
       <p className="text-xs text-ink-faint">
-        Организации из справочника 2ГИС по адресу здания
+        {source === 'yandex_maps' ? 'Организации из Яндекс.Карт по адресу здания' : 'Организации из справочника 2ГИС по адресу здания'}
         {fetchedAt && <> на {new Date(fetchedAt).toLocaleDateString('ru-RU')}</>}.
         {partial && (
           <>
             {' '}
-            2ГИС показывает в здании {total} {pluralOrganizations(total ?? 0)} — выгрузка ограничена{' '}
+            Источник показывает в здании {total} {pluralOrganizations(total ?? 0)} — выгрузка ограничена{' '}
             {organizations.length}, поэтому доли считаются по ним.
           </>
         )}{' '}
