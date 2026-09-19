@@ -107,11 +107,11 @@ export function deletePledge(id: string): Promise<void> {
 // комментарий у uploadLeadPhoto/createLeadPhotoUrl в leadsApi.ts.
 export async function uploadPledgePhoto(file: File): Promise<string> {
   const toUpload = await compressImageIfNeeded(file);
+  const ext = toUpload.name.split('.').pop() ?? 'jpg';
+  const path = `${crypto.randomUUID()}.${ext}`;
   return withRetry(
     async () => {
-      const ext = toUpload.name.split('.').pop() ?? 'jpg';
-      const path = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from(PLEDGE_PHOTOS_BUCKET).upload(path, toUpload);
+      const { error } = await supabase.storage.from(PLEDGE_PHOTOS_BUCKET).upload(path, toUpload, { upsert: true });
       if (error) throw error;
       queueImageCompression(PLEDGE_PHOTOS_BUCKET, path);
       return path;

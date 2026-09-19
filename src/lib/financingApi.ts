@@ -96,11 +96,11 @@ export function deleteFinancingOffer(id: string): Promise<void> {
 
 export async function uploadFinancingLogo(file: File): Promise<string> {
   const toUpload = await compressImageIfNeeded(file);
+  const ext = toUpload.name.split('.').pop() ?? 'jpg';
+  const path = `${crypto.randomUUID()}.${ext}`;
   return withRetry(
     async () => {
-      const ext = toUpload.name.split('.').pop() ?? 'jpg';
-      const path = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from(FINANCING_LOGOS_BUCKET).upload(path, toUpload);
+      const { error } = await supabase.storage.from(FINANCING_LOGOS_BUCKET).upload(path, toUpload, { upsert: true });
       if (error) throw error;
       queueImageCompression(FINANCING_LOGOS_BUCKET, path);
       const { data } = supabase.storage.from(FINANCING_LOGOS_BUCKET).getPublicUrl(path);

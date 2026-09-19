@@ -66,11 +66,11 @@ export function deleteDesignProject(id: string): Promise<void> {
 
 export async function uploadDesignProjectPhoto(file: File): Promise<string> {
   const toUpload = await compressImageIfNeeded(file);
+  const ext = toUpload.name.split('.').pop() ?? 'jpg';
+  const path = `${crypto.randomUUID()}.${ext}`;
   return withRetry(
     async () => {
-      const ext = toUpload.name.split('.').pop() ?? 'jpg';
-      const path = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from('design-project-photos').upload(path, toUpload);
+      const { error } = await supabase.storage.from('design-project-photos').upload(path, toUpload, { upsert: true });
       if (error) throw error;
       queueImageCompression('design-project-photos', path);
       const { data } = supabase.storage.from('design-project-photos').getPublicUrl(path);

@@ -190,11 +190,11 @@ export function updateObject(id: string, input: Omit<RealtyObject, 'id' | 'share
 
 export async function uploadObjectImage(file: File): Promise<string> {
   const toUpload = await compressImageIfNeeded(file);
+  const ext = toUpload.name.split('.').pop() ?? 'jpg';
+  const path = `${crypto.randomUUID()}.${ext}`;
   return withRetry(
     async () => {
-      const ext = toUpload.name.split('.').pop() ?? 'jpg';
-      const path = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from('object-photos').upload(path, toUpload);
+      const { error } = await supabase.storage.from('object-photos').upload(path, toUpload, { upsert: true });
       if (error) throw error;
       queueImageCompression('object-photos', path);
       const { data } = supabase.storage.from('object-photos').getPublicUrl(path);
@@ -207,11 +207,11 @@ export async function uploadObjectImage(file: File): Promise<string> {
 }
 
 export function uploadObjectDocument(file: File): Promise<{ url: string; fileName: string }> {
+  const ext = file.name.split('.').pop() ?? 'pdf';
+  const path = `${crypto.randomUUID()}.${ext}`;
   return withRetry(
     async () => {
-      const ext = file.name.split('.').pop() ?? 'pdf';
-      const path = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from('object-documents').upload(path, file);
+      const { error } = await supabase.storage.from('object-documents').upload(path, file, { upsert: true });
       if (error) throw error;
       queueImageCompression('object-documents', path);
       const { data } = supabase.storage.from('object-documents').getPublicUrl(path);

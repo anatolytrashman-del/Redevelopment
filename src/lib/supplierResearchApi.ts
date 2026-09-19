@@ -432,11 +432,11 @@ export function deleteSupplierOffer(id: string): Promise<void> {
 // "Авангард" и т.п.): один общий публичный бакет под произвольные файлы
 // админки, заводить отдельный под поставщиков незачем.
 export function uploadSupplierFile(file: File): Promise<DocumentFile> {
+  const ext = file.name.split('.').pop() ?? 'bin';
+  const path = `${crypto.randomUUID()}.${ext}`;
   return withRetry(
     async () => {
-      const ext = file.name.split('.').pop() ?? 'bin';
-      const path = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from('object-documents').upload(path, file);
+      const { error } = await supabase.storage.from('object-documents').upload(path, file, { upsert: true });
       if (error) throw error;
       queueImageCompression('object-documents', path);
       const { data } = supabase.storage.from('object-documents').getPublicUrl(path);

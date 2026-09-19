@@ -171,11 +171,11 @@ export function deleteLead(id: string): Promise<void> {
 // закрытого бакета нет, её каждый раз подписывают заново (createLeadPhotoUrl).
 // В базе хранится именно путь — см. Lead.photoPath.
 export function uploadLeadPhoto(file: File): Promise<string> {
+  const ext = file.name.split('.').pop() ?? 'jpg';
+  const path = `${crypto.randomUUID()}.${ext}`;
   return withRetry(
     async () => {
-      const ext = file.name.split('.').pop() ?? 'jpg';
-      const path = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from(LEAD_PHOTOS_BUCKET).upload(path, file);
+      const { error } = await supabase.storage.from(LEAD_PHOTOS_BUCKET).upload(path, file, { upsert: true });
       if (error) throw error;
       queueImageCompression(LEAD_PHOTOS_BUCKET, path);
       return path;
