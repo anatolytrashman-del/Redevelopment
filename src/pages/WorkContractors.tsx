@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  ChevronDown,
+  ChevronUp,
   Clock,
   ExternalLink,
   Loader2,
@@ -8,6 +10,7 @@ import {
   Paperclip,
   Pencil,
   Plus,
+  Reply,
   Send,
   Trash2,
   X,
@@ -108,6 +111,21 @@ const emptyTemplateForm = { name: '', subject: '', body: '' };
 
 function errorText(err: unknown, fallback: string): string {
   return err instanceof Error && err.message ? err.message : fallback;
+}
+
+// Кнопка "Ответить" на письме — тот же паттерн, что в переписке с
+// поставщиками (см. buildQuotedReply в SupplierCorrespondenceTab.tsx):
+// подставляет тему с "Re:" (если её там ещё нет) и цитату письма, на
+// которое отвечаем, отдельным свёрнутым блоком под текстом ответа, чтобы
+// подрядчик видел, на что именно ему отвечают.
+function buildQuotedReply(e: WorkContractorEmail): { subject: string; quoted: string } {
+  const subject = /^re:/i.test(e.subject.trim()) ? e.subject : `Re: ${e.subject}`;
+  const preamble = `${new Date(e.createdAt).toLocaleString('ru-RU')}, ${e.fromAddress} писал(а):`;
+  const quotedLines = e.body
+    .split('\n')
+    .map((line) => `> ${line}`)
+    .join('\n');
+  return { subject, quoted: `${preamble}\n${quotedLines}` };
 }
 
 // "1 письмо" / "2 письма" / "5 писем" — обычные три формы русского счётного
@@ -667,9 +685,26 @@ function ContractorPanel({
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Цитата письма, на которое отвечаем ("Ответить" на конкретном письме
+  // ленты) — отдельно от body, подклеивается к тексту только при отправке
+  // (см. handleSend), чтобы повторный клик "Ответить" не задваивал цитату
+  // внутри уже напечатанного текста.
+  const [quotedReplyText, setQuotedReplyText] = useState<string | null>(null);
+  const [quotedReplyExpanded, setQuotedReplyExpanded] = useState(false);
+  const composerRef = useRef<HTMLDivElement>(null);
 
   // Свежие сверху — та же раскладка, что у переписки с поставщиками.
   const ordered = useMemo(() => [...emails].reverse(), [emails]);
+
+  function handleReplyTo(e: WorkContractorEmail) {
+    const quoted = buildQuotedReply(e);
+    setSubject(quoted.subject);
+    setQuotedReplyText(quoted.quoted);
+    setQuotedReplyExpanded(false);
+    requestAnimationFrame(() => {
+      composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
 
   function handlePickTemplate(name: string) {
     const template = templates.find((t) => t.name === name);
@@ -699,11 +734,12 @@ function ContractorPanel({
     setSending(true);
     setSendError(null);
     try {
+      const fullBody = quotedReplyText ? `${body}\n\n${quotedReplyText}` : body;
       const email = await sendWorkContractorEmail({
         contractorId: contractor.id,
         toAddress: contractor.email,
         subject,
-        body,
+        body: fullBody,
         attachments: attachments.length > 0 ? attachments : undefined,
       });
       onEmailSent(email);
@@ -711,6 +747,8 @@ function ContractorPanel({
       setBody('');
       setTemplateName('');
       setAttachments([]);
+      setQuotedReplyText(null);
+      setQuotedReplyExpanded(false);
     } catch (err) {
       setSendError(errorText(err, 'Не удалось отправить письмо'));
     } finally {
@@ -770,8 +808,8 @@ function ContractorPanel({
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 border-t border-border pt-4">
-        <div className="text-sm font-semibold text-ink">Написать письмо</div>
+      <div ref={composerRef} className="flex flex-col gap-2 border-t border-border pt-4">
+        <div className="text-sm font-semibold text-ink">{quotedReplyText ? 'Ответить' : 'Написать письмо'}</div>
         {!contractor.email && (
           <div className="text-sm text-ink-muted">
             Чтобы написать подрядчику, добавьте его email в карточке («Изменить»).
@@ -792,6 +830,32 @@ function ContractorPanel({
           value={body}
           onChange={(e) => setBody(e.target.value)}
         />
+        {quotedReplyText && (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setQuotedReplyExpanded((v) => !v)}
+                className="flex items-center gap-1 text-xs text-ink-faint hover:text-ink"
+              >
+                {quotedReplyExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                {quotedReplyExpanded ? 'Скрыть цитируемое письмо' : 'Показать цитируемое письмо'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuotedReplyText(null)}
+                className="text-xs text-ink-faint hover:text-danger"
+              >
+                Убрать цитату
+              </button>
+            </div>
+            {quotedReplyExpanded && (
+              <div className="whitespace-pre-wrap border-l-2 border-border pl-2 text-xs text-ink-faint">
+                {quotedReplyText}
+              </div>
+            )}
+          </div>
+        )}
 
         <input
           ref={fileInputRef}
@@ -848,7 +912,7 @@ function ContractorPanel({
         {ordered.length === 0 ? (
           <div className="text-sm text-ink-muted">Писем пока нет.</div>
         ) : (
-          ordered.map((e) => (
+          ordered.map((e, i) => (
             <div
               key={e.id}
               className={cn(
@@ -901,6 +965,17 @@ function ContractorPanel({
                 </div>
               )}
               <div className="whitespace-pre-wrap text-ink">{e.body}</div>
+              {i === 0 && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon={<Reply className="h-4 w-4" />}
+                  onClick={() => handleReplyTo(e)}
+                  className="mt-1 w-fit"
+                >
+                  Ответить
+                </Button>
+              )}
             </div>
           ))
         )}
