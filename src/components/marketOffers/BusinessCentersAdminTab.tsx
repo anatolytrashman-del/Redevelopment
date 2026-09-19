@@ -258,6 +258,14 @@ export function BusinessCentersAdminTab() {
   // просто выведи отображение для загрузки, а остальное убери из поля
   // зрения" — сворачиваем их за один клик, открытое поле загрузки — на виду.
   const [showOldSnapshotFiles, setShowOldSnapshotFiles] = useState(false);
+  // Загрузка файла в Supabase Storage стартует сразу при выборе (а не при
+  // нажатии «Сохранить») — владелец, 2026-09-20: "файлы грузит уже секунд
+  // 40, сделай фоновую загрузку". .webarchive с Яндекс.Карт — десятки МБ,
+  // к моменту клика «Сохранить» загрузка чаще всего уже готова или почти
+  // готова, а не начинается с нуля.
+  const [pendingUploads, setPendingUploads] = useState<
+    { file: File; promise: Promise<{ url: string; fileName: string }>; status: 'uploading' | 'done' | 'error'; error?: string }[]
+  >([]);
 
   useEffect(() => {
     load();
@@ -290,6 +298,7 @@ export function BusinessCentersAdminTab() {
     setForm(centerToForm(c));
     setFormError('');
     setShowOldSnapshotFiles(false);
+    setPendingUploads([]);
   }
 
   function openNew() {
@@ -297,6 +306,24 @@ export function BusinessCentersAdminTab() {
     setForm({ ...EMPTY_FORM, sortOrder: String((centers?.length ?? 0)) });
     setFormError('');
     setShowOldSnapshotFiles(false);
+    setPendingUploads([]);
+  }
+
+  // Стартует загрузку каждого выбранного файла немедленно — вызывается и из
+  // основного «Добавить файл», и из любых будущих точек выбора файла.
+  function startUploads(files: File[]) {
+    setForm((f) => ({ ...f, pendingMapSnapshotFiles: [...f.pendingMapSnapshotFiles, ...files] }));
+    for (const file of files) {
+      const promise = uploadObjectDocument(file);
+      setPendingUploads((prev) => [...prev, { file, promise, status: 'uploading' }]);
+      promise
+        .then(() => setPendingUploads((prev) => prev.map((u) => (u.file === file ? { ...u, status: 'done' } : u))))
+        .catch((err) =>
+          setPendingUploads((prev) =>
+            prev.map((u) => (u.file === file ? { ...u, status: 'error', error: errorMessage(err, 'ошибка загрузки') } : u)),
+          ),
+        );
+    }
   }
 
   function closeEdit() {
@@ -311,7 +338,9 @@ export function BusinessCentersAdminTab() {
     try {
       let uploadedSnapshots: DocumentFile[] = [];
       try {
-        uploadedSnapshots = await Promise.all(form.pendingMapSnapshotFiles.map(uploadObjectDocument));
+        // Загрузки уже стартовали при выборе файла (startUploads) — здесь
+        // просто дожидаемся тех же промисов, не начинаем заново.
+        uploadedSnapshots = await Promise.all(pendingUploads.map((u) => u.promise));
       } catch (err) {
         // Владелец, 2026-09-05: ".webarchive не загружается, жду и ничего
         // не происходит" — реальная причина в 9 из 10 случаев это лимит
@@ -626,14 +655,20 @@ export function BusinessCentersAdminTab() {
                 </button>
               )
             )}
-            {form.pendingMapSnapshotFiles.map((file, i) => (
+            {pendingUploads.map((u, i) => (
               <div key={`pending-${i}`} className="flex items-center gap-2 rounded-control border border-dashed border-border px-3 py-2 text-sm text-ink-muted">
-                <span className="min-w-0 flex-1 truncate">{file.name} (загрузится при сохранении)</span>
+                <span className="min-w-0 flex-1 truncate">
+                  {u.file.name}{' '}
+                  {u.status === 'uploading' && <span className="text-ink-faint">— загружается…</span>}
+                  {u.status === 'done' && <span className="text-primary-hover">— готово</span>}
+                  {u.status === 'error' && <span className="text-danger">— {u.error}</span>}
+                </span>
                 <button
                   type="button"
-                  onClick={() =>
-                    setForm((f) => ({ ...f, pendingMapSnapshotFiles: f.pendingMapSnapshotFiles.filter((_, idx) => idx !== i) }))
-                  }
+                  onClick={() => {
+                    setPendingUploads((prev) => prev.filter((_, idx) => idx !== i));
+                    setForm((f) => ({ ...f, pendingMapSnapshotFiles: f.pendingMapSnapshotFiles.filter((file) => file !== u.file) }));
+                  }}
                   aria-label="Убрать файл"
                   className="flex h-6 w-6 shrink-0 items-center justify-center text-ink-faint hover:text-danger"
                 >
@@ -641,20 +676,29 @@ export function BusinessCentersAdminTab() {
                 </button>
               </div>
             ))}
-            <label className="flex w-fit cursor-pointer items-center gap-2 rounded-control border border-dashed border-border px-4 py-2.5 text-sm text-ink-muted hover:border-border-strong">
-              <Upload className="h-4 w-4" />
-              Добавить файл
-              <input
-                type="file"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  const picked = Array.from(e.target.files ?? []);
-                  e.target.value = '';
-                  if (picked.length) setForm((f) => ({ ...f, pendingMapSnapshotFiles: [...f.pendingMapSnapshotFiles, ...picked] }));
-                }}
-              />
-            </label>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex w-fit cursor-pointer items-center gap-2 rounded-control border border-dashed border-border px-4 py-2.5 text-sm text-ink-muted hover:border-border-strong">
+                <Upload className="h-4 w-4" />
+                Добавить файл
+                <input
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const picked = Array.from(e.target.files ?? []);
+                    e.target.value = '';
+                    if (picked.length) startUploads(picked);
+                  }}
+                />
+              </label>
+              {/* Дублирует кнопку внизу формы — владелец, 2026-09-20: "выведи
+                  кнопку Сохранить наверх карточки, чтобы не скролить" (модалка
+                  скроллится целиком, у неё нет прибитого футера). */}
+              <Button type="submit" disabled={saving}>
+                {saving ? 'Сохранение…' : 'Сохранить'}
+              </Button>
+            </div>
+            {formError && <p className="text-sm text-danger">{formError}</p>}
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
