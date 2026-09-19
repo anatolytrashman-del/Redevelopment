@@ -50,6 +50,7 @@
   ],
   "rewrites": [
     { "source": "/api/telegram-webhook", "destination": "/api/telegram-avatar" },
+    { "source": "/api/import-business-center-reviews", "destination": "/api/exchange-rate" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/tz/(.*)", "destination": "/tz.html" },
     { "source": "/estimate/(.*)", "destination": "/estimate.html" },

@@ -55,6 +55,7 @@ function fromRow(row: BusinessCenterRow): BusinessCenter {
     pros: row.pros ?? [],
     cons: row.cons ?? [],
     verdictEdited: row.verdict_edited ?? false,
+    reviewsChecked: row.reviews_checked ?? false,
     photos: row.photos ?? [],
     status: (row.status as BusinessCenter['status']) ?? 'built',
     sortOrder: row.sort_order,
@@ -103,6 +104,7 @@ function toPayload(input: Partial<BusinessCenterInput>) {
   if (input.pros !== undefined) payload.pros = input.pros;
   if (input.cons !== undefined) payload.cons = input.cons;
   if (input.verdictEdited !== undefined) payload.verdict_edited = input.verdictEdited;
+  if (input.reviewsChecked !== undefined) payload.reviews_checked = input.reviewsChecked;
   if (input.status !== undefined) payload.status = input.status;
   if (input.sortOrder !== undefined) payload.sort_order = input.sortOrder;
   return payload;

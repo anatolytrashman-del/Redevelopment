@@ -64,11 +64,11 @@ export function updateBuildingPlan(id: string, patch: { name?: string; imageUrl?
 }
 
 export function uploadBuildingPlanImage(file: File): Promise<string> {
+  const ext = file.name.split('.').pop() ?? 'png';
+  const path = `${crypto.randomUUID()}.${ext}`;
   return withRetry(
     async () => {
-      const ext = file.name.split('.').pop() ?? 'png';
-      const path = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from('building-plans').upload(path, file);
+      const { error } = await supabase.storage.from('building-plans').upload(path, file, { upsert: true });
       if (error) throw error;
       queueImageCompression('building-plans', path);
       const { data } = supabase.storage.from('building-plans').getPublicUrl(path);
