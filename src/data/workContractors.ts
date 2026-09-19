@@ -10,9 +10,11 @@
 // с теми двумя общих данных нет. Подробнее — в шапке миграции
 // supabase/migrations/20260914-work-contractors.sql.
 //
-// Полей намеренно ровно два: владелец просил основу, а не готовую карточку.
-// Всё остальное (название, специальность, телефон, статус) добавляется потом
-// тем же паттерном, что и у остальных сущностей проекта.
+// Полей намеренно было ровно два на старте: владелец просил основу, а не
+// готовую карточку. 2026-09-19 остальное добавлено тем же паттерном, что и
+// у остальных сущностей проекта — сначала под контакты аренды строительных
+// лесов (см. supabase/migrations/20260919-work-contractors-fields.sql), но
+// поля общие для любого подрядчика, не только лесов.
 export interface WorkContractor {
   id: string;
   avitoUrl: string;
@@ -21,8 +23,29 @@ export interface WorkContractor {
   // Генерируется в БД (default), приложение его только читает — ответ
   // подрядчика матчится по нему в api/purchase-email-webhook.js.
   shortCode: string;
+  companyName: string;
+  website: string;
+  phone: string;
+  // "Типы лесов / услуги" в присланной владельцем таблице — общее название
+  // оставлено нейтральным, подрядчики бывают не только по лесам.
+  services: string;
+  address: string;
+  note: string;
+  // Растущий тег (см. workContractorCategories ниже) — по нему фильтруется
+  // карточка и массовая рассылка "по категории".
+  category: string;
+  // Доп. email'ы компании сверх основного (email) — только отображаются,
+  // переписка всегда идёт с основного адреса.
+  extraEmails: string[];
   createdAt: string;
 }
+
+// Пресет категорий + то, что реально встречается у подрядчиков (обычный
+// паттерн растущих полей проекта, см. AddableSelect и CLAUDE.md). "ВК" —
+// тег для контактов, заведённых до появления категорий (владелец,
+// 2026-09-19: "все текущие контакты, которым отправлены письма, сохрани
+// как ВК"), "Аренда лесов" — 33 контакта из присланной таблицы.
+export const workContractorCategories = ['ВК', 'Аренда лесов'];
 
 // Адрес, с которого уходят письма этому подрядчику и на который прилетают
 // его ответы. Один в один supplierOfferEmailAddress (data/supplierResearch.ts)
@@ -32,11 +55,12 @@ export function workContractorEmailAddress(shortCode: string): string {
   return `zakupki+${shortCode}@redevelopment.pro`;
 }
 
-// Пока имени у подрядчика нет (полей ровно два), в списке его нужно чем-то
-// подписать — берём хвост ссылки на Авито (обычно это как раз имя продавца
-// или название бригады), иначе email, иначе заглушку. Чисто отображение,
-// в базе ничего такого не хранится.
-export function workContractorTitle(c: Pick<WorkContractor, 'avitoUrl' | 'email'>): string {
+// Название компании — если есть (контакты, заведённые не с одной только
+// ссылки на Авито, см. companyName выше) — иначе хвост ссылки на Авито
+// (обычно это и есть имя продавца/название бригады), иначе email, иначе
+// заглушка. Чисто отображение, порядок приоритета в базе не хранится.
+export function workContractorTitle(c: Pick<WorkContractor, 'avitoUrl' | 'email' | 'companyName'>): string {
+  if (c.companyName) return c.companyName;
   const fromAvito = avitoSlug(c.avitoUrl);
   if (fromAvito) return fromAvito;
   if (c.email) return c.email;
@@ -63,5 +87,13 @@ export interface WorkContractorRow {
   avito_url: string | null;
   email: string | null;
   short_code: string;
+  company_name: string | null;
+  website: string | null;
+  phone: string | null;
+  services: string | null;
+  address: string | null;
+  note: string | null;
+  category: string | null;
+  extra_emails: string[] | null;
   created_at: string;
 }

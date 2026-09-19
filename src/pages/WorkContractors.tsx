@@ -1,13 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Clock, ExternalLink, Loader2, Mail, Paperclip, Pencil, Plus, Trash2, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  Clock,
+  ExternalLink,
+  Loader2,
+  Mail,
+  Paperclip,
+  Pencil,
+  Plus,
+  Send,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { ContractorsResearch } from '../components/contractors/ContractorsResearch';
+import { WorkContractorBulkSendModal } from '../components/workContractors/WorkContractorBulkSendModal';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
+import { AddableSelect } from '../components/ui/AddableSelect';
 import { Textarea } from '../components/ui/Textarea';
 import { Modal } from '../components/ui/Modal';
+import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { cn } from '../lib/cn';
 import { fileToAttachment } from '../lib/legalEntityAttachment';
 import {
@@ -21,8 +37,24 @@ import {
   markWorkContractorEmailsRead,
   sendWorkContractorEmail,
 } from '../lib/workContractorEmailsApi';
-import { workContractorEmailAddress, workContractorTitle, type WorkContractor } from '../data/workContractors';
+import {
+  deleteWorkContractorTemplate,
+  fetchWorkContractorTemplates,
+  insertWorkContractorTemplate,
+  updateWorkContractorTemplate,
+} from '../lib/workContractorTemplatesApi';
+import {
+  workContractorCategories,
+  workContractorEmailAddress,
+  workContractorTitle,
+  type WorkContractor,
+} from '../data/workContractors';
 import type { WorkContractorEmail } from '../data/workContractorEmails';
+import {
+  renderWorkContractorTemplate,
+  WORK_CONTRACTOR_PLACEHOLDER_HINT,
+  type WorkContractorTemplate,
+} from '../data/workContractorTemplates';
 import { emailSendStatusLabel } from '../data/emailSendStatus';
 
 // Страница "Подрядчики" — отдельный пункт меню в группе "Стройка", сразу
@@ -30,19 +62,15 @@ import { emailSendStatusLabel } from '../data/emailSendStatus';
 // пункт меню, тоже в стройку, прямо под закупками. Мы будем работать над
 // ним позже").
 //
-// Заведена в тот же день как ВКЛАДКА внутри "Закупок" и успела уехать в
-// прод в таком виде (шестой релиз дня); владелец сразу после этого решил,
-// что тема самостоятельная. Отсюда и разделение данных, которого больше
-// нет: пока это была вкладка, письма грузила страница-родитель ради
-// бейджика непрочитанных на переключателе вкладок (содержимое неактивной
-// вкладки не смонтировано). Своей странице родитель не нужен — она грузит
-// и подрядчиков, и письма сама.
-//
-// Что просили на старте: "мне на старте нужно всего два поля — ссылка на
-// страницу на Авито и email подрядчика. С подрядчиками должна быть
-// возможность общаться по email. Пока делаем только индивидуальные
-// рассылки. Никаких автоматических файлов к письму не прикрепляется, я
-// буду вручную писать текст и прикреплять все".
+// 2026-09-19: карточка выросла с двух полей до полноценной (владелец
+// прислал таблицу подрядчиков по аренде строительных лесов и попросил
+// завести все её колонки), появились категории (растущий тег —
+// workContractorCategories в data/workContractors.ts), шаблоны писем
+// (вкладка "Шаблоны", один в один паттерн вкладки "Почта" →
+// mailbox_email_templates) и массовая рассылка по категории с вложением
+// (WorkContractorBulkSendModal, отдельная очередь work_contractor_bulk_send_jobs
+// + Edge Function process-work-contractor-bulk-send-jobs — своя, не
+// переиспользует bulk_send_jobs поставщиков, у той offer_id NOT NULL).
 //
 // Намеренно НЕ переиспользует EmailThread из SupplierCorrespondenceTab:
 // тот завязан на предложения Ресерча целиком (КП, ведомости материалов,
@@ -58,7 +86,24 @@ import { emailSendStatusLabel } from '../data/emailSendStatus';
 
 type EmailAttachment = { fileName: string; contentType: string; contentBase64: string };
 
-const emptyForm = { avitoUrl: '', email: '' };
+const TAB_CONTRACTORS = 'Подрядчики';
+const TAB_TEMPLATES = 'Шаблоны';
+const TABS = [TAB_CONTRACTORS, TAB_TEMPLATES];
+const ALL_CATEGORIES = 'Все категории';
+
+const emptyForm = {
+  avitoUrl: '',
+  email: '',
+  companyName: '',
+  website: '',
+  phone: '',
+  services: '',
+  address: '',
+  note: '',
+  category: '',
+  extraEmailsText: '',
+};
+const emptyTemplateForm = { name: '', subject: '', body: '' };
 
 function errorText(err: unknown, fallback: string): string {
   return err instanceof Error && err.message ? err.message : fallback;
@@ -74,12 +119,21 @@ function lettersLabel(count: number): string {
   return `${count} писем`;
 }
 
+// Доп. email'ы вводятся одной строкой через запятую/точку с запятой —
+// проще, чем городить список полей ради того, что почти всегда пусто.
+function parseExtraEmails(raw: string): string[] {
+  return [...new Set(raw.split(/[,;]/).map((s) => s.trim()).filter(Boolean))];
+}
+
 export function WorkContractors() {
+  const [tab, setTab] = useState(TAB_CONTRACTORS);
   const [contractors, setContractors] = useState<WorkContractor[]>([]);
   const [emails, setEmails] = useState<WorkContractorEmail[]>([]);
+  const [templates, setTemplates] = useState<WorkContractorTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState(ALL_CATEGORIES);
 
   const [formOpen, setFormOpen] = useState(false);
   // null — форма добавления, иначе редактируем этого подрядчика.
@@ -87,6 +141,14 @@ export function WorkContractors() {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const [bulkSendOpen, setBulkSendOpen] = useState(false);
+
+  const [templateFormOpen, setTemplateFormOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<WorkContractorTemplate | null>(null);
+  const [templateForm, setTemplateForm] = useState(emptyTemplateForm);
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [templateError, setTemplateError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchWorkContractors()
@@ -101,9 +163,22 @@ export function WorkContractors() {
     // Сбой здесь не должен прятать сам список — молча остаёмся с пустой
     // лентой, как и на других страницах проекта.
     fetchAllWorkContractorEmails().then(setEmails).catch(() => setEmails([]));
+    fetchWorkContractorTemplates().then(setTemplates).catch(() => setTemplates([]));
   }, []);
 
   const selected = contractors.find((c) => c.id === selectedId) ?? null;
+
+  // Категории для фильтра/формы/рассылки: пресет + то, что реально
+  // встречается у подрядчиков (обычный паттерн растущих полей, см. CLAUDE.md).
+  const categories = useMemo(() => {
+    const used = contractors.map((c) => c.category).filter(Boolean);
+    return [...new Set([...workContractorCategories, ...used])];
+  }, [contractors]);
+
+  const visibleContractors = useMemo(() => {
+    if (categoryFilter === ALL_CATEGORIES) return contractors;
+    return contractors.filter((c) => c.category === categoryFilter);
+  }, [contractors, categoryFilter]);
 
   // Открыли переписку — гасим непрочитанные этого подрядчика. Локальный
   // стейт правим сразу, не дожидаясь ответа: бейджик вкладки не должен
@@ -131,16 +206,38 @@ export function WorkContractors() {
 
   function openEdit(c: WorkContractor) {
     setEditing(c);
-    setForm({ avitoUrl: c.avitoUrl, email: c.email });
+    setForm({
+      avitoUrl: c.avitoUrl,
+      email: c.email,
+      companyName: c.companyName,
+      website: c.website,
+      phone: c.phone,
+      services: c.services,
+      address: c.address,
+      note: c.note,
+      category: c.category,
+      extraEmailsText: c.extraEmails.join(', '),
+    });
     setSaveError(null);
     setFormOpen(true);
   }
 
   async function handleSave() {
     if (saving) return;
-    const payload = { avitoUrl: form.avitoUrl.trim(), email: form.email.trim() };
-    if (!payload.avitoUrl && !payload.email) {
-      setSaveError('Заполните хотя бы одно поле — ссылку на Авито или email');
+    const payload = {
+      avitoUrl: form.avitoUrl.trim(),
+      email: form.email.trim(),
+      companyName: form.companyName.trim(),
+      website: form.website.trim(),
+      phone: form.phone.trim(),
+      services: form.services.trim(),
+      address: form.address.trim(),
+      note: form.note.trim(),
+      category: form.category.trim(),
+      extraEmails: parseExtraEmails(form.extraEmailsText),
+    };
+    if (!payload.avitoUrl && !payload.email && !payload.companyName) {
+      setSaveError('Заполните хотя бы одно поле — компанию, ссылку на Авито или email');
       return;
     }
     setSaving(true);
@@ -174,122 +271,362 @@ export function WorkContractors() {
     }
   }
 
+  function openTemplateAdd() {
+    setEditingTemplate(null);
+    setTemplateForm(emptyTemplateForm);
+    setTemplateError(null);
+    setTemplateFormOpen(true);
+  }
+
+  function openTemplateEdit(template: WorkContractorTemplate) {
+    setEditingTemplate(template);
+    setTemplateForm({ name: template.name, subject: template.subject, body: template.body });
+    setTemplateError(null);
+    setTemplateFormOpen(true);
+  }
+
+  async function handleTemplateSave() {
+    if (templateSaving) return;
+    const payload = {
+      name: templateForm.name.trim(),
+      subject: templateForm.subject.trim(),
+      body: templateForm.body,
+    };
+    if (!payload.name) {
+      setTemplateError('Дайте шаблону название — по нему его выбирать в письме');
+      return;
+    }
+    if (!payload.body.trim()) {
+      setTemplateError('Шаблон без текста письма ничего не подставит');
+      return;
+    }
+    setTemplateSaving(true);
+    setTemplateError(null);
+    try {
+      if (editingTemplate) {
+        const updated = await updateWorkContractorTemplate(editingTemplate.id, payload);
+        setTemplates((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      } else {
+        const created = await insertWorkContractorTemplate(payload);
+        setTemplates((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      }
+      setTemplateFormOpen(false);
+    } catch (err) {
+      setTemplateError(errorText(err, 'Не удалось сохранить шаблон'));
+    } finally {
+      setTemplateSaving(false);
+    }
+  }
+
+  async function handleTemplateDelete(template: WorkContractorTemplate) {
+    if (!window.confirm(`Удалить шаблон «${template.name}»? Уже отправленные письма это не изменит.`)) return;
+    try {
+      await deleteWorkContractorTemplate(template.id);
+      setTemplates((prev) => prev.filter((t) => t.id !== template.id));
+    } catch (err) {
+      setLoadError(errorText(err, 'Не удалось удалить шаблон'));
+    }
+  }
+
   return (
     <>
-      {/* Кнопка добавления — в шапке страницы, как у остальных разделов
-          админки (PageHeader action), а не отдельной строкой над списком:
-          вкладкой она жила рядом с описанием, странице так не положено. */}
       <PageHeader
         title="Подрядчики"
         action={
-          <Button icon={<Plus className="h-4 w-4" />} onClick={openAdd}>
-            Добавить подрядчика
-          </Button>
+          tab === TAB_CONTRACTORS ? (
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" icon={<Send className="h-4 w-4" />} onClick={() => setBulkSendOpen(true)}>
+                Массовая рассылка
+              </Button>
+              <Button icon={<Plus className="h-4 w-4" />} onClick={openAdd}>
+                Добавить подрядчика
+              </Button>
+            </div>
+          ) : (
+            <Button icon={<Plus className="h-4 w-4" />} onClick={openTemplateAdd}>
+              Добавить шаблон
+            </Button>
+          )
         }
       />
 
       <div className="flex flex-col gap-6">
-        <div className="text-sm text-ink-muted">
-          Подрядчики, найденные на Авито. Письмо уходит с адреса переписки — ответ подрядчика прилетает сюда же, в его
-          карточку.
-        </div>
+        <ToggleGroup options={TABS} value={tab} onChange={setTab} />
 
-      {loading && (
-        <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Загружаем подрядчиков...
-        </Card>
-      )}
-      {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
-      {!loading && !loadError && contractors.length === 0 && (
-        <Card className="py-10 text-center text-sm text-ink-muted">
-          Пока никого нет. Добавьте первого подрядчика — ссылку на его страницу на Авито и email.
-        </Card>
-      )}
+        {tab === TAB_CONTRACTORS && (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="text-sm text-ink-muted">
+                Подрядчики, найденные на Авито, и контакты по категориям (аренда лесов и т.п.). Письмо уходит с адреса
+                переписки — ответ подрядчика прилетает сюда же, в его карточку.
+              </div>
+              <Select
+                pill
+                options={[ALL_CATEGORIES, ...categories]}
+                value={categoryFilter}
+                onChange={setCategoryFilter}
+                triggerClassName="min-w-[200px]"
+              />
+            </div>
 
-      {!loading && contractors.length > 0 && (
-        <div className="grid gap-6 lg:grid-cols-[minmax(260px,340px)_1fr]">
+            {loading && (
+              <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Загружаем подрядчиков...
+              </Card>
+            )}
+            {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
+            {!loading && !loadError && visibleContractors.length === 0 && (
+              <Card className="py-10 text-center text-sm text-ink-muted">
+                {contractors.length === 0
+                  ? 'Пока никого нет. Добавьте первого подрядчика.'
+                  : 'В этой категории пока никого нет.'}
+              </Card>
+            )}
+
+            {!loading && !loadError && visibleContractors.length > 0 && (
+              <div className="grid gap-6 lg:grid-cols-[minmax(260px,340px)_1fr]">
+                <div className="flex flex-col gap-3">
+                  {visibleContractors.map((c) => {
+                    const own = emails.filter((e) => e.contractorId === c.id);
+                    const unread = own.filter((e) => e.direction === 'in' && !e.readAt).length;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setSelectedId(c.id)}
+                        className={cn(
+                          'flex flex-col gap-1 rounded-control border p-3 text-left transition-colors',
+                          c.id === selectedId
+                            ? 'border-primary bg-primary-soft/40'
+                            : 'border-border bg-surface hover:border-border-strong',
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate font-semibold text-ink">{workContractorTitle(c)}</span>
+                          {unread > 0 && <Badge tone="success">{unread}</Badge>}
+                        </div>
+                        <span className="truncate text-xs text-ink-muted">{c.email || 'Email не указан'}</span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {c.category && <Badge>{c.category}</Badge>}
+                          {own.length > 0 && <span className="text-xs text-ink-faint">{lettersLabel(own.length)}</span>}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {selected ? (
+                  <ContractorPanel
+                    key={selected.id}
+                    contractor={selected}
+                    emails={emails.filter((e) => e.contractorId === selected.id)}
+                    templates={templates}
+                    onEdit={() => openEdit(selected)}
+                    onDelete={() => void handleDelete(selected)}
+                    onEmailSent={(email) => setEmails((prev) => [...prev, email])}
+                  />
+                ) : (
+                  <Card className="flex items-center justify-center py-10 text-sm text-ink-muted">
+                    Выберите подрядчика слева, чтобы посмотреть переписку и написать письмо.
+                  </Card>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        {tab === TAB_TEMPLATES && (
           <div className="flex flex-col gap-3">
-            {contractors.map((c) => {
-              const own = emails.filter((e) => e.contractorId === c.id);
-              const unread = own.filter((e) => e.direction === 'in' && !e.readAt).length;
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setSelectedId(c.id)}
-                  className={cn(
-                    'flex flex-col gap-1 rounded-control border p-3 text-left transition-colors',
-                    c.id === selectedId ? 'border-primary bg-primary-soft/40' : 'border-border bg-surface hover:border-border-strong',
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate font-semibold text-ink">{workContractorTitle(c)}</span>
-                    {unread > 0 && <Badge tone="success">{unread}</Badge>}
+            <div className="text-sm text-ink-muted">
+              Шаблон подставляет тему и текст в письмо — дальше это обычный черновик, его можно править.{' '}
+              {WORK_CONTRACTOR_PLACEHOLDER_HINT} — подставляются из карточки подрядчика (или получателя рассылки).
+            </div>
+            {templates.length === 0 ? (
+              <Card className="py-10 text-center text-sm text-ink-muted">
+                Шаблонов пока нет. Добавьте первый — например, запрос цены на аренду лесов.
+              </Card>
+            ) : (
+              templates.map((template) => (
+                <Card key={template.id} className="flex flex-col gap-2">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <div className="font-semibold text-ink">{template.name}</div>
+                      <div className="text-sm text-ink-muted">{template.subject || 'Без темы'}</div>
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        title="Изменить"
+                        aria-label={`Изменить шаблон ${template.name}`}
+                        onClick={() => openTemplateEdit(template)}
+                        className="flex h-8 w-8 items-center justify-center rounded-control text-ink-faint hover:bg-surface-muted hover:text-ink"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        title="Удалить"
+                        aria-label={`Удалить шаблон ${template.name}`}
+                        onClick={() => void handleTemplateDelete(template)}
+                        className="flex h-8 w-8 items-center justify-center rounded-control text-ink-faint hover:bg-surface-muted hover:text-danger"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
-                  <span className="truncate text-xs text-ink-muted">{c.email || 'Email не указан'}</span>
-                  {own.length > 0 && <span className="text-xs text-ink-faint">{lettersLabel(own.length)}</span>}
-                </button>
-              );
-            })}
+                  <div className="whitespace-pre-wrap border-t border-border pt-2 text-sm text-ink">{template.body}</div>
+                </Card>
+              ))
+            )}
           </div>
+        )}
 
-          {selected ? (
-            <ContractorPanel
-              key={selected.id}
-              contractor={selected}
-              emails={emails.filter((e) => e.contractorId === selected.id)}
-              onEdit={() => openEdit(selected)}
-              onDelete={() => void handleDelete(selected)}
-              onEmailSent={(email) => setEmails((prev) => [...prev, email])}
-            />
-          ) : (
-            <Card className="flex items-center justify-center py-10 text-sm text-ink-muted">
-              Выберите подрядчика слева, чтобы посмотреть переписку и написать письмо.
-            </Card>
-          )}
-        </div>
-      )}
-
-      {/* Владелец, 2026-09-15: "все таблицы с работами переносим на страницу
-          Подрядчики, пока просто перенеси, потом поправим внешний вид той
-          страницы" — блок "Работы" (ContractorsResearch, свои таблицы
-          contractor_research_*) переехал сюда со страницы "Закупки" как есть,
-          без правок вёрстки. С подрядчиками с Авито выше у него общих данных
-          нет — это два независимых механизма, сведённые пока просто на одну
-          страницу; внешний вид владелец просил поправить отдельно. */}
-      <div className="flex flex-col gap-6 border-t border-border pt-8">
-        <div className="text-lg font-bold text-ink">Работы</div>
-        <ContractorsResearch />
-      </div>
+        {/* Владелец, 2026-09-15: "все таблицы с работами переносим на страницу
+            Подрядчики, пока просто перенеси, потом поправим внешний вид той
+            страницы" — блок "Работы" (ContractorsResearch, свои таблицы
+            contractor_research_*) переехал сюда со страницы "Закупки" как есть,
+            без правок вёрстки. С подрядчиками с Авито выше у него общих данных
+            нет — это два независимых механизма, сведённые пока просто на одну
+            страницу; внешний вид владелец просил поправить отдельно. Виден на
+            обеих вкладках намеренно не был — но раз он не про почту и не про
+            шаблоны, держим его вне табов, как и раньше. */}
+        {tab === TAB_CONTRACTORS && (
+          <div className="flex flex-col gap-6 border-t border-border pt-8">
+            <div className="text-lg font-bold text-ink">Работы</div>
+            <ContractorsResearch />
+          </div>
+        )}
 
         <Modal open={formOpen} onClose={() => setFormOpen(false)} title={editing ? 'Подрядчик' : 'Новый подрядчик'}>
-        <div className="flex flex-col gap-4">
-          <Input
-            label="Ссылка на страницу на Авито"
-            placeholder="https://www.avito.ru/..."
-            value={form.avitoUrl}
-            onChange={(e) => setForm((f) => ({ ...f, avitoUrl: e.target.value }))}
-          />
-          <Input
-            label="Email подрядчика"
-            type="email"
-            placeholder="mail@example.com"
-            value={form.email}
-            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-          />
-          {saveError && <div className="text-sm text-danger">{saveError}</div>}
-          <div className="flex flex-wrap gap-3">
-            <Button onClick={() => void handleSave()} disabled={saving}>
-              {saving ? 'Сохраняем...' : 'Сохранить'}
-            </Button>
-            <Button variant="secondary" onClick={() => setFormOpen(false)}>
-              Отмена
-            </Button>
+          <div className="flex flex-col gap-4">
+            <Input
+              label="Компания"
+              placeholder="Название компании"
+              value={form.companyName}
+              onChange={(e) => setForm((f) => ({ ...f, companyName: e.target.value }))}
+            />
+            <AddableSelect
+              label="Категория"
+              options={categories}
+              value={form.category}
+              onChange={(value) => setForm((f) => ({ ...f, category: value }))}
+              placeholder="Выберите категорию"
+              newPlaceholder="Название новой категории"
+            />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Input
+                label="Email"
+                type="email"
+                placeholder="mail@example.com"
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              />
+              <Input
+                label="Доп. email (через запятую)"
+                placeholder="second@example.com, third@example.com"
+                value={form.extraEmailsText}
+                onChange={(e) => setForm((f) => ({ ...f, extraEmailsText: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Input
+                label="Сайт"
+                placeholder="https://example.com"
+                value={form.website}
+                onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
+              />
+              <Input
+                label="Телефон"
+                placeholder="+7 (495) 000-00-00"
+                value={form.phone}
+                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              />
+            </div>
+            <Input
+              label="Ссылка на страницу на Авито"
+              placeholder="https://www.avito.ru/..."
+              value={form.avitoUrl}
+              onChange={(e) => setForm((f) => ({ ...f, avitoUrl: e.target.value }))}
+            />
+            <Input
+              label="Типы лесов / услуги"
+              placeholder="Рамные, клиновые, хомутовые, монтаж"
+              value={form.services}
+              onChange={(e) => setForm((f) => ({ ...f, services: e.target.value }))}
+            />
+            <Input
+              label="Адрес / склад"
+              placeholder="Москва, ..."
+              value={form.address}
+              onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+            />
+            <Textarea
+              label="Примечание"
+              rows={2}
+              placeholder="Что учесть перед письмом"
+              value={form.note}
+              onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+            />
+            {saveError && <div className="text-sm text-danger">{saveError}</div>}
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={() => void handleSave()} disabled={saving}>
+                {saving ? 'Сохраняем...' : 'Сохранить'}
+              </Button>
+              <Button variant="secondary" onClick={() => setFormOpen(false)}>
+                Отмена
+              </Button>
+            </div>
           </div>
-        </div>
+        </Modal>
+
+        <Modal
+          open={templateFormOpen}
+          onClose={() => setTemplateFormOpen(false)}
+          title={editingTemplate ? 'Шаблон письма' : 'Новый шаблон'}
+        >
+          <div className="flex flex-col gap-4">
+            <Input
+              label="Название шаблона"
+              placeholder="Например, «Запрос цены на аренду лесов»"
+              value={templateForm.name}
+              onChange={(e) => setTemplateForm((f) => ({ ...f, name: e.target.value }))}
+            />
+            <Input
+              label="Тема письма"
+              placeholder="Например, «Запрос цены на аренду строительных лесов»"
+              value={templateForm.subject}
+              onChange={(e) => setTemplateForm((f) => ({ ...f, subject: e.target.value }))}
+            />
+            <Textarea
+              label="Текст письма"
+              rows={10}
+              placeholder={`Здравствуйте!\n\n...`}
+              value={templateForm.body}
+              onChange={(e) => setTemplateForm((f) => ({ ...f, body: e.target.value }))}
+            />
+            <div className="text-xs text-ink-faint">{WORK_CONTRACTOR_PLACEHOLDER_HINT}</div>
+            {templateError && <div className="text-sm text-danger">{templateError}</div>}
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={() => void handleTemplateSave()} disabled={templateSaving}>
+                {templateSaving ? 'Сохраняем...' : 'Сохранить'}
+              </Button>
+              <Button variant="secondary" onClick={() => setTemplateFormOpen(false)}>
+                Отмена
+              </Button>
+            </div>
+          </div>
         </Modal>
       </div>
+
+      <WorkContractorBulkSendModal
+        open={bulkSendOpen}
+        onClose={() => setBulkSendOpen(false)}
+        contractors={contractors}
+        categories={categories}
+        templates={templates}
+        onQueued={() => {}}
+      />
     </>
   );
 }
@@ -300,22 +637,25 @@ export function WorkContractors() {
 function ContractorPanel({
   contractor,
   emails,
+  templates,
   onEdit,
   onDelete,
   onEmailSent,
 }: {
   contractor: WorkContractor;
   emails: WorkContractorEmail[];
+  templates: WorkContractorTemplate[];
   onEdit: () => void;
   onDelete: () => void;
   onEmailSent: (email: WorkContractorEmail) => void;
 }) {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
-  // Владелец: "никаких автоматических файлов к письму не прикрепляется, я
-  // буду вручную писать текст и прикреплять все" — поэтому здесь только то,
-  // что выбрали в проводнике; ни карточки организации, ни ведомости, в
-  // отличие от переписки с поставщиками (SupplierCorrespondenceTab).
+  const [templateName, setTemplateName] = useState('');
+  // Владелец, 2026-09-14: "никаких автоматических файлов к письму не
+  // прикрепляется, я буду вручную писать текст и прикреплять все" — поэтому
+  // здесь только то, что выбрали в проводнике; ни карточки организации, ни
+  // ведомости, в отличие от переписки с поставщиками (SupplierCorrespondenceTab).
   const [attachments, setAttachments] = useState<EmailAttachment[]>([]);
   const [attaching, setAttaching] = useState(false);
   const [sending, setSending] = useState(false);
@@ -324,6 +664,16 @@ function ContractorPanel({
 
   // Свежие сверху — та же раскладка, что у переписки с поставщиками.
   const ordered = useMemo(() => [...emails].reverse(), [emails]);
+
+  function handlePickTemplate(name: string) {
+    const template = templates.find((t) => t.name === name);
+    if (!template) return;
+    if (body.trim() && !window.confirm('Заменить набранный текст письма шаблоном?')) return;
+    const rendered = renderWorkContractorTemplate(template, { contractor });
+    setTemplateName(name);
+    setSubject(rendered.subject || subject);
+    setBody(rendered.body);
+  }
 
   async function handleFilesPicked(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -353,6 +703,7 @@ function ContractorPanel({
       onEmailSent(email);
       setSubject('');
       setBody('');
+      setTemplateName('');
       setAttachments([]);
     } catch (err) {
       setSendError(errorText(err, 'Не удалось отправить письмо'));
@@ -365,8 +716,22 @@ function ContractorPanel({
     <Card className="flex flex-col gap-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <div className="text-lg font-bold text-ink">{workContractorTitle(contractor)}</div>
-          {contractor.avitoUrl ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-lg font-bold text-ink">{workContractorTitle(contractor)}</div>
+            {contractor.category && <Badge>{contractor.category}</Badge>}
+          </div>
+          {contractor.website && (
+            <a
+              href={contractor.website.startsWith('http') ? contractor.website : `https://${contractor.website}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex w-fit items-center gap-1 text-sm text-primary hover:underline"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              {contractor.website}
+            </a>
+          )}
+          {contractor.avitoUrl && (
             <a
               href={contractor.avitoUrl}
               target="_blank"
@@ -376,10 +741,15 @@ function ContractorPanel({
               <ExternalLink className="h-3.5 w-3.5" />
               Страница на Авито
             </a>
-          ) : (
-            <span className="text-sm text-ink-faint">Ссылка на Авито не указана</span>
           )}
           <span className="text-sm text-ink-muted">{contractor.email || 'Email не указан'}</span>
+          {contractor.extraEmails.length > 0 && (
+            <span className="text-xs text-ink-faint">Доп. email: {contractor.extraEmails.join(', ')}</span>
+          )}
+          {contractor.phone && <span className="text-sm text-ink-muted">{contractor.phone}</span>}
+          {contractor.services && <span className="text-sm text-ink-muted">{contractor.services}</span>}
+          {contractor.address && <span className="text-sm text-ink-muted">{contractor.address}</span>}
+          {contractor.note && <span className="text-sm text-ink-faint">{contractor.note}</span>}
           {/* Адрес переписки — на виду, как и у поставщиков: по нему видно,
               куда прилетит ответ, и его можно дать подрядчику напрямую. */}
           <span className="text-xs text-ink-faint">Адрес переписки: {workContractorEmailAddress(contractor.shortCode)}</span>
@@ -400,6 +770,14 @@ function ContractorPanel({
           <div className="text-sm text-ink-muted">
             Чтобы написать подрядчику, добавьте его email в карточке («Изменить»).
           </div>
+        )}
+        {templates.length > 0 && (
+          <Select
+            placeholder="Шаблон письма"
+            options={templates.map((t) => t.name)}
+            value={templateName}
+            onChange={handlePickTemplate}
+          />
         )}
         <Input placeholder="Тема" value={subject} onChange={(e) => setSubject(e.target.value)} />
         <Textarea

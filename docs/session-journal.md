@@ -3,6 +3,37 @@
 Хронологический список, что уже сделано — не дублировать работу, не переспрашивать то,
 что уже решено. Дополнять новыми записями сверху, старые не переписывать.
 
+- **2026-09-19** — **Страница "Подрядчики": категории/тег "ВК", 33 контакта аренды строительных лесов, шаблоны писем, массовая рассылка по категории.**
+  Владелец прислал xlsx с 33 подрядчиками аренды строительных лесов (Москва/МО)
+  и попросил четыре вещи разом. Миграция
+  `supabase/migrations/20260919-work-contractors-fields.sql` (применена):
+  1) `work_contractors` расширена с двух полей (`avitoUrl`/`email`) до полной
+  карточки — `company_name`, `website`, `phone`, `services`, `address`, `note`,
+  `category` (растущий тег, пресет `workContractorCategories` в
+  `data/workContractors.ts`), `extra_emails text[]`; 2) тег **"ВК"** проставлен
+  11 контактам, которым уже отправлено письмо (`work_contractor_emails` с
+  `direction='out'`); 3) 33 новых контакта вставлены с категорией **"Аренда
+  лесов"** — первый email из ячейки таблицы стал основным (участвует в
+  переписке), остальные легли в `extra_emails`; 4) новая таблица
+  `work_contractor_email_templates` — вкладка "Шаблоны" на странице (тумблер
+  "Подрядчики"/"Шаблоны"), один в один паттерн `mailbox_email_templates`
+  (страница "Почта"), плейсхолдеры `{компания}/{категория}/{email}`
+  (`data/workContractorTemplates.ts`); 5) массовая рассылка по категории с
+  вложением файла — своя пара таблиц-очереди `work_contractor_bulk_send_jobs`/
+  `_items` (НЕ переиспользует `bulk_send_jobs` поставщиков — там
+  `offer_id` not null и привязан к `supplier_research_offers`), Edge Function
+  `process-work-contractor-bulk-send-jobs` (задеплоена через Management API,
+  multipart metadata+file — см. запись 2026-09-12 про этот же приём), тот же
+  темп 25-35с между письмами, что и у поставщиков; `pg_cron` заведён
+  (`cron.job`, jobid 7, `* * * * *`). UI: `WorkContractorBulkSendModal.tsx`
+  (категория → получатели с непустым email, за вычетом уже стоящих в
+  очереди → шаблон/текст → один файл → "Поставить в очередь"), кнопка в
+  шапке страницы. Заодно закрыт пробел в `scripts/audit-rls.mjs`:
+  `work_contractors`/`work_contractor_emails` не были в списке `CLOSED` с
+  самого заведения (2026-09-14) — добавлены вместе с тремя новыми таблицами,
+  аудит проходит (63 таблицы, 0 нарушений). `npx tsc -b`, `npm run build:app`,
+  `npm run lint`, `npm run test` (300/300) — чисто.
+
 - **2026-09-18** — **Дву-источниковый сбор организаций-арендаторов (2GIS + Яндекс.Карты) на `preview`, ветка `claude/adoring-allen-0fckvb` (не смержена).**
   Новые таблицы `business_center_tenant_source_snapshots` (source in
   yandex_maps/2gis/manual, отдельно от старой `business_center_2gis_snapshots`)
