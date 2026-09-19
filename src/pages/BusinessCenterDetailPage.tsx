@@ -1407,7 +1407,7 @@ export function BusinessCenterDetailPage() {
             <h2 className="text-lg font-bold text-ink">Вы собственник или управляющая компания?</h2>
             <p className="text-sm leading-relaxed text-ink-muted">
               Данные по зданию собраны из открытых источников — prometr.by, 2ГИС, объявления Kufar,
-              Realt и Domovita. Если что-то устарело или указано неверно, напишите: поправим и пересчитаем
+              Realt, Domovita и Megapolis. Если что-то устарело или указано неверно, напишите: поправим и пересчитаем
               сравнения и индекс.
             </p>
             <a
