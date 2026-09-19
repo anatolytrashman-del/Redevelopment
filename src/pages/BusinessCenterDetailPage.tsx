@@ -230,7 +230,8 @@ export function BusinessCenterDetailPage() {
   }, [slug]);
 
   // Реальные отзывы с Яндекс.Карт (не ручные цитаты из highlights) — пока
-  // собраны точечным импортом .webarchive для части БЦ (2026-09-19), у
+  // собраны автоматическим разбором .webarchive/.html при сохранении
+  // карточки БЦ для части БЦ (см. BusinessCentersAdminTab.tsx), у
   // остальных запрос просто вернёт пустой список, и WhatTheySayBlock
   // откатится на старые ручные цитаты.
   useEffect(() => {
