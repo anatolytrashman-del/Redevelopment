@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -sS -X DELETE \"https://iohcdylttyuhwovztrbk.supabase.co/storage/v1/object/object-documents\"*)"
+    ]
+  }
+}
