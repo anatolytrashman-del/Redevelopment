@@ -1653,7 +1653,7 @@ function formatSchedule(schedule: Gis2Schedule): string[] {
   return lines;
 }
 
-const TENANT_PAGE_SIZE = 16;
+const TENANT_PAGE_SIZE = 6;
 const ALL_TENANT_SEGMENTS = 'Все';
 
 type TenantDirectoryEntry = TenantOrganization & { segment: string };
@@ -1661,7 +1661,7 @@ type TenantDirectoryEntry = TenantOrganization & { segment: string };
 function TenantOrganizationsBlock({ organizations }: { organizations: TenantOrganization[] }) {
   const [query, setQuery] = useState('');
   const [activeSegment, setActiveSegment] = useState(ALL_TENANT_SEGMENTS);
-  const [visibleCount, setVisibleCount] = useState(TENANT_PAGE_SIZE);
+  const [page, setPage] = useState(0);
   const entries = useMemo<TenantDirectoryEntry[]>(() => organizations
     .map((organization) => ({
       ...organization,
@@ -1680,19 +1680,20 @@ function TenantOrganizationsBlock({ organizations }: { organizations: TenantOrga
     const matchesQuery = !normalizedQuery || `${entry.name} ${entry.category}`.toLocaleLowerCase('ru-RU').includes(normalizedQuery);
     return matchesSegment && matchesQuery;
   });
-  const visibleEntries = filtered.slice(0, visibleCount);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / TENANT_PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount - 1);
+  const visibleEntries = filtered.slice(currentPage * TENANT_PAGE_SIZE, (currentPage + 1) * TENANT_PAGE_SIZE);
   const totalReviews = entries.reduce((sum, entry) => sum + (entry.reviewCount ?? 0), 0);
   const rated = entries.filter((entry) => entry.rating != null);
   const averageRating = rated.length > 0
     ? rated.reduce((sum, entry) => sum + (entry.rating ?? 0), 0) / rated.length
     : null;
-  const maxSegmentCount = segments[0]?.[1] ?? 1;
 
-  useEffect(() => setVisibleCount(TENANT_PAGE_SIZE), [query, activeSegment]);
+  useEffect(() => setPage(0), [query, activeSegment]);
 
   return (
     <div id="tenants" className={cn('mt-6 scroll-mt-32 overflow-hidden', glassCardClass)} style={glassCardShadow}>
-      <div className="flex flex-col gap-6 p-6 sm:p-8">
+      <div className="flex flex-col gap-4 p-5 sm:p-6">
         <div>
           <h2 className="flex items-center gap-2 text-xl font-bold text-ink">
             <Building2 className="h-5 w-5 shrink-0 text-primary" />
@@ -1703,54 +1704,20 @@ function TenantOrganizationsBlock({ organizations }: { organizations: TenantOrga
           </p>
         </div>
 
-        <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-border bg-border xl:grid-cols-4">
-          <TenantStat icon={Users} value={String(entries.length)} label="организаций" />
-          <TenantStat icon={Building2} value={String(segments.length)} label="направлений" />
-          <TenantStat icon={MessageSquareQuote} value={formatCompactNumber(totalReviews)} label="отзывов суммарно" />
-          <TenantStat icon={Star} value={averageRating?.toFixed(1) ?? '—'} label={rated.length > 0 ? `средний рейтинг · ${rated.length} оценено` : 'рейтинг не указан'} />
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-y border-border py-3 text-sm text-ink-muted">
+          <span><strong className="font-semibold text-ink">{entries.length}</strong> организаций</span>
+          <span><strong className="font-semibold text-ink">{segments.length}</strong> направлений</span>
+          <span><strong className="font-semibold text-ink">{formatCompactNumber(totalReviews)}</strong> отзывов</span>
+          {averageRating != null && (
+            <span><strong className="font-semibold text-ink">{averageRating.toFixed(1)}</strong> средний рейтинг · {rated.length} оценено</span>
+          )}
+          <span className="text-xs text-ink-faint">
+            Лидируют: {segments.slice(0, 3).map(([segment, count]) => `${segment} ${count}`).join(' · ')}
+          </span>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.55fr)]">
-          <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-ink-muted">Направления арендаторов</p>
-            <div className="flex flex-wrap gap-2">
-              <TenantSegmentButton
-                label={ALL_TENANT_SEGMENTS}
-                count={entries.length}
-                active={activeSegment === ALL_TENANT_SEGMENTS}
-                onClick={() => setActiveSegment(ALL_TENANT_SEGMENTS)}
-              />
-              {segments.map(([segment, count]) => (
-                <TenantSegmentButton
-                  key={segment}
-                  label={segment}
-                  count={count}
-                  active={activeSegment === segment}
-                  onClick={() => setActiveSegment(segment)}
-                />
-              ))}
-            </div>
-          </div>
-          <div className="rounded-2xl bg-surface-muted/70 p-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-ink-muted">Структура</p>
-            <div className="space-y-2.5">
-              {segments.slice(0, 5).map(([segment, count]) => (
-                <button key={segment} type="button" onClick={() => setActiveSegment(segment)} className="block w-full text-left">
-                  <span className="mb-1 flex items-center justify-between gap-3 text-xs">
-                    <span className="truncate font-medium text-ink">{segment}</span>
-                    <span className="shrink-0 text-ink-muted">{count} · {Math.round(count / entries.length * 100)}%</span>
-                  </span>
-                  <span className="block h-1.5 overflow-hidden rounded-full bg-white/80">
-                    <span className="block h-full rounded-full bg-primary/75" style={{ width: `${Math.max(7, count / maxSegmentCount * 100)}%` }} />
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <label className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-border bg-white/65 px-3 sm:max-w-md">
+        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(220px,0.45fr)]">
+          <label className="flex min-h-10 w-full items-center gap-2 rounded-xl border border-border bg-white/65 px-3">
             <Search className="h-4 w-4 shrink-0 text-ink-muted" />
             <input
               type="search"
@@ -1761,16 +1728,28 @@ function TenantOrganizationsBlock({ organizations }: { organizations: TenantOrga
               className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
             />
           </label>
-          <p className="text-sm text-ink-muted">Найдено: <span className="font-semibold text-ink">{filtered.length}</span></p>
+          <label className="min-w-0">
+            <span className="sr-only">Направление арендаторов</span>
+            <select
+              value={activeSegment}
+              onChange={(event) => setActiveSegment(event.target.value)}
+              className="min-h-10 w-full rounded-xl border border-border bg-white/65 px-3 text-sm font-medium text-ink outline-none focus:border-primary/40"
+            >
+              <option value={ALL_TENANT_SEGMENTS}>Все направления · {entries.length}</option>
+              {segments.map(([segment, count]) => (
+                <option key={segment} value={segment}>{segment} · {count}</option>
+              ))}
+            </select>
+          </label>
         </div>
 
         {visibleEntries.length > 0 ? (
-          <div className="grid gap-px overflow-hidden rounded-2xl border border-border bg-border md:grid-cols-2">
+          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border xl:grid-cols-3">
             {visibleEntries.map((entry, index) => (
-              <div key={`${entry.name}-${entry.category}-${index}`} className="flex min-w-0 flex-col justify-between gap-3 bg-white/72 p-4 sm:p-5">
+              <div key={`${entry.name}-${entry.category}-${index}`} className="flex min-h-24 min-w-0 flex-col justify-between gap-2 bg-white/72 p-3.5">
                 <div className="min-w-0">
-                  <p className="font-semibold leading-snug text-ink">{entry.name}</p>
-                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ink-muted">{entry.category}</p>
+                  <p className="truncate text-sm font-semibold leading-snug text-ink" title={entry.name}>{entry.name}</p>
+                  <p className="mt-1 line-clamp-1 text-xs leading-relaxed text-ink-muted" title={entry.category}>{entry.category}</p>
                 </div>
                 <div className="flex items-center justify-between gap-3 text-xs">
                   <span className="truncate text-ink-muted">{entry.segment}</span>
@@ -1786,41 +1765,39 @@ function TenantOrganizationsBlock({ organizations }: { organizations: TenantOrga
             ))}
           </div>
         ) : (
-          <div className="rounded-2xl border border-dashed border-border px-5 py-10 text-center text-sm text-ink-muted">
+          <div className="rounded-2xl border border-dashed border-border px-5 py-8 text-center text-sm text-ink-muted">
             По этому запросу организаций не найдено.
           </div>
         )}
 
-        {visibleCount < filtered.length && (
-          <button type="button" onClick={() => setVisibleCount((count) => count + TENANT_PAGE_SIZE)} className="self-center rounded-full border border-border bg-white/70 px-5 py-2.5 text-sm font-semibold text-ink transition hover:border-primary/30 hover:text-primary">
-            Показать ещё {Math.min(TENANT_PAGE_SIZE, filtered.length - visibleCount)}
-          </button>
-        )}
-        <p className="text-xs text-ink-muted">Источник — Яндекс Карты. Состав организаций может меняться.</p>
+        <div className="flex flex-col gap-2 text-xs text-ink-muted sm:flex-row sm:items-center sm:justify-between">
+          <p>Источник — Яндекс Карты. Состав организаций может меняться.</p>
+          {filtered.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="mr-1">
+                {currentPage * TENANT_PAGE_SIZE + 1}–{Math.min((currentPage + 1) * TENANT_PAGE_SIZE, filtered.length)} из {filtered.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((value) => Math.max(0, value - 1))}
+                disabled={currentPage === 0}
+                className="rounded-lg border border-border bg-white/70 px-3 py-1.5 font-semibold text-ink transition hover:border-primary/30 disabled:cursor-default disabled:opacity-35"
+              >
+                Назад
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))}
+                disabled={currentPage >= pageCount - 1}
+                className="rounded-lg border border-border bg-white/70 px-3 py-1.5 font-semibold text-ink transition hover:border-primary/30 disabled:cursor-default disabled:opacity-35"
+              >
+                Дальше
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
-  );
-}
-
-function TenantStat({ icon: Icon, value, label }: { icon: typeof Users; value: string; label: string }) {
-  return (
-    <div className="flex min-h-24 items-center gap-3 bg-white/72 p-4 sm:p-5">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/8 text-primary">
-        <Icon className="h-5 w-5" />
-      </span>
-      <span className="min-w-0">
-        <span className="block text-xl font-bold leading-none text-ink">{value}</span>
-        <span className="mt-1.5 block text-xs leading-snug text-ink-muted">{label}</span>
-      </span>
-    </div>
-  );
-}
-
-function TenantSegmentButton({ label, count, active, onClick }: { label: string; count: number; active: boolean; onClick: () => void }) {
-  return (
-    <button type="button" onClick={onClick} className={cn('rounded-full border px-3 py-2 text-xs font-semibold transition', active ? 'border-primary bg-primary text-white' : 'border-border bg-white/65 text-ink-muted hover:border-primary/30 hover:text-ink')}>
-      {label} <span className={active ? 'text-white/75' : 'text-ink-faint'}>{count}</span>
-    </button>
   );
 }
 
