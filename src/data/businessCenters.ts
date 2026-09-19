@@ -141,6 +141,14 @@ export interface BusinessCenter {
   pros: string[];
   cons: string[];
   verdictEdited: boolean;
+  // Галочка в списке БЦ в админке (владелец, 2026-09-21) — "это здание
+  // разобрано, Светлане на него больше не нужно заходить": либо отзывы
+  // реально собраны (handleSubmit в BusinessCentersAdminTab.tsx ставит
+  // автоматически, как только импорт отзывов из веб-архива прошёл
+  // успешно), либо это осознанное "неприменимо" для конкретного здания
+  // (напр. «Аден» — по факту гостиница, не классический БЦ, отзывов с
+  // Яндекс.Карт по нему не будет никогда) — тогда ставится вручную.
+  reviewsChecked: boolean;
 
   // --- Производные колонки (Д1/Д2 плана docs/bc-catalog-redesign-plan.md) ---
   // Всё ниже НЕ редактируется из приложения: считает триггер в базе
@@ -333,6 +341,7 @@ export interface BusinessCenterRow {
   pros: string[] | null;
   cons: string[] | null;
   verdict_edited: boolean | null;
+  reviews_checked: boolean | null;
   photos: string[] | null;
   status: string | null;
   sort_order: number;

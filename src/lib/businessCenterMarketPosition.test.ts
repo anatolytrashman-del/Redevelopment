@@ -12,7 +12,7 @@ function bc(slug: string, lat: number | null, lng: number | null): BusinessCente
     businessClass: null, totalArea: null, yearBuilt: null, floors: null, developer: null, metro: null,
     parking: null, website: null, description: null, rentalInfo: null, highlights: [], mapSnapshotFiles: [],
     tenantOrganizations: [], technicalParams: [], nearestMetroStations: [], verdict: null, pros: [], cons: [],
-    verdictEdited: false, floorPlateArea: null, officeArea: null, layoutTypes: [], elevators: null,
+    verdictEdited: false, reviewsChecked: false, floorPlateArea: null, officeArea: null, layoutTypes: [], elevators: null,
     parkingRatio: null, airConditioning: null, ceilingHeight: null, managementType: null,
     metroDistanceBucket: null, freeSpaceMin: null, freeSpaceMax: null, infraInternal: [], infraNearby: [],
     lat, lng, gisRating: null, gisReviewCount: null, is24x7: null, accessibility: [], photos: [],

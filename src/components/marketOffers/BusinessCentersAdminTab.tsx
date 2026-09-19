@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Loader2, Pencil, Plus, Trash2, Upload, X } from 'lucide-react';
+import { CheckCircle2, Circle, Loader2, Pencil, Plus, Trash2, Upload, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import { Modal } from '../ui/Modal';
@@ -93,6 +93,7 @@ interface FormState {
   rentalParking: string;
   rentalContacts: string;
   highlights: HighlightSection[]; // "Интересные факты" — произвольный набор блоков
+  reviewsChecked: boolean; // галочка "отзывы разобраны" в списке — см. комментарий у поля в data/businessCenters.ts
   tenantOrganizations: TenantOrganization[]; // организации внутри здания
   tenantOrganizationsBulk: string; // черновик для вставки списком (не сохраняется как есть)
   mapSnapshotFiles: DocumentFile[]; // уже загруженные
@@ -127,6 +128,7 @@ const EMPTY_FORM: FormState = {
   rentalParking: '',
   rentalContacts: '',
   highlights: [],
+  reviewsChecked: false,
   tenantOrganizations: [],
   tenantOrganizationsBulk: '',
   mapSnapshotFiles: [],
@@ -162,6 +164,7 @@ function centerToForm(c: BusinessCenter): FormState {
     rentalParking: c.rentalInfo?.parking ?? '',
     rentalContacts: c.rentalInfo?.contacts ?? '',
     highlights: c.highlights,
+    reviewsChecked: c.reviewsChecked,
     tenantOrganizations: c.tenantOrganizations,
     tenantOrganizationsBulk: '',
     mapSnapshotFiles: c.mapSnapshotFiles,
@@ -244,6 +247,7 @@ export function BusinessCentersAdminTab() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [togglingReviewsId, setTogglingReviewsId] = useState<string | null>(null);
   // Адреса отдельных корпусов — структурная таблица, которую заполняет
   // scripts/capture-yandex-bc-tenants.mjs (сейчас есть только у «Проспекта»,
   // 4 строения). Владелец, 2026-09-20: "выводить адрес БЦ, включая разные
@@ -400,7 +404,8 @@ export function BusinessCentersAdminTab() {
         highlights: highlightsForSave,
         tenantOrganizations: mergeTenantOrganizations(buildTenantOrganizations(form), autoTenantOrganizations),
         // Старые записи сохраняются как есть, чтобы их можно было отвязать
-        // руками; новых здесь больше не появляется.
+        // руками; новых здесь больше не появляется (файлы больше не
+        // загружаются в Storage — см. комментарий у handleSubmit).
         mapSnapshotFiles: form.mapSnapshotFiles,
         // Не редактируется в этой форме (см. комментарий у
         // BusinessCenter.technicalParams в data/businessCenters.ts — заполняется
@@ -429,6 +434,10 @@ export function BusinessCentersAdminTab() {
         pros: splitLines(form.pros),
         cons: splitLines(form.cons),
         verdictEdited: Boolean(form.verdict.trim() || form.pros.trim() || form.cons.trim()),
+        // Отзывы этим сохранением реально прогрузились — ставим галочку
+        // сами, Светлане отдельно кликать не нужно. Ручную отметку (напр.
+        // «Аден» — вообще без отзывов) не трогаем и не сбрасываем.
+        reviewsChecked: autoReviews.length > 0 ? true : form.reviewsChecked,
       };
       if (editing === 'new') {
         await insertBusinessCenter(payload);
@@ -462,6 +471,21 @@ export function BusinessCentersAdminTab() {
       setFormError(errorMessage(err, 'Не удалось сохранить — проверьте поля (slug должен быть уникальным) и попробуйте ещё раз.'));
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Быстрый клик прямо в списке, без открытия карточки — та же цель, что и
+  // у "Удалить" рядом: разобрать все ~140 БЦ, не заходя в каждый ради одной
+  // галочки. Частичный update (reviewsChecked) не трогает остальные поля.
+  async function toggleReviewsChecked(c: BusinessCenter) {
+    setTogglingReviewsId(c.id);
+    try {
+      await updateBusinessCenter(c.id, { reviewsChecked: !c.reviewsChecked });
+      load();
+    } catch {
+      setError('Не удалось обновить галочку — попробуйте ещё раз.');
+    } finally {
+      setTogglingReviewsId(null);
     }
   }
 
@@ -528,7 +552,41 @@ export function BusinessCentersAdminTab() {
                 const multiCardHint = parseHighlightRatings(c.highlights).some((r) => r.corpusCount > 1);
                 return (
                 <tr key={c.id} className="border-b border-border last:border-0">
-                  <td className="max-w-[240px] px-4 py-3 font-medium text-ink">{c.name}</td>
+                  <td className="max-w-[240px] px-4 py-3 font-medium text-ink">
+                    <span className="inline-flex items-center gap-1.5">
+                      {/* Галочка "разобрано" — владелец, 2026-09-21: по
+                          «Адену» (по факту гостиница, не классический БЦ,
+                          отзывов с карт не будет никогда) сначала просили
+                          убрать из списка, потом — оставить, но пометить
+                          видимой галочкой, не убирать. Ставится сама, как
+                          только в этом сохранении реально удалось прогрузить
+                          отзывы (handleSubmit, reviewsChecked в payload), для
+                          Адена и подобных случаев — вручную кликом здесь.
+                          Задним числом простановлена для всех БЦ, где отзывы
+                          в базе уже есть на момент этой правки (минимум
+                          «Порт»), плюс «Аден». */}
+                      <button
+                        type="button"
+                        onClick={() => toggleReviewsChecked(c)}
+                        disabled={togglingReviewsId === c.id}
+                        aria-label={c.reviewsChecked ? 'Отзывы разобраны — нажмите, чтобы снять отметку' : 'Отзывы ещё не разобраны — нажмите, чтобы отметить'}
+                        title={c.reviewsChecked ? 'Отзывы собраны (или БЦ не нуждается в сборе)' : 'Отзывы ещё не собраны'}
+                        className={cn(
+                          'flex h-4 w-4 shrink-0 items-center justify-center rounded-full disabled:opacity-50',
+                          c.reviewsChecked ? 'text-primary' : 'text-ink-faint hover:text-ink-muted',
+                        )}
+                      >
+                        {togglingReviewsId === c.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : c.reviewsChecked ? (
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        ) : (
+                          <Circle className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                      {c.name}
+                    </span>
+                  </td>
                   <td className="max-w-[280px] px-4 py-3 text-xs text-ink-muted">
                     {buildingAddresses && buildingAddresses.length > 1 ? (
                       <div className="flex flex-col gap-0.5">
