@@ -389,7 +389,15 @@ export function BusinessCentersAdminTab() {
       const autoReviews = [...autoReviewsBySlugKey.values()];
 
       let highlightsForSave = buildHighlights(form);
-      if (autoRating) {
+      // У БЦ с несколькими отдельными карточками на Яндекс.Картах (напр.
+      // «Порт» — 3 очереди) текст рейтинга держит сводку по ВСЕМ корпусам
+      // сразу и набирается вручную/ресёрчем — один вновь прикреплённый файл
+      // видит только СВОЮ карточку и однажды уже затёр эту сводку одним
+      // числом (владелец, 2026-09-20/21: "у порта пропала инфа про
+      // несколько корпусов"). Автообновление рейтинга — только когда
+      // существующий текст ещё не про несколько корпусов.
+      const existingRatingIsMultiCorpus = parseHighlightRatings(highlightsForSave).some((r) => r.corpusCount > 1);
+      if (autoRating && !existingRatingIsMultiCorpus) {
         const text = formatRatingHighlightText(autoRating);
         const idx = highlightsForSave.findIndex((h) => h.icon === 'rating');
         if (idx >= 0) highlightsForSave = highlightsForSave.map((h, i) => (i === idx ? { ...h, text } : h));
