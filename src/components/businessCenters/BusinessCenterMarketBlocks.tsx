@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Building2, Gauge, History, MessageSquare, Star } from 'lucide-react';
+import { Building2, Gauge, History, MessageSquare, Star, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { BusinessCenter } from '../../data/businessCenters';
+import type { BusinessCenterReview } from '../../data/businessCenterReviews';
 import type { Gis2TenantOrganization, TenantIndustryCityProfile } from '../../data/businessCenter2gis';
 import { TENANT_INDUSTRY_OTHER, tenantIndustryLabel } from '../../data/tenantIndustries';
 import { parseHighlightRatings, parseReviewQuote } from '../../lib/businessCenterDisplay';
@@ -162,7 +163,20 @@ function ReviewStars({ stars }: { stars: number }) {
   );
 }
 
-export function WhatTheySayBlock({ center, reviewQuotes }: { center: BusinessCenter; reviewQuotes: string[] }) {
+// Сколько реальных отзывов показывать — сетка 2 колонки, 3 ряда. Дальше
+// уже не "самое главное, что говорят", а простыня — за полным списком
+// пусть идут на сам Яндекс (это не архив отзывов, а витрина).
+const MAX_REAL_REVIEWS = 6;
+
+export function WhatTheySayBlock({
+  center,
+  reviewQuotes,
+  reviews,
+}: {
+  center: BusinessCenter;
+  reviewQuotes: string[];
+  reviews: BusinessCenterReview[];
+}) {
   const yandexRatings = useMemo(() => parseHighlightRatings(center.highlights), [center]);
   const hasGis = center.gisRating != null;
   // Порядок цитат — как в источнике (highlights), не пересортирован по
@@ -170,7 +184,16 @@ export function WhatTheySayBlock({ center, reviewQuotes }: { center: BusinessCen
   // владелец, 2026-09-19, обсуждая этот же блок: "если будут только
   // позитивные, это исказит картину".
   const quotes = useMemo(() => reviewQuotes.map(parseReviewQuote), [reviewQuotes]);
-  if (yandexRatings.length === 0 && !hasGis && quotes.length === 0) return null;
+  // Реальные отзывы (fetchBusinessCenterReviews уже отдаёт их отсортированными
+  // по нетто-голосам) вытесняют ручные цитаты, когда они собраны для этого
+  // здания — тот же принцип "не мы выбираем, что показать", только годится
+  // не для 5 кураторских цитат, а для сотни настоящих: владелец, 2026-09-19,
+  // увидев, что счёт упоминаний темы без разбора тональности ничего не
+  // говорит ("много парковки" и "нет парковки" — одна и та же тема): "давай
+  // просто выводить самые залайканные комменты, неважно хорошие они или
+  // плохие" — голосуют читатели Яндекса, не мы.
+  const topReviews = reviews.slice(0, MAX_REAL_REVIEWS);
+  if (yandexRatings.length === 0 && !hasGis && quotes.length === 0 && topReviews.length === 0) return null;
   return (
     <div id="reviews" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
       <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
@@ -202,23 +225,54 @@ export function WhatTheySayBlock({ center, reviewQuotes }: { center: BusinessCen
           </div>
         ))}
       </div>
-      {quotes.length > 0 && (
+      {topReviews.length > 0 ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          {quotes.map((q, i) => (
-            <div key={i} className="flex flex-col gap-2 rounded-2xl bg-surface-muted px-4 py-3.5">
+          {topReviews.map((r) => (
+            <div key={r.id} className="flex flex-col gap-2 rounded-2xl bg-surface-muted px-4 py-3.5">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface text-xs font-bold text-ink-muted">
-                    {q.author ? q.author.charAt(0).toUpperCase() : '?'}
+                    {r.author ? r.author.charAt(0).toUpperCase() : '?'}
                   </span>
-                  <span className="truncate text-sm font-semibold text-ink">{q.author ?? 'Отзыв'}</span>
+                  <span className="truncate text-sm font-semibold text-ink">{r.author ?? 'Отзыв'}</span>
                 </div>
-                {q.stars != null && <ReviewStars stars={q.stars} />}
+                {r.rating != null && <ReviewStars stars={Math.round(r.rating)} />}
               </div>
-              <p className="text-sm leading-relaxed text-ink-muted">{q.isQuote ? `«${q.text}»` : q.text}</p>
+              <p className="line-clamp-4 text-sm leading-relaxed text-ink-muted">«{r.body}»</p>
+              {/* Лайки/дизлайки — реальные голоса читателей Яндекса под этим
+                  отзывом, не наша оценка; ровно то, по чему он попал в топ. */}
+              <div className="flex items-center gap-3 text-xs text-ink-faint">
+                <span className="flex items-center gap-1">
+                  <ThumbsUp className="h-3.5 w-3.5" /> {r.likes}
+                </span>
+                {r.dislikes > 0 && (
+                  <span className="flex items-center gap-1">
+                    <ThumbsDown className="h-3.5 w-3.5" /> {r.dislikes}
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
+      ) : (
+        quotes.length > 0 && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {quotes.map((q, i) => (
+              <div key={i} className="flex flex-col gap-2 rounded-2xl bg-surface-muted px-4 py-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface text-xs font-bold text-ink-muted">
+                      {q.author ? q.author.charAt(0).toUpperCase() : '?'}
+                    </span>
+                    <span className="truncate text-sm font-semibold text-ink">{q.author ?? 'Отзыв'}</span>
+                  </div>
+                  {q.stars != null && <ReviewStars stars={q.stars} />}
+                </div>
+                <p className="text-sm leading-relaxed text-ink-muted">{q.isQuote ? `«${q.text}»` : q.text}</p>
+              </div>
+            ))}
+          </div>
+        )
       )}
     </div>
   );
