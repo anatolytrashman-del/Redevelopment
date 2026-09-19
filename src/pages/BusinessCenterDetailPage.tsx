@@ -1654,7 +1654,7 @@ function formatSchedule(schedule: Gis2Schedule): string[] {
 }
 
 const TENANT_PAGE_SIZE = 6;
-const ALL_TENANT_SEGMENTS = 'Все';
+const ALL_TENANT_SEGMENTS = 'Все организации';
 
 type TenantDirectoryEntry = TenantOrganization & { segment: string };
 
@@ -1663,6 +1663,7 @@ function TenantOrganizationsBlock({ organizations }: { organizations: TenantOrga
   const [activeSegment, setActiveSegment] = useState(ALL_TENANT_SEGMENTS);
   const [page, setPage] = useState(0);
   const entries = useMemo<TenantDirectoryEntry[]>(() => organizations
+    .filter((organization) => !isBusinessCenterTenantCard(organization))
     .map((organization) => ({
       ...organization,
       category: organization.category.trim() || 'Офис организации',
@@ -1709,11 +1710,8 @@ function TenantOrganizationsBlock({ organizations }: { organizations: TenantOrga
           <span><strong className="font-semibold text-ink">{segments.length}</strong> направлений</span>
           <span><strong className="font-semibold text-ink">{formatCompactNumber(totalReviews)}</strong> отзывов</span>
           {averageRating != null && (
-            <span><strong className="font-semibold text-ink">{averageRating.toFixed(1)}</strong> средний рейтинг · {rated.length} оценено</span>
+            <span><strong className="font-semibold text-ink">{averageRating.toFixed(1)}</strong> средний рейтинг</span>
           )}
-          <span className="text-xs text-ink-faint">
-            Лидируют: {segments.slice(0, 3).map(([segment, count]) => `${segment} ${count}`).join(' · ')}
-          </span>
         </div>
 
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(220px,0.45fr)]">
@@ -1735,7 +1733,7 @@ function TenantOrganizationsBlock({ organizations }: { organizations: TenantOrga
               onChange={(event) => setActiveSegment(event.target.value)}
               className="min-h-10 w-full rounded-xl border border-border bg-white/65 px-3 text-sm font-medium text-ink outline-none focus:border-primary/40"
             >
-              <option value={ALL_TENANT_SEGMENTS}>Все направления · {entries.length}</option>
+              <option value={ALL_TENANT_SEGMENTS}>Все организации · {entries.length}</option>
               {segments.map(([segment, count]) => (
                 <option key={segment} value={segment}>{segment} · {count}</option>
               ))}
@@ -1770,8 +1768,7 @@ function TenantOrganizationsBlock({ organizations }: { organizations: TenantOrga
           </div>
         )}
 
-        <div className="flex flex-col gap-2 text-xs text-ink-muted sm:flex-row sm:items-center sm:justify-between">
-          <p>Источник — Яндекс Карты. Состав организаций может меняться.</p>
+        <div className="flex justify-end text-xs text-ink-muted">
           {filtered.length > 0 && (
             <div className="flex items-center gap-2">
               <span className="mr-1">
@@ -1799,6 +1796,10 @@ function TenantOrganizationsBlock({ organizations }: { organizations: TenantOrga
       </div>
     </div>
   );
+}
+
+function isBusinessCenterTenantCard(organization: TenantOrganization): boolean {
+  return /^бизнес[\s-]*центр(?![\p{L}])/iu.test(organization.category.trim());
 }
 
 function tenantSegment(organization: TenantOrganization): string {

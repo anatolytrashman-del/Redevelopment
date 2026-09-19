@@ -75,10 +75,18 @@ if (skipCollected && !serviceRoleKey && !accessToken) {
 
 const normalizeText = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
 const DEFAULT_ORGANIZATION_CATEGORY = 'Офис организации';
-const withDefaultCategory = (organizations) => organizations.map((organization) => ({
-  ...organization,
-  category: normalizeText(organization.category) || DEFAULT_ORGANIZATION_CATEGORY,
-}));
+// Яндекс включает сам объект БЦ в список «Организации внутри» (например,
+// «Порт» с категорией «Бизнес-центр подъезд 1»). Это карточка здания, а не
+// арендатор. Удаляем её до записи чекпоинта и БД, чтобы следующий сбор не
+// возвращал такие записи. Кириллическую границу проверяем Unicode-lookahead,
+// потому что \b в JavaScript работает только с ASCII.
+const BUSINESS_CENTER_CATEGORY_RE = /^бизнес[\s-]*центр(?![\p{L}])/iu;
+const withDefaultCategory = (organizations) => organizations
+  .map((organization) => ({
+    ...organization,
+    category: normalizeText(organization.category) || DEFAULT_ORGANIZATION_CATEGORY,
+  }))
+  .filter((organization) => !BUSINESS_CENTER_CATEGORY_RE.test(organization.category));
 const decodeHtml = (value) => value
   .replaceAll('&amp;', '&').replaceAll('&quot;', '"').replaceAll('&#39;', "'")
   .replaceAll('&lt;', '<').replaceAll('&gt;', '>').replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
@@ -231,11 +239,12 @@ async function writeSnapshot(snapshot) {
 await fs.mkdir(outputRoot, { recursive: true });
 
 async function saveCheckpoint(entry, organizations, sourceUrl, capturedAt) {
+  const cleanedOrganizations = withDefaultCategory(organizations);
   const dir = path.join(outputRoot, entry.slug);
   await fs.mkdir(dir, { recursive: true });
   const target = path.join(dir, 'latest.json');
   const temporary = `${target}.tmp`;
-  const snapshot = { ...entry, sourceUrl, capturedAt, complete: false, organizations };
+  const snapshot = { ...entry, sourceUrl, capturedAt, complete: false, organizations: cleanedOrganizations };
   await fs.writeFile(temporary, JSON.stringify(snapshot, null, 2));
   await fs.rename(temporary, target);
   if (writeDb) {
@@ -244,10 +253,10 @@ async function saveCheckpoint(entry, organizations, sourceUrl, capturedAt) {
       address: entry.address ?? '',
       sourceUrl,
       capturedAt,
-      organizations,
+      organizations: cleanedOrganizations,
     });
   }
-  console.log(`${entry.slug}: контрольная точка — ${organizations.length} организаций`);
+  console.log(`${entry.slug}: контрольная точка — ${cleanedOrganizations.length} организаций`);
 }
 
 async function readCheckpoint(slug) {
@@ -385,6 +394,7 @@ for (const entry of entries) {
   const dir = path.join(outputRoot, entry.slug);
   await fs.mkdir(dir, { recursive: true });
   const stamp = capturedAt.replaceAll(':', '-');
+  organizations = withDefaultCategory(organizations);
   const completed = { ...entry, sourceUrl, capturedAt, complete: true, organizations };
   await fs.writeFile(path.join(dir, `${stamp}.json`), JSON.stringify(completed, null, 2));
   await fs.writeFile(path.join(dir, 'latest.json.tmp'), JSON.stringify(completed, null, 2));
