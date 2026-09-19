@@ -10,10 +10,14 @@
 //   business_center_offers, привязка к business_centers.business_class/
 //   district; срезы city/class/district/building (building — slug БЦ, по
 //   зданию выборка почти всегда мала, поэтому читать её нужно вместе с n,
-//   см. MIN_RELIABLE_N на фронте). Дедупликации Kufar↔Realt тут НЕТ —
-//   у business_center_offers нет ни ручного review-флоу (см. комментарий в
-//   sync-business-center-offers.mjs), ни общего dedup-ключа между
-//   источниками — известное ограничение, отражено в /minsk/analytics/metodika.
+//   см. MIN_RELIABLE_N на фронте). Дедупликация одного лота с нескольких
+//   площадок — см. dedupeBcOffers ниже; тот же принцип, что во фронтовом
+//   src/lib/businessCenterOfferDuplicates.ts (файлы-близнецы, см. CLAUDE.md —
+//   этот скрипт голый JS и TS из src/ импортировать не умеет). До
+//   2026-09-19 её не было вовсе — с двумя источниками (Kufar тогда отдавал
+//   только продажу) пересечение было небольшим; после починки аренды
+//   Kufar и добавления Domovita один лот стал попадать в снимок до 3 раз,
+//   заметно смещая медиану в сторону самых растиражированных объявлений.
 // - 'torgovye' (торговые помещения, city-wide) — из citywide_offers
 //   (см. sync-citywide-retail-offers.mjs), срезы city/district/building_type
 //   (building_type — не у всех строк заполнен, см. её же комментарий про
@@ -88,6 +92,48 @@ function round2(v) {
   return v == null ? null : Math.round(v * 100) / 100;
 }
 
+// Схлопывает один и тот же лот, выложенный сразу на нескольких площадках
+// (Kufar/Realt/Domovita) — тот же принцип и те же допуски, что во
+// фронтовом src/lib/businessCenterOfferDuplicates.ts (файл-близнец,
+// см. комментарий у вызова выше и CLAUDE.md про файлы-близнецы). Считаем
+// совпавшим по зданию+сделке при площади до 0,1 м² и цене за м² до 10% —
+// источники округляют/пересчитывают ставку по-разному (Kufar считает её
+// из цены в долларах, Realt отдаёт готовой). Схлопываем только записи
+// РАЗНЫХ источников: два объявления внутри одного источника — это два
+// разных помещения (несколько одинаковых кабинетов по одной ставке у
+// одного собственника — обычное дело, см. пример с «Центрополем» в
+// комментарии businessCenterOfferDuplicates.ts).
+function dedupeBcOffers(rows) {
+  const SIZE_TOLERANCE = 0.05;
+  const PRICE_TOLERANCE = 0.1;
+  const samePrice = (a, b) => {
+    const max = Math.max(a, b);
+    if (max <= 0) return a === b;
+    return Math.abs(a - b) / max <= PRICE_TOLERANCE;
+  };
+  const sorted = [...rows].sort((a, b) => (a.source ?? '').localeCompare(b.source ?? ''));
+  const clusters = [];
+  for (const row of sorted) {
+    if (row.size == null || row.price_per_sqm == null) {
+      clusters.push([row]);
+      continue;
+    }
+    const cluster = clusters.find(
+      (c) =>
+        c[0].business_center_slug === row.business_center_slug &&
+        c[0].deal_type === row.deal_type &&
+        c[0].size != null &&
+        c[0].price_per_sqm != null &&
+        Math.abs(c[0].size - row.size) <= SIZE_TOLERANCE &&
+        samePrice(c[0].price_per_sqm, row.price_per_sqm) &&
+        c.every((o) => o.source !== row.source),
+    );
+    if (cluster) cluster.push(row);
+    else clusters.push([row]);
+  }
+  return clusters.map((c) => c[0]);
+}
+
 function firstOfMonth() {
   const now = new Date();
   return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`;
@@ -147,7 +193,7 @@ async function main() {
     for (let from = 0; ; from += PAGE) {
       const { data, error } = await supabase
         .from('business_center_offers')
-        .select('business_center_slug,deal_type,price_per_sqm,property_type')
+        .select('business_center_slug,source,deal_type,size,price_per_sqm,property_type')
         .range(from, from + PAGE - 1);
       if (error) throw error;
       bcOffers.push(...data);
@@ -165,7 +211,8 @@ async function main() {
   // business_center_offers не трогается — "Объявления с Kufar и Realt" на
   // карточке конкретного БЦ по-прежнему показывает все помещения здания,
   // не только офисные, там фильтр по типу не нужен.
-  const officeOnlyOffers = bcOffers.filter((o) => o.property_type === 'Офисы');
+  const dedupedBcOffers = dedupeBcOffers(bcOffers);
+  const officeOnlyOffers = dedupedBcOffers.filter((o) => o.property_type === 'Офисы');
   const centerBySlug = new Map(centers.map((c) => [c.slug, c]));
   const officeRows = officeOnlyOffers.map((o) => ({
     deal_type: o.deal_type,
@@ -183,7 +230,7 @@ async function main() {
     building: centerBySlug.has(o.business_center_slug) ? o.business_center_slug : null,
   }));
   console.log(
-    `Загружено ${centers.length} БЦ, ${bcOffers.length} объявлений в БЦ (${officeOnlyOffers.length} из них — офисы, остальные отфильтрованы из снимка сегмента).`,
+    `Загружено ${centers.length} БЦ, ${bcOffers.length} объявлений в БЦ (${dedupedBcOffers.length} после схлопывания одного лота с нескольких площадок, ${officeOnlyOffers.length} из них — офисы, остальные отфильтрованы из снимка сегмента).`,
   );
   snapshots.push(
     ...buildSnapshotsForSegment(officeRows, 'ofisy_bc', period, [

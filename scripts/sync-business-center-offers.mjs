@@ -129,10 +129,15 @@ function normalizeForMatch(s) {
 // внутри "2к1", ложное совпадение чужого дома на той же улице. Номер дома
 // сверяем как отдельный токен (границы — не буква/цифра с обеих сторон),
 // не подстрокой — "1" после этого совпадает только с "1", не с "21"/"2к1".
+// Тот же набор префиксов, что снимается перед сверкой адреса ниже.
+function stripStreetType(street) {
+  return street.replace(/^(ул\.|пр-т|просп\.|пер\.|пр\.|б-р|бул\.|наб\.)\s*/i, '');
+}
+
 function addressMatchesBuilding(adAddress, street, house) {
   if (!adAddress) return false;
   const norm = normalizeForMatch(adAddress);
-  const streetNorm = normalizeForMatch(street.replace(/^(ул\.|пр-т|просп\.|пер\.|пр\.)\s*/i, ''));
+  const streetNorm = normalizeForMatch(stripStreetType(street));
   if (!norm.includes(streetNorm)) return false;
 
   const houseNorm = normalizeForMatch(house);
@@ -252,7 +257,15 @@ async function collectKufarOffers(centers) {
       console.log(`Kufar: пропускаю «${center.name}» — не удалось выделить номер дома из адреса`);
       continue;
     }
-    const query = `${street} ${house}`;
+    // Тип улицы из запроса убираем: полнотекстовый поиск Kufar на нём
+    // спотыкается. Проверено вживую 2026-09-19 — «пр-т Независимости 177»
+    // находит 1 объявление по чужому дому, «Независимости 177» — оба
+    // объявления по нужному (в адресах самого Kufar тип пишется иначе:
+    // «Независимости пр, 177»). Замер по всем 143 зданиям: без типа улицы
+    // находится 702 подходящих объявления против 589 с типом, +120 новых в
+    // 40 зданиях. Фильтр addressMatchesBuilding ниже тот же самый — он и
+    // так сверяет улицу без типа, так что лишнего запрос не принесёт.
+    const query = `${stripStreetType(street)} ${house}`;
     for (const section of KUFAR_SECTIONS) {
       console.log(`Kufar (${section.slug}): ищу «${query}» (${center.slug})...`);
       let ads;
@@ -360,6 +373,257 @@ async function collectRealtOffers(centers) {
   return offers;
 }
 
+// ---------- Domovita ----------
+// Третий источник (2026-09-19). Проверка перед тем, как его заводить:
+// из 530 объявлений Domovita по офисам Минска 153 попадают в наши здания,
+// и 45 лотов в 26 зданиях у нас не было вовсе — в том числе 14 в зданиях,
+// где карточка писала «предложений в наших источниках нет» (Royal Plaza,
+// «Антарес» и другие). То есть это не перепечатка Kufar/Realt, а свой пул:
+// часть собственников выкладывается только сюда.
+//
+// Разбор идёт по листингу, внутрь объявлений не заходим — в карточке уже
+// есть всё нужное. Карточка обёрнута в `<div class="found_full">` (ровно 20
+// на страницу), внутри: заголовок с адресом, площадь, цена сразу в
+// нескольких валютах (берём доллары за м² — та же величина, что у Kufar и
+// Realt), этаж и дата. Свой числовой id объявления лежит в атрибуте
+// `data-object-button-ajax`, ссылка — первая ссылка на объявление внутри
+// карточки (вторая уже принадлежит следующей, поэтому кусок обрезается по
+// ней же).
+const DOMOVITA_SECTIONS = [
+  { path: 'office', propertyType: 'Офисы' },
+  { path: 'shopping', propertyType: 'Торговые помещения' },
+  { path: 'warehouses', propertyType: 'Кладовые' },
+  { path: 'service', propertyType: 'Сфера услуг' },
+];
+const DOMOVITA_DEALS = [
+  { slug: 'rent', dealType: 'rent' },
+  { slug: 'sale', dealType: 'sale' },
+];
+// Разделы Domovita длиннее, чем срез Realt по одному району: офисы в аренду
+// — 16 страниц по 20 объявлений.
+const DOMOVITA_MAX_PAGES = 30;
+const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+
+function domovitaCardText(cardHtml) {
+  return cardHtml
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, '|')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/(\|\s*)+/g, '|');
+}
+
+function parseDomovitaCards(html, dealSlug) {
+  const cards = html.split('class="found_full"').slice(1);
+  const parsed = [];
+  for (const rawCard of cards) {
+    const links = [...rawCard.matchAll(/href="(https:\/\/domovita\.by\/minsk\/[a-z-]+\/(?:rent|sale)\/[^"]+)"/g)];
+    if (links.length === 0) continue;
+    // Обрезаем по началу следующей карточки, чтобы её площадь и цена не
+    // затекли в эту.
+    const card = links.length > 1 ? rawCard.slice(0, links[1].index) : rawCard;
+    const text = domovitaCardText(card);
+
+    const adId = card.match(/data-object-button-ajax="(\d+)"/)?.[1] ?? null;
+    // "Офис в Минске, ул. Бирюзова, д. 10А" — адрес после города.
+    const address = text.match(/в Минске,\s*([^|]+)/)?.[1]?.trim() ?? null;
+    // "|151м|2|" — именно площадь; "36 р. за м|2|" и "1001 ₽/м|2|" под это
+    // не подходят, там между числом и "м" стоит валюта.
+    const sizeRaw = text.match(/\|(\d[\d\s]*(?:[.,]\d+)?)м\|2\|/)?.[1] ?? null;
+    const priceRaw = text.match(/\|(\d[\d\s]*(?:[.,]\d+)?)\s*\$\/м\|2\|/)?.[1] ?? null;
+    const floorRaw = text.match(/(\d+)\s*этаж из/)?.[1] ?? null;
+    if (!adId || !address || !sizeRaw || !priceRaw) continue;
+
+    const toNumber = (v) => Number(v.replace(/\s/g, '').replace(',', '.'));
+    parsed.push({
+      adId,
+      address,
+      size: toNumber(sizeRaw),
+      pricePerSqm: toNumber(priceRaw),
+      floor: floorRaw ? Number(floorRaw) : null,
+      adLink: links[0][1],
+      dealSlug,
+    });
+  }
+  return parsed;
+}
+
+async function fetchDomovitaPage(sectionPath, dealSlug, page) {
+  const url = new URL(`https://domovita.by/minsk/${sectionPath}/${dealSlug}`);
+  if (page > 1) url.searchParams.set('page', String(page));
+  const res = await fetch(url, {
+    headers: { 'User-Agent': BROWSER_UA, Accept: 'text/html', 'Accept-Language': 'ru' },
+  });
+  if (!res.ok) throw new Error(`Domovita (${sectionPath}/${dealSlug}, стр. ${page}) вернул ${res.status}`);
+  return res.text();
+}
+
+async function collectDomovitaOffers(centers) {
+  const known = [];
+  for (const center of centers) {
+    const { street, house } = splitStreetHouse(shortAddress(center.address));
+    if (house) known.push({ slug: center.slug, street, house });
+  }
+
+  const offers = [];
+  for (const section of DOMOVITA_SECTIONS) {
+    for (const deal of DOMOVITA_DEALS) {
+      console.log(`Domovita: тяну ${section.path}/${deal.slug}...`);
+      for (let page = 1; page <= DOMOVITA_MAX_PAGES; page++) {
+        let html;
+        try {
+          html = await fetchDomovitaPage(section.path, deal.slug, page);
+        } catch (err) {
+          console.error(err.message);
+          break;
+        }
+        const cards = parseDomovitaCards(html, deal.slug);
+        if (cards.length === 0) break;
+        for (const card of cards) {
+          const match = known.find((c) => addressMatchesBuilding(card.address, c.street, c.house));
+          if (!match) continue;
+          if (!isPlausiblePrice(deal.dealType, card.pricePerSqm)) continue;
+          offers.push({
+            business_center_slug: match.slug,
+            source: 'Domovita',
+            ad_id: card.adId,
+            deal_type: deal.dealType,
+            property_type: section.propertyType,
+            size: card.size,
+            price_per_sqm: card.pricePerSqm,
+            floor: card.floor,
+            address: card.address,
+            ad_link: card.adLink,
+          });
+        }
+        // Следующая страница существует, пока на текущей есть ссылка на неё.
+        if (!html.includes(`page=${page + 1}`)) break;
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    }
+  }
+  return offers;
+}
+
+// ---------- Megapolis-Real ----------
+// Пятый источник (2026-09-19, следом за Domovita). Проверка перед тем, как
+// заводить: из 1715 объявлений по Минску (офисы/торговая/склады, аренда+
+// продажа) 253 лота попадают в наши здания, из них 44 (17%) не совпадали
+// ни с чем в уже собранной базе — и в 3 зданиях, где офферов не было
+// вовсе. Меньше прироста, чем дала Domovita (45 лотов/26 зданий), но
+// зданий, где уже что-то есть, становится заметно гуще. Спот-проверка
+// (5 объявлений) — 3 из 5 дубли Kufar, подтверждает пересечение и что
+// схлопывание дублей (businessCenterOfferDuplicates.ts) тут не лишнее.
+//
+// Карточка листинга отдаёт всё нужное без захода внутрь объявления: адрес,
+// площадь, цену за м² сразу в USD (число лежит в закомментированном в
+// вёрстке блоке-переключателе валют — `<!-- ... price_usd ... -->` — но
+// регулярка это не смущает, значение там всегда верное и совпадает с
+// `цена_за_м² × площадь = итого`, проверено вживую). Своя ловушка: часть
+// объявлений сразу на несколько помещений показывает площадь ДИАПАЗОНОМ
+// («23 - 100») — единственную площадь тогда не определить, такие
+// пропускаем, это ~3% выдачи. Секции — обычная HTML-вёрстка
+// (`<section class="rItem...">`), 30 карточек на страницу; рекламные
+// баннеры получают тот же класс, но без `data-go-url` — их просто
+// пропускаем, отдельно фильтровать не нужно. robots.txt раздел `/realt/`
+// разрешает.
+const MEGAPOLIS_SECTIONS = [
+  { path: 'ofisnaya_nedvizhimost', propertyType: 'Офисы' },
+  { path: 'torgovaya-nedvizhimost', propertyType: 'Торговые помещения' },
+  { path: 'skladskaya-nedvizhimost', propertyType: 'Кладовые' },
+];
+const MEGAPOLIS_DEALS = [
+  { slug: 'arenda', dealType: 'rent' },
+  { slug: 'prodazha-pokupka', dealType: 'sale' },
+];
+// Офисы в аренду — самая большая секция, 16 страниц по 30 карточек.
+const MEGAPOLIS_MAX_PAGES = 25;
+
+function parseMegapolisCards(html) {
+  const sections = html.match(/<section class="rItem[^"]*">[\s\S]*?<\/section>/g) ?? [];
+  const cards = [];
+  for (const sec of sections) {
+    const urlMatch = sec.match(/data-go-url="([^"]+)"/);
+    if (!urlMatch) continue; // рекламный баннер под тем же классом секции, не объявление
+    const adId = sec.match(/class="rInfo_code">код\s*([^<]*)</)?.[1]?.trim();
+    const city = sec.match(/class="rInfo_punkt">([^<]*)</)?.[1]?.trim();
+    const address = sec.match(/class="rInfo_address[^"]*">([^<]*)</)?.[1]?.trim();
+    const areaRaw = sec.match(/class="rInfo_square"><span>([^<]*)<\/span>/)?.[1]?.trim();
+    const priceRaw = sec.match(
+      /class="rInfo_price no_go list_price_switcher price_usd"[^>]*><span[^>]*>([^<]*)<\/span>/,
+    )?.[1]?.trim();
+    if (!adId || !address || !areaRaw || !priceRaw) continue;
+    if (areaRaw.includes('-')) continue; // диапазон площади на несколько помещений сразу — одну площадь не определить
+    if (!/^г?\.?\s*минск$/i.test(city ?? '')) continue; // область/пригород — вне справочника БЦ
+    const size = Number(areaRaw.replace(',', '.'));
+    const pricePerSqm = Number(priceRaw.replace(/\s/g, '').replace(',', '.'));
+    if (!Number.isFinite(size) || !Number.isFinite(pricePerSqm)) continue;
+    cards.push({ adId, address, size, pricePerSqm, adLink: `https://megapolis-real.by${urlMatch[1]}` });
+  }
+  return cards;
+}
+
+async function fetchMegapolisPage(sectionPath, dealSlug, page) {
+  const url = new URL(`https://megapolis-real.by/realt/${sectionPath}/${dealSlug}/`);
+  // Свой нюанс: страница 1 живёт на базовом URL без query, ?page=1 отдаёт
+  // 404 (проверено вживую) — параметр ставим только со второй страницы.
+  if (page > 1) url.searchParams.set('page', String(page));
+  const res = await fetch(url, {
+    headers: { 'User-Agent': BROWSER_UA, Accept: 'text/html', 'Accept-Language': 'ru' },
+  });
+  if (!res.ok) throw new Error(`Megapolis (${sectionPath}/${dealSlug}, стр. ${page}) вернул ${res.status}`);
+  return res.text();
+}
+
+async function collectMegapolisOffers(centers) {
+  const known = [];
+  for (const center of centers) {
+    const { street, house } = splitStreetHouse(shortAddress(center.address));
+    if (house) known.push({ slug: center.slug, street, house });
+  }
+
+  const offers = [];
+  for (const section of MEGAPOLIS_SECTIONS) {
+    for (const deal of MEGAPOLIS_DEALS) {
+      console.log(`Megapolis: тяну ${section.path}/${deal.slug}...`);
+      for (let page = 1; page <= MEGAPOLIS_MAX_PAGES; page++) {
+        let html;
+        try {
+          html = await fetchMegapolisPage(section.path, deal.slug, page);
+        } catch (err) {
+          console.error(err.message);
+          break;
+        }
+        const cards = parseMegapolisCards(html);
+        if (cards.length === 0) break;
+        for (const card of cards) {
+          const match = known.find((c) => addressMatchesBuilding(card.address, c.street, c.house));
+          if (!match) continue;
+          if (!isPlausiblePrice(deal.dealType, card.pricePerSqm)) continue;
+          offers.push({
+            business_center_slug: match.slug,
+            source: 'Megapolis',
+            ad_id: card.adId,
+            deal_type: deal.dealType,
+            property_type: section.propertyType,
+            size: card.size,
+            price_per_sqm: card.pricePerSqm,
+            floor: null, // на карточке листинга этажа нет, только на странице объявления
+            address: card.address,
+            ad_link: card.adLink,
+          });
+        }
+        // Та же логика, что у Domovita: следующая страница существует,
+        // пока на текущей есть ссылка на неё.
+        if (!html.includes(`page=${page + 1}`)) break;
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    }
+  }
+  return offers;
+}
+
 // ---------- main ----------
 
 async function main() {
@@ -377,7 +641,13 @@ async function main() {
   const realtOffers = await collectRealtOffers(scopedCenters);
   console.log(`Realt: найдено ${realtOffers.length} подходящих объявлений.`);
 
-  const offers = [...kufarOffers, ...realtOffers];
+  const domovitaOffers = await collectDomovitaOffers(scopedCenters);
+  console.log(`Domovita: найдено ${domovitaOffers.length} подходящих объявлений.`);
+
+  const megapolisOffers = await collectMegapolisOffers(scopedCenters);
+  console.log(`Megapolis: найдено ${megapolisOffers.length} подходящих объявлений.`);
+
+  const offers = [...kufarOffers, ...realtOffers, ...domovitaOffers, ...megapolisOffers];
 
   if (JSON_OUT) {
     console.log(JSON.stringify(offers));
@@ -408,7 +678,7 @@ async function main() {
     .upsert(payload, { onConflict: 'business_center_slug,source,ad_id' });
   if (upsertError) throw upsertError;
 
-  for (const source of ['Kufar', 'Realt']) {
+  for (const source of ['Kufar', 'Realt', 'Domovita', 'Megapolis']) {
     const idsThisRun = offers.filter((o) => o.source === source).map((o) => o.ad_id);
     const { error: deleteError } = await supabase
       .from('business_center_offers')

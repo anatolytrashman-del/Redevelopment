@@ -846,14 +846,14 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     if (summary.rentMedian != null) add('Какая медианная ставка аренды и как она рассчитана?', rentMethodology);
     if (showRatesBlock) {
       for (const [label, deal, rate] of [['аренды', 'rent', rateRent], ['продажи', 'sale', rateSale]] as const) {
-        if (rate?.median != null) add(`Какая ставка ${label} в блоке рыночных ставок?`, `${formatRate(rate.median, deal)} по ${rate.n} объявлениям Kufar и Realt${rate.period ? `, период ${rate.period.slice(0, 7)}` : ''}.${rate.n < MIN_RELIABLE_N ? ' Маленькая выборка: ориентировочное значение.' : ''} Это медиана объявлений соответствующего рыночного среза.`);
+        if (rate?.median != null) add(`Какая ставка ${label} в блоке рыночных ставок?`, `${formatRate(rate.median, deal)} по ${rate.n} объявлениям Kufar, Realt, Domovita и Megapolis${rate.period ? `, период ${rate.period.slice(0, 7)}` : ''}.${rate.n < MIN_RELIABLE_N ? ' Маленькая выборка: ориентировочное значение.' : ''} Это медиана объявлений соответствующего рыночного среза.`);
       }
     }
     const hoa = centers.filter((c) => c.managementType === 'hoa').length;
     const uk = centers.filter((c) => c.managementType === 'single_uk').length;
     if (hoa + uk > 0) add('Какие типы управления представлены в каталоге?', `Товарищество собственников — ${hoa}, единая управляющая компания — ${uk}; тип известен для ${hoa + uk} зданий. Плитки включают фильтр по типу управления.`);
     const withLots = centers.filter((c) => (offerIndex.lotSizesBySlug.get(c.slug)?.length ?? 0) > 0);
-    if (withLots.length) add('Что показывает блок «Сейчас сдаётся и продаётся»?', `${withLots.length} зданий с активными объявлениями Kufar и Realt и данными о площади лотов. Показаны до десяти зданий с наибольшим числом лотов и диапазоны их площадей. Кнопки площади включают фильтр зданий с подходящими лотами; отсутствие объявления не означает отсутствие свободных помещений.`);
+    if (withLots.length) add('Что показывает блок «Сейчас сдаётся и продаётся»?', `${withLots.length} зданий с активными объявлениями Kufar, Realt, Domovita и Megapolis и данными о площади лотов. Показаны до десяти зданий с наибольшим числом лотов и диапазоны их площадей. Кнопки площади включают фильтр зданий с подходящими лотами; отсутствие объявления не означает отсутствие свободных помещений.`);
     const contextMetrics = [
       ['colliers', 'vacancy_rate', 'Вакантность по городу', '%'],
       ['colliers', 'total_stock', 'Арендопригодные офисы', 'тыс. м²'],
@@ -1182,7 +1182,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               <div className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
                 <h2 className="text-lg font-bold text-ink">Ставки аренды и продажи</h2>
                 <p className="text-xs text-ink-faint">
-                  Медиана по объявлениям Kufar и Realt{rateSliceType === 'class' ? ` для класса ${rateSliceKey}` : rateSliceType === 'district' ? ` в ${districtPrepositional(rateSliceKey ?? '')} районе` : ' по Минску'}
+                  Медиана по объявлениям Kufar, Realt, Domovita и Megapolis{rateSliceType === 'class' ? ` для класса ${rateSliceKey}` : rateSliceType === 'district' ? ` в ${districtPrepositional(rateSliceKey ?? '')} районе` : ' по Минску'}
                   {rateRent?.period ? `, ${rateRent.period.slice(0, 7)}` : ''}.
                 </p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1455,7 +1455,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                       одного класса могут заметно различаться в зависимости от расположения,
                       возраста здания и текущей заполняемости — актуальные предложения по
                       конкретным зданиям смотрите в карточках объектов, в разделе «Объявления с
-                      Kufar и Realt».
+                      Kufar, Realt, Domovita и Megapolis».
                     </p>
                   </div>
 

@@ -56,6 +56,8 @@ import {
   shortName,
   sortByShortName,
   mapRatingFromHighlights,
+  parseHighlightRatings,
+  parseReviewQuote,
   streetOfAddress,
 } from '../lib/businessCenterDisplay';
 import { nearestMetroStation } from '../lib/metroStations';
@@ -72,6 +74,8 @@ import type { BusinessCenter, HighlightIconKey } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import type { BusinessCenterNearbyPlace } from '../data/businessCenterNearbyPlaces';
 import { fetchBusinessCenterNearbyPlaces } from '../lib/businessCenterNearbyPlacesApi';
+import type { BusinessCenterReview } from '../data/businessCenterReviews';
+import { fetchBusinessCenterReviews } from '../lib/businessCenterReviewsApi';
 import { NO_ACTIVE_OFFERS_MESSAGE, type BusinessCenterOffer } from '../data/businessCenterOffers';
 import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
 import { dedupeOffers } from '../lib/businessCenterOfferDuplicates';
@@ -151,6 +155,7 @@ const SECTION_ICONS: Record<string, typeof FileText> = {
 };
 
 const EMPTY_NEARBY_PLACES: BusinessCenterNearbyPlace[] = [];
+const EMPTY_REVIEWS: BusinessCenterReview[] = [];
 
 export function BusinessCenterDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -179,6 +184,7 @@ export function BusinessCenterDetailPage() {
     slug: string;
     places: BusinessCenterNearbyPlace[];
   } | null>(null);
+  const [reviewsResult, setReviewsResult] = useState<{ slug: string; reviews: BusinessCenterReview[] } | null>(null);
 
   useEffect(() => {
     fetchBusinessCenters()
@@ -223,6 +229,18 @@ export function BusinessCenterDetailPage() {
     return () => { cancelled = true; };
   }, [slug]);
 
+  // Реальные отзывы с Яндекс.Карт (не ручные цитаты из highlights) — пока
+  // собраны точечным импортом .webarchive для части БЦ (2026-09-19), у
+  // остальных запрос просто вернёт пустой список, и WhatTheySayBlock
+  // откатится на старые ручные цитаты.
+  useEffect(() => {
+    if (!slug) return;
+    let cancelled = false;
+    fetchBusinessCenterReviews(slug)
+      .then((reviews) => { if (!cancelled) setReviewsResult({ slug, reviews }); })
+      .catch(() => { if (!cancelled) setReviewsResult({ slug, reviews: [] }); });
+    return () => { cancelled = true; };
+  }, [slug]);
 
   // Объявления о продаже/аренде из business_center_offers (владелец,
   // 2026-09-05: "хочу спарсить объявления... эту инфу мы будем выводить в
@@ -297,6 +315,7 @@ export function BusinessCenterDetailPage() {
   const nearbyPlaces = nearbyPlacesResult?.slug === slug
     ? nearbyPlacesResult?.places ?? EMPTY_NEARBY_PLACES
     : EMPTY_NEARBY_PLACES;
+  const reviews = reviewsResult?.slug === slug ? reviewsResult?.reviews ?? EMPTY_REVIEWS : EMPTY_REVIEWS;
   const index = center ? sorted.findIndex((c) => c.slug === center.slug) : -1;
   const prev = index > 0 ? sorted[index - 1] : null;
   const next = index >= 0 && index < sorted.length - 1 ? sorted[index + 1] : null;
@@ -590,7 +609,11 @@ export function BusinessCenterDetailPage() {
       (center?.highlights ?? [])
         .filter((h) => h.icon === 'reviews')
         .flatMap((h) => h.text.split(/\n+/).map((l) => l.replace(/^[-–—•\s]+/, '').trim()).filter(Boolean))
-        .slice(0, 4),
+        // Было 4 — у «Порта» это молча отрезало 5-ю, критичную цитату
+        // (единственную про холодные этажи с оговоркой). Порог поднят, а не
+        // убран: 6 — чтобы блок не превращался в бесконечную ленту у БЦ с
+        // особо длинным списком.
+        .slice(0, 6),
     [center],
   );
 
@@ -744,16 +767,34 @@ export function BusinessCenterDetailPage() {
     // свободный текст фактов) — но для читателя это ОДИН вопрос. Три
     // отдельных вопроса про одну и ту же оценку читаются как заполнение
     // объёма, поэтому собираем их в один ответ.
+    const yandexRatings = parseHighlightRatings(center.highlights);
     const ratingParts = [
       gis2?.reviews?.orgRating != null
         ? `2ГИС — ${gis2.reviews.orgRating}${gis2.reviews.orgReviewCount != null ? ` (оценок: ${gis2.reviews.orgReviewCount})` : ''}`
         : center.gisRating != null
           ? `2ГИС — ${center.gisRating}${center.gisReviewCount != null ? ` (оценок: ${center.gisReviewCount})` : ''}`
           : null,
-      mapRating ? `${mapRating.source} — ${mapRating.label}` : null,
+      // mapRatingFromHighlights берёт только первую строку/первое число —
+      // годится как общий индикатор для порога рейтинга (используется и в
+      // ranking-странице), но для читаемого текста тут нужен именно
+      // parseHighlightRatings: он не путает вступительное предложение с
+      // названием источника у зданий с несколькими карточками Яндекс.Карт
+      // (см. WhatTheySayBlock).
+      ...yandexRatings.map(
+        (r) =>
+          `${r.source} — ${r.value}${r.totalCount != null ? ` (оценок: ${r.totalCount})` : ''}${r.corpusCount > 1 ? `, ${r.corpusCount} корпуса` : ''}`,
+      ),
     ].filter(Boolean);
     if (ratingParts.length) add(`Какая оценка у «${name}» на картах?`, `${ratingParts.join('; ')}.`);
-    if (reviewQuotes.length) add('Что пишут в отзывах?', reviewQuotes.join('\n'));
+    if (reviewQuotes.length) {
+      add(
+        'Что пишут в отзывах?',
+        reviewQuotes
+          .map(parseReviewQuote)
+          .map((q) => `${q.author ? `${q.author}: ` : ''}${q.isQuote ? `«${q.text}»` : q.text}`)
+          .join('\n'),
+      );
+    }
     add('Как исправить сведения о здании?', 'Напишите на anatoly.trashman@gmail.com, указав бизнес-центр и сведения, которые устарели или требуют исправления.');
     // Тот же вызов, что и в самом блоке «Похожие»: соседи из него
     // исключены, иначе FAQ перечислял бы не то, что видно на странице.
@@ -785,7 +826,7 @@ export function BusinessCenterDetailPage() {
       has('rental', Boolean(center.rentalInfo)),
       has('offers', offers !== null),
       has('history', extractHistoryPoints(center).length >= 2),
-      has('reviews', center.gisRating != null || center.highlights.some((h) => h.icon === 'rating') || reviewQuotes.length > 0),
+      has('reviews', center.gisRating != null || center.highlights.some((h) => h.icon === 'rating') || reviewQuotes.length > 0 || reviews.length > 0),
       has('similar', true),
       has('faq', faqItems.length > 0),
     ].filter((v): v is { id: string; label: string } => v !== null);
@@ -802,6 +843,7 @@ export function BusinessCenterDetailPage() {
     accessHoursText,
     accessibilityAttributes,
     nearbyPlaces,
+    reviews,
   ]);
 
   // «Что там есть» — состав здания в description сниппета. Источник тот же
@@ -1534,7 +1576,7 @@ export function BusinessCenterDetailPage() {
         )}
 
         {center && <HistoryTimeline center={center} />}
-        {center && <WhatTheySayBlock center={center} reviewQuotes={reviewQuotes} />}
+        {center && <WhatTheySayBlock center={center} reviewQuotes={reviewQuotes} reviews={reviews} />}
         {/* Б12. Собственникам и УК — способ поправить данные. Пишем прямо
             в почту: отдельной формы с лидом здесь не заводим, это не заявка
             на аренду, а правка справочника, и ответить на неё должен
@@ -1543,8 +1585,8 @@ export function BusinessCenterDetailPage() {
           <div className={cn('mt-6 flex flex-col gap-2 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="text-lg font-bold text-ink">Вы собственник или управляющая компания?</h2>
             <p className="text-sm leading-relaxed text-ink-muted">
-              Данные по зданию собраны из открытых источников — prometr.by, 2ГИС, объявления Kufar и
-              Realt. Если что-то устарело или указано неверно, напишите: поправим и пересчитаем
+              Данные по зданию собраны из открытых источников — prometr.by, 2ГИС, объявления Kufar,
+              Realt, Domovita и Megapolis. Если что-то устарело или указано неверно, напишите: поправим и пересчитаем
               сравнения и индекс.
             </p>
             <a

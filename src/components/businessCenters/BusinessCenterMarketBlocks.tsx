@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
-import { Gauge, History, MessageSquare, Star } from 'lucide-react';
+import { Gauge, History, MessageSquare, Star, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { BusinessCenter } from '../../data/businessCenters';
-import { mapRatingFromHighlights } from '../../lib/businessCenterDisplay';
+import type { BusinessCenterReview } from '../../data/businessCenterReviews';
+import { parseHighlightRatings, parseReviewQuote } from '../../lib/businessCenterDisplay';
 import type { MarketPosition } from '../../lib/businessCenterMarketPosition';
 
 // Авторские блоки карточки БЦ (Б1, Б10, Б11 плана
@@ -139,17 +140,65 @@ export function HistoryTimeline({ center }: { center: BusinessCenter }) {
 
 // --- Б11. Что говорят ---------------------------------------------------
 
-export function WhatTheySayBlock({ center, reviewQuotes }: { center: BusinessCenter; reviewQuotes: string[] }) {
-  const yandex = mapRatingFromHighlights(center.highlights);
+// Родительный падеж числительного при "N корпусах/корпусам" — нужен только
+// у «Порта» (3 отдельные карточки Яндекс.Карт на одно здание), но раз уж
+// пишем склонение — по общему правилу, не захардкоженное на "3".
+function pluralCorpus(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'корпусу';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'корпусам';
+  return 'корпусам';
+}
+
+function ReviewStars({ stars }: { stars: number }) {
+  return (
+    <span className="flex shrink-0 items-center gap-0.5" aria-label={`${stars} из 5 звёзд`}>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Star key={i} className={cn('h-3 w-3', i < stars ? 'fill-primary text-primary' : 'text-border-strong')} />
+      ))}
+    </span>
+  );
+}
+
+// Сколько реальных отзывов показывать — сетка 2 колонки, 3 ряда. Дальше
+// уже не "самое главное, что говорят", а простыня — за полным списком
+// пусть идут на сам Яндекс (это не архив отзывов, а витрина).
+const MAX_REAL_REVIEWS = 6;
+
+export function WhatTheySayBlock({
+  center,
+  reviewQuotes,
+  reviews,
+}: {
+  center: BusinessCenter;
+  reviewQuotes: string[];
+  reviews: BusinessCenterReview[];
+}) {
+  const yandexRatings = useMemo(() => parseHighlightRatings(center.highlights), [center]);
   const hasGis = center.gisRating != null;
-  if (!yandex && !hasGis && reviewQuotes.length === 0) return null;
+  // Порядок цитат — как в источнике (highlights), не пересортирован по
+  // тональности: подборка не должна выглядеть отобранной в одну сторону —
+  // владелец, 2026-09-19, обсуждая этот же блок: "если будут только
+  // позитивные, это исказит картину".
+  const quotes = useMemo(() => reviewQuotes.map(parseReviewQuote), [reviewQuotes]);
+  // Реальные отзывы (fetchBusinessCenterReviews уже отдаёт их отсортированными
+  // по нетто-голосам) вытесняют ручные цитаты, когда они собраны для этого
+  // здания — тот же принцип "не мы выбираем, что показать", только годится
+  // не для 5 кураторских цитат, а для сотни настоящих: владелец, 2026-09-19,
+  // увидев, что счёт упоминаний темы без разбора тональности ничего не
+  // говорит ("много парковки" и "нет парковки" — одна и та же тема): "давай
+  // просто выводить самые залайканные комменты, неважно хорошие они или
+  // плохие" — голосуют читатели Яндекса, не мы.
+  const topReviews = reviews.slice(0, MAX_REAL_REVIEWS);
+  if (yandexRatings.length === 0 && !hasGis && quotes.length === 0 && topReviews.length === 0) return null;
   return (
     <div id="reviews" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
       <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
         <MessageSquare className="h-5 w-5 shrink-0 text-ink-muted" />
         Что говорят
       </h2>
-      {/* Два источника рядом, но НЕ усреднённые в одну цифру: сводить чужие
+      {/* Источники рядом, но НЕ усреднённые в одну цифру: сводить чужие
           оценки в собственный рейтинг мы не собираемся (решение из
           BCMINSK_SEO_PLAN.md — никакого AggregateRating), да и считаются
           они по-разному. */}
@@ -163,26 +212,66 @@ export function WhatTheySayBlock({ center, reviewQuotes }: { center: BusinessCen
             </span>
           </div>
         )}
-        {yandex && (
-          <div className="flex items-center gap-2 rounded-2xl bg-surface-muted px-4 py-3">
+        {yandexRatings.map((r, i) => (
+          <div key={i} className="flex items-center gap-2 rounded-2xl bg-surface-muted px-4 py-3">
             <Star className="h-4 w-4 shrink-0 text-ink-muted" />
             <span className="text-sm text-ink-muted">
-              <span className="font-bold text-ink">{yandex.label}</span> на {yandex.source}
+              <span className="font-bold text-ink">{r.value}</span> на {r.source}
+              {r.totalCount != null && ` · ${r.totalCount} оценок`}
+              {r.corpusCount > 1 && ` (данные по ${r.corpusCount} ${pluralCorpus(r.corpusCount)})`}
             </span>
           </div>
-        )}
+        ))}
       </div>
-      {reviewQuotes.length > 0 && (
-        <div className="flex flex-col gap-3">
-          {reviewQuotes.map((q) => (
-            <blockquote key={q} className="border-l-2 border-border pl-3 text-sm italic leading-relaxed text-ink-muted">
-              {q}
-            </blockquote>
+      {topReviews.length > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {topReviews.map((r) => (
+            <div key={r.id} className="flex flex-col gap-2 rounded-2xl bg-surface-muted px-4 py-3.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface text-xs font-bold text-ink-muted">
+                    {r.author ? r.author.charAt(0).toUpperCase() : '?'}
+                  </span>
+                  <span className="truncate text-sm font-semibold text-ink">{r.author ?? 'Отзыв'}</span>
+                </div>
+                {r.rating != null && <ReviewStars stars={Math.round(r.rating)} />}
+              </div>
+              <p className="line-clamp-4 text-sm leading-relaxed text-ink-muted">«{r.body}»</p>
+              {/* Лайки/дизлайки — реальные голоса читателей Яндекса под этим
+                  отзывом, не наша оценка; ровно то, по чему он попал в топ. */}
+              <div className="flex items-center gap-3 text-xs text-ink-faint">
+                <span className="flex items-center gap-1">
+                  <ThumbsUp className="h-3.5 w-3.5" /> {r.likes}
+                </span>
+                {r.dislikes > 0 && (
+                  <span className="flex items-center gap-1">
+                    <ThumbsDown className="h-3.5 w-3.5" /> {r.dislikes}
+                  </span>
+                )}
+              </div>
+            </div>
           ))}
         </div>
+      ) : (
+        quotes.length > 0 && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {quotes.map((q, i) => (
+              <div key={i} className="flex flex-col gap-2 rounded-2xl bg-surface-muted px-4 py-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface text-xs font-bold text-ink-muted">
+                      {q.author ? q.author.charAt(0).toUpperCase() : '?'}
+                    </span>
+                    <span className="truncate text-sm font-semibold text-ink">{q.author ?? 'Отзыв'}</span>
+                  </div>
+                  {q.stars != null && <ReviewStars stars={q.stars} />}
+                </div>
+                <p className="text-sm leading-relaxed text-ink-muted">{q.isQuote ? `«${q.text}»` : q.text}</p>
+              </div>
+            ))}
+          </div>
+        )
       )}
     </div>
   );
 }
-
-

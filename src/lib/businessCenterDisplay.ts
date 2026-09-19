@@ -29,6 +29,83 @@ export function mapRatingFromHighlights(
   return { value: parseFloat(label.replace(',', '.')), label, source: sourceMatch ? sourceMatch[1].trim() : 'карты' };
 }
 
+// То же поле 'rating', но для блока «Что говорят» (WhatTheySayBlock):
+// mapRatingFromHighlights берёт только первую строку и первое число —
+// для большинства БЦ этого достаточно, но у «Порта» (3 корпуса — 3 карточки
+// Яндекс.Карт в ОДНОЙ строке через запятую) даёт "source" = целое
+// вступительное предложение вместо "Яндекс.Карты" (owner нашёл это
+// 2026-09-19, разбирая блок отзывов). Этот парсер проходит все строки
+// и все вхождения "N,N из 5" на строке, а не только первое, и опознаёт
+// источник по слову "Яндекс"/"2ГИС" в тексте, а не по тому, что стоит
+// перед двоеточием. 2ГИС отсюда сознательно исключён — он уже приходит
+// отдельным полем center.gisRating (структурный снимок, не свободный
+// текст), показывать его ещё раз из текста фактов — задваивать источник.
+export interface HighlightRatingEntry {
+  source: string;
+  value: string; // "4,5" — уже с русской запятой
+  totalCount: number | null;
+  corpusCount: number;
+}
+
+export function parseHighlightRatings(highlights: BusinessCenter['highlights']): HighlightRatingEntry[] {
+  const ratingHighlight = highlights.find((h) => h.icon === 'rating');
+  if (!ratingHighlight) return [];
+  const entries: HighlightRatingEntry[] = [];
+  for (const rawLine of ratingHighlight.text.split('\n')) {
+    const line = rawLine.replace(/\*/g, '').replace(/^[-–—•\s]+/, '').trim();
+    if (!line || /2[гГ][иИ][сС]/.test(line)) continue;
+    const valueRe = /(\d[.,]\d)\s*из\s*5/g;
+    const positions: { value: string; index: number; end: number }[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = valueRe.exec(line))) positions.push({ value: m[1], index: m.index, end: valueRe.lastIndex });
+    if (positions.length === 0) continue;
+    const values = new Set(positions.map((p) => p.value));
+    let totalCount = 0;
+    let hasCount = false;
+    positions.forEach((pos, i) => {
+      const segment = line.slice(pos.end, positions[i + 1]?.index ?? line.length);
+      const countMatch = segment.match(/(\d+)\s*оцен/);
+      if (countMatch) {
+        totalCount += Number(countMatch[1]);
+        hasCount = true;
+      }
+    });
+    const value =
+      values.size === 1
+        ? positions[0].value
+        : (Math.round((positions.reduce((s, p) => s + parseFloat(p.value.replace(',', '.')), 0) / positions.length) * 10) / 10)
+            .toFixed(1)
+            .replace('.', ',');
+    entries.push({ source: 'Яндекс.Карты', value, totalCount: hasCount ? totalCount : null, corpusCount: positions.length });
+  }
+  return entries;
+}
+
+// Цитаты из highlight icon='reviews' приходят построчно в формате
+// "**Имя** (N★[, пометка]): «текст»" — так набирает владелец в админке.
+// Звёзды и/или кавычки — не всегда: без «» это не прямая цитата, а
+// пересказ отзыва своими словами ("жалуется на..."), выдавать его за
+// цитату в кавычках было бы нечестно перед читателем.
+export interface ParsedReviewQuote {
+  author: string | null;
+  stars: number | null;
+  text: string;
+  isQuote: boolean;
+}
+
+export function parseReviewQuote(raw: string): ParsedReviewQuote {
+  const m = raw.match(/^\*\*([^*]+)\*\*\s*(?:\((\d)★[^)]*\))?\s*:\s*(.*)$/);
+  if (!m) return { author: null, stars: null, text: raw, isQuote: false };
+  const [, authorRaw, starsRaw, rest] = m;
+  const quoteMatch = rest.match(/«([^»]+)»/);
+  return {
+    author: authorRaw.trim(),
+    stars: starsRaw ? Number(starsRaw) : null,
+    text: (quoteMatch ? quoteMatch[1] : rest).trim(),
+    isQuote: quoteMatch != null,
+  };
+}
+
 // Улица из адреса — чисто синтаксический разбор (не хранится отдельным
 // полем в базе): всё до сегмента, начинающегося с цифры (номер дома),
 // после удаления города/области/района — та же логика, что и в
