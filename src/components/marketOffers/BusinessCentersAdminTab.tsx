@@ -16,7 +16,6 @@ import {
   updateBusinessCenter,
   deleteBusinessCenter,
 } from '../../lib/businessCentersApi';
-import { uploadObjectDocument } from '../../lib/objectsApi';
 import {
   formatRatingHighlightText,
   mergeTenantOrganizations,
@@ -262,14 +261,6 @@ export function BusinessCentersAdminTab() {
   // просто выведи отображение для загрузки, а остальное убери из поля
   // зрения" — сворачиваем их за один клик, открытое поле загрузки — на виду.
   const [showOldSnapshotFiles, setShowOldSnapshotFiles] = useState(false);
-  // Загрузка файла в Supabase Storage стартует сразу при выборе (а не при
-  // нажатии «Сохранить») — владелец, 2026-09-20: "файлы грузит уже секунд
-  // 40, сделай фоновую загрузку". .webarchive с Яндекс.Карт — десятки МБ,
-  // к моменту клика «Сохранить» загрузка чаще всего уже готова или почти
-  // готова, а не начинается с нуля.
-  const [pendingUploads, setPendingUploads] = useState<
-    { file: File; promise: Promise<{ url: string; fileName: string }>; status: 'uploading' | 'done' | 'error'; error?: string }[]
-  >([]);
 
   useEffect(() => {
     load();
@@ -302,7 +293,6 @@ export function BusinessCentersAdminTab() {
     setForm(centerToForm(c));
     setFormError('');
     setShowOldSnapshotFiles(false);
-    setPendingUploads([]);
   }
 
   function openNew() {
@@ -310,24 +300,14 @@ export function BusinessCentersAdminTab() {
     setForm({ ...EMPTY_FORM, sortOrder: String((centers?.length ?? 0)) });
     setFormError('');
     setShowOldSnapshotFiles(false);
-    setPendingUploads([]);
   }
 
-  // Стартует загрузку каждого выбранного файла немедленно — вызывается и из
-  // основного «Добавить файл», и из любых будущих точек выбора файла.
-  function startUploads(files: File[]) {
+  // Файлы только запоминаются для разбора — в Storage они не уходят
+  // (см. комментарий в handleSubmit). Загрузка отсюда убрана 2026-09-20:
+  // её добавили тем же утром ради жалобы «файлы грузит уже секунд 40», а
+  // отказ от хранения решает ту же жалобу радикальнее — грузить нечего.
+  function addSnapshotFiles(files: File[]) {
     setForm((f) => ({ ...f, pendingMapSnapshotFiles: [...f.pendingMapSnapshotFiles, ...files] }));
-    for (const file of files) {
-      const promise = uploadObjectDocument(file);
-      setPendingUploads((prev) => [...prev, { file, promise, status: 'uploading' }]);
-      promise
-        .then(() => setPendingUploads((prev) => prev.map((u) => (u.file === file ? { ...u, status: 'done' } : u))))
-        .catch((err) =>
-          setPendingUploads((prev) =>
-            prev.map((u) => (u.file === file ? { ...u, status: 'error', error: errorMessage(err, 'ошибка загрузки') } : u)),
-          ),
-        );
-    }
   }
 
   function closeEdit() {
@@ -340,26 +320,20 @@ export function BusinessCentersAdminTab() {
     setSaving(true);
     setFormError('');
     try {
-      let uploadedSnapshots: DocumentFile[] = [];
-      try {
-        // Загрузки уже стартовали при выборе файла (startUploads) — здесь
-        // просто дожидаемся тех же промисов, не начинаем заново.
-        uploadedSnapshots = await Promise.all(pendingUploads.map((u) => u.promise));
-      } catch (err) {
-        // Владелец, 2026-09-05: ".webarchive не загружается, жду и ничего
-        // не происходит" — реальная причина в 9 из 10 случаев это лимит
-        // Supabase Storage на 50 МБ на файл (общий на весь проект, поднять
-        // его без платного тарифа нельзя — проверено напрямую через
-        // Management API, PATCH .../config/storage отвечает "upgrade the
-        // project to a paid plan"). Полный .webarchive страницы Яндекс.Карт
-        // с фото/тайлами легко превышает это — сообщаем причину явно, а не
-        // просто "не удалось сохранить".
-        throw new Error(
-          `Не удалось загрузить файл «${form.pendingMapSnapshotFiles[0]?.name ?? ''}»: ${errorMessage(err, 'ошибка загрузки')}. ` +
-            'Если файл больше 50 МБ — это лимит Supabase Storage на текущем тарифе (поднять нельзя без перехода на платный тариф). ' +
-            'Попробуйте сохранить страницу компактнее (например, «Сохранить как → Веб-страница, только HTML» вместо полного Web Archive/mhtml).',
-        );
-      }
+      // Веб-архивы БОЛЬШЕ НЕ ЗАГРУЖАЮТСЯ в Storage (2026-09-20). Разбор и так
+      // идёт в браузере из локального File (parseBusinessCenterSnapshot читает
+      // arrayBuffer), а хранение самого архива не давало ничего: его никто не
+      // перечитывал — публичные страницы к нему не обращаются, повторного
+      // разбора нет, в админке он только висел строкой со ссылкой.
+      //
+      // Платили за это квотой: 22 архива занимали 425 МБ — больше, чем все
+      // остальные 833 файла бакета вместе, и 47% всего Storage проекта при
+      // лимите бесплатного тарифа в 1 ГБ. Организация уже вышла за квоту, с
+      // 8 октября проект начнут ограничивать. Плюс архив протухает: если
+      // данные понадобится перечитать, брать надо свежий снимок.
+      //
+      // Заодно снимается боль с лимитом 50 МБ на файл (журнал 2026-09-05):
+      // грузить больше нечего, а разбирается архив любого размера.
       // Владелец, 2026-09-06: "если в карточку БЦ загружается новый веб-архив,
       // система будет автоматически запускать обновление по этому БЦ и
       // менять контент на странице карточки БЦ". Реализовано узко (см.
@@ -376,47 +350,21 @@ export function BusinessCentersAdminTab() {
       // прикладывает несколько файлов «Отзывы» разом, дедуп по автор+дата
       // между ними — тот же принцип, что уже собирает org-список.
       const autoReviewsBySlugKey = new Map<string, ParsedSnapshotReview>();
-      // Файл, из которого получилось вытащить отзывы, свою работу уже
-      // сделал — данные уходят в отдельную таблицу ниже, а в списке карточки
-      // он больше не нужен и только захламляет его (владелец, 2026-09-21:
-      // "после сохранения он пропадал из списка... пока не остался бы
-      // последний"). Файлы без отзывов (например, только рейтинг/список
-      // организаций) в списке остаются как раньше.
-      const newSnapshotsWithReviews: DocumentFile[] = [];
-      const newSnapshotsWithoutReviews: DocumentFile[] = [];
-      for (let i = 0; i < form.pendingMapSnapshotFiles.length; i++) {
-        const file = form.pendingMapSnapshotFiles[i];
-        const uploaded = uploadedSnapshots[i];
-        let hadReviews = false;
+      for (const file of form.pendingMapSnapshotFiles) {
         try {
           const parsed = await parseBusinessCenterSnapshot(file);
           autoTenantOrganizations = mergeTenantOrganizations(autoTenantOrganizations, parsed.tenantOrganizations);
           if (parsed.rating) autoRating = parsed.rating; // последний файл с рейтингом побеждает
-          if (parsed.reviews.length > 0) {
-            hadReviews = true;
-            for (const review of parsed.reviews) {
-              const key = `${review.author}__${review.publishedAt}`;
-              if (!autoReviewsBySlugKey.has(key)) autoReviewsBySlugKey.set(key, review);
-            }
+          for (const review of parsed.reviews) {
+            const key = `${review.author}__${review.publishedAt}`;
+            if (!autoReviewsBySlugKey.has(key)) autoReviewsBySlugKey.set(key, review);
           }
         } catch {
           // не смогли распознать конкретный файл — пропускаем, это бонус,
           // не обязательный шаг
         }
-        (hadReviews ? newSnapshotsWithReviews : newSnapshotsWithoutReviews).push(uploaded);
       }
       const autoReviews = [...autoReviewsBySlugKey.values()];
-
-      // Список не должен опустеть совсем — если этим сохранением загружены
-      // ТОЛЬКО файлы с отзывами и старых файлов у карточки нет, последний из
-      // них остаётся как подтверждение источника (на всякий случай), а
-      // остальные (несколько корпусов разом за одно сохранение) всё равно
-      // пропадают. Как только у карточки уже есть хоть один файл — новые
-      // "отзывные" файлы пропадают без остатка, список выглядит как обычно.
-      let keptNewWithReviews: DocumentFile[] = [];
-      if (form.mapSnapshotFiles.length === 0 && newSnapshotsWithoutReviews.length === 0 && newSnapshotsWithReviews.length > 0) {
-        keptNewWithReviews = [newSnapshotsWithReviews[newSnapshotsWithReviews.length - 1]];
-      }
 
       let highlightsForSave = buildHighlights(form);
       // У БЦ с несколькими отдельными карточками на Яндекс.Картах (напр.
@@ -455,7 +403,10 @@ export function BusinessCentersAdminTab() {
         rentalInfo: buildRentalInfo(form),
         highlights: highlightsForSave,
         tenantOrganizations: mergeTenantOrganizations(buildTenantOrganizations(form), autoTenantOrganizations),
-        mapSnapshotFiles: [...form.mapSnapshotFiles, ...newSnapshotsWithoutReviews, ...keptNewWithReviews],
+        // Старые записи сохраняются как есть, чтобы их можно было отвязать
+        // руками; новых здесь больше не появляется (файлы больше не
+        // загружаются в Storage — см. комментарий у handleSubmit).
+        mapSnapshotFiles: form.mapSnapshotFiles,
         // Не редактируется в этой форме (см. комментарий у
         // BusinessCenter.technicalParams в data/businessCenters.ts — заполняется
         // отдельным ресерчем, не вручную) — при правке сохраняем как было, у
@@ -709,22 +660,19 @@ export function BusinessCentersAdminTab() {
               автоматически: список организаций в здании, рейтинг и сами отзывы (текст, звёзды, лайки/дизлайки)
               обновляются без ручной работы — просто прикрепите файл и сохраните карточку. Файлы, приложенные
               раньше (до 2026-09-20), повторно не разбираются — их нужно приложить заново, если нужны отзывы.
-              Файл, из которого получилось вытащить отзывы, после сохранения пропадает из списка ниже — данные
-              уже в базе, второй раз он не нужен, список не захламляется. Так продолжается, пока не останется
-              последний файл — он всегда остаётся про запас, дальше список снова выглядит как обычно.
+              Сам файл никуда не загружается и не хранится: всё нужное из него достаётся прямо в браузере, а
+              архив по 20 МБ занимал бы место впустую.
             </p>
             {form.mapSnapshotFiles.length > 0 && (
-              showOldSnapshotFiles || form.mapSnapshotFiles.length === 1 ? (
+              showOldSnapshotFiles ? (
                 <>
-                  {form.mapSnapshotFiles.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowOldSnapshotFiles(false)}
-                      className="self-start text-xs font-semibold text-primary-hover hover:underline"
-                    >
-                      Скрыть файлы
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowOldSnapshotFiles(false)}
+                    className="self-start text-xs font-semibold text-primary-hover hover:underline"
+                  >
+                    Скрыть старые файлы
+                  </button>
                   {form.mapSnapshotFiles.map((file, i) => (
                     <div key={file.url} className="flex items-center gap-2 rounded-control border border-border px-3 py-2 text-sm text-ink">
                       <a href={file.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-primary-hover hover:underline">
@@ -747,24 +695,20 @@ export function BusinessCentersAdminTab() {
                   onClick={() => setShowOldSnapshotFiles(true)}
                   className="self-start text-xs text-ink-faint hover:text-ink-muted hover:underline"
                 >
-                  Прикреплённых файлов: {form.mapSnapshotFiles.length} — показать
+                  Старых файлов: {form.mapSnapshotFiles.length} (не отзывы, скрыто — показать)
                 </button>
               )
             )}
-            {pendingUploads.map((u, i) => (
+            {form.pendingMapSnapshotFiles.map((file, i) => (
               <div key={`pending-${i}`} className="flex items-center gap-2 rounded-control border border-dashed border-border px-3 py-2 text-sm text-ink-muted">
                 <span className="min-w-0 flex-1 truncate">
-                  {u.file.name}{' '}
-                  {u.status === 'uploading' && <span className="text-ink-faint">— загружается…</span>}
-                  {u.status === 'done' && <span className="text-primary-hover">— готово</span>}
-                  {u.status === 'error' && <span className="text-danger">— {u.error}</span>}
+                  {file.name} <span className="text-ink-faint">— разберётся при сохранении</span>
                 </span>
                 <button
                   type="button"
-                  onClick={() => {
-                    setPendingUploads((prev) => prev.filter((_, idx) => idx !== i));
-                    setForm((f) => ({ ...f, pendingMapSnapshotFiles: f.pendingMapSnapshotFiles.filter((file) => file !== u.file) }));
-                  }}
+                  onClick={() =>
+                    setForm((f) => ({ ...f, pendingMapSnapshotFiles: f.pendingMapSnapshotFiles.filter((_, idx) => idx !== i) }))
+                  }
                   aria-label="Убрать файл"
                   className="flex h-6 w-6 shrink-0 items-center justify-center text-ink-faint hover:text-danger"
                 >
@@ -783,7 +727,7 @@ export function BusinessCentersAdminTab() {
                   onChange={(e) => {
                     const picked = Array.from(e.target.files ?? []);
                     e.target.value = '';
-                    if (picked.length) startUploads(picked);
+                    if (picked.length) addSnapshotFiles(picked);
                   }}
                 />
               </label>
