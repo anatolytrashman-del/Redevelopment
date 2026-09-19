@@ -116,11 +116,11 @@ export function deleteContractor(id: string): Promise<void> {
 // URL в базе, подписанная ссылка на каждый показ). См. подробный комментарий
 // у uploadLeadPhoto/createLeadPhotoUrl/deleteLeadPhoto в leadsApi.ts.
 export function uploadContractorPhoto(file: File): Promise<string> {
+  const ext = file.name.split('.').pop() ?? 'jpg';
+  const path = `${crypto.randomUUID()}.${ext}`;
   return withRetry(
     async () => {
-      const ext = file.name.split('.').pop() ?? 'jpg';
-      const path = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from(CONTRACTOR_PHOTOS_BUCKET).upload(path, file);
+      const { error } = await supabase.storage.from(CONTRACTOR_PHOTOS_BUCKET).upload(path, file, { upsert: true });
       if (error) throw error;
       queueImageCompression(CONTRACTOR_PHOTOS_BUCKET, path);
       return path;
@@ -156,11 +156,11 @@ export async function deleteContractorPhoto(path: string): Promise<void> {
 // подписанная ссылка на каждый показ), только свой бакет и без ограничения
 // на тип файла (accept для инпута — на стороне формы, см. Contractors.tsx).
 export function uploadContractorResume(file: File): Promise<string> {
+  const ext = file.name.split('.').pop() ?? 'pdf';
+  const path = `${crypto.randomUUID()}.${ext}`;
   return withRetry(
     async () => {
-      const ext = file.name.split('.').pop() ?? 'pdf';
-      const path = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from(CONTRACTOR_RESUMES_BUCKET).upload(path, file);
+      const { error } = await supabase.storage.from(CONTRACTOR_RESUMES_BUCKET).upload(path, file, { upsert: true });
       if (error) throw error;
       return path;
     },

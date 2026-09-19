@@ -42,13 +42,13 @@ export function fetchSupplierScreenshots(): Promise<SupplierScreenshot[]> {
 // читаемость мелкого текста, а не вес файла — пережатая картинка ломает
 // ровно то, ради чего её грузят.
 export function uploadSupplierScreenshot(host: string, file: File): Promise<SupplierScreenshot> {
+  const ext = (file.name.split('.').pop() ?? 'png').toLowerCase();
+  const path = `${host}/${crypto.randomUUID()}.${ext}`;
   return withRetry(
     async () => {
-      const ext = (file.name.split('.').pop() ?? 'png').toLowerCase();
-      const path = `${host}/${crypto.randomUUID()}.${ext}`;
       const { error: uploadError } = await supabase.storage
         .from(SUPPLIER_SCREENSHOTS_BUCKET)
-        .upload(path, file, { contentType: file.type || 'image/png' });
+        .upload(path, file, { contentType: file.type || 'image/png', upsert: true });
       if (uploadError) throw uploadError;
 
       const { data: urlData } = supabase.storage.from(SUPPLIER_SCREENSHOTS_BUCKET).getPublicUrl(path);
