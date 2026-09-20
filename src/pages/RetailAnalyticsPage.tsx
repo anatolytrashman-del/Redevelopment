@@ -125,8 +125,8 @@ export function RetailAnalyticsPage({ deal }: RetailAnalyticsPageProps) {
   const fullTitle = periodLabel ? `${title} — ${periodLabel}` : title;
   const description =
     deal === 'rent'
-      ? 'Медианная ставка аренды торговых помещений и ПСН в Минске по районам и типу здания — по объявлениям Kufar и Realt.'
-      : 'Медианная цена продажи торговых помещений и ПСН в Минске по районам и типу здания — по объявлениям Kufar и Realt.';
+      ? 'Медианная ставка аренды торговых помещений и ПСН в Минске по районам и типу здания — по объявлениям Kufar, Realt, Domovita и Megapolis.'
+      : 'Медианная цена продажи торговых помещений и ПСН в Минске по районам и типу здания — по объявлениям Kufar, Realt, Domovita и Megapolis.';
   const url = `https://redevelopment.pro/minsk/analytics/torgovye/${deal === 'rent' ? 'arenda' : 'prodazha'}`;
 
   // Вынесено из useEffect в useMemo — раньше собиралось только для JSON-LD,
@@ -140,7 +140,7 @@ export function RetailAnalyticsPage({ deal }: RetailAnalyticsPageProps) {
           deal === 'rent'
             ? `Сколько стоит аренда торгового помещения в Минске в ${periodInLabel}?`
             : `Сколько стоит торговое помещение в Минске в ${periodInLabel}?`,
-        answer: `По медиане объявлений Kufar и Realt за ${periodLabel} — ${formatMoney(city.median, deal)} (по ${city.n} объявлениям).`,
+        answer: `По медиане объявлений Kufar, Realt, Domovita и Megapolis за ${periodLabel} — ${formatMoney(city.median, deal)} (по ${city.n} объявлениям).`,
       });
     }
     const zhk = byBuildingType.find((s) => s.sliceKey === 'Жилой дом');
@@ -156,12 +156,12 @@ export function RetailAnalyticsPage({ deal }: RetailAnalyticsPageProps) {
     faq.push({
       question: 'Чем торговое помещение отличается от ПСН в этих цифрах?',
       answer:
-        'Здесь учтены объявления в категории «Магазины, торговые помещения» на Kufar и Realt.by. Отдельного среза для помещений свободного назначения пока нет — площадки сами относят их к разным категориям не всегда последовательно.',
+        'Здесь учтены объявления в категории «Магазины, торговые помещения» на Kufar, Realt.by, Domovita и Megapolis-real. Отдельного среза для помещений свободного назначения пока нет — площадки сами относят их к разным категориям не всегда последовательно.',
     });
     faq.push({
       question: 'Откуда берутся данные?',
       answer:
-        'Из активных объявлений Kufar и Realt.by по всему Минску, без привязки к конкретному ТЦ или ЖК — такого справочника у нас пока нет. Подробности — на странице методики.',
+        'Из активных объявлений Kufar, Realt.by, Domovita и Megapolis-real по всему Минску, без привязки к конкретному ТЦ или ЖК — такого справочника у нас пока нет. Подробности — на странице методики.',
     });
     return faq;
   }, [snapshots, city, byBuildingType, deal, periodLabel, periodInLabel]);
@@ -188,7 +188,7 @@ export function RetailAnalyticsPage({ deal }: RetailAnalyticsPageProps) {
       url,
       datePublished: '2026-09-07',
       dateModified: modified,
-      measurementTechnique: 'Медиана и перцентили цены за м² по активным объявлениям Kufar и Realt, срез по месяцу',
+      measurementTechnique: 'Медиана и перцентили цены за м² по активным объявлениям Kufar, Realt, Domovita и Megapolis, срез по месяцу',
     });
     setFaqJsonLd(faqItems);
   }, [snapshots, city, faqItems, fullTitle, description, url, title]);
@@ -372,22 +372,23 @@ export function RetailAnalyticsPage({ deal }: RetailAnalyticsPageProps) {
           <h2 className="text-lg font-bold text-ink">Что это за цифры</h2>
           <p className="text-sm leading-relaxed text-ink-muted">
             Это медиана и 25–75-й перцентили цены за м² по активным объявлениям аренды{deal === 'sale' ? ' и продажи' : ''}{' '}
-            торговых помещений по всему Минску — категория «Магазины, торговые помещения» на Kufar и Realt.by, без
+            торговых помещений по всему Минску — категория «Магазины, торговые помещения» на Kufar, Realt.by, Domovita и
+            Megapolis-real, без
             привязки к конкретному ТЦ или жилому комплексу (такого справочника у нас пока нет — район и тип здания
             берём из собственных полей площадок). Данные собираются раз в месяц, это{' '}
             <strong>ставка предложения</strong>, не подтверждённая цена сделки. Срез публикуется только при не менее{' '}
             {MIN_RELIABLE_N} объявлениях — меньшая выборка помечена как ориентировочная или скрыта вовсе.
           </p>
           <p className="text-sm leading-relaxed text-ink-muted">
-            Объявления Kufar и Realt.by сверены на дубли (по адресу, площади, этажу и типу сделки) перед подсчётом —
-            один и тот же объект, выставленный на обеих площадках, учитывается один раз.
+            Объявления всех четырёх площадок сверены на дубли (по адресу, площади, ставке и типу сделки) перед
+            подсчётом — один и тот же объект, выставленный сразу на нескольких, учитывается один раз.
           </p>
           <p className="text-sm text-ink-muted">
             Подробная методика — на{' '}
             <Link to="/minsk/analytics/metodika" className="text-primary-hover hover:underline">
               отдельной странице
             </Link>
-            . Источники: Kufar (re.kufar.by), Realt.by
+            . Источники: Kufar (re.kufar.by), Realt.by, Domovita (domovita.by), Megapolis-real (megapolis-real.by)
             {externalMetrics.length > 0 && ', Результативная недвижимость (belretail.by)'}.
           </p>
         </section>
