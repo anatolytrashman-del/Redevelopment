@@ -9,10 +9,12 @@ import {
 } from './capture-yandex-nearby.mjs';
 import { dedupePlaces } from './nearby-places-common.mjs';
 
-// Формы взяты с живых выдач Яндекс.Карт 2026-09-20 (аптека/магазин/кафе/
+// Формы взяты с живых выдач Яндекс.Карт 2026-09-20/21 (аптека/магазин/кафе/
 // банкомат вокруг БЦ «Порт»): организация — числовой id и рубрика с русским
-// названием, станция метро — id station__, остановка — stop__, а слой карты
-// и блок «похожие» приезжают с рубрикой без кириллицы («common», «…·similar»).
+// названием, станция метро — id station__, остановка — stop__. Слой карты
+// без карточки («common») и блок «похожие рядом» («…·similar») тоже без
+// кириллицы в рубрике, но «похожие» — настоящие организации (тот же числовой
+// id), просто без своей рубрики; категория для них берётся из запроса.
 const center = { slug: 'port', lat: 53.946157, lng: 27.682522 };
 
 const organization = { name: 'Соцфарма', coordinates: [27.68047, 53.94324], id: 159900781874, categories: [{ name: 'Аптека' }, { name: 'sotsfarma' }, { name: 'business' }], address: 'просп. Независимости, 164' };
@@ -20,7 +22,7 @@ const station = { name: 'Уручье', coordinates: [27.688191739, 53.946029898
 const stationExit = { name: 'Уручье', coordinates: [27.6875, 53.9459], id: 'station__9880197', category: 'metro' };
 const stop = { name: 'Шафарнянская', coordinates: [27.6807, 53.9455], id: 'stop__10045236', category: 'common' };
 const mapNoise = { name: 'Станция метро Уручье', coordinates: [27.6875, 53.9462], id: 987654321, category: 'common' };
-const similar = { name: 'Планета Здоровья', coordinates: [27.68178, 53.952068], id: 159900781875, categories: [{ name: 'planeta_zdorovya' }, { name: 'similar' }] };
+const similar = { name: 'Планета Здоровья', coordinates: [27.6805, 53.9478], id: 159900781875, categories: [{ name: 'planeta_zdorovya' }, { name: 'similar' }] };
 
 describe('разбор состояния выдачи', () => {
   it('достаёт JSON из state-view и раскодирует HTML-сущности', () => {
@@ -46,10 +48,13 @@ describe('классификация объектов выдачи', () => {
     expect(classifyCandidate({ id: '159900781874', rubric: 'Аптека · business' }, 'shop')).toBe('pharmacy');
   });
 
-  it('отбрасывает слой карты и блок «похожие» — у них рубрика без кириллицы', () => {
+  it('отбрасывает слой карты — у него рубрика «common» без кириллицы', () => {
     expect(classifyCandidate({ id: '987654321', rubric: 'common' }, 'pharmacy')).toBeNull();
-    expect(classifyCandidate({ id: '159900781875', rubric: 'planeta_zdorovya · similar' }, 'shop')).toBeNull();
     expect(classifyCandidate({ id: '', rubric: 'Аптека' }, 'shop')).toBeNull();
+  });
+
+  it('берёт категорию запроса для блока «похожие» — своей рубрики на русском у них нет', () => {
+    expect(classifyCandidate({ id: '159900781875', rubric: 'planeta_zdorovya · similar' }, 'pharmacy')).toBe('pharmacy');
   });
 });
 
@@ -64,12 +69,16 @@ describe('выдача целиком → строки таблицы', () => {
     }),
   );
 
-  it('оставляет организацию, станцию и остановку, отбрасывая мусор карты', () => {
-    expect(places.map((place) => place.category).sort()).toEqual(['metro', 'pharmacy', 'transport_stop']);
-    expect(places.find((place) => place.category === 'pharmacy')).toMatchObject({
-      name: 'Соцфарма',
+  it('оставляет организации (прямую и из «похожих»), станцию и остановку, отбрасывая мусор карты', () => {
+    expect(places.map((place) => place.category).sort()).toEqual(['metro', 'pharmacy', 'pharmacy', 'transport_stop']);
+    expect(places.find((place) => place.name === 'Соцфарма')).toMatchObject({
+      category: 'pharmacy',
       source_url: 'https://yandex.ru/maps/org/159900781874',
       address: 'просп. Независимости, 164',
+    });
+    expect(places.find((place) => place.name === 'Планета Здоровья')).toMatchObject({
+      category: 'pharmacy',
+      source_url: 'https://yandex.ru/maps/org/159900781875',
     });
   });
 

@@ -11,7 +11,6 @@ import {
   Award,
   Banknote,
   Building2,
-  Car,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -46,6 +45,7 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
 import { PhotoBlock, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
+import { FavoriteButton } from '../components/businessCenters/FavoriteButton';
 import {
   setBreadcrumbJsonLd,
   setFaqJsonLd,
@@ -1239,6 +1239,7 @@ export function BusinessCenterDetailPage() {
                   {mapRating.label} · Яндекс.Карты
                 </span>
               )}
+              <FavoriteButton slug={center.slug} className="absolute bottom-4 left-4" />
             </div>
 
             <div className="flex flex-col gap-4 p-5 sm:p-6">
@@ -1519,75 +1520,87 @@ export function BusinessCenterDetailPage() {
             <Building2 className="h-5 w-5 shrink-0 text-primary" />
             Информация о здании
           </h2>
-          {(center.parking || accessHoursText || accessibilityAttributes) && (
-            <section className="flex flex-col gap-2" aria-labelledby="operations-title">
-              <h3 id="operations-title" className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                Эксплуатация и доступность
-              </h3>
-              <div className="overflow-hidden rounded-control border border-border">
-                {center.parking && <OperationalInfoRow icon={Car} label="Парковка" text={center.parking} />}
-                {accessHoursText && (
-                  <OperationalInfoRow
-                    icon={Clock}
-                    label="Часы работы"
-                    text={accessHoursText.toLocaleLowerCase('ru-RU') === 'круглосуточно' ? '24/7' : accessHoursText}
-                  />
-                )}
-                {accessibilityAttributes && <AccessibilityRow text={accessibilityAttributes} />}
-              </div>
-            </section>
-          )}
-          {redistributedTechnicalParams.buildingInformationRows.length > 0 && (
-          <div className="overflow-hidden rounded-control border border-border">
-            <table className="w-full border-collapse text-sm">
-              <tbody>
-                {redistributedTechnicalParams.buildingInformationRows.map((row) => (
-                  <tr key={row.label} className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
-                    <th
-                      scope="row"
-                      className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
-                    >
-                      {row.label}
-                    </th>
-                    <td className="py-2 pl-2 pr-3 text-ink">{row.value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          )}
-          {center.buildingFacts.length > 0 && (
-            <section className="flex flex-col gap-2" aria-labelledby="building-facts-title">
-              <h3 id="building-facts-title" className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                Дополнительно, по другим источникам
-              </h3>
-              <div className="overflow-hidden rounded-control border border-border">
-                <table className="w-full border-collapse text-sm">
-                  <tbody>
-                    {center.buildingFacts.map((fact, index) => (
-                      <tr
-                        key={`${fact.label}-${index}`}
-                        className="border-b border-border last:border-b-0 odd:bg-surface-muted/40"
+          {/* Один сплошной список фактов о здании, без подзаголовков по
+              ТИПУ ИСТОЧНИКА (владелец, 2026-09-20: "надпись ДОПОЛНИТЕЛЬНО,
+              ПО ДРУГИМ ИСТОЧНИКАМ нелогичная, у нас один единый блок
+              информации о здании" — раньше парковка/часы/доступная среда,
+              технические параметры и исследованные факты рисовались тремя
+              отдельными блоками со своими заголовками и обрамлением, хотя
+              для читателя это один и тот же список "что известно о
+              здании"). Порядок внутри остаётся прежним (сначала
+              эксплуатационные строки, потом технические параметры, потом
+              исследованные факты) — он и был логичным, лишним был только
+              заголовок, объясняющий это через происхождение данных. */}
+          {(center.parking ||
+            accessHoursText ||
+            accessibilityAttributes ||
+            redistributedTechnicalParams.buildingInformationRows.length > 0 ||
+            center.buildingFacts.length > 0) && (
+            <div className="overflow-hidden rounded-control border border-border">
+              <table className="w-full border-collapse text-sm">
+                <tbody>
+                  {center.parking && (
+                    <tr className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
+                      <th scope="row" className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5">
+                        Парковка
+                      </th>
+                      <td className="py-2 pl-2 pr-3 text-ink">{center.parking}</td>
+                    </tr>
+                  )}
+                  {accessHoursText && (
+                    <tr className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
+                      <th scope="row" className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5">
+                        Часы работы
+                      </th>
+                      <td className="py-2 pl-2 pr-3 text-ink">
+                        {accessHoursText.toLocaleLowerCase('ru-RU') === 'круглосуточно' ? '24/7' : accessHoursText}
+                      </td>
+                    </tr>
+                  )}
+                  {accessibilityAttributes && (
+                    <tr className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
+                      <th scope="row" className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5">
+                        Доступная среда
+                      </th>
+                      <td className="py-2 pl-2 pr-3 text-ink">
+                        <AccessibilityChips text={accessibilityAttributes} />
+                      </td>
+                    </tr>
+                  )}
+                  {redistributedTechnicalParams.buildingInformationRows.map((row) => (
+                    <tr key={row.label} className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
+                      <th
+                        scope="row"
+                        className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
                       >
-                        <th
-                          scope="row"
-                          className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
-                        >
-                          {fact.label}
-                          {fact.corpusLabel && (
-                            <span className="block text-xs font-normal text-ink-faint">{fact.corpusLabel}</span>
-                          )}
-                        </th>
-                        <td className="py-2 pl-2 pr-3 text-ink">
-                          <span>{fact.value}</span>
-                          {fact.note && <span className="block text-xs text-ink-faint">{fact.note}</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+                        {row.label}
+                      </th>
+                      <td className="py-2 pl-2 pr-3 text-ink">{row.value}</td>
+                    </tr>
+                  ))}
+                  {center.buildingFacts.map((fact, index) => (
+                    <tr
+                      key={`${fact.label}-${index}`}
+                      className="border-b border-border last:border-b-0 odd:bg-surface-muted/40"
+                    >
+                      <th
+                        scope="row"
+                        className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
+                      >
+                        {fact.label}
+                        {fact.corpusLabel && (
+                          <span className="block text-xs font-normal text-ink-faint">{fact.corpusLabel}</span>
+                        )}
+                      </th>
+                      <td className="py-2 pl-2 pr-3 text-ink">
+                        <span>{fact.value}</span>
+                        {fact.note && <span className="block text-xs text-ink-faint">{fact.note}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 
@@ -2254,26 +2267,6 @@ function LabeledTextRow({
   );
 }
 
-function OperationalInfoRow({
-  icon: Icon,
-  label,
-  text,
-}: {
-  icon: typeof FileText;
-  label: string;
-  text: string;
-}) {
-  return (
-    <div className="grid gap-2 border-b border-border px-3 py-3 last:border-b-0 sm:grid-cols-[minmax(11rem,2fr)_3fr] sm:items-start">
-      <div className="flex items-center gap-2 text-ink-muted">
-        <Icon className="h-4 w-4 shrink-0 text-ink-muted" />
-        <p className="text-sm font-medium">{label}</p>
-      </div>
-      <div className="whitespace-pre-line text-sm leading-relaxed text-ink">{text}</div>
-    </div>
-  );
-}
-
 const INTERNAL_INFRASTRUCTURE_ICONS: { pattern: RegExp; icon: typeof FileText }[] = [
   { pattern: /банкомат/i, icon: CreditCard },
   { pattern: /банк/i, icon: Landmark },
@@ -2353,7 +2346,7 @@ const ACCESSIBILITY_ICONS: { pattern: RegExp; icon: typeof FileText }[] = [
   { pattern: /двер|вход|доступн/i, icon: DoorOpen },
 ];
 
-function AccessibilityRow({ text }: { text: string }) {
+function AccessibilityChips({ text }: { text: string }) {
   const items = text
     .split(/[,;]\s*/)
     .map((item) => item.trim())
@@ -2361,22 +2354,16 @@ function AccessibilityRow({ text }: { text: string }) {
   if (items.length === 0) return null;
 
   return (
-    <div className="grid gap-2 px-3 py-3 sm:grid-cols-[minmax(11rem,2fr)_3fr] sm:items-start">
-      <div className="flex items-center gap-2 text-ink-muted">
-        <Accessibility className="h-4 w-4 shrink-0" />
-        <p className="text-sm font-medium">Доступная среда</p>
-      </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-2">
-          {items.map((item) => {
-            const ItemIcon = ACCESSIBILITY_ICONS.find(({ pattern }) => pattern.test(item))?.icon ?? CheckCircle2;
-            return (
-              <span key={item} className="inline-flex items-center gap-1.5 text-sm text-ink">
-                <ItemIcon className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
-                {item}
-              </span>
-            );
-          })}
-      </div>
+    <div className="flex flex-wrap gap-x-4 gap-y-2">
+      {items.map((item) => {
+        const ItemIcon = ACCESSIBILITY_ICONS.find(({ pattern }) => pattern.test(item))?.icon ?? CheckCircle2;
+        return (
+          <span key={item} className="inline-flex items-center gap-1.5 text-sm text-ink">
+            <ItemIcon className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
+            {item}
+          </span>
+        );
+      })}
     </div>
   );
 }

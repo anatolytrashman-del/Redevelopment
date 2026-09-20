@@ -9,6 +9,7 @@ import {
   Camera,
   DollarSign,
   HardHat,
+  Heart,
   MapPin,
   Ruler,
   TrainFront,
@@ -19,6 +20,8 @@ import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { PhotoBlock, FactRow, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import { CatalogFilterPanel } from '../components/businessCenters/CatalogFilterPanel';
 import { CatalogCompare } from '../components/businessCenters/CatalogCompare';
+import { FavoriteButton } from '../components/businessCenters/FavoriteButton';
+import { useFavorites } from '../lib/favoritesContext';
 import {
   setArticleJsonLd,
   setBreadcrumbJsonLd,
@@ -159,7 +162,7 @@ const FILTER_QUERY_KEYS = ['class', 'status', 'district', 'microdistrict', 'metr
 // простому виду для нового набора фото. «Сравнить» остаётся доступным по
 // прямой ссылке (?compare=slug,slug — CatalogCompare.tsx), просто больше не
 // включается кликом на карточке.
-function BusinessCenterCard({ center }: { center: BusinessCenter }) {
+export function BusinessCenterCard({ center }: { center: BusinessCenter }) {
   const nearestMetro = nearestMetroStation(center.nearestMetroStations);
   return (
     <Link
@@ -185,6 +188,7 @@ function BusinessCenterCard({ center }: { center: BusinessCenter }) {
             </span>
           )}
         </div>
+        <FavoriteButton slug={center.slug} className="absolute right-2 top-2" />
       </div>
       <div className="flex flex-1 flex-col gap-2.5 p-4">
         <h2 className="text-base font-bold leading-snug text-ink">{shortName(center)}</h2>
@@ -257,6 +261,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     metroSlug?: string;
     streetSlug?: string;
   }>();
+  const { id: favoritesId, slugs: favoriteSlugs } = useFavorites();
   const [centers, setCenters] = useState<BusinessCenter[] | null>(null);
   const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(null);
   const [externalMetrics, setExternalMetrics] = useState<ExternalMetric[] | null>(null);
@@ -936,7 +941,25 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       {/* Сетка и ширина основного контента — как на странице Минск Мира. */}
       <main className="mx-auto max-w-6xl px-4 pt-6 pb-12 sm:px-8 sm:pt-12">
         <div className="lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:items-start lg:gap-10">
-          <aside aria-label="Фильтры каталога" className="min-w-0 lg:sticky lg:top-24">
+          <aside aria-label="Фильтры каталога" className="min-w-0 space-y-4 lg:sticky lg:top-24">
+          {/* Отдельный блок, не часть CatalogFilterPanel (владелец,
+              2026-09-21: "убери из правого бока, перенеси в левое меню, но
+              не делай частью меню") — раньше был fixed-плашкой в правом
+              нижнем углу и на мобильном перекрывался кнопкой "Фильтры",
+              которая занимает то же место. */}
+          {favoritesId && favoriteSlugs.length > 0 && (
+            <Link
+              to={`/favorites/${favoritesId}`}
+              className={cn(
+                'flex items-center gap-2 p-3 text-sm font-bold text-ink transition-colors hover:text-primary-hover',
+                glassCardClass,
+              )}
+              style={glassCardShadow}
+            >
+              <Heart className="h-4 w-4 shrink-0 fill-primary text-primary" />
+              Избранное ({favoriteSlugs.length})
+            </Link>
+          )}
           <CatalogFilterPanel
             state={filter}
             onChange={applyFilter}
