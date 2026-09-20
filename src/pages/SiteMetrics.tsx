@@ -999,6 +999,26 @@ export function SiteMetrics() {
                     .map((d) => ({ date: d.date, value: d.pagesInSearch as number }))}
                 />
               </div>
+              {hasSearchQueryData && (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <p className="mb-2 text-xs text-ink-muted">Показы в поиске по дням</p>
+                    <Sparkbars
+                      data={currentWebmaster
+                        .filter((d) => d.impressions !== null)
+                        .map((d) => ({ date: d.date, value: d.impressions as number }))}
+                    />
+                  </div>
+                  <div>
+                    <p className="mb-2 text-xs text-ink-muted">Клики из поиска по дням</p>
+                    <Sparkbars
+                      data={currentWebmaster
+                        .filter((d) => d.clicks !== null)
+                        .map((d) => ({ date: d.date, value: d.clicks as number }))}
+                    />
+                  </div>
+                </div>
+              )}
               <SearchQueriesTable
                 title="По каким запросам показывают в Яндексе"
                 queries={webmasterQueries}
@@ -1046,6 +1066,26 @@ export function SiteMetrics() {
                   </div>
                 )}
               </div>
+              {hasGoogleQueryData && (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <p className="mb-2 text-xs text-ink-muted">Показы в поиске по дням</p>
+                    <Sparkbars
+                      data={currentGoogle
+                        .filter((d) => d.impressions !== null)
+                        .map((d) => ({ date: d.date, value: d.impressions as number }))}
+                    />
+                  </div>
+                  <div>
+                    <p className="mb-2 text-xs text-ink-muted">Клики из поиска по дням</p>
+                    <Sparkbars
+                      data={currentGoogle
+                        .filter((d) => d.clicks !== null)
+                        .map((d) => ({ date: d.date, value: d.clicks as number }))}
+                    />
+                  </div>
+                </div>
+              )}
               <SearchQueriesTable
                 title="По каким запросам показывают в Google"
                 queries={googleQueries}
