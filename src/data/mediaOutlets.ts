@@ -23,10 +23,25 @@ export interface MediaOutletBrand {
   logo: string | null;
 }
 
+const OFFICE_LIFE: MediaOutletBrand = { name: 'Office Life', logo: '/media-logos/officelife.png' };
+
 export const mediaOutlets: Record<string, MediaOutletBrand> = {
   'belta.by': { name: 'БелТА', logo: '/media-logos/belta.png' },
   'onliner.by': { name: 'Onliner', logo: '/media-logos/onliner.png' },
   'realt.by': { name: 'Realt.by', logo: '/media-logos/realt.png' },
+  // Office Life переехал с officelife.media на officelife.by (старый домен
+  // отдаёт 301). Ссылки в подборках остались на обоих, поэтому в реестре
+  // оба ключа — иначе у части публикаций пропал бы логотип.
+  'officelife.by': OFFICE_LIFE,
+  'officelife.media': OFFICE_LIFE,
+  'belretail.by': { name: 'BelRetail', logo: '/media-logos/belretail.png' },
+  'blizko.by': { name: 'Blizko.by', logo: '/media-logos/blizko.png' },
+  // Единственный логотип «Минск-новостей», который удалось найти на сайте,
+  // — юбилейный значок «МН 25 лет» из шапки (2026-09-20). Он не читается как
+  // обычный вордмарк и устареет с концом юбилейного года, поэтому картинку
+  // не берём — издание показывается названием текстом (штатное поведение
+  // при logo: null, см. комментарий у MediaOutletBrand выше).
+  'minsknews.by': { name: 'Минск-новости', logo: null },
 };
 
 // Домены, у которых значащая часть — три уровня, а не два. Пусто до первого
