@@ -190,14 +190,14 @@ function BusinessCenterCard({ center }: { center: BusinessCenter }) {
         <h2 className="text-base font-bold leading-snug text-ink">{center.name}</h2>
         <FactRow icon={MapPin}>{shortAddress(center.address)}</FactRow>
         {nearestMetro ? (
-          <div className="flex items-start gap-2 text-sm text-ink-muted">
+          <div className="flex items-start gap-2 text-xs font-semibold text-ink-muted">
             <span
               className={cn(
-                'mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full',
+                'mt-1 h-2.5 w-2.5 shrink-0 rounded-full',
                 metroLineId(nearestMetro.line) ? METRO_LINE_DOT_CLASS[metroLineId(nearestMetro.line)!] : 'bg-ink-faint',
               )}
             />
-            <span>
+            <span className="text-balance">
               {nearestMetro.name} — {formatMetroDistance(nearestMetro.distanceMeters)}
             </span>
           </div>
@@ -208,9 +208,9 @@ function BusinessCenterCard({ center }: { center: BusinessCenter }) {
             // есть, серой точкой вместо цвета линии (владелец, 2026-09-20:
             // на карточках не должно быть "дыр" там, где хоть что-то о метро
             // известно).
-            <div className="flex items-start gap-2 text-sm text-ink-muted">
-              <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-ink-faint" />
-              <span>{center.metro}</span>
+            <div className="flex items-start gap-2 text-xs font-semibold text-ink-muted">
+              <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-ink-faint" />
+              <span className="text-balance">{center.metro}</span>
             </div>
           )
         )}
