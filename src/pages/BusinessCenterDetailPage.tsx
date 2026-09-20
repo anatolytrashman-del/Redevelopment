@@ -731,6 +731,12 @@ export function BusinessCenterDetailPage() {
           .join('; '),
       );
     }
+    if (center.buildingFacts.length) {
+      add(
+        `Что известно о здании «${name}» из других источников, помимо prometr.by?`,
+        center.buildingFacts.map((fact) => `${fact.label}: ${fact.value} (по данным ${fact.source})`).join('; '),
+      );
+    }
     add(`Что есть внутри «${name}»?`, redistributedTechnicalParams.internalInfrastructureText);
     // Инфраструктура рядом появится отдельным картографическим блоком и в
     // карточке/FAQ пока не повторяется.
@@ -853,6 +859,7 @@ export function BusinessCenterDetailPage() {
       has(
         'tech',
         redistributedTechnicalParams.buildingInformationRows.length > 0 ||
+          center.buildingFacts.length > 0 ||
           Boolean(center.parking || accessHoursText || accessibilityAttributes),
       ),
       has('streetCenters', relatedCenters.street.length > 0),
@@ -1490,6 +1497,48 @@ export function BusinessCenterDetailPage() {
               </tbody>
             </table>
           </div>
+          )}
+          {center.buildingFacts.length > 0 && (
+            <section className="flex flex-col gap-2" aria-labelledby="building-facts-title">
+              <h3 id="building-facts-title" className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                Дополнительно, по другим источникам
+              </h3>
+              <div className="overflow-hidden rounded-control border border-border">
+                <table className="w-full border-collapse text-sm">
+                  <tbody>
+                    {center.buildingFacts.map((fact, index) => (
+                      <tr
+                        key={`${fact.label}-${index}`}
+                        className="border-b border-border last:border-b-0 odd:bg-surface-muted/40"
+                      >
+                        <th
+                          scope="row"
+                          className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
+                        >
+                          {fact.label}
+                          {fact.corpusLabel && (
+                            <span className="block text-xs font-normal text-ink-faint">{fact.corpusLabel}</span>
+                          )}
+                        </th>
+                        <td className="py-2 pl-2 pr-3 text-ink">
+                          <span>{fact.value}</span>
+                          {fact.note && <span className="block text-xs text-ink-faint">{fact.note}</span>}
+                          <a
+                            href={fact.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                          >
+                            <ExternalLink className="h-3 w-3 shrink-0" />
+                            {fact.source}
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           )}
         </div>
 
