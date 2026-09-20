@@ -25,10 +25,8 @@ import {
   HardHat,
   Info,
   Landmark,
-  Layers,
   Leaf,
   MapPin,
-  MapPinned,
   MessageSquareQuote,
   Newspaper,
   Palette,
@@ -38,7 +36,6 @@ import {
   ShoppingBag,
   Sparkles,
   Star,
-  TrainFront,
   Trophy,
   Users,
 } from 'lucide-react';
@@ -133,23 +130,18 @@ import { buildRanking as buildBusinessCenterRanking } from './BusinessCentersRan
 // блоки реально отрисованы.
 const SECTION_LABELS: Record<string, string> = {
   awards: 'Награды',
-  facts: 'Факты',
+  facts: 'Интересные факты',
   media: 'СМИ о здании',
   developer: 'Застройщик',
-  metroCenters: 'БЦ у метро',
-  market: 'БЦ на фоне конкурентов',
+  market: 'Место среди конкурентов',
   map: 'Инфраструктура рядом',
-  tech: 'Информация о здании',
-  streetCenters: 'БЦ на улице',
-  microdistrictCenters: 'БЦ рядом',
-  classDistrictCenters: 'Похожие БЦ',
-  ratingCenters: 'Рейтинг БЦ',
+  tech: 'Параметры здания',
   tenants: 'Кто внутри',
-  rental: 'Условия аренды',
-  offers: 'Предложения',
+  rental: 'Условия для арендаторов',
+  offers: 'Объявления на рынке',
   history: 'История здания',
   reviews: 'Отзывы',
-  faq: 'Вопросы',
+  faq: 'Частые вопросы',
 };
 
 // Демонстрация: FAQ «Альянс», переписанный gemini-3.8-flash (ProxyAPI) в
@@ -253,14 +245,9 @@ const SECTION_ICONS: Record<string, typeof FileText> = {
   facts: Sparkles,
   media: Newspaper,
   developer: HardHat,
-  metroCenters: TrainFront,
   market: Award,
   map: MapPin,
   tech: Building2,
-  streetCenters: MapPin,
-  microdistrictCenters: MapPinned,
-  classDistrictCenters: Layers,
-  ratingCenters: Star,
   tenants: Users,
   rental: FileText,
   offers: Banknote,
@@ -864,7 +851,7 @@ export function BusinessCenterDetailPage() {
   // «БЦ на фоне конкурентов», чтобы одна и та же ставка не расходилась.
   const offerIndex = useMemo(() => buildOfferIndex(officeSnapshots), [officeSnapshots]);
 
-  // Б5: «Сейчас предлагается» — живая строка вместо голой таблицы. Важны
+  // Б5: «Объявления на рынке» — живая строка вместо голой таблицы. Важны
   // ДИАПАЗОНЫ: «офисы от 50 до 400 м² по $10–18/м²» отвечает на вопрос
   // «подойдёт ли мне», а таблица со средними по типу помещения — нет.
   const offersSummary = useMemo(() => {
@@ -976,7 +963,7 @@ export function BusinessCenterDetailPage() {
         const yearBar = marketPosition?.bars.find((bar) => bar.label === 'Год сдачи') ?? null;
         add(
           `В каком году построен «${name}»?`,
-          `Сдан в ${center.yearBuilt} году${age > 0 ? `, зданию ${age} ${pluralRu(age, 'год', 'года', 'лет')}` : ''}.${yearBar?.note ? ` Это ${yearBar.note}.` : ''}`,
+          `Сдан в ${center.yearBuilt} году${age > 0 ? `, зданию ${age} ${pluralRu(age, 'год', 'года', 'лет')}` : ''}.${yearBar && !yearBar.nearTypical ? ` Это ${yearBar.deltaText}.` : ''}`,
         );
       }
     }
@@ -1022,7 +1009,7 @@ export function BusinessCenterDetailPage() {
       // "Год сдачи" уже влит в ответ на "В каком году построен" выше —
       // второй вопрос с тем же числом читался бы как дубль.
       if (bar.label === 'Год сдачи') continue;
-      add(`${bar.label} в «${name}» — это много или мало для своего класса?`, `${fmt(bar.value)} ${bar.unit}; ${bar.baselines.map((b) => `${b.label}: ${fmt(b.value)} ${bar.unit}`).join('; ')}.${bar.note ? ` ${bar.note}.` : ''}`);
+      add(`${bar.label} в «${name}» — это много или мало для своего класса?`, `${bar.subjectDisplayValue}; ${bar.captionText} (${bar.deltaText}).`);
     }
     // FAQ пересказывает блок «Инфраструктура рядом» теми же цифрами, что
     // нарисованы на карте и в списке под ней (правило владельца: FAQ
@@ -1185,8 +1172,14 @@ export function BusinessCenterDetailPage() {
     // вложенности просмотра): что предлагают и почём → какое здание → где
     // оно → БЦ по соседству → кто внутри → на фоне конкурентов → БЦ у той же
     // станции метро → отзывы → рейтинг БЦ → блоки доверия (награды/СМИ/
-    // факты/история) → застройщик → похожие по классу и району, на этой
-    // улице → FAQ.
+    // факты/история) → застройщик → на этой улице, похожие по классу и
+    // району → FAQ. Сами блоки-рекомендации других БЦ (по соседству/у
+    // метро/рейтинг/похожие по классу/на этой улице) в итоговое меню НЕ
+    // попадают — их на странице теперь несколько штук, пунктами меню их не
+    // множим (владелец, 2026-09-20) — см. фильтр RECOMMENDATION_SECTION_IDS
+    // в pageSections ниже. Этот список (pageSectionsRaw) всё равно должен
+    // их содержать: по нему же вычисляется, не прилипли ли два блока
+    // рекомендаций друг к другу без обычного контента между ними.
     return [
       has('offers', offers !== null && offers.length > 0),
       has('rental', Boolean(center.rentalInfo)),
@@ -1263,8 +1256,15 @@ export function BusinessCenterDetailPage() {
     return suppressed;
   }, [pageSectionsRaw]);
 
+  // Итоговое меню «На странице»: без подавленных соседей (выше) и без
+  // самих блоков-рекомендаций вообще — владелец, 2026-09-20, решил не
+  // множить пункты меню, когда таких блоков на странице стало несколько
+  // (микрорайон/метро/рейтинг/класс×район/улица).
   const pageSections = useMemo(
-    () => pageSectionsRaw.filter((section) => !suppressedRecommendationSectionIds.has(section.id)),
+    () =>
+      pageSectionsRaw.filter(
+        (section) => !suppressedRecommendationSectionIds.has(section.id) && !RECOMMENDATION_SECTION_IDS.has(section.id),
+      ),
     [pageSectionsRaw, suppressedRecommendationSectionIds],
   );
 
@@ -1696,7 +1696,7 @@ export function BusinessCenterDetailPage() {
             выводится — раньше на этом месте была строка-заглушка. */}
         {offers !== null && offers.length > 0 && (
           <div id="offers" className={cn('mt-6 flex scroll-mt-32 flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <h2 className="text-lg font-bold text-ink">Сейчас предлагается</h2>
+            <h2 className="text-lg font-bold text-ink">Объявления на рынке</h2>
             <div className="flex flex-col gap-2">
               {(['rent', 'sale'] as const).map((deal) => {
                 const sum = offersSummary[deal];
@@ -1808,7 +1808,7 @@ export function BusinessCenterDetailPage() {
             Каждое поле независимо может быть null — рисуем только то, что
             реально нашлось. Порядок блоков страницы пересобран 2026-09-20
             (владелец принял предложенный порядок): условия аренды идут
-            сразу за "Сейчас предлагается" — оба блока отвечают на один и
+            сразу за "Объявления на рынке" — оба блока отвечают на один и
             тот же вопрос "что тут есть и почём". */}
         {center.rentalInfo && (
           <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
@@ -1841,7 +1841,7 @@ export function BusinessCenterDetailPage() {
         <div id="tech" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
           <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
             <Building2 className="h-5 w-5 shrink-0 text-primary" />
-            Информация о здании
+            Параметры здания
           </h2>
           {/* Один сплошной список фактов о здании, без подзаголовков по
               ТИПУ ИСТОЧНИКА (владелец, 2026-09-20: "надпись ДОПОЛНИТЕЛЬНО,

@@ -141,7 +141,7 @@ export function NearbyInfrastructureBlock({
       <div className="flex flex-col gap-1">
         <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
           <MapPin className="h-5 w-5 shrink-0 text-ink-muted" />
-          {hasContent ? 'Инфраструктура рядом' : 'Расположение на карте'}
+          {hasContent ? 'Инфраструктура рядом' : 'Расположение'}
         </h2>
         {!hasContent && (
           <p className="text-xs text-ink-faint">
