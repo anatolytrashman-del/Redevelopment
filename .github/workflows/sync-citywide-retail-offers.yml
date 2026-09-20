@@ -1,4 +1,4 @@
-name: Sync citywide retail offers (Kufar + Realt)
+name: Sync citywide retail offers (Kufar + Realt + Domovita + Megapolis)
 
 on:
   schedule:
