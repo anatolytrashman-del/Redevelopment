@@ -79,7 +79,7 @@ import type { BusinessCenterNearbyPlace } from '../data/businessCenterNearbyPlac
 import { fetchBusinessCenterNearbyPlaces } from '../lib/businessCenterNearbyPlacesApi';
 import type { BusinessCenterReview } from '../data/businessCenterReviews';
 import { fetchBusinessCenterReviews } from '../lib/businessCenterReviewsApi';
-import { NO_ACTIVE_OFFERS_MESSAGE, type BusinessCenterOffer } from '../data/businessCenterOffers';
+import type { BusinessCenterOffer } from '../data/businessCenterOffers';
 import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
 import { dedupeOffers } from '../lib/businessCenterOfferDuplicates';
 import { pluralRu } from '../lib/pluralRu';
@@ -731,15 +731,19 @@ export function BusinessCenterDetailPage() {
           .join('; '),
       );
     }
+    if (center.buildingFacts.length) {
+      add(
+        `Что известно о здании «${name}» из других источников, помимо prometr.by?`,
+        center.buildingFacts.map((fact) => `${fact.label}: ${fact.value} (по данным ${fact.source})`).join('; '),
+      );
+    }
     add(`Что есть внутри «${name}»?`, redistributedTechnicalParams.internalInfrastructureText);
     // Инфраструктура рядом появится отдельным картографическим блоком и в
     // карточке/FAQ пока не повторяется.
     add('Какие условия доступной среды указаны?', accessibilityAttributes);
     add('Какие часы работы указаны?', accessHoursText);
-    if (offers !== null) {
-      add('Сколько активных предложений аренды и продажи?', offers.length === 0
-        ? NO_ACTIVE_OFFERS_MESSAGE
-        : `Активных предложений: аренда — ${offers.filter((o) => o.dealType === 'rent').length}, продажа — ${offers.filter((o) => o.dealType === 'sale').length}.`);
+    if (offers !== null && offers.length > 0) {
+      add('Сколько активных предложений аренды и продажи?', `Активных предложений: аренда — ${offers.filter((o) => o.dealType === 'rent').length}, продажа — ${offers.filter((o) => o.dealType === 'sale').length}.`);
       for (const deal of ['rent', 'sale'] as const) {
         const sum = offersSummary[deal];
         if (sum) add(`Какие площади и ставки ${deal === 'rent' ? 'аренды' : 'продажи'} сейчас предлагаются?`, `${sum.count} лотов с указанными площадью и ставкой: ${fmt(Math.round(sum.sizeMin))}–${fmt(Math.round(sum.sizeMax))} м², $${fmt(Math.round(sum.priceMin))}–$${fmt(Math.round(sum.priceMax))}/м²${deal === 'rent' ? ' в месяц' : ''}.`);
@@ -855,12 +859,13 @@ export function BusinessCenterDetailPage() {
       has(
         'tech',
         redistributedTechnicalParams.buildingInformationRows.length > 0 ||
+          center.buildingFacts.length > 0 ||
           Boolean(center.parking || accessHoursText || accessibilityAttributes),
       ),
       has('streetCenters', relatedCenters.street.length > 0),
       has('tenants', tenantOrganizations.length > 0),
       has('rental', Boolean(center.rentalInfo)),
-      has('offers', offers !== null),
+      has('offers', offers !== null && offers.length > 0),
       has('history', extractHistoryPoints(center).length >= 2),
       has('reviews', center.gisRating != null || center.highlights.some((h) => h.icon === 'rating') || reviewQuotes.length > 0 || reviews.length > 0),
       has('similar', true),
@@ -1221,9 +1226,10 @@ export function BusinessCenterDetailPage() {
                 карточка (логотип/описание/контакты) теперь идёт отдельной
                 секцией сразу под этим главным блоком, см. developerInfo
                 ниже. Короткая текстовая версия осталась только в FAQ
-                ("Кто застройщик «...»?"). Ссылка "Сайт БЦ" тоже переехала
-                отсюда 2026-09-20 — теперь отдельным блоком под "Интересными
-                фактами", см. ниже. */}
+                ("Кто застройщик «...»?"). Отдельный блок "Сайт БЦ" убран
+                отсюда же 2026-09-20 — ссылка на сайт осталась только внизу
+                страницы, в блоке источников (centerWebsiteUrl, см. конец
+                файла). */}
 
             {/* Ровно 4 плитки — класс/площадь/год/этажность (владелец,
                 2026-09-06, четвёртый заход: "4 карточки - класс, площадь, год
@@ -1391,22 +1397,45 @@ export function BusinessCenterDetailPage() {
           </div>
         )}
 
-        {/* Сайт БЦ — отдельным блоком под "Интересными фактами" (владелец,
-            2026-09-20: "сайт БЦ пока убери в отдельный блок, под интересные
-            факты; пока в нём ничего не делать, просто оставь ссылку").
-            Раньше жила короткой строкой в главном блоке — переехала, чтобы
-            освободить место наверху (см. комментарий там же). */}
-        {centerWebsiteUrl && (
-          <div className={cn('mt-6 flex items-center gap-2 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <a
-              href={centerWebsiteUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-hover hover:underline"
-            >
-              Сайт БЦ
-              <ExternalLink className="h-3.5 w-3.5" />
-            </a>
+        {/* Условия для арендаторов с офиц. сайта БЦ (владелец, 2026-09-05,
+            на примере "Проспект"/Elite Estate — по нему нет объявлений на
+            Kufar/Realt, но на собственном сайте есть условия для
+            арендаторов: "пройдись по сайтам БЦ и поищешь такую информацию").
+            Собрано веб-поиском (Gemini через ProxyAPI — прямого доступа к
+            большинству сайтов БЦ из песочницы нет). Первая версия рисовала
+            всё одним абзацем — владелец: "верстка — пиздец, разбей на
+            логические блоки, используй форматирование" — теперь отдельная
+            подписанная строка на каждый раздел (LabeledTextRow), важная
+            оговорка источника (сайт недоступен, "Аден" по факту гостиница
+            и т.п.) — акцентным блоком сверху, не затёртая в общем тексте.
+            Каждое поле независимо может быть null — рисуем только то, что
+            реально нашлось. Расположен сразу под "Интересными фактами"
+            (владелец, 2026-09-20). */}
+        {center.rentalInfo && (
+          <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+              <FileText className="h-5 w-5 shrink-0 text-primary" />
+              Условия для арендаторов
+            </h2>
+
+            {center.rentalInfo.caveat && (
+              <div className="flex items-start gap-2 rounded-control border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-warning">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p className="leading-relaxed">{center.rentalInfo.caveat}</p>
+              </div>
+            )}
+
+            <div className="flex flex-col divide-y divide-border">
+              <LabeledTextRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
+              <LabeledTextRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
+              <LabeledTextRow icon={Ruler} label="Площади и типы помещений" text={center.rentalInfo.sizes} />
+              <LabeledTextRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
+            </div>
+
+            <p className="text-xs text-ink-muted">
+              Собрано автоматически по официальному сайту БЦ и открытым источникам — не куратировано вручную, перед
+              подписанием договора уточняйте актуальные условия напрямую у арендодателя.
+            </p>
           </div>
         )}
 
@@ -1469,6 +1498,48 @@ export function BusinessCenterDetailPage() {
             </table>
           </div>
           )}
+          {center.buildingFacts.length > 0 && (
+            <section className="flex flex-col gap-2" aria-labelledby="building-facts-title">
+              <h3 id="building-facts-title" className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                Дополнительно, по другим источникам
+              </h3>
+              <div className="overflow-hidden rounded-control border border-border">
+                <table className="w-full border-collapse text-sm">
+                  <tbody>
+                    {center.buildingFacts.map((fact, index) => (
+                      <tr
+                        key={`${fact.label}-${index}`}
+                        className="border-b border-border last:border-b-0 odd:bg-surface-muted/40"
+                      >
+                        <th
+                          scope="row"
+                          className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
+                        >
+                          {fact.label}
+                          {fact.corpusLabel && (
+                            <span className="block text-xs font-normal text-ink-faint">{fact.corpusLabel}</span>
+                          )}
+                        </th>
+                        <td className="py-2 pl-2 pr-3 text-ink">
+                          <span>{fact.value}</span>
+                          {fact.note && <span className="block text-xs text-ink-faint">{fact.note}</span>}
+                          <a
+                            href={fact.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                          >
+                            <ExternalLink className="h-3 w-3 shrink-0" />
+                            {fact.source}
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
         </div>
 
         {streetCatalogUrl && relatedCenters.street.length > 0 && (
@@ -1508,47 +1579,6 @@ export function BusinessCenterDetailPage() {
           />
         )}
 
-        {/* Условия для арендаторов с офиц. сайта БЦ (владелец, 2026-09-05,
-            на примере "Проспект"/Elite Estate — по нему нет объявлений на
-            Kufar/Realt, но на собственном сайте есть условия для
-            арендаторов: "пройдись по сайтам БЦ и поищешь такую информацию").
-            Собрано веб-поиском (Gemini через ProxyAPI — прямого доступа к
-            большинству сайтов БЦ из песочницы нет). Первая версия рисовала
-            всё одним абзацем — владелец: "верстка — пиздец, разбей на
-            логические блоки, используй форматирование" — теперь отдельная
-            подписанная строка на каждый раздел (LabeledTextRow), важная
-            оговорка источника (сайт недоступен, "Аден" по факту гостиница
-            и т.п.) — акцентным блоком сверху, не затёртая в общем тексте.
-            Каждое поле независимо может быть null — рисуем только то, что
-            реально нашлось. */}
-        {center.rentalInfo && (
-          <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <FileText className="h-5 w-5 shrink-0 text-primary" />
-              Условия для арендаторов
-            </h2>
-
-            {center.rentalInfo.caveat && (
-              <div className="flex items-start gap-2 rounded-control border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-warning">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <p className="leading-relaxed">{center.rentalInfo.caveat}</p>
-              </div>
-            )}
-
-            <div className="flex flex-col divide-y divide-border">
-              <LabeledTextRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
-              <LabeledTextRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
-              <LabeledTextRow icon={Ruler} label="Площади и типы помещений" text={center.rentalInfo.sizes} />
-              <LabeledTextRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
-            </div>
-
-            <p className="text-xs text-ink-muted">
-              Собрано автоматически по официальному сайту БЦ и открытым источникам — не куратировано вручную, перед
-              подписанием договора уточняйте актуальные условия напрямую у арендодателя.
-            </p>
-          </div>
-        )}
-
         {/* "Интересные факты" — отдельная от условий аренды категория:
             история объекта, известные арендаторы, награды/СМИ, рейтинг и
             отзывы с карт (владелец, 2026-09-06: "подтянуть рейтинг из
@@ -1566,69 +1596,47 @@ export function BusinessCenterDetailPage() {
             данных. История правок самой таблицы (разбивка по типу
             помещения, явная строка "нет объявлений" вместо исчезновения
             секции, убранные прямые ссылки на Kufar/Realt) — см. запись
-            2026-09-05 в docs/session-journal.md. */}
-        {offers !== null && (
+            2026-09-05 в docs/session-journal.md. С 2026-09-20 (владелец):
+            если по БЦ нет объявлений на внешних площадках, блок целиком не
+            выводится — раньше на этом месте была строка-заглушка. */}
+        {offers !== null && offers.length > 0 && (
           <div id="offers" className={cn('mt-6 flex scroll-mt-32 flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="text-lg font-bold text-ink">Сейчас предлагается</h2>
-            {offers.length === 0 ? (
-              <div className="flex flex-col gap-2 text-sm text-ink-muted">
-                <p>
-                  {NO_ACTIVE_OFFERS_MESSAGE} Это не значит, что
-                  свободных площадей нет: часть бизнес-центров сдаёт офисы напрямую через управляющую
-                  компанию, минуя площадки.
-                </p>
-                {centerWebsiteUrl ? (
-                  <a
-                    href={centerWebsiteUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-fit font-semibold text-primary-hover hover:underline"
-                  >
-                    Официальный сайт бизнес-центра →
-                  </a>
-                ) : (
-                  <Link to="/minsk/bcminsk?facts=rent" className="w-fit font-semibold text-primary-hover hover:underline">
-                    Посмотреть бизнес-центры, где объявления есть →
-                  </Link>
-                )}
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {(['rent', 'sale'] as const).map((deal) => {
-                  const sum = offersSummary[deal];
-                  if (!sum) return null;
-                  // Знак доллара уже стоит у чисел ниже — в единице его
-                  // быть не должно, иначе получается «$13–$29 $/м²».
-                  const unit = deal === 'rent' ? '/м²/мес' : '/м²';
-                  return (
-                    <p key={deal} className="text-sm text-ink-muted">
-                      <span className="font-bold text-ink">{deal === 'rent' ? 'Аренда' : 'Продажа'}</span>:{' '}
-                      {sum.count} {sum.count === 1 ? 'лот' : 'лотов'}, площади{' '}
-                      <span className="font-semibold text-ink">
-                        {Math.round(sum.sizeMin).toLocaleString('ru-RU')}–{Math.round(sum.sizeMax).toLocaleString('ru-RU')} м²
-                      </span>
-                      , цены{' '}
-                      <span className="font-semibold text-ink">
-                        ${Math.round(sum.priceMin).toLocaleString('ru-RU')}–${Math.round(sum.priceMax).toLocaleString('ru-RU')}{unit}
-                      </span>
-                      {'. '}
-                      {sum.links.map((o, i) => (
-                        <a
-                          key={o.id}
-                          href={o.adLink}
-                          target="_blank"
-                          rel="noopener noreferrer nofollow"
-                          className="text-primary-hover hover:underline"
-                        >
-                          {i === 0 ? 'самый маленький' : 'самый большой'}
-                          {i === 0 && sum.links.length > 1 ? ' · ' : ''}
-                        </a>
-                      ))}
-                    </p>
-                  );
-                })}
-              </div>
-            )}
+            <div className="flex flex-col gap-2">
+              {(['rent', 'sale'] as const).map((deal) => {
+                const sum = offersSummary[deal];
+                if (!sum) return null;
+                // Знак доллара уже стоит у чисел ниже — в единице его
+                // быть не должно, иначе получается «$13–$29 $/м²».
+                const unit = deal === 'rent' ? '/м²/мес' : '/м²';
+                return (
+                  <p key={deal} className="text-sm text-ink-muted">
+                    <span className="font-bold text-ink">{deal === 'rent' ? 'Аренда' : 'Продажа'}</span>:{' '}
+                    {sum.count} {sum.count === 1 ? 'лот' : 'лотов'}, площади{' '}
+                    <span className="font-semibold text-ink">
+                      {Math.round(sum.sizeMin).toLocaleString('ru-RU')}–{Math.round(sum.sizeMax).toLocaleString('ru-RU')} м²
+                    </span>
+                    , цены{' '}
+                    <span className="font-semibold text-ink">
+                      ${Math.round(sum.priceMin).toLocaleString('ru-RU')}–${Math.round(sum.priceMax).toLocaleString('ru-RU')}{unit}
+                    </span>
+                    {'. '}
+                    {sum.links.map((o, i) => (
+                      <a
+                        key={o.id}
+                        href={o.adLink}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow"
+                        className="text-primary-hover hover:underline"
+                      >
+                        {i === 0 ? 'самый маленький' : 'самый большой'}
+                        {i === 0 && sum.links.length > 1 ? ' · ' : ''}
+                      </a>
+                    ))}
+                  </p>
+                );
+              })}
+            </div>
             {offers.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[480px] border-collapse text-sm">
