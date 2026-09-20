@@ -112,6 +112,7 @@ import {
   WhatTheySayBlock,
 } from '../components/businessCenters/BusinessCenterMarketBlocks';
 import { NearbyInfrastructureBlock } from '../components/businessCenters/BusinessCenterNeighbours';
+import { buildRanking as buildBusinessCenterRanking } from './BusinessCentersRankingPage';
 
 // Отдельная страница одного бизнес-центра (владелец, 2026-09-04: "для SEO
 // лучше хаб + отдельная страница на каждый БЦ" — согласился с этим доводом
@@ -135,109 +136,13 @@ const SECTION_LABELS: Record<string, string> = {
   market: 'Место среди конкурентов',
   map: 'Инфраструктура рядом',
   tech: 'Параметры здания',
-  tenants: 'Кто внутри',
+  tenants: 'Каталог арендаторов',
   rental: 'Условия для арендаторов',
   offers: 'Что сдают и продают',
   history: 'История здания',
   reviews: 'Отзывы',
   faq: 'Частые вопросы',
 };
-
-// Демонстрация: FAQ «Альянс», переписанный gemini-3.8-flash (ProxyAPI) в
-// формате аналитики Минск Мира — связный текст вместо перечислений через
-// «;». Факты те же, что даёт вычисляемый faqItems ниже (сверено построчно),
-// один объединённый вопрос (этажность/площадь/тех.паспорт) вместо четырёх
-// отдельных — владелец ещё не решил, тиражировать ли это на весь каталог.
-// Только для показа вживую на проде; убрать после решения (владелец,
-// 2026-09-20).
-const ALYANS_FAQ_DEMO: { question: string; answer: string }[] = [
-  {
-    question: 'Где находится бизнес-центр «Альянс» и в каком районе он расположен?',
-    answer: 'Бизнес-центр расположен в Московском районе Минска по адресу: ул. 3-я Щорса, 9.',
-  },
-  {
-    question: 'К какому классу относится «Альянс» и сколько таких объектов в каталоге?',
-    answer:
-      'Объект классифицирован как класс C. Всего в каталоге насчитывается ещё 36 зданий этого же класса, из которых 4 также расположены в Московском районе.',
-  },
-  {
-    question: 'В каком году построен бизнес-центр «Альянс» и каков его статус?',
-    answer:
-      '«Альянс» — готовый объект коммерческой недвижимости, сданный в эксплуатацию и открытый в 2011 году на ул. 3-я Щорса. Зданию 15 лет, что на 1 год новее медианного здания класса C в каталоге.',
-  },
-  {
-    question: 'Кто застройщик бизнес-центра «Альянс»?',
-    answer:
-      'Застройщиком объекта является девелопер IDC Group, работающий на рынке коммерческой недвижимости Минска с середины 2000-х годов. В портфеле девелопера — бизнес-центры «Академия», «Альянс», «Терминал», строящийся комплекс Quantum и многофункциональный комплекс Valeo-Center. Офис компании находится непосредственно в БЦ «Альянс» по адресу: г. Минск, ул. 3-я Щорса, 9, телефон +375 17 301-32-25, сайт https://idc.by.',
-  },
-  {
-    question: 'Каковы технические, объемно-планировочные параметры здания и условия управления?',
-    answer:
-      'Здание бизнес-центра насчитывает 7 этажей при общей площади 6 325 м² (в среднем около 904 м² на этаж, площадь типового этажа — 550 м²). Офисная площадь составляет 3 955 м², или 63% от общей площади объекта. Планировка помещений кабинетная, высота потолков типового этажа — 3.0 м. Здание оборудовано 1 лифтом, кондиционирование реализовано частично. Обеспеченность парковкой составляет 1,8 маш./100 м². Управление объектом осуществляет Товарищество собственников.',
-  },
-  {
-    question: 'Как добраться до «Альянс» на общественном транспорте и насколько близко метро?',
-    answer:
-      'В пешей доступности от бизнес-центра находятся 4 остановки наземного транспорта, ближайшая из которых — «Белита-Витэкс» — расположена в 281 м по прямой. Ближайшая станция метро — «Грушевка» — находится в 470 м по прямой. Для своего класса объект расположен на 39% ближе к метро, чем медианное здание класса C, где медианное расстояние составляет 775 м.',
-  },
-  {
-    question: 'Какая инфраструктура есть рядом с «Альянс»?',
-    answer:
-      'В расчетных радиусах от здания зафиксированы ключевые объекты сервиса: 1 станция метро («Грушевка» — 364 м по прямой при радиусе учета до 2 км), 4 остановки транспорта (ближайшая — «Белита-Витэкс», 281 м по прямой при радиусе учета до 800 м). В радиусе 500 м по прямой расположены 2 продуктовых магазина (ближайший — «Соседи», 98 м), 4 аптеки (ближайшая — «Искамед», 297 м), 1 банк («Белинвестбанк», 398 м), 2 банкомата (ближайший — «Белгазпромбанк, банкомат», 8 м), 2 кафе (ближайшее — «Беллини», 16 м) и 4 фитнес-объекта (ближайший — «О. К.», 182 м).',
-  },
-  {
-    question: 'Парковка в «Альянс» — это много или мало для своего класса?',
-    answer:
-      'Показатель обеспеченности машиноместами составляет 1,8 маш./100 м². Для объектов класса C медиана равна 1,7 маш./100 м², то есть парковка в «Альянсе» на 6% больше, чем у медианного здания класса C.',
-  },
-  {
-    question: 'Лифты на 10 000 м² в «Альянс» — это много или мало для своего класса?',
-    answer:
-      'В пересчете на площадь плотность лифтов составляет 1,58 шт. на 10 000 м² при 1 фактически установленном лифте. Это на 39% меньше, чем у медианного здания класса C, где медиана составляет 2,59 шт.',
-  },
-  {
-    question: 'Компаний-арендаторов в «Альянс» — это много или мало для своего класса?',
-    answer:
-      'В здании зарегистрировано 52 компании-арендатора. Этот показатель находится точно на уровне медианного здания класса C, для которого медиана также составляет 52 шт.',
-  },
-  {
-    question: 'Что расположено внутри здания бизнес-центра помимо офисов?',
-    answer:
-      'Внутренняя инфраструктура бизнес-центра включает кафе, кофепоинт и магазин. Кроме того, в здании функционируют точки самообслуживания, которые не учитываются в общем перечне организаций: банкомат и криптомат.',
-  },
-  {
-    question: 'Предусмотрены ли в здании условия доступной среды?',
-    answer: 'Для маломобильных групп посетителей в бизнес-центре обустроен пандус и функционирует широкий лифт.',
-  },
-  {
-    question: 'Какие часы работы установлены в здании?',
-    answer: 'Бизнес-центр открыт для входа с понедельника по воскресенье (Пн–Вс) с 06:00 до 22:00.',
-  },
-  {
-    question: 'Кто выступает основным арендатором бизнес-центра?',
-    answer:
-      'Основным арендатором является ЗАСО «Белнефтестрах» — страховая компания, дочерняя структура концерна «Белнефтехим». По адресу ул. 3-я Щорса, 9 также официально зарегистрирован её юридический адрес.',
-  },
-  {
-    question: 'Сколько организаций находится в здании и как они распределены по сферам и этажам?',
-    answer:
-      'По данным среза Яндекс.Карт, в здании работает 49 организаций. По направлениям деятельности они распределяются так: медицина и красота — 9; другое — 7; производство и оборудование — 6; IT и связь — 6; образование и работа — 5; еда и досуг — 4; магазины и товары — 3; финансы, юристы, бизнес — 3; логистика и транспорт — 2; реклама и медиа — 1; спорт и туризм — 1; стройка и недвижимость — 1; услуги и сервис — 1. Эти сведения показывают состав арендаторов и сервисов, но не являются прямым индикатором уровня вакантности или спроса на площади. Этаж размещения зафиксирован у 12 организаций из 49: на цокольном этаже расположена 1 компания, на 1 этаже — 3, на 2 этаже — 2, на 3 этаже — 1, на 5 этаже — 1, на 6 этаже — 1, на 7 этаже — 3.',
-  },
-  {
-    question: 'На какую дату актуальны данные каталога?',
-    answer:
-      'Список и классификация организаций внутри здания сформированы по срезу Яндекс.Карт от 19.09.2026. Данные о рейтинге, часах работы и общих атрибутах здания зафиксированы по срезу 2ГИС от 06.09.2026.',
-  },
-  {
-    question: 'Какая оценка у «Альянс» на картах?',
-    answer: 'Рейтинг объекта на Яндекс.Картах составляет 4,4 балла, он рассчитан на основе 244 пользовательских оценок.',
-  },
-  {
-    question: 'Как исправить или дополнить сведения о бизнес-центре?',
-    answer:
-      'Если вы хотите скорректировать, добавить или убрать сведения о здании, отправьте запрос на электронную почту a@redevelopment.pro, указав название бизнес-центра и данные, требующие исправления.',
-  },
-];
 
 const SECTION_ICONS: Record<string, typeof FileText> = {
   awards: Trophy,
@@ -254,6 +159,17 @@ const SECTION_ICONS: Record<string, typeof FileText> = {
   reviews: MessageSquareQuote,
   faq: Info,
 };
+
+// Блоки-выходы на другие БЦ, рассыпанные по странице (2026-09-20) — двум из
+// них нельзя оказаться на странице подряд без другого контента между ними
+// (см. suppressedRecommendationSectionIds ниже).
+const RECOMMENDATION_SECTION_IDS = new Set([
+  'microdistrictCenters',
+  'metroCenters',
+  'ratingCenters',
+  'classDistrictCenters',
+  'streetCenters',
+]);
 
 const EMPTY_NEARBY_PLACES: BusinessCenterNearbyPlace[] = [];
 const EMPTY_REVIEWS: BusinessCenterReview[] = [];
@@ -272,7 +188,6 @@ export function BusinessCenterDetailPage() {
   // после загрузки, чтобы дальше — и в сводке, и в таблице, и в медиане
   // здания, и в FAQ — везде было одно и то же число.
   const offers = useMemo(() => (rawOffers === null ? null : dedupeOffers(rawOffers)), [rawOffers]);
-  const collapsedDuplicates = (rawOffers?.length ?? 0) - (offers?.length ?? 0);
   const [gis2Result, setGis2Result] = useState<{ slug: string; data: BusinessCenter2gisSnapshot | null } | null>(null);
   const gis2 = gis2Result?.slug === slug ? gis2Result?.data ?? null : null;
   const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(null);
@@ -688,7 +603,8 @@ export function BusinessCenterDetailPage() {
   const visibleHighlights = useMemo(
     () =>
       center?.highlights.filter(
-        (h) => h.icon !== 'rating' && h.icon !== 'reviews' && h.icon !== 'history' && h.icon !== 'award',
+        (h) =>
+          h.icon !== 'rating' && h.icon !== 'reviews' && h.icon !== 'history' && h.icon !== 'award' && h.icon !== 'warning',
       ) ?? [],
     [center],
   );
@@ -793,20 +709,37 @@ export function BusinessCenterDetailPage() {
     // Рейтинг — единственный не гео-блок: не про "похож", а про "а что тут
     // вообще лучшее по городу", общий якорь для дальнейшего брожения по
     // каталогу (владелец, 2026-09-20, разговор про вложенность просмотра).
-    // Источник — Яндекс.Карты (mapRatingFromHighlights), не 2ГИС: блок ведёт
-    // на /minsk/bcminsk/reyting, а та страница сама сортирует по Яндексу
-    // (владелец, 2026-09-20: "по умолчанию у нас везде рейтинг с Яндекс карт
-    // должен быть") — teaser на другом источнике показывал бы других лидеров,
-    // чем полная страница рейтинга. У Яндекса и охват шире (107 БЦ из 141
-    // против 45 у 2ГИС).
+    // Владелец, 2026-09-20: "в рейтинге нет БЦ Капитал Палас" — блок обязан
+    // показывать РОВНО тех же лидеров, что и /minsk/bcminsk/reyting, не
+    // собственную сортировку по BusinessCenter.gisRating (это снимок 2ГИС,
+    // другое число и без фильтра по классу/порогу — методика реального
+    // рейтинга в buildRanking, BusinessCentersRankingPage.tsx). Тот же
+    // разговор ("по умолчанию у нас везде рейтинг с Яндекс карт должен
+    // быть") привёл источник рейтинга в блоке «Место среди конкурентов»
+    // к тому же mapRatingFromHighlights — см. businessCenterMarketPosition.ts.
     const rating = takeVisible(
-      centers
-        .filter(
-          (candidate) =>
-            candidate.slug !== center.slug && !usedSlugs.has(candidate.slug) && mapRatingFromHighlights(candidate.highlights) != null,
-        )
-        .sort((a, b) => (mapRatingFromHighlights(b.highlights)?.value ?? 0) - (mapRatingFromHighlights(a.highlights)?.value ?? 0)),
+      buildBusinessCenterRanking(centers)
+        .map((r) => r.center)
+        .filter((candidate) => candidate.slug !== center.slug && !usedSlugs.has(candidate.slug)),
     );
+
+    // Порядок вычисления ниже (улица → класс×район) повторяет их порядок в
+    // самом низу страницы — иначе дедуп исключал бы кандидатов не из того
+    // блока, что реально показан выше (владелец, 2026-09-20: наткнулись на
+    // рассинхрон, когда блок улицы физически стоял перед классом×районом,
+    // а pageSectionsRaw и usedSlugs считали в обратном порядке).
+    const streetCenters = street
+      ? takeVisible(
+          centers
+            .filter(
+              (candidate) =>
+                candidate.slug !== center.slug &&
+                !usedSlugs.has(candidate.slug) &&
+                streetOfAddress(candidate.address) === street,
+            )
+            .sort(byDistance),
+        )
+      : [];
 
     const classDistrict =
       center.businessClass && center.district
@@ -822,19 +755,6 @@ export function BusinessCenterDetailPage() {
               .sort(byDistance),
           )
         : [];
-
-    const streetCenters = street
-      ? takeVisible(
-          centers
-            .filter(
-              (candidate) =>
-                candidate.slug !== center.slug &&
-                !usedSlugs.has(candidate.slug) &&
-                streetOfAddress(candidate.address) === street,
-            )
-            .sort(byDistance),
-        )
-      : [];
 
     // Владелец, 2026-09-20: "если у нас всего 1 БЦ в блоке рекомендаций,
     // давай использовать вторую половину блока под рекомендацию других БЦ
@@ -903,7 +823,6 @@ export function BusinessCenterDetailPage() {
   // FAQ использует те же модели и выборки, что видимые блоки страницы.
   const faqItems = useMemo(() => {
     if (!center) return [];
-    if (center.slug === 'alyans') return ALYANS_FAQ_DEMO;
     const items: { question: string; answer: string }[] = [];
     // Короткое имя, а не center.name: вопрос «Какой класс у «Бизнес-центр
     // «Порт»»?» читается как опечатка.
@@ -912,22 +831,34 @@ export function BusinessCenterDetailPage() {
       if (answer?.trim()) items.push({ question, answer });
     };
     const fmt = (value: number) => value.toLocaleString('ru-RU');
-    add(`Где находится «${name}»?`, center.address);
+    const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+    // bar.deltaText сам по себе — "17% дешевле"/"на уровне медианы", без
+    // "чем ..." (в вёрстке бара рядом и так стоит подпись класса). В прозе
+    // FAQ этого не видно, поэтому достраиваем явно; nearTypical — тот же
+    // порог незначимости, что красит бар серым, а не наш собственный.
+    const compareToClass = (bar: { nearTypical: boolean; deltaText: string }) =>
+      bar.nearTypical ? `Это ${bar.deltaText}.` : `Это ${bar.deltaText}, чем медианное здание класса ${center.businessClass}.`;
+    // Владелец, 2026-09-20: «там вся эта инфа и так есть у нас на странице,
+    // у этого блока есть реальная польза?» — да, но не у каждого вопроса
+    // одинаковая. Вопрос, который только повторяет голыми словами то, что
+    // подписано плиткой/таблицей на самой странице (адрес рядом с "Район",
+    // "7" рядом с "Этажей", обе даты снимков — то же самое, что и в блоке
+    // "Источники" под FAQ), убран или слит с соседним: правило ниже —
+    // остаются вопросы, которые СРАВНИВАЮТ или ОБЪЕДИНЯЮТ факты (медиана
+    // класса, сколько ещё таких в каталоге, застройщик+контакты в одном
+    // месте), а не однократно называют число, которое и так видно глазами.
+    add(
+      `Где находится «${name}»?`,
+      [center.address, redistributedTechnicalParams.administrativeDistrictText ? `${redistributedTechnicalParams.administrativeDistrictText} район` : null]
+        .filter(Boolean)
+        .join(', '),
+    );
     if (center.altNames.length > 0) {
       add(
         `Как ещё называют «${name}»?`,
         `${center.altNames.map((alt) => `«${alt}»`).join(', ')} — то же самое здание по адресу ${center.address}: одно здание с двумя названиями, а не два разных бизнес-центра.`,
       );
     }
-    add(
-      `В каком административном районе находится «${name}»?`,
-      redistributedTechnicalParams.administrativeDistrictText,
-    );
-    // Голые значения без контекста ("2011", "7") читаются как заполнение
-    // объёма — владелец, 2026-09-20: «слишком скупо». Каждый такой ответ
-    // получает реальную (не шаблонную) добавку из уже вычисленных на
-    // странице данных: сколько ещё таких зданий в каталоге, площадь на
-    // этаж, сравнение с медианой класса — а не бантик из общих слов.
     if (center.businessClass) {
       const sameClassOthers = (centers ?? []).filter(
         (c) => c.businessClass === center.businessClass && c.slug !== center.slug,
@@ -944,21 +875,6 @@ export function BusinessCenterDetailPage() {
         `Класс ${center.businessClass}.${sameClassOthers.length > 0 ? ` В нашем каталоге ещё ${sameClassOthers.length} ${pluralRu(sameClassOthers.length, 'здание', 'здания', 'зданий')} этого класса${districtPart}.` : ''}`,
       );
     }
-    if (center.totalArea != null) {
-      const floors = center.floors;
-      const perFloor = floors != null && floors > 0 ? Math.round(center.totalArea / floors) : null;
-      add(
-        `Какая общая площадь у «${name}»?`,
-        `${fmt(center.totalArea)} м²${perFloor != null && floors != null ? `, в среднем около ${fmt(perFloor)} м² на этаж при ${floors} ${pluralRu(floors, 'этаже', 'этажах', 'этажах')}` : ''}.`,
-      );
-    }
-    if (center.floors != null) {
-      add(`Сколько этажей в «${name}»?`, `${center.floors} ${pluralRu(center.floors, 'этаж', 'этажа', 'этажей')}.`);
-    }
-    // "Год сдачи" из marketPosition.bars ниже даёт то же значение со
-    // сравнением с медианой класса — тот же вопрос под естественную
-    // формулировку, а не второй такой же под другой обёрткой (bar с этим
-    // label пропускается в цикле ниже).
     if (center.yearBuilt != null) {
       if (center.status === 'under_construction') {
         add(`Когда «${name}» будет сдан?`, `Ожидаемая сдача — ${center.yearBuilt} год.`);
@@ -967,11 +883,10 @@ export function BusinessCenterDetailPage() {
         const yearBar = marketPosition?.bars.find((bar) => bar.label === 'Год сдачи') ?? null;
         add(
           `В каком году построен «${name}»?`,
-          `Сдан в ${center.yearBuilt} году${age > 0 ? `, зданию ${age} ${pluralRu(age, 'год', 'года', 'лет')}` : ''}.${yearBar && !yearBar.nearTypical ? ` Это ${yearBar.deltaText}.` : ''}`,
+          `Сдан в ${center.yearBuilt} году${age > 0 ? `, зданию ${age} ${pluralRu(age, 'год', 'года', 'лет')}` : ''}.${yearBar ? ` ${compareToClass(yearBar)}` : ''}`,
         );
       }
     }
-    add(`Какая степень готовности у «${name}»?`, redistributedTechnicalParams.readinessText);
     if (center.developer) {
       const info = center.developerInfo;
       const lines = [`Застройщик — ${center.developer}.`];
@@ -985,68 +900,89 @@ export function BusinessCenterDetailPage() {
       if (contactBits.length) lines.push(`${contactBits.join(', ')}.`);
       add(`Кто застройщик «${name}»?`, lines.join('\n'));
     }
-    add(`Какая парковка у «${name}»?`, center.parking);
-    if (center.officeArea != null) {
-      const share =
-        center.totalArea != null && center.totalArea > 0
-          ? ` — ${Math.round((center.officeArea / center.totalArea) * 100)}% от общей площади`
-          : '';
-      add(`Какая офисная площадь у «${name}»?`, `${fmt(center.officeArea)} м²${share}.`);
+    // Технический паспорт — было пять отдельных вопросов (этажность, общая
+    // площадь, офисная площадь, "какая информация о здании указана", "какие
+    // дополнительные характеристики"), каждый один в один повторял строку
+    // видимой таблицы "Информация о здании" без единой новой мысли. Теперь
+    // один связный ответ: сначала то, что можно сказать фразой (этажность,
+    // площади), затем остальные параметры из тех же двух таблиц — без
+    // обеспеченности парковкой (она в отдельном, сравнительном ответе ниже,
+    // чтобы не называть одно и то же число дважды).
+    {
+      const techSentenceParts: string[] = [];
+      const floors = center.floors;
+      const perFloor = floors != null && floors > 0 && center.totalArea != null ? Math.round(center.totalArea / floors) : null;
+      if (floors != null) {
+        techSentenceParts.push(
+          `${floors} ${pluralRu(floors, 'этаж', 'этажа', 'этажей')}${center.totalArea != null ? `, общая площадь ${fmt(center.totalArea)} м²${perFloor != null ? ` (около ${fmt(perFloor)} м² на этаж)` : ''}` : ''}`,
+        );
+      } else if (center.totalArea != null) {
+        techSentenceParts.push(`общая площадь ${fmt(center.totalArea)} м²`);
+      }
+      if (center.officeArea != null) {
+        const share =
+          center.totalArea != null && center.totalArea > 0
+            ? ` (${Math.round((center.officeArea / center.totalArea) * 100)}% от общей площади)`
+            : '';
+        techSentenceParts.push(`офисная площадь ${fmt(center.officeArea)} м²${share}`);
+      }
+      const skipLabels = new Set(['Количество этажей', 'Общая площадь', 'Площадь офисов', 'Обеспеченность парковкой (маш./100 м²)']);
+      const techRows = [
+        ...redistributedTechnicalParams.buildingInformationRows.filter((row) => !skipLabels.has(row.label)),
+        ...redistributedTechnicalParams.firstBlockTechnicalRows,
+      ].filter((row) => row.value);
+      const techAnswer = [
+        techSentenceParts.length ? `${capitalize(techSentenceParts.join(', '))}.` : null,
+        techRows.length ? `${techRows.map((row) => `${row.label}: ${row.value}`).join('; ')}.` : null,
+      ]
+        .filter(Boolean)
+        .join(' ');
+      add(`Какие технические параметры у «${name}»?`, techAnswer || null);
     }
-    // Организации с 2026-09-19 приезжают из Яндекс.Карт, а рейтинг здания,
-    // часы работы и атрибуты — по-прежнему из 2ГИС. Это два разных среза на
-    // две разные даты, и в ответе они не должны слипаться в один.
-    if (tenantSource === 'yandex_maps' && tenantSnapshot?.capturedAt) {
-      add(
-        'На какую дату список организаций?',
-        `Организации в здании — срез Яндекс.Карт от ${new Date(tenantSnapshot.capturedAt).toLocaleDateString('ru-RU')}.`,
-      );
+    // Парковка — раньше было два вопроса: свободный текст (center.parking,
+    // "подземная, платная") и отдельно число из сравнения с классом. Оба
+    // про одно и то же удобство, читателю нужен один ответ, а не два рядом.
+    {
+      const parkingBar = marketPosition?.bars.find((bar) => bar.label === 'Парковка') ?? null;
+      const parts = [
+        center.parking || null,
+        parkingBar
+          ? `Обеспеченность машиноместами — ${parkingBar.subjectDisplayValue} (${parkingBar.captionText}). ${compareToClass(parkingBar)}`
+          : null,
+      ].filter((v): v is string => Boolean(v));
+      add(`Какая парковка у «${name}»?`, parts.join(' '));
     }
-    if (gis2?.fetchedAt) {
-      add(
-        'На какую дату сведения 2ГИС?',
-        `${tenantSource === 'yandex_maps' ? 'Рейтинг, часы работы и атрибуты здания' : 'Организации, рейтинг, часы работы и атрибуты здания'} — срез от ${new Date(gis2.fetchedAt).toLocaleDateString('ru-RU')}.`,
-      );
-    }
-    if (nearestMetro) add(`Какое метро рядом с «${name}»?`, `«${nearestMetro.name}» — ${nearestMetro.distanceMeters} м по прямой.`);
+    // Остальные сравнения с медианой класса — каждое само по себе синтез
+    // (число + база сравнения + вывод), поэтому остаются отдельными
+    // вопросами. "До метро" называет ещё и станцию — замена отдельному
+    // голому вопросу "какое метро рядом", который просто повторял то же
+    // расстояние без сравнения.
     for (const bar of marketPosition?.bars ?? []) {
-      // "Год сдачи" уже влит в ответ на "В каком году построен" выше —
-      // второй вопрос с тем же числом читался бы как дубль.
-      if (bar.label === 'Год сдачи') continue;
-      add(`${bar.label} в «${name}» — это много или мало для своего класса?`, `${bar.subjectDisplayValue}; ${bar.captionText} (${bar.deltaText}).`);
+      // "Год сдачи" уже влит в ответ на "В каком году построен" выше,
+      // "Парковка" — в объединённый ответ про парковку выше.
+      if (bar.label === 'Год сдачи' || bar.label === 'Парковка') continue;
+      if (bar.label === 'До метро') {
+        add(
+          `Какое метро рядом с «${name}» и это близко или далеко для своего класса?`,
+          `Ближайшая станция метро${nearestMetro ? ` — «${nearestMetro.name}»` : ''}, ${bar.subjectDisplayValue} (${bar.captionText}). ${compareToClass(bar)}`,
+        );
+        continue;
+      }
+      add(
+        `${bar.label} в «${name}» — это много или мало для своего класса?`,
+        `${bar.subjectDisplayValue} (${bar.captionText}). ${compareToClass(bar)}`,
+      );
     }
     // FAQ пересказывает блок «Инфраструктура рядом» теми же цифрами, что
-    // нарисованы на карте и в списке под ней (правило владельца: FAQ
-    // описывает всё, что есть на странице), — отсюда общий хелпер, а не
-    // вторая формулировка тех же данных.
+    // нарисованы на карте и в списке под ней — но текстом, а не картой:
+    // для краулера, который карту не читает, это не дубль, а единственный
+    // способ узнать эти цифры. "Как добраться на транспорте" убран отдельно:
+    // он был подмножеством ровно этих же цифр (метро + остановки).
     const faqNearbyLines = nearbyFaqLines(nearbyPlaces);
     if (faqNearbyLines.length) {
       add(
         `Какая инфраструктура есть рядом с «${name}»?`,
         `${faqNearbyLines.join('; ')}. Метро учитывается в радиусе 2 км, остановки — 800 м, остальное — 500 м; расстояния по прямой.`,
-      );
-    }
-    const faqStops = nearbyPlaces.filter((place) => place.category === 'transport_stop');
-    if (faqStops.length) {
-      const nearestStop = [...faqStops].sort((a, b) => a.distanceMeters - b.distanceMeters)[0];
-      add(
-        `Как добраться до «${name}» на общественном транспорте?`,
-        `В пешей доступности ${faqStops.length} ${faqStops.length === 1 ? 'остановка' : 'остановок'}; ближайшая — «${nearestStop.name}», ${nearestStop.distanceMeters} м по прямой.${nearestMetro ? ` Ближайшее метро — «${nearestMetro.name}», ${nearestMetro.distanceMeters} м.` : ''}`,
-      );
-    }
-    const filledBuildingRows = redistributedTechnicalParams.buildingInformationRows.filter((row) => row.value);
-    if (filledBuildingRows.length) {
-      add(
-        `Какая информация о здании «${name}» указана?`,
-        filledBuildingRows.map((row) => `${row.label}: ${row.value}`).join('; '),
-      );
-    }
-    if (redistributedTechnicalParams.firstBlockTechnicalRows.length) {
-      add(
-        `Какие дополнительные характеристики есть у «${name}»?`,
-        redistributedTechnicalParams.firstBlockTechnicalRows
-          .map((row) => `${row.label}: ${row.value}`)
-          .join('; '),
       );
     }
     if (center.buildingFacts.length) {
@@ -1055,9 +991,20 @@ export function BusinessCenterDetailPage() {
         center.buildingFacts.map((fact) => `${fact.label}: ${fact.value} (по данным ${fact.source})`).join('; '),
       );
     }
-    add(`Что есть внутри «${name}»?`, derivedInternalInfrastructureText || null);
-    // Инфраструктура рядом появится отдельным картографическим блоком и в
-    // карточке/FAQ пока не повторяется.
+    // "Что внутри" и "что кроме офисов" читали одни и те же категории по
+    // разным спискам — на "Альянс" банкомат называли дважды. Теперь одна
+    // строка: производный текст (ручной ввод + категории от арендаторов),
+    // плюс из точек самообслуживания — только то, чего там ещё нет.
+    {
+      const insideText = derivedInternalInfrastructureText || '';
+      const insideLower = insideText.toLowerCase();
+      const extraAmenities = tenantAmenities.filter((item) => !insideLower.includes(item.category.toLowerCase()));
+      const amenitiesText = extraAmenities.length
+        ? `Точки самообслуживания: ${extraAmenities.map((item) => (item.count > 1 ? `${item.category} (${item.count})` : item.category)).join(', ')}.`
+        : '';
+      const combined = [insideText ? `${capitalize(insideText)}.` : null, amenitiesText || null].filter(Boolean).join(' ');
+      add(`Что есть внутри «${name}» кроме офисов?`, combined || null);
+    }
     add('Какие условия доступной среды указаны?', accessibilityAttributes);
     add('Какие часы работы указаны?', accessHoursText);
     if (offers !== null && offers.length > 0) {
@@ -1074,7 +1021,7 @@ export function BusinessCenterDetailPage() {
     }
     if (center.rentalInfo) {
       const info = center.rentalInfo;
-      add('Какие условия и контакты аренды опубликованы?', [info.caveat, info.terms, info.rates, info.sizes, info.contacts].filter(Boolean).join(' ') + ' Актуальные условия уточняйте у арендодателя.');
+      add('Какие условия и контакты аренды опубликованы?', [info.terms, info.rates, info.sizes, info.contacts].filter(Boolean).join(' ') + ' Актуальные условия уточняйте у арендодателя.');
     }
     if (awardItems.length) add(`Какие награды есть у «${name}»?`, awardItems.join('\n'));
     if (mediaMentions.length)
@@ -1087,11 +1034,6 @@ export function BusinessCenterDetailPage() {
     if (visibleHighlights.length) add('Какие факты о здании опубликованы?', visibleHighlights.map((h) => [h.label, h.text].filter(Boolean).join(': ')).join('\n'));
     const history = extractHistoryPoints(center);
     if (history.length) add('Что известно об истории здания?', history.map((h) => `${h.year}: ${h.text}`).join('; '));
-    // FAQ описывает ВСЁ, что есть на странице (правило владельца, CLAUDE.md:
-    // "берем за практику описывать в faq вообще все, что описываем на
-    // странице"), поэтому про организации здесь три вопроса, а не один: сам
-    // список с отраслями, этажи и оборудование. Ответы собираются из тех же
-    // данных, что нарисованы в каталоге арендаторов, — нет данных, нет вопроса.
     if (tenantOrganizations.length) {
       // Направления — ровно то, чем фильтруется каталог на странице: FAQ
       // обязан описывать её содержимое, а не отдельную классификацию.
@@ -1119,12 +1061,6 @@ export function BusinessCenterDetailPage() {
         add(
           'На каких этажах сидят организации?',
           `${floors.map((group) => `${formatFloorLabel(group.floor)} — ${group.count}`).join('; ')}. Этаж известен у ${withFloor} организаций из ${tenantOrganizations.length}.`,
-        );
-      }
-      if (tenantAmenities.length > 0) {
-        add(
-          'Что есть в здании кроме офисов?',
-          `${tenantAmenities.map((item) => (item.count > 1 ? `${item.category} (${item.count})` : item.category)).join(', ')}. Это оборудование и точки самообслуживания, в списке организаций они не учтены.`,
         );
       }
     }
@@ -1162,12 +1098,12 @@ export function BusinessCenterDetailPage() {
     }
     add('Как исправить сведения о здании?', 'Если хотите добавить, убрать или изменить информацию, напишите на a@redevelopment.pro, указав бизнес-центр и сведения, которые нужно поправить.');
     return items;
-  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, awardItems, mediaMentions, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, tenantSnapshot, mapRating, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces]);
+  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, awardItems, mediaMentions, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
   // якорь никуда не ведёт и выглядит поломкой.
-  const pageSections = useMemo(() => {
+  const pageSectionsRaw = useMemo(() => {
     if (!center) return [];
     const has = (id: string, cond: boolean) => (cond ? { id, label: SECTION_LABELS[id] } : null);
     // Порядок пунктов повторяет порядок блоков на странице (пересобран
@@ -1176,11 +1112,14 @@ export function BusinessCenterDetailPage() {
     // вложенности просмотра): что предлагают и почём → какое здание → где
     // оно → БЦ по соседству → кто внутри → на фоне конкурентов → БЦ у той же
     // станции метро → отзывы → рейтинг БЦ → блоки доверия (награды/СМИ/
-    // факты/история) → застройщик → похожие по классу и району, на этой
-    // улице → FAQ. Сами блоки-рекомендации других БЦ (по соседству/у метро/
-    // рейтинг/похожие по классу/на этой улице) в меню НЕ попадают — их на
-    // странице теперь несколько штук, пунктами меню их не множим (владелец,
-    // 2026-09-20): в pageSections ниже для них нет has(...).
+    // факты/история) → застройщик → на этой улице, похожие по классу и
+    // району → FAQ. Сами блоки-рекомендации других БЦ (по соседству/у
+    // метро/рейтинг/похожие по классу/на этой улице) в итоговое меню НЕ
+    // попадают — их на странице теперь несколько штук, пунктами меню их не
+    // множим (владелец, 2026-09-20) — см. фильтр RECOMMENDATION_SECTION_IDS
+    // в pageSections ниже. Этот список (pageSectionsRaw) всё равно должен
+    // их содержать: по нему же вычисляется, не прилипли ли два блока
+    // рекомендаций друг к другу без обычного контента между ними.
     return [
       has('offers', offers !== null && offers.length > 0),
       has('rental', Boolean(center.rentalInfo)),
@@ -1200,14 +1139,19 @@ export function BusinessCenterDetailPage() {
             label: hasNearbyContent(center, nearbyPlaces) ? SECTION_LABELS.map : 'Расположение',
           }
         : null,
+      has('microdistrictCenters', relatedCenters.microdistrict.length > 0),
       has('tenants', tenantOrganizations.length > 0),
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
+      has('metroCenters', relatedCenters.metro.length > 0),
       has('reviews', center.gisRating != null || center.highlights.some((h) => h.icon === 'rating') || reviewQuotes.length > 0 || reviews.length > 0),
+      has('ratingCenters', relatedCenters.rating.length > 0),
       has('awards', awardItems.length > 0),
       has('media', mediaMentions.length > 0),
       has('facts', visibleHighlights.length > 0),
       has('history', extractHistoryPoints(center).length >= 2),
       has('developer', Boolean(center.developerInfo)),
+      has('streetCenters', relatedCenters.street.length > 0),
+      has('classDistrictCenters', relatedCenters.classDistrict.length > 0),
       has('faq', faqItems.length > 0),
     ].filter((v): v is { id: string; label: string } => v !== null);
   }, [
@@ -1227,6 +1171,42 @@ export function BusinessCenterDetailPage() {
     nearbyPlaces,
     reviews,
   ]);
+
+  // У БЦ с небольшим количеством данных блоки-разделители (награды, СМИ,
+  // факты, история, застройщик...) между двумя выходами на другие БЦ могут
+  // все оказаться пустыми — тогда два блока рекомендаций съезжаются
+  // вплотную друг к другу, хотя весь смысл их расстановки по странице был
+  // в обратном (владелец, 2026-09-20, на скриншоте: "Рейтинг БЦ" сразу
+  // перед "Похожие БЦ" на странице без наград/СМИ/фактов/истории/улицы —
+  // "такое мне не нужно"). Раз соседей по разметке не осталось — второй из
+  // пары просто не рисуется, а не приклеивается к первому: держим только
+  // первый блок рекомендаций из каждой непрерывной цепочки в pageSectionsRaw
+  // (порядок там уже совпадает с порядком на странице).
+  const suppressedRecommendationSectionIds = useMemo(() => {
+    const suppressed = new Set<string>();
+    let previousWasRecommendation = false;
+    for (const section of pageSectionsRaw) {
+      const isRecommendation = RECOMMENDATION_SECTION_IDS.has(section.id);
+      if (isRecommendation && previousWasRecommendation) {
+        suppressed.add(section.id);
+        continue;
+      }
+      previousWasRecommendation = isRecommendation;
+    }
+    return suppressed;
+  }, [pageSectionsRaw]);
+
+  // Итоговое меню «На странице»: без подавленных соседей (выше) и без
+  // самих блоков-рекомендаций вообще — владелец, 2026-09-20, решил не
+  // множить пункты меню, когда таких блоков на странице стало несколько
+  // (микрорайон/метро/рейтинг/класс×район/улица).
+  const pageSections = useMemo(
+    () =>
+      pageSectionsRaw.filter(
+        (section) => !suppressedRecommendationSectionIds.has(section.id) && !RECOMMENDATION_SECTION_IDS.has(section.id),
+      ),
+    [pageSectionsRaw, suppressedRecommendationSectionIds],
+  );
 
   // «Что там есть» — состав здания в description сниппета. Источник тот же
   // список организаций и та же инфраструктура, что нарисованы на странице
@@ -1683,16 +1663,6 @@ export function BusinessCenterDetailPage() {
                 </table>
               </div>
             )}
-            {/* Честная оговорка: у нас лотов меньше, чем объявлений на самих
-                площадках, и это не потеря данных. Агентство выкладывает один
-                кабинет и на Kufar, и на Realt — мы считаем его одним лотом
-                (lib/businessCenterOfferDuplicates.ts). */}
-            {collapsedDuplicates > 0 && (
-              <p className="text-xs text-ink-muted">
-                {collapsedDuplicates} {pluralRu(collapsedDuplicates, 'объявление', 'объявления', 'объявлений')} —
-                это те же помещения, выложенные ещё и на другой площадке; в подсчёте они учтены один раз.
-              </p>
-            )}
           </div>
         )}
 
@@ -1719,14 +1689,15 @@ export function BusinessCenterDetailPage() {
             большинству сайтов БЦ из песочницы нет). Первая версия рисовала
             всё одним абзацем — владелец: "верстка — пиздец, разбей на
             логические блоки, используй форматирование" — теперь отдельная
-            подписанная строка на каждый раздел (LabeledTextRow), важная
-            оговорка источника (сайт недоступен, "Аден" по факту гостиница
-            и т.п.) — акцентным блоком сверху, не затёртая в общем тексте.
-            Каждое поле независимо может быть null — рисуем только то, что
-            реально нашлось. Порядок блоков страницы пересобран 2026-09-20
-            (владелец принял предложенный порядок): условия аренды идут
-            сразу за "Что сейчас сдают и продают в здании" — оба блока
-            отвечают на один и тот же вопрос "что тут есть и почём". */}
+            подписанная строка на каждый раздел (LabeledTextRow). Каждое поле
+            независимо может быть null — рисуем только то, что реально
+            нашлось. Порядок блоков страницы пересобран 2026-09-20 (владелец
+            принял предложенный порядок): условия аренды идут сразу за
+            "Объявления на рынке" — оба блока отвечают на один и тот же
+            вопрос "что тут есть и почём". Акцентный жёлтый блок с оговоркой
+            источника (`caveat`) и дисклеймер "собрано автоматически...
+            не куратировано вручную" под карточкой убраны тем же днём —
+            владелец: "убери все предупреждения такого плана с сайта". */}
         {center.rentalInfo && (
           <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
@@ -1734,24 +1705,12 @@ export function BusinessCenterDetailPage() {
               Условия для арендаторов
             </h2>
 
-            {center.rentalInfo.caveat && (
-              <div className="flex items-start gap-2 rounded-control border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-warning">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <p className="leading-relaxed">{center.rentalInfo.caveat}</p>
-              </div>
-            )}
-
             <div className="flex flex-col divide-y divide-border">
               <LabeledTextRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
               <LabeledTextRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
               <LabeledTextRow icon={Ruler} label="Площади и типы помещений" text={center.rentalInfo.sizes} />
               <LabeledTextRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
             </div>
-
-            <p className="text-xs text-ink-muted">
-              Собрано автоматически по официальному сайту БЦ и открытым источникам — не куратировано вручную, перед
-              подписанием договора уточняйте актуальные условия напрямую у арендодателя.
-            </p>
           </div>
         )}
 
@@ -1857,7 +1816,9 @@ export function BusinessCenterDetailPage() {
             странице" — вложенность просмотра). Микрорайон — сразу после
             карты, это самая близкая по смыслу связка ("вот что ещё рядом на
             карте"). */}
-        {microdistrictCatalogUrl && relatedCenters.microdistrict.length > 0 && (
+        {microdistrictCatalogUrl &&
+          relatedCenters.microdistrict.length > 0 &&
+          !suppressedRecommendationSectionIds.has('microdistrictCenters') && (
           <RelatedCentersSection
             id="microdistrictCenters"
             title={`Бизнес-центры ${center.microdistrict}`}
@@ -1905,7 +1866,10 @@ export function BusinessCenterDetailPage() {
             идёт сопоставление с другими БЦ, это его естественное
             продолжение (было ниже, в паре с блоком про улицу — разведены
             по странице 2026-09-20). */}
-        {metroCatalogUrl && nearestMetro && relatedCenters.metro.length > 0 && (
+        {metroCatalogUrl &&
+          nearestMetro &&
+          relatedCenters.metro.length > 0 &&
+          !suppressedRecommendationSectionIds.has('metroCenters') && (
           <RelatedCentersSection
             id="metroCenters"
             title={`Бизнес-центры у станции ${nearestMetro.name}`}
@@ -1922,7 +1886,7 @@ export function BusinessCenterDetailPage() {
         {/* Рейтинг — не гео-блок, а общий якорь "а что тут вообще лучшее по
             городу"; логично сразу после отзывов, пока читатель ещё в
             режиме "кто тут лучше" (владелец, 2026-09-20). */}
-        {relatedCenters.rating.length > 0 && (
+        {relatedCenters.rating.length > 0 && !suppressedRecommendationSectionIds.has('ratingCenters') && (
           <RelatedCentersSection
             id="ratingCenters"
             title="Рейтинг бизнес-центров Минска"
@@ -2012,8 +1976,10 @@ export function BusinessCenterDetailPage() {
             блок"). Раньше был фиксированный объект (history/tenants/media/
             rating/reviews), теперь — HighlightSection[] (см. комментарий у
             BusinessCenter.highlights в data/businessCenters.ts). icon
-            'warning' — единственная особая: выносится наверх акцентным
-            жёлтым блоком (как caveat в RentalInfo), а не в общий список.
+            'warning' (как и caveat в RentalInfo) с 2026-09-20 не рендерится
+            вовсе — владелец: "убери все предупреждения такого плана с
+            сайта", жёлтый акцентный блок с оговоркой источника убран из
+            шаблона целиком, отфильтровывается в visibleHighlights.
             Позиция на странице менялась дважды: 2026-09-17 — сразу после
             главной карточки, 2026-09-20 — в группу блоков доверия (награды/
             СМИ/факты/история), после цены, параметров здания, арендаторов
@@ -2026,30 +1992,14 @@ export function BusinessCenterDetailPage() {
               Интересные факты
             </h2>
 
-            {visibleHighlights
-              .filter((s) => s.icon === 'warning')
-              .map((s, i) => (
-                <div
-                  key={`warning-${i}`}
-                  className="flex items-start gap-2 rounded-control border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-warning"
-                >
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <div>
-                    {s.label && <p className="text-xs font-semibold uppercase tracking-wide">{s.label}</p>}
-                    <p className="mt-0.5 leading-relaxed">{renderRentalText(s.text)}</p>
-                  </div>
-                </div>
-              ))}
-
             <div className="flex flex-col divide-y divide-border">
               {(() => {
-                const plainFacts = visibleHighlights.filter((s) => s.icon !== 'warning');
                 // Единственный факт в карточке — свой подписанный заголовок
                 // над ним избыточен: и так ясно из заголовка карточки "Интересные
                 // факты" (владелец, 2026-09-06: "если интересный факт один, то
                 // заголовок лишний").
-                const showLabel = plainFacts.length > 1;
-                return plainFacts.map((s, i) => (
+                const showLabel = visibleHighlights.length > 1;
+                return visibleHighlights.map((s, i) => (
                   <LabeledTextRow
                     key={i}
                     icon={HIGHLIGHT_ICONS[s.icon]}
@@ -2142,7 +2092,9 @@ export function BusinessCenterDetailPage() {
           </div>
         )}
 
-        {streetCatalogUrl && relatedCenters.street.length > 0 && (
+        {streetCatalogUrl &&
+          relatedCenters.street.length > 0 &&
+          !suppressedRecommendationSectionIds.has('streetCenters') && (
           <RelatedCentersSection
             id="streetCenters"
             title="Бизнес-центры на этой улице"
@@ -2156,7 +2108,10 @@ export function BusinessCenterDetailPage() {
         {/* Пересечение класс×район — самая узкая, предметно "похожая"
             подборка (тот же уровень и тот же район), поэтому в паре с
             улицей в самом конце, перед формой правки данных. */}
-        {classDistrictCatalogUrl && center.district && relatedCenters.classDistrict.length > 0 && (
+        {classDistrictCatalogUrl &&
+          center.district &&
+          relatedCenters.classDistrict.length > 0 &&
+          !suppressedRecommendationSectionIds.has('classDistrictCenters') && (
           <RelatedCentersSection
             id="classDistrictCenters"
             title={`Бизнес-центры класса ${center.businessClass} в ${districtPrepositional(center.district)} районе`}

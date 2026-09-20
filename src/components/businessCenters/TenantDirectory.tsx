@@ -105,7 +105,7 @@ export function TenantDirectory({
         <div>
           <h2 className="flex items-center gap-2 text-xl font-bold text-ink">
             <Building2 className="h-5 w-5 shrink-0 text-primary" />
-            Кто внутри
+            Каталог арендаторов
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-ink-muted">
             Компании и сервисы внутри здания. Выберите направление или найдите конкретного арендатора.
