@@ -229,13 +229,6 @@ function BusinessCenterCard({ center }: { center: BusinessCenter }) {
 // stroyashchiesya, аудит поиска 2026-09-07: срез «строящиеся БЦ 2026–2027»).
 // Не комбинируется с классом/районом (та же логика, что у микрорайона):
 // объектов в стройке единицы, пересечения дали бы пустые страницы.
-// «по 1 зданию» / «по 4 зданиям» — дательный падеж для подписи под
-// медианой ставки: «по 1 зданиям» читается как опечатка и подрывает
-// доверие к самой цифре.
-function pluralBuildingsDative(n: number): string {
-  return n % 10 === 1 && n % 100 !== 11 ? 'зданию' : 'зданиям';
-}
-
 function pluralBusinessCenters(n: number): string {
   const mod10 = n % 10;
   const mod100 = n % 100;
@@ -997,33 +990,10 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
 
 
 
-          {/* Живая сводка под фильтром (К1). Заменяет собой «Рынок в цифрах»
-              в роли первого, что видно: та плитка считалась только от оси
-              маршрута и на клик по фильтру не реагировала вовсе. */}
-          {centers !== null && (
-            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
-              <span className="font-bold text-ink">
-                {hasActiveCatalogFilter(filter)
-                  ? `Подходит ${visibleCenters.length} из ${routeScoped.length}`
-                  : `${visibleCenters.length} ${pluralBusinessCenters(visibleCenters.length)}`}
-              </span>
-              {summary.withAreaCount > 0 && (
-                <span className="text-ink-muted">
-                  {Math.round(summary.totalArea).toLocaleString('ru-RU')} м² суммарно (площадь известна у{' '}
-                  {summary.withAreaCount})
-                </span>
-              )}
-              {/* Медиана медиан по зданиям, а не по объявлениям — число
-                  зданий рядом обязательно, иначе цифру прочитают как
-                  городскую медиану, которой она не является. */}
-              {summary.rentMedian != null && (
-                <span className="text-ink-muted">
-                  медиана аренды ${summary.rentMedian}/м² — по {summary.rentBuildings}{' '}
-                  {pluralBuildingsDative(summary.rentBuildings)} с объявлениями
-                </span>
-              )}
-            </div>
-          )}
+          {/* Живая сводка под фильтром (К1) убрана с видимой страницы —
+              владелец, 2026-09-20: "убрать с главной каталога текст ...".
+              `summary` при этом не выброшен — тем же значением пользуется
+              SEO-текст (FAQ/подзаголовки хабов) ниже по файлу. */}
 
           {/* К14. Сравнение — блоком НАД результатами, а не модалкой:
               вложенных модалок в проекте не бывает, а сравнение смотрят,
