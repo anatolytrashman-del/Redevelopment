@@ -189,7 +189,7 @@ function BusinessCenterCard({ center }: { center: BusinessCenter }) {
       <div className="flex flex-1 flex-col gap-2.5 p-4">
         <h2 className="text-base font-bold leading-snug text-ink">{center.name}</h2>
         <FactRow icon={MapPin}>{shortAddress(center.address)}</FactRow>
-        {nearestMetro && (
+        {nearestMetro ? (
           <div className="flex items-start gap-2 text-sm text-ink-muted">
             <span
               className={cn(
@@ -201,6 +201,18 @@ function BusinessCenterCard({ center }: { center: BusinessCenter }) {
               {nearestMetro.name} — {formatMetroDistance(nearestMetro.distanceMeters)}
             </span>
           </div>
+        ) : (
+          center.metro && (
+            // Точного расстояния (2GIS/расчёт по прямой) нет — станция дальше
+            // 2 км или источник дал только описание словами. Показываем как
+            // есть, серой точкой вместо цвета линии (владелец, 2026-09-20:
+            // на карточках не должно быть "дыр" там, где хоть что-то о метро
+            // известно).
+            <div className="flex items-start gap-2 text-sm text-ink-muted">
+              <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-ink-faint" />
+              <span>{center.metro}</span>
+            </div>
+          )
         )}
         <div className="mt-auto flex justify-start pt-1">
           <span className="flex items-center gap-1 rounded-full bg-ink-muted/10 px-3 py-1.5 text-xs font-bold text-ink-muted transition-colors group-hover:bg-ink-muted group-hover:text-white">
