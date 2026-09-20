@@ -1,6 +1,7 @@
-// Domovita и Megapolis-real как источники ГОРОДСКИХ сегментов
-// (`citywide_offers`), общий модуль для sync-citywide-office-offers.mjs,
-// sync-citywide-retail-offers.mjs и sync-citywide-warehouse-offers.mjs.
+// Domovita, Megapolis-real, Garantiruem и Pro-N.by как источники ГОРОДСКИХ
+// сегментов (`citywide_offers`), общий модуль для sync-citywide-office-
+// offers.mjs, sync-citywide-retail-offers.mjs и sync-citywide-warehouse-
+// offers.mjs.
 //
 // Почему отдельным модулем, а не копией в каждом скрипте (2026-09-20).
 // Три скрипта сегментов — почти копии друг друга (так уж сложилось: каждый
@@ -20,17 +21,48 @@
 // разбор чужой вёрстки уже был написан и отлажен. Этот модуль закрывает
 // разрыв: тот же разбор карточки, но без привязки к каталогу БЦ.
 //
-// Объём на 2026-09-20 (замер вживую, страница 1 каждого раздела):
-//   Domovita  — офисы 529, торговые 362, склады 69
-//   Megapolis — офисы 738, торговые 660, склады 316
-// против 5306 строк, лежавших в citywide_offers на двух источниках.
+// Объём на 2026-09-20, живой прогон (годных объявлений после фильтра
+// цены, ДО схлопывания дублей между площадками):
+//   Domovita    — офисы 121, торговые 89,  склады 41
+//   Megapolis   — офисы 211, торговые 330, склады 157
+//   Garantiruem — офисы 81,  торговые 84,  склады 9
+//   Pro-N.by    — офисы 156, торговые 16,  склады 17
+// Итог по citywide_offers: 5306 → 6311 строк (офисы 2465→3132, торговые
+// 1817→2496, склады 474→683). Garantiruem и Pro-N добавлены в тот же
+// заход, что и разведка остальных 18 площадок из топ-20 владельца — оба
+// разобраны сильнее остальных: своя доля лотов у Garantiruem ~80%, у
+// Pro-N ~27% (полный разбор — docs/analytics-sources.md).
 //
-// Машиноместа (сегмент 'mashinomesta') сюда не входят: у обеих площадок
-// раздела парковок нет вовсе, sync-citywide-parking-offers.mjs остаётся на
-// одном Kufar.
+// Машиноместа (сегмент 'mashinomesta') сюда не входят: ни у одной из
+// четырёх площадок раздела парковок нет, sync-citywide-parking-offers.mjs
+// остаётся на одном Kufar.
 
 const BROWSER_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+
+// garantiruem.by и pro-n.by режут обычный `fetch()` (Node/undici) по
+// TLS/HTTP-отпечатку раньше любых заголовков — тот же запрос curl'ом
+// проходит 200, node fetch с теми же заголовками получает 403 (проверено
+// вживую 2026-09-20, разница только в клиенте). Domovita и Megapolis этим
+// не страдают — их трогать не стал, чтобы не менять уже рабочий код без
+// нужды. Обходной путь — звать системный curl из Node: он есть и в этой
+// песочнице, и на раннерах GitHub Actions (`ubuntu-latest`) без установки.
+const { execFile } = await import('node:child_process');
+const { promisify } = await import('node:util');
+const execFileAsync = promisify(execFile);
+const CURL_STATUS_MARKER = '\n__CURL_HTTP_STATUS__';
+
+async function curlFetch(url, { headers = {}, cookieJarPath } = {}) {
+  const args = ['-sS', '-m', '25', '-w', `${CURL_STATUS_MARKER}%{http_code}`];
+  for (const [key, value] of Object.entries(headers)) args.push('-H', `${key}: ${value}`);
+  if (cookieJarPath) args.push('-b', cookieJarPath, '-c', cookieJarPath);
+  args.push(url);
+  const { stdout } = await execFileAsync('curl', args, { maxBuffer: 25 * 1024 * 1024 });
+  const markerIndex = stdout.lastIndexOf(CURL_STATUS_MARKER);
+  const status = Number(stdout.slice(markerIndex + CURL_STATUS_MARKER.length));
+  const text = stdout.slice(0, markerIndex);
+  return { status, ok: status >= 200 && status < 300, text: () => Promise.resolve(text) };
+}
 
 // Разделы площадок по нашим сегментам. Названия разделов — те же, что уже
 // перечислены в sync-business-center-offers.mjs, менять их надо в обоих
@@ -487,5 +519,353 @@ export async function collectMegapolisOffers({ sectionPath, propertyType, isPlau
     }
     log?.(`Megapolis (${sectionPath}/${slug}): годных объявлений — ${offers.filter((o) => o.deal_type === dealType).length}`);
   }
+  return offers;
+}
+
+// ---------- Garantiruem ----------
+// Шестой и седьмой источник городских сегментов (2026-09-20) — по итогам
+// разведки топ-20 сайтов, присланного владельцем (docs/analytics-sources.md).
+// Агентство «Гарантируем» (garantiruem.by). Разведка (субагент, вживую):
+// 190 лотов аренды + 28 продажи, ~80% которых нет ни у Kufar, ни у Realt —
+// лучшая своя доля из девяти проверенных в тот же заход площадок.
+//
+// Устройство страницы — редкий случай, когда парсить проще, чем обычно: обе
+// страницы раздела (`/lease/commerce/`, `/sale/commerce/`) отдают ВСЕ свои
+// объекты сразу в одном инлайн-скрипте `new JCObjectMap([...])` —
+// пагинация вообще не нужна, один GET на раздел. Синтаксис внутри — валидный
+// JS-литерал массива объектов с одиночными кавычками; в Node парсим
+// вручную (JSON.parse не подходит из-за одиночных кавычек, `eval` — нет).
+//
+// Тип помещения в этом массиве НЕТ — только на странице самого объявления
+// (`<div class="obtt">Офис</div>` и рядом `Назначение: Офис`). Зато оттуда
+// же и площадь, и цена, и этаж, и НДС — надёжнее любой догадки по
+// заголовку («Аренда помещения по адресу...» не говорит вообще ничего).
+// Заголовки без типа — это генерическое «Помещение», больше половины пула
+// (86 из 190 аренды) — по CLAUDE.md такие не угадываем, просто не считаем
+// ни в один из трёх сегментов (ofisy/torgovye/sklady).
+const GARANTIRUEM_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+
+// Значения поля "Тип помещения" на детальной странице — прилагательные
+// («Офисное», не «Офис»), сверено вживую (см. комментарий у
+// fetchGarantiruemObjectType). Не путать со словарём Pro-N.by ниже — там
+// то же смысловое значение приходит в форме существительного.
+const GARANTIRUEM_TYPE_MAP = {
+  Офисное: 'Офисы',
+  Торговое: 'Торговые помещения',
+  Складское: 'Склады',
+  // 'Помещение' (нет такого варианта — генерическое отсутствие значения),
+  // 'Производственное' и подобные — сознательно не маппим ни в один
+  // сегмент, см. комментарий выше про заголовок без типа.
+};
+
+async function fetchGarantiruemList(sectionPath) {
+  const res = await curlFetch(`https://garantiruem.by/${sectionPath}/`, {
+    headers: { 'User-Agent': GARANTIRUEM_UA, Accept: 'text/html', 'Accept-Language': 'ru' },
+  });
+  if (!res.ok) throw new Error(`Garantiruem (${sectionPath}) вернул ${res.status}`);
+  const html = await res.text();
+  const match = html.match(/new JCObjectMap\((\[[\s\S]*?\])\)/);
+  if (!match) throw new Error(`Garantiruem (${sectionPath}): не нашёл JCObjectMap — вероятно, поменялась вёрстка`);
+
+  // Одиночные кавычки, простые строковые/числовые значения, без вложенных
+  // объектов кроме slider_img (массив строк) — безопасно разобрать одним
+  // regexp'ом на объект, без eval.
+  const objects = [];
+  for (const objRaw of match[1].split(/\},\s*\{/)) {
+    const fields = {};
+    for (const m of objRaw.matchAll(/'(\w+)':\s*(?:'([^']*)'|\[[^\]]*\])/g)) {
+      fields[m[1]] = m[2] ?? null;
+    }
+    if (fields.id && fields.href) objects.push(fields);
+  }
+  return objects;
+}
+
+async function fetchGarantiruemObjectType(href) {
+  const res = await curlFetch(`https://garantiruem.by${href}`, {
+    headers: { 'User-Agent': GARANTIRUEM_UA, Accept: 'text/html', 'Accept-Language': 'ru' },
+  });
+  if (!res.ok) return { type: null, floor: null, district: null };
+  const html = await res.text();
+  const type = html.match(/<li class="number_of_storeys">\s*<strong>([^<]*)<\/strong>\s*<p>Тип помещения<\/p>/)?.[1]?.trim() ?? null;
+  const floor = html.match(/<li class="floor">\s*<strong>(\d+)\s*<span>/)?.[1] ?? null;
+  const district = html.match(/<span>([^<]*район)<\/span>/)?.[1]?.trim() ?? null;
+  return { type, floor: floor ? Number(floor) : null, district };
+}
+
+// Детальные страницы дёргаем с ограниченным параллелизмом — 190+28 штук,
+// но по одной странице на объект (в отличие от Domovita/Megapolis, где
+// одна страница листинга даёт разом десятки карточек).
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+export async function collectGarantiruemOffers({ propertyType, isPlausiblePrice, excluded, log }) {
+  const offers = [];
+  for (const [sectionPath, dealType] of [
+    ['lease/commerce', 'rent'],
+    ['sale/commerce', 'sale'],
+  ]) {
+    const objects = await fetchGarantiruemList(sectionPath);
+    const minskObjects = objects.filter((o) => o.address?.includes('Минск'));
+
+    const details = await mapWithConcurrency(minskObjects, 5, (o) => fetchGarantiruemObjectType(o.href));
+
+    let matched = 0;
+    for (let i = 0; i < minskObjects.length; i++) {
+      const o = minskObjects[i];
+      const { type, floor, district } = details[i];
+      const mappedType = type ? GARANTIRUEM_TYPE_MAP[type] : null;
+      if (mappedType !== propertyType) continue; // не наш тип, либо генерическое «Помещение»
+
+      const size = Number(o.total_area);
+      const priceUsd = Number(o.price?.replace(/[^\d.]/g, ''));
+      if (!Number.isFinite(size) || size <= 0 || !Number.isFinite(priceUsd)) continue;
+      const pricePerSqm = priceUsd / size;
+
+      if (!isPlausiblePrice(dealType, pricePerSqm)) {
+        excluded.push({ source: 'Garantiruem', dealType, size, pricePerSqm, adLink: `https://garantiruem.by${o.href}` });
+        continue;
+      }
+
+      matched++;
+      offers.push({
+        source: 'Garantiruem',
+        ad_id: `${dealType}-${o.id}`,
+        deal_type: dealType,
+        property_type: propertyType,
+        building_type: null,
+        size,
+        price_per_sqm: pricePerSqm,
+        floor,
+        district,
+        address: o.address,
+        ad_link: `https://garantiruem.by${o.href}`,
+      });
+    }
+    log?.(`Garantiruem (${sectionPath}): ${minskObjects.length} по Минску, из них ${propertyType} — ${matched}`);
+  }
+  return offers;
+}
+
+// ---------- Pro-N.by ----------
+// Восьмой источник (2026-09-20) — из того же захода разведки: 645 лотов по
+// Минску (404 аренда + 241 продажа), лучшая карточка из девяти проверенных
+// площадок по полноте полей.
+//
+// Устройство ФУНДАМЕНТАЛЬНО другое, чем у всех прежних источников: у
+// pro-n.by нет ни одной страницы, где можно легально долистать до конца.
+// `robots.txt` разрешает `/rent/nonres/<id>/` (страница объявления) кому
+// угодно, но явным правилом `Disallow: /*?*` запрещает ЛЮБОЙ query-параметр
+// — а вся пагинация листинга живёт только через `?page=N&...`. Обходной
+// путь, который САМ сайт публикует как легальный: `sitemap-objects.xml`
+// перечисляет прямые URL объявлений без query — по нему и идём, вместо
+// листинга. Плата за легальность — по объекту нужен отдельный GET (не
+// пачка карточек одним запросом, как у прежних источников), и sitemap
+// общий на всю Беларусь (632 аренда + 708 продажа), Минск внутри не
+// выделен отдельно — фильтруем по факту, после открытия страницы.
+//
+// Тип помещения — из `<div class="obtt">Офис</div>` (то же значение
+// повторяется полем `Назначение: Офис` рядом) — НАДЁЖНЕЕ, чем заголовок:
+// категория «Помещения» (263 из 404 аренды, ПОЛОВИНА пула) — это
+// генерический тип у самого источника, не наша недосмотренность, и мы его
+// сознательно не разносим по сегментам (см. тот же принцип, что у
+// Garantiruem выше — не угадываем, что за объект).
+//
+// Цена — ИЗ ВСТРОЕННОГО ПЕРЕСЧЁТА САМОЙ ПЛОЩАДКИ, не наш пересчёт по курсу:
+// `onclick="calc(this,'27&nbsp;$ за м<sup>2</sup>|24&nbsp;€ за м<sup>2</sup>',...)"`
+// — первое число после запуска этого атрибута — цена в долларах, которую
+// сайт САМ считает по своему курсу (родное поле цены — BYN,
+// `itemprop="priceCurrency" content="BYN"`, конвертировать самим — значит
+// зависеть ещё и от того, какой курс на какую дату взять, а тут площадка
+// уже сделала это за нас). Суффикс "за м2" внутри той же строки отличает
+// цену за метр от цены за объект целиком — без этого суффикса делим сами.
+//
+// WAF (BitNinja) иногда отдаёт 403 на первый заход — лечится кукой с
+// прошлого ответа плюс повтором (ниже — до 3 попыток).
+const PRON_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+
+const PRON_TYPE_MAP = {
+  Офис: 'Офисы',
+  Торговое: 'Торговые помещения',
+  // Значение в property_type у складского сегмента — 'Склады', не
+  // 'Кладовые' (сверено с тем, что уже лежит в citywide_offers у
+  // Kufar/Realt/Domovita/Megapolis для segment='sklady').
+  Склад: 'Склады',
+};
+
+// Кука WAF (BitNinja) — общий файл на весь прогон, curl сам её ставит и
+// перечитывает флагами -c/-b (та же кука, что получил один запрос,
+// участвует в следующем — без этого печенья WAF держит 403 дольше).
+let pronCookieJarPath = null;
+async function getPronCookieJarPath() {
+  if (pronCookieJarPath) return pronCookieJarPath;
+  const os = await import('node:os');
+  const path = await import('node:path');
+  pronCookieJarPath = path.join(os.tmpdir(), `pro-n-cookies-${process.pid}.txt`);
+  return pronCookieJarPath;
+}
+
+async function fetchProNWithRetry(url, attempts = 3) {
+  const cookieJarPath = await getPronCookieJarPath();
+  for (let i = 0; i < attempts; i++) {
+    const res = await curlFetch(url, {
+      headers: { 'User-Agent': PRON_UA, Accept: 'text/html', 'Accept-Language': 'ru' },
+      cookieJarPath,
+    });
+    if (res.status === 403 && i < attempts - 1) {
+      await new Promise((r) => setTimeout(r, 500 * (i + 1)));
+      continue;
+    }
+    return res;
+  }
+  throw new Error(`pro-n.by: ${url} — WAF не пропустил за ${attempts} попыток`);
+}
+
+// Кэш на диске (не в репозитории — системный temp), общий приём для
+// Garantiruem и Pro-N: сегменты office/retail/warehouse вызывают сборщик
+// по отдельности, каждый в своём процессе, а тип объекта решается только
+// после открытия его страницы — независимо от того, какой сегмент сейчас
+// спрашивает. Без кэша прогон трёх скриптов подряд обошёл бы ВЕСЬ список
+// объектов площадки трижды (у Garantiruem — 204 детальных страницы, у
+// Pro-N — около 1340). TTL короткий (3 часа) — это ускоритель ручного
+// прогона нескольких сегментов подряд в одной сессии, не замена месячному
+// крону (там сегменты и так идут в разных GitHub Actions джобах без
+// общего диска, кэш там ни разу не выстрелит и не должен).
+async function loadDiskCache(cacheKey) {
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const fs = await import('node:fs/promises');
+  const file = path.join(os.tmpdir(), `citywide-extra-sources-${cacheKey}.json`);
+  try {
+    const stat = await fs.stat(file);
+    if (Date.now() - stat.mtimeMs < 3 * 60 * 60 * 1000) {
+      return { file, data: JSON.parse(await fs.readFile(file, 'utf8')) };
+    }
+  } catch {
+    // нет файла или истёк — просто ползём с нуля
+  }
+  return { file, data: null };
+}
+
+async function saveDiskCache(file, data) {
+  const fs = await import('node:fs/promises');
+  await fs.writeFile(file, JSON.stringify(data));
+}
+
+function parseProNSitemap(xml) {
+  const ids = [];
+  for (const m of xml.matchAll(/<loc>https:\/\/pro-n\.by\/(rent|sale)\/nonres\/(\d+)\/<\/loc>/g)) {
+    ids.push({ dealType: m[1] === 'rent' ? 'rent' : 'sale', id: m[2] });
+  }
+  return ids;
+}
+
+function parseProNObjectPage(html) {
+  const type = html.match(/<div class="obtt">([^<]+)<\/div>/)?.[1]?.trim() ?? null;
+  const addrMatch = html.match(/<div class="obta">\s*<a[^>]*>([^<]+)<\/a>,\s*<a[^>]*>([^<]+)<\/a>,\s*([^<]+)<\/div>/);
+  const city = addrMatch?.[1]?.trim() ?? null;
+  const street = addrMatch?.[2]?.trim() ?? null;
+  const house = addrMatch?.[3]?.trim() ?? null;
+  const district = html.match(/<div class="obta2">\s*<a[^>]*>([^<]+)<\/a>/)?.[1]?.trim() ?? null;
+  // Площадь диапазоном ("90 - 370 м²", несколько помещений сразу под одним
+  // объявлением) — единственную площадь не определить, не гадаем: если
+  // сразу за первым числом идёт дефис перед вторым, размер уходит в NaN и
+  // строка отсеивается ниже (`!Number.isFinite(row.size)`).
+  const areaMatch = html.match(/Площадь помещений:\s*([\d.,]+)(\s*-\s*[\d.,]+)?(?:&nbsp;)?м/);
+  const size = areaMatch && !areaMatch[2] ? Number(areaMatch[1].replace(',', '.')) : NaN;
+  const floor = html.match(/Этаж\(и\)\/этажность:\s*(\d+)\/\d+/)?.[1] ?? null;
+  // Разряды тысяч разделены тем же "&nbsp;", что и число от знака валюты —
+  // "108&nbsp;817&nbsp;$" (108 817 $). Первая попытка регулярки ловила
+  // только числа до 999: `[\d\s]+` не матчит буквы внутри "&nbsp;", и на
+  // разделителе разрядов разбор молча обрывался, priceUsd уходил в null.
+  // Проверено на живых карточках: из этого падало 66 из 159 минских
+  // офисов — почти все продажи (там суммы за объект четырёх- и
+  // пятизначные) и часть дорогой аренды.
+  const calc = html.match(/calc\(this,'([\d]+(?:&nbsp;[\d]+)*)&nbsp;\$( за м(?:<sup>2<\/sup>)?)?/);
+  const priceUsd = calc ? Number(calc[1].replace(/&nbsp;/g, '')) : null;
+  const isPerSqm = Boolean(calc?.[2]);
+
+  return { type, city, street, house, district, size, floor: floor ? Number(floor) : null, priceUsd, isPerSqm };
+}
+
+async function crawlProNAll(log) {
+  const { file, data: cached } = await loadDiskCache('pro-n');
+  if (cached) {
+    log?.(`pro-n.by: беру из кэша сессии (${cached.length} объектов, моложе 3 часов)`);
+    return cached;
+  }
+
+  const sitemapRes = await fetchProNWithRetry('https://pro-n.by/sitemap-objects.xml');
+  if (!sitemapRes.ok) throw new Error(`pro-n.by sitemap вернул ${sitemapRes.status}`);
+  const ids = parseProNSitemap(await sitemapRes.text());
+  log?.(`pro-n.by: sitemap отдал ${ids.length} объявлений по всей Беларуси, открываю каждое...`);
+
+  // Параллелизм ниже, чем у Garantiruem (4 вместо 5): все воркеры пишут
+  // в ОДИН файл-куку WAF (см. getPronCookieJarPath) — curl не гарантирует
+  // атомарность параллельной записи, слишком большой параллелизм рискует
+  // терять куку. 403 всё равно ловит повтор (fetchProNWithRetry), но
+  // лучше пореже в него попадать.
+  const rows = await mapWithConcurrency(ids, 4, async ({ dealType, id }) => {
+    try {
+      const res = await fetchProNWithRetry(`https://pro-n.by/${dealType}/nonres/${id}/`);
+      if (!res.ok) return null;
+      const parsed = parseProNObjectPage(await res.text());
+      return { ...parsed, dealType, id };
+    } catch {
+      return null; // одна неудачная страница не должна ронять весь прогон на 1300+ страниц
+    }
+  });
+
+  const rowsClean = rows.filter(Boolean);
+  await saveDiskCache(file, rowsClean);
+  return rowsClean;
+}
+
+export async function collectProNOffers({ propertyType, isPlausiblePrice, excluded, log }) {
+  const rows = await crawlProNAll(log);
+  const offers = [];
+
+  for (const row of rows) {
+    if (row.city !== 'г. Минск' && row.city !== 'Минск') continue;
+    const mappedType = row.type ? PRON_TYPE_MAP[row.type] : null;
+    if (mappedType !== propertyType) continue;
+    if (!row.street || !row.house) continue;
+    if (!Number.isFinite(row.size) || row.size <= 0 || row.priceUsd == null) continue;
+
+    const pricePerSqm = row.isPerSqm ? row.priceUsd : row.priceUsd / row.size;
+    const address = `${row.street}, ${row.house}, Минск`;
+    const adLink = `https://pro-n.by/${row.dealType}/nonres/${row.id}/`;
+
+    if (!isPlausiblePrice(row.dealType, pricePerSqm)) {
+      excluded.push({ source: 'Pro-N', dealType: row.dealType, size: row.size, pricePerSqm, adLink });
+      continue;
+    }
+
+    offers.push({
+      source: 'Pro-N',
+      ad_id: `${row.dealType}-${row.id}`,
+      deal_type: row.dealType,
+      property_type: propertyType,
+      building_type: null,
+      size: row.size,
+      price_per_sqm: pricePerSqm,
+      floor: row.floor,
+      district: row.district,
+      address,
+      ad_link: adLink,
+    });
+  }
+  log?.(`pro-n.by: по Минску и типу «${propertyType}» — ${offers.length} годных объявлений`);
   return offers;
 }

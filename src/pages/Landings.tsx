@@ -132,14 +132,14 @@ const LANDINGS: LandingEntry[] = [
   {
     title: 'Аналитика: торговые помещения',
     description:
-      'Ставки аренды и цены продажи по районам и типу здания, city-wide (Kufar + Realt + Domovita + Megapolis, с дедупликацией). /minsk/analytics/torgovye/arenda и /prodazha.',
+      'Ставки аренды и цены продажи по районам и типу здания, city-wide (Kufar + Realt + Domovita + Megapolis + Garantiruem + Pro-N, с дедупликацией). /minsk/analytics/torgovye/arenda и /prodazha.',
     url: 'https://redevelopment.pro/minsk/analytics/torgovye/arenda',
     status: 'in-progress',
   },
   {
     title: 'Аналитика: склады',
     description:
-      'Ставки аренды и цены продажи складов по районам, city-wide (Kufar + Realt + Domovita + Megapolis). Без разбивки по типу здания — у складов оно почти всегда не заполнено источниками. /minsk/analytics/sklady/arenda и /prodazha.',
+      'Ставки аренды и цены продажи складов по районам, city-wide (Kufar + Realt + Domovita + Megapolis + Garantiruem + Pro-N). Без разбивки по типу здания — у складов оно почти всегда не заполнено источниками. /minsk/analytics/sklady/arenda и /prodazha.',
     url: 'https://redevelopment.pro/minsk/analytics/sklady/arenda',
     status: 'in-progress',
   },
