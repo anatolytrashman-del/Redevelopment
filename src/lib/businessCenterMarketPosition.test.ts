@@ -9,7 +9,8 @@ import type { BusinessCenter } from '../data/businessCenters';
 function bc(slug: string, lat: number | null, lng: number | null): BusinessCenter {
   return {
     id: slug, slug, name: slug, altNames: [], address: 'г. Минск, ул. Тестовая, 1', district: null, microdistrict: null,
-    businessClass: null, totalArea: null, yearBuilt: null, floors: null, developer: null, metro: null,
+    businessClass: null, totalArea: null, yearBuilt: null, floors: null, developer: null, developerInfo: null,
+    metro: null,
     parking: null, website: null, description: null, rentalInfo: null, highlights: [], mapSnapshotFiles: [],
     tenantOrganizations: [], technicalParams: [], nearestMetroStations: [], verdict: null, pros: [], cons: [],
     verdictEdited: false, reviewsChecked: false, floorPlateArea: null, officeArea: null, layoutTypes: [], elevators: null,
