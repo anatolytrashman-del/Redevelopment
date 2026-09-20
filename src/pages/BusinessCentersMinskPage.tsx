@@ -27,7 +27,7 @@ import {
   setNoIndex,
   clearNoIndex,
 } from '../lib/pageMeta';
-import { shortAddress, shortName, streetOfAddress } from '../lib/businessCenterDisplay';
+import { formatMetroDistance, shortAddress, shortName, streetOfAddress } from '../lib/businessCenterDisplay';
 import { nearestMetroStation } from '../lib/metroStations';
 import {
   CLASS_SLUG_TO_VALUE,
@@ -56,14 +56,17 @@ import {
 } from '../components/businessCenters/CatalogMarketBlocks';
 import { SOURCE_LABELS, MIN_RELIABLE_N, type ExternalMetric, type MarketSnapshot } from '../data/marketSnapshots';
 import {
+  CLASS_NOT_ASSIGNED,
   EMPTY_CATALOG_FILTER,
   MAX_COMPARE,
+  METRO_LINE_DOT_CLASS,
   METRO_WITHIN_OPTIONS,
   buildOfferIndex,
   catalogFilterToQuery,
   catalogSummary,
   hasActiveCatalogFilter,
   matchesCatalogFilter,
+  metroLineId,
   nearestMetroMeters,
   catalogMetroStations,
   parseCatalogFilter,
@@ -147,7 +150,7 @@ const CARDS_PAGE_SIZE = 48;
 
 // Параметры строки запроса, любое присутствие которых делает состояние
 // каталога неиндексируемым (см. filterIsIndexable ниже).
-const FILTER_QUERY_KEYS = ['class', 'district', 'microdistrict', 'metro', 'station', 'lot', 'facts', 'q', 'view', 'sort', 'compare'];
+const FILTER_QUERY_KEYS = ['class', 'status', 'district', 'microdistrict', 'metro', 'station', 'lot', 'facts', 'q', 'view', 'sort', 'compare'];
 
 // Карточка каталога — упрощённый вид (владелец, 2026-09-19: квадратные
 // фото под новую фотосъёмку БЦ, карточка сведена к минимуму — фото,
@@ -170,34 +173,33 @@ function BusinessCenterCard({ center }: { center: BusinessCenter }) {
     >
       <div className="relative aspect-square w-full overflow-hidden">
         <PhotoBlock center={center} variant="card" />
-        <div className="absolute left-2 top-2 flex flex-col items-start gap-1.5">
-          {center.businessClass && (
-            <span className="rounded-full bg-ink-muted/90 px-2.5 py-1 text-xs font-bold text-white shadow-sm backdrop-blur-sm">
-              Класс {center.businessClass}
+        <div className="absolute left-2 top-2 flex flex-wrap items-start gap-1.5">
+          <span className="rounded-full bg-ink-muted/90 px-2.5 py-1 text-xs font-bold text-white shadow-sm backdrop-blur-sm">
+            {center.businessClass ? `Класс ${center.businessClass}` : 'Класс не присвоен'}
+          </span>
+          {center.status === 'under_construction' && (
+            <span className="flex items-center gap-1 rounded-full bg-ink-muted/90 px-2.5 py-1 text-xs font-bold text-white shadow-sm backdrop-blur-sm">
+              <HardHat className="h-3.5 w-3.5 shrink-0" />
+              Строится
             </span>
           )}
-          <span className="flex items-center gap-1 rounded-full bg-ink-muted/90 px-2.5 py-1 text-xs font-bold text-white shadow-sm backdrop-blur-sm">
-            {center.status === 'under_construction' ? (
-              <>
-                <HardHat className="h-3.5 w-3.5 shrink-0" />
-                Строится
-              </>
-            ) : (
-              <>
-                <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
-                Построен
-              </>
-            )}
-          </span>
         </div>
       </div>
       <div className="flex flex-1 flex-col gap-2.5 p-4">
         <h2 className="text-base font-bold leading-snug text-ink">{center.name}</h2>
         <FactRow icon={MapPin}>{shortAddress(center.address)}</FactRow>
         {nearestMetro && (
-          <FactRow icon={TrainFront}>
-            «{nearestMetro.name}» — {nearestMetro.distanceMeters} м
-          </FactRow>
+          <div className="flex items-start gap-2 text-sm text-ink-muted">
+            <span
+              className={cn(
+                'mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full',
+                metroLineId(nearestMetro.line) ? METRO_LINE_DOT_CLASS[metroLineId(nearestMetro.line)!] : 'bg-ink-faint',
+              )}
+            />
+            <span>
+              {nearestMetro.name} — {formatMetroDistance(nearestMetro.distanceMeters)}
+            </span>
+          </div>
         )}
         <div className="mt-auto flex justify-start pt-1">
           <span className="flex items-center gap-1 rounded-full bg-ink-muted/10 px-3 py-1.5 text-xs font-bold text-ink-muted transition-colors group-hover:bg-ink-muted group-hover:text-white">
@@ -518,8 +520,17 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // «B» перед «B+», потому что для строк «B» < «B+».
   const availableClasses = useMemo(() => {
     const present = new Set((centers ?? []).map((c) => c.businessClass).filter((v): v is NonNullable<typeof v> => !!v));
-    return BUSINESS_CENTER_CLASSES.filter((cls) => present.has(cls));
+    const known = BUSINESS_CENTER_CLASSES.filter((cls) => present.has(cls));
+    const hasUnassigned = (centers ?? []).some((c) => c.businessClass === null);
+    return hasUnassigned ? [...known, CLASS_NOT_ASSIGNED] : known;
   }, [centers]);
+  // Статус — построено/строится — не показываем на хабе «Строящиеся»
+  // (/minsk/bcminsk/stroyashchiesya): там ось уже задана маршрутом, чип
+  // «Построенные» показал бы только нули.
+  const availableStatuses = useMemo(
+    () => (underConstruction ? [] : Array.from(new Set((centers ?? []).map((c) => c.status)))),
+    [centers, underConstruction],
+  );
   const districts = useMemo(() => {
     const all = Array.from(new Set((centers ?? []).map((c) => c.district).filter((v): v is string => !!v)));
     const inCity = all.filter((d) => d !== OUT_OF_TOWN_DISTRICT).sort((a, b) => a.localeCompare(b, 'ru'));
@@ -546,6 +557,12 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availableClasses, routeScoped, filter, offerIndex]);
+  const statusCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const status of availableStatuses) m[status] = countWith({ statuses: [status] });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableStatuses, routeScoped, filter, offerIndex]);
   const districtCounts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const d of districts) m[d] = countWith({ districts: [d] });
@@ -923,6 +940,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             state={filter}
             onChange={applyFilter}
             availableClasses={availableClasses}
+            availableStatuses={availableStatuses}
+            statusCounts={statusCounts}
             districts={districts}
             microdistricts={filterMicrodistricts}
             classCounts={classCounts}
@@ -1213,11 +1232,17 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                   [
                     {
                       label: 'По классу',
-                      items: availableClasses.map((cls) => ({
-                        key: cls,
-                        name: `Класс ${cls}`,
-                        url: classHubUrl(cls),
-                      })),
+                      // «Класс не присвоен» — только чип клиентского фильтра
+                      // (query, не индексируется), у него нет собственного
+                      // SEO-хаба и не должно быть — classHubUrl тут не знает
+                      // такого значения.
+                      items: availableClasses
+                        .filter((cls): cls is NonNullable<BusinessCenter['businessClass']> => cls !== CLASS_NOT_ASSIGNED)
+                        .map((cls) => ({
+                          key: cls,
+                          name: `Класс ${cls}`,
+                          url: classHubUrl(cls),
+                        })),
                     },
                     {
                       label: 'По району',

@@ -4,10 +4,22 @@ import { ChevronDown, RotateCcw, SlidersHorizontal, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import {
+  CLASS_NOT_ASSIGNED,
   MINSK_METRO_LINES,
   METRO_WITHIN_OPTIONS,
   type CatalogFilterState,
 } from '../../lib/businessCenterCatalogFilter';
+
+// Подписи для значений оси «класс», которые не совпадают с самим кодом
+// класса (A/B+/B/C читаются как есть, «нет класса» — нет).
+const CLASS_CHIP_LABELS: Record<string, string> = {
+  [CLASS_NOT_ASSIGNED]: 'Класс не присвоен',
+};
+
+const STATUS_CHIP_LABELS: Record<string, string> = {
+  built: 'Построенные',
+  under_construction: 'Строящиеся',
+};
 
 // Фильтры в боковой колонке повторяют компактную структуру страницы Минск
 // Мира. На мобильном те же контролы открываются в native dialog.
@@ -239,9 +251,11 @@ export interface CatalogFilterPanelProps {
   state: CatalogFilterState;
   onChange: (next: CatalogFilterState) => void;
   availableClasses: string[];
+  availableStatuses: string[];
   districts: string[];
   microdistricts: string[];
   classCounts: Record<string, number>;
+  statusCounts: Record<string, number>;
   districtCounts: Record<string, number>;
   microdistrictCounts: Record<string, number>;
   metroCounts: Record<number, number>;
@@ -266,9 +280,11 @@ export function CatalogFilterPanel({
   state,
   onChange,
   availableClasses,
+  availableStatuses,
   districts,
   microdistricts,
   classCounts,
+  statusCounts,
   districtCounts,
   microdistrictCounts,
   metroCounts,
@@ -307,6 +323,7 @@ export function CatalogFilterPanel({
 
   const activeCount =
     state.classes.length +
+    state.statuses.length +
     (state.districts === null ? 0 : 1) +
     (state.microdistricts === null ? 0 : 1) +
     state.metroStations.length +
@@ -323,10 +340,26 @@ export function CatalogFilterPanel({
             disabled={!state.classes.includes(cls) && (classCounts[cls] ?? 0) === 0}
             onClick={() => onChange({ ...state, classes: toggleInList(state.classes, cls) })}
           >
-            {cls}
+            {CLASS_CHIP_LABELS[cls] ?? cls}
           </Chip>
         ))}
       </ChipRow>
+
+      {availableStatuses.length > 0 && (
+        <ChipRow label="Статус">
+          {availableStatuses.map((status) => (
+            <Chip
+              key={status}
+              active={state.statuses.includes(status)}
+              count={statusCounts[status] ?? 0}
+              disabled={!state.statuses.includes(status) && (statusCounts[status] ?? 0) === 0}
+              onClick={() => onChange({ ...state, statuses: toggleInList(state.statuses, status) })}
+            >
+              {STATUS_CHIP_LABELS[status] ?? status}
+            </Chip>
+          ))}
+        </ChipRow>
+      )}
 
       <MultiSelectDropdown
         label="Район"
