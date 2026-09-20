@@ -104,7 +104,7 @@ import {
 } from '../lib/businessCenterTenants';
 import { TenantDirectory } from '../components/businessCenters/TenantDirectory';
 import type { BusinessCenterTenantSnapshot } from '../data/businessCenterTenants';
-import { buildOfferIndex } from '../lib/businessCenterCatalogFilter';
+import { buildOfferIndex, METRO_LINE_DOT_CLASS, metroLineId } from '../lib/businessCenterCatalogFilter';
 import { buildMarketPosition, haversineMeters, nearestNeighbours } from '../lib/businessCenterMarketPosition';
 import {
   extractHistoryPoints,
@@ -529,6 +529,45 @@ export function BusinessCenterDetailPage() {
       readinessText: sourceValue('Степень готовности'),
     };
   }, [center, nearestMetro]);
+
+  // «В здании» раньше показывал ровно то, что владелец вручную набрал в
+  // infraInternal, — у большинства БЦ это поле пустое, хотя список
+  // организаций (tenantOrganizations/tenantAmenities) уже лежит в базе и
+  // содержит те же банки/кафе/магазины/банкоматы. Владелец, 2026-09-20:
+  // "обогатил бы этот блок на основе инфы из базы", "не расширял бы
+  // количество новых категорий" — поэтому категорий ровно пять, те же, что
+  // уже умеет красить иконкой InternalInfrastructureRow ниже, и достраиваем
+  // только то, чего в ручном тексте ещё нет (иначе "банк" и "банкомат"
+  // задвоятся, если владелец уже вписал оба). Границу слова проверяем
+  // lookahead'ом, а не /\b/ (CLAUDE.md — \b не видит границу кириллического
+  // слова): без неё "банк" ловит "банкетный зал", а "кафе" — "кафедра".
+  const derivedInternalInfrastructureText = useMemo(() => {
+    const manualItems = (redistributedTechnicalParams.internalInfrastructureText ?? '')
+      .split(/[,;]\s*/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const manualCategories = new Set(
+      manualItems
+        .map((item) => TENANT_DERIVED_INFRASTRUCTURE.find(({ pattern }) => pattern.test(item))?.label)
+        .filter((label): label is string => Boolean(label)),
+    );
+    const tenantCategories = new Set<string>();
+    for (const amenity of tenantAmenities) {
+      const match = TENANT_DERIVED_INFRASTRUCTURE.find(({ pattern }) => pattern.test(amenity.category));
+      if (match) tenantCategories.add(match.label);
+    }
+    for (const tenant of tenantOrganizations) {
+      const rubric = tenant.rubric;
+      if (!rubric) continue;
+      const match = TENANT_DERIVED_INFRASTRUCTURE.find(({ pattern }) => pattern.test(rubric));
+      if (match) tenantCategories.add(match.label);
+    }
+    const derived = Array.from(tenantCategories).filter((label) => !manualCategories.has(label));
+    return [redistributedTechnicalParams.internalInfrastructureText, derived.join(', ') || null]
+      .filter(Boolean)
+      .join(', ');
+  }, [redistributedTechnicalParams.internalInfrastructureText, tenantOrganizations, tenantAmenities]);
+
   // Из общего списка фактов исключаем то, что теперь показано отдельными
   // авторскими блоками: рейтинг и отзывы уехали в «Что говорят» (Б11),
   // история — в таймлайн (Б10). Дублировать один и тот же текст в двух
@@ -791,7 +830,7 @@ export function BusinessCenterDetailPage() {
         center.buildingFacts.map((fact) => `${fact.label}: ${fact.value} (по данным ${fact.source})`).join('; '),
       );
     }
-    add(`Что есть внутри «${name}»?`, redistributedTechnicalParams.internalInfrastructureText);
+    add(`Что есть внутри «${name}»?`, derivedInternalInfrastructureText || null);
     // Инфраструктура рядом появится отдельным картографическим блоком и в
     // карточке/FAQ пока не повторяется.
     add('Какие условия доступной среды указаны?', accessibilityAttributes);
@@ -904,7 +943,7 @@ export function BusinessCenterDetailPage() {
     if (similar.length) add('Какие бизнес-центры показаны как похожие?', similar.map(shortName).join(', '));
     if (hubChips.length) add('Какие связанные подборки доступны?', hubChips.map((c) => c.label).join(', '));
     return items;
-  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, awardItems, mediaMentions, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, tenantSnapshot, mapRating, reviewQuotes, hubChips, redistributedTechnicalParams, nearbyPlaces]);
+  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, awardItems, mediaMentions, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, tenantSnapshot, mapRating, reviewQuotes, hubChips, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -1257,27 +1296,28 @@ export function BusinessCenterDetailPage() {
               )}
             </div>
 
-            {/* Район, адрес и метро — три горизонтальные строки:
-                подпись, тире и значение находятся на одной базовой линии. */}
+            {/* Район, адрес и метро — три горизонтальные строки: подпись и
+                значение находятся на одной базовой линии. Разделитель-тире
+                между подписью и значением убран (владелец, 2026-09-20: "бесят
+                три тире в районе, адресе и метро") — расстояние в сетке между
+                колонками само отделяет подпись от значения. */}
             <section className="rounded-2xl border border-border bg-surface-muted/60 px-3.5 py-3" aria-labelledby="location-summary-title">
               <h2 id="location-summary-title" className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
                 Расположение
               </h2>
               <div className="mt-2.5 space-y-2">
                 {redistributedTechnicalParams.administrativeDistrictText && (
-                  <div className="grid min-w-0 items-baseline gap-x-2 sm:grid-cols-[max-content_auto_minmax(0,1fr)]">
+                  <div className="grid min-w-0 items-baseline gap-x-2 sm:grid-cols-[max-content_minmax(0,1fr)]">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
                       Район
                     </p>
-                    <span className="hidden text-xs text-ink-muted sm:inline" aria-hidden="true">—</span>
                     <p className="mt-0.5 min-w-0 text-sm leading-snug text-ink sm:mt-0">
                       {redistributedTechnicalParams.administrativeDistrictText}
                     </p>
                   </div>
                 )}
-                <div className="grid min-w-0 items-baseline gap-x-2 sm:grid-cols-[max-content_auto_minmax(0,1fr)]">
+                <div className="grid min-w-0 items-baseline gap-x-2 sm:grid-cols-[max-content_minmax(0,1fr)]">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Адрес</p>
-                  <span className="hidden text-xs text-ink-muted sm:inline" aria-hidden="true">—</span>
                   {/* Улица внутри адреса раньше вела на уличный хаб каталога
                       (STREET_SLUGS) — владелец, 2026-09-20: "не нравится
                       кликабельная улица в адресе, у нас есть блок «Бизнес-
@@ -1286,16 +1326,30 @@ export function BusinessCenterDetailPage() {
                   <p className="mt-0.5 min-w-0 text-sm leading-snug text-ink sm:mt-0">{displayAddress}</p>
                 </div>
                 {(nearestMetro || center.metro) && (
-                  <div className="grid min-w-0 items-baseline gap-x-2 sm:grid-cols-[max-content_auto_minmax(0,1fr)]">
+                  <div className="grid min-w-0 items-baseline gap-x-2 sm:grid-cols-[max-content_minmax(0,1fr)]">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Метро</p>
-                    <span className="hidden text-xs text-ink-muted sm:inline" aria-hidden="true">—</span>
-                    <p className="mt-0.5 min-w-0 text-sm leading-snug text-ink sm:mt-0">
+                    <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm leading-snug text-ink sm:mt-0">
                       {nearestMetro ? (
                         <>
+                          {/* Цвет линии — как на карточках каталога
+                              (METRO_LINE_DOT_CLASS): владелец, 2026-09-20,
+                              "добавляй цветной кружочек для обозначения линии
+                              метро". Серая точка — когда линия не одна из
+                              трёх известных (пока таких станций нет, но на
+                              случай новых веток). */}
+                          <span
+                            className={cn(
+                              'h-2.5 w-2.5 shrink-0 rounded-full',
+                              metroLineId(nearestMetro.line) ? METRO_LINE_DOT_CLASS[metroLineId(nearestMetro.line)!] : 'bg-ink-faint',
+                            )}
+                          />
                           {nearestMetro.name} — {nearestMetro.distanceMeters} м по прямой
                         </>
                       ) : (
-                        center.metro
+                        <>
+                          <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-ink-faint" />
+                          {center.metro}
+                        </>
                       )}
                     </p>
                   </div>
@@ -1338,10 +1392,12 @@ export function BusinessCenterDetailPage() {
             </div>
 
             {/* Внутренняя инфраструктура относится к основной сводке и на
-                широком экране заполняет свободную область справа от фото. */}
-            {(redistributedTechnicalParams.internalInfrastructureText || tenantOrganizations.length > 0) && (
+                широком экране заполняет свободную область справа от фото.
+                Текст — вручную набранный владельцем плюс достроенные из
+                списка организаций категории (derivedInternalInfrastructureText). */}
+            {(derivedInternalInfrastructureText || tenantOrganizations.length > 0) && (
               <InternalInfrastructureRow
-                text={redistributedTechnicalParams.internalInfrastructureText ?? ''}
+                text={derivedInternalInfrastructureText}
                 organizationCount={tenantOrganizations.length}
                 compact
               />
@@ -2273,6 +2329,19 @@ const INTERNAL_INFRASTRUCTURE_ICONS: { pattern: RegExp; icon: typeof FileText }[
   { pattern: /кофе|кафе/i, icon: Coffee },
   { pattern: /магазин/i, icon: ShoppingBag },
   { pattern: /фитнес|спортзал/i, icon: Dumbbell },
+];
+
+// То же пять категорий, но для сопоставления с текстом из базы (рубрики
+// организаций, подписи оборудования), а не с вручную набранным списком
+// владельца, — там регулярки нарочно строже (граница слова через lookahead,
+// см. использование выше в derivedInternalInfrastructureText): свободный
+// текст владелец уже проверил глазами, а рубрики тысяч арендаторов — нет.
+const TENANT_DERIVED_INFRASTRUCTURE: { pattern: RegExp; label: string }[] = [
+  { pattern: /банкомат(?![\p{L}])/iu, label: 'банкомат' },
+  { pattern: /банк(?![\p{L}])/iu, label: 'банк' },
+  { pattern: /(?:кофе|кафе)(?![\p{L}])/iu, label: 'кафе' },
+  { pattern: /магазин(?![\p{L}])/iu, label: 'магазин' },
+  { pattern: /(?:фитнес|спортзал)(?![\p{L}])/iu, label: 'фитнес-центр' },
 ];
 
 // organizationCount — первая плитка строки «В здании» на первом экране
