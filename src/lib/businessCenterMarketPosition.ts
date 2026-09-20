@@ -10,6 +10,16 @@
 // Принцип «не выдумываем» здесь жёсткий: строка сравнения появляется только
 // когда есть и значение здания, и база; сравнение с выборкой меньше
 // MIN_COMPARE_N не показывается вовсе, а не помечается звёздочкой.
+//
+// 2026-09-20, вторая версия вёрстки (первая — стопка горизонтальных полос
+// от нуля, потом дот-плот с локальной мин-макс шкалой на строку — обе
+// заменены по фидбеку владельца, разбор во втором заходе см. в журнале):
+// каждая строка теперь рисуется на ОДНОЙ фиксированной шкале ±50% с центром
+// в медиане класса, поэтому расстояние на шкале означает одно и то же
+// в любой строке и на любой карточке БЦ — раньше (локальная шкала на
+// строку, растянутая на всю ширину) расстояние между точками кодировало не
+// величину разницы, а её долю от самой себя, то есть было примерно
+// одинаковым что при разнице в 5%, что при разнице в 100%.
 import type { BusinessCenter } from '../data/businessCenters';
 import type { MarketSnapshot } from '../data/marketSnapshots';
 import { nearestMetroMeters, type CatalogOfferIndex } from './businessCenterCatalogFilter';
@@ -19,6 +29,15 @@ import { nearestMetroMeters, type CatalogOfferIndex } from './businessCenterCata
 // число ОБЪЯВЛЕНИЙ в снимке рынка, здесь — про число ЗДАНИЙ в справочнике,
 // и 143 записи на четыре класса просто не дают таких выборок.
 export const MIN_COMPARE_N = 5;
+
+// Разница меньше этого порога — не «здание чуть хуже/лучше», а шум выборки:
+// красить и подписывать её как реальный перевес значит врать точностью,
+// которой у медианы по 5-60 зданиям нет.
+const NEAR_TYPICAL_THRESHOLD_PCT = 3;
+// Больше этого — шкала ±50% упирается в край: дальше идёт шеврон, а точная
+// величина остаётся только текстом (кратностью, не процентом — «в 3 раза
+// дороже» читается, «на 300% дороже» нет).
+export const AXIS_DOMAIN_PCT = 50;
 
 const EARTH_RADIUS_M = 6371000;
 
@@ -39,45 +58,104 @@ export function median(values: number[]): number | null {
   return Math.round(mid * 100) / 100;
 }
 
+// Дополнительная база (район, город у ставки/цены) — засечка на той же оси,
+// что и главный бар, без своего текста-вывода: он был бы шестым-седьмым
+// предложением в строке, которую и так тяжело читать.
+export interface ComparisonTick {
+  label: string;
+  displayValue: string;
+  // Тот же знак, что у deltaPct бара: относительно ГЛАВНОЙ базы (медианы
+  // класса), не абсолютное значение — иначе засечка и бар считались бы
+  // по разным нулям и разъезжались на глаз.
+  deltaPct: number;
+}
+
 export interface ComparisonBar {
   label: string;
-  unit: string;
-  // Значение самого здания и базы сравнения — рисуются одной шкалой, чтобы
-  // разница читалась глазами, а не вычислялась в уме.
-  value: number;
-  baselines: { label: string; value: number }[];
-  // Пара слов для вывода: [когда меньше базы, когда больше]. Общего
-  // «лучше/хуже» тут быть не может — у ставки это «дешевле/дороже», у
-  // расстояния «ближе/дальше», у парковки «меньше/больше», и подставлять
-  // одно слово на все метрики значит писать «на 50% дешевле до метро».
-  words: [string, string];
-  // Готовая фраза-вывод в духе аналитики Минск Мира: число рядом с базой и
-  // тем, что из этого следует.
-  note: string | null;
+  subjectDisplayValue: string;
+  // "медиана класса B — $11,56/м² · Партизанский $10,06/м² · город $13/м²"
+  captionText: string;
+  // Знак: положительное — здание выигрывает у базы (или, для нейтральных
+  // метрик вроде года сдачи, просто «выше» по оси), отрицательное —
+  // проигрывает. Не обрезано до ±50 — обрезка (для ширины бара) отдельно
+  // на стороне вёрстки, а тут исходная величина нужна текстом.
+  deltaPct: number;
+  tone: 'favorable' | 'unfavorable' | 'neutral';
+  // Разница меньше NEAR_TYPICAL_THRESHOLD_PCT — бар не рисуется вовсе
+  // (точка по центру), см. компонент.
+  nearTypical: boolean;
+  deltaText: string;
+  ticks: ComparisonTick[];
 }
 
 export interface MarketPosition {
   bars: ComparisonBar[];
+  // "Сильнее типичного БЦ класса по 4 из 7 показателей" — null, когда
+  // сравнивать почти не с чем (меньше трёх строк) или здание нигде не
+  // выигрывает: "по 0 из 7" не вывод, а придирка.
+  summary: string | null;
 }
 
-function pct(value: number, base: number): number {
-  return Math.round(Math.abs((value - base) / base) * 100);
+function formatValue(value: number, unit: string): string {
+  // Деньги пишем как «$18/м²», а не «18 $/м²» — так же, как везде на
+  // сайте; остальные единицы идут после числа.
+  return unit.startsWith('$') ? `$${value.toLocaleString('ru-RU')}${unit.slice(1)}` : `${value.toLocaleString('ru-RU')} ${unit}`;
 }
 
-function diffNote(value: number, base: number, baseLabel: string, words: [string, string]): string | null {
-  if (base === 0) return null;
-  const p = pct(value, base);
-  if (p < 5) return `примерно на уровне ${baseLabel}`;
-  return `на ${p}% ${value < base ? words[0] : words[1]}, чем ${baseLabel}`;
+function pctDelta(value: number, base: number): number {
+  if (base === 0) return 0;
+  return ((value - base) / base) * 100;
 }
 
-// baselines[].label — подпись под столбиком графика сравнения ("класс C"),
-// именительный падеж уместен там. В предложении с "медиана ..."/"у
-// медианного здания ..." нужен родительный — без склонения получалось
-// "медиана класс C". \b не видит границу кириллического слова (CLAUDE.md),
-// конец слова проверяем lookahead'ом с флагом u.
-export function genitiveBaselineLabel(label: string): string {
-  return label.replace(/^класс(?!а)(?=\s|$)/u, 'класса');
+// "в 2 раза дороже" — при разнице ≥100% кратность читается, процент нет.
+function formatRatio(ratio: number): string {
+  const rounded = Math.round(ratio * 10) / 10;
+  const numText = rounded.toLocaleString('ru-RU', { maximumFractionDigits: 1 });
+  if (!Number.isInteger(rounded)) return `${numText} раза`;
+  const mod10 = rounded % 10;
+  const mod100 = rounded % 100;
+  const word = mod10 === 1 && mod100 !== 11 ? 'раз' : mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20) ? 'раза' : 'раз';
+  return `${numText} ${word}`;
+}
+
+interface DeltaResult {
+  deltaPct: number;
+  tone: ComparisonBar['tone'];
+  nearTypical: boolean;
+  deltaText: string;
+}
+
+// lowerIsBetter — у ставки/цены/расстояния до метро меньше значит лучше,
+// у парковки/лифтов/потолков/рейтинга больше; words — [слово когда меньше
+// базы, слово когда больше], независимо от того, что из этого хорошая
+// новость (см. комментарий у ComparisonBar раньше в этом файле).
+// inherentlyNeutral — метрика без однозначного «лучше», красим серым
+// всегда, а не только у почти равных значений (год сдачи, число
+// арендаторов — старше/больше не значит хуже/лучше для арендатора).
+function buildDelta(value: number, base: number, lowerIsBetter: boolean, words: [string, string], inherentlyNeutral: boolean): DeltaResult {
+  const rawPct = pctDelta(value, base);
+  const absPct = Math.abs(rawPct);
+  const barPct = lowerIsBetter ? -rawPct : rawPct;
+  const nearTypical = absPct < NEAR_TYPICAL_THRESHOLD_PCT;
+  const tone: ComparisonBar['tone'] = nearTypical || inherentlyNeutral ? 'neutral' : barPct >= 0 ? 'favorable' : 'unfavorable';
+  let deltaText: string;
+  if (nearTypical) {
+    deltaText = 'на уровне медианы';
+  } else {
+    const word = value < base ? words[0] : words[1];
+    deltaText = absPct >= 100 ? `в ${formatRatio(value < base ? base / value : value / base)} ${word}` : `${Math.round(absPct)}% ${word}`;
+  }
+  return { deltaPct: barPct, tone, nearTypical, deltaText };
+}
+
+function buildTick(label: string, value: number, primaryBase: number, lowerIsBetter: boolean, unit: string): ComparisonTick {
+  const rawPct = pctDelta(value, primaryBase);
+  return { label, displayValue: formatValue(value, unit), deltaPct: lowerIsBetter ? -rawPct : rawPct };
+}
+
+function buildCaption(baseLabel: string, baseValue: number, unit: string, ticks: ComparisonTick[]): string {
+  const extra = ticks.map((t) => `${t.label} ${t.displayValue}`).join(' · ');
+  return extra ? `медиана ${baseLabel} — ${formatValue(baseValue, unit)} · ${extra}` : `медиана ${baseLabel} — ${formatValue(baseValue, unit)}`;
 }
 
 function elevatorProvision(center: Pick<BusinessCenter, 'elevators' | 'totalArea'>): number | null {
@@ -85,21 +163,19 @@ function elevatorProvision(center: Pick<BusinessCenter, 'elevators' | 'totalArea
   return Math.round((center.elevators / center.totalArea) * 1_000_000) / 100;
 }
 
-function yearNote(value: number, base: number, businessClass: string): string {
+// Год сдачи — особый случай: на шкале считаем по ВОЗРАСТУ (иначе 2007 и
+// 2013 — это 0,3% разницы «от нуля», обе полоски выглядели одинаково
+// длинными), а в тексте, наоборот, оставляем то, что человек и правда
+// хочет прочитать — «на 6 лет старше», не «на 46% старше».
+function yearDeltaText(value: number, base: number): string {
   const delta = Math.round(Math.abs(value - base) * 10) / 10;
-  if (delta === 0) return `на уровне медианного здания класса ${businessClass}`;
+  if (delta === 0) return 'на уровне медианы';
   const integer = Number.isInteger(delta);
   const rounded = Math.round(delta);
   const mod10 = rounded % 10;
   const mod100 = rounded % 100;
-  const unit = !integer
-    ? 'года'
-    : mod10 === 1 && mod100 !== 11
-      ? 'год'
-      : mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)
-        ? 'года'
-        : 'лет';
-  return `на ${delta.toLocaleString('ru-RU')} ${unit} ${value < base ? 'старше' : 'новее'}, чем медианное здание класса ${businessClass}`;
+  const unit = !integer ? 'года' : mod10 === 1 && mod100 !== 11 ? 'год' : mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20) ? 'года' : 'лет';
+  return `на ${delta.toLocaleString('ru-RU')} ${unit} ${value < base ? 'старше' : 'новее'}`;
 }
 
 export function buildMarketPosition(
@@ -110,84 +186,99 @@ export function buildMarketPosition(
 ): MarketPosition {
   const bars: ComparisonBar[] = [];
   const sameClass = center.businessClass ? all.filter((c) => c.businessClass === center.businessClass) : [];
+  const classLabel = `класса ${center.businessClass}`;
 
   // --- Ставка аренды: здание против класса, района и города --------------
   const buildingRent = offers.rentBySlug.get(center.slug)?.median ?? null;
-  if (buildingRent != null) {
+  if (buildingRent != null && center.businessClass) {
     const find = (type: MarketSnapshot['sliceType'], key: string) =>
       (snapshots ?? []).find((s) => s.deal === 'rent' && s.sliceType === type && s.sliceKey === key)?.median ?? null;
-    const classMedian = center.businessClass ? find('class', center.businessClass) : null;
-    const districtMedian = center.district ? find('district', center.district) : null;
-    const cityMedian = find('city', 'all');
-    const baselines = [
-      classMedian != null && center.businessClass ? { label: `класс ${center.businessClass}`, value: classMedian } : null,
-      districtMedian != null && center.district ? { label: center.district, value: districtMedian } : null,
-      cityMedian != null ? { label: 'город', value: cityMedian } : null,
-    ].filter((b): b is { label: string; value: number } => b !== null);
-    if (baselines.length > 0) {
+    const classMedian = find('class', center.businessClass);
+    if (classMedian != null) {
+      const districtMedian = center.district ? find('district', center.district) : null;
+      const cityMedian = find('city', 'all');
+      const unit = '$/м²';
+      const ticks = [
+        districtMedian != null && center.district ? buildTick(center.district, districtMedian, classMedian, true, unit) : null,
+        cityMedian != null ? buildTick('город', cityMedian, classMedian, true, unit) : null,
+      ].filter((t): t is ComparisonTick => t !== null);
+      const d = buildDelta(buildingRent, classMedian, true, ['дешевле', 'дороже'], false);
       bars.push({
         label: 'Ставка аренды',
-        unit: '$/м²',
-        value: buildingRent,
-        baselines,
-        words: ['дешевле', 'дороже'],
-        note: diffNote(buildingRent, baselines[0].value, `медиана ${genitiveBaselineLabel(baselines[0].label)}`, ['дешевле', 'дороже']),
+        subjectDisplayValue: formatValue(buildingRent, unit),
+        captionText: buildCaption(`класса ${center.businessClass}`, classMedian, unit, ticks),
+        deltaPct: d.deltaPct,
+        tone: d.tone,
+        nearTypical: d.nearTypical,
+        deltaText: d.deltaText,
+        ticks,
       });
     }
   }
 
   // --- Цена продажи: здание против класса, района и города --------------
   const buildingSale = offers.saleBySlug.get(center.slug)?.median ?? null;
-  if (buildingSale != null) {
+  if (buildingSale != null && center.businessClass) {
     const find = (type: MarketSnapshot['sliceType'], key: string) =>
       (snapshots ?? []).find((s) => s.deal === 'sale' && s.sliceType === type && s.sliceKey === key)?.median ?? null;
-    const classMedian = center.businessClass ? find('class', center.businessClass) : null;
-    const districtMedian = center.district ? find('district', center.district) : null;
-    const cityMedian = find('city', 'all');
-    const baselines = [
-      classMedian != null && center.businessClass ? { label: `класс ${center.businessClass}`, value: classMedian } : null,
-      districtMedian != null && center.district ? { label: center.district, value: districtMedian } : null,
-      cityMedian != null ? { label: 'город', value: cityMedian } : null,
-    ].filter((b): b is { label: string; value: number } => b !== null);
-    if (baselines.length > 0) {
+    const classMedian = find('class', center.businessClass);
+    if (classMedian != null) {
+      const districtMedian = center.district ? find('district', center.district) : null;
+      const cityMedian = find('city', 'all');
+      const unit = '$/м²';
+      const ticks = [
+        districtMedian != null && center.district ? buildTick(center.district, districtMedian, classMedian, true, unit) : null,
+        cityMedian != null ? buildTick('город', cityMedian, classMedian, true, unit) : null,
+      ].filter((t): t is ComparisonTick => t !== null);
+      const d = buildDelta(buildingSale, classMedian, true, ['дешевле', 'дороже'], false);
       bars.push({
         label: 'Цена продажи',
-        unit: '$/м²',
-        value: buildingSale,
-        baselines,
-        words: ['дешевле', 'дороже'],
-        note: diffNote(buildingSale, baselines[0].value, `медиана ${genitiveBaselineLabel(baselines[0].label)}`, ['дешевле', 'дороже']),
+        subjectDisplayValue: formatValue(buildingSale, unit),
+        captionText: buildCaption(`класса ${center.businessClass}`, classMedian, unit, ticks),
+        deltaPct: d.deltaPct,
+        tone: d.tone,
+        nearTypical: d.nearTypical,
+        deltaText: d.deltaText,
+        ticks,
       });
     }
   }
 
   // --- До метро: здание против медианы класса ---------------------------
   const metro = nearestMetroMeters(center);
-  if (metro != null && sameClass.length >= MIN_COMPARE_N) {
+  if (metro != null && sameClass.length >= MIN_COMPARE_N && center.businessClass) {
     const classMetro = median(sameClass.map(nearestMetroMeters).filter((v): v is number => v != null));
     if (classMetro != null) {
+      const unit = 'м по прямой';
+      const d = buildDelta(metro, classMetro, true, ['ближе', 'дальше'], false);
       bars.push({
         label: 'До метро',
-        unit: 'м по прямой',
-        value: metro,
-        baselines: [{ label: `класс ${center.businessClass}`, value: classMetro }],
-        words: ['ближе', 'дальше'],
-        note: diffNote(metro, classMetro, `у медианного здания класса ${center.businessClass}`, ['ближе', 'дальше']),
+        subjectDisplayValue: formatValue(metro, unit),
+        captionText: buildCaption(classLabel, classMetro, unit, []),
+        deltaPct: d.deltaPct,
+        tone: d.tone,
+        nearTypical: d.nearTypical,
+        deltaText: d.deltaText,
+        ticks: [],
       });
     }
   }
 
   // --- Парковка ---------------------------------------------------------
-  if (center.parkingRatio != null && sameClass.length >= MIN_COMPARE_N) {
+  if (center.parkingRatio != null && sameClass.length >= MIN_COMPARE_N && center.businessClass) {
     const classParking = median(sameClass.map((c) => c.parkingRatio).filter((v): v is number => v != null));
     if (classParking != null) {
+      const unit = 'маш./100 м²';
+      const d = buildDelta(center.parkingRatio, classParking, false, ['меньше', 'больше'], false);
       bars.push({
         label: 'Парковка',
-        unit: 'маш./100 м²',
-        value: center.parkingRatio,
-        baselines: [{ label: `класс ${center.businessClass}`, value: classParking }],
-        words: ['меньше', 'больше'],
-        note: diffNote(center.parkingRatio, classParking, `у медианного здания класса ${center.businessClass}`, ['меньше', 'больше']),
+        subjectDisplayValue: formatValue(center.parkingRatio, unit),
+        captionText: buildCaption(classLabel, classParking, unit, []),
+        deltaPct: d.deltaPct,
+        tone: d.tone,
+        nearTypical: d.nearTypical,
+        deltaText: d.deltaText,
+        ticks: [],
       });
     }
   }
@@ -197,13 +288,17 @@ export function buildMarketPosition(
     const classValues = sameClass.map((c) => c.ceilingHeight).filter((v): v is number => v != null);
     const classCeiling = classValues.length >= MIN_COMPARE_N ? median(classValues) : null;
     if (classCeiling != null) {
+      const unit = 'м';
+      const d = buildDelta(center.ceilingHeight, classCeiling, false, ['ниже', 'выше'], false);
       bars.push({
         label: 'Высота потолков',
-        unit: 'м',
-        value: center.ceilingHeight,
-        baselines: [{ label: `класс ${center.businessClass}`, value: classCeiling }],
-        words: ['ниже', 'выше'],
-        note: diffNote(center.ceilingHeight, classCeiling, `у медианного здания класса ${center.businessClass}`, ['ниже', 'выше']),
+        subjectDisplayValue: formatValue(center.ceilingHeight, unit),
+        captionText: buildCaption(classLabel, classCeiling, unit, []),
+        deltaPct: d.deltaPct,
+        tone: d.tone,
+        nearTypical: d.nearTypical,
+        deltaText: d.deltaText,
+        ticks: [],
       });
     }
   }
@@ -214,18 +309,24 @@ export function buildMarketPosition(
     const classValues = sameClass.map(elevatorProvision).filter((v): v is number => v != null);
     const classElevators = classValues.length >= MIN_COMPARE_N ? median(classValues) : null;
     if (classElevators != null) {
+      const unit = 'шт.';
+      const d = buildDelta(buildingElevators, classElevators, false, ['меньше', 'больше'], false);
       bars.push({
         label: 'Лифты на 10 000 м²',
-        unit: 'шт.',
-        value: buildingElevators,
-        baselines: [{ label: `класс ${center.businessClass}`, value: classElevators }],
-        words: ['меньше', 'больше'],
-        note: diffNote(buildingElevators, classElevators, `у медианного здания класса ${center.businessClass}`, ['меньше', 'больше']),
+        subjectDisplayValue: formatValue(buildingElevators, unit),
+        captionText: buildCaption(classLabel, classElevators, unit, []),
+        deltaPct: d.deltaPct,
+        tone: d.tone,
+        nearTypical: d.nearTypical,
+        deltaText: d.deltaText,
+        ticks: [],
       });
     }
   }
 
   // --- Год сдачи --------------------------------------------------------
+  // Нейтральна всегда (см. комментарий у buildDelta), а не только когда
+  // разница мала: старше не значит хуже.
   if (center.status === 'built' && center.yearBuilt != null && center.businessClass) {
     const classValues = sameClass
       .filter((c) => c.status === 'built')
@@ -233,13 +334,19 @@ export function buildMarketPosition(
       .filter((v): v is number => v != null);
     const classYear = classValues.length >= MIN_COMPARE_N ? median(classValues) : null;
     if (classYear != null) {
+      const currentYear = new Date().getFullYear();
+      const ageValue = currentYear - center.yearBuilt;
+      const ageBase = currentYear - classYear;
+      const d = buildDelta(ageValue, ageBase, true, ['новее', 'старше'], true);
       bars.push({
         label: 'Год сдачи',
-        unit: 'г.',
-        value: center.yearBuilt,
-        baselines: [{ label: `класс ${center.businessClass}`, value: classYear }],
-        words: ['старше', 'новее'],
-        note: yearNote(center.yearBuilt, classYear, center.businessClass),
+        subjectDisplayValue: `${center.yearBuilt} г.`,
+        captionText: buildCaption(classLabel, classYear, 'г.', []),
+        deltaPct: d.deltaPct,
+        tone: 'neutral',
+        nearTypical: d.nearTypical,
+        deltaText: yearDeltaText(center.yearBuilt, classYear),
+        ticks: [],
       });
     }
   }
@@ -248,19 +355,24 @@ export function buildMarketPosition(
   // Пустой массив здесь — почти всегда «снимок 2ГИС/Яндекса для этого здания
   // ещё не собирали», а не «ноль компаний»: у 136 из 141 БЦ список непустой.
   // Поэтому, как и для остальных метрик выше, нули из выборки исключаются,
-  // а не считаются за настоящий ноль.
+  // а не считаются за настоящий ноль. Нейтральна всегда (владелец,
+  // 2026-09-20: больше соседей по этажу — не однозначно плюс арендатору).
   const buildingTenants = center.tenantOrganizations.length;
   if (buildingTenants > 0 && center.businessClass) {
     const classValues = sameClass.map((c) => c.tenantOrganizations.length).filter((n) => n > 0);
     const classTenants = classValues.length >= MIN_COMPARE_N ? median(classValues) : null;
     if (classTenants != null) {
+      const unit = 'шт.';
+      const d = buildDelta(buildingTenants, classTenants, false, ['меньше', 'больше'], true);
       bars.push({
         label: 'Компаний-арендаторов',
-        unit: 'шт.',
-        value: buildingTenants,
-        baselines: [{ label: `класс ${center.businessClass}`, value: classTenants }],
-        words: ['меньше', 'больше'],
-        note: diffNote(buildingTenants, classTenants, `у медианного здания класса ${center.businessClass}`, ['меньше', 'больше']),
+        subjectDisplayValue: formatValue(buildingTenants, unit),
+        captionText: buildCaption(classLabel, classTenants, unit, []),
+        deltaPct: d.deltaPct,
+        tone: 'neutral',
+        nearTypical: d.nearTypical,
+        deltaText: d.deltaText,
+        ticks: [],
       });
     }
   }
@@ -270,18 +382,25 @@ export function buildMarketPosition(
     const classValues = sameClass.map((c) => c.gisRating).filter((v): v is number => v != null);
     const classRating = classValues.length >= MIN_COMPARE_N ? median(classValues) : null;
     if (classRating != null) {
+      const unit = '★';
+      const d = buildDelta(center.gisRating, classRating, false, ['ниже', 'выше'], false);
       bars.push({
         label: 'Рейтинг на картах',
-        unit: '★',
-        value: center.gisRating,
-        baselines: [{ label: `класс ${center.businessClass}`, value: classRating }],
-        words: ['ниже', 'выше'],
-        note: diffNote(center.gisRating, classRating, `у медианного здания класса ${center.businessClass}`, ['ниже', 'выше']),
+        subjectDisplayValue: formatValue(center.gisRating, unit),
+        captionText: buildCaption(classLabel, classRating, unit, []),
+        deltaPct: d.deltaPct,
+        tone: d.tone,
+        nearTypical: d.nearTypical,
+        deltaText: d.deltaText,
+        ticks: [],
       });
     }
   }
 
-  return { bars };
+  const favorableCount = bars.filter((b) => b.tone === 'favorable').length;
+  const summary = bars.length >= 3 && favorableCount > 0 ? `Сильнее типичного БЦ ${classLabel} по ${favorableCount} из ${bars.length} показателей` : null;
+
+  return { bars, summary };
 }
 
 export interface NeighbourCenter {
