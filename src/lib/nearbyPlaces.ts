@@ -11,6 +11,11 @@ export const NEARBY_CATEGORY_LABELS: Record<NearbyPlaceCategory, string> = {
   transport_stop: 'Остановки',
   grocery: 'Продукты',
   shop: 'Магазины',
+  // «Магазины» больше не собираем и не показываем (владелец, 2026-09-21):
+  // запрос «магазин» был самым «шумным» — под него попадало что попало.
+  // Метка в словаре остаётся, чтобы не падать на старых строках источника
+  // (source), которые эту категорию ещё называют; из NEARBY_CATEGORY_ORDER
+  // категория убрана — это и есть фактическое отключение показа.
   pharmacy: 'Аптеки',
   bank: 'Банки',
   atm: 'Банкоматы',
@@ -26,7 +31,6 @@ export const NEARBY_CATEGORY_ORDER: NearbyPlaceCategory[] = [
   'metro',
   'transport_stop',
   'grocery',
-  'shop',
   'pharmacy',
   'bank',
   'atm',

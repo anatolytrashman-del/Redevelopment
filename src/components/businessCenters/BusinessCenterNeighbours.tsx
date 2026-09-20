@@ -126,26 +126,8 @@ export function NearbyInfrastructureBlock({
   places: BusinessCenterNearbyPlace[];
 }) {
   const groups = useMemo(() => groupNearbyPlaces(places), [places]);
-  const [activeCategories, setActiveCategories] = useState<Set<NearbyPlaceCategory>>(new Set());
-  const visiblePlaces = useMemo(
-    () => (activeCategories.size === 0 ? places : places.filter((place) => activeCategories.has(place.category))),
-    [activeCategories, places],
-  );
-  const visibleGroups = useMemo(
-    () => (activeCategories.size === 0 ? groups : groups.filter((group) => activeCategories.has(group.category))),
-    [activeCategories, groups],
-  );
   if (center.lat == null || center.lng == null) return null;
   const hasContent = hasNearbyContent(center, places);
-
-  const toggleCategory = (category: NearbyPlaceCategory) => {
-    setActiveCategories((current) => {
-      const next = new Set(current);
-      if (next.has(category)) next.delete(category);
-      else next.add(category);
-      return next;
-    });
-  };
 
   return (
     <div id="map" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
@@ -161,42 +143,16 @@ export function NearbyInfrastructureBlock({
         )}
       </div>
 
+      <MiniMap center={center} places={places} />
+
+      {/* Легенда к карте, не текстовый абзац: та же точка цвета, что и метка
+          на карте, дальше — сами объекты и расстояния одной строкой на
+          категорию. Без неё (краулер, пререндер, выключенный JS,
+          заблокированный домен ключа) от блока не оставалось бы ничего —
+          страница ничего не рассказывала о том, что именно стоит рядом. */}
       {groups.length > 0 && (
-        <div className="flex flex-wrap gap-2" aria-label="Фильтры объектов инфраструктуры">
-          {groups.map((group) => {
-            const meta = CATEGORY_META[group.category] ?? CATEGORY_META.other;
-            const Icon = meta.icon;
-            const active = activeCategories.size === 0 || activeCategories.has(group.category);
-            return (
-              <button
-                key={group.category}
-                type="button"
-                onClick={() => toggleCategory(group.category)}
-                aria-pressed={active}
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                  active ? 'border-border bg-surface text-ink' : 'border-transparent bg-surface-muted text-ink-faint',
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {group.label} · {group.places.length}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      <MiniMap center={center} places={visiblePlaces} />
-
-      {/* Легенда к карте, не текстовый абзац и не повтор чипов: та же точка
-          цвета, что и метка на карте, дальше — сами объекты и расстояния
-          одной строкой на категорию. Без неё (краулер, пререндер,
-          выключенный JS, заблокированный домен ключа) от блока оставались
-          бы только чипы с числами — страница ничего не рассказывала о том,
-          что именно стоит рядом. */}
-      {visibleGroups.length > 0 && (
         <ul className="flex flex-col gap-0.5" aria-label="Легенда карты">
-          {visibleGroups.map((group) => {
+          {groups.map((group) => {
             const meta = CATEGORY_META[group.category] ?? CATEGORY_META.other;
             const shown = group.places.slice(0, NEARBY_LIST_LIMIT);
             const rest = group.places.length - shown.length;
