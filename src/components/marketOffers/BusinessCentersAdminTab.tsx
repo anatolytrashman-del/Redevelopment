@@ -30,6 +30,7 @@ import type {
   DeveloperInfo,
   HighlightIconKey,
   HighlightSection,
+  MediaMention,
   RentalInfo,
   TenantOrganization,
 } from '../../data/businessCenters';
@@ -37,10 +38,15 @@ import type { DocumentFile } from '../../data/contractorDocuments';
 
 // Подписи выбора иконки в форме — порядок совпадает с частотой использования
 // на практике (история/арендаторы/СМИ чаще всего, 'warning'/'fact' — реже).
+// 'award' отделён от 'media' (раньше было одно "Награды / СМИ"): награды
+// уехали на публичной странице в собственный блок, а упоминания в прессе
+// остались в "Интересных фактах" — одна подпись на два разных блока
+// приводила к тому, что награда попадала не туда.
 const HIGHLIGHT_ICON_LABELS: Record<HighlightIconKey, string> = {
   history: 'История объекта',
   tenants: 'Арендаторы',
-  media: 'Награды / СМИ',
+  media: 'СМИ о здании',
+  award: 'Награды',
   rating: 'Рейтинг на картах',
   reviews: 'Отзывы',
   design: 'Архитектура / дизайн',
@@ -106,6 +112,7 @@ interface FormState {
   rentalParking: string;
   rentalContacts: string;
   highlights: HighlightSection[]; // "Интересные факты" — произвольный набор блоков
+  mediaMentions: MediaMention[]; // "СМИ о здании" — публикации со ссылкой, заголовком и датой
   reviewsChecked: boolean; // галочка "отзывы разобраны" в списке — см. комментарий у поля в data/businessCenters.ts
   tenantOrganizations: TenantOrganization[]; // организации внутри здания
   tenantOrganizationsBulk: string; // черновик для вставки списком (не сохраняется как есть)
@@ -147,6 +154,7 @@ const EMPTY_FORM: FormState = {
   rentalParking: '',
   rentalContacts: '',
   highlights: [],
+  mediaMentions: [],
   reviewsChecked: false,
   tenantOrganizations: [],
   tenantOrganizationsBulk: '',
@@ -189,6 +197,7 @@ function centerToForm(c: BusinessCenter): FormState {
     rentalParking: c.rentalInfo?.parking ?? '',
     rentalContacts: c.rentalInfo?.contacts ?? '',
     highlights: c.highlights,
+    mediaMentions: c.mediaMentions,
     reviewsChecked: c.reviewsChecked,
     tenantOrganizations: c.tenantOrganizations,
     tenantOrganizationsBulk: '',
@@ -441,6 +450,7 @@ export function BusinessCentersAdminTab() {
         description: form.description.trim() || null,
         rentalInfo: buildRentalInfo(form),
         highlights: highlightsForSave,
+        mediaMentions: form.mediaMentions,
         tenantOrganizations: mergeTenantOrganizations(buildTenantOrganizations(form), autoTenantOrganizations),
         // Старые записи сохраняются как есть, чтобы их можно было отвязать
         // руками; новых здесь больше не появляется (файлы больше не
@@ -1013,7 +1023,9 @@ export function BusinessCentersAdminTab() {
                 Произвольный набор блоков — добавляйте только то, что реально нашлось (нет наград — не добавляйте
                 блок вовсе), для нетипичного факта берите тип «Другой факт» и пишите свою подпись. Та же нотация в
                 тексте: «- » для буллетов, **жирным** — ключевые цифры/названия. Рейтинг/отзывы с карт — только
-                вручную (скриншот/копия из своего браузера), автопоиск для них ненадёжен.
+                вручную (скриншот/копия из своего браузера), автопоиск для них ненадёжен. Тип «Награды» на публичной
+                странице показывается НЕ здесь, а своим блоком списком: каждая строка текста — отдельный пункт, подпись
+                раздела не выводится, поэтому пишите одну награду в строку и так, чтобы строка читалась сама по себе.
               </p>
             </div>
             {form.highlights.map((section, i) => (
@@ -1073,6 +1085,102 @@ export function BusinessCentersAdminTab() {
               }
             >
               Добавить блок
+            </Button>
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-control border border-border p-4">
+            <div>
+              <p className="text-sm font-semibold text-ink">СМИ о здании</p>
+              <p className="text-xs text-ink-faint">
+                Статьи, где ЗДАНИЕ — тема материала, а не строка в списке адресов. Критерии и правила по изданиям —
+                docs/bc-media-research-brief.md: без негатива, без запрещённых и оппозиционных СМИ, по одному
+                материалу на событие. Логотип издания подставляется сам по домену ссылки; если логотипа у нас нет,
+                в блоке покажется название из поля «Издание».
+              </p>
+            </div>
+            {form.mediaMentions.map((mention, i) => (
+              <div key={i} className="flex flex-col gap-2 rounded-control border border-border bg-surface-muted p-3">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                    Публикация {i + 1}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm((f) => ({ ...f, mediaMentions: f.mediaMentions.filter((_, idx) => idx !== i) }))
+                    }
+                    aria-label="Убрать публикацию"
+                    className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-control text-ink-faint hover:bg-danger-bg hover:text-danger"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+                <Input
+                  label="Ссылка"
+                  value={mention.url}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      mediaMentions: f.mediaMentions.map((m, idx) => (idx === i ? { ...m, url: e.target.value } : m)),
+                    }))
+                  }
+                  placeholder="https://belta.by/..."
+                />
+                <Input
+                  label="Заголовок статьи"
+                  value={mention.title}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      mediaMentions: f.mediaMentions.map((m, idx) => (idx === i ? { ...m, title: e.target.value } : m)),
+                    }))
+                  }
+                  placeholder="Как в самой статье, без сокращений"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Input
+                    label="Издание"
+                    value={mention.outlet}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        mediaMentions: f.mediaMentions.map((m, idx) =>
+                          idx === i ? { ...m, outlet: e.target.value } : m,
+                        ),
+                      }))
+                    }
+                    placeholder="БелТА"
+                  />
+                  <Input
+                    label="Дата публикации"
+                    type="date"
+                    value={mention.date ?? ''}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        mediaMentions: f.mediaMentions.map((m, idx) =>
+                          // Пустая строка из <input type="date"> — это не дата,
+                          // а «даты нет»: в блоке такая строка рисуется без неё.
+                          idx === i ? { ...m, date: e.target.value || null } : m,
+                        ),
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<Plus className="h-4 w-4" />}
+              onClick={() =>
+                setForm((f) => ({
+                  ...f,
+                  mediaMentions: [...f.mediaMentions, { url: '', title: '', date: null, outlet: '' }],
+                }))
+              }
+            >
+              Добавить публикацию
             </Button>
           </div>
 

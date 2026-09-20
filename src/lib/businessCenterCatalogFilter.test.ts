@@ -40,7 +40,7 @@ function bc(over: Partial<BusinessCenter> & { slug: string }): BusinessCenter {
     website: null,
     description: null,
     rentalInfo: null,
-    highlights: [],
+    highlights: [], mediaMentions: [],
     mapSnapshotFiles: [],
     tenantOrganizations: [],
     technicalParams: [], buildingFacts: [],

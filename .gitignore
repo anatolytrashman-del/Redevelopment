@@ -9,3 +9,6 @@ ui-audit-report
 
 # Рабочие файлы пошаговой переклассификации (см. scripts/supply-categories/README.md)
 scripts/supply-categories/out/
+
+# Снимки выдачи Яндекс.Карт, которые пишут scripts/capture-yandex-*.mjs
+tmp/

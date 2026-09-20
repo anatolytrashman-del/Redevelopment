@@ -378,8 +378,8 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
   const fullTitle = periodLabel ? `${title} — ${periodLabel}` : title;
   const description =
     deal === 'rent'
-      ? 'Медианная ставка аренды офисов в Минске по районам и типу здания — по объявлениям Kufar и Realt, плюс детальный разбор по бизнес-центрам.'
-      : 'Медианная цена продажи офисов в Минске по районам и типу здания — по объявлениям Kufar и Realt, плюс детальный разбор по бизнес-центрам.';
+      ? 'Медианная ставка аренды офисов в Минске по районам и типу здания — по объявлениям Kufar, Realt, Domovita и Megapolis, плюс детальный разбор по бизнес-центрам.'
+      : 'Медианная цена продажи офисов в Минске по районам и типу здания — по объявлениям Kufar, Realt, Domovita и Megapolis, плюс детальный разбор по бизнес-центрам.';
   const url = `https://redevelopment.pro/minsk/analytics/ofisy/${deal === 'rent' ? 'arenda' : 'prodazha'}`;
 
   // Вынесено из useEffect в useMemo — раньше собиралось только для JSON-LD,
@@ -394,7 +394,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
           deal === 'rent'
             ? `Сколько стоит аренда офиса в Минске в ${periodInLabel}?`
             : `Сколько стоит офис в Минске в ${periodInLabel}?`,
-        answer: `По медиане объявлений Kufar и Realt за ${periodLabel} — ${formatMoney(cwCity.median, deal)} (по ${cwCity.n} объявлениям по всему городу).`,
+        answer: `По медиане объявлений Kufar, Realt, Domovita и Megapolis за ${periodLabel} — ${formatMoney(cwCity.median, deal)} (по ${cwCity.n} объявлениям по всему городу).`,
       });
     }
     const classA = bcByClass.find((s) => s.sliceKey === 'A');
@@ -417,7 +417,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
     faq.push({
       question: 'Откуда берутся данные?',
       answer:
-        'Из активных объявлений Kufar и Realt.by, категория «Офисы» по всему Минску. Отдельно — более глубокий разбор по 143 зданиям из нашего каталога бизнес-центров. Подробности — на странице методики.',
+        'Из активных объявлений Kufar, Realt.by, Domovita и Megapolis-real, категория «Офисы» по всему Минску. Отдельно — более глубокий разбор по 143 зданиям из нашего каталога бизнес-центров. Подробности — на странице методики.',
     });
     return faq;
   }, [cwSnapshots, cwCity, bcByClass, deal, periodLabel, periodInLabel]);
@@ -450,7 +450,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
       url,
       datePublished: '2026-09-07',
       dateModified: modified,
-      measurementTechnique: 'Медиана и перцентили цены за м² по активным объявлениям Kufar и Realt, срез по месяцу',
+      measurementTechnique: 'Медиана и перцентили цены за м² по активным объявлениям Kufar, Realt, Domovita и Megapolis, срез по месяцу',
     });
     setFaqJsonLd(faqItems);
   }, [cwSnapshots, cwCity, faqItems, fullTitle, description, url, title]);
@@ -1160,30 +1160,31 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
           <h2 className="text-lg font-bold text-ink">Что это за цифры</h2>
           <p className="text-sm leading-relaxed text-ink-muted">
             Верхняя часть страницы — медиана и 25–75-й перцентили цены за м² по активным объявлениям аренды
-            {deal === 'sale' ? ' и продажи' : ''} офисных помещений по всему Минску (категория «Офисы» на Kufar и
-            Realt.by), без привязки к конкретному зданию. Нижняя часть — тот же принцип, но только для 143 зданий из
+            {deal === 'sale' ? ' и продажи' : ''} офисных помещений по всему Минску (категория «Офисы» на Kufar,
+            Realt.by, Domovita и Megapolis-real), без привязки к конкретному зданию. Нижняя часть — тот же принцип, но только для 143 зданий из
             нашего{' '}
             <Link to="/minsk/bcminsk" className="text-primary-hover hover:underline">
               каталога бизнес-центров Минска
             </Link>{' '}
-            — там мы дополнительно знаем класс здания и конкретный адрес. Данные собираются с Kufar и Realt.by и
+            — там мы дополнительно знаем класс здания и конкретный адрес. Данные собираются с четырёх площадок и
             обновляются раз в месяц — это <strong>ставка предложения</strong>, то, что собственники просят прямо
             сейчас, а не подтверждённая цена сделки. Срез публикуется только при не менее {MIN_RELIABLE_N}{' '}
             объявлениях — меньшая выборка помечена как ориентировочная или скрыта вовсе, чтобы не выдавать случайный
             разброс нескольких объявлений за рыночную цену.
           </p>
           <p className="text-sm leading-relaxed text-ink-muted">
-            Дедупликации между Kufar и Realt.by в узком срезе по каталогу БЦ нет (известное ограничение — там нет
-            общего ключа для сопоставления дублей между площадками); в city-wide срезе выше дедупликация есть
-            (совпадающие по улице, дому, площади, этажу и типу сделки объявления с обеих площадок считаются один
-            раз).
+            Один и тот же лот часто вывешен сразу на нескольких площадках, поэтому и в city-wide срезе, и в срезе
+            по каталогу БЦ такие объявления схлопываются в одно: совпали адрес, тип сделки, площадь и ставка (с
+            допуском в 10% — площадки считают её по-разному) — это один объект. Два одинаковых объявления внутри
+            одной площадки схлопыванию не подлежат: несколько одинаковых кабинетов по одной ставке у одного
+            собственника — обычное дело.
           </p>
           <p className="text-sm text-ink-muted">
             Подробная методика — на{' '}
             <Link to="/minsk/analytics/metodika" className="text-primary-hover hover:underline">
               отдельной странице
             </Link>
-            . Источники: Kufar (re.kufar.by), Realt.by
+            . Источники: Kufar (re.kufar.by), Realt.by, Domovita (domovita.by), Megapolis-real (megapolis-real.by)
             {externalMetrics.length > 0 && ', Твоя столица (t-s.by), Colliers International, Результативная недвижимость (belretail.by)'}.
           </p>
         </section>
