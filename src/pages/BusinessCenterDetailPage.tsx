@@ -1501,15 +1501,6 @@ export function BusinessCenterDetailPage() {
                         <td className="py-2 pl-2 pr-3 text-ink">
                           <span>{fact.value}</span>
                           {fact.note && <span className="block text-xs text-ink-faint">{fact.note}</span>}
-                          <a
-                            href={fact.sourceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="ml-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                          >
-                            <ExternalLink className="h-3 w-3 shrink-0" />
-                            {fact.source}
-                          </a>
                         </td>
                       </tr>
                     ))}
