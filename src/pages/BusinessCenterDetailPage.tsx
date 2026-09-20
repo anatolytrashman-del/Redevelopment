@@ -136,7 +136,7 @@ const SECTION_LABELS: Record<string, string> = {
   market: 'Место среди конкурентов',
   map: 'Инфраструктура рядом',
   tech: 'Параметры здания',
-  tenants: 'Кто внутри',
+  tenants: 'Каталог арендаторов',
   rental: 'Условия для арендаторов',
   offers: 'Что сдают и продают',
   history: 'История здания',
