@@ -1697,8 +1697,9 @@ export function BusinessCenterDetailPage() {
                   >
                     <MediaOutletMark url={mention.url} outlet={mention.outlet} />
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm leading-relaxed text-ink-muted underline-offset-4 group-hover:underline">
+                      <span className="text-sm leading-relaxed text-ink-muted underline-offset-4 group-hover:underline">
                         {mention.title}
+                        <ExternalLink className="ml-1.5 inline h-3.5 w-3.5 shrink-0 -translate-y-px align-middle text-ink-muted/50 group-hover:text-primary" />
                       </span>
                     </span>
                   </a>
@@ -2194,6 +2195,16 @@ function formatSchedule(schedule: Gis2Schedule): string[] {
 // onError гасит картинку, а не оставляет «сломанное изображение»: если PNG
 // когда-нибудь не доедет со сборкой, строка должна выглядеть как строка с
 // названием издания, а не как ошибка.
+// Ширина колонки под логотип фиксирована и не зависит от пропорций
+// конкретной картинки (владелец, 2026-09-20: "видимые логотипы СМИ
+// одного размера по ширине, за ориентир берём Белта"). У Белты овальный
+// герб, у остальных — вытянутые вордмарки, поэтому раньше сайзинг по
+// высоте (max-h) давал вордмаркам в 2 раза большую ширину, чем у Белты.
+// Ширина ниже — это ширина, которую Белта занимает при прежней высоте
+// (max-h-7/8 · её пропорции 207:96), взятая как эталон; у остальных
+// логотипов при той же ширине высота меньше — так и задумано.
+const MEDIA_LOGO_WIDTH = 'w-[60px] sm:w-[70px]';
+
 function MediaOutletMark({ url, outlet }: { url: string; outlet: string }) {
   const brand = outletBrand(url);
   const [failed, setFailed] = useState(false);
@@ -2201,18 +2212,14 @@ function MediaOutletMark({ url, outlet }: { url: string; outlet: string }) {
 
   if (!brand?.logo || failed) {
     return (
-      <span className="flex shrink-0 items-center text-sm font-semibold text-ink-muted sm:w-28 sm:pt-0.5">{label}</span>
+      <span className={cn('flex shrink-0 items-center text-sm font-semibold text-ink-muted sm:pt-0.5', MEDIA_LOGO_WIDTH)}>
+        {label}
+      </span>
     );
   }
   return (
-    <span className="flex shrink-0 items-center sm:w-28">
-      <img
-        src={brand.logo}
-        alt={label}
-        loading="lazy"
-        onError={() => setFailed(true)}
-        className="max-h-7 w-auto max-w-full object-contain object-left sm:max-h-8"
-      />
+    <span className={cn('flex shrink-0 items-center justify-center', MEDIA_LOGO_WIDTH)}>
+      <img src={brand.logo} alt={label} loading="lazy" onError={() => setFailed(true)} className="h-auto w-full" />
     </span>
   );
 }
