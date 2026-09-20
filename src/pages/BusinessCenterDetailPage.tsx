@@ -340,8 +340,22 @@ const SECTION_WEIGHTS: Record<string, number> = {
 };
 const DEFAULT_SECTION_WEIGHT = 0.5;
 const RECOMMENDATION_BLOCK_WEIGHT = 0.6;
-const FIRST_RECOMMENDATION_AFTER_SECTIONS = 5;
-const NEXT_RECOMMENDATION_MIN_WEIGHT = 1.75;
+// "После 3-го блока страницы" (владелец, 2026-09-20) считает от самого
+// первого визуального блока — главной карточки с фото/ценой/адресом,
+// которая рисуется всегда и без условия, поэтому в pageSections (список
+// именно УСЛОВНЫХ блоков, начинается с "Параметров здания") её нет. Порог
+// здесь — 2, а не 3, ровно на эту разницу в счёте: pageSections[1] (2-й
+// в списке) — это тот же самый блок, что и 3-й на глаз у читателя.
+const FIRST_RECOMMENDATION_AFTER_SECTIONS = 2;
+// Диапазон интервала между соседними рекомендациями (владелец, 2026-09-20:
+// "не чаще, чем 1 на экран, но можно не реже, чем через каждые 2.5
+// экрана") — нижняя граница держит блоки не теснее экрана друг к другу,
+// верхнюю отдельно можно не проверять: при максимальном весе одного
+// обычного блока (market, 1.4 — см. SECTION_WEIGHTS) и проверке на каждом
+// блоке подряд, а не раз в несколько, реальный интервал не может
+// перепрыгнуть за NEXT_RECOMMENDATION_MIN_WEIGHT + 1.4, то есть заведомо
+// меньше 2.5 при самом MIN_WEIGHT = 1.0.
+const NEXT_RECOMMENDATION_MIN_WEIGHT = 1.0;
 
 const EMPTY_NEARBY_PLACES: BusinessCenterNearbyPlace[] = [];
 const EMPTY_REVIEWS: BusinessCenterReview[] = [];
@@ -1397,36 +1411,59 @@ export function BusinessCenterDetailPage() {
   // данными страницах то теряла блоки (после карты — пусто, у конкретного
   // БЦ просто не было микрорайона), то роняла два блока рекомендаций
   // впритык друг к другу (между ними не оставалось контента-разделителя).
-  // Правило теперь простое: первый блок — как только пройдено 5 обычных
-  // блоков страницы, каждый следующий — когда с прошлой рекомендации
-  // набралось ~1,5–2 "экрана" веса (см. SECTION_WEIGHTS). FAQ — не якорь:
-  // рекомендация не встаёт прямо перед вопросами.
+  // Правило: первый блок — как только пройдено 5 обычных блоков страницы,
+  // каждый следующий — когда с прошлой рекомендации набралось ~1,5–2
+  // "экрана" веса (см. SECTION_WEIGHTS). FAQ и "Источники" — фиксированный
+  // хвост страницы (правило владельца: FAQ всегда предпоследний, источники
+  // последние), рекомендация никогда не встаёт между ними или после них.
+  //
+  // FAQ при этом обычно самый ДЛИННЫЙ блок на странице (описывает "вообще
+  // всё", см. CLAUDE.md) — если совсем исключить его вес из расчёта, вся
+  // эта немалая площадь достаётся странице без единой рекомендации, а
+  // очередь кандидатов просто вымирает, не успев набрать порог до конца
+  // обычного контента (владелец, 2026-09-20, на "Альянсе": "на такую
+  // огромную страницу всего 1 блок — позор"). Поэтому у последнего перед
+  // FAQ блока есть "последний шанс": в его собственный накопленный вес
+  // прибавляется оценка веса самого FAQ (по числу вопросов), и если этого
+  // достаточно — или если на странице вообще ещё не было ни одной
+  // рекомендации — блок ставится тут, перед FAQ, а не после него.
   const recommendationSlots = useMemo(() => {
     const slots = new Map<string, RecommendationBlockId[]>();
-    const anchors = pageSections.filter((s) => s.id !== 'faq');
-    if (anchors.length === 0 || recommendationBlocks.length === 0) return slots;
+    const realAnchors = pageSections.filter((s) => s.id !== 'faq');
+    if (realAnchors.length === 0 || recommendationBlocks.length === 0) return slots;
+    // ~0,08 экрана на пункт (по замеру: развёрнутый FAQ из 15-18 вопросов
+    // занимает примерно один экран), потолок — 3 экрана, чтобы гигантский
+    // FAQ не давал повод впихнуть лишний блок сразу перед собой.
+    const faqWeight = faqItems.length > 0 ? Math.min(3, Math.max(0.5, faqItems.length * 0.08)) : 0;
     const queue = [...recommendationBlocks];
     let sectionsSinceLastRec = 0;
     let weightSinceLastRec = 0;
     let placed = 0;
-    for (const section of anchors) {
+    realAnchors.forEach((section, index) => {
+      if (queue.length === 0) return;
       sectionsSinceLastRec += 1;
       weightSinceLastRec += SECTION_WEIGHTS[section.id] ?? DEFAULT_SECTION_WEIGHT;
+      const isLastRealAnchor = index === realAnchors.length - 1;
       const readyForFirst = placed === 0 && sectionsSinceLastRec >= FIRST_RECOMMENDATION_AFTER_SECTIONS;
       const readyForNext = placed > 0 && weightSinceLastRec >= NEXT_RECOMMENDATION_MIN_WEIGHT;
-      if ((readyForFirst || readyForNext) && queue.length > 0) {
+      const readyLastChance =
+        isLastRealAnchor &&
+        sectionsSinceLastRec >= 2 &&
+        (placed === 0 || weightSinceLastRec + faqWeight >= NEXT_RECOMMENDATION_MIN_WEIGHT);
+      if (readyForFirst || readyForNext || readyLastChance) {
         const block = queue.shift()!;
         slots.set(section.id, [...(slots.get(section.id) ?? []), block.id]);
         placed += 1;
         sectionsSinceLastRec = 0;
         weightSinceLastRec = RECOMMENDATION_BLOCK_WEIGHT;
       }
-    }
-    // Кандидаты, для которых не нашлось места (очень короткая страница) —
-    // просто не показываем, а не доклеиваем в хвост: это и держит
-    // равномерный интервал, и не роняет блоки друг на друга.
+    });
+    // Кандидаты, для которых так и не нашлось места (совсем короткая
+    // страница, 1 обычный блок до FAQ) — просто не показываем, а не
+    // доклеиваем в хвост: это и держит равномерный интервал, и не роняет
+    // блоки друг на друга.
     return slots;
-  }, [pageSections, recommendationBlocks]);
+  }, [pageSections, recommendationBlocks, faqItems]);
 
   const recommendationBlocksById = useMemo(
     () => new Map(recommendationBlocks.map((b) => [b.id, b])),
