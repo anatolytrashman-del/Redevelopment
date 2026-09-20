@@ -74,6 +74,7 @@ import {
   microdistrictHubUrl,
   streetHubUrl,
   districtDative,
+  districtPrepositional,
 } from '../lib/businessCenterHubs';
 import type { BusinessCenter, HighlightIconKey } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
@@ -756,13 +757,68 @@ export function BusinessCenterDetailPage() {
       `В каком административном районе находится «${name}»?`,
       redistributedTechnicalParams.administrativeDistrictText,
     );
-    if (center.businessClass) add(`Какой класс у «${name}»?`, `Класс ${center.businessClass}.`);
-    if (center.totalArea != null) add(`Какая общая площадь у «${name}»?`, `${fmt(center.totalArea)} м².`);
-    if (center.floors != null) add(`Сколько этажей в «${name}»?`, String(center.floors));
-    if (center.yearBuilt != null) add(`В каком году построен «${name}»?`, String(center.yearBuilt));
-    if (center.status === 'under_construction') add('Здание уже построено?', 'Здание строится.');
+    // Голые значения без контекста ("2011", "7") читаются как заполнение
+    // объёма — владелец, 2026-09-20: «слишком скупо». Каждый такой ответ
+    // получает реальную (не шаблонную) добавку из уже вычисленных на
+    // странице данных: сколько ещё таких зданий в каталоге, площадь на
+    // этаж, сравнение с медианой класса — а не бантик из общих слов.
+    if (center.businessClass) {
+      const sameClassOthers = (centers ?? []).filter(
+        (c) => c.businessClass === center.businessClass && c.slug !== center.slug,
+      );
+      const sameClassSameDistrict = center.district
+        ? sameClassOthers.filter((c) => c.district === center.district)
+        : [];
+      const districtPart =
+        center.district && sameClassSameDistrict.length > 0
+          ? `, ${sameClassSameDistrict.length} из них — в ${districtPrepositional(center.district)} районе`
+          : '';
+      add(
+        `Какой класс у «${name}»?`,
+        `Класс ${center.businessClass}.${sameClassOthers.length > 0 ? ` В нашем каталоге ещё ${sameClassOthers.length} ${pluralRu(sameClassOthers.length, 'здание', 'здания', 'зданий')} этого класса${districtPart}.` : ''}`,
+      );
+    }
+    if (center.totalArea != null) {
+      const floors = center.floors;
+      const perFloor = floors != null && floors > 0 ? Math.round(center.totalArea / floors) : null;
+      add(
+        `Какая общая площадь у «${name}»?`,
+        `${fmt(center.totalArea)} м²${perFloor != null && floors != null ? `, в среднем около ${fmt(perFloor)} м² на этаж при ${floors} ${pluralRu(floors, 'этаже', 'этажах', 'этажах')}` : ''}.`,
+      );
+    }
+    if (center.floors != null) {
+      add(`Сколько этажей в «${name}»?`, `${center.floors} ${pluralRu(center.floors, 'этаж', 'этажа', 'этажей')}.`);
+    }
+    // "Год сдачи" из marketPosition.bars ниже даёт то же значение со
+    // сравнением с медианой класса — тот же вопрос под естественную
+    // формулировку, а не второй такой же под другой обёрткой (bar с этим
+    // label пропускается в цикле ниже).
+    if (center.yearBuilt != null) {
+      if (center.status === 'under_construction') {
+        add(`Когда «${name}» будет сдан?`, `Ожидаемая сдача — ${center.yearBuilt} год.`);
+      } else {
+        const age = new Date().getFullYear() - center.yearBuilt;
+        const yearBar = marketPosition?.bars.find((bar) => bar.label === 'Год сдачи') ?? null;
+        add(
+          `В каком году построен «${name}»?`,
+          `Сдан в ${center.yearBuilt} году${age > 0 ? `, зданию ${age} ${pluralRu(age, 'год', 'года', 'лет')}` : ''}.${yearBar?.note ? ` Это ${yearBar.note}.` : ''}`,
+        );
+      }
+    }
     add(`Какая степень готовности у «${name}»?`, redistributedTechnicalParams.readinessText);
-    add(`Кто застройщик «${name}»?`, center.developer);
+    if (center.developer) {
+      const info = center.developerInfo;
+      const lines = [`Застройщик — ${center.developer}.`];
+      if (info?.description) lines.push(info.description);
+      const contactBits = [
+        info?.phone ? `тел. ${info.phone}` : null,
+        info?.address ?? null,
+        info?.hours ? `часы работы: ${info.hours}` : null,
+        info?.website ?? null,
+      ].filter((v): v is string => Boolean(v));
+      if (contactBits.length) lines.push(`${contactBits.join(', ')}.`);
+      add(`Кто застройщик «${name}»?`, lines.join('\n'));
+    }
     add(`Какая парковка у «${name}»?`, center.parking);
     if (center.officeArea != null) {
       const share =
@@ -788,6 +844,9 @@ export function BusinessCenterDetailPage() {
     }
     if (nearestMetro) add(`Какое метро рядом с «${name}»?`, `«${nearestMetro.name}» — ${nearestMetro.distanceMeters} м по прямой.`);
     for (const bar of marketPosition?.bars ?? []) {
+      // "Год сдачи" уже влит в ответ на "В каком году построен" выше —
+      // второй вопрос с тем же числом читался бы как дубль.
+      if (bar.label === 'Год сдачи') continue;
       add(`${bar.label} в «${name}» — это много или мало для своего класса?`, `${fmt(bar.value)} ${bar.unit}; ${bar.baselines.map((b) => `${b.label}: ${fmt(b.value)} ${bar.unit}`).join('; ')}.${bar.note ? ` ${bar.note}.` : ''}`);
     }
     // FAQ пересказывает блок «Инфраструктура рядом» теми же цифрами, что
