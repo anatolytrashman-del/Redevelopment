@@ -23,6 +23,7 @@ import {
   ExternalLink,
   FileText,
   Globe,
+  HardHat,
   Info,
   Landmark,
   Leaf,
@@ -125,6 +126,7 @@ import { NearbyInfrastructureBlock, SimilarCentersBlock, similarCenters } from '
 // блоки реально отрисованы.
 const SECTION_LABELS: Record<string, string> = {
   facts: 'Факты',
+  developer: 'Застройщик',
   metroCenters: 'БЦ у метро',
   market: 'БЦ на фоне конкурентов',
   map: 'Инфраструктура рядом',
@@ -141,6 +143,7 @@ const SECTION_LABELS: Record<string, string> = {
 
 const SECTION_ICONS: Record<string, typeof FileText> = {
   facts: Sparkles,
+  developer: HardHat,
   metroCenters: TrainFront,
   market: Award,
   map: MapPin,
@@ -815,6 +818,7 @@ export function BusinessCenterDetailPage() {
     const has = (id: string, cond: boolean) => (cond ? { id, label: SECTION_LABELS[id] } : null);
     return [
       has('facts', visibleHighlights.length > 0),
+      has('developer', Boolean(center.developerInfo)),
       has('metroCenters', relatedCenters.metro.length > 0),
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
       has('map', center.lat != null && center.lng != null && nearbyPlaces.length > 0),
@@ -931,6 +935,24 @@ export function BusinessCenterDetailPage() {
     ? center.address
     : `г. Минск, ${center.address}`;
   const centerWebsiteUrl = businessCenterHomepageUrl(center.website);
+  // Сайт застройщика — обычно ДРУГОЙ домен, чем сайт самого БЦ выше
+  // (у «Футуриса» это futuris-bc.by у здания и tapas.by у ГК «Тапас»),
+  // поэтому не переиспользуем businessCenterHomepageUrl: тот список
+  // BUSINESS_CENTER_WEBSITE_OVERRIDES заведён под конкретные проверенные
+  // сайты БЦ, не застройщиков. label — голый хост без протокола/www, как в
+  // карточке "Застройщик района" на гиде по Минск Миру.
+  const developerWebsiteRaw = center.developerInfo?.website?.trim();
+  let developerWebsiteUrl: { href: string; label: string } | null = null;
+  if (developerWebsiteRaw) {
+    try {
+      const url = new URL(/^https?:\/\//i.test(developerWebsiteRaw) ? developerWebsiteRaw : `https://${developerWebsiteRaw}`);
+      if (url.protocol === 'http:' || url.protocol === 'https:') {
+        developerWebsiteUrl = { href: url.href, label: url.host.replace(/^www\./, '') };
+      }
+    } catch {
+      developerWebsiteUrl = null;
+    }
+  }
   const streetName = streetOfAddress(center.address);
   const streetCatalogUrl = streetHubUrl(streetName);
   const metroCatalogUrl =
@@ -1183,24 +1205,23 @@ export function BusinessCenterDetailPage() {
                 )}
               </div>
             </section>
-            {(center.developer || centerWebsiteUrl) && (
+            {/* Застройщик короткой строкой убран отсюда 2026-09-20 —
+                владелец: "убираем из главного блока", своя развёрнутая
+                карточка (логотип/описание/контакты) теперь идёт отдельной
+                секцией сразу под этим главным блоком, см. developerInfo
+                ниже. Короткая текстовая версия осталась только в FAQ
+                ("Кто застройщик «...»?"). */}
+            {centerWebsiteUrl && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-muted">
-                {center.developer && (
-                  <span>
-                    <span className="font-semibold text-ink">Застройщик:</span> {center.developer}
-                  </span>
-                )}
-                {centerWebsiteUrl && (
-                  <a
-                    href={centerWebsiteUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 font-semibold text-primary-hover hover:underline"
-                  >
-                    Сайт БЦ
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-                )}
+                <a
+                  href={centerWebsiteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 font-semibold text-primary-hover hover:underline"
+                >
+                  Сайт БЦ
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
               </div>
             )}
 
@@ -1242,6 +1263,78 @@ export function BusinessCenterDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Развёрнутая карточка застройщика — владелец, 2026-09-20: "у
+            половины БЦ застройщики нормальные, с сайтами и тд... сделал бы
+            такой блок на страницах, где возможно, сразу под главным
+            блоком", по образцу карточки "Застройщик района" на гиде по
+            Минск Миру (DistrictGuidePage.tsx, id="developer"). В отличие от
+            того гида это не захардкожено — данные конкретного БЦ из
+            developerInfo (админка, BusinessCentersAdminTab.tsx), null у
+            большинства БЦ, пока карточку не заполнили. Первый заполненный
+            пример — "Футурис" (ГК «Тапас»). */}
+        {center.developerInfo && (
+          <div id="developer" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+                <HardHat className="h-5 w-5 shrink-0 text-primary" />
+                Застройщик
+              </h2>
+              {center.developerInfo.logoUrl && (
+                <img
+                  src={center.developerInfo.logoUrl}
+                  alt={center.developer ?? shortName(center)}
+                  loading="lazy"
+                  className="h-9 w-auto max-w-[10rem] object-contain"
+                />
+              )}
+            </div>
+            {center.developer && <p className="text-sm font-semibold text-ink">{center.developer}</p>}
+            {center.developerInfo.description && (
+              <p className="text-sm leading-relaxed text-ink-muted">{center.developerInfo.description}</p>
+            )}
+            {(center.developerInfo.phone ||
+              center.developerInfo.address ||
+              center.developerInfo.hours ||
+              center.developerInfo.website) && (
+              <div className="flex flex-col gap-1.5 text-sm text-ink-muted">
+                {center.developerInfo.phone && (
+                  <a
+                    href={`tel:${center.developerInfo.phone.replace(/[^\d+]/g, '')}`}
+                    className="flex w-fit items-center gap-2 text-ink hover:underline"
+                  >
+                    <Phone className="h-4 w-4 shrink-0" />
+                    {center.developerInfo.phone}
+                  </a>
+                )}
+                {center.developerInfo.address && (
+                  <div className="flex items-start gap-2">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{center.developerInfo.address}</span>
+                  </div>
+                )}
+                {center.developerInfo.hours && (
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 shrink-0" />
+                    <span>{center.developerInfo.hours}</span>
+                  </div>
+                )}
+                {developerWebsiteUrl && (
+                  <a
+                    href={developerWebsiteUrl.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex w-fit items-center gap-1 text-ink hover:underline"
+                  >
+                    <Globe className="h-4 w-4 shrink-0" />
+                    {developerWebsiteUrl.label}
+                    <ExternalLink className="h-3 w-3 shrink-0" />
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* "Интересные факты" — произвольный набор блоков, разный у каждого
             БЦ (владелец, 2026-09-06, второй заход: "старайся делать
@@ -1693,6 +1786,17 @@ export function BusinessCenterDetailPage() {
               >
                 <Globe className="h-3.5 w-3.5 shrink-0" />
                 Официальный сайт «{shortName(center)}»
+              </a>
+            )}
+            {developerWebsiteUrl && (
+              <a
+                href={developerWebsiteUrl.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-primary hover:text-primary"
+              >
+                <HardHat className="h-3.5 w-3.5 shrink-0" />
+                Сайт застройщика{center.developer ? ` (${center.developer})` : ''}
               </a>
             )}
           </div>
