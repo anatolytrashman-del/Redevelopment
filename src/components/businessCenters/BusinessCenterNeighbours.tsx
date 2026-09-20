@@ -78,12 +78,22 @@ function MiniMap({ center, places }: { center: BusinessCenter; places: BusinessC
         );
         for (const place of places) {
           const meta = CATEGORY_META[place.category] ?? CATEGORY_META.other;
+          const balloonLines = [
+            `<strong>${escapeHtml(place.name)}</strong>`,
+            `${meta.label} · ${formatMeters(place.distanceMeters)} от БЦ`,
+          ];
+          if (place.address) balloonLines.push(escapeHtml(place.address));
+          if (place.sourceUrl) {
+            balloonLines.push(
+              `<a href="${escapeHtml(place.sourceUrl)}" target="_blank" rel="noopener noreferrer">Открыть в Яндекс.Картах</a>`,
+            );
+          }
           map.geoObjects.add(
             new ymaps.Placemark(
               [place.lat, place.lng],
               {
                 hintContent: place.name,
-                balloonContent: `<strong>${escapeHtml(place.name)}</strong><br>${meta.label} · ${place.distanceMeters} м от БЦ`,
+                balloonContent: balloonLines.join('<br>'),
               },
               { preset: 'islands#dotIcon', iconColor: meta.color },
             ),
