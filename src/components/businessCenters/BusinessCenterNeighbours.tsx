@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Banknote, Building2, BusFront, Coffee, Dumbbell, Landmark, MapPin, Pill, ShoppingBag, TrainFront, Utensils } from 'lucide-react';
+import { Banknote, BusFront, Coffee, Dumbbell, Landmark, MapPin, Pill, ShoppingBag, TrainFront, Utensils } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { BusinessCenter } from '../../data/businessCenters';
 import { shortName } from '../../lib/businessCenterDisplay';
 import { loadYmaps } from '../../lib/yandexMaps';
 import { useInView } from '../../lib/useInView';
-import type { CatalogOfferIndex } from '../../lib/businessCenterCatalogFilter';
-import { nearestNeighbours } from '../../lib/businessCenterMarketPosition';
 import { formatMeters, groupNearbyPlaces, hasNearbyContent } from '../../lib/nearbyPlaces';
 import type { BusinessCenterNearbyPlace, NearbyPlaceCategory } from '../../data/businessCenterNearbyPlaces';
 
@@ -179,108 +176,6 @@ export function NearbyInfrastructureBlock({
         </ul>
       )}
 
-    </div>
-  );
-}
-
-// --- Б6. Похожие бизнес-центры -----------------------------------------
-
-// «Похожий» — тот же класс и тот же район; если таких меньше трёх,
-// расширяем до того же класса по городу. Сортируем по близости площади:
-// здание на 40 000 м² и на 900 м² одного класса решают разные задачи.
-export function similarCenters(
-  center: BusinessCenter,
-  all: BusinessCenter[],
-  limit = 6,
-  // Слаги, уже показанные в блоке «Другие бизнес-центры рядом». Соседи и похожие —
-  // ДВЕ РАЗНЫЕ подборки (одна про расположение, другая про замену), и одно и
-  // то же здание в обеих читается как то, что список нечем наполнить.
-  exclude: ReadonlySet<string> = new Set(),
-): BusinessCenter[] {
-  const pool = all.filter(
-    (c) => c.slug !== center.slug && !exclude.has(c.slug) && c.businessClass === center.businessClass,
-  );
-  const sameDistrict = center.district ? pool.filter((c) => c.district === center.district) : [];
-  const base = sameDistrict.length >= 3 ? sameDistrict : pool;
-  if (center.totalArea == null) return base.slice(0, limit);
-  return [...base]
-    .sort(
-      (a, b) =>
-        Math.abs((a.totalArea ?? Infinity) - (center.totalArea as number)) -
-        Math.abs((b.totalArea ?? Infinity) - (center.totalArea as number)),
-    )
-    .slice(0, limit);
-}
-
-export function SimilarCentersBlock({
-  center,
-  all,
-  offers,
-  hubChips,
-}: {
-  center: BusinessCenter;
-  all: BusinessCenter[];
-  offers: CatalogOfferIndex;
-  hubChips: { label: string; url: string }[];
-}) {
-  const similar = useMemo(() => {
-    const neighbourSlugs = new Set(nearestNeighbours(center, all, 5).map((n) => n.center.slug));
-    return similarCenters(center, all, 6, neighbourSlugs);
-  }, [center, all]);
-  if (similar.length === 0 && hubChips.length === 0) return null;
-  return (
-    <div id="similar" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-      <div className="flex flex-col gap-1">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-          <Building2 className="h-5 w-5 shrink-0 text-ink-muted" />
-          Похожие бизнес-центры
-        </h2>
-        <p className="text-xs text-ink-faint">
-          Тот же класс и тот же район, ближайшие по размеру здания; те, что уже перечислены
-          выше как соседние, сюда не попадают.
-        </p>
-      </div>
-      {similar.length > 0 && (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {similar.map((c) => {
-            const rent = offers.rentBySlug.get(c.slug)?.median ?? null;
-            return (
-              <Link
-                key={c.slug}
-                to={`/minsk/bcminsk/${c.slug}`}
-                className="flex flex-col gap-0.5 rounded-2xl bg-surface-muted px-4 py-3 transition-colors hover:bg-border/40"
-              >
-                <span className="text-sm font-semibold text-ink">{shortName(c)}</span>
-                <span className="text-xs text-ink-muted">
-                  {[
-                    c.businessClass ? `класс ${c.businessClass}` : null,
-                    c.district,
-                    c.totalArea != null ? `${c.totalArea.toLocaleString('ru-RU')} м²` : null,
-                    rent != null ? `$${rent}/м²` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-      {/* Хабы чипами вместо простого текста (пункт «ссылки на хабы» из
-          BCMINSK_SEO_PLAN.md): те же ссылки, но их видно и по ним кликают. */}
-      {hubChips.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {hubChips.map((chip) => (
-            <Link
-              key={chip.url}
-              to={chip.url}
-              className="rounded-full border border-border bg-surface px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:border-primary hover:text-primary-hover"
-            >
-              {chip.label}
-            </Link>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
