@@ -664,7 +664,8 @@ export function BusinessCenterDetailPage() {
   const visibleHighlights = useMemo(
     () =>
       center?.highlights.filter(
-        (h) => h.icon !== 'rating' && h.icon !== 'reviews' && h.icon !== 'history' && h.icon !== 'award',
+        (h) =>
+          h.icon !== 'rating' && h.icon !== 'reviews' && h.icon !== 'history' && h.icon !== 'award' && h.icon !== 'warning',
       ) ?? [],
     [center],
   );
@@ -1051,7 +1052,7 @@ export function BusinessCenterDetailPage() {
     }
     if (center.rentalInfo) {
       const info = center.rentalInfo;
-      add('Какие условия и контакты аренды опубликованы?', [info.caveat, info.terms, info.rates, info.sizes, info.contacts].filter(Boolean).join(' ') + ' Актуальные условия уточняйте у арендодателя.');
+      add('Какие условия и контакты аренды опубликованы?', [info.terms, info.rates, info.sizes, info.contacts].filter(Boolean).join(' ') + ' Актуальные условия уточняйте у арендодателя.');
     }
     if (awardItems.length) add(`Какие награды есть у «${name}»?`, awardItems.join('\n'));
     if (mediaMentions.length)
@@ -1739,14 +1740,15 @@ export function BusinessCenterDetailPage() {
             большинству сайтов БЦ из песочницы нет). Первая версия рисовала
             всё одним абзацем — владелец: "верстка — пиздец, разбей на
             логические блоки, используй форматирование" — теперь отдельная
-            подписанная строка на каждый раздел (LabeledTextRow), важная
-            оговорка источника (сайт недоступен, "Аден" по факту гостиница
-            и т.п.) — акцентным блоком сверху, не затёртая в общем тексте.
-            Каждое поле независимо может быть null — рисуем только то, что
-            реально нашлось. Порядок блоков страницы пересобран 2026-09-20
-            (владелец принял предложенный порядок): условия аренды идут
-            сразу за "Объявления на рынке" — оба блока отвечают на один и
-            тот же вопрос "что тут есть и почём". */}
+            подписанная строка на каждый раздел (LabeledTextRow). Каждое поле
+            независимо может быть null — рисуем только то, что реально
+            нашлось. Порядок блоков страницы пересобран 2026-09-20 (владелец
+            принял предложенный порядок): условия аренды идут сразу за
+            "Объявления на рынке" — оба блока отвечают на один и тот же
+            вопрос "что тут есть и почём". Акцентный жёлтый блок с оговоркой
+            источника (`caveat`) и дисклеймер "собрано автоматически...
+            не куратировано вручную" под карточкой убраны тем же днём —
+            владелец: "убери все предупреждения такого плана с сайта". */}
         {center.rentalInfo && (
           <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
@@ -1754,24 +1756,12 @@ export function BusinessCenterDetailPage() {
               Условия для арендаторов
             </h2>
 
-            {center.rentalInfo.caveat && (
-              <div className="flex items-start gap-2 rounded-control border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-warning">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <p className="leading-relaxed">{center.rentalInfo.caveat}</p>
-              </div>
-            )}
-
             <div className="flex flex-col divide-y divide-border">
               <LabeledTextRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
               <LabeledTextRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
               <LabeledTextRow icon={Ruler} label="Площади и типы помещений" text={center.rentalInfo.sizes} />
               <LabeledTextRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
             </div>
-
-            <p className="text-xs text-ink-muted">
-              Собрано автоматически по официальному сайту БЦ и открытым источникам — не куратировано вручную, перед
-              подписанием договора уточняйте актуальные условия напрямую у арендодателя.
-            </p>
           </div>
         )}
 
@@ -2032,8 +2022,10 @@ export function BusinessCenterDetailPage() {
             блок"). Раньше был фиксированный объект (history/tenants/media/
             rating/reviews), теперь — HighlightSection[] (см. комментарий у
             BusinessCenter.highlights в data/businessCenters.ts). icon
-            'warning' — единственная особая: выносится наверх акцентным
-            жёлтым блоком (как caveat в RentalInfo), а не в общий список.
+            'warning' (как и caveat в RentalInfo) с 2026-09-20 не рендерится
+            вовсе — владелец: "убери все предупреждения такого плана с
+            сайта", жёлтый акцентный блок с оговоркой источника убран из
+            шаблона целиком, отфильтровывается в visibleHighlights.
             Позиция на странице менялась дважды: 2026-09-17 — сразу после
             главной карточки, 2026-09-20 — в группу блоков доверия (награды/
             СМИ/факты/история), после цены, параметров здания, арендаторов
@@ -2046,30 +2038,14 @@ export function BusinessCenterDetailPage() {
               Интересные факты
             </h2>
 
-            {visibleHighlights
-              .filter((s) => s.icon === 'warning')
-              .map((s, i) => (
-                <div
-                  key={`warning-${i}`}
-                  className="flex items-start gap-2 rounded-control border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-warning"
-                >
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <div>
-                    {s.label && <p className="text-xs font-semibold uppercase tracking-wide">{s.label}</p>}
-                    <p className="mt-0.5 leading-relaxed">{renderRentalText(s.text)}</p>
-                  </div>
-                </div>
-              ))}
-
             <div className="flex flex-col divide-y divide-border">
               {(() => {
-                const plainFacts = visibleHighlights.filter((s) => s.icon !== 'warning');
                 // Единственный факт в карточке — свой подписанный заголовок
                 // над ним избыточен: и так ясно из заголовка карточки "Интересные
                 // факты" (владелец, 2026-09-06: "если интересный факт один, то
                 // заголовок лишний").
-                const showLabel = plainFacts.length > 1;
-                return plainFacts.map((s, i) => (
+                const showLabel = visibleHighlights.length > 1;
+                return visibleHighlights.map((s, i) => (
                   <LabeledTextRow
                     key={i}
                     icon={HIGHLIGHT_ICONS[s.icon]}
