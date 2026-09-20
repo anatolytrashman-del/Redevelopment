@@ -957,7 +957,7 @@ export function BusinessCenterDetailPage() {
         const yearBar = marketPosition?.bars.find((bar) => bar.label === 'Год сдачи') ?? null;
         add(
           `В каком году построен «${name}»?`,
-          `Сдан в ${center.yearBuilt} году${age > 0 ? `, зданию ${age} ${pluralRu(age, 'год', 'года', 'лет')}` : ''}.${yearBar?.note ? ` Это ${yearBar.note}.` : ''}`,
+          `Сдан в ${center.yearBuilt} году${age > 0 ? `, зданию ${age} ${pluralRu(age, 'год', 'года', 'лет')}` : ''}.${yearBar && !yearBar.nearTypical ? ` Это ${yearBar.deltaText}.` : ''}`,
         );
       }
     }
@@ -1003,7 +1003,7 @@ export function BusinessCenterDetailPage() {
       // "Год сдачи" уже влит в ответ на "В каком году построен" выше —
       // второй вопрос с тем же числом читался бы как дубль.
       if (bar.label === 'Год сдачи') continue;
-      add(`${bar.label} в «${name}» — это много или мало для своего класса?`, `${fmt(bar.value)} ${bar.unit}; ${bar.baselines.map((b) => `${b.label}: ${fmt(b.value)} ${bar.unit}`).join('; ')}.${bar.note ? ` ${bar.note}.` : ''}`);
+      add(`${bar.label} в «${name}» — это много или мало для своего класса?`, `${bar.subjectDisplayValue}; ${bar.captionText} (${bar.deltaText}).`);
     }
     // FAQ пересказывает блок «Инфраструктура рядом» теми же цифрами, что
     // нарисованы на карте и в списке под ней (правило владельца: FAQ
