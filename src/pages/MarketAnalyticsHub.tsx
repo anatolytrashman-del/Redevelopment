@@ -9,7 +9,7 @@ import { MIN_RELIABLE_N, type ExternalMetric, type MarketSnapshot } from '../dat
 
 const TITLE = 'Цены на коммерческую недвижимость в Минске — Redevelopment';
 const DESCRIPTION =
-  'Аналитика рынка коммерческой недвижимости Минска: ставки аренды и цены продажи офисов в бизнес-центрах, торговых помещений и складов по районам, по данным Kufar, Realt, Domovita и Megapolis.';
+  'Аналитика рынка коммерческой недвижимости Минска: ставки аренды и цены продажи офисов в бизнес-центрах, торговых помещений и складов по районам, по данным Kufar, Realt, Domovita, Megapolis, Garantiruem и Pro-N.';
 const PAGE_URL = 'https://redevelopment.pro/minsk/analytics';
 
 const MONTH_NAMES = [
@@ -209,7 +209,7 @@ export function MarketAnalyticsHub() {
       datePublished: '2026-09-07',
       dateModified: modified,
       measurementTechnique:
-        'Медиана и перцентили цены по активным объявлениям Kufar, Realt.by, Domovita и Megapolis-real, срез по месяцу, по сегментам рынка коммерческой недвижимости',
+        'Медиана и перцентили цены по активным объявлениям Kufar, Realt.by, Domovita, Megapolis-real, Garantiruem.by и Pro-N.by, срез по месяцу, по сегментам рынка коммерческой недвижимости',
     });
   }, [loaded, period]);
 
@@ -227,7 +227,7 @@ export function MarketAnalyticsHub() {
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">Аналитика рынка коммерческой недвижимости Минска</h1>
           <p className="max-w-2xl text-ink-muted">
-            Ставки аренды и цены продажи по нашим данным (объявления Kufar, Realt.by, Domovita и Megapolis-real),
+            Ставки аренды и цены продажи по нашим данным (объявления Kufar, Realt.by, Domovita, Megapolis-real, Garantiruem.by и Pro-N.by),
             по классам, районам и
             сегментам. Обновляется ежемесячно.
             {period && ` Текущий срез — ${formatPeriod(period)}.`}

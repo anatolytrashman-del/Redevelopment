@@ -31,6 +31,8 @@ import {
   EXTRA_SOURCE_SECTIONS,
   collectDomovitaOffers,
   collectMegapolisOffers,
+  collectGarantiruemOffers,
+  collectProNOffers,
   dedupeAcrossSources,
   deleteStaleOffers,
   dropDuplicateAdIds,
@@ -295,6 +297,22 @@ async function main() {
     log: (m) => console.log(m),
   });
 
+  console.log('Garantiruem: тяну склады по всему Минску...');
+  const garantiruemOffers = await collectGarantiruemOffers({
+    propertyType: 'Склады',
+    isPlausiblePrice,
+    excluded,
+    log: (m) => console.log(m),
+  });
+
+  console.log('Pro-N: тяну склады по всему Минску (сайтмап + постранично, без нашей пагинации)...');
+  const pronOffers = await collectProNOffers({
+    propertyType: 'Склады',
+    isPlausiblePrice,
+    excluded,
+    log: (m) => console.log(m),
+  });
+
   // Порядок здесь — это приоритет при схлопывании: у Kufar есть тип здания,
   // у Realt район, поэтому при совпадении лота выживает запись с более
   // полными полями, а не та, что попалась первой по алфавиту.
@@ -303,6 +321,8 @@ async function main() {
     ...realtOffers,
     ...domovitaOffers,
     ...megapolisOffers,
+    ...garantiruemOffers,
+    ...pronOffers,
   ]);
   const { offers: deduped, collisions } = dropDuplicateAdIds(crossSourceDeduped);
   if (collisions.length > 0) {
@@ -327,7 +347,8 @@ async function main() {
 
   console.log(
     `Итого ${deduped.length} объявлений (${kufarOffers.length} Kufar + ${realtOffers.length} Realt + ` +
-      `${domovitaOffers.length} Domovita + ${megapolisOffers.length} Megapolis − ${dupCount} дублей).`,
+      `${domovitaOffers.length} Domovita + ${megapolisOffers.length} Megapolis + ${garantiruemOffers.length} Garantiruem + ` +
+      `${pronOffers.length} Pro-N − ${dupCount} дублей).`,
   );
 
   if (DRY_RUN) {
@@ -346,7 +367,7 @@ async function main() {
   const removed = await deleteStaleOffers({
     supabase,
     segment: SEGMENT,
-    sources: ['Kufar', 'Realt', 'Domovita', 'Megapolis'],
+    sources: ['Kufar', 'Realt', 'Domovita', 'Megapolis', 'Garantiruem', 'Pro-N'],
     offers: deduped,
   });
   if (removed > 0) console.log(`Удалено ${removed} объявлений, пропавших с площадок.`);

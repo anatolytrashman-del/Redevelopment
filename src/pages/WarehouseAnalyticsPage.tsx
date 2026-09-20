@@ -145,8 +145,8 @@ export function WarehouseAnalyticsPage({ deal }: WarehouseAnalyticsPageProps) {
   const fullTitle = periodLabel ? `${title} — ${periodLabel}` : title;
   const description =
     deal === 'rent'
-      ? 'Медианная ставка аренды складских помещений в Минске по районам — по объявлениям Kufar, Realt, Domovita и Megapolis.'
-      : 'Медианная цена продажи складских помещений в Минске по районам — по объявлениям Kufar, Realt, Domovita и Megapolis.';
+      ? 'Медианная ставка аренды складских помещений в Минске по районам — по объявлениям Kufar, Realt, Domovita, Megapolis, Garantiruem и Pro-N.'
+      : 'Медианная цена продажи складских помещений в Минске по районам — по объявлениям Kufar, Realt, Domovita, Megapolis, Garantiruem и Pro-N.';
   const url = `https://redevelopment.pro/minsk/analytics/sklady/${deal === 'rent' ? 'arenda' : 'prodazha'}`;
 
   // Вынесено из useEffect в useMemo — раньше собиралось только для JSON-LD,
@@ -158,7 +158,7 @@ export function WarehouseAnalyticsPage({ deal }: WarehouseAnalyticsPageProps) {
       faq.push({
         question:
           deal === 'rent' ? `Сколько стоит аренда склада в Минске в ${periodInLabel}?` : `Сколько стоит склад в Минске в ${periodInLabel}?`,
-        answer: `По медиане объявлений Kufar, Realt, Domovita и Megapolis за ${periodLabel} — ${formatMoney(city.median, deal)} (по ${city.n} объявлениям).`,
+        answer: `По медиане объявлений Kufar, Realt, Domovita, Megapolis, Garantiruem и Pro-N за ${periodLabel} — ${formatMoney(city.median, deal)} (по ${city.n} объявлениям).`,
       });
     }
     faq.push({
@@ -169,7 +169,7 @@ export function WarehouseAnalyticsPage({ deal }: WarehouseAnalyticsPageProps) {
     faq.push({
       question: 'Откуда берутся данные?',
       answer:
-        'Из активных объявлений Kufar, Realt.by, Domovita и Megapolis-real по всему Минску, категория «Склады». Подробности — на странице методики.',
+        'Из активных объявлений Kufar, Realt.by, Domovita, Megapolis-real, Garantiruem.by и Pro-N.by по всему Минску, категория «Склады». Подробности — на странице методики.',
     });
     return faq;
   }, [snapshots, city, deal, periodLabel, periodInLabel]);
@@ -196,7 +196,7 @@ export function WarehouseAnalyticsPage({ deal }: WarehouseAnalyticsPageProps) {
       url,
       datePublished: '2026-09-07',
       dateModified: modified,
-      measurementTechnique: 'Медиана и перцентили цены за м² по активным объявлениям Kufar, Realt, Domovita и Megapolis, срез по месяцу',
+      measurementTechnique: 'Медиана и перцентили цены за м² по активным объявлениям Kufar, Realt, Domovita, Megapolis, Garantiruem и Pro-N, срез по месяцу',
     });
     setFaqJsonLd(faqItems);
   }, [snapshots, city, faqItems, fullTitle, description, url, title]);
@@ -423,7 +423,7 @@ export function WarehouseAnalyticsPage({ deal }: WarehouseAnalyticsPageProps) {
           <h2 className="text-lg font-bold text-ink">Что это за цифры</h2>
           <p className="text-sm leading-relaxed text-ink-muted">
             Это медиана и 25–75-й перцентили цены за м² по активным объявлениям аренды{deal === 'sale' ? ' и продажи' : ''}{' '}
-            складских помещений по всему Минску — категория «Склады» на Kufar, Realt.by, Domovita и Megapolis-real.
+            складских помещений по всему Минску — категория «Склады» на Kufar, Realt.by, Domovita, Megapolis-real, Garantiruem.by и Pro-N.by.
             Данные собираются раз в
             месяц, это <strong>ставка предложения</strong>, не подтверждённая цена сделки. Срез публикуется только
             при не менее {MIN_RELIABLE_N} объявлениях — меньшая выборка помечена как ориентировочная или скрыта
@@ -432,7 +432,7 @@ export function WarehouseAnalyticsPage({ deal }: WarehouseAnalyticsPageProps) {
           <p className="text-sm leading-relaxed text-ink-muted">
             Здесь <strong>нет</strong> деления по классу склада (A/B/C), высоте потолков или направлению шоссе — ни
             одна из площадок не даёт этих данных как отдельные структурные поля объявления, а строить их из
-            текста описания мы не стали, чтобы не выдавать догадку за факт. Объявления всех четырёх площадок
+            текста описания мы не стали, чтобы не выдавать догадку за факт. Объявления всех шести площадок
             сверены на дубли (по адресу, площади, ставке и типу сделки) перед подсчётом.
           </p>
           <p className="text-sm text-ink-muted">
@@ -440,7 +440,7 @@ export function WarehouseAnalyticsPage({ deal }: WarehouseAnalyticsPageProps) {
             <Link to="/minsk/analytics/metodika" className="text-primary-hover hover:underline">
               отдельной странице
             </Link>
-            . Источники: Kufar (re.kufar.by), Realt.by, Domovita (domovita.by), Megapolis-real (megapolis-real.by)
+            . Источники: Kufar (re.kufar.by), Realt.by, Domovita (domovita.by), Megapolis-real (megapolis-real.by), Garantiruem (garantiruem.by), Pro-N.by (pro-n.by)
             {externalMetrics.length > 0 && ', Твоя столица (через prometr.by), NAI Belarus (через probusiness.io)'}.
           </p>
         </section>

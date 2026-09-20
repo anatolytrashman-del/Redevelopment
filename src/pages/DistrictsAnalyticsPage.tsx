@@ -72,7 +72,7 @@ export function DistrictsAnalyticsPage() {
       url: URL,
       datePublished: '2026-09-07',
       dateModified: now,
-      measurementTechnique: 'Медиана цены аренды за м² по активным объявлениям Kufar, Realt, Domovita и Megapolis, срез по административному району',
+      measurementTechnique: 'Медиана цены аренды за м² по активным объявлениям Kufar, Realt, Domovita, Megapolis, Garantiruem и Pro-N, срез по административному району',
     });
     if (districts.length > 0) {
       const officeRows = (bySegment?.ofisy_bc ?? []).filter((r) => r.n >= MIN_RELIABLE_N && r.median != null);
@@ -93,7 +93,7 @@ export function DistrictsAnalyticsPage() {
       faq.push({
         question: 'Откуда берутся данные?',
         answer:
-          'Из активных объявлений аренды на Kufar, Realt.by, Domovita и Megapolis-real, по трём сегментам: офисы в бизнес-центрах, торговые помещения, склады. Подробности — на странице методики.',
+          'Из активных объявлений аренды на Kufar, Realt.by, Domovita, Megapolis-real, Garantiruem.by и Pro-N.by, по трём сегментам: офисы в бизнес-центрах, торговые помещения, склады. Подробности — на странице методики.',
       });
       setFaqJsonLd(faq);
     }
