@@ -9,14 +9,7 @@ import { loadYmaps } from '../../lib/yandexMaps';
 import { useInView } from '../../lib/useInView';
 import type { CatalogOfferIndex } from '../../lib/businessCenterCatalogFilter';
 import { nearestNeighbours } from '../../lib/businessCenterMarketPosition';
-import {
-  formatMeters,
-  groupNearbyPlaces,
-  hasNearbyContent,
-  latestCollectedAt,
-  mergeMetroStations,
-  nearbySourceLabels,
-} from '../../lib/nearbyPlaces';
+import { formatMeters, groupNearbyPlaces, hasNearbyContent } from '../../lib/nearbyPlaces';
 import type { BusinessCenterNearbyPlace, NearbyPlaceCategory } from '../../data/businessCenterNearbyPlaces';
 
 // Б3 и Б6 плана docs/bc-catalog-redesign-plan.md — карта здания с соседями и
@@ -133,14 +126,6 @@ export function NearbyInfrastructureBlock({
   places: BusinessCenterNearbyPlace[];
 }) {
   const groups = useMemo(() => groupNearbyPlaces(places), [places]);
-  const metroStations = useMemo(
-    () => mergeMetroStations(center.nearestMetroStations, places),
-    [center.nearestMetroStations, places],
-  );
-  const stops = useMemo(
-    () => places.filter((place) => place.category === 'transport_stop').sort((a, b) => a.distanceMeters - b.distanceMeters),
-    [places],
-  );
   const [activeCategories, setActiveCategories] = useState<Set<NearbyPlaceCategory>>(new Set());
   const visiblePlaces = useMemo(
     () => (activeCategories.size === 0 ? places : places.filter((place) => activeCategories.has(place.category))),
@@ -150,8 +135,6 @@ export function NearbyInfrastructureBlock({
     () => (activeCategories.size === 0 ? groups : groups.filter((group) => activeCategories.has(group.category))),
     [activeCategories, groups],
   );
-  const collectedAt = useMemo(() => latestCollectedAt(places), [places]);
-  const sourceLabels = useMemo(() => nearbySourceLabels(places), [places]);
   if (center.lat == null || center.lng == null) return null;
   const hasContent = hasNearbyContent(center, places);
 
@@ -171,43 +154,12 @@ export function NearbyInfrastructureBlock({
           <MapPin className="h-5 w-5 shrink-0 text-ink-muted" />
           {hasContent ? 'Инфраструктура рядом' : 'Расположение на карте'}
         </h2>
-        <p className="text-xs text-ink-faint">
-          {hasContent
-            ? 'Метро — в радиусе 2 км, остановки — 800 м, магазины и сервисы — 500 м. Точки собраны заранее и периодически обновляются.'
-            : 'Где стоит здание. Снимок окружающей инфраструктуры для него ещё не собран.'}
-        </p>
+        {!hasContent && (
+          <p className="text-xs text-ink-faint">
+            Где стоит здание. Снимок окружающей инфраструктуры для него ещё не собран.
+          </p>
+        )}
       </div>
-
-      {/* Транспорт — отдельной строкой над картой, а не одной из категорий-чипов
-          (владелец, 2026-09-20: «метро и остановки обязательными»). Для офиса
-          это первый вопрос сотрудника, и он не должен зависеть от того, какой
-          фильтр включён и доехала ли карта. */}
-      {(metroStations.length > 0 || stops.length > 0) && (
-        <div className="flex flex-col gap-2 rounded-2xl bg-surface-muted px-4 py-3">
-          {metroStations.length > 0 && (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink">
-              <TrainFront className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden />
-              <span className="font-semibold">Метро:</span>
-              {metroStations.slice(0, 3).map((station, index) => (
-                <span key={station.name} className="text-ink-muted">
-                  <span className="font-medium text-ink">{station.name}</span>
-                  {station.line ? ` (${station.line})` : ''} — {formatMeters(station.distanceMeters)}
-                  {index < Math.min(metroStations.length, 3) - 1 ? ',' : ''}
-                </span>
-              ))}
-            </div>
-          )}
-          {stops.length > 0 && (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink">
-              <BusFront className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden />
-              <span className="font-semibold">Остановки:</span>
-              <span className="text-ink-muted">
-                {stops.length} в пешей доступности, ближайшая — «{stops[0].name}», {formatMeters(stops[0].distanceMeters)}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
 
       {groups.length > 0 && (
         <div className="flex flex-wrap gap-2" aria-label="Фильтры объектов инфраструктуры">
@@ -236,48 +188,41 @@ export function NearbyInfrastructureBlock({
 
       <MiniMap center={center} places={visiblePlaces} />
 
-      {/* Тот же список текстом. Карта Яндекса — это JS: без неё (краулер,
-          пререндер, выключенный JS, заблокированный домен ключа) от блока
-          оставались только чипы с числами, то есть страница ничего не
-          рассказывала о том, что именно стоит рядом. */}
+      {/* Легенда к карте, не текстовый абзац и не повтор чипов: та же точка
+          цвета, что и метка на карте, дальше — сами объекты и расстояния
+          одной строкой на категорию. Без неё (краулер, пререндер,
+          выключенный JS, заблокированный домен ключа) от блока оставались
+          бы только чипы с числами — страница ничего не рассказывала о том,
+          что именно стоит рядом. */}
       {visibleGroups.length > 0 && (
-        <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+        <ul className="flex flex-col gap-0.5" aria-label="Легенда карты">
           {visibleGroups.map((group) => {
             const meta = CATEGORY_META[group.category] ?? CATEGORY_META.other;
-            const Icon = meta.icon;
             const shown = group.places.slice(0, NEARBY_LIST_LIMIT);
             const rest = group.places.length - shown.length;
             return (
-              <section key={group.category} className="flex flex-col gap-1.5" aria-labelledby={`nearby-${group.category}`}>
-                <h3
-                  id={`nearby-${group.category}`}
-                  className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-muted"
-                >
-                  <Icon className="h-3.5 w-3.5" style={{ color: meta.color }} aria-hidden />
-                  {group.label} · {group.places.length}
-                </h3>
-                <ul className="flex flex-col gap-1">
-                  {shown.map((place) => (
-                    <li key={place.id} className="flex items-baseline justify-between gap-3 text-sm">
-                      <span className="text-ink">{place.name}</span>
-                      <span className="shrink-0 tabular-nums text-xs text-ink-faint">{formatMeters(place.distanceMeters)}</span>
-                    </li>
+              <li key={group.category} className="flex items-baseline gap-2 text-sm">
+                <span
+                  className="mt-1 h-2 w-2 shrink-0 self-start rounded-full"
+                  style={{ backgroundColor: meta.color }}
+                  aria-hidden
+                />
+                <p className="text-ink-muted">
+                  <span className="font-semibold text-ink">{group.label}:</span>{' '}
+                  {shown.map((place, index) => (
+                    <span key={place.id}>
+                      {place.name} — {formatMeters(place.distanceMeters)}
+                      {index < shown.length - 1 ? ', ' : ''}
+                    </span>
                   ))}
-                </ul>
-                {rest > 0 && <p className="text-xs text-ink-faint">и ещё {rest} — на карте выше</p>}
-              </section>
+                  {rest > 0 ? `, и ещё ${rest} — на карте выше` : ''}
+                </p>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
 
-      {places.length > 0 && (
-        <p className="text-xs text-ink-faint">
-          Источник: {sourceLabels.join(', ')}
-          {collectedAt ? `, данные на ${collectedAt.toLocaleDateString('ru-RU')}` : ''}. Расстояния указаны по прямой,
-          не по маршруту.
-        </p>
-      )}
     </div>
   );
 }
