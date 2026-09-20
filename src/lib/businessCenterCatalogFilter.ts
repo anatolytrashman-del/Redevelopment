@@ -44,12 +44,6 @@ export const CATALOG_SORTS: { key: CatalogSortKey; label: string }[] = [
 
 // --- Состояние ---------------------------------------------------------
 
-// Значение оси «класс» для зданий, у которых businessClass не заполнен
-// (не такой же класс, как A/B+/B/C, а отдельное состояние «неизвестно»,
-// владелец, 2026-09-20: "присвой тег «Класс не присвоен» и выведи это в
-// том числе в фильтры").
-export const CLASS_NOT_ASSIGNED = 'none';
-
 export interface CatalogFilterState {
   classes: string[];
   // Статус здания — построено / строится (владелец, 2026-09-20). [] = обе
@@ -368,7 +362,7 @@ export function parseCatalogFilter(params: URLSearchParams): CatalogFilterState 
   const metroRaw = Number(params.get('metro'));
   const lotRaw = Number(params.get('lot'));
   return {
-    classes: splitList(params.get('class')).filter((v) => ['A', 'B+', 'B', 'C', CLASS_NOT_ASSIGNED].includes(v)),
+    classes: splitList(params.get('class')).filter((v) => ['A', 'B+', 'B', 'C'].includes(v)),
     statuses: splitList(params.get('status')).filter((v) => ['built', 'under_construction'].includes(v)),
     districts: parseSelection(params, 'district'),
     microdistricts: parseSelection(params, 'microdistrict'),
@@ -449,9 +443,7 @@ export function matchesCatalogFilter(
   offers: CatalogOfferIndex,
 ): boolean {
   if (state.classes.length > 0) {
-    const matchesClass =
-      center.businessClass === null ? state.classes.includes(CLASS_NOT_ASSIGNED) : state.classes.includes(center.businessClass);
-    if (!matchesClass) return false;
+    if (center.businessClass === null || !state.classes.includes(center.businessClass)) return false;
   }
   if (state.statuses.length > 0 && !state.statuses.includes(center.status)) {
     return false;

@@ -56,7 +56,6 @@ import {
 } from '../components/businessCenters/CatalogMarketBlocks';
 import { SOURCE_LABELS, MIN_RELIABLE_N, type ExternalMetric, type MarketSnapshot } from '../data/marketSnapshots';
 import {
-  CLASS_NOT_ASSIGNED,
   EMPTY_CATALOG_FILTER,
   MAX_COMPARE,
   METRO_LINE_DOT_CLASS,
@@ -174,9 +173,11 @@ function BusinessCenterCard({ center }: { center: BusinessCenter }) {
       <div className="relative aspect-square w-full overflow-hidden">
         <PhotoBlock center={center} variant="card" />
         <div className="absolute left-2 top-2 flex flex-wrap items-start gap-1.5">
-          <span className="rounded-full bg-ink-muted/90 px-2.5 py-1 text-xs font-bold text-white shadow-sm backdrop-blur-sm">
-            {center.businessClass ? `Класс ${center.businessClass}` : 'Класс не присвоен'}
-          </span>
+          {center.businessClass && (
+            <span className="rounded-full bg-ink-muted/90 px-2.5 py-1 text-xs font-bold text-white shadow-sm backdrop-blur-sm">
+              {`Класс ${center.businessClass}`}
+            </span>
+          )}
           {center.status === 'under_construction' && (
             <span className="flex items-center gap-1 rounded-full bg-ink-muted/90 px-2.5 py-1 text-xs font-bold text-white shadow-sm backdrop-blur-sm">
               <HardHat className="h-3.5 w-3.5 shrink-0" />
@@ -520,9 +521,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // «B» перед «B+», потому что для строк «B» < «B+».
   const availableClasses = useMemo(() => {
     const present = new Set((centers ?? []).map((c) => c.businessClass).filter((v): v is NonNullable<typeof v> => !!v));
-    const known = BUSINESS_CENTER_CLASSES.filter((cls) => present.has(cls));
-    const hasUnassigned = (centers ?? []).some((c) => c.businessClass === null);
-    return hasUnassigned ? [...known, CLASS_NOT_ASSIGNED] : known;
+    return BUSINESS_CENTER_CLASSES.filter((cls) => present.has(cls));
   }, [centers]);
   // Статус — построено/строится — не показываем на хабе «Строящиеся»
   // (/minsk/bcminsk/stroyashchiesya): там ось уже задана маршрутом, чип
@@ -1232,17 +1231,11 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                   [
                     {
                       label: 'По классу',
-                      // «Класс не присвоен» — только чип клиентского фильтра
-                      // (query, не индексируется), у него нет собственного
-                      // SEO-хаба и не должно быть — classHubUrl тут не знает
-                      // такого значения.
-                      items: availableClasses
-                        .filter((cls): cls is NonNullable<BusinessCenter['businessClass']> => cls !== CLASS_NOT_ASSIGNED)
-                        .map((cls) => ({
-                          key: cls,
-                          name: `Класс ${cls}`,
-                          url: classHubUrl(cls),
-                        })),
+                      items: availableClasses.map((cls) => ({
+                        key: cls,
+                        name: `Класс ${cls}`,
+                        url: classHubUrl(cls),
+                      })),
                     },
                     {
                       label: 'По району',
