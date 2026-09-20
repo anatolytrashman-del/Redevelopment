@@ -390,11 +390,11 @@ export function CatalogFilterPanel({
         ))}
       </ChipRow>
 
-      <p className="text-xs text-ink-faint">
-        Фильтры отбирают здания, по которым признак известен.
-        {unverifiableCount > 0 &&
-          ` По выбранному фильтру ${unverifiableCount} ${plural(unverifiableCount, 'здание', 'здания', 'зданий')} проверить невозможно: признака нет в данных prometr.by и 2ГИС — они не попадают ни в совпадения, ни в несовпадения.`}
-      </p>
+      {unverifiableCount > 0 && (
+        <p className="text-xs text-ink-faint">
+          По выбранному фильтру {unverifiableCount} {plural(unverifiableCount, 'здание', 'здания', 'зданий')} проверить невозможно: признака нет в данных prometr.by и 2ГИС — они не попадают ни в совпадения, ни в несовпадения.
+        </p>
+      )}
     </div>
   );
 
