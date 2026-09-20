@@ -57,6 +57,7 @@
     { "source": "/plan/(.*)", "destination": "/plan.html" },
     { "source": "/summary/(.*)", "destination": "/summary.html" },
     { "source": "/business-upload", "destination": "/business-upload.html" },
+    { "source": "/favorites/(.*)", "destination": "/favorites.html" },
     { "source": "/admin/objects/(.*)", "destination": "/admin/objects/index.html" },
     { "source": "/admin/estimates/(.*)", "destination": "/admin/estimates/index.html" },
     { "source": "/admin/finmodels/(.*)", "destination": "/admin/finmodels/index.html" },
