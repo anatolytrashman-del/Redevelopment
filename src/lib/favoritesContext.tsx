@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Heart } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+import { X } from 'lucide-react';
 import { cn } from './cn';
 import { glassPillClass, glassPillShadow } from './glass';
 import { createFavoriteList, fetchFavoriteList, updateFavoriteListSlugs } from './favoritesApi';
@@ -12,6 +12,7 @@ import { createFavoriteList, fetchFavoriteList, updateFavoriteListSlugs } from '
 // браузере" (как cookie), не сам список — источник истины всегда база.
 const STORAGE_KEY = 'rdvlp:favoritesId';
 const FAVORITES_PATH_RE = /^\/favorites\/([a-zA-Z0-9]+)$/;
+const TOAST_DURATION_MS = 10000;
 
 function readStoredId(): string | null {
   try {
@@ -31,6 +32,10 @@ function writeStoredId(id: string | null) {
   }
 }
 
+export function favoritesShareUrl(id: string): string {
+  return `${window.location.origin}/favorites/${id}`;
+}
+
 interface FavoritesContextValue {
   id: string | null;
   slugs: string[];
@@ -45,6 +50,35 @@ export function FavoritesProvider({ children }: { children: ReactNode }) {
   const [id, setId] = useState<string | null>(null);
   const [slugs, setSlugs] = useState<string[]>([]);
   const loadedIdRef = useRef<string | null>(null);
+
+  // Владелец, 2026-09-21: при добавлении в избранное ссылка на подборку
+  // сразу копируется в буфер — это единственный способ вернуться к списку
+  // без аккаунта, поэтому её стоит отдать в руки сразу, а не заставлять
+  // искать плашку. Уведомление — 10 секунд, закрывается вручную.
+  const [toastVisible, setToastVisible] = useState(false);
+  const toastTimeoutRef = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (toastTimeoutRef.current !== null) window.clearTimeout(toastTimeoutRef.current);
+    },
+    [],
+  );
+
+  const copyShareLink = useCallback((listId: string) => {
+    const url = favoritesShareUrl(listId);
+    navigator.clipboard
+      ?.writeText(url)
+      .then(() => {
+        setToastVisible(true);
+        if (toastTimeoutRef.current !== null) window.clearTimeout(toastTimeoutRef.current);
+        toastTimeoutRef.current = window.setTimeout(() => setToastVisible(false), TOAST_DURATION_MS);
+      })
+      .catch(() => {
+        // буфер обмена недоступен (запрет разрешения/небезопасный контекст) —
+        // просто не показываем уведомление про несостоявшееся копирование
+      });
+  }, []);
 
   useEffect(() => {
     const urlId = location.pathname.match(FAVORITES_PATH_RE)?.[1] ?? null;
@@ -65,45 +99,53 @@ export function FavoritesProvider({ children }: { children: ReactNode }) {
 
   const toggleFavorite = useCallback(
     (slug: string) => {
-      const next = slugs.includes(slug) ? slugs.filter((s) => s !== slug) : [...slugs, slug];
+      const isAdding = !slugs.includes(slug);
+      const next = isAdding ? [...slugs, slug] : slugs.filter((s) => s !== slug);
       setSlugs(next);
       if (id) {
         updateFavoriteListSlugs(id, next).catch(() => {});
+        if (isAdding) copyShareLink(id);
       } else {
         createFavoriteList(next)
           .then((list) => {
             loadedIdRef.current = list.id;
             setId(list.id);
             writeStoredId(list.id);
+            if (isAdding) copyShareLink(list.id);
           })
           .catch(() => {});
       }
     },
-    [id, slugs],
+    [id, slugs, copyShareLink],
   );
 
   const isFavorite = useCallback((slug: string) => slugs.includes(slug), [slugs]);
 
   const value = useMemo(() => ({ id, slugs, isFavorite, toggleFavorite }), [id, slugs, isFavorite, toggleFavorite]);
 
-  const onFavoritesPage = FAVORITES_PATH_RE.test(location.pathname);
-  const showIndicator = !location.pathname.startsWith('/admin') && !onFavoritesPage && slugs.length > 0 && id;
-
   return (
     <FavoritesContext.Provider value={value}>
       {children}
-      {showIndicator && (
-        <Link
-          to={`/favorites/${id}`}
-          style={glassPillShadow}
-          className={cn(
-            glassPillClass,
-            'fixed bottom-4 right-4 z-40 flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold text-ink transition-transform hover:-translate-y-0.5',
-          )}
-        >
-          <Heart className="h-4 w-4 shrink-0 fill-primary text-primary" />
-          Избранное ({slugs.length})
-        </Link>
+      {toastVisible && (
+        <div className="pointer-events-none fixed inset-x-0 top-3 z-50 flex justify-center px-4">
+          <div
+            style={glassPillShadow}
+            className={cn(
+              glassPillClass,
+              'pointer-events-auto flex max-w-md items-center gap-2 px-3.5 py-2 text-xs font-semibold text-ink',
+            )}
+          >
+            <span>Сохраните ссылку на избранное — она скопирована в буфер обмена</span>
+            <button
+              type="button"
+              onClick={() => setToastVisible(false)}
+              aria-label="Закрыть уведомление"
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-ink-muted hover:text-ink"
+            >
+              <X className="h-3.5 w-3.5 shrink-0" />
+            </button>
+          </div>
+        </div>
       )}
     </FavoritesContext.Provider>
   );
