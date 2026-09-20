@@ -8,7 +8,6 @@ import { loadYmaps } from '../../lib/yandexMaps';
 import { useInView } from '../../lib/useInView';
 import { formatMeters, groupNearbyPlaces, hasNearbyContent, type NearbyCategoryGroup } from '../../lib/nearbyPlaces';
 import type { BusinessCenterNearbyPlace, NearbyPlaceCategory } from '../../data/businessCenterNearbyPlaces';
-import { CategoryToggle } from '../district/CategoryToggle';
 
 const ALL_CATEGORIES_KEY = 'all';
 
@@ -193,8 +192,43 @@ export function NearbyInfrastructureBlock({
             </p>
           )}
         </div>
-        {groups.length > 1 && <CategoryToggle value={activeKey} options={categoryOptions} onChange={setActiveKey} />}
       </div>
+
+      {/* Слои карты — заметный ряд цветных чипов (владелец, 2026-09-20:
+          "селектор очень незаметный, сделай более видимым"), не дропдаун:
+          все категории видны сразу без клика, активная залита цветом
+          категории (тем же, что метки на карте и точки легенды ниже). */}
+      {groups.length > 1 && (
+        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" aria-label="Слои карты">
+          {categoryOptions.map((option) => {
+            const meta = option.key === ALL_CATEGORIES_KEY ? null : CATEGORY_META[option.key as NearbyPlaceCategory] ?? CATEGORY_META.other;
+            const isActive = activeKey === option.key;
+            return (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => setActiveKey(option.key)}
+                className={cn(
+                  'flex shrink-0 items-center gap-1.5 rounded-full border-2 px-3.5 py-2 text-sm font-semibold transition-colors',
+                  isActive
+                    ? 'border-transparent text-white'
+                    : 'border-border bg-surface text-ink hover:border-border-strong',
+                )}
+                style={isActive ? { backgroundColor: meta?.color ?? '#111827' } : undefined}
+              >
+                {meta && (
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: isActive ? '#ffffff' : meta.color }}
+                    aria-hidden
+                  />
+                )}
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <MiniMap center={center} groups={groups} activeKey={activeKey} />
 
