@@ -173,8 +173,14 @@ export function BusinessCenterCard({ center }: { center: BusinessCenter }) {
       )}
       style={glassCardShadow}
     >
-      <div className="relative aspect-square w-full overflow-hidden">
-        <PhotoBlock center={center} variant="card" />
+      {/* pt-[100%] вместо aspect-square — тот же Safari-баг, что уже правили
+          в hero БЦ (docs/session-journal.md, 2026-09-17): Grid + CSS
+          aspect-ratio на карточке в её же потоке "плывёт" в Safari, а
+          padding-подложка с абсолютным фото внутри — нет. */}
+      <div className="relative w-full overflow-hidden pt-[100%]">
+        <div className="absolute inset-0">
+          <PhotoBlock center={center} variant="card" />
+        </div>
         <div className="absolute left-2 top-2 flex flex-wrap items-start gap-1.5">
           {center.businessClass && (
             <span className="rounded-full bg-ink-muted/90 px-2.5 py-1 text-xs font-bold text-white shadow-sm backdrop-blur-sm">
