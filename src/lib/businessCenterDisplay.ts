@@ -260,3 +260,12 @@ export function businessCenterHomepageUrl(website: string | null): string | null
 export function sortByShortName(centers: BusinessCenter[]): BusinessCenter[] {
   return [...centers].sort((a, b) => shortName(a).localeCompare(shortName(b), 'ru'));
 }
+
+// Расстояние до метро на карточке каталога — владелец, 2026-09-20: "не 2000
+// м, а 1.2 км" (длинные метры нечитаемы на компактной карточке). Ниже
+// километра оставляем метры как есть — там округление до сотен ничего не
+// упрощает.
+export function formatMetroDistance(meters: number): string {
+  if (meters < 1000) return `${meters} м`;
+  return `${(meters / 1000).toFixed(1).replace(/\.0$/, '')} км`;
+}

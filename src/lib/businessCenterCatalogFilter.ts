@@ -44,8 +44,17 @@ export const CATALOG_SORTS: { key: CatalogSortKey; label: string }[] = [
 
 // --- Состояние ---------------------------------------------------------
 
+// Значение оси «класс» для зданий, у которых businessClass не заполнен
+// (не такой же класс, как A/B+/B/C, а отдельное состояние «неизвестно»,
+// владелец, 2026-09-20: "присвой тег «Класс не присвоен» и выведи это в
+// том числе в фильтры").
+export const CLASS_NOT_ASSIGNED = 'none';
+
 export interface CatalogFilterState {
   classes: string[];
+  // Статус здания — построено / строится (владелец, 2026-09-20). [] = обе
+  // группы, как и у classes/facts — явный выбор сужает.
+  statuses: string[];
   // null = выбраны все значения; [] = пользователь явно снял все галочки.
   // Различие нужно селекторам района и микрорайона: раньше пустой массив
   // одновременно означал и «все», и «ничего», поэтому «Снять все» не могло
@@ -93,6 +102,7 @@ export const CATALOG_VIEWS: { key: CatalogView; label: string }[] = [
 
 export const EMPTY_CATALOG_FILTER: CatalogFilterState = {
   classes: [],
+  statuses: [],
   districts: null,
   microdistricts: null,
   metroWithin: null,
@@ -171,6 +181,24 @@ export const MINSK_METRO_LINES = [
     ],
   },
 ] as const;
+
+// Цвет линии для маркера у станции метро на карточке каталога — официальная
+// раскраска линий Минского метро (владелец, 2026-09-20: "для Московской —
+// синим, для Автозаводской — красным, для Зеленолужской — зелёным"), не
+// сырой hex из 2GIS: тот у всех станций совпадает с этой раскраской, но
+// зависеть от того, что конкретно прислал источник на каждую запись, не
+// стоит — три известные линии красим явно, остальное (пока таких нет) —
+// нейтральным серым.
+export const METRO_LINE_DOT_CLASS: Record<string, string> = {
+  blue: 'bg-[#1976c9]',
+  red: 'bg-[#e31d35]',
+  green: 'bg-[#169447]',
+};
+
+export function metroLineId(line: string | null): string | null {
+  if (!line) return null;
+  return MINSK_METRO_LINES.find((l) => l.label === line)?.id ?? null;
+}
 
 // Снимки рынка по зданию (Д3) — медиана ставки и число объявлений по слагу.
 // Передаются в фильтр и сортировку явным аргументом, а не берутся из
@@ -311,6 +339,7 @@ export function isPresetActive(preset: CatalogPreset, state: CatalogFilterState)
     a === null || b === null ? a === b : same(a, b);
   return (
     same(target.classes, state.classes) &&
+    same(target.statuses, state.statuses) &&
     sameNullable(target.districts, state.districts) &&
     sameNullable(target.microdistricts, state.microdistricts) &&
     same(target.facts, state.facts) &&
@@ -339,7 +368,8 @@ export function parseCatalogFilter(params: URLSearchParams): CatalogFilterState 
   const metroRaw = Number(params.get('metro'));
   const lotRaw = Number(params.get('lot'));
   return {
-    classes: splitList(params.get('class')).filter((v) => ['A', 'B+', 'B', 'C'].includes(v)),
+    classes: splitList(params.get('class')).filter((v) => ['A', 'B+', 'B', 'C', CLASS_NOT_ASSIGNED].includes(v)),
+    statuses: splitList(params.get('status')).filter((v) => ['built', 'under_construction'].includes(v)),
     districts: parseSelection(params, 'district'),
     microdistricts: parseSelection(params, 'microdistrict'),
     metroWithin: METRO_WITHIN_OPTIONS.some((o) => o.value === metroRaw) ? metroRaw : null,
@@ -362,6 +392,7 @@ export function parseCatalogFilter(params: URLSearchParams): CatalogFilterState 
 export function catalogFilterToQuery(state: CatalogFilterState): string {
   const params = new URLSearchParams();
   if (state.classes.length > 0) params.set('class', [...state.classes].sort().join(','));
+  if (state.statuses.length > 0) params.set('status', [...state.statuses].sort().join(','));
   if (state.districts !== null) params.set('district', [...state.districts].sort().join(','));
   if (state.microdistricts !== null) params.set('microdistrict', [...state.microdistricts].sort().join(','));
   if (state.metroWithin != null) params.set('metro', String(state.metroWithin));
@@ -381,6 +412,7 @@ export function catalogFilterToQuery(state: CatalogFilterState): string {
 export function hasActiveCatalogFilter(state: CatalogFilterState): boolean {
   return (
     state.classes.length > 0 ||
+    state.statuses.length > 0 ||
     state.districts !== null ||
     state.microdistricts !== null ||
     state.metroWithin != null ||
@@ -416,7 +448,12 @@ export function matchesCatalogFilter(
   state: CatalogFilterState,
   offers: CatalogOfferIndex,
 ): boolean {
-  if (state.classes.length > 0 && (center.businessClass === null || !state.classes.includes(center.businessClass))) {
+  if (state.classes.length > 0) {
+    const matchesClass =
+      center.businessClass === null ? state.classes.includes(CLASS_NOT_ASSIGNED) : state.classes.includes(center.businessClass);
+    if (!matchesClass) return false;
+  }
+  if (state.statuses.length > 0 && !state.statuses.includes(center.status)) {
     return false;
   }
   if (state.districts !== null && (center.district === null || !state.districts.includes(center.district))) {
