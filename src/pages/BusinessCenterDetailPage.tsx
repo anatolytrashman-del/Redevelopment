@@ -54,6 +54,7 @@ import {
 } from '../lib/pageMeta';
 import {
   businessCenterHomepageUrl,
+  shortAddress,
   shortName,
   sortByShortName,
   mapRatingFromHighlights,
@@ -549,9 +550,22 @@ export function BusinessCenterDetailPage() {
             (metroHubDistance(b, nearestMetro.name) ?? Number.POSITIVE_INFINITY),
           )
       : [];
+    // Владелец, 2026-09-20: "по возможности не выводить дубли БЦ в блоках у
+    // метро и на улице" — здание может стоять и на нужной улице, и у того же
+    // метро одновременно. RelatedCentersSection показывает только первые 2
+    // из каждого списка (см. `visible` там), поэтому исключаем из уличной
+    // подборки именно то, что реально попадёт в видимые 2 карточки метро —
+    // а не весь (более длинный) список метро, откуда владелец мог бы никогда
+    // не долистать до совпадения.
+    const metroVisibleSlugs = new Set(metro.slice(0, 2).map((c) => c.slug));
     const streetCenters = street
       ? centers
-          .filter((candidate) => candidate.slug !== center.slug && streetOfAddress(candidate.address) === street)
+          .filter(
+            (candidate) =>
+              candidate.slug !== center.slug &&
+              streetOfAddress(candidate.address) === street &&
+              !metroVisibleSlugs.has(candidate.slug),
+          )
           .sort(byDistance)
       : [];
     return { metro, street: streetCenters };
@@ -931,9 +945,9 @@ export function BusinessCenterDetailPage() {
     );
   }
 
-  const displayAddress = /^г\.\s*Минск(?:,|\s)/i.test(center.address)
-    ? center.address
-    : `г. Минск, ${center.address}`;
+  // Владелец, 2026-09-20: "из адреса убираем город и район, только улица и
+  // дом" — та же обрезка, что и на карточке каталога (shortAddress).
+  const displayAddress = shortAddress(center.address);
   const centerWebsiteUrl = businessCenterHomepageUrl(center.website);
   // Сайт застройщика — обычно ДРУГОЙ домен, чем сайт самого БЦ выше
   // (у «Футуриса» это futuris-bc.by у здания и tapas.by у ГК «Тапас»),
@@ -1087,63 +1101,54 @@ export function BusinessCenterDetailPage() {
               одним revert без затрагивания остальных блоков страницы. */}
           <div className="grid lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
             <div className="relative aspect-[16/9] w-full overflow-hidden bg-surface-muted/70 lg:aspect-auto lg:min-h-[28rem]">
-              <PhotoBlock
-                center={center}
-                variant="detail"
-                fit={center.slug === 'port' || center.slug === 'victoria-plaza' ? 'cover' : 'contain'}
-              />
+              {/* cover, не contain — владелец, 2026-09-20: "на некоторых
+                  разрешениях фото не вписано в высоту карточки, остаются
+                  поля — полей быть не должно, где это возможно". contain
+                  сохраняет весь кадр, но на контейнере с фиксированной
+                  aspect-ratio/min-height даёт пустые поля у любого фото, чьё
+                  соотношение сторон не совпадает с контейнером — было заметно
+                  почти на каждом здании, а не только у двух прежних
+                  исключений (port/victoria-plaza, для которых cover включали
+                  точечно). */}
+              <PhotoBlock center={center} variant="detail" fit="cover" />
               <Badge
                 tone={center.status === 'under_construction' ? 'warning' : 'success'}
                 className="absolute right-4 top-4 shadow-sm backdrop-blur-sm"
               >
-                {center.status === 'under_construction' ? 'Строится' : 'Построен'}
+                {center.status === 'under_construction' ? 'Строится' : 'Работает'}
               </Badge>
+              {/* Рейтинг с Яндекс.Карт — бейджем поверх фото, а не рядом с
+                  заголовком (владелец, 2026-09-20: "у нас не влезает название
+                  БЦ, предлагаю рейтинг яндекс.карт сделать бейджем поверх
+                  фото"). 2ГИС-рейтинг с главного экрана убран — владелец
+                  попросил оставить в шапке только Яндекс; 2ГИС-оценка
+                  остаётся в блоке отзывов ниже. Раньше рейтинг был просто
+                  одним из блоков "Интересные факты" (свободный markdown-текст
+                  вида "Яндекс.Карты: **5,0** из 5 (204 оценки...)") —
+                  структурного поля под число нет, поэтому парсим ту же
+                  строку регуляркой (mapRatingFromHighlights) — если формат не
+                  узнан, бейдж просто не показывается, ничего не выдумываем. */}
+              {mapRating && (
+                <span className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-ink shadow-sm backdrop-blur-sm">
+                  <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-500" />
+                  {mapRating.label} · Яндекс.Карты
+                </span>
+              )}
             </div>
 
             <div className="flex flex-col gap-4 p-5 sm:p-6">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+            <div className="flex flex-col gap-0.5">
               {/* Второе имя здания — сразу под заголовком, а не только в
                   title: по Wordstat БЦ «V» ищут как «Столица» чаще, чем под
                   основным именем, и человек, пришедший по такому запросу,
                   должен увидеть знакомое слово на первом экране, иначе
                   решит, что попал не туда. */}
-              <div className="flex flex-col gap-0.5">
-                <h1 className="text-2xl font-extrabold leading-tight text-ink">{center.name}</h1>
-                {center.altNames.length > 0 && (
-                  <p className="text-sm text-ink-muted">
-                    Также известен как {center.altNames.map((alt) => `«${alt}»`).join(', ')}
-                  </p>
-                )}
-              </div>
-              <div className="flex shrink-0 flex-wrap items-center gap-3 text-sm font-semibold text-ink-muted">
-                {/* Рейтинг с Яндекс.Карт/2ГИС — владелец, 2026-09-06 (четвёртый
-                    заход): "справа от заголовка рейтинг с яндекс.карт, а из
-                    интересных фактов инфу про оценку убирай". Раньше рейтинг
-                    был просто одним из блоков "Интересные факты" (свободный
-                    markdown-текст вида "Яндекс.Карты: **5,0** из 5 (204
-                    оценки...)") — структурного поля под число нет, поэтому
-                    парсим ту же строку регуляркой (extractMapRating ниже) —
-                    если формат не узнан, бейдж просто не показывается, ничего
-                    не выдумываем. */}
-                {mapRating && (
-                  <span className="inline-flex items-center gap-1.5 leading-none">
-                    <Star className="h-3 w-3 shrink-0 translate-y-px fill-amber-400 text-amber-500" />
-                    {mapRating.label} · На Яндекс.Картах
-                  </span>
-                )}
-                {/* Рейтинг 2ГИС — отдельный источник от Яндекс.Карт выше,
-                    оба честно подписаны, не смешиваются в один бейдж
-                    (владелец, 2026-09-06: "выведи всю инфу, которую мы
-                    спарсили"). org_review_count может быть null у части
-                    записей (реже — только рейтинг без числа оценок). */}
-                {gis2?.reviews?.orgRating != null && (
-                  <span className="inline-flex items-center gap-1.5 leading-none">
-                    <Star className="h-3 w-3 shrink-0 fill-current" />
-                    {gis2.reviews.orgRating.toLocaleString('ru-RU')} · 2ГИС
-                    {gis2.reviews.orgReviewCount != null && ` (${gis2.reviews.orgReviewCount})`}
-                  </span>
-                )}
-              </div>
+              <h1 className="text-2xl font-extrabold leading-tight text-ink">{center.name}</h1>
+              {center.altNames.length > 0 && (
+                <p className="text-sm text-ink-muted">
+                  Также известен как {center.altNames.map((alt) => `«${alt}»`).join(', ')}
+                </p>
+              )}
             </div>
 
             {/* Район, адрес и метро — три горизонтальные строки:
@@ -1156,7 +1161,7 @@ export function BusinessCenterDetailPage() {
                 {redistributedTechnicalParams.administrativeDistrictText && (
                   <div className="grid min-w-0 items-baseline gap-x-2 sm:grid-cols-[max-content_auto_minmax(0,1fr)]">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
-                      Административный район
+                      Район
                     </p>
                     <span className="hidden text-xs text-ink-muted sm:inline" aria-hidden="true">—</span>
                     <p className="mt-0.5 min-w-0 text-sm leading-snug text-ink sm:mt-0">
@@ -1210,20 +1215,9 @@ export function BusinessCenterDetailPage() {
                 карточка (логотип/описание/контакты) теперь идёт отдельной
                 секцией сразу под этим главным блоком, см. developerInfo
                 ниже. Короткая текстовая версия осталась только в FAQ
-                ("Кто застройщик «...»?"). */}
-            {centerWebsiteUrl && (
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-muted">
-                <a
-                  href={centerWebsiteUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 font-semibold text-primary-hover hover:underline"
-                >
-                  Сайт БЦ
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              </div>
-            )}
+                ("Кто застройщик «...»?"). Ссылка "Сайт БЦ" тоже переехала
+                отсюда 2026-09-20 — теперь отдельным блоком под "Интересными
+                фактами", см. ниже. */}
 
             {/* Ровно 4 плитки — класс/площадь/год/этажность (владелец,
                 2026-09-06, четвёртый заход: "4 карточки - класс, площадь, год
@@ -1388,6 +1382,25 @@ export function BusinessCenterDetailPage() {
                 ));
               })()}
             </div>
+          </div>
+        )}
+
+        {/* Сайт БЦ — отдельным блоком под "Интересными фактами" (владелец,
+            2026-09-20: "сайт БЦ пока убери в отдельный блок, под интересные
+            факты; пока в нём ничего не делать, просто оставь ссылку").
+            Раньше жила короткой строкой в главном блоке — переехала, чтобы
+            освободить место наверху (см. комментарий там же). */}
+        {centerWebsiteUrl && (
+          <div className={cn('mt-6 flex items-center gap-2 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <a
+              href={centerWebsiteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-hover hover:underline"
+            >
+              Сайт БЦ
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
           </div>
         )}
 
@@ -1839,17 +1852,21 @@ function RelatedCentersSection({
             ? { name: stationName, distanceMeters: metroHubDistance(related, stationName) }
             : nearestMetroStation(related.nearestMetroStations);
           return (
-          <article
+          // Владелец, 2026-09-20: "сделай так, чтобы вся площадь плитки была
+          // кликабельной" — раньше кликались только фото и текст "Подробнее",
+          // остальная карточка (заголовок, класс, расстояние до метро) не
+          // реагировала. Вложенные <a> внутри <a> невалидны, поэтому вся
+          // плитка теперь один <Link>, а прежняя вторая ссылка ниже — просто
+          // визуально стилизованный <span>.
+          <Link
             key={related.slug}
-            className="overflow-hidden rounded-2xl border border-border bg-surface sm:grid sm:grid-cols-[10rem_minmax(0,1fr)] lg:block xl:grid xl:grid-cols-[10rem_minmax(0,1fr)]"
+            to={`/minsk/bcminsk/${related.slug}`}
+            aria-label={`Открыть страницу ${related.name}`}
+            className="block overflow-hidden rounded-2xl border border-border bg-surface transition-colors hover:border-primary/40 sm:grid sm:grid-cols-[10rem_minmax(0,1fr)] lg:block xl:grid xl:grid-cols-[10rem_minmax(0,1fr)]"
           >
-            <Link
-              to={`/minsk/bcminsk/${related.slug}`}
-              aria-label={`Открыть страницу ${related.name}`}
-              className="block aspect-square overflow-hidden rounded-2xl bg-surface-muted"
-            >
+            <div className="aspect-square overflow-hidden rounded-2xl bg-surface-muted">
               <PhotoBlock center={related} variant="card" fit="contain" />
-            </Link>
+            </div>
             <div className="flex min-w-0 flex-col items-start justify-center gap-2 p-4">
               <h3 className="text-base font-bold leading-snug text-ink">{shortName(related)}</h3>
               {related.businessClass && (
@@ -1860,15 +1877,12 @@ function RelatedCentersSection({
                   {metro.distanceMeters.toLocaleString('ru-RU')} м до метро
                 </p>
               )}
-              <Link
-                to={`/minsk/bcminsk/${related.slug}`}
-                className="mt-auto inline-flex items-center gap-1 text-sm font-semibold text-primary-hover hover:underline"
-              >
+              <span className="mt-auto inline-flex items-center gap-1 text-sm font-semibold text-primary-hover">
                 Подробнее
                 <ChevronRight className="h-4 w-4" />
-              </Link>
+              </span>
             </div>
-          </article>
+          </Link>
           );
         })}
         {centers.length > 2 && (
