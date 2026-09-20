@@ -11,6 +11,7 @@ import { MinskMirTopicPage } from './pages/MinskMirTopicPage';
 import { BusinessCentersMinskPage } from './pages/BusinessCentersMinskPage';
 import { BusinessCentersRankingPage } from './pages/BusinessCentersRankingPage';
 import { BusinessCenterDetailPage } from './pages/BusinessCenterDetailPage';
+import { FavoritesPage } from './pages/FavoritesPage';
 import { MinskHub } from './pages/MinskHub';
 import { MarketAnalyticsHub } from './pages/MarketAnalyticsHub';
 import { OfficeAnalyticsPage } from './pages/OfficeAnalyticsPage';
@@ -26,6 +27,7 @@ import { NotFound } from './pages/NotFound';
 import { metrikaHit } from './lib/metrika';
 import { vkPixelHit, vkPixelGoal, vkPageGoalForPath } from './lib/vkPixel';
 import { useOnlinePresenceTracker } from './lib/onlinePresence';
+import { FavoritesProvider } from './lib/favoritesContext';
 
 // Вся админка (CRM с десятком разделов — финмодели, сметы, документы и т.д.)
 // нужна только за PasswordGate на /admin/*, но раньше грузилась тем же JS-
@@ -226,6 +228,7 @@ export default function App() {
   useVkPageGoals();
   useOnlineVisitorPresence();
   return (
+    <FavoritesProvider>
     <Routes>
       {/* Публичная часть — без AppLayout и без пароля, для клиентов и рекламы.
           Пока нет отдельного лендинга компании (см. SEO_PLAN.md, Э2-4), корень
@@ -283,6 +286,9 @@ export default function App() {
       <Route path="/plan/:token" element={<PublicBuildingPlan />} />
       <Route path="/tz/:token" element={<BriefPublicPage />} />
       <Route path="/summary/:token" element={<MeetingSummaryPublicPage />} />
+      {/* Избранное без регистрации (владелец, 2026-09-21) — короткий id в
+          URL, открывается на любом устройстве по той же ссылке. */}
+      <Route path="/favorites/:id" element={<FavoritesPage />} />
       <Route
         path="/business-upload"
         element={
@@ -468,5 +474,6 @@ export default function App() {
           проваливаться в CRM — раньше он попадал на Home внутри AppLayout. */}
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </FavoritesProvider>
   );
 }
