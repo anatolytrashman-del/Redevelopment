@@ -136,7 +136,19 @@ export function FavoritesPage() {
           </Card>
         )}
         {!loading && !loadError && favorites.length > 0 && (
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,320px))] items-stretch justify-start gap-5">
+          // Сетка — ровно та же, что в каталоге (BusinessCentersMinskPage,
+          // `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`), и это принципиально.
+          // Здесь до 2026-09-21 стояло `repeat(auto-fit,minmax(260px,320px))`,
+          // и в Safari карточка вытягивалась вниз на пол-экрана пустоты при
+          // правильном квадратном фото — тот же класс бага, что чинили
+          // 2026-09-17 (docs/session-journal.md): ширина трека с auto-fit/
+          // minmax на проходе intrinsic sizing неопределённа, и процентный
+          // `pt-[100%]` фотоподложки резолвится против неверной ширины —
+          // высота ряда считается по ней, а само фото потом рисуется по
+          // фактической. Треки `1fr` берут ширину прямо от контейнера, такой
+          // неопределённости нет. Не менять на auto-fit/minmax ради того,
+          // чтобы одна карточка не оставляла пустое место справа.
+          <div className="grid grid-cols-1 items-stretch gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {favorites.map((c) => (
               <BusinessCenterCard key={c.slug} center={c} />
             ))}

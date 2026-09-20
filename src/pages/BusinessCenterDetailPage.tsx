@@ -67,11 +67,8 @@ import {
 } from '../lib/businessCenterDisplay';
 import { nearestMetroStation } from '../lib/metroStations';
 import {
-  classHubUrl,
-  districtHubUrl,
   metroHubDistance,
   metroHubUrl,
-  microdistrictHubUrl,
   streetHubUrl,
   districtDative,
 } from '../lib/businessCenterHubs';
@@ -105,14 +102,14 @@ import {
 import { TenantDirectory } from '../components/businessCenters/TenantDirectory';
 import type { BusinessCenterTenantSnapshot } from '../data/businessCenterTenants';
 import { buildOfferIndex, METRO_LINE_DOT_CLASS, metroLineId } from '../lib/businessCenterCatalogFilter';
-import { buildMarketPosition, haversineMeters, nearestNeighbours } from '../lib/businessCenterMarketPosition';
+import { buildMarketPosition, haversineMeters } from '../lib/businessCenterMarketPosition';
 import {
   extractHistoryPoints,
   HistoryTimeline,
   MarketPositionBlock,
   WhatTheySayBlock,
 } from '../components/businessCenters/BusinessCenterMarketBlocks';
-import { NearbyInfrastructureBlock, SimilarCentersBlock, similarCenters } from '../components/businessCenters/BusinessCenterNeighbours';
+import { NearbyInfrastructureBlock } from '../components/businessCenters/BusinessCenterNeighbours';
 
 // Отдельная страница одного бизнес-центра (владелец, 2026-09-04: "для SEO
 // лучше хаб + отдельная страница на каждый БЦ" — согласился с этим доводом
@@ -143,7 +140,6 @@ const SECTION_LABELS: Record<string, string> = {
   offers: 'Предложения',
   history: 'История здания',
   reviews: 'Отзывы',
-  similar: 'Похожие',
   faq: 'Вопросы',
 };
 
@@ -162,7 +158,6 @@ const SECTION_ICONS: Record<string, typeof FileText> = {
   offers: Banknote,
   history: Clock,
   reviews: MessageSquareQuote,
-  similar: Building2,
   faq: Info,
 };
 
@@ -703,22 +698,6 @@ export function BusinessCenterDetailPage() {
     () => (center ? buildMarketPosition(center, centers ?? [], officeSnapshots, offerIndex) : null),
     [center, centers, officeSnapshots, offerIndex],
   );
-  // Чипы-хабы вместо простого текста со ссылками (Б6): район, класс,
-  // станция, улица, микрорайон — только те, для которых хаб реально есть.
-  const hubChips = useMemo(() => {
-    if (!center) return [];
-    const street = streetOfAddress(center.address);
-    const station = center.nearestMetroStations.length > 0
-      ? [...center.nearestMetroStations].sort((a, b) => a.distanceMeters - b.distanceMeters)[0].name
-      : null;
-    return [
-      center.district ? { label: `${center.district} район`, url: districtHubUrl(center.district) } : null,
-      center.businessClass ? { label: `Класс ${center.businessClass}`, url: classHubUrl(center.businessClass) } : null,
-      station ? { label: `м. ${station}`, url: metroHubUrl(station) } : null,
-      { label: street, url: streetHubUrl(street) },
-      center.microdistrict ? { label: center.microdistrict, url: microdistrictHubUrl(center.microdistrict) } : null,
-    ].filter((c): c is { label: string; url: string } => c !== null && typeof c.url === 'string' && c.url.length > 0);
-  }, [center]);
   // Цитаты отзывов из «Интересных фактов» — отдельным блоком «Что говорят»
   // вместе с рейтингами (Б11), а не россыпью по странице.
   const reviewQuotes = useMemo(
@@ -935,15 +914,9 @@ export function BusinessCenterDetailPage() {
           .join('\n'),
       );
     }
-    add('Как исправить сведения о здании?', 'Напишите на anatoly.trashman@gmail.com, указав бизнес-центр и сведения, которые устарели или требуют исправления.');
-    // Тот же вызов, что и в самом блоке «Похожие»: соседи из него
-    // исключены, иначе FAQ перечислял бы не то, что видно на странице.
-    const neighbourSlugs = new Set(nearestNeighbours(center, centers ?? [], 5).map((n) => n.center.slug));
-    const similar = similarCenters(center, centers ?? [], 6, neighbourSlugs);
-    if (similar.length) add('Какие бизнес-центры показаны как похожие?', similar.map(shortName).join(', '));
-    if (hubChips.length) add('Какие связанные подборки доступны?', hubChips.map((c) => c.label).join(', '));
+    add('Как исправить сведения о здании?', 'Если хотите добавить, убрать или изменить информацию, напишите на a@redevelopment.pro, указав бизнес-центр и сведения, которые нужно поправить.');
     return items;
-  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, awardItems, mediaMentions, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, tenantSnapshot, mapRating, reviewQuotes, hubChips, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces]);
+  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, awardItems, mediaMentions, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, tenantSnapshot, mapRating, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -985,7 +958,6 @@ export function BusinessCenterDetailPage() {
       has('developer', Boolean(center.developerInfo)),
       has('metroCenters', relatedCenters.metro.length > 0),
       has('streetCenters', relatedCenters.street.length > 0),
-      has('similar', true),
       has('faq', faqItems.length > 0),
     ].filter((v): v is { id: string; label: string } => v !== null);
   }, [
@@ -1938,8 +1910,6 @@ export function BusinessCenterDetailPage() {
           />
         )}
 
-        {center && <SimilarCentersBlock center={center} all={centers ?? []} offers={offerIndex} hubChips={hubChips} />}
-
         {/* Б12. Собственникам и УК — способ поправить данные. Пишем прямо
             в почту: отдельной формы с лидом здесь не заводим, это не заявка
             на аренду, а правка справочника, и ответить на неё должен
@@ -1948,15 +1918,13 @@ export function BusinessCenterDetailPage() {
           <div className={cn('mt-6 flex flex-col gap-2 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="text-lg font-bold text-ink">Вы собственник или управляющая компания?</h2>
             <p className="text-sm leading-relaxed text-ink-muted">
-              Данные по зданию собраны из открытых источников — prometr.by, 2ГИС, объявления Kufar,
-              Realt, Domovita и Megapolis. Если что-то устарело или указано неверно, напишите: поправим и пересчитаем
-              сравнения и индекс.
+              Если хотите добавить, убрать или изменить информацию — напишите нам, поправим.
             </p>
             <a
-              href={`mailto:anatoly.trashman@gmail.com?subject=${encodeURIComponent(`Данные бизнес-центра «${shortName(center)}»`)}`}
+              href={`mailto:a@redevelopment.pro?subject=${encodeURIComponent(`Данные бизнес-центра «${shortName(center)}»`)}`}
               className="w-fit text-sm font-semibold text-primary-hover hover:underline"
             >
-              anatoly.trashman@gmail.com
+              a@redevelopment.pro
             </a>
           </div>
         )}
@@ -1992,12 +1960,17 @@ export function BusinessCenterDetailPage() {
         {faqItems.length > 0 && (
           <div id="faq" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="text-lg font-bold text-ink">Частые вопросы</h2>
+            {/* <details>/<summary> — ответ есть в DOM независимо от открыт/закрыт
+                (важно для краулеров и JSON-LD рядом), но на экране скрыт, пока
+                не раскрыли: блок из 20+ вопросов иначе занимает пол-страницы. */}
             <div className="flex flex-col divide-y divide-border">
               {faqItems.map((item) => (
-                <div key={item.question} className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
-                  <p className="text-sm font-semibold text-ink">{item.question}</p>
-                  <p className="text-sm leading-relaxed text-ink-muted">{item.answer}</p>
-                </div>
+                <details key={item.question} className="py-3 first:pt-0 last:pb-0">
+                  <summary className="cursor-pointer text-sm font-semibold text-ink">
+                    <h3 className="inline">{item.question}</h3>
+                  </summary>
+                  <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-muted">{item.answer}</p>
+                </details>
               ))}
             </div>
           </div>
