@@ -103,6 +103,15 @@ function round2(v) {
 // разных помещения (несколько одинаковых кабинетов по одной ставке у
 // одного собственника — обычное дело, см. пример с «Центрополем» в
 // комментарии businessCenterOfferDuplicates.ts).
+// Правило одинаковое с src/lib/businessCenterOfferDuplicates.ts (эта
+// функция — её файл-близнец, голый JS не импортирует TS). ВАЖНО (правка
+// 2026-09-20, найдено на «Футурисе» — см. комментарий в TS-версии за
+// подробным разбором и цифрами по всей базе, 77 групп/98 лишних строк):
+// источник блокирует слияние только ВМЕСТЕ с совпавшей категорией
+// (property_type). Один источник, но РАЗНАЯ категория при том же
+// размере/цене — это не разные кабинеты, а один и тот же лот,
+// протолкнутый в несколько категорий ради охвата поиска.
+const VAGUE_BC_TYPES = new Set(['Без категории', 'Не указано', null, '']);
 function dedupeBcOffers(rows) {
   const SIZE_TOLERANCE = 0.05;
   const PRICE_TOLERANCE = 0.1;
@@ -126,12 +135,20 @@ function dedupeBcOffers(rows) {
         c[0].price_per_sqm != null &&
         Math.abs(c[0].size - row.size) <= SIZE_TOLERANCE &&
         samePrice(c[0].price_per_sqm, row.price_per_sqm) &&
-        c.every((o) => o.source !== row.source),
+        // Блокирует слияние только полное совпадение источник+категория —
+        // см. комментарий выше.
+        c.every((o) => !(o.source === row.source && o.property_type === row.property_type)),
     );
     if (cluster) cluster.push(row);
     else clusters.push([row]);
   }
-  return clusters.map((c) => c[0]);
+  // Из кластера остаётся не первый попавшийся, а самый содержательный по
+  // категории: "Без категории"/null — почти всегда СЛЕДСТВИЕ того самого
+  // проталкивания в несколько категорий (Kufar честно ставит осмысленную
+  // категорию первому объявлению и оставляет "Без категории" копиям), и
+  // без этого выбора officeOnlyOffers ниже мог бы молча потерять реальный
+  // офис, если кластер собрался в порядке "Без категории" раньше "Офисы".
+  return clusters.map((c) => c.find((o) => !VAGUE_BC_TYPES.has(o.property_type)) ?? c[0]);
 }
 
 function firstOfMonth() {
