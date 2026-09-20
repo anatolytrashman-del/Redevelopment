@@ -713,7 +713,10 @@ export function BusinessCenterDetailPage() {
     // показывать РОВНО тех же лидеров, что и /minsk/bcminsk/reyting, не
     // собственную сортировку по BusinessCenter.gisRating (это снимок 2ГИС,
     // другое число и без фильтра по классу/порогу — методика реального
-    // рейтинга в buildRanking, BusinessCentersRankingPage.tsx).
+    // рейтинга в buildRanking, BusinessCentersRankingPage.tsx). Тот же
+    // разговор ("по умолчанию у нас везде рейтинг с Яндекс карт должен
+    // быть") привёл источник рейтинга в блоке «Место среди конкурентов»
+    // к тому же mapRatingFromHighlights — см. businessCenterMarketPosition.ts.
     const rating = takeVisible(
       buildBusinessCenterRanking(centers)
         .map((r) => r.center)
