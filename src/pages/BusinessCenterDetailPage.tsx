@@ -137,7 +137,7 @@ const SECTION_LABELS: Record<string, string> = {
   tech: 'Параметры здания',
   tenants: 'Кто внутри',
   rental: 'Условия для арендаторов',
-  offers: 'Сейчас предлагается',
+  offers: 'Что сдают и продают',
   history: 'История здания',
   reviews: 'Отзывы',
   faq: 'Частые вопросы',
@@ -1719,8 +1719,8 @@ export function BusinessCenterDetailPage() {
             Каждое поле независимо может быть null — рисуем только то, что
             реально нашлось. Порядок блоков страницы пересобран 2026-09-20
             (владелец принял предложенный порядок): условия аренды идут
-            сразу за "Сейчас предлагается" — оба блока отвечают на один и
-            тот же вопрос "что тут есть и почём". */}
+            сразу за "Что сейчас сдают и продают в здании" — оба блока
+            отвечают на один и тот же вопрос "что тут есть и почём". */}
         {center.rentalInfo && (
           <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
