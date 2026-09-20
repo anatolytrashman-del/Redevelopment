@@ -30,12 +30,9 @@ function ShareLinkCard({ id }: { id: string }) {
 
   return (
     <Card className="flex flex-col gap-2 p-4 text-sm text-ink-muted">
-      <p>
-        Список доступен по этой ссылке — она открывает то же избранное на любом устройстве, без входа в аккаунт.
-        Сохраните её, если хотите вернуться к подборке.
-      </p>
+      <p>Список доступен по этой ссылке. Сохраните её, если хотите вернуться к подборке.</p>
       <div className="flex flex-wrap items-center gap-2">
-        <code className="min-w-0 flex-1 truncate rounded-lg bg-surface-muted px-3 py-2 text-xs text-ink">{url}</code>
+        <code className="min-w-0 max-w-full truncate rounded-lg bg-surface-muted px-3 py-2 text-xs text-ink">{url}</code>
         <button
           type="button"
           onClick={handleCopy}
