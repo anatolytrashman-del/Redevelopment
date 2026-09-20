@@ -12,7 +12,7 @@ import { createFavoriteList, fetchFavoriteList, updateFavoriteListSlugs } from '
 // браузере" (как cookie), не сам список — источник истины всегда база.
 const STORAGE_KEY = 'rdvlp:favoritesId';
 const FAVORITES_PATH_RE = /^\/favorites\/([a-zA-Z0-9]+)$/;
-const TOAST_DURATION_MS = 10000;
+const TOAST_DURATION_MS = 5000;
 
 function readStoredId(): string | null {
   try {
@@ -57,7 +57,7 @@ export function FavoritesProvider({ children }: { children: ReactNode }) {
   // Владелец, 2026-09-21: при добавлении в избранное ссылка на подборку
   // сразу копируется в буфер — это единственный способ вернуться к списку
   // без аккаунта, поэтому её стоит отдать в руки сразу, а не заставлять
-  // искать плашку. Уведомление — 10 секунд, закрывается вручную.
+  // искать плашку. Уведомление — 5 секунд, закрывается вручную.
   const [toastVisible, setToastVisible] = useState(false);
   const toastTimeoutRef = useRef<number | null>(null);
 
@@ -162,10 +162,10 @@ export function FavoritesProvider({ children }: { children: ReactNode }) {
             style={glassPillShadow}
             className={cn(
               glassPillClass,
-              'pointer-events-auto flex max-w-md items-center gap-2 px-3.5 py-2 text-xs font-semibold text-ink',
+              'pointer-events-auto flex max-w-[95vw] items-center gap-2 whitespace-nowrap px-3.5 py-2 text-[11px] font-normal text-ink sm:text-xs',
             )}
           >
-            <span>Сохраните ссылку на избранное — она скопирована в буфер обмена</span>
+            <span>Ссылка на избранное скопирована в буфер обмена</span>
             <button
               type="button"
               onClick={() => setToastVisible(false)}

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Check, Copy, Heart, Loader2 } from 'lucide-react';
+import { Link, useParams } from 'react-router-dom';
+import { ArrowLeft, Check, Copy, Heart, Loader2 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
+import { cn } from '../lib/cn';
+import { glassPillClass, glassPillShadow } from '../lib/glass';
 import type { BusinessCenter } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import { fetchFavoriteList } from '../lib/favoritesApi';
@@ -30,12 +32,9 @@ function ShareLinkCard({ id }: { id: string }) {
 
   return (
     <Card className="flex flex-col gap-2 p-4 text-sm text-ink-muted">
-      <p>
-        Список доступен по этой ссылке — она открывает то же избранное на любом устройстве, без входа в аккаунт.
-        Сохраните её, если хотите вернуться к подборке.
-      </p>
+      <p>Список доступен по этой ссылке. Сохраните её, если хотите вернуться к подборке.</p>
       <div className="flex flex-wrap items-center gap-2">
-        <code className="min-w-0 flex-1 truncate rounded-lg bg-surface-muted px-3 py-2 text-xs text-ink">{url}</code>
+        <code className="min-w-0 max-w-full truncate rounded-lg bg-surface-muted px-3 py-2 text-xs text-ink">{url}</code>
         <button
           type="button"
           onClick={handleCopy}
@@ -103,10 +102,24 @@ export function FavoritesPage() {
           </span>
         </div>
 
-        <h1 className="flex items-center gap-2 text-2xl font-extrabold leading-tight text-ink">
-          <Heart className="h-6 w-6 shrink-0 fill-primary text-primary" />
-          Избранные бизнес-центры
-        </h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="flex items-center gap-2 text-2xl font-extrabold leading-tight text-ink">
+            <Heart className="h-6 w-6 shrink-0 fill-primary text-primary" />
+            Избранные бизнес-центры
+          </h1>
+          <Link
+            to="/minsk/bcminsk"
+            className={cn(
+              'flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-ink transition-colors hover:text-primary',
+              glassPillClass,
+            )}
+            style={glassPillShadow}
+          >
+            <ArrowLeft className="h-4 w-4 shrink-0" />
+            <span className="hidden sm:inline">Все бизнес-центры</span>
+            <span className="sm:hidden">Все БЦ</span>
+          </Link>
+        </div>
 
         {id && <ShareLinkCard id={id} />}
 
