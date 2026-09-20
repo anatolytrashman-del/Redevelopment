@@ -25,10 +25,8 @@ import {
   HardHat,
   Info,
   Landmark,
-  Layers,
   Leaf,
   MapPin,
-  MapPinned,
   MessageSquareQuote,
   Newspaper,
   Palette,
@@ -38,7 +36,6 @@ import {
   ShoppingBag,
   Sparkles,
   Star,
-  TrainFront,
   Trophy,
   Users,
 } from 'lucide-react';
@@ -132,23 +129,18 @@ import { NearbyInfrastructureBlock } from '../components/businessCenters/Busines
 // блоки реально отрисованы.
 const SECTION_LABELS: Record<string, string> = {
   awards: 'Награды',
-  facts: 'Факты',
+  facts: 'Интересные факты',
   media: 'СМИ о здании',
   developer: 'Застройщик',
-  metroCenters: 'БЦ у метро',
-  market: 'БЦ на фоне конкурентов',
+  market: 'Место среди конкурентов',
   map: 'Инфраструктура рядом',
-  tech: 'Информация о здании',
-  streetCenters: 'БЦ на улице',
-  microdistrictCenters: 'БЦ рядом',
-  classDistrictCenters: 'Похожие БЦ',
-  ratingCenters: 'Рейтинг БЦ',
+  tech: 'Параметры здания',
   tenants: 'Кто внутри',
-  rental: 'Условия аренды',
-  offers: 'Предложения',
+  rental: 'Условия для арендаторов',
+  offers: 'Сейчас предлагается',
   history: 'История здания',
   reviews: 'Отзывы',
-  faq: 'Вопросы',
+  faq: 'Частые вопросы',
 };
 
 // Демонстрация: FAQ «Альянс», переписанный gemini-3.8-flash (ProxyAPI) в
@@ -252,14 +244,9 @@ const SECTION_ICONS: Record<string, typeof FileText> = {
   facts: Sparkles,
   media: Newspaper,
   developer: HardHat,
-  metroCenters: TrainFront,
   market: Award,
   map: MapPin,
   tech: Building2,
-  streetCenters: MapPin,
-  microdistrictCenters: MapPinned,
-  classDistrictCenters: Layers,
-  ratingCenters: Star,
   tenants: Users,
   rental: FileText,
   offers: Banknote,
@@ -1167,7 +1154,10 @@ export function BusinessCenterDetailPage() {
     // оно → БЦ по соседству → кто внутри → на фоне конкурентов → БЦ у той же
     // станции метро → отзывы → рейтинг БЦ → блоки доверия (награды/СМИ/
     // факты/история) → застройщик → похожие по классу и району, на этой
-    // улице → FAQ.
+    // улице → FAQ. Сами блоки-рекомендации других БЦ (по соседству/у метро/
+    // рейтинг/похожие по классу/на этой улице) в меню НЕ попадают — их на
+    // странице теперь несколько штук, пунктами меню их не множим (владелец,
+    // 2026-09-20): в pageSections ниже для них нет has(...).
     return [
       has('offers', offers !== null && offers.length > 0),
       has('rental', Boolean(center.rentalInfo)),
@@ -1187,19 +1177,14 @@ export function BusinessCenterDetailPage() {
             label: hasNearbyContent(center, nearbyPlaces) ? SECTION_LABELS.map : 'Расположение',
           }
         : null,
-      has('microdistrictCenters', relatedCenters.microdistrict.length > 0),
       has('tenants', tenantOrganizations.length > 0),
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
-      has('metroCenters', relatedCenters.metro.length > 0),
       has('reviews', center.gisRating != null || center.highlights.some((h) => h.icon === 'rating') || reviewQuotes.length > 0 || reviews.length > 0),
-      has('ratingCenters', relatedCenters.rating.length > 0),
       has('awards', awardItems.length > 0),
       has('media', mediaMentions.length > 0),
       has('facts', visibleHighlights.length > 0),
       has('history', extractHistoryPoints(center).length >= 2),
       has('developer', Boolean(center.developerInfo)),
-      has('classDistrictCenters', relatedCenters.classDistrict.length > 0),
-      has('streetCenters', relatedCenters.street.length > 0),
       has('faq', faqItems.length > 0),
     ].filter((v): v is { id: string; label: string } => v !== null);
   }, [
@@ -1793,7 +1778,7 @@ export function BusinessCenterDetailPage() {
         <div id="tech" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
           <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
             <Building2 className="h-5 w-5 shrink-0 text-primary" />
-            Информация о здании
+            Параметры здания
           </h2>
           {/* Один сплошной список фактов о здании, без подзаголовков по
               ТИПУ ИСТОЧНИКА (владелец, 2026-09-20: "надпись ДОПОЛНИТЕЛЬНО,
