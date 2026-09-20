@@ -23,10 +23,17 @@ export interface MediaOutletBrand {
   logo: string | null;
 }
 
+const OFFICE_LIFE: MediaOutletBrand = { name: 'Office Life', logo: '/media-logos/officelife.png' };
+
 export const mediaOutlets: Record<string, MediaOutletBrand> = {
   'belta.by': { name: 'БелТА', logo: '/media-logos/belta.png' },
   'onliner.by': { name: 'Onliner', logo: '/media-logos/onliner.png' },
   'realt.by': { name: 'Realt.by', logo: '/media-logos/realt.png' },
+  // Office Life переехал с officelife.media на officelife.by (старый домен
+  // отдаёт 301). Ссылки в подборках остались на обоих, поэтому в реестре
+  // оба ключа — иначе у части публикаций пропал бы логотип.
+  'officelife.by': OFFICE_LIFE,
+  'officelife.media': OFFICE_LIFE,
 };
 
 // Домены, у которых значащая часть — три уровня, а не два. Пусто до первого
