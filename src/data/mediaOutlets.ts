@@ -34,6 +34,14 @@ export const mediaOutlets: Record<string, MediaOutletBrand> = {
   // оба ключа — иначе у части публикаций пропал бы логотип.
   'officelife.by': OFFICE_LIFE,
   'officelife.media': OFFICE_LIFE,
+  'belretail.by': { name: 'BelRetail', logo: '/media-logos/belretail.png' },
+  'blizko.by': { name: 'Blizko.by', logo: '/media-logos/blizko.png' },
+  // Единственный логотип «Минск-новостей», который удалось найти на сайте,
+  // — юбилейный значок «МН 25 лет» из шапки (2026-09-20). Он не читается как
+  // обычный вордмарк и устареет с концом юбилейного года, поэтому картинку
+  // не берём — издание показывается названием текстом (штатное поведение
+  // при logo: null, см. комментарий у MediaOutletBrand выше).
+  'minsknews.by': { name: 'Минск-новости', logo: null },
 };
 
 // Домены, у которых значащая часть — три уровня, а не два. Пусто до первого
