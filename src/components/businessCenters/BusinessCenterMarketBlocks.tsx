@@ -93,7 +93,7 @@ export function MarketPositionBlock({
       <div>
         <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
           <Gauge className="h-5 w-5 shrink-0 text-ink-muted" />
-          БЦ на фоне конкурентов
+          Место среди конкурентов
         </h2>
         <p className="ml-7 mt-1 text-xs text-ink-muted sm:text-sm">Сравнение с медианой БЦ того же класса</p>
       </div>
@@ -250,7 +250,7 @@ export function WhatTheySayBlock({
     <div id="reviews" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
       <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
         <MessageSquare className="h-5 w-5 shrink-0 text-ink-muted" />
-        Что говорят
+        Отзывы
       </h2>
       {/* Источники рядом, но НЕ усреднённые в одну цифру: сводить чужие
           оценки в собственный рейтинг мы не собираемся (решение из

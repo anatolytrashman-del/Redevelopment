@@ -25,10 +25,8 @@ import {
   HardHat,
   Info,
   Landmark,
-  Layers,
   Leaf,
   MapPin,
-  MapPinned,
   MessageSquareQuote,
   Newspaper,
   Palette,
@@ -38,7 +36,6 @@ import {
   ShoppingBag,
   Sparkles,
   Star,
-  TrainFront,
   Trophy,
   Users,
 } from 'lucide-react';
@@ -132,23 +129,18 @@ import { NearbyInfrastructureBlock } from '../components/businessCenters/Busines
 // блоки реально отрисованы.
 const SECTION_LABELS: Record<string, string> = {
   awards: 'Награды',
-  facts: 'Факты',
+  facts: 'Интересные факты',
   media: 'СМИ о здании',
   developer: 'Застройщик',
-  metroCenters: 'БЦ у метро',
-  market: 'БЦ на фоне конкурентов',
+  market: 'Место среди конкурентов',
   map: 'Инфраструктура рядом',
-  tech: 'Информация о здании',
-  streetCenters: 'БЦ на улице',
-  microdistrictCenters: 'БЦ рядом',
-  classDistrictCenters: 'Похожие БЦ',
-  ratingCenters: 'Рейтинг БЦ',
+  tech: 'Параметры здания',
   tenants: 'Кто внутри',
-  rental: 'Условия аренды',
-  offers: 'Предложения',
+  rental: 'Условия для арендаторов',
+  offers: 'Что сдают и продают',
   history: 'История здания',
   reviews: 'Отзывы',
-  faq: 'Вопросы',
+  faq: 'Частые вопросы',
 };
 
 // Демонстрация: FAQ «Альянс», переписанный gemini-3.8-flash (ProxyAPI) в
@@ -252,14 +244,9 @@ const SECTION_ICONS: Record<string, typeof FileText> = {
   facts: Sparkles,
   media: Newspaper,
   developer: HardHat,
-  metroCenters: TrainFront,
   market: Award,
   map: MapPin,
   tech: Building2,
-  streetCenters: MapPin,
-  microdistrictCenters: MapPinned,
-  classDistrictCenters: Layers,
-  ratingCenters: Star,
   tenants: Users,
   rental: FileText,
   offers: Banknote,
@@ -461,6 +448,30 @@ export function BusinessCenterDetailPage() {
           }
         : null,
     [officeSnapshots, center],
+  );
+  const rateComparisonRent = useMemo(
+    () =>
+      RateComparisonNote({
+        dealType: 'rent',
+        buildingMedian: buildingRentMedian,
+        classLabel: center?.businessClass ? `классу ${center.businessClass}` : null,
+        classSnapshot: classSnapshot?.rent,
+        districtLabel: center?.district ? `${districtDative(center.district)} району` : null,
+        districtSnapshot: districtSnapshot?.rent,
+      }),
+    [buildingRentMedian, center, classSnapshot, districtSnapshot],
+  );
+  const rateComparisonSale = useMemo(
+    () =>
+      RateComparisonNote({
+        dealType: 'sale',
+        buildingMedian: buildingSaleMedian,
+        classLabel: center?.businessClass ? `классу ${center.businessClass}` : null,
+        classSnapshot: classSnapshot?.sale,
+        districtLabel: center?.district ? `${districtDative(center.district)} району` : null,
+        districtSnapshot: districtSnapshot?.sale,
+      }),
+    [buildingSaleMedian, center, classSnapshot, districtSnapshot],
   );
 
   // Рейтинг Яндекс.Карт вынесен из общего списка фактов в короткий бейдж
@@ -845,9 +856,9 @@ export function BusinessCenterDetailPage() {
   // «БЦ на фоне конкурентов», чтобы одна и та же ставка не расходилась.
   const offerIndex = useMemo(() => buildOfferIndex(officeSnapshots), [officeSnapshots]);
 
-  // Б5: «Сейчас предлагается» — живая строка вместо голой таблицы. Важны
-  // ДИАПАЗОНЫ: «офисы от 50 до 400 м² по $10–18/м²» отвечает на вопрос
-  // «подойдёт ли мне», а таблица со средними по типу помещения — нет.
+  // Сводка по сделке (диапазон площади/цены) — используется в FAQ; на
+  // самой странице с 2026-09-20 не выводится отдельной строкой, чтобы не
+  // дублировать таблицу ниже (см. offers-блок).
   const offersSummary = useMemo(() => {
     const byDeal = (deal: 'rent' | 'sale') => {
       const rows = (offers ?? []).filter((o) => o.dealType === deal && o.size > 0 && o.pricePerSqm > 0);
@@ -860,13 +871,6 @@ export function BusinessCenterDetailPage() {
         sizeMax: Math.max(...sizes),
         priceMin: Math.min(...prices),
         priceMax: Math.max(...prices),
-        // Ссылки на сами объявления: самое маленькое и самое большое
-        // помещение — крайние точки диапазона, который мы только что
-        // назвали, чтобы его можно было проверить одним кликом.
-        links: [
-          rows.reduce((a, b) => (a.size <= b.size ? a : b)),
-          rows.reduce((a, b) => (a.size >= b.size ? a : b)),
-        ],
       };
     };
     return { rent: byDeal('rent'), sale: byDeal('sale') };
@@ -1167,7 +1171,10 @@ export function BusinessCenterDetailPage() {
     // оно → БЦ по соседству → кто внутри → на фоне конкурентов → БЦ у той же
     // станции метро → отзывы → рейтинг БЦ → блоки доверия (награды/СМИ/
     // факты/история) → застройщик → похожие по классу и району, на этой
-    // улице → FAQ.
+    // улице → FAQ. Сами блоки-рекомендации других БЦ (по соседству/у метро/
+    // рейтинг/похожие по классу/на этой улице) в меню НЕ попадают — их на
+    // странице теперь несколько штук, пунктами меню их не множим (владелец,
+    // 2026-09-20): в pageSections ниже для них нет has(...).
     return [
       has('offers', offers !== null && offers.length > 0),
       has('rental', Boolean(center.rentalInfo)),
@@ -1187,19 +1194,14 @@ export function BusinessCenterDetailPage() {
             label: hasNearbyContent(center, nearbyPlaces) ? SECTION_LABELS.map : 'Расположение',
           }
         : null,
-      has('microdistrictCenters', relatedCenters.microdistrict.length > 0),
       has('tenants', tenantOrganizations.length > 0),
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
-      has('metroCenters', relatedCenters.metro.length > 0),
       has('reviews', center.gisRating != null || center.highlights.some((h) => h.icon === 'rating') || reviewQuotes.length > 0 || reviews.length > 0),
-      has('ratingCenters', relatedCenters.rating.length > 0),
       has('awards', awardItems.length > 0),
       has('media', mediaMentions.length > 0),
       has('facts', visibleHighlights.length > 0),
       has('history', extractHistoryPoints(center).length >= 2),
       has('developer', Boolean(center.developerInfo)),
-      has('classDistrictCenters', relatedCenters.classDistrict.length > 0),
-      has('streetCenters', relatedCenters.street.length > 0),
       has('faq', faqItems.length > 0),
     ].filter((v): v is { id: string; label: string } => v !== null);
   }, [
@@ -1648,42 +1650,7 @@ export function BusinessCenterDetailPage() {
             выводится — раньше на этом месте была строка-заглушка. */}
         {offers !== null && offers.length > 0 && (
           <div id="offers" className={cn('mt-6 flex scroll-mt-32 flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <h2 className="text-lg font-bold text-ink">Сейчас предлагается</h2>
-            <div className="flex flex-col gap-2">
-              {(['rent', 'sale'] as const).map((deal) => {
-                const sum = offersSummary[deal];
-                if (!sum) return null;
-                // Знак доллара уже стоит у чисел ниже — в единице его
-                // быть не должно, иначе получается «$13–$29 $/м²».
-                const unit = deal === 'rent' ? '/м²/мес' : '/м²';
-                return (
-                  <p key={deal} className="text-sm text-ink-muted">
-                    <span className="font-bold text-ink">{deal === 'rent' ? 'Аренда' : 'Продажа'}</span>:{' '}
-                    {sum.count} {sum.count === 1 ? 'лот' : 'лотов'}, площади{' '}
-                    <span className="font-semibold text-ink">
-                      {Math.round(sum.sizeMin).toLocaleString('ru-RU')}–{Math.round(sum.sizeMax).toLocaleString('ru-RU')} м²
-                    </span>
-                    , цены{' '}
-                    <span className="font-semibold text-ink">
-                      ${Math.round(sum.priceMin).toLocaleString('ru-RU')}–${Math.round(sum.priceMax).toLocaleString('ru-RU')}{unit}
-                    </span>
-                    {'. '}
-                    {sum.links.map((o, i) => (
-                      <a
-                        key={o.id}
-                        href={o.adLink}
-                        target="_blank"
-                        rel="noopener noreferrer nofollow"
-                        className="text-primary-hover hover:underline"
-                      >
-                        {i === 0 ? 'самый маленький' : 'самый большой'}
-                        {i === 0 && sum.links.length > 1 ? ' · ' : ''}
-                      </a>
-                    ))}
-                  </p>
-                );
-              })}
-            </div>
+            <h2 className="text-lg font-bold text-ink">Что сейчас сдают и продают в здании</h2>
             {offers.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[480px] border-collapse text-sm">
@@ -1720,29 +1687,21 @@ export function BusinessCenterDetailPage() {
                 это те же помещения, выложенные ещё и на другой площадке; в подсчёте они учтены один раз.
               </p>
             )}
+          </div>
+        )}
 
-            {/* Сравнение со средней по классу/району (ANALYTICSPLAN.md
-                §4.2) — медиана этого конкретного здания против медиан
-                market_snapshots (сегмент ofisy_bc). Только когда у здания
-                вообще есть медиана по сделке И хотя бы один из бенчмарков
-                (класс/район) набрал порог MIN_RELIABLE_N — иначе сравнение
-                с сырыми 2-3 объявлениями было бы не сравнением, а шумом. */}
-            <RateComparisonNote
-              dealType="rent"
-              buildingMedian={buildingRentMedian}
-              classLabel={center?.businessClass ? `классу ${center.businessClass}` : null}
-              classSnapshot={classSnapshot?.rent}
-              districtLabel={center?.district ? `${districtDative(center.district)} району` : null}
-              districtSnapshot={districtSnapshot?.rent}
-            />
-            <RateComparisonNote
-              dealType="sale"
-              buildingMedian={buildingSaleMedian}
-              classLabel={center?.businessClass ? `классу ${center.businessClass}` : null}
-              classSnapshot={classSnapshot?.sale}
-              districtLabel={center?.district ? `${districtDative(center.district)} району` : null}
-              districtSnapshot={districtSnapshot?.sale}
-            />
+        {/* Сравнение со средней по классу/району (ANALYTICSPLAN.md §4.2) —
+            медиана этого конкретного здания против медиан market_snapshots
+            (сегмент ofisy_bc). Только когда у здания вообще есть медиана по
+            сделке И хотя бы один из бенчмарков (класс/район) набрал порог
+            MIN_RELIABLE_N — иначе сравнение с сырыми 2-3 объявлениями было
+            бы не сравнением, а шумом. Вынесено из карточки "Что сейчас
+            сдают и продают" в свой блок (владелец, 2026-09-20) — со своим
+            заголовком и оформлением это продумаем отдельно. */}
+        {offers !== null && offers.length > 0 && (rateComparisonRent || rateComparisonSale) && (
+          <div id="rate-comparison" className={cn('mt-6 flex scroll-mt-32 flex-col gap-2 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            {rateComparisonRent}
+            {rateComparisonSale}
           </div>
         )}
 
@@ -1760,8 +1719,8 @@ export function BusinessCenterDetailPage() {
             Каждое поле независимо может быть null — рисуем только то, что
             реально нашлось. Порядок блоков страницы пересобран 2026-09-20
             (владелец принял предложенный порядок): условия аренды идут
-            сразу за "Сейчас предлагается" — оба блока отвечают на один и
-            тот же вопрос "что тут есть и почём". */}
+            сразу за "Что сейчас сдают и продают в здании" — оба блока
+            отвечают на один и тот же вопрос "что тут есть и почём". */}
         {center.rentalInfo && (
           <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
@@ -1793,7 +1752,7 @@ export function BusinessCenterDetailPage() {
         <div id="tech" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
           <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
             <Building2 className="h-5 w-5 shrink-0 text-primary" />
-            Информация о здании
+            Параметры здания
           </h2>
           {/* Один сплошной список фактов о здании, без подзаголовков по
               ТИПУ ИСТОЧНИКА (владелец, 2026-09-20: "надпись ДОПОЛНИТЕЛЬНО,
@@ -2886,7 +2845,7 @@ function OfferDealSection({ title, rows }: { title: string; rows: OfferRow[] }) 
               : `${row.minSize.toLocaleString('ru-RU')}–${row.maxSize.toLocaleString('ru-RU')} м²`}
           </td>
           <td className="whitespace-nowrap py-3 pl-2 text-right tabular-nums font-semibold text-ink">
-            {row.minPrice === row.maxPrice
+            {formatUsd(row.minPrice) === formatUsd(row.maxPrice)
               ? `${formatUsd(row.minPrice)}/м²`
               : `${formatUsd(row.minPrice)}–${formatUsd(row.maxPrice)}/м² (медиана ${formatUsd(row.medianPrice)})`}
           </td>
