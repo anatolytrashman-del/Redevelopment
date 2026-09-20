@@ -912,13 +912,20 @@ export function BusinessCenterDetailPage() {
   const pageSections = useMemo(() => {
     if (!center) return [];
     const has = (id: string, cond: boolean) => (cond ? { id, label: SECTION_LABELS[id] } : null);
+    // Порядок пунктов повторяет порядок блоков на странице (пересобран
+    // 2026-09-20, владелец принял предложенный порядок): что предлагают и
+    // почём → какое здание → где оно → кто внутри → на фоне конкурентов →
+    // отзывы → блоки доверия (награды/СМИ/факты/история) → застройщик →
+    // выходы на другие БЦ (метро/улица/похожие) → FAQ.
     return [
-      has('awards', awardItems.length > 0),
-      has('facts', visibleHighlights.length > 0),
-      has('media', mediaMentions.length > 0),
-      has('developer', Boolean(center.developerInfo)),
-      has('metroCenters', relatedCenters.metro.length > 0),
-      has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
+      has('offers', offers !== null && offers.length > 0),
+      has('rental', Boolean(center.rentalInfo)),
+      has(
+        'tech',
+        redistributedTechnicalParams.buildingInformationRows.length > 0 ||
+          center.buildingFacts.length > 0 ||
+          Boolean(center.parking || accessHoursText || accessibilityAttributes),
+      ),
       // Карта есть у любого БЦ с координатами — с 2026-09-20 блок рисуется
       // на всех страницах каталога, а не только там, где собран снимок
       // точек. Подпись пункта меню повторяет заголовок блока: вести
@@ -929,18 +936,16 @@ export function BusinessCenterDetailPage() {
             label: hasNearbyContent(center, nearbyPlaces) ? SECTION_LABELS.map : 'Расположение',
           }
         : null,
-      has(
-        'tech',
-        redistributedTechnicalParams.buildingInformationRows.length > 0 ||
-          center.buildingFacts.length > 0 ||
-          Boolean(center.parking || accessHoursText || accessibilityAttributes),
-      ),
-      has('streetCenters', relatedCenters.street.length > 0),
       has('tenants', tenantOrganizations.length > 0),
-      has('rental', Boolean(center.rentalInfo)),
-      has('offers', offers !== null && offers.length > 0),
-      has('history', extractHistoryPoints(center).length >= 2),
+      has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
       has('reviews', center.gisRating != null || center.highlights.some((h) => h.icon === 'rating') || reviewQuotes.length > 0 || reviews.length > 0),
+      has('awards', awardItems.length > 0),
+      has('media', mediaMentions.length > 0),
+      has('facts', visibleHighlights.length > 0),
+      has('history', extractHistoryPoints(center).length >= 2),
+      has('developer', Boolean(center.developerInfo)),
+      has('metroCenters', relatedCenters.metro.length > 0),
+      has('streetCenters', relatedCenters.street.length > 0),
       has('similar', true),
       has('faq', faqItems.length > 0),
     ].filter((v): v is { id: string; label: string } => v !== null);
@@ -1345,378 +1350,6 @@ export function BusinessCenterDetailPage() {
           </div>
         </div>
 
-        {/* Развёрнутая карточка застройщика — владелец, 2026-09-20: "у
-            половины БЦ застройщики нормальные, с сайтами и тд... сделал бы
-            такой блок на страницах, где возможно, сразу под главным
-            блоком", по образцу карточки "Застройщик района" на гиде по
-            Минск Миру (DistrictGuidePage.tsx, id="developer"). В отличие от
-            того гида это не захардкожено — данные конкретного БЦ из
-            developerInfo (админка, BusinessCentersAdminTab.tsx), null у
-            большинства БЦ, пока карточку не заполнили. Первый заполненный
-            пример — "Футурис" (ГК «Тапас»). */}
-        {center.developerInfo && (
-          <div id="developer" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-                <HardHat className="h-5 w-5 shrink-0 text-primary" />
-                Застройщик
-              </h2>
-              {center.developerInfo.logoUrl && (
-                <img
-                  src={center.developerInfo.logoUrl}
-                  alt={center.developer ?? shortName(center)}
-                  loading="lazy"
-                  className="h-9 w-auto max-w-[10rem] object-contain"
-                />
-              )}
-            </div>
-            {center.developer && <p className="text-sm font-semibold text-ink">{center.developer}</p>}
-            {center.developerInfo.description && (
-              <p className="text-sm leading-relaxed text-ink-muted">{center.developerInfo.description}</p>
-            )}
-            {(center.developerInfo.phone ||
-              center.developerInfo.address ||
-              center.developerInfo.hours ||
-              center.developerInfo.website) && (
-              <div className="flex flex-col gap-1.5 text-sm text-ink-muted">
-                {center.developerInfo.phone && (
-                  <a
-                    href={`tel:${center.developerInfo.phone.replace(/[^\d+]/g, '')}`}
-                    className="flex w-fit items-center gap-2 text-ink hover:underline"
-                  >
-                    <Phone className="h-4 w-4 shrink-0" />
-                    {center.developerInfo.phone}
-                  </a>
-                )}
-                {center.developerInfo.address && (
-                  <div className="flex items-start gap-2">
-                    <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>{center.developerInfo.address}</span>
-                  </div>
-                )}
-                {center.developerInfo.hours && (
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 shrink-0" />
-                    <span>{center.developerInfo.hours}</span>
-                  </div>
-                )}
-                {developerWebsiteUrl && (
-                  <a
-                    href={developerWebsiteUrl.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex w-fit items-center gap-1 text-ink hover:underline"
-                  >
-                    <Globe className="h-4 w-4 shrink-0" />
-                    {developerWebsiteUrl.label}
-                    <ExternalLink className="h-3 w-3 shrink-0" />
-                  </a>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Награды — свой блок, а не строка в "Интересных фактах" (владелец,
-            2026-09-20: "уберём это из фактов и сделаем прям блок Награды,
-            если они есть. Формат — список, но чуть более большим шрифтом и
-            с иконкой"). Отсюда и отличия от LabeledTextRow ниже: text-base
-            вместо text-sm и цвет основного текста. Иконка кубка — ТОЛЬКО в
-            заголовке: первая версия ставила её ещё и на каждый пункт, и
-            владелец сразу поправил ("одной иконки для заголовка хватит, для
-            самих премий просто точки, как в интересных фактах") — отсюда
-            обычные маркеры списка. Блок не рисуется вовсе, если наград нет
-            — как и весь остальной кастом на странице БЦ.
-
-            Список строим из готовых строк awardItems, а не через
-            renderRentalText: тот рисует буллеты мелким шрифтом абзаца,
-            а нужен тот же маркер, но крупнее. */}
-        {awardItems.length > 0 && (
-          <div id="awards" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <Trophy className="h-5 w-5 shrink-0 text-primary" />
-              Награды
-            </h2>
-            <ul className="list-disc space-y-2 pl-5 text-sm leading-relaxed text-ink-muted marker:text-ink-muted">
-              {awardItems.map((item, i) => (
-                <li key={i}>{renderBold(item)}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* "Интересные факты" — произвольный набор блоков, разный у каждого
-            БЦ (владелец, 2026-09-06, второй заход: "старайся делать
-            кастомную страницу под каждый БЦ. Если у БЦ нет наград, не
-            делай этот блок вообще. Если есть что-то новое — кастомный
-            блок"). Раньше был фиксированный объект (history/tenants/media/
-            rating/reviews), теперь — HighlightSection[] (см. комментарий у
-            BusinessCenter.highlights в data/businessCenters.ts). icon
-            'warning' — единственная особая: выносится наверх акцентным
-            жёлтым блоком (как caveat в RentalInfo), а не в общий список.
-            По решению владельца от 2026-09-17 блок расположен сразу после
-            главной карточки и связанных подборок, перед сравнением с
-            конкурентами. */}
-        {visibleHighlights.length > 0 && (
-          <div id="facts" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <Sparkles className="h-5 w-5 shrink-0 text-primary" />
-              Интересные факты
-            </h2>
-
-            {visibleHighlights
-              .filter((s) => s.icon === 'warning')
-              .map((s, i) => (
-                <div
-                  key={`warning-${i}`}
-                  className="flex items-start gap-2 rounded-control border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-warning"
-                >
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <div>
-                    {s.label && <p className="text-xs font-semibold uppercase tracking-wide">{s.label}</p>}
-                    <p className="mt-0.5 leading-relaxed">{renderRentalText(s.text)}</p>
-                  </div>
-                </div>
-              ))}
-
-            <div className="flex flex-col divide-y divide-border">
-              {(() => {
-                const plainFacts = visibleHighlights.filter((s) => s.icon !== 'warning');
-                // Единственный факт в карточке — свой подписанный заголовок
-                // над ним избыточен: и так ясно из заголовка карточки "Интересные
-                // факты" (владелец, 2026-09-06: "если интересный факт один, то
-                // заголовок лишний").
-                const showLabel = plainFacts.length > 1;
-                return plainFacts.map((s, i) => (
-                  <LabeledTextRow
-                    key={i}
-                    icon={HIGHLIGHT_ICONS[s.icon]}
-                    label={showLabel ? s.label : undefined}
-                    text={s.text}
-                  />
-                ));
-              })()}
-            </div>
-          </div>
-        )}
-
-        {/* «СМИ о здании» — владелец, 2026-09-20: «мне нравится подборка,
-            давай сделаем блок с этими 5. В блок ставим логотип СМИ (в png и
-            без фона), заголовок статьи, дату статьи». Раньше пресса была
-            строкой внутри «Интересных фактов» («об этом писали Forbes и
-            Habr») — без ссылок и дат, то есть читатель не мог дойти до
-            первоисточника, ради которого блок и нужен.
-
-            Дата и дисклеймер про источники убраны из самой карточки
-            (владелец, 2026-09-20: единый размер шрифта с "Интересными
-            фактами", даты и пояснение про ссылки — лишние) — дата остаётся
-            только в FAQ-тексте (formatMentionDate ниже по файлу). Логотип
-            берём из реестра по домену ссылки (data/mediaOutlets.ts); издания
-            без логотипа рисуем названием — подборка не должна ждать, пока
-            найдётся очередной PNG.
-
-            Критерии отбора публикаций — docs/bc-media-research-brief.md. */}
-        {mediaMentions.length > 0 && (
-          <div id="media" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <Newspaper className="h-5 w-5 shrink-0 text-primary" />
-              СМИ о здании
-            </h2>
-            <ul className="flex flex-col divide-y divide-border">
-              {mediaMentions.map((mention, i) => (
-                <li key={i} className="py-3 first:pt-0 last:pb-0">
-                  <a
-                    href={mention.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4"
-                  >
-                    <MediaOutletMark url={mention.url} outlet={mention.outlet} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm leading-relaxed text-ink-muted underline-offset-4 group-hover:underline">
-                        {mention.title}
-                      </span>
-                    </span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Условия для арендаторов с офиц. сайта БЦ (владелец, 2026-09-05,
-            на примере "Проспект"/Elite Estate — по нему нет объявлений на
-            Kufar/Realt, но на собственном сайте есть условия для
-            арендаторов: "пройдись по сайтам БЦ и поищешь такую информацию").
-            Собрано веб-поиском (Gemini через ProxyAPI — прямого доступа к
-            большинству сайтов БЦ из песочницы нет). Первая версия рисовала
-            всё одним абзацем — владелец: "верстка — пиздец, разбей на
-            логические блоки, используй форматирование" — теперь отдельная
-            подписанная строка на каждый раздел (LabeledTextRow), важная
-            оговорка источника (сайт недоступен, "Аден" по факту гостиница
-            и т.п.) — акцентным блоком сверху, не затёртая в общем тексте.
-            Каждое поле независимо может быть null — рисуем только то, что
-            реально нашлось. Расположен сразу под "Интересными фактами"
-            (владелец, 2026-09-20). */}
-        {center.rentalInfo && (
-          <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <FileText className="h-5 w-5 shrink-0 text-primary" />
-              Условия для арендаторов
-            </h2>
-
-            {center.rentalInfo.caveat && (
-              <div className="flex items-start gap-2 rounded-control border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-warning">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <p className="leading-relaxed">{center.rentalInfo.caveat}</p>
-              </div>
-            )}
-
-            <div className="flex flex-col divide-y divide-border">
-              <LabeledTextRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
-              <LabeledTextRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
-              <LabeledTextRow icon={Ruler} label="Площади и типы помещений" text={center.rentalInfo.sizes} />
-              <LabeledTextRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
-            </div>
-
-            <p className="text-xs text-ink-muted">
-              Собрано автоматически по официальному сайту БЦ и открытым источникам — не куратировано вручную, перед
-              подписанием договора уточняйте актуальные условия напрямую у арендодателя.
-            </p>
-          </div>
-        )}
-
-        {metroCatalogUrl && nearestMetro && relatedCenters.metro.length > 0 && (
-          <RelatedCentersSection
-            id="metroCenters"
-            title={`Бизнес-центры у станции ${nearestMetro.name}`}
-            centers={relatedCenters.metro}
-            catalogUrl={metroCatalogUrl}
-            catalogLabel={`Все БЦ у станции ${nearestMetro.name}`}
-            stationName={nearestMetro.name}
-            fallbackCenter={relatedCenters.metroFallback}
-          />
-        )}
-
-        {/* Сначала аналитика и расположение, затем отдельная карточка
-            с параметрами самого здания. */}
-        {center && marketPosition && <MarketPositionBlock position={marketPosition} />}
-        {center && <NearbyInfrastructureBlock center={center} places={nearbyPlaces} />}
-
-        <div id="tech" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-          <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-            <Building2 className="h-5 w-5 shrink-0 text-primary" />
-            Информация о здании
-          </h2>
-          {(center.parking || accessHoursText || accessibilityAttributes) && (
-            <section className="flex flex-col gap-2" aria-labelledby="operations-title">
-              <h3 id="operations-title" className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                Эксплуатация и доступность
-              </h3>
-              <div className="overflow-hidden rounded-control border border-border">
-                {center.parking && <OperationalInfoRow icon={Car} label="Парковка" text={center.parking} />}
-                {accessHoursText && (
-                  <OperationalInfoRow
-                    icon={Clock}
-                    label="Часы работы"
-                    text={accessHoursText.toLocaleLowerCase('ru-RU') === 'круглосуточно' ? '24/7' : accessHoursText}
-                  />
-                )}
-                {accessibilityAttributes && <AccessibilityRow text={accessibilityAttributes} />}
-              </div>
-            </section>
-          )}
-          {redistributedTechnicalParams.buildingInformationRows.length > 0 && (
-          <div className="overflow-hidden rounded-control border border-border">
-            <table className="w-full border-collapse text-sm">
-              <tbody>
-                {redistributedTechnicalParams.buildingInformationRows.map((row) => (
-                  <tr key={row.label} className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
-                    <th
-                      scope="row"
-                      className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
-                    >
-                      {row.label}
-                    </th>
-                    <td className="py-2 pl-2 pr-3 text-ink">{row.value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          )}
-          {center.buildingFacts.length > 0 && (
-            <section className="flex flex-col gap-2" aria-labelledby="building-facts-title">
-              <h3 id="building-facts-title" className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                Дополнительно, по другим источникам
-              </h3>
-              <div className="overflow-hidden rounded-control border border-border">
-                <table className="w-full border-collapse text-sm">
-                  <tbody>
-                    {center.buildingFacts.map((fact, index) => (
-                      <tr
-                        key={`${fact.label}-${index}`}
-                        className="border-b border-border last:border-b-0 odd:bg-surface-muted/40"
-                      >
-                        <th
-                          scope="row"
-                          className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
-                        >
-                          {fact.label}
-                          {fact.corpusLabel && (
-                            <span className="block text-xs font-normal text-ink-faint">{fact.corpusLabel}</span>
-                          )}
-                        </th>
-                        <td className="py-2 pl-2 pr-3 text-ink">
-                          <span>{fact.value}</span>
-                          {fact.note && <span className="block text-xs text-ink-faint">{fact.note}</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          )}
-        </div>
-
-        {streetCatalogUrl && relatedCenters.street.length > 0 && (
-          <RelatedCentersSection
-            id="streetCenters"
-            title="Бизнес-центры на этой улице"
-            centers={relatedCenters.street}
-            catalogUrl={streetCatalogUrl}
-            catalogLabel="Все БЦ на этой улице"
-            fallbackCenter={relatedCenters.streetFallback}
-          />
-        )}
-
-        {/* Каталог арендаторов. Источник с 2026-09-19 — срез Яндекс.Карт
-            (владелец отказался от платного 2GIS API, деньги вернули): 7608
-            организаций по 139 зданиям против 4614 у 2GIS, и на организацию
-            есть этаж, офис, рейтинг и ссылка на карточку. Старые данные 2GIS
-            не выбрасываем — они остались фолбэком для зданий без яндексовского
-            списка, отрасль у них приходит готовой и попадает в ту же шкалу.
-
-            Сортировка по отзывам наконец честная: владелец просил её ещё
-            2026-09-06 ("на первое место ставь места с максимумом отзывов на
-            картах"), но тогда рейтинг был известен только по зданию целиком —
-            теперь число оценок есть на саму организацию. */}
-        {tenantOrganizations.length > 0 && (
-          <TenantDirectory
-            organizations={tenantOrganizations}
-            amenities={tenantAmenities}
-            source={tenantSource}
-            capturedAt={
-              tenantSource === '2gis' ? gis2?.tenantOrganizationsFetchedAt ?? null : tenantSnapshot?.capturedAt ?? null
-            }
-            // Потолок выдачи — беда только 2GIS (50 организаций на здание);
-            // яндексовский срез снимается прокруткой до конца списка, и
-            // оговорка про неполноту там была бы неправдой.
-            reportedTotal={tenantSource === '2gis' ? gis2?.tenantOrganizationsTotal ?? null : null}
-          />
-        )}
-
         {/* "Интересные факты" — отдельная от условий аренды категория:
             история объекта, известные арендаторы, награды/СМИ, рейтинг и
             отзывы с карт (владелец, 2026-09-06: "подтянуть рейтинг из
@@ -1837,8 +1470,404 @@ export function BusinessCenterDetailPage() {
           </div>
         )}
 
-        {center && <HistoryTimeline center={center} />}
+        {/* Условия для арендаторов с офиц. сайта БЦ (владелец, 2026-09-05,
+            на примере "Проспект"/Elite Estate — по нему нет объявлений на
+            Kufar/Realt, но на собственном сайте есть условия для
+            арендаторов: "пройдись по сайтам БЦ и поищешь такую информацию").
+            Собрано веб-поиском (Gemini через ProxyAPI — прямого доступа к
+            большинству сайтов БЦ из песочницы нет). Первая версия рисовала
+            всё одним абзацем — владелец: "верстка — пиздец, разбей на
+            логические блоки, используй форматирование" — теперь отдельная
+            подписанная строка на каждый раздел (LabeledTextRow), важная
+            оговорка источника (сайт недоступен, "Аден" по факту гостиница
+            и т.п.) — акцентным блоком сверху, не затёртая в общем тексте.
+            Каждое поле независимо может быть null — рисуем только то, что
+            реально нашлось. Порядок блоков страницы пересобран 2026-09-20
+            (владелец принял предложенный порядок): условия аренды идут
+            сразу за "Сейчас предлагается" — оба блока отвечают на один и
+            тот же вопрос "что тут есть и почём". */}
+        {center.rentalInfo && (
+          <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+              <FileText className="h-5 w-5 shrink-0 text-primary" />
+              Условия для арендаторов
+            </h2>
+
+            {center.rentalInfo.caveat && (
+              <div className="flex items-start gap-2 rounded-control border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-warning">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p className="leading-relaxed">{center.rentalInfo.caveat}</p>
+              </div>
+            )}
+
+            <div className="flex flex-col divide-y divide-border">
+              <LabeledTextRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
+              <LabeledTextRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
+              <LabeledTextRow icon={Ruler} label="Площади и типы помещений" text={center.rentalInfo.sizes} />
+              <LabeledTextRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
+            </div>
+
+            <p className="text-xs text-ink-muted">
+              Собрано автоматически по официальному сайту БЦ и открытым источникам — не куратировано вручную, перед
+              подписанием договора уточняйте актуальные условия напрямую у арендодателя.
+            </p>
+          </div>
+        )}
+
+        <div id="tech" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+          <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+            <Building2 className="h-5 w-5 shrink-0 text-primary" />
+            Информация о здании
+          </h2>
+          {(center.parking || accessHoursText || accessibilityAttributes) && (
+            <section className="flex flex-col gap-2" aria-labelledby="operations-title">
+              <h3 id="operations-title" className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                Эксплуатация и доступность
+              </h3>
+              <div className="overflow-hidden rounded-control border border-border">
+                {center.parking && <OperationalInfoRow icon={Car} label="Парковка" text={center.parking} />}
+                {accessHoursText && (
+                  <OperationalInfoRow
+                    icon={Clock}
+                    label="Часы работы"
+                    text={accessHoursText.toLocaleLowerCase('ru-RU') === 'круглосуточно' ? '24/7' : accessHoursText}
+                  />
+                )}
+                {accessibilityAttributes && <AccessibilityRow text={accessibilityAttributes} />}
+              </div>
+            </section>
+          )}
+          {redistributedTechnicalParams.buildingInformationRows.length > 0 && (
+          <div className="overflow-hidden rounded-control border border-border">
+            <table className="w-full border-collapse text-sm">
+              <tbody>
+                {redistributedTechnicalParams.buildingInformationRows.map((row) => (
+                  <tr key={row.label} className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
+                    <th
+                      scope="row"
+                      className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
+                    >
+                      {row.label}
+                    </th>
+                    <td className="py-2 pl-2 pr-3 text-ink">{row.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          )}
+          {center.buildingFacts.length > 0 && (
+            <section className="flex flex-col gap-2" aria-labelledby="building-facts-title">
+              <h3 id="building-facts-title" className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                Дополнительно, по другим источникам
+              </h3>
+              <div className="overflow-hidden rounded-control border border-border">
+                <table className="w-full border-collapse text-sm">
+                  <tbody>
+                    {center.buildingFacts.map((fact, index) => (
+                      <tr
+                        key={`${fact.label}-${index}`}
+                        className="border-b border-border last:border-b-0 odd:bg-surface-muted/40"
+                      >
+                        <th
+                          scope="row"
+                          className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
+                        >
+                          {fact.label}
+                          {fact.corpusLabel && (
+                            <span className="block text-xs font-normal text-ink-faint">{fact.corpusLabel}</span>
+                          )}
+                        </th>
+                        <td className="py-2 pl-2 pr-3 text-ink">
+                          <span>{fact.value}</span>
+                          {fact.note && <span className="block text-xs text-ink-faint">{fact.note}</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+        </div>
+
+        {/* Карта и инфраструктура рядом — сразу после параметров здания,
+            перед арендаторами и сравнением с конкурентами (владелец,
+            2026-09-20: принял предложенный порядок блоков страницы; см.
+            подпись пункта меню "На странице" ниже про то, что карта есть
+            у любого БЦ с координатами). */}
+        {center && <NearbyInfrastructureBlock center={center} places={nearbyPlaces} />}
+
+        {/* Каталог арендаторов. Источник с 2026-09-19 — срез Яндекс.Карт
+            (владелец отказался от платного 2GIS API, деньги вернули): 7608
+            организаций по 139 зданиям против 4614 у 2GIS, и на организацию
+            есть этаж, офис, рейтинг и ссылка на карточку. Старые данные 2GIS
+            не выбрасываем — они остались фолбэком для зданий без яндексовского
+            списка, отрасль у них приходит готовой и попадает в ту же шкалу.
+
+            Сортировка по отзывам наконец честная: владелец просил её ещё
+            2026-09-06 ("на первое место ставь места с максимумом отзывов на
+            картах"), но тогда рейтинг был известен только по зданию целиком —
+            теперь число оценок есть на саму организацию. */}
+        {tenantOrganizations.length > 0 && (
+          <TenantDirectory
+            organizations={tenantOrganizations}
+            amenities={tenantAmenities}
+            source={tenantSource}
+            capturedAt={
+              tenantSource === '2gis' ? gis2?.tenantOrganizationsFetchedAt ?? null : tenantSnapshot?.capturedAt ?? null
+            }
+            // Потолок выдачи — беда только 2GIS (50 организаций на здание);
+            // яндексовский срез снимается прокруткой до конца списка, и
+            // оговорка про неполноту там была бы неправдой.
+            reportedTotal={tenantSource === '2gis' ? gis2?.tenantOrganizationsTotal ?? null : null}
+          />
+        )}
+
+        {/* Сравнение с конкурентами — после того как показали цену, условия
+            аренды, параметры здания и список арендаторов: сначала факты о
+            самом БЦ, потом оценка "дорого/дёшево" на их фоне (владелец,
+            2026-09-20: принял предложенный порядок блоков страницы; было
+            на этом же месте, но раньше — до параметров здания и
+            арендаторов — с общим комментарием на пару с картой ниже). */}
+        {center && marketPosition && <MarketPositionBlock position={marketPosition} />}
+
         {center && <WhatTheySayBlock key={center.slug} center={center} reviewQuotes={reviewQuotes} reviews={reviews} />}
+
+        {/* Награды — свой блок, а не строка в "Интересных фактах" (владелец,
+            2026-09-20: "уберём это из фактов и сделаем прям блок Награды,
+            если они есть. Формат — список, но чуть более большим шрифтом и
+            с иконкой"). Отсюда и отличия от LabeledTextRow ниже: text-base
+            вместо text-sm и цвет основного текста. Иконка кубка — ТОЛЬКО в
+            заголовке: первая версия ставила её ещё и на каждый пункт, и
+            владелец сразу поправил ("одной иконки для заголовка хватит, для
+            самих премий просто точки, как в интересных фактах") — отсюда
+            обычные маркеры списка. Блок не рисуется вовсе, если наград нет
+            — как и весь остальной кастом на странице БЦ.
+
+            Список строим из готовых строк awardItems, а не через
+            renderRentalText: тот рисует буллеты мелким шрифтом абзаца,
+            а нужен тот же маркер, но крупнее. */}
+        {awardItems.length > 0 && (
+          <div id="awards" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+              <Trophy className="h-5 w-5 shrink-0 text-primary" />
+              Награды
+            </h2>
+            <ul className="list-disc space-y-2 pl-5 text-sm leading-relaxed text-ink-muted marker:text-ink-muted">
+              {awardItems.map((item, i) => (
+                <li key={i}>{renderBold(item)}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* «СМИ о здании» — владелец, 2026-09-20: «мне нравится подборка,
+            давай сделаем блок с этими 5. В блок ставим логотип СМИ (в png и
+            без фона), заголовок статьи, дату статьи». Раньше пресса была
+            строкой внутри «Интересных фактов» («об этом писали Forbes и
+            Habr») — без ссылок и дат, то есть читатель не мог дойти до
+            первоисточника, ради которого блок и нужен.
+
+            Дата и дисклеймер про источники убраны из самой карточки
+            (владелец, 2026-09-20: единый размер шрифта с "Интересными
+            фактами", даты и пояснение про ссылки — лишние) — дата остаётся
+            только в FAQ-тексте (formatMentionDate ниже по файлу). Логотип
+            берём из реестра по домену ссылки (data/mediaOutlets.ts); издания
+            без логотипа рисуем названием — подборка не должна ждать, пока
+            найдётся очередной PNG.
+
+            Критерии отбора публикаций — docs/bc-media-research-brief.md. */}
+        {mediaMentions.length > 0 && (
+          <div id="media" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+              <Newspaper className="h-5 w-5 shrink-0 text-primary" />
+              СМИ о здании
+            </h2>
+            <ul className="flex flex-col divide-y divide-border">
+              {mediaMentions.map((mention, i) => (
+                <li key={i} className="py-3 first:pt-0 last:pb-0">
+                  <a
+                    href={mention.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4"
+                  >
+                    <MediaOutletMark url={mention.url} outlet={mention.outlet} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm leading-relaxed text-ink-muted underline-offset-4 group-hover:underline">
+                        {mention.title}
+                      </span>
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* "Интересные факты" — произвольный набор блоков, разный у каждого
+            БЦ (владелец, 2026-09-06, второй заход: "старайся делать
+            кастомную страницу под каждый БЦ. Если у БЦ нет наград, не
+            делай этот блок вообще. Если есть что-то новое — кастомный
+            блок"). Раньше был фиксированный объект (history/tenants/media/
+            rating/reviews), теперь — HighlightSection[] (см. комментарий у
+            BusinessCenter.highlights в data/businessCenters.ts). icon
+            'warning' — единственная особая: выносится наверх акцентным
+            жёлтым блоком (как caveat в RentalInfo), а не в общий список.
+            Позиция на странице менялась дважды: 2026-09-17 — сразу после
+            главной карточки, 2026-09-20 — в группу блоков доверия (награды/
+            СМИ/факты/история), после цены, параметров здания, арендаторов
+            и сравнения с конкурентами (владелец принял предложенный
+            порядок блоков). */}
+        {visibleHighlights.length > 0 && (
+          <div id="facts" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+              <Sparkles className="h-5 w-5 shrink-0 text-primary" />
+              Интересные факты
+            </h2>
+
+            {visibleHighlights
+              .filter((s) => s.icon === 'warning')
+              .map((s, i) => (
+                <div
+                  key={`warning-${i}`}
+                  className="flex items-start gap-2 rounded-control border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-warning"
+                >
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div>
+                    {s.label && <p className="text-xs font-semibold uppercase tracking-wide">{s.label}</p>}
+                    <p className="mt-0.5 leading-relaxed">{renderRentalText(s.text)}</p>
+                  </div>
+                </div>
+              ))}
+
+            <div className="flex flex-col divide-y divide-border">
+              {(() => {
+                const plainFacts = visibleHighlights.filter((s) => s.icon !== 'warning');
+                // Единственный факт в карточке — свой подписанный заголовок
+                // над ним избыточен: и так ясно из заголовка карточки "Интересные
+                // факты" (владелец, 2026-09-06: "если интересный факт один, то
+                // заголовок лишний").
+                const showLabel = plainFacts.length > 1;
+                return plainFacts.map((s, i) => (
+                  <LabeledTextRow
+                    key={i}
+                    icon={HIGHLIGHT_ICONS[s.icon]}
+                    label={showLabel ? s.label : undefined}
+                    text={s.text}
+                  />
+                ));
+              })()}
+            </div>
+          </div>
+        )}
+
+        {center && <HistoryTimeline center={center} />}
+
+        {/* Развёрнутая карточка застройщика — владелец, 2026-09-20: "у
+            половины БЦ застройщики нормальные, с сайтами и тд... сделал бы
+            такой блок на страницах, где возможно, сразу под главным
+            блоком", по образцу карточки "Застройщик района" на гиде по
+            Минск Миру (DistrictGuidePage.tsx, id="developer"). В отличие от
+            того гида это не захардкожено — данные конкретного БЦ из
+            developerInfo (админка, BusinessCentersAdminTab.tsx), null у
+            большинства БЦ, пока карточку не заполнили. Первый заполненный
+            пример — "Футурис" (ГК «Тапас»). Позиция под главным блоком
+            была временной: 2026-09-20, тем же днём, владелец принял
+            предложенный порядок блоков страницы, и застройщик занял место
+            в конце (после цены, параметров здания, арендаторов, отзывов и
+            остального контента, перед выходами на другие БЦ) — блок про
+            компанию-застройщика, а не про само здание, и заполнен меньше
+            чем у половины БЦ (56 из 141 на 2026-09-20). */}
+        {center.developerInfo && (
+          <div id="developer" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+                <HardHat className="h-5 w-5 shrink-0 text-primary" />
+                Застройщик
+              </h2>
+              {center.developerInfo.logoUrl && (
+                <img
+                  src={center.developerInfo.logoUrl}
+                  alt={center.developer ?? shortName(center)}
+                  loading="lazy"
+                  className="h-9 w-auto max-w-[10rem] object-contain"
+                />
+              )}
+            </div>
+            {center.developer && <p className="text-sm font-semibold text-ink">{center.developer}</p>}
+            {center.developerInfo.description && (
+              <p className="text-sm leading-relaxed text-ink-muted">{center.developerInfo.description}</p>
+            )}
+            {(center.developerInfo.phone ||
+              center.developerInfo.address ||
+              center.developerInfo.hours ||
+              center.developerInfo.website) && (
+              <div className="flex flex-col gap-1.5 text-sm text-ink-muted">
+                {center.developerInfo.phone && (
+                  <a
+                    href={`tel:${center.developerInfo.phone.replace(/[^\d+]/g, '')}`}
+                    className="flex w-fit items-center gap-2 text-ink hover:underline"
+                  >
+                    <Phone className="h-4 w-4 shrink-0" />
+                    {center.developerInfo.phone}
+                  </a>
+                )}
+                {center.developerInfo.address && (
+                  <div className="flex items-start gap-2">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{center.developerInfo.address}</span>
+                  </div>
+                )}
+                {center.developerInfo.hours && (
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 shrink-0" />
+                    <span>{center.developerInfo.hours}</span>
+                  </div>
+                )}
+                {developerWebsiteUrl && (
+                  <a
+                    href={developerWebsiteUrl.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex w-fit items-center gap-1 text-ink hover:underline"
+                  >
+                    <Globe className="h-4 w-4 shrink-0" />
+                    {developerWebsiteUrl.label}
+                    <ExternalLink className="h-3 w-3 shrink-0" />
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {metroCatalogUrl && nearestMetro && relatedCenters.metro.length > 0 && (
+          <RelatedCentersSection
+            id="metroCenters"
+            title={`Бизнес-центры у станции ${nearestMetro.name}`}
+            centers={relatedCenters.metro}
+            catalogUrl={metroCatalogUrl}
+            catalogLabel={`Все БЦ у станции ${nearestMetro.name}`}
+            stationName={nearestMetro.name}
+            fallbackCenter={relatedCenters.metroFallback}
+          />
+        )}
+
+        {streetCatalogUrl && relatedCenters.street.length > 0 && (
+          <RelatedCentersSection
+            id="streetCenters"
+            title="Бизнес-центры на этой улице"
+            centers={relatedCenters.street}
+            catalogUrl={streetCatalogUrl}
+            catalogLabel="Все БЦ на этой улице"
+            fallbackCenter={relatedCenters.streetFallback}
+          />
+        )}
+
+        {center && <SimilarCentersBlock center={center} all={centers ?? []} offers={offerIndex} hubChips={hubChips} />}
+
         {/* Б12. Собственникам и УК — способ поправить данные. Пишем прямо
             в почту: отдельной формы с лидом здесь не заводим, это не заявка
             на аренду, а правка справочника, и ответить на неё должен
@@ -1859,8 +1888,6 @@ export function BusinessCenterDetailPage() {
             </a>
           </div>
         )}
-
-        {center && <SimilarCentersBlock center={center} all={centers ?? []} offers={offerIndex} hubChips={hubChips} />}
 
         {/* Мобильная навигация "следующий/предыдущий" — фиксированные стрелки
             выше скрыты до lg, здесь тот же переход обычной строкой кнопок. */}
