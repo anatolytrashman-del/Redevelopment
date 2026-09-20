@@ -6,6 +6,7 @@ function fromRow(row: BusinessCenterReviewRow): BusinessCenterReview {
   return {
     id: row.id,
     businessCenterSlug: row.business_center_slug,
+    source: row.source,
     author: row.author,
     rating: row.rating,
     body: row.body,
