@@ -1917,15 +1917,15 @@ export function BusinessCenterDetailPage() {
         {center && (
           <div className={cn('mt-6 flex flex-col gap-2 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="text-lg font-bold text-ink">Вы собственник или управляющая компания?</h2>
-            <p className="text-sm leading-relaxed text-ink-muted">
-              Если хотите добавить, убрать или изменить информацию — напишите нам, поправим.
+            <p className="flex flex-wrap items-baseline gap-x-1.5 text-sm leading-relaxed text-ink-muted">
+              <span>Если хотите добавить, убрать или изменить информацию — напишите нам, поправим:</span>
+              <a
+                href={`mailto:a@redevelopment.pro?subject=${encodeURIComponent(`Данные бизнес-центра «${shortName(center)}»`)}`}
+                className="w-fit font-semibold text-primary-hover hover:underline"
+              >
+                a@redevelopment.pro
+              </a>
             </p>
-            <a
-              href={`mailto:a@redevelopment.pro?subject=${encodeURIComponent(`Данные бизнес-центра «${shortName(center)}»`)}`}
-              className="w-fit text-sm font-semibold text-primary-hover hover:underline"
-            >
-              a@redevelopment.pro
-            </a>
           </div>
         )}
 
