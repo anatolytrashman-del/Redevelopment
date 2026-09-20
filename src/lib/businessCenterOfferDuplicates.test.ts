@@ -91,4 +91,29 @@ describe('dedupeOffers', () => {
     expect(dedupeOffers(null)).toEqual([]);
     expect(dedupeOffers([])).toEqual([]);
   });
+
+  it('схлопывает один лот одного источника, протолкнутый в несколько категорий', () => {
+    // Живой случай «Футуриса» (2026-09-20): Kufar тремя разными ad_id
+    // выложил один и тот же лот 1034 м² под тремя категориями — таблица
+    // «Сейчас предлагается» рисовала его как три строки с одинаковым
+    // размахом площади. Категория при этом РАЗНАЯ — в отличие от
+    // «Центрополя» ниже, где категория совпадает.
+    const result = dedupeOffers([
+      offer({ adId: '1', source: 'Kufar', size: 1034, pricePerSqm: 82.57, propertyType: 'Офисы' }),
+      offer({ adId: '2', source: 'Kufar', size: 1034, pricePerSqm: 82.57, propertyType: 'Сфера услуг' }),
+      offer({ adId: '3', source: 'Kufar', size: 1034, pricePerSqm: 82.57, propertyType: 'Без категории' }),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].propertyType).toBe('Офисы'); // не самая содержательная из трёх ("Без категории" проигрывает)
+  });
+
+  it('не схлопывает один источник с одинаковой категорией (реальные кабинеты)', () => {
+    // Прямая проверка, что правка выше не задела «Центрополь»: категория
+    // совпадает у обеих записей — это по-прежнему разные кабинеты.
+    const result = dedupeOffers([
+      offer({ adId: '1', source: 'Kufar', size: 200, pricePerSqm: 11.47, propertyType: 'Без категории' }),
+      offer({ adId: '2', source: 'Kufar', size: 200, pricePerSqm: 11.47, propertyType: 'Без категории' }),
+    ]);
+    expect(result).toHaveLength(2);
+  });
 });
