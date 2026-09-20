@@ -20,7 +20,7 @@ import type { BusinessCenterNearbyPlace, NearbyPlaceCategory } from '../../data/
 // и подписано: маршрутов у нас нет, и превращать 400 метров по воздуху в
 // «5 минут пешком» значило бы выдумать данные.
 
-const DEFAULT_ZOOM = 16;
+const DEFAULT_ZOOM = 15;
 
 // Сколько точек категории показывать текстом: дальше список перестаёт быть
 // справкой и становится выгрузкой базы — остальное видно на карте.
@@ -68,8 +68,8 @@ function MiniMap({ center, places }: { center: BusinessCenter; places: BusinessC
         map.geoObjects.add(
           new ymaps.Placemark(
             [center.lat as number, center.lng as number],
-            { hintContent: shortName(center) },
-            { preset: 'islands#dotIcon', iconColor: '#d1002a' },
+            { hintContent: shortName(center), iconContent: shortName(center) },
+            { preset: 'islands#blackStretchyIcon' },
           ),
         );
         map.geoObjects.add(
