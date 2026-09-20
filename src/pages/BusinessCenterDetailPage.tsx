@@ -788,7 +788,7 @@ export function BusinessCenterDetailPage() {
     }
     if (nearestMetro) add(`Какое метро рядом с «${name}»?`, `«${nearestMetro.name}» — ${nearestMetro.distanceMeters} м по прямой.`);
     for (const bar of marketPosition?.bars ?? []) {
-      add(`${bar.label} в «${name}» — это много или мало для своего класса?`, `${fmt(bar.value)} ${bar.unit}; ${bar.baselines.map((b) => `${b.label}: ${fmt(b.value)} ${bar.unit}`).join('; ')}.${bar.note ? ` ${bar.note}.` : ''}`);
+      add(`${bar.label} в «${name}» — это много или мало для своего класса?`, `${bar.subjectDisplayValue}; ${bar.captionText} (${bar.deltaText}).`);
     }
     // FAQ пересказывает блок «Инфраструктура рядом» теми же цифрами, что
     // нарисованы на карте и в списке под ней (правило владельца: FAQ
