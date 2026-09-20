@@ -71,6 +71,15 @@ function diffNote(value: number, base: number, baseLabel: string, words: [string
   return `на ${p}% ${value < base ? words[0] : words[1]}, чем ${baseLabel}`;
 }
 
+// baselines[].label — подпись под столбиком графика сравнения ("класс C"),
+// именительный падеж уместен там. В предложении с "медиана ..."/"у
+// медианного здания ..." нужен родительный — без склонения получалось
+// "медиана класс C". \b не видит границу кириллического слова (CLAUDE.md),
+// конец слова проверяем lookahead'ом с флагом u.
+export function genitiveBaselineLabel(label: string): string {
+  return label.replace(/^класс(?!а)(?=\s|$)/u, 'класса');
+}
+
 function elevatorProvision(center: Pick<BusinessCenter, 'elevators' | 'totalArea'>): number | null {
   if (center.elevators == null || center.totalArea == null || center.totalArea <= 0) return null;
   return Math.round((center.elevators / center.totalArea) * 1_000_000) / 100;
@@ -122,7 +131,7 @@ export function buildMarketPosition(
         value: buildingRent,
         baselines,
         words: ['дешевле', 'дороже'],
-        note: diffNote(buildingRent, baselines[0].value, `медиана ${baselines[0].label}`, ['дешевле', 'дороже']),
+        note: diffNote(buildingRent, baselines[0].value, `медиана ${genitiveBaselineLabel(baselines[0].label)}`, ['дешевле', 'дороже']),
       });
     }
   }
@@ -147,7 +156,7 @@ export function buildMarketPosition(
         value: buildingSale,
         baselines,
         words: ['дешевле', 'дороже'],
-        note: diffNote(buildingSale, baselines[0].value, `медиана ${baselines[0].label}`, ['дешевле', 'дороже']),
+        note: diffNote(buildingSale, baselines[0].value, `медиана ${genitiveBaselineLabel(baselines[0].label)}`, ['дешевле', 'дороже']),
       });
     }
   }
