@@ -1216,11 +1216,14 @@ export function BusinessCenterDetailPage() {
                   Работает — помечаем только строящиеся". Достроенное здание
                   и так по умолчанию работает, отдельная пометка для него
                   избыточна; "Строится" — исключение, которое стоит подсветить. */}
-              {center.status === 'under_construction' && (
-                <Badge tone="warning" className="absolute left-4 top-4 shadow-sm backdrop-blur-sm">
-                  Строится
-                </Badge>
-              )}
+              <div className="absolute left-4 top-4 flex items-center gap-2">
+                {center.status === 'under_construction' && (
+                  <Badge tone="warning" className="shadow-sm backdrop-blur-sm">
+                    Строится
+                  </Badge>
+                )}
+                <FavoriteButton slug={center.slug} />
+              </div>
               {/* Рейтинг с Яндекс.Карт — бейджем поверх фото, а не рядом с
                   заголовком (владелец, 2026-09-20: "у нас не влезает название
                   БЦ, предлагаю рейтинг яндекс.карт сделать бейджем поверх
@@ -1239,7 +1242,6 @@ export function BusinessCenterDetailPage() {
                   {mapRating.label} · Яндекс.Карты
                 </span>
               )}
-              <FavoriteButton slug={center.slug} className="absolute bottom-4 left-4" />
             </div>
 
             <div className="flex flex-col gap-4 p-5 sm:p-6">
