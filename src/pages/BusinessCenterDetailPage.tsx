@@ -77,6 +77,7 @@ import type { BusinessCenter, HighlightIconKey } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import type { BusinessCenterNearbyPlace } from '../data/businessCenterNearbyPlaces';
 import { fetchBusinessCenterNearbyPlaces } from '../lib/businessCenterNearbyPlacesApi';
+import { hasNearbyContent, nearbyFaqLines } from '../lib/nearbyPlaces';
 import type { BusinessCenterReview } from '../data/businessCenterReviews';
 import { fetchBusinessCenterReviews } from '../lib/businessCenterReviewsApi';
 import type { BusinessCenterOffer } from '../data/businessCenterOffers';
@@ -708,12 +709,23 @@ export function BusinessCenterDetailPage() {
     for (const bar of marketPosition?.bars ?? []) {
       add(`${bar.label} в «${name}» — это много или мало для своего класса?`, `${fmt(bar.value)} ${bar.unit}; ${bar.baselines.map((b) => `${b.label}: ${fmt(b.value)} ${bar.unit}`).join('; ')}.${bar.note ? ` ${bar.note}.` : ''}`);
     }
-    if (nearbyPlaces.length) {
-      const categoryCounts = new Map<string, number>();
-      for (const place of nearbyPlaces) categoryCounts.set(place.category, (categoryCounts.get(place.category) ?? 0) + 1);
+    // FAQ пересказывает блок «Инфраструктура рядом» теми же цифрами, что
+    // нарисованы на карте и в списке под ней (правило владельца: FAQ
+    // описывает всё, что есть на странице), — отсюда общий хелпер, а не
+    // вторая формулировка тех же данных.
+    const faqNearbyLines = nearbyFaqLines(nearbyPlaces);
+    if (faqNearbyLines.length) {
       add(
         `Какая инфраструктура есть рядом с «${name}»?`,
-        `В радиусе 500 м отмечено ${nearbyPlaces.length} объектов: ${[...categoryCounts.values()].reduce((sum, count) => sum + count, 0)} точек на карте.`,
+        `${faqNearbyLines.join('; ')}. Метро учитывается в радиусе 2 км, остановки — 800 м, остальное — 500 м; расстояния по прямой.`,
+      );
+    }
+    const faqStops = nearbyPlaces.filter((place) => place.category === 'transport_stop');
+    if (faqStops.length) {
+      const nearestStop = [...faqStops].sort((a, b) => a.distanceMeters - b.distanceMeters)[0];
+      add(
+        `Как добраться до «${name}» на общественном транспорте?`,
+        `В пешей доступности ${faqStops.length} ${faqStops.length === 1 ? 'остановка' : 'остановок'}; ближайшая — «${nearestStop.name}», ${nearestStop.distanceMeters} м по прямой.${nearestMetro ? ` Ближайшее метро — «${nearestMetro.name}», ${nearestMetro.distanceMeters} м.` : ''}`,
       );
     }
     const filledBuildingRows = redistributedTechnicalParams.buildingInformationRows.filter((row) => row.value);
@@ -855,7 +867,16 @@ export function BusinessCenterDetailPage() {
       has('developer', Boolean(center.developerInfo)),
       has('metroCenters', relatedCenters.metro.length > 0),
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
-      has('map', center.lat != null && center.lng != null && nearbyPlaces.length > 0),
+      // Карта есть у любого БЦ с координатами — с 2026-09-20 блок рисуется
+      // на всех страницах каталога, а не только там, где собран снимок
+      // точек. Подпись пункта меню повторяет заголовок блока: вести
+      // «Инфраструктуру рядом» на голую карту — обещать то, чего там нет.
+      center.lat != null && center.lng != null
+        ? {
+            id: 'map',
+            label: hasNearbyContent(center, nearbyPlaces) ? SECTION_LABELS.map : 'Расположение',
+          }
+        : null,
       has(
         'tech',
         redistributedTechnicalParams.buildingInformationRows.length > 0 ||
