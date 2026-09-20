@@ -53,7 +53,6 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline/promises';
-import { chromium } from 'playwright-core';
 import {
   SOURCE,
   SUPABASE_URL,
@@ -529,6 +528,9 @@ async function main() {
     console.log(`БЦ в очереди: ${queue.length}. Режим без браузера: страницы поиска запрашиваю напрямую.`);
   } else {
     console.log(`БЦ в очереди: ${queue.length}. Открываю Chrome — окно можно двигать, но не закрывайте его.`);
+    // Playwright подгружается только здесь: режиму --no-browser он не нужен,
+    // и требовать установленный пакет ради запуска без браузера незачем.
+    const { chromium } = await import('playwright-core');
     context = await chromium.launchPersistentContext(profileDir, {
       headless: false,
       executablePath: chromePath,
