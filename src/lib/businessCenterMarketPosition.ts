@@ -23,6 +23,7 @@
 import type { BusinessCenter } from '../data/businessCenters';
 import type { MarketSnapshot } from '../data/marketSnapshots';
 import { nearestMetroMeters, type CatalogOfferIndex } from './businessCenterCatalogFilter';
+import { mapRatingFromHighlights } from './businessCenterDisplay';
 
 // Меньше пяти зданий — это не «медиана класса», а случайный набор.
 // Отдельный порог от MIN_RELIABLE_N (15) в marketSnapshots: там речь про
@@ -377,22 +378,28 @@ export function buildMarketPosition(
     }
   }
 
-  // --- Рейтинг 2ГИС --------------------------------------------------------
-  // Не "рейтинг на картах" — gisRating это конкретно 2ГИС (см. комментарий
-  // у поля в data/businessCenters.ts), а бейдж наверху карточки БЦ — рейтинг
-  // Яндекс.Карт из другого источника (mapRatingFromHighlights). У части
-  // зданий числа по этим двум источникам расходятся, и общая подпись
-  // "рейтинг на картах" читалась как противоречие с тем бейджем, хотя это
-  // просто два разных числа — владелец, 2026-09-20, разбор скриншота.
-  if (center.gisRating != null && center.businessClass) {
-    const classValues = sameClass.map((c) => c.gisRating).filter((v): v is number => v != null);
+  // --- Рейтинг Яндекс.Карт --------------------------------------------------
+  // Раньше здесь стоял gisRating (2ГИС, "Рейтинг 2ГИС") — тот же экран, где
+  // бейдж наверху карточки БЦ показывает рейтинг Яндекс.Карт
+  // (mapRatingFromHighlights), и у части зданий числа по двум источникам
+  // расходятся: владелец увидел скриншот с 3,8 в бейдже и 5 в этом блоке и
+  // прочитал это как противоречие/баг. Решение владельца, 2026-09-20: «по
+  // умолчанию у нас везде рейтинг с Яндекс.Карт должен быть» — переключаем
+  // источник этой строки на тот же, что у бейджа, а не просто переименовываем
+  // подпись. Заодно у Яндекса шире охват (107 БЦ из 141 против 45 у 2ГИС) —
+  // сравнение чаще набирает MIN_COMPARE_N. 2ГИС остаётся там, где источник
+  // явно назван в подписи (CatalogCompare, фильтр каталога, «Что говорят»)
+  // — это осознанный выбор той функции, не путаница источников.
+  const subjectRating = mapRatingFromHighlights(center.highlights);
+  if (subjectRating != null && center.businessClass) {
+    const classValues = sameClass.map((c) => mapRatingFromHighlights(c.highlights)?.value ?? null).filter((v): v is number => v != null);
     const classRating = classValues.length >= MIN_COMPARE_N ? median(classValues) : null;
     if (classRating != null) {
       const unit = '★';
-      const d = buildDelta(center.gisRating, classRating, false, ['ниже', 'выше'], false);
+      const d = buildDelta(subjectRating.value, classRating, false, ['ниже', 'выше'], false);
       bars.push({
-        label: 'Рейтинг 2ГИС',
-        subjectDisplayValue: formatValue(center.gisRating, unit),
+        label: 'Рейтинг Яндекс.Карт',
+        subjectDisplayValue: formatValue(subjectRating.value, unit),
         captionText: buildCaption(classLabel, classRating, unit, []),
         deltaPct: d.deltaPct,
         tone: d.tone,

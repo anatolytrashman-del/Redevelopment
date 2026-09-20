@@ -793,13 +793,19 @@ export function BusinessCenterDetailPage() {
     // Рейтинг — единственный не гео-блок: не про "похож", а про "а что тут
     // вообще лучшее по городу", общий якорь для дальнейшего брожения по
     // каталогу (владелец, 2026-09-20, разговор про вложенность просмотра).
+    // Источник — Яндекс.Карты (mapRatingFromHighlights), не 2ГИС: блок ведёт
+    // на /minsk/bcminsk/reyting, а та страница сама сортирует по Яндексу
+    // (владелец, 2026-09-20: "по умолчанию у нас везде рейтинг с Яндекс карт
+    // должен быть") — teaser на другом источнике показывал бы других лидеров,
+    // чем полная страница рейтинга. У Яндекса и охват шире (107 БЦ из 141
+    // против 45 у 2ГИС).
     const rating = takeVisible(
       centers
         .filter(
           (candidate) =>
-            candidate.slug !== center.slug && !usedSlugs.has(candidate.slug) && candidate.gisRating != null,
+            candidate.slug !== center.slug && !usedSlugs.has(candidate.slug) && mapRatingFromHighlights(candidate.highlights) != null,
         )
-        .sort((a, b) => (b.gisRating ?? 0) - (a.gisRating ?? 0)),
+        .sort((a, b) => (mapRatingFromHighlights(b.highlights)?.value ?? 0) - (mapRatingFromHighlights(a.highlights)?.value ?? 0)),
     );
 
     const classDistrict =
