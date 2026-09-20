@@ -1240,7 +1240,7 @@ export function BusinessCenterDetailPage() {
                   {mapRating.label} · Яндекс.Карты
                 </span>
               )}
-              <FavoriteButton slug={center.slug} className="absolute bottom-4 right-4" />
+              <FavoriteButton slug={center.slug} className="absolute bottom-4 left-4" />
             </div>
 
             <div className="flex flex-col gap-4 p-5 sm:p-6">
