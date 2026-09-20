@@ -951,7 +951,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             <Link
               to={`/favorites/${favoritesId}`}
               className={cn(
-                'flex items-center gap-2 p-3 text-sm font-bold text-ink transition-colors hover:text-primary-hover',
+                'flex items-center justify-center gap-2 p-3 text-sm font-bold text-ink transition-colors hover:text-primary-hover',
                 glassCardClass,
               )}
               style={glassCardShadow}
