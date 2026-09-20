@@ -1992,12 +1992,17 @@ export function BusinessCenterDetailPage() {
         {faqItems.length > 0 && (
           <div id="faq" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="text-lg font-bold text-ink">Частые вопросы</h2>
+            {/* <details>/<summary> — ответ есть в DOM независимо от открыт/закрыт
+                (важно для краулеров и JSON-LD рядом), но на экране скрыт, пока
+                не раскрыли: блок из 20+ вопросов иначе занимает пол-страницы. */}
             <div className="flex flex-col divide-y divide-border">
               {faqItems.map((item) => (
-                <div key={item.question} className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
-                  <p className="text-sm font-semibold text-ink">{item.question}</p>
-                  <p className="text-sm leading-relaxed text-ink-muted">{item.answer}</p>
-                </div>
+                <details key={item.question} className="py-3 first:pt-0 last:pb-0">
+                  <summary className="cursor-pointer text-sm font-semibold text-ink">
+                    <h3 className="inline">{item.question}</h3>
+                  </summary>
+                  <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-muted">{item.answer}</p>
+                </details>
               ))}
             </div>
           </div>
