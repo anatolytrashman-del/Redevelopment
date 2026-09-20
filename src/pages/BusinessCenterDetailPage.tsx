@@ -935,7 +935,7 @@ export function BusinessCenterDetailPage() {
           .join('\n'),
       );
     }
-    add('Как исправить сведения о здании?', 'Напишите на anatoly.trashman@gmail.com, указав бизнес-центр и сведения, которые устарели или требуют исправления.');
+    add('Как исправить сведения о здании?', 'Если хотите добавить, убрать или изменить информацию, напишите на a@redevelopment.pro, указав бизнес-центр и сведения, которые нужно поправить.');
     // Тот же вызов, что и в самом блоке «Похожие»: соседи из него
     // исключены, иначе FAQ перечислял бы не то, что видно на странице.
     const neighbourSlugs = new Set(nearestNeighbours(center, centers ?? [], 5).map((n) => n.center.slug));
@@ -1948,15 +1948,13 @@ export function BusinessCenterDetailPage() {
           <div className={cn('mt-6 flex flex-col gap-2 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="text-lg font-bold text-ink">Вы собственник или управляющая компания?</h2>
             <p className="text-sm leading-relaxed text-ink-muted">
-              Данные по зданию собраны из открытых источников — prometr.by, 2ГИС, объявления Kufar,
-              Realt, Domovita и Megapolis. Если что-то устарело или указано неверно, напишите: поправим и пересчитаем
-              сравнения и индекс.
+              Если хотите добавить, убрать или изменить информацию — напишите нам, поправим.
             </p>
             <a
-              href={`mailto:anatoly.trashman@gmail.com?subject=${encodeURIComponent(`Данные бизнес-центра «${shortName(center)}»`)}`}
+              href={`mailto:a@redevelopment.pro?subject=${encodeURIComponent(`Данные бизнес-центра «${shortName(center)}»`)}`}
               className="w-fit text-sm font-semibold text-primary-hover hover:underline"
             >
-              anatoly.trashman@gmail.com
+              a@redevelopment.pro
             </a>
           </div>
         )}
