@@ -137,7 +137,7 @@ const SECTION_LABELS: Record<string, string> = {
   tech: 'Параметры здания',
   tenants: 'Кто внутри',
   rental: 'Условия для арендаторов',
-  offers: 'Сейчас предлагается',
+  offers: 'Объявления на рынке',
   history: 'История здания',
   reviews: 'Отзывы',
   faq: 'Частые вопросы',
@@ -832,7 +832,7 @@ export function BusinessCenterDetailPage() {
   // «БЦ на фоне конкурентов», чтобы одна и та же ставка не расходилась.
   const offerIndex = useMemo(() => buildOfferIndex(officeSnapshots), [officeSnapshots]);
 
-  // Б5: «Сейчас предлагается» — живая строка вместо голой таблицы. Важны
+  // Б5: «Объявления на рынке» — живая строка вместо голой таблицы. Важны
   // ДИАПАЗОНЫ: «офисы от 50 до 400 м² по $10–18/м²» отвечает на вопрос
   // «подойдёт ли мне», а таблица со средними по типу помещения — нет.
   const offersSummary = useMemo(() => {
@@ -1633,7 +1633,7 @@ export function BusinessCenterDetailPage() {
             выводится — раньше на этом месте была строка-заглушка. */}
         {offers !== null && offers.length > 0 && (
           <div id="offers" className={cn('mt-6 flex scroll-mt-32 flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <h2 className="text-lg font-bold text-ink">Сейчас предлагается</h2>
+            <h2 className="text-lg font-bold text-ink">Объявления на рынке</h2>
             <div className="flex flex-col gap-2">
               {(['rent', 'sale'] as const).map((deal) => {
                 const sum = offersSummary[deal];
@@ -1745,7 +1745,7 @@ export function BusinessCenterDetailPage() {
             Каждое поле независимо может быть null — рисуем только то, что
             реально нашлось. Порядок блоков страницы пересобран 2026-09-20
             (владелец принял предложенный порядок): условия аренды идут
-            сразу за "Сейчас предлагается" — оба блока отвечают на один и
+            сразу за "Объявления на рынке" — оба блока отвечают на один и
             тот же вопрос "что тут есть и почём". */}
         {center.rentalInfo && (
           <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
