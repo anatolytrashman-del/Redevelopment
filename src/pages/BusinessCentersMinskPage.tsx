@@ -28,6 +28,7 @@ import {
   clearNoIndex,
 } from '../lib/pageMeta';
 import { shortAddress, shortName, streetOfAddress } from '../lib/businessCenterDisplay';
+import { nearestMetroStation } from '../lib/metroStations';
 import {
   CLASS_SLUG_TO_VALUE,
   DISTRICT_SLUG_TO_NAME,
@@ -157,22 +158,48 @@ const FILTER_QUERY_KEYS = ['class', 'district', 'microdistrict', 'metro', 'stati
 // прямой ссылке (?compare=slug,slug — CatalogCompare.tsx), просто больше не
 // включается кликом на карточке.
 function BusinessCenterCard({ center }: { center: BusinessCenter }) {
+  const nearestMetro = nearestMetroStation(center.nearestMetroStations);
   return (
     <Link
       to={`/minsk/bcminsk/${center.slug}`}
       className={cn(
-        'group block min-w-0 self-start overflow-hidden transition-transform hover:-translate-y-0.5',
+        'group flex h-full min-w-0 flex-col overflow-hidden transition-transform hover:-translate-y-0.5',
         glassCardClass,
       )}
       style={glassCardShadow}
     >
-      <div className="aspect-square w-full overflow-hidden">
+      <div className="relative aspect-square w-full overflow-hidden">
         <PhotoBlock center={center} variant="card" />
+        <div className="absolute left-2 top-2 flex flex-col items-start gap-1.5">
+          {center.businessClass && (
+            <span className="rounded-full bg-ink-muted/90 px-2.5 py-1 text-xs font-bold text-white shadow-sm backdrop-blur-sm">
+              Класс {center.businessClass}
+            </span>
+          )}
+          <span className="flex items-center gap-1 rounded-full bg-ink-muted/90 px-2.5 py-1 text-xs font-bold text-white shadow-sm backdrop-blur-sm">
+            {center.status === 'under_construction' ? (
+              <>
+                <HardHat className="h-3.5 w-3.5 shrink-0" />
+                Строится
+              </>
+            ) : (
+              <>
+                <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
+                Построен
+              </>
+            )}
+          </span>
+        </div>
       </div>
-      <div className="flex flex-col gap-2.5 p-4">
+      <div className="flex flex-1 flex-col gap-2.5 p-4">
         <h2 className="text-base font-bold leading-snug text-ink">{center.name}</h2>
         <FactRow icon={MapPin}>{shortAddress(center.address)}</FactRow>
-        <div className="flex justify-start pt-1">
+        {nearestMetro && (
+          <FactRow icon={TrainFront}>
+            «{nearestMetro.name}» — {nearestMetro.distanceMeters} м
+          </FactRow>
+        )}
+        <div className="mt-auto flex justify-start pt-1">
           <span className="flex items-center gap-1 rounded-full bg-ink-muted/10 px-3 py-1.5 text-xs font-bold text-ink-muted transition-colors group-hover:bg-ink-muted group-hover:text-white">
             Подробнее
             <ArrowRight className="h-3.5 w-3.5 shrink-0" />
@@ -1014,7 +1041,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 items-start gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 items-stretch gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {orderedCenters.slice(0, visibleCount).map((c) => (
                   <BusinessCenterCard key={c.slug} center={c} />
                 ))}
