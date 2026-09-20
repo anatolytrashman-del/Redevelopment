@@ -115,6 +115,7 @@ import {
   WhatTheySayBlock,
 } from '../components/businessCenters/BusinessCenterMarketBlocks';
 import { NearbyInfrastructureBlock } from '../components/businessCenters/BusinessCenterNeighbours';
+import { buildRanking as buildBusinessCenterRanking } from './BusinessCentersRankingPage';
 
 // Отдельная страница одного бизнес-центра (владелец, 2026-09-04: "для SEO
 // лучше хаб + отдельная страница на каждый БЦ" — согласился с этим доводом
@@ -267,6 +268,17 @@ const SECTION_ICONS: Record<string, typeof FileText> = {
   reviews: MessageSquareQuote,
   faq: Info,
 };
+
+// Блоки-выходы на другие БЦ, рассыпанные по странице (2026-09-20) — двум из
+// них нельзя оказаться на странице подряд без другого контента между ними
+// (см. suppressedRecommendationSectionIds ниже).
+const RECOMMENDATION_SECTION_IDS = new Set([
+  'microdistrictCenters',
+  'metroCenters',
+  'ratingCenters',
+  'classDistrictCenters',
+  'streetCenters',
+]);
 
 const EMPTY_NEARBY_PLACES: BusinessCenterNearbyPlace[] = [];
 const EMPTY_REVIEWS: BusinessCenterReview[] = [];
@@ -782,14 +794,34 @@ export function BusinessCenterDetailPage() {
     // Рейтинг — единственный не гео-блок: не про "похож", а про "а что тут
     // вообще лучшее по городу", общий якорь для дальнейшего брожения по
     // каталогу (владелец, 2026-09-20, разговор про вложенность просмотра).
+    // Владелец, 2026-09-20: "в рейтинге нет БЦ Капитал Палас" — блок обязан
+    // показывать РОВНО тех же лидеров, что и /minsk/bcminsk/reyting, не
+    // собственную сортировку по BusinessCenter.gisRating (это снимок 2ГИС,
+    // другое число и без фильтра по классу/порогу — методика реального
+    // рейтинга в buildRanking, BusinessCentersRankingPage.tsx).
     const rating = takeVisible(
-      centers
-        .filter(
-          (candidate) =>
-            candidate.slug !== center.slug && !usedSlugs.has(candidate.slug) && candidate.gisRating != null,
-        )
-        .sort((a, b) => (b.gisRating ?? 0) - (a.gisRating ?? 0)),
+      buildBusinessCenterRanking(centers)
+        .map((r) => r.center)
+        .filter((candidate) => candidate.slug !== center.slug && !usedSlugs.has(candidate.slug)),
     );
+
+    // Порядок вычисления ниже (улица → класс×район) повторяет их порядок в
+    // самом низу страницы — иначе дедуп исключал бы кандидатов не из того
+    // блока, что реально показан выше (владелец, 2026-09-20: наткнулись на
+    // рассинхрон, когда блок улицы физически стоял перед классом×районом,
+    // а pageSectionsRaw и usedSlugs считали в обратном порядке).
+    const streetCenters = street
+      ? takeVisible(
+          centers
+            .filter(
+              (candidate) =>
+                candidate.slug !== center.slug &&
+                !usedSlugs.has(candidate.slug) &&
+                streetOfAddress(candidate.address) === street,
+            )
+            .sort(byDistance),
+        )
+      : [];
 
     const classDistrict =
       center.businessClass && center.district
@@ -805,19 +837,6 @@ export function BusinessCenterDetailPage() {
               .sort(byDistance),
           )
         : [];
-
-    const streetCenters = street
-      ? takeVisible(
-          centers
-            .filter(
-              (candidate) =>
-                candidate.slug !== center.slug &&
-                !usedSlugs.has(candidate.slug) &&
-                streetOfAddress(candidate.address) === street,
-            )
-            .sort(byDistance),
-        )
-      : [];
 
     // Владелец, 2026-09-20: "если у нас всего 1 БЦ в блоке рекомендаций,
     // давай использовать вторую половину блока под рекомендацию других БЦ
@@ -1157,7 +1176,7 @@ export function BusinessCenterDetailPage() {
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
   // якорь никуда не ведёт и выглядит поломкой.
-  const pageSections = useMemo(() => {
+  const pageSectionsRaw = useMemo(() => {
     if (!center) return [];
     const has = (id: string, cond: boolean) => (cond ? { id, label: SECTION_LABELS[id] } : null);
     // Порядок пунктов повторяет порядок блоков на странице (пересобран
@@ -1198,8 +1217,8 @@ export function BusinessCenterDetailPage() {
       has('facts', visibleHighlights.length > 0),
       has('history', extractHistoryPoints(center).length >= 2),
       has('developer', Boolean(center.developerInfo)),
-      has('classDistrictCenters', relatedCenters.classDistrict.length > 0),
       has('streetCenters', relatedCenters.street.length > 0),
+      has('classDistrictCenters', relatedCenters.classDistrict.length > 0),
       has('faq', faqItems.length > 0),
     ].filter((v): v is { id: string; label: string } => v !== null);
   }, [
@@ -1219,6 +1238,35 @@ export function BusinessCenterDetailPage() {
     nearbyPlaces,
     reviews,
   ]);
+
+  // У БЦ с небольшим количеством данных блоки-разделители (награды, СМИ,
+  // факты, история, застройщик...) между двумя выходами на другие БЦ могут
+  // все оказаться пустыми — тогда два блока рекомендаций съезжаются
+  // вплотную друг к другу, хотя весь смысл их расстановки по странице был
+  // в обратном (владелец, 2026-09-20, на скриншоте: "Рейтинг БЦ" сразу
+  // перед "Похожие БЦ" на странице без наград/СМИ/фактов/истории/улицы —
+  // "такое мне не нужно"). Раз соседей по разметке не осталось — второй из
+  // пары просто не рисуется, а не приклеивается к первому: держим только
+  // первый блок рекомендаций из каждой непрерывной цепочки в pageSectionsRaw
+  // (порядок там уже совпадает с порядком на странице).
+  const suppressedRecommendationSectionIds = useMemo(() => {
+    const suppressed = new Set<string>();
+    let previousWasRecommendation = false;
+    for (const section of pageSectionsRaw) {
+      const isRecommendation = RECOMMENDATION_SECTION_IDS.has(section.id);
+      if (isRecommendation && previousWasRecommendation) {
+        suppressed.add(section.id);
+        continue;
+      }
+      previousWasRecommendation = isRecommendation;
+    }
+    return suppressed;
+  }, [pageSectionsRaw]);
+
+  const pageSections = useMemo(
+    () => pageSectionsRaw.filter((section) => !suppressedRecommendationSectionIds.has(section.id)),
+    [pageSectionsRaw, suppressedRecommendationSectionIds],
+  );
 
   // «Что там есть» — состав здания в description сниппета. Источник тот же
   // список организаций и та же инфраструктура, что нарисованы на странице
@@ -1892,7 +1940,9 @@ export function BusinessCenterDetailPage() {
             странице" — вложенность просмотра). Микрорайон — сразу после
             карты, это самая близкая по смыслу связка ("вот что ещё рядом на
             карте"). */}
-        {microdistrictCatalogUrl && relatedCenters.microdistrict.length > 0 && (
+        {microdistrictCatalogUrl &&
+          relatedCenters.microdistrict.length > 0 &&
+          !suppressedRecommendationSectionIds.has('microdistrictCenters') && (
           <RelatedCentersSection
             id="microdistrictCenters"
             title={`Бизнес-центры ${center.microdistrict}`}
@@ -1940,7 +1990,10 @@ export function BusinessCenterDetailPage() {
             идёт сопоставление с другими БЦ, это его естественное
             продолжение (было ниже, в паре с блоком про улицу — разведены
             по странице 2026-09-20). */}
-        {metroCatalogUrl && nearestMetro && relatedCenters.metro.length > 0 && (
+        {metroCatalogUrl &&
+          nearestMetro &&
+          relatedCenters.metro.length > 0 &&
+          !suppressedRecommendationSectionIds.has('metroCenters') && (
           <RelatedCentersSection
             id="metroCenters"
             title={`Бизнес-центры у станции ${nearestMetro.name}`}
@@ -1957,7 +2010,7 @@ export function BusinessCenterDetailPage() {
         {/* Рейтинг — не гео-блок, а общий якорь "а что тут вообще лучшее по
             городу"; логично сразу после отзывов, пока читатель ещё в
             режиме "кто тут лучше" (владелец, 2026-09-20). */}
-        {relatedCenters.rating.length > 0 && (
+        {relatedCenters.rating.length > 0 && !suppressedRecommendationSectionIds.has('ratingCenters') && (
           <RelatedCentersSection
             id="ratingCenters"
             title="Рейтинг бизнес-центров Минска"
@@ -2177,7 +2230,9 @@ export function BusinessCenterDetailPage() {
           </div>
         )}
 
-        {streetCatalogUrl && relatedCenters.street.length > 0 && (
+        {streetCatalogUrl &&
+          relatedCenters.street.length > 0 &&
+          !suppressedRecommendationSectionIds.has('streetCenters') && (
           <RelatedCentersSection
             id="streetCenters"
             title="Бизнес-центры на этой улице"
@@ -2191,7 +2246,10 @@ export function BusinessCenterDetailPage() {
         {/* Пересечение класс×район — самая узкая, предметно "похожая"
             подборка (тот же уровень и тот же район), поэтому в паре с
             улицей в самом конце, перед формой правки данных. */}
-        {classDistrictCatalogUrl && center.district && relatedCenters.classDistrict.length > 0 && (
+        {classDistrictCatalogUrl &&
+          center.district &&
+          relatedCenters.classDistrict.length > 0 &&
+          !suppressedRecommendationSectionIds.has('classDistrictCenters') && (
           <RelatedCentersSection
             id="classDistrictCenters"
             title={`Бизнес-центры класса ${center.businessClass} в ${districtPrepositional(center.district)} районе`}
