@@ -25,7 +25,14 @@ import type { ParsedSnapshotReview } from '../../lib/businessCenterSnapshotParse
 import { parseHighlightRatings } from '../../lib/businessCenterDisplay';
 import { supabase } from '../../lib/supabase';
 import { BUSINESS_CENTER_CLASSES } from '../../data/businessCenters';
-import type { BusinessCenter, HighlightIconKey, HighlightSection, RentalInfo, TenantOrganization } from '../../data/businessCenters';
+import type {
+  BusinessCenter,
+  DeveloperInfo,
+  HighlightIconKey,
+  HighlightSection,
+  RentalInfo,
+  TenantOrganization,
+} from '../../data/businessCenters';
 import type { DocumentFile } from '../../data/contractorDocuments';
 
 // Подписи выбора иконки в форме — порядок совпадает с частотой использования
@@ -79,6 +86,12 @@ interface FormState {
   yearBuilt: string;
   floors: string;
   developer: string;
+  developerLogoUrl: string;
+  developerDescription: string;
+  developerPhone: string;
+  developerAddress: string;
+  developerHours: string;
+  developerWebsite: string;
   metro: string;
   parking: string;
   website: string;
@@ -114,6 +127,12 @@ const EMPTY_FORM: FormState = {
   yearBuilt: '',
   floors: '',
   developer: '',
+  developerLogoUrl: '',
+  developerDescription: '',
+  developerPhone: '',
+  developerAddress: '',
+  developerHours: '',
+  developerWebsite: '',
   metro: '',
   parking: '',
   website: '',
@@ -150,6 +169,12 @@ function centerToForm(c: BusinessCenter): FormState {
     yearBuilt: c.yearBuilt != null ? String(c.yearBuilt) : '',
     floors: c.floors != null ? String(c.floors) : '',
     developer: c.developer ?? '',
+    developerLogoUrl: c.developerInfo?.logoUrl ?? '',
+    developerDescription: c.developerInfo?.description ?? '',
+    developerPhone: c.developerInfo?.phone ?? '',
+    developerAddress: c.developerInfo?.address ?? '',
+    developerHours: c.developerInfo?.hours ?? '',
+    developerWebsite: c.developerInfo?.website ?? '',
     metro: c.metro ?? '',
     parking: c.parking ?? '',
     website: c.website ?? '',
@@ -194,6 +219,19 @@ function buildRentalInfo(form: FormState): RentalInfo | null {
   const contacts = form.rentalContacts.trim() || null;
   if (!caveat && !terms && !rates && !sizes && !parking && !contacts) return null;
   return { caveat, terms, rates, sizes, parking, contacts };
+}
+
+// Та же логика "пустая форма → null целиком" — карточка застройщика на
+// публичной странице не рендерится вовсе, пока по нему ничего не заполнено.
+function buildDeveloperInfo(form: FormState): DeveloperInfo | null {
+  const logoUrl = form.developerLogoUrl.trim() || null;
+  const description = form.developerDescription.trim() || null;
+  const phone = form.developerPhone.trim() || null;
+  const address = form.developerAddress.trim() || null;
+  const hours = form.developerHours.trim() || null;
+  const website = form.developerWebsite.trim() || null;
+  if (!logoUrl && !description && !phone && !address && !hours && !website) return null;
+  return { logoUrl, description, phone, address, hours, website };
 }
 
 // Блоки с пустым текстом/подписью не сохраняем — та же логика, что раньше
@@ -396,6 +434,7 @@ export function BusinessCentersAdminTab() {
         yearBuilt: numOrNull(form.yearBuilt),
         floors: numOrNull(form.floors),
         developer: form.developer.trim() || null,
+        developerInfo: buildDeveloperInfo(form),
         metro: form.metro.trim() || null,
         parking: form.parking.trim() || null,
         website: form.website.trim() || null,
@@ -817,6 +856,54 @@ export function BusinessCentersAdminTab() {
           </div>
 
           <Input label="Застройщик / УК" value={form.developer} onChange={(e) => setForm({ ...form, developer: e.target.value })} />
+
+          <div className="flex flex-col gap-3 rounded-control border border-border p-4">
+            <div>
+              <p className="text-sm font-semibold text-ink">Карточка застройщика (для страницы БЦ)</p>
+              <p className="text-xs text-ink-faint">
+                Необязательно — заполняйте только там, где у застройщика есть нормальный сайт и о нём есть что
+                сказать (по образцу карточки «Застройщик района» на гиде по Минск Миру). Пустая форма — блок на
+                публичной странице просто не появляется, короткая строка «Застройщик / УК» выше продолжает работать
+                как раньше.
+              </p>
+            </div>
+            <Input
+              label="Логотип (URL картинки)"
+              value={form.developerLogoUrl}
+              onChange={(e) => setForm({ ...form, developerLogoUrl: e.target.value })}
+              placeholder="/images/developers/... или https://..."
+            />
+            <Textarea
+              label="Описание застройщика"
+              value={form.developerDescription}
+              onChange={(e) => setForm({ ...form, developerDescription: e.target.value })}
+              rows={3}
+              placeholder="Когда основан, чем занимается, масштаб/годы на рынке, ключевые проекты"
+            />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Input
+                label="Телефон"
+                value={form.developerPhone}
+                onChange={(e) => setForm({ ...form, developerPhone: e.target.value })}
+              />
+              <Input
+                label="Сайт"
+                value={form.developerWebsite}
+                onChange={(e) => setForm({ ...form, developerWebsite: e.target.value })}
+                placeholder="https://..."
+              />
+              <Input
+                label="Адрес офиса"
+                value={form.developerAddress}
+                onChange={(e) => setForm({ ...form, developerAddress: e.target.value })}
+              />
+              <Input
+                label="Часы работы"
+                value={form.developerHours}
+                onChange={(e) => setForm({ ...form, developerHours: e.target.value })}
+              />
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input label="Метро" value={form.metro} onChange={(e) => setForm({ ...form, metro: e.target.value })} />

@@ -44,6 +44,19 @@ export interface BusinessCenter {
   yearBuilt: number | null;
   floors: number | null;
   developer: string | null;
+  // Развёрнутая карточка застройщика (логотип, описание, контакты, сайт) —
+  // владелец, 2026-09-20: "у половины БЦ застройщики нормальные, с сайтами
+  // и тд... сделал бы такой блок на страницах, где возможно", по образцу
+  // карточки "Застройщик района" на гиде по Минск Миру
+  // (DistrictGuidePage.tsx). В отличие от того гида (захардкожен под один
+  // район), тут это данные конкретного БЦ — null, пока карточку не
+  // заполнили в админке; тогда `developer` (короткая строка выше, живёт в
+  // FAQ и старом месте на карточке) остаётся, а этот блок показывается
+  // ДОПОЛНИТЕЛЬНО, отдельной секцией сразу под главным блоком. Разложено по
+  // отдельным полям (не markdown-простыня), как RentalInfo ниже — на
+  // публичной странице каждое поле рендерится своей строкой со своей
+  // иконкой, независимо null, если по нему нечего показать.
+  developerInfo: DeveloperInfo | null;
   metro: string | null;
   parking: string | null;
   website: string | null;
@@ -234,6 +247,19 @@ export interface RentalInfo {
   contacts: string | null;
 }
 
+// См. комментарий у BusinessCenter.developerInfo выше. Всё независимо
+// null — карточка застройщика на публичной странице не рендерится вовсе,
+// пока объект целиком null (форма в админке пишет null, если ВСЕ поля
+// пустые — тот же принцип, что и у buildRentalInfo).
+export interface DeveloperInfo {
+  logoUrl: string | null;
+  description: string | null;
+  phone: string | null;
+  address: string | null;
+  hours: string | null;
+  website: string | null;
+}
+
 // Фиксированный набор иконок для "Интересных фактов" (не сам React-компонент
 // — это данные из Supabase, компонент маппится в BusinessCenterDetailPage.tsx
 // по этому ключу). 'warning' — единственная особая: рендерится акцентным
@@ -308,6 +334,7 @@ export interface BusinessCenterRow {
   year_built: number | null;
   floors: number | null;
   developer: string | null;
+  developer_info: DeveloperInfo | null;
   metro: string | null;
   parking: string | null;
   website: string | null;

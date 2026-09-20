@@ -22,6 +22,7 @@ function fromRow(row: BusinessCenterRow): BusinessCenter {
     yearBuilt: row.year_built,
     floors: row.floors,
     developer: row.developer,
+    developerInfo: row.developer_info,
     metro: row.metro,
     parking: row.parking,
     website: row.website,
@@ -89,6 +90,7 @@ function toPayload(input: Partial<BusinessCenterInput>) {
   if (input.yearBuilt !== undefined) payload.year_built = input.yearBuilt;
   if (input.floors !== undefined) payload.floors = input.floors;
   if (input.developer !== undefined) payload.developer = input.developer;
+  if (input.developerInfo !== undefined) payload.developer_info = input.developerInfo;
   if (input.metro !== undefined) payload.metro = input.metro;
   if (input.parking !== undefined) payload.parking = input.parking;
   if (input.website !== undefined) payload.website = input.website;
