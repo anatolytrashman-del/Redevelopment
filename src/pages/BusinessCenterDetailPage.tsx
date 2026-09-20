@@ -1437,7 +1437,7 @@ export function BusinessCenterDetailPage() {
               <Trophy className="h-5 w-5 shrink-0 text-primary" />
               Награды
             </h2>
-            <ul className="list-disc space-y-2 pl-5 text-base leading-relaxed text-ink marker:text-ink-muted">
+            <ul className="list-disc space-y-2 pl-5 text-sm leading-relaxed text-ink-muted marker:text-ink-muted">
               {awardItems.map((item, i) => (
                 <li key={i}>{renderBold(item)}</li>
               ))}
@@ -1507,10 +1507,12 @@ export function BusinessCenterDetailPage() {
             Habr») — без ссылок и дат, то есть читатель не мог дойти до
             первоисточника, ради которого блок и нужен.
 
-            Что показываем, определено владельцем буквально: логотип,
-            заголовок, дата — ни аннотаций, ни цитат. Логотип берём из
-            реестра по домену ссылки (data/mediaOutlets.ts); издания без
-            логотипа рисуем названием — подборка не должна ждать, пока
+            Дата и дисклеймер про источники убраны из самой карточки
+            (владелец, 2026-09-20: единый размер шрифта с "Интересными
+            фактами", даты и пояснение про ссылки — лишние) — дата остаётся
+            только в FAQ-тексте (formatMentionDate ниже по файлу). Логотип
+            берём из реестра по домену ссылки (data/mediaOutlets.ts); издания
+            без логотипа рисуем названием — подборка не должна ждать, пока
             найдётся очередной PNG.
 
             Критерии отбора публикаций — docs/bc-media-research-brief.md. */}
@@ -1531,21 +1533,14 @@ export function BusinessCenterDetailPage() {
                   >
                     <MediaOutletMark url={mention.url} outlet={mention.outlet} />
                     <span className="min-w-0 flex-1">
-                      <span className="block text-base leading-relaxed text-ink underline-offset-4 group-hover:underline">
+                      <span className="block text-sm leading-relaxed text-ink-muted underline-offset-4 group-hover:underline">
                         {mention.title}
                       </span>
-                      {mention.date && (
-                        <span className="mt-1 block text-xs text-ink-muted">{formatMentionDate(mention.date)}</span>
-                      )}
                     </span>
                   </a>
                 </li>
               ))}
             </ul>
-            <p className="text-xs text-ink-muted">
-              Ссылки ведут на сайты изданий. Мы не редактируем и не согласовываем их материалы — подборка нужна, чтобы
-              можно было прочитать о здании из первых рук.
-            </p>
           </div>
         )}
 
