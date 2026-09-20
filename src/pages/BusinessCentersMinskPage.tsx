@@ -19,6 +19,7 @@ import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { PhotoBlock, FactRow, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import { CatalogFilterPanel } from '../components/businessCenters/CatalogFilterPanel';
 import { CatalogCompare } from '../components/businessCenters/CatalogCompare';
+import { FavoriteButton } from '../components/businessCenters/FavoriteButton';
 import {
   setArticleJsonLd,
   setBreadcrumbJsonLd,
@@ -159,7 +160,7 @@ const FILTER_QUERY_KEYS = ['class', 'status', 'district', 'microdistrict', 'metr
 // простому виду для нового набора фото. «Сравнить» остаётся доступным по
 // прямой ссылке (?compare=slug,slug — CatalogCompare.tsx), просто больше не
 // включается кликом на карточке.
-function BusinessCenterCard({ center }: { center: BusinessCenter }) {
+export function BusinessCenterCard({ center }: { center: BusinessCenter }) {
   const nearestMetro = nearestMetroStation(center.nearestMetroStations);
   return (
     <Link
@@ -185,6 +186,7 @@ function BusinessCenterCard({ center }: { center: BusinessCenter }) {
             </span>
           )}
         </div>
+        <FavoriteButton slug={center.slug} className="absolute right-2 top-2" />
       </div>
       <div className="flex flex-1 flex-col gap-2.5 p-4">
         <h2 className="text-base font-bold leading-snug text-ink">{shortName(center)}</h2>

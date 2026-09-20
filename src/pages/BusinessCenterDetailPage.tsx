@@ -46,6 +46,7 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
 import { PhotoBlock, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
+import { FavoriteButton } from '../components/businessCenters/FavoriteButton';
 import {
   setBreadcrumbJsonLd,
   setFaqJsonLd,
@@ -1239,6 +1240,7 @@ export function BusinessCenterDetailPage() {
                   {mapRating.label} · Яндекс.Карты
                 </span>
               )}
+              <FavoriteButton slug={center.slug} className="absolute bottom-4 right-4" />
             </div>
 
             <div className="flex flex-col gap-4 p-5 sm:p-6">
