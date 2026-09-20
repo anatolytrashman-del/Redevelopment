@@ -91,8 +91,8 @@ export function PhotoBlock({
 
 export function FactRow({ icon: Icon, children }: { icon: typeof Camera; children: ReactNode }) {
   return (
-    <div className="flex items-start gap-2 text-xs font-semibold text-ink-muted">
-      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint" />
+    <div className="flex items-center gap-2 text-xs text-ink-muted">
+      <Icon className="h-4 w-4 shrink-0 text-ink-faint" />
       <span className="text-balance">{children}</span>
     </div>
   );
