@@ -41,6 +41,7 @@ import {
   Trophy,
   Users,
 } from 'lucide-react';
+import { outletBrand } from '../data/mediaOutlets';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
@@ -129,6 +130,7 @@ import { NearbyInfrastructureBlock, SimilarCentersBlock, similarCenters } from '
 const SECTION_LABELS: Record<string, string> = {
   awards: 'Награды',
   facts: 'Факты',
+  media: 'СМИ о здании',
   developer: 'Застройщик',
   metroCenters: 'БЦ у метро',
   market: 'БЦ на фоне конкурентов',
@@ -147,6 +149,7 @@ const SECTION_LABELS: Record<string, string> = {
 const SECTION_ICONS: Record<string, typeof FileText> = {
   awards: Trophy,
   facts: Sparkles,
+  media: Newspaper,
   developer: HardHat,
   metroCenters: TrainFront,
   market: Award,
@@ -537,6 +540,20 @@ export function BusinessCenterDetailPage() {
     [center],
   );
 
+  // Публикации в СМИ — свой блок (владелец, 2026-09-20). Сортируем от свежих:
+  // подборка отвечает на вопрос «что пишут о здании», и первым должен стоять
+  // самый недавний материал, а не тот, что раньше попал в базу. Публикации
+  // без даты уходят в конец — их некуда поставить честно.
+  const mediaMentions = useMemo(() => {
+    const items = center?.mediaMentions ?? [];
+    return [...items].sort((a, b) => {
+      if (a.date === b.date) return 0;
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      return b.date.localeCompare(a.date);
+    });
+  }, [center]);
+
   // Награды — отдельный блок, а не строка в "Интересных фактах" (владелец,
   // 2026-09-20). Разворачиваем в плоский список строк по тому же принципу,
   // что reviewQuotes: одна строка текста = один пункт. Подпись самого
@@ -784,6 +801,13 @@ export function BusinessCenterDetailPage() {
       add('Какие условия и контакты аренды опубликованы?', [info.caveat, info.terms, info.rates, info.sizes, info.contacts].filter(Boolean).join(' ') + ' Актуальные условия уточняйте у арендодателя.');
     }
     if (awardItems.length) add(`Какие награды есть у «${name}»?`, awardItems.join('\n'));
+    if (mediaMentions.length)
+      add(
+        `Что писали о «${name}» в СМИ?`,
+        mediaMentions
+          .map((m) => `${m.outlet}${m.date ? `, ${formatMentionDate(m.date)}` : ''}: «${m.title}»`)
+          .join('\n'),
+      );
     if (visibleHighlights.length) add('Какие факты о здании опубликованы?', visibleHighlights.map((h) => [h.label, h.text].filter(Boolean).join(': ')).join('\n'));
     const history = extractHistoryPoints(center);
     if (history.length) add('Что известно об истории здания?', history.map((h) => `${h.year}: ${h.text}`).join('; '));
@@ -868,7 +892,7 @@ export function BusinessCenterDetailPage() {
     if (similar.length) add('Какие бизнес-центры показаны как похожие?', similar.map(shortName).join(', '));
     if (hubChips.length) add('Какие связанные подборки доступны?', hubChips.map((c) => c.label).join(', '));
     return items;
-  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, awardItems, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, tenantSnapshot, mapRating, reviewQuotes, hubChips, redistributedTechnicalParams, nearbyPlaces]);
+  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, awardItems, mediaMentions, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, tenantSnapshot, mapRating, reviewQuotes, hubChips, redistributedTechnicalParams, nearbyPlaces]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -879,6 +903,7 @@ export function BusinessCenterDetailPage() {
     return [
       has('awards', awardItems.length > 0),
       has('facts', visibleHighlights.length > 0),
+      has('media', mediaMentions.length > 0),
       has('developer', Boolean(center.developerInfo)),
       has('metroCenters', relatedCenters.metro.length > 0),
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
@@ -904,6 +929,7 @@ export function BusinessCenterDetailPage() {
     offers,
     awardItems,
     visibleHighlights,
+    mediaMentions,
     tenantOrganizations,
     faqItems,
     redistributedTechnicalParams,
@@ -1450,6 +1476,55 @@ export function BusinessCenterDetailPage() {
                 ));
               })()}
             </div>
+          </div>
+        )}
+
+        {/* «СМИ о здании» — владелец, 2026-09-20: «мне нравится подборка,
+            давай сделаем блок с этими 5. В блок ставим логотип СМИ (в png и
+            без фона), заголовок статьи, дату статьи». Раньше пресса была
+            строкой внутри «Интересных фактов» («об этом писали Forbes и
+            Habr») — без ссылок и дат, то есть читатель не мог дойти до
+            первоисточника, ради которого блок и нужен.
+
+            Что показываем, определено владельцем буквально: логотип,
+            заголовок, дата — ни аннотаций, ни цитат. Логотип берём из
+            реестра по домену ссылки (data/mediaOutlets.ts); издания без
+            логотипа рисуем названием — подборка не должна ждать, пока
+            найдётся очередной PNG.
+
+            Критерии отбора публикаций — docs/bc-media-research-brief.md. */}
+        {mediaMentions.length > 0 && (
+          <div id="media" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+              <Newspaper className="h-5 w-5 shrink-0 text-primary" />
+              СМИ о здании
+            </h2>
+            <ul className="flex flex-col divide-y divide-border">
+              {mediaMentions.map((mention, i) => (
+                <li key={i} className="py-3 first:pt-0 last:pb-0">
+                  <a
+                    href={mention.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4"
+                  >
+                    <MediaOutletMark url={mention.url} outlet={mention.outlet} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-base leading-relaxed text-ink underline-offset-4 group-hover:underline">
+                        {mention.title}
+                      </span>
+                      {mention.date && (
+                        <span className="mt-1 block text-xs text-ink-muted">{formatMentionDate(mention.date)}</span>
+                      )}
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-ink-muted">
+              Ссылки ведут на сайты изданий. Мы не редактируем и не согласовываем их материалы — подборка нужна, чтобы
+              можно было прочитать о здании из первых рук.
+            </p>
           </div>
         )}
 
@@ -2073,6 +2148,50 @@ function formatSchedule(schedule: Gis2Schedule): string[] {
 
 // сам текст, ничего не рендерит, если по этому разделу нашлось не найдено
 // (text === null) — не показываем пустые подписи.
+// Логотип издания в строке подборки. На широком экране — колонка постоянной
+// ширины: логотипы у изданий разной пропорции (у Onliner вытянутый текстовый,
+// у БелТА почти квадратный овал), и без общей колонки заголовки статей встали
+// бы лесенкой. На телефоне та же колонка съедала треть строки и рвала
+// заголовок на шесть строк, поэтому там логотип уходит НАД заголовком, а
+// ширина колонки не задаётся вовсе.
+//
+// onError гасит картинку, а не оставляет «сломанное изображение»: если PNG
+// когда-нибудь не доедет со сборкой, строка должна выглядеть как строка с
+// названием издания, а не как ошибка.
+function MediaOutletMark({ url, outlet }: { url: string; outlet: string }) {
+  const brand = outletBrand(url);
+  const [failed, setFailed] = useState(false);
+  const label = brand?.name ?? outlet;
+
+  if (!brand?.logo || failed) {
+    return (
+      <span className="flex shrink-0 items-center text-sm font-semibold text-ink-muted sm:w-28 sm:pt-0.5">{label}</span>
+    );
+  }
+  return (
+    <span className="flex shrink-0 items-center sm:w-28">
+      <img
+        src={brand.logo}
+        alt={label}
+        loading="lazy"
+        onError={() => setFailed(true)}
+        className="max-h-7 w-auto max-w-full object-contain object-left sm:max-h-8"
+      />
+    </span>
+  );
+}
+
+// «13 февраля 2025», а не «13.02.2025»: в блоке дата стоит отдельной строкой
+// под заголовком, где цифровой формат читается как артикул. Хвост « г.»,
+// который ru-RU добавляет сам, снимаем — в подписи из трёх слов он лишний.
+function formatMentionDate(date: string): string {
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return parsed
+    .toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+    .replace(/\s*г\.$/, '');
+}
+
 function LabeledTextRow({
   icon: Icon,
   label,
