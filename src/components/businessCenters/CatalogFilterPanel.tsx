@@ -3,18 +3,7 @@ import { createPortal } from 'react-dom';
 import { ChevronDown, RotateCcw, SlidersHorizontal, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
-import {
-  CLASS_NOT_ASSIGNED,
-  MINSK_METRO_LINES,
-  METRO_WITHIN_OPTIONS,
-  type CatalogFilterState,
-} from '../../lib/businessCenterCatalogFilter';
-
-// Подписи для значений оси «класс», которые не совпадают с самим кодом
-// класса (A/B+/B/C читаются как есть, «нет класса» — нет).
-const CLASS_CHIP_LABELS: Record<string, string> = {
-  [CLASS_NOT_ASSIGNED]: 'Класс не присвоен',
-};
+import { MINSK_METRO_LINES, METRO_WITHIN_OPTIONS, type CatalogFilterState } from '../../lib/businessCenterCatalogFilter';
 
 const STATUS_CHIP_LABELS: Record<string, string> = {
   built: 'Построенные',
@@ -340,7 +329,7 @@ export function CatalogFilterPanel({
             disabled={!state.classes.includes(cls) && (classCounts[cls] ?? 0) === 0}
             onClick={() => onChange({ ...state, classes: toggleInList(state.classes, cls) })}
           >
-            {CLASS_CHIP_LABELS[cls] ?? cls}
+            {cls}
           </Chip>
         ))}
       </ChipRow>
