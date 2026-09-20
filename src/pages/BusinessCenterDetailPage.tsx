@@ -112,6 +112,7 @@ import {
   WhatTheySayBlock,
 } from '../components/businessCenters/BusinessCenterMarketBlocks';
 import { NearbyInfrastructureBlock } from '../components/businessCenters/BusinessCenterNeighbours';
+import { buildRanking as buildBusinessCenterRanking } from './BusinessCentersRankingPage';
 
 // Отдельная страница одного бизнес-центра (владелец, 2026-09-04: "для SEO
 // лучше хаб + отдельная страница на каждый БЦ" — согласился с этим доводом
@@ -135,9 +136,9 @@ const SECTION_LABELS: Record<string, string> = {
   market: 'Место среди конкурентов',
   map: 'Инфраструктура рядом',
   tech: 'Параметры здания',
-  tenants: 'Кто внутри',
+  tenants: 'Каталог арендаторов',
   rental: 'Условия для арендаторов',
-  offers: 'Объявления на рынке',
+  offers: 'Что сдают и продают',
   history: 'История здания',
   reviews: 'Отзывы',
   faq: 'Частые вопросы',
@@ -291,6 +292,17 @@ const SECTION_ICONS: Record<string, typeof FileText> = {
   faq: Info,
 };
 
+// Блоки-выходы на другие БЦ, рассыпанные по странице (2026-09-20) — двум из
+// них нельзя оказаться на странице подряд без другого контента между ними
+// (см. suppressedRecommendationSectionIds ниже).
+const RECOMMENDATION_SECTION_IDS = new Set([
+  'microdistrictCenters',
+  'metroCenters',
+  'ratingCenters',
+  'classDistrictCenters',
+  'streetCenters',
+]);
+
 const EMPTY_NEARBY_PLACES: BusinessCenterNearbyPlace[] = [];
 const EMPTY_REVIEWS: BusinessCenterReview[] = [];
 
@@ -308,7 +320,6 @@ export function BusinessCenterDetailPage() {
   // после загрузки, чтобы дальше — и в сводке, и в таблице, и в медиане
   // здания, и в FAQ — везде было одно и то же число.
   const offers = useMemo(() => (rawOffers === null ? null : dedupeOffers(rawOffers)), [rawOffers]);
-  const collapsedDuplicates = (rawOffers?.length ?? 0) - (offers?.length ?? 0);
   const [gis2Result, setGis2Result] = useState<{ slug: string; data: BusinessCenter2gisSnapshot | null } | null>(null);
   const gis2 = gis2Result?.slug === slug ? gis2Result?.data ?? null : null;
   const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(null);
@@ -484,6 +495,30 @@ export function BusinessCenterDetailPage() {
           }
         : null,
     [officeSnapshots, center],
+  );
+  const rateComparisonRent = useMemo(
+    () =>
+      RateComparisonNote({
+        dealType: 'rent',
+        buildingMedian: buildingRentMedian,
+        classLabel: center?.businessClass ? `классу ${center.businessClass}` : null,
+        classSnapshot: classSnapshot?.rent,
+        districtLabel: center?.district ? `${districtDative(center.district)} району` : null,
+        districtSnapshot: districtSnapshot?.rent,
+      }),
+    [buildingRentMedian, center, classSnapshot, districtSnapshot],
+  );
+  const rateComparisonSale = useMemo(
+    () =>
+      RateComparisonNote({
+        dealType: 'sale',
+        buildingMedian: buildingSaleMedian,
+        classLabel: center?.businessClass ? `классу ${center.businessClass}` : null,
+        classSnapshot: classSnapshot?.sale,
+        districtLabel: center?.district ? `${districtDative(center.district)} району` : null,
+        districtSnapshot: districtSnapshot?.sale,
+      }),
+    [buildingSaleMedian, center, classSnapshot, districtSnapshot],
   );
 
   // Рейтинг Яндекс.Карт вынесен из общего списка фактов в короткий бейдж
@@ -700,7 +735,8 @@ export function BusinessCenterDetailPage() {
   const visibleHighlights = useMemo(
     () =>
       center?.highlights.filter(
-        (h) => h.icon !== 'rating' && h.icon !== 'reviews' && h.icon !== 'history' && h.icon !== 'award',
+        (h) =>
+          h.icon !== 'rating' && h.icon !== 'reviews' && h.icon !== 'history' && h.icon !== 'award' && h.icon !== 'warning',
       ) ?? [],
     [center],
   );
@@ -805,14 +841,37 @@ export function BusinessCenterDetailPage() {
     // Рейтинг — единственный не гео-блок: не про "похож", а про "а что тут
     // вообще лучшее по городу", общий якорь для дальнейшего брожения по
     // каталогу (владелец, 2026-09-20, разговор про вложенность просмотра).
+    // Владелец, 2026-09-20: "в рейтинге нет БЦ Капитал Палас" — блок обязан
+    // показывать РОВНО тех же лидеров, что и /minsk/bcminsk/reyting, не
+    // собственную сортировку по BusinessCenter.gisRating (это снимок 2ГИС,
+    // другое число и без фильтра по классу/порогу — методика реального
+    // рейтинга в buildRanking, BusinessCentersRankingPage.tsx). Тот же
+    // разговор ("по умолчанию у нас везде рейтинг с Яндекс карт должен
+    // быть") привёл источник рейтинга в блоке «Место среди конкурентов»
+    // к тому же mapRatingFromHighlights — см. businessCenterMarketPosition.ts.
     const rating = takeVisible(
-      centers
-        .filter(
-          (candidate) =>
-            candidate.slug !== center.slug && !usedSlugs.has(candidate.slug) && candidate.gisRating != null,
-        )
-        .sort((a, b) => (b.gisRating ?? 0) - (a.gisRating ?? 0)),
+      buildBusinessCenterRanking(centers)
+        .map((r) => r.center)
+        .filter((candidate) => candidate.slug !== center.slug && !usedSlugs.has(candidate.slug)),
     );
+
+    // Порядок вычисления ниже (улица → класс×район) повторяет их порядок в
+    // самом низу страницы — иначе дедуп исключал бы кандидатов не из того
+    // блока, что реально показан выше (владелец, 2026-09-20: наткнулись на
+    // рассинхрон, когда блок улицы физически стоял перед классом×районом,
+    // а pageSectionsRaw и usedSlugs считали в обратном порядке).
+    const streetCenters = street
+      ? takeVisible(
+          centers
+            .filter(
+              (candidate) =>
+                candidate.slug !== center.slug &&
+                !usedSlugs.has(candidate.slug) &&
+                streetOfAddress(candidate.address) === street,
+            )
+            .sort(byDistance),
+        )
+      : [];
 
     const classDistrict =
       center.businessClass && center.district
@@ -828,19 +887,6 @@ export function BusinessCenterDetailPage() {
               .sort(byDistance),
           )
         : [];
-
-    const streetCenters = street
-      ? takeVisible(
-          centers
-            .filter(
-              (candidate) =>
-                candidate.slug !== center.slug &&
-                !usedSlugs.has(candidate.slug) &&
-                streetOfAddress(candidate.address) === street,
-            )
-            .sort(byDistance),
-        )
-      : [];
 
     // Владелец, 2026-09-20: "если у нас всего 1 БЦ в блоке рекомендаций,
     // давай использовать вторую половину блока под рекомендацию других БЦ
@@ -868,9 +914,9 @@ export function BusinessCenterDetailPage() {
   // «БЦ на фоне конкурентов», чтобы одна и та же ставка не расходилась.
   const offerIndex = useMemo(() => buildOfferIndex(officeSnapshots), [officeSnapshots]);
 
-  // Б5: «Объявления на рынке» — живая строка вместо голой таблицы. Важны
-  // ДИАПАЗОНЫ: «офисы от 50 до 400 м² по $10–18/м²» отвечает на вопрос
-  // «подойдёт ли мне», а таблица со средними по типу помещения — нет.
+  // Сводка по сделке (диапазон площади/цены) — используется в FAQ; на
+  // самой странице с 2026-09-20 не выводится отдельной строкой, чтобы не
+  // дублировать таблицу ниже (см. offers-блок).
   const offersSummary = useMemo(() => {
     const byDeal = (deal: 'rent' | 'sale') => {
       const rows = (offers ?? []).filter((o) => o.dealType === deal && o.size > 0 && o.pricePerSqm > 0);
@@ -883,13 +929,6 @@ export function BusinessCenterDetailPage() {
         sizeMax: Math.max(...sizes),
         priceMin: Math.min(...prices),
         priceMax: Math.max(...prices),
-        // Ссылки на сами объявления: самое маленькое и самое большое
-        // помещение — крайние точки диапазона, который мы только что
-        // назвали, чтобы его можно было проверить одним кликом.
-        links: [
-          rows.reduce((a, b) => (a.size <= b.size ? a : b)),
-          rows.reduce((a, b) => (a.size >= b.size ? a : b)),
-        ],
       };
     };
     return { rent: byDeal('rent'), sale: byDeal('sale') };
@@ -1115,7 +1154,7 @@ export function BusinessCenterDetailPage() {
     }
     if (center.rentalInfo) {
       const info = center.rentalInfo;
-      add('Какие условия и контакты аренды опубликованы?', [info.caveat, info.terms, info.rates, info.sizes, info.contacts].filter(Boolean).join(' ') + ' Актуальные условия уточняйте у арендодателя.');
+      add('Какие условия и контакты аренды опубликованы?', [info.terms, info.rates, info.sizes, info.contacts].filter(Boolean).join(' ') + ' Актуальные условия уточняйте у арендодателя.');
     }
     if (awardItems.length) add(`Какие награды есть у «${name}»?`, awardItems.join('\n'));
     if (mediaMentions.length)
@@ -1197,7 +1236,7 @@ export function BusinessCenterDetailPage() {
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
   // якорь никуда не ведёт и выглядит поломкой.
-  const pageSections = useMemo(() => {
+  const pageSectionsRaw = useMemo(() => {
     if (!center) return [];
     const has = (id: string, cond: boolean) => (cond ? { id, label: SECTION_LABELS[id] } : null);
     // Порядок пунктов повторяет порядок блоков на странице (пересобран
@@ -1206,11 +1245,14 @@ export function BusinessCenterDetailPage() {
     // вложенности просмотра): что предлагают и почём → какое здание → где
     // оно → БЦ по соседству → кто внутри → на фоне конкурентов → БЦ у той же
     // станции метро → отзывы → рейтинг БЦ → блоки доверия (награды/СМИ/
-    // факты/история) → застройщик → похожие по классу и району, на этой
-    // улице → FAQ. Сами блоки-рекомендации других БЦ (по соседству/у метро/
-    // рейтинг/похожие по классу/на этой улице) в меню НЕ попадают — их на
-    // странице теперь несколько штук, пунктами меню их не множим (владелец,
-    // 2026-09-20): в pageSections ниже для них нет has(...).
+    // факты/история) → застройщик → на этой улице, похожие по классу и
+    // району → FAQ. Сами блоки-рекомендации других БЦ (по соседству/у
+    // метро/рейтинг/похожие по классу/на этой улице) в итоговое меню НЕ
+    // попадают — их на странице теперь несколько штук, пунктами меню их не
+    // множим (владелец, 2026-09-20) — см. фильтр RECOMMENDATION_SECTION_IDS
+    // в pageSections ниже. Этот список (pageSectionsRaw) всё равно должен
+    // их содержать: по нему же вычисляется, не прилипли ли два блока
+    // рекомендаций друг к другу без обычного контента между ними.
     return [
       has('offers', offers !== null && offers.length > 0),
       has('rental', Boolean(center.rentalInfo)),
@@ -1230,14 +1272,19 @@ export function BusinessCenterDetailPage() {
             label: hasNearbyContent(center, nearbyPlaces) ? SECTION_LABELS.map : 'Расположение',
           }
         : null,
+      has('microdistrictCenters', relatedCenters.microdistrict.length > 0),
       has('tenants', tenantOrganizations.length > 0),
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
+      has('metroCenters', relatedCenters.metro.length > 0),
       has('reviews', center.gisRating != null || center.highlights.some((h) => h.icon === 'rating') || reviewQuotes.length > 0 || reviews.length > 0),
+      has('ratingCenters', relatedCenters.rating.length > 0),
       has('awards', awardItems.length > 0),
       has('media', mediaMentions.length > 0),
       has('facts', visibleHighlights.length > 0),
       has('history', extractHistoryPoints(center).length >= 2),
       has('developer', Boolean(center.developerInfo)),
+      has('streetCenters', relatedCenters.street.length > 0),
+      has('classDistrictCenters', relatedCenters.classDistrict.length > 0),
       has('faq', faqItems.length > 0),
     ].filter((v): v is { id: string; label: string } => v !== null);
   }, [
@@ -1257,6 +1304,42 @@ export function BusinessCenterDetailPage() {
     nearbyPlaces,
     reviews,
   ]);
+
+  // У БЦ с небольшим количеством данных блоки-разделители (награды, СМИ,
+  // факты, история, застройщик...) между двумя выходами на другие БЦ могут
+  // все оказаться пустыми — тогда два блока рекомендаций съезжаются
+  // вплотную друг к другу, хотя весь смысл их расстановки по странице был
+  // в обратном (владелец, 2026-09-20, на скриншоте: "Рейтинг БЦ" сразу
+  // перед "Похожие БЦ" на странице без наград/СМИ/фактов/истории/улицы —
+  // "такое мне не нужно"). Раз соседей по разметке не осталось — второй из
+  // пары просто не рисуется, а не приклеивается к первому: держим только
+  // первый блок рекомендаций из каждой непрерывной цепочки в pageSectionsRaw
+  // (порядок там уже совпадает с порядком на странице).
+  const suppressedRecommendationSectionIds = useMemo(() => {
+    const suppressed = new Set<string>();
+    let previousWasRecommendation = false;
+    for (const section of pageSectionsRaw) {
+      const isRecommendation = RECOMMENDATION_SECTION_IDS.has(section.id);
+      if (isRecommendation && previousWasRecommendation) {
+        suppressed.add(section.id);
+        continue;
+      }
+      previousWasRecommendation = isRecommendation;
+    }
+    return suppressed;
+  }, [pageSectionsRaw]);
+
+  // Итоговое меню «На странице»: без подавленных соседей (выше) и без
+  // самих блоков-рекомендаций вообще — владелец, 2026-09-20, решил не
+  // множить пункты меню, когда таких блоков на странице стало несколько
+  // (микрорайон/метро/рейтинг/класс×район/улица).
+  const pageSections = useMemo(
+    () =>
+      pageSectionsRaw.filter(
+        (section) => !suppressedRecommendationSectionIds.has(section.id) && !RECOMMENDATION_SECTION_IDS.has(section.id),
+      ),
+    [pageSectionsRaw, suppressedRecommendationSectionIds],
+  );
 
   // «Что там есть» — состав здания в description сниппета. Источник тот же
   // список организаций и та же инфраструктура, что нарисованы на странице
@@ -1686,42 +1769,7 @@ export function BusinessCenterDetailPage() {
             выводится — раньше на этом месте была строка-заглушка. */}
         {offers !== null && offers.length > 0 && (
           <div id="offers" className={cn('mt-6 flex scroll-mt-32 flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <h2 className="text-lg font-bold text-ink">Объявления на рынке</h2>
-            <div className="flex flex-col gap-2">
-              {(['rent', 'sale'] as const).map((deal) => {
-                const sum = offersSummary[deal];
-                if (!sum) return null;
-                // Знак доллара уже стоит у чисел ниже — в единице его
-                // быть не должно, иначе получается «$13–$29 $/м²».
-                const unit = deal === 'rent' ? '/м²/мес' : '/м²';
-                return (
-                  <p key={deal} className="text-sm text-ink-muted">
-                    <span className="font-bold text-ink">{deal === 'rent' ? 'Аренда' : 'Продажа'}</span>:{' '}
-                    {sum.count} {sum.count === 1 ? 'лот' : 'лотов'}, площади{' '}
-                    <span className="font-semibold text-ink">
-                      {Math.round(sum.sizeMin).toLocaleString('ru-RU')}–{Math.round(sum.sizeMax).toLocaleString('ru-RU')} м²
-                    </span>
-                    , цены{' '}
-                    <span className="font-semibold text-ink">
-                      ${Math.round(sum.priceMin).toLocaleString('ru-RU')}–${Math.round(sum.priceMax).toLocaleString('ru-RU')}{unit}
-                    </span>
-                    {'. '}
-                    {sum.links.map((o, i) => (
-                      <a
-                        key={o.id}
-                        href={o.adLink}
-                        target="_blank"
-                        rel="noopener noreferrer nofollow"
-                        className="text-primary-hover hover:underline"
-                      >
-                        {i === 0 ? 'самый маленький' : 'самый большой'}
-                        {i === 0 && sum.links.length > 1 ? ' · ' : ''}
-                      </a>
-                    ))}
-                  </p>
-                );
-              })}
-            </div>
+            <h2 className="text-lg font-bold text-ink">Что сейчас сдают и продают в здании</h2>
             {offers.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[480px] border-collapse text-sm">
@@ -1748,39 +1796,21 @@ export function BusinessCenterDetailPage() {
                 </table>
               </div>
             )}
-            {/* Честная оговорка: у нас лотов меньше, чем объявлений на самих
-                площадках, и это не потеря данных. Агентство выкладывает один
-                кабинет и на Kufar, и на Realt — мы считаем его одним лотом
-                (lib/businessCenterOfferDuplicates.ts). */}
-            {collapsedDuplicates > 0 && (
-              <p className="text-xs text-ink-muted">
-                {collapsedDuplicates} {pluralRu(collapsedDuplicates, 'объявление', 'объявления', 'объявлений')} —
-                это те же помещения, выложенные ещё и на другой площадке; в подсчёте они учтены один раз.
-              </p>
-            )}
+          </div>
+        )}
 
-            {/* Сравнение со средней по классу/району (ANALYTICSPLAN.md
-                §4.2) — медиана этого конкретного здания против медиан
-                market_snapshots (сегмент ofisy_bc). Только когда у здания
-                вообще есть медиана по сделке И хотя бы один из бенчмарков
-                (класс/район) набрал порог MIN_RELIABLE_N — иначе сравнение
-                с сырыми 2-3 объявлениями было бы не сравнением, а шумом. */}
-            <RateComparisonNote
-              dealType="rent"
-              buildingMedian={buildingRentMedian}
-              classLabel={center?.businessClass ? `классу ${center.businessClass}` : null}
-              classSnapshot={classSnapshot?.rent}
-              districtLabel={center?.district ? `${districtDative(center.district)} району` : null}
-              districtSnapshot={districtSnapshot?.rent}
-            />
-            <RateComparisonNote
-              dealType="sale"
-              buildingMedian={buildingSaleMedian}
-              classLabel={center?.businessClass ? `классу ${center.businessClass}` : null}
-              classSnapshot={classSnapshot?.sale}
-              districtLabel={center?.district ? `${districtDative(center.district)} району` : null}
-              districtSnapshot={districtSnapshot?.sale}
-            />
+        {/* Сравнение со средней по классу/району (ANALYTICSPLAN.md §4.2) —
+            медиана этого конкретного здания против медиан market_snapshots
+            (сегмент ofisy_bc). Только когда у здания вообще есть медиана по
+            сделке И хотя бы один из бенчмарков (класс/район) набрал порог
+            MIN_RELIABLE_N — иначе сравнение с сырыми 2-3 объявлениями было
+            бы не сравнением, а шумом. Вынесено из карточки "Что сейчас
+            сдают и продают" в свой блок (владелец, 2026-09-20) — со своим
+            заголовком и оформлением это продумаем отдельно. */}
+        {offers !== null && offers.length > 0 && (rateComparisonRent || rateComparisonSale) && (
+          <div id="rate-comparison" className={cn('mt-6 flex scroll-mt-32 flex-col gap-2 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            {rateComparisonRent}
+            {rateComparisonSale}
           </div>
         )}
 
@@ -1792,14 +1822,15 @@ export function BusinessCenterDetailPage() {
             большинству сайтов БЦ из песочницы нет). Первая версия рисовала
             всё одним абзацем — владелец: "верстка — пиздец, разбей на
             логические блоки, используй форматирование" — теперь отдельная
-            подписанная строка на каждый раздел (LabeledTextRow), важная
-            оговорка источника (сайт недоступен, "Аден" по факту гостиница
-            и т.п.) — акцентным блоком сверху, не затёртая в общем тексте.
-            Каждое поле независимо может быть null — рисуем только то, что
-            реально нашлось. Порядок блоков страницы пересобран 2026-09-20
-            (владелец принял предложенный порядок): условия аренды идут
-            сразу за "Объявления на рынке" — оба блока отвечают на один и
-            тот же вопрос "что тут есть и почём". */}
+            подписанная строка на каждый раздел (LabeledTextRow). Каждое поле
+            независимо может быть null — рисуем только то, что реально
+            нашлось. Порядок блоков страницы пересобран 2026-09-20 (владелец
+            принял предложенный порядок): условия аренды идут сразу за
+            "Объявления на рынке" — оба блока отвечают на один и тот же
+            вопрос "что тут есть и почём". Акцентный жёлтый блок с оговоркой
+            источника (`caveat`) и дисклеймер "собрано автоматически...
+            не куратировано вручную" под карточкой убраны тем же днём —
+            владелец: "убери все предупреждения такого плана с сайта". */}
         {center.rentalInfo && (
           <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
@@ -1807,24 +1838,12 @@ export function BusinessCenterDetailPage() {
               Условия для арендаторов
             </h2>
 
-            {center.rentalInfo.caveat && (
-              <div className="flex items-start gap-2 rounded-control border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-warning">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <p className="leading-relaxed">{center.rentalInfo.caveat}</p>
-              </div>
-            )}
-
             <div className="flex flex-col divide-y divide-border">
               <LabeledTextRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
               <LabeledTextRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
               <LabeledTextRow icon={Ruler} label="Площади и типы помещений" text={center.rentalInfo.sizes} />
               <LabeledTextRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
             </div>
-
-            <p className="text-xs text-ink-muted">
-              Собрано автоматически по официальному сайту БЦ и открытым источникам — не куратировано вручную, перед
-              подписанием договора уточняйте актуальные условия напрямую у арендодателя.
-            </p>
           </div>
         )}
 
@@ -1930,7 +1949,9 @@ export function BusinessCenterDetailPage() {
             странице" — вложенность просмотра). Микрорайон — сразу после
             карты, это самая близкая по смыслу связка ("вот что ещё рядом на
             карте"). */}
-        {microdistrictCatalogUrl && relatedCenters.microdistrict.length > 0 && (
+        {microdistrictCatalogUrl &&
+          relatedCenters.microdistrict.length > 0 &&
+          !suppressedRecommendationSectionIds.has('microdistrictCenters') && (
           <RelatedCentersSection
             id="microdistrictCenters"
             title={`Бизнес-центры ${center.microdistrict}`}
@@ -1978,7 +1999,10 @@ export function BusinessCenterDetailPage() {
             идёт сопоставление с другими БЦ, это его естественное
             продолжение (было ниже, в паре с блоком про улицу — разведены
             по странице 2026-09-20). */}
-        {metroCatalogUrl && nearestMetro && relatedCenters.metro.length > 0 && (
+        {metroCatalogUrl &&
+          nearestMetro &&
+          relatedCenters.metro.length > 0 &&
+          !suppressedRecommendationSectionIds.has('metroCenters') && (
           <RelatedCentersSection
             id="metroCenters"
             title={`Бизнес-центры у станции ${nearestMetro.name}`}
@@ -1995,7 +2019,7 @@ export function BusinessCenterDetailPage() {
         {/* Рейтинг — не гео-блок, а общий якорь "а что тут вообще лучшее по
             городу"; логично сразу после отзывов, пока читатель ещё в
             режиме "кто тут лучше" (владелец, 2026-09-20). */}
-        {relatedCenters.rating.length > 0 && (
+        {relatedCenters.rating.length > 0 && !suppressedRecommendationSectionIds.has('ratingCenters') && (
           <RelatedCentersSection
             id="ratingCenters"
             title="Рейтинг бизнес-центров Минска"
@@ -2085,8 +2109,10 @@ export function BusinessCenterDetailPage() {
             блок"). Раньше был фиксированный объект (history/tenants/media/
             rating/reviews), теперь — HighlightSection[] (см. комментарий у
             BusinessCenter.highlights в data/businessCenters.ts). icon
-            'warning' — единственная особая: выносится наверх акцентным
-            жёлтым блоком (как caveat в RentalInfo), а не в общий список.
+            'warning' (как и caveat в RentalInfo) с 2026-09-20 не рендерится
+            вовсе — владелец: "убери все предупреждения такого плана с
+            сайта", жёлтый акцентный блок с оговоркой источника убран из
+            шаблона целиком, отфильтровывается в visibleHighlights.
             Позиция на странице менялась дважды: 2026-09-17 — сразу после
             главной карточки, 2026-09-20 — в группу блоков доверия (награды/
             СМИ/факты/история), после цены, параметров здания, арендаторов
@@ -2099,30 +2125,14 @@ export function BusinessCenterDetailPage() {
               Интересные факты
             </h2>
 
-            {visibleHighlights
-              .filter((s) => s.icon === 'warning')
-              .map((s, i) => (
-                <div
-                  key={`warning-${i}`}
-                  className="flex items-start gap-2 rounded-control border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-warning"
-                >
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <div>
-                    {s.label && <p className="text-xs font-semibold uppercase tracking-wide">{s.label}</p>}
-                    <p className="mt-0.5 leading-relaxed">{renderRentalText(s.text)}</p>
-                  </div>
-                </div>
-              ))}
-
             <div className="flex flex-col divide-y divide-border">
               {(() => {
-                const plainFacts = visibleHighlights.filter((s) => s.icon !== 'warning');
                 // Единственный факт в карточке — свой подписанный заголовок
                 // над ним избыточен: и так ясно из заголовка карточки "Интересные
                 // факты" (владелец, 2026-09-06: "если интересный факт один, то
                 // заголовок лишний").
-                const showLabel = plainFacts.length > 1;
-                return plainFacts.map((s, i) => (
+                const showLabel = visibleHighlights.length > 1;
+                return visibleHighlights.map((s, i) => (
                   <LabeledTextRow
                     key={i}
                     icon={HIGHLIGHT_ICONS[s.icon]}
@@ -2215,7 +2225,9 @@ export function BusinessCenterDetailPage() {
           </div>
         )}
 
-        {streetCatalogUrl && relatedCenters.street.length > 0 && (
+        {streetCatalogUrl &&
+          relatedCenters.street.length > 0 &&
+          !suppressedRecommendationSectionIds.has('streetCenters') && (
           <RelatedCentersSection
             id="streetCenters"
             title="Бизнес-центры на этой улице"
@@ -2229,7 +2241,10 @@ export function BusinessCenterDetailPage() {
         {/* Пересечение класс×район — самая узкая, предметно "похожая"
             подборка (тот же уровень и тот же район), поэтому в паре с
             улицей в самом конце, перед формой правки данных. */}
-        {classDistrictCatalogUrl && center.district && relatedCenters.classDistrict.length > 0 && (
+        {classDistrictCatalogUrl &&
+          center.district &&
+          relatedCenters.classDistrict.length > 0 &&
+          !suppressedRecommendationSectionIds.has('classDistrictCenters') && (
           <RelatedCentersSection
             id="classDistrictCenters"
             title={`Бизнес-центры класса ${center.businessClass} в ${districtPrepositional(center.district)} районе`}
@@ -2924,7 +2939,7 @@ function OfferDealSection({ title, rows }: { title: string; rows: OfferRow[] }) 
               : `${row.minSize.toLocaleString('ru-RU')}–${row.maxSize.toLocaleString('ru-RU')} м²`}
           </td>
           <td className="whitespace-nowrap py-3 pl-2 text-right tabular-nums font-semibold text-ink">
-            {row.minPrice === row.maxPrice
+            {formatUsd(row.minPrice) === formatUsd(row.maxPrice)
               ? `${formatUsd(row.minPrice)}/м²`
               : `${formatUsd(row.minPrice)}–${formatUsd(row.maxPrice)}/м² (медиана ${formatUsd(row.medianPrice)})`}
           </td>

@@ -34,13 +34,23 @@ const DESCRIPTION =
   'Рейтинг бизнес-центров Минска: только класс A с рейтингом на Яндекс.Картах не ниже 4,5 из 5. Открытая методика, дата обновления, ссылки на карточки каждого БЦ.';
 const PAGE_H1 = 'Лучшие бизнес-центры Минска';
 
-interface RankedCenter {
+export interface RankedCenter {
   center: BusinessCenter;
   rating: number;
   ratingLabel: string;
 }
 
-function buildRanking(centers: BusinessCenter[]): RankedCenter[] {
+// Экспортирована для блока "Рейтинг БЦ Минска" на странице объекта
+// (BusinessCenterDetailPage.tsx) — тот блок обязан показывать РОВНО тех
+// же лидеров, что и эта страница, а не собственный подсчёт по другому
+// полю: BusinessCenter.gisRating (снимок 2ГИС) и рейтинг с Яндекс.Карт
+// (mapRatingFromHighlights, источник методики здесь) — разные числа для
+// одного и того же здания, и здание с высоким gisRating может не попасть
+// в этот рейтинг вовсе (не тот класс, ниже порога или вообще нет
+// распознанного рейтинга с карт). Показать его в блоке-тизере как часть
+// "рейтинга" было бы неправдой (владелец, 2026-09-20: "в рейтинге нет БЦ
+// Капитал Палас").
+export function buildRanking(centers: BusinessCenter[]): RankedCenter[] {
   return centers
     .filter((c) => c.businessClass === 'A' && c.status !== 'under_construction')
     .map((c) => {
