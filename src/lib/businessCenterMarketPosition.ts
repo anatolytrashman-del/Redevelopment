@@ -377,7 +377,13 @@ export function buildMarketPosition(
     }
   }
 
-  // --- Рейтинг на картах --------------------------------------------------
+  // --- Рейтинг 2ГИС --------------------------------------------------------
+  // Не "рейтинг на картах" — gisRating это конкретно 2ГИС (см. комментарий
+  // у поля в data/businessCenters.ts), а бейдж наверху карточки БЦ — рейтинг
+  // Яндекс.Карт из другого источника (mapRatingFromHighlights). У части
+  // зданий числа по этим двум источникам расходятся, и общая подпись
+  // "рейтинг на картах" читалась как противоречие с тем бейджем, хотя это
+  // просто два разных числа — владелец, 2026-09-20, разбор скриншота.
   if (center.gisRating != null && center.businessClass) {
     const classValues = sameClass.map((c) => c.gisRating).filter((v): v is number => v != null);
     const classRating = classValues.length >= MIN_COMPARE_N ? median(classValues) : null;
@@ -385,7 +391,7 @@ export function buildMarketPosition(
       const unit = '★';
       const d = buildDelta(center.gisRating, classRating, false, ['ниже', 'выше'], false);
       bars.push({
-        label: 'Рейтинг на картах',
+        label: 'Рейтинг 2ГИС',
         subjectDisplayValue: formatValue(center.gisRating, unit),
         captionText: buildCaption(classLabel, classRating, unit, []),
         deltaPct: d.deltaPct,
