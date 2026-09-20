@@ -452,6 +452,30 @@ export function BusinessCenterDetailPage() {
         : null,
     [officeSnapshots, center],
   );
+  const rateComparisonRent = useMemo(
+    () =>
+      RateComparisonNote({
+        dealType: 'rent',
+        buildingMedian: buildingRentMedian,
+        classLabel: center?.businessClass ? `классу ${center.businessClass}` : null,
+        classSnapshot: classSnapshot?.rent,
+        districtLabel: center?.district ? `${districtDative(center.district)} району` : null,
+        districtSnapshot: districtSnapshot?.rent,
+      }),
+    [buildingRentMedian, center, classSnapshot, districtSnapshot],
+  );
+  const rateComparisonSale = useMemo(
+    () =>
+      RateComparisonNote({
+        dealType: 'sale',
+        buildingMedian: buildingSaleMedian,
+        classLabel: center?.businessClass ? `классу ${center.businessClass}` : null,
+        classSnapshot: classSnapshot?.sale,
+        districtLabel: center?.district ? `${districtDative(center.district)} району` : null,
+        districtSnapshot: districtSnapshot?.sale,
+      }),
+    [buildingSaleMedian, center, classSnapshot, districtSnapshot],
+  );
 
   // Рейтинг Яндекс.Карт вынесен из общего списка фактов в короткий бейдж
   // рядом с заголовком. Подробный исходный текст не используется как tooltip.
@@ -765,9 +789,9 @@ export function BusinessCenterDetailPage() {
   // «БЦ на фоне конкурентов», чтобы одна и та же ставка не расходилась.
   const offerIndex = useMemo(() => buildOfferIndex(officeSnapshots), [officeSnapshots]);
 
-  // Б5: «Сейчас предлагается» — живая строка вместо голой таблицы. Важны
-  // ДИАПАЗОНЫ: «офисы от 50 до 400 м² по $10–18/м²» отвечает на вопрос
-  // «подойдёт ли мне», а таблица со средними по типу помещения — нет.
+  // Сводка по сделке (диапазон площади/цены) — используется в FAQ; на
+  // самой странице с 2026-09-20 не выводится отдельной строкой, чтобы не
+  // дублировать таблицу ниже (см. offers-блок).
   const offersSummary = useMemo(() => {
     const byDeal = (deal: 'rent' | 'sale') => {
       const rows = (offers ?? []).filter((o) => o.dealType === deal && o.size > 0 && o.pricePerSqm > 0);
@@ -780,13 +804,6 @@ export function BusinessCenterDetailPage() {
         sizeMax: Math.max(...sizes),
         priceMin: Math.min(...prices),
         priceMax: Math.max(...prices),
-        // Ссылки на сами объявления: самое маленькое и самое большое
-        // помещение — крайние точки диапазона, который мы только что
-        // назвали, чтобы его можно было проверить одним кликом.
-        links: [
-          rows.reduce((a, b) => (a.size <= b.size ? a : b)),
-          rows.reduce((a, b) => (a.size >= b.size ? a : b)),
-        ],
       };
     };
     return { rent: byDeal('rent'), sale: byDeal('sale') };
@@ -1559,42 +1576,7 @@ export function BusinessCenterDetailPage() {
             выводится — раньше на этом месте была строка-заглушка. */}
         {offers !== null && offers.length > 0 && (
           <div id="offers" className={cn('mt-6 flex scroll-mt-32 flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <h2 className="text-lg font-bold text-ink">Сейчас предлагается</h2>
-            <div className="flex flex-col gap-2">
-              {(['rent', 'sale'] as const).map((deal) => {
-                const sum = offersSummary[deal];
-                if (!sum) return null;
-                // Знак доллара уже стоит у чисел ниже — в единице его
-                // быть не должно, иначе получается «$13–$29 $/м²».
-                const unit = deal === 'rent' ? '/м²/мес' : '/м²';
-                return (
-                  <p key={deal} className="text-sm text-ink-muted">
-                    <span className="font-bold text-ink">{deal === 'rent' ? 'Аренда' : 'Продажа'}</span>:{' '}
-                    {sum.count} {sum.count === 1 ? 'лот' : 'лотов'}, площади{' '}
-                    <span className="font-semibold text-ink">
-                      {Math.round(sum.sizeMin).toLocaleString('ru-RU')}–{Math.round(sum.sizeMax).toLocaleString('ru-RU')} м²
-                    </span>
-                    , цены{' '}
-                    <span className="font-semibold text-ink">
-                      ${Math.round(sum.priceMin).toLocaleString('ru-RU')}–${Math.round(sum.priceMax).toLocaleString('ru-RU')}{unit}
-                    </span>
-                    {'. '}
-                    {sum.links.map((o, i) => (
-                      <a
-                        key={o.id}
-                        href={o.adLink}
-                        target="_blank"
-                        rel="noopener noreferrer nofollow"
-                        className="text-primary-hover hover:underline"
-                      >
-                        {i === 0 ? 'самый маленький' : 'самый большой'}
-                        {i === 0 && sum.links.length > 1 ? ' · ' : ''}
-                      </a>
-                    ))}
-                  </p>
-                );
-              })}
-            </div>
+            <h2 className="text-lg font-bold text-ink">Что сейчас сдают и продают в здании</h2>
             {offers.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[480px] border-collapse text-sm">
@@ -1631,29 +1613,21 @@ export function BusinessCenterDetailPage() {
                 это те же помещения, выложенные ещё и на другой площадке; в подсчёте они учтены один раз.
               </p>
             )}
+          </div>
+        )}
 
-            {/* Сравнение со средней по классу/району (ANALYTICSPLAN.md
-                §4.2) — медиана этого конкретного здания против медиан
-                market_snapshots (сегмент ofisy_bc). Только когда у здания
-                вообще есть медиана по сделке И хотя бы один из бенчмарков
-                (класс/район) набрал порог MIN_RELIABLE_N — иначе сравнение
-                с сырыми 2-3 объявлениями было бы не сравнением, а шумом. */}
-            <RateComparisonNote
-              dealType="rent"
-              buildingMedian={buildingRentMedian}
-              classLabel={center?.businessClass ? `классу ${center.businessClass}` : null}
-              classSnapshot={classSnapshot?.rent}
-              districtLabel={center?.district ? `${districtDative(center.district)} району` : null}
-              districtSnapshot={districtSnapshot?.rent}
-            />
-            <RateComparisonNote
-              dealType="sale"
-              buildingMedian={buildingSaleMedian}
-              classLabel={center?.businessClass ? `классу ${center.businessClass}` : null}
-              classSnapshot={classSnapshot?.sale}
-              districtLabel={center?.district ? `${districtDative(center.district)} району` : null}
-              districtSnapshot={districtSnapshot?.sale}
-            />
+        {/* Сравнение со средней по классу/району (ANALYTICSPLAN.md §4.2) —
+            медиана этого конкретного здания против медиан market_snapshots
+            (сегмент ofisy_bc). Только когда у здания вообще есть медиана по
+            сделке И хотя бы один из бенчмарков (класс/район) набрал порог
+            MIN_RELIABLE_N — иначе сравнение с сырыми 2-3 объявлениями было
+            бы не сравнением, а шумом. Вынесено из карточки "Что сейчас
+            сдают и продают" в свой блок (владелец, 2026-09-20) — со своим
+            заголовком и оформлением это продумаем отдельно. */}
+        {offers !== null && offers.length > 0 && (rateComparisonRent || rateComparisonSale) && (
+          <div id="rate-comparison" className={cn('mt-6 flex scroll-mt-32 flex-col gap-2 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            {rateComparisonRent}
+            {rateComparisonSale}
           </div>
         )}
 
@@ -2751,7 +2725,7 @@ function OfferDealSection({ title, rows }: { title: string; rows: OfferRow[] }) 
               : `${row.minSize.toLocaleString('ru-RU')}–${row.maxSize.toLocaleString('ru-RU')} м²`}
           </td>
           <td className="whitespace-nowrap py-3 pl-2 text-right tabular-nums font-semibold text-ink">
-            {row.minPrice === row.maxPrice
+            {formatUsd(row.minPrice) === formatUsd(row.maxPrice)
               ? `${formatUsd(row.minPrice)}/м²`
               : `${formatUsd(row.minPrice)}–${formatUsd(row.maxPrice)}/м² (медиана ${formatUsd(row.medianPrice)})`}
           </td>
