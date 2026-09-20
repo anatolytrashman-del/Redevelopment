@@ -1374,25 +1374,25 @@ export function BusinessCenterDetailPage() {
             2026-09-20: "уберём это из фактов и сделаем прям блок Награды,
             если они есть. Формат — список, но чуть более большим шрифтом и
             с иконкой"). Отсюда и отличия от LabeledTextRow ниже: text-base
-            вместо text-sm, цвет основного текста, иконка кубка в фирменном
-            красном. Блок не рисуется вовсе, если наград нет — как и весь
-            остальной кастом на странице БЦ.
+            вместо text-sm и цвет основного текста. Иконка кубка — ТОЛЬКО в
+            заголовке: первая версия ставила её ещё и на каждый пункт, и
+            владелец сразу поправил ("одной иконки для заголовка хватит, для
+            самих премий просто точки, как в интересных фактах") — отсюда
+            обычные маркеры списка. Блок не рисуется вовсе, если наград нет
+            — как и весь остальной кастом на странице БЦ.
 
             Список строим из готовых строк awardItems, а не через
-            renderRentalText: там буллеты рисуются обычным <ul> мелким
-            шрифтом, а нужен именно ряд "иконка + крупная строка". */}
+            renderRentalText: тот рисует буллеты мелким шрифтом абзаца,
+            а нужен тот же маркер, но крупнее. */}
         {awardItems.length > 0 && (
           <div id="awards" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
               <Trophy className="h-5 w-5 shrink-0 text-primary" />
               Награды
             </h2>
-            <ul className="flex flex-col gap-3">
+            <ul className="list-disc space-y-2 pl-5 text-base leading-relaxed text-ink marker:text-ink-muted">
               {awardItems.map((item, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <Trophy className="mt-1 h-5 w-5 shrink-0 text-primary" />
-                  <p className="min-w-0 flex-1 text-base leading-relaxed text-ink">{renderBold(item)}</p>
-                </li>
+                <li key={i}>{renderBold(item)}</li>
               ))}
             </ul>
           </div>
