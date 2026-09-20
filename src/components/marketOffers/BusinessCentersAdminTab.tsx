@@ -451,6 +451,10 @@ export function BusinessCentersAdminTab() {
         // отдельным ресерчем, не вручную) — при правке сохраняем как было, у
         // новой записи начинаем с пустого массива.
         technicalParams: editing !== 'new' && editing ? editing.technicalParams : [],
+        // Тот же принцип, что у technicalParams выше — плоский список
+        // фактов из Kufar/Realt/др. источников (см. комментарий у
+        // BusinessCenter.buildingFacts), заполняется отдельным ресерчем.
+        buildingFacts: editing !== 'new' && editing ? editing.buildingFacts : [],
         // Не редактируется здесь — заполняется отдельным импортом из 2GIS
         // (см. комментарий у BusinessCenter.nearestMetroStations), тот же
         // принцип, что и у technicalParams выше.
