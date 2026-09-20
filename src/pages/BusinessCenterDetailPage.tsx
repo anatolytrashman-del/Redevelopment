@@ -532,7 +532,7 @@ export function BusinessCenterDetailPage() {
   );
 
   const relatedCenters = useMemo(() => {
-    if (!center || !centers) return { metro: [], street: [] };
+    if (!center || !centers) return { metro: [], street: [], metroFallback: undefined, streetFallback: undefined };
     const street = streetOfAddress(center.address);
     const distanceFromCenter = (candidate: BusinessCenter) => {
       if (center.lat == null || center.lng == null || candidate.lat == null || candidate.lng == null) {
@@ -568,7 +568,23 @@ export function BusinessCenterDetailPage() {
           )
           .sort(byDistance)
       : [];
-    return { metro, street: streetCenters };
+    // Владелец, 2026-09-20: "если у нас всего 1 БЦ в блоке рекомендаций,
+    // давай использовать вторую половину блока под рекомендацию других БЦ
+    // этого же класса" — вторая плитка не пустует, а предлагает ближайшее
+    // здание того же делового класса. Пул общий на оба блока (метро и
+    // улица), чтобы не подсунуть одно и то же здание дважды на одной
+    // странице.
+    let sameClassPool = center.businessClass
+      ? centers
+          .filter((candidate) => candidate.slug !== center.slug && candidate.businessClass === center.businessClass)
+          .sort(byDistance)
+      : [];
+    const usedSlugs = new Set([...metro.slice(0, 2), ...streetCenters.slice(0, 2)].map((c) => c.slug));
+    sameClassPool = sameClassPool.filter((candidate) => !usedSlugs.has(candidate.slug));
+    const metroFallback = metro.length === 1 ? sameClassPool[0] : undefined;
+    if (metroFallback) sameClassPool = sameClassPool.filter((candidate) => candidate.slug !== metroFallback.slug);
+    const streetFallback = streetCenters.length === 1 ? sameClassPool[0] : undefined;
+    return { metro, street: streetCenters, metroFallback, streetFallback };
   }, [center, centers, nearestMetro]);
 
   // Медианы по зданиям (Д3) — те же, что в каталоге и блоке
@@ -1111,16 +1127,20 @@ export function BusinessCenterDetailPage() {
                   исключений (port/victoria-plaza, для которых cover включали
                   точечно). */}
               <PhotoBlock center={center} variant="detail" fit="cover" />
-              <Badge
-                tone={center.status === 'under_construction' ? 'warning' : 'success'}
-                className="absolute right-4 top-4 shadow-sm backdrop-blur-sm"
-              >
-                {center.status === 'under_construction' ? 'Строится' : 'Работает'}
-              </Badge>
+              {/* Владелец, 2026-09-20: "если БЦ построен, вообще убирай тег
+                  Работает — помечаем только строящиеся". Достроенное здание
+                  и так по умолчанию работает, отдельная пометка для него
+                  избыточна; "Строится" — исключение, которое стоит подсветить. */}
+              {center.status === 'under_construction' && (
+                <Badge tone="warning" className="absolute left-4 top-4 shadow-sm backdrop-blur-sm">
+                  Строится
+                </Badge>
+              )}
               {/* Рейтинг с Яндекс.Карт — бейджем поверх фото, а не рядом с
                   заголовком (владелец, 2026-09-20: "у нас не влезает название
                   БЦ, предлагаю рейтинг яндекс.карт сделать бейджем поверх
-                  фото"). 2ГИС-рейтинг с главного экрана убран — владелец
+                  фото", затем тем же вечером: "рейтинг переносим в правый край
+                  фотки"). 2ГИС-рейтинг с главного экрана убран — владелец
                   попросил оставить в шапке только Яндекс; 2ГИС-оценка
                   остаётся в блоке отзывов ниже. Раньше рейтинг был просто
                   одним из блоков "Интересные факты" (свободный markdown-текст
@@ -1129,7 +1149,7 @@ export function BusinessCenterDetailPage() {
                   строку регуляркой (mapRatingFromHighlights) — если формат не
                   узнан, бейдж просто не показывается, ничего не выдумываем. */}
               {mapRating && (
-                <span className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-ink shadow-sm backdrop-blur-sm">
+                <span className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-ink shadow-sm backdrop-blur-sm">
                   <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-500" />
                   {mapRating.label} · Яндекс.Карты
                 </span>
@@ -1172,26 +1192,12 @@ export function BusinessCenterDetailPage() {
                 <div className="grid min-w-0 items-baseline gap-x-2 sm:grid-cols-[max-content_auto_minmax(0,1fr)]">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Адрес</p>
                   <span className="hidden text-xs text-ink-muted sm:inline" aria-hidden="true">—</span>
-                  {/* Улица внутри адреса — ссылка на уличный хаб каталога.
-                      Замер Wordstat 18.08–18.09.2026 плюс разбор запросов
-                      Вебмастера: семь запросов приходят буквально адресом
-                      («минск, улица филимонова, 57»), и адрес должен быть не
-                      только текстом, но и точкой входа с якорем из имени
-                      улицы. Хаб есть не у каждой улицы (STREET_SLUGS) —
-                      тогда строка остаётся обычным текстом. */}
-                  <p className="mt-0.5 min-w-0 text-sm leading-snug text-ink sm:mt-0">
-                    {streetCatalogUrl && displayAddress.includes(streetName) ? (
-                      <>
-                        {displayAddress.slice(0, displayAddress.indexOf(streetName))}
-                        <Link to={streetCatalogUrl} className="font-semibold text-primary-hover hover:underline">
-                          {streetName}
-                        </Link>
-                        {displayAddress.slice(displayAddress.indexOf(streetName) + streetName.length)}
-                      </>
-                    ) : (
-                      displayAddress
-                    )}
-                  </p>
+                  {/* Улица внутри адреса раньше вела на уличный хаб каталога
+                      (STREET_SLUGS) — владелец, 2026-09-20: "не нравится
+                      кликабельная улица в адресе, у нас есть блок «Бизнес-
+                      центры на этой улице»" — эта ссылка дублировала блок
+                      ниже, убрана, адрес остаётся обычным текстом. */}
+                  <p className="mt-0.5 min-w-0 text-sm leading-snug text-ink sm:mt-0">{displayAddress}</p>
                 </div>
                 {(nearestMetro || center.metro) && (
                   <div className="grid min-w-0 items-baseline gap-x-2 sm:grid-cols-[max-content_auto_minmax(0,1fr)]">
@@ -1200,7 +1206,7 @@ export function BusinessCenterDetailPage() {
                     <p className="mt-0.5 min-w-0 text-sm leading-snug text-ink sm:mt-0">
                       {nearestMetro ? (
                         <>
-                          «{nearestMetro.name}» — {nearestMetro.distanceMeters} м по прямой
+                          {nearestMetro.name} — {nearestMetro.distanceMeters} м по прямой
                         </>
                       ) : (
                         center.metro
@@ -1407,11 +1413,12 @@ export function BusinessCenterDetailPage() {
         {metroCatalogUrl && nearestMetro && relatedCenters.metro.length > 0 && (
           <RelatedCentersSection
             id="metroCenters"
-            title={`Бизнес-центры у станции «${nearestMetro.name}»`}
+            title={`Бизнес-центры у станции ${nearestMetro.name}`}
             centers={relatedCenters.metro}
             catalogUrl={metroCatalogUrl}
-            catalogLabel={`Все БЦ у станции «${nearestMetro.name}»`}
+            catalogLabel={`Все БЦ у станции ${nearestMetro.name}`}
             stationName={nearestMetro.name}
+            fallbackCenter={relatedCenters.metroFallback}
           />
         )}
 
@@ -1471,6 +1478,7 @@ export function BusinessCenterDetailPage() {
             centers={relatedCenters.street}
             catalogUrl={streetCatalogUrl}
             catalogLabel="Все БЦ на этой улице"
+            fallbackCenter={relatedCenters.streetFallback}
           />
         )}
 
@@ -1834,6 +1842,7 @@ function RelatedCentersSection({
   catalogUrl,
   catalogLabel,
   stationName,
+  fallbackCenter,
 }: {
   id: string;
   title: string;
@@ -1841,14 +1850,26 @@ function RelatedCentersSection({
   catalogUrl: string;
   catalogLabel: string;
   stationName?: string;
+  fallbackCenter?: BusinessCenter;
 }) {
-  const visible = centers.slice(0, 2);
+  // Владелец, 2026-09-20: "если у нас всего 1 БЦ в блоке рекомендаций,
+  // давай использовать вторую половину блока под рекомендацию других БЦ
+  // этого же класса" — вторая плитка не пустует, показывает ближайшее
+  // здание того же класса (fallbackCenter уже подобран и дедуплицирован
+  // на уровне relatedCenters, здесь только рендер с пометкой "Похож по
+  // классу", чтобы не выдавать его за настоящее совпадение по метро/улице).
+  const entries: { related: BusinessCenter; isFallback: boolean }[] = centers
+    .slice(0, 2)
+    .map((related) => ({ related, isFallback: false }));
+  if (entries.length === 1 && fallbackCenter) {
+    entries.push({ related: fallbackCenter, isFallback: true });
+  }
   return (
     <section id={id} className={cn('mt-6 scroll-mt-32 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
       <h2 className="mb-4 text-lg font-bold text-ink">{title}</h2>
       <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_minmax(12rem,1fr)]">
-        {visible.map((related) => {
-          const metro = stationName
+        {entries.map(({ related, isFallback }) => {
+          const metro = !isFallback && stationName
             ? { name: stationName, distanceMeters: metroHubDistance(related, stationName) }
             : nearestMetroStation(related.nearestMetroStations);
           return (
@@ -1868,6 +1889,9 @@ function RelatedCentersSection({
               <PhotoBlock center={related} variant="card" fit="contain" />
             </div>
             <div className="flex min-w-0 flex-col items-start justify-center gap-2 p-4">
+              {isFallback && (
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Похож по классу</p>
+              )}
               <h3 className="text-base font-bold leading-snug text-ink">{shortName(related)}</h3>
               {related.businessClass && (
                 <p className="text-sm text-ink-muted">Класс {related.businessClass}</p>
