@@ -40,7 +40,10 @@ function Bar({
           style={{ width: `${width}%` }}
         />
       </span>
-      <span className={cn('w-24 shrink-0 text-right text-xs tabular-nums', tone === 'subject' ? 'font-bold text-ink' : 'text-ink-muted')}>
+      <span className={cn('w-28 shrink-0 whitespace-nowrap text-right text-xs tabular-nums sm:w-32', tone === 'subject' ? 'font-bold text-ink' : 'text-ink-muted')}>
+        {/* whitespace-nowrap — иначе единица измерения переносится от числа
+            на отдельную строку («100\nм²»): w-24 хватало для "$18/м²", но не
+            для более длинных единиц вроде "маш./100 м²" или "м по прямой". */}
         {/* Деньги пишем как «$18/м²», а не «18 $/м²» — так же, как везде
             на сайте; остальные единицы идут после числа. */}
         {unit.startsWith('$') ? `$${value.toLocaleString('ru-RU')}${unit.slice(1)}` : `${value.toLocaleString('ru-RU')} ${unit}`}
