@@ -9,8 +9,10 @@
 // и ответы двух прогонов перестанут разбираться одним кодом.
 //
 // Запуск:
-//   node scripts/build-media-brief.mjs A          → docs/bc-media-task-class-a.md
-//   node scripts/build-media-brief.mjs B+ --all   → включая БЦ, где подборка уже есть
+//   node scripts/build-media-brief.mjs A            → docs/bc-media-task-class-a.md
+//   node scripts/build-media-brief.mjs B+,B         → один файл на несколько классов сразу
+//                                                      (docs/bc-media-task-class-bplus-b.md)
+//   node scripts/build-media-brief.mjs B+ --all     → включая БЦ, где подборка уже есть
 //
 // Читает публичным anon-ключом: business_centers и так открыт на чтение —
 // это те же данные, что отдаёт публичная страница каталога.
@@ -28,9 +30,10 @@ const BRIEF_PATH = 'docs/bc-media-research-brief.md';
 const OBJECTS_MARKER = '<!-- ОБЪЕКТЫ -->';
 
 const classArg = process.argv[2];
+const classes = classArg ? classArg.split(',').map((c) => c.trim()).filter(Boolean) : [];
 const includeDone = process.argv.includes('--all');
-if (!classArg) {
-  console.error('Укажи класс: node scripts/build-media-brief.mjs A|B+|B|C [--all]');
+if (classes.length === 0) {
+  console.error('Укажи класс: node scripts/build-media-brief.mjs A|B+|B|C[,A,B+,...] [--all]');
   process.exit(1);
 }
 
@@ -116,8 +119,9 @@ function card(bc, index) {
 
 const { data, error } = await supabase
   .from('business_centers')
-  .select('slug, name, alt_names, address, year_built, total_area, floors, developer, website, status, description, highlights, media_mentions')
-  .eq('business_class', classArg)
+  .select('slug, name, alt_names, address, year_built, total_area, floors, developer, website, status, description, highlights, media_mentions, business_class')
+  .in('business_class', classes)
+  .order('business_class')
   .order('slug');
 
 if (error) {
@@ -138,18 +142,26 @@ if (!brief.includes(OBJECTS_MARKER)) {
 }
 
 const done = data.length - targets.length;
+const classLabel = classes.join(', ');
 const header = [
-  `Объектов в задании: ${targets.length} (класс ${classArg}` +
+  `Объектов в задании: ${targets.length} (класс ${classLabel}` +
     (done ? `, ещё ${done} пропущено — подборка у них уже есть` : '') +
     ').',
   '',
-  'Бери по 3–4 объекта за сессию, не все сразу: на каждый нужно открыть и',
-  'прочитать десяток страниц, и к концу длинного прогона качество проверки',
-  'падает раньше, чем кончаются объекты.',
+  targets.length > 20
+    ? 'Объектов много — это одно задание на несколько своих собственных сессий/заходов,'
+      + ' не на один присест. Внутри всё равно бери по 3–4 объекта за раз: на каждый нужно'
+      + ' открыть и прочитать десяток страниц, и к концу длинного прогона качество проверки'
+      + ' падает раньше, чем кончаются объекты. Не старайся закрыть всё в одном ответе —'
+      + ' лучше несколько последовательных проходов с честной проверкой каждой ссылки.'
+    : 'Бери по 3–4 объекта за сессию, не все сразу: на каждый нужно открыть и'
+      + ' прочитать десяток страниц, и к концу длинного прогона качество проверки'
+      + ' падает раньше, чем кончаются объекты.',
   '',
 ].join('\n');
 
 const out = brief.replace(OBJECTS_MARKER, header + '\n' + targets.map((bc, i) => card(bc, i + 1)).join('\n'));
-const file = `docs/bc-media-task-class-${classArg.toLowerCase().replace('+', 'plus')}.md`;
+const slugPart = classes.map((c) => c.toLowerCase().replace('+', 'plus')).join('-');
+const file = `docs/bc-media-task-class-${slugPart}.md`;
 writeFileSync(file, out);
-console.log(`${file}: ${targets.length} объектов класса ${classArg}`);
+console.log(`${file}: ${targets.length} объектов класса ${classLabel}`);
