@@ -38,6 +38,7 @@ import {
   Sparkles,
   Star,
   TrainFront,
+  Trophy,
   Users,
 } from 'lucide-react';
 import { cn } from '../lib/cn';
@@ -127,6 +128,7 @@ import { NearbyInfrastructureBlock, SimilarCentersBlock, similarCenters } from '
 // разметке; список самих пунктов собирается в pageSections по тому, какие
 // блоки реально отрисованы.
 const SECTION_LABELS: Record<string, string> = {
+  awards: 'Награды',
   facts: 'Факты',
   developer: 'Застройщик',
   metroCenters: 'БЦ у метро',
@@ -144,6 +146,7 @@ const SECTION_LABELS: Record<string, string> = {
 };
 
 const SECTION_ICONS: Record<string, typeof FileText> = {
+  awards: Trophy,
   facts: Sparkles,
   developer: HardHat,
   metroCenters: TrainFront,
@@ -528,7 +531,29 @@ export function BusinessCenterDetailPage() {
   // история — в таймлайн (Б10). Дублировать один и тот же текст в двух
   // местах страницы хуже, чем не показать его вовсе.
   const visibleHighlights = useMemo(
-    () => center?.highlights.filter((h) => h.icon !== 'rating' && h.icon !== 'reviews' && h.icon !== 'history') ?? [],
+    () =>
+      center?.highlights.filter(
+        (h) => h.icon !== 'rating' && h.icon !== 'reviews' && h.icon !== 'history' && h.icon !== 'award',
+      ) ?? [],
+    [center],
+  );
+
+  // Награды — отдельный блок, а не строка в "Интересных фактах" (владелец,
+  // 2026-09-20). Разворачиваем в плоский список строк по тому же принципу,
+  // что reviewQuotes: одна строка текста = один пункт. Подпись самого
+  // highlight'а не показывается — у всех вариантов она одна и та же по
+  // смыслу ("Награда"/"Награды"/"Номинация ..."), а заголовок блока её уже
+  // повторяет.
+  const awardItems = useMemo(
+    () =>
+      (center?.highlights ?? [])
+        .filter((h) => h.icon === 'award')
+        .flatMap((h) =>
+          h.text
+            .split(/\n+/)
+            .map((line) => line.replace(/^[-–—*•\s]+/, '').trim())
+            .filter(Boolean),
+        ),
     [center],
   );
 
@@ -770,6 +795,7 @@ export function BusinessCenterDetailPage() {
       const info = center.rentalInfo;
       add('Какие условия и контакты аренды опубликованы?', [info.caveat, info.terms, info.rates, info.sizes, info.contacts].filter(Boolean).join(' ') + ' Актуальные условия уточняйте у арендодателя.');
     }
+    if (awardItems.length) add(`Какие награды есть у «${name}»?`, awardItems.join('\n'));
     if (visibleHighlights.length) add('Какие факты о здании опубликованы?', visibleHighlights.map((h) => [h.label, h.text].filter(Boolean).join(': ')).join('\n'));
     const history = extractHistoryPoints(center);
     if (history.length) add('Что известно об истории здания?', history.map((h) => `${h.year}: ${h.text}`).join('; '));
@@ -854,7 +880,7 @@ export function BusinessCenterDetailPage() {
     if (similar.length) add('Какие бизнес-центры показаны как похожие?', similar.map(shortName).join(', '));
     if (hubChips.length) add('Какие связанные подборки доступны?', hubChips.map((c) => c.label).join(', '));
     return items;
-  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, tenantSnapshot, mapRating, reviewQuotes, hubChips, redistributedTechnicalParams, nearbyPlaces]);
+  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, awardItems, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, tenantSnapshot, mapRating, reviewQuotes, hubChips, redistributedTechnicalParams, nearbyPlaces]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -863,6 +889,7 @@ export function BusinessCenterDetailPage() {
     if (!center) return [];
     const has = (id: string, cond: boolean) => (cond ? { id, label: SECTION_LABELS[id] } : null);
     return [
+      has('awards', awardItems.length > 0),
       has('facts', visibleHighlights.length > 0),
       has('developer', Boolean(center.developerInfo)),
       has('metroCenters', relatedCenters.metro.length > 0),
@@ -896,6 +923,7 @@ export function BusinessCenterDetailPage() {
     center,
     marketPosition,
     offers,
+    awardItems,
     visibleHighlights,
     tenantOrganizations,
     faqItems,
@@ -1360,6 +1388,34 @@ export function BusinessCenterDetailPage() {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Награды — свой блок, а не строка в "Интересных фактах" (владелец,
+            2026-09-20: "уберём это из фактов и сделаем прям блок Награды,
+            если они есть. Формат — список, но чуть более большим шрифтом и
+            с иконкой"). Отсюда и отличия от LabeledTextRow ниже: text-base
+            вместо text-sm, цвет основного текста, иконка кубка в фирменном
+            красном. Блок не рисуется вовсе, если наград нет — как и весь
+            остальной кастом на странице БЦ.
+
+            Список строим из готовых строк awardItems, а не через
+            renderRentalText: там буллеты рисуются обычным <ul> мелким
+            шрифтом, а нужен именно ряд "иконка + крупная строка". */}
+        {awardItems.length > 0 && (
+          <div id="awards" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+              <Trophy className="h-5 w-5 shrink-0 text-primary" />
+              Награды
+            </h2>
+            <ul className="flex flex-col gap-3">
+              {awardItems.map((item, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <Trophy className="mt-1 h-5 w-5 shrink-0 text-primary" />
+                  <p className="min-w-0 flex-1 text-base leading-relaxed text-ink">{renderBold(item)}</p>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
@@ -1966,6 +2022,7 @@ const HIGHLIGHT_ICONS: Record<HighlightIconKey, typeof FileText> = {
   history: Landmark,
   tenants: Building2,
   media: Newspaper,
+  award: Trophy,
   rating: Star,
   reviews: MessageSquareQuote,
   design: Palette,
