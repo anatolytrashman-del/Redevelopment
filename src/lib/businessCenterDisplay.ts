@@ -130,16 +130,31 @@ export const businessClassTone: Record<NonNullable<BusinessCenter['businessClass
   C: 'neutral',
 };
 
-// Короткое имя без "Бизнес-центр «...»" — для бокового меню, карточек хаба
-// и заголовка отдельной страницы (владелец: "БЦ по алфавиту, но без
-// «Бизнес-Центр», просто названия").
+// Скобки после названия — адрес, а не часть имени, когда внутри есть номер
+// дома или явный адресный маркер ("ул.", "пр-т" и т.п.). Отличает "А1 (ул.
+// Интернациональная, 36)" (адрес, скобки долой) от "Кампус (Campus)"
+// (транслитерация, скобки — часть имени).
+function isAddressLike(text: string): boolean {
+  return /\d/.test(text) || /^(ул\.|улица|пр-т|просп\.?|проспект|пер\.|переулок|б-р|бульвар|тракт|наб\.|набережная|шоссе|пл\.|площадь|мкр)/i.test(text.trim());
+}
+
+// Короткое имя без "Бизнес-центр «...»" и без адреса в скобках — для
+// бокового меню, карточек хаба и заголовка отдельной страницы (владелец:
+// "БЦ по алфавиту, но без «Бизнес-Центр», просто названия"; 2026-09-20: те
+// же заголовки — без слова "Бизнес-центр", без кавычек, без адреса, если у
+// здания уже есть имя, и без сокращения "МФЦ").
 export function shortName(center: BusinessCenter): string {
-  if (center.slug === 'mfc-minsk-mir') return 'МФЦ (Минск Мир)';
+  if (center.slug === 'mfc-minsk-mir') return 'Минск Мир';
   const quoted = center.name.match(/«([^»]+)»/);
   if (quoted) return quoted[1];
-  const paren = center.name.match(/\(([^)]+)\)/);
-  if (paren) return paren[1];
-  return center.name;
+  const withoutPrefix = center.name.replace(/^Бизнес-центр\s*/, '').trim();
+  const parenMatch = withoutPrefix.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+  if (parenMatch) {
+    const [, before, inside] = parenMatch;
+    if (before && isAddressLike(inside)) return before;
+    return inside || withoutPrefix;
+  }
+  return withoutPrefix || center.name;
 }
 
 // Короткий адрес для карточки хаба — владелец: "без «г. Минск», без района,
