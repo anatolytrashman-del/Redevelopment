@@ -30,6 +30,7 @@ function fromRow(row: BusinessCenterRow): BusinessCenter {
     rentalInfo: row.rental_info,
     highlights: row.highlights ?? [],
     mapSnapshotFiles: row.map_snapshot_files ?? [],
+    mediaMentions: row.media_mentions ?? [],
     tenantOrganizations: row.tenant_organizations ?? [],
     technicalParams: row.technical_params ?? [],
     buildingFacts: row.building_facts ?? [],
@@ -99,6 +100,7 @@ function toPayload(input: Partial<BusinessCenterInput>) {
   if (input.rentalInfo !== undefined) payload.rental_info = input.rentalInfo;
   if (input.highlights !== undefined) payload.highlights = input.highlights;
   if (input.mapSnapshotFiles !== undefined) payload.map_snapshot_files = input.mapSnapshotFiles;
+  if (input.mediaMentions !== undefined) payload.media_mentions = input.mediaMentions;
   if (input.tenantOrganizations !== undefined) payload.tenant_organizations = input.tenantOrganizations;
   if (input.technicalParams !== undefined) payload.technical_params = input.technicalParams;
   if (input.buildingFacts !== undefined) payload.building_facts = input.buildingFacts;

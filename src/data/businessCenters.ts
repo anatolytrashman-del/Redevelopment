@@ -107,6 +107,12 @@ export interface BusinessCenter {
   // следующая сессия скачивает файл и разбирает вручную (пример разбора —
   // в журнале docs/session-journal.md, 2026-09-06: plistlib+BeautifulSoup для .webarchive).
   mapSnapshotFiles: DocumentFile[];
+  // Публикации в СМИ о здании — отдельный блок, а не строка в highlights
+  // (владелец, 2026-09-20). Раньше пресса описывалась текстом вида «об этом
+  // писали Forbes и Habr» внутри «Интересных фактов»: без ссылок, без дат и
+  // без возможности отличить статью О здании от статьи, где здание названо
+  // одной строкой. Пустой массив — блок не рисуется.
+  mediaMentions: MediaMention[];
   // Организации внутри здания — владелец, 2026-09-06 (второй заход): "давай
   // сделаем ещё блок арендаторов внутри БЦ... сгруппировать, на первое
   // место ставь места с максимумом отзывов на картах". Источник — тот же
@@ -345,6 +351,26 @@ export interface BuildingFact {
   note?: string | null;
 }
 
+// Одна публикация в СМИ о здании для блока «СМИ о здании». Отбор — по
+// docs/bc-media-research-brief.md: материал, где ЗДАНИЕ самостоятельная тема,
+// без негатива, из издания, не признанного в Беларуси экстремистским.
+//
+// Логотипа здесь нет СПЕЦИАЛЬНО: он общий для всех БЦ и лежит в реестре
+// src/data/mediaOutlets.ts, ключ — домен из url. Хранить картинку в строке
+// значило бы размножить её по 141 карточке и потерять возможность заменить
+// логотип издания одной правкой.
+export interface MediaMention {
+  url: string;
+  title: string;
+  // YYYY-MM-DD. null — у публикации не проставлена дата (бывает у части
+  // белорусских изданий); дату по косвенным признакам не восстанавливаем,
+  // в блоке такая строка показывается без даты.
+  date: string | null;
+  // Как называть издание читателю («БелТА», а не «belta.by») — из домена
+  // не выводится. Показывается, только если логотипа для домена нет.
+  outlet: string;
+}
+
 // См. комментарий у BusinessCenter.nearestMetroStations выше. Поля — прямое
 // отображение того, что реально даёт 2GIS (`nearest_stations[i]`), без
 // лишних полей вроде `id`/`route_logo`, которые нам не нужны для показа.
@@ -379,6 +405,7 @@ export interface BusinessCenterRow {
   rental_info: RentalInfo | null;
   highlights: HighlightSection[] | null;
   map_snapshot_files: DocumentFile[] | null;
+  media_mentions: MediaMention[] | null;
   tenant_organizations: TenantOrganization[] | null;
   technical_params: TechnicalParamGroup[] | null;
   building_facts: BuildingFact[] | null;
