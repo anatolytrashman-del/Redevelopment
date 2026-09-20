@@ -32,6 +32,7 @@ function fromRow(row: BusinessCenterRow): BusinessCenter {
     mapSnapshotFiles: row.map_snapshot_files ?? [],
     tenantOrganizations: row.tenant_organizations ?? [],
     technicalParams: row.technical_params ?? [],
+    buildingFacts: row.building_facts ?? [],
     nearestMetroStations: row.nearest_metro_stations ?? [],
     floorPlateArea: row.floor_plate_area,
     officeArea: row.office_area,
@@ -100,6 +101,7 @@ function toPayload(input: Partial<BusinessCenterInput>) {
   if (input.mapSnapshotFiles !== undefined) payload.map_snapshot_files = input.mapSnapshotFiles;
   if (input.tenantOrganizations !== undefined) payload.tenant_organizations = input.tenantOrganizations;
   if (input.technicalParams !== undefined) payload.technical_params = input.technicalParams;
+  if (input.buildingFacts !== undefined) payload.building_facts = input.buildingFacts;
   if (input.nearestMetroStations !== undefined) payload.nearest_metro_stations = input.nearestMetroStations;
   if (input.photos !== undefined) payload.photos = input.photos;
   if (input.verdict !== undefined) payload.verdict = input.verdict;

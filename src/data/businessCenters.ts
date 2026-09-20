@@ -135,6 +135,19 @@ export interface BusinessCenter {
   // МФЦ — ещё стройка), либо адрес не удалось надёжно сопоставить (риск
   // приписать чужие характеристики зданию — оставили пустым, не гадаем).
   technicalParams: TechnicalParamGroup[];
+  // Техфакты о здании из источников, ОТЛИЧНЫХ от prometr.by — Kufar, Realt.by,
+  // офиц. сайты УК/застройщика, независимая пресса и т.п. Владелец,
+  // 2026-09-20: prometr.by — единственный источник почти всего блока
+  // «Информация о здании», хочет разбавить его копилкой из разных мест
+  // ("сделай единую базу данных о здании, а мы в неё соберём инфу из разных
+  // источников"), в том числе чтобы не выглядело как копирование одного
+  // сайта. В отличие от technicalParams (одна карточка = один источник,
+  // группами по корпусу) — здесь плоский список ОТДЕЛЬНЫХ фактов, у
+  // КАЖДОГО свой источник и ссылка, факты из разных мест не смешиваются под
+  // одну общую атрибуцию. Пилот — «Centropol» (2026-09-20), дальше копится
+  // по остальным БЦ по мере ресёрча. Правится вручную (сессией/ресёрчем),
+  // формы в админке под это нет — тот же паттерн, что у technicalParams.
+  buildingFacts: BuildingFact[];
   // Ближайшие станции метро — владелец подключает 2GIS API в параллельной
   // ветке (2026-09-06), формат ответа (`nearest_stations`) уже согласован
   // как основа для этого поля (см. журнал docs/session-journal.md). Массив, не одна
@@ -310,6 +323,20 @@ export interface TechnicalParamGroup {
   params: TechnicalParam[];
 }
 
+// См. комментарий у BusinessCenter.buildingFacts выше.
+export interface BuildingFact {
+  label: string;
+  value: string;
+  // Человекочитаемое имя источника ("Kufar.by", "Realt.by", "Onliner") —
+  // то, что показывается рядом со значением на карточке.
+  source: string;
+  sourceUrl: string;
+  // Для многокорпусных зданий — тот же смысл, что у TechnicalParamGroup.corpusLabel.
+  corpusLabel?: string | null;
+  // Короткая оговорка/дата снятия факта, если нужна (необязательна).
+  note?: string | null;
+}
+
 // См. комментарий у BusinessCenter.nearestMetroStations выше. Поля — прямое
 // отображение того, что реально даёт 2GIS (`nearest_stations[i]`), без
 // лишних полей вроде `id`/`route_logo`, которые нам не нужны для показа.
@@ -346,6 +373,7 @@ export interface BusinessCenterRow {
   map_snapshot_files: DocumentFile[] | null;
   tenant_organizations: TenantOrganization[] | null;
   technical_params: TechnicalParamGroup[] | null;
+  building_facts: BuildingFact[] | null;
   nearest_metro_stations: NearestMetroStation[] | null;
   floor_plate_area: number | null;
   office_area: number | null;
