@@ -50,6 +50,9 @@ export function FavoritesProvider({ children }: { children: ReactNode }) {
   const [id, setId] = useState<string | null>(null);
   const [slugs, setSlugs] = useState<string[]>([]);
   const loadedIdRef = useRef<string | null>(null);
+  // Отдельно от loadedIdRef: "мой" список этого браузера (localStorage),
+  // а не тот, что временно открыт по чужой ссылке — см. useEffect ниже.
+  const ownIdRef = useRef<string | null>(readStoredId());
 
   // Владелец, 2026-09-21: при добавлении в избранное ссылка на подборку
   // сразу копируется в буфер — это единственный способ вернуться к списку
@@ -80,17 +83,43 @@ export function FavoritesProvider({ children }: { children: ReactNode }) {
       });
   }, []);
 
+  // 2026-09-21: раньше любой заход на /favorites/<id> — в том числе по
+  // ссылке, присланной кем-то другим, — безусловно перезаписывал localStorage
+  // этим id, и дальше звёздочка ГДЕ УГОДНО на сайте писала уже в чужой
+  // список, а свой собственный список терялся (указатель затёрт). Теперь
+  // "мой" список (ownIdRef/localStorage) трогается только когда: (а) список
+  // создаётся впервые этим браузером, или (б) открытая по URL ссылка и есть
+  // ранее сохранённая своя (совпадают — то есть это подлинно свой бук-марк).
+  // Просмотр/редактирование ЧУЖОЙ ссылки работает только пока пользователь
+  // физически на /favorites/<id> — при уходе со страницы контекст
+  // возвращается к своему списку, ничего не подменяя в хранилище.
   useEffect(() => {
     const urlId = location.pathname.match(FAVORITES_PATH_RE)?.[1] ?? null;
-    const targetId = urlId ?? (loadedIdRef.current === null ? readStoredId() : null);
-    if (!targetId || targetId === loadedIdRef.current) return;
+    const targetId = urlId ?? ownIdRef.current;
+
+    if (!targetId) {
+      if (loadedIdRef.current === null) return;
+      loadedIdRef.current = null;
+      setId(null);
+      setSlugs([]);
+      return;
+    }
+    if (targetId === loadedIdRef.current) return;
+
     let cancelled = false;
     fetchFavoriteList(targetId).then((list) => {
       if (cancelled) return;
       loadedIdRef.current = targetId;
       setId(targetId);
       setSlugs(list?.slugs ?? []);
-      writeStoredId(list ? targetId : null);
+      // Первый визит в этом браузере вообще (своего списка ещё нет) —
+      // считаем открытую по ссылке подборку своей, иначе продолжать её
+      // было бы попросту неоткуда. Если своя уже есть и отличается —
+      // не трогаем localStorage, это просто просмотр чужой ссылки.
+      if (list && ownIdRef.current === null) {
+        ownIdRef.current = targetId;
+        writeStoredId(targetId);
+      }
     });
     return () => {
       cancelled = true;
@@ -109,6 +138,7 @@ export function FavoritesProvider({ children }: { children: ReactNode }) {
         createFavoriteList(next)
           .then((list) => {
             loadedIdRef.current = list.id;
+            ownIdRef.current = list.id;
             setId(list.id);
             writeStoredId(list.id);
             if (isAdding) copyShareLink(list.id);

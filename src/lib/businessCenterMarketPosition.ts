@@ -235,6 +235,43 @@ export function buildMarketPosition(
     }
   }
 
+  // --- Компаний-арендаторов ----------------------------------------------
+  // Пустой массив здесь — почти всегда «снимок 2ГИС/Яндекса для этого здания
+  // ещё не собирали», а не «ноль компаний»: у 136 из 141 БЦ список непустой.
+  // Поэтому, как и для остальных метрик выше, нули из выборки исключаются,
+  // а не считаются за настоящий ноль.
+  const buildingTenants = center.tenantOrganizations.length;
+  if (buildingTenants > 0 && center.businessClass) {
+    const classValues = sameClass.map((c) => c.tenantOrganizations.length).filter((n) => n > 0);
+    const classTenants = classValues.length >= MIN_COMPARE_N ? median(classValues) : null;
+    if (classTenants != null) {
+      bars.push({
+        label: 'Компаний-арендаторов',
+        unit: 'шт.',
+        value: buildingTenants,
+        baselines: [{ label: `класс ${center.businessClass}`, value: classTenants }],
+        words: ['меньше', 'больше'],
+        note: diffNote(buildingTenants, classTenants, `у медианного здания класса ${center.businessClass}`, ['меньше', 'больше']),
+      });
+    }
+  }
+
+  // --- Рейтинг на картах --------------------------------------------------
+  if (center.gisRating != null && center.businessClass) {
+    const classValues = sameClass.map((c) => c.gisRating).filter((v): v is number => v != null);
+    const classRating = classValues.length >= MIN_COMPARE_N ? median(classValues) : null;
+    if (classRating != null) {
+      bars.push({
+        label: 'Рейтинг на картах',
+        unit: '★',
+        value: center.gisRating,
+        baselines: [{ label: `класс ${center.businessClass}`, value: classRating }],
+        words: ['ниже', 'выше'],
+        note: diffNote(center.gisRating, classRating, `у медианного здания класса ${center.businessClass}`, ['ниже', 'выше']),
+      });
+    }
+  }
+
   return { bars };
 }
 
