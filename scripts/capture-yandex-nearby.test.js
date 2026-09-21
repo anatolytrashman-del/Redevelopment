@@ -53,6 +53,14 @@ describe('классификация объектов выдачи', () => {
     expect(classifyCandidate({ id: '', rubric: 'Аптека' }, 'shop')).toBeNull();
   });
 
+  it('станции БЖД не попадают в метро — тот же префикс id, но рубрика «common», не «metro»', () => {
+    // Живой случай 2026-09-21 (БЦ «Титул»): «Минск-Пасс.» с id
+    // station__lh_9613989 и рубрикой common чуть не ушёл в метро только
+    // потому, что id тоже начинается с 'station__'.
+    expect(classifyCandidate({ id: 'station__lh_9613989', rubric: 'common' }, 'shop')).toBeNull();
+    expect(classifyCandidate({ id: 'station__9880196', rubric: 'metro' }, 'shop')).toBe('metro');
+  });
+
   it('берёт категорию запроса для блока «похожие» — своей рубрики на русском у них нет', () => {
     expect(classifyCandidate({ id: '159900781875', rubric: 'planeta_zdorovya · similar' }, 'pharmacy')).toBe('pharmacy');
   });

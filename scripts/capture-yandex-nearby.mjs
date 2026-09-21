@@ -267,12 +267,21 @@ export function extractCandidates(value, depth = 0, out = []) {
 // Слой карты без карточки (парки, подписи улиц, здания-ориентиры) — тоже без
 // кириллицы в рубрике, но с тегом «common», а не «similar»: их отбрасываем,
 // у «Парка Горького» рубрики для группировки взять неоткуда.
+//
+// 'station__' — не только метро: у станций БЖД (Минск-Пасс., Минск-Восточный,
+// Минск-Северный, Ждановичи и т.п.) тот же префикс, только с инфиксом
+// (`station__lh_9613989`) и рубрикой `common`, как у обычного шума карты —
+// без проверки самой рубрики они утекали в метро (владелец, 2026-09-21:
+// «в список попадали жд станции»; найдено на живой выдаче у БЦ «Титул»:
+// «Минск-Пасс.» — id `station__lh_9613989`, rubric `common`, тогда как у
+// настоящих станций метро id всегда голое число после `station__`, а
+// rubric — ровно `metro`).
 export function classifyCandidate(candidate, fallbackCategory) {
   const id = String(candidate.id ?? '');
-  if (id.startsWith('station__')) return 'metro';
+  const rubric = String(candidate.rubric ?? '');
+  if (id.startsWith('station__') && rubric.trim().toLowerCase() === 'metro') return 'metro';
   if (id.startsWith('stop__')) return 'transport_stop';
   if (!/^\d+$/.test(id)) return null;
-  const rubric = String(candidate.rubric ?? '');
   if (/[а-яё]/i.test(rubric)) return categoryFromRubric(rubric, fallbackCategory);
   if (/\bsimilar$/i.test(rubric.trim())) return fallbackCategory;
   return null;
