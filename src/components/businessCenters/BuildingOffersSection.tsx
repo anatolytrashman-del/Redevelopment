@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
-import { benchmarkLines, type DealBenchmark } from '../../lib/businessCenterOfferBenchmark';
 import {
   formatArea,
   formatAreaRange,
@@ -39,9 +38,12 @@ const VISIBLE_LOTS = 6;
 
 const DEAL_TITLE: Record<DealType, string> = { sale: 'Продажа', rent: 'Аренда' };
 
-function DealTile({ stats, benchmark }: { stats: DealStats; benchmark: DealBenchmark | null }) {
+// Сравнения со срезом рынка тут больше нет: с 2026-09-21 оно целиком
+// живёт в блоке «Цены в здании и по рынку» сразу под этой карточкой
+// (владелец видел оба варианта рядом и выбрал плитки). Две разные подачи
+// одного и того же сравнения на одном экране — хуже любой из них.
+function DealTile({ stats }: { stats: DealStats }) {
   const isRent = stats.deal === 'rent';
-  const lines = benchmarkLines(stats.median, stats.deal, benchmark);
   return (
     <div className="flex flex-col gap-1 border-b border-border pb-3">
       <span className="text-xs font-semibold uppercase tracking-wide text-ink-faint">{DEAL_TITLE[stats.deal]}</span>
@@ -54,11 +56,6 @@ function DealTile({ stats, benchmark }: { stats: DealStats; benchmark: DealBench
           ? `медиана — по лотам категории «${stats.priceType}» (${stats.priceLots.length} из ${stats.count})`
           : `медиана по ${formatLotsDative(stats.count)}`}
       </span>
-      {lines.map((line) => (
-        <span key={line} className="text-xs text-ink-muted">
-          {line}
-        </span>
-      ))}
       <span className="mt-1 text-sm text-ink">
         {isRent ? 'Платёж' : 'Бюджет'} {formatMoney(stats.totalMin)}–{formatMoney(stats.totalMax)}
         {isRent ? ' в месяц' : ''}
@@ -147,10 +144,10 @@ function LotsTable({ stats }: { stats: DealStats }) {
   );
 }
 
-function DealColumn({ stats, benchmark }: { stats: DealStats; benchmark: DealBenchmark | null }) {
+function DealColumn({ stats }: { stats: DealStats }) {
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <DealTile stats={stats} benchmark={benchmark} />
+      <DealTile stats={stats} />
       <LotsTable stats={stats} />
       {stats.sizeDiscount && (
         <p className="text-xs text-ink-muted">
@@ -203,14 +200,10 @@ export function BuildingOffersSection({
   sale,
   rent,
   yieldStats,
-  saleBenchmark,
-  rentBenchmark,
 }: {
   sale: DealStats | null;
   rent: DealStats | null;
   yieldStats: YieldStats | null;
-  saleBenchmark: DealBenchmark | null;
-  rentBenchmark: DealBenchmark | null;
 }) {
   if (!sale && !rent) return null;
   const columns = [sale, rent].filter((s): s is DealStats => s !== null);
@@ -226,11 +219,7 @@ export function BuildingOffersSection({
 
       <div className={cn('grid items-start gap-6', columns.length > 1 ? 'md:grid-cols-2' : 'max-w-xl')}>
         {columns.map((stats) => (
-          <DealColumn
-            key={stats.deal}
-            stats={stats}
-            benchmark={stats.deal === 'sale' ? saleBenchmark : rentBenchmark}
-          />
+          <DealColumn key={stats.deal} stats={stats} />
         ))}
       </div>
 
