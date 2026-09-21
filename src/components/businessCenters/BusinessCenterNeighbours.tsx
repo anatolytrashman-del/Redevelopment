@@ -28,8 +28,8 @@ const NEARBY_LIST_LIMIT = 5;
 const CATEGORY_META: Record<NearbyPlaceCategory, { label: string; color: string; icon: typeof MapPin }> = {
   metro: { label: 'Метро', color: '#e4152b', icon: TrainFront },
   transport_stop: { label: 'Остановки', color: '#2563eb', icon: BusFront },
-  cafe: { label: 'Кафе', color: '#b45309', icon: Coffee },
-  restaurant: { label: 'Рестораны', color: '#c2410c', icon: Utensils },
+  coffee: { label: 'Кофейни', color: '#b45309', icon: Coffee },
+  cafe: { label: 'Кафе и рестораны', color: '#c2410c', icon: Utensils },
   grocery: { label: 'Продукты', color: '#15803d', icon: ShoppingBag },
   shop: { label: 'Магазины', color: '#7c3aed', icon: ShoppingBag },
   pharmacy: { label: 'Аптеки', color: '#059669', icon: Pill },
@@ -85,7 +85,10 @@ function MiniMap({
         );
         map.geoObjects.add(
           new ymaps.Circle(
-            [[center.lat as number, center.lng as number], 500],
+            // 850 м — радиус категорий по умолчанию в scripts/nearby-places-common.mjs
+            // (метро и остановки шире, у них свой круг на карте нет — это просто
+            // ориентир "основная зона", не буквальная граница всех категорий).
+            [[center.lat as number, center.lng as number], 850],
             {},
             { fillColor: '#e4152b0d', strokeColor: '#e4152b66', strokeWidth: 1 },
           ),

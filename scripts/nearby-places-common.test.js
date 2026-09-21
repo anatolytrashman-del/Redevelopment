@@ -11,8 +11,8 @@ describe('радиусы по категориям', () => {
   it('метро и остановки шире, чем магазины', () => {
     expect(radiusFor('metro')).toBe(2000);
     expect(radiusFor('transport_stop')).toBe(800);
-    expect(radiusFor('pharmacy')).toBe(500);
-    expect(radiusFor('неизвестно')).toBe(500);
+    expect(radiusFor('pharmacy')).toBe(850);
+    expect(radiusFor('неизвестно')).toBe(850);
   });
 });
 
@@ -37,6 +37,15 @@ describe('категория по рубрике', () => {
     expect(categoryFromRubric('', 'cafe')).toBe('cafe');
     expect(categoryFromRubric(null, 'cafe')).toBe('cafe');
     expect(categoryFromRubric('Тату-салон', 'shop')).toBe('shop');
+  });
+
+  it('кафе и рестораны — одна категория, кофейни выделены отдельно', () => {
+    expect(categoryFromRubric('Ресторан · бар · charli · business', 'cafe')).toBe('cafe');
+    expect(categoryFromRubric('Кафе · ресторан · пиццерия · family_club · business', 'cafe')).toBe('cafe');
+    expect(categoryFromRubric('Кофейня · met_tea · business', 'cafe')).toBe('coffee');
+    // «Кафе · кофейня · пекарня» (реальная рубрика «Paul» на живой выдаче) —
+    // кофейня должна выигрывать у общего «кафе», а не потеряться в нём.
+    expect(categoryFromRubric('Кафе · кофейня · пекарня · paul · business', 'cafe')).toBe('coffee');
   });
 });
 
