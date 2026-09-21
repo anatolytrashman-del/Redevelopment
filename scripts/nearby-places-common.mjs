@@ -85,14 +85,35 @@ export function placeKey(place) {
   return place.source_place_id || `${Number(place.lat).toFixed(5)},${Number(place.lng).toFixed(5)}`;
 }
 
+// Одна организация приезжает по нескольким запросам, и не всегда одинаково
+// надёжно: прямое попадание несёт настоящую рубрику Яндекса («Ресторан ·
+// кафе · бар»), а виджет «похожие рядом» на СОВСЕМ ДРУГОМ запросе — только
+// машинный слаг без рубрики («kukhmistr · similar»), и тогда категория —
+// это просто fallback того запроса, под которым виджет показался, а не
+// настоящий тип места (найдено 2026-09-21: «Кухмистр», реальный ресторан,
+// у запроса «кофейня» всплыл «похожим» и чуть не остался кофейней — запрос
+// «кофейня» в списке идёт раньше «кафе»/«ресторан», расстояние одинаковое,
+// и без этого правила побеждала бы просто первая запись). Прямое попадание
+// побеждает всегда, а не только при равном расстоянии — оно и есть источник
+// истины, remainder сравнивается по расстоянию как раньше. Флаг временный:
+// в возвращаемых записях его нет, он не часть схемы таблицы.
+function isBetterPlace(candidate, existing) {
+  const candidateReliable = candidate._reliableCategory !== false;
+  const existingReliable = existing._reliableCategory !== false;
+  if (candidateReliable !== existingReliable) return candidateReliable;
+  return candidate.distance_meters < existing.distance_meters;
+}
+
 export function dedupePlaces(places) {
   const byKey = new Map();
   for (const place of places) {
     const key = placeKey(place);
     const existing = byKey.get(key);
-    if (!existing || place.distance_meters < existing.distance_meters) byKey.set(key, place);
+    if (!existing || isBetterPlace(place, existing)) byKey.set(key, place);
   }
-  return [...byKey.values()].sort((a, b) => a.distance_meters - b.distance_meters);
+  return [...byKey.values()]
+    .sort((a, b) => a.distance_meters - b.distance_meters)
+    .map(({ _reliableCategory, ...place }) => place);
 }
 
 export function sqlLiteral(value) {
