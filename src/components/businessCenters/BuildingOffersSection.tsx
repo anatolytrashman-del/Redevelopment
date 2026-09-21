@@ -24,6 +24,10 @@ import { formatArea, formatMoney, formatRate, type DealStats, type DealType } fr
 //        цена за метр остаётся подписью, она нужна только тем, кто
 //        сравнивает здания между собой;
 //      • шапок таблицы нет: «28 м², 7 этаж — $57 600» читается и без них;
+//      • ни строки «чем больше помещение, тем дешевле метр», ни подписи
+//        про источники и платежи: владелец убрал и то и другое
+//        2026-09-21 — в блоке остаются только сами помещения с ценами,
+//        а откуда данные, сказано в «Источниках» в конце страницы;
 //      • сравнения с рынком тут нет совсем: параллельно оно переехало в
 //        соседний блок «Цены в здании и по рынку»
 //        (lib/businessCenterPriceCompare), а два разных сравнения одного
@@ -109,10 +113,6 @@ function DealColumn({ stats }: { stats: DealStats }) {
 export function BuildingOffersSection({ sale, rent }: { sale: DealStats | null; rent: DealStats | null }) {
   if (!sale && !rent) return null;
   const columns = [sale, rent].filter((s): s is DealStats => s !== null);
-  // Скидка за объём — только у продажи: покупателю она меняет решение
-  // («возьму побольше — метр выйдет дешевле»), у аренды это интересный
-  // факт, который в блоке ничего не решает.
-  const sizeDiscount = sale?.sizeDiscount ?? null;
 
   return (
     <div id="offers" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
@@ -123,19 +123,6 @@ export function BuildingOffersSection({ sale, rent }: { sale: DealStats | null; 
           <DealColumn key={stats.deal} stats={stats} />
         ))}
       </div>
-
-      {sizeDiscount && (
-        <p className="text-sm text-ink-muted">
-          Чем больше помещение, тем дешевле метр: {formatArea(sizeDiscount.smallSize)} —{' '}
-          {formatRate(sizeDiscount.smallPrice, 'sale')} за м², {formatArea(sizeDiscount.largeSize)} —{' '}
-          {formatRate(sizeDiscount.largePrice, 'sale')} за м².
-        </p>
-      )}
-
-      <p className="text-xs text-ink-faint">
-        Цены — из объявлений на Kufar, Realt, Domovita и Megapolis: коммунальные и эксплуатационные платежи в них не
-        входят. Одно и то же помещение, выложенное сразу на нескольких сайтах, считается один раз.
-      </p>
     </div>
   );
 }
