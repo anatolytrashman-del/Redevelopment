@@ -1857,7 +1857,7 @@ export function BusinessCenterDetailPage() {
                       {mapRating.label}
                     </span>
                   }
-                  label="На Яндекс.Картах"
+                  label="Яндекс.Карты"
                   tone="muted"
                 />
               )}
