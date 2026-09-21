@@ -75,7 +75,7 @@ import {
   metroHubDistance,
   metroHubUrl,
   streetHubUrl,
-  districtGenitive,
+  districtDative,
   districtPrepositional,
   classDistrictHubUrl,
   classHubUrl,
@@ -527,8 +527,10 @@ export function BusinessCenterDetailPage() {
   // собирался отдельный блок под таблицей — с 2026-09-21 строка сравнения
   // стоит вплотную к самому числу, внутри плитки сделки.
   const benchmarks = useMemo<{ rent: DealBenchmark; sale: DealBenchmark }>(() => {
-    const classLabel = center?.businessClass ? `класса ${center.businessClass}` : null;
-    const districtLabel = center?.district ? `${districtGenitive(center.district)} района` : null;
+    // Подписи встают в фразу «…чем в среднем по зданиям класса B» /
+    // «…чем в среднем по Московскому району» — предложный падеж.
+    const classLabel = center?.businessClass ? `по зданиям класса ${center.businessClass}` : null;
+    const districtLabel = center?.district ? `по ${districtDative(center.district)} району` : null;
     return {
       rent: { classLabel, classSnapshot: classSnapshot?.rent, districtLabel, districtSnapshot: districtSnapshot?.rent },
       sale: { classLabel, classSnapshot: classSnapshot?.sale, districtLabel, districtSnapshot: districtSnapshot?.sale },

@@ -1,37 +1,48 @@
 import { describe, expect, it } from 'vitest';
 import type { MarketSnapshot } from '../data/marketSnapshots';
-import { benchmarkLines } from './businessCenterOfferBenchmark';
+import { benchmarkLine } from './businessCenterOfferBenchmark';
 
-// Строка сравнения с рынком — единственное место блока, где число
-// встраивается в предложение, и падеж в ней разный: «к медиане класса B»,
-// но «на уровне медианы класса B». Первая версия склеивала обе через одну
-// подпись и выдала на проде «на уровне медиане Московского района».
+// Единственная фраза блока, где число встроено в предложение. Первая
+// версия писала показателями («+25% к медиане класса B ($1 600/м²)») и
+// заодно выдала на проде «на уровне медиане Московского района» —
+// поэтому текст проверяется целиком, а не по частям.
 
 const snapshot = (median: number, n = 40): MarketSnapshot => ({ median, n }) as MarketSnapshot;
 
 const benchmark = {
-  classLabel: 'класса B',
+  classLabel: 'по зданиям класса B',
   classSnapshot: snapshot(1600),
-  districtLabel: 'Московского района',
-  districtSnapshot: snapshot(2000),
+  districtLabel: 'по Московскому району',
+  districtSnapshot: snapshot(2500),
 };
 
-describe('benchmarkLines', () => {
-  it('склоняет «медиана» под знак сравнения', () => {
-    // toLocaleString ставит в разрядах неразрывный пробел — сравниваем по
-    // обычному, иначе тест падает на невидимой разнице.
-    const plain = (lines: string[]) => lines.map((line) => line.replace(/\u00a0/g, ' '));
-    expect(plain(benchmarkLines(2000, 'sale', benchmark))).toEqual([
-      '+25% к медиане класса B ($1 600/м²)',
-      'на уровне медианы Московского района ($2 000/м²)',
-    ]);
+describe('benchmarkLine', () => {
+  it('пишет сравнение обычными словами', () => {
+    expect(benchmarkLine(2000, benchmark)).toBe('На 25% дороже, чем в среднем по зданиям класса B');
+    expect(benchmarkLine(1200, benchmark)).toBe('На 25% дешевле, чем в среднем по зданиям класса B');
   });
 
-  it('молчит про срез, который не набрал порога надёжности', () => {
-    expect(benchmarkLines(2000, 'sale', { ...benchmark, districtSnapshot: snapshot(2000, 1) })).toHaveLength(1);
+  it('разницу меньше 5% не выдаёт за разницу', () => {
+    expect(benchmarkLine(1630, benchmark)).toBe('Столько же, сколько в среднем по зданиям класса B');
+  });
+
+  it('берёт район, когда среза по классу нет', () => {
+    expect(benchmarkLine(2500, { ...benchmark, classLabel: null, classSnapshot: undefined })).toBe(
+      'Столько же, сколько в среднем по Московскому району',
+    );
+  });
+
+  it('молчит, когда срез не набрал порога надёжности', () => {
+    expect(
+      benchmarkLine(2000, {
+        ...benchmark,
+        classSnapshot: snapshot(1600, 1),
+        districtSnapshot: snapshot(2500, 1),
+      }),
+    ).toBeNull();
   });
 
   it('ничего не пишет без среза рынка', () => {
-    expect(benchmarkLines(2000, 'sale', null)).toEqual([]);
+    expect(benchmarkLine(2000, null)).toBeNull();
   });
 });
