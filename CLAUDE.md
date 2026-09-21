@@ -182,6 +182,8 @@ api/               — Vercel serverless functions (голый JS): OTP-подп
 scripts/           — почасовые cron-синки статистики спроса (Kufar/Realt/Avito/Megapolis)
 public/fonts/      — self-hosted Montserrat (+ Yandex Sans Text для части макетов)
 examples/          — референс-страницы первого прохода прототипа, в сборку не входят
+data/linkbuilding/ — трекер кампании линкбилдинга (CSV: доноры, письма, полученные
+                     ссылки) — см. `LINKBUILDING_PLAN.md` и `data/linkbuilding/README.md`
 ```
 
 ## Паттерн работы с данными (Supabase)
@@ -514,7 +516,9 @@ SQL-миграции по-прежнему применяются в живую 
 Другие рабочие md-файлы в корне репозитория (открывать по необходимости, не читать
 заранее целиком) — у каждого свой журнал прогресса внутри: `SEO_PLAN.md`/
 `SEO_PLAN_OWNER.md`, `BCMINSK_SEO_PLAN.md`, `PAGESPEED_PLAN.md`,
-`EMAIL_CORRESPONDENCE_PLAN.md`, `ANALYTICSPLAN.md`; в `docs/` —
+`EMAIL_CORRESPONDENCE_PLAN.md`, `ANALYTICSPLAN.md`, `LINKBUILDING_PLAN.md`
+(идентификаторы задач `LB-x.y`, трекер кампании — `data/linkbuilding/`, см. его
+README); в `docs/` —
 `docs/bc-catalog-redesign-plan.md` (переосмысление каталога и карточки БЦ,
 2026-09-16: диагноз, 31 предложение в трёх волнах, чекбоксы).
 `docs/bc-developer-cards.md` (2026-09-20: карточки застройщика на странице
