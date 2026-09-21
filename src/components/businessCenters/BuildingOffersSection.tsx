@@ -3,16 +3,7 @@ import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import { pluralRu } from '../../lib/pluralRu';
 import { benchmarkLine, type DealBenchmark } from '../../lib/businessCenterOfferBenchmark';
-import {
-  formatArea,
-  formatMoney,
-  formatPercent,
-  formatRate,
-  formatYears,
-  type DealStats,
-  type DealType,
-  type YieldStats,
-} from '../../lib/businessCenterOfferStats';
+import { formatArea, formatMoney, formatRate, type DealStats, type DealType } from '../../lib/businessCenterOfferStats';
 
 // Блок «Что сейчас сдают и продают в здании».
 //
@@ -36,9 +27,17 @@ import {
 //      • шапок таблицы нет: «28 м², 7 этаж — $57 600» читается и без них;
 //      • одно сравнение с рынком вместо двух, словами (см.
 //        businessCenterOfferBenchmark);
-//      • окупаемость — обычная фраза внизу, а не плитка с показателем.
 //    Подробные цифры (крайние ставки, разбивка по типам) никуда не делись
 //    — они в FAQ под блоком.
+//
+// 3. Окупаемости покупки арендой здесь нет и не должно быть, хотя данные
+//    на неё есть. Считать её честно не на чем: в здании продают одни
+//    помещения, а сдают другие, и цена метра у мелкого кабинета и целого
+//    этажа отличается в полтора раза. Замер по базе: расчёт «медиана
+//    продажи ÷ медиана аренды» расходится с расчётом по сопоставимым
+//    площадям в среднем на 1,5 года, а на «Центрополе» — на 8,9 года
+//    (5,6 против 14,6). Владелец, 2026-09-21, после разбора методики:
+//    «давай не считать окупаемость вообще».
 
 // Сколько помещений показывать сразу. Шесть — примерно экран на телефоне;
 // у зданий с сорока объявлениями остальное прячется за кнопкой.
@@ -108,25 +107,14 @@ function DealColumn({ stats, benchmark }: { stats: DealStats; benchmark: DealBen
   );
 }
 
-// Одна фраза про то, что покупка здесь окупается арендой, — вместо плитки
-// с показателем доходности. Процент оставлен в скобках для тех, кто
-// считает деньгами, а не годами.
-function yieldSentence(stats: YieldStats): string {
-  return `Если купить помещение здесь и сдавать его в аренду, вложения вернутся примерно за ${formatYears(
-    stats.paybackYears,
-  )} — это ${formatPercent(stats.grossYieldPct)} в год до расходов на налоги, простой и обслуживание.`;
-}
-
 export function BuildingOffersSection({
   sale,
   rent,
-  yieldStats,
   saleBenchmark,
   rentBenchmark,
 }: {
   sale: DealStats | null;
   rent: DealStats | null;
-  yieldStats: YieldStats | null;
   saleBenchmark: DealBenchmark | null;
   rentBenchmark: DealBenchmark | null;
 }) {
@@ -154,8 +142,6 @@ export function BuildingOffersSection({
           {formatRate(sizeDiscount.largePrice, 'sale')} за м².
         </p>
       )}
-
-      {yieldStats && <p className="text-sm text-ink-muted">{yieldSentence(yieldStats)}</p>}
 
       <p className="text-xs text-ink-faint">
         Цены — из объявлений на Kufar, Realt, Domovita и Megapolis: коммунальные и эксплуатационные платежи в них не
