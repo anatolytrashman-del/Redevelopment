@@ -69,7 +69,6 @@ import {
   metroHubDistance,
   metroHubUrl,
   streetHubUrl,
-  districtDative,
   districtPrepositional,
   classDistrictHubUrl,
   microdistrictHubUrl,
@@ -86,7 +85,7 @@ import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
 import { dedupeOffers } from '../lib/businessCenterOfferDuplicates';
 import { pluralRu } from '../lib/pluralRu';
 import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
-import { MIN_RELIABLE_N, type MarketSnapshot } from '../data/marketSnapshots';
+import type { MarketSnapshot } from '../data/marketSnapshots';
 import type {
   BusinessCenter2gisSnapshot,
   Gis2Schedule,
@@ -105,10 +104,12 @@ import { TenantDirectory } from '../components/businessCenters/TenantDirectory';
 import type { BusinessCenterTenantSnapshot } from '../data/businessCenterTenants';
 import { buildOfferIndex, METRO_LINE_DOT_CLASS, metroLineId } from '../lib/businessCenterCatalogFilter';
 import { buildMarketPosition, haversineMeters } from '../lib/businessCenterMarketPosition';
+import { buildPriceComparison } from '../lib/businessCenterPriceCompare';
 import {
   extractHistoryPoints,
   HistoryTimeline,
   MarketPositionBlock,
+  PriceComparisonBlock,
   WhatTheySayBlock,
 } from '../components/businessCenters/BusinessCenterMarketBlocks';
 import { NearbyInfrastructureBlock } from '../components/businessCenters/BusinessCenterNeighbours';
@@ -525,55 +526,6 @@ export function BusinessCenterDetailPage() {
 
   const saleRows = useMemo(() => computeOfferRows(offers ?? [], 'sale'), [offers]);
   const rentRows = useMemo(() => computeOfferRows(offers ?? [], 'rent'), [offers]);
-
-  // Медиана по ЭТОМУ зданию целиком (не разбитая по типу помещения, как
-  // saleRows/rentRows выше) — для сравнения со средней по классу/району.
-  const buildingRentMedian = useMemo(() => overallMedianPricePerSqm(offers ?? [], 'rent'), [offers]);
-  const buildingSaleMedian = useMemo(() => overallMedianPricePerSqm(offers ?? [], 'sale'), [offers]);
-  const classSnapshot = useMemo(
-    () =>
-      center?.businessClass
-        ? {
-            rent: (officeSnapshots ?? []).find((s) => s.deal === 'rent' && s.sliceType === 'class' && s.sliceKey === center.businessClass),
-            sale: (officeSnapshots ?? []).find((s) => s.deal === 'sale' && s.sliceType === 'class' && s.sliceKey === center.businessClass),
-          }
-        : null,
-    [officeSnapshots, center],
-  );
-  const districtSnapshot = useMemo(
-    () =>
-      center?.district
-        ? {
-            rent: (officeSnapshots ?? []).find((s) => s.deal === 'rent' && s.sliceType === 'district' && s.sliceKey === center.district),
-            sale: (officeSnapshots ?? []).find((s) => s.deal === 'sale' && s.sliceType === 'district' && s.sliceKey === center.district),
-          }
-        : null,
-    [officeSnapshots, center],
-  );
-  const rateComparisonRent = useMemo(
-    () =>
-      RateComparisonNote({
-        dealType: 'rent',
-        buildingMedian: buildingRentMedian,
-        classLabel: center?.businessClass ? `классу ${center.businessClass}` : null,
-        classSnapshot: classSnapshot?.rent,
-        districtLabel: center?.district ? `${districtDative(center.district)} району` : null,
-        districtSnapshot: districtSnapshot?.rent,
-      }),
-    [buildingRentMedian, center, classSnapshot, districtSnapshot],
-  );
-  const rateComparisonSale = useMemo(
-    () =>
-      RateComparisonNote({
-        dealType: 'sale',
-        buildingMedian: buildingSaleMedian,
-        classLabel: center?.businessClass ? `классу ${center.businessClass}` : null,
-        classSnapshot: classSnapshot?.sale,
-        districtLabel: center?.district ? `${districtDative(center.district)} району` : null,
-        districtSnapshot: districtSnapshot?.sale,
-      }),
-    [buildingSaleMedian, center, classSnapshot, districtSnapshot],
-  );
 
   // Рейтинг Яндекс.Карт вынесен из общего списка фактов в короткий бейдж
   // рядом с заголовком. Подробный исходный текст не используется как tooltip.
@@ -1047,6 +999,10 @@ export function BusinessCenterDetailPage() {
   const marketPosition = useMemo(
     () => (center ? buildMarketPosition(center, centers ?? [], officeSnapshots, offerIndex) : null),
     [center, centers, officeSnapshots, offerIndex],
+  );
+  const priceComparison = useMemo(
+    () => (center ? buildPriceComparison(center, centers ?? [], offerIndex) : null),
+    [center, centers, offerIndex],
   );
   // Цитаты отзывов из «Интересных фактов» — отдельным блоком «Что говорят»
   // вместе с рейтингами (Б11), а не россыпью по странице.
@@ -1931,20 +1887,19 @@ export function BusinessCenterDetailPage() {
           </div>
         )}
 
-        {/* Сравнение со средней по классу/району (ANALYTICSPLAN.md §4.2) —
-            медиана этого конкретного здания против медиан market_snapshots
-            (сегмент ofisy_bc). Только когда у здания вообще есть медиана по
-            сделке И хотя бы один из бенчмарков (класс/район) набрал порог
-            MIN_RELIABLE_N — иначе сравнение с сырыми 2-3 объявлениями было
-            бы не сравнением, а шумом. Вынесено из карточки "Что сейчас
-            сдают и продают" в свой блок (владелец, 2026-09-20) — со своим
-            заголовком и оформлением это продумаем отдельно. */}
-        {offers !== null && offers.length > 0 && (rateComparisonRent || rateComparisonSale) && (
-          <div id="rate-comparison" className={cn('mt-6 flex scroll-mt-32 flex-col gap-2 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            {rateComparisonRent}
-            {rateComparisonSale}
-          </div>
-        )}
+        {/* Цены здания против рынка. Прежде здесь лежали два предложения с
+            процентами («Аренда в этом здании — $15/м²/мес, это выше на 30%
+            медианы по классу B…»); владелец 2026-09-21: блок нечитаемый,
+            нужен понятный обычному человеку, а не аналитику. Что и почему
+            считается именно так — в lib/businessCenterPriceCompare.ts,
+            перебранные и отвергнутые макеты — в комментарии у
+            PriceComparisonBlock. */}
+        {/* Снимок рынка пересобирается раз в месяц, а объявления синк
+            заменяет чаще — у здания, где объявления кончились, снимок ещё
+            живёт. Подпись «4 предложения в здании» в таком случае врала бы
+            настоящим временем, поэтому блок привязан к текущим объявлениям,
+            а не только к снимку. */}
+        {offers !== null && offers.length > 0 && priceComparison && <PriceComparisonBlock comparison={priceComparison} />}
 
         {renderRecommendationSlot('offers')}
 
@@ -2927,71 +2882,6 @@ function computeOfferRows(offers: BusinessCenterOffer[], dealType: BusinessCente
 
 function formatUsd(n: number): string {
   return `$${Math.round(n).toLocaleString('ru-RU')}`;
-}
-
-// Медиана цены за м² по ВСЕМ объявлениям здания одного типа сделки, без
-// разбивки по типу помещения (та живёт в computeOfferRows выше) — нужна
-// только для сравнения со средней по классу/району из market_snapshots.
-function overallMedianPricePerSqm(offers: BusinessCenterOffer[], dealType: BusinessCenterOffer['dealType']): number | null {
-  const prices = offers.filter((o) => o.dealType === dealType).map((o) => o.pricePerSqm);
-  if (prices.length === 0) return null;
-  const sorted = [...prices].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
-function formatRatePerSqm(n: number, dealType: 'rent' | 'sale'): string {
-  const rounded = dealType === 'rent' ? Math.round(n * 10) / 10 : Math.round(n);
-  return `$${rounded.toLocaleString('ru-RU')}${dealType === 'rent' ? '/м²/мес' : '/м²'}`;
-}
-
-function compareLabel(diffPct: number): string {
-  if (Math.abs(diffPct) < 5) return 'на уровне';
-  return diffPct > 0 ? `выше на ${Math.round(diffPct)}%` : `ниже на ${Math.round(Math.abs(diffPct))}%`;
-}
-
-function RateComparisonNote({
-  dealType,
-  buildingMedian,
-  classLabel,
-  classSnapshot,
-  districtLabel,
-  districtSnapshot,
-}: {
-  dealType: 'rent' | 'sale';
-  buildingMedian: number | null;
-  classLabel: string | null;
-  classSnapshot: MarketSnapshot | undefined;
-  districtLabel: string | null;
-  districtSnapshot: MarketSnapshot | undefined;
-}) {
-  if (buildingMedian == null) return null;
-
-  const parts: ReactNode[] = [];
-  if (classLabel && classSnapshot?.median != null && classSnapshot.n >= MIN_RELIABLE_N) {
-    const diff = ((buildingMedian - classSnapshot.median) / classSnapshot.median) * 100;
-    parts.push(
-      <span key="class">
-        {compareLabel(diff)} медианы по {classLabel} ({formatRatePerSqm(classSnapshot.median, dealType)})
-      </span>,
-    );
-  }
-  if (districtLabel && districtSnapshot?.median != null && districtSnapshot.n >= MIN_RELIABLE_N) {
-    const diff = ((buildingMedian - districtSnapshot.median) / districtSnapshot.median) * 100;
-    parts.push(
-      <span key="district">
-        {compareLabel(diff)} медианы по {districtLabel} ({formatRatePerSqm(districtSnapshot.median, dealType)})
-      </span>,
-    );
-  }
-  if (parts.length === 0) return null;
-
-  return (
-    <p className="text-xs text-ink-muted">
-      {dealType === 'rent' ? 'Аренда' : 'Продажа'} в этом здании — {formatRatePerSqm(buildingMedian, dealType)}, это{' '}
-      {parts.reduce<ReactNode[]>((acc, part, i) => (i === 0 ? [part] : [...acc, ' и ', part]), [])}.
-    </p>
-  );
 }
 
 // Заголовок сделки (Продажа/Аренда) — не отдельная колонка (чтобы не
