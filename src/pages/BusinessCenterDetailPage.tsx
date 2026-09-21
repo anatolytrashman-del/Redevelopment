@@ -955,63 +955,6 @@ export function BusinessCenterDetailPage() {
     // Богаче пул — выше приоритет (раньше в очереди на размещение).
     candidates.sort((a, b) => b.raw.length - a.raw.length);
 
-    // Два замыкающих блока — общегородские. Они не привязаны ни к улице,
-    // ни к метро, ни к микрорайону, поэтому годятся любому зданию и
-    // добирают количество там, где специфичных совпадений не нашлось:
-    // у четырёх БЦ каталога не совпадает вообще ничего, ещё у полусотни
-    // кандидатов ровно два, а на страницу в 9 экранов их нужно 3-4
-    // (владелец, 2026-09-21: «их не должно быть мало»). Оба идут строго
-    // последними в очереди, несмотря на самые большие пулы: они самые
-    // неспецифичные, а дедуп ниже следит, чтобы они показали только те
-    // здания, которых на странице ещё не было.
-    const businessClass = center.businessClass;
-    if (businessClass) {
-      const classRaw = centers.filter((c) => c.slug !== center.slug && c.businessClass === businessClass).sort(byDistance);
-      if (classRaw.length > 0) {
-        candidates.push({
-          id: 'classCenters',
-          raw: classRaw,
-          build: (list) =>
-            list.length > 0
-              ? {
-                  id: 'classCenters',
-                  title: `Бизнес-центры класса ${businessClass} в Минске`,
-                  centers: list,
-                  catalogUrl: classHubUrl(businessClass),
-                  catalogLabel: `Все БЦ класса ${businessClass}`,
-                }
-              : null,
-        });
-      }
-    }
-
-    // Замыкающий блок «просто ближайшие здания» — единственный, который
-    // есть у любого БЦ с координатами, даже без класса.
-    if (center.lat != null && center.lng != null) {
-      const nearbyRaw = centers.filter((c) => c.slug !== center.slug).sort(byDistance);
-      const districtUrl = center.district ? districtHubUrl(center.district) : null;
-      const district = center.district;
-      if (nearbyRaw.length > 0) {
-        candidates.push({
-          id: 'nearbyCenters',
-          raw: nearbyRaw,
-          build: (list) =>
-            list.length > 0
-              ? {
-                  id: 'nearbyCenters',
-                  title: 'Бизнес-центры рядом',
-                  centers: list,
-                  catalogUrl: districtUrl ?? '/minsk/bcminsk',
-                  catalogLabel:
-                    districtUrl && district
-                      ? `Все БЦ в ${districtPrepositional(district)} районе`
-                      : 'Все бизнес-центры Минска',
-                }
-              : null,
-        });
-      }
-    }
-
     // Владелец, 2026-09-20: "по возможности не выводить дубли БЦ" — одно и
     // то же здание может подойти сразу нескольким блокам рекомендаций.
     // Дедуп идёт в порядке приоритета: более богатый блок забирает
@@ -1040,12 +983,80 @@ export function BusinessCenterDetailPage() {
       return fallback;
     };
 
-    return candidates
-      .map((c) => {
-        const list = takeVisible(c.raw.filter((candidate) => !usedSlugs.has(candidate.slug)));
-        return c.build(list, takeFallback(c.id, list));
-      })
-      .filter((b): b is RecommendationBlockData => b !== null);
+    const buildAll = (list: Candidate[]) =>
+      list
+        .map((c) => {
+          const visible = takeVisible(c.raw.filter((candidate) => !usedSlugs.has(candidate.slug)));
+          return c.build(visible, takeFallback(c.id, visible));
+        })
+        .filter((b): b is RecommendationBlockData => b !== null);
+
+    // Специфичные блоки собираются ПЕРВЫМИ — и только потом, глядя на то,
+    // что из них реально осталось, добираются общегородские. Порядок
+    // важен: у блока по улице или метро в пуле бывает одно здание, и
+    // дедуп выше может его забрать — блок исчезает. Прошлая версия
+    // спрашивала «есть ли блок по улице» у ОЧЕРЕДИ, а не у результата, и
+    // на «Офисинвесте» глушила общегородской блок из-за уличного,
+    // который потом сам не выжил: страница в 7,7 экрана оставалась с
+    // двумя блоками и дырой в 5 экранов (прогон 2026-09-21).
+    const specific = buildAll(candidates);
+
+    // Общегородские блоки. «Бизнес-центры класса B в Минске» рядом с
+    // «Бизнес-центры класса B в Первомайском районе» — два заголовка,
+    // различающиеся хвостом, и второй по смыслу входит в первый; прогон
+    // 141 страницы дал 33 таких пары, поэтому городской блок по классу
+    // идёт только туда, где районного нет. «Бизнес-центры рядом» такой
+    // оговорки не требуют: заголовок ни с чем не сливается, а здания в
+    // нём после дедупа всегда другие — это универсальный добор, и без
+    // него страницы без совпадений по метро/улице/микрорайону остаются
+    // с одним-двумя блоками на девять экранов.
+    const generic: Candidate[] = [];
+    const businessClass = center.businessClass;
+    if (businessClass && !specific.some((b) => b.id === 'classDistrictCenters')) {
+      const classRaw = centers.filter((c) => c.slug !== center.slug && c.businessClass === businessClass).sort(byDistance);
+      if (classRaw.length > 0) {
+        generic.push({
+          id: 'classCenters',
+          raw: classRaw,
+          build: (list) =>
+            list.length > 0
+              ? {
+                  id: 'classCenters',
+                  title: `Бизнес-центры класса ${businessClass} в Минске`,
+                  centers: list,
+                  catalogUrl: classHubUrl(businessClass),
+                  catalogLabel: `Все БЦ класса ${businessClass}`,
+                }
+              : null,
+        });
+      }
+    }
+    if (center.lat != null && center.lng != null) {
+      const nearbyRaw = centers.filter((c) => c.slug !== center.slug).sort(byDistance);
+      const districtUrl = center.district ? districtHubUrl(center.district) : null;
+      const district = center.district;
+      if (nearbyRaw.length > 0) {
+        generic.push({
+          id: 'nearbyCenters',
+          raw: nearbyRaw,
+          build: (list) =>
+            list.length > 0
+              ? {
+                  id: 'nearbyCenters',
+                  title: 'Бизнес-центры рядом',
+                  centers: list,
+                  catalogUrl: districtUrl ?? '/minsk/bcminsk',
+                  catalogLabel:
+                    districtUrl && district
+                      ? `Все БЦ в ${districtPrepositional(district)} районе`
+                      : 'Все бизнес-центры Минска',
+                }
+              : null,
+        });
+      }
+    }
+
+    return [...specific, ...buildAll(generic)];
   }, [center, centers, nearestMetro]);
 
   // Медианы по зданиям (Д3) — те же, что в каталоге и блоке
