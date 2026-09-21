@@ -1851,9 +1851,13 @@ export function BusinessCenterDetailPage() {
               )}
               {mapRating && (
                 <FactTile
-                  icon={Star}
-                  value={mapRating.label}
-                  label="Рейтинг на Яндекс.Картах"
+                  value={
+                    <span className="inline-flex items-center gap-1">
+                      <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-500" />
+                      {mapRating.label}
+                    </span>
+                  }
+                  label="На Яндекс.Картах"
                   tone="muted"
                 />
               )}
