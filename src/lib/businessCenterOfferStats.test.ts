@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { BusinessCenterOffer } from '../data/businessCenterOffers';
 import type { DedupedOffer } from './businessCenterOfferDuplicates';
-import { buildDealStats, buildYieldStats, formatLotsCount, formatMoney, formatYears } from './businessCenterOfferStats';
+import { buildDealStats, formatMoney } from './businessCenterOfferStats';
 
-// Цифры этого файла попадают и в блок «Что сейчас сдают и продают», и в FAQ
-// под ним, и обе они выглядят одинаково правдоподобно при любой ошибке —
-// поэтому проверяется не форма, а сами правила: когда окупаемость считать
-// нельзя и когда скидка за объём не скидка.
+// Цифры этого файла попадают и в блок «Что сейчас сдают и продают», и в
+// FAQ под ним, и при любой ошибке выглядят одинаково правдоподобно —
+// поэтому проверяются сами правила: по каким помещениям считается цена и
+// когда скидка за объём не скидка.
 
 function offer(over: Partial<BusinessCenterOffer> & { adId: string }): DedupedOffer {
   return {
@@ -105,53 +105,7 @@ describe('buildDealStats', () => {
   });
 });
 
-describe('buildYieldStats', () => {
-  it('считает окупаемость по одному типу помещения', () => {
-    const y = buildYieldStats(SAAKO)!;
-    expect(y.propertyType).toBe('Офисы');
-    expect(y.salePricePerSqm).toBe(2000);
-    expect(y.rentPricePerSqm).toBe(15);
-    expect(Math.round(y.grossYieldPct * 10) / 10).toBe(9);
-    expect(Math.round(y.paybackYears * 10) / 10).toBe(11.1);
-  });
-
-  it('молчит, когда площади продажи и аренды не пересекаются', () => {
-    // Живой «Порт-2»: кабинет 18,5 м² в аренду против этажа 831 м² на
-    // продажу давал 23% годовых — это сравнение розницы с оптом.
-    const y = buildYieldStats([
-      offer({ adId: 's', size: 831, pricePerSqm: 884, floor: 4 }),
-      offer({ adId: 'r', dealType: 'rent', size: 18.5, pricePerSqm: 17.24, floor: 4 }),
-    ]);
-    expect(y).toBeNull();
-  });
-
-  it('молчит, когда доходность выходит за границы правдоподобия', () => {
-    const y = buildYieldStats([
-      offer({ adId: 's', size: 100, pricePerSqm: 5000 }),
-      offer({ adId: 'r', dealType: 'rent', size: 100, pricePerSqm: 8 }),
-    ]);
-    expect(y).toBeNull();
-  });
-
-  it('не смешивает офисы с торговыми помещениями', () => {
-    const y = buildYieldStats([
-      offer({ adId: 's', size: 100, pricePerSqm: 2000, propertyType: 'Офисы' }),
-      offer({ adId: 'r', dealType: 'rent', size: 100, pricePerSqm: 30, propertyType: 'Торговые помещения' }),
-    ]);
-    expect(y).toBeNull();
-  });
-});
-
 describe('формат', () => {
-  it('склоняет годы и лоты', () => {
-    expect(formatYears(11.1)).toBe('11 лет');
-    expect(formatYears(1)).toBe('1 год');
-    expect(formatYears(2.4)).toBe('2 года');
-    expect(formatLotsCount(1)).toBe('1 лот');
-    expect(formatLotsCount(4)).toBe('4 лота');
-    expect(formatLotsCount(11)).toBe('11 лотов');
-  });
-
   it('округляет деньги по порядку суммы', () => {
     // toLocaleString разделяет разряды неразрывным пробелом — сравниваем
     // по обычному, иначе тест падает на невидимой разнице.

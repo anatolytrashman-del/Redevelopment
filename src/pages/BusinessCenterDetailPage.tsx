@@ -94,7 +94,7 @@ import { fetchBusinessCenterReviews } from '../lib/businessCenterReviewsApi';
 import type { BusinessCenterOffer } from '../data/businessCenterOffers';
 import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
 import { dedupeOffers } from '../lib/businessCenterOfferDuplicates';
-import { buildDealStats, buildYieldStats, formatArea, formatMoney, formatPercent, formatRate, formatYears } from '../lib/businessCenterOfferStats';
+import { buildDealStats, formatArea, formatMoney, formatRate } from '../lib/businessCenterOfferStats';
 import { BuildingOffersSection } from '../components/businessCenters/BuildingOffersSection';
 import { pluralRu } from '../lib/pluralRu';
 import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
@@ -500,12 +500,11 @@ export function BusinessCenterDetailPage() {
   const prev = index > 0 ? sorted[index - 1] : null;
   const next = index >= 0 && index < sorted.length - 1 ? sorted[index + 1] : null;
 
-  // Сводка по сделке (лоты, медиана, бюджет лота, скидка за объём) и
-  // окупаемость покупки арендой — одни и те же цифры рисует блок
-  // «Что сейчас сдают и продают» и пересказывает FAQ под ним.
+  // Сводка по сделке (помещения, средняя цена, бюджет, скидка за объём) —
+  // одни и те же цифры рисует блок «Что сейчас сдают и продают» и
+  // пересказывает FAQ под ним.
   const saleStats = useMemo(() => buildDealStats(offers, 'sale'), [offers]);
   const rentStats = useMemo(() => buildDealStats(offers, 'rent'), [offers]);
-  const yieldStats = useMemo(() => buildYieldStats(offers), [offers]);
   // Рейтинг Яндекс.Карт вынесен из общего списка фактов в короткий бейдж
   // рядом с заголовком. Подробный исходный текст не используется как tooltip.
   const mapRating = useMemo(() => mapRatingFromHighlights(center?.highlights ?? []), [center]);
@@ -1296,12 +1295,6 @@ export function BusinessCenterDetailPage() {
           .join(', ')}. Диапазон — цены половины зданий группы, без самой дешёвой и самой дорогой четвертей.`,
       );
     }
-    if (yieldStats) {
-      add(
-        `За сколько лет окупится покупка помещения в «${name}» при сдаче в аренду?`,
-        `Около ${formatYears(yieldStats.paybackYears)} — это ${formatPercent(yieldStats.grossYieldPct)} годовых до расходов: медиана продажи ${formatRate(yieldStats.salePricePerSqm, 'sale')}/м² против медианы аренды ${formatRate(yieldStats.rentPricePerSqm, 'rent')}/м² в месяц по одному и тому же типу помещений (${yieldStats.propertyType.toLowerCase()}, ${yieldStats.saleCount} на продажу и ${yieldStats.rentCount} в аренду). Простой, налоги и эксплуатационные платежи в расчёт не входят.`,
-      );
-    }
     if (center.rentalInfo) {
       const info = center.rentalInfo;
       add('Какие условия и контакты аренды опубликованы?', [info.terms, info.rates, info.sizes, info.contacts].filter(Boolean).join(' ') + ' Актуальные условия уточняйте у арендодателя.');
@@ -1381,7 +1374,7 @@ export function BusinessCenterDetailPage() {
     }
     add('Как исправить сведения о здании?', 'Если хотите добавить, убрать или изменить информацию, напишите на a@redevelopment.pro, указав бизнес-центр и сведения, которые нужно поправить.');
     return items;
-  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, saleStats, rentStats, yieldStats, awardItems, mediaMentions, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces, priceComparison?.blocks]);
+  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, saleStats, rentStats, awardItems, mediaMentions, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces, priceComparison?.blocks]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -1973,16 +1966,15 @@ export function BusinessCenterDetailPage() {
             если по БЦ нет объявлений на внешних площадках, блок целиком не
             выводится — раньше на этом месте была строка-заглушка.
 
-            2026-09-21: таблица «тип помещения × диапазон цены» заменена на
-            плитки сделок, таблицу самих лотов и окупаемость — владелец:
-            «вроде таблица, вроде всё ок, но читается отвратительно» и «с
-            таким разбросом цены метра толком ничего не проанализируешь».
-            Разбор и правила — в BuildingOffersSection и
-            lib/businessCenterOfferStats.ts. Туда же ушло сравнение со
-            срезом рынка, которое 2026-09-20 жило отдельным блоком
-            #rate-comparison: само по себе «$2 000/м²» ничего не говорит,
-            сравнение должно стоять вплотную к числу. */}
-        <BuildingOffersSection sale={saleStats} rent={rentStats} yieldStats={yieldStats} />
+            2026-09-21: таблица «тип помещения × диапазон цены» заменена
+            сначала на плитки с медианами, потом — после «прям овер сложно
+            воспринимать инфу, нужно упрощать, чтобы поняла домохозяйка» —
+            на список самих помещений с ценой каждого. Разбор и правила —
+            в BuildingOffersSection и lib/businessCenterOfferStats.ts.
+            Сравнение со срезом рынка живёт в соседнем блоке «Цены в
+            здании и по рынку», окупаемость не считается вовсе (обе
+            причины — в комментариях тех файлов). */}
+        <BuildingOffersSection sale={saleStats} rent={rentStats} />
 
         {/* Цены здания против рынка. Прежде здесь лежали два предложения с
             процентами («Аренда в этом здании — $15/м²/мес, это выше на 30%
