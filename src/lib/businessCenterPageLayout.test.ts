@@ -3,6 +3,7 @@ import {
   estimateSectionHeight,
   estimateTextLines,
   planRecommendationSlots,
+  recommendationPositions,
   type PageSectionSize,
 } from './businessCenterPageLayout';
 
@@ -45,21 +46,27 @@ const SILUET: PageSectionSize[] = [
   { id: 'faq', items: 26 },
 ];
 
-/** Куда по факту попадут блоки: расстояние от верха страницы, в экранах. */
-function positions(sections: PageSectionSize[], slots: string[]): number[] {
-  const anchors = sections.filter((s) => s.id !== 'faq');
-  const result: number[] = [];
-  let offset = 470 + 24;
-  let placed = 0;
-  for (const section of anchors) {
-    offset += estimateSectionHeight(section);
-    if (slots.includes(section.id)) {
-      result.push((offset + placed * 275) / 900);
-      placed += 1;
-    }
-  }
-  return result;
-}
+// Страница «Офисинвеста» — на ней ломалась вторая версия этой правки:
+// уличный блок был в очереди, глушил общегородской, а потом сам не
+// выживал после дедупа, и страница в 8 экранов оставалась с двумя
+// блоками и дырой в 5 экранов.
+const OFISINVEST: PageSectionSize[] = [
+  { id: 'offers', items: 4 },
+  { id: 'rental', items: 9 },
+  { id: 'tech', items: 12 },
+  { id: 'map', items: 8 },
+  { id: 'tenants', items: 0 },
+  { id: 'market', items: 8 },
+  { id: 'reviews', items: 6 },
+  { id: 'facts', items: 4 },
+  { id: 'developer', items: 3 },
+  { id: 'faq', items: 26 },
+];
+
+const PAGES = { PORT, PINSKAYA, SILUET, OFISINVEST };
+
+/** Минимальный интервал, с которого два блока не видны в одном экране. */
+const NOT_IN_ONE_SCREEN = 1.3;
 
 describe('estimateTextLines', () => {
   it('считает перенос по ширине колонки и переводы строки отдельно', () => {
@@ -94,12 +101,46 @@ describe('planRecommendationSlots', () => {
     expect(slots[slots.length - 1]).toBe(anchors[anchors.length - 1].id);
   });
 
-  it('держит интервал не меньше полутора экранов', () => {
-    for (const page of [PORT, PINSKAYA, SILUET]) {
-      const at = positions(page, planRecommendationSlots(page, 5));
+  it('не ставит два блока в один экран', () => {
+    for (const [name, page] of Object.entries(PAGES)) {
+      const at = recommendationPositions(page, planRecommendationSlots(page, 5));
       for (let i = 1; i < at.length; i += 1) {
-        expect(at[i] - at[i - 1]).toBeGreaterThanOrEqual(1.5);
+        expect(`${name}: ${(at[i] - at[i - 1]).toFixed(2)}`).toBe(`${name}: ${Math.max(at[i] - at[i - 1], NOT_IN_ONE_SCREEN).toFixed(2)}`);
       }
+    }
+  });
+
+  it('не оставляет участков без рекомендаций длиннее трёх экранов', () => {
+    // Порог прогона по всем 141 странице (2026-09-21): фактический
+    // максимум вышел 2,88 экрана, так что три — это потолок с запасом.
+    for (const [name, page] of Object.entries(PAGES)) {
+      const slots = planRecommendationSlots(page, 5);
+      const at = recommendationPositions(page, slots);
+      // Конец обычного контента — позиция «блока», поставленного после
+      // самой последней секции перед FAQ.
+      const anchors = page.filter((s) => s.id !== 'faq');
+      const contentEnd = recommendationPositions(page, [anchors[anchors.length - 1].id])[0];
+      const marks = [0, ...at, contentEnd];
+      for (let i = 1; i < marks.length; i += 1) {
+        expect(`${name}: ${(marks[i] - marks[i - 1]).toFixed(2)}`).toBe(
+          `${name}: ${Math.min(marks[i] - marks[i - 1], 3).toFixed(2)}`,
+        );
+      }
+    }
+  });
+
+  it('держит интервалы близкими друг к другу, а не «два подряд и провал»', () => {
+    // Перебор в planRecommendationSlots ищет не первую подошедшую
+    // раскладку, а самую ровную. Прошлая жадная версия ставила блоки
+    // как получится и на «Флагмане» упиралась в тупик, снимая уже
+    // поставленный блок и теряя середину страницы.
+    for (const page of Object.values(PAGES)) {
+      const slots = planRecommendationSlots(page, 5);
+      if (slots.length < 2) continue;
+      const at = recommendationPositions(page, slots);
+      const spread = at.slice(1).map((x, i) => x - at[i]);
+      const spanOfGaps = Math.max(...spread) - Math.min(...spread);
+      expect(spanOfGaps).toBeLessThan(2);
     }
   });
 
@@ -110,7 +151,7 @@ describe('planRecommendationSlots', () => {
   });
 
   it('на короткой странице блоков меньше, чем на длинной', () => {
-    expect(planRecommendationSlots(PINSKAYA, 5).length).toBeLessThan(planRecommendationSlots(PORT, 5).length);
+    expect(planRecommendationSlots(PINSKAYA, 5).length).toBeLessThan(planRecommendationSlots(OFISINVEST, 5).length);
   });
 
   it('не выдумывает блоков сверх собранных кандидатов', () => {
