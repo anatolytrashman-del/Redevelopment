@@ -119,11 +119,20 @@ const RECOMMENDATION_HEIGHT = 275;
 const TARGET_GAP = 1.75 * SCREEN;
 
 /**
- * Жёсткий минимум между блоками. Меньше — и оба попадают в один экран
- * (ровно то, на что жаловался владелец), поэтому такой блок лучше не
- * ставить вовсе, чем ставить впритык.
+ * Жёсткий минимум между блоками. Считается по тому, с какого расстояния
+ * два блока перестают попадать в один экран: при высоте блока 275px это
+ * 900 + 275 = 1175px, то есть 1,3 экрана. Остальное — запас на ошибку
+ * оценки высот: прогон всех 141 страницы 2026-09-21 дал разброс до 0,17
+ * экрана между планом и фактом, так что 1,55 в плане — это не меньше 1,38
+ * на экране.
+ *
+ * Поднимать выше нельзя: тот же прогон с порогом 1,65 показал, чем это
+ * кончается — там, где трёхблочная раскладка переставала проходить по
+ * интервалу, страница откатывалась на два блока и получала дыру в 3,5–5
+ * экранов. Слишком редкие блоки — больший грех, чем блоки в 1,4 экрана
+ * друг от друга: во второй ситуации они всё равно не видны одновременно.
  */
-const MIN_GAP = 1.5 * SCREEN;
+const MIN_GAP = 1.55 * SCREEN;
 
 /**
  * Первая рекомендация — не раньше, чем после 3-го блока на экране
@@ -167,6 +176,25 @@ export function estimateSectionHeight({ id, items }: PageSectionSize): number {
   const model = SECTION_HEIGHT_MODEL[id] ?? DEFAULT_SECTION_MODEL;
   const counted = Math.max(0, model.maxItems != null ? Math.min(items, model.maxItems) : items);
   return model.base + model.perItem * counted + SECTION_GAP;
+}
+
+/**
+ * Где встанут блоки — расстояние от верха страницы в «экранах», по той же
+ * модели высот, которой пользуется раскладка. Нужна, чтобы проверять
+ * интервалы, не пересчитывая веса второй раз на стороне вызывающего:
+ * дублировать их — тот же класс ошибки, что и файлы-близнецы.
+ */
+export function recommendationPositions(sections: PageSectionSize[], slots: string[]): number[] {
+  const anchors = sections.filter((s) => s.id !== 'faq');
+  const positions: number[] = [];
+  let offset = HERO_HEIGHT + SECTION_GAP;
+  for (const section of anchors) {
+    offset += estimateSectionHeight(section);
+    if (slots.includes(section.id)) {
+      positions.push((offset + positions.length * RECOMMENDATION_HEIGHT) / SCREEN);
+    }
+  }
+  return positions;
 }
 
 /**
@@ -215,60 +243,70 @@ export function planRecommendationSlots(sections: PageSectionSize[], availableBl
   const count = Math.min(desired, availableBlocks, MAX_RECOMMENDATIONS, anchors.length - first);
   if (count <= 0) return [];
 
-  // Шаг 3 — раскладываем равномерно: цели стоят через одинаковые
-  // промежутки от начала до конца разрешённого участка, так что первая и
-  // последняя приходятся ровно на его края. Именно это и лечит главную
-  // болезнь прошлых версий — блоки больше не могут закончиться в
-  // середине страницы, последний всегда стоит перед FAQ.
+  // Шаг 3 — раскладываем равномерно. Идеальные точки стоят через
+  // одинаковые промежутки от начала до конца разрешённого участка, так
+  // что первая и последняя приходятся ровно на его края. Именно это и
+  // лечит главную болезнь прошлых версий — блоки больше не могут
+  // закончиться в середине страницы, последний всегда стоит перед FAQ.
   //
   // Единственный блок ставится не в начало участка, а в его середину:
   // одним он остаётся, когда кандидатов нашлось меньше, чем просит
   // длина страницы, и тогда честнее поделить страницу пополам, чем
   // отдать ему верх и бросить весь низ.
-  const targets: number[] = [];
-  if (count === 1) {
-    targets.push(spanStart + span / 2);
-  } else {
-    for (let i = 0; i < count; i += 1) targets.push(spanStart + (span * i) / (count - 1));
-  }
+  const targetsFor = (n: number) => {
+    if (n === 1) return [spanStart + span / 2];
+    return Array.from({ length: n }, (_, i) => spanStart + (span * i) / (n - 1));
+  };
 
-  const chosen: number[] = [];
   // Фактическая позиция границы: каждая уже поставленная выше
   // рекомендация сдвигает вниз всё, что под ней.
   const positionOf = (index: number, placedAbove: number) => boundary[index] + placedAbove * RECOMMENDATION_HEIGHT;
-  const fits = (index: number) => {
-    if (chosen.length === 0) return true;
-    const prev = chosen[chosen.length - 1];
-    if (index <= prev) return false;
-    return positionOf(index, chosen.length) - positionOf(prev, chosen.length - 1) >= MIN_GAP;
+
+  // Перебор, а не жадный проход сверху вниз. Границ на странице не больше
+  // десятка, блоков — не больше пяти, так что вариантов сотни: посчитать
+  // их все дешевле, чем городить правила выхода из тупика. А тупики у
+  // жадного прохода были настоящие: на «Флагмане» он ставил второй блок
+  // после каталога арендаторов, упирался в то, что до конца страницы
+  // остаётся 2px меньше минимального интервала, и снимал уже
+  // поставленный блок — страница теряла середину и оставалась с двумя
+  // блоками там, где помещалось три (замер 2026-09-21).
+  const bestArrangement = (n: number): number[] | null => {
+    const targets = targetsFor(n);
+    let best: number[] | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    const pick: number[] = [];
+    const walk = (from: number, score: number) => {
+      if (pick.length === n) {
+        if (score < bestScore) {
+          bestScore = score;
+          best = [...pick];
+        }
+        return;
+      }
+      for (let index = from; index <= last; index += 1) {
+        const depth = pick.length;
+        if (depth > 0) {
+          const prev = pick[depth - 1];
+          if (positionOf(index, depth) - positionOf(prev, depth - 1) < MIN_GAP) continue;
+        }
+        const offset = boundary[index] - targets[depth];
+        const next = score + offset * offset;
+        // Счёт только растёт, поэтому ветка, уже проигравшая лучшей,
+        // дальше не разворачивается.
+        if (next >= bestScore) continue;
+        pick.push(index);
+        walk(index + 1, next);
+        pick.pop();
+      }
+    };
+    walk(first, 0);
+    return best;
   };
 
-  for (let i = 0; i < count; i += 1) {
-    let bestIndex = -1;
-    let bestDistance = Number.POSITIVE_INFINITY;
-    for (let index = first; index <= last; index += 1) {
-      if (!fits(index)) continue;
-      const distance = Math.abs(boundary[index] - targets[i]);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestIndex = index;
-      }
-    }
-    if (bestIndex >= 0) {
-      chosen.push(bestIndex);
-      continue;
-    }
-    // Место нашлось не для всех — обычный случай, когда блоки в хвосте
-    // короткие и очередной встал бы впритык к предыдущему. Промежуточную
-    // цель в этом случае просто пропускаем (блок впритык хуже, чем его
-    // отсутствие), а вот ПОСЛЕДНЮЮ уступать нельзя: именно из-за этого
-    // «Призма» в замере 2026-09-21 осталась с пустым хвостом в 5 экранов.
-    // Поэтому последний блок сдвигает вниз предыдущий, а не отменяется.
-    if (i < count - 1) continue;
-    while (chosen.length > 0 && !fits(last)) chosen.pop();
-    if (fits(last)) chosen.push(last);
-  }
-
-  const slots = chosen.map((index) => anchors[index].id);
+  // Столько блоков, сколько просит длина страницы; если столько ровно не
+  // раскладывается по минимальному интервалу — на один меньше.
+  let chosen: number[] | null = null;
+  for (let n = count; n >= 1 && chosen === null; n -= 1) chosen = bestArrangement(n);
+  const slots = (chosen ?? []).map((index) => anchors[index].id);
   return slots;
 }
