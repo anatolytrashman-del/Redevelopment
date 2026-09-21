@@ -745,13 +745,25 @@ export function BusinessCenterDetailPage() {
   // авторскими блоками: рейтинг и отзывы уехали в «Что говорят» (Б11),
   // история — в таймлайн (Б10). Дублировать один и тот же текст в двух
   // местах страницы хуже, чем не показать его вовсе.
+  //
+  // 'tenants' — туда же: с 2026-09-19 у подавляющего большинства БЦ есть
+  // полноценный "Каталог арендаторов" (TenantDirectory, реальные названия
+  // организаций с картой) — проверено по живой базе 2026-09-21: у 82 из 83
+  // БЦ, где такой факт вообще есть, каталог арендаторов уже заполнен. Держим
+  // факт только для той единственной БЦ, где каталога нет (условие на
+  // tenantOrganizations, не безусловное исключение icon'а).
   const visibleHighlights = useMemo(
     () =>
       center?.highlights.filter(
         (h) =>
-          h.icon !== 'rating' && h.icon !== 'reviews' && h.icon !== 'history' && h.icon !== 'award' && h.icon !== 'warning',
+          h.icon !== 'rating' &&
+          h.icon !== 'reviews' &&
+          h.icon !== 'history' &&
+          h.icon !== 'award' &&
+          h.icon !== 'warning' &&
+          (h.icon !== 'tenants' || tenantOrganizations.length === 0),
       ) ?? [],
-    [center],
+    [center, tenantOrganizations],
   );
 
   // Публикации в СМИ — свой блок (владелец, 2026-09-20). Сортируем от свежих:
