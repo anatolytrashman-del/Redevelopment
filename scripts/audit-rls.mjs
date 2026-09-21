@@ -114,6 +114,12 @@ const PUBLIC_SELECT_ALL = [
   // (insert/update/delete/truncate), несмотря на явный grant select в
   // миграции. Отозвано 20260920-bc-reviews-anon-revoke.sql.
   'business_center_review_snapshots',
+  // История объявлений по зданиям (снимки business_center_offers во
+  // времени, 2026-09-21): читает публичная карточка БЦ, пишет ежедневное
+  // задание pg_cron через service_role. Проверка здесь по той же причине,
+  // что и у двух таблиц выше — Supabase раздаёт новым таблицам anon
+  // полный набор прав, если их не отозвать.
+  'business_center_offer_snapshots',
 ];
 // select по токену (share_token) — сама выборка со стороны anon фильтром не
 // ограничена (PostgREST этого не видит), но RLS должна пускать только строки
