@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
-import { MIN_RELIABLE_N, type MarketSnapshot } from '../../data/marketSnapshots';
+import { benchmarkLines, type DealBenchmark } from '../../lib/businessCenterOfferBenchmark';
 import {
   formatArea,
   formatAreaRange,
@@ -36,43 +36,6 @@ import {
 // Сколько лотов показывать сразу. Шесть — примерно экран на телефоне; у
 // зданий с сорока лотами остальное прячется за кнопкой.
 const VISIBLE_LOTS = 6;
-
-export interface DealBenchmark {
-  // Подписи приходят готовыми и в родительном падеже («класса B»,
-  // «Центрального района») — падеж выбран под формулировку «+8% к медиане
-  // класса B».
-  classLabel: string | null;
-  classSnapshot: MarketSnapshot | undefined;
-  districtLabel: string | null;
-  districtSnapshot: MarketSnapshot | undefined;
-}
-
-// Сравнение пишется знаком, а не фразой: «выше на 8% медианы по классу B
-// ($1 850/м²)» читается как предложение, которое надо разобрать, а «+8% к
-// медиане класса B ($1 850/м²)» — как показатель, который видно сразу.
-function compareLabel(diffPct: number): string {
-  const rounded = Math.round(diffPct);
-  if (Math.abs(rounded) < 5) return 'на уровне';
-  return rounded > 0 ? `+${rounded}%` : `−${Math.abs(rounded)}%`;
-}
-
-// Сравнение со срезом рынка стоит вплотную к самому числу, а не отдельным
-// блоком ниже (как было до 2026-09-21): «$2 000/м²» сам по себе ничего не
-// говорит тому, кто не держит в голове медиану по классу.
-function benchmarkLines(median: number, deal: DealType, benchmark: DealBenchmark | null): string[] {
-  if (!benchmark) return [];
-  const lines: string[] = [];
-  const push = (label: string | null, snapshot: MarketSnapshot | undefined) => {
-    if (!label || snapshot?.median == null || snapshot.n < MIN_RELIABLE_N) return;
-    const diff = ((median - snapshot.median) / snapshot.median) * 100;
-    const compared = compareLabel(diff);
-    const rate = `${formatRate(snapshot.median, deal)}/м²`;
-    lines.push(compared === 'на уровне' ? `на уровне ${label} (${rate})` : `${compared} к ${label} (${rate})`);
-  };
-  push(benchmark.classLabel, benchmark.classSnapshot);
-  push(benchmark.districtLabel, benchmark.districtSnapshot);
-  return lines;
-}
 
 const DEAL_TITLE: Record<DealType, string> = { sale: 'Продажа', rent: 'Аренда' };
 

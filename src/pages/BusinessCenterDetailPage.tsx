@@ -93,7 +93,8 @@ import type { BusinessCenterOffer } from '../data/businessCenterOffers';
 import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
 import { dedupeOffers } from '../lib/businessCenterOfferDuplicates';
 import { buildDealStats, buildYieldStats, formatArea, formatMoney, formatPercent, formatRate, formatYears } from '../lib/businessCenterOfferStats';
-import { BuildingOffersSection, type DealBenchmark } from '../components/businessCenters/BuildingOffersSection';
+import { BuildingOffersSection } from '../components/businessCenters/BuildingOffersSection';
+import type { DealBenchmark } from '../lib/businessCenterOfferBenchmark';
 import { pluralRu } from '../lib/pluralRu';
 import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import type { MarketSnapshot } from '../data/marketSnapshots';
@@ -526,8 +527,8 @@ export function BusinessCenterDetailPage() {
   // собирался отдельный блок под таблицей — с 2026-09-21 строка сравнения
   // стоит вплотную к самому числу, внутри плитки сделки.
   const benchmarks = useMemo<{ rent: DealBenchmark; sale: DealBenchmark }>(() => {
-    const classLabel = center?.businessClass ? `медиане класса ${center.businessClass}` : null;
-    const districtLabel = center?.district ? `медиане ${districtGenitive(center.district)} района` : null;
+    const classLabel = center?.businessClass ? `класса ${center.businessClass}` : null;
+    const districtLabel = center?.district ? `${districtGenitive(center.district)} района` : null;
     return {
       rent: { classLabel, classSnapshot: classSnapshot?.rent, districtLabel, districtSnapshot: districtSnapshot?.rent },
       sale: { classLabel, classSnapshot: classSnapshot?.sale, districtLabel, districtSnapshot: districtSnapshot?.sale },
