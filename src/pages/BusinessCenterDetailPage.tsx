@@ -761,6 +761,11 @@ export function BusinessCenterDetailPage() {
           h.icon !== 'history' &&
           h.icon !== 'award' &&
           h.icon !== 'warning' &&
+          // 'media' — тоже переехал в свой блок ("Публикации в СМИ",
+          // mediaMentions) 2026-09-20, но старые факты с этой иконкой в
+          // highlights не почистили тогда же — владелец, 2026-09-21:
+          // "media - убираем, у нас есть блок СМИ".
+          h.icon !== 'media' &&
           (h.icon !== 'tenants' || tenantOrganizations.length === 0),
       ) ?? [],
     [center, tenantOrganizations],
