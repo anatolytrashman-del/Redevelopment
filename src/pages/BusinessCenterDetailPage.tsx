@@ -26,6 +26,7 @@ import {
   Info,
   Landmark,
   Leaf,
+  Mail,
   MapPin,
   MessageSquareQuote,
   Newspaper,
@@ -2287,6 +2288,7 @@ export function BusinessCenterDetailPage() {
               <p className="text-sm leading-relaxed text-ink-muted">{center.developerInfo.description}</p>
             )}
             {(center.developerInfo.phone ||
+              center.developerInfo.email ||
               center.developerInfo.address ||
               center.developerInfo.hours ||
               center.developerInfo.website) && (
@@ -2298,6 +2300,15 @@ export function BusinessCenterDetailPage() {
                   >
                     <Phone className="h-4 w-4 shrink-0" />
                     {center.developerInfo.phone}
+                  </a>
+                )}
+                {center.developerInfo.email && (
+                  <a
+                    href={`mailto:${center.developerInfo.email}`}
+                    className="flex w-fit items-center gap-2 text-ink hover:underline"
+                  >
+                    <Mail className="h-4 w-4 shrink-0" />
+                    {center.developerInfo.email}
                   </a>
                 )}
                 {center.developerInfo.address && (
