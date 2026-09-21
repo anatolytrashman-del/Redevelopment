@@ -26,6 +26,7 @@ import {
   Info,
   Landmark,
   Leaf,
+  Mail,
   MapPin,
   MessageSquareQuote,
   Newspaper,
@@ -66,12 +67,19 @@ import {
 } from '../lib/businessCenterDisplay';
 import { nearestMetroStation } from '../lib/metroStations';
 import {
+  estimateTextLines,
+  planRecommendationSlots,
+  type PageSectionSize,
+} from '../lib/businessCenterPageLayout';
+import {
   metroHubDistance,
   metroHubUrl,
   streetHubUrl,
   districtGenitive,
   districtPrepositional,
   classDistrictHubUrl,
+  classHubUrl,
+  districtHubUrl,
   microdistrictHubUrl,
 } from '../lib/businessCenterHubs';
 import type { BusinessCenter, HighlightIconKey } from '../data/businessCenters';
@@ -294,20 +302,23 @@ const SECTION_ICONS: Record<string, typeof FileText> = {
   faq: Info,
 };
 
-// Блоки-выходы на другие БЦ (2026-09-20, доработано после фидбэка
-// владельца тем же днём: "везде разное количество блоков, какие-то
-// страницы длинные, какие-то короткие" + "два блока рекомендаций падают
-// рядом"). Первая версия вешала каждый блок на конкретного соседа
-// ("микрорайон — сразу после карты", "метро — сразу после рынка"), и это
-// ломалось ровно там, где у конкретного БЦ этого соседа не было или он
-// был пустым — на бедных данными страницах блоки либо пропадали, либо
-// слипались. Вторая версия (recommendationSlots ниже) не привязана к
-// именам соседних блоков: она раскладывает блоки-рекомендации по
-// накопленному объёму обычного контента (первый — после 5-го блока
-// страницы, дальше — примерно каждые 1,5–2 экрана) и по приоритету
-// (богаче пулом кандидатов — раньше; с одним кандидатом — в последнюю
-// очередь, см. recommendationBlocks).
-type RecommendationBlockId = 'microdistrictCenters' | 'metroCenters' | 'ratingCenters' | 'classDistrictCenters' | 'streetCenters';
+// Блоки-выходы на другие БЦ. Здесь только то, ЧТО показывать и в каком
+// порядке приоритета; ГДЕ поставить — решает planRecommendationSlots
+// (src/lib/businessCenterPageLayout.ts), там же разбор двух предыдущих
+// версий раскладки и замеры живых страниц.
+//
+// Порядок очереди = приоритет: чем богаче пул кандидатов, тем выше блок
+// на странице. Два общегородских блока (класс, просто соседние) —
+// исключение: они стоят в конце очереди независимо от размера пула,
+// потому что они самые неспецифичные.
+type RecommendationBlockId =
+  | 'microdistrictCenters'
+  | 'metroCenters'
+  | 'ratingCenters'
+  | 'classDistrictCenters'
+  | 'streetCenters'
+  | 'classCenters'
+  | 'nearbyCenters';
 
 interface RecommendationBlockData {
   id: RecommendationBlockId;
@@ -318,46 +329,6 @@ interface RecommendationBlockData {
   stationName?: string;
   fallbackCenter?: BusinessCenter;
 }
-
-// Примерный вес обычного блока контента в "экранах" — нет способа измерить
-// реальную высоту рендера без клиентского layout-прохода (а на странице,
-// которая ещё и пререндерится headless-браузером на сборке, это лишний
-// источник нестабильности), поэтому веса — грубая оценка по типичному
-// наполнению блока, не точный пиксельный расчёт. 1.0 ≈ один экран обычной
-// высоты. reviews оценивается отдельно (см. recommendationSlots) — блок
-// то с полноценными карточками отзывов, то с одними бейджами рейтинга,
-// разница в высоте кратная.
-const SECTION_WEIGHTS: Record<string, number> = {
-  offers: 0.6,
-  rental: 0.3,
-  tech: 1.0,
-  map: 1.3,
-  tenants: 1.1,
-  market: 1.4,
-  awards: 0.3,
-  media: 0.3,
-  facts: 0.6,
-  history: 0.5,
-  developer: 0.5,
-};
-const DEFAULT_SECTION_WEIGHT = 0.5;
-const RECOMMENDATION_BLOCK_WEIGHT = 0.6;
-// "После 3-го блока страницы" (владелец, 2026-09-20) считает от самого
-// первого визуального блока — главной карточки с фото/ценой/адресом,
-// которая рисуется всегда и без условия, поэтому в pageSections (список
-// именно УСЛОВНЫХ блоков, начинается с "Параметров здания") её нет. Порог
-// здесь — 2, а не 3, ровно на эту разницу в счёте: pageSections[1] (2-й
-// в списке) — это тот же самый блок, что и 3-й на глаз у читателя.
-const FIRST_RECOMMENDATION_AFTER_SECTIONS = 2;
-// Диапазон интервала между соседними рекомендациями (владелец, 2026-09-20:
-// "не чаще, чем 1 на экран, но можно не реже, чем через каждые 2.5
-// экрана") — нижняя граница держит блоки не теснее экрана друг к другу,
-// верхнюю отдельно можно не проверять: при максимальном весе одного
-// обычного блока (market, 1.4 — см. SECTION_WEIGHTS) и проверке на каждом
-// блоке подряд, а не раз в несколько, реальный интервал не может
-// перепрыгнуть за NEXT_RECOMMENDATION_MIN_WEIGHT + 1.4, то есть заведомо
-// меньше 2.5 при самом MIN_WEIGHT = 1.0.
-const NEXT_RECOMMENDATION_MIN_WEIGHT = 1.0;
 
 const EMPTY_NEARBY_PLACES: BusinessCenterNearbyPlace[] = [];
 const EMPTY_REVIEWS: BusinessCenterReview[] = [];
@@ -973,6 +944,63 @@ export function BusinessCenterDetailPage() {
     // Богаче пул — выше приоритет (раньше в очереди на размещение).
     candidates.sort((a, b) => b.raw.length - a.raw.length);
 
+    // Два замыкающих блока — общегородские. Они не привязаны ни к улице,
+    // ни к метро, ни к микрорайону, поэтому годятся любому зданию и
+    // добирают количество там, где специфичных совпадений не нашлось:
+    // у четырёх БЦ каталога не совпадает вообще ничего, ещё у полусотни
+    // кандидатов ровно два, а на страницу в 9 экранов их нужно 3-4
+    // (владелец, 2026-09-21: «их не должно быть мало»). Оба идут строго
+    // последними в очереди, несмотря на самые большие пулы: они самые
+    // неспецифичные, а дедуп ниже следит, чтобы они показали только те
+    // здания, которых на странице ещё не было.
+    const businessClass = center.businessClass;
+    if (businessClass) {
+      const classRaw = centers.filter((c) => c.slug !== center.slug && c.businessClass === businessClass).sort(byDistance);
+      if (classRaw.length > 0) {
+        candidates.push({
+          id: 'classCenters',
+          raw: classRaw,
+          build: (list) =>
+            list.length > 0
+              ? {
+                  id: 'classCenters',
+                  title: `Бизнес-центры класса ${businessClass} в Минске`,
+                  centers: list,
+                  catalogUrl: classHubUrl(businessClass),
+                  catalogLabel: `Все БЦ класса ${businessClass}`,
+                }
+              : null,
+        });
+      }
+    }
+
+    // Замыкающий блок «просто ближайшие здания» — единственный, который
+    // есть у любого БЦ с координатами, даже без класса.
+    if (center.lat != null && center.lng != null) {
+      const nearbyRaw = centers.filter((c) => c.slug !== center.slug).sort(byDistance);
+      const districtUrl = center.district ? districtHubUrl(center.district) : null;
+      const district = center.district;
+      if (nearbyRaw.length > 0) {
+        candidates.push({
+          id: 'nearbyCenters',
+          raw: nearbyRaw,
+          build: (list) =>
+            list.length > 0
+              ? {
+                  id: 'nearbyCenters',
+                  title: 'Бизнес-центры рядом',
+                  centers: list,
+                  catalogUrl: districtUrl ?? '/minsk/bcminsk',
+                  catalogLabel:
+                    districtUrl && district
+                      ? `Все БЦ в ${districtPrepositional(district)} районе`
+                      : 'Все бизнес-центры Минска',
+                }
+              : null,
+        });
+      }
+    }
+
     // Владелец, 2026-09-20: "по возможности не выводить дубли БЦ" — одно и
     // то же здание может подойти сразу нескольким блокам рекомендаций.
     // Дедуп идёт в порядке приоритета: более богатый блок забирает
@@ -1398,66 +1426,99 @@ export function BusinessCenterDetailPage() {
     reviews,
   ]);
 
-  // Расставляет recommendationBlocks (уже отсортированные по приоритету) по
-  // накопленному объёму ОБЫЧНОГО контента страницы, а не по имени
-  // конкретного соседа — владелец, 2026-09-20, после того как версия
-  // "микрорайон всегда после карты, метро всегда после рынка" на бедных
-  // данными страницах то теряла блоки (после карты — пусто, у конкретного
-  // БЦ просто не было микрорайона), то роняла два блока рекомендаций
-  // впритык друг к другу (между ними не оставалось контента-разделителя).
-  // Правило: первый блок — как только пройдено 5 обычных блоков страницы,
-  // каждый следующий — когда с прошлой рекомендации набралось ~1,5–2
-  // "экрана" веса (см. SECTION_WEIGHTS). FAQ и "Источники" — фиксированный
-  // хвост страницы (правило владельца: FAQ всегда предпоследний, источники
-  // последние), рекомендация никогда не встаёт между ними или после них.
-  //
-  // FAQ при этом обычно самый ДЛИННЫЙ блок на странице (описывает "вообще
-  // всё", см. CLAUDE.md) — если совсем исключить его вес из расчёта, вся
-  // эта немалая площадь достаётся странице без единой рекомендации, а
-  // очередь кандидатов просто вымирает, не успев набрать порог до конца
-  // обычного контента (владелец, 2026-09-20, на "Альянсе": "на такую
-  // огромную страницу всего 1 блок — позор"). Поэтому у последнего перед
-  // FAQ блока есть "последний шанс": в его собственный накопленный вес
-  // прибавляется оценка веса самого FAQ (по числу вопросов), и если этого
-  // достаточно — или если на странице вообще ещё не было ни одной
-  // рекомендации — блок ставится тут, перед FAQ, а не после него.
+  // Сколько в блоке повторяющихся элементов — единственное, что нужно
+  // модели высот из businessCenterPageLayout, чтобы прикинуть, насколько
+  // блок длинный. Смысл числа у каждого блока свой: у offers это строки
+  // таблицы, у faq — вопросы, у market — полосы сравнения, у rental и
+  // developer — строки текста после переноса.
+  const sectionSizes = useMemo<PageSectionSize[]>(() => {
+    if (!center) return [];
+    const rentalInfo = center.rentalInfo;
+    const developerInfo = center.developerInfo;
+    const sizeOf = (id: string): number => {
+      switch (id) {
+        // С 2026-09-21 блок — две колонки (продажа и аренда) рядом, в
+        // каждой таблица лотов со свёрткой по шесть строк: высоту задаёт
+        // та колонка, что длиннее, а не сумма обеих.
+        case 'offers':
+          return Math.max(saleStats?.count ?? 0, rentStats?.count ?? 0);
+        case 'rental':
+          return rentalInfo
+            ? [rentalInfo.terms, rentalInfo.rates, rentalInfo.sizes, rentalInfo.contacts].reduce(
+                (sum, text) => sum + estimateTextLines(text, 95),
+                0,
+              )
+            : 0;
+        case 'tech':
+          return (
+            redistributedTechnicalParams.buildingInformationRows.length +
+            center.buildingFacts.length +
+            (center.parking ? 1 : 0) +
+            (accessHoursText ? 1 : 0) +
+            (accessibilityAttributes ? 1 : 0)
+          );
+        // Высоту карты задаёт не число точек, а число КАТЕГОРИЙ: точки
+        // свёрнуты в чипы-фильтры по одному на категорию.
+        case 'map':
+          return new Set(nearbyPlaces.map((place) => place.category)).size;
+        case 'market':
+          return marketPosition?.bars.length ?? 0;
+        // Настоящие отзывы вытесняют кураторские цитаты и выводятся
+        // постранично по 6 (MAX_REAL_REVIEWS в BusinessCenterMarketBlocks).
+        case 'reviews':
+          return reviews.length > 0 ? Math.min(reviews.length, 6) : reviewQuotes.length;
+        case 'awards':
+          return awardItems.length;
+        case 'media':
+          return mediaMentions.length;
+        case 'facts':
+          return visibleHighlights.length;
+        case 'history':
+          return extractHistoryPoints(center).length;
+        case 'developer':
+          return developerInfo ? estimateTextLines(developerInfo.description, 110) : 0;
+        case 'faq':
+          return faqItems.length;
+        // tenants — пагинация по 6 карточек, высота от числа организаций
+        // не зависит вовсе.
+        default:
+          return 0;
+      }
+    };
+    return pageSections.map((section) => ({ id: section.id, items: sizeOf(section.id) }));
+  }, [
+    center,
+    pageSections,
+    saleStats,
+    rentStats,
+    redistributedTechnicalParams,
+    accessHoursText,
+    accessibilityAttributes,
+    nearbyPlaces,
+    marketPosition,
+    reviews,
+    reviewQuotes,
+    awardItems,
+    mediaMentions,
+    visibleHighlights,
+    faqItems,
+  ]);
+
+  // Раскладка блоков-рекомендаций по странице — вся логика в
+  // src/lib/businessCenterPageLayout.ts, там же разбор, почему предыдущие
+  // две версии ставили блоки кучей в середине страницы. Здесь остаётся
+  // только сопоставить выбранные места с очередью блоков: она уже
+  // отсортирована по приоритету (богаче пулом кандидатов — раньше, см.
+  // recommendationBlocks), так что самый содержательный блок достаётся
+  // самому верхнему месту.
   const recommendationSlots = useMemo(() => {
     const slots = new Map<string, RecommendationBlockId[]>();
-    const realAnchors = pageSections.filter((s) => s.id !== 'faq');
-    if (realAnchors.length === 0 || recommendationBlocks.length === 0) return slots;
-    // ~0,08 экрана на пункт (по замеру: развёрнутый FAQ из 15-18 вопросов
-    // занимает примерно один экран), потолок — 3 экрана, чтобы гигантский
-    // FAQ не давал повод впихнуть лишний блок сразу перед собой.
-    const faqWeight = faqItems.length > 0 ? Math.min(3, Math.max(0.5, faqItems.length * 0.08)) : 0;
-    const queue = [...recommendationBlocks];
-    let sectionsSinceLastRec = 0;
-    let weightSinceLastRec = 0;
-    let placed = 0;
-    realAnchors.forEach((section, index) => {
-      if (queue.length === 0) return;
-      sectionsSinceLastRec += 1;
-      weightSinceLastRec += SECTION_WEIGHTS[section.id] ?? DEFAULT_SECTION_WEIGHT;
-      const isLastRealAnchor = index === realAnchors.length - 1;
-      const readyForFirst = placed === 0 && sectionsSinceLastRec >= FIRST_RECOMMENDATION_AFTER_SECTIONS;
-      const readyForNext = placed > 0 && weightSinceLastRec >= NEXT_RECOMMENDATION_MIN_WEIGHT;
-      const readyLastChance =
-        isLastRealAnchor &&
-        sectionsSinceLastRec >= 2 &&
-        (placed === 0 || weightSinceLastRec + faqWeight >= NEXT_RECOMMENDATION_MIN_WEIGHT);
-      if (readyForFirst || readyForNext || readyLastChance) {
-        const block = queue.shift()!;
-        slots.set(section.id, [...(slots.get(section.id) ?? []), block.id]);
-        placed += 1;
-        sectionsSinceLastRec = 0;
-        weightSinceLastRec = RECOMMENDATION_BLOCK_WEIGHT;
-      }
+    planRecommendationSlots(sectionSizes, recommendationBlocks.length).forEach((sectionId, index) => {
+      const block = recommendationBlocks[index];
+      if (block) slots.set(sectionId, [...(slots.get(sectionId) ?? []), block.id]);
     });
-    // Кандидаты, для которых так и не нашлось места (совсем короткая
-    // страница, 1 обычный блок до FAQ) — просто не показываем, а не
-    // доклеиваем в хвост: это и держит равномерный интервал, и не роняет
-    // блоки друг на друга.
     return slots;
-  }, [pageSections, recommendationBlocks, faqItems]);
+  }, [sectionSizes, recommendationBlocks]);
 
   const recommendationBlocksById = useMemo(
     () => new Map(recommendationBlocks.map((b) => [b.id, b])),
@@ -2252,6 +2313,7 @@ export function BusinessCenterDetailPage() {
               <p className="text-sm leading-relaxed text-ink-muted">{center.developerInfo.description}</p>
             )}
             {(center.developerInfo.phone ||
+              center.developerInfo.email ||
               center.developerInfo.address ||
               center.developerInfo.hours ||
               center.developerInfo.website) && (
@@ -2263,6 +2325,15 @@ export function BusinessCenterDetailPage() {
                   >
                     <Phone className="h-4 w-4 shrink-0" />
                     {center.developerInfo.phone}
+                  </a>
+                )}
+                {center.developerInfo.email && (
+                  <a
+                    href={`mailto:${center.developerInfo.email}`}
+                    className="flex w-fit items-center gap-2 text-ink hover:underline"
+                  >
+                    <Mail className="h-4 w-4 shrink-0" />
+                    {center.developerInfo.email}
                   </a>
                 )}
                 {center.developerInfo.address && (
