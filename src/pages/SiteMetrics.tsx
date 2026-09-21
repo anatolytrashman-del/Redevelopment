@@ -398,6 +398,12 @@ interface SearchQueriesTableProps {
   title: string;
   queries: SearchQueryRow[];
   emptyText: string;
+  // Показываем ПОД итогом таблицы, а не только в emptyText — та ветка рисуется
+  // только когда список запросов пуст целиком, а расхождение с плитками выше
+  // (Google отдаёт по dimensions=['query'] меньше показов/кликов, чем по
+  // dimensions=['date'], из-за анонимизации редких запросов) видно и тогда,
+  // когда часть запросов уже показывается — см. sync-google-search-console-stats.mjs.
+  note?: string;
 }
 
 // Таблица «по каким запросам нас показывают и по каким кликают». Сортировка
@@ -405,7 +411,7 @@ interface SearchQueriesTableProps {
 // при сортировке по показам запросы С КЛИКАМИ (самое ценное, что тут есть)
 // оказываются в хвосте — по умолчанию открываем по показам, но переключить
 // на клики можно в один тык.
-function SearchQueriesTable({ title, queries, emptyText }: SearchQueriesTableProps) {
+function SearchQueriesTable({ title, queries, emptyText, note }: SearchQueriesTableProps) {
   const [sort, setSort] = useState<QuerySort>('impressions');
   const [expanded, setExpanded] = useState(false);
 
@@ -444,6 +450,7 @@ function SearchQueriesTable({ title, queries, emptyText }: SearchQueriesTablePro
             {totalImpressions.toLocaleString('ru-RU')} показов, {totalClicks.toLocaleString('ru-RU')} кликов
             {' · '}не зависит от выбранного периода выше
           </p>
+          {note && <p className="mt-1 text-xs text-ink-muted">{note}</p>}
         </div>
         <ToggleGroup
           label="Сортировка"
@@ -1094,6 +1101,7 @@ export function SiteMetrics() {
                     ? 'Google не раскрывает сами запросы, пока их задают единицы людей («анонимизированные запросы») — показы и клики выше он при этом считает. Список появится сам, когда запросов станет больше.'
                     : 'Показов из Google пока нет — как только они появятся, здесь будут сами запросы.'
                 }
+                note="Сумма показов/кликов здесь обычно МЕНЬШЕ плиток выше — Google скрывает сами формулировки редких («анонимизированных») запросов, но в общий счёт показов/кликов наверху их всё равно включает. Это не рассинхрон в данных."
               />
               <p className="text-xs text-ink-muted">
                 «Проиндексировано страниц» считается по отдельному, медленному отчёту Google и может отставать от
