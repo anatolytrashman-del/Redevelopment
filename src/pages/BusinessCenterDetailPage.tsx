@@ -32,13 +32,16 @@ import {
   Newspaper,
   Palette,
   Phone,
+  Presentation,
   Ruler,
   ScrollText,
   ShoppingBag,
   Sparkles,
   Star,
   Trophy,
+  UtensilsCrossed,
   Users,
+  Waves,
 } from 'lucide-react';
 import { outletBrand } from '../data/mediaOutlets';
 import { cn } from '../lib/cn';
@@ -2784,19 +2787,32 @@ const INTERNAL_INFRASTRUCTURE_ICONS: { pattern: RegExp; icon: typeof FileText }[
   { pattern: /кофе|кафе/i, icon: Coffee },
   { pattern: /магазин/i, icon: ShoppingBag },
   { pattern: /фитнес|спортзал/i, icon: Dumbbell },
+  { pattern: /спа|сауна/i, icon: Waves },
+  { pattern: /конференц/i, icon: Presentation },
+  { pattern: /ресторан/i, icon: UtensilsCrossed },
 ];
 
-// То же пять категорий, но для сопоставления с текстом из базы (рубрики
+// Те же категории, но для сопоставления с текстом из базы (рубрики
 // организаций, подписи оборудования), а не с вручную набранным списком
 // владельца, — там регулярки нарочно строже (граница слова через lookahead,
 // см. использование выше в derivedInternalInfrastructureText): свободный
 // текст владелец уже проверил глазами, а рубрики тысяч арендаторов — нет.
+//
+// Спа/сауна/конференц-залы/ресторан добавлены 2026-09-21 по прямому
+// указанию владельца (эти категории — в шапку блока «В здании», остальные
+// внутренние сервисы, которых нет и не будет в этом фиксированном списке,
+// закрывает каталог арендаторов ниже по странице, отдельных категорий под
+// них не заводим — см. "не расширял бы количество новых категорий",
+// 2026-09-20, и разбор "Интересных фактов" 2026-09-21).
 const TENANT_DERIVED_INFRASTRUCTURE: { pattern: RegExp; label: string }[] = [
   { pattern: /банкомат(?![\p{L}])/iu, label: 'банкомат' },
   { pattern: /банк(?![\p{L}])/iu, label: 'банк' },
   { pattern: /(?:кофе|кафе)(?![\p{L}])/iu, label: 'кафе' },
   { pattern: /магазин(?![\p{L}])/iu, label: 'магазин' },
   { pattern: /(?:фитнес|спортзал)(?![\p{L}])/iu, label: 'фитнес-центр' },
+  { pattern: /(?:спа|сауна)(?![\p{L}])/iu, label: 'спа' },
+  { pattern: /конференц(?![\p{L}])/iu, label: 'конференц-зал' },
+  { pattern: /ресторан(?![\p{L}])/iu, label: 'ресторан' },
 ];
 
 // organizationCount — первая плитка строки «В здании» на первом экране
