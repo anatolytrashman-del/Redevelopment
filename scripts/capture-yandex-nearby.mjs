@@ -311,6 +311,12 @@ export function candidatesToPlaces({ candidates, center, fallbackCategory, colle
       source: SOURCE,
       source_url: isOrganization ? `https://yandex.ru/maps/org/${candidate.id}` : null,
       collected_at: collectedAt,
+      // Не станция/остановка (там категория однозначна по форме id) и не
+      // «похожие рядом» без рубрики на кириллице (там категория — просто
+      // fallback запроса, под которым виджет всплыл, а не настоящий тип
+      // места) — см. dedupePlaces в nearby-places-common.mjs. Поле служебное,
+      // dedupePlaces вырезает его из итоговых строк, в базу не пишется.
+      _reliableCategory: !isOrganization || /[а-яё]/i.test(String(candidate.rubric ?? '')),
     });
   }
   return places;

@@ -279,6 +279,10 @@ export interface DeveloperInfo {
   address: string | null;
   hours: string | null;
   website: string | null;
+  // LB-2.0 (LINKBUILDING_PLAN.md) — нужен для рассылки писем УК/застройщикам,
+  // до этого поля не было вовсе ни у одного БЦ. Показывается на публичной
+  // карточке тем же принципом, что и остальные поля этого блока.
+  email: string | null;
 }
 
 // Фиксированный набор иконок для "Интересных фактов" (не сам React-компонент
