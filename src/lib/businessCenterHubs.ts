@@ -151,14 +151,26 @@ export const MICRODISTRICT_SLUG_TO_NAME: Record<string, string> = Object.fromEnt
 // никого не терял.
 const MICRODISTRICT_METRO_COLLISION_SLUGS = new Set(['grushevka', 'uruchye', 'kamennaya-gorka']);
 
-export function microdistrictHubUrl(microdistrict: string): string | null {
-  const slug = MICRODISTRICT_SLUGS[microdistrict];
-  if (!slug) return null;
+// Сухарево — отдельный случай той же природы, но не по имени, а по составу:
+// проверка по базе 2026-09-21 показала, что оба БЦ микрорайона и все БЦ
+// улицы «ул. Лобанка» по городу — это буквально одни и те же 2 здания
+// (единственная улица в городе с 2GIS-контуром микрорайона 1:1). Разные
+// формулировки запроса («сухарево» / «на лобанка»), но содержимое страниц
+// дословно совпало бы — тот же дубль, что и у метро, просто без коллизии
+// в названии. Решение то же: /microrayon/suharevo редиректит на хаб улицы.
+function microdistrictMergeUrl(microdistrict: string, slug: string): string | null {
   if (MICRODISTRICT_METRO_COLLISION_SLUGS.has(slug)) {
     const stationName = METRO_SLUG_TO_STATION[slug];
     if (stationName) return metroHubUrl(stationName);
   }
-  return `/minsk/bcminsk/microrayon/${slug}`;
+  if (microdistrict === 'Сухарево') return streetHubUrl('ул. Лобанка');
+  return null;
+}
+
+export function microdistrictHubUrl(microdistrict: string): string | null {
+  const slug = MICRODISTRICT_SLUGS[microdistrict];
+  if (!slug) return null;
+  return microdistrictMergeUrl(microdistrict, slug) ?? `/minsk/bcminsk/microrayon/${slug}`;
 }
 
 // Хабы по станциям метро (аудит поиска 2026-09-07, «новые срезы: по станциям

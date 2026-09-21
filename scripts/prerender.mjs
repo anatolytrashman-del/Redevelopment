@@ -426,6 +426,12 @@ async function fetchMetroHubPaths() {
 // скрипт без TS-загрузчика).
 const MICRODISTRICT_METRO_COLLISION_SLUGS = new Set(['grushevka', 'uruchye', 'kamennaya-gorka']);
 
+// Сухарево — тот же дубль, но не с метро, а с улицей (см. businessCenterHubs.ts,
+// microdistrictMergeUrl): проверка по базе 2026-09-21 показала, что оба БЦ
+// микрорайона и все БЦ «ул. Лобанка» по городу — одни и те же 2 здания.
+// /microrayon/suharevo тоже только редиректит, пререндерить незачем.
+const MICRODISTRICT_STREET_COLLISION_SLUGS = new Set(['suharevo']);
+
 async function fetchMicrodistrictHubPaths() {
   const rows = await supabaseSelect(
     'business_centers?select=microdistrict&microdistrict=not.is.null',
@@ -434,7 +440,9 @@ async function fetchMicrodistrictHubPaths() {
   const slugs = new Set();
   for (const r of rows) {
     const slug = MICRODISTRICT_HUB_SLUG_BY_NAME[r.microdistrict];
-    if (slug && !MICRODISTRICT_METRO_COLLISION_SLUGS.has(slug)) slugs.add(`minsk/bcminsk/microrayon/${slug}`);
+    if (slug && !MICRODISTRICT_METRO_COLLISION_SLUGS.has(slug) && !MICRODISTRICT_STREET_COLLISION_SLUGS.has(slug)) {
+      slugs.add(`minsk/bcminsk/microrayon/${slug}`);
+    }
   }
   return [...slugs];
 }
