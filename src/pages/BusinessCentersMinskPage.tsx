@@ -44,6 +44,7 @@ import {
   METRO_SLUG_TO_STATION,
   metroHubUrl,
   metroHubDistance,
+  metroHubIncludesMicrodistrict,
   STREET_SLUG_TO_NAME,
   streetHubUrl,
 } from '../lib/businessCenterHubs';
@@ -507,7 +508,9 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
         (c) =>
           (microdistrictFilter === null || c.microdistrict === microdistrictFilter) &&
           (!underConstruction || c.status === 'under_construction') &&
-          (metroFilter === null || metroHubDistance(c, metroFilter) !== null) &&
+          (metroFilter === null ||
+            metroHubDistance(c, metroFilter) !== null ||
+            metroHubIncludesMicrodistrict(c, metroFilter)) &&
           (streetFilter === null || streetOfAddress(c.address) === streetFilter),
       ),
     [centers, microdistrictFilter, underConstruction, metroFilter, streetFilter],

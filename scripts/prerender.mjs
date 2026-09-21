@@ -417,6 +417,15 @@ async function fetchMetroHubPaths() {
   return (await fetchMetroHubStations()).map((slug) => `minsk/bcminsk/metro/${slug}`);
 }
 
+// Грушевка/Уручье/Каменная Горка — одновременно и микрорайон, и станция
+// метро с тем же slug; страница станции отдаёт объединённый список (см.
+// businessCenterHubs.ts, METRO_MICRODISTRICT_ALIAS), а страница микрорайона
+// на эти 3 slug'а теперь только 301-редиректит (vercel.json) — пререндерить
+// её незачем, редирект срабатывает на грани раньше статики (продублировано
+// из src/lib/businessCenterHubs.ts, MICRODISTRICT_METRO_COLLISION_SLUGS —
+// скрипт без TS-загрузчика).
+const MICRODISTRICT_METRO_COLLISION_SLUGS = new Set(['grushevka', 'uruchye', 'kamennaya-gorka']);
+
 async function fetchMicrodistrictHubPaths() {
   const rows = await supabaseSelect(
     'business_centers?select=microdistrict&microdistrict=not.is.null',
@@ -425,7 +434,7 @@ async function fetchMicrodistrictHubPaths() {
   const slugs = new Set();
   for (const r of rows) {
     const slug = MICRODISTRICT_HUB_SLUG_BY_NAME[r.microdistrict];
-    if (slug) slugs.add(`minsk/bcminsk/microrayon/${slug}`);
+    if (slug && !MICRODISTRICT_METRO_COLLISION_SLUGS.has(slug)) slugs.add(`minsk/bcminsk/microrayon/${slug}`);
   }
   return [...slugs];
 }
