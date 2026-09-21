@@ -220,6 +220,48 @@ export function buildYieldStats(offers: DedupedOffer[] | null | undefined): Yiel
   )[0];
 }
 
+/**
+ * Тот же расчёт окупаемости, но на КОНКРЕТНОМ помещении из списка выше:
+ * «кабинет 113,5 м² стоит $234 400, сдавать можно за $1 700 в месяц,
+ * вернётся за 11 лет». Проценты годовых понятны тому, кто считает
+ * деньгами профессионально; остальным нужен пример, который видно рядом
+ * в таблице (владелец, 2026-09-21: «текст про возврат инвестиций не
+ * читается толком, давай делать понятным блоком»).
+ *
+ * Берётся помещение, ближайшее к медианной площади среди продаваемых
+ * того же типа — не самое дешёвое и не самое дорогое, а типичное.
+ * Окупаемость считается по этому же помещению, поэтому три числа блока
+ * сходятся между собой, если их перемножить.
+ */
+export interface YieldExample {
+  lot: DedupedOffer;
+  salePrice: number;
+  monthlyRent: number;
+  yearlyRent: number;
+  paybackYears: number;
+}
+
+export function buildYieldExample(
+  offers: DedupedOffer[] | null | undefined,
+  stats: YieldStats | null,
+): YieldExample | null {
+  if (!stats) return null;
+  const saleLots = (offers ?? []).filter(
+    (o) => o.dealType === 'sale' && usable(o) && (o.propertyType ?? 'Без категории') === stats.propertyType,
+  );
+  if (saleLots.length === 0) return null;
+
+  const medianSize = median(saleLots.map((o) => o.size));
+  const lot = saleLots.reduce((best, o) =>
+    Math.abs(o.size - medianSize) < Math.abs(best.size - medianSize) ? o : best,
+  );
+
+  const salePrice = lot.size * lot.pricePerSqm;
+  const monthlyRent = lot.size * stats.rentPricePerSqm;
+  const yearlyRent = monthlyRent * 12;
+  return { lot, salePrice, monthlyRent, yearlyRent, paybackYears: salePrice / yearlyRent };
+}
+
 // ——— формат ———
 
 // Десятые долями метра площадки оперируют всерьёз: 113,4 и 113,5 м² —
