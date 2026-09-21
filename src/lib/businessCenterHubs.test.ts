@@ -22,6 +22,10 @@ describe('microdistrictHubUrl — коллизия с одноимённой с�
   it('неизвестный микрорайон — null', () => {
     expect(microdistrictHubUrl('Не существует')).toBeNull();
   });
+
+  it('Сухарево ведёт на хаб ул. Лобанка — тот же дубль по составу, не по имени', () => {
+    expect(microdistrictHubUrl('Сухарево')).toBe('/minsk/bcminsk/ulitsa/ul-lobanka');
+  });
 });
 
 describe('metroHubIncludesMicrodistrict — не терять здания без расстояния до станции', () => {

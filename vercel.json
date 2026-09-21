@@ -49,7 +49,8 @@
     { "source": "/rayon-minsk-mir", "destination": "/minsk/minsk-mir", "permanent": true },
     { "source": "/minsk/bcminsk/microrayon/grushevka", "destination": "/minsk/bcminsk/metro/grushevka", "permanent": true },
     { "source": "/minsk/bcminsk/microrayon/uruchye", "destination": "/minsk/bcminsk/metro/uruchye", "permanent": true },
-    { "source": "/minsk/bcminsk/microrayon/kamennaya-gorka", "destination": "/minsk/bcminsk/metro/kamennaya-gorka", "permanent": true }
+    { "source": "/minsk/bcminsk/microrayon/kamennaya-gorka", "destination": "/minsk/bcminsk/metro/kamennaya-gorka", "permanent": true },
+    { "source": "/minsk/bcminsk/microrayon/suharevo", "destination": "/minsk/bcminsk/ulitsa/ul-lobanka", "permanent": true }
   ],
   "rewrites": [
     { "source": "/api/telegram-webhook", "destination": "/api/telegram-avatar" },
