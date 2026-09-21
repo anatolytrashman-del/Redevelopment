@@ -69,4 +69,25 @@ describe('дедупликация', () => {
     expect(rows).toHaveLength(2);
     expect(rows.map((row) => row.distance_meters)).toEqual([120, 400]);
   });
+
+  it('прямое попадание с настоящей рубрикой побеждает «похожего рядом» с тем же расстоянием', () => {
+    // Живой случай 2026-09-21: «Кухмистр» (ресторан) всплыл «похожим» под
+    // запросом «кофейня» (без рубрики, только слаг) РАНЬШЕ, чем нашёлся
+    // прямым попаданием под «кафе»/«ресторан» — расстояние в обоих случаях
+    // одинаковое, порядок запросов чуть не отдал победу первой, неверной
+    // записи.
+    const rows = dedupePlaces([
+      {
+        source_place_id: '1295125111', lat: 53.90153, lng: 27.56555, distance_meters: 433,
+        category: 'coffee', subcategory: 'kukhmistr · similar', _reliableCategory: false,
+      },
+      {
+        source_place_id: '1295125111', lat: 53.90153, lng: 27.56555, distance_meters: 433,
+        category: 'cafe', subcategory: 'Ресторан · кафе · бар · kukhmistr · business', _reliableCategory: true,
+      },
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].category).toBe('cafe');
+    expect(rows[0]._reliableCategory).toBeUndefined();
+  });
 });
