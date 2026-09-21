@@ -3157,6 +3157,29 @@ export function DistrictGuidePage() {
                 {MINSK_MIR_TOPIC_LABELS[s]}
               </Link>
             ))}
+            {/* Ниже раньше был только список топиков этого же гида — на
+                каталог БЦ и на свою же страницу аналитики гид не ссылался
+                вовсе (LB-0.4, 2026-09-21). /minsk/one сюда сознательно не
+                возвращаем (см. комментарий выше по файлу, 2026-09-16 —
+                здание ещё не куплено). Фильтра
+                каталога по Минск Миру нет — это не административный район и
+                не 2GIS-микрорайон (DISTRICT_SLUGS/MICRODISTRICT_SLUGS в
+                businessCenterHubs.ts), проверено по базе 2026-09-21: единственный
+                БЦ каталога с адресом в Минск Мире — МФЦ (slug mfc-minsk-mir,
+                строится), поэтому ссылка на его карточку, а не на выдуманный
+                срез. */}
+            <Link
+              to="/minsk/bcminsk/mfc-minsk-mir"
+              className="rounded-full border border-border px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:border-primary hover:text-primary-hover"
+            >
+              МФЦ Минск Мир в каталоге БЦ
+            </Link>
+            <Link
+              to="/minsk/analytics/minsk-mir"
+              className="rounded-full border border-border px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:border-primary hover:text-primary-hover"
+            >
+              Аналитика рынка Минск Мира
+            </Link>
           </div>
         </div>
 
