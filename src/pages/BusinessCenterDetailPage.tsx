@@ -75,7 +75,7 @@ import {
   metroHubDistance,
   metroHubUrl,
   streetHubUrl,
-  districtDative,
+  districtGenitive,
   districtPrepositional,
   classDistrictHubUrl,
   classHubUrl,
@@ -92,9 +92,11 @@ import { fetchBusinessCenterReviews } from '../lib/businessCenterReviewsApi';
 import type { BusinessCenterOffer } from '../data/businessCenterOffers';
 import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
 import { dedupeOffers } from '../lib/businessCenterOfferDuplicates';
+import { buildDealStats, buildYieldStats, formatArea, formatMoney, formatPercent, formatRate, formatYears } from '../lib/businessCenterOfferStats';
+import { BuildingOffersSection, type DealBenchmark } from '../components/businessCenters/BuildingOffersSection';
 import { pluralRu } from '../lib/pluralRu';
 import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
-import { MIN_RELIABLE_N, type MarketSnapshot } from '../data/marketSnapshots';
+import type { MarketSnapshot } from '../data/marketSnapshots';
 import type {
   BusinessCenter2gisSnapshot,
   Gis2Schedule,
@@ -494,13 +496,12 @@ export function BusinessCenterDetailPage() {
   const prev = index > 0 ? sorted[index - 1] : null;
   const next = index >= 0 && index < sorted.length - 1 ? sorted[index + 1] : null;
 
-  const saleRows = useMemo(() => computeOfferRows(offers ?? [], 'sale'), [offers]);
-  const rentRows = useMemo(() => computeOfferRows(offers ?? [], 'rent'), [offers]);
-
-  // Медиана по ЭТОМУ зданию целиком (не разбитая по типу помещения, как
-  // saleRows/rentRows выше) — для сравнения со средней по классу/району.
-  const buildingRentMedian = useMemo(() => overallMedianPricePerSqm(offers ?? [], 'rent'), [offers]);
-  const buildingSaleMedian = useMemo(() => overallMedianPricePerSqm(offers ?? [], 'sale'), [offers]);
+  // Сводка по сделке (лоты, медиана, бюджет лота, скидка за объём) и
+  // окупаемость покупки арендой — одни и те же цифры рисует блок
+  // «Что сейчас сдают и продают» и пересказывает FAQ под ним.
+  const saleStats = useMemo(() => buildDealStats(offers, 'sale'), [offers]);
+  const rentStats = useMemo(() => buildDealStats(offers, 'rent'), [offers]);
+  const yieldStats = useMemo(() => buildYieldStats(offers), [offers]);
   const classSnapshot = useMemo(
     () =>
       center?.businessClass
@@ -521,30 +522,17 @@ export function BusinessCenterDetailPage() {
         : null,
     [officeSnapshots, center],
   );
-  const rateComparisonRent = useMemo(
-    () =>
-      RateComparisonNote({
-        dealType: 'rent',
-        buildingMedian: buildingRentMedian,
-        classLabel: center?.businessClass ? `классу ${center.businessClass}` : null,
-        classSnapshot: classSnapshot?.rent,
-        districtLabel: center?.district ? `${districtDative(center.district)} району` : null,
-        districtSnapshot: districtSnapshot?.rent,
-      }),
-    [buildingRentMedian, center, classSnapshot, districtSnapshot],
-  );
-  const rateComparisonSale = useMemo(
-    () =>
-      RateComparisonNote({
-        dealType: 'sale',
-        buildingMedian: buildingSaleMedian,
-        classLabel: center?.businessClass ? `классу ${center.businessClass}` : null,
-        classSnapshot: classSnapshot?.sale,
-        districtLabel: center?.district ? `${districtDative(center.district)} району` : null,
-        districtSnapshot: districtSnapshot?.sale,
-      }),
-    [buildingSaleMedian, center, classSnapshot, districtSnapshot],
-  );
+  // Срезы рынка для сравнения с ценой этого здания. Раньше из них
+  // собирался отдельный блок под таблицей — с 2026-09-21 строка сравнения
+  // стоит вплотную к самому числу, внутри плитки сделки.
+  const benchmarks = useMemo<{ rent: DealBenchmark; sale: DealBenchmark }>(() => {
+    const classLabel = center?.businessClass ? `медиане класса ${center.businessClass}` : null;
+    const districtLabel = center?.district ? `медиане ${districtGenitive(center.district)} района` : null;
+    return {
+      rent: { classLabel, classSnapshot: classSnapshot?.rent, districtLabel, districtSnapshot: districtSnapshot?.rent },
+      sale: { classLabel, classSnapshot: classSnapshot?.sale, districtLabel, districtSnapshot: districtSnapshot?.sale },
+    };
+  }, [center, classSnapshot, districtSnapshot]);
 
   // Рейтинг Яндекс.Карт вынесен из общего списка фактов в короткий бейдж
   // рядом с заголовком. Подробный исходный текст не используется как tooltip.
@@ -1056,22 +1044,6 @@ export function BusinessCenterDetailPage() {
   // Сводка по сделке (диапазон площади/цены) — используется в FAQ; на
   // самой странице с 2026-09-20 не выводится отдельной строкой, чтобы не
   // дублировать таблицу ниже (см. offers-блок).
-  const offersSummary = useMemo(() => {
-    const byDeal = (deal: 'rent' | 'sale') => {
-      const rows = (offers ?? []).filter((o) => o.dealType === deal && o.size > 0 && o.pricePerSqm > 0);
-      if (rows.length === 0) return null;
-      const sizes = rows.map((o) => o.size);
-      const prices = rows.map((o) => o.pricePerSqm);
-      return {
-        count: rows.length,
-        sizeMin: Math.min(...sizes),
-        sizeMax: Math.max(...sizes),
-        priceMin: Math.min(...prices),
-        priceMax: Math.max(...prices),
-      };
-    };
-    return { rent: byDeal('rent'), sale: byDeal('sale') };
-  }, [offers]);
   const marketPosition = useMemo(
     () => (center ? buildMarketPosition(center, centers ?? [], officeSnapshots, offerIndex) : null),
     [center, centers, officeSnapshots, offerIndex],
@@ -1279,17 +1251,38 @@ export function BusinessCenterDetailPage() {
     }
     add('Какие условия доступной среды указаны?', accessibilityAttributes);
     add('Какие часы работы указаны?', accessHoursText);
-    if (offers !== null && offers.length > 0) {
-      add('Сколько активных предложений аренды и продажи?', `Активных предложений: аренда — ${offers.filter((o) => o.dealType === 'rent').length}, продажа — ${offers.filter((o) => o.dealType === 'sale').length}.`);
-      for (const deal of ['rent', 'sale'] as const) {
-        const sum = offersSummary[deal];
-        if (sum) add(`Какие площади и ставки ${deal === 'rent' ? 'аренды' : 'продажи'} сейчас предлагаются?`, `${sum.count} лотов с указанными площадью и ставкой: ${fmt(Math.round(sum.sizeMin))}–${fmt(Math.round(sum.sizeMax))} м², $${fmt(Math.round(sum.priceMin))}–$${fmt(Math.round(sum.priceMax))}/м²${deal === 'rent' ? ' в месяц' : ''}.`);
+    // FAQ обязан описывать ВЕСЬ блок «Что сейчас сдают и продают» (правило
+    // владельца) — и описывает его теми же цифрами, что нарисованы выше:
+    // медиану, бюджет лота, скидку за объём и окупаемость считает один
+    // businessCenterOfferStats, отдельной арифметики здесь нет.
+    for (const stats of [saleStats, rentStats]) {
+      if (!stats) continue;
+      const isRent = stats.deal === 'rent';
+      const verb = isRent ? 'сдают' : 'продают';
+      const types = stats.propertyTypes.map((t) => `${t.propertyType.toLowerCase()} — ${t.count}`).join(', ');
+      add(
+        `Сколько помещений в «${name}» сейчас ${verb} и по какой цене?`,
+        `${stats.count} ${pluralRu(stats.count, 'лот', 'лота', 'лотов')} площадью ${formatArea(stats.sizeMin)}–${formatArea(stats.sizeMax)} (${types}). Медианная ставка — ${formatRate(stats.median, stats.deal)}/м²${isRent ? ' в месяц' : ''}, крайние значения ${formatRate(stats.minPrice, stats.deal)}–${formatRate(stats.maxPrice, stats.deal)}/м². Один и тот же лот, выложенный сразу на нескольких площадках, считается одним.`,
+      );
+      add(
+        isRent ? `Сколько стоит снять помещение в «${name}» целиком?` : `Сколько стоит купить помещение в «${name}» целиком?`,
+        `${isRent ? 'Платёж' : 'Бюджет покупки'} по ставке объявления — от ${formatMoney(stats.totalMin)} до ${formatMoney(stats.totalMax)}${isRent ? ' в месяц' : ''}: ${stats.lots
+          .map((lot) => `${formatArea(lot.size)} по ${formatRate(lot.pricePerSqm, stats.deal)}/м² — ${formatMoney(lot.size * lot.pricePerSqm)}${isRent ? ' в месяц' : ''}`)
+          .join('; ')}. Это площадь × ставка, а не итоговый платёж: состав коммунальных, эксплуатационных и других платежей в объявлениях не раскрыт.`,
+      );
+      if (stats.sizeDiscount) {
+        const d = stats.sizeDiscount;
+        add(
+          `Зависит ли цена метра в «${name}» от размера помещения?`,
+          `Да, ${isRent ? 'при аренде' : 'при покупке'} метр в крупном лоте дешевле: ${formatArea(d.smallSize)} — ${formatRate(d.smallPrice, stats.deal)}/м², ${formatArea(d.largeSize)} — ${formatRate(d.largePrice, stats.deal)}/м², разница ${Math.round(d.dropPct)}%.`,
+        );
       }
-      for (const [label, rows] of [['Аренда', rentRows], ['Продажа', saleRows]] as const) {
-        if (rows.length) add(`Какие помещения в «${name}» сейчас ${label === 'Аренда' ? 'сдают' : 'продают'} и по какой цене?`, rows.map((row) => `${row.propertyType}: ${row.count} объявлений, ${Math.round(row.minSize).toLocaleString('ru-RU')}–${Math.round(row.maxSize).toLocaleString('ru-RU')} м², ${formatUsd(row.minPrice)}–${formatUsd(row.maxPrice)}/м² (медиана ${formatUsd(row.medianPrice)})`).join('; '));
-      }
-      const priced = offers.filter((o) => Number.isFinite(o.size) && o.size > 0 && Number.isFinite(o.pricePerSqm) && o.pricePerSqm >= 0);
-      if (priced.length) add('Сколько стоит помещение целиком по ставке объявления?', priced.map((o) => `${o.dealType === 'rent' ? 'Аренда' : 'Продажа'}, ${fmt(o.size)} м² по $${fmt(o.pricePerSqm)}/м²: около $${fmt(Math.round(o.size * o.pricePerSqm))}${o.dealType === 'rent' ? ' в месяц' : ''}`).join('; ') + '. Это площадь × ставка, а не итоговый платёж: состав коммунальных, эксплуатационных и других платежей не раскрыт. Уточняйте у автора объявления.');
+    }
+    if (yieldStats) {
+      add(
+        `За сколько лет окупится покупка помещения в «${name}» при сдаче в аренду?`,
+        `Около ${formatYears(yieldStats.paybackYears)} — это ${formatPercent(yieldStats.grossYieldPct)} годовых до расходов: медиана продажи ${formatRate(yieldStats.salePricePerSqm, 'sale')}/м² против медианы аренды ${formatRate(yieldStats.rentPricePerSqm, 'rent')}/м² в месяц по одному и тому же типу помещений (${yieldStats.propertyType.toLowerCase()}, ${yieldStats.saleCount} на продажу и ${yieldStats.rentCount} в аренду). Простой, налоги и эксплуатационные платежи в расчёт не входят.`,
+      );
     }
     if (center.rentalInfo) {
       const info = center.rentalInfo;
@@ -1370,7 +1363,7 @@ export function BusinessCenterDetailPage() {
     }
     add('Как исправить сведения о здании?', 'Если хотите добавить, убрать или изменить информацию, напишите на a@redevelopment.pro, указав бизнес-центр и сведения, которые нужно поправить.');
     return items;
-  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, awardItems, mediaMentions, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces]);
+  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, saleStats, rentStats, yieldStats, awardItems, mediaMentions, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -1387,7 +1380,7 @@ export function BusinessCenterDetailPage() {
     // внутри → на фоне конкурентов → отзывы → блоки доверия (награды/СМИ/
     // факты/история) → застройщик → FAQ.
     return [
-      has('offers', offers !== null && offers.length > 0),
+      has('offers', saleStats !== null || rentStats !== null),
       has('rental', Boolean(center.rentalInfo)),
       has(
         'tech',
@@ -1418,7 +1411,8 @@ export function BusinessCenterDetailPage() {
   }, [
     center,
     marketPosition,
-    offers,
+    saleStats,
+    rentStats,
     awardItems,
     visibleHighlights,
     mediaMentions,
@@ -1443,11 +1437,11 @@ export function BusinessCenterDetailPage() {
     const developerInfo = center.developerInfo;
     const sizeOf = (id: string): number => {
       switch (id) {
-        // В таблице не по строке на объявление, а по строке на тип
-        // помещения в каждой из двух сделок — 48 объявлений «Кампуса»
-        // укладываются в те же 4 строки, что и 3 объявления «Океана».
+        // С 2026-09-21 блок — две колонки (продажа и аренда) рядом, в
+        // каждой таблица лотов со свёрткой по шесть строк: высоту задаёт
+        // та колонка, что длиннее, а не сумма обеих.
         case 'offers':
-          return saleRows.length + rentRows.length;
+          return Math.max(saleStats?.count ?? 0, rentStats?.count ?? 0);
         case 'rental':
           return rentalInfo
             ? [rentalInfo.terms, rentalInfo.rates, rentalInfo.sizes, rentalInfo.contacts].reduce(
@@ -1495,8 +1489,8 @@ export function BusinessCenterDetailPage() {
   }, [
     center,
     pageSections,
-    saleRows,
-    rentRows,
+    saleStats,
+    rentStats,
     redistributedTechnicalParams,
     accessHoursText,
     accessibilityAttributes,
@@ -1959,53 +1953,24 @@ export function BusinessCenterDetailPage() {
             секции, убранные прямые ссылки на Kufar/Realt) — см. запись
             2026-09-05 в docs/session-journal.md. С 2026-09-20 (владелец):
             если по БЦ нет объявлений на внешних площадках, блок целиком не
-            выводится — раньше на этом месте была строка-заглушка. */}
-        {offers !== null && offers.length > 0 && (
-          <div id="offers" className={cn('mt-6 flex scroll-mt-32 flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <h2 className="text-lg font-bold text-ink">Что сейчас сдают и продают в здании</h2>
-            {offers.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[480px] border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                      <th scope="col" className="py-2 pr-3 text-left">
-                        Тип помещения
-                      </th>
-                      <th scope="col" className="py-2 px-2 text-right">
-                        Объявлений
-                      </th>
-                      <th scope="col" className="py-2 px-2 text-right">
-                        Площадь
-                      </th>
-                      <th scope="col" className="py-2 pl-2 text-right">
-                        Цена за м²
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    <OfferDealSection title="Продажа" rows={saleRows} />
-                    <OfferDealSection title="Аренда" rows={rentRows} />
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
+            выводится — раньше на этом месте была строка-заглушка.
 
-        {/* Сравнение со средней по классу/району (ANALYTICSPLAN.md §4.2) —
-            медиана этого конкретного здания против медиан market_snapshots
-            (сегмент ofisy_bc). Только когда у здания вообще есть медиана по
-            сделке И хотя бы один из бенчмарков (класс/район) набрал порог
-            MIN_RELIABLE_N — иначе сравнение с сырыми 2-3 объявлениями было
-            бы не сравнением, а шумом. Вынесено из карточки "Что сейчас
-            сдают и продают" в свой блок (владелец, 2026-09-20) — со своим
-            заголовком и оформлением это продумаем отдельно. */}
-        {offers !== null && offers.length > 0 && (rateComparisonRent || rateComparisonSale) && (
-          <div id="rate-comparison" className={cn('mt-6 flex scroll-mt-32 flex-col gap-2 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            {rateComparisonRent}
-            {rateComparisonSale}
-          </div>
-        )}
+            2026-09-21: таблица «тип помещения × диапазон цены» заменена на
+            плитки сделок, таблицу самих лотов и окупаемость — владелец:
+            «вроде таблица, вроде всё ок, но читается отвратительно» и «с
+            таким разбросом цены метра толком ничего не проанализируешь».
+            Разбор и правила — в BuildingOffersSection и
+            lib/businessCenterOfferStats.ts. Туда же ушло сравнение со
+            срезом рынка, которое 2026-09-20 жило отдельным блоком
+            #rate-comparison: само по себе «$2 000/м²» ничего не говорит,
+            сравнение должно стоять вплотную к числу. */}
+        <BuildingOffersSection
+          sale={saleStats}
+          rent={rentStats}
+          yieldStats={yieldStats}
+          saleBenchmark={benchmarks.sale}
+          rentBenchmark={benchmarks.rent}
+        />
 
         {renderRecommendationSlot('offers')}
 
@@ -2952,147 +2917,5 @@ function renderBold(text: string): ReactNode {
     ) : (
       part
     ),
-  );
-}
-
-// Таблица содержит только реальные предложения, без пустых строк-заглушек.
-interface OfferRow {
-  propertyType: string;
-  count: number;
-  minSize: number;
-  maxSize: number;
-  minPrice: number;
-  medianPrice: number;
-  maxPrice: number;
-}
-
-function computeOfferRows(offers: BusinessCenterOffer[], dealType: BusinessCenterOffer['dealType']): OfferRow[] {
-  const filtered = offers.filter((o) => o.dealType === dealType);
-  if (filtered.length === 0) return [];
-
-  const groups = new Map<string, BusinessCenterOffer[]>();
-  for (const o of filtered) {
-    const key = o.propertyType ?? 'Без категории';
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(o);
-  }
-
-  return Array.from(groups.entries())
-    .map(([propertyType, group]) => {
-      const sizes = group.map((o) => o.size);
-      const prices = [...group.map((o) => o.pricePerSqm)].sort((a, b) => a - b);
-      const mid = Math.floor(prices.length / 2);
-      const medianPrice = prices.length % 2 !== 0 ? prices[mid] : (prices[mid - 1] + prices[mid]) / 2;
-      return {
-        propertyType,
-        count: group.length,
-        minSize: Math.min(...sizes),
-        maxSize: Math.max(...sizes),
-        minPrice: Math.min(...prices),
-        medianPrice,
-        maxPrice: Math.max(...prices),
-      };
-    })
-    .sort((a, b) => b.count - a.count);
-}
-
-function formatUsd(n: number): string {
-  return `$${Math.round(n).toLocaleString('ru-RU')}`;
-}
-
-// Медиана цены за м² по ВСЕМ объявлениям здания одного типа сделки, без
-// разбивки по типу помещения (та живёт в computeOfferRows выше) — нужна
-// только для сравнения со средней по классу/району из market_snapshots.
-function overallMedianPricePerSqm(offers: BusinessCenterOffer[], dealType: BusinessCenterOffer['dealType']): number | null {
-  const prices = offers.filter((o) => o.dealType === dealType).map((o) => o.pricePerSqm);
-  if (prices.length === 0) return null;
-  const sorted = [...prices].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
-function formatRatePerSqm(n: number, dealType: 'rent' | 'sale'): string {
-  const rounded = dealType === 'rent' ? Math.round(n * 10) / 10 : Math.round(n);
-  return `$${rounded.toLocaleString('ru-RU')}${dealType === 'rent' ? '/м²/мес' : '/м²'}`;
-}
-
-function compareLabel(diffPct: number): string {
-  if (Math.abs(diffPct) < 5) return 'на уровне';
-  return diffPct > 0 ? `выше на ${Math.round(diffPct)}%` : `ниже на ${Math.round(Math.abs(diffPct))}%`;
-}
-
-function RateComparisonNote({
-  dealType,
-  buildingMedian,
-  classLabel,
-  classSnapshot,
-  districtLabel,
-  districtSnapshot,
-}: {
-  dealType: 'rent' | 'sale';
-  buildingMedian: number | null;
-  classLabel: string | null;
-  classSnapshot: MarketSnapshot | undefined;
-  districtLabel: string | null;
-  districtSnapshot: MarketSnapshot | undefined;
-}) {
-  if (buildingMedian == null) return null;
-
-  const parts: ReactNode[] = [];
-  if (classLabel && classSnapshot?.median != null && classSnapshot.n >= MIN_RELIABLE_N) {
-    const diff = ((buildingMedian - classSnapshot.median) / classSnapshot.median) * 100;
-    parts.push(
-      <span key="class">
-        {compareLabel(diff)} медианы по {classLabel} ({formatRatePerSqm(classSnapshot.median, dealType)})
-      </span>,
-    );
-  }
-  if (districtLabel && districtSnapshot?.median != null && districtSnapshot.n >= MIN_RELIABLE_N) {
-    const diff = ((buildingMedian - districtSnapshot.median) / districtSnapshot.median) * 100;
-    parts.push(
-      <span key="district">
-        {compareLabel(diff)} медианы по {districtLabel} ({formatRatePerSqm(districtSnapshot.median, dealType)})
-      </span>,
-    );
-  }
-  if (parts.length === 0) return null;
-
-  return (
-    <p className="text-xs text-ink-muted">
-      {dealType === 'rent' ? 'Аренда' : 'Продажа'} в этом здании — {formatRatePerSqm(buildingMedian, dealType)}, это{' '}
-      {parts.reduce<ReactNode[]>((acc, part, i) => (i === 0 ? [part] : [...acc, ' и ', part]), [])}.
-    </p>
-  );
-}
-
-// Заголовок сделки (Продажа/Аренда) — не отдельная колонка (чтобы не
-// повторять текст на каждой строке разбивки), а строка-разделитель на всю
-// ширину таблицы, за ней сразу строки по типу помещения.
-function OfferDealSection({ title, rows }: { title: string; rows: OfferRow[] }) {
-  if (rows.length === 0) return null;
-  return (
-    <>
-      <tr>
-        <td colSpan={4} className="pt-4 pb-1.5 text-xs font-bold uppercase tracking-wide text-ink-muted">
-          {title}
-        </td>
-      </tr>
-      {rows.map((row) => (
-        <tr key={row.propertyType}>
-          <td className="py-3 pr-3 font-medium text-ink">{row.propertyType}</td>
-          <td className="py-3 px-2 text-right tabular-nums text-ink-muted">{row.count}</td>
-          <td className="whitespace-nowrap py-3 px-2 text-right tabular-nums text-ink-muted">
-            {row.minSize === row.maxSize
-              ? `${row.minSize.toLocaleString('ru-RU')} м²`
-              : `${row.minSize.toLocaleString('ru-RU')}–${row.maxSize.toLocaleString('ru-RU')} м²`}
-          </td>
-          <td className="whitespace-nowrap py-3 pl-2 text-right tabular-nums font-semibold text-ink">
-            {formatUsd(row.minPrice) === formatUsd(row.maxPrice)
-              ? `${formatUsd(row.minPrice)}/м²`
-              : `${formatUsd(row.minPrice)}–${formatUsd(row.maxPrice)}/м² (медиана ${formatUsd(row.medianPrice)})`}
-          </td>
-        </tr>
-      ))}
-    </>
   );
 }
