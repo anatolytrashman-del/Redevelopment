@@ -98,6 +98,7 @@ interface FormState {
   developerAddress: string;
   developerHours: string;
   developerWebsite: string;
+  developerEmail: string;
   metro: string;
   parking: string;
   website: string;
@@ -140,6 +141,7 @@ const EMPTY_FORM: FormState = {
   developerAddress: '',
   developerHours: '',
   developerWebsite: '',
+  developerEmail: '',
   metro: '',
   parking: '',
   website: '',
@@ -183,6 +185,7 @@ function centerToForm(c: BusinessCenter): FormState {
     developerAddress: c.developerInfo?.address ?? '',
     developerHours: c.developerInfo?.hours ?? '',
     developerWebsite: c.developerInfo?.website ?? '',
+    developerEmail: c.developerInfo?.email ?? '',
     metro: c.metro ?? '',
     parking: c.parking ?? '',
     website: c.website ?? '',
@@ -239,8 +242,9 @@ function buildDeveloperInfo(form: FormState): DeveloperInfo | null {
   const address = form.developerAddress.trim() || null;
   const hours = form.developerHours.trim() || null;
   const website = form.developerWebsite.trim() || null;
-  if (!logoUrl && !description && !phone && !address && !hours && !website) return null;
-  return { logoUrl, description, phone, address, hours, website };
+  const email = form.developerEmail.trim() || null;
+  if (!logoUrl && !description && !phone && !address && !hours && !website && !email) return null;
+  return { logoUrl, description, phone, address, hours, website, email };
 }
 
 // Блоки с пустым текстом/подписью не сохраняем — та же логика, что раньше
@@ -915,6 +919,12 @@ export function BusinessCentersAdminTab() {
                 label="Часы работы"
                 value={form.developerHours}
                 onChange={(e) => setForm({ ...form, developerHours: e.target.value })}
+              />
+              <Input
+                label="Email"
+                value={form.developerEmail}
+                onChange={(e) => setForm({ ...form, developerEmail: e.target.value })}
+                placeholder="info@..."
               />
             </div>
           </div>
