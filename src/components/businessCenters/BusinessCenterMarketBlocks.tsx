@@ -6,6 +6,7 @@ import type { BusinessCenter } from '../../data/businessCenters';
 import type { BusinessCenterReview } from '../../data/businessCenterReviews';
 import { parseHighlightRatings, parseReviewQuote } from '../../lib/businessCenterDisplay';
 import { AXIS_DOMAIN_PCT, type ComparisonBar, type MarketPosition } from '../../lib/businessCenterMarketPosition';
+import type { PriceCard, PriceComparison } from '../../lib/businessCenterPriceCompare';
 
 // Авторские блоки карточки БЦ (Б1, Б10, Б11 плана
 // docs/bc-catalog-redesign-plan.md) — то, чего на странице не было вовсе:
@@ -122,6 +123,64 @@ export function MarketPositionBlock({
           <ComparisonRow key={bar.label} bar={bar} />
         ))}
       </div>
+    </div>
+  );
+}
+
+// --- Цены в здании и по рынку -------------------------------------------
+//
+// Вёрстка выбрана владельцем 2026-09-21 из нескольких макетов; отвергнутое
+// по дороге стоит держать в голове, чтобы не вернуть: гребёнка с точкой
+// «вы здесь» на шкале («надо быть прям аналитиком, чтобы разобраться»),
+// шкала-термометр под плитками («непонятная»), тёмная плитка своего здания
+// («слишком агрессивный») и красный акцент на цене («ещё хуже» — на
+// странице, где мы это здание предлагаем, красный читается как авария).
+// Осталось ровно три плитки на сделку: своё здание белым, базы сравнения
+// блеклыми, и словесная оценка пилюлей под ценой.
+
+function PriceTile({ card, self, verdict }: { card: PriceCard; self?: boolean; verdict?: string }) {
+  return (
+    <div className={cn('min-w-0 flex-1 basis-0 rounded-2xl px-5 py-4', self ? 'border border-border-strong bg-surface' : 'bg-surface-muted')}>
+      <div className={cn('text-[11px] font-bold uppercase tracking-wider', self ? 'text-ink-muted' : 'text-ink-faint')}>{card.label}</div>
+      {/* Длинные цены продажи («$1 430 – 2 050») в крупном кегле не влезают
+          в треть ширины — им свой размер, а не перенос на вторую строку. */}
+      <div
+        className={cn(
+          'mt-1.5 whitespace-nowrap font-black leading-none',
+          card.value.length > 10 ? 'text-[24px]' : 'text-[30px]',
+          self ? 'text-ink' : 'text-ink-muted',
+        )}
+      >
+        {card.value}
+      </div>
+      {verdict && (
+        <div className="mt-2.5">
+          <span className="inline-block rounded-full border border-border-strong bg-surface-muted px-2.5 py-1 text-[11px] font-bold leading-none text-ink-muted">
+            {verdict}
+          </span>
+        </div>
+      )}
+      <div className={cn('mt-2 text-[11px] leading-tight', self ? 'text-ink-muted' : 'text-ink-faint')}>{card.note}</div>
+    </div>
+  );
+}
+
+export function PriceComparisonBlock({ comparison }: { comparison: PriceComparison }) {
+  if (comparison.blocks.length === 0) return null;
+  return (
+    <div id="rate-comparison" className={cn('mt-6 flex scroll-mt-32 flex-col gap-6 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+      <h2 className="text-lg font-bold text-ink sm:text-xl">Цены в здании и по рынку</h2>
+      {comparison.blocks.map((block) => (
+        <div key={block.deal}>
+          <div className="text-xs font-bold uppercase tracking-wider text-ink-muted">{block.title}</div>
+          <div className="mt-2.5 flex flex-col gap-2.5 sm:flex-row">
+            <PriceTile card={block.self} self verdict={block.verdict} />
+            {block.bases.map((b) => (
+              <PriceTile key={b.label} card={b} />
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import { pluralRu } from '../../lib/pluralRu';
-import { benchmarkLine, type DealBenchmark } from '../../lib/businessCenterOfferBenchmark';
 import { formatArea, formatMoney, formatRate, type DealStats, type DealType } from '../../lib/businessCenterOfferStats';
 
 // Блок «Что сейчас сдают и продают в здании».
@@ -25,8 +24,10 @@ import { formatArea, formatMoney, formatRate, type DealStats, type DealType } fr
 //        цена за метр остаётся подписью, она нужна только тем, кто
 //        сравнивает здания между собой;
 //      • шапок таблицы нет: «28 м², 7 этаж — $57 600» читается и без них;
-//      • одно сравнение с рынком вместо двух, словами (см.
-//        businessCenterOfferBenchmark);
+//      • сравнения с рынком тут нет совсем: параллельно оно переехало в
+//        соседний блок «Цены в здании и по рынку»
+//        (lib/businessCenterPriceCompare), а два разных сравнения одного
+//        и того же на одном экране хуже любого из них;
 //    Подробные цифры (крайние ставки, разбивка по типам) никуда не делись
 //    — они в FAQ под блоком.
 //
@@ -49,11 +50,10 @@ function roomsCount(n: number): string {
   return `${n} ${pluralRu(n, 'помещение', 'помещения', 'помещений')}`;
 }
 
-function DealColumn({ stats, benchmark }: { stats: DealStats; benchmark: DealBenchmark | null }) {
+function DealColumn({ stats }: { stats: DealStats }) {
   const [expanded, setExpanded] = useState(false);
   const isRent = stats.deal === 'rent';
   const visible = expanded ? stats.lots : stats.lots.slice(0, VISIBLE_LOTS);
-  const comparison = benchmarkLine(stats.median, benchmark);
   // Тип помещения подписывается, только когда их правда несколько: в
   // здании с одними офисами это слово повторялось бы в каждой строке.
   const showType = stats.propertyTypes.length > 1;
@@ -68,7 +68,6 @@ function DealColumn({ stats, benchmark }: { stats: DealStats; benchmark: DealBen
           от {formatMoney(stats.totalMin)} до {formatMoney(stats.totalMax)}
           {isRent && <span className="text-base font-bold text-ink-muted"> в месяц</span>}
         </span>
-        {comparison && <span className="text-xs text-ink-muted">{comparison}</span>}
       </div>
 
       <ul className="flex flex-col divide-y divide-border border-t border-border">
@@ -107,17 +106,7 @@ function DealColumn({ stats, benchmark }: { stats: DealStats; benchmark: DealBen
   );
 }
 
-export function BuildingOffersSection({
-  sale,
-  rent,
-  saleBenchmark,
-  rentBenchmark,
-}: {
-  sale: DealStats | null;
-  rent: DealStats | null;
-  saleBenchmark: DealBenchmark | null;
-  rentBenchmark: DealBenchmark | null;
-}) {
+export function BuildingOffersSection({ sale, rent }: { sale: DealStats | null; rent: DealStats | null }) {
   if (!sale && !rent) return null;
   const columns = [sale, rent].filter((s): s is DealStats => s !== null);
   // Скидка за объём — только у продажи: покупателю она меняет решение
@@ -131,7 +120,7 @@ export function BuildingOffersSection({
 
       <div className={cn('grid items-start gap-6', columns.length > 1 ? 'md:grid-cols-2' : 'max-w-xl')}>
         {columns.map((stats) => (
-          <DealColumn key={stats.deal} stats={stats} benchmark={stats.deal === 'sale' ? saleBenchmark : rentBenchmark} />
+          <DealColumn key={stats.deal} stats={stats} />
         ))}
       </div>
 

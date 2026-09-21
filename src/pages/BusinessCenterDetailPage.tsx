@@ -32,13 +32,16 @@ import {
   Newspaper,
   Palette,
   Phone,
+  Presentation,
   Ruler,
   ScrollText,
   ShoppingBag,
   Sparkles,
   Star,
   Trophy,
+  UtensilsCrossed,
   Users,
+  Waves,
 } from 'lucide-react';
 import { outletBrand } from '../data/mediaOutlets';
 import { cn } from '../lib/cn';
@@ -75,7 +78,6 @@ import {
   metroHubDistance,
   metroHubUrl,
   streetHubUrl,
-  districtDative,
   districtPrepositional,
   classDistrictHubUrl,
   classHubUrl,
@@ -94,7 +96,6 @@ import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
 import { dedupeOffers } from '../lib/businessCenterOfferDuplicates';
 import { buildDealStats, formatArea, formatMoney, formatRate } from '../lib/businessCenterOfferStats';
 import { BuildingOffersSection } from '../components/businessCenters/BuildingOffersSection';
-import type { DealBenchmark } from '../lib/businessCenterOfferBenchmark';
 import { pluralRu } from '../lib/pluralRu';
 import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import type { MarketSnapshot } from '../data/marketSnapshots';
@@ -116,10 +117,12 @@ import { TenantDirectory } from '../components/businessCenters/TenantDirectory';
 import type { BusinessCenterTenantSnapshot } from '../data/businessCenterTenants';
 import { buildOfferIndex, METRO_LINE_DOT_CLASS, metroLineId } from '../lib/businessCenterCatalogFilter';
 import { buildMarketPosition, haversineMeters } from '../lib/businessCenterMarketPosition';
+import { buildPriceComparison } from '../lib/businessCenterPriceCompare';
 import {
   extractHistoryPoints,
   HistoryTimeline,
   MarketPositionBlock,
+  PriceComparisonBlock,
   WhatTheySayBlock,
 } from '../components/businessCenters/BusinessCenterMarketBlocks';
 import { NearbyInfrastructureBlock } from '../components/businessCenters/BusinessCenterNeighbours';
@@ -502,40 +505,6 @@ export function BusinessCenterDetailPage() {
   // пересказывает FAQ под ним.
   const saleStats = useMemo(() => buildDealStats(offers, 'sale'), [offers]);
   const rentStats = useMemo(() => buildDealStats(offers, 'rent'), [offers]);
-  const classSnapshot = useMemo(
-    () =>
-      center?.businessClass
-        ? {
-            rent: (officeSnapshots ?? []).find((s) => s.deal === 'rent' && s.sliceType === 'class' && s.sliceKey === center.businessClass),
-            sale: (officeSnapshots ?? []).find((s) => s.deal === 'sale' && s.sliceType === 'class' && s.sliceKey === center.businessClass),
-          }
-        : null,
-    [officeSnapshots, center],
-  );
-  const districtSnapshot = useMemo(
-    () =>
-      center?.district
-        ? {
-            rent: (officeSnapshots ?? []).find((s) => s.deal === 'rent' && s.sliceType === 'district' && s.sliceKey === center.district),
-            sale: (officeSnapshots ?? []).find((s) => s.deal === 'sale' && s.sliceType === 'district' && s.sliceKey === center.district),
-          }
-        : null,
-    [officeSnapshots, center],
-  );
-  // Срезы рынка для сравнения с ценой этого здания. Раньше из них
-  // собирался отдельный блок под таблицей — с 2026-09-21 строка сравнения
-  // стоит вплотную к самому числу, внутри плитки сделки.
-  const benchmarks = useMemo<{ rent: DealBenchmark; sale: DealBenchmark }>(() => {
-    // Подписи встают в фразу «…чем в среднем по зданиям класса B» /
-    // «…чем в среднем по Московскому району» — предложный падеж.
-    const classLabel = center?.businessClass ? `по зданиям класса ${center.businessClass}` : null;
-    const districtLabel = center?.district ? `по ${districtDative(center.district)} району` : null;
-    return {
-      rent: { classLabel, classSnapshot: classSnapshot?.rent, districtLabel, districtSnapshot: districtSnapshot?.rent },
-      sale: { classLabel, classSnapshot: classSnapshot?.sale, districtLabel, districtSnapshot: districtSnapshot?.sale },
-    };
-  }, [center, classSnapshot, districtSnapshot]);
-
   // Рейтинг Яндекс.Карт вынесен из общего списка фактов в короткий бейдж
   // рядом с заголовком. Подробный исходный текст не используется как tooltip.
   const mapRating = useMemo(() => mapRatingFromHighlights(center?.highlights ?? []), [center]);
@@ -763,6 +732,11 @@ export function BusinessCenterDetailPage() {
           h.icon !== 'history' &&
           h.icon !== 'award' &&
           h.icon !== 'warning' &&
+          // 'media' — тоже переехал в свой блок ("Публикации в СМИ",
+          // mediaMentions) 2026-09-20, но старые факты с этой иконкой в
+          // highlights не почистили тогда же — владелец, 2026-09-21:
+          // "media - убираем, у нас есть блок СМИ".
+          h.icon !== 'media' &&
           (h.icon !== 'tenants' || tenantOrganizations.length === 0),
       ) ?? [],
     [center, tenantOrganizations],
@@ -1073,6 +1047,10 @@ export function BusinessCenterDetailPage() {
     () => (center ? buildMarketPosition(center, centers ?? [], officeSnapshots, offerIndex) : null),
     [center, centers, officeSnapshots, offerIndex],
   );
+  const priceComparison = useMemo(
+    () => (center ? buildPriceComparison(center, centers ?? [], offerIndex) : null),
+    [center, centers, offerIndex],
+  );
   // Цитаты отзывов из «Интересных фактов» — отдельным блоком «Что говорят»
   // вместе с рейтингами (Б11), а не россыпью по странице.
   const reviewQuotes = useMemo(
@@ -1303,6 +1281,20 @@ export function BusinessCenterDetailPage() {
         );
       }
     }
+    // Блок «Цены в здании и по рынку» — теми же строками, что нарисованы в
+    // плитках: формулировки приходят из businessCenterPriceCompare, своей
+    // арифметики здесь нет (правило «FAQ описывает всё, что на странице»).
+    for (const block of priceComparison?.blocks ?? []) {
+      const isRent = block.deal === 'rent';
+      add(
+        isRent
+          ? `Дорого ли снимать в «${name}» по сравнению с другими бизнес-центрами?`
+          : `Дорого ли покупать в «${name}» по сравнению с другими бизнес-центрами?`,
+        `${isRent ? 'Аренда' : 'Продажа'} здесь — ${block.self.value} за м²${isRent ? ' в месяц' : ''}, это ${block.verdict}. Для сравнения: ${block.bases
+          .map((b) => `${b.value} (${b.note})`)
+          .join(', ')}. Диапазон — цены половины зданий группы, без самой дешёвой и самой дорогой четвертей.`,
+      );
+    }
     if (center.rentalInfo) {
       const info = center.rentalInfo;
       add('Какие условия и контакты аренды опубликованы?', [info.terms, info.rates, info.sizes, info.contacts].filter(Boolean).join(' ') + ' Актуальные условия уточняйте у арендодателя.');
@@ -1382,7 +1374,7 @@ export function BusinessCenterDetailPage() {
     }
     add('Как исправить сведения о здании?', 'Если хотите добавить, убрать или изменить информацию, напишите на a@redevelopment.pro, указав бизнес-центр и сведения, которые нужно поправить.');
     return items;
-  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, saleStats, rentStats, awardItems, mediaMentions, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces]);
+  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, saleStats, rentStats, awardItems, mediaMentions, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces, priceComparison?.blocks]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -1974,21 +1966,29 @@ export function BusinessCenterDetailPage() {
             если по БЦ нет объявлений на внешних площадках, блок целиком не
             выводится — раньше на этом месте была строка-заглушка.
 
-            2026-09-21: таблица «тип помещения × диапазон цены» заменена на
-            плитки сделок, таблицу самих лотов и окупаемость — владелец:
-            «вроде таблица, вроде всё ок, но читается отвратительно» и «с
-            таким разбросом цены метра толком ничего не проанализируешь».
-            Разбор и правила — в BuildingOffersSection и
-            lib/businessCenterOfferStats.ts. Туда же ушло сравнение со
-            срезом рынка, которое 2026-09-20 жило отдельным блоком
-            #rate-comparison: само по себе «$2 000/м²» ничего не говорит,
-            сравнение должно стоять вплотную к числу. */}
-        <BuildingOffersSection
-          sale={saleStats}
-          rent={rentStats}
-          saleBenchmark={benchmarks.sale}
-          rentBenchmark={benchmarks.rent}
-        />
+            2026-09-21: таблица «тип помещения × диапазон цены» заменена
+            сначала на плитки с медианами, потом — после «прям овер сложно
+            воспринимать инфу, нужно упрощать, чтобы поняла домохозяйка» —
+            на список самих помещений с ценой каждого. Разбор и правила —
+            в BuildingOffersSection и lib/businessCenterOfferStats.ts.
+            Сравнение со срезом рынка живёт в соседнем блоке «Цены в
+            здании и по рынку», окупаемость не считается вовсе (обе
+            причины — в комментариях тех файлов). */}
+        <BuildingOffersSection sale={saleStats} rent={rentStats} />
+
+        {/* Цены здания против рынка. Прежде здесь лежали два предложения с
+            процентами («Аренда в этом здании — $15/м²/мес, это выше на 30%
+            медианы по классу B…»); владелец 2026-09-21: блок нечитаемый,
+            нужен понятный обычному человеку, а не аналитику. Что и почему
+            считается именно так — в lib/businessCenterPriceCompare.ts,
+            перебранные и отвергнутые макеты — в комментарии у
+            PriceComparisonBlock. */}
+        {/* Снимок рынка пересобирается раз в месяц, а объявления синк
+            заменяет чаще — у здания, где объявления кончились, снимок ещё
+            живёт. Подпись «4 предложения в здании» в таком случае врала бы
+            настоящим временем, поэтому блок привязан к текущим объявлениям,
+            а не только к снимку. */}
+        {offers !== null && offers.length > 0 && priceComparison && <PriceComparisonBlock comparison={priceComparison} />}
 
         {renderRecommendationSlot('offers')}
 
@@ -2779,19 +2779,32 @@ const INTERNAL_INFRASTRUCTURE_ICONS: { pattern: RegExp; icon: typeof FileText }[
   { pattern: /кофе|кафе/i, icon: Coffee },
   { pattern: /магазин/i, icon: ShoppingBag },
   { pattern: /фитнес|спортзал/i, icon: Dumbbell },
+  { pattern: /спа|сауна/i, icon: Waves },
+  { pattern: /конференц/i, icon: Presentation },
+  { pattern: /ресторан/i, icon: UtensilsCrossed },
 ];
 
-// То же пять категорий, но для сопоставления с текстом из базы (рубрики
+// Те же категории, но для сопоставления с текстом из базы (рубрики
 // организаций, подписи оборудования), а не с вручную набранным списком
 // владельца, — там регулярки нарочно строже (граница слова через lookahead,
 // см. использование выше в derivedInternalInfrastructureText): свободный
 // текст владелец уже проверил глазами, а рубрики тысяч арендаторов — нет.
+//
+// Спа/сауна/конференц-залы/ресторан добавлены 2026-09-21 по прямому
+// указанию владельца (эти категории — в шапку блока «В здании», остальные
+// внутренние сервисы, которых нет и не будет в этом фиксированном списке,
+// закрывает каталог арендаторов ниже по странице, отдельных категорий под
+// них не заводим — см. "не расширял бы количество новых категорий",
+// 2026-09-20, и разбор "Интересных фактов" 2026-09-21).
 const TENANT_DERIVED_INFRASTRUCTURE: { pattern: RegExp; label: string }[] = [
   { pattern: /банкомат(?![\p{L}])/iu, label: 'банкомат' },
   { pattern: /банк(?![\p{L}])/iu, label: 'банк' },
   { pattern: /(?:кофе|кафе)(?![\p{L}])/iu, label: 'кафе' },
   { pattern: /магазин(?![\p{L}])/iu, label: 'магазин' },
   { pattern: /(?:фитнес|спортзал)(?![\p{L}])/iu, label: 'фитнес-центр' },
+  { pattern: /(?:спа|сауна)(?![\p{L}])/iu, label: 'спа' },
+  { pattern: /конференц(?![\p{L}])/iu, label: 'конференц-зал' },
+  { pattern: /ресторан(?![\p{L}])/iu, label: 'ресторан' },
 ];
 
 // organizationCount — первая плитка строки «В здании» на первом экране
