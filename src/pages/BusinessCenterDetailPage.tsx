@@ -26,6 +26,7 @@ import {
   Info,
   Landmark,
   Leaf,
+  Mail,
   MapPin,
   MessageSquareQuote,
   Newspaper,
@@ -66,11 +67,18 @@ import {
 } from '../lib/businessCenterDisplay';
 import { nearestMetroStation } from '../lib/metroStations';
 import {
+  estimateTextLines,
+  planRecommendationSlots,
+  type PageSectionSize,
+} from '../lib/businessCenterPageLayout';
+import {
   metroHubDistance,
   metroHubUrl,
   streetHubUrl,
   districtPrepositional,
   classDistrictHubUrl,
+  classHubUrl,
+  districtHubUrl,
   microdistrictHubUrl,
 } from '../lib/businessCenterHubs';
 import type { BusinessCenter, HighlightIconKey } from '../data/businessCenters';
@@ -83,6 +91,8 @@ import { fetchBusinessCenterReviews } from '../lib/businessCenterReviewsApi';
 import type { BusinessCenterOffer } from '../data/businessCenterOffers';
 import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
 import { dedupeOffers } from '../lib/businessCenterOfferDuplicates';
+import { buildDealStats, buildYieldStats, formatArea, formatMoney, formatPercent, formatRate, formatYears } from '../lib/businessCenterOfferStats';
+import { BuildingOffersSection } from '../components/businessCenters/BuildingOffersSection';
 import { pluralRu } from '../lib/pluralRu';
 import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import type { MarketSnapshot } from '../data/marketSnapshots';
@@ -293,20 +303,23 @@ const SECTION_ICONS: Record<string, typeof FileText> = {
   faq: Info,
 };
 
-// Блоки-выходы на другие БЦ (2026-09-20, доработано после фидбэка
-// владельца тем же днём: "везде разное количество блоков, какие-то
-// страницы длинные, какие-то короткие" + "два блока рекомендаций падают
-// рядом"). Первая версия вешала каждый блок на конкретного соседа
-// ("микрорайон — сразу после карты", "метро — сразу после рынка"), и это
-// ломалось ровно там, где у конкретного БЦ этого соседа не было или он
-// был пустым — на бедных данными страницах блоки либо пропадали, либо
-// слипались. Вторая версия (recommendationSlots ниже) не привязана к
-// именам соседних блоков: она раскладывает блоки-рекомендации по
-// накопленному объёму обычного контента (первый — после 5-го блока
-// страницы, дальше — примерно каждые 1,5–2 экрана) и по приоритету
-// (богаче пулом кандидатов — раньше; с одним кандидатом — в последнюю
-// очередь, см. recommendationBlocks).
-type RecommendationBlockId = 'microdistrictCenters' | 'metroCenters' | 'ratingCenters' | 'classDistrictCenters' | 'streetCenters';
+// Блоки-выходы на другие БЦ. Здесь только то, ЧТО показывать и в каком
+// порядке приоритета; ГДЕ поставить — решает planRecommendationSlots
+// (src/lib/businessCenterPageLayout.ts), там же разбор двух предыдущих
+// версий раскладки и замеры живых страниц.
+//
+// Порядок очереди = приоритет: чем богаче пул кандидатов, тем выше блок
+// на странице. Два общегородских блока (класс, просто соседние) —
+// исключение: они стоят в конце очереди независимо от размера пула,
+// потому что они самые неспецифичные.
+type RecommendationBlockId =
+  | 'microdistrictCenters'
+  | 'metroCenters'
+  | 'ratingCenters'
+  | 'classDistrictCenters'
+  | 'streetCenters'
+  | 'classCenters'
+  | 'nearbyCenters';
 
 interface RecommendationBlockData {
   id: RecommendationBlockId;
@@ -317,46 +330,6 @@ interface RecommendationBlockData {
   stationName?: string;
   fallbackCenter?: BusinessCenter;
 }
-
-// Примерный вес обычного блока контента в "экранах" — нет способа измерить
-// реальную высоту рендера без клиентского layout-прохода (а на странице,
-// которая ещё и пререндерится headless-браузером на сборке, это лишний
-// источник нестабильности), поэтому веса — грубая оценка по типичному
-// наполнению блока, не точный пиксельный расчёт. 1.0 ≈ один экран обычной
-// высоты. reviews оценивается отдельно (см. recommendationSlots) — блок
-// то с полноценными карточками отзывов, то с одними бейджами рейтинга,
-// разница в высоте кратная.
-const SECTION_WEIGHTS: Record<string, number> = {
-  offers: 0.6,
-  rental: 0.3,
-  tech: 1.0,
-  map: 1.3,
-  tenants: 1.1,
-  market: 1.4,
-  awards: 0.3,
-  media: 0.3,
-  facts: 0.6,
-  history: 0.5,
-  developer: 0.5,
-};
-const DEFAULT_SECTION_WEIGHT = 0.5;
-const RECOMMENDATION_BLOCK_WEIGHT = 0.6;
-// "После 3-го блока страницы" (владелец, 2026-09-20) считает от самого
-// первого визуального блока — главной карточки с фото/ценой/адресом,
-// которая рисуется всегда и без условия, поэтому в pageSections (список
-// именно УСЛОВНЫХ блоков, начинается с "Параметров здания") её нет. Порог
-// здесь — 2, а не 3, ровно на эту разницу в счёте: pageSections[1] (2-й
-// в списке) — это тот же самый блок, что и 3-й на глаз у читателя.
-const FIRST_RECOMMENDATION_AFTER_SECTIONS = 2;
-// Диапазон интервала между соседними рекомендациями (владелец, 2026-09-20:
-// "не чаще, чем 1 на экран, но можно не реже, чем через каждые 2.5
-// экрана") — нижняя граница держит блоки не теснее экрана друг к другу,
-// верхнюю отдельно можно не проверять: при максимальном весе одного
-// обычного блока (market, 1.4 — см. SECTION_WEIGHTS) и проверке на каждом
-// блоке подряд, а не раз в несколько, реальный интервал не может
-// перепрыгнуть за NEXT_RECOMMENDATION_MIN_WEIGHT + 1.4, то есть заведомо
-// меньше 2.5 при самом MIN_WEIGHT = 1.0.
-const NEXT_RECOMMENDATION_MIN_WEIGHT = 1.0;
 
 const EMPTY_NEARBY_PLACES: BusinessCenterNearbyPlace[] = [];
 const EMPTY_REVIEWS: BusinessCenterReview[] = [];
@@ -524,9 +497,12 @@ export function BusinessCenterDetailPage() {
   const prev = index > 0 ? sorted[index - 1] : null;
   const next = index >= 0 && index < sorted.length - 1 ? sorted[index + 1] : null;
 
-  const saleRows = useMemo(() => computeOfferRows(offers ?? [], 'sale'), [offers]);
-  const rentRows = useMemo(() => computeOfferRows(offers ?? [], 'rent'), [offers]);
-
+  // Сводка по сделке (лоты, медиана, бюджет лота, скидка за объём) и
+  // окупаемость покупки арендой — одни и те же цифры рисует блок
+  // «Что сейчас сдают и продают» и пересказывает FAQ под ним.
+  const saleStats = useMemo(() => buildDealStats(offers, 'sale'), [offers]);
+  const rentStats = useMemo(() => buildDealStats(offers, 'rent'), [offers]);
+  const yieldStats = useMemo(() => buildYieldStats(offers), [offers]);
   // Рейтинг Яндекс.Карт вынесен из общего списка фактов в короткий бейдж
   // рядом с заголовком. Подробный исходный текст не используется как tooltip.
   const mapRating = useMemo(() => mapRatingFromHighlights(center?.highlights ?? []), [center]);
@@ -738,13 +714,30 @@ export function BusinessCenterDetailPage() {
   // авторскими блоками: рейтинг и отзывы уехали в «Что говорят» (Б11),
   // история — в таймлайн (Б10). Дублировать один и тот же текст в двух
   // местах страницы хуже, чем не показать его вовсе.
+  //
+  // 'tenants' — туда же: с 2026-09-19 у подавляющего большинства БЦ есть
+  // полноценный "Каталог арендаторов" (TenantDirectory, реальные названия
+  // организаций с картой) — проверено по живой базе 2026-09-21: у 82 из 83
+  // БЦ, где такой факт вообще есть, каталог арендаторов уже заполнен. Держим
+  // факт только для той единственной БЦ, где каталога нет (условие на
+  // tenantOrganizations, не безусловное исключение icon'а).
   const visibleHighlights = useMemo(
     () =>
       center?.highlights.filter(
         (h) =>
-          h.icon !== 'rating' && h.icon !== 'reviews' && h.icon !== 'history' && h.icon !== 'award' && h.icon !== 'warning',
+          h.icon !== 'rating' &&
+          h.icon !== 'reviews' &&
+          h.icon !== 'history' &&
+          h.icon !== 'award' &&
+          h.icon !== 'warning' &&
+          // 'media' — тоже переехал в свой блок ("Публикации в СМИ",
+          // mediaMentions) 2026-09-20, но старые факты с этой иконкой в
+          // highlights не почистили тогда же — владелец, 2026-09-21:
+          // "media - убираем, у нас есть блок СМИ".
+          h.icon !== 'media' &&
+          (h.icon !== 'tenants' || tenantOrganizations.length === 0),
       ) ?? [],
-    [center],
+    [center, tenantOrganizations],
   );
 
   // Публикации в СМИ — свой блок (владелец, 2026-09-20). Сортируем от свежих:
@@ -965,12 +958,80 @@ export function BusinessCenterDetailPage() {
       return fallback;
     };
 
-    return candidates
-      .map((c) => {
-        const list = takeVisible(c.raw.filter((candidate) => !usedSlugs.has(candidate.slug)));
-        return c.build(list, takeFallback(c.id, list));
-      })
-      .filter((b): b is RecommendationBlockData => b !== null);
+    const buildAll = (list: Candidate[]) =>
+      list
+        .map((c) => {
+          const visible = takeVisible(c.raw.filter((candidate) => !usedSlugs.has(candidate.slug)));
+          return c.build(visible, takeFallback(c.id, visible));
+        })
+        .filter((b): b is RecommendationBlockData => b !== null);
+
+    // Специфичные блоки собираются ПЕРВЫМИ — и только потом, глядя на то,
+    // что из них реально осталось, добираются общегородские. Порядок
+    // важен: у блока по улице или метро в пуле бывает одно здание, и
+    // дедуп выше может его забрать — блок исчезает. Прошлая версия
+    // спрашивала «есть ли блок по улице» у ОЧЕРЕДИ, а не у результата, и
+    // на «Офисинвесте» глушила общегородской блок из-за уличного,
+    // который потом сам не выжил: страница в 7,7 экрана оставалась с
+    // двумя блоками и дырой в 5 экранов (прогон 2026-09-21).
+    const specific = buildAll(candidates);
+
+    // Общегородские блоки. «Бизнес-центры класса B в Минске» рядом с
+    // «Бизнес-центры класса B в Первомайском районе» — два заголовка,
+    // различающиеся хвостом, и второй по смыслу входит в первый; прогон
+    // 141 страницы дал 33 таких пары, поэтому городской блок по классу
+    // идёт только туда, где районного нет. «Бизнес-центры рядом» такой
+    // оговорки не требуют: заголовок ни с чем не сливается, а здания в
+    // нём после дедупа всегда другие — это универсальный добор, и без
+    // него страницы без совпадений по метро/улице/микрорайону остаются
+    // с одним-двумя блоками на девять экранов.
+    const generic: Candidate[] = [];
+    const businessClass = center.businessClass;
+    if (businessClass && !specific.some((b) => b.id === 'classDistrictCenters')) {
+      const classRaw = centers.filter((c) => c.slug !== center.slug && c.businessClass === businessClass).sort(byDistance);
+      if (classRaw.length > 0) {
+        generic.push({
+          id: 'classCenters',
+          raw: classRaw,
+          build: (list) =>
+            list.length > 0
+              ? {
+                  id: 'classCenters',
+                  title: `Бизнес-центры класса ${businessClass} в Минске`,
+                  centers: list,
+                  catalogUrl: classHubUrl(businessClass),
+                  catalogLabel: `Все БЦ класса ${businessClass}`,
+                }
+              : null,
+        });
+      }
+    }
+    if (center.lat != null && center.lng != null) {
+      const nearbyRaw = centers.filter((c) => c.slug !== center.slug).sort(byDistance);
+      const districtUrl = center.district ? districtHubUrl(center.district) : null;
+      const district = center.district;
+      if (nearbyRaw.length > 0) {
+        generic.push({
+          id: 'nearbyCenters',
+          raw: nearbyRaw,
+          build: (list) =>
+            list.length > 0
+              ? {
+                  id: 'nearbyCenters',
+                  title: 'Бизнес-центры рядом',
+                  centers: list,
+                  catalogUrl: districtUrl ?? '/minsk/bcminsk',
+                  catalogLabel:
+                    districtUrl && district
+                      ? `Все БЦ в ${districtPrepositional(district)} районе`
+                      : 'Все бизнес-центры Минска',
+                }
+              : null,
+        });
+      }
+    }
+
+    return [...specific, ...buildAll(generic)];
   }, [center, centers, nearestMetro]);
 
   // Медианы по зданиям (Д3) — те же, что в каталоге и блоке
@@ -980,22 +1041,6 @@ export function BusinessCenterDetailPage() {
   // Сводка по сделке (диапазон площади/цены) — используется в FAQ; на
   // самой странице с 2026-09-20 не выводится отдельной строкой, чтобы не
   // дублировать таблицу ниже (см. offers-блок).
-  const offersSummary = useMemo(() => {
-    const byDeal = (deal: 'rent' | 'sale') => {
-      const rows = (offers ?? []).filter((o) => o.dealType === deal && o.size > 0 && o.pricePerSqm > 0);
-      if (rows.length === 0) return null;
-      const sizes = rows.map((o) => o.size);
-      const prices = rows.map((o) => o.pricePerSqm);
-      return {
-        count: rows.length,
-        sizeMin: Math.min(...sizes),
-        sizeMax: Math.max(...sizes),
-        priceMin: Math.min(...prices),
-        priceMax: Math.max(...prices),
-      };
-    };
-    return { rent: byDeal('rent'), sale: byDeal('sale') };
-  }, [offers]);
   const marketPosition = useMemo(
     () => (center ? buildMarketPosition(center, centers ?? [], officeSnapshots, offerIndex) : null),
     [center, centers, officeSnapshots, offerIndex],
@@ -1207,17 +1252,52 @@ export function BusinessCenterDetailPage() {
     }
     add('Какие условия доступной среды указаны?', accessibilityAttributes);
     add('Какие часы работы указаны?', accessHoursText);
-    if (offers !== null && offers.length > 0) {
-      add('Сколько активных предложений аренды и продажи?', `Активных предложений: аренда — ${offers.filter((o) => o.dealType === 'rent').length}, продажа — ${offers.filter((o) => o.dealType === 'sale').length}.`);
-      for (const deal of ['rent', 'sale'] as const) {
-        const sum = offersSummary[deal];
-        if (sum) add(`Какие площади и ставки ${deal === 'rent' ? 'аренды' : 'продажи'} сейчас предлагаются?`, `${sum.count} лотов с указанными площадью и ставкой: ${fmt(Math.round(sum.sizeMin))}–${fmt(Math.round(sum.sizeMax))} м², $${fmt(Math.round(sum.priceMin))}–$${fmt(Math.round(sum.priceMax))}/м²${deal === 'rent' ? ' в месяц' : ''}.`);
+    // FAQ обязан описывать ВЕСЬ блок «Что сейчас сдают и продают» (правило
+    // владельца) — и описывает его теми же цифрами, что нарисованы выше:
+    // медиану, бюджет лота, скидку за объём и окупаемость считает один
+    // businessCenterOfferStats, отдельной арифметики здесь нет.
+    for (const stats of [saleStats, rentStats]) {
+      if (!stats) continue;
+      const isRent = stats.deal === 'rent';
+      const verb = isRent ? 'сдают' : 'продают';
+      const types = stats.propertyTypes.map((t) => `${t.propertyType.toLowerCase()} — ${t.count}`).join(', ');
+      add(
+        `Сколько помещений в «${name}» сейчас ${verb} и по какой цене?`,
+        `${stats.count} ${pluralRu(stats.count, 'лот', 'лота', 'лотов')} площадью ${formatArea(stats.sizeMin)}–${formatArea(stats.sizeMax)} (${types}). Медианная ставка — ${formatRate(stats.median, stats.deal)}/м²${isRent ? ' в месяц' : ''}, крайние значения ${formatRate(stats.minPrice, stats.deal)}–${formatRate(stats.maxPrice, stats.deal)}/м². Один и тот же лот, выложенный сразу на нескольких площадках, считается одним.`,
+      );
+      add(
+        isRent ? `Сколько стоит снять помещение в «${name}» целиком?` : `Сколько стоит купить помещение в «${name}» целиком?`,
+        `${isRent ? 'Платёж' : 'Бюджет покупки'} по ставке объявления — от ${formatMoney(stats.totalMin)} до ${formatMoney(stats.totalMax)}${isRent ? ' в месяц' : ''}: ${stats.lots
+          .map((lot) => `${formatArea(lot.size)} по ${formatRate(lot.pricePerSqm, stats.deal)}/м² — ${formatMoney(lot.size * lot.pricePerSqm)}${isRent ? ' в месяц' : ''}`)
+          .join('; ')}. Это площадь × ставка, а не итоговый платёж: состав коммунальных, эксплуатационных и других платежей в объявлениях не раскрыт.`,
+      );
+      if (stats.sizeDiscount) {
+        const d = stats.sizeDiscount;
+        add(
+          `Зависит ли цена метра в «${name}» от размера помещения?`,
+          `Да, ${isRent ? 'при аренде' : 'при покупке'} метр в крупном лоте дешевле: ${formatArea(d.smallSize)} — ${formatRate(d.smallPrice, stats.deal)}/м², ${formatArea(d.largeSize)} — ${formatRate(d.largePrice, stats.deal)}/м², разница ${Math.round(d.dropPct)}%.`,
+        );
       }
-      for (const [label, rows] of [['Аренда', rentRows], ['Продажа', saleRows]] as const) {
-        if (rows.length) add(`Какие помещения в «${name}» сейчас ${label === 'Аренда' ? 'сдают' : 'продают'} и по какой цене?`, rows.map((row) => `${row.propertyType}: ${row.count} объявлений, ${Math.round(row.minSize).toLocaleString('ru-RU')}–${Math.round(row.maxSize).toLocaleString('ru-RU')} м², ${formatUsd(row.minPrice)}–${formatUsd(row.maxPrice)}/м² (медиана ${formatUsd(row.medianPrice)})`).join('; '));
-      }
-      const priced = offers.filter((o) => Number.isFinite(o.size) && o.size > 0 && Number.isFinite(o.pricePerSqm) && o.pricePerSqm >= 0);
-      if (priced.length) add('Сколько стоит помещение целиком по ставке объявления?', priced.map((o) => `${o.dealType === 'rent' ? 'Аренда' : 'Продажа'}, ${fmt(o.size)} м² по $${fmt(o.pricePerSqm)}/м²: около $${fmt(Math.round(o.size * o.pricePerSqm))}${o.dealType === 'rent' ? ' в месяц' : ''}`).join('; ') + '. Это площадь × ставка, а не итоговый платёж: состав коммунальных, эксплуатационных и других платежей не раскрыт. Уточняйте у автора объявления.');
+    }
+    // Блок «Цены в здании и по рынку» — теми же строками, что нарисованы в
+    // плитках: формулировки приходят из businessCenterPriceCompare, своей
+    // арифметики здесь нет (правило «FAQ описывает всё, что на странице»).
+    for (const block of priceComparison?.blocks ?? []) {
+      const isRent = block.deal === 'rent';
+      add(
+        isRent
+          ? `Дорого ли снимать в «${name}» по сравнению с другими бизнес-центрами?`
+          : `Дорого ли покупать в «${name}» по сравнению с другими бизнес-центрами?`,
+        `${isRent ? 'Аренда' : 'Продажа'} здесь — ${block.self.value} за м²${isRent ? ' в месяц' : ''}, это ${block.verdict}. Для сравнения: ${block.bases
+          .map((b) => `${b.value} (${b.note})`)
+          .join(', ')}. Диапазон — цены половины зданий группы, без самой дешёвой и самой дорогой четвертей.`,
+      );
+    }
+    if (yieldStats) {
+      add(
+        `За сколько лет окупится покупка помещения в «${name}» при сдаче в аренду?`,
+        `Около ${formatYears(yieldStats.paybackYears)} — это ${formatPercent(yieldStats.grossYieldPct)} годовых до расходов: медиана продажи ${formatRate(yieldStats.salePricePerSqm, 'sale')}/м² против медианы аренды ${formatRate(yieldStats.rentPricePerSqm, 'rent')}/м² в месяц по одному и тому же типу помещений (${yieldStats.propertyType.toLowerCase()}, ${yieldStats.saleCount} на продажу и ${yieldStats.rentCount} в аренду). Простой, налоги и эксплуатационные платежи в расчёт не входят.`,
+      );
     }
     if (center.rentalInfo) {
       const info = center.rentalInfo;
@@ -1298,7 +1378,7 @@ export function BusinessCenterDetailPage() {
     }
     add('Как исправить сведения о здании?', 'Если хотите добавить, убрать или изменить информацию, напишите на a@redevelopment.pro, указав бизнес-центр и сведения, которые нужно поправить.');
     return items;
-  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, offers, offersSummary, rentRows, saleRows, awardItems, mediaMentions, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces]);
+  }, [center, centers, nearestMetro, marketPosition, accessibilityAttributes, accessHoursText, saleStats, rentStats, yieldStats, awardItems, mediaMentions, visibleHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces, priceComparison?.blocks]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -1315,7 +1395,7 @@ export function BusinessCenterDetailPage() {
     // внутри → на фоне конкурентов → отзывы → блоки доверия (награды/СМИ/
     // факты/история) → застройщик → FAQ.
     return [
-      has('offers', offers !== null && offers.length > 0),
+      has('offers', saleStats !== null || rentStats !== null),
       has('rental', Boolean(center.rentalInfo)),
       has(
         'tech',
@@ -1346,7 +1426,8 @@ export function BusinessCenterDetailPage() {
   }, [
     center,
     marketPosition,
-    offers,
+    saleStats,
+    rentStats,
     awardItems,
     visibleHighlights,
     mediaMentions,
@@ -1360,66 +1441,99 @@ export function BusinessCenterDetailPage() {
     reviews,
   ]);
 
-  // Расставляет recommendationBlocks (уже отсортированные по приоритету) по
-  // накопленному объёму ОБЫЧНОГО контента страницы, а не по имени
-  // конкретного соседа — владелец, 2026-09-20, после того как версия
-  // "микрорайон всегда после карты, метро всегда после рынка" на бедных
-  // данными страницах то теряла блоки (после карты — пусто, у конкретного
-  // БЦ просто не было микрорайона), то роняла два блока рекомендаций
-  // впритык друг к другу (между ними не оставалось контента-разделителя).
-  // Правило: первый блок — как только пройдено 5 обычных блоков страницы,
-  // каждый следующий — когда с прошлой рекомендации набралось ~1,5–2
-  // "экрана" веса (см. SECTION_WEIGHTS). FAQ и "Источники" — фиксированный
-  // хвост страницы (правило владельца: FAQ всегда предпоследний, источники
-  // последние), рекомендация никогда не встаёт между ними или после них.
-  //
-  // FAQ при этом обычно самый ДЛИННЫЙ блок на странице (описывает "вообще
-  // всё", см. CLAUDE.md) — если совсем исключить его вес из расчёта, вся
-  // эта немалая площадь достаётся странице без единой рекомендации, а
-  // очередь кандидатов просто вымирает, не успев набрать порог до конца
-  // обычного контента (владелец, 2026-09-20, на "Альянсе": "на такую
-  // огромную страницу всего 1 блок — позор"). Поэтому у последнего перед
-  // FAQ блока есть "последний шанс": в его собственный накопленный вес
-  // прибавляется оценка веса самого FAQ (по числу вопросов), и если этого
-  // достаточно — или если на странице вообще ещё не было ни одной
-  // рекомендации — блок ставится тут, перед FAQ, а не после него.
+  // Сколько в блоке повторяющихся элементов — единственное, что нужно
+  // модели высот из businessCenterPageLayout, чтобы прикинуть, насколько
+  // блок длинный. Смысл числа у каждого блока свой: у offers это строки
+  // таблицы, у faq — вопросы, у market — полосы сравнения, у rental и
+  // developer — строки текста после переноса.
+  const sectionSizes = useMemo<PageSectionSize[]>(() => {
+    if (!center) return [];
+    const rentalInfo = center.rentalInfo;
+    const developerInfo = center.developerInfo;
+    const sizeOf = (id: string): number => {
+      switch (id) {
+        // С 2026-09-21 блок — две колонки (продажа и аренда) рядом, в
+        // каждой таблица лотов со свёрткой по шесть строк: высоту задаёт
+        // та колонка, что длиннее, а не сумма обеих.
+        case 'offers':
+          return Math.max(saleStats?.count ?? 0, rentStats?.count ?? 0);
+        case 'rental':
+          return rentalInfo
+            ? [rentalInfo.terms, rentalInfo.rates, rentalInfo.sizes, rentalInfo.contacts].reduce(
+                (sum, text) => sum + estimateTextLines(text, 95),
+                0,
+              )
+            : 0;
+        case 'tech':
+          return (
+            redistributedTechnicalParams.buildingInformationRows.length +
+            center.buildingFacts.length +
+            (center.parking ? 1 : 0) +
+            (accessHoursText ? 1 : 0) +
+            (accessibilityAttributes ? 1 : 0)
+          );
+        // Высоту карты задаёт не число точек, а число КАТЕГОРИЙ: точки
+        // свёрнуты в чипы-фильтры по одному на категорию.
+        case 'map':
+          return new Set(nearbyPlaces.map((place) => place.category)).size;
+        case 'market':
+          return marketPosition?.bars.length ?? 0;
+        // Настоящие отзывы вытесняют кураторские цитаты и выводятся
+        // постранично по 6 (MAX_REAL_REVIEWS в BusinessCenterMarketBlocks).
+        case 'reviews':
+          return reviews.length > 0 ? Math.min(reviews.length, 6) : reviewQuotes.length;
+        case 'awards':
+          return awardItems.length;
+        case 'media':
+          return mediaMentions.length;
+        case 'facts':
+          return visibleHighlights.length;
+        case 'history':
+          return extractHistoryPoints(center).length;
+        case 'developer':
+          return developerInfo ? estimateTextLines(developerInfo.description, 110) : 0;
+        case 'faq':
+          return faqItems.length;
+        // tenants — пагинация по 6 карточек, высота от числа организаций
+        // не зависит вовсе.
+        default:
+          return 0;
+      }
+    };
+    return pageSections.map((section) => ({ id: section.id, items: sizeOf(section.id) }));
+  }, [
+    center,
+    pageSections,
+    saleStats,
+    rentStats,
+    redistributedTechnicalParams,
+    accessHoursText,
+    accessibilityAttributes,
+    nearbyPlaces,
+    marketPosition,
+    reviews,
+    reviewQuotes,
+    awardItems,
+    mediaMentions,
+    visibleHighlights,
+    faqItems,
+  ]);
+
+  // Раскладка блоков-рекомендаций по странице — вся логика в
+  // src/lib/businessCenterPageLayout.ts, там же разбор, почему предыдущие
+  // две версии ставили блоки кучей в середине страницы. Здесь остаётся
+  // только сопоставить выбранные места с очередью блоков: она уже
+  // отсортирована по приоритету (богаче пулом кандидатов — раньше, см.
+  // recommendationBlocks), так что самый содержательный блок достаётся
+  // самому верхнему месту.
   const recommendationSlots = useMemo(() => {
     const slots = new Map<string, RecommendationBlockId[]>();
-    const realAnchors = pageSections.filter((s) => s.id !== 'faq');
-    if (realAnchors.length === 0 || recommendationBlocks.length === 0) return slots;
-    // ~0,08 экрана на пункт (по замеру: развёрнутый FAQ из 15-18 вопросов
-    // занимает примерно один экран), потолок — 3 экрана, чтобы гигантский
-    // FAQ не давал повод впихнуть лишний блок сразу перед собой.
-    const faqWeight = faqItems.length > 0 ? Math.min(3, Math.max(0.5, faqItems.length * 0.08)) : 0;
-    const queue = [...recommendationBlocks];
-    let sectionsSinceLastRec = 0;
-    let weightSinceLastRec = 0;
-    let placed = 0;
-    realAnchors.forEach((section, index) => {
-      if (queue.length === 0) return;
-      sectionsSinceLastRec += 1;
-      weightSinceLastRec += SECTION_WEIGHTS[section.id] ?? DEFAULT_SECTION_WEIGHT;
-      const isLastRealAnchor = index === realAnchors.length - 1;
-      const readyForFirst = placed === 0 && sectionsSinceLastRec >= FIRST_RECOMMENDATION_AFTER_SECTIONS;
-      const readyForNext = placed > 0 && weightSinceLastRec >= NEXT_RECOMMENDATION_MIN_WEIGHT;
-      const readyLastChance =
-        isLastRealAnchor &&
-        sectionsSinceLastRec >= 2 &&
-        (placed === 0 || weightSinceLastRec + faqWeight >= NEXT_RECOMMENDATION_MIN_WEIGHT);
-      if (readyForFirst || readyForNext || readyLastChance) {
-        const block = queue.shift()!;
-        slots.set(section.id, [...(slots.get(section.id) ?? []), block.id]);
-        placed += 1;
-        sectionsSinceLastRec = 0;
-        weightSinceLastRec = RECOMMENDATION_BLOCK_WEIGHT;
-      }
+    planRecommendationSlots(sectionSizes, recommendationBlocks.length).forEach((sectionId, index) => {
+      const block = recommendationBlocks[index];
+      if (block) slots.set(sectionId, [...(slots.get(sectionId) ?? []), block.id]);
     });
-    // Кандидаты, для которых так и не нашлось места (совсем короткая
-    // страница, 1 обычный блок до FAQ) — просто не показываем, а не
-    // доклеиваем в хвост: это и держит равномерный интервал, и не роняет
-    // блоки друг на друга.
     return slots;
-  }, [pageSections, recommendationBlocks, faqItems]);
+  }, [sectionSizes, recommendationBlocks]);
 
   const recommendationBlocksById = useMemo(
     () => new Map(recommendationBlocks.map((b) => [b.id, b])),
@@ -1854,38 +1968,18 @@ export function BusinessCenterDetailPage() {
             секции, убранные прямые ссылки на Kufar/Realt) — см. запись
             2026-09-05 в docs/session-journal.md. С 2026-09-20 (владелец):
             если по БЦ нет объявлений на внешних площадках, блок целиком не
-            выводится — раньше на этом месте была строка-заглушка. */}
-        {offers !== null && offers.length > 0 && (
-          <div id="offers" className={cn('mt-6 flex scroll-mt-32 flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <h2 className="text-lg font-bold text-ink">Что сейчас сдают и продают в здании</h2>
-            {offers.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[480px] border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                      <th scope="col" className="py-2 pr-3 text-left">
-                        Тип помещения
-                      </th>
-                      <th scope="col" className="py-2 px-2 text-right">
-                        Объявлений
-                      </th>
-                      <th scope="col" className="py-2 px-2 text-right">
-                        Площадь
-                      </th>
-                      <th scope="col" className="py-2 pl-2 text-right">
-                        Цена за м²
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    <OfferDealSection title="Продажа" rows={saleRows} />
-                    <OfferDealSection title="Аренда" rows={rentRows} />
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
+            выводится — раньше на этом месте была строка-заглушка.
+
+            2026-09-21: таблица «тип помещения × диапазон цены» заменена на
+            плитки сделок, таблицу самих лотов и окупаемость — владелец:
+            «вроде таблица, вроде всё ок, но читается отвратительно» и «с
+            таким разбросом цены метра толком ничего не проанализируешь».
+            Разбор и правила — в BuildingOffersSection и
+            lib/businessCenterOfferStats.ts. Туда же ушло сравнение со
+            срезом рынка, которое 2026-09-20 жило отдельным блоком
+            #rate-comparison: само по себе «$2 000/м²» ничего не говорит,
+            сравнение должно стоять вплотную к числу. */}
+        <BuildingOffersSection sale={saleStats} rent={rentStats} yieldStats={yieldStats} />
 
         {/* Цены здания против рынка. Прежде здесь лежали два предложения с
             процентами («Аренда в этом здании — $15/м²/мес, это выше на 30%
@@ -2242,6 +2336,7 @@ export function BusinessCenterDetailPage() {
               <p className="text-sm leading-relaxed text-ink-muted">{center.developerInfo.description}</p>
             )}
             {(center.developerInfo.phone ||
+              center.developerInfo.email ||
               center.developerInfo.address ||
               center.developerInfo.hours ||
               center.developerInfo.website) && (
@@ -2253,6 +2348,15 @@ export function BusinessCenterDetailPage() {
                   >
                     <Phone className="h-4 w-4 shrink-0" />
                     {center.developerInfo.phone}
+                  </a>
+                )}
+                {center.developerInfo.email && (
+                  <a
+                    href={`mailto:${center.developerInfo.email}`}
+                    className="flex w-fit items-center gap-2 text-ink hover:underline"
+                  >
+                    <Mail className="h-4 w-4 shrink-0" />
+                    {center.developerInfo.email}
                   </a>
                 )}
                 {center.developerInfo.address && (
@@ -2836,82 +2940,5 @@ function renderBold(text: string): ReactNode {
     ) : (
       part
     ),
-  );
-}
-
-// Таблица содержит только реальные предложения, без пустых строк-заглушек.
-interface OfferRow {
-  propertyType: string;
-  count: number;
-  minSize: number;
-  maxSize: number;
-  minPrice: number;
-  medianPrice: number;
-  maxPrice: number;
-}
-
-function computeOfferRows(offers: BusinessCenterOffer[], dealType: BusinessCenterOffer['dealType']): OfferRow[] {
-  const filtered = offers.filter((o) => o.dealType === dealType);
-  if (filtered.length === 0) return [];
-
-  const groups = new Map<string, BusinessCenterOffer[]>();
-  for (const o of filtered) {
-    const key = o.propertyType ?? 'Без категории';
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(o);
-  }
-
-  return Array.from(groups.entries())
-    .map(([propertyType, group]) => {
-      const sizes = group.map((o) => o.size);
-      const prices = [...group.map((o) => o.pricePerSqm)].sort((a, b) => a - b);
-      const mid = Math.floor(prices.length / 2);
-      const medianPrice = prices.length % 2 !== 0 ? prices[mid] : (prices[mid - 1] + prices[mid]) / 2;
-      return {
-        propertyType,
-        count: group.length,
-        minSize: Math.min(...sizes),
-        maxSize: Math.max(...sizes),
-        minPrice: Math.min(...prices),
-        medianPrice,
-        maxPrice: Math.max(...prices),
-      };
-    })
-    .sort((a, b) => b.count - a.count);
-}
-
-function formatUsd(n: number): string {
-  return `$${Math.round(n).toLocaleString('ru-RU')}`;
-}
-
-// Заголовок сделки (Продажа/Аренда) — не отдельная колонка (чтобы не
-// повторять текст на каждой строке разбивки), а строка-разделитель на всю
-// ширину таблицы, за ней сразу строки по типу помещения.
-function OfferDealSection({ title, rows }: { title: string; rows: OfferRow[] }) {
-  if (rows.length === 0) return null;
-  return (
-    <>
-      <tr>
-        <td colSpan={4} className="pt-4 pb-1.5 text-xs font-bold uppercase tracking-wide text-ink-muted">
-          {title}
-        </td>
-      </tr>
-      {rows.map((row) => (
-        <tr key={row.propertyType}>
-          <td className="py-3 pr-3 font-medium text-ink">{row.propertyType}</td>
-          <td className="py-3 px-2 text-right tabular-nums text-ink-muted">{row.count}</td>
-          <td className="whitespace-nowrap py-3 px-2 text-right tabular-nums text-ink-muted">
-            {row.minSize === row.maxSize
-              ? `${row.minSize.toLocaleString('ru-RU')} м²`
-              : `${row.minSize.toLocaleString('ru-RU')}–${row.maxSize.toLocaleString('ru-RU')} м²`}
-          </td>
-          <td className="whitespace-nowrap py-3 pl-2 text-right tabular-nums font-semibold text-ink">
-            {formatUsd(row.minPrice) === formatUsd(row.maxPrice)
-              ? `${formatUsd(row.minPrice)}/м²`
-              : `${formatUsd(row.minPrice)}–${formatUsd(row.maxPrice)}/м² (медиана ${formatUsd(row.medianPrice)})`}
-          </td>
-        </tr>
-      ))}
-    </>
   );
 }
