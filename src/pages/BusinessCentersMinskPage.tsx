@@ -1392,6 +1392,28 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                     </p>
                   </div>
 
+                  <div className="flex flex-col gap-1.5">
+                    <h3 className="text-sm font-bold text-ink">Квартал Минск Мир</h3>
+                    <p>
+                      {/* Минск Мир — не отдельный фильтр каталога (это не
+                          административный район и не распознанный 2GIS-
+                          микрорайон, см. DISTRICT_SLUGS/MICRODISTRICT_SLUGS в
+                          businessCenterHubs.ts), в каталоге по адресу в этом
+                          квартале сейчас только один БЦ — строящийся МФЦ,
+                          поэтому ссылка на его карточку, а не на выдуманный
+                          срез (проверено по базе 2026-09-21, LB-0.4). */}
+                      Один из объектов каталога — строящийся{' '}
+                      <Link to="/minsk/bcminsk/mfc-minsk-mir" className="text-primary-hover hover:underline">
+                        Международный финансовый центр
+                      </Link>{' '}
+                      в квартале Минск Мир — у него есть отдельный{' '}
+                      <Link to="/minsk/minsk-mir" className="text-primary-hover hover:underline">
+                        гид по району
+                      </Link>{' '}
+                      с картой конкуренции по категориям бизнеса, инфраструктурой и планами застройки.
+                    </p>
+                  </div>
+
                   {underConstructionNames.length > 0 && (
                     <div className="flex flex-col gap-1.5">
                       <h3 className="text-sm font-bold text-ink">Что сейчас строится</h3>

@@ -515,6 +515,10 @@ export function MarketAnalyticsHub() {
             <Link to="/minsk/bcminsk" className="text-primary-hover hover:underline">
               каталоге бизнес-центров
             </Link>
+            . Про сам квартал Минск Мир, а не только его рынок недвижимости, — отдельный{' '}
+            <Link to="/minsk/minsk-mir" className="text-primary-hover hover:underline">
+              гид по району
+            </Link>
             .
           </p>
         </section>
