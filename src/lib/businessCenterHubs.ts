@@ -138,9 +138,27 @@ export const MICRODISTRICT_SLUG_TO_NAME: Record<string, string> = Object.fromEnt
   Object.entries(MICRODISTRICT_SLUGS).map(([name, slug]) => [slug, name]),
 );
 
+// Три топонима — одновременно и станция метро, и (плохо покрытый контуром
+// 2GIS) микрорайон: Грушевка, Уручье, Каменная Горка/горка — у обеих осей
+// один и тот же slug. Запрос вида «бц грушевка» не различает эти два смысла,
+// а у нас на него отвечали 2 разные страницы, причём микрорайонная —
+// заведомо беднее (проверка по базе 2026-09-21: 2 БЦ в микрорайоне против 6
+// в радиусе станции для Грушевки, 2 против 5 для Уручья, 3 против 4 для
+// Каменной Горки — станция всегда полнее). Решение — не плодить 2 слабые
+// страницы под один и тот же запрос, а ссылаться и редиректить (см.
+// vercel.json) на страницу станции; она же дособирает недостающие по 2GIS
+// зданиями микрорайона через METRO_MICRODISTRICT_ALIAS ниже, чтобы редирект
+// никого не терял.
+const MICRODISTRICT_METRO_COLLISION_SLUGS = new Set(['grushevka', 'uruchye', 'kamennaya-gorka']);
+
 export function microdistrictHubUrl(microdistrict: string): string | null {
   const slug = MICRODISTRICT_SLUGS[microdistrict];
-  return slug ? `/minsk/bcminsk/microrayon/${slug}` : null;
+  if (!slug) return null;
+  if (MICRODISTRICT_METRO_COLLISION_SLUGS.has(slug)) {
+    const stationName = METRO_SLUG_TO_STATION[slug];
+    if (stationName) return metroHubUrl(stationName);
+  }
+  return `/minsk/bcminsk/microrayon/${slug}`;
 }
 
 // Хабы по станциям метро (аудит поиска 2026-09-07, «новые срезы: по станциям
@@ -206,6 +224,25 @@ export function metroHubUrl(station: string): string | null {
 export function metroHubDistance(center: Pick<BusinessCenter, 'nearestMetroStations'>, station: string): number | null {
   const match = center.nearestMetroStations.find((s) => s.name === station && s.distanceMeters <= METRO_HUB_MAX_DISTANCE_M);
   return match ? match.distanceMeters : null;
+}
+
+// Обратная сторона коллизии микрорайон/метро (см. MICRODISTRICT_METRO_COLLISION_SLUGS
+// выше): станция и микрорайон физически один и тот же кусок города, но 2GIS
+// не всем зданиям района проставляет расстояние до станции — реальный
+// случай, БЦ «Каменногорский» помечен microdistrict='Каменная Горка', но в
+// nearestMetroStations записи про станцию «Каменная горка» нет вовсе.
+// Отдавая станции роль единственного хаба на этот топоним, нельзя молча
+// терять такие здания — хаб станции берёт их в объединение по названию
+// микрорайона, а не только по дистанции.
+const METRO_MICRODISTRICT_ALIAS: Record<string, string> = {
+  Грушевка: 'Грушевка',
+  Уручье: 'Уручье',
+  'Каменная горка': 'Каменная Горка',
+};
+
+export function metroHubIncludesMicrodistrict(center: Pick<BusinessCenter, 'microdistrict'>, station: string): boolean {
+  const microdistrict = METRO_MICRODISTRICT_ALIAS[station];
+  return microdistrict != null && center.microdistrict === microdistrict;
 }
 
 // Хабы по улицам (аудит поиска 2026-09-07, «новые срезы: по улицам/
