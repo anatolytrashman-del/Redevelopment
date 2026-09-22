@@ -142,6 +142,13 @@ export interface BusinessCenter {
   // ближайший доступный из реальных данных прокси, не выдуманные цифры
   // отзывов на конкретную организацию.
   tenantOrganizations: TenantOrganization[];
+  // Число организаций отдельным полем — колонка tenant_count в базе
+  // (generated always, миграция 20260922-bc-tenant-count.sql). Нужна там,
+  // где на выборку по всем зданиям хватает числа: публичные списки не
+  // забирают сам tenant_organizations (266 КБ сжатых из 969 КБ всей
+  // таблицы), и tenantOrganizations у них приходит пустым — сравнивать
+  // здания по числу арендаторов можно только через это поле.
+  tenantCount: number;
   // Структурные технические характеристики — прямой парсинг блоков
   // .bccharacteristics с карточки здания на prometr.by (2026-09-06, владелец:
   // "выведи на страницу вообще все данные, которые ты смог спарсить"). Один
@@ -427,6 +434,7 @@ export interface BusinessCenterRow {
   map_snapshot_files: DocumentFile[] | null;
   media_mentions: MediaMention[] | null;
   tenant_organizations: TenantOrganization[] | null;
+  tenant_count: number | null;
   technical_params: TechnicalParamGroup[] | null;
   building_facts: BuildingFact[] | null;
   nearest_metro_stations: NearestMetroStation[] | null;
@@ -470,6 +478,9 @@ export type BusinessCenterLayoutType = 'cabinet' | 'block' | 'open_space';
 // в админке обязана была бы присылать вычисляемые значения, а триггер всё
 // равно перезаписал бы их своими.
 export type BusinessCenterDerivedField =
+  // tenantCount считает сама база (generated always, миграция
+  // 20260922-bc-tenant-count.sql) — в payload админки его слать нельзя.
+  | 'tenantCount'
   | 'floorPlateArea'
   | 'officeArea'
   | 'layoutTypes'

@@ -11,7 +11,7 @@ import { AddableSelect } from '../ui/AddableSelect';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import {
-  fetchBusinessCenters,
+  fetchBusinessCentersFull,
   insertBusinessCenter,
   updateBusinessCenter,
   deleteBusinessCenter,
@@ -325,7 +325,7 @@ export function BusinessCentersAdminTab() {
   }, []);
 
   function load() {
-    fetchBusinessCenters()
+    fetchBusinessCentersFull()
       .then(setCenters)
       .catch(() => setError('Не удалось загрузить список — попробуйте обновить страницу.'));
   }

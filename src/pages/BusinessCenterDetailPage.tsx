@@ -88,7 +88,7 @@ import {
   microdistrictHubUrl,
 } from '../lib/businessCenterHubs';
 import type { BusinessCenter, HighlightIconKey } from '../data/businessCenters';
-import { fetchBusinessCenters } from '../lib/businessCentersApi';
+import { fetchBusinessCenter, fetchBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import type { BusinessCenterNearbyPlace, NearbyPlaceCategory } from '../data/businessCenterNearbyPlaces';
 import { fetchBusinessCenterNearbyPlaces } from '../lib/businessCenterNearbyPlacesApi';
@@ -328,7 +328,31 @@ export function BusinessCenterDetailPage() {
   // что и в боковом меню хаба, чтобы стрелки совпадали с порядком, который
   // пользователь уже видел в списке до перехода сюда.
   const sorted = useMemo(() => sortByShortName(centers ?? []), [centers]);
-  const center = useMemo(() => sorted.find((c) => c.slug === slug) ?? null, [sorted, slug]);
+  // Само здание — отдельным запросом по слагу, а не поиском в списке
+  // (2026-09-22, Ш3 плана docs/bc-catalog-seo-plan.md). Список с того же дня
+  // не забирает тяжёлые колонки — технические параметры, арендаторов,
+  // упоминания в СМИ, инфо застройщика — а карточке они нужны все. Заодно
+  // первый экран больше не ждёт всю таблицу: один ряд вместо 969 КБ.
+  // Ответ храним вместе со слагом, под который он пришёл: компонент общий
+  // для всех БЦ, и при переходе «предыдущий/следующий» иначе на миг
+  // показались бы данные прошлого здания.
+  const [detail, setDetail] = useState<{ slug: string; center: BusinessCenter | null } | null>(null);
+  useEffect(() => {
+    if (!slug) return;
+    let cancelled = false;
+    setDetail(null);
+    fetchBusinessCenter(slug)
+      .then((data) => {
+        if (!cancelled) setDetail({ slug, center: data });
+      })
+      .catch(() => {
+        if (!cancelled) setDetail({ slug, center: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+  const center = detail !== null && detail.slug === slug ? detail.center : null;
 
   // Организации здания и оборудование (банкоматы, кофейные автоматы) —
   // разложены по разные стороны: см. buildTenantsFromSnapshot.
@@ -1846,12 +1870,15 @@ export function BusinessCenterDetailPage() {
   // остаётся доступной (200, не редирект), но не индексируется, тот же
   // принцип, что и у ObjectLandingPage для неизвестного /:slug.
   useEffect(() => {
-    if (centers === null || center) return;
+    if (detail === null || detail.slug !== slug || center) return;
     setNoIndex();
     return () => clearNoIndex();
-  }, [centers, center]);
+  }, [detail, slug, center]);
 
-  if (centers === null) {
+  // Ждём ТОЛЬКО своё здание: список зданий (соседи, «предыдущий/следующий»,
+  // сравнения) догружается фоном, и каждый блок, который его использует, и
+  // так проверяет centers на null.
+  if (detail === null || detail.slug !== slug) {
     return (
       <main className="flex min-h-svh items-center justify-center bg-bg">
         {/* text-ink: прямо на фоне страницы muted даёт 4,48:1 — ниже порога.
