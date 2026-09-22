@@ -65,40 +65,41 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
   // дают экран на ~50 пунктов. Поэтому там группы свёрнуты (раскрыта одна,
   // по тапу), а от md раскладка колоночная и сворачивать нечего.
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
-  // Левая граница главного блока страницы в пикселях от края экрана —
-  // по ней выравнивается содержимое панели (владелец, 2026-09-22:
-  // «ровняем по началу главного блока с заголовком Бизнес-центры у метро
-  // Академия наук и по аналогии на всём сайте»).
+  // Левая граница содержимого страницы в пикселях от края экрана — по ней
+  // выравнивается содержимое панели (владелец, 2026-09-22: «меню переносим
+  // в левый край страницы... оно на главной прижато к правому краю, а
+  // должно быть слева»).
   const [contentLeft, setContentLeft] = useState<number | null>(null);
   const { pathname } = useLocation();
   const rootRef = useRef<HTMLElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
 
-  // Линия замеряется у живого узла, а не вычисляется из классов: она у
-  // каждой страницы своя И НЕ РАВНА краю её контейнера. На каталоге и хабах
-  // главный блок — колонка справа от фильтров, да ещё и `mx-auto max-w-3xl`
-  // внутри 848px ячейки грида (на 1440 это 456px от края экрана, при том
-  // что сам main начинается с 144). Повторять эту арифметику константами
-  // значит держать её в двух местах и ловить расхождение при каждой правке
-  // сетки; замер же верен на любой ширине и для любой страницы, которой
-  // поставили `data-menu-align`.
+  // Ориентир — контейнер самой шапки, то есть линия логотипа. Она же линия
+  // левого края содержимого страницы: у шапки и у main один и тот же
+  // `width` с одинаковыми боковыми полями. На каталоге и хабах с этой
+  // линии начинается колонка фильтров, а карточки зданий идут правее —
+  // равняться на них (первая попытка этой правки) значит увести меню
+  // вправо, оставив слева дыру во всю ширину фильтров.
+  //
+  // Замер живого узла, а не вычисление из классов: `width` у страниц
+  // разный (max-w-3xl у текстовых, max-w-6xl у каталога, max-w-7xl у
+  // карточки здания), боковые поля меняются на sm, а сам контейнер
+  // центрируется — считать это константами значит держать вторую копию
+  // вёрстки и ловить расхождение при каждой её правке.
   useEffect(() => {
     const measure = () => {
-      const el = document.querySelector('[data-menu-align]');
+      const el = barRef.current;
       if (!el) {
         setContentLeft(null);
         return;
       }
-      // Плюс padding-left: у текстовых страниц каталога якорь стоит на
-      // <main class="… px-4 sm:px-8">, и его собственная граница на 32px
-      // левее той, с которой реально начинается видимый блок. Нужна именно
-      // линия контента, а не контейнера.
       const padding = parseFloat(window.getComputedStyle(el).paddingLeft) || 0;
       setContentLeft(Math.round(el.getBoundingClientRect().left + padding));
     };
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
-  }, [pathname]);
+  }, [pathname, width]);
 
   // Закрывать меню при переходе: react-router меняет URL без перезагрузки,
   // сама панель при этом остаётся раскрытой поверх новой страницы.
@@ -162,7 +163,7 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
       ref={rootRef}
       className="sticky top-0 z-40 border-b border-border bg-bg/90 backdrop-blur-md"
     >
-      <div className={cn('mx-auto flex items-center justify-between gap-3 px-4 py-4 sm:px-8', width)}>
+      <div ref={barRef} className={cn('mx-auto flex items-center justify-between gap-3 px-4 py-4 sm:px-8', width)}>
         <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
           <span className="font-black text-primary">RED</span>EVELOPMENT
         </Link>
@@ -219,14 +220,13 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
         )}
         style={{ boxShadow: '0 16px 32px rgba(0,0,0,0.12)' }}
       >
-        {/* Содержимое панели прижато к линии главного блока страницы, а не
-            центрировано (владелец, 2026-09-22). Вправо оно тянется дальше,
-            чем сам блок: в три колонки со списком станций 768 px не
+        {/* Содержимое панели прижато к левому краю страницы (линия
+            логотипа), а не центрировано. Вправо оно тянется дальше, чем
+            контейнер страницы: в три колонки со списком станций 768 px не
             хватает — названия вроде «Площадь Франтишка Богушевича»
             ломались на три строки, поэтому ограничение справа мягкое
             (maxWidth), а жёстко задана только левая граница.
-            `contentLeft === null` — страница без `data-menu-align` или ещё
-            не гидратированная разметка пререндера: тогда прежнее
+            `contentLeft === null` — первый кадр до замера: тогда прежнее
             центрирование, панель не прыгает и не уезжает за экран. */}
         <div
           className={cn(
