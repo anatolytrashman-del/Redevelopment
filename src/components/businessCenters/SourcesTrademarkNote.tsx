@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Modal } from '../ui/Modal';
-import { GENERAL_DATA_SOURCES } from '../../data/businessCenterSources';
-import { fetchCatalogSiteSources, type SourceSite } from '../../lib/businessCenterSourcesApi';
+import { DATA_SOURCE_GROUPS } from '../../data/businessCenterSources';
+import { fetchCatalogSiteSources, type CatalogSources, type SourceSite } from '../../lib/businessCenterSourcesApi';
 
 // Владелец, 2026-09-22: не хочет отдельных кликабельных плашек на каждый
 // конкретный сайт прямо на странице БЦ/каталога — сайт застройщика или
@@ -11,6 +11,15 @@ import { fetchCatalogSiteSources, type SourceSite } from '../../lib/businessCent
 // Список в попапе одинаковый на любой странице каталога — грузится лениво,
 // только при открытии попапа, чтобы не тянуть весь business_centers на
 // каждый заход.
+//
+// Владелец, 2026-09-22 (позже в тот же день): «дополни список всеми
+// источниками данных на сайте вообще, даже если это onliner или wikipedia».
+// Поэтому в попапе теперь не только каталожные агрегаторы: постоянные
+// источники сгруппированы по роли (карты, площадки, аналитика,
+// энциклопедии — DATA_SOURCE_GROUPS), а сайты зданий/застройщиков и
+// издания подтягиваются из базы. Попап открывается с каталожных страниц,
+// но описывает весь сайт целиком — включая страницы аналитики рынка и гид
+// по району, где своего такого списка нет.
 function SourceLinks({ sites }: { sites: SourceSite[] }) {
   return (
     <p className="text-sm leading-relaxed text-ink-muted">
@@ -26,16 +35,22 @@ function SourceLinks({ sites }: { sites: SourceSite[] }) {
   );
 }
 
+function GroupTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="text-xs font-semibold uppercase tracking-wide text-ink-faint">{children}</span>
+  );
+}
+
 export function SourcesTrademarkNote() {
   const [open, setOpen] = useState(false);
-  const [sites, setSites] = useState<SourceSite[] | null>(null);
+  const [loaded, setLoaded] = useState<CatalogSources | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
 
   function handleOpen() {
     setOpen(true);
-    if (sites === null && !loadFailed) {
+    if (loaded === null && !loadFailed) {
       fetchCatalogSiteSources()
-        .then(setSites)
+        .then(setLoaded)
         .catch(() => setLoadFailed(true));
     }
   }
@@ -58,25 +73,46 @@ export function SourcesTrademarkNote() {
       <Modal open={open} onClose={() => setOpen(false)} title="Источники">
         <div className="flex flex-col gap-4">
           <p className="text-sm text-ink-muted">
-            Информация в каталоге собирается из открытых источников: карт и справочников, агрегаторов
-            объявлений, официальных сайтов бизнес-центров и застройщиков. Не каждый источник относится к
-            каждому конкретному зданию.
+            Здесь перечислены все внешние источники, которыми мы пользуемся на сайте: карты и
+            справочники, площадки объявлений, отраслевая аналитика и официальная статистика,
+            энциклопедии, СМИ, сайты самих зданий и застройщиков. Список общий для всего сайта — не
+            каждый источник относится к каждой странице и к каждому конкретному зданию.
           </p>
+          {DATA_SOURCE_GROUPS.map((group) => (
+            <div key={group.title} className="flex flex-col gap-2">
+              <GroupTitle>{group.title}</GroupTitle>
+              <ul className="flex flex-col gap-1 text-sm leading-relaxed text-ink-muted">
+                {group.sources.map((source) => (
+                  <li key={source.href}>
+                    <a
+                      href={source.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-primary"
+                    >
+                      {source.label}
+                    </a>{' '}
+                    — {source.note}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
           <div className="flex flex-col gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
-              Карты, справочники, агрегаторы объявлений
-            </span>
-            <SourceLinks sites={GENERAL_DATA_SOURCES.map((s) => ({ label: s.label, href: s.href }))} />
-          </div>
-          <div className="flex flex-col gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
-              Сайты бизнес-центров и застройщиков
-            </span>
+            <GroupTitle>СМИ и публикации, на которые ссылаются карточки зданий</GroupTitle>
             {loadFailed && (
               <p className="text-sm text-ink-muted">Не удалось загрузить список — попробуйте ещё раз позже.</p>
             )}
-            {!loadFailed && sites === null && <p className="text-sm text-ink-muted">Загрузка…</p>}
-            {sites !== null && sites.length > 0 && <SourceLinks sites={sites} />}
+            {!loadFailed && loaded === null && <p className="text-sm text-ink-muted">Загрузка…</p>}
+            {loaded !== null && loaded.publications.length > 0 && <SourceLinks sites={loaded.publications} />}
+          </div>
+          <div className="flex flex-col gap-2">
+            <GroupTitle>Сайты бизнес-центров и застройщиков</GroupTitle>
+            {loadFailed && (
+              <p className="text-sm text-ink-muted">Не удалось загрузить список — попробуйте ещё раз позже.</p>
+            )}
+            {!loadFailed && loaded === null && <p className="text-sm text-ink-muted">Загрузка…</p>}
+            {loaded !== null && loaded.sites.length > 0 && <SourceLinks sites={loaded.sites} />}
           </div>
         </div>
       </Modal>
