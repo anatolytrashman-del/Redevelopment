@@ -382,6 +382,20 @@ export function BusinessCenterDetailPage() {
   // только данные 2GIS"), не вместе с ним — см. JSX ниже.
   const nearestMetro = useMemo(() => nearestMetroStation(center?.nearestMetroStations ?? []), [center]);
   const scheduleLines = useMemo(() => (gis2?.schedule ? formatSchedule(gis2.schedule) : []), [gis2]);
+  // Одна станция — одно расстояние на всей странице. Поле БЦ
+  // (nearestMetroStations, собрано раньше) и снимок точек инфраструктуры
+  // расходятся в метрах до ОДНОЙ и той же станции: у «Фаренгейта» это 170 и
+  // 129 м. Блок инфраструктуры давно сводит их общим mergeMetroStations
+  // (берёт меньшее), а плитка у заголовка и FAQ брали сырое поле — и
+  // страница показывала два разных числа про одно и то же. Полоса сравнения
+  // с классом ниже намеренно остаётся на сыром поле: её медиана считается по
+  // тому же полю у всех 141 здания, и подмена только своего значения сделала
+  // бы сравнение нечестным.
+  const displayMetro = useMemo(
+    () => mergeMetroStations(center?.nearestMetroStations ?? [], nearbyPlaces)[0] ?? null,
+    [center, nearbyPlaces],
+  );
+
   // Расписание 2ГИС — единый источник режима доступа. Если подробного
   // расписания в публичном снимке нет, используем сохранённый из него же
   // признак 24/7, но всё равно показываем только одну строку.
@@ -1026,13 +1040,10 @@ export function BusinessCenterDetailPage() {
     const barByLabel = (label: string) => bars.find((bar) => bar.label === label) ?? null;
 
     // --- Где это и как добраться -----------------------------------------
-    // Станция метро берётся из mergeMetroStations — той же функции, что
-    // рисует блок инфраструктуры: у поля БЦ и у снимка точек расстояния до
-    // одной станции расходятся (у «Фаренгейта» 170 и 129 м), и общий хелпер
-    // разводит это одинаково для карты и для текста.
+    // Станция метро — displayMetro, та же, что в плитке у заголовка и в
+    // блоке инфраструктуры.
     {
-      const metroStations = mergeMetroStations(center.nearestMetroStations, nearbyPlaces);
-      const metro = metroStations[0] ?? null;
+      const metro = displayMetro;
       const stops = groupNearbyPlaces(nearbyPlaces).find((group) => group.category === 'transport_stop') ?? null;
       const nearestStop = stops?.places[0] ?? null;
       add(
@@ -1231,10 +1242,19 @@ export function BusinessCenterDetailPage() {
       // коротких значений-характеристик: у длинных это уже предложение, а у
       // архитектора/застройщика — фамилия, которую портить нельзя.
       const factLine = (label: string, value: string) => {
-        const keepCase = /архитектор|застройщик|проектировщик|название/i.test(label);
         const text = plain(value);
-        const keepCaseValue = keepCase || text.length > 40 || /[.!?]/.test(text);
-        return `${label}: ${keepCaseValue ? text : lower(text)}`;
+        const first = text.charAt(0);
+        const second = text.charAt(1);
+        // После двоеточия значение идёт со строчной — иначе строки в одном
+        // ответе выглядят вразнобой («Тип вентиляции: приточно-вытяжная» и
+        // рядом «Конструкция: Каркасно-монолитное здание»). Три исключения,
+        // где заглавная осмысленна: имя человека или бюро (подпись сама о
+        // нём говорит), латиница («NBBJ») и аббревиатура («ГОРПРОЕКТ»).
+        const keepCase =
+          /архитектор|застройщик|проектировщик|название/i.test(label) ||
+          !/[А-ЯЁ]/.test(first) ||
+          (Boolean(second) && /\p{L}/u.test(second) && second === second.toUpperCase());
+        return `${label}: ${keepCase ? text : lower(text)}`;
       };
       const lines = [
         ...center.buildingFacts.map((fact) => factLine(fact.label, fact.value)),
@@ -1282,7 +1302,7 @@ export function BusinessCenterDetailPage() {
       // «30 шт.» про компании и «4,7 ★» про оценку — подписи из вёрстки
       // полос, где единица стоит рядом с числом. В предложении её несёт
       // сама формулировка, а «шт.» после компаний звучит как склад.
-      const plainValue = (value: string) => value.replace(/\s*(шт\.|★)$/u, '').replace(/\s*по прямой$/u, '').trim();
+      const plainValue = (value: string) => value.replace(/\s*(шт\.|★)$/u, '').trim();
       const metricLabels: Record<string, string> = {
         'Высота потолков': 'Потолки',
         'Лифты на 10 000 м²': 'Лифтов на 10 000 м² площади',
@@ -2018,7 +2038,7 @@ export function BusinessCenterDetailPage() {
                               metroLineId(nearestMetro.line) ? METRO_LINE_DOT_CLASS[metroLineId(nearestMetro.line)!] : 'bg-ink-faint',
                             )}
                           />
-                          {nearestMetro.name} — {nearestMetro.distanceMeters} м по прямой
+                          {nearestMetro.name} — {(displayMetro ?? nearestMetro).distanceMeters} м
                         </>
                       ) : (
                         <>
