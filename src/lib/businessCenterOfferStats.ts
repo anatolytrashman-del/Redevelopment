@@ -72,8 +72,24 @@ function median(values: number[]): number {
 // Лот учитываем, только когда известны ОБА числа: без площади нельзя
 // посчитать бюджет, без ставки — нечего сравнивать. Ноль здесь означает
 // «не указано», а не «бесплатно» (ловушка `!value` из CLAUDE.md).
+//
+// Площадь меньше 2 м² отсеиваем отдельно — это не мелкая кладовая, а брак
+// парсера источника: «БЦ Титан», Domovita, ad_id 17171 попал в базу с
+// size=1 вместо реальных 70 м² (проверено по самой странице-источнику
+// 2026-09-22), рядом с ним же в базе те же 70/74/150 м² по $12/м² от
+// Kufar/Realt на том же этаже. Проверка по всей таблице (1544 строк) нашла
+// ровно 3 таких лота — единично, не системно, но раз в месяц (см. cron
+// sync-business-center-offers.yml) может прилететь снова, а разово
+// исправленная строка в базе это не остановит.
+const MIN_PLAUSIBLE_SIZE = 2;
+
 function usable(offer: DedupedOffer): boolean {
-  return Number.isFinite(offer.size) && offer.size > 0 && Number.isFinite(offer.pricePerSqm) && offer.pricePerSqm > 0;
+  return (
+    Number.isFinite(offer.size) &&
+    offer.size >= MIN_PLAUSIBLE_SIZE &&
+    Number.isFinite(offer.pricePerSqm) &&
+    offer.pricePerSqm > 0
+  );
 }
 
 // Коэффициент корреляции Пирсона — нужен, чтобы не выдавать за «скидку за
