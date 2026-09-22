@@ -1,5 +1,13 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { microdistrictHubUrl, metroHubIncludesMicrodistrict } from './businessCenterHubs';
+import {
+  CLASS_SLUGS,
+  DISTRICT_SLUGS,
+  MICRODISTRICT_SLUGS,
+  MIN_INDEXABLE_HUB_CENTERS,
+  microdistrictHubUrl,
+  metroHubIncludesMicrodistrict,
+} from './businessCenterHubs';
 
 // Грушевка/Уручье/Каменная Горка — один и тот же slug у станции метро и у
 // микрорайона, а данные микрорайона (2GIS-контур) заметно беднее данных
@@ -39,5 +47,29 @@ describe('metroHubIncludesMicrodistrict — не терять здания бе�
     expect(metroHubIncludesMicrodistrict({ microdistrict: 'Комаровка' }, 'Каменная горка')).toBe(false);
     expect(metroHubIncludesMicrodistrict({ microdistrict: 'Грушевка' }, 'Московская')).toBe(false);
     expect(metroHubIncludesMicrodistrict({ microdistrict: null }, 'Грушевка')).toBe(false);
+  });
+});
+
+// Порог индексации тонких срезов и карты слагов продублированы в
+// scripts/generate-sitemap.mjs (скрипт сборки без TS-загрузчика, тот же
+// приём, что у метро и улиц там же). Расхождение означает, что sitemap
+// зовёт краулера ровно на те страницы, которые сайт отдаёт с noindex, —
+// поэтому копии сверяет тест, а не внимательность.
+describe('порог тонких срезов — копия в scripts/generate-sitemap.mjs', () => {
+  const script = readFileSync(new URL('../../scripts/generate-sitemap.mjs', import.meta.url), 'utf-8');
+
+  it('порог совпадает', () => {
+    const match = script.match(/const MIN_INDEXABLE_HUB_CENTERS = (\d+);/);
+    expect(match?.[1]).toBe(String(MIN_INDEXABLE_HUB_CENTERS));
+  });
+
+  it('карты слагов класса, района и микрорайона совпадают', () => {
+    for (const [name, slug] of [
+      ...Object.entries(CLASS_SLUGS),
+      ...Object.entries(DISTRICT_SLUGS),
+      ...Object.entries(MICRODISTRICT_SLUGS),
+    ]) {
+      expect(script, `${name} → ${slug}`).toContain(`: '${slug}'`);
+    }
   });
 });
