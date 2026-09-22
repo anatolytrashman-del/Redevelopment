@@ -50,7 +50,7 @@ export function SourcesTrademarkNote() {
         <button
           type="button"
           onClick={handleOpen}
-          className="font-semibold text-primary underline hover:text-primary-hover"
+          className="font-semibold text-ink-muted underline hover:text-ink"
         >
           Полный список источников →
         </button>
