@@ -32,9 +32,15 @@
 //   node scripts/capture-yandex-reviews.mjs --missing-only --write-db
 //        — весь каталог зданий без ЛЮБОГО текстового отзыва с Яндекса
 //          (можно прерывать и запускать снова — уже собранные пропускаются);
-//   node scripts/capture-yandex-reviews.mjs --missing-only --classes A,B,B+ --limit 10 --write-db
-//        — пачками по 10, только классы A/Б/Б+ (владелец, 2026-09-22: класс C
-//          и ниже — отдельно, не сейчас).
+//   node scripts/capture-yandex-reviews.mjs --missing-only --classes A,B,B+ --write-db
+//        — весь остаток классов A/Б/Б+ за один прогон (владелец, 2026-09-22:
+//          класс C и ниже — отдельно, не сейчас); --limit N — если нужно
+//          пачками, а не всё сразу.
+//
+// На каждом здании — либо Enter (страница готова, собирай), либо "s"/"skip"
+// + Enter, если у БЦ нет своей организации на Яндекс.Картах вообще или на
+// ней нет отзывов — здание просто останется без отзывов, без попытки
+// скроллить случайную страницу.
 //
 // Флаги: --limit N, --slug SLUG, --missing-only, --classes A,B,B+,
 // --skip-collected, --max-age-days 45, --output DIR, --profile DIR.
@@ -153,8 +159,17 @@ function dedupeReviews(rawReviews) {
 
 async function pauseForUser(message) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  await rl.question(`${message}\nНажмите Enter, когда страница готова… `);
+  const answer = await rl.question(`${message}\nНажмите Enter, когда страница готова, или наберите "s" и Enter, чтобы пропустить это здание… `);
   rl.close();
+  return answer.trim().toLowerCase();
+}
+
+// Явная команда пропуска — набрать "s" (или "skip") и Enter, если у здания
+// нет организации на Яндекс.Картах вообще или на ней нет отзывов. Просто
+// Enter (пустой ответ) — обычное "страница готова, собирай".
+const SKIP_ANSWERS = new Set(['s', 'skip', 'п', 'пропустить']);
+function isSkip(answer) {
+  return SKIP_ANSWERS.has(answer);
 }
 
 async function looksLikeCaptcha(page) {
@@ -333,12 +348,17 @@ async function main() {
       if (await looksLikeCaptcha(page)) {
         await pauseForUser('Яндекс показал проверку. Пройдите её в окне Chrome.');
       }
-      await pauseForUser(
+      const answer = await pauseForUser(
         `\n[${done + 1}/${queue.length}] ${center.name ?? center.slug} — ${center.address ?? ''}\n` +
-          'Откройте карточку ЭТОГО здания и вкладку «Отзывы» (если организации с таким названием на Яндекс.Картах нет — просто нажмите Enter, здание останется без отзывов).',
+          'Откройте карточку ЭТОГО здания и вкладку «Отзывы».',
       );
 
-      const reviews = await collectReviewsFromOpenTab(page);
+      let reviews = [];
+      if (isSkip(answer)) {
+        console.log(`  пропущено: организации нет или отзывов нет`);
+      } else {
+        reviews = await collectReviewsFromOpenTab(page);
+      }
       await saveCheckpoint(center.slug, reviews, page.url(), capturedAt);
       if (writeDb) await writeReviews({ supabase, slug: center.slug, reviews, capturedAt });
       done += 1;
