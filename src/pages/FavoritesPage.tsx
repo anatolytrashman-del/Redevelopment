@@ -160,9 +160,15 @@ export function FavoritesPage() {
           // путь в CSS, без круговых зависимостей. Цена — карточки в ряду не
           // выравниваются по нижнему краю; это осознанный размен на устойчивость.
           // Не переписывать обратно на grid + items-stretch.
-          <div className="flex flex-wrap items-start gap-5">
+          // Ширина на мобильном — половина ряда минус половина gap-3
+          // (12 px): карточка каталога с 2026-09-22 рассчитана на две
+          // колонки на телефоне, и в избранном она должна выглядеть так же.
+          // Процент считается от родителя с известной шириной, поэтому
+          // Safari-разбор выше в силе — фиксированной ширины трека это не
+          // отменяет.
+          <div className="flex flex-wrap items-start gap-3 sm:gap-5">
             {favorites.map((c) => (
-              <div key={c.slug} className="w-full sm:w-[320px]">
+              <div key={c.slug} className="w-[calc(50%-0.375rem)] sm:w-[320px]">
                 <BusinessCenterCard center={c} />
               </div>
             ))}

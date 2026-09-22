@@ -16,7 +16,7 @@ import {
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
-import { PhotoBlock, FactRow, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
+import { PhotoBlock, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import { CatalogFilterPanel } from '../components/businessCenters/CatalogFilterPanel';
 import { CatalogCompare } from '../components/businessCenters/CatalogCompare';
 import { FavoriteButton } from '../components/businessCenters/FavoriteButton';
@@ -190,6 +190,17 @@ const FILTER_QUERY_KEYS = ['class', 'status', 'district', 'microdistrict', 'metr
 // простому виду для нового набора фото. «Сравнить» остаётся доступным по
 // прямой ссылке (?compare=slug,slug — CatalogCompare.tsx), просто больше не
 // включается кликом на карточке.
+// Мобильный — ДВЕ карточки в ряд (владелец, 2026-09-22: «может попробуем
+// формат 2 карточек на экране?»). В одну колонку карточка занимала ~490 px
+// (фото 358 + текст 132) — полтора экрана на 143 БЦ. В две колонки фото
+// 173 px, карточка ~245 px, на экране шесть карточек вместо полутора, а
+// здание в кадре всё ещё различимо (проверено на макетах с живыми фото).
+// Квадрат оставлен как есть: файлы `*-card.webp` нарезаны 640×640, любой
+// другой формат пришлось бы докропить, срезав аэросъёмку сверху и снизу.
+// Отсюда мобильные варианты классов ниже: мельче шрифт и отступы, адрес и
+// станция в одну строку с обрезкой, «Подробнее» скрыта (вся карточка и так
+// ссылка, а 36 px в каждой карточке — заметная доля экрана). На sm и шире
+// всё возвращается к прежнему виду — это правка одного только мобильного.
 export function BusinessCenterCard({ center }: { center: BusinessCenter }) {
   const nearestMetro = nearestMetroStation(center.nearestMetroStations);
   return (
@@ -209,35 +220,49 @@ export function BusinessCenterCard({ center }: { center: BusinessCenter }) {
         <div className="absolute inset-0">
           <PhotoBlock center={center} variant="card" />
         </div>
-        <div className="absolute left-2 top-2 flex flex-wrap items-start gap-1.5">
+        {/* max-w на мобильном — чтобы пара «Класс + Строится» не заезжала
+            под сердечко в узкой колонке: не влезло в строку — переносится
+            под первым бейджем (flex-wrap), а не под кнопку избранного. */}
+        <div className="absolute left-1.5 top-1.5 flex max-w-[calc(100%-2.75rem)] flex-wrap items-start gap-1 sm:left-2 sm:top-2 sm:max-w-none sm:gap-1.5">
           {center.businessClass && (
-            <span className="rounded-full bg-ink-muted/90 px-2.5 py-1 text-xs font-bold text-white shadow-sm backdrop-blur-sm">
+            <span className="rounded-full bg-ink-muted/90 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm backdrop-blur-sm sm:px-2.5 sm:py-1 sm:text-xs">
               {`Класс ${center.businessClass}`}
             </span>
           )}
           {center.status === 'under_construction' && (
-            <span className="flex items-center gap-1 rounded-full bg-ink-muted/90 px-2.5 py-1 text-xs font-bold text-white shadow-sm backdrop-blur-sm">
-              <HardHat className="h-3.5 w-3.5 shrink-0" />
+            <span className="flex items-center gap-1 rounded-full bg-ink-muted/90 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm backdrop-blur-sm sm:px-2.5 sm:py-1 sm:text-xs">
+              <HardHat className="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5" />
               Строится
             </span>
           )}
         </div>
-        <FavoriteButton slug={center.slug} className="absolute right-2 top-2" />
+        <FavoriteButton slug={center.slug} className="absolute right-1.5 top-1.5 sm:right-2 sm:top-2" />
       </div>
-      <div className="flex flex-1 flex-col gap-2.5 p-4">
-        <h2 className="text-base font-bold leading-snug text-ink">{shortName(center)}</h2>
-        <FactRow icon={MapPin}>{shortAddress(center.address)}</FactRow>
+      <div className="flex flex-1 flex-col gap-1 p-2.5 sm:gap-2.5 sm:p-4">
+        <h2 className="line-clamp-2 text-[13px] font-bold leading-tight text-ink sm:line-clamp-none sm:text-base sm:leading-snug">
+          {shortName(center)}
+        </h2>
+        {/* На мобильном адрес и станция обрезаются в одну строку: перенос
+            в узкой колонке разваливает карточку на разную высоту, а
+            расстояние до метро (самое ценное в строке) остаётся видно
+            всегда — оно вынесено отдельным shrink-0 элементом. */}
+        <div className="flex items-center gap-1.5 text-[11px] text-ink-muted sm:gap-2 sm:text-xs">
+          <MapPin className="h-3 w-3 shrink-0 text-ink-faint sm:h-4 sm:w-4" />
+          <span className="truncate sm:whitespace-normal sm:text-balance">{shortAddress(center.address)}</span>
+        </div>
         {nearestMetro ? (
-          <div className="flex items-center gap-2 text-xs text-ink-muted">
+          <div className="flex items-center gap-1.5 text-[11px] text-ink-muted sm:gap-2 sm:text-xs">
             <span
               className={cn(
-                'h-2.5 w-2.5 shrink-0 rounded-full',
+                'h-2 w-2 shrink-0 rounded-full sm:h-2.5 sm:w-2.5',
                 metroLineId(nearestMetro.line) ? METRO_LINE_DOT_CLASS[metroLineId(nearestMetro.line)!] : 'bg-ink-faint',
               )}
             />
-            <span className="text-balance">
-              {nearestMetro.name} — {formatMetroDistance(nearestMetro.distanceMeters)}
+            <span className="truncate sm:whitespace-normal sm:text-balance">
+              {nearestMetro.name}
+              <span className="hidden sm:inline"> — {formatMetroDistance(nearestMetro.distanceMeters)}</span>
             </span>
+            <span className="shrink-0 font-semibold sm:hidden">{formatMetroDistance(nearestMetro.distanceMeters)}</span>
           </div>
         ) : (
           center.metro && (
@@ -246,13 +271,13 @@ export function BusinessCenterCard({ center }: { center: BusinessCenter }) {
             // есть, серой точкой вместо цвета линии (владелец, 2026-09-20:
             // на карточках не должно быть "дыр" там, где хоть что-то о метро
             // известно).
-            <div className="flex items-center gap-2 text-xs text-ink-muted">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-ink-faint" />
-              <span className="text-balance">{center.metro}</span>
+            <div className="flex items-center gap-1.5 text-[11px] text-ink-muted sm:gap-2 sm:text-xs">
+              <span className="h-2 w-2 shrink-0 rounded-full bg-ink-faint sm:h-2.5 sm:w-2.5" />
+              <span className="truncate sm:whitespace-normal sm:text-balance">{center.metro}</span>
             </div>
           )
         )}
-        <div className="mt-auto flex justify-start pt-1">
+        <div className="mt-auto hidden justify-start pt-1 sm:flex">
           <span className="flex items-center gap-1 rounded-full bg-ink-muted/10 px-3 py-1.5 text-xs font-bold text-ink-muted transition-colors group-hover:bg-ink-muted group-hover:text-white">
             Подробнее
             <ArrowRight className="h-3.5 w-3.5 shrink-0" />
@@ -1064,7 +1089,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 items-stretch gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-2 items-stretch gap-3 sm:gap-5 lg:grid-cols-3">
                 {orderedCenters.slice(0, visibleCount).map((c) => (
                   <BusinessCenterCard key={c.slug} center={c} />
                 ))}
