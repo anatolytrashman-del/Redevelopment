@@ -1008,8 +1008,18 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           2026-09-22). Раньше здесь лежала своя копия sticky-шапки с двумя
           ссылками; sticky-поведение («нравится, как на /minsk/minsk-mir
           логотип остаётся при скролле, сделай 1 в 1») переехало в сам
-          компонент. */}
-      <CatalogTopNav centers={centers} width="max-w-6xl" />
+          компонент.
+          navOffsetClassName — владелец, 2026-09-22, скриншот с красной
+          линией: начало пунктов меню должно совпадать с началом колонки
+          СПРАВА от бокового меню (у этой страницы — `lg:grid-cols-[200px_
+          minmax(0,1fr)] lg:gap-10` ниже), а не стоять сразу за логотипом.
+          200px колонки + 40px (gap-10) = 240px = 15rem от левого края
+          страницы; минус ширина самого логотипа (176px, «REDEVELOPMENT»
+          константна на любой ширине окна — она не проценты, а текст
+          фиксированного кегля) — margin-left от конца логотипа получается
+          64px = 4rem = ml-16. Активен с lg — раньше боковое меню на этой
+          странице не показывается (шторка), совпадать не с чем. */}
+      <CatalogTopNav centers={centers} width="max-w-6xl" navOffsetClassName="lg:ml-16" />
 
       {/* <main> — единственный main-landmark (Accessibility «Document does
           not have a main landmark»), шапка — вне него. */}
