@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BusinessCenterOffer } from '../data/businessCenterOffers';
 import type { DedupedOffer } from './businessCenterOfferDuplicates';
-import { buildDealStats, formatMoney } from './businessCenterOfferStats';
+import { buildDealStats, buildPriceBuckets, formatMoney } from './businessCenterOfferStats';
 
 // Цифры этого файла попадают и в блок «Что сейчас сдают и продают», и в
 // FAQ под ним, и при любой ошибке выглядят одинаково правдоподобно —
@@ -113,5 +113,75 @@ describe('формат', () => {
     expect(plain(3399)).toBe('$3 399');
     expect(plain(57614)).toBe('$57 600');
     expect(plain(1_240_000)).toBe('$1,2 млн');
+  });
+});
+
+// Живой срез «Силуэта» на 2026-09-22 — здание, с которого владелец начал
+// разговор про «не вау»: 26 лотов продажи, цена метра от $758 до $6 820
+// при почти одинаковой площади.
+const SILUET: DedupedOffer[] = (
+  [
+    [5.5, 1110.88], [5.7, 1042.93], [5.7, 3939.97], [5.7, 3491.23], [5.9, 4898.31],
+    [6, 816.67], [6, 5250], [6.1, 757.98], [7, 6819.91], [7.7, 3896.1],
+    [7.8, 5128.21], [7.8, 1016.19], [8.2, 4866.97], [9.6, 4644.31], [17.3, 867.05],
+    [17.7, 903.95], [17.8, 4042.41], [19.3, 1300], [35.5, 1300], [40.7, 1449],
+    [45.8, 1150], [47.2, 1150], [74.9, 1000], [75, 1000], [99.6, 845.55], [99.7, 1000],
+  ] as [number, number][]
+).map(([size, pricePerSqm], i) => offer({ adId: `sil-${i}`, size, pricePerSqm }));
+
+// toLocaleString разделяет разряды неразрывным пробелом — сравниваем по
+// обычному, иначе тест падает на невидимой разнице.
+const labels = (b: { label: string }) => b.label.replace(/\u00a0/g, ' ');
+
+describe('buildPriceBuckets', () => {
+  it('раскладывает лоты по круглым порогам, не теряя и не задваивая их', () => {
+    const buckets = buildPriceBuckets(buildDealStats(SILUET, 'sale')!)!;
+    expect(buckets.map((b) => labels(b))).toEqual(['До $20 000', 'От $20 000 до $50 000', 'Дороже $50 000']);
+    expect(buckets.map((b) => b.lots.length)).toEqual([8, 10, 8]);
+    expect(buckets.reduce((acc, b) => acc + b.lots.length, 0)).toBe(SILUET.length);
+    expect(new Set(buckets.flatMap((b) => b.lots.map((o) => o.id))).size).toBe(SILUET.length);
+  });
+
+  it('у аренды подписывает полку платежом в месяц', () => {
+    const rent = [66, 43, 238, 83, 168, 620, 1270, 1003].map((total, i) =>
+      offer({ adId: `r-${i}`, dealType: 'rent', size: 10, pricePerSqm: total / 10 }),
+    );
+    const buckets = buildPriceBuckets(buildDealStats(rent, 'rent')!)!;
+    expect(buckets.map((b) => labels(b))).toEqual([
+      'До $100 в месяц',
+      'От $100 до $500 в месяц',
+      'Дороже $500 в месяц',
+    ]);
+    expect(buckets.map((b) => b.lots.length)).toEqual([3, 2, 3]);
+  });
+
+  it('не дробит на полки то, что и так помещается на экран', () => {
+    // Шесть лотов — это обычный список: полка ради двух строк только
+    // добавляет клик.
+    expect(buildPriceBuckets(buildDealStats(SILUET.slice(0, 6), 'sale')!)).toBeNull();
+  });
+
+  it('обходится двумя полками, когда круглый порог внутри данных один', () => {
+    // Все лоты между $1 200 и $3 200: делить такую кучу на три части
+    // можно только выдуманной границей вроде «до $1 700».
+    const tight = [1200, 1500, 1800, 2200, 2500, 2800, 3200].map((total, i) =>
+      offer({ adId: `t-${i}`, size: 10, pricePerSqm: total / 10 }),
+    );
+    const buckets = buildPriceBuckets(buildDealStats(tight, 'sale')!)!;
+    expect(buckets.map((b) => labels(b))).toEqual(['До $2 000', 'Дороже $2 000']);
+    expect(buckets.map((b) => b.lots.length)).toEqual([3, 4]);
+  });
+
+  it('предпочитает две ровные полки кривым трём', () => {
+    // Royal Plaza: двадцать пять предложений аренды, двадцать из них
+    // дешевле $5 000. Третий порог здесь даёт деление 19/1/5 — полка на
+    // один лот из двадцати пяти не нужна никому.
+    const royal = [
+      2864, 2787, 2714, 2867, 2896, 2937, 2823, 3123, 2943, 3547, 3194, 3005, 3528,
+      3444, 4386, 4399, 4271, 4747, 4523, 6911, 14352, 12510, 14354, 12852, 12755,
+    ].map((total, i) => offer({ adId: `rp-${i}`, dealType: 'rent', size: 180, pricePerSqm: total / 180 }));
+    const buckets = buildPriceBuckets(buildDealStats(royal, 'rent')!)!;
+    expect(buckets.map((b) => labels(b))).toEqual(['До $5 000 в месяц', 'Дороже $5 000 в месяц']);
+    expect(buckets.map((b) => b.lots.length)).toEqual([19, 6]);
   });
 });
