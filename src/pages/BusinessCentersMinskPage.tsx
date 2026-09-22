@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
@@ -47,6 +47,7 @@ import {
   CLASS_SLUG_TO_VALUE,
   DISTRICT_SLUG_TO_NAME,
   MICRODISTRICT_SLUG_TO_NAME,
+  MIN_INDEXABLE_HUB_CENTERS,
   classDistrictHubUrl,
   classHubUrl,
   districtHubUrl,
@@ -493,6 +494,93 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     [routeScoped, filter, offerIndex],
   );
 
+  // Смежные подборки (Ш2 плана docs/bc-catalog-seo-plan.md). Аудит
+  // 2026-09-22: 48 URL раздела не имели НИ ОДНОЙ входящей ссылки со всего
+  // сайта — 19 хабов улиц, 15 «класс + район», 10 микрорайонов. Причина:
+  // блок рекомендаций на карточке БЦ показывается, только когда в срезе
+  // есть ДРУГИЕ здания, а ковёр чипов-срезов убран с видимой части сайта
+  // тем же днём.
+  //
+  // Это НЕ возврат ковра: строка живёт только на хабе района и на хабе
+  // класса (на корне каталога её нет), перечисляет соседние срезы той же
+  // географии и не показывает то, что мы сами закрыли от индекса — порог
+  // MIN_INDEXABLE_HUB_CENTERS здесь тот же, что у noindex, иначе ссылка
+  // вела бы на страницу, которую сами же и не пускаем в индекс.
+  //
+  // Улицы и микрорайоны считаются ПО ВСЕМУ ГОРОДУ, а не внутри района:
+  // порогом распоряжается сама целевая страница, а она показывает улицу
+  // целиком, даже если та проходит по двум районам.
+  const crossHubGroups = useMemo(() => {
+    const all = centers ?? [];
+    if (all.length === 0) return [];
+    const isDistrictHub = Boolean(districtFilter) && !classFilter && !microdistrictFilter && !metroFilter && !streetFilter && !underConstruction;
+    const isClassHub = Boolean(classFilter) && !districtFilter && !microdistrictFilter && !metroFilter && !streetFilter && !underConstruction;
+    const groups: { title: string; links: { label: string; url: string }[] }[] = [];
+    const big = (n: number) => n >= MIN_INDEXABLE_HUB_CENTERS;
+
+    if (isDistrictHub && districtFilter) {
+      const inDistrict = all.filter((c) => c.district === districtFilter);
+      const classLinks = BUSINESS_CENTER_CLASSES.flatMap((cls) => {
+        const n = inDistrict.filter((c) => c.businessClass === cls).length;
+        const url = big(n) ? classDistrictHubUrl(cls, districtFilter) : null;
+        return url ? [{ label: `Класс ${cls} (${n})`, url }] : [];
+      });
+      if (classLinks.length) groups.push({ title: `Классы в ${districtPrepositional(districtFilter)} районе`, links: classLinks });
+
+      const microLinks = Array.from(new Set(inDistrict.map((c) => c.microdistrict).filter((v): v is string => !!v)))
+        .sort((a, b) => a.localeCompare(b, 'ru'))
+        .flatMap((name) => {
+          const n = all.filter((c) => c.microdistrict === name).length;
+          const url = big(n) ? microdistrictHubUrl(name) : null;
+          return url ? [{ label: `${name} (${n})`, url }] : [];
+        });
+      if (microLinks.length) groups.push({ title: 'Микрорайоны', links: microLinks });
+
+      const streetLinks = Array.from(new Set(inDistrict.map((c) => streetOfAddress(c.address)).filter((v): v is string => !!v)))
+        .sort((a, b) => a.localeCompare(b, 'ru'))
+        .flatMap((name) => {
+          const n = all.filter((c) => streetOfAddress(c.address) === name).length;
+          const url = big(n) ? streetHubUrl(name) : null;
+          return url ? [{ label: `${name} (${n})`, url }] : [];
+        });
+      if (streetLinks.length) groups.push({ title: 'Улицы', links: streetLinks });
+    }
+
+    if (isClassHub && classFilter) {
+      const districtLinks = Array.from(new Set(all.filter((c) => c.businessClass === classFilter).map((c) => c.district).filter((v): v is string => !!v)))
+        .sort((a, b) => a.localeCompare(b, 'ru'))
+        .flatMap((name) => {
+          const n = all.filter((c) => c.businessClass === classFilter && c.district === name).length;
+          const url = big(n) ? classDistrictHubUrl(classFilter, name) : null;
+          return url ? [{ label: `${name} район (${n})`, url }] : [];
+        });
+      if (districtLinks.length) groups.push({ title: `Класс ${classFilter} по районам`, links: districtLinks });
+    }
+
+    return groups;
+  }, [centers, districtFilter, classFilter, microdistrictFilter, metroFilter, streetFilter, underConstruction]);
+
+  // Число зданий в разделе и порог индексации производных срезов (Ш2 плана
+  // docs/bc-catalog-seo-plan.md). Считается при рендере, а не внутри
+  // эффекта: на него смотрят все три эффекта разметки (мета, FAQ, ItemList),
+  // и разъехаться они не должны.
+  //
+  // Пока каталог не приехал, числа нет: «0 зданий» в заголовке хуже, чем
+  // заголовок без числа. Пререндер снимает готовую страницу, поэтому в HTML
+  // для поисковика число уже стоит.
+  const hubCount = centers === null ? null : visibleCenters.length;
+  // Срез улицы, микрорайона или «класс + район» с одним-двумя зданиями почти
+  // повторяет карточку БЦ — в индекс такую страницу не пускаем (почему
+  // именно эти три оси и почему не метро/район/класс — см. комментарий у
+  // MIN_INDEXABLE_HUB_CENTERS).
+  const thinDerivedHub =
+    hubCount !== null &&
+    hubCount < MIN_INDEXABLE_HUB_CENTERS &&
+    Boolean(streetFilter || microdistrictFilter || (classFilter && districtFilter));
+  // Единственный ответ на вопрос «эту страницу индексируем?»: и мета, и FAQ,
+  // и ItemList смотрят сюда.
+  const pageIsIndexable = !notFound && filterIsIndexable && !thinDerivedHub;
+
   // Мета-теги каталога. Эффект стоит ПОСЛЕ visibleCenters сознательно: с
   // 2026-09-22 в заголовок и описание подставляется число зданий в
   // разделе, а массив зависимостей вычисляется прямо при рендере — выше
@@ -526,10 +614,6 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             : microdistrictFilter
               ? `Бизнес-центры ${microdistrictFilter}`
               : TITLE;
-    // Пока каталог не приехал, числа в сниппете нет: «0 зданий» в заголовке
-    // хуже, чем заголовок без числа. Пререндер снимает готовую страницу,
-    // поэтому в HTML для поисковика число уже стоит.
-    const hubCount = centers === null ? null : visibleCenters.length;
     // Родительный падеж — под «Актуальная аналитика N ...», и падеж зависит
     // от самого N: «аналитика 5 бизнес-центров», но «аналитика 141
     // бизнес-центра». Без этого на корне каталога стояло бы «аналитика 141
@@ -594,7 +678,10 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     // своя и canonical на хабе, а от индекса состояние закрывает noindex.
     // Разметку (Article, крошки, ItemList, FAQ) такому состоянию не даём:
     // она для индексируемых страниц, и setGenericPageMeta её уже сбросил.
-    if (!filterIsIndexable) {
+    // ...а вот разметку (Article, крошки, ItemList, FAQ) страницы вне индекса
+    // не получают: она для индексируемых состояний, и setGenericPageMeta её
+    // уже сбросил. Сюда попадают и состояния под фильтром, и тонкие срезы.
+    if (!pageIsIndexable) {
       setNoIndex();
       return () => clearNoIndex();
     }
@@ -636,7 +723,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               { name: 'Бизнес-центры Минска' },
             ],
     );
-  }, [classFilter, districtFilter, microdistrictFilter, underConstruction, metroFilter, streetFilter, notFound, filterIsIndexable, centers, visibleCenters]);
+  }, [classFilter, districtFilter, microdistrictFilter, underConstruction, metroFilter, streetFilter, notFound, pageIsIndexable, centers, hubCount]);
 
   // На хабе станции порядок по умолчанию — расстояние до неё (ближайшие
   // первыми): это и есть ответ на вопрос такой страницы. Явно выбранная в
@@ -960,9 +1047,9 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   }, [centers, scopeLabel, marketStats, districtTotals, officeSnapshots, metroFilter, orderedCenters, underConstructionNames, summary.rentMedian, rentMethodology, showRatesBlock, rateRent, rateSale]);
 
   useEffect(() => {
-    setFaqJsonLd(notFound || !filterIsIndexable ? [] : faqItems);
+    setFaqJsonLd(pageIsIndexable ? faqItems : []);
     return () => setFaqJsonLd([]);
-  }, [faqItems, notFound, filterIsIndexable]);
+  }, [faqItems, pageIsIndexable]);
 
   // ItemList — разметка самого перечня зданий (Ш1 плана
   // docs/bc-catalog-seo-plan.md). До 2026-09-22 её на каталоге и хабах не
@@ -976,7 +1063,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // странице нет, пока не нажата «Показать ещё». Нажали — список в разметке
   // растёт вместе с сеткой.
   useEffect(() => {
-    if (notFound || !filterIsIndexable) {
+    if (!pageIsIndexable) {
       setItemListJsonLd(null);
       return;
     }
@@ -987,7 +1074,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       })),
     );
     return () => setItemListJsonLd(null);
-  }, [orderedCenters, visibleCount, notFound, filterIsIndexable]);
+  }, [orderedCenters, visibleCount, pageIsIndexable]);
 
   if (notFound) {
     return (
@@ -1398,6 +1485,25 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 </div>
                 <ArrowRight className="h-5 w-5 shrink-0 text-ink-faint" />
               </Link>
+            )}
+
+            {crossHubGroups.length > 0 && (
+              <div className={cn('flex flex-col gap-2 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+                <h2 className="text-lg font-bold text-ink">Смежные подборки</h2>
+                {crossHubGroups.map((group) => (
+                  <p key={group.title} className="text-sm leading-relaxed text-ink-muted">
+                    <span className="font-semibold text-ink">{group.title}: </span>
+                    {group.links.map((link, i) => (
+                      <Fragment key={link.url}>
+                        {i > 0 && ' · '}
+                        <Link to={link.url} className="text-primary hover:underline">
+                          {link.label}
+                        </Link>
+                      </Fragment>
+                    ))}
+                  </p>
+                ))}
+              </div>
             )}
 
             {faqItems.length > 0 && <FaqAccordion title="Частые вопросы" items={faqItems} id="faq" />}
