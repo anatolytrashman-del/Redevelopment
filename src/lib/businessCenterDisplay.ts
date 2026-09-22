@@ -12,11 +12,16 @@ import type { BusinessCenter } from '../data/businessCenters';
 // icon='rating' (пример: "- Яндекс.Карты: **4,8** из 5 (836 оценок...)"),
 // структурного поля под него нет. Общий парсер — раньше жил только внутри
 // BusinessCenterDetailPage.tsx (бейдж у заголовка), теперь нужен ещё и
-// рейтингу /minsk/bcminsk/reyting, поэтому вынесен сюда как единственный
+// рейтингу /minsk/bcminsk/rating, поэтому вынесен сюда как единственный
 // источник разбора этой строки.
+// `count` — число оценок из той же строки («… (836 оценок, 209 отзывов)»).
+// Добавлено для рейтинга /minsk/bcminsk/rating: без него 4,9 по 46 оценкам
+// и 4,9 по 17 493 выглядят одинаково, а порог по числу оценок — третье
+// условие методики (владелец, 2026-09-22). null — в строке числа оценок
+// нет, то есть проверить надёжность цифры нечем.
 export function mapRatingFromHighlights(
   highlights: BusinessCenter['highlights'],
-): { value: number; label: string; source: string } | null {
+): { value: number; label: string; source: string; count: number | null } | null {
   const ratingHighlight = highlights.find((h) => h.icon === 'rating');
   if (!ratingHighlight) return null;
   // ** снимаем перед разбором — иначе "**4,8** из 5" не матчится по числу
@@ -26,7 +31,14 @@ export function mapRatingFromHighlights(
   if (!valueMatch) return null;
   const sourceMatch = line.match(/^[-\s]*([^:]+):/);
   const label = valueMatch[1];
-  return { value: parseFloat(label.replace(',', '.')), label, source: sourceMatch ? sourceMatch[1].trim() : 'карты' };
+  const countMatch = line.match(/(\d[\d\s ]*)\s*оцен/);
+  const count = countMatch ? Number(countMatch[1].replace(/[\s ]/g, '')) : null;
+  return {
+    value: parseFloat(label.replace(',', '.')),
+    label,
+    source: sourceMatch ? sourceMatch[1].trim() : 'карты',
+    count: Number.isFinite(count) && count !== null && count > 0 ? count : null,
+  };
 }
 
 // То же поле 'rating', но для блока «Что говорят» (WhatTheySayBlock):

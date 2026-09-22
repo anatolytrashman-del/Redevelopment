@@ -197,7 +197,7 @@ export function BusinessCentersGuidePage() {
         <div className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
           <div className="flex flex-col gap-4 text-sm leading-relaxed text-ink-muted">
             <div className="flex flex-col gap-1.5">
-              <h2 className="text-base font-bold text-ink">Классы A, B+, B и C</h2>
+              <h2 id="klassy" className="scroll-mt-24 text-base font-bold text-ink">Классы A, B+, B и C</h2>
               <p>
                 Деловой класс бизнес-центра — это не маркетинговая метка, а сложившаяся на рынке коммерческой
                 недвижимости система координат по качеству здания и уровню сервиса. <strong>Класс A</strong> — самый
@@ -323,7 +323,7 @@ export function BusinessCentersGuidePage() {
               </Link>
             </li>
             <li>
-              <Link to="/minsk/bcminsk/reyting" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+              <Link to="/minsk/bcminsk/rating" className="flex items-center gap-2 text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Рейтинг бизнес-центров класса A
               </Link>

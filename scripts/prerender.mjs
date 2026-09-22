@@ -211,7 +211,7 @@ const STATIC_PATHS = [
   ...MINSK_MIR_TOPIC_SLUGS.map((s) => `minsk/minsk-mir/${s}`),
   'minsk/bcminsk',
   'minsk/bcminsk/stroyashchiesya',
-  'minsk/bcminsk/reyting',
+  'minsk/bcminsk/rating',
   'minsk/bcminsk/analytics',
   'minsk/bcminsk/gid',
   ...CLASS_HUB_SLUGS.map((s) => `minsk/bcminsk/class/${s}`),
