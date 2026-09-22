@@ -39,9 +39,10 @@ import { FaqAccordion } from '../components/ui/FaqAccordion';
 const DATE_PUBLISHED = '2026-09-07';
 const PAGE_URL = 'https://redevelopment.pro/minsk/bcminsk/rating';
 const TITLE = `Лучшие бизнес-центры Минска: рейтинг класса A с оценкой от ${RATING_THRESHOLD_LABEL}`;
+// 160 символов — бюджет сниппета, см. комментарий в BusinessCentersGuidePage.
 const DESCRIPTION =
-  `Рейтинг бизнес-центров Минска: класс A, рейтинг на Яндекс.Картах от ${RATING_THRESHOLD_LABEL} из 5 и не менее ` +
-  `${MIN_RATING_COUNT} оценок здания. Открытая методика, число оценок и медианная ставка аренды по каждому БЦ.`;
+  `Рейтинг бизнес-центров Минска: класс A, оценка на Яндекс.Картах от ${RATING_THRESHOLD_LABEL} из 5 ` +
+  `при ${MIN_RATING_COUNT}+ отзывах. Открытая методика и медианная ставка аренды по каждому БЦ.`;
 const PAGE_H1 = 'Лучшие бизнес-центры Минска';
 // Раздел «Классы A, B+, B и C» в гиде по бизнес-центрам — туда ведёт
 // «как определяется класс» из методики (владелец, 2026-09-22).

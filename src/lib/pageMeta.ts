@@ -60,6 +60,16 @@ export function clearNoIndex() {
 export function setFaqJsonLd(items: { question: string; answer: string }[]) {
   const ld = document.getElementById('faq-json-ld');
   if (!ld) return;
+  // Пустой список — это «FAQ у страницы нет», а не «FAQ из нуля вопросов»:
+  // до 2026-09-22 сюда уезжал скелет {"@type":"FAQPage","mainEntity":[]},
+  // и страница без вопросов (soft-404, состояние каталога под фильтром,
+  // любой SPA-переход на страницу без FAQ) отдавала валидатору пустую
+  // разметку FAQPage вместо отсутствия разметки. Тот же приём, что у
+  // setItemListJsonLd/setBreadcrumbJsonLd ниже.
+  if (items.length === 0) {
+    ld.textContent = '';
+    return;
+  }
   ld.textContent = JSON.stringify({
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
