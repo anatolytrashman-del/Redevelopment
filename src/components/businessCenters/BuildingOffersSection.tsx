@@ -200,12 +200,15 @@ function DealColumn({ stats }: { stats: DealStats }) {
   }
 
   // Меньше семи помещений помещаются на экран целиком — полки для них
-  // лишний клик на ровном месте.
+  // лишний клик на ровном месте. Но рамка у списка та же, что у раскрытой
+  // полки: без неё здания с полками и здания без них выглядели как два
+  // разных блока (владелец, 2026-09-22: «я бы оформлял так же, в
+  // прямоугольную закруглённую рамку, даже обычные текущие таблицы»).
   if (!buckets) {
     return (
-      <div className="flex min-w-0 flex-col gap-3">
+      <div className="flex min-w-0 flex-col gap-4">
         {header}
-        <ul className="flex flex-col border-t border-border">
+        <ul className="flex flex-col rounded-2xl border border-border-strong bg-surface-muted px-4 py-1.5">
           {stats.lots.map((lot) => (
             <LotRow key={lot.id} lot={lot} deal={stats.deal} showType={showType} />
           ))}
