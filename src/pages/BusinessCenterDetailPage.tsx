@@ -2062,21 +2062,22 @@ export function BusinessCenterDetailPage() {
             источника (`caveat`) и дисклеймер "собрано автоматически...
             не куратировано вручную" под карточкой убраны тем же днём —
             владелец: "убери все предупреждения такого плана с сайта". */}
-        {center.rentalInfo && (
-          <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <FileText className="h-5 w-5 shrink-0 text-primary" />
-              Условия для арендаторов
-            </h2>
+        {center.rentalInfo &&
+          (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.sizes || center.rentalInfo.contacts) && (
+            <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+              <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+                <FileText className="h-5 w-5 shrink-0 text-primary" />
+                Условия для арендаторов
+              </h2>
 
-            <div className="flex flex-col divide-y divide-border">
-              <LabeledTextRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
-              <LabeledTextRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
-              <LabeledTextRow icon={Ruler} label="Площади и типы помещений" text={center.rentalInfo.sizes} />
-              <LabeledTextRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
+              <div className="flex flex-col divide-y divide-border">
+                <LabeledTextRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
+                <LabeledTextRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
+                <LabeledTextRow icon={Ruler} label="Площади и типы помещений" text={center.rentalInfo.sizes} />
+                <LabeledTextRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {renderRecommendationSlot('rental')}
 
