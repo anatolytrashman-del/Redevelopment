@@ -276,7 +276,6 @@ export function WhatTheySayBlock({
   reviews: BusinessCenterReview[];
 }) {
   const yandexRatings = useMemo(() => parseHighlightRatings(center.highlights), [center]);
-  const hasGis = center.gisRating != null;
   // Порядок цитат — как в источнике (highlights), не пересортирован по
   // тональности: подборка не должна выглядеть отобранной в одну сторону —
   // владелец, 2026-09-19, обсуждая этот же блок: "если будут только
@@ -299,12 +298,17 @@ export function WhatTheySayBlock({
   // key={center.slug} у вызова этого блока), иначе при переходе со страницы N
   // одного здания на здание с меньшим числом отзывов страница могла бы
   // указывать за пределы списка.
+  // 2ГИС убран из этого блока целиком (и агрегированный рейтинг, и текстовые
+  // отзывы) — владелец, 2026-09-22: рейтинг 2ГИС рядом с Яндекс.Картами вводил
+  // в заблуждение, а текстовых отзывов оттуда почти нет (ключ API 2ГИС
+  // заблокирован с 2026-09-20, ручной сбор дал считаные единицы на всю базу).
+  const realReviews = useMemo(() => reviews.filter((r) => r.source !== '2gis'), [reviews]);
   const [page, setPage] = useState(0);
-  const pageCount = Math.max(1, Math.ceil(reviews.length / MAX_REAL_REVIEWS));
+  const pageCount = Math.max(1, Math.ceil(realReviews.length / MAX_REAL_REVIEWS));
   const clampedPage = Math.min(page, pageCount - 1);
   const pageStart = clampedPage * MAX_REAL_REVIEWS;
-  const visibleReviews = reviews.slice(pageStart, pageStart + MAX_REAL_REVIEWS);
-  if (yandexRatings.length === 0 && !hasGis && quotes.length === 0 && visibleReviews.length === 0) return null;
+  const visibleReviews = realReviews.slice(pageStart, pageStart + MAX_REAL_REVIEWS);
+  if (yandexRatings.length === 0 && quotes.length === 0 && visibleReviews.length === 0) return null;
   return (
     <div id="reviews" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
       <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
@@ -316,15 +320,6 @@ export function WhatTheySayBlock({
           BCMINSK_SEO_PLAN.md — никакого AggregateRating), да и считаются
           они по-разному. */}
       <div className="flex flex-wrap gap-3">
-        {hasGis && (
-          <div className="flex items-center gap-2 rounded-2xl bg-surface-muted px-4 py-3">
-            <Star className="h-4 w-4 shrink-0 text-ink-muted" />
-            <span className="text-sm text-ink-muted">
-              <span className="font-bold text-ink">{center.gisRating}</span> на 2ГИС
-              {center.gisReviewCount != null && ` · ${center.gisReviewCount} оценок`}
-            </span>
-          </div>
-        )}
         {yandexRatings.map((r, i) => (
           <div key={i} className="flex items-center gap-2 rounded-2xl bg-surface-muted px-4 py-3">
             <Star className="h-4 w-4 shrink-0 text-ink-muted" />
@@ -374,7 +369,7 @@ export function WhatTheySayBlock({
         <div className="flex justify-end text-xs text-ink-muted">
           <div className="flex items-center gap-2">
             <span className="mr-1">
-              {pageStart + 1}–{Math.min(pageStart + MAX_REAL_REVIEWS, reviews.length)} из {reviews.length}
+              {pageStart + 1}–{Math.min(pageStart + MAX_REAL_REVIEWS, realReviews.length)} из {realReviews.length}
             </span>
             <button
               type="button"
