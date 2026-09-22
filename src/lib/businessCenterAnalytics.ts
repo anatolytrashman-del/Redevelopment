@@ -64,11 +64,18 @@ export function buildCityOffers(
   return result;
 }
 
-/** «11,8 года», «8 лет» — с запятой и правильным словом, а не 11.8. */
+/**
+ * «11,8 года», «8 лет» — с запятой и правильным словом, а не 11.8.
+ * Дробное число всегда требует родительного падежа единственного числа
+ * («8,9 года», не «8,9 лет») — по нему и идёт первая ветка; целые склоняются
+ * обычным правилом (1 год… но «год» здесь не нужен, у нас всегда «лет» или
+ * «года» после числа, ср. «21 года»).
+ */
 export function fmtYears(n: number): string {
   const rounded = Math.round(n * 10) / 10;
   const whole = Math.floor(rounded);
-  const word = whole % 10 === 1 && whole % 100 !== 11 ? 'года' : 'лет';
+  const fractional = rounded !== whole;
+  const word = fractional || (whole % 10 === 1 && whole % 100 !== 11) ? 'года' : 'лет';
   return `${rounded.toLocaleString('ru-RU')} ${word}`;
 }
 
