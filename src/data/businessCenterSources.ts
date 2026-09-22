@@ -105,6 +105,11 @@ export const DATA_SOURCE_GROUPS: DataSourceGroup[] = [
         href: 'https://www.instagram.com/promir_by/',
         note: 'фотографии района Минск Мир',
       },
+      {
+        label: 'Domovita.by (карточка БЦ «Футурис»)',
+        href: 'https://domovita.by/bc-bcfuturis',
+        note: 'фото здания для дефолтной заглушки хаб-страниц каталога, когда у подборки нет своего фото',
+      },
     ],
   },
 ];

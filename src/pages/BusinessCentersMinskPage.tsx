@@ -1261,11 +1261,11 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               {/* Владелец, 2026-09-22: один короткий дисклеймер без дат
                   снимков, методологии медианы ставки и имён источников в
                   основном тексте страницы — та же логика, что и на странице
-                  БЦ, см. SourcesTrademarkNote. Фотокредит «Футуриса» — ИСКЛЮЧЕНИЕ,
-                  оставлен: это не «источник данных», а атрибуция чужой
-                  фотографии (см. запись 2026-09-17 в journal — использован
-                  чужой снимок большего разрешения, источник указан намеренно). */}
-              <p className="text-xs text-ink-muted">Фото «Футуриса»: <a href="https://domovita.by/bc-bcfuturis" target="_blank" rel="noopener noreferrer" className="underline hover:text-ink">Domovita</a>.</p>
+                  БЦ, см. SourcesTrademarkNote. Отдельный фотокредит
+                  «Футуриса» отсюда убран (владелец, тем же днём позже) —
+                  снимок теперь один из источников в общем попапе
+                  (DATA_SOURCE_GROUPS, группа «Энциклопедии и
+                  фотоматериалы»), а не отдельная строка на видном месте. */}
               <SourcesTrademarkNote />
             </div>
           </div>
