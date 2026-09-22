@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ChevronDown, Menu, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
@@ -67,6 +67,18 @@ const RATING_LINKS: { to: string; label: string }[] = [
   { to: '/minsk/bcminsk/rating/samye-bolshie', label: 'Самые большие' },
   { to: '/minsk/bcminsk/rating/samye-dostupnye', label: 'Самые доступные' },
 ];
+
+// Ширина контейнера контента для каждого значения пропа `width` — ровно те
+// же величины, что стоят за классами Tailwind (max-w-3xl = 48rem и т.д.).
+// Нужны, чтобы CSS-формула отступа панели повторяла `mx-auto max-w-* ` без
+// замеров в JS: другого способа узнать ширину чужого контейнера из CSS нет.
+// Меняется `width` у страницы — меняется и ключ здесь.
+const PAGE_CONTENT_WIDTH: Record<string, string> = {
+  'max-w-3xl': '48rem',
+  'max-w-5xl': '64rem',
+  'max-w-6xl': '72rem',
+  'max-w-7xl': '80rem',
+};
 
 function rowLinkClass(active: boolean): string {
   return cn(
@@ -151,41 +163,8 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
   // дают экран на ~50 пунктов. Поэтому там группы свёрнуты (раскрыта одна,
   // по тапу), а от md раскладка колоночная и сворачивать нечего.
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
-  // Левая граница содержимого страницы в пикселях от края экрана — по ней
-  // выравнивается содержимое панели (владелец, 2026-09-22: «меню переносим
-  // в левый край страницы... оно на главной прижато к правому краю, а
-  // должно быть слева»).
-  const [contentLeft, setContentLeft] = useState<number | null>(null);
   const { pathname } = useLocation();
   const rootRef = useRef<HTMLElement>(null);
-  const barRef = useRef<HTMLDivElement>(null);
-
-  // Ориентир — контейнер самой шапки, то есть линия логотипа. Она же линия
-  // левого края содержимого страницы: у шапки и у main один и тот же
-  // `width` с одинаковыми боковыми полями. На каталоге и хабах с этой
-  // линии начинается колонка фильтров, а карточки зданий идут правее —
-  // равняться на них (первая попытка этой правки) значит увести меню
-  // вправо, оставив слева дыру во всю ширину фильтров.
-  //
-  // Замер живого узла, а не вычисление из классов: `width` у страниц
-  // разный (max-w-3xl у текстовых, max-w-6xl у каталога, max-w-7xl у
-  // карточки здания), боковые поля меняются на sm, а сам контейнер
-  // центрируется — считать это константами значит держать вторую копию
-  // вёрстки и ловить расхождение при каждой её правке.
-  useEffect(() => {
-    const measure = () => {
-      const el = barRef.current;
-      if (!el) {
-        setContentLeft(null);
-        return;
-      }
-      const padding = parseFloat(window.getComputedStyle(el).paddingLeft) || 0;
-      setContentLeft(Math.round(el.getBoundingClientRect().left + padding));
-    };
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [pathname, width]);
 
   // Закрывать меню при переходе: react-router меняет URL без перезагрузки,
   // сама панель при этом остаётся раскрытой поверх новой страницы.
@@ -256,7 +235,7 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
       ref={rootRef}
       className="sticky top-0 z-40 border-b border-border bg-bg/90 backdrop-blur-md"
     >
-      <div ref={barRef} className={cn('mx-auto flex items-center justify-between gap-3 px-4 py-4 sm:px-8', width)}>
+      <div className={cn('mx-auto flex items-center justify-between gap-3 px-4 py-4 sm:px-8', width)}>
         <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
           <span className="font-black text-primary">RED</span>EVELOPMENT
         </Link>
@@ -317,21 +296,31 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
         )}
         style={{ boxShadow: '0 16px 32px rgba(0,0,0,0.12)' }}
       >
-        {/* Содержимое панели прижато к левому краю страницы (линия
-            логотипа), а не центрировано. Вправо оно тянется дальше, чем
-            контейнер страницы: в три колонки со списком станций 768 px не
-            хватает — названия вроде «Площадь Франтишка Богушевича»
-            ломались на три строки, поэтому ограничение справа мягкое
-            (maxWidth), а жёстко задана только левая граница.
-            `contentLeft === null` — первый кадр до замера: тогда прежнее
-            центрирование, панель не прыгает и не уезжает за экран. */}
+        {/* Содержимое панели прижато к левому краю страницы — к той же
+            линии, где стоит логотип и начинается контент (владелец,
+            2026-09-22: «оно на главной прижато к правому краю, а должно
+            быть слева»). Вправо оно тянется дальше контейнера страницы: в
+            три колонки со списком станций 768 px не хватает, названия
+            вроде «Площадь Франтишка Богушевича» ломаются на три строки.
+            Поэтому левая граница задана жёстко, а ширина содержимого
+            ограничена мягко (max-w-[72rem] на внутреннем блоке).
+
+            Отступ считает CSS, а НЕ замер в JS: формула повторяет ровно то,
+            что делает `mx-auto max-w-* px-4 sm:px-8` у шапки и у main —
+            половина свободного места плюс боковое поле, но не меньше самого
+            поля на узком экране. Замер тут был ошибкой: пререндер
+            (scripts/prerender.mjs) выполняет эффекты и ЗАПЕКАЕТ результат в
+            статический HTML — в снимке оставался `padding-left: 96px`,
+            посчитанный для ширины окна сборщика, и до гидратации (а entry у
+            нас отложен, см. defer-entry-script.mjs) все видели чужую
+            линию. Проценты берутся от ширины самой панели, то есть от
+            ширины документа без полосы прокрутки, — в отличие от 100vw,
+            которая её включает. */}
         <div
-          className={cn(
-            'flex flex-col gap-6 py-6',
-            contentLeft === null ? 'mx-auto max-w-6xl px-4 sm:px-8' : 'px-4 sm:pr-8',
-          )}
-          style={contentLeft === null ? undefined : { paddingLeft: contentLeft, maxWidth: 1152 + contentLeft }}
+          className="flex flex-col gap-6 py-6 pr-4 pl-[max(1rem,calc((100%-var(--page-w))/2+1rem))] sm:pr-8 sm:pl-[max(2rem,calc((100%-var(--page-w))/2+2rem))]"
+          style={{ '--page-w': PAGE_CONTENT_WIDTH[width] ?? PAGE_CONTENT_WIDTH['max-w-6xl'] } as CSSProperties}
         >
+          <div className="flex max-w-[72rem] flex-col gap-6">
           {groups.length === 0 ? (
             <p className="text-sm text-ink-muted">Загружаем каталог…</p>
           ) : (
@@ -473,6 +462,7 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
                 </Link>
               ),
             )}
+          </div>
           </div>
         </div>
       </div>
