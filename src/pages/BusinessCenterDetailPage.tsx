@@ -32,7 +32,6 @@ import {
   Palette,
   Phone,
   Presentation,
-  Ruler,
   ScrollText,
   ShoppingBag,
   Sparkles,
@@ -44,6 +43,7 @@ import {
 } from 'lucide-react';
 import { outletBrand } from '../data/mediaOutlets';
 import { cn } from '../lib/cn';
+import { renderBold } from '../lib/renderBold';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
 import { PhotoBlock, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
@@ -151,7 +151,7 @@ const SECTION_LABELS: Record<string, string> = {
   map: 'Инфраструктура рядом',
   tech: 'Параметры здания',
   tenants: 'Каталог арендаторов',
-  rental: 'Условия для арендаторов',
+  rental: 'Отдел аренды БЦ',
   offers: 'Что сдают и продают',
   history: 'История здания',
   reviews: 'Отзывы',
@@ -1343,7 +1343,7 @@ export function BusinessCenterDetailPage() {
     }
     if (center.rentalInfo) {
       const info = center.rentalInfo;
-      add('Какие условия и контакты аренды опубликованы?', [info.terms, info.rates, info.sizes, info.contacts].filter(Boolean).join(' ') + ' Актуальные условия уточняйте у арендодателя.');
+      add('Какие условия и контакты аренды опубликованы?', [info.terms, info.rates, info.contacts].filter(Boolean).join(' ') + ' Актуальные условия уточняйте у арендодателя.');
     }
     if (awardItems.length) add(`Какие награды есть у «${name}»?`, awardItems.join('\n'));
     if (mediaMentions.length)
@@ -1428,24 +1428,17 @@ export function BusinessCenterDetailPage() {
     if (!center) return [];
     const has = (id: string, cond: boolean) => (cond ? { id, label: SECTION_LABELS[id] } : null);
     // Порядок пунктов повторяет порядок блоков на странице (владелец принял
-    // 2026-09-20): что предлагают и почём → какое здание → где оно → кто
-    // внутри → на фоне конкурентов → отзывы → блоки доверия (награды/СМИ/
-    // факты/история) → застройщик → FAQ.
+    // 2026-09-20; "Параметры здания" переехали под "Историю здания"
+    // 2026-09-22): что предлагают и почём → где оно → кто внутри → на фоне
+    // конкурентов → отзывы → блоки доверия (награды/СМИ/факты/история/
+    // параметры здания) → застройщик → FAQ.
     return [
       has('offers', saleStats !== null || rentStats !== null),
       has(
         'rental',
         Boolean(
-          center.rentalInfo &&
-            (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.sizes || center.rentalInfo.contacts),
+          center.rentalInfo && (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.contacts),
         ),
-      ),
-      has(
-        'tech',
-        redistributedTechnicalParams.buildingInformationRows.length > 0 ||
-          center.buildingFacts.length > 0 ||
-          buildingParamHighlights.length > 0 ||
-          Boolean(center.parking || accessHoursText || accessibilityAttributes),
       ),
       // Карта есть у любого БЦ с координатами — с 2026-09-20 блок рисуется
       // на всех страницах каталога, а не только там, где собран снимок
@@ -1469,6 +1462,13 @@ export function BusinessCenterDetailPage() {
       has('media', mediaMentions.length > 0),
       has('facts', visibleHighlights.length > 0),
       has('history', extractHistoryPoints(center).length >= 2),
+      has(
+        'tech',
+        redistributedTechnicalParams.buildingInformationRows.length > 0 ||
+          center.buildingFacts.length > 0 ||
+          buildingParamHighlights.length > 0 ||
+          Boolean(center.parking || accessHoursText || accessibilityAttributes),
+      ),
       has('developer', Boolean(center.developerInfo)),
       has('faq', faqItems.length > 0),
     ].filter((v): v is { id: string; label: string } => v !== null);
@@ -1510,7 +1510,7 @@ export function BusinessCenterDetailPage() {
           return Math.max(saleStats?.count ?? 0, rentStats?.count ?? 0);
         case 'rental':
           return rentalInfo
-            ? [rentalInfo.terms, rentalInfo.rates, rentalInfo.sizes, rentalInfo.contacts].reduce(
+            ? [rentalInfo.terms, rentalInfo.rates, rentalInfo.contacts].reduce(
                 (sum, text) => sum + estimateTextLines(text, 95),
                 0,
               )
@@ -2052,8 +2052,8 @@ export function BusinessCenterDetailPage() {
 
         {renderRecommendationSlot('offers')}
 
-        {/* Условия для арендаторов с офиц. сайта БЦ (владелец, 2026-09-05,
-            на примере "Проспект"/Elite Estate — по нему нет объявлений на
+        {/* Отдел аренды БЦ, с офиц. сайта БЦ (владелец, 2026-09-05, на
+            примере "Проспект"/Elite Estate — по нему нет объявлений на
             Kufar/Realt, но на собственном сайте есть условия для
             арендаторов: "пройдись по сайтам БЦ и поищешь такую информацию").
             Собрано веб-поиском (Gemini через ProxyAPI — прямого доступа к
@@ -2068,145 +2068,33 @@ export function BusinessCenterDetailPage() {
             вопрос "что тут есть и почём". Акцентный жёлтый блок с оговоркой
             источника (`caveat`) и дисклеймер "собрано автоматически...
             не куратировано вручную" под карточкой убраны тем же днём —
-            владелец: "убери все предупреждения такого плана с сайта". */}
-        {center.rentalInfo &&
-          (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.sizes || center.rentalInfo.contacts) && (
-            <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-              <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-                <FileText className="h-5 w-5 shrink-0 text-primary" />
-                Условия для арендаторов
-              </h2>
+            владелец: "убери все предупреждения такого плана с сайта".
+            Заголовок переименован и раздел "Площади и типы помещений" убран
+            2026-09-22 — владелец: это дублировало totalArea/floors, уже
+            показанные в "Параметрах здания", и вообще не про вопрос аренды. */}
+        {center.rentalInfo && (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.contacts) && (
+          <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+              <FileText className="h-5 w-5 shrink-0 text-primary" />
+              Отдел аренды БЦ
+            </h2>
 
-              <div className="flex flex-col divide-y divide-border">
-                <LabeledTextRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
-                <LabeledTextRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
-                <LabeledTextRow icon={Ruler} label="Площади и типы помещений" text={center.rentalInfo.sizes} />
-                <LabeledTextRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
-              </div>
+            <div className="flex flex-col divide-y divide-border">
+              <LabeledTextRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
+              <LabeledTextRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
+              <LabeledTextRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
             </div>
-          )}
+          </div>
+        )}
 
         {renderRecommendationSlot('rental')}
 
-        <div id="tech" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-          <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-            <Building2 className="h-5 w-5 shrink-0 text-primary" />
-            Параметры здания
-          </h2>
-          {/* Один сплошной список фактов о здании, без подзаголовков по
-              ТИПУ ИСТОЧНИКА (владелец, 2026-09-20: "надпись ДОПОЛНИТЕЛЬНО,
-              ПО ДРУГИМ ИСТОЧНИКАМ нелогичная, у нас один единый блок
-              информации о здании" — раньше парковка/часы/доступная среда,
-              технические параметры и исследованные факты рисовались тремя
-              отдельными блоками со своими заголовками и обрамлением, хотя
-              для читателя это один и тот же список "что известно о
-              здании"). Порядок внутри остаётся прежним (сначала
-              эксплуатационные строки, потом технические параметры, потом
-              исследованные факты) — он и был логичным, лишним был только
-              заголовок, объясняющий это через происхождение данных. */}
-          {(architectureHighlights.length > 0 ||
-            center.parking ||
-            accessHoursText ||
-            accessibilityAttributes ||
-            redistributedTechnicalParams.buildingInformationRows.length > 0 ||
-            center.buildingFacts.length > 0) && (
-            <div className="overflow-hidden rounded-control border border-border">
-              <table className="w-full border-collapse text-sm">
-                <tbody>
-                  {architectureHighlights.map((h, i) => (
-                    <tr key={`arch-${i}`} className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
-                      <th scope="row" className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5">
-                        {h.label}
-                      </th>
-                      <td className="py-2 pl-2 pr-3 text-ink">{h.text}</td>
-                    </tr>
-                  ))}
-                  {center.parking && (
-                    <tr className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
-                      <th scope="row" className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5">
-                        Парковка
-                      </th>
-                      <td className="py-2 pl-2 pr-3 text-ink">{center.parking}</td>
-                    </tr>
-                  )}
-                  {accessHoursText && (
-                    <tr className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
-                      <th scope="row" className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5">
-                        Часы работы
-                      </th>
-                      <td className="py-2 pl-2 pr-3 text-ink">
-                        {accessHoursText.toLocaleLowerCase('ru-RU') === 'круглосуточно' ? '24/7' : accessHoursText}
-                      </td>
-                    </tr>
-                  )}
-                  {accessibilityAttributes && (
-                    <tr className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
-                      <th scope="row" className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5">
-                        Доступная среда
-                      </th>
-                      <td className="py-2 pl-2 pr-3 text-ink">
-                        <AccessibilityChips text={accessibilityAttributes} />
-                      </td>
-                    </tr>
-                  )}
-                  {redistributedTechnicalParams.buildingInformationRows.map((row) => (
-                    <tr key={row.label} className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
-                      <th
-                        scope="row"
-                        className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
-                      >
-                        {row.label}
-                      </th>
-                      <td className="py-2 pl-2 pr-3 text-ink">{row.value}</td>
-                    </tr>
-                  ))}
-                  {center.buildingFacts.map((fact, index) => (
-                    <tr
-                      key={`${fact.label}-${index}`}
-                      className="border-b border-border last:border-b-0 odd:bg-surface-muted/40"
-                    >
-                      <th
-                        scope="row"
-                        className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
-                      >
-                        {fact.label}
-                        {fact.corpusLabel && (
-                          <span className="block text-xs font-normal text-ink-faint">{fact.corpusLabel}</span>
-                        )}
-                      </th>
-                      <td className="py-2 pl-2 pr-3 text-ink">
-                        <span>{fact.value}</span>
-                        {fact.note && <span className="block text-xs text-ink-faint">{fact.note}</span>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {/* Эко-сертификация — переехала сюда из "Интересных фактов"
-              2026-09-21 (владелец: "все переноси в блок про здание,
-              Параметры здания"). Остаётся абзацем (LabeledTextRow, markdown
-              жирный текст и буллеты) под таблицей — эти тексты обычно
-              длиннее одной строки, в отличие от архитектуры (см.
-              architectureHighlights выше), которую владелец 2026-09-22
-              попросил сократить и увести в саму таблицу первой строкой. */}
-          {ecoHighlights.length > 0 && (
-            <div className="flex flex-col divide-y divide-border">
-              {ecoHighlights.map((s, i) => (
-                <LabeledTextRow key={i} icon={HIGHLIGHT_ICONS[s.icon]} label={s.label} text={s.text} />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {renderRecommendationSlot('tech')}
-
-        {/* Карта и инфраструктура рядом — сразу после параметров здания,
-            перед арендаторами и сравнением с конкурентами (владелец,
-            2026-09-20: принял предложенный порядок блоков страницы; см.
-            подпись пункта меню "На странице" ниже про то, что карта есть
-            у любого БЦ с координатами). */}
+        {/* Карта и инфраструктура рядом — перед арендаторами и сравнением
+            с конкурентами (владелец, 2026-09-20: принял предложенный
+            порядок блоков страницы; см. подпись пункта меню "На странице"
+            ниже про то, что карта есть у любого БЦ с координатами).
+            "Параметры здания" отсюда переехали ниже, под "Историю здания"
+            (владелец, 2026-09-22) — см. блок с id="tech" в конце страницы. */}
         {center && <NearbyInfrastructureBlock center={center} places={nearbyPlaces} />}
 
         {renderRecommendationSlot('map')}
@@ -2368,6 +2256,128 @@ export function BusinessCenterDetailPage() {
         {center && <HistoryTimeline center={center} />}
 
         {renderRecommendationSlot('history')}
+
+        {/* "Параметры здания" — владелец, 2026-09-22: "перенеси блок Параметры
+            здания под Историю здания, где нет истории здания — под предыдущий
+            блок". Само это условие обеспечивает JSX: HistoryTimeline рисует
+            себя только при ≥2 точках истории (extractHistoryPoints выше), а
+            без них ничего не рендерит — блок ниже просто встаёт сразу после
+            "Интересных фактов", то есть под тем блоком, что реально оказался
+            перед ним на странице. Раньше стоял сразу после "Условий для
+            арендаторов", теперь — здесь; сама разметка блока не менялась. */}
+        <div id="tech" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+          <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+            <Building2 className="h-5 w-5 shrink-0 text-primary" />
+            Параметры здания
+          </h2>
+          {/* Один сплошной список фактов о здании, без подзаголовков по
+              ТИПУ ИСТОЧНИКА (владелец, 2026-09-20: "надпись ДОПОЛНИТЕЛЬНО,
+              ПО ДРУГИМ ИСТОЧНИКАМ нелогичная, у нас один единый блок
+              информации о здании" — раньше парковка/часы/доступная среда,
+              технические параметры и исследованные факты рисовались тремя
+              отдельными блоками со своими заголовками и обрамлением, хотя
+              для читателя это один и тот же список "что известно о
+              здании"). Порядок внутри остаётся прежним (сначала
+              эксплуатационные строки, потом технические параметры, потом
+              исследованные факты) — он и был логичным, лишним был только
+              заголовок, объясняющий это через происхождение данных. */}
+          {(architectureHighlights.length > 0 ||
+            center.parking ||
+            accessHoursText ||
+            accessibilityAttributes ||
+            redistributedTechnicalParams.buildingInformationRows.length > 0 ||
+            center.buildingFacts.length > 0) && (
+            <div className="overflow-hidden rounded-control border border-border">
+              <table className="w-full border-collapse text-sm">
+                <tbody>
+                  {architectureHighlights.map((h, i) => (
+                    <tr key={`arch-${i}`} className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
+                      <th scope="row" className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5">
+                        {h.label}
+                      </th>
+                      <td className="py-2 pl-2 pr-3 text-ink">{h.text}</td>
+                    </tr>
+                  ))}
+                  {center.parking && (
+                    <tr className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
+                      <th scope="row" className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5">
+                        Парковка
+                      </th>
+                      <td className="py-2 pl-2 pr-3 text-ink">{center.parking}</td>
+                    </tr>
+                  )}
+                  {accessHoursText && (
+                    <tr className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
+                      <th scope="row" className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5">
+                        Часы работы
+                      </th>
+                      <td className="py-2 pl-2 pr-3 text-ink">
+                        {accessHoursText.toLocaleLowerCase('ru-RU') === 'круглосуточно' ? '24/7' : accessHoursText}
+                      </td>
+                    </tr>
+                  )}
+                  {accessibilityAttributes && (
+                    <tr className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
+                      <th scope="row" className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5">
+                        Доступная среда
+                      </th>
+                      <td className="py-2 pl-2 pr-3 text-ink">
+                        <AccessibilityChips text={accessibilityAttributes} />
+                      </td>
+                    </tr>
+                  )}
+                  {redistributedTechnicalParams.buildingInformationRows.map((row) => (
+                    <tr key={row.label} className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
+                      <th
+                        scope="row"
+                        className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
+                      >
+                        {row.label}
+                      </th>
+                      <td className="py-2 pl-2 pr-3 text-ink">{row.value}</td>
+                    </tr>
+                  ))}
+                  {center.buildingFacts.map((fact, index) => (
+                    <tr
+                      key={`${fact.label}-${index}`}
+                      className="border-b border-border last:border-b-0 odd:bg-surface-muted/40"
+                    >
+                      <th
+                        scope="row"
+                        className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
+                      >
+                        {fact.label}
+                        {fact.corpusLabel && (
+                          <span className="block text-xs font-normal text-ink-faint">{fact.corpusLabel}</span>
+                        )}
+                      </th>
+                      <td className="py-2 pl-2 pr-3 text-ink">
+                        <span>{fact.value}</span>
+                        {fact.note && <span className="block text-xs text-ink-faint">{fact.note}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {/* Эко-сертификация — переехала сюда из "Интересных фактов"
+              2026-09-21 (владелец: "все переноси в блок про здание,
+              Параметры здания"). Остаётся абзацем (LabeledTextRow, markdown
+              жирный текст и буллеты) под таблицей — эти тексты обычно
+              длиннее одной строки, в отличие от архитектуры (см.
+              architectureHighlights выше), которую владелец 2026-09-22
+              попросил сократить и увести в саму таблицу первой строкой. */}
+          {ecoHighlights.length > 0 && (
+            <div className="flex flex-col divide-y divide-border">
+              {ecoHighlights.map((s, i) => (
+                <LabeledTextRow key={i} icon={HIGHLIGHT_ICONS[s.icon]} label={s.label} text={s.text} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {renderRecommendationSlot('tech')}
 
         {/* Развёрнутая карточка застройщика — владелец, 2026-09-20: "у
             половины БЦ застройщики нормальные, с сайтами и тд... сделал бы
@@ -2639,7 +2649,6 @@ function RelatedCentersSection({
   );
 }
 
-// Одна строка блока "Условия для арендаторов" — иконка + подпись раздела +
 // Иконка на раздел "Интересных фактов" по ключу из HighlightSection.icon —
 // 'warning' в общий список не попадает (свой рендер, акцентный блок выше),
 // но остаётся в мапе для полноты типа (Record должен покрывать все ключи).
@@ -2921,7 +2930,7 @@ function AccessibilityChips({ text }: { text: string }) {
   );
 }
 
-// Мини-разметка внутри полей "Условия для арендаторов" (владелец, 2026-09-06:
+// Мини-разметка внутри полей "Отдел аренды БЦ" (владелец, 2026-09-06:
 // "делай еще сильнее дробить... в таком формате: * Пункт 1... важные цифры
 // выделяй жирным") — сознательно не полноценный markdown-парсер (незачем
 // тянуть библиотеку ради двух приёмов), просто: строки, начинающиеся с "- "
@@ -2959,15 +2968,3 @@ function renderRentalText(text: string): ReactNode {
   return <>{blocks}</>;
 }
 
-function renderBold(text: string): ReactNode {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
-  return parts.map((part, i) =>
-    part.startsWith('**') && part.endsWith('**') ? (
-      <strong key={i} className="font-semibold text-ink">
-        {part.slice(2, -2)}
-      </strong>
-    ) : (
-      part
-    ),
-  );
-}

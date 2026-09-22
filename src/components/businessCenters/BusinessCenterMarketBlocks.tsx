@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Gauge, History, MessageSquare, Star, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
+import { renderBold } from '../../lib/renderBold';
 import type { BusinessCenter } from '../../data/businessCenters';
 import type { BusinessCenterReview } from '../../data/businessCenterReviews';
 import { parseHighlightRatings, parseReviewQuote } from '../../lib/businessCenterDisplay';
@@ -230,7 +231,7 @@ export function HistoryTimeline({ center }: { center: BusinessCenter }) {
           <li key={p.year} className="relative">
             <span className="absolute -left-[1.6rem] top-1.5 h-2.5 w-2.5 rounded-full bg-primary" />
             <span className="block text-sm font-bold text-ink">{p.year}</span>
-            <span className="block text-sm leading-relaxed text-ink-muted">{p.text}</span>
+            <span className="block text-sm leading-relaxed text-ink-muted">{renderBold(p.text)}</span>
           </li>
         ))}
       </ol>
