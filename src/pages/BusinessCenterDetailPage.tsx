@@ -32,7 +32,6 @@ import {
   Palette,
   Phone,
   Presentation,
-  Ruler,
   ScrollText,
   ShoppingBag,
   Sparkles,
@@ -151,7 +150,7 @@ const SECTION_LABELS: Record<string, string> = {
   map: 'Инфраструктура рядом',
   tech: 'Параметры здания',
   tenants: 'Каталог арендаторов',
-  rental: 'Условия для арендаторов',
+  rental: 'Отдел аренды БЦ',
   offers: 'Что сдают и продают',
   history: 'История здания',
   reviews: 'Отзывы',
@@ -1343,7 +1342,7 @@ export function BusinessCenterDetailPage() {
     }
     if (center.rentalInfo) {
       const info = center.rentalInfo;
-      add('Какие условия и контакты аренды опубликованы?', [info.terms, info.rates, info.sizes, info.contacts].filter(Boolean).join(' ') + ' Актуальные условия уточняйте у арендодателя.');
+      add('Какие условия и контакты аренды опубликованы?', [info.terms, info.rates, info.contacts].filter(Boolean).join(' ') + ' Актуальные условия уточняйте у арендодателя.');
     }
     if (awardItems.length) add(`Какие награды есть у «${name}»?`, awardItems.join('\n'));
     if (mediaMentions.length)
@@ -1436,8 +1435,7 @@ export function BusinessCenterDetailPage() {
       has(
         'rental',
         Boolean(
-          center.rentalInfo &&
-            (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.sizes || center.rentalInfo.contacts),
+          center.rentalInfo && (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.contacts),
         ),
       ),
       has(
@@ -1510,7 +1508,7 @@ export function BusinessCenterDetailPage() {
           return Math.max(saleStats?.count ?? 0, rentStats?.count ?? 0);
         case 'rental':
           return rentalInfo
-            ? [rentalInfo.terms, rentalInfo.rates, rentalInfo.sizes, rentalInfo.contacts].reduce(
+            ? [rentalInfo.terms, rentalInfo.rates, rentalInfo.contacts].reduce(
                 (sum, text) => sum + estimateTextLines(text, 95),
                 0,
               )
@@ -2052,8 +2050,8 @@ export function BusinessCenterDetailPage() {
 
         {renderRecommendationSlot('offers')}
 
-        {/* Условия для арендаторов с офиц. сайта БЦ (владелец, 2026-09-05,
-            на примере "Проспект"/Elite Estate — по нему нет объявлений на
+        {/* Отдел аренды БЦ, с офиц. сайта БЦ (владелец, 2026-09-05, на
+            примере "Проспект"/Elite Estate — по нему нет объявлений на
             Kufar/Realt, но на собственном сайте есть условия для
             арендаторов: "пройдись по сайтам БЦ и поищешь такую информацию").
             Собрано веб-поиском (Gemini через ProxyAPI — прямого доступа к
@@ -2068,23 +2066,24 @@ export function BusinessCenterDetailPage() {
             вопрос "что тут есть и почём". Акцентный жёлтый блок с оговоркой
             источника (`caveat`) и дисклеймер "собрано автоматически...
             не куратировано вручную" под карточкой убраны тем же днём —
-            владелец: "убери все предупреждения такого плана с сайта". */}
-        {center.rentalInfo &&
-          (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.sizes || center.rentalInfo.contacts) && (
-            <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-              <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-                <FileText className="h-5 w-5 shrink-0 text-primary" />
-                Условия для арендаторов
-              </h2>
+            владелец: "убери все предупреждения такого плана с сайта".
+            Заголовок переименован и раздел "Площади и типы помещений" убран
+            2026-09-22 — владелец: это дублировало totalArea/floors, уже
+            показанные в "Параметрах здания", и вообще не про вопрос аренды. */}
+        {center.rentalInfo && (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.contacts) && (
+          <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+              <FileText className="h-5 w-5 shrink-0 text-primary" />
+              Отдел аренды БЦ
+            </h2>
 
-              <div className="flex flex-col divide-y divide-border">
-                <LabeledTextRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
-                <LabeledTextRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
-                <LabeledTextRow icon={Ruler} label="Площади и типы помещений" text={center.rentalInfo.sizes} />
-                <LabeledTextRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
-              </div>
+            <div className="flex flex-col divide-y divide-border">
+              <LabeledTextRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
+              <LabeledTextRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
+              <LabeledTextRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
             </div>
-          )}
+          </div>
+        )}
 
         {renderRecommendationSlot('rental')}
 
@@ -2649,7 +2648,6 @@ function RelatedCentersSection({
   );
 }
 
-// Одна строка блока "Условия для арендаторов" — иконка + подпись раздела +
 // Иконка на раздел "Интересных фактов" по ключу из HighlightSection.icon —
 // 'warning' в общий список не попадает (свой рендер, акцентный блок выше),
 // но остаётся в мапе для полноты типа (Record должен покрывать все ключи).
@@ -2931,7 +2929,7 @@ function AccessibilityChips({ text }: { text: string }) {
   );
 }
 
-// Мини-разметка внутри полей "Условия для арендаторов" (владелец, 2026-09-06:
+// Мини-разметка внутри полей "Отдел аренды БЦ" (владелец, 2026-09-06:
 // "делай еще сильнее дробить... в таком формате: * Пункт 1... важные цифры
 // выделяй жирным") — сознательно не полноценный markdown-парсер (незачем
 // тянуть библиотеку ради двух приёмов), просто: строки, начинающиеся с "- "
