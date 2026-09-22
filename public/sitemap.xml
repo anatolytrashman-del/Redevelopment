@@ -139,6 +139,18 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://redevelopment.pro/minsk/bcminsk/analytics</loc>
+    <lastmod>2026-09-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://redevelopment.pro/minsk/bcminsk/gid</loc>
+    <lastmod>2026-09-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://redevelopment.pro/minsk/bcminsk/class/a</loc>
     <lastmod>2026-09-06</lastmod>
     <changefreq>weekly</changefreq>
