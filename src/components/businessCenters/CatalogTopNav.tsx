@@ -235,8 +235,16 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
       ref={rootRef}
       className="sticky top-0 z-40 border-b border-border bg-bg/90 backdrop-blur-md"
     >
-      <div className={cn('mx-auto flex items-center justify-between gap-3 px-4 py-4 sm:px-8', width)}>
-        <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
+      {/* Пункты меню стоят сразу за логотипом, а не у правого края
+          (владелец, 2026-09-22: «меню переносим в левый край страницы»,
+          «оно на главной прижато к правому краю, а должно быть слева») —
+          та же раскладка, что и на mts.ru, с которого владелец начал
+          разговор о меню: логотип, сразу за ним разделы, справа пусто.
+          Ниже md в шапке остаётся только бургер, и он по-прежнему
+          прижимается к правому краю (justify-between), иначе прилипнет к
+          логотипу и промахнуться по нему пальцем станет легко. */}
+      <div className={cn('mx-auto flex items-center justify-between gap-3 px-4 py-4 sm:px-8 md:justify-start md:gap-10', width)}>
+        <Link to="/minsk" className="shrink-0 text-lg font-extrabold tracking-wide text-ink">
           <span className="font-black text-primary">RED</span>EVELOPMENT
         </Link>
 
