@@ -266,7 +266,7 @@ export default function App() {
       {/* Ось «строящиеся» (аудит поиска 2026-09-07) — тот же компонент с пропом. */}
       <Route path="/minsk/bcminsk/stroyashchiesya" element={<BusinessCentersMinskPage underConstruction />} />
       {/* Рейтинг «Лучшие бизнес-центры Минска» (аудит 2026-09-07) — отдельный компонент, не хаб-фильтр. */}
-      <Route path="/minsk/bcminsk/reyting" element={<BusinessCentersRankingPage />} />
+      <Route path="/minsk/bcminsk/rating" element={<BusinessCentersRankingPage />} />
       <Route path="/minsk/bcminsk/gid" element={<BusinessCentersGuidePage />} />
       {/* Аналитика каталога БЦ (владелец, 2026-09-22) — вынесена сюда с
           подвала каталога, см. комментарий в BusinessCentersAnalyticsPage.tsx. */}

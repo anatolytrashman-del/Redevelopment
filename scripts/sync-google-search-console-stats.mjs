@@ -80,7 +80,7 @@ const KEY_PAGE_PATHS = [
   'minsk/analytics/sklady/arenda',
   'minsk/analytics/mashinomesta/arenda',
   'minsk/bcminsk',
-  'minsk/bcminsk/reyting',
+  'minsk/bcminsk/rating',
   'minsk/bcminsk/gid',
   'minsk/bcminsk/stroyashchiesya',
   'minsk/bcminsk/analytics',

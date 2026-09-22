@@ -707,7 +707,7 @@ export function BusinessCenterDetailPage() {
           )
       : [];
     // Владелец, 2026-09-20: "в рейтинге нет БЦ Капитал Палас" — блок обязан
-    // показывать РОВНО тех же лидеров, что и /minsk/bcminsk/reyting, не
+    // показывать РОВНО тех же лидеров, что и /minsk/bcminsk/rating, не
     // собственную сортировку по BusinessCenter.gisRating (это снимок 2ГИС,
     // другое число и без фильтра по классу/порогу — методика реального
     // рейтинга в buildRanking, BusinessCentersRankingPage.tsx). Тот же
@@ -784,7 +784,7 @@ export function BusinessCenterDetailPage() {
                 id: 'ratingCenters',
                 title: 'Рейтинг бизнес-центров Минска',
                 centers: list,
-                catalogUrl: '/minsk/bcminsk/reyting',
+                catalogUrl: '/minsk/bcminsk/rating',
                 catalogLabel: 'Весь рейтинг БЦ',
               }
             : null,

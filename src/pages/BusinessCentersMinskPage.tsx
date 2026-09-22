@@ -868,7 +868,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             <Link to="/minsk/bcminsk/analytics" className="text-sm font-semibold text-ink-muted transition-colors hover:text-ink">
               Аналитика
             </Link>
-            <Link to="/minsk/bcminsk/reyting" className="text-sm font-semibold text-ink-muted transition-colors hover:text-ink">
+            <Link to="/minsk/bcminsk/rating" className="text-sm font-semibold text-ink-muted transition-colors hover:text-ink">
               Рейтинг
             </Link>
           </nav>
