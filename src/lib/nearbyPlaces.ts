@@ -58,6 +58,13 @@ export function formatMeters(distanceMeters: number): string {
   return `${distanceMeters.toLocaleString('ru-RU')} м`;
 }
 
+// Радиус блока «что рядом» — тот же, с которым собираются точки
+// (`scripts/nearby-places-common.mjs`). Фильтр нужен из-за метро: у него когда-то
+// был свой, больший радиус, и в базе остались станции в 1,3–2 км. Такая станция
+// не инфраструктура здания, а повод для вопроса «это вы шутите?» — и в списке,
+// и на карте, и в FAQ, который собирается из этих же групп.
+export const NEARBY_RADIUS_METERS = 850;
+
 export interface NearbyCategoryGroup {
   category: NearbyPlaceCategory;
   label: string;
@@ -67,6 +74,7 @@ export interface NearbyCategoryGroup {
 export function groupNearbyPlaces(places: BusinessCenterNearbyPlace[]): NearbyCategoryGroup[] {
   const byCategory = new Map<NearbyPlaceCategory, BusinessCenterNearbyPlace[]>();
   for (const place of places) {
+    if (place.distanceMeters > NEARBY_RADIUS_METERS) continue;
     const list = byCategory.get(place.category);
     if (list) list.push(place);
     else byCategory.set(place.category, [place]);
