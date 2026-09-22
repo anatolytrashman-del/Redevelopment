@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect, useRef } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef } from 'react';
+import { Routes, Route, Navigate, useLocation, useNavigationType } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { RequirePage } from './components/layout/RequirePage';
 import { RequireSuperAdmin } from './components/layout/RequireSuperAdmin';
@@ -203,6 +203,30 @@ function useVkPageGoals() {
 // же критерий "не /admin", что и у pageview-хитов выше. Флаг, а не
 // pathname целиком, чтобы не перезаходить в канал на каждый переход внутри
 // публичной части — только когда реально пересекаем границу с /admin.
+// Переход по ссылке внутри SPA скролл не трогает: новый маршрут
+// открывается на той же высоте, где пользователь стоял. На длинных
+// страницах это ломает навигацию — блок рекомендаций («Похожие БЦ»,
+// BusinessCenterDetailPage) живёт в самом низу, и соседний БЦ открывался
+// сразу на отзывах, а не с начала (владелец, 2026-09-22, скриншот
+// мобильной версии). Наверх мотаем только на PUSH:
+//   • POP (кнопки «назад»/«вперёд») — позицию восстанавливает сам браузер,
+//     history.scrollRestoration мы не отключаем;
+//   • REPLACE — это фильтры каталога: BusinessCentersMinskPage на каждый
+//     клик по чипу меняет ПУТЬ (хаб-урл класса/района) с replace: true,
+//     и прыжок в начало страницы там был бы хуже, чем его отсутствие.
+// Ссылка с якорем (#...) ведёт внутрь страницы — её тоже не трогаем.
+function useScrollToTopOnNavigate() {
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  // useLayoutEffect, а не useEffect: скроллим до первой отрисовки нового
+  // маршрута, иначе кадр со старой позицией успевает мелькнуть.
+  useLayoutEffect(() => {
+    if (navigationType !== 'PUSH') return;
+    if (location.hash) return;
+    window.scrollTo(0, 0);
+  }, [location.pathname, location.hash, navigationType]);
+}
+
 function useOnlineVisitorPresence() {
   const location = useLocation();
   useOnlinePresenceTracker(!location.pathname.startsWith('/admin'));
@@ -230,6 +254,7 @@ function AdminChunkFallback() {
 
 export default function App() {
   usePreventPageZoom();
+  useScrollToTopOnNavigate();
   useSpaPageviewHits();
   useVkPageGoals();
   useOnlineVisitorPresence();

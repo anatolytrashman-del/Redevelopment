@@ -25,6 +25,7 @@ const SUPABASE_URL = 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const DRY_RUN = process.argv.includes('--dry-run');
 const FORCE = process.argv.includes('--force');
+const LIMIT = Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1]) || null;
 const ONLY_SLUG = process.argv.find((a) => a.startsWith('--slug='))?.split('=')[1] ?? null;
 
 const TEST_URL = process.argv.find((a) => a.startsWith('--url='))?.split('=')[1] ?? null;
@@ -82,17 +83,31 @@ function fetchPageOnce(url, { insecure, redirectsLeft = 3 }) {
           return;
         }
         let size = 0;
+        let settled = false;
         const chunks = [];
         res.on('data', (chunk) => {
+          if (settled) return;
           size += chunk.length;
           if (size > MAX_PAGE_BYTES) {
+            // res.destroy() не гарантирует событие 'end' — без немедленного
+            // resolve() здесь промис зависал бы навсегда (реальный баг: на
+            // futuris-bc.by именно так упал первый прогон, Node сообщил
+            // "unsettled top-level await" и завершился с кодом 13, потому что
+            // ничего больше не держало event loop). Отдаём то, что успели
+            // скачать, а не теряем страницу целиком.
+            settled = true;
+            resolve(Buffer.concat(chunks).toString('utf8'));
             res.destroy();
             return;
           }
           chunks.push(chunk);
         });
-        res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-        res.on('error', reject);
+        res.on('end', () => {
+          if (!settled) resolve(Buffer.concat(chunks).toString('utf8'));
+        });
+        res.on('error', (err) => {
+          if (!settled) reject(err);
+        });
       },
     );
     req.on('timeout', () => req.destroy(new Error('timeout')));
@@ -245,14 +260,23 @@ async function main() {
     console.error('Не удалось прочитать business_centers:', error.message);
     process.exit(1);
   }
-  const targets = FORCE || ONLY_SLUG ? centers : centers.filter((c) => !c.official_site_snapshot_at);
+  let targets = FORCE || ONLY_SLUG ? centers : centers.filter((c) => !c.official_site_snapshot_at);
   if (targets.length === 0) {
     console.log('Нечего скачивать — у всех БЦ с сайтом снимок уже есть (используй --force для перескачивания).');
     return;
   }
-  console.log(`К обработке: ${targets.length} из ${centers.length} БЦ с сайтом.`);
+  if (LIMIT) targets = targets.slice(0, LIMIT);
+  console.log(`К обработке: ${targets.length} из ${centers.length} БЦ с сайтом${LIMIT ? ` (лимит --limit=${LIMIT})` : ''}.`);
   await runPool(targets, 5, processCenter);
   console.log('Готово.');
 }
+
+// Один плохо ведущий себя сайт не должен обрушивать прогон по остальным 60+ —
+// ловим сюрпризы, которые не предусмотрели в fetchPageOnce/processCenter,
+// логируем и продолжаем (реальный прецедент такого сюрприза — комментарий
+// у res.on('data', ...) выше).
+process.on('unhandledRejection', (err) => {
+  console.error('Необработанный отказ промиса (сайт пропущен):', err instanceof Error ? err.message : err);
+});
 
 await main();
