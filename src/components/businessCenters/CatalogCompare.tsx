@@ -49,7 +49,7 @@ const ROWS: CompareRow[] = [
     },
     format: (v) => String(v),
   },
-  { label: 'До метро', better: 'lower', value: (c) => nearestMetroMeters(c), format: (v) => `${v.toLocaleString('ru-RU')} м по прямой` },
+  { label: 'До метро', better: 'lower', value: (c) => nearestMetroMeters(c), format: (v) => `${v.toLocaleString('ru-RU')} м` },
   {
     label: 'Общая площадь, м²',
     better: null,
