@@ -25,6 +25,7 @@ const SUPABASE_URL = 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const DRY_RUN = process.argv.includes('--dry-run');
 const FORCE = process.argv.includes('--force');
+const LIMIT = Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1]) || null;
 const ONLY_SLUG = process.argv.find((a) => a.startsWith('--slug='))?.split('=')[1] ?? null;
 
 const TEST_URL = process.argv.find((a) => a.startsWith('--url='))?.split('=')[1] ?? null;
@@ -259,12 +260,13 @@ async function main() {
     console.error('Не удалось прочитать business_centers:', error.message);
     process.exit(1);
   }
-  const targets = FORCE || ONLY_SLUG ? centers : centers.filter((c) => !c.official_site_snapshot_at);
+  let targets = FORCE || ONLY_SLUG ? centers : centers.filter((c) => !c.official_site_snapshot_at);
   if (targets.length === 0) {
     console.log('Нечего скачивать — у всех БЦ с сайтом снимок уже есть (используй --force для перескачивания).');
     return;
   }
-  console.log(`К обработке: ${targets.length} из ${centers.length} БЦ с сайтом.`);
+  if (LIMIT) targets = targets.slice(0, LIMIT);
+  console.log(`К обработке: ${targets.length} из ${centers.length} БЦ с сайтом${LIMIT ? ` (лимит --limit=${LIMIT})` : ''}.`);
   await runPool(targets, 5, processCenter);
   console.log('Готово.');
 }
