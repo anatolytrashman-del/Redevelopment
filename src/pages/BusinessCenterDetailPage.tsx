@@ -753,15 +753,22 @@ export function BusinessCenterDetailPage() {
 
   // См. комментарий у visibleHighlights выше — design/eco описывают САМО
   // здание (архитектура, конструкция, инженерия, экосертификация), поэтому
-  // рендерятся строками в «Параметрах здания», а не в «Интересных фактах».
-  // Markdown в тексте (**bold**, буллеты) тот же, что у highlights в
-  // "Интересных фактах" — используем тот же LabeledTextRow/renderRentalText,
-  // а не голый текст таблицы technicalParams/buildingFacts (те не
-  // markdown-совместимы, там значения короткие "число + единица").
+  // рендерятся в «Параметрах здания», а не в «Интересных фактах».
   const buildingParamHighlights = useMemo(
     () => center?.highlights.filter((h) => h.icon === 'design' || h.icon === 'eco') ?? [],
     [center],
   );
+  // 'design' (архитектура) — короткие однострочные значения после чистки
+  // 2026-09-22 (владелец: "сделай архитектуру такой же строчкой таблицы,
+  // поставь на первое место, текст сократи, отсылки на источники убери"),
+  // поэтому рендерятся ПЕРВОЙ строкой таблицы наравне с "Часы работы"/
+  // "Парковка" и т.п. — обычный <td>, без markdown. 'eco' остаётся
+  // абзацем ниже таблицы (LabeledTextRow) — там бывает длиннее одной строки.
+  const architectureHighlights = useMemo(
+    () => buildingParamHighlights.filter((h) => h.icon === 'design'),
+    [buildingParamHighlights],
+  );
+  const ecoHighlights = useMemo(() => buildingParamHighlights.filter((h) => h.icon === 'eco'), [buildingParamHighlights]);
 
   // Публикации в СМИ — свой блок (владелец, 2026-09-20). Сортируем от свежих:
   // подборка отвечает на вопрос «что пишут о здании», и первым должен стоять
@@ -2089,7 +2096,8 @@ export function BusinessCenterDetailPage() {
               эксплуатационные строки, потом технические параметры, потом
               исследованные факты) — он и был логичным, лишним был только
               заголовок, объясняющий это через происхождение данных. */}
-          {(center.parking ||
+          {(architectureHighlights.length > 0 ||
+            center.parking ||
             accessHoursText ||
             accessibilityAttributes ||
             redistributedTechnicalParams.buildingInformationRows.length > 0 ||
@@ -2097,6 +2105,14 @@ export function BusinessCenterDetailPage() {
             <div className="overflow-hidden rounded-control border border-border">
               <table className="w-full border-collapse text-sm">
                 <tbody>
+                  {architectureHighlights.map((h, i) => (
+                    <tr key={`arch-${i}`} className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
+                      <th scope="row" className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5">
+                        {h.label}
+                      </th>
+                      <td className="py-2 pl-2 pr-3 text-ink">{h.text}</td>
+                    </tr>
+                  ))}
                   {center.parking && (
                     <tr className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
                       <th scope="row" className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5">
@@ -2160,17 +2176,16 @@ export function BusinessCenterDetailPage() {
               </table>
             </div>
           )}
-          {/* Архитектура/инженерия/эко-сертификация — переехали сюда из
-              "Интересных фактов" 2026-09-21 (владелец: "все переноси в блок
-              про здание, Параметры здания"). Раньше рисовались строкой
-              LabeledTextRow в карточке "Интересные факты" — здесь тот же
-              компонент и та же markdown-разметка (**bold**, буллеты), просто
-              своим списком под таблицей: значения таблицы выше короткие
-              ("11 этажей"), а тут — абзацы, смешивать в одну table-строку
-              нельзя. */}
-          {buildingParamHighlights.length > 0 && (
+          {/* Эко-сертификация — переехала сюда из "Интересных фактов"
+              2026-09-21 (владелец: "все переноси в блок про здание,
+              Параметры здания"). Остаётся абзацем (LabeledTextRow, markdown
+              жирный текст и буллеты) под таблицей — эти тексты обычно
+              длиннее одной строки, в отличие от архитектуры (см.
+              architectureHighlights выше), которую владелец 2026-09-22
+              попросил сократить и увести в саму таблицу первой строкой. */}
+          {ecoHighlights.length > 0 && (
             <div className="flex flex-col divide-y divide-border">
-              {buildingParamHighlights.map((s, i) => (
+              {ecoHighlights.map((s, i) => (
                 <LabeledTextRow key={i} icon={HIGHLIGHT_ICONS[s.icon]} label={s.label} text={s.text} />
               ))}
             </div>
