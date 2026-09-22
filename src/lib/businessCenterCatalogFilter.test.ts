@@ -197,9 +197,30 @@ describe('sortCatalogCenters', () => {
     expect(sortCatalogCenters(list, 'area', offers).map((c) => c.slug)).toEqual(['big', 'small', 'none']);
   });
 
-  it('по умолчанию — sort_order каталога', () => {
+  it('по умолчанию — sort_order каталога, если класс и рейтинг не различают', () => {
     const list = [bc({ slug: 'second', sortOrder: 2 }), bc({ slug: 'first', sortOrder: 1 })];
     expect(sortCatalogCenters(list, 'default', offers).map((c) => c.slug)).toEqual(['first', 'second']);
+  });
+
+  function withYandexRating(value: string): BusinessCenter['highlights'] {
+    return [{ icon: 'rating', label: 'Рейтинг на картах', text: `Яндекс.Карты: **${value}** из 5 (100 оценок)` }];
+  }
+
+  it('по умолчанию — класс важнее рейтинга: A с низким рейтингом выше C с высоким (кейс БЦ «Капитал», владелец 2026-09-22)', () => {
+    const list = [
+      bc({ slug: 'c-high-rating', businessClass: 'C', highlights: withYandexRating('4,9'), sortOrder: 1 }),
+      bc({ slug: 'a-low-rating', businessClass: 'A', highlights: withYandexRating('3,8'), sortOrder: 2 }),
+    ];
+    expect(sortCatalogCenters(list, 'default', offers).map((c) => c.slug)).toEqual(['a-low-rating', 'c-high-rating']);
+  });
+
+  it('по умолчанию — внутри одного класса решает рейтинг Яндекс.Карт, здания без рейтинга в конце класса', () => {
+    const list = [
+      bc({ slug: 'a-no-rating', businessClass: 'A', sortOrder: 1 }),
+      bc({ slug: 'a-4.2', businessClass: 'A', highlights: withYandexRating('4,2'), sortOrder: 2 }),
+      bc({ slug: 'a-4.8', businessClass: 'A', highlights: withYandexRating('4,8'), sortOrder: 3 }),
+    ];
+    expect(sortCatalogCenters(list, 'default', offers).map((c) => c.slug)).toEqual(['a-4.8', 'a-4.2', 'a-no-rating']);
   });
 });
 
