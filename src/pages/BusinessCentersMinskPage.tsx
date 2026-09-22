@@ -393,7 +393,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     const hubDescription = underConstruction
       ? 'Бизнес-центры Минска, которые сейчас строятся: класс, площадь, район, застройщик и сроки сдачи — МФЦ в Минск Мире, «Газпром», «Сигма», «Шантер Хилл».'
       : metroFilter
-        ? `Бизнес-центры рядом со станцией метро «${metroFilter}» (Минск): расстояние до станции по прямой, класс, площадь, этажность, объявления об аренде и продаже офисов.`
+        ? `Бизнес-центры рядом со станцией метро «${metroFilter}» (Минск): расстояние до станции, класс, площадь, этажность, объявления об аренде и продаже офисов.`
         : streetFilter
           ? `Все бизнес-центры на «${streetFilter}» в Минске: класс, площадь, этажность, метро, объявления об аренде и продаже.`
           : classFilter && districtFilter
@@ -769,11 +769,11 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       const rate = (officeSnapshots ?? []).find((s) => s.sliceType === 'district' && s.deal === 'rent' && s.sliceKey === district)?.median;
       return `${district}: ${n} БЦ${area > 0 ? `, ${Math.round(area).toLocaleString('ru-RU')} м² по заполненным площадям` : ''}${rate != null ? `, медиана аренды $${rate}/м²` : ''}`;
     }).join('; '));
-    if (marketStats.withMetroCount > 0) add('Сколько зданий рядом с метро?', `${marketStats.nearMetro} из ${marketStats.withMetroCount} зданий выборки с известным расстоянием находятся не дальше 800 м по прямой от ближайшего метро. Это не длина пешего маршрута.`);
+    if (marketStats.withMetroCount > 0) add('Сколько зданий рядом с метро?', `${marketStats.nearMetro} из ${marketStats.withMetroCount} зданий выборки с известным расстоянием находятся не дальше 800 м от ближайшего метро.`);
     if (metroFilter && orderedCenters.length) {
       const nearest = [...orderedCenters].sort((a, b) => (metroHubDistance(a, metroFilter) ?? Infinity) - (metroHubDistance(b, metroFilter) ?? Infinity))[0];
       const distance = metroHubDistance(nearest, metroFilter);
-      if (distance != null) add(`Какой бизнес-центр ближе всего к метро «${metroFilter}»?`, `${shortName(nearest)} — ${distance} м по прямой. В подборку станции входят здания не дальше 1,5 км по прямой.`);
+      if (distance != null) add(`Какой бизнес-центр ближе всего к метро «${metroFilter}»?`, `${shortName(nearest)} — ${distance} м. В подборку станции входят здания не дальше 1,5 км.`);
     }
     add('Сколько зданий в выборке строится?', `${marketStats.underConstruction}.${underConstructionNames.length ? ` Строятся: ${underConstructionNames.join(', ')}.` : ''}`);
     if (summary.rentMedian != null) add('Какая медианная ставка аренды и как она рассчитана?', rentMethodology);
@@ -829,7 +829,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   const heroIntro = underConstruction
     ? `${bcCountLabel} Минска, которые сейчас строятся, — класс, площадь, район и срок сдачи по данным застройщиков. Офисы в них пока нельзя ни арендовать, ни купить; готовые варианты — в общем каталоге.`
     : metroFilter
-      ? `${bcCountLabel} не дальше 1,5 км по прямой от станции «${metroFilter}» — расстояние по данным 2GIS, ближайшие первыми. Класс, площадь, этажность и объявления об аренде и продаже — в карточках.`
+      ? `${bcCountLabel} не дальше 1,5 км от станции «${metroFilter}» — расстояние по данным 2GIS, ближайшие первыми. Класс, площадь, этажность и объявления об аренде и продаже — в карточках.`
     : streetFilter
       ? `${bcCountLabel} на «${streetFilter}» — класс, площадь, этажность, метро и объявления об аренде и продаже.`
     : classFilter && districtFilter
@@ -1024,7 +1024,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                         'Всего бизнес-центров',
                         'Суммарная площадь (по 000 из 000)',
                         'Строится',
-                        'До 800 м по прямой от метро',
+                        'До 800 м от метро',
                         ...(classFilter ? [] : ['Класса A', 'Класса B+', 'Класса B', 'Класса C']),
                       ].map((label) => (
                         <div key={label} className="invisible">
@@ -1052,7 +1052,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                         <FactTile
                           icon={TrainFront}
                           value={`${marketStats.nearMetro} из ${marketStats.withMetroCount}`}
-                          label="До 800 м по прямой от метро"
+                          label="До 800 м от метро"
                         />
                       )}
                       {/* Разбивка по классам — только когда сама сводка не по

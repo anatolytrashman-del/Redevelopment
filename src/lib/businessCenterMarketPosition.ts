@@ -257,7 +257,7 @@ export function buildMarketPosition(
   if (metro != null && sameClass.length >= MIN_COMPARE_N && center.businessClass) {
     const classMetro = median(sameClass.map(nearestMetroMeters).filter((v): v is number => v != null));
     if (classMetro != null) {
-      const unit = 'м по прямой';
+      const unit = 'м';
       const d = buildDelta(metro, classMetro, true, ['ближе', 'дальше'], false);
       bars.push({
         label: 'До метро',
