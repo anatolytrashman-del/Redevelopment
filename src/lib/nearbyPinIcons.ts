@@ -21,23 +21,26 @@ export const NEARBY_ICON_PATHS: Record<NearbyPlaceCategory, string> = {
   other: "<path d=\"M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0\"/><circle cx=\"12\" cy=\"10\" r=\"3\"/>",
 };
 
-export const NEARBY_PIN_SIZE = 32;
+export const NEARBY_PIN_SIZE = 34;
 
-// Метка — тёмный кружок с белой иконкой внутри. Стили инлайновые: шаблон метки
-// живёт в DOM карты, и классы Tailwind туда тянуть незачем (да и собранный CSS
-// не знает про классы, которых нет в исходниках компонентов).
-export function nearbyPinHtml(category: NearbyPlaceCategory, color: string): string {
+// Метка — кружок с иконкой категории, отдаётся карте КАРТИНКОЙ (data:URI), а не
+// HTML-шаблоном `templateLayoutFactory`. Первая попытка была как раз шаблоном, и
+// на живом сайте по такой метке не открывался балун (владелец, 2026-09-22: «при
+// клике на иконки не появляется название и адрес, мало пользы»): у кастомного
+// layout за кликабельную зону отвечает `iconShape`, и пока он не совпадёт с
+// разметкой точно, клики уходят в пустоту. У `default#image` область метки
+// считает сам ymaps, поэтому хинт и балун работают как у штатной метки.
+export function nearbyPinDataUri(category: NearbyPlaceCategory, color: string): string {
   const paths = NEARBY_ICON_PATHS[category] ?? NEARBY_ICON_PATHS.other;
   const size = NEARBY_PIN_SIZE;
-  return (
-    '<div style="position:relative;width:' + size + 'px;height:' + size + 'px;">' +
-      '<div style="position:absolute;inset:0;border-radius:9999px;background:' + color +
-        ';border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.25);"></div>' +
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#fff"' +
-        ' stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"' +
-        ' style="position:absolute;left:50%;top:50%;width:17px;height:17px;transform:translate(-50%,-50%);">' +
-        paths +
-      '</svg>' +
-    '</div>'
-  );
+  const glyph = 18;
+  const scale = glyph / 24;
+  const shift = (size - glyph) / 2;
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">` +
+      `<circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 2}" fill="${color}" stroke="#ffffff" stroke-width="2"/>` +
+      `<g transform="translate(${shift} ${shift}) scale(${scale})" fill="none" stroke="#ffffff"` +
+        ` stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${paths}</g>` +
+    '</svg>';
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }

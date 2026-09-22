@@ -8,6 +8,7 @@ import {
   nearbyFaqLines,
   nearbySourceLabels,
 } from './nearbyPlaces';
+import { NEARBY_ICON_PATHS, nearbyPinDataUri } from './nearbyPinIcons';
 
 function place(overrides: Partial<BusinessCenterNearbyPlace> & { name: string }): BusinessCenterNearbyPlace {
   return {
@@ -32,7 +33,7 @@ describe('группировка инфраструктуры', () => {
     const groups = groupNearbyPlaces([
       place({ name: 'Фитнес', category: 'fitness' }),
       place({ name: 'Дальняя аптека', category: 'pharmacy', distanceMeters: 400 }),
-      place({ name: 'Метро', category: 'metro', distanceMeters: 1200 }),
+      place({ name: 'Метро', category: 'metro', distanceMeters: 500 }),
       place({ name: 'Ближняя аптека', category: 'pharmacy', distanceMeters: 120 }),
     ]);
     expect(groups.map((group) => group.category)).toEqual(['metro', 'pharmacy', 'fitness']);
@@ -41,6 +42,19 @@ describe('группировка инфраструктуры', () => {
 
   it('пустой список не даёт пустых групп', () => {
     expect(groupNearbyPlaces([])).toEqual([]);
+  });
+
+  // Метро когда-то собиралось с бОльшим радиусом, и в базе остались станции в
+  // 1,3–2 км. Показывать их в блоке «инфраструктура в 10 минутах пешком»
+  // нельзя ни на карте, ни в списке, ни в FAQ — он собирается из этих же групп.
+  it('точки дальше 850 метров в группы не попадают', () => {
+    const groups = groupNearbyPlaces([
+      place({ name: 'Ближнее метро', category: 'metro', distanceMeters: 800 }),
+      place({ name: 'Дальнее метро', category: 'metro', distanceMeters: 1300 }),
+      place({ name: 'Дальний фитнес', category: 'fitness', distanceMeters: 900 }),
+    ]);
+    expect(groups.map((group) => group.category)).toEqual(['metro']);
+    expect(groups[0].places.map((p) => p.name)).toEqual(['Ближнее метро']);
   });
 });
 
@@ -97,5 +111,20 @@ describe('строки для FAQ', () => {
         place({ name: 'Соседи', category: 'grocery', distanceMeters: 150 }),
       ]),
     ).toEqual(['Продукты: 2, ближайший — «Соседи», 150 м']);
+  });
+});
+
+describe('метки карты', () => {
+  it('иконка категории отдаётся карте как data:URI с цветом и контурами', () => {
+    const uri = nearbyPinDataUri('pharmacy', '#14151a');
+    expect(uri.startsWith('data:image/svg+xml;charset=utf-8,')).toBe(true);
+    const svg = decodeURIComponent(uri.slice('data:image/svg+xml;charset=utf-8,'.length));
+    expect(svg).toContain('#14151a');
+    expect(svg).toContain(NEARBY_ICON_PATHS.pharmacy);
+  });
+
+  it('у неизвестной категории берётся запасная иконка, а не пустая метка', () => {
+    const uri = nearbyPinDataUri('other', '#000000');
+    expect(decodeURIComponent(uri)).toContain(NEARBY_ICON_PATHS.other);
   });
 });
