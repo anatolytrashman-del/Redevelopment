@@ -1433,7 +1433,13 @@ export function BusinessCenterDetailPage() {
     // факты/история) → застройщик → FAQ.
     return [
       has('offers', saleStats !== null || rentStats !== null),
-      has('rental', Boolean(center.rentalInfo)),
+      has(
+        'rental',
+        Boolean(
+          center.rentalInfo &&
+            (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.sizes || center.rentalInfo.contacts),
+        ),
+      ),
       has(
         'tech',
         redistributedTechnicalParams.buildingInformationRows.length > 0 ||
