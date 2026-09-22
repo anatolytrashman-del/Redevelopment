@@ -1,6 +1,7 @@
 import { tenantDirectionLabel } from '../data/tenantIndustries';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useParams } from 'react-router-dom';
 import {
   Accessibility,
@@ -25,6 +26,7 @@ import {
   Info,
   Landmark,
   Leaf,
+  List,
   Mail,
   MapPin,
   MessageSquareQuote,
@@ -40,6 +42,7 @@ import {
   UtensilsCrossed,
   Users,
   Waves,
+  X,
 } from 'lucide-react';
 import { outletBrand } from '../data/mediaOutlets';
 import { cn } from '../lib/cn';
@@ -1800,6 +1803,43 @@ export function BusinessCenterDetailPage() {
     return () => setFaqJsonLd([]);
   }, [faqItems]);
 
+  // Б7-мобайл (владелец, 2026-09-23: «сделаем меню страницы не сверху, а
+  // постоянно видимым блоком, как Фильтры»). До этой правки «На странице»
+  // было горизонтальной прокручиваемой строкой в sticky-шапке — на телефоне
+  // её частично закрывала системная панель браузера, и она навсегда
+  // занимала верхнюю полосу экрана. Ниже xl список переехал в плавающую
+  // кнопку «Содержание» (тот же приём и тот же glassPillClass, что у
+  // «Фильтры» на каталоге) со шторкой снизу — тот же native <dialog> +
+  // createPortal, что и в CatalogFilterPanel, только выезжает снизу, а не
+  // слева: для списка-оглавления это привычнее, чем боковой drawer с
+  // фильтрами. Список пунктов не дублируется — тот же pageSections, что и
+  // в десктопной колонке ниже.
+  const [tocOpen, setTocOpen] = useState(false);
+  const tocDialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    if (!tocOpen) return;
+    const dialog = tocDialogRef.current;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    dialog?.showModal();
+    document.body.style.overflow = 'hidden';
+    // 1280px = xl: с этой ширины список уже виден в боковой колонке,
+    // открытую шторку в этот момент закрываем сами — то же самое делает
+    // фильтр каталога на lg (см. CatalogFilterPanel).
+    const desktop = window.matchMedia('(min-width: 1280px)');
+    const closeOnDesktop = () => {
+      if (desktop.matches) setTocOpen(false);
+    };
+    desktop.addEventListener('change', closeOnDesktop);
+    return () => {
+      desktop.removeEventListener('change', closeOnDesktop);
+      dialog?.close();
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus();
+    };
+  }, [tocOpen]);
+
   // Слаг не найден (опечатка в ссылке, удалённый БЦ) — soft-404: страница
   // остаётся доступной (200, не редирект), но не индексируется, тот же
   // принцип, что и у ObjectLandingPage для неизвестного /:slug.
@@ -1881,7 +1921,10 @@ export function BusinessCenterDetailPage() {
                 страница сайта вообще, тут нужна навигация "назад к списку",
                 не закрытие. Плюс "должно выглядеть заметнее" — обычная
                 приглушённая текстовая ссылка заменена на pill-кнопку (тот
-                же glassPillClass, что и у стрелок prev/next ниже). */}
+                же glassPillClass, что и у стрелок prev/next ниже). Список
+                разделов, который раньше шёл вторым элементом этой строки,
+                переехал в плавающую кнопку «Содержание» ниже — см.
+                комментарий про Б7-мобайл у tocOpen. */}
             <Link
               to="/minsk/bcminsk"
               className={cn(
@@ -1894,18 +1937,6 @@ export function BusinessCenterDetailPage() {
               <span className="hidden sm:inline">Все бизнес-центры</span>
               <span className="sm:hidden">Все БЦ</span>
             </Link>
-            {pageSections.length > 0 && (
-              <nav
-                aria-label="Навигация по странице"
-                className="flex min-w-0 gap-3 overflow-x-auto px-1 text-xs text-ink-muted"
-              >
-                {pageSections.map((sec) => (
-                  <a key={sec.id} href={`#${sec.id}`} className="shrink-0 whitespace-nowrap hover:text-primary-hover">
-                    {sec.label}
-                  </a>
-                ))}
-              </nav>
-            )}
           </div>
         }
       />
@@ -1947,6 +1978,72 @@ export function BusinessCenterDetailPage() {
         >
           <ChevronRight className="h-5 w-5" />
         </Link>
+      )}
+
+      {/* Плавающая кнопка «Содержание» — мобильная замена оглавлению,
+          которое на xl и шире стоит в боковой колонке (aside ниже). См.
+          комментарий про Б7-мобайл у tocOpen. */}
+      {pageSections.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setTocOpen(true)}
+          aria-expanded={tocOpen}
+          className={cn(
+            'fixed bottom-4 right-4 z-40 flex items-center gap-2 px-4 py-3 text-sm font-semibold text-ink xl:hidden',
+            glassPillClass,
+          )}
+          style={glassPillShadow}
+        >
+          <List className="h-4 w-4 shrink-0" />
+          Содержание
+        </button>
+      )}
+
+      {tocOpen && pageSections.length > 0 && createPortal(
+        <dialog
+          ref={tocDialogRef}
+          aria-label="Содержание страницы"
+          onCancel={(event) => {
+            event.preventDefault();
+            setTocOpen(false);
+          }}
+          className="fixed inset-0 m-0 h-svh max-h-none w-screen max-w-none border-0 bg-transparent p-0 text-ink backdrop:bg-transparent xl:hidden"
+        >
+          <div className="absolute inset-0 bg-ink/40" onClick={() => setTocOpen(false)} aria-hidden="true" />
+          {/* Шторка снизу, не слева — для списка-оглавления это привычнее,
+              чем боковой drawer с фильтрами (тот открывается слева в
+              CatalogFilterPanel). */}
+          <div className="absolute inset-x-0 bottom-0 flex max-h-[75svh] flex-col rounded-t-3xl border-t border-white/50 bg-white/95 backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+              <span className="text-sm font-bold text-ink">Содержание</span>
+              <button
+                type="button"
+                onClick={() => setTocOpen(false)}
+                aria-label="Закрыть содержание"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              {pageSections.map((sec) => {
+                const SectionIcon = SECTION_ICONS[sec.id] ?? FileText;
+                return (
+                  <a
+                    key={sec.id}
+                    href={`#${sec.id}`}
+                    onClick={() => setTocOpen(false)}
+                    className="flex items-start gap-3 rounded-xl px-3 py-2.5 text-sm leading-snug text-ink transition-colors hover:bg-surface-muted"
+                  >
+                    <SectionIcon className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint" />
+                    <span>{sec.label}</span>
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        </dialog>,
+        document.body,
       )}
 
       {/* px-4 sm:px-8 — теперь на одном элементе с mx-auto max-w-7xl, той
