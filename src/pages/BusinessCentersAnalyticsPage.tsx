@@ -1,198 +1,504 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Award, BarChart3, Building2, DollarSign, HardHat, Ruler, TrainFront } from 'lucide-react';
+import { ArrowRight, BarChart3 } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd } from '../lib/pageMeta';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import { fetchExternalMetrics, fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
-import { fetchBusinessCenterLotSizes } from '../lib/businessCenterOffersApi';
+import { fetchBusinessCenterOfferSlices } from '../lib/businessCenterOffersApi';
+import { fetchTenantCitySlice, type TenantCitySlice } from '../lib/businessCenterTenantCityApi';
 import type { BusinessCenter } from '../data/businessCenters';
-import { SOURCE_LABELS, MIN_RELIABLE_N, type ExternalMetric, type MarketSnapshot } from '../data/marketSnapshots';
-import { EMPTY_CATALOG_FILTER, buildOfferIndex, catalogFilterToQuery, nearestMetroMeters } from '../lib/businessCenterCatalogFilter';
+import type { BusinessCenterOfferSlice } from '../data/businessCenterOffers';
+import { SOURCE_LABELS, type ExternalMetric, type MarketSnapshot } from '../data/marketSnapshots';
+import { EMPTY_CATALOG_FILTER, catalogFilterToQuery } from '../lib/businessCenterCatalogFilter';
 import { districtHubUrl } from '../lib/businessCenterHubs';
-import { FactTile } from '../components/businessCenters/BusinessCenterVisuals';
+import { shortName } from '../lib/businessCenterDisplay';
+import { TENANT_INDUSTRY_OTHER } from '../data/tenantIndustries';
 import {
-  AvailableNowBlock,
-  DistrictDensityBlock,
-  ManagementBlock,
-  MarketContextBlock,
-} from '../components/businessCenters/CatalogMarketBlocks';
+  BUSINESS_CLASSES,
+  buildCityOffers,
+  buildLotBuckets,
+  buildPriceDrivers,
+  buildVintageCohorts,
+  buildBuildingSupply,
+  fmtYears,
+  medianOf,
+  paybackYears,
+  type BusinessClass,
+} from '../lib/businessCenterAnalytics';
+import { MarketContextBlock } from '../components/businessCenters/CatalogMarketBlocks';
+import {
+  AmenitiesBlock,
+  ClassMatrixBlock,
+  DistrictScatterBlock,
+  ExtremesBlock,
+  HeadlineStrip,
+  LotSizeBlock,
+  PaybackBlock,
+  PriceDriversBlock,
+  RateCorridorBlock,
+  SourcesDisclaimer,
+  TenantIndustriesBlock,
+  VintageBlock,
+  type ClassRow,
+  type DistrictPoint,
+  type PaybackRow,
+} from '../components/businessCenters/AnalyticsBlocks';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
 
-// Аналитика КАТАЛОГА бизнес-центров Минска — вынесена в отдельную страницу
-// (владелец, 2026-09-22): эти же блоки раньше стояли ПОД результатами
-// каталога (`/minsk/bcminsk` и все его хабы класса/района/метро/улицы/
-// микрорайона) и до них почти никто не доскролливал, при этом они
-// рендерились одинаково на ~286 индексируемых вариантов каталога —
-// фактический дубль контента. Здесь у них один постоянный адрес, свой H1 и
-// FAQ, а с каталога на них ведёт компактный тизер (см. BusinessCentersMinskPage).
+// Аналитика КАТАЛОГА бизнес-центров Минска — отдельная страница (владелец,
+// 2026-09-22): эти же блоки раньше стояли ПОД результатами каталога
+// (`/minsk/bcminsk` и все его хабы класса/района/метро/улицы/микрорайона),
+// до них почти никто не доскролливал, при этом они рендерились одинаково на
+// ~286 индексируемых вариантов каталога — фактический дубль контента. Здесь
+// у них один постоянный адрес, свой H1 и FAQ, а с каталога на них ведёт
+// компактный тизер (см. BusinessCentersMinskPage).
+//
+// Второй заход (владелец, 2026-09-22): «предложи улучшенный вариант
+// страницы… какие срезы статистики лучше всего ответят на вопросы и помогут
+// увидеть картинку целиком; используй разные дизайны блоков». Первая версия
+// показывала четыре плитки-счётчика, две медианы и список районов — то
+// есть отвечала только на «сколько стоит метр в среднем». Вопросы, ради
+// которых на такую страницу заходят («от чего зависит цена», «снять или
+// купить», «что вообще есть на рынке и в каком состоянии»), не были закрыты
+// ни одним блоком. Сейчас страница построена как разбор: сначала коридор
+// ставок вместо одного числа, потом разложение ставки на признаки здания,
+// дальше структура фонда (классы, районы, возраст), потом что реально
+// предлагают сегодня, и в конце — кто в этих зданиях сидит.
+//
+// Почти все новые срезы считаются из СЫРЫХ объявлений
+// (business_center_offers), а не из market_snapshots: в снимках лежат
+// только заранее заведённые разрезы (город/класс/район/здание), а возраст,
+// метро, тип управления, размер лота там уже свёрнуты. Правило —
+// lib/businessCenterAnalytics.ts считает офисный срез ровно так же, как
+// scripts/build-market-snapshots.mjs (схлопывание дублей, потом только
+// property_type='Офисы'), иначе страница противоречила бы сама себе:
+// блок «Ставки» читает снимок, остальные — сырьё.
 //
 // Отличие от `/minsk/analytics/ofisy/*` (ANALYTICSPLAN.md): та аналитика —
 // про рынок офисов Минска ЦЕЛИКОМ (Kufar/Realt/Domovita/Megapolis по всем
-// объявлениям), эта — конкретно про каталог из 143+ зданий на этом сайте
-// (кто ими управляет, что сейчас сдаётся именно в них, как они распределены
-// по районам). Разные срезы данных, не дубль — поэтому и перелинкованы, а
-// не объединены в одну страницу.
-const TITLE = 'Аналитика бизнес-центров Минска — ставки, районы, управление';
+// объявлениям), эта — конкретно про каталог из 141 здания на этом сайте.
+// Разные срезы данных, не дубль — поэтому и перелинкованы, а не объединены.
+const TITLE = 'Аналитика бизнес-центров Минска — ставки, районы, окупаемость';
 const DESCRIPTION =
-  'Аналитика каталога бизнес-центров Минска: медианные ставки аренды и продажи, насыщенность районов, кто управляет зданиями, что сейчас сдаётся и продаётся, контекст рынка офисов.';
+  'Разбор рынка бизнес-центров Минска по 141 зданию каталога: коридор ставок аренды и продажи, надбавки за метро, класс, возраст и управление, окупаемость покупки, структура фонда и что предлагают прямо сейчас.';
 const PAGE_URL = 'https://redevelopment.pro/minsk/bcminsk/analytics';
 const PAGE_H1 = 'Аналитика бизнес-центров Минска';
 const DATE_PUBLISHED = '2026-09-22';
+const DATE_MODIFIED = '2026-09-22';
 
-function formatRate(n: number, deal: 'rent' | 'sale'): string {
-  const rounded = deal === 'rent' ? Math.round(n * 10) / 10 : Math.round(n);
-  return `$${rounded.toLocaleString('ru-RU')}${deal === 'rent' ? '/м²/мес' : '/м²'}`;
+// Класс/район показываем в окупаемости только там, где обе стороны дроби
+// опираются на живую выборку. Порог по продаже ниже, чем по аренде: лотов
+// на продажу в БЦ в разы меньше, и требование 15 оставило бы два района
+// из девяти — а без второй стороны дробь не посчитать вовсе.
+const MIN_PAYBACK_RENT_N = 15;
+const MIN_PAYBACK_SALE_N = 10;
+// Медиана по зданию — это цена конкретных комнат. По одному-двум лотам она
+// не про здание, поэтому в «краях рынка» здание участвует от трёх лотов.
+const MIN_BUILDING_LOTS = 3;
+
+// Не замыкание внутри компонента: такая функция пересоздаётся на каждый
+// рендер, и useMemo либо тянет её в зависимости (и пересчитывается всегда),
+// либо честно ругается на неполный список.
+function snap(
+  snapshots: MarketSnapshot[] | null,
+  deal: 'rent' | 'sale',
+  sliceType: MarketSnapshot['sliceType'],
+  sliceKey: string,
+): MarketSnapshot | null {
+  return (snapshots ?? []).find((s) => s.deal === deal && s.sliceType === sliceType && s.sliceKey === sliceKey) ?? null;
+}
+
+function fmtRent(n: number): string {
+  return `$${(Math.round(n * 10) / 10).toLocaleString('ru-RU')}`;
+}
+
+function fmtSale(n: number): string {
+  return `$${Math.round(n).toLocaleString('ru-RU')}`;
+}
+
+function fmtInt(n: number): string {
+  return Math.round(n).toLocaleString('ru-RU');
 }
 
 export function BusinessCentersAnalyticsPage() {
   const navigate = useNavigate();
   const [centers, setCenters] = useState<BusinessCenter[] | null>(null);
-  const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(null);
+  const [snapshots, setSnapshots] = useState<MarketSnapshot[] | null>(null);
   const [externalMetrics, setExternalMetrics] = useState<ExternalMetric[] | null>(null);
-  const [lotSizes, setLotSizes] = useState<{ businessCenterSlug: string; size: number }[] | null>(null);
+  const [offers, setOffers] = useState<BusinessCenterOfferSlice[] | null>(null);
+  const [tenants, setTenants] = useState<TenantCitySlice | null>(null);
 
   useEffect(() => {
-    fetchBusinessCenters()
-      .then(setCenters)
-      .catch(() => setCenters([]));
-    fetchLatestMarketSnapshots('ofisy_bc')
-      .then(setOfficeSnapshots)
-      .catch(() => setOfficeSnapshots([]));
-    fetchBusinessCenterLotSizes()
-      .then(setLotSizes)
-      .catch(() => setLotSizes([]));
-    fetchExternalMetrics('ofisy_bc')
-      .then(setExternalMetrics)
-      .catch(() => setExternalMetrics([]));
+    fetchBusinessCenters().then(setCenters).catch(() => setCenters([]));
+    fetchLatestMarketSnapshots('ofisy_bc').then(setSnapshots).catch(() => setSnapshots([]));
+    fetchBusinessCenterOfferSlices().then(setOffers).catch(() => setOffers([]));
+    fetchExternalMetrics('ofisy_bc').then(setExternalMetrics).catch(() => setExternalMetrics([]));
+    fetchTenantCitySlice().then(setTenants).catch(() => setTenants(null));
   }, []);
 
-  const offerIndex = useMemo(() => buildOfferIndex(officeSnapshots, lotSizes), [officeSnapshots, lotSizes]);
+  const cityRent = useMemo(() => snap(snapshots, 'rent', 'city', 'all'), [snapshots]);
+  const citySale = useMemo(() => snap(snapshots, 'sale', 'city', 'all'), [snapshots]);
+  const cityPayback = paybackYears(cityRent?.median ?? null, citySale?.median ?? null);
 
-  const rateRent = useMemo(
-    () => (officeSnapshots ?? []).find((s) => s.deal === 'rent' && s.sliceType === 'city' && s.sliceKey === 'all'),
-    [officeSnapshots],
-  );
-  const rateSale = useMemo(
-    () => (officeSnapshots ?? []).find((s) => s.deal === 'sale' && s.sliceType === 'city' && s.sliceKey === 'all'),
-    [officeSnapshots],
-  );
+  const rentOffers = useMemo(() => buildCityOffers(centers, offers, 'rent'), [centers, offers]);
 
-  // Блоки здесь не привязаны к состоянию фильтра каталога (страница
-  // самостоятельная, не хаб) — клик по строке/плитке не подсвечивает
-  // выбор на месте, а ведёт на каталог с уже применённым фильтром: та же
-  // логика урлов, что и у чипов каталога (urlForFilter в
-  // BusinessCentersMinskPage.tsx), только сразу навигация, без
-  // промежуточного локального состояния.
-  function goToDistrict(district: string) {
-    navigate(districtHubUrl(district) ?? `/minsk/bcminsk${catalogFilterToQuery({ ...EMPTY_CATALOG_FILTER, districts: [district] })}`);
-  }
-  function goToFact(id: string) {
-    navigate(`/minsk/bcminsk${catalogFilterToQuery({ ...EMPTY_CATALOG_FILTER, facts: [id] })}`);
-  }
-  function goToLotSize(size: number | null) {
-    navigate(size ? `/minsk/bcminsk${catalogFilterToQuery({ ...EMPTY_CATALOG_FILTER, lotSize: size })}` : '/minsk/bcminsk');
-  }
-
-  const districtTotals = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const c of centers ?? []) if (c.district) counts[c.district] = (counts[c.district] ?? 0) + 1;
-    return counts;
-  }, [centers]);
-
-  // «Рынок в цифрах» — весь каталог, без фильтра (владелец, 2026-09-22:
-  // этот блок и «Ставки аренды и продажи» на самом каталоге показывали ровно
-  // те же городские цифры, что и здесь — переехали сюда вместе).
-  const marketStats = useMemo(() => {
-    if (!centers) return null;
+  // --- Структура каталога -----------------------------------------------
+  const stock = useMemo(() => {
+    if (!centers || centers.length === 0) return null;
     const withArea = centers.filter((c) => c.totalArea != null);
-    const totalArea = withArea.reduce((sum, c) => sum + (c.totalArea ?? 0), 0);
-    const withMetro = centers.filter((c) => nearestMetroMeters(c) != null);
-    const nearMetro = withMetro.filter((c) => nearestMetroMeters(c)! <= 800);
-    const underConstruction = centers.filter((c) => c.status === 'under_construction').length;
-    const byClass: Record<string, number> = {};
-    for (const c of centers) if (c.businessClass) byClass[c.businessClass] = (byClass[c.businessClass] ?? 0) + 1;
     return {
       total: centers.length,
-      totalArea,
+      area: withArea.reduce((sum, c) => sum + (c.totalArea ?? 0), 0),
       withAreaCount: withArea.length,
-      nearMetro: nearMetro.length,
-      withMetroCount: withMetro.length,
-      underConstruction,
-      byClass,
+      underConstruction: centers.filter((c) => c.status === 'under_construction').length,
     };
   }, [centers]);
 
+  const drivers = useMemo(() => buildPriceDrivers(rentOffers), [rentOffers]);
+
+  const classRows = useMemo<ClassRow[]>(() => {
+    if (!centers) return [];
+    return BUSINESS_CLASSES.map((cls) => {
+      const inside = centers.filter((c) => c.businessClass === cls);
+      const years = inside.map((c) => c.yearBuilt).filter((y): y is number => y != null);
+      const medianYear = medianOf(years);
+      return {
+        cls: cls as BusinessClass,
+        count: inside.length,
+        area: inside.reduce((sum, c) => sum + (c.totalArea ?? 0), 0),
+        medianAge: medianYear == null ? null : Math.round(medianYear),
+        rent: snap(snapshots, 'rent', 'class', cls),
+        sale: snap(snapshots, 'sale', 'class', cls),
+      };
+    });
+  }, [centers, snapshots]);
+
+  const districtPoints = useMemo<DistrictPoint[]>(() => {
+    if (!centers) return [];
+    const byDistrict = new Map<string, { count: number; area: number }>();
+    for (const c of centers) {
+      if (!c.district) continue;
+      const cur = byDistrict.get(c.district) ?? { count: 0, area: 0 };
+      cur.count += 1;
+      cur.area += c.totalArea ?? 0;
+      byDistrict.set(c.district, cur);
+    }
+    return [...byDistrict.entries()]
+      .map(([district, v]) => {
+        const rent = snap(snapshots, 'rent', 'district', district);
+        return rent?.median == null
+          ? null
+          : {
+              district,
+              count: v.count,
+              area: v.area,
+              rent: rent.median,
+              href:
+                districtHubUrl(district) ??
+                `/minsk/bcminsk${catalogFilterToQuery({ ...EMPTY_CATALOG_FILTER, districts: [district] })}`,
+            };
+      })
+      .filter((p): p is DistrictPoint => p != null && p.area > 0);
+  }, [centers, snapshots]);
+
+  const paybackRows = useMemo<PaybackRow[]>(() => {
+    const rows: PaybackRow[] = [];
+    for (const s of snapshots ?? []) {
+      if (s.sliceType !== 'district' || s.deal !== 'rent' || s.median == null || s.n < MIN_PAYBACK_RENT_N) continue;
+      const sale = snap(snapshots, 'sale', 'district', s.sliceKey);
+      if (sale?.median == null || sale.n < MIN_PAYBACK_SALE_N) continue;
+      const years = paybackYears(s.median, sale.median);
+      if (years == null) continue;
+      rows.push({
+        label: s.sliceKey.replace(' район', ''),
+        years,
+        rent: s.median,
+        sale: sale.median,
+        nRent: s.n,
+        nSale: sale.n,
+      });
+    }
+    return rows.sort((a, b) => a.years - b.years);
+  }, [snapshots]);
+
+  const cohorts = useMemo(() => (centers ? buildVintageCohorts(centers) : []), [centers]);
+  const lotBuckets = useMemo(() => buildLotBuckets(rentOffers), [rentOffers]);
+
+  const supply = useMemo(() => {
+    const perBuilding = buildBuildingSupply(rentOffers);
+    const ranked = buildBuildingSupply(rentOffers, MIN_BUILDING_LOTS)
+      .filter((b) => b.median != null)
+      .sort((a, b) => b.median! - a.median!);
+    return {
+      lots: rentOffers.length,
+      area: rentOffers.reduce((sum, o) => sum + o.size, 0),
+      buildings: perBuilding.length,
+      top: ranked.slice(0, 5),
+      bottom: ranked.slice(-5).reverse(),
+    };
+  }, [rentOffers]);
+
+  // «Другое» — это «у организации не указана внятная рубрика», а не
+  // отрасль: в общем рейтинге эта строка оказывалась первой и читалась как
+  // вывод про рынок. Показываем отрасли без неё, а её долю честно называем
+  // в сноске блока.
+  const namedIndustries = useMemo(
+    () => (tenants?.industries ?? []).filter((i) => i.industry !== TENANT_INDUSTRY_OTHER),
+    [tenants],
+  );
+  const otherIndustryShare = useMemo(
+    () => tenants?.industries.find((i) => i.industry === TENANT_INDUSTRY_OTHER)?.share ?? 0,
+    [tenants],
+  );
+
+  const amenityGroups = useMemo(() => {
+    if (!centers || centers.length === 0) return [];
+    const total = centers.length;
+    const countInfra = (key: string) => centers.filter((c) => c.infraInternal.includes(key)).length;
+    const countLayout = (key: string) => centers.filter((c) => c.layoutTypes.includes(key as never)).length;
+    return [
+      {
+        title: 'Сервисы на первых этажах',
+        note: 'Кофе и обед внизу — то, о чём вспоминают на второй неделе, а не на просмотре.',
+        chips: ['кафе', 'магазин', 'банк', 'кофепоинт', 'банкомат', 'фитнес-центр', 'конференц-зал', 'салон красоты'].map(
+          (label) => ({ label, count: countInfra(label), total }),
+        ),
+      },
+      {
+        title: 'Какие планировки предлагают',
+        note: 'Одно здание обычно умеет несколько — суммы больше каталога здесь не ошибка.',
+        chips: [
+          { label: 'кабинетная', count: countLayout('cabinet'), total },
+          { label: 'блочная', count: countLayout('block'), total },
+          { label: 'open space', count: countLayout('open_space'), total },
+        ],
+      },
+      {
+        title: 'Инженерия и доступ',
+        note: 'Кондиционирование и круглосуточный вход стоят денег и почти никогда не указаны в объявлении.',
+        chips: [
+          {
+            label: 'кондиционирование',
+            count: centers.filter((c) => c.airConditioning === 'partial' || c.airConditioning === 'full').length,
+            total,
+          },
+          { label: 'круглосуточный доступ', count: centers.filter((c) => c.is24x7 === true).length, total },
+          { label: 'доступная среда', count: centers.filter((c) => c.accessibility.length > 0).length, total },
+          {
+            label: 'от 2 машиномест на 100 м²',
+            count: centers.filter((c) => c.parkingRatio != null && c.parkingRatio >= 2).length,
+            total,
+          },
+        ],
+      },
+    ];
+  }, [centers]);
+
+  const headline = useMemo(() => {
+    if (!stock) return [];
+    const items: { value: string; label: string; note?: string }[] = [
+      {
+        value: String(stock.total),
+        label: 'бизнес-центров в каталоге',
+        note: stock.underConstruction > 0 ? `из них строится ${stock.underConstruction}` : undefined,
+      },
+      {
+        value: `${fmtInt(stock.area / 1000)} тыс. м²`,
+        label: 'суммарная площадь',
+        note: `по ${stock.withAreaCount} зданиям с известным метражом`,
+      },
+    ];
+    if (cityRent?.median != null) {
+      items.push({
+        value: `${fmtRent(cityRent.median)}/м²`,
+        label: 'медиана аренды в месяц',
+        note: `по ${cityRent.n} офисным объявлениям`,
+      });
+    }
+    if (citySale?.median != null) {
+      items.push({
+        value: `${fmtSale(citySale.median)}/м²`,
+        label: 'медиана покупки',
+        note: `по ${citySale.n} объявлениям`,
+      });
+    }
+    if (cityPayback != null) {
+      items.push({ value: fmtYears(cityPayback), label: 'окупаемость покупки', note: 'аренда без простоя и налогов' });
+    }
+    return items;
+  }, [stock, cityRent, citySale, cityPayback]);
+
+  function goToLotSize(size: number) {
+    navigate(
+      size > 0
+        ? `/minsk/bcminsk${catalogFilterToQuery({ ...EMPTY_CATALOG_FILTER, lotSize: size })}`
+        : '/minsk/bcminsk',
+    );
+  }
+
+  // --- FAQ ---------------------------------------------------------------
+  // Правило владельца (CLAUDE.md): FAQ описывает ВСЁ, что есть на странице,
+  // и собирается из тех же данных — нет заполненного блока, нет и вопроса.
   const faqItems = useMemo(() => {
     if (centers === null) return [];
     const items: { question: string; answer: string }[] = [];
     const add = (question: string, answer: string) => items.push({ question, answer });
 
-    if (rateRent?.median != null || rateSale?.median != null) {
-      const parts: string[] = [];
-      if (rateRent?.median != null) parts.push(`аренда — ${formatRate(rateRent.median, 'rent')} (по ${rateRent.n} объявлениям)`);
-      if (rateSale?.median != null) parts.push(`продажа — ${formatRate(rateSale.median, 'sale')} (по ${rateSale.n} объявлениям)`);
+    if (cityRent?.median != null && cityRent.p25 != null && cityRent.p75 != null) {
       add(
-        'Какая медианная ставка аренды и продажи офисов в бизнес-центрах Минска?',
-        `${parts.join('; ')}. Медиана по объявлениям Kufar, Realt, Domovita и Megapolis${rateRent?.period ? `, период ${rateRent.period.slice(0, 7)}` : ''}. Подробный разбор рынка офисов — на странице «Аналитика рынка».`,
+        'Сколько стоит аренда офиса в бизнес-центре Минска?',
+        `Медиана — ${fmtRent(cityRent.median)} за м² в месяц, но половина объявлений лежит в коридоре ${fmtRent(cityRent.p25)}–${fmtRent(cityRent.p75)}, а вторая половина — за его краями. Посчитано по ${cityRent.n} офисным объявлениям в зданиях каталога (Kufar, Realt, Domovita, Megapolis${cityRent.period ? `, ${cityRent.period.slice(0, 7)}` : ''}). Магазины, общепит и кладовые в тех же зданиях в расчёт не входят — они дороже офисов и сдвигали бы медиану вверх.`,
       );
     }
-    if (Object.keys(districtTotals).length) {
+    if (citySale?.median != null && citySale.p25 != null && citySale.p75 != null) {
       add(
-        'Как каталог бизнес-центров распределён по районам?',
-        Object.entries(districtTotals)
-          .sort((a, b) => b[1] - a[1])
-          .map(([district, n]) => {
-            const area = (centers ?? []).filter((c) => c.district === district).reduce((sum, c) => sum + (c.totalArea ?? 0), 0);
-            const rate = (officeSnapshots ?? []).find((s) => s.sliceType === 'district' && s.deal === 'rent' && s.sliceKey === district)?.median;
-            return `${district}: ${n} БЦ${area > 0 ? `, ${Math.round(area).toLocaleString('ru-RU')} м² по заполненным площадям` : ''}${rate != null ? `, медиана аренды $${rate}/м²` : ''}`;
-          })
-          .join('; '),
+        'Сколько стоит купить офис в бизнес-центре Минска?',
+        `Медиана — ${fmtSale(citySale.median)} за м², середина рынка — ${fmtSale(citySale.p25)}–${fmtSale(citySale.p75)} за м², по ${citySale.n} объявлениям о продаже офисных помещений в зданиях каталога.`,
       );
+    }
+    if (drivers.length > 0) {
+      add(
+        'От чего зависит ставка аренды в бизнес-центре?',
+        `${drivers
+          .map((d) => `${d.title.toLowerCase()} — ${d.high.label} ${fmtRent(d.high.median)} против ${fmtRent(d.low.median)} у варианта «${d.low.label}», разница ${d.deltaPct}%`)
+          .join('; ')}. Это одномерные срезы: признаки связаны между собой (новые здания обычно и класснее, и ближе к метро), поэтому надбавки нельзя складывать. Надбавка за метро сохраняется и внутри одного класса, а разница по типу управления — нет.`,
+      );
+    }
+    const classesWithRate = classRows.filter((r) => r.count > 0 && r.rent?.median != null);
+    if (classesWithRate.length > 0) {
+      add(
+        'Чем отличаются классы A, B+, B и C по цене и по количеству зданий?',
+        `${classesWithRate
+          .map((r) => {
+            const payback = paybackYears(r.rent?.median ?? null, r.sale?.median ?? null);
+            return `класс ${r.cls} — ${r.count} зданий, аренда ${fmtRent(r.rent!.median!)}/м²${
+              r.sale?.median != null ? `, покупка ${fmtSale(r.sale.median)}/м²` : ''
+            }${payback != null ? `, окупаемость ${fmtYears(payback)}` : ''}${
+              r.medianAge != null ? `, медианный год постройки ${r.medianAge}` : ''
+            }`;
+          })
+          .join('; ')}. Самый дорогой класс — не самый массовый: качественного фонда в городе заметно меньше, чем обычного.`,
+      );
+    }
+    if (districtPoints.length > 0) {
+      add(
+        'В каких районах Минска дороже всего снять офис?',
+        `${[...districtPoints]
+          .sort((a, b) => b.rent - a.rent)
+          .map((p) => `${p.district} — ${fmtRent(p.rent)}/м², ${p.count} БЦ, ${fmtInt(p.area)} м²`)
+          .join('; ')}. Дорогой район не значит, что в нём есть из чего выбирать: объём фонда и уровень ставки связаны слабо, поэтому на странице они показаны двумя осями одной диаграммы, а не одним списком.`,
+      );
+    }
+    if (paybackRows.length > 0 && cityPayback != null) {
+      add(
+        'Что выгоднее — снять офис или купить?',
+        `По городу метр окупается арендой за ${fmtYears(cityPayback)}. По районам: ${paybackRows
+          .map((r) => `${r.label} — ${fmtYears(r.years)}`)
+          .join('; ')}. Это прикидка в лоб: медианная цена продажи делится на медианную годовую аренду того же среза, без простоя между арендаторами, налога на недвижимость, эксплуатационных платежей и ремонта. Реальный срок будет длиннее.`,
+      );
+    }
+    if (cohorts.length > 0) {
+      const biggest = [...cohorts].sort((a, b) => b.total - a.total)[0];
+      add(
+        'Насколько новый фонд бизнес-центров в Минске?',
+        `${cohorts.map((c) => `${c.label} — ${c.total}`).join('; ')} зданий. Больше всего построено в период ${biggest.label.toLowerCase()}. Класс A — самый молодой сегмент каталога, класс C — самый старый; для строящихся зданий указан заявленный срок сдачи, а не факт.`,
+      );
+    }
+    if (supply.lots > 0) {
+      const withMedian = lotBuckets.filter((b) => b.median != null && b.n > 0);
+      add(
+        'Сколько офисов в бизнес-центрах Минска предлагается прямо сейчас?',
+        `${supply.lots} офисных лотов общей площадью ${fmtInt(supply.area)} м² в ${supply.buildings} зданиях из ${centers.length}. По размеру: ${withMedian
+          .map((b) => `${b.label} — ${b.n} лотов, медиана ${fmtRent(b.median!)}/м²`)
+          .join('; ')}. Один и тот же лот, выложенный сразу на нескольких площадках, посчитан один раз. Остальные здания сдают напрямую через управляющую компанию либо заняты — отсутствия объявления мало, чтобы считать здание заполненным.`,
+      );
+    }
+    if (supply.top.length > 0 && supply.bottom.length > 0) {
+      add(
+        'Какие бизнес-центры Минска самые дорогие и самые дешёвые?',
+        `Дороже всего: ${supply.top.map((b) => `${shortName(b.center)} — ${fmtRent(b.median!)}/м²`).join('; ')}. Дешевле всего: ${supply.bottom
+          .map((b) => `${shortName(b.center)} — ${fmtRent(b.median!)}/м²`)
+          .join('; ')}. Считались только здания, где сейчас не меньше ${MIN_BUILDING_LOTS} офисных лотов: по одному-двум объявлениям медиана — это цена конкретной комнаты, а не уровень здания.`,
+      );
+    }
+    if (tenants && namedIndustries.length > 0) {
+      add(
+        'Кто арендует офисы в бизнес-центрах Минска?',
+        `${fmtInt(tenants.orgTotal)} организаций в ${tenants.buildingTotal} зданиях каталога по данным Яндекс.Карт. Крупнейшие отрасли: ${namedIndustries
+          .slice(0, 8)
+          .map((i) => `${i.label} — ${i.orgs} (${i.share}%)`)
+          .join('; ')}. Ещё ${otherIndustryShare}% организаций карты помечают рубрикой, по которой отрасль не определить, — они не распределены по строкам выше. Сервисные точки на первых этажах (кофейни, пункты выдачи, салоны) попадают в тот же список, что и офисные арендаторы.`,
+      );
+    }
+    if (amenityGroups.length > 0 && centers.length > 0) {
+      const flat = amenityGroups.flatMap((g) => g.chips).filter((c) => c.count > 0);
+      if (flat.length > 0) {
+        add(
+          'Что есть в бизнес-центрах Минска, кроме офисов?',
+          `${flat.map((c) => `${c.label} — ${c.count} зданий из ${c.total}`).join('; ')}. Признак считается по данным 2ГИС и prometr.by: пустая доля означает «в источнике не указано», а не «точно нет».`,
+        );
+      }
     }
     const hoa = centers.filter((c) => c.managementType === 'hoa').length;
     const uk = centers.filter((c) => c.managementType === 'single_uk').length;
     if (hoa + uk > 0) {
       add(
-        'Какие типы управления представлены в каталоге бизнес-центров?',
-        `Товарищество собственников — ${hoa}, единая управляющая компания — ${uk}; тип известен для ${hoa + uk} из ${centers.length} зданий. У товарищества условия и ставка могут отличаться от этажа к этажу, но с конкретным собственником можно торговаться; у единой УК — общие правила на всё здание и обычно более высокая ставка.`,
-      );
-    }
-    const withLots = centers.filter((c) => (offerIndex.lotSizesBySlug.get(c.slug)?.length ?? 0) > 0);
-    if (withLots.length) {
-      add(
-        'Сколько бизнес-центров каталога сейчас сдаётся или продаётся?',
-        `${withLots.length} из ${centers.length} зданий каталога с активными объявлениями на Kufar, Realt, Domovita и Megapolis. Остальные сдают напрямую через управляющую компанию либо заняты — отсутствие объявления не значит отсутствие свободных помещений.`,
+        'Чем товарищество собственников отличается от единой управляющей компании?',
+        `В каталоге ${hoa} зданий под товариществом собственников и ${uk} под единой УК; тип управления известен для ${hoa + uk} из ${centers.length}. У товарищества много владельцев: условия, отделка и ставка отличаются от этажа к этажу, зато с конкретным собственником реально торговаться. У единой УК один договор и общие правила на всё здание, предсказуемый сервис — и в среднем по каталогу ставка выше, хотя внутри класса B это правило не держится.`,
       );
     }
     const contextMetrics = [
-      ['colliers', 'vacancy_rate', 'Вакантность по городу', '%'],
-      ['colliers', 'total_stock', 'Арендопригодные офисы', 'тыс. м²'],
-      ['colliers', 'new_supply', 'Ввод за 2025 год', 'тыс. м²'],
-      ['rezultativnaya-nedvizhimost', 'new_supply_forecast_2026', 'Прогноз ввода на 2026', 'тыс. м²'],
-      ['rezultativnaya-nedvizhimost', 'vacancy_rate', 'Вакантность качественных БЦ', '%'],
-      ['goskomimushchestvo', 'registered_deals', 'Сделки за первое полугодие 2026', ''],
+      ['colliers', 'vacancy_rate', 'вакантность по городу', '%'],
+      ['colliers', 'total_stock', 'арендопригодных офисов', 'тыс. м²'],
+      ['colliers', 'new_supply', 'введено за 2025 год', 'тыс. м²'],
+      ['rezultativnaya-nedvizhimost', 'new_supply_forecast_2026', 'прогноз ввода на 2026', 'тыс. м²'],
+      ['rezultativnaya-nedvizhimost', 'vacancy_rate', 'вакантность качественных БЦ', '%'],
+      ['goskomimushchestvo', 'registered_deals', 'сделок за первое полугодие 2026', ''],
     ].flatMap(([source, metric, label, unit]) => {
       const row = externalMetrics?.find((m) => m.source === source && m.metric === metric && m.sliceKey === null);
-      return row ? [`${label}: ${row.value} ${unit} (${SOURCE_LABELS[row.source] ?? row.source}, ${row.period})`] : [];
+      return row ? [`${label} — ${row.value} ${unit} (${SOURCE_LABELS[row.source] ?? row.source}, ${row.period})`] : [];
     });
-    if (contextMetrics.length) {
+    if (contextMetrics.length > 0) {
       add(
-        'Что происходит на рынке офисов Минска сейчас?',
+        'Что происходит на рынке офисов Минска в целом?',
         `${contextMetrics.join('; ')}. Классификации внешних источников (Colliers — A/B1/B2, «Результативная недвижимость» — B+/B−) не совпадают с классами A/B+/B/C в этом каталоге, поэтому приведены только общегородские значения.`,
       );
     }
     add(
       'Чем эта страница отличается от общей аналитики рынка офисов?',
-      'Здесь — аналитика именно по каталогу бизнес-центров этого сайта: кто управляет зданиями, что сейчас сдаётся и продаётся в них, как они распределены по районам. Аналитика рынка офисов Минска целиком (по всем объявлениям аренды и продажи, не только из каталога) — на отдельной странице «Аналитика рынка».',
+      `Здесь разбирается каталог из ${centers.length} конкретных зданий: их признаки (класс, возраст, метро, управление, паркинг) известны поштучно, поэтому ставку можно разложить на надбавки и сравнить здания между собой. Аналитика рынка офисов Минска целиком — по всем объявлениям города, включая помещения вне бизнес-центров — на отдельной странице «Аналитика рынка».`,
     );
     return items;
-  }, [centers, districtTotals, officeSnapshots, externalMetrics, rateRent, rateSale, offerIndex]);
+  }, [
+    centers,
+    cityRent,
+    citySale,
+    cityPayback,
+    drivers,
+    classRows,
+    districtPoints,
+    paybackRows,
+    cohorts,
+    lotBuckets,
+    supply,
+    tenants,
+    namedIndustries,
+    otherIndustryShare,
+    amenityGroups,
+    externalMetrics,
+  ]);
 
   useEffect(() => {
     setGenericPageMeta({ title: TITLE, description: DESCRIPTION, url: PAGE_URL, ogType: 'article' });
-    setArticleJsonLd({ headline: TITLE, description: DESCRIPTION, url: PAGE_URL, datePublished: DATE_PUBLISHED, dateModified: DATE_PUBLISHED });
+    setArticleJsonLd({
+      headline: TITLE,
+      description: DESCRIPTION,
+      url: PAGE_URL,
+      datePublished: DATE_PUBLISHED,
+      dateModified: DATE_MODIFIED,
+    });
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
       { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bcminsk' },
@@ -204,6 +510,8 @@ export function BusinessCentersAnalyticsPage() {
     setFaqJsonLd(faqItems);
     return () => setFaqJsonLd([]);
   }, [faqItems]);
+
+  const ready = centers !== null && centers.length > 0;
 
   return (
     <div className="min-h-svh bg-bg">
@@ -242,9 +550,10 @@ export function BusinessCentersAnalyticsPage() {
             <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">{PAGE_H1}</h1>
           </div>
           <p className="text-sm leading-relaxed text-ink-muted">
-            Ставки, районы, управление зданиями и текущие объявления — по {centers ? `${centers.length} зданиям` : 'зданиям'} каталога
-            бизнес-центров этого сайта. Аналитика рынка офисов Минска целиком (по всем объявлениям, не только из
-            каталога) — на странице{' '}
+            Не сводка «средней ставки», а разбор: сколько на самом деле стоит метр и насколько широк разброс, за какие
+            признаки здания доплачивают, что выгоднее — снять или купить, из чего вообще состоит офисный фонд города и
+            что из него предлагают сегодня. Всё посчитано по {centers ? `${centers.length} зданиям` : 'зданиям'} каталога
+            и живым объявлениям в них. Аналитика рынка офисов Минска целиком — на странице{' '}
             <Link to="/minsk/analytics/ofisy/arenda" className="font-semibold text-primary-hover hover:underline">
               «Аналитика рынка»
             </Link>
@@ -254,80 +563,36 @@ export function BusinessCentersAnalyticsPage() {
 
         {centers === null && <p className="text-sm text-ink-muted">Загрузка…</p>}
 
-        {centers !== null && centers.length > 0 && (
+        {ready && (
           <>
-            {marketStats && marketStats.total > 0 && (
-              <div className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-                <h2 className="text-lg font-bold text-ink">Рынок в цифрах</h2>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <FactTile icon={Building2} value={marketStats.total} label="Всего бизнес-центров" />
-                  {marketStats.withAreaCount > 0 && (
-                    <FactTile
-                      icon={Ruler}
-                      value={`${Math.round(marketStats.totalArea).toLocaleString('ru-RU')} м²`}
-                      label={`Суммарная площадь (по ${marketStats.withAreaCount} из ${marketStats.total})`}
-                    />
-                  )}
-                  {marketStats.underConstruction > 0 && (
-                    <FactTile icon={HardHat} value={marketStats.underConstruction} label="Строится" />
-                  )}
-                  {marketStats.withMetroCount > 0 && (
-                    <FactTile
-                      icon={TrainFront}
-                      value={`${marketStats.nearMetro} из ${marketStats.withMetroCount}`}
-                      label="До 800 м по прямой от метро"
-                    />
-                  )}
-                  {(['A', 'B+', 'B', 'C'] as const).map(
-                    (cls) =>
-                      marketStats.byClass[cls] > 0 && (
-                        <FactTile key={cls} icon={Award} value={marketStats.byClass[cls]} label={`Класса ${cls}`} />
-                      ),
-                  )}
-                </div>
-              </div>
+            <HeadlineStrip items={headline} />
+            <RateCorridorBlock rent={cityRent} sale={citySale} />
+            <PriceDriversBlock drivers={drivers} />
+            <ClassMatrixBlock rows={classRows} />
+            <DistrictScatterBlock points={districtPoints} cityRent={cityRent?.median ?? null} />
+            <PaybackBlock rows={paybackRows} cityYears={cityPayback} />
+            <VintageBlock cohorts={cohorts} />
+            <LotSizeBlock
+              buckets={lotBuckets}
+              onPick={goToLotSize}
+              totalLots={supply.lots}
+              totalArea={supply.area}
+              buildings={supply.buildings}
+              catalogSize={centers.length}
+            />
+            <ExtremesBlock top={supply.top} bottom={supply.bottom} />
+            {tenants && (
+              <TenantIndustriesBlock
+                rows={namedIndustries.slice(0, 12).map((i) => ({ name: i.label, orgs: i.orgs, share: i.share }))}
+                orgTotal={tenants.orgTotal}
+                buildingTotal={tenants.buildingTotal}
+                otherShare={otherIndustryShare}
+              />
             )}
-
-            {(rateRent?.median != null || rateSale?.median != null) && (
-              <div className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-                <h2 className="text-lg font-bold text-ink">Ставки аренды и продажи</h2>
-                <p className="text-xs text-ink-faint">
-                  Медиана по объявлениям Kufar, Realt, Domovita и Megapolis по Минску{rateRent?.period ? `, ${rateRent.period.slice(0, 7)}` : ''}.
-                </p>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {rateRent?.median != null && (
-                    <FactTile
-                      icon={DollarSign}
-                      value={formatRate(rateRent.median, 'rent')}
-                      label={rateRent.n >= MIN_RELIABLE_N ? `Аренда (по ${rateRent.n} объявлениям)` : `Аренда — ориентировочно (${rateRent.n})`}
-                    />
-                  )}
-                  {rateSale?.median != null && (
-                    <FactTile
-                      icon={DollarSign}
-                      value={formatRate(rateSale.median, 'sale')}
-                      label={rateSale.n >= MIN_RELIABLE_N ? `Продажа (по ${rateSale.n} объявлениям)` : `Продажа — ориентировочно (${rateSale.n})`}
-                    />
-                  )}
-                </div>
-                <Link
-                  to="/minsk/analytics/ofisy/arenda"
-                  className="inline-flex w-fit items-center gap-1 text-sm text-primary-hover hover:underline"
-                >
-                  Подробная аналитика по офисам Минска
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </div>
-            )}
-
-            <AvailableNowBlock centers={centers} offers={offerIndex} lotSize={null} onPickLotSize={goToLotSize} />
-            <DistrictDensityBlock centers={centers} snapshots={officeSnapshots} activeDistricts={[]} onPickDistrict={goToDistrict} />
-            <ManagementBlock centers={centers} activeFacts={[]} onPickFact={goToFact} />
+            <AmenitiesBlock groups={amenityGroups} />
             <MarketContextBlock metrics={externalMetrics} />
           </>
         )}
-
-        <FaqAccordion title="Частые вопросы" items={faqItems} id="faq" />
 
         <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
           <h2 className="text-lg font-bold text-ink">Ещё по бизнес-центрам Минска</h2>
@@ -350,8 +615,41 @@ export function BusinessCentersAnalyticsPage() {
                 Аналитика рынка офисов, торговых, складов и машиномест Минска
               </Link>
             </li>
+            <li>
+              <Link to="/minsk/analytics/metodika" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+                <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
+                Методика: как считаются медианы и коридоры
+              </Link>
+            </li>
           </ul>
         </div>
+
+        <FaqAccordion title="Частые вопросы" items={faqItems} id="faq" />
+
+        <SourcesDisclaimer
+          items={[
+            {
+              title: 'Ставки и объявления',
+              body: `Kufar, Realt, Domovita и Megapolis — объявления, привязанные к конкретным зданиям каталога${
+                cityRent?.period ? `, срез за ${cityRent.period.slice(0, 7)}` : ''
+              }. Один лот, выложенный сразу на нескольких площадках, схлопывается в один. В расчёт ставок идут только помещения с типом «Офисы»: магазины, общепит и кладовые в тех же зданиях стоят заметно дороже и сдвигали бы медиану. Везде используется медиана, а не среднее: одно дорогое предложение не должно двигать всю цифру.`,
+            },
+            {
+              title: 'Характеристики зданий',
+              body: 'Класс, площадь, этажность, год постройки, паркинг, кондиционирование и тип управления — prometr.by и собственный ресёрч по сайтам управляющих компаний. Инфраструктура, доступная среда, круглосуточный доступ, координаты и арендаторы — 2ГИС и Яндекс.Карты. Незаполненное поле здесь всегда означает «нет данных у источника», а не ноль: такие здания просто не участвуют в соответствующем срезе, и объём выборки подписан у каждой цифры.',
+            },
+            {
+              title: 'Чего в этих цифрах нет',
+              body: 'Это статистика ПРЕДЛОЖЕНИЯ — цены, по которым офисы выставлены, а не по которым сданы; реальные ставки после торга ниже, и насколько — публичных данных по Минску нет. Здания без активных объявлений в срезы ставок не попадают вовсе, поэтому «нет предложения» на странице не равно «нет свободных площадей». Окупаемость посчитана без простоя, налогов, эксплуатации и ремонта. Общегородские показатели рынка приведены из внешних отчётов со своими классификациями, которые не совпадают с классами этого каталога, — сравнивать их по классам нельзя.',
+            },
+            {
+              title: 'Как часто обновляется',
+              body: `Объявления пересобираются регулярным синком, месячный срез медиан пересчитывается в market_snapshots${
+                cityRent?.period ? `; текущий — ${cityRent.period.slice(0, 7)}` : ''
+              }. Характеристики зданий правятся вручную по мере ресёрча. Подробнее о методике расчёта — на отдельной странице «Методика».`,
+            },
+          ]}
+        />
       </main>
     </div>
   );

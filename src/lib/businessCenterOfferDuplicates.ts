@@ -40,10 +40,24 @@
 // категорией, а не сам по себе.
 import type { BusinessCenterOffer } from '../data/businessCenterOffers';
 
-export interface DedupedOffer extends BusinessCenterOffer {
+// Схлопывание смотрит только на эти поля, а floor/address — лишь на то,
+// какая из склеенных записей останется видимой. Поэтому функция обобщена:
+// городские срезы (lib/businessCenterAnalytics.ts) тянут из базы урезанный
+// набор колонок — на 1500 объявлений полный `select=*` весит 415 КБ против
+// 160 КБ, и публичной странице незачем возить ссылки и адреса, которые она
+// не показывает.
+export type DedupeableOffer = Pick<
+  BusinessCenterOffer,
+  'source' | 'adId' | 'dealType' | 'propertyType' | 'size' | 'pricePerSqm'
+> &
+  Partial<Pick<BusinessCenterOffer, 'floor' | 'address'>>;
+
+export type Deduped<T extends DedupeableOffer> = T & {
   // Другие площадки, где висит тот же лот (без источника самой записи).
   alsoOn: string[];
-}
+};
+
+export type DedupedOffer = Deduped<BusinessCenterOffer>;
 
 // Площадь считаем совпавшей с точностью до 0,1 м² — Kufar и Realt берут её
 // из одного и того же объявления и не округляют по-разному.
@@ -63,7 +77,7 @@ function samePrice(a: number, b: number): boolean {
 // пришла раньше в отсортированном списке, чтобы результат не зависел от
 // порядка строк из базы.
 const VAGUE_TYPES = new Set(['Без категории', 'Не указано', null, '']);
-function completeness(offer: BusinessCenterOffer): number {
+function completeness(offer: DedupeableOffer): number {
   let score = 0;
   if (offer.floor != null) score += 1;
   if (!VAGUE_TYPES.has(offer.propertyType)) score += 1;
@@ -71,13 +85,13 @@ function completeness(offer: BusinessCenterOffer): number {
   return score;
 }
 
-export function dedupeOffers(offers: BusinessCenterOffer[] | null | undefined): DedupedOffer[] {
+export function dedupeOffers<T extends DedupeableOffer>(offers: T[] | null | undefined): Deduped<T>[] {
   if (!offers || offers.length === 0) return [];
   const sorted = [...offers].sort((a, b) =>
     a.source === b.source ? a.adId.localeCompare(b.adId) : a.source.localeCompare(b.source),
   );
 
-  const clusters: BusinessCenterOffer[][] = [];
+  const clusters: T[][] = [];
   for (const offer of sorted) {
     const cluster = clusters.find(
       (c) =>
@@ -101,6 +115,9 @@ export function dedupeOffers(offers: BusinessCenterOffer[] | null | undefined): 
 }
 
 // Сколько записей схлопнулось — для честной оговорки под таблицей.
-export function duplicateCount(offers: BusinessCenterOffer[] | null | undefined, deduped: DedupedOffer[]): number {
+export function duplicateCount(
+  offers: DedupeableOffer[] | null | undefined,
+  deduped: DedupeableOffer[],
+): number {
   return Math.max(0, (offers?.length ?? 0) - deduped.length);
 }
