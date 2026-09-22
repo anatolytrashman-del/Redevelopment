@@ -2784,7 +2784,14 @@ function RelatedCentersSection({
             // тот же самый контент занимал в 4,3 раза больше. Мобильная
             // раскладка теперь такая же строка, только фото 5rem: блок
             // ужимается до ~400px. Десктоп (sm/lg/xl) не тронут.
-            className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-3 overflow-hidden rounded-2xl border border-border bg-surface p-2 transition-colors hover:border-primary/40 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-0 sm:p-0 lg:block xl:grid xl:grid-cols-[10rem_minmax(0,1fr)]"
+            // Про lg (1024–1279px): раньше здесь стоял lg:block — на этом
+            // диапазоне секция раскладывается в три колонки, каждая узкая,
+            // и карточку «роняли» в столбик. Но столбик в колонке 410px даёт
+            // фото 410×410 — блок разбухал до 659px, БОЛЬШЕ, чем был на
+            // телефоне до правки (владелец так и написал «у меня пока старый
+            // вид» — он смотрел как раз в этом диапазоне). Вместо столбика
+            // строка с фото поменьше (7rem), как на всех остальных ширинах.
+            className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-3 overflow-hidden rounded-2xl border border-border bg-surface p-2 transition-colors hover:border-primary/40 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-0 sm:p-0 lg:grid-cols-[7rem_minmax(0,1fr)] xl:grid-cols-[10rem_minmax(0,1fr)]"
           >
             <div className="aspect-square overflow-hidden rounded-xl bg-surface-muted sm:rounded-2xl">
               <PhotoBlock center={related} variant="card" fit="contain" />
