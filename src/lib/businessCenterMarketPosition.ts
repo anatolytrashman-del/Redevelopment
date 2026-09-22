@@ -76,6 +76,11 @@ export interface ComparisonBar {
   subjectDisplayValue: string;
   // "медиана класса B — $11,56/м² · Партизанский $10,06/м² · город $13/м²"
   captionText: string;
+  // Только медиана класса, уже отформатированная ("$15,85/м²", "500 м по
+  // прямой") — без засечек района/города и без слова "медиана". Нужна FAQ:
+  // он пересказывает те же сравнения связным текстом, а captionText с его
+  // разделителями "·" в предложение не вставишь (2026-09-22).
+  baseDisplayValue: string;
   // Знак: положительное — здание выигрывает у базы (или, для нейтральных
   // метрик вроде года сдачи, просто «выше» по оси), отрицательное —
   // проигрывает. Не обрезано до ±50 — обрезка (для ширины бара) отдельно
@@ -208,6 +213,7 @@ export function buildMarketPosition(
         label: 'Ставка аренды',
         subjectDisplayValue: formatValue(buildingRent, unit),
         captionText: buildCaption(`класса ${center.businessClass}`, classMedian, unit, ticks),
+        baseDisplayValue: formatValue(classMedian, unit),
         deltaPct: d.deltaPct,
         tone: d.tone,
         nearTypical: d.nearTypical,
@@ -236,6 +242,7 @@ export function buildMarketPosition(
         label: 'Цена продажи',
         subjectDisplayValue: formatValue(buildingSale, unit),
         captionText: buildCaption(`класса ${center.businessClass}`, classMedian, unit, ticks),
+        baseDisplayValue: formatValue(classMedian, unit),
         deltaPct: d.deltaPct,
         tone: d.tone,
         nearTypical: d.nearTypical,
@@ -256,6 +263,7 @@ export function buildMarketPosition(
         label: 'До метро',
         subjectDisplayValue: formatValue(metro, unit),
         captionText: buildCaption(classLabel, classMetro, unit, []),
+        baseDisplayValue: formatValue(classMetro, unit),
         deltaPct: d.deltaPct,
         tone: d.tone,
         nearTypical: d.nearTypical,
@@ -275,6 +283,7 @@ export function buildMarketPosition(
         label: 'Парковка',
         subjectDisplayValue: formatValue(center.parkingRatio, unit),
         captionText: buildCaption(classLabel, classParking, unit, []),
+        baseDisplayValue: formatValue(classParking, unit),
         deltaPct: d.deltaPct,
         tone: d.tone,
         nearTypical: d.nearTypical,
@@ -295,6 +304,7 @@ export function buildMarketPosition(
         label: 'Высота потолков',
         subjectDisplayValue: formatValue(center.ceilingHeight, unit),
         captionText: buildCaption(classLabel, classCeiling, unit, []),
+        baseDisplayValue: formatValue(classCeiling, unit),
         deltaPct: d.deltaPct,
         tone: d.tone,
         nearTypical: d.nearTypical,
@@ -316,6 +326,7 @@ export function buildMarketPosition(
         label: 'Лифты на 10 000 м²',
         subjectDisplayValue: formatValue(buildingElevators, unit),
         captionText: buildCaption(classLabel, classElevators, unit, []),
+        baseDisplayValue: formatValue(classElevators, unit),
         deltaPct: d.deltaPct,
         tone: d.tone,
         nearTypical: d.nearTypical,
@@ -343,6 +354,7 @@ export function buildMarketPosition(
         label: 'Год сдачи',
         subjectDisplayValue: `${center.yearBuilt} г.`,
         captionText: buildCaption(classLabel, classYear, 'г.', []),
+        baseDisplayValue: formatValue(classYear, 'г.'),
         deltaPct: d.deltaPct,
         tone: 'neutral',
         nearTypical: d.nearTypical,
@@ -369,6 +381,7 @@ export function buildMarketPosition(
         label: 'Компаний-арендаторов',
         subjectDisplayValue: formatValue(buildingTenants, unit),
         captionText: buildCaption(classLabel, classTenants, unit, []),
+        baseDisplayValue: formatValue(classTenants, unit),
         deltaPct: d.deltaPct,
         tone: 'neutral',
         nearTypical: d.nearTypical,
@@ -401,6 +414,7 @@ export function buildMarketPosition(
         label: 'Рейтинг Яндекс.Карт',
         subjectDisplayValue: formatValue(subjectRating.value, unit),
         captionText: buildCaption(classLabel, classRating, unit, []),
+        baseDisplayValue: formatValue(classRating, unit),
         deltaPct: d.deltaPct,
         tone: d.tone,
         nearTypical: d.nearTypical,
