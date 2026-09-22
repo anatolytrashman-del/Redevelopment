@@ -214,7 +214,7 @@ function resolvePageBaseLabel(base: string): string {
     '/minsk/minsk-mir': 'Гид района — Минск Мир',
     '/minsk/bcminsk': 'Каталог бизнес-центров',
     '/minsk/bcminsk/stroyashchiesya': 'БЦ — строящиеся',
-    '/minsk/bcminsk/reyting': 'Рейтинг бизнес-центров',
+    '/minsk/bcminsk/rating': 'Рейтинг бизнес-центров',
     '/minsk/bcminsk/gid': 'БЦ — справочник по рынку',
     '/rayon-minsk-mir': 'Гид района (старая ссылка)',
     '/business-upload': 'Форма загрузки организаций',
