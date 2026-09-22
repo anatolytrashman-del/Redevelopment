@@ -5,6 +5,7 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd } from '../lib/pageMeta';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
+import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { fetchExternalMetrics, fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { fetchBusinessCenterOfferSlices } from '../lib/businessCenterOffersApi';
 import { fetchTenantCitySlice, type TenantCitySlice } from '../lib/businessCenterTenantCityApi';
@@ -531,21 +532,7 @@ export function BusinessCentersAnalyticsPage() {
 
   return (
     <div className="min-h-svh bg-bg">
-      <div className="sticky top-0 z-30 border-b border-border bg-bg/90 py-5 backdrop-blur-md">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 sm:px-8">
-          <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary-hover">RED</span>EVELOPMENT
-          </Link>
-          <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted sm:flex">
-            <Link to="/minsk/bcminsk" className="whitespace-nowrap transition-colors hover:text-ink">
-              Каталог
-            </Link>
-            <Link to="/minsk/bcminsk/rating" className="whitespace-nowrap transition-colors hover:text-ink">
-              Рейтинг
-            </Link>
-          </nav>
-        </div>
-      </div>
+      <CatalogTopNav centers={centers} width="max-w-3xl" />
 
       <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-10 sm:px-8">
         <nav aria-label="Хлебные крошки" className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
