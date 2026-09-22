@@ -168,9 +168,13 @@ export function buildDealStats(offers: DedupedOffer[] | null | undefined, deal: 
 // Десятые долями метра площадки оперируют всерьёз: 113,4 и 113,5 м² —
 // это два РАЗНЫХ лота, и округление до целого превращало их в «113» и
 // «114», то есть выдумывало разницу там, где её нет.
-export function formatArea(n: number): string {
+export function formatAreaValue(n: number): string {
   const rounded = n >= 1000 ? Math.round(n) : Math.round(n * 10) / 10;
-  return `${rounded.toLocaleString('ru-RU')} м²`;
+  return rounded.toLocaleString('ru-RU');
+}
+
+export function formatArea(n: number): string {
+  return `${formatAreaValue(n)} м²`;
 }
 
 // Ставка за метр: у аренды она мелкая (десятые доли важны), у продажи —
@@ -190,4 +194,111 @@ export function formatMoney(n: number): string {
   }
   if (n >= 10_000) return `$${(Math.round(n / 100) * 100).toLocaleString('ru-RU')}`;
   return `$${Math.round(n).toLocaleString('ru-RU')}`;
+}
+
+// ——— полки по бюджету ———
+//
+// Владелец, 2026-09-22, про утверждённый накануне список: «уже норм, но не
+// вау». Разбор живого «Силуэта» показал, что дело не в оформлении: список
+// отсортирован по площади, поэтому первый экран занимают самые мелкие
+// лоты, и подряд стоят «5,7 м² — $5 945» и «5,7 м² — $22 500». Метр в
+// здании гуляет от $758 до $6 820 ПРИ ОДИНАКОВОЙ площади, и читатель
+// делает единственный возможный вывод: сайт врёт.
+//
+// Лечится сменой оси: человек приходит не с площадью, а с суммой. Лоты
+// раскладываются по полкам «до $10 000 / $10 000–50 000 / дороже
+// $50 000», и внутри полки цены уже сопоставимы между собой.
+//
+// Пороги считаются, а не зашиты: у «Силуэта» лоты от $4 624 до $99 700, у
+// «Аякса» — от $1,4 млн до $30 млн, и любая константа одному из них не
+// подходит. Берётся лесенка круглых чисел (1, 2, 5 × 10^n) — только такие
+// читаются как граница бюджета, «до $37 400» не читается никак.
+export interface PriceBucket {
+  label: string;
+  lots: DedupedOffer[];
+  sizeMin: number;
+  sizeMax: number;
+}
+
+// Меньше семи лотов помещаются на экран целиком — полки для них лишний
+// клик на ровном месте, показывается обычный список.
+const MIN_LOTS_FOR_BUCKETS = 7;
+
+function niceThresholds(): number[] {
+  const out: number[] = [];
+  for (let exp = 1; exp <= 9; exp += 1) {
+    for (const m of [1, 2, 5]) out.push(m * 10 ** exp);
+  }
+  return out;
+}
+
+// Насколько набор полок далёк от равного деления, в долях от общего числа
+// лотов. Считается именно в долях, чтобы два варианта с РАЗНЫМ числом полок
+// можно было сравнить между собой.
+function imbalance(counts: number[], total: number): number {
+  const ideal = 1 / counts.length;
+  return counts.reduce((acc, c) => acc + Math.abs(c / total - ideal), 0);
+}
+
+// Насколько ровнее должны лечь две полки, чтобы отказаться от третьей.
+// Без этой надбавки побеждали бы всегда две: разделить надвое ровно проще,
+// чем натрое. Замер по живым данным: у «Силуэта» третья полка честно
+// выигрывает (8/10/8 против 8/18), у Royal Plaza — нет (19/1/5 против
+// 19/6), и полка на один лот из двадцати пяти там не нужна никому.
+const THIRD_BUCKET_BONUS = 0.2;
+
+function bucketLabel(deal: DealType, from: number | null, to: number | null): string {
+  const suffix = deal === 'rent' ? ' в месяц' : '';
+  if (from === null && to !== null) return `До ${formatMoney(to)}${suffix}`;
+  if (from !== null && to === null) return `Дороже ${formatMoney(from)}${suffix}`;
+  return `От ${formatMoney(from as number)} до ${formatMoney(to as number)}${suffix}`;
+}
+
+function toBucket(deal: DealType, lots: DedupedOffer[], from: number | null, to: number | null): PriceBucket {
+  const sizes = lots.map((o) => o.size);
+  return { label: bucketLabel(deal, from, to), lots, sizeMin: Math.min(...sizes), sizeMax: Math.max(...sizes) };
+}
+
+export function buildPriceBuckets(stats: DealStats): PriceBucket[] | null {
+  const { lots, deal } = stats;
+  if (lots.length < MIN_LOTS_FOR_BUCKETS) return null;
+
+  const total = (o: DedupedOffer) => o.size * o.pricePerSqm;
+  const at = (t: number) => lots.filter((o) => total(o) <= t).length;
+  // Порог годится, только если он реально делит набор: иначе получится
+  // пустая полка с круглым заголовком.
+  const candidates = niceThresholds().filter((t) => at(t) > 0 && at(t) < lots.length);
+  if (candidates.length === 0) return null;
+
+  interface Split {
+    cut: number[];
+    score: number;
+  }
+  let best: Split | null = null;
+  const consider = (cut: number[]) => {
+    const counts = [...cut, Infinity].map((to, i) => {
+      const from = i === 0 ? -Infinity : cut[i - 1];
+      return lots.filter((o) => total(o) > from && total(o) <= to).length;
+    });
+    // Пустая полка с круглым заголовком хуже отсутствия полок.
+    if (counts.some((c) => c === 0)) return;
+    const score = imbalance(counts, lots.length) + (counts.length === 2 ? THIRD_BUCKET_BONUS : 0);
+    if (best === null || score < best.score) best = { cut, score };
+  };
+
+  for (let i = 0; i < candidates.length; i += 1) {
+    consider([candidates[i]]);
+    for (let j = i + 1; j < candidates.length; j += 1) consider([candidates[i], candidates[j]]);
+  }
+  // Присваивания внутри колбэка TypeScript не отслеживает и сужает `best`
+  // до `never` — читаем через отдельную константу.
+  const chosen = best as Split | null;
+  if (chosen === null) return null;
+
+  const cut = chosen.cut;
+  return [...cut, Infinity].map((to, i) => {
+    const from = i === 0 ? -Infinity : cut[i - 1];
+    const inside = lots.filter((o) => total(o) > from && total(o) <= to);
+    return toBucket(deal, inside, i === 0 ? null : cut[i - 1], to === Infinity ? null : to);
+  });
 }
