@@ -82,17 +82,31 @@ function fetchPageOnce(url, { insecure, redirectsLeft = 3 }) {
           return;
         }
         let size = 0;
+        let settled = false;
         const chunks = [];
         res.on('data', (chunk) => {
+          if (settled) return;
           size += chunk.length;
           if (size > MAX_PAGE_BYTES) {
+            // res.destroy() не гарантирует событие 'end' — без немедленного
+            // resolve() здесь промис зависал бы навсегда (реальный баг: на
+            // futuris-bc.by именно так упал первый прогон, Node сообщил
+            // "unsettled top-level await" и завершился с кодом 13, потому что
+            // ничего больше не держало event loop). Отдаём то, что успели
+            // скачать, а не теряем страницу целиком.
+            settled = true;
+            resolve(Buffer.concat(chunks).toString('utf8'));
             res.destroy();
             return;
           }
           chunks.push(chunk);
         });
-        res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-        res.on('error', reject);
+        res.on('end', () => {
+          if (!settled) resolve(Buffer.concat(chunks).toString('utf8'));
+        });
+        res.on('error', (err) => {
+          if (!settled) reject(err);
+        });
       },
     );
     req.on('timeout', () => req.destroy(new Error('timeout')));
@@ -254,5 +268,13 @@ async function main() {
   await runPool(targets, 5, processCenter);
   console.log('Готово.');
 }
+
+// Один плохо ведущий себя сайт не должен обрушивать прогон по остальным 60+ —
+// ловим сюрпризы, которые не предусмотрели в fetchPageOnce/processCenter,
+// логируем и продолжаем (реальный прецедент такого сюрприза — комментарий
+// у res.on('data', ...) выше).
+process.on('unhandledRejection', (err) => {
+  console.error('Необработанный отказ промиса (сайт пропущен):', err instanceof Error ? err.message : err);
+});
 
 await main();
