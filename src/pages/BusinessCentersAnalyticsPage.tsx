@@ -45,6 +45,8 @@ import {
   type PaybackRow,
 } from '../components/businessCenters/AnalyticsBlocks';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
+import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrademarkNote';
+import { pluralRu } from '../lib/pluralRu';
 
 // Аналитика КАТАЛОГА бизнес-центров Минска — отдельная страница (владелец,
 // 2026-09-22): эти же блоки раньше стояли ПОД результатами каталога
@@ -407,7 +409,7 @@ export function BusinessCentersAnalyticsPage() {
     if (cohorts.length > 0) {
       const biggest = [...cohorts].sort((a, b) => b.total - a.total)[0];
       add(
-        'Насколько новый фонд бизнес-центров в Минске?',
+        'Когда построены бизнес-центры Минска?',
         `${cohorts.map((c) => `${c.label} — ${c.total}`).join('; ')} зданий. Больше всего построено в период ${biggest.label.toLowerCase()}. Класс A — самый молодой сегмент каталога, класс C — самый старый; для строящихся зданий указан заявленный срок сдачи, а не факт.`,
       );
     }
@@ -472,7 +474,7 @@ export function BusinessCentersAnalyticsPage() {
     });
     if (contextMetrics.length > 0) {
       add(
-        'Что происходит на рынке офисов Минска в целом?',
+        'Какая вакантность на рынке офисов Минска и сколько его строят?',
         `${contextMetrics.join('; ')}. Классификации внешних источников (Colliers — A/B1/B2, «Результативная недвижимость» — B+/B−) не совпадают с классами A/B+/B/C в этом каталоге, поэтому приведены только общегородские значения.`,
       );
     }
@@ -566,10 +568,10 @@ export function BusinessCentersAnalyticsPage() {
             <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">{PAGE_H1}</h1>
           </div>
           <p className="text-sm leading-relaxed text-ink-muted">
-            Не сводка «средней ставки», а разбор: сколько на самом деле стоит метр и насколько широк разброс, за какие
-            признаки здания доплачивают, что выгоднее — снять или купить, из чего вообще состоит офисный фонд города и
-            что из него предлагают сегодня. Всё посчитано по {centers ? `${centers.length} зданиям` : 'зданиям'} каталога
-            и живым объявлениям в них. Аналитика рынка офисов Минска целиком — на странице{' '}
+            Ставки аренды и цены продажи, надбавки за метро, класс и возраст здания, срок окупаемости покупки и что
+            предлагают прямо сейчас. Посчитано по{' '}
+            {centers ? `${centers.length} ${pluralRu(centers.length, 'зданию', 'зданиям', 'зданиям')}` : 'зданиям'}{' '}
+            каталога и действующим объявлениям в них. Аналитика рынка офисов Минска целиком — на странице{' '}
             <Link to="/minsk/analytics/ofisy/arenda" className="font-semibold text-primary-hover hover:underline">
               «Аналитика рынка»
             </Link>
@@ -641,6 +643,11 @@ export function BusinessCentersAnalyticsPage() {
         </div>
 
         <FaqAccordion title="Частые вопросы" items={faqItems} id="faq" />
+
+        <div className={cn('flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+          <h2 className="text-lg font-bold text-ink">Источники</h2>
+          <SourcesTrademarkNote />
+        </div>
       </main>
     </div>
   );

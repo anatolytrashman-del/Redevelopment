@@ -121,7 +121,7 @@ export function RateCorridorBlock({ rent, sale }: { rent: MarketSnapshot | null;
 
   return (
     <Section
-      title="Сколько стоит метр — и почему одной цифры мало"
+      title="Сколько стоит метр"
       lead="Тёмная полоса — середина рынка: в неё попадает половина объявлений. Вторая половина лежит за её краями, и «средняя ставка» про неё ничего не говорит."
     >
       <div className="flex flex-col gap-5">
@@ -194,7 +194,7 @@ export function PriceDriversBlock({ drivers }: { drivers: PriceDriver[] }) {
   return (
     <Section
       tone="plain"
-      title="За что доплачивают: разложили ставку на признаки"
+      title="От чего зависит ставка"
       lead="Каждая строка — один и тот же рынок, разрезанный по одному признаку здания. Слева медиана дешёвой половины, справа — дорогой."
     >
       <div className="flex flex-col divide-y divide-border">
@@ -265,8 +265,8 @@ export function ClassMatrixBlock({ rows }: { rows: ClassRow[] }) {
 
   return (
     <Section
-      title="Классы: чего сколько и почём"
-      lead="Класс задаёт и ставку, и то, сколько такого фонда вообще есть в городе. Самый дорогой класс — не самый большой."
+      title="Цены по классам"
+      lead="Ставка, цена покупки и срок окупаемости по каждому классу — и сколько зданий этого класса вообще есть в городе."
     >
       {/* На узком экране пять колонок не помещаются, а горизонтальный скролл
           прятал бы самую интересную — окупаемость. Поэтому до sm блок
@@ -464,7 +464,7 @@ export function DistrictScatterBlock({
 
   return (
     <Section
-      title="Районы: дорого — не значит, что есть из чего выбрать"
+      title="Цены и площади по районам"
       lead="По горизонтали — медианная ставка аренды в районе, по вертикали — сколько офисной площади в нём вообще есть. Размер точки — число зданий каталога."
     >
       <p className="text-xs text-ink-faint sm:hidden">Диаграмму можно прокрутить вбок — или посмотреть тот же порядок списком под ней.</p>
@@ -560,7 +560,7 @@ export function PaybackBlock({ rows, cityYears }: { rows: PaybackRow[]; cityYear
 
   return (
     <Section
-      title="Снять или купить: за сколько лет аренда окупит покупку"
+      title="За сколько лет окупится покупка"
       lead={
         cityYears != null ? (
           <>
@@ -627,7 +627,7 @@ export function VintageBlock({ cohorts }: { cohorts: VintageCohort[] }) {
   return (
     <Section
       tone="plain"
-      title="Когда всё это построено"
+      title="Возраст зданий"
       lead="Столбец — сколько зданий каталога сдано в эти годы, заливка внутри — из каких они классов."
     >
       <div className="flex items-end gap-2 sm:gap-3">
@@ -691,7 +691,7 @@ export function LotSizeBlock({
 
   return (
     <Section
-      title="Что реально предлагают прямо сейчас"
+      title="Что предлагают сейчас"
       lead={
         <>
           {totalLots} офисных лотов на {fmtInt(totalArea)} м² в {buildings} зданиях из {catalogSize}. Полоса — сколько
@@ -771,9 +771,9 @@ export function ExtremesBlock({ top, bottom }: { top: BuildingSupply[]; bottom: 
 
   return (
     <Section
-      title="Края рынка"
+      title="Самые дорогие и дешёвые бизнес-центры"
       lead={`Здания каталога с самой высокой и самой низкой медианной ставкой аренды офисов${
-        gap != null ? `. Разрыв между краями — в ${(Math.round(gap * 10) / 10).toLocaleString('ru-RU')} раза` : ''
+        gap != null ? `. Разница между ними — в ${(Math.round(gap * 10) / 10).toLocaleString('ru-RU')} раза` : ''
       }.`}
     >
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -809,8 +809,8 @@ export function TenantIndustriesBlock({
   return (
     <Section
       tone="plain"
-      title="Кто сидит в бизнес-центрах Минска"
-      lead={`${fmtInt(orgTotal)} организаций в ${buildingTotal} зданиях каталога, свёрнутые в отрасли. Это спрос, который уже сформировался: соседи по зданию — будущие клиенты и поставщики.${
+      title="Кто арендует офисы"
+      lead={`${fmtInt(orgTotal)} организаций в ${buildingTotal} зданиях каталога, свёрнутые в отрасли — это будущие соседи по зданию.${
         // Оговорка стоит в лиде, а не сноской под списком: без неё первая
         // строка рейтинга выглядит как доля от всех арендаторов, хотя пятая
         // часть из них в отрасли вообще не разнесена.
@@ -852,7 +852,7 @@ export function AmenitiesBlock({ groups }: { groups: { title: string; note: stri
   return (
     <Section
       title="Что есть в зданиях, кроме офисов"
-      lead="Доля каталога, у которой признак подтверждён источником. Пустая доля — это «не нашли в данных», а не «точно нет»."
+      lead="Доля зданий каталога, у которых признак подтверждён источником. Незакрашенная часть — «в данных не нашли», а не «точно нет»."
     >
       <div className="flex flex-col gap-5">
         {usable.map((g) => (
