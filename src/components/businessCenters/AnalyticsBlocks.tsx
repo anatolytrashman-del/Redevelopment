@@ -4,6 +4,7 @@ import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { MarketSnapshot } from '../../data/marketSnapshots';
 import { shortName } from '../../lib/businessCenterDisplay';
+import { pluralRu } from '../../lib/pluralRu';
 import {
   BUSINESS_CLASSES,
   fmtYears,
@@ -733,9 +734,19 @@ export function ExtremesBlock({ top, bottom }: { top: BuildingSupply[]; bottom: 
   // Разрыв считаем, а не подписываем словом: состав краёв меняется с
   // каждым синком объявлений, и «почти пятикратный» в тексте пережил бы
   // те данные, про которые это было правдой.
+  //
+  // bottom приходит уже как ranked.slice(-5).reverse() (см. страницу) —
+  // после .reverse() bottom[0] это САМАЯ низкая медиана из пяти, а
+  // bottom[bottom.length - 1] — самая высокая из этой пятёрки (пятое
+  // место, а не «дно»). Брать нужно именно bottom[0], иначе разрыв
+  // получается меньше настоящего.
   const highest = top[0]?.median ?? null;
-  const lowest = bottom[bottom.length - 1]?.median ?? null;
-  const gap = highest != null && lowest != null && lowest > 0 ? highest / lowest : null;
+  const lowest = bottom[0]?.median ?? null;
+  const gapRaw = highest != null && lowest != null && lowest > 0 ? highest / lowest : null;
+  const gap = gapRaw == null ? null : Math.round(gapRaw * 10) / 10;
+  // «1,5 раза», «5,2 раза» — у дробных чисел в русском всегда родительный
+  // единственного; склонение по 1/2-4/5+ работает только для целых значений.
+  const timesWord = gap == null ? '' : Number.isInteger(gap) ? pluralRu(gap, 'раз', 'раза', 'раз') : 'раза';
   const Column = ({ title, rows, tone }: { title: string; rows: BuildingSupply[]; tone: 'high' | 'low' }) => (
     <div className="flex flex-col gap-2">
       <h3 className="text-xs font-bold uppercase tracking-wide text-ink-faint">{title}</h3>
@@ -773,7 +784,7 @@ export function ExtremesBlock({ top, bottom }: { top: BuildingSupply[]; bottom: 
     <Section
       title="Самые дорогие и дешёвые бизнес-центры"
       lead={`Здания каталога с самой высокой и самой низкой медианной ставкой аренды офисов${
-        gap != null ? `. Разница между ними — в ${(Math.round(gap * 10) / 10).toLocaleString('ru-RU')} раза` : ''
+        gap != null ? `. Разница между ними — в ${gap.toLocaleString('ru-RU')} ${timesWord}` : ''
       }.`}
     >
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">

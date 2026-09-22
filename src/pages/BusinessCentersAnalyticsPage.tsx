@@ -356,95 +356,136 @@ export function BusinessCentersAnalyticsPage() {
     if (cityRent?.median != null && cityRent.p25 != null && cityRent.p75 != null) {
       add(
         'Сколько стоит аренда офиса в бизнес-центре Минска?',
-        `Медиана — ${fmtRent(cityRent.median)} за м² в месяц, но половина объявлений лежит в коридоре ${fmtRent(cityRent.p25)}–${fmtRent(cityRent.p75)}, а вторая половина — за его краями. Посчитано по ${cityRent.n} офисным объявлениям в зданиях каталога (Kufar, Realt, Domovita, Megapolis${cityRent.period ? `, ${cityRent.period.slice(0, 7)}` : ''}). Магазины, общепит и кладовые в тех же зданиях в расчёт не входят — они дороже офисов и сдвигали бы медиану вверх.`,
+        `Медиана — ${fmtRent(cityRent.median)} за м² в месяц, но опираться на одну эту цифру не стоит: половина объявлений дешевле ${fmtRent(cityRent.p25)}, половина дороже ${fmtRent(cityRent.p75)}. Посчитано по ${cityRent.n} офисным объявлениям в зданиях каталога (Kufar, Realt, Domovita, Megapolis${cityRent.period ? `, ${cityRent.period.slice(0, 7)}` : ''}); магазины и общепит в тех же зданиях в выборку не попали — они дороже офисов и сдвинули бы медиану вверх.`,
       );
     }
     if (citySale?.median != null && citySale.p25 != null && citySale.p75 != null) {
       add(
         'Сколько стоит купить офис в бизнес-центре Минска?',
-        `Медиана — ${fmtSale(citySale.median)} за м², середина рынка — ${fmtSale(citySale.p25)}–${fmtSale(citySale.p75)} за м², по ${citySale.n} объявлениям о продаже офисных помещений в зданиях каталога.`,
+        `Медиана — ${fmtSale(citySale.median)} за м², большинство предложений укладываются в коридор ${fmtSale(citySale.p25)}–${fmtSale(citySale.p75)} за м² — по ${citySale.n} объявлениям о продаже офисов в зданиях каталога.`,
       );
     }
     if (drivers.length > 0) {
+      const [topDriver, secondDriver] = drivers;
+      const restCount = drivers.length - (secondDriver ? 2 : 1);
       add(
         'От чего зависит ставка аренды в бизнес-центре?',
-        `${drivers
-          .map((d) => `${d.title.toLowerCase()} — ${d.high.label} ${fmtRent(d.high.median)} против ${fmtRent(d.low.median)} у варианта «${d.low.label}», разница ${d.deltaPct}%`)
-          .join('; ')}. Это одномерные срезы: признаки связаны между собой (новые здания обычно и класснее, и ближе к метро), поэтому надбавки нельзя складывать. Надбавка за метро сохраняется и внутри одного класса, а разница по типу управления — нет.`,
+        `Сильнее всего на ставку влияет фактор «${topDriver.title}»: «${topDriver.high.label}» — ${fmtRent(topDriver.high.median)}/м², «${topDriver.low.label}» — ${fmtRent(topDriver.low.median)}/м², разница ${topDriver.deltaPct}%.${
+          secondDriver ? ` На втором месте — «${secondDriver.title}», разница ${secondDriver.deltaPct}%.` : ''
+        }${
+          restCount > 0
+            ? ` Ещё ${restCount} ${pluralRu(restCount, 'признак', 'признака', 'признаков')} ${pluralRu(restCount, 'разобран', 'разобраны', 'разобраны')} в таблице выше.`
+            : ''
+        } Это одномерные срезы: признаки связаны между собой (новое здание обычно и классом выше, и ближе к метро), поэтому надбавки нельзя складывать одна на одну.`,
       );
     }
     const classesWithRate = classRows.filter((r) => r.count > 0 && r.rent?.median != null);
-    if (classesWithRate.length > 0) {
+    if (classesWithRate.length === 1) {
+      const only = classesWithRate[0];
       add(
         'Чем отличаются классы A, B+, B и C по цене и по количеству зданий?',
-        `${classesWithRate
-          .map((r) => {
-            const payback = paybackYears(r.rent?.median ?? null, r.sale?.median ?? null);
-            return `класс ${r.cls} — ${r.count} зданий, аренда ${fmtRent(r.rent!.median!)}/м²${
-              r.sale?.median != null ? `, покупка ${fmtSale(r.sale.median)}/м²` : ''
-            }${payback != null ? `, окупаемость ${fmtYears(payback)}` : ''}${
-              r.medianAge != null ? `, медианный год постройки ${r.medianAge}` : ''
-            }`;
-          })
-          .join('; ')}. Самый дорогой класс — не самый массовый: качественного фонда в городе заметно меньше, чем обычного.`,
+        `Хватает данных только по классу ${only.cls}: ${only.count} зданий, аренда ${fmtRent(only.rent!.median!)}/м²${
+          only.sale?.median != null ? `, покупка ${fmtSale(only.sale.median)}/м²` : ''
+        }. По остальным классам в каталоге пока меньше объявлений, чем нужно для устойчивой медианы.`,
+      );
+    } else if (classesWithRate.length > 1) {
+      const byRentDesc = [...classesWithRate].sort((a, b) => b.rent!.median! - a.rent!.median!);
+      const byCountDesc = [...classesWithRate].sort((a, b) => b.count - a.count);
+      const pricey = byRentDesc[0];
+      const cheap = byRentDesc[byRentDesc.length - 1];
+      const common = byCountDesc[0];
+      const rare = byCountDesc[byCountDesc.length - 1];
+      const totalClassed = classesWithRate.reduce((sum, r) => sum + r.count, 0);
+      add(
+        'Чем отличаются классы A, B+, B и C по цене и по количеству зданий?',
+        `Дороже всех — класс ${pricey.cls}, ${fmtRent(pricey.rent!.median!)}/м²; дешевле всех — класс ${cheap.cls}, ${fmtRent(cheap.rent!.median!)}/м². По числу зданий картина обратная: класс ${common.cls} — самый массовый (${common.count} из ${totalClassed}), класс ${rare.cls} — самый редкий (${rare.count}). Самый дорогой класс не самый распространённый: качественного фонда в городе заметно меньше, чем обычного. Полная раскладка по классам — с окупаемостью и медианным годом постройки — в таблице выше.`,
       );
     }
     if (districtPoints.length > 0) {
+      const byRentDesc = [...districtPoints].sort((a, b) => b.rent - a.rent);
+      const priciest = byRentDesc[0];
+      const biggestStock = [...districtPoints].sort((a, b) => b.area - a.area).find((p) => p.district !== priciest.district);
+      const choiceNote = biggestStock
+        ? ` Но дорогой район не значит богатый выбором: больше всего фонда — ${biggestStock.district}, ${fmtInt(biggestStock.area)} м² в ${biggestStock.count} ${pluralRu(biggestStock.count, 'здании', 'зданиях', 'зданиях')}, а аренда там ${fmtRent(biggestStock.rent)}/м²${
+            biggestStock.rent < priciest.rent ? ', заметно дешевле' : ''
+          }.`
+        : '';
       add(
         'В каких районах Минска дороже всего снять офис?',
-        `${[...districtPoints]
-          .sort((a, b) => b.rent - a.rent)
-          .map((p) => `${p.district} — ${fmtRent(p.rent)}/м², ${p.count} БЦ, ${fmtInt(p.area)} м²`)
-          .join('; ')}. Дорогой район не значит, что в нём есть из чего выбирать: объём фонда и уровень ставки связаны слабо, поэтому на странице они показаны двумя осями одной диаграммы, а не одним списком.`,
+        `Дороже всего — ${priciest.district}, ${fmtRent(priciest.rent)}/м² (${priciest.count} БЦ, ${fmtInt(priciest.area)} м²).${choiceNote} Цены и площади по всем районам — на диаграмме выше.`,
       );
     }
     if (paybackRows.length > 0 && cityPayback != null) {
+      const fastest = paybackRows[0];
+      const slowest = paybackRows[paybackRows.length - 1];
+      const spread =
+        paybackRows.length > 1 && slowest.label !== fastest.label
+          ? ` Разброс по районам большой: быстрее всего — ${fastest.label}, ${fmtYears(fastest.years)}; дольше всего — ${slowest.label}, ${fmtYears(slowest.years)}.`
+          : '';
       add(
         'Что выгоднее — снять офис или купить?',
-        `По городу метр окупается арендой за ${fmtYears(cityPayback)}. По районам: ${paybackRows
-          .map((r) => `${r.label} — ${fmtYears(r.years)}`)
-          .join('; ')}. Это прикидка в лоб: медианная цена продажи делится на медианную годовую аренду того же среза, без простоя между арендаторами, налога на недвижимость, эксплуатационных платежей и ремонта. Реальный срок будет длиннее.`,
+        `По городу метр в среднем окупается арендой за ${fmtYears(cityPayback)}.${spread} Это прикидка в лоб — медианная цена продажи делится на медианную годовую аренду того же среза, без простоя между арендаторами, налога на недвижимость и эксплуатационных платежей, — реальный срок будет длиннее.`,
       );
     }
     if (cohorts.length > 0) {
+      const totalCohorted = cohorts.reduce((sum, c) => sum + c.total, 0);
       const biggest = [...cohorts].sort((a, b) => b.total - a.total)[0];
       add(
         'Когда построены бизнес-центры Минска?',
-        `${cohorts.map((c) => `${c.label} — ${c.total}`).join('; ')} зданий. Больше всего построено в период ${biggest.label.toLowerCase()}. Класс A — самый молодой сегмент каталога, класс C — самый старый; для строящихся зданий указан заявленный срок сдачи, а не факт.`,
+        `Больше всего зданий каталога сдано в период ${biggest.label} — ${biggest.total} из ${totalCohorted}. Класс A — самый молодой сегмент каталога, класс C — самый старый; для строящихся зданий указан заявленный срок сдачи, а не факт. Разбивка по всем периодам — на графике выше.`,
       );
     }
     if (supply.lots > 0) {
-      const withMedian = lotBuckets.filter((b) => b.median != null && b.n > 0);
+      const busiestBucket = [...lotBuckets].filter((b) => b.n > 0).sort((a, b) => b.n - a.n)[0];
       add(
         'Сколько офисов в бизнес-центрах Минска предлагается прямо сейчас?',
-        `${supply.lots} офисных лотов общей площадью ${fmtInt(supply.area)} м² в ${supply.buildings} зданиях из ${centers.length}. По размеру: ${withMedian
-          .map((b) => `${b.label} — ${b.n} лотов, медиана ${fmtRent(b.median!)}/м²`)
-          .join('; ')}. Один и тот же лот, выложенный сразу на нескольких площадках, посчитан один раз. Остальные здания сдают напрямую через управляющую компанию либо заняты — отсутствия объявления мало, чтобы считать здание заполненным.`,
+        `${supply.lots} офисных лотов общей площадью ${fmtInt(supply.area)} м² — сейчас в предложении в ${supply.buildings} ${pluralRu(supply.buildings, 'здании', 'зданиях', 'зданиях')} из ${centers.length}.${
+          busiestBucket
+            ? ` Чаще всего встречаются лоты ${busiestBucket.label} — ${busiestBucket.n} ${pluralRu(busiestBucket.n, 'лот', 'лота', 'лотов')}${
+                busiestBucket.median != null ? `, медиана ${fmtRent(busiestBucket.median)}/м²` : ''
+              }.`
+            : ''
+        } Один и тот же лот, выложенный сразу на нескольких площадках, посчитан один раз; остальные здания либо сдают напрямую через управляющую компанию, либо сейчас без свободных площадей. Полная раскладка по размеру лота — в таблице выше.`,
       );
     }
     if (supply.top.length > 0 && supply.bottom.length > 0) {
+      const priciestBuilding = supply.top[0];
+      const cheapestBuilding = supply.bottom[0];
+      const highest = priciestBuilding.median;
+      const lowest = cheapestBuilding.median;
+      const gapRaw = highest != null && lowest != null && lowest > 0 ? highest / lowest : null;
+      const gap = gapRaw != null && gapRaw > 1.05 ? Math.round(gapRaw * 10) / 10 : null;
+      // «1,5 раза», «5,2 раза» — у дробных чисел в русском всегда родительный
+      // единственного, склонение по 1/2-4/5+ работает только для целых
+      // (иначе «в 5 раза» вместо «в 5 раз», если разрыв округлился ровно).
+      const timesWord = gap == null ? '' : Number.isInteger(gap) ? pluralRu(gap, 'раз', 'раза', 'раз') : 'раза';
       add(
         'Какие бизнес-центры Минска самые дорогие и самые дешёвые?',
-        `Дороже всего: ${supply.top.map((b) => `${shortName(b.center)} — ${fmtRent(b.median!)}/м²`).join('; ')}. Дешевле всего: ${supply.bottom
-          .map((b) => `${shortName(b.center)} — ${fmtRent(b.median!)}/м²`)
-          .join('; ')}. Считались только здания, где сейчас не меньше ${MIN_BUILDING_LOTS} офисных лотов: по одному-двум объявлениям медиана — это цена конкретной комнаты, а не уровень здания.`,
+        `Дороже всего — ${shortName(priciestBuilding.center)}, ${fmtRent(highest!)}/м²; дешевле всего — ${shortName(cheapestBuilding.center)}, ${fmtRent(lowest!)}/м²${
+          gap != null ? ` — разница в ${gap.toLocaleString('ru-RU')} ${timesWord}` : ''
+        }. Топ-5 в каждую сторону — в таблице выше. Считались только здания, где сейчас не меньше ${MIN_BUILDING_LOTS} офисных лотов: по одному-двум объявлениям медиана — это цена конкретной комнаты, а не уровень здания.`,
       );
     }
     if (tenants && namedIndustries.length > 0) {
+      const top = namedIndustries.slice(0, 3);
+      const parts = top.map((i) => `${i.label} — ${i.orgs} организаций (${i.share}%)`);
+      const topText = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} и ${parts[parts.length - 1]}` : parts[0];
       add(
         'Кто арендует офисы в бизнес-центрах Минска?',
-        `${fmtInt(tenants.orgTotal)} организаций в ${tenants.buildingTotal} зданиях каталога по данным Яндекс.Карт. Крупнейшие отрасли: ${namedIndustries
-          .slice(0, 8)
-          .map((i) => `${i.label} — ${i.orgs} (${i.share}%)`)
-          .join('; ')}. Ещё ${otherIndustryShare}% организаций карты помечают рубрикой, по которой отрасль не определить, — они не распределены по строкам выше. Сервисные точки на первых этажах (кофейни, пункты выдачи, салоны) попадают в тот же список, что и офисные арендаторы.`,
+        `${fmtInt(tenants.orgTotal)} организаций в ${tenants.buildingTotal} ${pluralRu(tenants.buildingTotal, 'здании', 'зданиях', 'зданиях')} каталога по данным Яндекс.Карт. Крупнейшие отрасли: ${topText}. Ещё ${otherIndustryShare}% организаций числятся под рубриками, по которым отрасль не определить, — в списке выше их нет. Кофейни, пункты выдачи и салоны на первых этажах попадают в тот же список, что и офисные арендаторы.`,
       );
     }
     if (amenityGroups.length > 0 && centers.length > 0) {
       const flat = amenityGroups.flatMap((g) => g.chips).filter((c) => c.count > 0);
       if (flat.length > 0) {
+        const sorted = [...flat].sort((a, b) => b.count - a.count);
+        const mostCommon = sorted[0];
+        const leastCommon = sorted[sorted.length - 1];
         add(
           'Что есть в бизнес-центрах Минска, кроме офисов?',
-          `${flat.map((c) => `${c.label} — ${c.count} зданий из ${c.total}`).join('; ')}. Признак считается по данным 2ГИС и prometr.by: пустая доля означает «в источнике не указано», а не «точно нет».`,
+          `Чаще всего в зданиях каталога встречается «${mostCommon.label}» — ${mostCommon.count} из ${mostCommon.total} зданий.${
+            leastCommon.label !== mostCommon.label ? ` Реже всего — «${leastCommon.label}», ${leastCommon.count} зданий.` : ''
+          } Полный список по сервисам, планировкам и инженерии — в таблице выше. Признак считается по данным 2ГИС и prometr.by: пустая доля означает «в источнике не указано», а не «точно нет».`,
         );
       }
     }
@@ -453,11 +494,11 @@ export function BusinessCentersAnalyticsPage() {
     if (hoa + uk > 0) {
       add(
         'Чем товарищество собственников отличается от единой управляющей компании?',
-        `В каталоге ${hoa} зданий под товариществом собственников и ${uk} под единой УК; тип управления известен для ${hoa + uk} из ${centers.length}. У товарищества много владельцев: условия, отделка и ставка отличаются от этажа к этажу, зато с конкретным собственником реально торговаться. У единой УК один договор и общие правила на всё здание, предсказуемый сервис — и в среднем по каталогу ставка выше, хотя внутри класса B это правило не держится.`,
+        `В каталоге ${hoa} зданий под товариществом собственников и ${uk} — под единой УК; тип управления известен для ${hoa + uk} из ${centers.length}. У товарищества много владельцев: условия и отделка отличаются от этажа к этажу, зато с конкретным собственником можно торговаться. У единой УК один договор и общие правила на всё здание — и в среднем по каталогу ставка выше, хотя внутри класса B это правило уже не держится.`,
       );
     }
     const contextMetrics = [
-      ['colliers', 'vacancy_rate', 'вакантность по городу', '%'],
+      ['colliers', 'vacancy_rate', 'вакантность офисов по городу', '%'],
       ['colliers', 'total_stock', 'арендопригодных офисов', 'тыс. м²'],
       ['colliers', 'new_supply', 'введено за 2025 год', 'тыс. м²'],
       ['rezultativnaya-nedvizhimost', 'new_supply_forecast_2026', 'прогноз ввода на 2026', 'тыс. м²'],
@@ -473,20 +514,24 @@ export function BusinessCentersAnalyticsPage() {
       return [`${label} — ${value} (${SOURCE_LABELS[row.source] ?? row.source}, ${row.period})`];
     });
     if (contextMetrics.length > 0) {
+      const text =
+        contextMetrics.length > 1
+          ? `${contextMetrics.slice(0, -1).join(', ')} и ${contextMetrics[contextMetrics.length - 1]}`
+          : contextMetrics[0];
       add(
         'Какая вакантность на рынке офисов Минска и сколько его строят?',
-        `${contextMetrics.join('; ')}. Классификации внешних источников (Colliers — A/B1/B2, «Результативная недвижимость» — B+/B−) не совпадают с классами A/B+/B/C в этом каталоге, поэтому приведены только общегородские значения.`,
+        `${text}. Это данные по рынку офисов Минска целиком, а не только по каталогу этого сайта: классификации источников (Colliers — A/B1/B2, «Результативная недвижимость» — B+/B−) не совпадают с классами A/B+/B/C в каталоге, поэтому сравнивать их напрямую нельзя.`,
       );
     }
     add(
       'Откуда взяты эти цифры и чего в них нет?',
-      `Ставки — объявления Kufar, Realt, Domovita и Megapolis, привязанные к конкретным зданиям каталога${
-        cityRent?.period ? `, срез за ${cityRent.period.slice(0, 7)}` : ''
-      }; везде медиана, а не среднее, чтобы одно дорогое предложение не двигало всю цифру. Характеристики зданий — prometr.by, 2ГИС, Яндекс.Карты и собственный ресёрч по сайтам управляющих компаний; незаполненное поле означает «нет данных у источника», а не ноль, и такое здание в срез просто не попадает. Главное ограничение: это статистика предложения — цены, по которым офисы выставлены, а не по которым сданы. Реальные ставки после торга ниже, и насколько — публичных данных по Минску нет.`,
+      `Ставки посчитаны по объявлениям Kufar, Realt, Domovita и Megapolis, привязанным к зданиям каталога${
+        cityRent?.period ? ` (срез за ${cityRent.period.slice(0, 7)})` : ''
+      }; везде медиана, а не среднее — одно дорогое предложение её не сдвинет. Характеристики зданий — из prometr.by, 2ГИС, Яндекс.Карт и собственного ресёрча по сайтам управляющих компаний: если поле не заполнено, здание просто не попадает в этот конкретный срез — это не значит «ноль» или «у здания такого нет». Главное ограничение: это цены предложения, а не сделки — насколько они снижаются после торга, по Минску никто публично не считает.`,
     );
     add(
       'Чем эта страница отличается от общей аналитики рынка офисов?',
-      `Здесь разбирается каталог конкретных зданий этого сайта: класс, возраст, удалённость от метро, тип управления и паркинг известны по каждому зданию поштучно, поэтому ставку можно разложить на надбавки и сравнить здания между собой. Аналитика рынка офисов Минска целиком — по всем объявлениям города, включая помещения вне бизнес-центров — на отдельной странице «Аналитика рынка».`,
+      `Здесь разобран каталог конкретных зданий этого сайта: класс, возраст, удалённость от метро, тип управления и паркинг известны по каждому зданию поштучно, поэтому ставку можно разложить на надбавки и сравнить здания между собой. Аналитика рынка офисов Минска целиком — по всем объявлениям города, включая помещения вне бизнес-центров, — на отдельной странице «Аналитика рынка».`,
     );
     return items;
   }, [
