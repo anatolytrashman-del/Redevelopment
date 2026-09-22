@@ -75,7 +75,8 @@ const SECTION_HEIGHT_MODEL: Record<string, SectionHeightModel> = {
   // постоянная часть (с 2026-09-22, см. BuildingOffersSection). На
   // элемент приходится строка помещения в РАСКРЫТОЙ полке, и таких строк
   // видно не больше шести (дальше «Показать все … в этой цене»).
-  offers: { base: 300, perItem: 41, maxItems: 6 },
+  // База уменьшена с 300 после того, как из полок убрали полоску доли.
+  offers: { base: 265, perItem: 41, maxItems: 6 },
   rental: { base: 190, perItem: 27 },
   tech: { base: 120, perItem: 42 },
   // Карта фиксированной высоты + чипы категорий инфраструктуры.
