@@ -121,14 +121,14 @@ export function MarketContextBlock({ metrics }: { metrics: ExternalMetric[] | nu
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {cityVacancy && (
           <Metric
-            value={`${cityVacancy.value}%`}
+            value={`${Number(cityVacancy.value).toLocaleString('ru-RU')}%`}
             label="вакантных офисных площадей по городу"
             source={cityVacancy}
           />
         )}
         {qualityVacancy && (
           <Metric
-            value={`${qualityVacancy.value}%`}
+            value={`${Number(qualityVacancy.value).toLocaleString('ru-RU')}%`}
             label="вакантность в качественных БЦ"
             source={qualityVacancy}
           />
@@ -141,10 +141,20 @@ export function MarketContextBlock({ metrics }: { metrics: ExternalMetric[] | nu
           />
         )}
         {supply2025 && (
-          <Metric value={`${supply2025.value} тыс. м²`} label="введено за 2025 год" source={supply2025} />
+          <Metric
+            value={`${Number(supply2025.value).toLocaleString('ru-RU')} тыс. м²`}
+            label="введено за 2025 год"
+            source={supply2025}
+          />
         )}
         {forecast2026 && (
-          <Metric value={`${forecast2026.value} тыс. м²`} label="прогноз ввода на 2026" source={forecast2026} />
+          // toLocaleString, а не шаблон с числом как есть: «54.2 тыс. м²» с
+          // точкой рядом с «1 249 тыс. м²» читается как чужая вёрстка.
+          <Metric
+            value={`${Number(forecast2026.value).toLocaleString('ru-RU')} тыс. м²`}
+            label="прогноз ввода на 2026"
+            source={forecast2026}
+          />
         )}
         {deals && <Metric value={deals.value.toLocaleString('ru-RU')} label="сделок за 1 полугодие 2026" source={deals} />}
       </div>

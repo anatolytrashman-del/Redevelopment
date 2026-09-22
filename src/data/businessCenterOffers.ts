@@ -20,6 +20,15 @@ export interface BusinessCenterOffer {
   updatedAt: string;
 }
 
+// Поля объявления, которых хватает всем городским срезам (ставки, размеры
+// лотов, схлопывание дублей). Заводится отдельно от BusinessCenterOffer,
+// чтобы страница аналитики не тянула ссылки, адреса и даты по полутора
+// тысячам строк: это 415 КБ против 160 КБ на каждый заход.
+export type BusinessCenterOfferSlice = Pick<
+  BusinessCenterOffer,
+  'businessCenterSlug' | 'source' | 'adId' | 'dealType' | 'propertyType' | 'size' | 'pricePerSqm'
+>;
+
 export interface BusinessCenterOfferRow {
   id: string;
   business_center_slug: string;
