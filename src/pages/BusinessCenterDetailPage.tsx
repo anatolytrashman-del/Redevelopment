@@ -2743,24 +2743,46 @@ function RelatedCentersSection({
             key={related.slug}
             to={`/minsk/bcminsk/${related.slug}`}
             aria-label={`Открыть страницу ${related.name}`}
-            className="block overflow-hidden rounded-2xl border border-border bg-surface transition-colors hover:border-primary/40 sm:grid sm:grid-cols-[10rem_minmax(0,1fr)] lg:block xl:grid xl:grid-cols-[10rem_minmax(0,1fr)]"
+            // Владелец, 2026-09-22: "предложи новый макет блока рекомендаций,
+            // он огромный". Ниже sm карточка была столбиком с фото во всю
+            // ширину (aspect-square = 291px на 375px экране), и блок занимал
+            // 1167px — почти три экрана телефона, а таких блоков на странице
+            // четыре (суммарно 4025px, 23% высоты страницы). От sm та же
+            // карточка уже была строкой с фото 10rem — то есть на телефоне
+            // тот же самый контент занимал в 4,3 раза больше. Мобильная
+            // раскладка теперь такая же строка, только фото 5rem: блок
+            // ужимается до ~400px. Десктоп (sm/lg/xl) не тронут.
+            className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-3 overflow-hidden rounded-2xl border border-border bg-surface p-2 transition-colors hover:border-primary/40 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-0 sm:p-0 lg:block xl:grid xl:grid-cols-[10rem_minmax(0,1fr)]"
           >
-            <div className="aspect-square overflow-hidden rounded-2xl bg-surface-muted">
+            <div className="aspect-square overflow-hidden rounded-xl bg-surface-muted sm:rounded-2xl">
               <PhotoBlock center={related} variant="card" fit="contain" />
             </div>
-            <div className="flex min-w-0 flex-col items-start justify-center gap-2 p-4">
+            <div className="flex min-w-0 flex-col items-start justify-center gap-1 py-1 pr-2 sm:gap-2 sm:p-4">
               {isFallback && (
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Похож по классу</p>
               )}
               <h3 className="text-base font-bold leading-snug text-ink">{shortName(related)}</h3>
-              {related.businessClass && (
-                <p className="text-sm text-ink-muted">Класс {related.businessClass}</p>
-              )}
-              {metro?.distanceMeters != null && (
-                <p className="text-sm leading-snug text-ink-muted">
-                  {metro.distanceMeters.toLocaleString('ru-RU')} м до метро
-                </p>
-              )}
+              {/* Класс и расстояние: на телефоне одной строкой через точку,
+                  от sm — двумя отдельными строками, как было. Обёртка нужна
+                  только ради этого склеивания, поэтому от sm она повторяет
+                  gap-2 родителя — иначе расстояние между строками схлопнулось
+                  бы и десктоп поехал бы на 8px. */}
+              <div className="flex flex-wrap items-baseline gap-x-1.5 sm:flex sm:flex-col sm:items-start sm:gap-2">
+                {related.businessClass && (
+                  // Разделитель — на классе, а не на расстоянии: у части БЦ
+                  // класс не заполнен, и точка в начале строки висела бы
+                  // сиротой («· 110 м до метро»). Заодно при переносе она
+                  // остаётся в конце первой строки, а не открывает вторую.
+                  <p className="text-xs text-ink-muted after:ml-1.5 after:content-['·'] last:after:hidden sm:text-sm sm:after:hidden">
+                    Класс {related.businessClass}
+                  </p>
+                )}
+                {metro?.distanceMeters != null && (
+                  <p className="text-xs leading-snug text-ink-muted sm:text-sm">
+                    {metro.distanceMeters.toLocaleString('ru-RU')} м до метро
+                  </p>
+                )}
+              </div>
               <span className="mt-auto inline-flex items-center gap-1 text-sm font-semibold text-primary-hover">
                 Подробнее
                 <ChevronRight className="h-4 w-4" />
@@ -2772,9 +2794,12 @@ function RelatedCentersSection({
         {centers.length > 2 && (
           <Link
             to={catalogUrl}
-            className="group flex min-h-40 items-center justify-center rounded-2xl border border-border bg-surface-muted p-6 text-center text-ink transition-transform hover:-translate-y-0.5 hover:bg-border/50"
+            // Плитка «весь каталог» на телефоне была такой же высокой, как
+            // карточка БЦ (min-h-40 = 160px + p-6), хотя внутри одна строка
+            // текста. Ниже sm — обычная кнопка в одну строку.
+            className="group flex items-center justify-center rounded-2xl border border-border bg-surface-muted p-4 text-center text-ink transition-transform hover:-translate-y-0.5 hover:bg-border/50 sm:min-h-40 sm:p-6"
           >
-            <span className="flex items-center gap-2 text-lg font-bold leading-snug">
+            <span className="flex items-center gap-2 text-base font-bold leading-snug sm:text-lg">
               {catalogLabel}
               <ChevronRight className="h-5 w-5 shrink-0 text-ink-muted transition-transform group-hover:translate-x-0.5" />
             </span>
