@@ -7,7 +7,7 @@ import { shortName } from '../../lib/businessCenterDisplay';
 import { loadYmaps } from '../../lib/yandexMaps';
 import { useInView } from '../../lib/useInView';
 import { formatMeters, groupNearbyPlaces, hasNearbyContent } from '../../lib/nearbyPlaces';
-import { nearbyPinHtml, NEARBY_PIN_SIZE } from '../../lib/nearbyPinIcons';
+import { nearbyPinDataUri, NEARBY_PIN_SIZE } from '../../lib/nearbyPinIcons';
 import type { BusinessCenterNearbyPlace, NearbyPlaceCategory } from '../../data/businessCenterNearbyPlaces';
 
 // Б3 и Б6 плана docs/bc-catalog-redesign-plan.md — карта здания с соседями.
@@ -59,14 +59,12 @@ function escapeHtml(value: string): string {
 interface MapPoint {
   place: BusinessCenterNearbyPlace;
   category: NearbyPlaceCategory;
-  label: string | null;
 }
 
 function NeighboursMap({ center, points }: { center: BusinessCenter; points: MapPoint[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const marksRef = useRef<any[]>([]);
-  const layoutsRef = useRef<{ pin: any; labelled: any } | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   // Карта Яндекса — 689 КиБ и 2+ с CPU (PAGESPEED_PLAN.md), а блок стоит в
   // середине длинной страницы: грузим, только когда до него доскроллили.
@@ -94,16 +92,6 @@ function NeighboursMap({ center, points }: { center: BusinessCenter; points: Map
         // понять, что за точка, а легенду приходилось держать рядом. Метку
         // рисует сам ymaps по HTML-шаблону, поэтому иконка приезжает строкой
         // (см. lib/nearbyPinIcons.ts), а не React-компонентом.
-        layoutsRef.current = {
-          pin: ymaps.templateLayoutFactory.createClass('$[properties.pinHtml]'),
-          labelled: ymaps.templateLayoutFactory.createClass(
-            '<div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">'
-            + '$[properties.pinHtml]'
-            + '<span style="background:#fff;border:1px solid rgba(20,21,26,.18);border-radius:9999px;'
-            + 'box-shadow:0 2px 6px rgba(0,0,0,.14);color:#14151a;font:600 12px/1 Montserrat,system-ui,sans-serif;'
-            + 'padding:5px 9px;">$[properties.labelText]</span></div>',
-          ),
-        };
         mapRef.current = map;
         setStatus('ready');
       })
@@ -115,20 +103,18 @@ function NeighboursMap({ center, points }: { center: BusinessCenter; points: Map
       mapRef.current?.destroy?.();
       mapRef.current = null;
       marksRef.current = [];
-      layoutsRef.current = null;
     };
   }, [inView, center.slug, center.lat, center.lng]);
 
   useEffect(() => {
     const map = mapRef.current;
-    const layouts = layoutsRef.current;
-    if (!map || !layouts || status !== 'ready') return;
+    if (!map || status !== 'ready') return;
     void (async () => {
       const ymaps = await loadYmaps();
       for (const mark of marksRef.current) map.geoObjects.remove(mark);
       marksRef.current = [];
-      for (const { place, category, label } of points) {
-        const pinHtml = nearbyPinHtml(category, PIN_COLOR);
+      for (const { place, category } of points) {
+        const iconImageHref = nearbyPinDataUri(category, PIN_COLOR);
         const balloonLines = [
           `<strong>${escapeHtml(place.name)}</strong>`,
           `${CATEGORY_META[category]?.label ?? ''} · ${formatMeters(place.distanceMeters)} от здания`,
@@ -142,21 +128,14 @@ function NeighboursMap({ center, points }: { center: BusinessCenter; points: Map
         const mark = new ymaps.Placemark(
           [place.lat, place.lng],
           {
-            pinHtml,
-            labelText: escapeHtml(place.name),
             hintContent: `${place.name} — ${formatMeters(place.distanceMeters)}`,
             balloonContent: balloonLines.join('<br>'),
           },
           {
-            iconLayout: label ? layouts.labelled : layouts.pin,
-            // Без iconShape ymaps не знает, где уHTML-метки кликабельная зона,
-            // и хинт с балуном перестают открываться.
-            iconShape: {
-              type: 'Circle',
-              coordinates: [0, 0],
-              radius: NEARBY_PIN_SIZE / 2,
-            },
-            iconOffset: [-NEARBY_PIN_SIZE / 2, -NEARBY_PIN_SIZE / 2],
+            iconLayout: 'default#image',
+            iconImageHref,
+            iconImageSize: [NEARBY_PIN_SIZE, NEARBY_PIN_SIZE],
+            iconImageOffset: [-NEARBY_PIN_SIZE / 2, -NEARBY_PIN_SIZE / 2],
           },
         );
         map.geoObjects.add(mark);
@@ -188,18 +167,14 @@ export function NearbyInfrastructureBlock({
   const [openKey, setOpenKey] = useState<NearbyPlaceCategory | null>(null);
   const openGroup = groups.find((group) => group.category === openKey) ?? null;
 
-  // Пока строка не раскрыта, на карте ближайшее из каждой категории с подписью;
-  // раскрыли — все точки этой категории, уже без подписей: имена в этот момент
-  // перечислены строчками прямо под ней.
+  // Пока строка не раскрыта, на карте ближайшее из каждой категории; раскрыли —
+  // все точки этой категории. Имена в этот момент перечислены строчками прямо
+  // под строкой, поэтому дублировать их на карте незачем.
   const points = useMemo<MapPoint[]>(() => {
     if (openGroup) {
-      return openGroup.places.map((place) => ({ place, category: openGroup.category, label: null }));
+      return openGroup.places.map((place) => ({ place, category: openGroup.category }));
     }
-    return groups.map((group) => ({
-      place: group.places[0],
-      category: group.category,
-      label: CATEGORY_META[group.category]?.names ? group.places[0].name : null,
-    }));
+    return groups.map((group) => ({ place: group.places[0], category: group.category }));
   }, [groups, openGroup]);
 
   if (center.lat == null || center.lng == null) return null;
@@ -210,7 +185,7 @@ export function NearbyInfrastructureBlock({
       <div className="flex flex-col gap-1">
         <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
           <MapPin className="h-5 w-5 shrink-0 text-ink-muted" />
-          {hasContent ? 'Что рядом' : 'Расположение'}
+          {hasContent ? 'Инфраструктура в 10 минутах пешком' : 'Расположение'}
         </h2>
         <p className="text-sm text-ink-muted">
           {hasContent
@@ -241,9 +216,14 @@ export function NearbyInfrastructureBlock({
                   className="flex w-full items-center gap-3 py-3 text-left transition-colors hover:bg-surface-muted/60"
                 >
                   <Icon className="h-4 w-4 shrink-0 text-ink-faint" />
-                  <span className="w-32 shrink-0 text-sm font-semibold text-ink sm:w-44">{meta.label}</span>
+                  {/* Количество — до раскрытия строки, а не после: иначе не
+                      видно, одна здесь аптека или одиннадцать. */}
+                  <span className="flex w-32 shrink-0 items-baseline gap-1.5 sm:w-48">
+                    <span className="text-sm font-semibold text-ink">{meta.label}</span>
+                    <span className="text-xs tabular-nums text-ink-faint">{group.places.length}</span>
+                  </span>
                   <span className="flex-1 truncate text-sm text-ink-muted">
-                    {meta.names ? nearest.name : `${group.places.length} поблизости`}
+                    {meta.names ? nearest.name : ''}
                   </span>
                   <span className="shrink-0 text-sm tabular-nums text-ink">{formatMeters(nearest.distanceMeters)}</span>
                   <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-faint transition-transform', isOpen && 'rotate-180')} aria-hidden />
@@ -278,7 +258,6 @@ export function NearbyInfrastructureBlock({
         </ul>
       )}
 
-      <p className="text-xs text-ink-faint">Расстояния — по прямой от здания, по данным Яндекс.Карт.</p>
     </div>
   );
 }
