@@ -59,7 +59,19 @@ function balloonHtml(center: BusinessCenter, offers: CatalogOfferIndex): string 
   `;
 }
 
-export function CatalogMap({ centers, offers }: { centers: BusinessCenter[]; offers: CatalogOfferIndex }) {
+// heightClass — высота полотна карты. По умолчанию как в каталоге, где
+// карта это основной вид; на странице рейтинга владелец попросил вдвое
+// ниже (2026-09-22): там карта — дополнительный блок внизу, и в полный
+// рост она выталкивала остальное со экрана.
+export function CatalogMap({
+  centers,
+  offers,
+  heightClass = 'h-[60vh] min-h-[380px]',
+}: {
+  centers: BusinessCenter[];
+  offers: CatalogOfferIndex;
+  heightClass?: string;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const collectionRef = useRef<any>(null);
@@ -125,7 +137,7 @@ export function CatalogMap({ centers, offers }: { centers: BusinessCenter[]; off
 
   return (
     <div className={cn('flex flex-col gap-3 p-3 sm:p-4', glassCardClass)} style={glassCardShadow}>
-      <div className="relative h-[60vh] min-h-[380px] w-full overflow-hidden rounded-2xl bg-surface-muted">
+      <div className={cn('relative w-full overflow-hidden rounded-2xl bg-surface-muted', heightClass)}>
         <div ref={containerRef} className="h-full w-full" />
         {status !== 'ready' && (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-ink-muted">
