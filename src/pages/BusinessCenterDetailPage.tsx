@@ -1367,17 +1367,12 @@ export function BusinessCenterDetailPage() {
         );
       }
     }
-    // Рейтинг у нас приезжает из трёх мест (снимок 2ГИС, поле карточки,
-    // свободный текст фактов) — но для читателя это ОДИН вопрос. Три
-    // отдельных вопроса про одну и ту же оценку читаются как заполнение
-    // объёма, поэтому собираем их в один ответ.
+    // Рейтинг у нас приезжает из карточки Яндекс.Карт в свободном тексте
+    // фактов — 2ГИС из этого ответа убран вместе с блоком «Отзывы» (владелец,
+    // 2026-09-22): FAQ не должен называть источник, которого на странице
+    // больше не видно.
     const yandexRatings = parseHighlightRatings(center.highlights);
     const ratingParts = [
-      gis2?.reviews?.orgRating != null
-        ? `2ГИС — ${gis2.reviews.orgRating}${gis2.reviews.orgReviewCount != null ? ` (оценок: ${gis2.reviews.orgReviewCount})` : ''}`
-        : center.gisRating != null
-          ? `2ГИС — ${center.gisRating}${center.gisReviewCount != null ? ` (оценок: ${center.gisReviewCount})` : ''}`
-          : null,
       // mapRatingFromHighlights берёт только первую строку/первое число —
       // годится как общий индикатор для порога рейтинга (используется и в
       // ranking-странице), но для читаемого текста тут нужен именно
@@ -1439,7 +1434,12 @@ export function BusinessCenterDetailPage() {
         : null,
       has('tenants', tenantOrganizations.length > 0),
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
-      has('reviews', center.gisRating != null || center.highlights.some((h) => h.icon === 'rating') || reviewQuotes.length > 0 || reviews.length > 0),
+      has(
+        'reviews',
+        center.highlights.some((h) => h.icon === 'rating') ||
+          reviewQuotes.length > 0 ||
+          reviews.some((r) => r.source !== '2gis'),
+      ),
       has('awards', awardItems.length > 0),
       has('media', mediaMentions.length > 0),
       has('facts', visibleHighlights.length > 0),
@@ -1506,8 +1506,10 @@ export function BusinessCenterDetailPage() {
           return marketPosition?.bars.length ?? 0;
         // Настоящие отзывы вытесняют кураторские цитаты и выводятся
         // постранично по 6 (MAX_REAL_REVIEWS в BusinessCenterMarketBlocks).
-        case 'reviews':
-          return reviews.length > 0 ? Math.min(reviews.length, 6) : reviewQuotes.length;
+        case 'reviews': {
+          const realReviewCount = reviews.filter((r) => r.source !== '2gis').length;
+          return realReviewCount > 0 ? Math.min(realReviewCount, 6) : reviewQuotes.length;
+        }
         case 'awards':
           return awardItems.length;
         case 'media':
