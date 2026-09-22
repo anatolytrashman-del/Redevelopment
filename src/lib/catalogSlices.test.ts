@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BusinessCenter } from '../data/businessCenters';
-import { classSlices, districtSlices, metroSlices, statusSlices } from './catalogSlices';
+import { classSlices, districtSlices, metroSlices, metroSlicesByLine, statusSlices } from './catalogSlices';
 
 // Меню каталога (CatalogTopNav) и блок «Срезы каталога» строятся по этим
 // функциям. Главное, что здесь проверяется, — оси считаются ПО ДАННЫМ, а не
@@ -92,17 +92,65 @@ describe('metroSlices', () => {
   });
 });
 
+describe('metroSlicesByLine', () => {
+  const station = (name: string, distanceMeters: number) => ({
+    name,
+    distanceMeters,
+    line: 'Автозаводская линия',
+    color: '#e31d35',
+  });
+
+  it('группирует станции по ветке и держит порядок схемы метро, не алфавит', () => {
+    // Купаловская и Немига — обе Автозаводская линия; в данных Купаловская
+    // идёт первой, но на схеме метро Немига стоит раньше — порядок вывода
+    // должен быть по схеме, не по входным данным и не по алфавиту.
+    const centers = [
+      center({ nearestMetroStations: [station('Купаловская', 400)] }),
+      center({ nearestMetroStations: [station('Немига', 400)] }),
+    ];
+    const groups = metroSlicesByLine(centers);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].label).toBe('Автозаводская линия');
+    expect(groups[0].dotClass).toBe('bg-[#e31d35]');
+    expect(groups[0].stations.map((s) => s.label)).toEqual(['Немига', 'Купаловская']);
+  });
+
+  it('несколько веток — несколько групп в порядке линий (Московская, Автозаводская, Зеленолужская)', () => {
+    const centers = [
+      center({
+        nearestMetroStations: [
+          { name: 'Немига', distanceMeters: 400, line: 'Автозаводская линия', color: '#e31d35' },
+          { name: 'Академия наук', distanceMeters: 400, line: 'Московская линия', color: '#1976c9' },
+        ],
+      }),
+    ];
+    const groups = metroSlicesByLine(centers);
+    expect(groups.map((g) => g.label)).toEqual(['Московская линия', 'Автозаводская линия']);
+  });
+
+  it('без станций метро в данных — пустой список групп', () => {
+    expect(metroSlicesByLine([center({})])).toEqual([]);
+  });
+});
+
 describe('statusSlices', () => {
-  it('весь каталог плюс стройки, когда они есть', () => {
-    const slices = statusSlices([center({}), center({ status: 'under_construction' })]);
-    expect(slices.map((s) => [s.key, s.count])).toEqual([
-      ['all', 2],
-      ['under_construction', 1],
+  it('порядок «Построенные, Строящиеся, Весь каталог» с числом по каждому типу', () => {
+    const slices = statusSlices([
+      center({ status: 'built' }),
+      center({ status: 'built' }),
+      center({ status: 'under_construction' }),
     ]);
+    expect(slices.map((s) => [s.key, s.label, s.count])).toEqual([
+      ['built', 'Построенные', 2],
+      ['under_construction', 'Строящиеся', 1],
+      ['all', 'Весь каталог', 3],
+    ]);
+    expect(slices[0].url).toBe('/minsk/bcminsk?status=built');
     expect(slices[1].url).toBe('/minsk/bcminsk/stroyashchiesya');
+    expect(slices[2].url).toBe('/minsk/bcminsk');
   });
 
   it('без строек пункт «Строящиеся» не показывается — хаб был бы пустым', () => {
-    expect(statusSlices([center({})]).map((s) => s.key)).toEqual(['all']);
+    expect(statusSlices([center({ status: 'built' })]).map((s) => s.key)).toEqual(['built', 'all']);
   });
 });
