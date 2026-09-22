@@ -61,12 +61,24 @@ describe('классификация объектов выдачи', () => {
     expect(classifyCandidate({ id: 'station__9880196', rubric: 'metro' }, 'shop')).toBe('metro');
   });
 
-  it('берёт категорию запроса для блока «похожие» — своей рубрики на русском у них нет', () => {
-    expect(classifyCandidate({ id: '159900781875', rubric: 'planeta_zdorovya · similar' }, 'pharmacy')).toBe('pharmacy');
+  it('для кафе/кофеен «похожим» доверяет категорию запроса — там это подтверждено', () => {
+    expect(classifyCandidate({ id: '159900781875', rubric: 'svoi_kofe · similar' }, 'coffee')).toBe('coffee');
+    expect(classifyCandidate({ id: '159900781875', rubric: 'svoi_kofe · similar' }, 'cafe')).toBe('cafe');
+  });
+
+  it('для остальных категорий «похожего» без своей рубрики отбрасывает, а не гадает', () => {
+    // Живой случай 2026-09-22: «Шиколад» (салон красоты) всплыл похожим под
+    // «фитнес клуб» и ушёл бы в fitness, «1Teh» (магазин электроники) — под
+    // «продуктовый магазин» и ушёл бы в grocery. «Похожие рядом» у Яндекса —
+    // соседи по карте, не обязательно того же типа, доверия для этих
+    // категорий недостаточно.
+    expect(classifyCandidate({ id: '159900781875', rubric: 'planeta_zdorovya · similar' }, 'pharmacy')).toBeNull();
+    expect(classifyCandidate({ id: '1', rubric: 'shikolad · similar' }, 'fitness')).toBeNull();
+    expect(classifyCandidate({ id: '2', rubric: '1teh_by · similar' }, 'grocery')).toBeNull();
   });
 });
 
-describe('выдача целиком → строки таблицы', () => {
+describe('выдача целиком → строки таблицы (fallback pharmacy, «похожее» без рубрики отбрасывается)', () => {
   const state = { data: { items: [organization, station, stationExit, stop, mapNoise, similar] } };
   const places = dedupePlaces(
     candidatesToPlaces({
@@ -77,17 +89,14 @@ describe('выдача целиком → строки таблицы', () => {
     }),
   );
 
-  it('оставляет организации (прямую и из «похожих»), станцию и остановку, отбрасывая мусор карты', () => {
-    expect(places.map((place) => place.category).sort()).toEqual(['metro', 'pharmacy', 'pharmacy', 'transport_stop']);
+  it('оставляет прямую организацию, станцию и остановку, но не «похожую» без своей рубрики', () => {
+    expect(places.map((place) => place.category).sort()).toEqual(['metro', 'pharmacy', 'transport_stop']);
     expect(places.find((place) => place.name === 'Соцфарма')).toMatchObject({
       category: 'pharmacy',
       source_url: 'https://yandex.ru/maps/org/159900781874',
       address: 'просп. Независимости, 164',
     });
-    expect(places.find((place) => place.name === 'Планета Здоровья')).toMatchObject({
-      category: 'pharmacy',
-      source_url: 'https://yandex.ru/maps/org/159900781875',
-    });
+    expect(places.find((place) => place.name === 'Планета Здоровья')).toBeUndefined();
   });
 
   it('склеивает выходы одной станции в одну запись — по имени, а не по id', () => {
@@ -101,6 +110,25 @@ describe('выдача целиком → строки таблицы', () => {
       expect(place.source_url).toBeNull();
       expect(place.subcategory).toBeNull();
     }
+  });
+});
+
+describe('выдача целиком → строки таблицы (fallback cafe, «похожее» без рубрики принимается)', () => {
+  const state = { data: { items: [organization, station, stationExit, stop, mapNoise, similar] } };
+  const places = dedupePlaces(
+    candidatesToPlaces({
+      candidates: extractCandidates(state),
+      center,
+      fallbackCategory: 'cafe',
+      collectedAt: '2026-09-20T10:00:00Z',
+    }),
+  );
+
+  it('для кафе «похожее» без своей рубрики всё ещё попадает в список', () => {
+    expect(places.find((place) => place.name === 'Планета Здоровья')).toMatchObject({
+      category: 'cafe',
+      source_url: 'https://yandex.ru/maps/org/159900781875',
+    });
   });
 });
 

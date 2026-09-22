@@ -294,6 +294,17 @@ export function extractCandidates(value, depth = 0, out = []) {
 // кириллицы в рубрике, но с тегом «common», а не «similar»: их отбрасываем,
 // у «Парка Горького» рубрики для группировки взять неоткуда.
 //
+// «Похожие рядом» у Яндекса — соседи по карте, не обязательно того же типа
+// заведения, поэтому categoryFromRubric fallback-ом брать нельзя вслепую для
+// всех категорий: найдено 2026-09-22 на живых 10 БЦ — «Шиколад» (на самом
+// деле салон красоты) всплыл похожим под «фитнес клуб» и ушёл в fitness,
+// «1Teh» (магазин электроники) — под «продуктовый магазин» и ушёл в grocery.
+// Для кафе/кофеен это работает надёжно (там «похожие» и правда почти всегда
+// того же типа — проверено на живых выдачах, 0 промахов), для остального
+// доверия недостаточно: без своей рубрики на кириллице такой кандидат
+// лучше вообще не показывать, чем показать под случайной категорией.
+const SIMILAR_FALLBACK_CATEGORIES = new Set(['cafe', 'coffee']);
+//
 // 'station__' — не только метро: у станций БЖД (Минск-Пасс., Минск-Восточный,
 // Минск-Северный, Ждановичи и т.п.) тот же префикс, только с инфиксом
 // (`station__lh_9613989`) и рубрикой `common`, как у обычного шума карты —
@@ -309,7 +320,7 @@ export function classifyCandidate(candidate, fallbackCategory) {
   if (id.startsWith('stop__')) return 'transport_stop';
   if (!/^\d+$/.test(id)) return null;
   if (/[а-яё]/i.test(rubric)) return categoryFromRubric(rubric, fallbackCategory);
-  if (/\bsimilar$/i.test(rubric.trim())) return fallbackCategory;
+  if (/\bsimilar$/i.test(rubric.trim()) && SIMILAR_FALLBACK_CATEGORIES.has(fallbackCategory)) return fallbackCategory;
   return null;
 }
 
