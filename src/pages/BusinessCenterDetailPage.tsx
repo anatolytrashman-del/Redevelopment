@@ -86,6 +86,7 @@ import {
 } from '../lib/businessCenterHubs';
 import type { BusinessCenter, HighlightIconKey } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
+import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import type { BusinessCenterNearbyPlace, NearbyPlaceCategory } from '../data/businessCenterNearbyPlaces';
 import { fetchBusinessCenterNearbyPlaces } from '../lib/businessCenterNearbyPlacesApi';
 import { formatMeters, groupNearbyPlaces, hasNearbyContent, mergeMetroStations } from '../lib/nearbyPlaces';
@@ -382,6 +383,20 @@ export function BusinessCenterDetailPage() {
   // только данные 2GIS"), не вместе с ним — см. JSX ниже.
   const nearestMetro = useMemo(() => nearestMetroStation(center?.nearestMetroStations ?? []), [center]);
   const scheduleLines = useMemo(() => (gis2?.schedule ? formatSchedule(gis2.schedule) : []), [gis2]);
+  // Одна станция — одно расстояние на всей странице. Поле БЦ
+  // (nearestMetroStations, собрано раньше) и снимок точек инфраструктуры
+  // расходятся в метрах до ОДНОЙ и той же станции: у «Фаренгейта» это 170 и
+  // 129 м. Блок инфраструктуры давно сводит их общим mergeMetroStations
+  // (берёт меньшее), а плитка у заголовка и FAQ брали сырое поле — и
+  // страница показывала два разных числа про одно и то же. Полоса сравнения
+  // с классом ниже намеренно остаётся на сыром поле: её медиана считается по
+  // тому же полю у всех 141 здания, и подмена только своего значения сделала
+  // бы сравнение нечестным.
+  const displayMetro = useMemo(
+    () => mergeMetroStations(center?.nearestMetroStations ?? [], nearbyPlaces)[0] ?? null,
+    [center, nearbyPlaces],
+  );
+
   // Расписание 2ГИС — единый источник режима доступа. Если подробного
   // расписания в публичном снимке нет, используем сохранённый из него же
   // признак 24/7, но всё равно показываем только одну строку.
@@ -1026,13 +1041,10 @@ export function BusinessCenterDetailPage() {
     const barByLabel = (label: string) => bars.find((bar) => bar.label === label) ?? null;
 
     // --- Где это и как добраться -----------------------------------------
-    // Станция метро берётся из mergeMetroStations — той же функции, что
-    // рисует блок инфраструктуры: у поля БЦ и у снимка точек расстояния до
-    // одной станции расходятся (у «Фаренгейта» 170 и 129 м), и общий хелпер
-    // разводит это одинаково для карты и для текста.
+    // Станция метро — displayMetro, та же, что в плитке у заголовка и в
+    // блоке инфраструктуры.
     {
-      const metroStations = mergeMetroStations(center.nearestMetroStations, nearbyPlaces);
-      const metro = metroStations[0] ?? null;
+      const metro = displayMetro;
       const stops = groupNearbyPlaces(nearbyPlaces).find((group) => group.category === 'transport_stop') ?? null;
       const nearestStop = stops?.places[0] ?? null;
       add(
@@ -1054,62 +1066,15 @@ export function BusinessCenterDetailPage() {
     }
 
     // --- Что предлагают и почём ------------------------------------------
-    // Владелец, 2026-09-22: «эта инфа будет меняться каждый месяц… конкретные
-    // суммы не приводи в этом блоке». Поэтому FAQ больше НЕ пересказывает
-    // состав предложений цифрами (сколько лотов, какие площади, ставки,
-    // платёж за помещение целиком, полки по бюджету, скидка за объём) —
-    // всё это живёт в блоке «Что сейчас сдают и продают» выше и меняется
-    // вместе с выдачей площадок. Здесь остаётся то, что не устаревает:
-    // откуда берутся объявления, что с ними делаем и как читать ставку.
-    {
-      const deals = [rentStats ? 'rent' : null, saleStats ? 'sale' : null].filter(Boolean) as ('rent' | 'sale')[];
-      if (deals.length) {
-        const hasRent = deals.includes('rent');
-        const hasSale = deals.includes('sale');
-        const verb = hasRent && hasSale ? 'сдают и продают' : hasRent ? 'сдают' : 'продают';
-        add(
-          `Какие помещения сейчас ${verb} в ${bcPrep}?`,
-          sentences([
-            `Актуальный список — в блоке «Что сейчас сдают и продают» выше на этой странице.`,
-            'Мы собираем объявления по зданию с нескольких площадок и убираем дубли: одно и то же помещение обычно выложено сразу в нескольких местах и по разным ценам.',
-            'Состав предложений и цены меняются постоянно, поэтому здесь мы их не повторяем.',
-            hasRent
-              ? 'В объявлениях указывают ставку за квадратный метр в месяц; платёж за помещение целиком — это площадь × ставка, без коммунальных, эксплуатационных и прочих расходов, состав которых в объявлениях не раскрыт.'
-              : 'В объявлениях указывают цену за квадратный метр; стоимость помещения целиком — это площадь × цена.',
-          ]),
-        );
-      }
-    }
-    // Дорого или нет — единственное, что имеет смысл держать в FAQ: это
-    // вывод, а не котировка. Поэтому словами (где здание относительно
-    // класса и района), без самих ставок.
-    for (const stats of [saleStats, rentStats]) {
-      if (!stats) continue;
-      const isRent = stats.deal === 'rent';
-      const block = (priceComparison?.blocks ?? []).find((b) => b.deal === stats.deal) ?? null;
-      const rateBar = barByLabel(isRent ? 'Ставка аренды' : 'Цена продажи');
-      if (!block && !rateBar) continue;
-      // deltaText — «7% дороже»/«в 2 раза дешевле»/«на уровне медианы».
-      // Процент здесь такая же котировка, как сумма, поэтому берём из него
-      // только направление.
-      const direction = rateBar && !rateBar.nearTypical ? /дешевле|дороже|ниже|выше/.exec(rateBar.deltaText)?.[0] ?? null : null;
-      add(
-        `Дорого ли ${isRent ? 'снимать' : 'покупать'} в ${bcPrep} по сравнению с другими зданиями?`,
-        sentences([
-          block
-            ? `Если смотреть на цену за метр, ${isRent ? 'аренда' : 'продажа'} здесь — ${block.verdict} на фоне зданий того же класса и того же района.`
-            : null,
-          rateBar
-            ? rateBar.nearTypical
-              ? `Относительно ${typicalOfClass} здание держится на уровне класса.`
-              : direction
-                ? `Относительно ${typicalOfClass} здесь ${direction}.`
-                : null
-            : null,
-          `Сами ${isRent ? 'ставки' : 'цены'} меняются вместе с объявлениями, поэтому конкретные цифры — в блоке «Цены в здании и по рынку» выше.`,
-        ]),
-      );
-    }
+    // Здесь больше нет ни одного вопроса, и это осознанно (владелец,
+    // 2026-09-22). Сначала из FAQ убрали цифры предложений — они меняются
+    // каждый месяц. Оставшиеся два вопроса («как мы собираем объявления» и
+    // «дорого ли снимать») без цифр выродились в шаблон: по замеру на всех
+    // 141 странице первый давал ОДИН И ТОТ ЖЕ текст на 87 зданиях (99%
+    // совпадения), второй — 24 разных текста на 79 зданий (40% дословного
+    // совпадения). Владелец: «однотипные тексты давай убирать вообще, это
+    // скажется негативно». Сам блок «Что сейчас сдают и продают» и
+    // «Цены в здании и по рынку» на странице остались — FAQ их не дублирует.
     if (center.rentalInfo) {
       const info = center.rentalInfo;
       // Строка БЦ бывает с пустыми полями аренды — тогда от ответа остаётся
@@ -1278,17 +1243,29 @@ export function BusinessCenterDetailPage() {
       // коротких значений-характеристик: у длинных это уже предложение, а у
       // архитектора/застройщика — фамилия, которую портить нельзя.
       const factLine = (label: string, value: string) => {
-        const keepCase = /архитектор|застройщик|проектировщик|название/i.test(label);
         const text = plain(value);
-        const keepCaseValue = keepCase || text.length > 40 || /[.!?]/.test(text);
-        return `${label}: ${keepCaseValue ? text : lower(text)}`;
+        const first = text.charAt(0);
+        const second = text.charAt(1);
+        // После двоеточия значение идёт со строчной — иначе строки в одном
+        // ответе выглядят вразнобой («Тип вентиляции: приточно-вытяжная» и
+        // рядом «Конструкция: Каркасно-монолитное здание»). Три исключения,
+        // где заглавная осмысленна: имя человека или бюро (подпись сама о
+        // нём говорит), латиница («NBBJ») и аббревиатура («ГОРПРОЕКТ»).
+        const keepCase =
+          /архитектор|застройщик|проектировщик|название/i.test(label) ||
+          !/[А-ЯЁ]/.test(first) ||
+          (Boolean(second) && /\p{L}/u.test(second) && second === second.toUpperCase());
+        return `${label}: ${keepCase ? text : lower(text)}`;
       };
       const lines = [
         ...center.buildingFacts.map((fact) => factLine(fact.label, fact.value)),
         airConditioningRow?.value ? factLine('Система кондиционирования', airConditioningRow.value) : null,
         ...buildingParamHighlights.map((h) => (h.label ? factLine(h.label, h.text) : h.text)),
       ].filter((line): line is string => Boolean(line && line.trim()));
-      if (lines.length) {
+      // Один-единственный факт — это не ответ, а строка таблицы, и у
+      // полусотни зданий она дословно одна и та же («Система
+      // кондиционирования: центральное»). Такой вопрос не задаём.
+      if (lines.length > 1) {
         const haystack = lines.join(' ').toLowerCase();
         const hasEngineering = /вентиляц|кондицион|отоплен|электро|инженер|слаботоч|лифт|связ/.test(haystack);
         const hasStructure = /конструкц|материал|фасад|остеклен|кровл|архитект|композиц|каркас|бетон/.test(haystack);
@@ -1326,7 +1303,7 @@ export function BusinessCenterDetailPage() {
       // «30 шт.» про компании и «4,7 ★» про оценку — подписи из вёрстки
       // полос, где единица стоит рядом с числом. В предложении её несёт
       // сама формулировка, а «шт.» после компаний звучит как склад.
-      const plainValue = (value: string) => value.replace(/\s*(шт\.|★)$/u, '').replace(/\s*по прямой$/u, '').trim();
+      const plainValue = (value: string) => value.replace(/\s*(шт\.|★)$/u, '').trim();
       const metricLabels: Record<string, string> = {
         'Высота потолков': 'Потолки',
         'Лифты на 10 000 м²': 'Лифтов на 10 000 м² площади',
@@ -1495,22 +1472,34 @@ export function BusinessCenterDetailPage() {
         ]),
       );
     }
-    if (accessibilityAttributes) {
-      const list = accessibilityAttributes
+    // Часы работы и доступная среда — один вопрос, а не два. По отдельности
+    // оба ответа короткие и совпадают дословно у десятков зданий («Здание
+    // работает круглосуточно» — у 56, «пандус, широкий лифт и доступный
+    // вход» — у полутора десятков). Вместе они дают заметно больше разных
+    // текстов и отвечают на один настоящий вопрос — как сюда попасть.
+    {
+      const accessList = (accessibilityAttributes ?? '')
         .split(/,\s*/)
         .map((item) => lower(item.trim()))
         .filter(Boolean);
-      add(`Доступен ли ${bcNom} для людей с инвалидностью?`, list.length ? `В здании есть ${joinAnd(list)}.` : null);
-    }
-    if (accessHoursText) {
-      add(
-        `В какие часы работает ${bcNom}?`,
-        accessHoursText === 'Круглосуточно'
-          ? 'Здание работает круглосуточно.'
+      const hoursText = !accessHoursText
+        ? null
+        : accessHoursText === 'Круглосуточно'
+          ? 'Здание открыто круглосуточно.'
           : accessHoursText === 'Не круглосуточно'
             ? 'Круглосуточного доступа в здание нет, точный режим работы не публикуется.'
-            : `Режим работы:\n${accessHoursText}`,
-      );
+            : `Режим работы — ${accessHoursText.split(/\n+/).join('; ')}.`;
+      const accessText = accessList.length ? `Для посетителей есть ${joinAnd(accessList)}.` : null;
+      if (hoursText || accessText) {
+        add(
+          hoursText && accessText
+            ? `В какие часы работает ${bcNom} и как в него попасть?`
+            : hoursText
+              ? `В какие часы работает ${bcNom}?`
+              : `Доступен ли ${bcNom} для людей с инвалидностью?`,
+          sentences([hoursText, accessText]),
+        );
+      }
     }
 
     // --- Репутация и история ----------------------------------------------
@@ -1831,46 +1820,56 @@ export function BusinessCenterDetailPage() {
     }
   }
   return (
-    <div className="min-h-svh bg-bg px-4 py-5 sm:py-8">
-      <div className="sticky top-0 z-30 -mx-4 mb-4 border-b border-border bg-bg/90 px-4 py-3 backdrop-blur-md xl:hidden">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-        <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
-          <span className="font-black text-primary">RED</span>EVELOPMENT
-        </Link>
-        {/* Владелец, 2026-09-06: "крестик плохо подходит, он как будто про
-            закрытие, но те, кто придёт на эту страницу из поиска, ещё не
-            видел главную страницу" — крестик подразумевает "закрыть уже
-            открытое", а для гостя из поисковика это первая страница сайта
-            вообще, тут нужна навигация "назад к списку", не закрытие.
-            Плюс "должно выглядеть заметнее" — обычная приглушённая текстовая
-            ссылка заменена на pill-кнопку (тот же glassPillClass, что и у
-            стрелок prev/next ниже на странице). */}
-        <Link
-          to="/minsk/bcminsk"
-          className={cn(
-            'flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-ink transition-colors hover:text-primary',
-            glassPillClass,
-          )}
-          style={glassPillShadow}
-        >
-          <ArrowLeft className="h-4 w-4 shrink-0" />
-          <span className="hidden sm:inline">Все бизнес-центры</span>
-          <span className="sm:hidden">Все БЦ</span>
-        </Link>
-        </div>
-        {pageSections.length > 0 && (
-          <div className="mx-auto mt-2 max-w-5xl">
-            <nav aria-label="Навигация по странице" className="-mx-1 flex gap-3 overflow-x-auto px-1 text-xs text-ink-muted">
-              {pageSections.map((sec) => (
-                <a key={sec.id} href={`#${sec.id}`} className="shrink-0 whitespace-nowrap hover:text-primary-hover">
-                  {sec.label}
-                </a>
-              ))}
-            </nav>
+    <div className="min-h-svh bg-bg">
+      {/* Сквозная шапка каталога (владелец, 2026-09-22). Раньше на карточке
+          было две собственные копии логотипа: своя sticky-шапка до xl и
+          дубль в боковой колонке от xl — обе убраны, логотип теперь один,
+          в CatalogTopNav. Вторым рядом той же sticky-шапки идёт то, что
+          было во второй строке прежней: кнопка «назад в каталог» и
+          оглавление страницы. Держать их отдельным sticky-блоком под
+          шапкой нельзя — два sticky друг под другом дерутся за top:0. */}
+      <CatalogTopNav
+        centers={centers}
+        width="max-w-7xl"
+        secondRow={
+          <div className="flex items-center gap-3 xl:hidden">
+            {/* Владелец, 2026-09-06: "крестик плохо подходит, он как будто
+                про закрытие, но те, кто придёт на эту страницу из поиска,
+                ещё не видел главную страницу" — крестик подразумевает
+                "закрыть уже открытое", а для гостя из поисковика это первая
+                страница сайта вообще, тут нужна навигация "назад к списку",
+                не закрытие. Плюс "должно выглядеть заметнее" — обычная
+                приглушённая текстовая ссылка заменена на pill-кнопку (тот
+                же glassPillClass, что и у стрелок prev/next ниже). */}
+            <Link
+              to="/minsk/bcminsk"
+              className={cn(
+                'flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:text-primary',
+                glassPillClass,
+              )}
+              style={glassPillShadow}
+            >
+              <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
+              <span className="hidden sm:inline">Все бизнес-центры</span>
+              <span className="sm:hidden">Все БЦ</span>
+            </Link>
+            {pageSections.length > 0 && (
+              <nav
+                aria-label="Навигация по странице"
+                className="-mx-1 flex min-w-0 gap-3 overflow-x-auto px-1 text-xs text-ink-muted"
+              >
+                {pageSections.map((sec) => (
+                  <a key={sec.id} href={`#${sec.id}`} className="shrink-0 whitespace-nowrap hover:text-primary-hover">
+                    {sec.label}
+                  </a>
+                ))}
+              </nav>
+            )}
           </div>
-        )}
-      </div>
+        }
+      />
 
+      <div className="px-4 py-5 sm:py-8">
       {/* Стрелки влево/вправо по краям экрана — тот же паттерн, что и в
           ImageLightbox.tsx. Только от lg — на мобильном места мало, там
           навигация — строка кнопок под карточкой ниже. */}
@@ -1907,11 +1906,11 @@ export function BusinessCenterDetailPage() {
           pageSections.length > 0 && 'xl:grid-cols-[15rem_minmax(0,1fr)]',
         )}
       >
+        {/* top-24, не top-6: над колонкой теперь стоит sticky-шапка каталога,
+            и при прокрутке колонка уезжала бы под неё. Логотип из колонки
+            убран — он в шапке, второй был бы дублем. */}
         {pageSections.length > 0 && (
-          <aside className="sticky top-6 hidden max-h-[calc(100vh-3rem)] flex-col gap-4 xl:flex">
-            <Link to="/minsk" className="px-2 text-lg font-extrabold tracking-wide text-ink">
-              <span className="font-black text-primary">RED</span>EVELOPMENT
-            </Link>
+          <aside className="sticky top-24 hidden max-h-[calc(100svh-7rem)] flex-col gap-4 xl:flex">
             <Link
               to="/minsk/bcminsk"
               className={cn(
@@ -1949,7 +1948,11 @@ export function BusinessCenterDetailPage() {
         )}
 
         {/* <main> — единственный main-landmark страницы (Accessibility). */}
-        <main className="min-w-0 xl:pt-[7.75rem]">
+        {/* Отступ выравнивает первый экран карточки по низу кнопки «Все
+            бизнес-центры» в боковой колонке. Было 7.75rem, когда над
+            кнопкой в колонке стоял ещё и логотип — вместе с ним уехал и он;
+            3.375rem = высота кнопки (2.375rem) плюс gap-4 колонки. */}
+        <main className="min-w-0 xl:pt-[3.375rem]">
         <div className={cn('overflow-hidden', glassCardClass)} style={glassCardShadow}>
           {/* Компактная версия первого экрана: на широком экране фото и
               основная сводка стоят рядом. Прежняя вертикальная версия целиком
@@ -2050,7 +2053,7 @@ export function BusinessCenterDetailPage() {
                               metroLineId(nearestMetro.line) ? METRO_LINE_DOT_CLASS[metroLineId(nearestMetro.line)!] : 'bg-ink-faint',
                             )}
                           />
-                          {nearestMetro.name} — {nearestMetro.distanceMeters} м по прямой
+                          {nearestMetro.name} — {(displayMetro ?? nearestMetro).distanceMeters} м
                         </>
                       ) : (
                         <>
@@ -2680,6 +2683,7 @@ export function BusinessCenterDetailPage() {
         </div>
 
         </main>
+      </div>
       </div>
     </div>
   );

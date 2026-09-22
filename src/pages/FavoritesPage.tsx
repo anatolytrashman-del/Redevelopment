@@ -6,6 +6,7 @@ import { cn } from '../lib/cn';
 import { glassPillClass, glassPillShadow } from '../lib/glass';
 import type { BusinessCenter } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
+import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { fetchFavoriteList } from '../lib/favoritesApi';
 import { favoritesShareUrl } from '../lib/favoritesContext';
 import { setNoIndex, clearNoIndex } from '../lib/pageMeta';
@@ -94,14 +95,12 @@ export function FavoritesPage() {
   const favorites = centers && slugs ? centers.filter((c) => slugs.includes(c.slug)) : [];
 
   return (
-    <div className="min-h-svh bg-bg px-4 py-8 sm:px-8">
-      <div className="mx-auto flex max-w-5xl flex-col gap-6">
-        <div>
-          <span className="text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary">RED</span>EVELOPMENT
-          </span>
-        </div>
-
+    <div className="min-h-svh bg-bg">
+      {/* Та же сквозная шапка, что и на остальных страницах каталога
+          (владелец, 2026-09-22): подборка собирается из каталога, и уходить
+          из неё человек будет туда же. Логотип отсюда убран — он в шапке. */}
+      <CatalogTopNav centers={centers} width="max-w-5xl" />
+      <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-8 sm:px-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="flex items-center gap-2 text-2xl font-extrabold leading-tight text-ink">
             <Heart className="h-6 w-6 shrink-0 fill-primary text-primary" />

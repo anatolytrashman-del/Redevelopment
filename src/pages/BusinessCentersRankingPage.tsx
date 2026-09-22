@@ -5,6 +5,7 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setItemListJsonLd } from '../lib/pageMeta';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
+import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { MIN_RELIABLE_N, type MarketSnapshot } from '../data/marketSnapshots';
 import { buildOfferIndex, EMPTY_OFFER_INDEX } from '../lib/businessCenterCatalogFilter';
@@ -259,12 +260,6 @@ export function BusinessCentersRankingPage() {
   );
   const bPlusCount = useMemo(() => (centers ? countQualifying(centers, 'B+') : 0), [centers]);
   const bCount = useMemo(() => (centers ? countQualifying(centers, 'B') : 0), [centers]);
-  const rentPeriod = useMemo(() => {
-    const period = snapshots?.[0]?.period;
-    if (!period) return null;
-    const d = new Date(`${period}T00:00:00Z`);
-    return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-  }, [snapshots]);
 
   const faqItems = useMemo(() => {
     if (ranking.length === 0) return [];
@@ -350,8 +345,7 @@ export function BusinessCentersRankingPage() {
       question: 'Как часто обновляется рейтинг?',
       answer:
         'Список не составлен руками один раз: он пересчитывается из каталога при каждом открытии страницы — меняется ' +
-        'рейтинг здания на картах или ставка в объявлениях, меняется и страница. Даты, на которые взяты данные, — в блоке ' +
-        'источников внизу.',
+        'рейтинг здания на картах или ставка в объявлениях, меняется и страница.',
     });
 
     return items;
@@ -384,22 +378,7 @@ export function BusinessCentersRankingPage() {
 
   return (
     <div className="min-h-svh bg-bg">
-      <div className="border-b border-border py-5">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 sm:px-8">
-          <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary-hover">RED</span>EVELOPMENT
-          </Link>
-          <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted sm:flex">
-            {/* Владелец, 2026-09-16: пункт «Red One» → /minsk/one убран —
-                пока здание не куплено, продавать его нечего. Так же убраны
-                ссылки и блоки Red One с гида по району, посадочных Минск
-                Мира и карточек БЦ. Вернуть, когда здание будет куплено. */}
-            <Link to="/minsk/bcminsk" className="whitespace-nowrap transition-colors hover:text-ink">
-              Каталог
-            </Link>
-          </nav>
-        </div>
-      </div>
+      <CatalogTopNav centers={centers} width="max-w-3xl" />
 
       <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-10 sm:px-8">
         <nav aria-label="Хлебные крошки" className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
@@ -424,7 +403,11 @@ export function BusinessCentersRankingPage() {
             <Award className="h-6 w-6 shrink-0 text-primary-hover" />
             <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">{PAGE_H1}</h1>
           </div>
-          <div className="rounded-control border border-border bg-surface px-4 py-3 text-xs text-ink-muted">
+          {/* Владелец, 2026-09-22: «белая подложка под методикой лишняя» —
+              список условий идёт прямо в главной карточке, без вложенной
+              рамки. Сам блок (иконка + H1 + методика) оформлением остался
+              прежним, как он и просил. */}
+          <div className="text-xs text-ink-muted">
             <strong className="text-ink">Методика оценки:</strong>
             <ol className="mt-2 flex list-decimal flex-col gap-1.5 pl-4 text-ink">
               <li>
@@ -464,7 +447,11 @@ export function BusinessCentersRankingPage() {
                 заход ради блока внизу страницы незачем — в каталоге по той же
                 причине карта грузится только при выборе вида «карта». */}
             {showMap ? (
-              <CatalogMap centers={ranking.map((r) => r.center)} offers={offerIndex} />
+              <CatalogMap
+                centers={ranking.map((r) => r.center)}
+                offers={offerIndex}
+                heightClass="h-[30vh] min-h-[220px]"
+              />
             ) : (
               <button
                 type="button"
@@ -552,22 +539,15 @@ export function BusinessCentersRankingPage() {
 
         {/* Последний блок страницы — дисклеймер с источниками (правило
             владельца от 2026-09-17: предпоследний блок FAQ, последний —
-            источники). На рейтинге его не было вовсе до 2026-09-22, хотя на
-            каталоге, гиде и карточках БЦ он стоит. */}
-        <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
-          <h2 className="text-base font-bold text-ink">Источники и оговорки</h2>
-          <p className="text-xs leading-relaxed text-ink-muted">
-            Рейтинг и число оценок — Яндекс.Карты, из снимков карточек зданий, которые мы пересобираем по мере обновления;
-            это оценка здания целиком, включая организации внутри, а не офисной части отдельно. Ставки — медиана
-            запрашиваемых цен в действующих объявлениях (Kufar, Realt, Megapolis)
-            {rentPeriod ? `, срез за ${rentPeriod}` : ''}; цена сделки может отличаться, а по отдельному зданию объявлений
-            обычно единицы — поэтому рядом с каждой ставкой стоит, по скольким объявлениям она посчитана, и ставка по
-            выборке меньше {MIN_RELIABLE_N} объявлений помечена как ориентировочная. Класс бизнес-центра — по методике
-            классификации, принятой для Минска. Площадь, год ввода и ближайшая станция метро — из карточек каталога; пустое
-            поле значит «нет данных», а не ноль. В рейтинг входят только здания в городской черте Минска.
-          </p>
+            источники). На рейтинге его не было вовсе до 2026-09-22. Вид —
+            ровно как на карточке БЦ и в каталоге (владелец, 2026-09-22:
+            «дисклеймер ставь как на страницах БЦ»): один короткий текст без
+            дат снимков и перечисления источников в теле страницы. */}
+        <div className={cn('flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+          <h2 className="text-lg font-bold text-ink">Источники</h2>
           <SourcesTrademarkNote />
         </div>
+
       </main>
     </div>
   );
