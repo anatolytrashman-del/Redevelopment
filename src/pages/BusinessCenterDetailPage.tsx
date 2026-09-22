@@ -1856,7 +1856,7 @@ export function BusinessCenterDetailPage() {
             {pageSections.length > 0 && (
               <nav
                 aria-label="Навигация по странице"
-                className="-mx-1 flex min-w-0 gap-3 overflow-x-auto px-1 text-xs text-ink-muted"
+                className="flex min-w-0 gap-3 overflow-x-auto px-1 text-xs text-ink-muted"
               >
                 {pageSections.map((sec) => (
                   <a key={sec.id} href={`#${sec.id}`} className="shrink-0 whitespace-nowrap hover:text-primary-hover">
@@ -2417,70 +2417,76 @@ export function BusinessCenterDetailPage() {
             redistributedTechnicalParams.buildingInformationRows.length > 0 ||
             center.buildingFacts.length > 0) && (
             <div className="overflow-hidden rounded-control border border-border">
-              <table className="w-full border-collapse text-sm">
-                <tbody>
+              <table role="table" className="block w-full border-collapse text-sm sm:table">
+                <tbody role="rowgroup" className="block sm:table-row-group">
                   {architectureHighlights.map((h, i) => (
-                    <tr key={`arch-${i}`} className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
-                      <th scope="row" className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5">
+                    <tr role="row" key={`arch-${i}`} className="block border-b border-border last:border-b-0 odd:bg-surface-muted/40 sm:table-row">
+                      <th scope="row" role="rowheader" className="block w-full break-words [overflow-wrap:anywhere] pb-1 pt-2 pl-3 pr-3 text-left align-top font-medium text-ink-muted sm:table-cell sm:w-2/5 sm:py-2 sm:pr-2">
                         {h.label}
                       </th>
-                      <td className="py-2 pl-2 pr-3 text-ink">{h.text}</td>
+                      <td role="cell" className="block w-full break-words [overflow-wrap:anywhere] pb-2 pt-0 pl-3 pr-3 text-ink sm:table-cell sm:w-auto sm:py-2 sm:pl-2">{h.text}</td>
                     </tr>
                   ))}
                   {center.parking && (
-                    <tr className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
-                      <th scope="row" className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5">
+                    <tr role="row" className="block border-b border-border last:border-b-0 odd:bg-surface-muted/40 sm:table-row">
+                      <th scope="row" role="rowheader" className="block w-full break-words [overflow-wrap:anywhere] pb-1 pt-2 pl-3 pr-3 text-left align-top font-medium text-ink-muted sm:table-cell sm:w-2/5 sm:py-2 sm:pr-2">
                         Парковка
                       </th>
-                      <td className="py-2 pl-2 pr-3 text-ink">{center.parking}</td>
+                      <td role="cell" className="block w-full break-words [overflow-wrap:anywhere] pb-2 pt-0 pl-3 pr-3 text-ink sm:table-cell sm:w-auto sm:py-2 sm:pl-2">{center.parking}</td>
                     </tr>
                   )}
                   {accessHoursText && (
-                    <tr className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
-                      <th scope="row" className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5">
+                    <tr role="row" className="block border-b border-border last:border-b-0 odd:bg-surface-muted/40 sm:table-row">
+                      <th scope="row" role="rowheader" className="block w-full break-words [overflow-wrap:anywhere] pb-1 pt-2 pl-3 pr-3 text-left align-top font-medium text-ink-muted sm:table-cell sm:w-2/5 sm:py-2 sm:pr-2">
                         Часы работы
                       </th>
-                      <td className="py-2 pl-2 pr-3 text-ink">
+                      <td role="cell" className="block w-full break-words [overflow-wrap:anywhere] pb-2 pt-0 pl-3 pr-3 text-ink sm:table-cell sm:w-auto sm:py-2 sm:pl-2">
                         {accessHoursText.toLocaleLowerCase('ru-RU') === 'круглосуточно' ? '24/7' : accessHoursText}
                       </td>
                     </tr>
                   )}
                   {accessibilityAttributes && (
-                    <tr className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
-                      <th scope="row" className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5">
+                    <tr role="row" className="block border-b border-border last:border-b-0 odd:bg-surface-muted/40 sm:table-row">
+                      <th scope="row" role="rowheader" className="block w-full break-words [overflow-wrap:anywhere] pb-1 pt-2 pl-3 pr-3 text-left align-top font-medium text-ink-muted sm:table-cell sm:w-2/5 sm:py-2 sm:pr-2">
                         Доступная среда
                       </th>
-                      <td className="py-2 pl-2 pr-3 text-ink">
+                      <td role="cell" className="block w-full break-words [overflow-wrap:anywhere] pb-2 pt-0 pl-3 pr-3 text-ink sm:table-cell sm:w-auto sm:py-2 sm:pl-2">
                         <AccessibilityChips text={accessibilityAttributes} />
                       </td>
                     </tr>
                   )}
                   {redistributedTechnicalParams.buildingInformationRows.map((row) => (
-                    <tr key={row.label} className="border-b border-border last:border-b-0 odd:bg-surface-muted/40">
+                    <tr
+                      role="row"
+                      key={row.label}
+                      className="block border-b border-border last:border-b-0 odd:bg-surface-muted/40 sm:table-row">
                       <th
                         scope="row"
-                        className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
+                        role="rowheader"
+                        className="block w-full break-words [overflow-wrap:anywhere] pb-1 pt-2 pl-3 pr-3 text-left align-top font-medium text-ink-muted sm:table-cell sm:w-2/5 sm:py-2 sm:pr-2"
                       >
                         {row.label}
                       </th>
-                      <td className="py-2 pl-2 pr-3 text-ink">{row.value}</td>
+                      <td role="cell" className="block w-full break-words [overflow-wrap:anywhere] pb-2 pt-0 pl-3 pr-3 text-ink sm:table-cell sm:w-auto sm:py-2 sm:pl-2">{row.value}</td>
                     </tr>
                   ))}
                   {center.buildingFacts.map((fact, index) => (
                     <tr
+                      role="row"
                       key={`${fact.label}-${index}`}
-                      className="border-b border-border last:border-b-0 odd:bg-surface-muted/40"
+                      className="block border-b border-border last:border-b-0 odd:bg-surface-muted/40 sm:table-row"
                     >
                       <th
                         scope="row"
-                        className="w-1/2 py-2 pl-3 pr-2 text-left align-top font-medium text-ink-muted sm:w-2/5"
+                        role="rowheader"
+                        className="block w-full break-words [overflow-wrap:anywhere] pb-1 pt-2 pl-3 pr-3 text-left align-top font-medium text-ink-muted sm:table-cell sm:w-2/5 sm:py-2 sm:pr-2"
                       >
                         {fact.label}
                         {fact.corpusLabel && (
                           <span className="block text-xs font-normal text-ink-faint">{fact.corpusLabel}</span>
                         )}
                       </th>
-                      <td className="py-2 pl-2 pr-3 text-ink">
+                      <td role="cell" className="block w-full break-words [overflow-wrap:anywhere] pb-2 pt-0 pl-3 pr-3 text-ink sm:table-cell sm:w-auto sm:py-2 sm:pl-2">
                         <span>{fact.value}</span>
                         {fact.note && <span className="block text-xs text-ink-faint">{fact.note}</span>}
                       </td>
@@ -3039,9 +3045,9 @@ function AccessibilityChips({ text }: { text: string }) {
       {items.map((item) => {
         const ItemIcon = ACCESSIBILITY_ICONS.find(({ pattern }) => pattern.test(item))?.icon ?? CheckCircle2;
         return (
-          <span key={item} className="inline-flex items-center gap-1.5 text-sm text-ink">
-            <ItemIcon className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
-            {item}
+          <span key={item} className="inline-flex min-w-0 items-start gap-1.5 text-sm text-ink sm:items-center">
+            <ItemIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-faint sm:mt-0" />
+            <span className="min-w-0 break-words">{item}</span>
           </span>
         );
       })}
