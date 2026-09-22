@@ -94,7 +94,7 @@ import { fetchBusinessCenterReviews } from '../lib/businessCenterReviewsApi';
 import type { BusinessCenterOffer } from '../data/businessCenterOffers';
 import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
 import { dedupeOffers } from '../lib/businessCenterOfferDuplicates';
-import { buildDealStats, buildPriceBuckets, formatArea, formatAreaValue, formatMoney, formatRate } from '../lib/businessCenterOfferStats';
+import { buildDealStats } from '../lib/businessCenterOfferStats';
 import { BuildingOffersSection } from '../components/businessCenters/BuildingOffersSection';
 import { pluralRu } from '../lib/pluralRu';
 import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
@@ -989,8 +989,13 @@ export function BusinessCenterDetailPage() {
     // стоит снять офис в «Фаренгейт»?» — не по-русски, а склонять кавычечное
     // имя кодом нельзя. У 27 зданий каталога собственного имени нет вовсе
     // (shortName отдаёт адрес) — там родовое слово тем более обязательно.
-    const named = center.name.includes('«');
-    const bcTail = named ? `«${name}»` : `на ${shortAddress(center.address)}`;
+    // shortName отдаёт либо собственное имя («Фаренгейт», «Аден», «МФЦ
+    // (Минск Мир)»), либо адрес — у 27 зданий каталога имени нет вовсе.
+    // Адрес в кавычках читается как опечатка, поэтому он идёт с предлогом;
+    // всё остальное — в кавычках. Признак адреса: уличный префикс или
+    // «Улица Номер» («Энгельса 34А»), но не «А1» и не «Аден».
+    const addressLike = /^(ул\.|пр-т|просп|проспект|пер\.|пл\.|тракт|бул|наб|индустриальн)/i.test(name) || /^[\p{Lu}][\p{L}\s-]+\s\d+[\p{L}]?$/u.test(name);
+    const bcTail = addressLike ? `на ${shortAddress(center.address)}` : `«${name}»`;
     const bcNom = `бизнес-центр ${bcTail}`;
     const bcGen = `бизнес-центра ${bcTail}`;
     const bcPrep = `бизнес-центре ${bcTail}`;
@@ -1017,10 +1022,6 @@ export function BusinessCenterDetailPage() {
     // «это на в 3,1 раза больше» было бы браком.
     const deltaPhrase = (bar: { deltaText: string }) =>
       /^(на|в) /.test(bar.deltaText) ? bar.deltaText : `на ${bar.deltaText}`;
-    // «144 м²–145 м²» читается как две разные площади; formatAreaValue даёт
-    // число без единицы, поэтому «м²» остаётся один раз, в конце диапазона.
-    const areaRange = (min: number, max: number) =>
-      min === max ? formatArea(min) : `${formatAreaValue(min)}–${formatArea(max)}`;
     const bars = marketPosition?.bars ?? [];
     const barByLabel = (label: string) => bars.find((bar) => bar.label === label) ?? null;
 
@@ -1038,11 +1039,10 @@ export function BusinessCenterDetailPage() {
         `Где находится ${bcNom} и как до него добраться?`,
         sentences([
           `Адрес — ${center.address}${redistributedTechnicalParams.administrativeDistrictText ? `, ${redistributedTechnicalParams.administrativeDistrictText} район` : ''}.`,
-          metro ? `Ближайшая станция метро — «${metro.name}», ${formatMeters(metro.distanceMeters)} по прямой.` : center.metro ? `Ближайшая станция метро — «${center.metro}».` : null,
+          metro ? `Ближайшая станция метро — «${metro.name}», ${formatMeters(metro.distanceMeters)}.` : center.metro ? `Ближайшая станция метро — «${center.metro}».` : null,
           nearestStop && stops
             ? `Ближайшая остановка транспорта — «${nearestStop.name}», ${formatMeters(nearestStop.distanceMeters)}; всего в пешей доступности ${stops.places.length} ${pluralRu(stops.places.length, 'остановка', 'остановки', 'остановок')}.`
             : null,
-          metro || nearestStop ? 'Расстояния указаны по прямой, а не как длина пешего маршрута.' : null,
         ]),
       );
     }
@@ -1054,105 +1054,61 @@ export function BusinessCenterDetailPage() {
     }
 
     // --- Что предлагают и почём ------------------------------------------
-    // FAQ обязан описывать ВЕСЬ блок «Что сейчас сдают и продают» (правило
-    // владельца) — и описывает его теми же цифрами, что нарисованы выше:
-    // полки по бюджету, цену лота целиком и скидку за объём считает один
-    // businessCenterOfferStats, отдельной арифметики здесь нет.
-    for (const stats of [saleStats, rentStats]) {
-      if (!stats) continue;
-      const isRent = stats.deal === 'rent';
-      const perMonth = isRent ? ' в месяц' : '';
-      const types = stats.propertyTypes;
-      const typesText =
-        types.length === 1
-          ? stats.count === 1
-            ? `, в категории «${types[0].propertyType}»`
-            : `, все они — ${lower(types[0].propertyType)}`
-          : types.length > 1
-            ? `; по типам: ${types.map((t) => `${lower(t.propertyType)} — ${t.count}`).join(', ')}`
-            : '';
-      const rateText =
-        stats.minPrice === stats.maxPrice
-          ? `${isRent ? 'Ставка' : 'Цена'} — ${formatRate(stats.median, stats.deal)}/м²${perMonth}.`
-          : `${isRent ? 'Ставки' : 'Цены'} — ${formatRate(stats.minPrice, stats.deal)}–${formatRate(stats.maxPrice, stats.deal)}/м²${perMonth}, медианная — ${formatRate(stats.median, stats.deal)}/м².`;
-      add(
-        `Какие помещения сейчас ${isRent ? 'сдают' : 'продают'} в ${bcPrep} и сколько они стоят?`,
-        sentences([
-          `В объявлениях ${stats.count === 1 ? (isRent ? 'сдаётся' : 'продаётся') : isRent ? 'сдаются' : 'продаются'} ${stats.count} ${pluralRu(stats.count, 'помещение', 'помещения', 'помещений')} площадью ${areaRange(stats.sizeMin, stats.sizeMax)}${typesText}.`,
-          rateText,
-          'Один и тот же лот, размещённый сразу на нескольких площадках, считается одним.',
-        ]),
-      );
-      // Полный перечень лотов уместен, пока их немного: у «Sky Towers» их 23,
-      // и ответ превращался в страницу цифр. Дальше хватает границ бюджета —
-      // разбивку по полкам даёт следующий вопрос.
-      const totalRange =
-        stats.totalMin === stats.totalMax
-          ? `${formatMoney(stats.totalMin)}${perMonth}`
-          : `от ${formatMoney(stats.totalMin)} до ${formatMoney(stats.totalMax)}${perMonth}`;
-      const lotsList =
-        stats.lots.length <= 6
-          ? `: ${stats.lots
-              .map((lot) => `${formatArea(lot.size)} по ${formatRate(lot.pricePerSqm, stats.deal)}/м² — ${formatMoney(lot.size * lot.pricePerSqm)}${perMonth}`)
-              .join('; ')}`
-          : '';
-      add(
-        `Сколько стоит ${isRent ? 'снять' : 'купить'} помещение в ${bcPrep} целиком?`,
-        sentences([
-          `${isRent ? 'Платёж' : 'Бюджет покупки'} по ставке из объявления — ${totalRange}${lotsList}.`,
-          'Это площадь × ставка, а не итоговый платёж: состав коммунальных, эксплуатационных и других платежей в объявлениях не раскрыт.',
-        ]),
-      );
-      const buckets = buildPriceBuckets(stats);
-      if (buckets) {
+    // Владелец, 2026-09-22: «эта инфа будет меняться каждый месяц… конкретные
+    // суммы не приводи в этом блоке». Поэтому FAQ больше НЕ пересказывает
+    // состав предложений цифрами (сколько лотов, какие площади, ставки,
+    // платёж за помещение целиком, полки по бюджету, скидка за объём) —
+    // всё это живёт в блоке «Что сейчас сдают и продают» выше и меняется
+    // вместе с выдачей площадок. Здесь остаётся то, что не устаревает:
+    // откуда берутся объявления, что с ними делаем и как читать ставку.
+    {
+      const deals = [rentStats ? 'rent' : null, saleStats ? 'sale' : null].filter(Boolean) as ('rent' | 'sale')[];
+      if (deals.length) {
+        const hasRent = deals.includes('rent');
+        const hasSale = deals.includes('sale');
+        const verb = hasRent && hasSale ? 'сдают и продают' : hasRent ? 'сдают' : 'продают';
         add(
-          `Какие есть варианты по бюджету ${isRent ? 'аренды' : 'покупки'} в ${bcPrep}?`,
-          `Предложения здания раскладываются по цене так: ${buckets
-            .map(
-              (b) =>
-                `${b.label.toLowerCase()} — ${b.lots.length} ${pluralRu(b.lots.length, 'помещение', 'помещения', 'помещений')} площадью ${areaRange(b.sizeMin, b.sizeMax)}`,
-            )
-            .join('; ')}.`,
-        );
-      }
-      if (stats.sizeDiscount) {
-        const d = stats.sizeDiscount;
-        add(
-          `Дешевле ли метр, если ${isRent ? 'снять' : 'купить'} помещение побольше?`,
-          `Да, метр в крупном лоте дешевле: ${formatArea(d.smallSize)} — ${formatRate(d.smallPrice, stats.deal)}/м², ${formatArea(d.largeSize)} — ${formatRate(d.largePrice, stats.deal)}/м², разница ${Math.round(d.dropPct)}%.`,
-        );
-      }
-      // Цена на фоне рынка — блок «Цены в здании и по рынку» плюс полоса
-      // сравнения с классом. Раньше это были два вопроса подряд, оба про
-      // «дорого или нет», с почти одинаковым ответом.
-      const block = (priceComparison?.blocks ?? []).find((b) => b.deal === stats.deal) ?? null;
-      const rateBar = barByLabel(isRent ? 'Ставка аренды' : 'Цена продажи');
-      if (block || rateBar) {
-        const medianParts = rateBar
-          ? [
-              `у ${typicalOfClass} — ${rateBar.baseDisplayValue}`,
-              ...rateBar.ticks.map((tick) =>
-                tick.label === center.district && center.district
-                  ? `в ${districtPrepositional(center.district)} районе — ${tick.displayValue}`
-                  : `${tick.label === 'город' ? 'по городу' : tick.label} — ${tick.displayValue}`,
-              ),
-            ]
-          : [];
-        add(
-          `Дорого ли ${isRent ? 'снимать' : 'покупать'} в ${bcPrep} по сравнению с другими зданиями?`,
+          `Какие помещения сейчас ${verb} в ${bcPrep}?`,
           sentences([
-            block
-              ? `${isRent ? 'Аренда' : 'Продажа'} здесь — ${block.self.value} за м²${perMonth}, это ${block.verdict}.`
-              : null,
-            block && block.bases.length
-              ? `Для сравнения: ${block.bases.map((b) => `${b.value} (${b.note})`).join(', ')}. Каждый диапазон — цены половины зданий группы, без самой дешёвой и самой дорогой четвертей.`
-              : null,
-            rateBar && medianParts.length
-              ? `Если сравнивать медианы, ${medianParts.join(', ')}${rateBar.nearTypical ? ' — то есть здесь ровно на уровне класса' : `; здесь ${deltaPhrase(rateBar)}, чем у ${typicalOfClass}`}.`
-              : null,
+            `Актуальный список — в блоке «Что сейчас сдают и продают» выше на этой странице.`,
+            'Мы собираем объявления по зданию с нескольких площадок и убираем дубли: одно и то же помещение обычно выложено сразу в нескольких местах и по разным ценам.',
+            'Состав предложений и цены меняются постоянно, поэтому здесь мы их не повторяем.',
+            hasRent
+              ? 'В объявлениях указывают ставку за квадратный метр в месяц; платёж за помещение целиком — это площадь × ставка, без коммунальных, эксплуатационных и прочих расходов, состав которых в объявлениях не раскрыт.'
+              : 'В объявлениях указывают цену за квадратный метр; стоимость помещения целиком — это площадь × цена.',
           ]),
         );
       }
+    }
+    // Дорого или нет — единственное, что имеет смысл держать в FAQ: это
+    // вывод, а не котировка. Поэтому словами (где здание относительно
+    // класса и района), без самих ставок.
+    for (const stats of [saleStats, rentStats]) {
+      if (!stats) continue;
+      const isRent = stats.deal === 'rent';
+      const block = (priceComparison?.blocks ?? []).find((b) => b.deal === stats.deal) ?? null;
+      const rateBar = barByLabel(isRent ? 'Ставка аренды' : 'Цена продажи');
+      if (!block && !rateBar) continue;
+      // deltaText — «7% дороже»/«в 2 раза дешевле»/«на уровне медианы».
+      // Процент здесь такая же котировка, как сумма, поэтому берём из него
+      // только направление.
+      const direction = rateBar && !rateBar.nearTypical ? /дешевле|дороже|ниже|выше/.exec(rateBar.deltaText)?.[0] ?? null : null;
+      add(
+        `Дорого ли ${isRent ? 'снимать' : 'покупать'} в ${bcPrep} по сравнению с другими зданиями?`,
+        sentences([
+          block
+            ? `Если смотреть на цену за метр, ${isRent ? 'аренда' : 'продажа'} здесь — ${block.verdict} на фоне зданий того же класса и того же района.`
+            : null,
+          rateBar
+            ? rateBar.nearTypical
+              ? `Относительно ${typicalOfClass} здание держится на уровне класса.`
+              : direction
+                ? `Относительно ${typicalOfClass} здесь ${direction}.`
+                : null
+            : null,
+          `Сами ${isRent ? 'ставки' : 'цены'} меняются вместе с объявлениями, поэтому конкретные цифры — в блоке «Цены в здании и по рынку» выше.`,
+        ]),
+      );
     }
     if (center.rentalInfo) {
       const info = center.rentalInfo;
@@ -1370,7 +1326,7 @@ export function BusinessCenterDetailPage() {
       // «30 шт.» про компании и «4,7 ★» про оценку — подписи из вёрстки
       // полос, где единица стоит рядом с числом. В предложении её несёт
       // сама формулировка, а «шт.» после компаний звучит как склад.
-      const plainValue = (value: string) => value.replace(/\s*(шт\.|★)$/u, '').trim();
+      const plainValue = (value: string) => value.replace(/\s*(шт\.|★)$/u, '').replace(/\s*по прямой$/u, '').trim();
       const metricLabels: Record<string, string> = {
         'Высота потолков': 'Потолки',
         'Лифты на 10 000 м²': 'Лифтов на 10 000 м² площади',
@@ -1387,8 +1343,8 @@ export function BusinessCenterDetailPage() {
           // бы одной станции два разных числа.
           if (bar.label === 'До метро') {
             return bar.nearTypical
-              ? `До метро отсюда столько же, сколько у ${typicalOfClass} (медиана — ${bar.baseDisplayValue}).`
-              : `До метро отсюда ${deltaPhrase(bar)}, чем у ${typicalOfClass} (медиана — ${bar.baseDisplayValue}).`;
+              ? `До метро отсюда столько же, сколько у ${typicalOfClass} (медиана — ${plainValue(bar.baseDisplayValue)}).`
+              : `До метро отсюда ${deltaPhrase(bar)}, чем у ${typicalOfClass} (медиана — ${plainValue(bar.baseDisplayValue)}).`;
           }
           const label = metricLabels[bar.label] ?? bar.label;
           return bar.nearTypical
@@ -1404,21 +1360,6 @@ export function BusinessCenterDetailPage() {
     }
 
     // --- Что вокруг и кто внутри ------------------------------------------
-    {
-      const insideText = derivedInternalInfrastructureText || '';
-      const insideItems = insideText
-        .split(/[,;]\s*/)
-        .map((item) => item.trim())
-        .filter(Boolean);
-      const insideLower = insideText.toLowerCase();
-      const extra = tenantAmenities
-        .filter((item) => !insideLower.includes(item.category.toLowerCase()))
-        // Количество точек («туалет (2)») в перечислении через запятую
-        // читается как опечатка; оно осталось в блоке «В здании» выше.
-        .map((item) => item.category);
-      const all = [...insideItems, ...extra].map(lower);
-      add(`Что есть в ${bcPrep} кроме офисов?`, all.length ? `В здании есть ${joinAnd(all)}.` : null);
-    }
     // FAQ пересказывает блок «Инфраструктура рядом» теми же цифрами, что
     // нарисованы на карте и в списке под ней — но текстом, а не картой: для
     // краулера, который карту не читает, это не дубль, а единственный способ
@@ -1456,16 +1397,16 @@ export function BusinessCenterDetailPage() {
           return `${label} — ${group.places.length}, ${word} «${nearest.name}» в ${formatMeters(nearest.distanceMeters)}.`;
         });
       if (lines.length) {
-        add(
-          `Что есть рядом с ${bcIns}?`,
-          `${lines.join(' ')} Учтены объекты в пешей доступности — примерно до 800 м; расстояния считаются по прямой, а не как длина маршрута.`,
-        );
+        add(`Что есть рядом с ${bcIns}?`, `${lines.join(' ')} Учтены объекты в пешей доступности — примерно до 800 м.`);
       }
     }
+    // Арендаторы и «что есть кроме офисов» — один вопрос (владелец,
+    // 2026-09-22: «я бы анализировал весь список арендаторов, если он есть,
+    // и писал ответ на основе него; можешь объединить»). Раньше сервисы
+    // здания собирались из пяти ключевых слов (TENANT_DERIVED_INFRASTRUCTURE)
+    // и выходили обезличенным списком «банк, кафе, магазин»; теперь берётся
+    // весь список организаций с рубриками, и сервисы называются по именам.
     if (tenantOrganizations.length) {
-      // Направления — ровно то, чем фильтруется каталог арендаторов на
-      // странице: FAQ обязан описывать её содержимое, а не заводить
-      // собственную классификацию.
       const directionCounts = new Map<string, number>();
       for (const org of tenantOrganizations) {
         const label = tenantDirectionLabel(org.industry);
@@ -1475,8 +1416,66 @@ export function BusinessCenterDetailPage() {
       const reported = tenantSource === '2gis' ? gis2?.tenantOrganizationsTotal ?? null : null;
       const floors = buildFloorGroups(tenantOrganizations);
       const withFloor = floors.reduce((sum, group) => sum + group.count, 0);
+      // Сервисы, ради которых в здание заходят не по делу к арендатору.
+      // Порядок фиксированный и осмысленный: сначала то, чем пользуются
+      // ежедневно. Рубрика у Яндекса бывает с хвостом («Банк РКЦ
+      // Фаренгейт»), поэтому сопоставляем по вхождению, а подпись берём
+      // свою — иначе список сервисов читается как список опечаток.
+      const servicePatterns: { label: string; re: RegExp; byName?: RegExp }[] = [
+        // Короткие двусмысленные слова ищем ТОЛЬКО в начале рубрики: у
+        // Яндекса рубрика начинается с категории, а хвост — это место в
+        // здании и название хаба («Интернет-маркетинг Бизнес-Хаб
+        // Альфа-банк» — это агентство, а не банк; «Кофемашины, кофейные
+        // автоматы» — оборудование, а не кофейня). Описательные рубрики
+        // магазинов («Керамическая плитка») категории в начале не имеют,
+        // поэтому ищутся по всей строке.
+        // byName — для карточек, у которых рубрики нет вовсе (у отделений
+        // банков Яндекс часто отдаёт только этаж): имя тут однозначное, в
+        // отличие от кафе и магазинов, которые по названию не опознать.
+        { label: 'банк', re: /^банк(?!омат)(?![\p{L}])/iu, byName: /банк(?!омат)(?![\p{L}])/iu },
+        { label: 'аптека', re: /^аптек/iu, byName: /аптек/iu },
+        { label: 'кофейня', re: /^кофейня(?![\p{L}])/iu },
+        { label: 'кафе и столовые', re: /^(кафе|столов|бистро|пекарн|кондитерск|фуд-?корт)/iu },
+        { label: 'ресторан', re: /^ресторан/iu },
+        { label: 'ветклиника', re: /^ветеринар/iu },
+        { label: 'медцентр', re: /^(медцентр|клиник|стоматолог|медицинск|диагностическ|поликлиник|лаборатор)/iu },
+        { label: 'салон красоты', re: /^(салон красоты|студия красоты|парикмахер|косметолог|барбершоп|ногтев|бров|маникюр|эпиляц|спа-)/iu },
+        { label: 'фитнес', re: /^(фитнес|тренаж|спортзал|йог(а|и)|пилатес|единоборств|бассейн)/iu },
+        { label: 'пункт выдачи заказов', re: /^(пункт выдачи|пвз(?![\p{L}])|постамат)/iu },
+        { label: 'отделение почты', re: /^почт/iu },
+        { label: 'магазины', re: /магазин|супермаркет|гипермаркет|плитка|инструмент|мебел|одежд|обув|ювелир|оптика|цвет(ы|очный)|бытовая техника|товары/iu },
+      ];
+      const serviceNames = new Map<string, string[]>();
+      for (const org of tenantOrganizations) {
+        const rubric = org.rubric;
+        const match = rubric
+          ? servicePatterns.find((item) => item.re.test(rubric))
+          : servicePatterns.find((item) => item.byName?.test(org.name));
+        if (!match) continue;
+        const names = serviceNames.get(match.label) ?? [];
+        if (!names.some((n) => n.toLowerCase() === org.name.toLowerCase())) names.push(org.name);
+        serviceNames.set(match.label, names);
+      }
+      const serviceParts = servicePatterns
+        .filter((item) => serviceNames.has(item.label))
+        .map((item) => {
+          const names = serviceNames.get(item.label) ?? [];
+          const shown = names.slice(0, 3).map((n) => `«${n}»`);
+          const rest = names.length - shown.length;
+          return `${item.label} — ${shown.join(', ')}${rest > 0 ? ` и ещё ${rest}` : ''}`;
+        });
+      // Точки самообслуживания (туалет, банкомат, кофейный автомат) —
+      // не организации, у них своя каноническая подпись.
+      const amenityParts = tenantAmenities.map((item) => lower(item.category));
+      const manualParts = (redistributedTechnicalParams.internalInfrastructureText ?? '')
+        .split(/[,;]\s*/)
+        .map((item) => lower(item.trim()))
+        .filter(Boolean)
+        // Ручной ввод владельца обычно называет то же самое одним словом
+        // («банк, кафе»), что уже названо сервисом с именем организации.
+        .filter((item) => !serviceParts.some((part) => part.startsWith(item)));
       add(
-        `Какие компании работают в ${bcPrep} и на каких этажах?`,
+        `Какие компании работают в ${bcPrep} и что есть в здании кроме офисов?`,
         sentences([
           `В списке организаций здания — ${tenantOrganizations.length}.`,
           reported != null && reported > tenantOrganizations.length
@@ -1487,6 +1486,10 @@ export function BusinessCenterDetailPage() {
             ? `Этаж известен у ${withFloor} ${pluralRu(withFloor, 'организации', 'организаций', 'организаций')} из ${tenantOrganizations.length}: ${floors
                 .map((group) => `${formatFloorLabel(group.floor).toLowerCase()} — ${group.count}`)
                 .join(', ')}.`
+            : null,
+          serviceParts.length ? `Кроме офисов, в здании есть ${serviceParts.join('; ')}.` : null,
+          amenityParts.length || manualParts.length
+            ? `Из остального в здании ${joinAnd([...manualParts, ...amenityParts])}.`
             : null,
           'Это сведения о соседях и сервисах, а не показатель загрузки здания или спроса на него.',
         ]),
@@ -1532,33 +1535,11 @@ export function BusinessCenterDetailPage() {
         );
       }
     }
-    if (mediaMentions.length)
-      add(
-        `Что писали о ${bcPrep} в СМИ?`,
-        mediaMentions
-          .map((m) => `${m.outlet}${m.date ? `, ${formatMentionDate(m.date)}` : ''}: «${m.title}»`)
-          .join('\n'),
-      );
-    if (awardItems.length) add(`Какие награды получил ${bcNom}?`, awardItems.map(plain).join('\n'));
-    {
-      const history = extractHistoryPoints(center);
-      if (history.length)
-        add(
-          `Что известно об истории ${bcGen}?`,
-          history
-            .map((h) => {
-              const text = plain(h.text);
-              return `${h.year} — ${/[.!?]$/.test(text) ? text : `${text}.`}`;
-            })
-            .join('\n'),
-        );
-    }
+    // СМИ и история здания убраны из FAQ (владелец, 2026-09-22: «Что писали
+    // в СМИ — убирай», «Что известно об истории — ответ хуйня, убирай»).
+    // Оба блока остаются видимыми на странице, FAQ их не пересказывает.
     if (visibleHighlights.length)
       add(`Чем примечателен ${bcNom}?`, visibleHighlights.map((h) => (h.label ? `${h.label}: ${plain(h.text)}` : plain(h.text))).join('\n'));
-    add(
-      'Как исправить сведения о здании?',
-      'Если хотите добавить, убрать или изменить информацию, напишите на a@redevelopment.pro, указав бизнес-центр и сведения, которые нужно поправить.',
-    );
     return items;
   }, [center, centers, marketPosition, accessibilityAttributes, accessHoursText, saleStats, rentStats, awardItems, mediaMentions, visibleHighlights, buildingParamHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces, priceComparison?.blocks]);
 
@@ -2316,7 +2297,7 @@ export function BusinessCenterDetailPage() {
             Дата и дисклеймер про источники убраны из самой карточки
             (владелец, 2026-09-20: единый размер шрифта с "Интересными
             фактами", даты и пояснение про ссылки — лишние) — дата остаётся
-            только в FAQ-тексте (formatMentionDate ниже по файлу). Логотип
+            нигде: FAQ перестал пересказывать публикации 2026-09-22. Логотип
             берём из реестра по домену ссылки (data/mediaOutlets.ts); издания
             без логотипа рисуем названием — подборка не должна ждать, пока
             найдётся очередной PNG.
@@ -2914,17 +2895,6 @@ function MediaOutletMark({ url, outlet }: { url: string; outlet: string }) {
       <img src={brand.logo} alt={label} loading="lazy" onError={() => setFailed(true)} className="h-auto w-full" />
     </span>
   );
-}
-
-// «13 февраля 2025», а не «13.02.2025»: в блоке дата стоит отдельной строкой
-// под заголовком, где цифровой формат читается как артикул. Хвост « г.»,
-// который ru-RU добавляет сам, снимаем — в подписи из трёх слов он лишний.
-function formatMentionDate(date: string): string {
-  const parsed = new Date(`${date}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return date;
-  return parsed
-    .toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
-    .replace(/\s*г\.$/, '');
 }
 
 function LabeledTextRow({
