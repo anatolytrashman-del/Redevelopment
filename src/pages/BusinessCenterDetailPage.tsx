@@ -1952,7 +1952,7 @@ export function BusinessCenterDetailPage() {
             бизнес-центры» в боковой колонке. Было 7.75rem, когда над
             кнопкой в колонке стоял ещё и логотип — вместе с ним уехал и он;
             3.375rem = высота кнопки (2.375rem) плюс gap-4 колонки. */}
-        <main className="min-w-0 xl:pt-[3.375rem]">
+        <main data-menu-align className="min-w-0 xl:pt-[3.375rem]">
         <div className={cn('overflow-hidden', glassCardClass)} style={glassCardShadow}>
           {/* Компактная версия первого экрана: на широком экране фото и
               основная сводка стоят рядом. Прежняя вертикальная версия целиком

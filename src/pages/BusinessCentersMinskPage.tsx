@@ -985,7 +985,11 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             onReset={resetFilter}
           />
           </aside>
-          <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
+          {/* data-menu-align — линия, по которой выравнивается выпадающая
+              панель меню (CatalogTopNav): именно здесь начинается главный
+              блок страницы с H1, а не у края main (слева ещё колонка
+              фильтров). */}
+          <div data-menu-align className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
           <div
             className={cn('flex flex-col gap-6 overflow-hidden p-6 sm:flex-row sm:items-center sm:p-8', glassCardClass)}
             style={glassCardShadow}
