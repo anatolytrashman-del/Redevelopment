@@ -31,6 +31,7 @@ import {
   setBreadcrumbJsonLd,
   setFaqJsonLd,
   setGenericPageMeta,
+  setItemListJsonLd,
   setNoIndex,
   clearNoIndex,
 } from '../lib/pageMeta';
@@ -497,7 +498,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // разделе, а массив зависимостей вычисляется прямо при рендере — выше
   // объявления visibleCenters он упал бы на temporal dead zone.
   useEffect(() => {
-    if (notFound || !filterIsIndexable) {
+    if (notFound) {
       setNoIndex();
       return () => clearNoIndex();
     }
@@ -582,6 +583,22 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               : PAGE_URL;
 
     setGenericPageMeta({ title: hubTitle, description: hubDescription, url: hubUrl, image: OG_IMAGE, ogType: 'article' });
+
+    // Состояние, набранное фильтром (?class=A&metro=…), в индекс не идёт —
+    // но ссылкой им делятся, и до 2026-09-22 такая страница оставалась с
+    // ДЕФОЛТНЫМИ тегами index.html: заголовок, описание и og:image «Red One»,
+    // canonical — на /minsk/one. То есть ссылка на отфильтрованный каталог
+    // разворачивалась в мессенджере превью совсем другого объекта, а
+    // canonical указывал на чужую страницу, хотя по замыслу (см.
+    // filterIsIndexable выше) он всегда должен вести на хаб. Теперь мета
+    // своя и canonical на хабе, а от индекса состояние закрывает noindex.
+    // Разметку (Article, крошки, ItemList, FAQ) такому состоянию не даём:
+    // она для индексируемых страниц, и setGenericPageMeta её уже сбросил.
+    if (!filterIsIndexable) {
+      setNoIndex();
+      return () => clearNoIndex();
+    }
+
     setArticleJsonLd({
       headline: hubTitle,
       description: hubDescription,
@@ -943,9 +960,34 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   }, [centers, scopeLabel, marketStats, districtTotals, officeSnapshots, metroFilter, orderedCenters, underConstructionNames, summary.rentMedian, rentMethodology, showRatesBlock, rateRent, rateSale]);
 
   useEffect(() => {
-    setFaqJsonLd(notFound ? [] : faqItems);
+    setFaqJsonLd(notFound || !filterIsIndexable ? [] : faqItems);
     return () => setFaqJsonLd([]);
-  }, [faqItems, notFound]);
+  }, [faqItems, notFound, filterIsIndexable]);
+
+  // ItemList — разметка самого перечня зданий (Ш1 плана
+  // docs/bc-catalog-seo-plan.md). До 2026-09-22 её на каталоге и хабах не
+  // было вовсе: setItemListJsonLd стоял только на пяти страницах рейтингов,
+  // а каталог и 40+ его хабов — то есть основной перечень раздела — уходили
+  // в индекс без разметки списка.
+  //
+  // Размечаем РОВНО ТО, что отрисовано в сетке (тот же срез, что у карточек
+  // выше), а не всю выборку: на корне это 141 позиция лишних ~14 КБ в и без
+  // того самом тяжёлом HTML раздела, и разметка описывала бы то, чего на
+  // странице нет, пока не нажата «Показать ещё». Нажали — список в разметке
+  // растёт вместе с сеткой.
+  useEffect(() => {
+    if (notFound || !filterIsIndexable) {
+      setItemListJsonLd(null);
+      return;
+    }
+    setItemListJsonLd(
+      orderedCenters.slice(0, visibleCount).map((c) => ({
+        name: shortName(c),
+        url: `https://redevelopment.pro/minsk/bcminsk/${c.slug}`,
+      })),
+    );
+    return () => setItemListJsonLd(null);
+  }, [orderedCenters, visibleCount, notFound, filterIsIndexable]);
 
   if (notFound) {
     return (
