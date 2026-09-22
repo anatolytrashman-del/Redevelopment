@@ -1806,14 +1806,16 @@ export function BusinessCenterDetailPage() {
   // Б7-мобайл (владелец, 2026-09-23: «сделаем меню страницы не сверху, а
   // постоянно видимым блоком, как Фильтры»). До этой правки «На странице»
   // было горизонтальной прокручиваемой строкой в sticky-шапке — на телефоне
-  // её частично закрывала системная панель браузера, и она навсегда
-  // занимала верхнюю полосу экрана. Ниже xl список переехал в плавающую
-  // кнопку «Содержание» (тот же приём и тот же glassPillClass, что у
-  // «Фильтры» на каталоге) со шторкой снизу — тот же native <dialog> +
-  // createPortal, что и в CatalogFilterPanel, только выезжает снизу, а не
-  // слева: для списка-оглавления это привычнее, чем боковой drawer с
-  // фильтрами. Список пунктов не дублируется — тот же pageSections, что и
-  // в десктопной колонке ниже.
+  // её частично закрывала системная панель браузера. Ниже xl список
+  // переехал в кнопку «Содержание» со шторкой снизу — тот же native
+  // <dialog> + createPortal, что и в CatalogFilterPanel, только выезжает
+  // снизу, а не слева: для списка-оглавления это привычнее, чем боковой
+  // drawer с фильтрами. Кнопка сперва стояла плавающей в правом нижнем
+  // углу; владелец, 2026-09-23: «пусть содержание будет в том же месте по
+  // высоте, где возврат на каталог всех БЦ, наверху» — теперь она рядом с
+  // «Все БЦ» в той же sticky-строке, той же высоты и стиля (см. secondRow
+  // у CatalogTopNav ниже). Список пунктов не дублируется — тот же
+  // pageSections, что и в десктопной колонке.
   const [tocOpen, setTocOpen] = useState(false);
   const tocDialogRef = useRef<HTMLDialogElement>(null);
 
@@ -1921,10 +1923,7 @@ export function BusinessCenterDetailPage() {
                 страница сайта вообще, тут нужна навигация "назад к списку",
                 не закрытие. Плюс "должно выглядеть заметнее" — обычная
                 приглушённая текстовая ссылка заменена на pill-кнопку (тот
-                же glassPillClass, что и у стрелок prev/next ниже). Список
-                разделов, который раньше шёл вторым элементом этой строки,
-                переехал в плавающую кнопку «Содержание» ниже — см.
-                комментарий про Б7-мобайл у tocOpen. */}
+                же glassPillClass, что и у стрелок prev/next ниже). */}
             <Link
               to="/minsk/bcminsk"
               className={cn(
@@ -1937,6 +1936,27 @@ export function BusinessCenterDetailPage() {
               <span className="hidden sm:inline">Все бизнес-центры</span>
               <span className="sm:hidden">Все БЦ</span>
             </Link>
+            {/* Кнопка «Содержание» — владелец, 2026-09-23: "пусть будет в
+                том же месте по высоте, где возврат на каталог всех БЦ,
+                наверху". Раньше стояла плавающей в правом нижнем углу —
+                здесь она в той же sticky-строке, что и «Все БЦ», той же
+                высоты и того же стиля; шторка снизу по тапу не изменилась,
+                см. комментарий про Б7-мобайл у tocOpen. */}
+            {pageSections.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setTocOpen(true)}
+                aria-expanded={tocOpen}
+                className={cn(
+                  'flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:text-primary',
+                  glassPillClass,
+                )}
+                style={glassPillShadow}
+              >
+                <List className="h-3.5 w-3.5 shrink-0" />
+                Содержание
+              </button>
+            )}
           </div>
         }
       />
@@ -1980,24 +2000,6 @@ export function BusinessCenterDetailPage() {
         </Link>
       )}
 
-      {/* Плавающая кнопка «Содержание» — мобильная замена оглавлению,
-          которое на xl и шире стоит в боковой колонке (aside ниже). См.
-          комментарий про Б7-мобайл у tocOpen. */}
-      {pageSections.length > 0 && (
-        <button
-          type="button"
-          onClick={() => setTocOpen(true)}
-          aria-expanded={tocOpen}
-          className={cn(
-            'fixed bottom-4 right-4 z-40 flex items-center gap-2 px-4 py-3 text-sm font-semibold text-ink xl:hidden',
-            glassPillClass,
-          )}
-          style={glassPillShadow}
-        >
-          <List className="h-4 w-4 shrink-0" />
-          Содержание
-        </button>
-      )}
 
       {tocOpen && pageSections.length > 0 && createPortal(
         <dialog
