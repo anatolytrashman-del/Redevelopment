@@ -2,16 +2,12 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
-  Award,
   BadgeCheck,
-  Building2,
   Camera,
   DollarSign,
   HardHat,
   Heart,
   MapPin,
-  Ruler,
-  TrainFront,
 } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { pluralRu } from '../lib/pluralRu';
@@ -924,8 +920,9 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
 
   const bcCountLabel = centers ? `${visibleCenters.length} ${pluralBusinessCenters(visibleCenters.length)}` : 'бизнес-центры';
 
-  // Полоска сводки над сеткой (К1): пересчитывается под фильтр, в отличие
-  // от блока «Рынок в цифрах», который уехал под результаты.
+  // Полоска сводки над сеткой (К1): пересчитывается под фильтр. С
+  // 2026-09-22 это единственная сводка в теле каталога — карточка «Рынок в
+  // цифрах» снята и с корня, и с хабов.
   const summary = useMemo(() => catalogSummary(visibleCenters, offerIndex), [visibleCenters, offerIndex]);
 
   // Для SEO-текста нужны АБСОЛЮТНЫЕ числа по районам, а не счётчики чипов
@@ -937,7 +934,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     return counts;
   }, [centers]);
 
-  // Сводка и FAQ считаются по одной текущей выборке; метро — по координатам.
+  // Цифры выборки для FAQ (с 2026-09-22 только для него — видимой карточки
+  // «Рынок в цифрах» на странице больше нет); метро — по координатам.
   const marketStats = useMemo(() => {
     const withArea = visibleCenters.filter((c) => c.totalArea != null);
     const totalArea = withArea.reduce((sum, c) => sum + (c.totalArea ?? 0), 0);
@@ -1312,77 +1310,14 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             </div>
           )}
 
-            {/* На голом каталоге (без класса/района/метро/улицы/микрорайона/
-                стройки) блок убран (владелец, 2026-09-22) — это ровно те же
-                городские цифры, что теперь на /minsk/bcminsk/analytics, было
-                дублем. На хаб-страницах остаётся: там сводка каждый раз
-                другая (класс, район, метро, улица, микрорайон, стройка —
-                свой срез, не повтор). */}
-            {!isCatalogRoot && (
-              <>
-                {/* Пока данные не пришли — та же карточка с невидимыми плитками
-                    той же формы (PAGESPEED_PLAN.md, Э9): страница приходит
-                    пререндер-снапшотом с готовой сводкой, React после
-                    монтирования на ~полсекунды остаётся без данных, и без
-                    заглушки блок исчезал целиком — карта и всё ниже прыгали
-                    вверх, потом обратно. На десктопе карта в первом экране →
-                    CLS 0,104 (третий пункт Agentic Browsing в PageSpeed), на
-                    мобильном она ниже сгиба → 0. Число плиток — как у реальной
-                    сводки: 4 общих (+4 по классам вне хаба класса). */}
-                {centers === null ? (
-                  <div className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow} aria-hidden="true">
-                    <h2 className="text-lg font-bold text-ink">Рынок в цифрах</h2>
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                      {[
-                        'Всего бизнес-центров',
-                        'Суммарная площадь (по 000 из 000)',
-                        'Строится',
-                        'До 800 м от метро',
-                        ...(classFilter ? [] : ['Класса A', 'Класса B+', 'Класса B', 'Класса C']),
-                      ].map((label) => (
-                        <div key={label} className="invisible">
-                          <FactTile icon={Building2} value="0" label={label} />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : marketStats.total > 0 && (
-                  <div className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-                    <h2 className="text-lg font-bold text-ink">Рынок в цифрах</h2>
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                      <FactTile icon={Building2} value={marketStats.total} label="Всего бизнес-центров" />
-                      {marketStats.withAreaCount > 0 && (
-                        <FactTile
-                          icon={Ruler}
-                          value={`${Math.round(marketStats.totalArea).toLocaleString('ru-RU')} м²`}
-                          label={`Суммарная площадь (по ${marketStats.withAreaCount} из ${marketStats.total})`}
-                        />
-                      )}
-                      {marketStats.underConstruction > 0 && (
-                        <FactTile icon={HardHat} value={marketStats.underConstruction} label="Строится" />
-                      )}
-                      {marketStats.withMetroCount > 0 && (
-                        <FactTile
-                          icon={TrainFront}
-                          value={`${marketStats.nearMetro} из ${marketStats.withMetroCount}`}
-                          label="До 800 м от метро"
-                        />
-                      )}
-                      {/* Разбивка по классам — только когда сама сводка не по
-                          одному классу (на хаб-странице класса это было бы
-                          избыточно: все плитки, кроме одной, показали бы 0). */}
-                      {!classFilter &&
-                        (['A', 'B+', 'B', 'C'] as const).map(
-                          (cls) =>
-                            marketStats.byClass[cls] > 0 && (
-                              <FactTile key={cls} icon={Award} value={marketStats.byClass[cls]} label={`Класса ${cls}`} />
-                            ),
-                        )}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
+            {/* Блока «Рынок в цифрах» на каталоге больше нет совсем
+                (владелец, 2026-09-22). На голом каталоге он ушёл раньше как
+                дубль /minsk/bcminsk/analytics, теперь снят и на тематических
+                хабах (метро, улица, класс, район, микрорайон, стройка): те же
+                цифры уже есть в полоске сводки над сеткой и в FAQ внизу, а
+                отдельная карточка между результатами и картой только
+                отодвигала карту. FAQ по-прежнему считается по marketStats —
+                это не мёртвый код. */}
 
             {/* Сводка ставок (ANALYTICSPLAN.md §4.2) — только там, где для
                 скоупа страницы реально есть срез в market_snapshots (класс
