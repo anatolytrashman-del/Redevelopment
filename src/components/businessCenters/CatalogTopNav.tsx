@@ -46,16 +46,102 @@ export type CatalogTopNavProps = {
   secondRow?: ReactNode;
 };
 
-const TOP_LINKS: { to: string; label: string }[] = [
-  { to: '/minsk/bcminsk/analytics', label: 'Аналитика' },
-  { to: '/minsk/bcminsk/rating', label: 'Рейтинги' },
-  { to: '/minsk/bcminsk/gid', label: 'Справочник' },
+type TopNavEntry = { kind: 'link'; to: string; label: string } | { kind: 'ratings' };
+
+const TOP_LINKS: TopNavEntry[] = [
+  { kind: 'link', to: '/minsk/bcminsk/analytics', label: 'Аналитика' },
+  { kind: 'ratings' },
+  { kind: 'link', to: '/minsk/bcminsk/gid', label: 'Справочник' },
+];
+
+// «Рейтинги» — единственный пункт с подменю (владелец, 2026-09-22: «добавляй
+// в меню с понятными и не длинными названиями», после того как 4 новые
+// страницы рейтингов оказались доступны только по перелинковке внутри самих
+// себя, без входа из шапки). Короткие подписи вместо H1 страниц (у «Лучших
+// бизнес-центров Минска» — просто «Класс A», у «Лучших…классов B и C» —
+// «Классы B и C»), чтобы список умещался в узкий выпадающий список.
+const RATING_LINKS: { to: string; label: string }[] = [
+  { to: '/minsk/bcminsk/rating', label: 'Класс A' },
+  { to: '/minsk/bcminsk/rating/b-plus', label: 'Класс B+' },
+  { to: '/minsk/bcminsk/rating/b-c', label: 'Классы B и C' },
+  { to: '/minsk/bcminsk/rating/samye-bolshie', label: 'Самые большие' },
+  { to: '/minsk/bcminsk/rating/samye-dostupnye', label: 'Самые доступные' },
 ];
 
 function rowLinkClass(active: boolean): string {
   return cn(
     'flex items-baseline justify-between gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-surface-muted',
     active ? 'font-semibold text-ink' : 'text-ink-muted hover:text-ink',
+  );
+}
+
+// Отдельный маленький выпадающий список, а не расширение общей mega-панели
+// «Бизнес-центры»: та панель строится из каталога (classSlices/districtSlices
+// и т.п.) и держит собственное состояние открытия/раскрытых групп — здесь же
+// 5 фиксированных ссылок без данных, проще и безопаснее держать своим
+// компонентом со своим click-outside/Escape, чем вплетать в чужую разметку.
+function RatingsDropdown({ pathname }: { pathname: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => setOpen(false), [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+    };
+  }, [open]);
+
+  const active = RATING_LINKS.some((l) => l.to === pathname);
+
+  return (
+    <div ref={ref} className="relative hidden md:block">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls="ratings-menu-panel"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          'flex items-center gap-1 whitespace-nowrap rounded-full px-3 py-2 text-sm font-semibold transition-colors',
+          active ? 'bg-surface-muted text-ink' : 'text-ink-muted hover:text-ink',
+        )}
+      >
+        Рейтинги
+        <ChevronDown aria-hidden="true" className={cn('h-4 w-4 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div
+          id="ratings-menu-panel"
+          className="absolute left-0 top-full z-50 mt-1 min-w-[210px] rounded-xl border border-border bg-bg py-2"
+          style={{ boxShadow: '0 16px 32px rgba(0,0,0,0.12)' }}
+        >
+          {RATING_LINKS.map((link) => (
+            <Link
+              key={link.to}
+              to={link.to}
+              className={cn(
+                'block px-4 py-2 text-sm transition-colors',
+                link.to === pathname ? 'font-semibold text-ink' : 'text-ink-muted hover:bg-surface-muted hover:text-ink',
+              )}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -146,11 +232,18 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
     return [groups.slice(0, 1), groups.slice(1, 2), groups.slice(2)].filter((c) => c.length > 0);
   }, [groups]);
 
-  const activeTop = TOP_LINKS.find((l) => l.to === pathname)?.to;
+  const activeTop = TOP_LINKS.find((l) => l.kind === 'link' && l.to === pathname) as
+    | Extract<TopNavEntry, { kind: 'link' }>
+    | undefined;
+  const ratingsActive = RATING_LINKS.some((l) => l.to === pathname);
   // Всё остальное под /minsk/bcminsk (каталог, хабы, карточки) плюс
-  // избранное — это «Бизнес-центры».
+  // избранное — это «Бизнес-центры». Страницы рейтингов тоже живут под
+  // /minsk/bcminsk/, поэтому явно исключены — иначе подсвечивались бы сразу
+  // два пункта шапки.
   const catalogActive =
-    !activeTop && (pathname === '/minsk/bcminsk' || pathname.startsWith('/minsk/bcminsk/') || pathname.startsWith('/favorites/'));
+    !activeTop &&
+    !ratingsActive &&
+    (pathname === '/minsk/bcminsk' || pathname.startsWith('/minsk/bcminsk/') || pathname.startsWith('/favorites/'));
 
   const linkClass = (active: boolean) =>
     cn(
@@ -190,15 +283,19 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
               className={cn('hidden h-4 w-4 transition-transform md:block', open && 'rotate-180')}
             />
           </button>
-          {TOP_LINKS.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className={cn(linkClass(activeTop === link.to), 'hidden md:block')}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {TOP_LINKS.map((entry) =>
+            entry.kind === 'ratings' ? (
+              <RatingsDropdown key="ratings" pathname={pathname} />
+            ) : (
+              <Link
+                key={entry.to}
+                to={entry.to}
+                className={cn(linkClass(activeTop?.to === entry.to), 'hidden md:block')}
+              >
+                {entry.label}
+              </Link>
+            ),
+          )}
         </nav>
       </div>
 
@@ -337,18 +434,45 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
           {/* Ниже md эти три пункта из шапки убраны (там только бургер) —
               значит, попасть в них можно лишь отсюда. */}
           <div className="flex flex-col gap-0.5 border-t border-border pt-4 md:hidden">
-            {TOP_LINKS.map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className={cn(
-                  'rounded-lg px-2 py-2 text-sm font-semibold transition-colors hover:bg-surface-muted',
-                  activeTop === link.to ? 'text-ink' : 'text-ink-muted hover:text-ink',
-                )}
-              >
-                {link.label}
-              </Link>
-            ))}
+            {TOP_LINKS.map((entry) =>
+              entry.kind === 'ratings' ? (
+                <div key="ratings" className="flex flex-col gap-0.5">
+                  <button
+                    type="button"
+                    aria-expanded={expandedGroup === 'Рейтинги'}
+                    onClick={() => setExpandedGroup((v) => (v === 'Рейтинги' ? null : 'Рейтинги'))}
+                    className={cn(
+                      'flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-sm font-semibold transition-colors hover:bg-surface-muted',
+                      ratingsActive ? 'text-ink' : 'text-ink-muted hover:text-ink',
+                    )}
+                  >
+                    Рейтинги
+                    <ChevronDown
+                      aria-hidden="true"
+                      className={cn('h-4 w-4 transition-transform', expandedGroup === 'Рейтинги' && 'rotate-180')}
+                    />
+                  </button>
+                  <div className={cn('flex-col gap-0.5 pl-3', expandedGroup === 'Рейтинги' ? 'flex' : 'hidden')}>
+                    {RATING_LINKS.map((link) => (
+                      <Link key={link.to} to={link.to} className={rowLinkClass(link.to === pathname)}>
+                        {link.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <Link
+                  key={entry.to}
+                  to={entry.to}
+                  className={cn(
+                    'rounded-lg px-2 py-2 text-sm font-semibold transition-colors hover:bg-surface-muted',
+                    activeTop?.to === entry.to ? 'text-ink' : 'text-ink-muted hover:text-ink',
+                  )}
+                >
+                  {entry.label}
+                </Link>
+              ),
+            )}
           </div>
         </div>
       </div>
