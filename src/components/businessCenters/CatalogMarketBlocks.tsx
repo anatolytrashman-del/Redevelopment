@@ -116,7 +116,7 @@ export function MarketContextBlock({ metrics }: { metrics: ExternalMetric[] | nu
     <div className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
       <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
         <TrendingUp className="h-5 w-5 shrink-0 text-ink-muted" />
-        Что происходит на рынке офисов
+        Вакантность и ввод офисов в Минске
       </h2>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {cityVacancy && (

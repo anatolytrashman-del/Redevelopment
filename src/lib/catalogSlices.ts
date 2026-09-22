@@ -8,6 +8,7 @@ import {
   microdistrictHubUrl,
   streetHubUrl,
 } from './businessCenterHubs';
+import { METRO_LINE_DOT_CLASS, MINSK_METRO_LINES } from './businessCenterCatalogFilter';
 
 // Оси каталога БЦ (класс / район / микрорайон / метро / улица / статус) и
 // подсчёт зданий по каждой. Раньше это жило прямо в CatalogSlicesBlock.tsx,
@@ -100,6 +101,56 @@ export function metroSlices(centers: BusinessCenter[], order: 'alpha' | 'count' 
     .filter((s): s is CatalogSlice => s.url !== null);
 }
 
+// Нормализация имени станции для сравнения со схемой линий: тот же приём,
+// что и в фильтре каталога (CatalogFilterPanel.tsx, stationKey) — источники
+// расходятся в написании «Каменная Горка» / «Каменная горка».
+function metroStationKey(name: string): string {
+  return name.toLocaleLowerCase('ru').replaceAll('ё', 'е');
+}
+
+export type MetroLineGroup = {
+  id: string;
+  label: string;
+  /** null — станция вне трёх известных линий (сегодня таких нет, задел на будущее). */
+  dotClass: string | null;
+  stations: CatalogSlice[];
+};
+
+/**
+ * Станции метро, сгруппированные по ветке и в порядке схемы метро (владелец,
+ * 2026-09-22: «расположи в той последовательности, как на схеме метро, эта
+ * структура у нас в фильтрах») — та же карта MINSK_METRO_LINES, что и в
+ * CatalogFilterPanel, а не свой список: разошлись бы порядок и раскраска.
+ * Цветной кружок — один на ветку (в заголовке группы), не на каждую станцию.
+ */
+export function metroSlicesByLine(centers: BusinessCenter[]): MetroLineGroup[] {
+  const byKey = new Map(metroSlices(centers, 'alpha').map((s) => [metroStationKey(s.key), s]));
+  const used = new Set<string>();
+  const groups: MetroLineGroup[] = [];
+  for (const line of MINSK_METRO_LINES) {
+    const stations: CatalogSlice[] = [];
+    for (const name of line.stations) {
+      const key = metroStationKey(name);
+      const slice = byKey.get(key);
+      if (!slice) continue;
+      stations.push(slice);
+      used.add(key);
+    }
+    if (stations.length > 0) {
+      groups.push({ id: line.id, label: line.label, dotClass: METRO_LINE_DOT_CLASS[line.id] ?? null, stations });
+    }
+  }
+  // Станция вне трёх описанных линий — не должна пропасть молча, даже если
+  // сегодня таких нет: свой «прочий» хвост без кружка, не потерянный пункт меню.
+  const other = Array.from(byKey.entries())
+    .filter(([key]) => !used.has(key))
+    .map(([, slice]) => slice);
+  if (other.length > 0) {
+    groups.push({ id: 'other', label: 'Другие станции', dotClass: null, stations: other });
+  }
+  return groups;
+}
+
 /** Улицы — только те, у которых есть готовый slug (там, где 2+ здания). */
 export function streetSlices(centers: BusinessCenter[]): CatalogSlice[] {
   const counts = countBy(centers, (c) => streetOfAddress(c.address));
@@ -110,17 +161,21 @@ export function streetSlices(centers: BusinessCenter[]): CatalogSlice[] {
 }
 
 /**
- * Статус. Отдельного хаба «построенные» нет и заводить его не нужно: из 146
- * зданий каталога строятся 4, поэтому такая страница была бы почти точной
- * копией главной каталога (владелец не просил, дубль-контент). Ось состоит
- * из «весь каталог» и «строящиеся»; второй пункт скрывается, если строек в
- * базе не осталось.
+ * Тип здания (владелец, 2026-09-22: «Статус» → «Тип», порядок «Построенные,
+ * Строящиеся, Весь каталог»). Отдельного хаба «построенные» нет и заводить
+ * его не нужно: из 146 зданий каталога строятся 4, отдельная страница была
+ * бы почти точной копией главной каталога — «Построенные» ведёт на неё же
+ * с фильтром по статусу (`?status=built`, тот же фильтр каталога, что и
+ * галочка в боковой панели). «Строящиеся» скрывается, если строек в базе не
+ * осталось.
  */
 export function statusSlices(centers: BusinessCenter[]): CatalogSlice[] {
+  const built = centers.filter((c) => c.status === 'built').length;
   const underConstruction = centers.filter((c) => c.status === 'under_construction').length;
-  const slices: CatalogSlice[] = [
-    { key: 'all', label: 'Весь каталог', url: '/minsk/bcminsk', count: centers.length },
-  ];
+  const slices: CatalogSlice[] = [];
+  if (built > 0) {
+    slices.push({ key: 'built', label: 'Построенные', url: '/minsk/bcminsk?status=built', count: built });
+  }
   if (underConstruction > 0) {
     slices.push({
       key: 'under_construction',
@@ -129,6 +184,7 @@ export function statusSlices(centers: BusinessCenter[]): CatalogSlice[] {
       count: underConstruction,
     });
   }
+  slices.push({ key: 'all', label: 'Весь каталог', url: '/minsk/bcminsk', count: centers.length });
   return slices;
 }
 

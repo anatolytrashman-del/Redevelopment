@@ -682,7 +682,7 @@ export function MinskMirTopicPage() {
       <div className="border-b border-border py-5">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 sm:px-8">
           <Link to="/minsk" className="shrink-0 text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary-hover">RED</span>EVELOPMENT
+            <span className="font-black text-primary">RED</span>EVELOPMENT
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted sm:flex">
             <Link to={GUIDE_URL} className="whitespace-nowrap transition-colors hover:text-ink">
