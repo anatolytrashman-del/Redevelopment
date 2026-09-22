@@ -32,7 +32,13 @@ import {
   setNoIndex,
   clearNoIndex,
 } from '../lib/pageMeta';
-import { formatMetroDistance, shortAddress, shortName, streetOfAddress } from '../lib/businessCenterDisplay';
+import {
+  businessCenterPhotoSrc,
+  formatMetroDistance,
+  shortAddress,
+  shortName,
+  streetOfAddress,
+} from '../lib/businessCenterDisplay';
 import { nearestMetroStation } from '../lib/metroStations';
 import {
   CLASS_SLUG_TO_VALUE,
@@ -102,10 +108,35 @@ const INTRO_TEXT =
   'Сравнивайте бизнес-центры Минска по классу, площади и расположению — для инвестиций, аренды или покупки офиса.';
 
 // Тот же снимок «Футуриса» в исходном размере 1600×1067 (Domovita).
-// Источник: https://domovita.by/bc-bcfuturis — фото 4.
+// Источник: https://domovita.by/bc-bcfuturis — фото 4. Дефолт для голого
+// каталога (ни одной оси хаба) и для любого хаба, где ни у одного БЦ
+// подборки нет своего фото.
 const HERO_IMAGES: string[] = ['/images/business-centers-hero/futuris-1600.jpg'];
 const HERO_IMAGE_WIDTH = 1600;
 const HERO_IMAGE_HEIGHT = 1067;
+
+// Этап 1 (владелец, 2026-09-22): на хаб-странице подборки (метро/район/
+// класс/микрорайон/улица/стройка) hero-фото — снимок ЛУЧШЕГО БЦ этой
+// подборки, а не всегда один и тот же «Футурис» — раньше на «БЦ у метро
+// «Немига»» висело фото здания, которое к Немиге не имеет отношения.
+// «Лучший» — класс важнее рейтинга (B+ всегда выше B независимо от
+// отзывов), при равном классе выше рейтинг 2GIS, число отзывов —
+// последний тай-брейк. Кандидат без единого фото в `photos` не участвует —
+// заменить статичный снимок нечем.
+const HERO_CENTER_CLASS_RANK: Record<string, number> = { A: 4, 'B+': 3, B: 2, C: 1 };
+
+function pickHeroCenter(list: BusinessCenter[]): BusinessCenter | null {
+  const withPhoto = list.filter((c) => c.photos.length > 0);
+  if (withPhoto.length === 0) return null;
+  return [...withPhoto].sort((a, b) => {
+    const rankDiff =
+      (HERO_CENTER_CLASS_RANK[b.businessClass ?? ''] ?? 0) - (HERO_CENTER_CLASS_RANK[a.businessClass ?? ''] ?? 0);
+    if (rankDiff !== 0) return rankDiff;
+    const ratingDiff = (b.gisRating ?? 0) - (a.gisRating ?? 0);
+    if (ratingDiff !== 0) return ratingDiff;
+    return (b.gisReviewCount ?? 0) - (a.gisReviewCount ?? 0);
+  })[0];
+}
 
 // Карта каталога и переключатель вида сняты с первого экрана 2026-09-17:
 // владелец оставил единый карточный режим и компактные фильтры в сайдбаре.
@@ -531,6 +562,25 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     return sortCatalogCenters(visibleCenters, filter.sort, offerIndex);
   }, [visibleCenters, metroFilter, filter.sort, offerIndex]);
 
+  // Подборка для hero-фото — та же "вселенная" маршрута (routeScoped), что
+  // и у счётчиков на чипах фильтра, плюс класс/район из самого ПУТИ (не из
+  // query-фильтра — ручные фильтры посетителя не должны менять фото шапки).
+  const hubCenters = useMemo(
+    () =>
+      routeScoped.filter(
+        (c) =>
+          (classFilter === null || c.businessClass === classFilter) &&
+          (districtFilter === null || c.district === districtFilter),
+      ),
+    [routeScoped, classFilter, districtFilter],
+  );
+  // На голом каталоге (ни одной оси хаба) подборки нет — там дефолтный
+  // снимок Футуриса, как и раньше.
+  const hasHubAxis = Boolean(
+    classFilter || districtFilter || microdistrictFilter || metroFilter || streetFilter || underConstruction,
+  );
+  const heroCenter = useMemo(() => (hasHubAxis ? pickHeroCenter(hubCenters) : null), [hasHubAxis, hubCenters]);
+
   // Классы и районы для чипов — весь набор, встречающийся в данных (не
   // урезанный по другой оси, как было у старого сайдбара): вместо того
   // чтобы прятать варианты, чип показывает живой счётчик и гаснет на нуле.
@@ -876,6 +926,11 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           // Подзаголовок статичный всегда, независимо от состояния загрузки.
           : INTRO_TEXT;
 
+  const heroImages = heroCenter ? [businessCenterPhotoSrc(heroCenter.photos[0], 'detail')] : HERO_IMAGES;
+  const heroImageWidth = heroCenter ? 1200 : HERO_IMAGE_WIDTH;
+  const heroImageHeight = heroCenter ? 675 : HERO_IMAGE_HEIGHT;
+  const heroImageAlt = heroCenter ? heroCenter.name : 'Бизнес-центры Минска';
+
   return (
     <div className="min-h-svh bg-bg">
       {/* Шапка — общий для всего каталога CatalogTopNav (владелец,
@@ -948,13 +1003,13 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                   процентной высоты вложенной картинки в Safari. */}
               <div className="relative w-full pt-[56.25%] sm:pt-[125%]">
                 <div className="absolute inset-0">
-                  {HERO_IMAGES.length > 0 ? (
+                  {heroImages.length > 0 ? (
                     <HeroImageSlider
-                      images={HERO_IMAGES}
-                      alt="Бизнес-центры Минска"
+                      images={heroImages}
+                      alt={heroImageAlt}
                       aspectClassName="h-full"
-                      imageWidth={HERO_IMAGE_WIDTH}
-                      imageHeight={HERO_IMAGE_HEIGHT}
+                      imageWidth={heroImageWidth}
+                      imageHeight={heroImageHeight}
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center rounded-3xl bg-gradient-to-br from-surface-muted to-border">
