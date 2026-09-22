@@ -222,6 +222,19 @@ describe('sortCatalogCenters', () => {
     ];
     expect(sortCatalogCenters(list, 'default', offers).map((c) => c.slug)).toEqual(['a-4.8', 'a-4.2', 'a-no-rating']);
   });
+
+  it('по умолчанию — «Аден» всегда последний в классе A, даже с максимальным рейтингом (владелец, 2026-09-22)', () => {
+    const list = [
+      bc({ slug: 'a-4.2', businessClass: 'A', highlights: withYandexRating('4,2'), sortOrder: 1 }),
+      bc({ slug: 'aden', businessClass: 'A', highlights: withYandexRating('5,0'), sortOrder: 2 }),
+      bc({ slug: 'a-no-rating', businessClass: 'A', sortOrder: 3 }),
+    ];
+    expect(sortCatalogCenters(list, 'default', offers).map((c) => c.slug)).toEqual([
+      'a-4.2',
+      'a-no-rating',
+      'aden',
+    ]);
+  });
 });
 
 describe('фильтр по размеру лота (К13)', () => {
