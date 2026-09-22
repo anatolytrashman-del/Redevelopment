@@ -31,10 +31,13 @@
 //        — одно здание, для первой проверки;
 //   node scripts/capture-yandex-reviews.mjs --missing-only --write-db
 //        — весь каталог зданий без ЛЮБОГО текстового отзыва с Яндекса
-//          (можно прерывать и запускать снова — уже собранные пропускаются).
+//          (можно прерывать и запускать снова — уже собранные пропускаются);
+//   node scripts/capture-yandex-reviews.mjs --missing-only --classes A,B,B+ --limit 10 --write-db
+//        — пачками по 10, только классы A/Б/Б+ (владелец, 2026-09-22: класс C
+//          и ниже — отдельно, не сейчас).
 //
-// Флаги: --limit N, --slug SLUG, --missing-only, --skip-collected,
-// --max-age-days 45, --output DIR, --profile DIR.
+// Флаги: --limit N, --slug SLUG, --missing-only, --classes A,B,B+,
+// --skip-collected, --max-age-days 45, --output DIR, --profile DIR.
 //
 // Переменные окружения: SUPABASE_SERVICE_ROLE_KEY или SUPABASE_ACCESS_TOKEN
 // (для --write-db и --skip-collected/--missing-only), CHROME_PATH,
@@ -62,6 +65,10 @@ const writeDb = has('--write-db');
 const listOnly = has('--list');
 const skipCollected = has('--skip-collected');
 const missingOnly = has('--missing-only');
+// Владелец, 2026-09-22: сначала добить класс A/B/B+, класс C — потом (у него
+// меньше трафика и цены сделки, отзывы там не так критичны). business_class
+// в базе — латиница ('A','B','B+','C'), сравнение регистронезависимое.
+const classesFilter = (valueOf('--classes') ?? '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
 const outputRoot = path.resolve(valueOf('--output') ?? 'tmp/yandex-bc-reviews');
 // Тот же профиль, что у сбора организаций и инфраструктуры — в нём уже
 // лежат куки Яндекса, а значит CAPTCHA спрашивают реже. НЕ запускать
@@ -237,18 +244,24 @@ async function writeReviews({ supabase, slug, reviews, capturedAt }) {
 }
 
 async function latestCapturedAt() {
-  if (serviceRoleKey) {
-    const client = createClient(SUPABASE_URL, serviceRoleKey);
-    const { data, error } = await client
-      .from('business_center_review_snapshots')
-      .select('business_center_slug,captured_at')
-      .eq('source', 'yandex_maps')
-      .range(0, 9999);
-    if (error) throw error;
+  if (supabase) {
+    // PostgREST отдаёт максимум 1000 строк за запрос — .range(0, N) с
+    // большим N этот потолок не обходит, нужна постраничная выборка (см.
+    // тот же комментарий у selectAllPages в nearby-places-common.mjs).
+    const pageSize = 1000;
     const latest = new Map();
-    for (const row of data ?? []) {
-      const current = latest.get(row.business_center_slug);
-      if (!current || new Date(row.captured_at) > new Date(current)) latest.set(row.business_center_slug, row.captured_at);
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase
+        .from('business_center_review_snapshots')
+        .select('business_center_slug,captured_at')
+        .eq('source', 'yandex_maps')
+        .range(offset, offset + pageSize - 1);
+      if (error) throw error;
+      for (const row of data ?? []) {
+        const current = latest.get(row.business_center_slug);
+        if (!current || new Date(row.captured_at) > new Date(current)) latest.set(row.business_center_slug, row.captured_at);
+      }
+      if (!data || data.length < pageSize) break;
     }
     return latest;
   }
@@ -265,10 +278,11 @@ async function catalogEntries() {
   const client = createClient(SUPABASE_URL, anonKey);
   let query = client
     .from('business_centers')
-    .select('slug,name,address,status,sort_order')
+    .select('slug,name,address,status,sort_order,business_class')
     .eq('status', 'built')
     .order('sort_order', { ascending: true });
   if (onlySlug) query = query.eq('slug', onlySlug);
+  if (classesFilter.length > 0) query = query.in('business_class', classesFilter);
   const { data, error } = await query;
   if (error) throw error;
   let centers = data ?? [];
