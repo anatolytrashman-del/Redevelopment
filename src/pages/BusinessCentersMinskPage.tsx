@@ -22,6 +22,7 @@ import { CatalogCompare } from '../components/businessCenters/CatalogCompare';
 import { CatalogSlicesBlock } from '../components/businessCenters/CatalogSlicesBlock';
 import { FavoriteButton } from '../components/businessCenters/FavoriteButton';
 import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrademarkNote';
+import { FaqAccordion } from '../components/ui/FaqAccordion';
 import { useFavorites } from '../lib/favoritesContext';
 import {
   setArticleJsonLd,
@@ -1190,19 +1191,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               </Link>
             )}
 
-            {faqItems.length > 0 && (
-              <div id="faq" className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-                <h2 className="text-lg font-bold text-ink">Частые вопросы</h2>
-                <div className="flex flex-col divide-y divide-border">
-                  {faqItems.map((item) => (
-                    <div key={item.question} className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
-                      <p className="text-sm font-semibold text-ink">{item.question}</p>
-                      <p className="text-sm leading-relaxed text-ink-muted">{item.answer}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {faqItems.length > 0 && <FaqAccordion title="Частые вопросы" items={faqItems} id="faq" />}
             <div className={cn('flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
               <h2 className="text-lg font-bold text-ink">Источники</h2>
               {/* Владелец, 2026-09-22: один короткий дисклеймер без дат
