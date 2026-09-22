@@ -737,9 +737,30 @@ export function BusinessCenterDetailPage() {
           // highlights не почистили тогда же — владелец, 2026-09-21:
           // "media - убираем, у нас есть блок СМИ".
           h.icon !== 'media' &&
+          // 'design'/'eco' — переехали в «Параметры здания» тем же днём
+          // (см. buildingParamHighlights ниже): владелец про архитектуру/
+          // инженерию/эко-сертификацию и физические остатки прежних
+          // "Интересных фактов" — "все переноси в блок про здание,
+          // Параметры здания". "Интересные факты" остаются для историй,
+          // курьёзов, дизамбигуаций и позиционирования — не про параметры
+          // самого здания, а про контекст вокруг него.
+          h.icon !== 'design' &&
+          h.icon !== 'eco' &&
           (h.icon !== 'tenants' || tenantOrganizations.length === 0),
       ) ?? [],
     [center, tenantOrganizations],
+  );
+
+  // См. комментарий у visibleHighlights выше — design/eco описывают САМО
+  // здание (архитектура, конструкция, инженерия, экосертификация), поэтому
+  // рендерятся строками в «Параметрах здания», а не в «Интересных фактах».
+  // Markdown в тексте (**bold**, буллеты) тот же, что у highlights в
+  // "Интересных фактах" — используем тот же LabeledTextRow/renderRentalText,
+  // а не голый текст таблицы technicalParams/buildingFacts (те не
+  // markdown-совместимы, там значения короткие "число + единица").
+  const buildingParamHighlights = useMemo(
+    () => center?.highlights.filter((h) => h.icon === 'design' || h.icon === 'eco') ?? [],
+    [center],
   );
 
   // Публикации в СМИ — свой блок (владелец, 2026-09-20). Сортируем от свежих:
@@ -1238,6 +1259,12 @@ export function BusinessCenterDetailPage() {
         center.buildingFacts.map((fact) => `${fact.label}: ${fact.value} (по данным ${fact.source})`).join('; '),
       );
     }
+    if (buildingParamHighlights.length) {
+      add(
+        `Какие архитектурные и инженерные особенности у «${name}»?`,
+        buildingParamHighlights.map((h) => [h.label, h.text].filter(Boolean).join(': ')).join('\n'),
+      );
+    }
     // "Что внутри" и "что кроме офисов" читали одни и те же категории по
     // разным спискам — на "Альянс" банкомат называли дважды. Теперь одна
     // строка: производный текст (ручной ввод + категории от арендаторов),
@@ -1397,6 +1424,7 @@ export function BusinessCenterDetailPage() {
         'tech',
         redistributedTechnicalParams.buildingInformationRows.length > 0 ||
           center.buildingFacts.length > 0 ||
+          buildingParamHighlights.length > 0 ||
           Boolean(center.parking || accessHoursText || accessibilityAttributes),
       ),
       // Карта есть у любого БЦ с координатами — с 2026-09-20 блок рисуется
@@ -1426,6 +1454,7 @@ export function BusinessCenterDetailPage() {
     rentStats,
     awardItems,
     visibleHighlights,
+    buildingParamHighlights,
     mediaMentions,
     tenantOrganizations,
     faqItems,
@@ -1464,6 +1493,7 @@ export function BusinessCenterDetailPage() {
           return (
             redistributedTechnicalParams.buildingInformationRows.length +
             center.buildingFacts.length +
+            buildingParamHighlights.length +
             (center.parking ? 1 : 0) +
             (accessHoursText ? 1 : 0) +
             (accessibilityAttributes ? 1 : 0)
@@ -1512,6 +1542,7 @@ export function BusinessCenterDetailPage() {
     awardItems,
     mediaMentions,
     visibleHighlights,
+    buildingParamHighlights,
     faqItems,
   ]);
 
@@ -2112,6 +2143,21 @@ export function BusinessCenterDetailPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+          {/* Архитектура/инженерия/эко-сертификация — переехали сюда из
+              "Интересных фактов" 2026-09-21 (владелец: "все переноси в блок
+              про здание, Параметры здания"). Раньше рисовались строкой
+              LabeledTextRow в карточке "Интересные факты" — здесь тот же
+              компонент и та же markdown-разметка (**bold**, буллеты), просто
+              своим списком под таблицей: значения таблицы выше короткие
+              ("11 этажей"), а тут — абзацы, смешивать в одну table-строку
+              нельзя. */}
+          {buildingParamHighlights.length > 0 && (
+            <div className="flex flex-col divide-y divide-border">
+              {buildingParamHighlights.map((s, i) => (
+                <LabeledTextRow key={i} icon={HIGHLIGHT_ICONS[s.icon]} label={s.label} text={s.text} />
+              ))}
             </div>
           )}
         </div>
