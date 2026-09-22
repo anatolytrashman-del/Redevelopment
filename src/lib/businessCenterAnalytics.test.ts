@@ -9,6 +9,7 @@ import {
   buildPriceDrivers,
   buildVintageCohorts,
   buildBuildingSupply,
+  fmtYears,
   paybackYears,
 } from './businessCenterAnalytics';
 
@@ -246,5 +247,18 @@ describe('buildLotBuckets и buildBuildingSupply', () => {
     expect(buildBuildingSupply(city).map((b) => b.center.slug).sort()).toEqual(['a', 'b']);
     expect(buildBuildingSupply(city, 3).map((b) => b.center.slug)).toEqual(['a']);
     expect(buildBuildingSupply(city, 3)[0]).toMatchObject({ lots: 3, area: 760, median: 14 });
+  });
+});
+
+describe('fmtYears', () => {
+  it('дробное число всегда в родительном падеже', () => {
+    expect(fmtYears(8.9)).toBe('8,9 года');
+    expect(fmtYears(11.54)).toBe('11,5 года');
+  });
+
+  it('целые склоняются как обычно', () => {
+    expect(fmtYears(8)).toBe('8 лет');
+    expect(fmtYears(21)).toBe('21 года');
+    expect(fmtYears(11)).toBe('11 лет');
   });
 });
