@@ -331,8 +331,12 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // улица/стройка): market_snapshots не хранит срез по пересечению класс×
   // район, показывать его для комбо значило бы либо молчать, либо
   // выдумывать — оставляем блок только там, где реальный срез есть.
-  const rateSliceKey = classFilter && !districtFilter ? classFilter : !classFilter && districtFilter ? districtFilter : classFilter || districtFilter ? null : 'all';
-  const rateSliceType: MarketSnapshot['sliceType'] | null = classFilter && !districtFilter ? 'class' : !classFilter && districtFilter ? 'district' : classFilter || districtFilter ? null : 'city';
+  // Городской срез (ни класс, ни район не выбраны) сюда больше не попадает
+  // (владелец, 2026-09-22) — те же цифры уже на /minsk/bcminsk/analytics,
+  // на голом каталоге это было тем же дублем, что и остальные блоки разбора
+  // рынка (см. тизер «Аналитика каталога БЦ» ниже).
+  const rateSliceKey = classFilter && !districtFilter ? classFilter : !classFilter && districtFilter ? districtFilter : null;
+  const rateSliceType: MarketSnapshot['sliceType'] | null = classFilter && !districtFilter ? 'class' : !classFilter && districtFilter ? 'district' : null;
   const showRatesBlock =
     !underConstruction && !metroFilter && !streetFilter && !microdistrictFilter && rateSliceKey !== null && rateSliceType !== null;
   const rateRent = useMemo(
@@ -794,7 +798,11 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     [districtTotals],
   );
 
-  const showCatalogSeoText = !classFilter && !districtFilter && !microdistrictFilter && !underConstruction && !metroFilter && !streetFilter && centers !== null && centers.length > 0;
+  // Ни одна ось не выбрана — голый каталог (то, что раньше называли
+  // "главной"). Не зависит от того, пришли ли уже centers — доступно сразу
+  // из useParams(), в отличие от showCatalogSeoText ниже.
+  const isCatalogRoot = !classFilter && !districtFilter && !microdistrictFilter && !underConstruction && !metroFilter && !streetFilter;
+  const showCatalogSeoText = isCatalogRoot && centers !== null && centers.length > 0;
 
   const rentMethodology = summary.rentMedian != null
     ? `Медиана аренды — $${summary.rentMedian}/м² в месяц, по ${summary.rentBuildings} зданиям текущей выборки с объявлениями. Сначала берётся медиана ставки объявлений каждого здания, затем медиана этих значений; при чётном числе — среднее двух центральных. Площадь здания не служит весом.`
@@ -1068,66 +1076,76 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             </div>
           )}
 
-            {/* Пока данные не пришли — та же карточка с невидимыми плитками
-                той же формы (PAGESPEED_PLAN.md, Э9): страница приходит
-                пререндер-снапшотом с готовой сводкой, React после
-                монтирования на ~полсекунды остаётся без данных, и без
-                заглушки блок исчезал целиком — карта и всё ниже прыгали
-                вверх, потом обратно. На десктопе карта в первом экране →
-                CLS 0,104 (третий пункт Agentic Browsing в PageSpeed), на
-                мобильном она ниже сгиба → 0. Число плиток — как у реальной
-                сводки: 4 общих (+4 по классам вне хаба класса). */}
-            {centers === null ? (
-              <div className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow} aria-hidden="true">
-                <h2 className="text-lg font-bold text-ink">Рынок в цифрах</h2>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {[
-                    'Всего бизнес-центров',
-                    'Суммарная площадь (по 000 из 000)',
-                    'Строится',
-                    'До 800 м по прямой от метро',
-                    ...(classFilter ? [] : ['Класса A', 'Класса B+', 'Класса B', 'Класса C']),
-                  ].map((label) => (
-                    <div key={label} className="invisible">
-                      <FactTile icon={Building2} value="0" label={label} />
+            {/* На голом каталоге (без класса/района/метро/улицы/микрорайона/
+                стройки) блок убран (владелец, 2026-09-22) — это ровно те же
+                городские цифры, что теперь на /minsk/bcminsk/analytics, было
+                дублем. На хаб-страницах остаётся: там сводка каждый раз
+                другая (класс, район, метро, улица, микрорайон, стройка —
+                свой срез, не повтор). */}
+            {!isCatalogRoot && (
+              <>
+                {/* Пока данные не пришли — та же карточка с невидимыми плитками
+                    той же формы (PAGESPEED_PLAN.md, Э9): страница приходит
+                    пререндер-снапшотом с готовой сводкой, React после
+                    монтирования на ~полсекунды остаётся без данных, и без
+                    заглушки блок исчезал целиком — карта и всё ниже прыгали
+                    вверх, потом обратно. На десктопе карта в первом экране →
+                    CLS 0,104 (третий пункт Agentic Browsing в PageSpeed), на
+                    мобильном она ниже сгиба → 0. Число плиток — как у реальной
+                    сводки: 4 общих (+4 по классам вне хаба класса). */}
+                {centers === null ? (
+                  <div className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow} aria-hidden="true">
+                    <h2 className="text-lg font-bold text-ink">Рынок в цифрах</h2>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      {[
+                        'Всего бизнес-центров',
+                        'Суммарная площадь (по 000 из 000)',
+                        'Строится',
+                        'До 800 м по прямой от метро',
+                        ...(classFilter ? [] : ['Класса A', 'Класса B+', 'Класса B', 'Класса C']),
+                      ].map((label) => (
+                        <div key={label} className="invisible">
+                          <FactTile icon={Building2} value="0" label={label} />
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            ) : marketStats.total > 0 && (
-              <div className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-                <h2 className="text-lg font-bold text-ink">Рынок в цифрах</h2>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <FactTile icon={Building2} value={marketStats.total} label="Всего бизнес-центров" />
-                  {marketStats.withAreaCount > 0 && (
-                    <FactTile
-                      icon={Ruler}
-                      value={`${Math.round(marketStats.totalArea).toLocaleString('ru-RU')} м²`}
-                      label={`Суммарная площадь (по ${marketStats.withAreaCount} из ${marketStats.total})`}
-                    />
-                  )}
-                  {marketStats.underConstruction > 0 && (
-                    <FactTile icon={HardHat} value={marketStats.underConstruction} label="Строится" />
-                  )}
-                  {marketStats.withMetroCount > 0 && (
-                    <FactTile
-                      icon={TrainFront}
-                      value={`${marketStats.nearMetro} из ${marketStats.withMetroCount}`}
-                      label="До 800 м по прямой от метро"
-                    />
-                  )}
-                  {/* Разбивка по классам — только когда сама сводка не по
-                      одному классу (на хаб-странице класса это было бы
-                      избыточно: все плитки, кроме одной, показали бы 0). */}
-                  {!classFilter &&
-                    (['A', 'B+', 'B', 'C'] as const).map(
-                      (cls) =>
-                        marketStats.byClass[cls] > 0 && (
-                          <FactTile key={cls} icon={Award} value={marketStats.byClass[cls]} label={`Класса ${cls}`} />
-                        ),
-                    )}
-                </div>
-              </div>
+                  </div>
+                ) : marketStats.total > 0 && (
+                  <div className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+                    <h2 className="text-lg font-bold text-ink">Рынок в цифрах</h2>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <FactTile icon={Building2} value={marketStats.total} label="Всего бизнес-центров" />
+                      {marketStats.withAreaCount > 0 && (
+                        <FactTile
+                          icon={Ruler}
+                          value={`${Math.round(marketStats.totalArea).toLocaleString('ru-RU')} м²`}
+                          label={`Суммарная площадь (по ${marketStats.withAreaCount} из ${marketStats.total})`}
+                        />
+                      )}
+                      {marketStats.underConstruction > 0 && (
+                        <FactTile icon={HardHat} value={marketStats.underConstruction} label="Строится" />
+                      )}
+                      {marketStats.withMetroCount > 0 && (
+                        <FactTile
+                          icon={TrainFront}
+                          value={`${marketStats.nearMetro} из ${marketStats.withMetroCount}`}
+                          label="До 800 м по прямой от метро"
+                        />
+                      )}
+                      {/* Разбивка по классам — только когда сама сводка не по
+                          одному классу (на хаб-странице класса это было бы
+                          избыточно: все плитки, кроме одной, показали бы 0). */}
+                      {!classFilter &&
+                        (['A', 'B+', 'B', 'C'] as const).map(
+                          (cls) =>
+                            marketStats.byClass[cls] > 0 && (
+                              <FactTile key={cls} icon={Award} value={marketStats.byClass[cls]} label={`Класса ${cls}`} />
+                            ),
+                        )}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {/* Сводка ставок (ANALYTICSPLAN.md §4.2) — только там, где для
@@ -1140,7 +1158,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               <div className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
                 <h2 className="text-lg font-bold text-ink">Ставки аренды и продажи</h2>
                 <p className="text-xs text-ink-faint">
-                  Медиана по объявлениям Kufar, Realt, Domovita и Megapolis{rateSliceType === 'class' ? ` для класса ${rateSliceKey}` : rateSliceType === 'district' ? ` в ${districtPrepositional(rateSliceKey ?? '')} районе` : ' по Минску'}
+                  Медиана по объявлениям Kufar, Realt, Domovita и Megapolis{rateSliceType === 'class' ? ` для класса ${rateSliceKey}` : ` в ${districtPrepositional(rateSliceKey ?? '')} районе`}
                   {rateRent?.period ? `, ${rateRent.period.slice(0, 7)}` : ''}.
                 </p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, BarChart3, DollarSign } from 'lucide-react';
+import { ArrowRight, Award, BarChart3, Building2, DollarSign, HardHat, Ruler, TrainFront } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd } from '../lib/pageMeta';
@@ -9,7 +9,7 @@ import { fetchExternalMetrics, fetchLatestMarketSnapshots } from '../lib/marketS
 import { fetchBusinessCenterLotSizes } from '../lib/businessCenterOffersApi';
 import type { BusinessCenter } from '../data/businessCenters';
 import { SOURCE_LABELS, MIN_RELIABLE_N, type ExternalMetric, type MarketSnapshot } from '../data/marketSnapshots';
-import { EMPTY_CATALOG_FILTER, buildOfferIndex, catalogFilterToQuery } from '../lib/businessCenterCatalogFilter';
+import { EMPTY_CATALOG_FILTER, buildOfferIndex, catalogFilterToQuery, nearestMetroMeters } from '../lib/businessCenterCatalogFilter';
 import { districtHubUrl } from '../lib/businessCenterHubs';
 import { FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import {
@@ -99,6 +99,29 @@ export function BusinessCentersAnalyticsPage() {
     const counts: Record<string, number> = {};
     for (const c of centers ?? []) if (c.district) counts[c.district] = (counts[c.district] ?? 0) + 1;
     return counts;
+  }, [centers]);
+
+  // «Рынок в цифрах» — весь каталог, без фильтра (владелец, 2026-09-22:
+  // этот блок и «Ставки аренды и продажи» на самом каталоге показывали ровно
+  // те же городские цифры, что и здесь — переехали сюда вместе).
+  const marketStats = useMemo(() => {
+    if (!centers) return null;
+    const withArea = centers.filter((c) => c.totalArea != null);
+    const totalArea = withArea.reduce((sum, c) => sum + (c.totalArea ?? 0), 0);
+    const withMetro = centers.filter((c) => nearestMetroMeters(c) != null);
+    const nearMetro = withMetro.filter((c) => nearestMetroMeters(c)! <= 800);
+    const underConstruction = centers.filter((c) => c.status === 'under_construction').length;
+    const byClass: Record<string, number> = {};
+    for (const c of centers) if (c.businessClass) byClass[c.businessClass] = (byClass[c.businessClass] ?? 0) + 1;
+    return {
+      total: centers.length,
+      totalArea,
+      withAreaCount: withArea.length,
+      nearMetro: nearMetro.length,
+      withMetroCount: withMetro.length,
+      underConstruction,
+      byClass,
+    };
   }, [centers]);
 
   const faqItems = useMemo(() => {
@@ -233,6 +256,38 @@ export function BusinessCentersAnalyticsPage() {
 
         {centers !== null && centers.length > 0 && (
           <>
+            {marketStats && marketStats.total > 0 && (
+              <div className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+                <h2 className="text-lg font-bold text-ink">Рынок в цифрах</h2>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <FactTile icon={Building2} value={marketStats.total} label="Всего бизнес-центров" />
+                  {marketStats.withAreaCount > 0 && (
+                    <FactTile
+                      icon={Ruler}
+                      value={`${Math.round(marketStats.totalArea).toLocaleString('ru-RU')} м²`}
+                      label={`Суммарная площадь (по ${marketStats.withAreaCount} из ${marketStats.total})`}
+                    />
+                  )}
+                  {marketStats.underConstruction > 0 && (
+                    <FactTile icon={HardHat} value={marketStats.underConstruction} label="Строится" />
+                  )}
+                  {marketStats.withMetroCount > 0 && (
+                    <FactTile
+                      icon={TrainFront}
+                      value={`${marketStats.nearMetro} из ${marketStats.withMetroCount}`}
+                      label="До 800 м по прямой от метро"
+                    />
+                  )}
+                  {(['A', 'B+', 'B', 'C'] as const).map(
+                    (cls) =>
+                      marketStats.byClass[cls] > 0 && (
+                        <FactTile key={cls} icon={Award} value={marketStats.byClass[cls]} label={`Класса ${cls}`} />
+                      ),
+                  )}
+                </div>
+              </div>
+            )}
+
             {(rateRent?.median != null || rateSale?.median != null) && (
               <div className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
                 <h2 className="text-lg font-bold text-ink">Ставки аренды и продажи</h2>
