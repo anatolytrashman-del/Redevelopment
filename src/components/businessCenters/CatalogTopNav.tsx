@@ -44,6 +44,18 @@ export type CatalogTopNavProps = {
   width?: string;
   /** Второй ряд внутри той же sticky-шапки (на карточке БЦ — оглавление). */
   secondRow?: ReactNode;
+  /**
+   * Доп. отступ пунктов меню от логотипа — уже готовый responsive-класс
+   * margin-left (например `"lg:ml-16"`), а не число: точное значение и
+   * брейкпоинт зависят от разметки СТРАНИЦЫ (ширина её левой колонки и её
+   * же брейкпоинт появления), которую CatalogTopNav не видит и видеть не
+   * должен. Владелец, 2026-09-22, показал скриншот с красной линией:
+   * начало пунктов меню должно совпадать не с концом логотипа, а с началом
+   * блока СПРАВА от бокового меню страницы (там, где у каталога начинается
+   * колонка с карточками, у карточки здания — сама карточка после
+   * оглавления). Без пропа — пункты стоят сразу за логотипом (страницы без
+   * бокового меню, где эта точка и так совпадает с концом логотипа). */
+  navOffsetClassName?: string;
 };
 
 type TopNavEntry = { kind: 'link'; to: string; label: string } | { kind: 'ratings' };
@@ -157,7 +169,7 @@ function RatingsDropdown({ pathname }: { pathname: string }) {
   );
 }
 
-export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: CatalogTopNavProps) {
+export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffsetClassName }: CatalogTopNavProps) {
   const [open, setOpen] = useState(false);
   // Ниже md панель — единственный способ навигации, и все четыре оси подряд
   // дают экран на ~50 пунктов. Поэтому там группы свёрнуты (раскрыта одна,
@@ -235,20 +247,24 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
       ref={rootRef}
       className="sticky top-0 z-40 border-b border-border bg-bg/90 backdrop-blur-md"
     >
-      {/* Пункты меню стоят сразу за логотипом, а не у правого края
-          (владелец, 2026-09-22: «меню переносим в левый край страницы»,
-          «оно на главной прижато к правому краю, а должно быть слева») —
-          та же раскладка, что и на mts.ru, с которого владелец начал
-          разговор о меню: логотип, сразу за ним разделы, справа пусто.
-          Ниже md в шапке остаётся только бургер, и он по-прежнему
-          прижимается к правому краю (justify-between), иначе прилипнет к
-          логотипу и промахнуться по нему пальцем станет легко. */}
-      <div className={cn('mx-auto flex items-center justify-between gap-3 px-4 py-4 sm:px-8 md:justify-start md:gap-10', width)}>
+      {/* Пункты меню стоят слева, а не у правого края (владелец,
+          2026-09-22: «меню переносим в левый край страницы»). По умолчанию
+          сразу за логотипом (md:ml-10 — та же раскладка, что и на mts.ru:
+          логотип, сразу за ним разделы, справа пусто), а на страницах с
+          собственной левой колонкой (боковой список фильтров у каталога,
+          оглавление у карточки здания) — ровно там, где начинается блок
+          справа от неё: `navOffsetClassName` добавляет более специфичный
+          responsive margin-left, который на своём брейкпоинте перебивает
+          md:ml-10 обычным порядком каскада (правило для более широкого
+          брейкпоинта идёт в стилях позже). Ниже md в шапке остаётся только
+          бургер, и он прижимается к правому краю (justify-between), иначе
+          прилипнет к логотипу и промахнуться по нему станет легко. */}
+      <div className={cn('mx-auto flex items-center justify-between px-4 py-4 sm:px-8 md:justify-start', width)}>
         <Link to="/minsk" className="shrink-0 text-lg font-extrabold tracking-wide text-ink">
           <span className="font-black text-primary">RED</span>EVELOPMENT
         </Link>
 
-        <nav aria-label="Разделы каталога" className="flex items-center gap-1">
+        <nav aria-label="Разделы каталога" className={cn('flex items-center gap-1 md:ml-10', navOffsetClassName)}>
           <button
             type="button"
             aria-expanded={open}
