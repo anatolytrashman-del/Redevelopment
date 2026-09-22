@@ -216,7 +216,7 @@ export function BusinessCentersAnalyticsPage() {
             <Link to="/minsk/bcminsk" className="whitespace-nowrap transition-colors hover:text-ink">
               Каталог
             </Link>
-            <Link to="/minsk/bcminsk/reyting" className="whitespace-nowrap transition-colors hover:text-ink">
+            <Link to="/minsk/bcminsk/rating" className="whitespace-nowrap transition-colors hover:text-ink">
               Рейтинг
             </Link>
           </nav>
@@ -339,7 +339,7 @@ export function BusinessCentersAnalyticsPage() {
               </Link>
             </li>
             <li>
-              <Link to="/minsk/bcminsk/reyting" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+              <Link to="/minsk/bcminsk/rating" className="flex items-center gap-2 text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Рейтинг лучших бизнес-центров
               </Link>

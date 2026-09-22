@@ -1282,7 +1282,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
               <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
             </Link>
             <Link
-              to="/minsk/bcminsk/reyting"
+              to="/minsk/bcminsk/rating"
               className={cn('flex items-center justify-between gap-2 p-4 transition-colors hover:border-primary/40', glassCardClass)}
               style={glassCardShadow}
             >
