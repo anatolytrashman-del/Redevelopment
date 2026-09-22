@@ -59,6 +59,7 @@ import {
 } from '../lib/pageMeta';
 import {
   businessCenterHomepageUrl,
+  fullName,
   shortAddress,
   shortName,
   sortByShortName,
@@ -1625,7 +1626,7 @@ export function BusinessCenterDetailPage() {
     // (инфраструктура внутри, доступная среда, круглосуточный доступ) — не
     // выдумываем список, которого нет в данных.
     setPlaceJsonLd({
-      name: center.name,
+      name: fullName(center),
       altNames: center.altNames,
       url: `https://redevelopment.pro/minsk/bcminsk/${center.slug}`,
       address: center.address,
@@ -1864,7 +1865,7 @@ export function BusinessCenterDetailPage() {
                   основным именем, и человек, пришедший по такому запросу,
                   должен увидеть знакомое слово на первом экране, иначе
                   решит, что попал не туда. */}
-              <h1 className="text-2xl font-extrabold leading-tight text-ink">{center.name}</h1>
+              <h1 className="text-2xl font-extrabold leading-tight text-ink">{fullName(center)}</h1>
               {center.altNames.length > 0 && (
                 <p className="text-sm text-ink-muted">
                   Также известен как {center.altNames.map((alt) => `«${alt}»`).join(', ')}
