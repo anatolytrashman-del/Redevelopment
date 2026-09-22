@@ -86,6 +86,7 @@ import {
 } from '../lib/businessCenterHubs';
 import type { BusinessCenter, HighlightIconKey } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
+import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import type { BusinessCenterNearbyPlace, NearbyPlaceCategory } from '../data/businessCenterNearbyPlaces';
 import { fetchBusinessCenterNearbyPlaces } from '../lib/businessCenterNearbyPlacesApi';
 import { formatMeters, groupNearbyPlaces, hasNearbyContent, mergeMetroStations } from '../lib/nearbyPlaces';
@@ -1799,46 +1800,56 @@ export function BusinessCenterDetailPage() {
     }
   }
   return (
-    <div className="min-h-svh bg-bg px-4 py-5 sm:py-8">
-      <div className="sticky top-0 z-30 -mx-4 mb-4 border-b border-border bg-bg/90 px-4 py-3 backdrop-blur-md xl:hidden">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-        <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
-          <span className="font-black text-primary">RED</span>EVELOPMENT
-        </Link>
-        {/* Владелец, 2026-09-06: "крестик плохо подходит, он как будто про
-            закрытие, но те, кто придёт на эту страницу из поиска, ещё не
-            видел главную страницу" — крестик подразумевает "закрыть уже
-            открытое", а для гостя из поисковика это первая страница сайта
-            вообще, тут нужна навигация "назад к списку", не закрытие.
-            Плюс "должно выглядеть заметнее" — обычная приглушённая текстовая
-            ссылка заменена на pill-кнопку (тот же glassPillClass, что и у
-            стрелок prev/next ниже на странице). */}
-        <Link
-          to="/minsk/bcminsk"
-          className={cn(
-            'flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-ink transition-colors hover:text-primary',
-            glassPillClass,
-          )}
-          style={glassPillShadow}
-        >
-          <ArrowLeft className="h-4 w-4 shrink-0" />
-          <span className="hidden sm:inline">Все бизнес-центры</span>
-          <span className="sm:hidden">Все БЦ</span>
-        </Link>
-        </div>
-        {pageSections.length > 0 && (
-          <div className="mx-auto mt-2 max-w-5xl">
-            <nav aria-label="Навигация по странице" className="-mx-1 flex gap-3 overflow-x-auto px-1 text-xs text-ink-muted">
-              {pageSections.map((sec) => (
-                <a key={sec.id} href={`#${sec.id}`} className="shrink-0 whitespace-nowrap hover:text-primary-hover">
-                  {sec.label}
-                </a>
-              ))}
-            </nav>
+    <div className="min-h-svh bg-bg">
+      {/* Сквозная шапка каталога (владелец, 2026-09-22). Раньше на карточке
+          было две собственные копии логотипа: своя sticky-шапка до xl и
+          дубль в боковой колонке от xl — обе убраны, логотип теперь один,
+          в CatalogTopNav. Вторым рядом той же sticky-шапки идёт то, что
+          было во второй строке прежней: кнопка «назад в каталог» и
+          оглавление страницы. Держать их отдельным sticky-блоком под
+          шапкой нельзя — два sticky друг под другом дерутся за top:0. */}
+      <CatalogTopNav
+        centers={centers}
+        width="max-w-7xl"
+        secondRow={
+          <div className="flex items-center gap-3 xl:hidden">
+            {/* Владелец, 2026-09-06: "крестик плохо подходит, он как будто
+                про закрытие, но те, кто придёт на эту страницу из поиска,
+                ещё не видел главную страницу" — крестик подразумевает
+                "закрыть уже открытое", а для гостя из поисковика это первая
+                страница сайта вообще, тут нужна навигация "назад к списку",
+                не закрытие. Плюс "должно выглядеть заметнее" — обычная
+                приглушённая текстовая ссылка заменена на pill-кнопку (тот
+                же glassPillClass, что и у стрелок prev/next ниже). */}
+            <Link
+              to="/minsk/bcminsk"
+              className={cn(
+                'flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:text-primary',
+                glassPillClass,
+              )}
+              style={glassPillShadow}
+            >
+              <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
+              <span className="hidden sm:inline">Все бизнес-центры</span>
+              <span className="sm:hidden">Все БЦ</span>
+            </Link>
+            {pageSections.length > 0 && (
+              <nav
+                aria-label="Навигация по странице"
+                className="-mx-1 flex min-w-0 gap-3 overflow-x-auto px-1 text-xs text-ink-muted"
+              >
+                {pageSections.map((sec) => (
+                  <a key={sec.id} href={`#${sec.id}`} className="shrink-0 whitespace-nowrap hover:text-primary-hover">
+                    {sec.label}
+                  </a>
+                ))}
+              </nav>
+            )}
           </div>
-        )}
-      </div>
+        }
+      />
 
+      <div className="px-4 py-5 sm:py-8">
       {/* Стрелки влево/вправо по краям экрана — тот же паттерн, что и в
           ImageLightbox.tsx. Только от lg — на мобильном места мало, там
           навигация — строка кнопок под карточкой ниже. */}
@@ -1875,11 +1886,11 @@ export function BusinessCenterDetailPage() {
           pageSections.length > 0 && 'xl:grid-cols-[15rem_minmax(0,1fr)]',
         )}
       >
+        {/* top-24, не top-6: над колонкой теперь стоит sticky-шапка каталога,
+            и при прокрутке колонка уезжала бы под неё. Логотип из колонки
+            убран — он в шапке, второй был бы дублем. */}
         {pageSections.length > 0 && (
-          <aside className="sticky top-6 hidden max-h-[calc(100vh-3rem)] flex-col gap-4 xl:flex">
-            <Link to="/minsk" className="px-2 text-lg font-extrabold tracking-wide text-ink">
-              <span className="font-black text-primary">RED</span>EVELOPMENT
-            </Link>
+          <aside className="sticky top-24 hidden max-h-[calc(100svh-7rem)] flex-col gap-4 xl:flex">
             <Link
               to="/minsk/bcminsk"
               className={cn(
@@ -1917,7 +1928,11 @@ export function BusinessCenterDetailPage() {
         )}
 
         {/* <main> — единственный main-landmark страницы (Accessibility). */}
-        <main className="min-w-0 xl:pt-[7.75rem]">
+        {/* Отступ выравнивает первый экран карточки по низу кнопки «Все
+            бизнес-центры» в боковой колонке. Было 7.75rem, когда над
+            кнопкой в колонке стоял ещё и логотип — вместе с ним уехал и он;
+            3.375rem = высота кнопки (2.375rem) плюс gap-4 колонки. */}
+        <main className="min-w-0 xl:pt-[3.375rem]">
         <div className={cn('overflow-hidden', glassCardClass)} style={glassCardShadow}>
           {/* Компактная версия первого экрана: на широком экране фото и
               основная сводка стоят рядом. Прежняя вертикальная версия целиком
@@ -2648,6 +2663,7 @@ export function BusinessCenterDetailPage() {
         </div>
 
         </main>
+      </div>
       </div>
     </div>
   );

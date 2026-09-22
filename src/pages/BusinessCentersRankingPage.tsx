@@ -5,6 +5,7 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setItemListJsonLd } from '../lib/pageMeta';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
+import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { MIN_RELIABLE_N, type MarketSnapshot } from '../data/marketSnapshots';
 import { buildOfferIndex, EMPTY_OFFER_INDEX } from '../lib/businessCenterCatalogFilter';
@@ -384,22 +385,7 @@ export function BusinessCentersRankingPage() {
 
   return (
     <div className="min-h-svh bg-bg">
-      <div className="border-b border-border py-5">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 sm:px-8">
-          <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary-hover">RED</span>EVELOPMENT
-          </Link>
-          <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted sm:flex">
-            {/* Владелец, 2026-09-16: пункт «Red One» → /minsk/one убран —
-                пока здание не куплено, продавать его нечего. Так же убраны
-                ссылки и блоки Red One с гида по району, посадочных Минск
-                Мира и карточек БЦ. Вернуть, когда здание будет куплено. */}
-            <Link to="/minsk/bcminsk" className="whitespace-nowrap transition-colors hover:text-ink">
-              Каталог
-            </Link>
-          </nav>
-        </div>
-      </div>
+      <CatalogTopNav centers={centers} width="max-w-3xl" />
 
       <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-10 sm:px-8">
         <nav aria-label="Хлебные крошки" className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
