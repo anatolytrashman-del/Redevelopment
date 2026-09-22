@@ -520,6 +520,15 @@ const yandexMapsRating = (c: BusinessCenter): number | null => mapRatingFromHigh
 const byClassThenRating = byNumber(classRank, 'desc');
 const byYandexRating = byNumber(yandexMapsRating, 'desc');
 
+// «Аден» — по факту 4-звёздочный отель, а не классический бизнес-центр
+// (см. комментарий у shortAddress в businessCenterDisplay.ts), и его
+// рейтинг 5,0 на Яндекс.Картах — это отзывы гостей отеля, а не арендаторов
+// офисов. По умолчанию это ставило бы «Аден» первым в классе A, обгоняя
+// настоящие БЦ. Владелец, 2026-09-22: держать «Аден» последним в списке
+// класса A, независимо от рейтинга.
+const PINNED_TO_CLASS_END = new Set(['aden']);
+const pinnedRank = (c: BusinessCenter): number => (PINNED_TO_CLASS_END.has(c.slug) ? 1 : 0);
+
 // Порядок по умолчанию для общего каталога и всех тематических хабов
 // (класс/район/микрорайон/улица/строящиеся): класс главнее рейтинга, рейтинг
 // решает только внутри одного класса. Кейс владельца, 2026-09-22: здание
@@ -527,7 +536,11 @@ const byYandexRating = byNumber(yandexMapsRating, 'desc');
 // класса — даже если у тех рейтинг куда выше.
 function defaultSortCenters(centers: BusinessCenter[]): BusinessCenter[] {
   return [...centers].sort(
-    (a, b) => byClassThenRating(a, b) || byYandexRating(a, b) || a.sortOrder - b.sortOrder,
+    (a, b) =>
+      byClassThenRating(a, b) ||
+      pinnedRank(a) - pinnedRank(b) ||
+      byYandexRating(a, b) ||
+      a.sortOrder - b.sortOrder,
   );
 }
 
