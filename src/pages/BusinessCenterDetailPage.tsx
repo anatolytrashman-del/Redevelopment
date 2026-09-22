@@ -1726,17 +1726,49 @@ export function BusinessCenterDetailPage() {
   // docs/bc-catalog-redesign-plan.md). Пока срез Яндекса не приехал,
   // tenantOrganizations уже отдаёт материализованный список из самой строки
   // БЦ — то есть у пререндера состав есть с первого кадра.
+  //
+  // С 2026-09-22 сюда же уходит присутствие остальных разделов: описание
+  // перечисляет то, что человек реально увидит, перейдя по ссылке, — иначе
+  // сниппет обещает отзывы там, где их нет, и Google подменяет его своим
+  // текстом (ровно это и происходило со старым описанием). Признаки берутся
+  // из тех же выражений, что и пункты меню страницы (pageSections выше), а
+  // не считаются заново.
   const pageComposition = useMemo(
     () => ({
       organizationCount: tenantOrganizations.length,
       infrastructure: center?.infraInternal ?? [],
+      rentOfferCount: rentStats?.count ?? 0,
+      saleOfferCount: saleStats?.count ?? 0,
+      hasReviews: Boolean(
+        center &&
+          (center.highlights.some((h) => h.icon === 'rating') ||
+            reviewQuotes.length > 0 ||
+            reviews.some((r) => r.source !== '2gis')),
+      ),
+      hasNearbyInfrastructure: Boolean(center && hasNearbyContent(center, nearbyPlaces)),
     }),
-    [tenantOrganizations, center],
+    [tenantOrganizations, center, rentStats, saleStats, reviewQuotes, reviews, nearbyPlaces],
   );
+
+  // Тёзки в каталоге: «Порт» на Независимости, 177 и «Порт» на
+  // Шафарнянской, 11 — разные здания с одинаковым коротким именем. Заголовок
+  // страницы без адреса у них совпал бы, а две страницы с одним title
+  // конкурируют в выдаче между собой. Проверить это может только страница —
+  // она держит весь каталог, тогда как сборщик мета-тегов видит одну запись.
+  const ambiguousName = useMemo(() => {
+    if (!center || !centers) return false;
+    const own = shortName(center);
+    return centers.filter((c) => shortName(c) === own).length > 1;
+  }, [center, centers]);
 
   useEffect(() => {
     if (!center) return;
-    setBusinessCenterPageMeta(center.slug, center, withBcPhotoVersion(center.photos[0] ?? ''), pageComposition);
+    setBusinessCenterPageMeta(
+      center.slug,
+      { ...center, ambiguousName },
+      withBcPhotoVersion(center.photos[0] ?? ''),
+      pageComposition,
+    );
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
       { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bcminsk' },
@@ -1760,7 +1792,7 @@ export function BusinessCenterDetailPage() {
       ],
     });
     return () => setPlaceJsonLd(null);
-  }, [center, pageComposition]);
+  }, [center, pageComposition, ambiguousName]);
 
   // Метаданные страницы выше сбрасывают JSON-LD: FAQ записываем после них.
   useEffect(() => {

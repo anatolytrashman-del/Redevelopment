@@ -6,7 +6,8 @@
 // в index.html остаётся верным дефолтом до первой перерисовки и для ботов,
 // которые не выполняют JS (у Яндекса это менее надёжно, чем у Google).
 import { pluralRu } from './pluralRu';
-import { fullName } from './businessCenterDisplay';
+import { fullName, shortAddress, shortName } from './businessCenterDisplay';
+import { fitsSerpTitle } from './serpTitleWidth';
 
 export interface PageMeta {
   title: string;
@@ -328,18 +329,51 @@ function setLinkHref(selector: string, href: string) {
 // тегов, что и у setObjectPageMeta, но данные не из "объектов", а из
 // business_centers (см. data/businessCenters.ts), и RealEstateListing без
 // offers (там нет цены/сделки, это справочная карточка здания, не лендинг
-// бронирования). Title/description собираются из реальных полей записи —
-// вручную подобранных SEO_OVERRIDES для конкретных БЦ пока нет (можно
-// завести по аналогии, если понадобится точечная подгонка под запрос).
-// Состав здания для description — «что там есть» (Wordstat 18.08–18.09.2026:
-// «бизнес центр аякс минск что там есть», 5 запросов в месяц при нулевой
-// частотности любых отраслевых формулировок, см. К16 в
-// docs/bc-catalog-redesign-plan.md). Числа приходят из того же списка
-// организаций, который нарисован на странице, — иначе сниппет обещал бы не
-// то, что человек увидит, перейдя по нему.
+// бронирования).
+//
+// Формат сниппета задал владелец 2026-09-22, увидев страницу в выдаче
+// Google: title — «Бизнес-центр <имя> — полный обзор <год>», description —
+// «Актуальная аналитика бизнес-центра <имя>. Обновляется ежемесячно.
+// <что внутри>». До этого адрес в title стоял ДВАЖДЫ («Бизнес-центр на
+// Жуковского, 11А — г. Минск, ул. Жуковского, 11А»), и Google переписывал
+// заголовок сам, а description («Класс C, 4 794 м², сдан в 2016 г.»)
+// выбрасывал и собирал свой из FAQ — оба признака того, что теги его не
+// устроили.
+//
+// Три вещи в формуле держатся не на вкусе, а на замерах, снимать их нельзя:
+//  1. Перечисляем ТОЛЬКО разделы, которые у этого здания реально есть
+//     (предложения — у 107 из 141, отзывы — у меньшей части). Обещание
+//     того, чего на странице нет, Google снимает, подменяя описание своим.
+//  2. В двух пунктах стоят числа. Полностью одинаковое описание на 141
+//     странице — это duplicate meta descriptions, ровно та причина, по
+//     которой описание и переписывают; имя плюс числа делают каждое своим.
+//  3. Адрес идёт сразу за именем: в запросе человек печатает либо имя,
+//     либо адрес, и совпадение слов запроса с описанием — главное, что
+//     удерживает Google от подмены.
+//
+// Ширина title считается в ПИКСЕЛЯХ, а не в символах (Arial 20px, порог
+// ~600px на десктопе): «Бизнес-центр Terrum — полный обзор» — 357px, оно же
+// с «(обновляется ежемесячно)» — 614px, то есть обрезалось бы у КАЖДОГО
+// здания каталога. Поэтому «обновляется ежемесячно» живёт в описании, где
+// бюджет 160 знаков. Проверка формулы по всему каталогу —
+// `node scripts/check-bc-snippets.mjs` (печатает переполнения по пикселям).
+//
+// «Полный обзор <год>» и «Обновляется ежемесячно» — обещания, которые
+// обязан подтверждать пререндер: он пересобирается только при изменении
+// кода публичных страниц или сохранении БЦ, поэтому 1-го числа каждого
+// месяца pg_cron ставит отметку в deploy_debounce с scope='business_centers'
+// (миграция 20260922-monthly-prerender-refresh.sql) — иначе в выдаче
+// повиснет прошлогодний год.
 export interface BusinessCenterComposition {
   organizationCount: number;
   infrastructure: string[];
+  // Ниже — присутствие блоков на самой странице. Источник у всех один:
+  // pageSections в BusinessCenterDetailPage.tsx, то есть описание не может
+  // пообещать раздел, которого человек не увидит, перейдя по ссылке.
+  rentOfferCount?: number;
+  saleOfferCount?: number;
+  hasReviews?: boolean;
+  hasNearbyInfrastructure?: boolean;
 }
 
 // Вторые названия здания в кавычках-ёлочках: «Столица» или «Столица», «Виктория».
@@ -347,8 +381,25 @@ function quoteNames(names: string[]): string {
   return names.map((name) => `«${name.replace(/^[«"']|[»"']$/gu, '')}»`).join(', ');
 }
 
+// Бюджет описания: десктопная выдача обрезает примерно здесь. Меньше — не
+// страшно, больше — хвост не доедет до читателя.
+const DESCRIPTION_BUDGET = 160;
+
+// Заголовочная форма имени: «Бизнес-центр Terrum», «Бизнес-центр МФЦ
+// (Минск Мир)», а у зданий без собственного имени — «Бизнес-центр на
+// Жуковского, 11А» (эту форму из адреса в скобках собирает fullName).
+// Кавычек-ёлочек вокруг имени тут нет сознательно: в заголовке они стоят
+// 10 пикселей и ничего не проясняют, а формат задан владельцем как
+// «Бизнес-центр Terrum — полный обзор».
+function headingName(center: { slug?: string; name: string }): string {
+  const full = fullName(center);
+  if (full.startsWith('Бизнес-центр на ')) return full;
+  return `Бизнес-центр ${shortName({ slug: center.slug ?? '', name: center.name })}`;
+}
+
 export function fallbackBusinessCenterMeta(
   center: {
+    slug?: string;
     name: string;
     altNames?: string[];
     address: string;
@@ -356,6 +407,9 @@ export function fallbackBusinessCenterMeta(
     totalArea: number | null;
     yearBuilt: number | null;
     status: string;
+    // Есть ли в каталоге другое здание с таким же коротким именем (см.
+    // заголовок ниже). Знает об этом только страница, держащая весь список.
+    ambiguousName?: boolean;
   },
   composition?: BusinessCenterComposition | null,
 ): PageMeta {
@@ -363,44 +417,128 @@ export function fallbackBusinessCenterMeta(
   // минск» ищут чаще, чем это же здание под его основным именем «V», а до
   // 2026-09-20 слова «Столица» на странице не было вовсе.
   const altNames = (center.altNames ?? []).filter((name) => name.trim());
-  const displayName = fullName(center);
-  const title = altNames.length > 0
-    ? `${displayName} (${quoteNames(altNames)}) — ${center.address}`
-    : `${displayName} — ${center.address}`;
-  const parts: string[] = [];
-  if (center.businessClass) parts.push(`класс ${center.businessClass}`);
-  if (center.totalArea) parts.push(`${center.totalArea.toLocaleString('ru-RU')} м²`);
-  if (center.yearBuilt) {
-    parts.push(center.status === 'under_construction' ? `сдача в ${center.yearBuilt} г.` : `сдан в ${center.yearBuilt} г.`);
-  }
-  // Адрес стоит ОДИН раз — в начале (адресные запросы: «бизнес центр минск
-  // адрес» 7/мес плюс семь буквально адресных запросов в Вебмастере), а не
-  // ещё и хвостом, как было раньше: бюджет сниппета (~160 знаков) дороже
-  // потратить на состав здания. В варианте без состава хвост остаётся —
-  // иначе описание совсем короткое.
-  // Последним пунктом часто идёт «сдан в 2011 г.» — точка в нём уже есть,
-  // второй быть не должно.
-  const factsBody = parts.join(', ');
-  const facts = factsBody ? (factsBody.endsWith('.') ? factsBody : `${factsBody}.`) : '';
+  const alsoKnown = altNames.length > 0 ? ` (${quoteNames(altNames)})` : '';
+  const heading = headingName(center);
+  const named = !heading.startsWith('Бизнес-центр на ');
+  // Год берётся из даты сборки, а не зашит константой: страницу пререндерит
+  // Vercel, и 1 января заголовок должен смениться сам.
+  const year = new Date().getFullYear();
+  // В каталоге есть два РАЗНЫХ здания с одним именем («Порт» на
+  // Независимости, 177 и «Порт» на Шафарнянской, 11). Заголовок без адреса
+  // сделал бы их страницы неразличимыми — две страницы с одинаковым title
+  // конкурируют между собой в выдаче и обе проигрывают. Признак приходит от
+  // страницы: она одна видит весь каталог, отдельная запись — нет.
+  // Уточнение в скобках («пр-т Независимости, 177 (мкр. Уручье)») из
+  // заголовка снимается: различить тёзок хватает улицы с домом, а скобка
+  // стоит 160 пикселей — ровно настолько заголовок и вылезал за обрезку.
+  const addressForTitle = shortAddress(center.address).replace(/\s*\([^)]*\)\s*$/u, '');
+  const disambiguated = named && center.ambiguousName ? `${heading}, ${addressForTitle}` : heading;
+  // Заголовок собирается от самого полного варианта к самому короткому, и
+  // берётся первый, который не выходит за обрезку выдачи: обрезка съедает
+  // именно хвост, то есть ровно то, ради чего формат и задумывался
+  // («…— полный обз…»). Порядок уступок — сначала второе имя здания, потом
+  // слово «полный». Второе имя у выпавших зданий остаётся в описании, а
+  // адрес у зданий-тёзок не снимается никогда: без него вернётся дубль.
+  const bases = [`${disambiguated}${alsoKnown}`, disambiguated];
+  const candidates = [` — полный обзор ${year}`, ` — обзор ${year}`].flatMap((tail) =>
+    bases.map((base) => `${base}${tail}`),
+  );
+  const title = candidates.find(fitsSerpTitle) ?? candidates[candidates.length - 1];
 
-  const inside: string[] = [];
-  if (composition && composition.organizationCount > 0) {
-    inside.push(`${composition.organizationCount} ${pluralRu(composition.organizationCount, 'организация', 'организации', 'организаций')}`);
+  // «Бизнес-центр на Жуковского, 11А» в родительном падеже — это
+  // «бизнес-центра на Жуковского, 11А»: адрес уже внутри имени, второй раз
+  // его дописывать не нужно. У именованного здания адрес идёт отдельно.
+  // Адрес идёт через запятую, а не с предлогом «на»: названия улиц в базе
+  // лежат в именительном падеже («ул. Московская, 22»), и «на ул. Московская»
+  // — брак, а склонять их кодом нельзя (Жуковского, Мясникова, Гамарника,
+  // Логойский тракт — четыре разные модели). У безымянного здания адрес уже
+  // внутри имени («бизнес-центра на Жуковского, 11А»), второй раз не нужен.
+  const subject = named
+    ? `бизнес-центра ${shortName({ slug: center.slug ?? '', name: center.name })}${alsoKnown}, ${shortAddress(center.address)}`
+    : `бизнес-центра ${heading.slice('Бизнес-центр '.length)}`;
+
+  // Порядок пунктов — владельца (отзывы → арендаторы → инфраструктура →
+  // помещения → здание). Пункт встаёт в строку только если соответствующий
+  // блок на странице есть.
+  const items: { kind: string; text: string }[] = [];
+  if (composition?.hasReviews) items.push({ kind: 'reviews', text: 'отзывы' });
+  const tenants = composition?.organizationCount ?? 0;
+  if (tenants > 0) {
+    items.push({
+      kind: 'tenants',
+      text: `каталог из ${tenants} ${pluralRu(tenants, 'арендатора', 'арендаторов', 'арендаторов')}`,
+    });
   }
-  if (composition && composition.infrastructure.length > 0) {
-    inside.push(composition.infrastructure.slice(0, 4).join(', '));
+  if (composition?.hasNearbyInfrastructure) items.push({ kind: 'nearby', text: 'инфраструктура рядом' });
+  const rent = composition?.rentOfferCount ?? 0;
+  const sale = composition?.saleOfferCount ?? 0;
+  const lots = (n: number) => pluralRu(n, 'помещение', 'помещения', 'помещений');
+  const offers =
+    rent > 0 && sale > 0
+      ? `${rent} ${lots(rent)} в аренду и ${sale} на продажу`
+      : rent > 0
+        ? `${rent} ${lots(rent)} в аренду`
+        : sale > 0
+          ? `${sale} ${lots(sale)} на продажу`
+          : null;
+  if (offers) items.push({ kind: 'offers', text: offers });
+
+  // Последним пунктом — «информация о здании». Где класс и площадь
+  // заполнены, они подставляются прямо в него: у здания без предложений и
+  // без отзывов это единственные числа в описании, а без единого числа
+  // описания 141 страницы различались бы только именем.
+  const facts: string[] = [];
+  if (center.businessClass) facts.push(`класс ${center.businessClass}`);
+  if (center.totalArea) facts.push(`${center.totalArea.toLocaleString('ru-RU')} м²`);
+  items.push({
+    kind: 'building',
+    text: facts.length > 0 ? `информация о здании: ${facts.join(', ')}` : 'информация о здании',
+  });
+
+  const head = `Актуальная аналитика ${subject}. Обновляется ежемесячно.`;
+  // Порядок ПЕЧАТИ — владельца, порядок ВЫБЫВАНИЯ — обратный ценности:
+  // пять пунктов с адресом в бюджет не помещаются никогда, и если снимать
+  // просто с конца, то первым всегда выпадало бы «N помещений в аренду» —
+  // единственная строка, ради которой на такую страницу приходят из поиска.
+  // Уходят сначала самые общие: информация о здании, потом инфраструктура.
+  const dropOrder = ['building', 'nearby', 'reviews', 'tenants', 'offers'];
+  const shown = [...items];
+  const assemble = () => `${head} ${capitalizeFirst(shown.map((i) => i.text).join(', '))}.`;
+  for (const kind of dropOrder) {
+    if (shown.length <= 1 || assemble().length <= DESCRIPTION_BUDGET) break;
+    const index = shown.findIndex((item) => item.kind === kind);
+    if (index >= 0) shown.splice(index, 1);
   }
 
-  // «Бизнес-центр в Минске, г. Минск, …» — масло масляное: город уже назван,
-  // поэтому в ОПИСАНИИ он из адреса вырезается. В title адрес остаётся
-  // целиком, вместе с «г. Минск», — там он работает на адресные запросы.
-  const addressWithoutCity = center.address.replace(/^г\.\s*Минск,\s*/i, '');
-  const alsoKnown = altNames.length > 0 ? ` Здание также известно как ${quoteNames(altNames)}.` : '';
-  const description = inside.length > 0
-    ? `Бизнес-центр в Минске, ${addressWithoutCity}.${alsoKnown} В здании ${inside.join(': ')}.${facts ? ` ${capitalizeFirst(facts)}` : ''}`
-    : `Бизнес-центр в Минске: ${[...parts, addressWithoutCity].join(', ')}.${alsoKnown}`;
+  return { title, description: assemble() };
+}
 
-  return { title, description };
+// Описание подборки каталога — тот же формат, что у карточки БЦ (владелец,
+// 2026-09-22): «Актуальная аналитика … Обновляется ежемесячно. <что внутри>».
+// До этого у всех подборок описание было одним и тем же скелетом («адреса,
+// деловой класс, площадь, метро»), и на четырёх десятках страниц это
+// duplicate meta descriptions — ровно та причина, по которой Google
+// подменяет описание своим текстом. Число зданий делает каждую подборку
+// своей и заодно отвечает на вопрос, ради которого на неё и заходят.
+// `subject` — родительный падеж («бизнес-центров класса B+ в Минске»),
+// `count` — null, пока каталог не загружен.
+const HUB_SNIPPET_ITEMS = [
+  'цены аренды и продажи',
+  'отзывы',
+  'каталоги арендаторов',
+  'инфраструктура рядом',
+  'класс, площадь и метро',
+];
+
+export function businessCenterHubDescription(subject: string, count: number | null): string {
+  const head = `Актуальная аналитика ${count === null ? '' : `${count} `}${subject}. Обновляется ежемесячно.`;
+  // Пункты снимаются с конца, пока строка не влезет в бюджет: у подборки
+  // все они равноценны (это оглавление раздела, а не находки конкретного
+  // здания), поэтому приоритета выбывания тут, в отличие от карточки, нет.
+  const shown = [...HUB_SNIPPET_ITEMS];
+  const assemble = () => `${head} ${capitalizeFirst(shown.join(', '))}.`;
+  while (shown.length > 1 && assemble().length > DESCRIPTION_BUDGET) shown.pop();
+  return assemble();
 }
 
 function capitalizeFirst(value: string): string {
@@ -417,11 +555,15 @@ export function setBusinessCenterPageMeta(
     totalArea: number | null;
     yearBuilt: number | null;
     status: string;
+    ambiguousName?: boolean;
   },
   image?: string,
   composition?: BusinessCenterComposition | null,
 ) {
-  const meta = fallbackBusinessCenterMeta(center, composition);
+  // slug приходит отдельным аргументом, а shortName() (через
+  // fallbackBusinessCenterMeta) ждёт его внутри записи — у одного здания,
+  // «МФЦ (Минск Мир)», короткое имя задано именно по слагу.
+  const meta = fallbackBusinessCenterMeta({ ...center, slug }, composition);
   const url = `https://redevelopment.pro/minsk/bcminsk/${slug}`;
   // Фото БЦ хранятся локальными путями (public/images/business-centers/...,
   // см. data/businessCenters.ts), не абсолютными URL, как у Supabase Storage
