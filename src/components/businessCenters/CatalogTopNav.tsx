@@ -65,8 +65,40 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
   // дают экран на ~50 пунктов. Поэтому там группы свёрнуты (раскрыта одна,
   // по тапу), а от md раскладка колоночная и сворачивать нечего.
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  // Левая граница главного блока страницы в пикселях от края экрана —
+  // по ней выравнивается содержимое панели (владелец, 2026-09-22:
+  // «ровняем по началу главного блока с заголовком Бизнес-центры у метро
+  // Академия наук и по аналогии на всём сайте»).
+  const [contentLeft, setContentLeft] = useState<number | null>(null);
   const { pathname } = useLocation();
   const rootRef = useRef<HTMLElement>(null);
+
+  // Линия замеряется у живого узла, а не вычисляется из классов: она у
+  // каждой страницы своя И НЕ РАВНА краю её контейнера. На каталоге и хабах
+  // главный блок — колонка справа от фильтров, да ещё и `mx-auto max-w-3xl`
+  // внутри 848px ячейки грида (на 1440 это 456px от края экрана, при том
+  // что сам main начинается с 144). Повторять эту арифметику константами
+  // значит держать её в двух местах и ловить расхождение при каждой правке
+  // сетки; замер же верен на любой ширине и для любой страницы, которой
+  // поставили `data-menu-align`.
+  useEffect(() => {
+    const measure = () => {
+      const el = document.querySelector('[data-menu-align]');
+      if (!el) {
+        setContentLeft(null);
+        return;
+      }
+      // Плюс padding-left: у текстовых страниц каталога якорь стоит на
+      // <main class="… px-4 sm:px-8">, и его собственная граница на 32px
+      // левее той, с которой реально начинается видимый блок. Нужна именно
+      // линия контента, а не контейнера.
+      const padding = parseFloat(window.getComputedStyle(el).paddingLeft) || 0;
+      setContentLeft(Math.round(el.getBoundingClientRect().left + padding));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [pathname]);
 
   // Закрывать меню при переходе: react-router меняет URL без перезагрузки,
   // сама панель при этом остаётся раскрытой поверх новой страницы.
@@ -187,16 +219,26 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
         )}
         style={{ boxShadow: '0 16px 32px rgba(0,0,0,0.12)' }}
       >
-        {/* Панель шире, чем сама шапка на текстовых страницах (там контент
-            max-w-3xl): в три колонки со списком станций 768 px не хватает —
-            названия вроде «Площадь Франтишка Богушевича» ломались на три
-            строки. Ширина панели одна на весь каталог и равна ширине его
-            главной страницы. */}
-        <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-8">
+        {/* Содержимое панели прижато к линии главного блока страницы, а не
+            центрировано (владелец, 2026-09-22). Вправо оно тянется дальше,
+            чем сам блок: в три колонки со списком станций 768 px не
+            хватает — названия вроде «Площадь Франтишка Богушевича»
+            ломались на три строки, поэтому ограничение справа мягкое
+            (maxWidth), а жёстко задана только левая граница.
+            `contentLeft === null` — страница без `data-menu-align` или ещё
+            не гидратированная разметка пререндера: тогда прежнее
+            центрирование, панель не прыгает и не уезжает за экран. */}
+        <div
+          className={cn(
+            'flex flex-col gap-6 py-6',
+            contentLeft === null ? 'mx-auto max-w-6xl px-4 sm:px-8' : 'px-4 sm:pr-8',
+          )}
+          style={contentLeft === null ? undefined : { paddingLeft: contentLeft, maxWidth: 1152 + contentLeft }}
+        >
           {groups.length === 0 ? (
             <p className="text-sm text-ink-muted">Загружаем каталог…</p>
           ) : (
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.9fr)_minmax(0,1fr)] lg:gap-8">
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,2.3fr)_minmax(0,0.85fr)] lg:gap-8">
               {/* Районы и метро — по своей колонке; класс и тип короткие,
                   поэтому делят третью, иначе grid перенёс бы тип под
                   районы, в начало второго ряда. Вертикальная линия между

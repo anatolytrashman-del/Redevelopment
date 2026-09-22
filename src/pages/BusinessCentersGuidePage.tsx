@@ -8,22 +8,24 @@ import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { shortName } from '../lib/businessCenterDisplay';
 import type { BusinessCenter } from '../data/businessCenters';
-import { CatalogSlicesBlock } from '../components/businessCenters/CatalogSlicesBlock';
 import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrademarkNote';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
 
-// Справочная страница каталога БЦ (владелец, 2026-09-22: «срезы каталога на
-// главной мне не нужны... "Как устроен рынок бизнес-центров в Минске" — на
-// главной мне это не нужно»). Оба блока переехали сюда с /minsk/bcminsk
-// целиком, вместе с алфавитным перечнем всех зданий: текст и полсотни
-// внутренних ссылок на хабы нужны поиску, но не нужны человеку, который
+// Справочная страница каталога БЦ (владелец, 2026-09-22: «"Как устроен рынок
+// бизнес-центров в Минске" — на главной мне это не нужно»). Текст переехал
+// сюда с /minsk/bcminsk: он нужен поиску, но не нужен человеку, который
 // пришёл в каталог смотреть здания. На главной осталась одна строка-ссылка
 // сюда.
+//
+// Блок «Срезы каталога» (чипы хабов + алфавитный перечень всех зданий)
+// стоял здесь же до 2026-09-22 — владелец: «срезы каталога из видимой части
+// сайта надо вообще убрать». Чем заменена перелинковка — см. комментарий на
+// том же месте в BusinessCentersMinskPage.tsx.
 const PAGE_URL = 'https://redevelopment.pro/minsk/bcminsk/gid';
 const DATE_PUBLISHED = '2026-09-22';
 const TITLE = 'Как устроен рынок бизнес-центров в Минске: классы, география, ставки';
 const DESCRIPTION =
-  'Справочник по бизнес-центрам Минска: чем отличаются классы A, B+, B и C, где сосредоточены здания разного уровня, на что смотреть при выборе офиса и из чего складывается ставка аренды. Все разделы каталога и полный список зданий.';
+  'Справочник по бизнес-центрам Минска: чем отличаются классы A, B+, B и C, где сосредоточены здания разного уровня, на что смотреть при выборе офиса и из чего складывается ставка аренды.';
 const PAGE_H1 = 'Как устроен рынок бизнес-центров в Минске';
 
 export function BusinessCentersGuidePage() {
@@ -94,7 +96,7 @@ export function BusinessCentersGuidePage() {
     if (topDistrictsByCount.length) {
       add(
         'В каких районах Минска больше всего бизнес-центров?',
-        `${topDistrictsByCount.map(([d, n]) => `${d} район — ${n}`).join('; ')}. Полное распределение по районам — в срезах каталога ниже.`,
+        `${topDistrictsByCount.map(([d, n]) => `${d} район — ${n}`).join('; ')}. Полное распределение по районам — в аналитике каталога.`,
       );
     }
     if (Object.keys(classDistrictBreakdown).length) {
@@ -123,7 +125,7 @@ export function BusinessCentersGuidePage() {
     );
     add(
       'Какие разделы каталога есть?',
-      'Подборки по классу, району, микрорайону, улице, станции метро и статусу строительства — все они перечислены в срезах каталога на этой странице, там же полный алфавитный список зданий со ссылками на их страницы.',
+      'Подборки по классу, району, станции метро и статусу строительства открываются из верхнего меню каталога; подборки по микрорайону, улице и по паре «класс + район» — со страницы конкретного здания, из блоков с соседними бизнес-центрами.',
     );
     return items;
   }, [centers, total, topDistrictsByCount, classDistrictBreakdown, underConstructionNames]);
@@ -153,7 +155,7 @@ export function BusinessCentersGuidePage() {
     <div className="min-h-svh bg-bg">
       <CatalogTopNav centers={centers} width="max-w-3xl" />
 
-      <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-10 sm:px-8">
+      <main data-menu-align className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-10 sm:px-8">
         <nav aria-label="Хлебные крошки" className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
           <Link to="/minsk" className="hover:text-ink">
             Минск
@@ -299,9 +301,6 @@ export function BusinessCentersGuidePage() {
             </div>
           </div>
         </div>
-
-        {centers === null && <p className="text-sm text-ink-muted">Загрузка…</p>}
-        {centers !== null && <CatalogSlicesBlock centers={centers} />}
 
         <div className={cn('flex flex-col gap-3 p-6', glassCardClass)} style={glassCardShadow}>
           <h2 className="text-lg font-bold text-ink">Ещё по бизнес-центрам Минска</h2>

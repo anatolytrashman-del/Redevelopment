@@ -100,7 +100,7 @@ export function FavoritesPage() {
           (владелец, 2026-09-22): подборка собирается из каталога, и уходить
           из неё человек будет туда же. Логотип отсюда убран — он в шапке. */}
       <CatalogTopNav centers={centers} width="max-w-5xl" />
-      <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-8 sm:px-8">
+      <div data-menu-align className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-8 sm:px-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="flex items-center gap-2 text-2xl font-extrabold leading-tight text-ink">
             <Heart className="h-6 w-6 shrink-0 fill-primary text-primary" />
