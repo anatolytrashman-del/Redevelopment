@@ -10,6 +10,7 @@ import { DistrictGuidePage } from './pages/DistrictGuidePage';
 import { MinskMirTopicPage } from './pages/MinskMirTopicPage';
 import { BusinessCentersMinskPage } from './pages/BusinessCentersMinskPage';
 import { BusinessCentersRankingPage } from './pages/BusinessCentersRankingPage';
+import { BusinessCentersGuidePage } from './pages/BusinessCentersGuidePage';
 import { BusinessCentersAnalyticsPage } from './pages/BusinessCentersAnalyticsPage';
 import { BusinessCenterDetailPage } from './pages/BusinessCenterDetailPage';
 import { FavoritesPage } from './pages/FavoritesPage';
@@ -266,6 +267,7 @@ export default function App() {
       <Route path="/minsk/bcminsk/stroyashchiesya" element={<BusinessCentersMinskPage underConstruction />} />
       {/* Рейтинг «Лучшие бизнес-центры Минска» (аудит 2026-09-07) — отдельный компонент, не хаб-фильтр. */}
       <Route path="/minsk/bcminsk/reyting" element={<BusinessCentersRankingPage />} />
+      <Route path="/minsk/bcminsk/gid" element={<BusinessCentersGuidePage />} />
       {/* Аналитика каталога БЦ (владелец, 2026-09-22) — вынесена сюда с
           подвала каталога, см. комментарий в BusinessCentersAnalyticsPage.tsx. */}
       <Route path="/minsk/bcminsk/analytics" element={<BusinessCentersAnalyticsPage />} />
