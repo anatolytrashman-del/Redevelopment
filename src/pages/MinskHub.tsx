@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, Lock } from 'lucide-react';
+import { ArrowRight, Building2, BookOpen, Lock, ShoppingBag, Users, Warehouse } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setOrganizationJsonLd } from '../lib/pageMeta';
@@ -35,8 +35,20 @@ import { DISTRICTS, DISTRICTS_WITH_GUIDE } from '../data/districts';
 // ровно та ситуация "острова", из-за которой их сюда возвращали 2026-09-07
 // (каталог БЦ) и по ANALYTICSPLAN.md 2026-09-07 (аналитика). Возвращать
 // секцию — по команде владельца.
+// Владелец, 2026-09-22: команда вернуть ссылку на каталог БЦ — секция
+// "Каталоги" ниже (не полное возвращение убранной 2026-09-16 секции, только
+// сами каталоги объектов, без аналитики и Red One). Плюс три "скоро"-плашки
+// под будущие каталоги (ТЦ, коворкинги, склады) — страниц под них пока нет,
+// роутов в App.tsx для них соответственно тоже нет.
+const CATALOGS = [
+  { name: 'Бизнес-центры', icon: Building2, href: '/minsk/bcminsk' },
+  { name: 'Торговые центры', icon: ShoppingBag, href: null },
+  { name: 'Коворкинги', icon: Users, href: null },
+  { name: 'Склады', icon: Warehouse, href: null },
+] as const;
+
 const TITLE = 'Коммерческая недвижимость в Минске — Redevelopment';
-const DESCRIPTION = 'Гиды по районам Минска для арендаторов и собственников коммерческой недвижимости.';
+const DESCRIPTION = 'Каталог бизнес-центров и гиды по районам Минска для арендаторов и собственников коммерческой недвижимости.';
 const PAGE_URL = 'https://redevelopment.pro/minsk';
 
 export function MinskHub() {
@@ -58,8 +70,45 @@ export function MinskHub() {
       <main className="mx-auto flex max-w-5xl flex-col gap-10 px-4 py-12 sm:px-8">
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">Коммерческая недвижимость в Минске</h1>
-          <p className="max-w-2xl text-ink">Гиды по районам для арендаторов и собственников коммерческой недвижимости.</p>
+          <p className="max-w-2xl text-ink">Каталоги объектов и гиды по районам для арендаторов и собственников коммерческой недвижимости.</p>
         </div>
+
+        <section className="flex flex-col gap-4">
+          <h2 className="text-lg font-bold text-ink">Каталоги</h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {CATALOGS.map((c) => {
+              const Icon = c.icon;
+              return c.href ? (
+                <Link
+                  key={c.name}
+                  to={c.href}
+                  className={cn('flex items-center justify-between gap-2 p-4 transition-colors hover:border-primary/40', glassCardClass)}
+                  style={glassCardShadow}
+                >
+                  <span className="flex items-center gap-2.5 font-medium text-ink">
+                    <Icon className="h-4 w-4 shrink-0 text-ink-faint" />
+                    {c.name}
+                  </span>
+                  <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
+                </Link>
+              ) : (
+                <div
+                  key={c.name}
+                  className="flex items-center justify-between gap-2 rounded-control border border-border p-4 text-ink-faint"
+                >
+                  <span className="flex items-center gap-2.5 font-medium">
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {c.name}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-xs">
+                    <Lock className="h-3.5 w-3.5" />
+                    скоро
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
         <section className="flex flex-col gap-4">
           <h2 className="text-lg font-bold text-ink">Гиды по районам</h2>
