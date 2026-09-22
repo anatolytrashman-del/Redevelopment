@@ -1613,17 +1613,13 @@ export function DistrictGuidePage() {
           отдельным fixed-элементом, привязанным к той же navBox.left, что и
           сам `nav` ниже, а исходный логотип в шапке скрываем на lg+, чтобы
           не было двух логотипов одновременно (тот же приём, что и с пустой
-          первой колонкой-заглушкой под fixed-сайдбар в сетке контента ниже).
-          text-primary-hover, не text-primary — PAGESPEED_PLAN.md, Э8-2:
-          "RED" в 18px (text-lg) недостаточно крупный для послабления WCAG
-          "крупный жирный текст" (нужно ≥19px), --color-primary даёт только
-          4,12:1 на bg — text-primary-hover 5,13:1. */}
+          первой колонкой-заглушкой под fixed-сайдбар в сетке контента ниже). */}
       <Link
         to="/minsk"
         className="fixed top-6 z-40 hidden shrink-0 text-lg font-extrabold tracking-wide text-ink lg:block"
         style={navBox ? { left: navBox.left } : { visibility: 'hidden' }}
       >
-        <span className="font-black text-primary-hover">RED</span>EVELOPMENT
+        <span className="font-black text-primary">RED</span>EVELOPMENT
       </Link>
 
       {/* На мобильном (<sm) шапка отдельным баром с большими отступами
@@ -1639,7 +1635,7 @@ export function DistrictGuidePage() {
         <div className="mx-auto max-w-6xl px-4 sm:px-8">
           <div className="flex items-center justify-between lg:grid lg:grid-cols-[200px_1fr] lg:items-center lg:gap-10">
             <Link to="/minsk" className="shrink-0 text-lg font-extrabold tracking-wide text-ink lg:invisible">
-              <span className="font-black text-primary-hover">RED</span>EVELOPMENT
+              <span className="font-black text-primary">RED</span>EVELOPMENT
             </Link>
             <div className="lg:mx-auto lg:w-full lg:max-w-3xl">
               <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted sm:flex">
@@ -1713,7 +1709,7 @@ export function DistrictGuidePage() {
             заходов — если «Ключевые цифры» уедет за экран, это ожидаемо
             и хорошо. */}
         <Link to="/minsk" className="text-base font-extrabold tracking-wide text-ink sm:hidden">
-          <span className="font-black text-primary-hover">RED</span>EVELOPMENT
+          <span className="font-black text-primary">RED</span>EVELOPMENT
         </Link>
         {/* Единая liquid-glass подложка под заголовком/подзаголовком и фото —
             раньше текст стоял прямо на фоне страницы, а фото было в своей

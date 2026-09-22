@@ -120,9 +120,7 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
     >
       <div className={cn('mx-auto flex items-center justify-between gap-3 px-4 py-4 sm:px-8', width)}>
         <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
-          {/* text-primary-hover — базовый красный на полупрозрачной шапке
-              даёт контраст ниже 4,5:1 (Accessibility). */}
-          <span className="font-black text-primary-hover">RED</span>EVELOPMENT
+          <span className="font-black text-primary">RED</span>EVELOPMENT
         </Link>
 
         <nav aria-label="Разделы каталога" className="flex items-center gap-1">

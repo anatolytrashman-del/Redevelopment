@@ -33,7 +33,7 @@ export function AnalyticsMethodologyPage() {
       <div className="border-b border-border py-5">
         <div className="mx-auto flex max-w-5xl items-center justify-center px-4 sm:px-8">
           <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary-hover">RED</span>EVELOPMENT
+            <span className="font-black text-primary">RED</span>EVELOPMENT
           </Link>
         </div>
       </div>
