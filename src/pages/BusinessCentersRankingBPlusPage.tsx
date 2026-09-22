@@ -191,7 +191,7 @@ export function BusinessCentersRankingBPlusPage() {
     <div className="min-h-svh bg-bg">
       <CatalogTopNav centers={centers} width="max-w-3xl" />
 
-      <main data-menu-align className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-10 sm:px-8">
+      <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-10 sm:px-8">
         <nav aria-label="Хлебные крошки" className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
           <Link to="/minsk" className="hover:text-ink">
             Минск
