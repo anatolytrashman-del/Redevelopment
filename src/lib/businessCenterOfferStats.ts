@@ -36,7 +36,11 @@ export interface SizeDiscount {
 
 export interface DealStats {
   deal: DealType;
-  // Лоты по возрастанию площади — в таблице так видно, как меняется цена метра.
+  // Лоты по возрастанию ЦЕНЫ помещения целиком. Раньше сортировались по
+  // площади, и внутри полки цены шли вразнобой («$22 500, $19 900,
+  // $28 900, $31 500») — владелец, 2026-09-22: «давай расставлять
+  // помещения от меньшей цены к большей». Цена и есть то, по чему человек
+  // выбирает, а площади внутри одной полки и так близки.
   lots: DedupedOffer[];
   count: number;
   // Цена считается по ОДНОМУ типу помещения — самому представленному в
@@ -124,8 +128,12 @@ function buildSizeDiscount(lots: DedupedOffer[]): SizeDiscount | null {
   );
   if (corr === null || corr > SIZE_DISCOUNT_CORRELATION) return null;
 
-  const small = lots[0];
-  const large = lots[lots.length - 1];
+  // Сравниваются САМЫЙ МЕЛКИЙ и САМЫЙ КРУПНЫЙ лоты, поэтому порядок нужен
+  // по площади — наружу лоты отдаются по цене, и полагаться на него тут
+  // нельзя.
+  const bySize = [...lots].sort((a, b) => a.size - b.size);
+  const small = bySize[0];
+  const large = bySize[bySize.length - 1];
   if (large.pricePerSqm >= small.pricePerSqm) return null;
   const dropPct = ((small.pricePerSqm - large.pricePerSqm) / small.pricePerSqm) * 100;
   if (dropPct < SIZE_DISCOUNT_MIN_DROP_PCT) return null;
@@ -140,7 +148,9 @@ function buildSizeDiscount(lots: DedupedOffer[]): SizeDiscount | null {
 }
 
 export function buildDealStats(offers: DedupedOffer[] | null | undefined, deal: DealType): DealStats | null {
-  const lots = (offers ?? []).filter((o) => o.dealType === deal && usable(o)).sort((a, b) => a.size - b.size);
+  const lots = (offers ?? [])
+    .filter((o) => o.dealType === deal && usable(o))
+    .sort((a, b) => a.size * a.pricePerSqm - b.size * b.pricePerSqm);
   if (lots.length === 0) return null;
 
   const sizes = lots.map((o) => o.size);
