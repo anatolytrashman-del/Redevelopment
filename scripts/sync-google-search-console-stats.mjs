@@ -82,6 +82,7 @@ const KEY_PAGE_PATHS = [
   'minsk/bcminsk',
   'minsk/bcminsk/reyting',
   'minsk/bcminsk/stroyashchiesya',
+  'minsk/bcminsk/analytics',
 ];
 
 // Сколько дней истории запросов подтягивать за один прогон — у Search
