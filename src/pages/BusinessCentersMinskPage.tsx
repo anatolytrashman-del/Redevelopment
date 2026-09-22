@@ -22,6 +22,7 @@ import { CatalogCompare } from '../components/businessCenters/CatalogCompare';
 import { CatalogSlicesBlock } from '../components/businessCenters/CatalogSlicesBlock';
 import { FavoriteButton } from '../components/businessCenters/FavoriteButton';
 import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrademarkNote';
+import { FaqAccordion } from '../components/ui/FaqAccordion';
 import { useFavorites } from '../lib/favoritesContext';
 import {
   setArticleJsonLd,
@@ -762,33 +763,61 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     const items: { question: string; answer: string }[] = [];
     const add = (question: string, answer: string) => items.push({ question, answer });
     add(`Сколько бизнес-центров ${scopeLabel} есть в текущей выборке?`, `Найдено ${marketStats.total} зданий с учётом выбранных фильтров.`);
-    if (marketStats.withAreaCount > 0) add('Какая суммарная площадь зданий?', `${Math.round(marketStats.totalArea).toLocaleString('ru-RU')} м²; площадь известна у ${marketStats.withAreaCount} из ${marketStats.total} зданий выборки.`);
-    if (Object.keys(marketStats.byClass).length) add('Как здания выборки распределены по классам?', Object.entries(marketStats.byClass).map(([cls, n]) => `Класс ${cls} — ${n}`).join('; '));
-    if (Object.keys(districtTotals).length) add('Как весь каталог распределён по районам?', Object.entries(districtTotals).map(([district, n]) => {
-      const area = (centers ?? []).filter((c) => c.district === district).reduce((sum, c) => sum + (c.totalArea ?? 0), 0);
-      const rate = (officeSnapshots ?? []).find((s) => s.sliceType === 'district' && s.deal === 'rent' && s.sliceKey === district)?.median;
-      return `${district}: ${n} БЦ${area > 0 ? `, ${Math.round(area).toLocaleString('ru-RU')} м² по заполненным площадям` : ''}${rate != null ? `, медиана аренды $${rate}/м²` : ''}`;
-    }).join('; '));
-    if (marketStats.withMetroCount > 0) add('Сколько зданий рядом с метро?', `${marketStats.nearMetro} из ${marketStats.withMetroCount} зданий выборки с известным расстоянием находятся не дальше 800 м от ближайшего метро.`);
+    const groupNames = (entries: [string, number][]) => `${entries.slice(0, 2).map(([name]) => `«${name}»`).join(' и ')}${entries.length > 2 ? ` и ещё ${entries.length - 2}` : ''}`;
+    const extremes = (entries: [string, number][], most: string, least: string, equal: string, format: (value: number) => string) => {
+      const sorted = [...entries].sort((a, b) => b[1] - a[1]);
+      const max = sorted[0][1];
+      const min = sorted[sorted.length - 1][1];
+      if (max === min) return `${equal} — ${format(max)}.`;
+      const high = sorted.filter(([, value]) => value === max);
+      const low = sorted.filter(([, value]) => value === min);
+      return `${most}: ${groupNames(high)} — ${high.length > 1 ? 'по ' : ''}${format(max)}. ${least}: ${groupNames(low)} — ${low.length > 1 ? 'по ' : ''}${format(min)}.`;
+    };
+    if (marketStats.withAreaCount > 0) add('Какая суммарная площадь зданий?', `${Math.round(marketStats.totalArea).toLocaleString('ru-RU')} м². Площадь известна у ${marketStats.withAreaCount} из ${marketStats.total} зданий выборки. Суммируем только их площади.`);
+    if (Object.keys(marketStats.byClass).length) add('Как здания выборки распределены по классам?', (() => {
+      const classes = Object.entries(marketStats.byClass);
+      if (classes.length === 1) return `В выборке один известный класс — ${classes[0][0]}. К нему относятся ${classes[0][1]} БЦ.`;
+      return `В выборке классов: ${classes.length}. ${extremes(classes, 'Больше всего зданий в классах', 'Меньше всего в классах', 'В каждом классе поровну', (n) => `${n} БЦ`)}`;
+    })());
+    if (Object.keys(districtTotals).length) add('Как весь каталог распределён по районам?', (() => {
+      const districts = Object.entries(districtTotals);
+      const parts = [districts.length === 1
+        ? `В каталоге один район — «${districts[0][0]}», ${districts[0][1]} БЦ.`
+        : `В каталоге районов: ${districts.length}. ${extremes(districts, 'Больше всего БЦ в районах', 'Меньше всего в районах', 'В каждом районе поровну', (n) => `${n} БЦ`)}`];
+      const areas: [string, number][] = districts.map(([district]) => [district, (centers ?? []).filter((c) => c.district === district).reduce((sum, c) => sum + (c.totalArea ?? 0), 0)]);
+      const knownAreas = areas.filter(([, area]) => area > 0).sort((a, b) => b[1] - a[1]);
+      if (knownAreas.length) {
+        const largest = knownAreas.filter(([, area]) => area === knownAreas[0][1]);
+        parts.push(`Площади сравниваем только у зданий, где они известны. Наибольшая сумма площадей: ${groupNames(largest)} — ${largest.length > 1 ? 'по ' : ''}${Math.round(knownAreas[0][1]).toLocaleString('ru-RU')} м².`);
+      }
+      const rates: [string, number][] = districts.flatMap(([district]) => {
+        const rate = (officeSnapshots ?? []).find((s) => s.sliceType === 'district' && s.deal === 'rent' && s.sliceKey === district)?.median;
+        return rate != null ? [[district, rate] as [string, number]] : [];
+      });
+      if (rates.length === 1) parts.push(`Медиана аренды известна только для района «${rates[0][0]}» — $${rates[0][1]}/м².`);
+      else if (rates.length > 1) parts.push(`Медианы аренды есть для ${rates.length} районов. ${extremes(rates, 'Самая высокая медиана', 'Самая низкая', 'Во всех этих районах медиана одинаковая', (rate) => `$${rate}/м²`)}`);
+      return parts.join(' ');
+    })());
+    if (marketStats.withMetroCount > 0) add('Сколько зданий рядом с метро?', `Не дальше 800 м от ближайшего метро — ${marketStats.nearMetro} БЦ. Расстояние известно для ${marketStats.withMetroCount} зданий выборки. Считаем только их.`);
     if (metroFilter && orderedCenters.length) {
       const nearest = [...orderedCenters].sort((a, b) => (metroHubDistance(a, metroFilter) ?? Infinity) - (metroHubDistance(b, metroFilter) ?? Infinity))[0];
       const distance = metroHubDistance(nearest, metroFilter);
       if (distance != null) add(`Какой бизнес-центр ближе всего к метро «${metroFilter}»?`, `${shortName(nearest)} — ${distance} м. В подборку станции входят здания не дальше 1,5 км.`);
     }
-    add('Сколько зданий в выборке строится?', `${marketStats.underConstruction}.${underConstructionNames.length ? ` Строятся: ${underConstructionNames.join(', ')}.` : ''}`);
+    add('Сколько зданий в выборке строится?', `Сейчас строится ${marketStats.underConstruction} БЦ.${underConstructionNames.length ? ` ${underConstructionNames.length > 3 ? 'Среди них' : 'Это'}: ${underConstructionNames.slice(0, 3).join(', ')}${underConstructionNames.length > 3 ? ` и ещё ${underConstructionNames.length - 3}` : ''}.` : ''}`);
     if (summary.rentMedian != null) add('Какая медианная ставка аренды и как она рассчитана?', rentMethodology);
     if (showRatesBlock) {
       for (const [label, deal, rate] of [['аренды', 'rent', rateRent], ['продажи', 'sale', rateSale]] as const) {
-        if (rate?.median != null) add(`Какая ставка ${label} в блоке рыночных ставок?`, `${formatRate(rate.median, deal)} по ${rate.n} объявлениям Kufar, Realt, Domovita и Megapolis${rate.period ? `, период ${rate.period.slice(0, 7)}` : ''}.${rate.n < MIN_RELIABLE_N ? ' Маленькая выборка: ориентировочное значение.' : ''} Это медиана объявлений соответствующего рыночного среза.`);
+        if (rate?.median != null) add(`Какая ставка ${label} в блоке рыночных ставок?`, `${formatRate(rate.median, deal)} по ${rate.n} объявлениям Kufar, Realt, Domovita и Megapolis.${rate.period ? ` Период: ${rate.period.slice(0, 7)}.` : ''}${rate.n < MIN_RELIABLE_N ? ' Объявлений мало, ставка лишь ориентировочная.' : ''} Это медиана ставок в объявлениях для выбранной части рынка.`);
       }
     }
     // Управление зданиями, текущие объявления и внешний контекст рынка —
     // переехали на /minsk/bcminsk/analytics вместе с блоками, которые эти
     // ответы описывали (владелец, 2026-09-22, см. комментарий у тизера
     // «Аналитика каталога БЦ» ниже в рендере).
-    add('Где посмотреть, кто управляет зданиями и что сейчас сдаётся в каталоге?', 'На отдельной странице «Аналитика каталога БЦ»: типы управления (товарищество собственников/единая УК), здания с активными объявлениями и диапазоны площади лотов, контекст рынка офисов по внешним источникам.');
-    add('Как работают фильтры и подборки?', 'Фильтры отбирают здания по заданным характеристикам и пересчитывают выдачу и её сводку. Сортировка меняет порядок. Карточки, таблица и карта помогают просматривать результаты, сравнение — сопоставлять выбранные здания. Подборки по классу, району, микрорайону, улице, метро и статусу строительства и полный список названий со ссылками на страницы зданий — в справочнике по бизнес-центрам Минска.');
-    add('Что означает «параметр не известен»?', 'В источниках нет заполненного значения. Это не означает, что характеристики или услуги нет. Фильтр по признаку показывает только здания с данными, подтверждающими этот признак.');
+    add('Где посмотреть, кто управляет зданиями и что сейчас сдаётся в каталоге?', 'На странице «Аналитика каталога БЦ». Там указано, кто управляет зданиями: товарищество собственников или единая УК. Там же — здания с активными объявлениями и диапазоны площади лотов. Данные внешних источников помогают оценить рынок офисов в целом.');
+    add('Как работают фильтры и подборки?', 'Фильтры оставляют здания с выбранными характеристиками. Список и сводка обновляются вместе с фильтрами. Сортировка меняет порядок. Карточки, таблица и карта помогают просматривать результаты, сравнение — сопоставлять выбранные здания. В справочнике по бизнес-центрам Минска есть подборки по классу и статусу строительства. Там же можно выбрать район, микрорайон, улицу или метро. Полный список названий в справочнике ведёт на страницы зданий.');
+    add('Что означает «параметр не известен»?', 'В источниках нет данных об этом параметре. Это не означает, что характеристики или услуги нет. Фильтр по признаку показывает только здания, у которых этот признак подтверждён данными.');
     return items;
   }, [centers, scopeLabel, marketStats, districtTotals, officeSnapshots, metroFilter, orderedCenters, underConstructionNames, summary.rentMedian, rentMethodology, showRatesBlock, rateRent, rateSale]);
 
@@ -1171,19 +1200,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               </Link>
             )}
 
-            {faqItems.length > 0 && (
-              <div id="faq" className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-                <h2 className="text-lg font-bold text-ink">Частые вопросы</h2>
-                <div className="flex flex-col divide-y divide-border">
-                  {faqItems.map((item) => (
-                    <div key={item.question} className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
-                      <p className="text-sm font-semibold text-ink">{item.question}</p>
-                      <p className="text-sm leading-relaxed text-ink-muted">{item.answer}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {faqItems.length > 0 && <FaqAccordion title="Частые вопросы" items={faqItems} id="faq" />}
             <div className={cn('flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
               <h2 className="text-lg font-bold text-ink">Источники</h2>
               {/* Владелец, 2026-09-22: один короткий дисклеймер без дат
