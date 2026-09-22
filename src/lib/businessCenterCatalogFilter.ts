@@ -13,9 +13,9 @@
 // всегда указывает на ближайший одноосевой хаб), поэтому комбинации не
 // плодят тонкие страницы, но ссылкой с отфильтрованным списком можно
 // поделиться.
-import type { BusinessCenter } from '../data/businessCenters';
+import { BUSINESS_CENTER_CLASSES, type BusinessCenter } from '../data/businessCenters';
 import type { MarketSnapshot } from '../data/marketSnapshots';
-import { shortName, streetOfAddress } from './businessCenterDisplay';
+import { mapRatingFromHighlights, shortName, streetOfAddress } from './businessCenterDisplay';
 
 // --- Сортировка (К5) ---------------------------------------------------
 
@@ -30,8 +30,15 @@ export type CatalogSortKey =
   | 'name';
 
 export const CATALOG_SORTS: { key: CatalogSortKey; label: string }[] = [
-  // По умолчанию — sort_order каталога (примерно по частотности поисковых
-  // запросов, см. BusinessCenter.sortOrder), а не алфавит.
+  // По умолчанию (владелец, 2026-09-22) — сначала класс (A выше B+, B, C),
+  // внутри класса — рейтинг на Яндекс.Картах (mapRatingFromHighlights, а не
+  // gisRating — тот структурный снимок 2ГИС, отдельный источник и отдельный
+  // явный пункт сортировки "Рейтинг 2ГИС" ниже). Это значит, что здание
+  // высокого класса с посредственным рейтингом на картах всё равно стоит
+  // выше более низкого класса с отличным рейтингом — рейтинг решает только
+  // спор внутри одного класса, не между классами. sort_order (частотность
+  // поисковых запросов) остался финальным тай-брейком при полном совпадении
+  // класса и рейтинга (или их отсутствии) — см. defaultSortCenters ниже.
   { key: 'default', label: 'По умолчанию' },
   { key: 'rent', label: 'Ставка аренды' },
   { key: 'area', label: 'Площадь' },
@@ -497,6 +504,33 @@ function byNumber(get: (c: BusinessCenter) => number | null, direction: 'asc' | 
   };
 }
 
+// Индекс BUSINESS_CENTER_CLASSES (['A', 'B+', 'B', 'C']) уже задаёт порядок
+// "как на рынке" — переводим его в числовой ранг, где выше класс = больше
+// число, чтобы byNumber с direction: 'desc' поставил A выше C. Класс не
+// указан — как и везде у byNumber, такое здание уходит в конец, а не
+// смешивается с классом C.
+const CLASS_RANK = new Map<string, number>(
+  BUSINESS_CENTER_CLASSES.map((cls, i) => [cls, BUSINESS_CENTER_CLASSES.length - i]),
+);
+const classRank = (c: BusinessCenter): number | null => (c.businessClass ? CLASS_RANK.get(c.businessClass) ?? null : null);
+// Рейтинг Яндекс.Карт из highlights, не gisRating (2ГИС) — см. комментарий
+// у CATALOG_SORTS выше.
+const yandexMapsRating = (c: BusinessCenter): number | null => mapRatingFromHighlights(c.highlights)?.value ?? null;
+
+const byClassThenRating = byNumber(classRank, 'desc');
+const byYandexRating = byNumber(yandexMapsRating, 'desc');
+
+// Порядок по умолчанию для общего каталога и всех тематических хабов
+// (класс/район/микрорайон/улица/строящиеся): класс главнее рейтинга, рейтинг
+// решает только внутри одного класса. Кейс владельца, 2026-09-22: здание
+// высокого класса с рейтингом 3,8 всё равно стоит выше зданий более низкого
+// класса — даже если у тех рейтинг куда выше.
+function defaultSortCenters(centers: BusinessCenter[]): BusinessCenter[] {
+  return [...centers].sort(
+    (a, b) => byClassThenRating(a, b) || byYandexRating(a, b) || a.sortOrder - b.sortOrder,
+  );
+}
+
 export function sortCatalogCenters(
   centers: BusinessCenter[],
   sort: CatalogSortKey,
@@ -524,7 +558,7 @@ export function sortCatalogCenters(
     case 'name':
       return list.sort((a, b) => shortName(a).localeCompare(shortName(b), 'ru'));
     default:
-      return list.sort((a, b) => a.sortOrder - b.sortOrder);
+      return defaultSortCenters(list);
   }
 }
 
