@@ -94,7 +94,7 @@ import { fetchBusinessCenterReviews } from '../lib/businessCenterReviewsApi';
 import type { BusinessCenterOffer } from '../data/businessCenterOffers';
 import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
 import { dedupeOffers } from '../lib/businessCenterOfferDuplicates';
-import { buildDealStats, formatArea, formatMoney, formatRate } from '../lib/businessCenterOfferStats';
+import { buildDealStats, buildPriceBuckets, formatArea, formatMoney, formatRate } from '../lib/businessCenterOfferStats';
 import { BuildingOffersSection } from '../components/businessCenters/BuildingOffersSection';
 import { pluralRu } from '../lib/pluralRu';
 import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
@@ -1283,7 +1283,7 @@ export function BusinessCenterDetailPage() {
     add('Какие часы работы указаны?', accessHoursText);
     // FAQ обязан описывать ВЕСЬ блок «Что сейчас сдают и продают» (правило
     // владельца) — и описывает его теми же цифрами, что нарисованы выше:
-    // медиану, бюджет лота, скидку за объём и окупаемость считает один
+    // полки по бюджету, цену лота целиком и скидку за объём считает один
     // businessCenterOfferStats, отдельной арифметики здесь нет.
     for (const stats of [saleStats, rentStats]) {
       if (!stats) continue;
@@ -1300,6 +1300,18 @@ export function BusinessCenterDetailPage() {
           .map((lot) => `${formatArea(lot.size)} по ${formatRate(lot.pricePerSqm, stats.deal)}/м² — ${formatMoney(lot.size * lot.pricePerSqm)}${isRent ? ' в месяц' : ''}`)
           .join('; ')}. Это площадь × ставка, а не итоговый платёж: состав коммунальных, эксплуатационных и других платежей в объявлениях не раскрыт.`,
       );
+      const buckets = buildPriceBuckets(stats);
+      if (buckets) {
+        add(
+          isRent ? `На какой бюджет аренды можно рассчитывать в «${name}»?` : `На какой бюджет покупки можно рассчитывать в «${name}»?`,
+          `Предложения здания разложены по цене: ${buckets
+            .map(
+              (b) =>
+                `${b.label.toLowerCase()} — ${b.lots.length} ${pluralRu(b.lots.length, 'помещение', 'помещения', 'помещений')} площадью ${formatArea(b.sizeMin)}–${formatArea(b.sizeMax)}`,
+            )
+            .join('; ')}.`,
+        );
+      }
       if (stats.sizeDiscount) {
         const d = stats.sizeDiscount;
         add(
@@ -1477,9 +1489,10 @@ export function BusinessCenterDetailPage() {
     const developerInfo = center.developerInfo;
     const sizeOf = (id: string): number => {
       switch (id) {
-        // С 2026-09-21 блок — две колонки (продажа и аренда) рядом, в
-        // каждой таблица лотов со свёрткой по шесть строк: высоту задаёт
-        // та колонка, что длиннее, а не сумма обеих.
+        // С 2026-09-21 блок — две колонки (продажа и аренда) рядом: высоту
+        // задаёт та колонка, что длиннее, а не сумма обеих. С 2026-09-22
+        // внутри колонки не сплошной список, а полки по бюджету, и строки
+        // видны только в раскрытой — их не больше шести.
         case 'offers':
           return Math.max(saleStats?.count ?? 0, rentStats?.count ?? 0);
         case 'rental':
