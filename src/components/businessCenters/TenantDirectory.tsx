@@ -24,6 +24,10 @@ import { buildFloorGroups, formatFloorLabel, type TenantAmenity } from '../../li
 
 const TENANT_PAGE_SIZE = 6;
 const ALL_TENANT_DIRECTIONS = 'Все организации';
+// Оборудование и точки самообслуживания (банкоматы, кофейные автоматы) идут
+// в общий каталог отдельным направлением — так их видно и можно найти
+// поиском/фильтром, но не путают с обычным арендатором в других направлениях.
+const AMENITY_DIRECTION = 'Оборудование';
 // Этажи показываем, только когда они известны хотя бы у трети арендаторов:
 // на десятке из девяноста «по этажам» — не срез здания, а случайная выборка.
 const FLOOR_SUMMARY_MIN_SHARE = 0.3;
@@ -51,25 +55,30 @@ function formatCompactNumber(value: number): string {
 export function TenantDirectory({
   organizations,
   amenities,
-  source,
-  capturedAt,
-  reportedTotal,
 }: {
   organizations: TenantOrganizationView[];
   amenities: TenantAmenity[];
-  source: 'yandex_maps' | '2gis';
-  capturedAt: string | null;
-  reportedTotal: number | null;
 }) {
   const [query, setQuery] = useState('');
   const [activeDirection, setActiveDirection] = useState(ALL_TENANT_DIRECTIONS);
   const [page, setPage] = useState(0);
   const [floorsOpen, setFloorsOpen] = useState(false);
 
-  const entries = useMemo(
-    () => organizations.map((org) => ({ ...org, direction: tenantDirectionLabel(org.industry) })),
-    [organizations],
-  );
+  const entries = useMemo(() => {
+    const orgEntries = organizations.map((org) => ({ ...org, direction: tenantDirectionLabel(org.industry) }));
+    const amenityEntries = amenities.map((amenity) => ({
+      name: amenity.count > 1 ? `${amenity.category} (${amenity.count})` : amenity.category,
+      rubric: 'Оборудование и сервисы',
+      industry: null,
+      placement: null,
+      floor: null,
+      rating: null,
+      reviewCount: null,
+      url: null,
+      direction: AMENITY_DIRECTION,
+    }));
+    return [...orgEntries, ...amenityEntries];
+  }, [organizations, amenities]);
   const directions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const entry of entries) counts.set(entry.direction, (counts.get(entry.direction) ?? 0) + 1);
@@ -95,7 +104,6 @@ export function TenantDirectory({
   const floorGroups = useMemo(() => buildFloorGroups(organizations), [organizations]);
   const withFloor = organizations.filter((org) => org.floor).length;
   const showFloors = organizations.length > 0 && withFloor / organizations.length >= FLOOR_SUMMARY_MIN_SHARE;
-  const partial = reportedTotal != null && reportedTotal > organizations.length;
 
   useEffect(() => setPage(0), [query, activeDirection]);
 
@@ -270,29 +278,6 @@ export function TenantDirectory({
             )}
           </div>
         )}
-
-        {/* Оборудование и точки самообслуживания — отдельной строкой, а не в
-            каталоге: банкомат и туалет не снимают помещение, и в отраслях они
-            дают ложные «Места». */}
-        {amenities.length > 0 && (
-          <p className="text-sm text-ink-muted">
-            <span className="font-semibold text-ink">В здании также есть:</span>{' '}
-            {amenities.map((item) => (item.count > 1 ? `${item.category} (${item.count})` : item.category)).join(', ')}.
-          </p>
-        )}
-
-        <p className="text-xs text-ink-faint">
-          {source === 'yandex_maps' ? 'Организации из Яндекс.Карт по адресу здания' : 'Организации из справочника 2ГИС по адресу здания'}
-          {capturedAt && <> на {new Date(capturedAt).toLocaleDateString('ru-RU')}</>}.
-          {partial && (
-            <>
-              {' '}
-              Источник показывает в здании {reportedTotal} {pluralOrganizations(reportedTotal ?? 0)} — выгрузка
-              ограничена {organizations.length}, поэтому доли считаются по ним.
-            </>
-          )}{' '}
-          Список организаций мог измениться, а часть арендаторов в справочник не попадает.
-        </p>
       </div>
     </div>
   );

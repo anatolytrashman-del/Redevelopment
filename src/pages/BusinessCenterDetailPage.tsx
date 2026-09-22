@@ -2223,18 +2223,8 @@ export function BusinessCenterDetailPage() {
             картах"), но тогда рейтинг был известен только по зданию целиком —
             теперь число оценок есть на саму организацию. */}
         {tenantOrganizations.length > 0 && (
-          <TenantDirectory
-            organizations={tenantOrganizations}
-            amenities={tenantAmenities}
-            source={tenantSource}
-            capturedAt={
-              tenantSource === '2gis' ? gis2?.tenantOrganizationsFetchedAt ?? null : tenantSnapshot?.capturedAt ?? null
-            }
-            // Потолок выдачи — беда только 2GIS (50 организаций на здание);
-            // яндексовский срез снимается прокруткой до конца списка, и
-            // оговорка про неполноту там была бы неправдой.
-            reportedTotal={tenantSource === '2gis' ? gis2?.tenantOrganizationsTotal ?? null : null}
-          />
+          <TenantDirectory organizations={tenantOrganizations} amenities={tenantAmenities} />
+
         )}
 
         {renderRecommendationSlot('tenants')}
