@@ -123,6 +123,13 @@ function extractRatingFromHtml(html: string): ParsedSnapshotRating | null {
 // Владелец, 2026-09-19 (владелец сохранил вкладку «Отзывы» «Порта» через
 // Cmd+S и прислал файл): 134 карточки на странице, 3 — дубликат виджета
 // «похожих» вверху (тот же автор+дата), дедуп по этой паре.
+//
+// СЕЛЕКТОРЫ-БЛИЗНЕЦЫ (2026-09-22): та же разметка разбирается ещё раз —
+// внутри page.evaluate() в scripts/capture-yandex-reviews.mjs (полуавтомат
+// прямо с открытой вкладки Яндекс.Карт, без ручного сохранения .webarchive).
+// TS-модуль в браузерный контекст Playwright не импортировать, поэтому
+// список полей продублирован построчно — Яндекс поменял вёрстку, чинить
+// сразу в обоих местах.
 function extractReviewsFromHtml(html: string): ParsedSnapshotReview[] {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const cards = doc.querySelectorAll('.business-review-view');

@@ -36,9 +36,17 @@
 //   node scripts/capture-yandex-nearby.mjs --skip-collected --write-db
 //        — весь каталог, пропуская уже собранное (можно прерывать и запускать снова);
 //   node scripts/capture-yandex-nearby.mjs --from-cache --write-db
-//        — дописать в базу то, что уже лежит в tmp/, без браузера.
+//        — дописать в базу то, что уже лежит в tmp/, без браузера;
+//   node scripts/capture-yandex-nearby.mjs --only-missing-reviews --write-db
+//        — только здания без ни одного текстового отзыва с Яндекса (тот же
+//          список, что --missing-only в scripts/capture-yandex-reviews.mjs) —
+//          первый заход, инфраструктура и отзывы для одного и того же куска
+//          каталога;
+//   node scripts/capture-yandex-nearby.mjs --exclude-missing-reviews --write-db
+//        — второй заход, остаток каталога (здания, где отзыв уже есть).
 //
 // Флаги: --limit N, --slug SLUG, --skip-collected, --max-age-days 45,
+// --only-missing-reviews, --exclude-missing-reviews (взаимоисключающие),
 // --only-categories pharmacy,bank, --pause (подтверждать каждое здание
 // вручную), --delay 2000 (фиксированная пауза вместо случайной 1–3 с),
 // --debug-dump, --output DIR, --profile DIR, --city-path 157/minsk.
@@ -61,6 +69,7 @@ import {
   haversineMeters,
   radiusFor,
   readCenters,
+  slugsWithYandexReviews,
   writePlaces,
 } from './nearby-places-common.mjs';
 
@@ -79,6 +88,16 @@ const listOnly = has('--list');
 const fromCache = has('--from-cache');
 const debugDump = has('--debug-dump');
 const skipCollected = has('--skip-collected');
+// Резать очередь по тому же списку «где ещё нет ни одного текстового отзыва
+// с Яндекса», что и --missing-only в scripts/capture-yandex-reviews.mjs
+// (общая проверка — slugsWithYandexReviews в nearby-places-common.mjs), а не
+// по двум независимо посчитанным спискам: --only-missing-reviews — первый
+// заход (там же, где не хватает отзывов, заодно собрать инфраструктуру),
+// --exclude-missing-reviews — второй заход, остаток каталога (владелец,
+// 2026-09-22: сначала здания без отзывов — инфраструктура и отзывы вместе,
+// потом отдельной командой доснять инфраструктуру у остальных).
+const onlyMissingReviews = has('--only-missing-reviews');
+const excludeMissingReviews = has('--exclude-missing-reviews');
 // --no-browser: те же страницы поиска, но запрошенные обычным fetch'ем, без
 // Chrome. Работает, пока Яндекс не попросит проверку (а он попросит тем
 // скорее, чем меньше запрос похож на живого человека) — поэтому это не
@@ -515,7 +534,11 @@ async function main() {
     console.error('Chrome не найден. Укажите полный путь через переменную CHROME_PATH');
     process.exit(1);
   }
-  if ((writeDb || skipCollected) && !serviceRoleKey && !accessToken) {
+  if (onlyMissingReviews && excludeMissingReviews) {
+    console.error('--only-missing-reviews и --exclude-missing-reviews взаимоисключающие');
+    process.exit(1);
+  }
+  if ((writeDb || skipCollected || onlyMissingReviews || excludeMissingReviews) && !serviceRoleKey && !accessToken) {
     console.error('Нужен SUPABASE_SERVICE_ROLE_KEY или SUPABASE_ACCESS_TOKEN');
     process.exit(1);
   }
@@ -528,8 +551,13 @@ async function main() {
 
   const centers = await readCenters({ supabase, accessToken });
   const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
+  const withYandexReviews = onlyMissingReviews || excludeMissingReviews
+    ? await slugsWithYandexReviews({ supabase, accessToken })
+    : null;
   let queue = centers.filter((center) => {
     if (onlySlug && center.slug !== onlySlug) return false;
+    if (onlyMissingReviews && withYandexReviews.has(center.slug)) return false;
+    if (excludeMissingReviews && !withYandexReviews.has(center.slug)) return false;
     if (!skipCollected) return true;
     if (!center.collected_at) return true;
     return Date.now() - new Date(center.collected_at).getTime() > maxAgeMs;

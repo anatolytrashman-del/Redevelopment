@@ -193,6 +193,29 @@ export async function readCenters({ supabase, accessToken }) {
   );
 }
 
+// Слаги БЦ, у которых уже есть хотя бы один текстовый отзыв с Яндекс.Карт
+// (business_center_review_snapshots, source='yandex_maps') — общий фильтр
+// для capture-yandex-nearby.mjs (--only-missing-reviews /
+// --exclude-missing-reviews) и capture-yandex-reviews.mjs (--missing-only),
+// чтобы прогон инфраструктуры и прогон отзывов резали каталог по ОДНОМУ и
+// тому же списку зданий, а не по двум отдельно посчитанным.
+export async function slugsWithYandexReviews({ supabase, accessToken }) {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('business_center_review_snapshots')
+      .select('business_center_slug')
+      .eq('source', 'yandex_maps')
+      .range(0, 9999);
+    if (error) throw error;
+    return new Set((data ?? []).map((row) => row.business_center_slug));
+  }
+  const rows = await runSql(
+    "select distinct business_center_slug from public.business_center_review_snapshots where source = 'yandex_maps';",
+    accessToken,
+  );
+  return new Set(rows.map((row) => row.business_center_slug));
+}
+
 export async function writePlaces({ supabase, accessToken, slug, places }) {
   if (supabase) {
     const { error: deleteError } = await supabase
