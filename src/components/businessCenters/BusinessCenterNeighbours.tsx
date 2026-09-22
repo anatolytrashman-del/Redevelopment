@@ -32,20 +32,18 @@ import type { BusinessCenterNearbyPlace, NearbyPlaceCategory } from '../../data/
 
 const DEFAULT_ZOOM = 15;
 
-const CATEGORY_META: Record<NearbyPlaceCategory, { label: string; icon: typeof MapPin; names: boolean }> = {
-  metro: { label: 'Метро', icon: TrainFront, names: true },
-  transport_stop: { label: 'Остановки', icon: BusFront, names: true },
-  grocery: { label: 'Продукты', icon: ShoppingBag, names: true },
-  pharmacy: { label: 'Аптеки', icon: Pill, names: true },
-  bank: { label: 'Банки', icon: Landmark, names: true },
-  // Имя банкомата («Приорбанк», «МТбанк») ничего не сообщает: важны факт и
-  // расстояние, поэтому у категории нет ни списка, ни подписи на карте.
-  atm: { label: 'Банкоматы', icon: Banknote, names: false },
-  coffee: { label: 'Кофейни', icon: Coffee, names: true },
-  cafe: { label: 'Кафе и рестораны', icon: Utensils, names: true },
-  fitness: { label: 'Фитнес', icon: Dumbbell, names: true },
-  shop: { label: 'Магазины', icon: ShoppingBag, names: true },
-  other: { label: 'Другое', icon: MapPin, names: true },
+const CATEGORY_META: Record<NearbyPlaceCategory, { label: string; icon: typeof MapPin }> = {
+  metro: { label: 'Метро', icon: TrainFront },
+  transport_stop: { label: 'Остановки', icon: BusFront },
+  grocery: { label: 'Продукты', icon: ShoppingBag },
+  pharmacy: { label: 'Аптеки', icon: Pill },
+  bank: { label: 'Банки', icon: Landmark },
+  atm: { label: 'Банкоматы', icon: Banknote },
+  coffee: { label: 'Кофейни', icon: Coffee },
+  cafe: { label: 'Кафе и рестораны', icon: Utensils },
+  fitness: { label: 'Фитнес', icon: Dumbbell },
+  shop: { label: 'Магазины', icon: ShoppingBag },
+  other: { label: 'Другое', icon: MapPin },
 };
 
 const PIN_COLOR = '#14151a';
@@ -207,49 +205,57 @@ export function NearbyInfrastructureBlock({
             const Icon = meta.icon;
             const isOpen = openKey === group.category;
             const nearest = group.places[0];
+            // Единственное место в категории раскрывать некуда: строка и так
+            // показывает его целиком, а пустая «гармошка» с ответом «больше
+            // ничего нет» — обманутое ожидание. Такая строка не кнопка и без
+            // шеврона.
+            const expandable = group.places.length > 1;
+            const rowContent = (
+              <>
+                <Icon className="h-4 w-4 shrink-0 text-ink-faint" />
+                {/* Количество — до раскрытия строки, а не после: иначе не
+                    видно, одна здесь аптека или одиннадцать. */}
+                <span className="flex w-32 shrink-0 items-baseline gap-1.5 sm:w-48">
+                  <span className="text-sm font-semibold text-ink">{meta.label}</span>
+                  {expandable && <span className="text-xs tabular-nums text-ink-faint">{group.places.length}</span>}
+                </span>
+                <span className="flex-1 truncate text-sm text-ink-muted">{nearest.name}</span>
+                <span className="shrink-0 text-sm tabular-nums text-ink">{formatMeters(nearest.distanceMeters)}</span>
+                <ChevronDown
+                  className={cn(
+                    'h-4 w-4 shrink-0 transition-transform',
+                    expandable ? 'text-ink-faint' : 'invisible',
+                    isOpen && 'rotate-180',
+                  )}
+                  aria-hidden
+                />
+              </>
+            );
             return (
               <li key={group.category}>
-                <button
-                  type="button"
-                  onClick={() => setOpenKey(isOpen ? null : group.category)}
-                  aria-expanded={isOpen}
-                  className="flex w-full items-center gap-3 py-3 text-left transition-colors hover:bg-surface-muted/60"
-                >
-                  <Icon className="h-4 w-4 shrink-0 text-ink-faint" />
-                  {/* Количество — до раскрытия строки, а не после: иначе не
-                      видно, одна здесь аптека или одиннадцать. */}
-                  <span className="flex w-32 shrink-0 items-baseline gap-1.5 sm:w-48">
-                    <span className="text-sm font-semibold text-ink">{meta.label}</span>
-                    <span className="text-xs tabular-nums text-ink-faint">{group.places.length}</span>
-                  </span>
-                  <span className="flex-1 truncate text-sm text-ink-muted">
-                    {meta.names ? nearest.name : ''}
-                  </span>
-                  <span className="shrink-0 text-sm tabular-nums text-ink">{formatMeters(nearest.distanceMeters)}</span>
-                  <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-faint transition-transform', isOpen && 'rotate-180')} aria-hidden />
-                </button>
+                {expandable ? (
+                  <button
+                    type="button"
+                    onClick={() => setOpenKey(isOpen ? null : group.category)}
+                    aria-expanded={isOpen}
+                    className="flex w-full items-center gap-3 py-3 text-left transition-colors hover:bg-surface-muted/60"
+                  >
+                    {rowContent}
+                  </button>
+                ) : (
+                  <div className="flex w-full items-center gap-3 py-3 text-left">{rowContent}</div>
+                )}
 
-                {isOpen && (
+                {isOpen && expandable && (
                   <div className="pb-3 pl-7 pr-2">
-                    {meta.names ? (
-                      group.places.length > 1 ? (
-                        <ul className="flex flex-col gap-1">
-                          {group.places.slice(1).map((place) => (
-                            <li key={place.id} className="flex items-baseline justify-between gap-4 text-sm text-ink-muted">
-                              <span className="truncate">{place.name}</span>
-                              <span className="shrink-0 tabular-nums text-ink-faint">{formatMeters(place.distanceMeters)}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-sm text-ink-faint">Других поблизости не нашлось.</p>
-                      )
-                    ) : (
-                      <p className="text-sm text-ink-muted">
-                        Ещё {group.places.length - 1} поблизости — все показаны на карте. Какой это банк, видно по метке;
-                        списком не выводим, потому что на выбор здания это не влияет.
-                      </p>
-                    )}
+                    <ul className="flex flex-col gap-1">
+                      {group.places.slice(1).map((place) => (
+                        <li key={place.id} className="flex items-baseline justify-between gap-4 text-sm text-ink-muted">
+                          <span className="truncate">{place.name}</span>
+                          <span className="shrink-0 tabular-nums text-ink-faint">{formatMeters(place.distanceMeters)}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </li>
