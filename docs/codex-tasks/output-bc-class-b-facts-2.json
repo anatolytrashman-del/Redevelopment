@@ -1,0 +1,153 @@
+[
+  {
+    "slug": "evropa",
+    "name": "БЦ «Европа»",
+    "facts": []
+  },
+  {
+    "slug": "zebra",
+    "name": "БЦ «Зебра»",
+    "facts": []
+  },
+  {
+    "slug": "imperial",
+    "name": "БЦ «Империал»",
+    "facts": []
+  },
+  {
+    "slug": "kamennogorsky",
+    "name": "БЦ «Каменногорский»",
+    "facts": []
+  },
+  {
+    "slug": "magistr",
+    "name": "БЦ «Магистр»",
+    "facts": []
+  },
+  {
+    "slug": "metropol",
+    "name": "БЦ «Метрополь»",
+    "facts": [
+      {
+        "label": "Открытие с дизайнерами",
+        "text": "21 сентября 2017 года в «Метрополе» открылось интерьерное пространство Fusion House. На открытии выступила группа PALLADIUM Electric Band, а архитектурное бюро ZROBYM architects представило авторскую мебель своего бренда BY furniture.",
+        "source": "Дом-Эксперт",
+        "sourceUrl": "https://dom-expert.by/prostranstvo-fusion-house/"
+      }
+    ]
+  },
+  {
+    "slug": "nord-siti",
+    "name": "БЦ «Норд-сити»",
+    "facts": []
+  },
+  {
+    "slug": "okean",
+    "name": "БЦ «Океан»",
+    "facts": []
+  },
+  {
+    "slug": "optima",
+    "name": "БЦ «Оптима»",
+    "facts": []
+  },
+  {
+    "slug": "ofisinvest",
+    "name": "БЦ «Офисинвест»",
+    "facts": []
+  },
+  {
+    "slug": "pokrovskiy",
+    "name": "БЦ «Покровский»",
+    "facts": []
+  },
+  {
+    "slug": "premier",
+    "name": "БЦ «Премьер»",
+    "facts": [
+      {
+        "label": "Из офисов в апартаменты",
+        "text": "В 2023 году компания «Си Трейдинг» объявила о преобразовании бизнес-центра «Премьер» на улице Лопатина в комплекс апартаментов.",
+        "source": "NAI Belarus / CRE",
+        "sourceUrl": "https://cre.ru/analytics/93509"
+      }
+    ]
+  },
+  {
+    "slug": "solo",
+    "name": "БЦ «Соло»",
+    "facts": []
+  },
+  {
+    "slug": "v",
+    "name": "БЦ «Столица»",
+    "facts": []
+  },
+  {
+    "slug": "strateg-1",
+    "name": "БЦ «Стратег-1»",
+    "facts": []
+  },
+  {
+    "slug": "strateg-3",
+    "name": "БЦ «Стратег-3»",
+    "facts": []
+  },
+  {
+    "slug": "surganova",
+    "name": "БЦ «Сурганова»",
+    "facts": []
+  },
+  {
+    "slug": "time",
+    "name": "БЦ «Тайм»",
+    "facts": []
+  },
+  {
+    "slug": "terminal",
+    "name": "БЦ «Терминал»",
+    "facts": [
+      {
+        "label": "Здесь работал Институт Гёте",
+        "text": "Среди резидентов «Терминала» был Институт имени Гёте в Минске. В отзыве на сайте управляющей компании его представитель рассказал, что институт выбрал этот бизнес-центр в 2009 году, когда искал новое помещение.",
+        "source": "IDC Group",
+        "sourceUrl": "https://idc.by/predlozheniya/terminal"
+      }
+    ]
+  },
+  {
+    "slug": "flagman",
+    "name": "БЦ «Флагман»",
+    "facts": []
+  },
+  {
+    "slug": "logoyskiy-trakt-15-k-4",
+    "name": "БЦ (Логойский тракт, 15 к.4)",
+    "facts": []
+  },
+  {
+    "slug": "pr-t-nezavisimosti-186",
+    "name": "БЦ (пр-т Независимости, 186)",
+    "facts": []
+  },
+  {
+    "slug": "ul-zheleznodorozhnaya-33a",
+    "name": "БЦ (ул. Железнодорожная, 33А)",
+    "facts": []
+  },
+  {
+    "slug": "ul-levkova-43",
+    "name": "БЦ (ул. Левкова, 43)",
+    "facts": []
+  },
+  {
+    "slug": "ul-lobanka-79",
+    "name": "БЦ (ул. Лобанка, 79)",
+    "facts": []
+  },
+  {
+    "slug": "engelsa-34a",
+    "name": "БЦ (Энгельса, 34А)",
+    "facts": []
+  }
+]
