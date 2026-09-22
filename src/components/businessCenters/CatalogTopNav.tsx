@@ -46,10 +46,26 @@ export type CatalogTopNavProps = {
   secondRow?: ReactNode;
 };
 
-const TOP_LINKS: { to: string; label: string }[] = [
-  { to: '/minsk/bcminsk/analytics', label: 'Аналитика' },
-  { to: '/minsk/bcminsk/rating', label: 'Рейтинги' },
-  { to: '/minsk/bcminsk/gid', label: 'Справочник' },
+type TopNavEntry = { kind: 'link'; to: string; label: string } | { kind: 'ratings' };
+
+const TOP_LINKS: TopNavEntry[] = [
+  { kind: 'link', to: '/minsk/bcminsk/analytics', label: 'Аналитика' },
+  { kind: 'ratings' },
+  { kind: 'link', to: '/minsk/bcminsk/gid', label: 'Справочник' },
+];
+
+// «Рейтинги» — единственный пункт с подменю (владелец, 2026-09-22: «добавляй
+// в меню с понятными и не длинными названиями», после того как 4 новые
+// страницы рейтингов оказались доступны только по перелинковке внутри самих
+// себя, без входа из шапки). Короткие подписи вместо H1 страниц (у «Лучших
+// бизнес-центров Минска» — просто «Класс A», у «Лучших…классов B и C» —
+// «Классы B и C»), чтобы список умещался в узкий выпадающий список.
+const RATING_LINKS: { to: string; label: string }[] = [
+  { to: '/minsk/bcminsk/rating', label: 'Класс A' },
+  { to: '/minsk/bcminsk/rating/b-plus', label: 'Класс B+' },
+  { to: '/minsk/bcminsk/rating/b-c', label: 'Классы B и C' },
+  { to: '/minsk/bcminsk/rating/samye-bolshie', label: 'Самые большие' },
+  { to: '/minsk/bcminsk/rating/samye-dostupnye', label: 'Самые доступные' },
 ];
 
 function rowLinkClass(active: boolean): string {
@@ -59,14 +75,117 @@ function rowLinkClass(active: boolean): string {
   );
 }
 
+// Отдельный маленький выпадающий список, а не расширение общей mega-панели
+// «Бизнес-центры»: та панель строится из каталога (classSlices/districtSlices
+// и т.п.) и держит собственное состояние открытия/раскрытых групп — здесь же
+// 5 фиксированных ссылок без данных, проще и безопаснее держать своим
+// компонентом со своим click-outside/Escape, чем вплетать в чужую разметку.
+function RatingsDropdown({ pathname }: { pathname: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => setOpen(false), [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+    };
+  }, [open]);
+
+  const active = RATING_LINKS.some((l) => l.to === pathname);
+
+  return (
+    <div ref={ref} className="relative hidden md:block">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls="ratings-menu-panel"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          'flex items-center gap-1 whitespace-nowrap rounded-full px-3 py-2 text-sm font-semibold transition-colors',
+          active ? 'bg-surface-muted text-ink' : 'text-ink-muted hover:text-ink',
+        )}
+      >
+        Рейтинги
+        <ChevronDown aria-hidden="true" className={cn('h-4 w-4 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div
+          id="ratings-menu-panel"
+          className="absolute left-0 top-full z-50 mt-1 min-w-[210px] rounded-xl border border-border bg-bg py-2"
+          style={{ boxShadow: '0 16px 32px rgba(0,0,0,0.12)' }}
+        >
+          {RATING_LINKS.map((link) => (
+            <Link
+              key={link.to}
+              to={link.to}
+              className={cn(
+                'block px-4 py-2 text-sm transition-colors',
+                link.to === pathname ? 'font-semibold text-ink' : 'text-ink-muted hover:bg-surface-muted hover:text-ink',
+              )}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: CatalogTopNavProps) {
   const [open, setOpen] = useState(false);
   // Ниже md панель — единственный способ навигации, и все четыре оси подряд
   // дают экран на ~50 пунктов. Поэтому там группы свёрнуты (раскрыта одна,
   // по тапу), а от md раскладка колоночная и сворачивать нечего.
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  // Левая граница содержимого страницы в пикселях от края экрана — по ней
+  // выравнивается содержимое панели (владелец, 2026-09-22: «меню переносим
+  // в левый край страницы... оно на главной прижато к правому краю, а
+  // должно быть слева»).
+  const [contentLeft, setContentLeft] = useState<number | null>(null);
   const { pathname } = useLocation();
   const rootRef = useRef<HTMLElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+
+  // Ориентир — контейнер самой шапки, то есть линия логотипа. Она же линия
+  // левого края содержимого страницы: у шапки и у main один и тот же
+  // `width` с одинаковыми боковыми полями. На каталоге и хабах с этой
+  // линии начинается колонка фильтров, а карточки зданий идут правее —
+  // равняться на них (первая попытка этой правки) значит увести меню
+  // вправо, оставив слева дыру во всю ширину фильтров.
+  //
+  // Замер живого узла, а не вычисление из классов: `width` у страниц
+  // разный (max-w-3xl у текстовых, max-w-6xl у каталога, max-w-7xl у
+  // карточки здания), боковые поля меняются на sm, а сам контейнер
+  // центрируется — считать это константами значит держать вторую копию
+  // вёрстки и ловить расхождение при каждой её правке.
+  useEffect(() => {
+    const measure = () => {
+      const el = barRef.current;
+      if (!el) {
+        setContentLeft(null);
+        return;
+      }
+      const padding = parseFloat(window.getComputedStyle(el).paddingLeft) || 0;
+      setContentLeft(Math.round(el.getBoundingClientRect().left + padding));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [pathname, width]);
 
   // Закрывать меню при переходе: react-router меняет URL без перезагрузки,
   // сама панель при этом остаётся раскрытой поверх новой страницы.
@@ -113,11 +232,18 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
     return [groups.slice(0, 1), groups.slice(1, 2), groups.slice(2)].filter((c) => c.length > 0);
   }, [groups]);
 
-  const activeTop = TOP_LINKS.find((l) => l.to === pathname)?.to;
+  const activeTop = TOP_LINKS.find((l) => l.kind === 'link' && l.to === pathname) as
+    | Extract<TopNavEntry, { kind: 'link' }>
+    | undefined;
+  const ratingsActive = RATING_LINKS.some((l) => l.to === pathname);
   // Всё остальное под /minsk/bcminsk (каталог, хабы, карточки) плюс
-  // избранное — это «Бизнес-центры».
+  // избранное — это «Бизнес-центры». Страницы рейтингов тоже живут под
+  // /minsk/bcminsk/, поэтому явно исключены — иначе подсвечивались бы сразу
+  // два пункта шапки.
   const catalogActive =
-    !activeTop && (pathname === '/minsk/bcminsk' || pathname.startsWith('/minsk/bcminsk/') || pathname.startsWith('/favorites/'));
+    !activeTop &&
+    !ratingsActive &&
+    (pathname === '/minsk/bcminsk' || pathname.startsWith('/minsk/bcminsk/') || pathname.startsWith('/favorites/'));
 
   const linkClass = (active: boolean) =>
     cn(
@@ -130,7 +256,7 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
       ref={rootRef}
       className="sticky top-0 z-40 border-b border-border bg-bg/90 backdrop-blur-md"
     >
-      <div className={cn('mx-auto flex items-center justify-between gap-3 px-4 py-4 sm:px-8', width)}>
+      <div ref={barRef} className={cn('mx-auto flex items-center justify-between gap-3 px-4 py-4 sm:px-8', width)}>
         <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
           <span className="font-black text-primary">RED</span>EVELOPMENT
         </Link>
@@ -157,15 +283,19 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
               className={cn('hidden h-4 w-4 transition-transform md:block', open && 'rotate-180')}
             />
           </button>
-          {TOP_LINKS.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className={cn(linkClass(activeTop === link.to), 'hidden md:block')}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {TOP_LINKS.map((entry) =>
+            entry.kind === 'ratings' ? (
+              <RatingsDropdown key="ratings" pathname={pathname} />
+            ) : (
+              <Link
+                key={entry.to}
+                to={entry.to}
+                className={cn(linkClass(activeTop?.to === entry.to), 'hidden md:block')}
+              >
+                {entry.label}
+              </Link>
+            ),
+          )}
         </nav>
       </div>
 
@@ -187,16 +317,25 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
         )}
         style={{ boxShadow: '0 16px 32px rgba(0,0,0,0.12)' }}
       >
-        {/* Панель шире, чем сама шапка на текстовых страницах (там контент
-            max-w-3xl): в три колонки со списком станций 768 px не хватает —
-            названия вроде «Площадь Франтишка Богушевича» ломались на три
-            строки. Ширина панели одна на весь каталог и равна ширине его
-            главной страницы. */}
-        <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-8">
+        {/* Содержимое панели прижато к левому краю страницы (линия
+            логотипа), а не центрировано. Вправо оно тянется дальше, чем
+            контейнер страницы: в три колонки со списком станций 768 px не
+            хватает — названия вроде «Площадь Франтишка Богушевича»
+            ломались на три строки, поэтому ограничение справа мягкое
+            (maxWidth), а жёстко задана только левая граница.
+            `contentLeft === null` — первый кадр до замера: тогда прежнее
+            центрирование, панель не прыгает и не уезжает за экран. */}
+        <div
+          className={cn(
+            'flex flex-col gap-6 py-6',
+            contentLeft === null ? 'mx-auto max-w-6xl px-4 sm:px-8' : 'px-4 sm:pr-8',
+          )}
+          style={contentLeft === null ? undefined : { paddingLeft: contentLeft, maxWidth: 1152 + contentLeft }}
+        >
           {groups.length === 0 ? (
             <p className="text-sm text-ink-muted">Загружаем каталог…</p>
           ) : (
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.9fr)_minmax(0,1fr)] lg:gap-8">
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,2.3fr)_minmax(0,0.85fr)] lg:gap-8">
               {/* Районы и метро — по своей колонке; класс и тип короткие,
                   поэтому делят третью, иначе grid перенёс бы тип под
                   районы, в начало второго ряда. Вертикальная линия между
@@ -295,18 +434,45 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow }: Catal
           {/* Ниже md эти три пункта из шапки убраны (там только бургер) —
               значит, попасть в них можно лишь отсюда. */}
           <div className="flex flex-col gap-0.5 border-t border-border pt-4 md:hidden">
-            {TOP_LINKS.map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className={cn(
-                  'rounded-lg px-2 py-2 text-sm font-semibold transition-colors hover:bg-surface-muted',
-                  activeTop === link.to ? 'text-ink' : 'text-ink-muted hover:text-ink',
-                )}
-              >
-                {link.label}
-              </Link>
-            ))}
+            {TOP_LINKS.map((entry) =>
+              entry.kind === 'ratings' ? (
+                <div key="ratings" className="flex flex-col gap-0.5">
+                  <button
+                    type="button"
+                    aria-expanded={expandedGroup === 'Рейтинги'}
+                    onClick={() => setExpandedGroup((v) => (v === 'Рейтинги' ? null : 'Рейтинги'))}
+                    className={cn(
+                      'flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-sm font-semibold transition-colors hover:bg-surface-muted',
+                      ratingsActive ? 'text-ink' : 'text-ink-muted hover:text-ink',
+                    )}
+                  >
+                    Рейтинги
+                    <ChevronDown
+                      aria-hidden="true"
+                      className={cn('h-4 w-4 transition-transform', expandedGroup === 'Рейтинги' && 'rotate-180')}
+                    />
+                  </button>
+                  <div className={cn('flex-col gap-0.5 pl-3', expandedGroup === 'Рейтинги' ? 'flex' : 'hidden')}>
+                    {RATING_LINKS.map((link) => (
+                      <Link key={link.to} to={link.to} className={rowLinkClass(link.to === pathname)}>
+                        {link.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <Link
+                  key={entry.to}
+                  to={entry.to}
+                  className={cn(
+                    'rounded-lg px-2 py-2 text-sm font-semibold transition-colors hover:bg-surface-muted',
+                    activeTop?.to === entry.to ? 'text-ink' : 'text-ink-muted hover:text-ink',
+                  )}
+                >
+                  {entry.label}
+                </Link>
+              ),
+            )}
           </div>
         </div>
       </div>

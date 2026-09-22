@@ -140,7 +140,7 @@ export function TenantDirectory({
         </div>
 
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(220px,0.45fr)]">
-          <label className="flex min-h-10 w-full items-center gap-2 rounded-xl border border-border bg-white/65 px-3">
+          <label className="flex min-h-10 min-w-0 w-full items-center gap-2 rounded-xl border border-border bg-white/65 px-3">
             <Search className="h-4 w-4 shrink-0 text-ink-muted" />
             <input
               type="search"
@@ -156,7 +156,7 @@ export function TenantDirectory({
             <select
               value={activeDirection}
               onChange={(event) => setActiveDirection(event.target.value)}
-              className="min-h-10 w-full rounded-xl border border-border bg-white/65 px-3 text-sm font-medium text-ink outline-none focus:border-primary/40"
+              className="min-h-10 min-w-0 w-full rounded-xl border border-border bg-white/65 px-3 text-sm font-medium text-ink outline-none focus:border-primary/40"
             >
               <option value={ALL_TENANT_DIRECTIONS}>Все организации · {entries.length}</option>
               {directions.map(([direction, count]) => (
@@ -169,7 +169,7 @@ export function TenantDirectory({
         </div>
 
         {visibleEntries.length > 0 ? (
-          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 xl:grid-cols-3">
             {visibleEntries.map((entry, index) => (
               <div
                 key={`${entry.name}-${entry.url ?? index}`}
