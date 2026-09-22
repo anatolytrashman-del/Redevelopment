@@ -52,6 +52,7 @@ import {
 } from '../lib/businessCenterHubs';
 import { BUSINESS_CENTER_CLASSES, type BusinessCenter } from '../data/businessCenters';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
+import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { fetchBusinessCenterLotSizes } from '../lib/businessCenterOffersApi';
 import { MIN_RELIABLE_N, type MarketSnapshot } from '../data/marketSnapshots';
@@ -877,32 +878,12 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
 
   return (
     <div className="min-h-svh bg-bg">
-      {/* Шапка sticky — владелец: "нравится, как на /minsk/minsk-mir логотип
-          остаётся при скролле, сделай 1 в 1". У DistrictGuidePage.tsx для
-          этого исторически сложный fixed+JS-измеренный трюк (см. комментарий
-          там же — нужен был из-за старого overflow-x:hidden на body/#root,
-          ломавшего position:sticky); с тех пор это заменили на overflow-x:
-          clip (см. index.css), sticky работает нормально сайтвайд (тот же
-          подход уже и в Sidebar.tsx, и в боковом фильтре этой страницы ниже)
-          — простого `sticky top-0` на саму шапку достаточно для того же
-          визуального эффекта, без дублирования логотипа отдельным узлом. */}
-      <div className="sticky top-0 z-30 border-b border-border bg-bg/90 py-5 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-8">
-          <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
-            {/* text-primary-hover — как на гиде района: базовый красный на
-                полупрозрачной шапке даёт контраст ниже 4,5:1 (Accessibility). */}
-            <span className="font-black text-primary-hover">RED</span>EVELOPMENT
-          </Link>
-          <nav className="flex items-center gap-4">
-            <Link to="/minsk/bcminsk/analytics" className="text-sm font-semibold text-ink-muted transition-colors hover:text-ink">
-              Аналитика
-            </Link>
-            <Link to="/minsk/bcminsk/rating" className="text-sm font-semibold text-ink-muted transition-colors hover:text-ink">
-              Рейтинг
-            </Link>
-          </nav>
-        </div>
-      </div>
+      {/* Шапка — общий для всего каталога CatalogTopNav (владелец,
+          2026-09-22). Раньше здесь лежала своя копия sticky-шапки с двумя
+          ссылками; sticky-поведение («нравится, как на /minsk/minsk-mir
+          логотип остаётся при скролле, сделай 1 в 1») переехало в сам
+          компонент. */}
+      <CatalogTopNav centers={centers} width="max-w-6xl" />
 
       {/* <main> — единственный main-landmark (Accessibility «Document does
           not have a main landmark»), шапка — вне него. */}

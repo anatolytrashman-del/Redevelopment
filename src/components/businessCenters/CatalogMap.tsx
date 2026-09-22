@@ -79,6 +79,12 @@ export function CatalogMap({
 
   const withCoords = centers.filter((c) => c.lat != null && c.lng != null);
   const withoutCoords = centers.length - withCoords.length;
+  // Легенда — только по классам, которые реально есть в текущей выборке.
+  // Раньше рисовала все четыре класса + «не указан» всегда, даже когда на
+  // карте одна «Рейтинг» с одним классом A (владелец, 2026-09-22: «нафига в
+  // карте легенда на классы Б, если у нас только класс А на странице»).
+  const presentClasses = Object.keys(CLASS_COLORS).filter((cls) => centers.some((c) => c.businessClass === cls));
+  const hasUnknownClass = centers.some((c) => !c.businessClass);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,16 +152,18 @@ export function CatalogMap({
         )}
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-ink-muted">
-        {Object.entries(CLASS_COLORS).map(([cls, color]) => (
+        {presentClasses.map((cls) => (
           <span key={cls} className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: CLASS_COLORS[cls] }} />
             Класс {cls}
           </span>
         ))}
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ background: UNKNOWN_CLASS_COLOR }} />
-          класс не указан
-        </span>
+        {hasUnknownClass && (
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: UNKNOWN_CLASS_COLOR }} />
+            класс не указан
+          </span>
+        )}
         <span className="text-ink-faint">
           На карте {withCoords.length}
           {withoutCoords > 0 && ` · без координат ${withoutCoords}`}
