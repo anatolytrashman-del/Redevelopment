@@ -1,6 +1,9 @@
+import { readdirSync, existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  BC_CARD_PHOTO_WIDTHS,
   BC_PHOTO_VERSION,
+  businessCenterCardPhotoSrcSet,
   businessCenterHomepageUrl,
   businessCenterPhotoSrc,
   withBcPhotoVersion,
@@ -53,3 +56,36 @@ describe('версия в адресе фото БЦ', () => {
   });
 });
 
+
+// srcset карточки ссылается на уменьшенные копии по имени — если копии для
+// нового фото не сгенерированы, браузер выберет несуществующий файл и
+// покажет битую картинку (на src он при этом НЕ откатывается). Поэтому
+// наличие копий проверяет тест, а не память: добавил фото — прогони
+// `node scripts/generate-card-image-variants.mjs`.
+describe('уменьшенные копии карточных фото', () => {
+  const dir = new URL('../../public/images/business-centers/', import.meta.url);
+
+  it('у каждого -card.webp есть копии всех ширин из srcset', () => {
+    const cards = readdirSync(dir).filter((f) => f.endsWith('-card.webp'));
+    expect(cards.length).toBeGreaterThan(100);
+    const missing: string[] = [];
+    for (const card of cards) {
+      for (const width of BC_CARD_PHOTO_WIDTHS) {
+        const variant = card.replace('-card.webp', `-card-${width}.webp`);
+        if (!existsSync(new URL(variant, dir))) missing.push(variant);
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
+  it('srcset перечисляет все ширины и оригинал', () => {
+    const srcSet = businessCenterCardPhotoSrcSet('/images/business-centers/futuris.jpg');
+    expect(srcSet).toContain('-card-320.webp');
+    expect(srcSet).toContain('-card-512.webp');
+    expect(srcSet).toMatch(/-card\.webp\?v=\d+ 640w$/);
+  });
+
+  it('у чужих путей (Supabase Storage) srcset нет', () => {
+    expect(businessCenterCardPhotoSrcSet('https://example.com/photo.webp')).toBeUndefined();
+  });
+});

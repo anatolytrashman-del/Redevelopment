@@ -273,6 +273,32 @@ export function businessCenterPhotoSrc(path: string, variant: 'card' | 'detail')
   return `/images/business-centers/${m[1]}${variant === 'card' ? '-card' : ''}.webp?v=${BC_PHOTO_VERSION}`;
 }
 
+// Ширины уменьшенных копий карточного фото (scripts/generate-card-image-
+// variants.mjs). Замер на живой странице 2026-09-22: на десктопе 1440
+// картинка карточки занимает 241 CSS-px при DPR 1 — файл 640×640 там
+// избыточен в 2,7 раза; телефону 360 при DPR 3 нужно 468. PageSpeed
+// владельца оценил потери страницы каталога в 1417 КиБ.
+export const BC_CARD_PHOTO_WIDTHS = [320, 512] as const;
+
+// sizes под сетку каталога (2 колонки до lg, 3 после, внутри контейнера с
+// максимальной шириной) — проценты сняты с живой страницы, а не прикинуты:
+// 1440 → 241 px, 768 → 340 px, 360 → 156 px. Крайние широкие экраны
+// закрыты фиксированным значением, иначе vw переоценивает: контейнер там
+// уже упёрся в свою максимальную ширину.
+export const BC_CARD_PHOTO_SIZES = '(min-width: 1280px) 300px, (min-width: 1024px) 20vw, 45vw';
+
+// srcset только для наших закоммиченных фото: у путей из Supabase Storage
+// уменьшенных копий нет, и подсовывать несуществующие адреса нельзя.
+export function businessCenterCardPhotoSrcSet(path: string): string | undefined {
+  const m = path.match(LOCAL_BC_PHOTO_RE);
+  if (!m) return undefined;
+  const base = `/images/business-centers/${m[1]}-card`;
+  return [
+    ...BC_CARD_PHOTO_WIDTHS.map((w) => `${base}-${w}.webp?v=${BC_PHOTO_VERSION} ${w}w`),
+    `${base}.webp?v=${BC_PHOTO_VERSION} 640w`,
+  ].join(', ');
+}
+
 // В базе встречаются как главные страницы БЦ, так и вложенные страницы
 // конкретного корпуса у застройщика. Такие вложенные URL устаревают чаще
 // всего, поэтому публичная карточка всегда ведёт на проверяемую главную

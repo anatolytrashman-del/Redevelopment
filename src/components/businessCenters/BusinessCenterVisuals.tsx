@@ -1,7 +1,11 @@
 import type { ReactNode } from 'react';
 import { Camera, HardHat } from 'lucide-react';
 import type { BusinessCenter } from '../../data/businessCenters';
-import { businessCenterPhotoSrc } from '../../lib/businessCenterDisplay';
+import {
+  BC_CARD_PHOTO_SIZES,
+  businessCenterCardPhotoSrcSet,
+  businessCenterPhotoSrc,
+} from '../../lib/businessCenterDisplay';
 
 // Общие мелкие визуальные блоки БЦ — используются и на хабе
 // (BusinessCentersMinskPage.tsx, компактная карточка), и на отдельной
@@ -21,6 +25,8 @@ import { businessCenterPhotoSrc } from '../../lib/businessCenterDisplay';
 interface CuratedBusinessCenterPhoto {
   src: string;
   alt: string;
+  // Ручные снимки лежат одним файлом, уменьшенных копий у них нет.
+  srcSet?: string;
 }
 
 // Проверенное вручную фото для здания, у которого снимок из каталога не
@@ -48,6 +54,9 @@ export function PhotoBlock({
     ? {
         src: businessCenterPhotoSrc(center.photos[0], variant),
         alt: center.name,
+        // Уменьшенные копии есть только у карточного варианта наших
+        // закоммиченных фото (см. businessCenterCardPhotoSrcSet).
+        srcSet: detail ? undefined : businessCenterCardPhotoSrcSet(center.photos[0]),
       }
     : null;
   const photo = curatedPhoto ?? fallbackPhoto;
@@ -56,6 +65,8 @@ export function PhotoBlock({
     return (
       <img
         src={photo.src}
+        srcSet={photo.srcSet}
+        sizes={photo.srcSet ? BC_CARD_PHOTO_SIZES : undefined}
         alt={photo.alt}
         className={`h-full w-full ${fit === 'contain' ? 'object-contain' : 'object-cover'}`}
         loading={detail ? 'eager' : 'lazy'}
