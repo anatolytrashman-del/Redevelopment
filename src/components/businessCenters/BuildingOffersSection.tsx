@@ -54,8 +54,8 @@ import {
 //    не с площадью, а с суммой, а внутри одной полки цены сопоставимы
 //    между собой. Полоска под заголовком полки показывает, сколько
 //    помещений здания попадает в эту цену — видно, где основная масса,
-//    не читая чисел. Сразу открыта самая густая полка, в ней первые шесть
-//    помещений.
+//    не читая чисел. Сразу открыта первая, самая дешёвая полка, в ней
+//    первые шесть помещений.
 //
 // 4. Окупаемости покупки арендой здесь нет и не должно быть, хотя данные
 //    на неё есть. Считать её честно не на чем: в здании продают одни
@@ -78,7 +78,7 @@ function roomsCount(n: number): string {
 
 // Тип помещения в единственном числе — нужен ровно в одном месте: когда в
 // здании сдаётся или продаётся единственное помещение и оно описывается
-// строкой «23,5 м² · 3 этаж · офис». Во множественном («Офисы») такая
+// строкой «офис 23,5 м², 3 этаж». Во множественном («Офисы») такая
 // строка читается как опечатка. Набор типов закрытый — их шесть на все
 // 1 544 объявления; незнакомый оставляем как есть, а «Без категории» в
 // строку не попадает вовсе, потому что ничего не сообщает.
@@ -123,18 +123,12 @@ function LotRow({ lot, deal, showType }: { lot: DedupedOffer; deal: DealType; sh
 
 function DealColumn({ stats }: { stats: DealStats }) {
   const buckets = useMemo(() => buildPriceBuckets(stats), [stats]);
-  // Открыта полка, в которой помещений больше всего: она же и самая
-  // вероятная цена в этом здании.
-  const densest = useMemo(() => {
-    if (!buckets) return 0;
-    let idx = 0;
-    buckets.forEach((b, i) => {
-      if (b.lots.length > buckets[idx].lots.length) idx = i;
-    });
-    return idx;
-  }, [buckets]);
-
-  const [openIdx, setOpenIdx] = useState<number | null>(densest);
+  // Открыта ПЕРВАЯ полка — самая дешёвая. Сначала открывалась самая
+  // густая, и владелец, 2026-09-22: «странно, что в левом блоке по
+  // умолчанию раскрывается второй блок, пусть будет первый». Он прав:
+  // угадывать, какая полка интереснее, блок не может, а порядок сверху
+  // вниз читатель видит сам.
+  const [openIdx, setOpenIdx] = useState<number | null>(0);
   const [showAll, setShowAll] = useState(false);
   const isRent = stats.deal === 'rent';
   // Тип помещения подписывается, только когда их правда несколько: в
@@ -176,28 +170,25 @@ function DealColumn({ stats }: { stats: DealStats }) {
 
   if (stats.count === 1) {
     const lot = stats.lots[0];
-    // Владелец, 2026-09-22: «одиночную карточку тоже оформлял бы, как и
-    // таблицу справа». Поэтому единственное помещение лежит в такой же
-    // рамке, что и полка по бюджету, — иначе рядом с колонкой из полок
-    // оно выглядит недооформленным куском текста. Цена внутри карточки не
-    // повторяется: она уже стоит крупно в шапке колонки.
+    // Про одно помещение известно четыре вещи — цена, площадь, этаж и
+    // ставка за метр. Сначала они лежали строками в рамке, и владелец,
+    // 2026-09-22: «неуклюже выглядит, куча строк, разные шрифты, а
+    // информации по сути не так много». Теперь это одна серая строка под
+    // ценой, а рамки нет: обрамлять нечего, внутри одна фраза. Заодно
+    // строки помещений стали одинаковыми во всём блоке — рамка осталась
+    // только у полки, где она отделяет одну цену от другой.
     const facts = [
-      lot.floor != null ? `${lot.floor} этаж` : null,
       singularType(lot.propertyType),
+      formatArea(lot.size),
+      lot.floor != null ? `${lot.floor} этаж` : null,
     ].filter((v): v is string => v !== null);
 
     return (
-      <div className="flex min-w-0 flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-0.5">
         {header}
-        <div className="flex items-start justify-between gap-3 rounded-2xl border border-border px-4 py-3">
-          <span className="min-w-0">
-            <span className="block text-base font-extrabold text-ink">{formatArea(lot.size)}</span>
-            {facts.length > 0 && <span className="block text-xs text-ink-muted">{facts.join(' · ')}</span>}
-          </span>
-          <span className="shrink-0 whitespace-nowrap pt-1 text-xs font-semibold text-ink-muted">
-            {formatRate(lot.pricePerSqm, stats.deal)} за м²
-          </span>
-        </div>
+        <p className="text-sm text-ink-muted">
+          {facts.join(', ')} · {formatRate(lot.pricePerSqm, stats.deal)} за м²
+        </p>
       </div>
     );
   }
