@@ -156,25 +156,39 @@ export function buildWriteSql(slug, places) {
   `;
 }
 
+// PostgREST отдаёт максимум 1000 строк за запрос (max_rows проекта) —
+// .range(0, N) с большим N этот потолок НЕ обходит, только выше него
+// сервер молча режет ответ до 1000 (см. CLAUDE.md, "PostgREST отдаёт
+// максимум 1000 строк"). Настоящая постраничная выборка — цикл, пока
+// страница не вернулась короче своего размера.
+async function selectAllPages(buildQuery) {
+  const pageSize = 1000;
+  const rows = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await buildQuery().range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < pageSize) break;
+  }
+  return rows;
+}
+
 // Читать и писать умеем двумя путями: service-role ключом (если он есть в
 // окружении) и Management API по SUPABASE_ACCESS_TOKEN — в сессиях Claude
 // доступен только второй, локально у владельца бывает первый.
 export async function readCenters({ supabase, accessToken }) {
   if (supabase) {
-    const { data: centers, error } = await supabase
-      .from('business_centers')
-      .select('slug,name,address,lat,lng')
-      .not('lat', 'is', null)
-      .not('lng', 'is', null)
-      .order('slug')
-      .range(0, 999);
-    if (error) throw error;
-    const { data: snapshots, error: snapshotError } = await supabase
-      .from('business_center_nearby_places')
-      .select('business_center_slug,collected_at')
-      .eq('source', SOURCE)
-      .range(0, 9999);
-    if (snapshotError) throw snapshotError;
+    const centers = await selectAllPages(() =>
+      supabase
+        .from('business_centers')
+        .select('slug,name,address,lat,lng')
+        .not('lat', 'is', null)
+        .not('lng', 'is', null)
+        .order('slug'),
+    );
+    const snapshots = await selectAllPages(() =>
+      supabase.from('business_center_nearby_places').select('business_center_slug,collected_at').eq('source', SOURCE),
+    );
     const latest = new Map();
     for (const row of snapshots ?? []) {
       const current = latest.get(row.business_center_slug);
@@ -191,6 +205,26 @@ export async function readCenters({ supabase, accessToken }) {
       order by bc.slug`,
     accessToken,
   );
+}
+
+// Слаги БЦ, у которых уже есть хотя бы один текстовый отзыв с Яндекс.Карт
+// (business_center_review_snapshots, source='yandex_maps') — общий фильтр
+// для capture-yandex-nearby.mjs (--only-missing-reviews /
+// --exclude-missing-reviews) и capture-yandex-reviews.mjs (--missing-only),
+// чтобы прогон инфраструктуры и прогон отзывов резали каталог по ОДНОМУ и
+// тому же списку зданий, а не по двум отдельно посчитанным.
+export async function slugsWithYandexReviews({ supabase, accessToken }) {
+  if (supabase) {
+    const rows = await selectAllPages(() =>
+      supabase.from('business_center_review_snapshots').select('business_center_slug').eq('source', 'yandex_maps'),
+    );
+    return new Set(rows.map((row) => row.business_center_slug));
+  }
+  const rows = await runSql(
+    "select distinct business_center_slug from public.business_center_review_snapshots where source = 'yandex_maps';",
+    accessToken,
+  );
+  return new Set(rows.map((row) => row.business_center_slug));
 }
 
 export async function writePlaces({ supabase, accessToken, slug, places }) {
