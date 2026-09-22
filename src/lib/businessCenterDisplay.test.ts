@@ -81,6 +81,7 @@ describe('уменьшенные копии карточных фото', () => 
   it('srcset перечисляет все ширины и оригинал', () => {
     const srcSet = businessCenterCardPhotoSrcSet('/images/business-centers/futuris.jpg');
     expect(srcSet).toContain('-card-320.webp');
+    expect(srcSet).toContain('-card-384.webp');
     expect(srcSet).toContain('-card-512.webp');
     expect(srcSet).toMatch(/-card\.webp\?v=\d+ 640w$/);
   });

@@ -4,7 +4,7 @@ import { ArrowRight, BarChart3 } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd } from '../lib/pageMeta';
-import { fetchBusinessCenters } from '../lib/businessCentersApi';
+import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { fetchExternalMetrics, fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { fetchBusinessCenterOfferSlices } from '../lib/businessCenterOffersApi';
@@ -127,7 +127,12 @@ function fmtInt(n: number): string {
 
 export function BusinessCentersAnalyticsPage() {
   const navigate = useNavigate();
-  const [centers, setCenters] = useState<BusinessCenter[] | null>(null);
+  // Стартуем с данных, положенных в сборку (Ш3-b плана
+  // docs/bc-catalog-seo-plan.md): их разобрал main.tsx до монтирования,
+  // поэтому первый же рендер получается полным — без «Загрузка…» поверх
+  // готовой разметки пререндера и без прыжка вёрстки. Нет снимка (SPA-
+  // переход, страница вне раздела) — как раньше, null и запрос ниже.
+  const [centers, setCenters] = useState<BusinessCenter[] | null>(snapshotBusinessCenters);
   const [snapshots, setSnapshots] = useState<MarketSnapshot[] | null>(null);
   const [externalMetrics, setExternalMetrics] = useState<ExternalMetric[] | null>(null);
   const [offers, setOffers] = useState<BusinessCenterOfferSlice[] | null>(null);

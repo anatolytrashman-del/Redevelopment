@@ -142,7 +142,89 @@ const LIST_COLUMNS = [
   'created_at',
 ].join(',');
 
+// --- Данные из сборки (Ш3-b плана docs/bc-catalog-seo-plan.md) ---------
+//
+// Инлайн-скрипт в index.html начинает качать статические файлы раздела ещё
+// до бандла и оставляет промисы в window. Здесь они разбираются один раз
+// перед монтированием (см. main.tsx), и страницы получают данные СИНХРОННО
+// в первом же рендере — иначе React, который сносит пререндер-снапшот и
+// строит DOM заново, показывал бы «Загрузка…» вместо готовой страницы.
+interface BuildSnapshotWindow {
+  __bcList?: Promise<{ generatedAt: string; rows: BusinessCenterRow[] } | null>;
+  __bcDetail?: { slug: string; data: Promise<{ generatedAt: string; row: BusinessCenterRow } | null> };
+}
+
+// Пока снимок свежий, запрос в Supabase со страницы не уходит вовсе: файл —
+// ровесник пререндер-снапшота, то есть показывает ровно то же, что видит
+// поисковик в разметке. Час — период пересборки публичных страниц
+// (pg_cron, см. CLAUDE.md). Снимок старше — значит сборки давно не было, и
+// свежесть важнее лишних килобайт: идём в базу, как раньше.
+const SNAPSHOT_MAX_AGE_MS = 60 * 60 * 1000;
+
+// Снимок хранит время своей сборки, а не готовый флаг «свежий»: свежесть
+// проверяется при КАЖДОМ обращении. Флаг, посчитанный один раз при
+// монтировании, в долго открытой вкладке не протухал бы никогда — спустя
+// сутки SPA-переходов по хабам страницы всё ещё отдавали бы утренний снимок,
+// так и не заглянув в базу.
+let snapshotList: { generatedAt: string; centers: BusinessCenter[] } | null = null;
+let snapshotDetail: { generatedAt: string; slug: string; center: BusinessCenter } | null = null;
+
+// Для первого рендера снимок годится любой давности — это те же данные, что
+// уже стоят в пререндер-разметке; свежесть решает только, идти ли в базу
+// (см. fetchBusinessCenters/fetchBusinessCenter).
+export function snapshotBusinessCenters(): BusinessCenter[] | null {
+  return snapshotList?.centers ?? null;
+}
+
+export function snapshotBusinessCenter(slug: string): BusinessCenter | null {
+  return snapshotDetail && snapshotDetail.slug === slug ? snapshotDetail.center : null;
+}
+
+function isFresh(generatedAt: string | undefined): boolean {
+  if (!generatedAt) return false;
+  const age = Date.now() - new Date(generatedAt).getTime();
+  return Number.isFinite(age) && age >= 0 && age < SNAPSHOT_MAX_AGE_MS;
+}
+
+// Ждём ровно столько, сколько не жалко: не пришло — страница работает как
+// раньше, через Supabase. Таймаут тут не «на всякий случай», а условие
+// монтирования: main.tsx ждёт этот промис. Каждый файл кладётся в снимок
+// сам по себе, как только пришёл: список не должен ждать файл здания (и
+// наоборот) — если по таймауту успел только один, страница возьмёт хотя бы
+// его.
+export async function primeBusinessCentersFromBuild(timeoutMs = 2500): Promise<void> {
+  if (typeof window === 'undefined') return;
+  const w = window as unknown as BuildSnapshotWindow;
+  if (!w.__bcList && !w.__bcDetail) return;
+  const list = Promise.resolve(w.__bcList ?? null)
+    .then((data) => {
+      if (data && Array.isArray(data.rows)) {
+        snapshotList = { generatedAt: data.generatedAt, centers: data.rows.map(fromRow) };
+      }
+    })
+    .catch(() => undefined);
+  const detail = Promise.resolve(w.__bcDetail?.data ?? null)
+    .then((data) => {
+      // Файл здания попадает в снимок ТОЛЬКО когда реально пришёл. Нет файла
+      // (404, оборванная загрузка, здание добавлено после сборки) — это «не
+      // знаем», а не «такого здания нет»: раньше сюда записывался center:
+      // null, fetchBusinessCenter отдавал его вместо похода в базу, и
+      // карточка живого здания рисовала «не найдено» с noindex. Слаг берём
+      // из самого ряда: сегмент пути может прийти в процентном кодировании,
+      // а useParams отдаёт его раскодированным.
+      if (data?.row) {
+        snapshotDetail = { generatedAt: data.generatedAt, slug: data.row.slug, center: fromRow(data.row) };
+      }
+    })
+    .catch(() => undefined);
+  const timeout = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
+  await Promise.race([Promise.all([list, detail]), timeout]);
+}
+
 export function fetchBusinessCenters(): Promise<BusinessCenter[]> {
+  // Свежий снимок из сборки — это те же колонки и тот же порядок, что
+  // вернула бы выборка ниже; идти в базу за тем же самым незачем.
+  if (snapshotList && isFresh(snapshotList.generatedAt)) return Promise.resolve(snapshotList.centers);
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('business_centers')
@@ -158,6 +240,9 @@ export function fetchBusinessCenters(): Promise<BusinessCenter[]> {
 // Один ряд — это десятки килобайт вместо мегабайта, и первый экран карточки
 // больше не ждёт всю таблицу.
 export function fetchBusinessCenter(slug: string): Promise<BusinessCenter | null> {
+  if (snapshotDetail?.slug === slug && isFresh(snapshotDetail.generatedAt)) {
+    return Promise.resolve(snapshotDetail.center);
+  }
   return withRetry(async () => {
     const { data, error } = await supabase.from('business_centers').select('*').eq('slug', slug).maybeSingle();
     if (error) throw error;

@@ -289,6 +289,11 @@ export default function App() {
       <Route path="/minsk/minsk-mir" element={<DistrictGuidePage />} />
       <Route path="/minsk/minsk-mir/:topic" element={<MinskMirTopicPage />} />
       <Route path="/minsk/bcminsk" element={<BusinessCentersMinskPage />} />
+      {/* ФАЙЛ-БЛИЗНЕЦ: каждый односегментный статический маршрут ниже
+          (/minsk/bcminsk/<слово>, не ":slug") должен стоять и в списке
+          sections инлайн-скрипта index.html — иначе он примет раздел за
+          слаг здания и сходит за /data/bc/<слово>.json, которого нет.
+          Сверяет тест в src/lib/businessCentersApi.test.ts. */}
       {/* Хаб-страницы по классу/району (Fable-анализ, 2026-09-06) — тот же
           компонент, фильтр читается из useParams(), см. комментарий там же.
           Регистрируются ДО ":slug", чтобы не конфликтовать с ним. */}

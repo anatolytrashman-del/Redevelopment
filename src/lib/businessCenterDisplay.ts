@@ -278,7 +278,7 @@ export function businessCenterPhotoSrc(path: string, variant: 'card' | 'detail')
 // картинка карточки занимает 241 CSS-px при DPR 1 — файл 640×640 там
 // избыточен в 2,7 раза; телефону 360 при DPR 3 нужно 468. PageSpeed
 // владельца оценил потери страницы каталога в 1417 КиБ.
-export const BC_CARD_PHOTO_WIDTHS = [320, 512] as const;
+export const BC_CARD_PHOTO_WIDTHS = [320, 384, 512] as const;
 
 // sizes под сетку каталога (2 колонки до lg, 3 после, внутри контейнера с
 // максимальной шириной) — проценты сняты с живой страницы, а не прикинуты:
