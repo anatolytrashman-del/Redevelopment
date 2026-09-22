@@ -215,11 +215,11 @@ export function NearbyInfrastructureBlock({
                 <Icon className="h-4 w-4 shrink-0 text-ink-faint" />
                 {/* Количество — до раскрытия строки, а не после: иначе не
                     видно, одна здесь аптека или одиннадцать. */}
-                <span className="flex w-32 shrink-0 items-baseline gap-1.5 sm:w-48">
+                <span className="flex min-w-0 items-baseline gap-1.5 sm:w-48 sm:shrink-0">
                   <span className="text-sm font-semibold text-ink">{meta.label}</span>
                   {expandable && <span className="text-xs tabular-nums text-ink-faint">{group.places.length}</span>}
                 </span>
-                <span className="flex-1 truncate text-sm text-ink-muted">{nearest.name}</span>
+                <span className="col-span-4 row-start-2 min-w-0 break-words text-sm text-ink-muted sm:flex-1 sm:truncate">{nearest.name}</span>
                 <span className="shrink-0 text-sm tabular-nums text-ink">{formatMeters(nearest.distanceMeters)}</span>
                 <ChevronDown
                   className={cn(
@@ -238,12 +238,12 @@ export function NearbyInfrastructureBlock({
                     type="button"
                     onClick={() => setOpenKey(isOpen ? null : group.category)}
                     aria-expanded={isOpen}
-                    className="flex w-full items-center gap-3 py-3 text-left transition-colors hover:bg-surface-muted/60"
+                    className="grid w-full grid-cols-[1rem_minmax(0,1fr)_auto_1rem] items-center gap-x-3 gap-y-1 py-3 text-left sm:flex sm:gap-3 transition-colors hover:bg-surface-muted/60"
                   >
                     {rowContent}
                   </button>
                 ) : (
-                  <div className="flex w-full items-center gap-3 py-3 text-left">{rowContent}</div>
+                  <div className="grid w-full grid-cols-[1rem_minmax(0,1fr)_auto_1rem] items-center gap-x-3 gap-y-1 py-3 text-left sm:flex sm:gap-3">{rowContent}</div>
                 )}
 
                 {isOpen && expandable && (

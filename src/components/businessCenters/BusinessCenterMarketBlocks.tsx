@@ -39,8 +39,8 @@ function ComparisonRow({ bar }: { bar: ComparisonBar }) {
   const clippedLeft = bar.deltaPct < -AXIS_DOMAIN_PCT;
   const clippedRight = bar.deltaPct > AXIS_DOMAIN_PCT;
   return (
-    <div className="flex items-center gap-3 border-b border-border pb-3 last:border-b-0 last:pb-0 sm:gap-4">
-      <div className="w-24 shrink-0 sm:w-40">
+    <div className="flex flex-col items-stretch gap-3 border-b border-border pb-3 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:gap-4">
+      <div className="shrink-0 sm:w-40">
         <div className="text-xs font-bold text-ink sm:text-sm">{bar.label}</div>
         {/* nowrap — значение короткое и должно остаться одной строкой; переносить
             можно только название метрики слева от него. */}
@@ -75,9 +75,9 @@ function ComparisonRow({ bar }: { bar: ComparisonBar }) {
           {clippedLeft && <span className={cn('absolute top-1/2 left-0 -translate-x-1/2 -translate-y-1/2 text-[10px] leading-none', toneText)}>◀</span>}
           {clippedRight && <span className={cn('absolute top-1/2 right-0 translate-x-1/2 -translate-y-1/2 text-[10px] leading-none', toneText)}>▶</span>}
         </div>
-        <div className="mt-1 truncate text-center text-[10px] text-ink-faint sm:text-[11px]">{bar.captionText}</div>
+        <div className="mt-1 break-words text-center text-[10px] text-ink-faint sm:text-[11px]">{bar.captionText}</div>
       </div>
-      <div className={cn('w-20 shrink-0 text-right text-xs font-bold sm:w-28 sm:text-sm', toneText)}>{bar.deltaText}</div>
+      <div className={cn('shrink-0 text-left text-xs font-bold sm:w-28 sm:text-right sm:text-sm', toneText)}>{bar.deltaText}</div>
     </div>
   );
 }
@@ -103,7 +103,7 @@ export function MarketPositionBlock({
       {/* Шапка шкалы — те же колонки, что у строк ниже, поэтому подписи концов
           шкалы встают ровно над треками, не требуя лишней синхронизации ширин. */}
       <div className="flex items-center gap-3 sm:gap-4">
-        <div className="w-24 shrink-0 sm:w-40" />
+        <div className="hidden shrink-0 sm:block sm:w-40" />
         <div className="relative flex min-w-0 flex-1 items-center justify-center text-[10px] font-bold uppercase tracking-wide text-ink-faint">
           {/* На мобильном ширины не хватает на все пять подписей разом — они
               наезжали друг на друга; оставляем только «медиана» по центру,
@@ -114,7 +114,7 @@ export function MarketPositionBlock({
           <span className="hidden sm:absolute sm:left-3/4 sm:inline sm:-translate-x-1/2">25%</span>
           <span className="hidden sm:absolute sm:right-0 sm:inline">лучше ▶ · {AXIS_DOMAIN_PCT}%</span>
         </div>
-        <div className="w-20 shrink-0 sm:w-28" />
+        <div className="hidden shrink-0 sm:block sm:w-28" />
       </div>
 
       {position.summary && <p className="text-sm font-semibold text-ink">{position.summary}</p>}
@@ -335,7 +335,7 @@ export function WhatTheySayBlock({
       {visibleReviews.length > 0 ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {visibleReviews.map((r) => (
-            <div key={r.id} className="flex flex-col gap-2 rounded-2xl bg-surface-muted px-4 py-3.5">
+            <div key={r.id} className="flex min-w-0 flex-col gap-2 rounded-2xl bg-surface-muted px-4 py-3.5">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface text-xs font-bold text-ink-muted">
@@ -395,7 +395,7 @@ export function WhatTheySayBlock({
         quotes.length > 0 && (
           <div className="grid gap-3 sm:grid-cols-2">
             {quotes.map((q, i) => (
-              <div key={i} className="flex flex-col gap-2 rounded-2xl bg-surface-muted px-4 py-3.5">
+              <div key={i} className="flex min-w-0 flex-col gap-2 rounded-2xl bg-surface-muted px-4 py-3.5">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface text-xs font-bold text-ink-muted">
