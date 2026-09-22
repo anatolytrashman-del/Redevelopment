@@ -26,6 +26,8 @@
         // Карточка здания — ровно один сегмент пути. Разделы каталога с
         // такой же формой перечислены явно, чтобы не ходить за файлом,
         // которого заведомо нет (лишний 404 в консоли и в аудите).
+        // ФАЙЛ-БЛИЗНЕЦ: это односегментные маршруты /minsk/bcminsk/<x> из
+        // src/App.tsx; сверяет тест в src/lib/businessCentersApi.test.ts.
         var sections = ['rating', 'gid', 'analytics', 'stroyashchiesya'];
         if (rest && rest.indexOf('/') === -1 && sections.indexOf(rest) === -1) {
           window.__bcDetail = { slug: rest, data: get('/data/bc/' + encodeURIComponent(rest) + '.json') };

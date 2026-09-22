@@ -39,14 +39,22 @@ const CURATED_BUSINESS_CENTER_PHOTOS: Record<string, CuratedBusinessCenterPhoto>
   },
 };
 
+// sizes — сколько CSS-пикселей фото занимает на экране, по нему браузер
+// выбирает кандидата из srcset. По умолчанию — сетка каталога
+// (BC_CARD_PHOTO_SIZES); место показа с другой шириной (строка рейтинга,
+// «похожие» на карточке) обязано передать свою, иначе браузер верит
+// каталожным 45vw и на телефоне с DPR 3 тянет 512-й файл под миниатюру в
+// 118 px — вдвое тяжелее нужного.
 export function PhotoBlock({
   center,
   variant,
   fit = 'cover',
+  sizes = BC_CARD_PHOTO_SIZES,
 }: {
   center: BusinessCenter;
   variant: 'card' | 'detail';
   fit?: 'cover' | 'contain';
+  sizes?: string;
 }) {
   const detail = variant === 'detail';
   const curatedPhoto = CURATED_BUSINESS_CENTER_PHOTOS[center.slug];
@@ -66,7 +74,7 @@ export function PhotoBlock({
       <img
         src={photo.src}
         srcSet={photo.srcSet}
-        sizes={photo.srcSet ? BC_CARD_PHOTO_SIZES : undefined}
+        sizes={photo.srcSet ? sizes : undefined}
         alt={photo.alt}
         className={`h-full w-full ${fit === 'contain' ? 'object-contain' : 'object-cover'}`}
         loading={detail ? 'eager' : 'lazy'}

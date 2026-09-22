@@ -54,9 +54,15 @@ async function supabaseSelect(query, what) {
   throw lastError;
 }
 
-async function main() {
+// Ключи полного ряда, которые в файл здания не пишем. Сырой текст сайта БЦ
+// (official_site_snapshot_text и соседи) читает только парсер в админке:
+// BusinessCenterRow этих полей не знает, fromRow их не смотрит, а весили они
+// 1,4 МБ из 3,2 МБ всех файлов карточек (замер 2026-09-22) — то есть почти
+// половину того, что main.tsx ждёт перед монтированием карточки.
+const DETAIL_SKIP_KEY = /^official_site_snapshot_/;
+
+async function main(columns) {
   const generatedAt = new Date().toISOString();
-  const columns = listColumns();
 
   const rows = await supabaseSelect(
     `business_centers?select=${columns}&order=sort_order.asc`,
@@ -77,17 +83,25 @@ async function main() {
   let written = 0;
   for (const row of full) {
     if (typeof row.slug !== 'string' || !/^[a-z0-9-]+$/.test(row.slug)) continue;
-    writeFileSync(join(bcDir, `${row.slug}.json`), JSON.stringify({ generatedAt, row }));
+    const slim = Object.fromEntries(Object.entries(row).filter(([key]) => !DETAIL_SKIP_KEY.test(key)));
+    writeFileSync(join(bcDir, `${row.slug}.json`), JSON.stringify({ generatedAt, row: slim }));
     written += 1;
   }
 
   console.log(
-    `[catalog-data] список: ${rows.length} зданий, ${Math.round(listJson.length / 1024)} КБ; карточки: ${written} файлов`,
+    `[catalog-data] список: ${rows.length} зданий, ${Math.round(Buffer.byteLength(listJson) / 1024)} КБ; карточки: ${written} файлов`,
   );
 }
 
-main().catch((err) => {
-  // Не валим сборку: без этих файлов страницы работают как раньше — через
-  // запрос в Supabase, только с «Загрузка…» на старте.
+// Разбор LIST_COLUMNS — вне catch ниже, нарочно: это инвариант кода, а не
+// сети. Если регулярка перестала находить список (переформатировали файл),
+// сборка обязана упасть — иначе файлы данных тихо пропадут, страницы
+// вернутся к «Загрузка…» поверх пререндера, и CLS 0,22 приедет на прод без
+// единой ошибки в логе.
+const columns = listColumns();
+
+main(columns).catch((err) => {
+  // А вот сетевые сбои сборку не валят: без этих файлов страницы работают
+  // как раньше — через запрос в Supabase, только с «Загрузка…» на старте.
   console.warn(`[catalog-data] данные каталога не собраны: ${err instanceof Error ? err.message : err}`);
 });

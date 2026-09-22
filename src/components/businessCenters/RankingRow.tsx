@@ -31,7 +31,8 @@ export function RankingRow({ center, place, cells }: { center: BusinessCenter; p
         {place}
       </span>
       <div className="relative h-[88px] w-[118px] shrink-0 overflow-hidden rounded-control">
-        <PhotoBlock center={center} variant="card" />
+        {/* sizes = ширина миниатюры выше, не каталожная сетка (см. PhotoBlock). */}
+        <PhotoBlock center={center} variant="card" sizes="118px" />
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
         <h2 className="text-base font-bold leading-snug text-ink">{shortName(center)}</h2>
