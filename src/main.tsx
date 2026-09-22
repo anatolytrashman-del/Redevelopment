@@ -4,11 +4,21 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 import { ErrorBoundary, clearCrashReloadFlag } from './components/ErrorBoundary'
+import { primeBusinessCentersFromBuild } from './lib/businessCentersApi'
 import { initSentry } from './lib/sentry'
 
-// P1.3 аудита безопасности — как можно раньше в жизненном цикле приложения,
-// до первого рендера (см. src/lib/sentry.ts).
-initSentry()
+// P1.3 аудита безопасности — мониторинг ошибок (см. src/lib/sentry.ts).
+// Запуск отложен до простоя ПОСЛЕ монтирования (2026-09-22, Ш3-d плана
+// docs/bc-catalog-seo-plan.md): сам пакет и так в отдельном чанке, но
+// вызов на верхнем уровне модуля начинал его качать сразу — 154 КиБ в
+// критическом пути страницы (видно в «дереве зависимостей» отчёта
+// PageSpeed). Ошибки до этого момента ловит ErrorBoundary, а он и так
+// перезагружает страницу один раз за сессию.
+function initSentryWhenIdle() {
+  const start = () => initSentry()
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(start, { timeout: 4000 })
+  else setTimeout(start, 2000)
+}
 
 const container = document.getElementById('root')!
 
@@ -53,7 +63,13 @@ function waitForPrerenderedPaint(): Promise<void> {
   return Promise.race([imgReady.then(() => nextFrames), sleep(3500)])
 }
 
-waitForPrerenderedPaint().then(() => {
+// Данные раздела БЦ, начатые инлайн-скриптом в index.html, разбираем ДО
+// монтирования (Ш3-b плана docs/bc-catalog-seo-plan.md): иначе первый
+// клиентский рендер сносит снапшот и рисует «Загрузка…», а это и прыжок
+// разметки (CLS 0,221 в отчёте PageSpeed), и пустой экран на секунду-две.
+// Ожидание идёт ПАРАЛЛЕЛЬНО отрисовке снапшота, не после неё, и у него свой
+// таймаут внутри — на страницах без этих данных не стоит ни миллисекунды.
+Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then(() => {
   createRoot(container).render(
     <StrictMode>
       <ErrorBoundary>
@@ -69,4 +85,5 @@ waitForPrerenderedPaint().then(() => {
   // чтобы СЛЕДУЮЩИЙ, отдельный крах (даже позже в той же вкладке) снова
   // получил свою "тихую" попытку, а не сразу экран с кнопкой.
   setTimeout(clearCrashReloadFlag, 5000)
+  initSentryWhenIdle()
 })

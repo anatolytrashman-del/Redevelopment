@@ -57,7 +57,7 @@ import {
   streetHubUrl,
 } from '../lib/businessCenterHubs';
 import { BUSINESS_CENTER_CLASSES, type BusinessCenter } from '../data/businessCenters';
-import { fetchBusinessCenters } from '../lib/businessCentersApi';
+import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { fetchBusinessCenterLotSizes } from '../lib/businessCenterOffersApi';
@@ -328,7 +328,12 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     streetSlug?: string;
   }>();
   const { id: favoritesId, slugs: favoriteSlugs } = useFavorites();
-  const [centers, setCenters] = useState<BusinessCenter[] | null>(null);
+  // Стартуем с данных, положенных в сборку (Ш3-b плана
+  // docs/bc-catalog-seo-plan.md): их разобрал main.tsx до монтирования,
+  // поэтому первый же рендер получается полным — без «Загрузка…» поверх
+  // готовой разметки пререндера и без прыжка вёрстки. Нет снимка (SPA-
+  // переход, страница вне раздела) — как раньше, null и запрос ниже.
+  const [centers, setCenters] = useState<BusinessCenter[] | null>(snapshotBusinessCenters);
   const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(null);
   // Только слаг и площадь каждого лота (~618 строк, два поля) — для фильтра
   // «нужен офис от N м²» (offerIndex ниже; блок «Сейчас сдаётся» переехал на

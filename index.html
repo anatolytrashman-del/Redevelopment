@@ -3,6 +3,35 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Данные раздела БЦ — старт загрузки ДО бандла (Ш3-b плана
+         docs/bc-catalog-seo-plan.md). React здесь не гидратирует, а сносит
+         пререндер-снапшот и строит DOM заново (см. main.tsx): без данных
+         первый клиентский рендер показывал «Загрузка…» вместо готовой
+         страницы — отсюда CLS 0,221 и пустой экран на секунды. Файлы
+         кладёт scripts/generate-catalog-data.mjs, отдаёт тот же CDN, что и
+         саму страницу, поэтому ответ приходит раньше бандла, и монтирование
+         его уже не ждёт. Инлайном, а не из бандла: запрос должен уйти в
+         первые миллисекунды, а бандл подключается отложенно. -->
+    <script>
+      (function () {
+        var path = location.pathname;
+        if (path.indexOf('/minsk/bcminsk') !== 0) return;
+        var get = function (url) {
+          return fetch(url)
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .catch(function () { return null; });
+        };
+        window.__bcList = get('/data/business-centers.json');
+        var rest = path.slice('/minsk/bcminsk'.length).replace(/^\/+|\/+$/g, '');
+        // Карточка здания — ровно один сегмент пути. Разделы каталога с
+        // такой же формой перечислены явно, чтобы не ходить за файлом,
+        // которого заведомо нет (лишний 404 в консоли и в аудите).
+        var sections = ['rating', 'gid', 'analytics', 'stroyashchiesya'];
+        if (rest && rest.indexOf('/') === -1 && sections.indexOf(rest) === -1) {
+          window.__bcDetail = { slug: rest, data: get('/data/bc/' + encodeURIComponent(rest) + '.json') };
+        }
+      })();
+    </script>
     <!-- favicon.ico — на классический путь /favicon.ico (без него самого
          файла) SPA-рерайт vercel.json ("/(.*)" → index.html) отдавал 200 с
          html вместо иконки; часть краулеров (в т.ч. Яндекс — "Файл favicon

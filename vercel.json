@@ -7,70 +7,211 @@
     }
   },
   "functions": {
-    "api/transcribe.js": { "maxDuration": 300 },
-    "api/purchase-email-webhook.js": { "maxDuration": 300 },
-    "api/meeting-ai.js": { "maxDuration": 300 },
-    "api/supplier-web-search.js": { "maxDuration": 300 },
-    "api/tinypng-compress.js": { "maxDuration": 30 },
-    "api/telegram-avatar.js": { "maxDuration": 120 }
+    "api/transcribe.js": {
+      "maxDuration": 300
+    },
+    "api/purchase-email-webhook.js": {
+      "maxDuration": 300
+    },
+    "api/meeting-ai.js": {
+      "maxDuration": 300
+    },
+    "api/supplier-web-search.js": {
+      "maxDuration": 300
+    },
+    "api/tinypng-compress.js": {
+      "maxDuration": 30
+    },
+    "api/telegram-avatar.js": {
+      "maxDuration": 120
+    }
   },
   "headers": [
     {
       "source": "/assets/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
     },
     {
       "source": "/fonts/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
     },
     {
       "source": "/images/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=2592000" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=2592000"
+        }
+      ]
     },
     {
       "source": "/icons/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=2592000" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=2592000"
+        }
+      ]
     },
     {
       "source": "/og/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
+      ]
+    },
+    {
+      "source": "/data/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=600, must-revalidate"
+        }
+      ]
     }
   ],
   "redirects": [
     {
       "source": "/(.*)",
-      "has": [{ "type": "host", "value": "www.redevelopment.pro" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
       "destination": "https://redevelopment.pro/$1",
       "permanent": true
     },
-    { "source": "/", "destination": "/minsk", "permanent": false },
-    { "source": "/one", "destination": "/minsk/one", "permanent": true },
-    { "source": "/redstorage", "destination": "/minsk/redstorage", "permanent": true },
-    { "source": "/rayon-minsk-mir", "destination": "/minsk/minsk-mir", "permanent": true },
-    { "source": "/minsk/bcminsk/reyting", "destination": "/minsk/bcminsk/rating", "permanent": true },
-    { "source": "/minsk/bcminsk/microrayon/grushevka", "destination": "/minsk/bcminsk/metro/grushevka", "permanent": true },
-    { "source": "/minsk/bcminsk/microrayon/uruchye", "destination": "/minsk/bcminsk/metro/uruchye", "permanent": true },
-    { "source": "/minsk/bcminsk/microrayon/kamennaya-gorka", "destination": "/minsk/bcminsk/metro/kamennaya-gorka", "permanent": true },
-    { "source": "/minsk/bcminsk/microrayon/suharevo", "destination": "/minsk/bcminsk/ulitsa/ul-lobanka", "permanent": true }
+    {
+      "source": "/",
+      "destination": "/minsk",
+      "permanent": false
+    },
+    {
+      "source": "/one",
+      "destination": "/minsk/one",
+      "permanent": true
+    },
+    {
+      "source": "/redstorage",
+      "destination": "/minsk/redstorage",
+      "permanent": true
+    },
+    {
+      "source": "/rayon-minsk-mir",
+      "destination": "/minsk/minsk-mir",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/reyting",
+      "destination": "/minsk/bcminsk/rating",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/microrayon/grushevka",
+      "destination": "/minsk/bcminsk/metro/grushevka",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/microrayon/uruchye",
+      "destination": "/minsk/bcminsk/metro/uruchye",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/microrayon/kamennaya-gorka",
+      "destination": "/minsk/bcminsk/metro/kamennaya-gorka",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/microrayon/suharevo",
+      "destination": "/minsk/bcminsk/ulitsa/ul-lobanka",
+      "permanent": true
+    }
   ],
   "rewrites": [
-    { "source": "/api/telegram-webhook", "destination": "/api/telegram-avatar" },
-    { "source": "/api/import-business-center-reviews", "destination": "/api/exchange-rate" },
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/tz/(.*)", "destination": "/tz.html" },
-    { "source": "/estimate/(.*)", "destination": "/estimate.html" },
-    { "source": "/plan/(.*)", "destination": "/plan.html" },
-    { "source": "/summary/(.*)", "destination": "/summary.html" },
-    { "source": "/business-upload", "destination": "/business-upload.html" },
-    { "source": "/favorites/(.*)", "destination": "/favorites.html" },
-    { "source": "/admin/objects/(.*)", "destination": "/admin/objects/index.html" },
-    { "source": "/admin/estimates/(.*)", "destination": "/admin/estimates/index.html" },
-    { "source": "/admin/finmodels/(.*)", "destination": "/admin/finmodels/index.html" },
-    { "source": "/admin/design-projects/(.*)", "destination": "/admin/design-projects/index.html" },
-    { "source": "/admin/documents/(.*)", "destination": "/admin/documents/index.html" },
-    { "source": "/admin/meeting-summaries/(.*)", "destination": "/admin/meeting-summaries/index.html" },
-    { "source": "/admin/transactions/(.*)", "destination": "/admin/transactions/index.html" },
-    { "source": "/admin/(.*)", "destination": "/admin/index.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/telegram-webhook",
+      "destination": "/api/telegram-avatar"
+    },
+    {
+      "source": "/api/import-business-center-reviews",
+      "destination": "/api/exchange-rate"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/tz/(.*)",
+      "destination": "/tz.html"
+    },
+    {
+      "source": "/estimate/(.*)",
+      "destination": "/estimate.html"
+    },
+    {
+      "source": "/plan/(.*)",
+      "destination": "/plan.html"
+    },
+    {
+      "source": "/summary/(.*)",
+      "destination": "/summary.html"
+    },
+    {
+      "source": "/business-upload",
+      "destination": "/business-upload.html"
+    },
+    {
+      "source": "/favorites/(.*)",
+      "destination": "/favorites.html"
+    },
+    {
+      "source": "/admin/objects/(.*)",
+      "destination": "/admin/objects/index.html"
+    },
+    {
+      "source": "/admin/estimates/(.*)",
+      "destination": "/admin/estimates/index.html"
+    },
+    {
+      "source": "/admin/finmodels/(.*)",
+      "destination": "/admin/finmodels/index.html"
+    },
+    {
+      "source": "/admin/design-projects/(.*)",
+      "destination": "/admin/design-projects/index.html"
+    },
+    {
+      "source": "/admin/documents/(.*)",
+      "destination": "/admin/documents/index.html"
+    },
+    {
+      "source": "/admin/meeting-summaries/(.*)",
+      "destination": "/admin/meeting-summaries/index.html"
+    },
+    {
+      "source": "/admin/transactions/(.*)",
+      "destination": "/admin/transactions/index.html"
+    },
+    {
+      "source": "/admin/(.*)",
+      "destination": "/admin/index.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }

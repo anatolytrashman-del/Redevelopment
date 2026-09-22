@@ -88,7 +88,7 @@ import {
   microdistrictHubUrl,
 } from '../lib/businessCenterHubs';
 import type { BusinessCenter, HighlightIconKey } from '../data/businessCenters';
-import { fetchBusinessCenter, fetchBusinessCenters } from '../lib/businessCentersApi';
+import { fetchBusinessCenter, fetchBusinessCenters, snapshotBusinessCenter, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import type { BusinessCenterNearbyPlace, NearbyPlaceCategory } from '../data/businessCenterNearbyPlaces';
 import { fetchBusinessCenterNearbyPlaces } from '../lib/businessCenterNearbyPlacesApi';
@@ -211,7 +211,12 @@ const EMPTY_REVIEWS: BusinessCenterReview[] = [];
 
 export function BusinessCenterDetailPage() {
   const { slug } = useParams<{ slug: string }>();
-  const [centers, setCenters] = useState<BusinessCenter[] | null>(null);
+  // Стартуем с данных, положенных в сборку (Ш3-b плана
+  // docs/bc-catalog-seo-plan.md): их разобрал main.tsx до монтирования,
+  // поэтому первый же рендер получается полным — без «Загрузка…» поверх
+  // готовой разметки пререндера и без прыжка вёрстки. Нет снимка (SPA-
+  // переход, страница вне раздела) — как раньше, null и запрос ниже.
+  const [centers, setCenters] = useState<BusinessCenter[] | null>(snapshotBusinessCenters);
   const [offersResult, setOffersResult] = useState<{
     slug: string;
     offers: BusinessCenterOffer[] | null;
@@ -336,11 +341,18 @@ export function BusinessCenterDetailPage() {
   // Ответ храним вместе со слагом, под который он пришёл: компонент общий
   // для всех БЦ, и при переходе «предыдущий/следующий» иначе на миг
   // показались бы данные прошлого здания.
-  const [detail, setDetail] = useState<{ slug: string; center: BusinessCenter | null } | null>(null);
+  const [detail, setDetail] = useState<{ slug: string; center: BusinessCenter | null } | null>(() =>
+    slug ? (snapshotBusinessCenter(slug) ? { slug, center: snapshotBusinessCenter(slug) } : null) : null,
+  );
   useEffect(() => {
     if (!slug) return;
     let cancelled = false;
-    setDetail(null);
+    // При переходе «предыдущий/следующий» показываем здание из снимка
+    // сборки сразу, если оно там есть, и только иначе гасим страницу в
+    // «Загрузка…»: сбрасывать в null всегда — значит мигать пустым экраном
+    // там, где данные уже на руках.
+    const fromBuild = snapshotBusinessCenter(slug);
+    setDetail(fromBuild ? { slug, center: fromBuild } : null);
     fetchBusinessCenter(slug)
       .then((data) => {
         if (!cancelled) setDetail({ slug, center: data });

@@ -4,7 +4,7 @@ import { ArrowRight, BookOpen } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setGenericPageMeta } from '../lib/pageMeta';
-import { fetchBusinessCenters } from '../lib/businessCentersApi';
+import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { shortName } from '../lib/businessCenterDisplay';
@@ -76,7 +76,12 @@ interface Section {
 }
 
 export function BusinessCentersGuidePage() {
-  const [centers, setCenters] = useState<BusinessCenter[] | null>(null);
+  // Стартуем с данных, положенных в сборку (Ш3-b плана
+  // docs/bc-catalog-seo-plan.md): их разобрал main.tsx до монтирования,
+  // поэтому первый же рендер получается полным — без «Загрузка…» поверх
+  // готовой разметки пререндера и без прыжка вёрстки. Нет снимка (SPA-
+  // переход, страница вне раздела) — как раньше, null и запрос ниже.
+  const [centers, setCenters] = useState<BusinessCenter[] | null>(snapshotBusinessCenters);
   const [snapshots, setSnapshots] = useState<MarketSnapshot[] | null>(null);
 
   useEffect(() => {
