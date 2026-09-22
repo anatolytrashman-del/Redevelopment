@@ -41,7 +41,7 @@ export function CatalogSlicesBlock({ centers }: { centers: BusinessCenter[] }) {
       // Без пункта «Весь каталог» — на странице-гиде он уже есть в хлебных
       // крошках и в заголовке, второй ссылкой был бы шум. В меню он нужен,
       // поэтому живёт в общей statusSlices и отсекается здесь.
-      { label: 'Статус', items: statusSlices(centers).filter((s) => s.key !== 'all'), withCounts: false },
+      { label: 'Тип', items: statusSlices(centers).filter((s) => s.key !== 'all'), withCounts: false },
     ],
     [centers],
   );
