@@ -410,7 +410,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     const hubTitle = underConstruction
       ? 'Строящиеся бизнес-центры Минска — что сдадут в 2026–2027 годах'
       : metroFilter
-        ? `Бизнес-центры у метро «${metroFilter}» — офисы в пешей доступности`
+        ? `Бизнес-центры у метро ${metroFilter} — офисы в пешей доступности`
         : streetFilter
           ? `Бизнес-центры Минска: ${streetFilter}`
           : classFilter && districtFilter
@@ -425,7 +425,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     const hubDescription = underConstruction
       ? 'Бизнес-центры Минска, которые сейчас строятся: класс, площадь, район, застройщик и сроки сдачи — МФЦ в Минск Мире, «Газпром», «Сигма», «Шантер Хилл».'
       : metroFilter
-        ? `Бизнес-центры рядом со станцией метро «${metroFilter}» (Минск): расстояние до станции, класс, площадь, этажность, объявления об аренде и продаже офисов.`
+        ? `Бизнес-центры рядом со станцией метро ${metroFilter} (Минск): расстояние до станции, класс, площадь, этажность, объявления об аренде и продаже офисов.`
         : streetFilter
           ? `Все бизнес-центры на «${streetFilter}» в Минске: класс, площадь, этажность, метро, объявления об аренде и продаже.`
           : classFilter && districtFilter
@@ -478,7 +478,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 name: underConstruction
                   ? 'Строящиеся'
                   : metroFilter
-                    ? `Метро «${metroFilter}»`
+                    ? `Метро ${metroFilter}`
                     : streetFilter
                       ? streetFilter
                       : classFilter
@@ -778,7 +778,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   const scopeLabel = underConstruction
     ? 'из строящихся в Минске'
     : metroFilter
-      ? `у метро «${metroFilter}»`
+      ? `у метро ${metroFilter}`
       : streetFilter
         ? `на «${streetFilter}»`
         : classFilter && districtFilter
@@ -852,7 +852,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     if (metroFilter && orderedCenters.length) {
       const nearest = [...orderedCenters].sort((a, b) => (metroHubDistance(a, metroFilter) ?? Infinity) - (metroHubDistance(b, metroFilter) ?? Infinity))[0];
       const distance = metroHubDistance(nearest, metroFilter);
-      if (distance != null) add(`Какой бизнес-центр ближе всего к метро «${metroFilter}»?`, `${shortName(nearest)} — ${distance} м. В подборку станции входят здания не дальше 1,5 км.`);
+      if (distance != null) add(`Какой бизнес-центр ближе всего к метро ${metroFilter}?`, `${shortName(nearest)} — ${distance} м. В подборку станции входят здания не дальше 1,5 км.`);
     }
     add('Сколько зданий в выборке строится?', `Сейчас строится ${marketStats.underConstruction} БЦ.${underConstructionNames.length ? ` ${underConstructionNames.length > 3 ? 'Среди них' : 'Это'}: ${underConstructionNames.slice(0, 3).join(', ')}${underConstructionNames.length > 3 ? ` и ещё ${underConstructionNames.length - 3}` : ''}.` : ''}`);
     if (summary.rentMedian != null) add('Какая медианная ставка аренды и как она рассчитана?', rentMethodology);
@@ -893,7 +893,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   const heroH1 = underConstruction
     ? 'Строящиеся бизнес-центры Минска'
     : metroFilter
-      ? `Бизнес-центры у метро «${metroFilter}»`
+      ? `Бизнес-центры у метро ${metroFilter}`
       : streetFilter
         ? `Бизнес-центры Минска: ${streetFilter}`
         : classFilter && districtFilter
@@ -908,7 +908,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   const heroIntro = underConstruction
     ? `${bcCountLabel} Минска, которые сейчас строятся, — класс, площадь, район и срок сдачи по данным застройщиков. Офисы в них пока нельзя ни арендовать, ни купить; готовые варианты — в общем каталоге.`
     : metroFilter
-      ? `${bcCountLabel} не дальше 1,5 км от станции «${metroFilter}» — расстояние по данным 2GIS, ближайшие первыми. Класс, площадь, этажность и объявления об аренде и продаже — в карточках.`
+      ? `${bcCountLabel} не дальше 1,5 км от станции ${metroFilter} — расстояние по данным 2GIS, ближайшие первыми. Класс, площадь, этажность и объявления об аренде и продаже — в карточках.`
     : streetFilter
       ? `${bcCountLabel} на «${streetFilter}» — класс, площадь, этажность, метро и объявления об аренде и продаже.`
     : classFilter && districtFilter
