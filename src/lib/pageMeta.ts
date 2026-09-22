@@ -6,6 +6,7 @@
 // в index.html остаётся верным дефолтом до первой перерисовки и для ботов,
 // которые не выполняют JS (у Яндекса это менее надёжно, чем у Google).
 import { pluralRu } from './pluralRu';
+import { fullName } from './businessCenterDisplay';
 
 export interface PageMeta {
   title: string;
@@ -362,9 +363,10 @@ export function fallbackBusinessCenterMeta(
   // минск» ищут чаще, чем это же здание под его основным именем «V», а до
   // 2026-09-20 слова «Столица» на странице не было вовсе.
   const altNames = (center.altNames ?? []).filter((name) => name.trim());
+  const displayName = fullName(center);
   const title = altNames.length > 0
-    ? `${center.name} (${quoteNames(altNames)}) — ${center.address}`
-    : `${center.name} — ${center.address}`;
+    ? `${displayName} (${quoteNames(altNames)}) — ${center.address}`
+    : `${displayName} — ${center.address}`;
   const parts: string[] = [];
   if (center.businessClass) parts.push(`класс ${center.businessClass}`);
   if (center.totalArea) parts.push(`${center.totalArea.toLocaleString('ru-RU')} м²`);
@@ -454,7 +456,7 @@ export function setBusinessCenterPageMeta(
     ld.textContent = JSON.stringify({
       '@context': 'https://schema.org',
       '@type': 'RealEstateListing',
-      name: center.name,
+      name: fullName(center),
       description: meta.description,
       url,
       image: absoluteImage ?? DEFAULT_OG_IMAGE,
