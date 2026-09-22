@@ -181,7 +181,7 @@ export function fullName(center: { name: string }): string {
 // путают с районом (тот тоже называется "Минск Мир", см. адрес объекта),
 // поэтому владелец, 2026-09-21, попросил вернуть узнаваемое сокращение —
 // "МФЦ (Минск Мир)".
-export function shortName(center: BusinessCenter): string {
+export function shortName(center: { slug: string; name: string }): string {
   if (center.slug === 'mfc-minsk-mir') return 'МФЦ (Минск Мир)';
   const quoted = center.name.match(/«([^»]+)»/);
   if (quoted) return quoted[1];

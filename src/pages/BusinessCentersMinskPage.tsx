@@ -14,6 +14,8 @@ import {
   TrainFront,
 } from 'lucide-react';
 import { cn } from '../lib/cn';
+import { pluralRu } from '../lib/pluralRu';
+import { fitsSerpTitle } from '../lib/serpTitleWidth';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { PhotoBlock, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
@@ -24,6 +26,7 @@ import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrade
 import { FaqAccordion } from '../components/ui/FaqAccordion';
 import { useFavorites } from '../lib/favoritesContext';
 import {
+  businessCenterHubDescription,
   setArticleJsonLd,
   setBreadcrumbJsonLd,
   setFaqJsonLd,
@@ -91,9 +94,12 @@ import {
 // видимые PAGE_H1/INTRO_TEXT ниже (тот же принцип разведения, что и в
 // DistrictGuidePage.tsx — см. комментарий там от 2026-08-24 про путаницу
 // "описание страницы" = INTRO_TEXT, а не meta-DESCRIPTION).
-const TITLE = 'Бизнес-центры Минска — список, адреса, класс, площадь';
-const DESCRIPTION =
-  'Справочник бизнес-центров Минска: адреса, деловой класс, площадь, год постройки, застройщик и управляющая компания.';
+// Константа только для корня каталога, и это БАЗА заголовка, а не готовый
+// заголовок: число зданий и год дописываются к ней там же, где и к
+// подборкам (см. hubBaseTitle в эффекте ниже). Отдельной константы
+// DESCRIPTION с 2026-09-22 нет — описание у всех состояний каталога,
+// включая корень, строит businessCenterHubDescription.
+const TITLE = 'Бизнес-центры Минска';
 const PAGE_URL = 'https://redevelopment.pro/minsk/bcminsk';
 const UNDER_CONSTRUCTION_HUB_URL = 'https://redevelopment.pro/minsk/bcminsk/stroyashchiesya';
 const OG_IMAGE = 'https://redevelopment.pro/og-image.png';
@@ -423,99 +429,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // или поиском, по ссылке воспроизводится, но в индекс не идёт — в sitemap
   // уже 286 путей, а комбинаций фильтра тысячи, и они съели бы краулинговый
   // бюджет, ничего не добавив. Считаем прямо по строке запроса, а не по
-  // разобранному фильтру: эффект метатегов стоит выше его объявления.
+  // разобранному фильтру: так признак не зависит от порядка объявлений.
   const filterIsIndexable = !FILTER_QUERY_KEYS.some((k) => searchParams.has(k));
-
-  useEffect(() => {
-    if (notFound || !filterIsIndexable) {
-      setNoIndex();
-      return () => clearNoIndex();
-    }
-    const hubTitle = underConstruction
-      ? 'Строящиеся бизнес-центры Минска — что сдадут в 2026–2027 годах'
-      : metroFilter
-        ? `Бизнес-центры у метро ${metroFilter} — офисы в пешей доступности`
-        : streetFilter
-          ? `Бизнес-центры Минска: ${streetFilter}`
-          : classFilter && districtFilter
-        ? `Бизнес-центры класса ${classFilter} в ${districtPrepositional(districtFilter)} районе Минска`
-        : classFilter
-          ? `Бизнес-центры класса ${classFilter} в Минске`
-          : districtFilter
-            ? `Бизнес-центры Минска: ${districtFilter} район`
-            : microdistrictFilter
-              ? `Бизнес-центры ${microdistrictFilter}`
-              : TITLE;
-    const hubDescription = underConstruction
-      ? 'Бизнес-центры Минска, которые сейчас строятся: класс, площадь, район, застройщик и сроки сдачи — МФЦ в Минск Мире, «Газпром», «Сигма», «Шантер Хилл».'
-      : metroFilter
-        ? `Бизнес-центры рядом со станцией метро ${metroFilter} (Минск): расстояние до станции, класс, площадь, этажность, объявления об аренде и продаже офисов.`
-        : streetFilter
-          ? `Все бизнес-центры на «${streetFilter}» в Минске: класс, площадь, этажность, метро, объявления об аренде и продаже.`
-          : classFilter && districtFilter
-        ? `Бизнес-центры класса ${classFilter} в ${districtPrepositional(districtFilter)} районе Минска: адреса, площадь, этажность, метро.`
-        : classFilter
-          ? `Список бизнес-центров класса ${classFilter} в Минске: адреса, площадь, этажность, метро.`
-          : districtFilter
-            ? `Бизнес-центры в ${districtPrepositional(districtFilter)} районе Минска: адреса, деловой класс, площадь, метро.`
-            : microdistrictFilter
-              ? `Бизнес-центры в микрорайоне ${microdistrictFilter} (Минск): адреса, деловой класс, площадь, метро.`
-              : DESCRIPTION;
-    const hubUrl = underConstruction
-      ? UNDER_CONSTRUCTION_HUB_URL
-      : metroFilter
-        ? `https://redevelopment.pro${metroHubUrl(metroFilter) ?? ''}`
-        : streetFilter
-          ? `https://redevelopment.pro${streetHubUrl(streetFilter) ?? ''}`
-          : classFilter && districtFilter
-        ? `https://redevelopment.pro${classDistrictHubUrl(classFilter, districtFilter) ?? ''}`
-        : classFilter
-          ? `https://redevelopment.pro${classHubUrl(classFilter)}`
-          : districtFilter
-            ? `https://redevelopment.pro${districtHubUrl(districtFilter) ?? ''}`
-            : microdistrictFilter
-              ? `https://redevelopment.pro${microdistrictHubUrl(microdistrictFilter) ?? ''}`
-              : PAGE_URL;
-
-    setGenericPageMeta({ title: hubTitle, description: hubDescription, url: hubUrl, image: OG_IMAGE, ogType: 'article' });
-    setArticleJsonLd({
-      headline: hubTitle,
-      description: hubDescription,
-      url: hubUrl,
-      datePublished: '2026-09-04',
-      dateModified: DATE_MODIFIED,
-      image: OG_IMAGE,
-    });
-    setBreadcrumbJsonLd(
-      classFilter && districtFilter
-        ? [
-            { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-            { name: 'Бизнес-центры Минска', url: PAGE_URL },
-            { name: `Класс ${classFilter}`, url: `https://redevelopment.pro${classHubUrl(classFilter)}` },
-            { name: `${districtFilter} район` },
-          ]
-        : classFilter || districtFilter || microdistrictFilter || underConstruction || metroFilter || streetFilter
-          ? [
-              { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-              { name: 'Бизнес-центры Минска', url: PAGE_URL },
-              {
-                name: underConstruction
-                  ? 'Строящиеся'
-                  : metroFilter
-                    ? `Метро ${metroFilter}`
-                    : streetFilter
-                      ? streetFilter
-                      : classFilter
-                    ? `Класс ${classFilter}`
-                    : ((districtFilter ?? microdistrictFilter) as string),
-              },
-            ]
-          : [
-              { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-              { name: 'Бизнес-центры Минска' },
-            ],
-    );
-  }, [classFilter, districtFilter, microdistrictFilter, underConstruction, metroFilter, streetFilter, notFound, filterIsIndexable]);
 
   // --- Фильтр поверх маршрута (К2–К5 плана) ----------------------------
   //
@@ -573,6 +488,135 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     () => routeScoped.filter((c) => matchesCatalogFilter(c, filter, offerIndex)),
     [routeScoped, filter, offerIndex],
   );
+
+  // Мета-теги каталога. Эффект стоит ПОСЛЕ visibleCenters сознательно: с
+  // 2026-09-22 в заголовок и описание подставляется число зданий в
+  // разделе, а массив зависимостей вычисляется прямо при рендере — выше
+  // объявления visibleCenters он упал бы на temporal dead zone.
+  useEffect(() => {
+    if (notFound || !filterIsIndexable) {
+      setNoIndex();
+      return () => clearNoIndex();
+    }
+    // Сниппет каталога собран по тому же правилу, что и сниппет карточки БЦ
+    // (см. fallbackBusinessCenterMeta в src/lib/pageMeta.ts): владелец,
+    // 2026-09-22, задал формат «Актуальная аналитика … Обновляется
+    // ежемесячно. <что внутри>». Раньше у всех подборок описание было одним
+    // и тем же скелетом («адреса, деловой класс, площадь, метро») — на
+    // четырёх десятках страниц это duplicate meta descriptions, из-за
+    // которых Google и подменяет описание своим текстом. Число зданий
+    // делает каждую подборку своей и заодно отвечает на вопрос,
+    // ради которого на такую страницу и заходят.
+    const hubBaseTitle = underConstruction
+      ? 'Строящиеся бизнес-центры Минска'
+      : metroFilter
+        ? `Бизнес-центры у метро ${metroFilter}`
+        : streetFilter
+          ? `Бизнес-центры Минска: ${streetFilter}`
+          : classFilter && districtFilter
+        ? `Бизнес-центры класса ${classFilter} в ${districtPrepositional(districtFilter)} районе Минска`
+        : classFilter
+          ? `Бизнес-центры класса ${classFilter} в Минске`
+          : districtFilter
+            ? `Бизнес-центры Минска: ${districtFilter} район`
+            : microdistrictFilter
+              ? `Бизнес-центры ${microdistrictFilter}`
+              : TITLE;
+    // Пока каталог не приехал, числа в сниппете нет: «0 зданий» в заголовке
+    // хуже, чем заголовок без числа. Пререндер снимает готовую страницу,
+    // поэтому в HTML для поисковика число уже стоит.
+    const hubCount = centers === null ? null : visibleCenters.length;
+    // Родительный падеж — под «Актуальная аналитика N ...», и падеж зависит
+    // от самого N: «аналитика 5 бизнес-центров», но «аналитика 141
+    // бизнес-центра». Без этого на корне каталога стояло бы «аналитика 141
+    // бизнес-центров» — ошибка в первой же строке сниппета.
+    const one = hubCount !== null && hubCount % 10 === 1 && hubCount % 100 !== 11;
+    const bc = one ? 'бизнес-центра' : 'бизнес-центров';
+    const hubSubject = underConstruction
+      ? `${one ? 'строящегося' : 'строящихся'} ${bc} Минска`
+      : metroFilter
+        ? `${bc} у метро ${metroFilter}`
+        : streetFilter
+          ? `${bc} на «${streetFilter}» в Минске`
+          : classFilter && districtFilter
+        ? `${bc} класса ${classFilter} в ${districtPrepositional(districtFilter)} районе Минска`
+        : classFilter
+          ? `${bc} класса ${classFilter} в Минске`
+          : districtFilter
+            ? `${bc} в ${districtPrepositional(districtFilter)} районе Минска`
+            : microdistrictFilter
+              ? `${bc} в микрорайоне ${microdistrictFilter} (Минск)`
+              : `${bc} Минска`;
+    // Число зданий — то, ради чего на подборку и заходят, поэтому оно стоит
+    // в заголовке, а не только в описании. Варианты перебираются от полного
+    // к короткому: обрезка выдачи съедает хвост, и «…— 4 здания, обз…»
+    // выглядело бы браком. У длинных осей (класс × район) уступается год,
+    // у самых длинных — само число.
+    const hubYear = new Date().getFullYear();
+    const hubTitle =
+      hubCount === null
+        ? hubBaseTitle
+        : ([
+            `${hubBaseTitle} — ${hubCount} ${pluralRu(hubCount, 'здание', 'здания', 'зданий')}, обзор ${hubYear}`,
+            `${hubBaseTitle} — ${hubCount} ${pluralRu(hubCount, 'здание', 'здания', 'зданий')}`,
+            hubBaseTitle,
+          ].find(fitsSerpTitle) ?? hubBaseTitle);
+    const hubDescription = businessCenterHubDescription(hubSubject, hubCount);
+    const hubUrl = underConstruction
+      ? UNDER_CONSTRUCTION_HUB_URL
+      : metroFilter
+        ? `https://redevelopment.pro${metroHubUrl(metroFilter) ?? ''}`
+        : streetFilter
+          ? `https://redevelopment.pro${streetHubUrl(streetFilter) ?? ''}`
+          : classFilter && districtFilter
+        ? `https://redevelopment.pro${classDistrictHubUrl(classFilter, districtFilter) ?? ''}`
+        : classFilter
+          ? `https://redevelopment.pro${classHubUrl(classFilter)}`
+          : districtFilter
+            ? `https://redevelopment.pro${districtHubUrl(districtFilter) ?? ''}`
+            : microdistrictFilter
+              ? `https://redevelopment.pro${microdistrictHubUrl(microdistrictFilter) ?? ''}`
+              : PAGE_URL;
+
+    setGenericPageMeta({ title: hubTitle, description: hubDescription, url: hubUrl, image: OG_IMAGE, ogType: 'article' });
+    setArticleJsonLd({
+      headline: hubTitle,
+      description: hubDescription,
+      url: hubUrl,
+      datePublished: '2026-09-04',
+      dateModified: DATE_MODIFIED,
+      image: OG_IMAGE,
+    });
+    setBreadcrumbJsonLd(
+      classFilter && districtFilter
+        ? [
+            { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
+            { name: 'Бизнес-центры Минска', url: PAGE_URL },
+            { name: `Класс ${classFilter}`, url: `https://redevelopment.pro${classHubUrl(classFilter)}` },
+            { name: `${districtFilter} район` },
+          ]
+        : classFilter || districtFilter || microdistrictFilter || underConstruction || metroFilter || streetFilter
+          ? [
+              { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
+              { name: 'Бизнес-центры Минска', url: PAGE_URL },
+              {
+                name: underConstruction
+                  ? 'Строящиеся'
+                  : metroFilter
+                    ? `Метро ${metroFilter}`
+                    : streetFilter
+                      ? streetFilter
+                      : classFilter
+                    ? `Класс ${classFilter}`
+                    : ((districtFilter ?? microdistrictFilter) as string),
+              },
+            ]
+          : [
+              { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
+              { name: 'Бизнес-центры Минска' },
+            ],
+    );
+  }, [classFilter, districtFilter, microdistrictFilter, underConstruction, metroFilter, streetFilter, notFound, filterIsIndexable, centers, visibleCenters]);
 
   // На хабе станции порядок по умолчанию — расстояние до неё (ближайшие
   // первыми): это и есть ответ на вопрос такой страницы. Явно выбранная в
