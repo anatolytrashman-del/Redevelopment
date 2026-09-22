@@ -1,4 +1,3 @@
-import { GENERAL_DATA_SOURCES } from '../data/businessCenterSources';
 import { tenantDirectionLabel } from '../data/tenantIndustries';
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -49,6 +48,7 @@ import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from
 import { Badge } from '../components/ui/Badge';
 import { PhotoBlock, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import { FavoriteButton } from '../components/businessCenters/FavoriteButton';
+import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrademarkNote';
 import {
   setBreadcrumbJsonLd,
   setFaqJsonLd,
@@ -58,7 +58,6 @@ import {
   setPlaceJsonLd,
 } from '../lib/pageMeta';
 import {
-  businessCenterHomepageUrl,
   shortAddress,
   shortName,
   sortByShortName,
@@ -1680,7 +1679,6 @@ export function BusinessCenterDetailPage() {
   // Владелец, 2026-09-20: "из адреса убираем город и район, только улица и
   // дом" — та же обрезка, что и на карточке каталога (shortAddress).
   const displayAddress = shortAddress(center.address);
-  const centerWebsiteUrl = businessCenterHomepageUrl(center.website);
   // Сайт застройщика — обычно ДРУГОЙ домен, чем сайт самого БЦ выше
   // (у «Футуриса» это futuris-bc.by у здания и tapas.by у ГК «Тапас»),
   // поэтому не переиспользуем businessCenterHomepageUrl: тот список
@@ -1938,9 +1936,11 @@ export function BusinessCenterDetailPage() {
                 секцией сразу под этим главным блоком, см. developerInfo
                 ниже. Короткая текстовая версия осталась только в FAQ
                 ("Кто застройщик «...»?"). Отдельный блок "Сайт БЦ" убран
-                отсюда же 2026-09-20 — ссылка на сайт осталась только внизу
-                страницы, в блоке источников (centerWebsiteUrl, см. конец
-                файла). */}
+                отсюда же 2026-09-20 — сайт здания больше не выводится
+                отдельной ссылкой нигде на странице (владелец, 2026-09-22:
+                убрать отдельные плашки на конкретные сайты из блока
+                источников), он попадает только в общий список попапа
+                «Источники» наравне с остальными. */}
 
             {/* Ровно 4 плитки — класс/площадь/год/рейтинг (владелец,
                 2026-09-06, четвёртый заход: "4 карточки - класс, площадь, год
@@ -2553,50 +2553,13 @@ export function BusinessCenterDetailPage() {
               срез от {new Date(gis2.fetchedAt).toLocaleDateString('ru-RU')}.
             </p>
           )}
-          <div className="flex flex-wrap gap-2">
-            {GENERAL_DATA_SOURCES.map((source) => (
-              <a
-                key={source.href}
-                href={source.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={cn(
-                  'flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-primary hover:text-primary',
-                )}
-              >
-                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                {source.label}
-              </a>
-            ))}
-            {centerWebsiteUrl && (
-              <a
-                href={centerWebsiteUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-primary hover:text-primary"
-              >
-                <Globe className="h-3.5 w-3.5 shrink-0" />
-                Официальный сайт «{shortName(center)}»
-              </a>
-            )}
-            {developerWebsiteUrl && (
-              <a
-                href={developerWebsiteUrl.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-primary hover:text-primary"
-              >
-                <HardHat className="h-3.5 w-3.5 shrink-0" />
-                Сайт застройщика{center.developer ? ` (${center.developer})` : ''}
-              </a>
-            )}
-          </div>
           <p className="text-xs text-ink-muted">
             Данные о здании собраны из открытых источников — не всё относится к каждому конкретному БЦ.
             Расстояния указаны по прямой. Стоимость помещения рассчитана как площадь × ставка объявления;
             дополнительные платежи в источниках не раскрыты. Отсутствие объявлений не означает отсутствие
             свободных помещений. Характеристики и условия требуют уточнения у владельца или автора объявления.
           </p>
+          <SourcesTrademarkNote />
         </div>
 
         </main>

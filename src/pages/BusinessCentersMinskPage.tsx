@@ -1,4 +1,3 @@
-import { GENERAL_DATA_SOURCES } from '../data/businessCenterSources';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -21,6 +20,7 @@ import { PhotoBlock, FactRow, FactTile } from '../components/businessCenters/Bus
 import { CatalogFilterPanel } from '../components/businessCenters/CatalogFilterPanel';
 import { CatalogCompare } from '../components/businessCenters/CatalogCompare';
 import { FavoriteButton } from '../components/businessCenters/FavoriteButton';
+import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrademarkNote';
 import { useFavorites } from '../lib/favoritesContext';
 import {
   setArticleJsonLd,
@@ -1478,19 +1478,12 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             )}
             <div className={cn('flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
               <h2 className="text-lg font-bold text-ink">Источники</h2>
-              <div className="flex flex-wrap gap-2">
-                {GENERAL_DATA_SOURCES.map((source) => (
-                  <a key={source.href} href={source.href} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-primary hover:text-primary">
-                    {source.label}
-                  </a>
-                ))}
-              </div>
               <p className="text-xs text-ink-muted">Фото «Футуриса»: <a href="https://domovita.by/bc-bcfuturis" target="_blank" rel="noopener noreferrer" className="underline hover:text-ink">Domovita</a>.</p>
               <p className="text-xs text-ink-muted">Данные каталога собраны из открытых источников; не каждый источник содержит сведения о каждом здании. Единой даты обновления всех характеристик нет: сведения дополняются по мере получения.</p>
               <p className="text-xs text-ink-muted">{latestSnapshotPeriod ? `Последний период загруженных рыночных снимков: ${latestSnapshotPeriod}. Точная дата обновления в данных не указана.` : 'Период рыночных снимков недоступен.'}</p>
               <p className="text-xs text-ink-muted">{rentMethodology} Ставки — из объявлений, не из заключённых сделок; состав дополнительных платежей уточняйте у автора объявления.</p>
               <p className="text-xs text-ink-muted">У части зданий параметры не заполнены. Суммарная площадь учитывает только известные значения, расстояния до метро указаны по прямой. Внешний контекст рынка подписан источником и периодом в соответствующем блоке.</p>
+              <SourcesTrademarkNote />
             </div>
           </div>
         </div>
