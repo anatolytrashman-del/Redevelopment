@@ -109,7 +109,6 @@ interface FormState {
   rentalCaveat: string;
   rentalTerms: string;
   rentalRates: string;
-  rentalSizes: string;
   rentalParking: string;
   rentalContacts: string;
   highlights: HighlightSection[]; // "Интересные факты" — произвольный набор блоков
@@ -152,7 +151,6 @@ const EMPTY_FORM: FormState = {
   rentalCaveat: '',
   rentalTerms: '',
   rentalRates: '',
-  rentalSizes: '',
   rentalParking: '',
   rentalContacts: '',
   highlights: [],
@@ -196,7 +194,6 @@ function centerToForm(c: BusinessCenter): FormState {
     rentalCaveat: c.rentalInfo?.caveat ?? '',
     rentalTerms: c.rentalInfo?.terms ?? '',
     rentalRates: c.rentalInfo?.rates ?? '',
-    rentalSizes: c.rentalInfo?.sizes ?? '',
     rentalParking: c.rentalInfo?.parking ?? '',
     rentalContacts: c.rentalInfo?.contacts ?? '',
     highlights: c.highlights,
@@ -219,18 +216,17 @@ function numOrNull(v: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-// Пустая форма → null целиком (не объект из одних null) — карточка "Условия
-// для арендаторов" на публичной странице не рендерится вовсе, когда искать
-// было нечего (сайта нет и т.п.), а не показывает пустой заголовок.
+// Пустая форма → null целиком (не объект из одних null) — карточка "Отдел
+// аренды БЦ" на публичной странице не рендерится вовсе, когда искать было
+// нечего (сайта нет и т.п.), а не показывает пустой заголовок.
 function buildRentalInfo(form: FormState): RentalInfo | null {
   const caveat = form.rentalCaveat.trim() || null;
   const terms = form.rentalTerms.trim() || null;
   const rates = form.rentalRates.trim() || null;
-  const sizes = form.rentalSizes.trim() || null;
   const parking = form.rentalParking.trim() || null;
   const contacts = form.rentalContacts.trim() || null;
-  if (!caveat && !terms && !rates && !sizes && !parking && !contacts) return null;
-  return { caveat, terms, rates, sizes, parking, contacts };
+  if (!caveat && !terms && !rates && !parking && !contacts) return null;
+  return { caveat, terms, rates, parking, contacts };
 }
 
 // Та же логика "пустая форма → null целиком" — карточка застройщика на
@@ -979,7 +975,7 @@ export function BusinessCentersAdminTab() {
 
           <div className="flex flex-col gap-3 rounded-control border border-border p-4">
             <div>
-              <p className="text-sm font-semibold text-ink">Условия для арендаторов (с офиц. сайта БЦ)</p>
+              <p className="text-sm font-semibold text-ink">Отдел аренды БЦ (с офиц. сайта БЦ)</p>
               <p className="text-xs text-ink-faint">
                 Каждый пункт — с новой строки, начиная с «- » (список), важные цифры — в **двух звёздочках** (жирным).
                 Строка без «- » в начале — обычный абзац.
@@ -1005,12 +1001,6 @@ export function BusinessCentersAdminTab() {
               onChange={(e) => setForm({ ...form, rentalRates: e.target.value })}
               rows={2}
               placeholder="- От **26 BYN/м²**"
-            />
-            <Textarea
-              label="Площади и типы помещений"
-              value={form.rentalSizes}
-              onChange={(e) => setForm({ ...form, rentalSizes: e.target.value })}
-              rows={3}
             />
             <Textarea
               label="Парковка"
