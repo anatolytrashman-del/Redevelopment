@@ -41,6 +41,7 @@ function center(over: Partial<BusinessCenter> & { slug: string }): BusinessCente
     mapSnapshotFiles: [],
     mediaMentions: [],
     tenantOrganizations: [],
+    tenantCount: 0,
     technicalParams: [],
     buildingFacts: [],
     nearestMetroStations: [],

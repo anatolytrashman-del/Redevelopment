@@ -13,7 +13,7 @@ function bc(over: Partial<BusinessCenter> & { slug: string }): BusinessCenter {
     microdistrict: null, businessClass: null, totalArea: null, yearBuilt: null, floors: null, developer: null,
     developerInfo: null,
     metro: null, parking: null, website: null, description: null, rentalInfo: null, highlights: [], mediaMentions: [],
-    mapSnapshotFiles: [], tenantOrganizations: [], technicalParams: [], buildingFacts: [], nearestMetroStations: [], verdict: null,
+    mapSnapshotFiles: [], tenantOrganizations: [], tenantCount: 0, technicalParams: [], buildingFacts: [], nearestMetroStations: [], verdict: null,
     pros: [], cons: [], verdictEdited: false, reviewsChecked: false, floorPlateArea: null, officeArea: null, layoutTypes: [],
     elevators: null, parkingRatio: null, airConditioning: null, ceilingHeight: null, managementType: null,
     metroDistanceBucket: null, freeSpaceMin: null, freeSpaceMax: null, infraInternal: [], infraNearby: [],

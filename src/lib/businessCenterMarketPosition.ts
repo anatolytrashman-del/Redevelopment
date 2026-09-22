@@ -372,7 +372,11 @@ export function buildMarketPosition(
   // 2026-09-20: больше соседей по этажу — не однозначно плюс арендатору).
   const buildingTenants = center.tenantOrganizations.length;
   if (buildingTenants > 0 && center.businessClass) {
-    const classValues = sameClass.map((c) => c.tenantOrganizations.length).filter((n) => n > 0);
+    // tenantCount, а не tenantOrganizations.length: сравниваемые здания
+    // приезжают из СПИСКА, а список с 2026-09-22 не забирает сам список
+    // арендаторов (969 КБ → 149 КБ, см. LIST_COLUMNS в businessCentersApi).
+    // У самого здания (center) ряд полный, поэтому выше длина массива.
+    const classValues = sameClass.map((c) => c.tenantCount).filter((n) => n > 0);
     const classTenants = classValues.length >= MIN_COMPARE_N ? median(classValues) : null;
     if (classTenants != null) {
       const unit = 'шт.';

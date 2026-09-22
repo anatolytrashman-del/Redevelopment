@@ -32,6 +32,7 @@ function fromRow(row: BusinessCenterRow): BusinessCenter {
     mapSnapshotFiles: row.map_snapshot_files ?? [],
     mediaMentions: row.media_mentions ?? [],
     tenantOrganizations: row.tenant_organizations ?? [],
+    tenantCount: row.tenant_count ?? (row.tenant_organizations?.length ?? 0),
     technicalParams: row.technical_params ?? [],
     buildingFacts: row.building_facts ?? [],
     nearestMetroStations: row.nearest_metro_stations ?? [],
@@ -66,7 +67,107 @@ function fromRow(row: BusinessCenterRow): BusinessCenter {
   };
 }
 
+// Колонки для СПИСКА зданий (замер 2026-09-22, Ш3 плана
+// docs/bc-catalog-seo-plan.md). Раньше все публичные страницы раздела —
+// каталог, 40+ хабов, рейтинги, гид, аналитика, избранное И карточка БЦ —
+// звали одну и ту же выборку `select('*')`: 969 КБ сжатых, 3,17 МБ
+// распакованного JSON на каждый заход. На телефоне тело ответа грузилось
+// ~3,8 с, и всё это время страница стояла с «Загрузка…» ВМЕСТО уже
+// отрисованной пререндером разметки — отсюда и CLS 0,22–0,29, и пустой
+// экран на две секунды посреди загрузки.
+//
+// Из выборки убраны четыре группы колонок, которые списку не нужны ни для
+// карточек, ни для фильтров, ни для FAQ:
+//   official_site_snapshot_* — сырой текст сайта БЦ, 438 КБ, не читает никто;
+//   tenant_organizations     — 342 КБ; спискам хватает tenant_count;
+//   technical_params, rental_info, building_facts, developer_info,
+//   media_mentions, map_snapshot_files — блоки, которые есть только на
+//   карточке здания, а ей теперь отвечает fetchBusinessCenter(slug).
+// Итог замера: 969 КБ → 149 КБ.
+//
+// highlights (148 КБ) и accessibility остаются: по ним работают фильтр и
+// сортировка каталога (рейтинг Яндекс.Карт) и обе страницы рейтинга.
+//
+// Поле, выпавшее из выборки, приезжает в BusinessCenter пустым (fromRow
+// подставляет []/null) — молча и без ошибки. Поэтому всё, что читает такие
+// поля, обязано брать их из fetchBusinessCenter/fetchBusinessCentersFull, а
+// не из списка.
+const LIST_COLUMNS = [
+  'id',
+  'slug',
+  'name',
+  'alt_names',
+  'address',
+  'district',
+  'microdistrict',
+  'business_class',
+  'total_area',
+  'office_area',
+  'floor_plate_area',
+  'free_space_min',
+  'free_space_max',
+  'year_built',
+  'floors',
+  'ceiling_height',
+  'elevators',
+  'parking',
+  'parking_ratio',
+  'air_conditioning',
+  'is_24x7',
+  'management_type',
+  'metro',
+  'metro_distance_bucket',
+  'nearest_metro_stations',
+  'lat',
+  'lng',
+  'website',
+  'developer',
+  'description',
+  'layout_types',
+  'infra_internal',
+  'infra_nearby',
+  'accessibility',
+  'highlights',
+  'photos',
+  'gis_rating',
+  'gis_review_count',
+  'tenant_count',
+  'verdict',
+  'verdict_edited',
+  'reviews_checked',
+  'pros',
+  'cons',
+  'status',
+  'sort_order',
+  'created_at',
+].join(',');
+
 export function fetchBusinessCenters(): Promise<BusinessCenter[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('business_centers')
+      .select(LIST_COLUMNS)
+      .order('sort_order', { ascending: true });
+    if (error) throw error;
+    return (data as unknown as BusinessCenterRow[]).map(fromRow);
+  });
+}
+
+// Полный ряд одного здания — для карточки БЦ: ей нужны и технические
+// параметры, и арендаторы, и упоминания в СМИ, которых в списке нет.
+// Один ряд — это десятки килобайт вместо мегабайта, и первый экран карточки
+// больше не ждёт всю таблицу.
+export function fetchBusinessCenter(slug: string): Promise<BusinessCenter | null> {
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('business_centers').select('*').eq('slug', slug).maybeSingle();
+    if (error) throw error;
+    return data ? fromRow(data as BusinessCenterRow) : null;
+  });
+}
+
+// Полная таблица — только админке (BusinessCentersAdminTab): там правят все
+// поля разом, и вес не важен, страница за паролем.
+export function fetchBusinessCentersFull(): Promise<BusinessCenter[]> {
   return withRetry(async () => {
     const { data, error } = await supabase.from('business_centers').select('*').order('sort_order', { ascending: true });
     if (error) throw error;
