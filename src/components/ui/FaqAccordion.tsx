@@ -1,9 +1,11 @@
+import { Link } from 'react-router-dom';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 
 export interface FaqItem {
   question: string;
   answer: string;
+  links?: { url: string; label: string }[];
 }
 
 // <details>/<summary> вместо аккордеона на useState: контент есть в DOM
@@ -28,7 +30,14 @@ export function FaqAccordion({ title, items, id }: { title: string; items: FaqIt
             <summary className="cursor-pointer text-sm font-semibold text-ink">
               <h3 className="inline">{item.question}</h3>
             </summary>
-            <p className="mt-2 text-sm text-ink-muted">{item.answer}</p>
+            <p className="mt-2 text-sm text-ink-muted">
+              {item.answer}
+              {item.links?.map((link) => (
+                <Link key={link.url} to={link.url} className="ml-2 font-semibold text-primary-hover hover:underline">
+                  {link.label}
+                </Link>
+              ))}
+            </p>
           </details>
         ))}
       </div>
