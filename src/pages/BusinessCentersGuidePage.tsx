@@ -73,7 +73,7 @@ interface Section {
 
 export function BusinessCentersGuidePage() {
   const [centers, setCenters] = useState<BusinessCenter[] | null>(null);
-  const [snapshots, setSnapshots] = useState<MarketSnapshot[]>([]);
+  const [snapshots, setSnapshots] = useState<MarketSnapshot[] | null>(null);
 
   useEffect(() => {
     fetchBusinessCenters()
@@ -88,10 +88,15 @@ export function BusinessCentersGuidePage() {
   }, []);
 
   const total = centers?.length ?? 0;
-  const profiles = useMemo(() => classProfiles(centers ?? [], snapshots), [centers, snapshots]);
+  // Пререндер снимает страницу, как только со страницы исчезло слово
+  // «Загрузка…» (scripts/prerender.mjs) — без этого флага снимок делался бы
+  // ДО ответа Supabase, и половина страницы (таблица классов, ярусы,
+  // окупаемость, расчёт) в статический HTML не попадала бы вовсе.
+  const loading = centers === null || snapshots === null;
+  const profiles = useMemo(() => classProfiles(centers ?? [], snapshots ?? []), [centers, snapshots]);
   const tiers = useMemo(() => rentTierSplit(profiles), [profiles]);
   const cost = useMemo(() => costExample(profiles), [profiles]);
-  const period = useMemo(() => fmtPeriod(latestPeriod(snapshots)), [snapshots]);
+  const period = useMemo(() => fmtPeriod(latestPeriod(snapshots ?? [])), [snapshots]);
 
   // Окупаемость показываем только там, где есть обе медианы; порядок — от
   // быстрой к долгой, потому что в этом и состоит вывод блока.
@@ -268,6 +273,8 @@ export function BusinessCentersGuidePage() {
             ))}
           </nav>
         </div>
+
+        {loading && <p className="text-sm text-ink-muted">Загрузка…</p>}
 
         {profiles.length > 0 && (
           <section id="klassy" className={cn(card, 'scroll-mt-20')} style={glassCardShadow}>
