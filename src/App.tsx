@@ -10,6 +10,10 @@ import { DistrictGuidePage } from './pages/DistrictGuidePage';
 import { MinskMirTopicPage } from './pages/MinskMirTopicPage';
 import { BusinessCentersMinskPage } from './pages/BusinessCentersMinskPage';
 import { BusinessCentersRankingPage } from './pages/BusinessCentersRankingPage';
+import { BusinessCentersBiggestPage } from './pages/BusinessCentersBiggestPage';
+import { BusinessCentersRankingBPlusPage } from './pages/BusinessCentersRankingBPlusPage';
+import { BusinessCentersRankingBCPage } from './pages/BusinessCentersRankingBCPage';
+import { BusinessCentersAffordablePage } from './pages/BusinessCentersAffordablePage';
 import { BusinessCentersGuidePage } from './pages/BusinessCentersGuidePage';
 import { BusinessCentersAnalyticsPage } from './pages/BusinessCentersAnalyticsPage';
 import { BusinessCenterDetailPage } from './pages/BusinessCenterDetailPage';
@@ -267,6 +271,10 @@ export default function App() {
       <Route path="/minsk/bcminsk/stroyashchiesya" element={<BusinessCentersMinskPage underConstruction />} />
       {/* Рейтинг «Лучшие бизнес-центры Минска» (аудит 2026-09-07) — отдельный компонент, не хаб-фильтр. */}
       <Route path="/minsk/bcminsk/rating" element={<BusinessCentersRankingPage />} />
+      <Route path="/minsk/bcminsk/rating/samye-bolshie" element={<BusinessCentersBiggestPage />} />
+      <Route path="/minsk/bcminsk/rating/b-plus" element={<BusinessCentersRankingBPlusPage />} />
+      <Route path="/minsk/bcminsk/rating/b-c" element={<BusinessCentersRankingBCPage />} />
+      <Route path="/minsk/bcminsk/rating/samye-dostupnye" element={<BusinessCentersAffordablePage />} />
       <Route path="/minsk/bcminsk/gid" element={<BusinessCentersGuidePage />} />
       {/* Аналитика каталога БЦ (владелец, 2026-09-22) — вынесена сюда с
           подвала каталога, см. комментарий в BusinessCentersAnalyticsPage.tsx. */}

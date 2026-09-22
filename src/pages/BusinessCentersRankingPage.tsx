@@ -7,12 +7,12 @@ import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
-import { MIN_RELIABLE_N, type MarketSnapshot } from '../data/marketSnapshots';
+import type { MarketSnapshot } from '../data/marketSnapshots';
 import { buildOfferIndex, EMPTY_OFFER_INDEX } from '../lib/businessCenterCatalogFilter';
 import type { BusinessCenter } from '../data/businessCenters';
-import { shortName, shortAddress, mapRatingFromHighlights } from '../lib/businessCenterDisplay';
-import { classHubUrl } from '../lib/businessCenterHubs';
-import { PhotoBlock } from '../components/businessCenters/BusinessCenterVisuals';
+import { shortName } from '../lib/businessCenterDisplay';
+import { Cell, RankingRow } from '../components/businessCenters/RankingRow';
+import { RATING_THRESHOLD_LABEL, MIN_RATING_COUNT, isOutsideMinsk, ratingsCount, money, rentLabel, buildRankingForClasses, buildExcludedForClasses, type RankedCenter, type ExcludedCenter } from '../lib/businessCenterRanking';
 import { CatalogMap } from '../components/businessCenters/CatalogMap';
 import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrademarkNote';
 import { nearestMetroStation } from '../lib/metroStations';
@@ -36,12 +36,6 @@ import { FaqAccordion } from '../components/ui/FaqAccordion';
 //      парке «Великий камень», ~25 км от города.
 // Само число оценок теперь видно в каждой строке: это единственное, по чему
 // читатель может понять, чему верить (mapRatingFromHighlights.count).
-const RATING_THRESHOLD = 4.5;
-// Отдельная подпись с запятой — `${RATING_THRESHOLD}` подставляет JS-число и
-// даёт «4.5» с точкой в title, description и на самой странице, рядом с
-// «5,0» в строках рейтинга (находка разбора 2026-09-22).
-const RATING_THRESHOLD_LABEL = '4,5';
-const MIN_RATING_COUNT = 50;
 const DATE_PUBLISHED = '2026-09-07';
 const PAGE_URL = 'https://redevelopment.pro/minsk/bcminsk/rating';
 const TITLE = `Лучшие бизнес-центры Минска: рейтинг класса A с оценкой от ${RATING_THRESHOLD_LABEL}`;
@@ -53,121 +47,19 @@ const PAGE_H1 = 'Лучшие бизнес-центры Минска';
 // «как определяется класс» из методики (владелец, 2026-09-22).
 const CLASS_EXPLAINER_URL = '/minsk/bcminsk/gid#klassy';
 
-export interface RankedCenter {
-  center: BusinessCenter;
-  rating: number;
-  ratingLabel: string;
-  ratingCount: number;
-}
+export type { RankedCenter, ExcludedCenter } from '../lib/businessCenterRanking';
 
-// Здания вне городской черты. Проверяется по адресу и району, а не по
-// координатам: границы города в базе не лежат, а адрес у всех 141 карточки
-// заполнен и у минских начинается с «г. Минск». На 2026-09-22 под правило
-// попадают три карточки каталога — «Аден» (индустриальный парк «Великий
-// камень», Смолевичский район), плюс два объекта с адресом в Минской
-// области и Минском районе.
-function isOutsideMinsk(center: BusinessCenter): boolean {
-  const haystack = `${center.address} ${center.district ?? ''}`;
-  return /Минская область|Минский район|Смолевичск|Великий камень/i.test(haystack);
-}
-
-export interface ExcludedCenter {
-  center: BusinessCenter;
-  reason: string;
-}
-
-// Класс A, сдан, но в рейтинг не попал — с проверяемой причиной. Нужен для
-// FAQ: блок «кто не попал» владелец со страницы убрал (2026-09-22), но сам
-// вопрос остался, и отвечать на него надо фактами из базы, а не текстом,
-// который разъедется с данными.
-export function buildExcluded(centers: BusinessCenter[]): ExcludedCenter[] {
-  return centers
-    .filter((c) => c.businessClass === 'A' && c.status !== 'under_construction')
-    .map((center) => {
-      if (isOutsideMinsk(center)) return { center, reason: 'не в черте Минска' };
-      const rating = mapRatingFromHighlights(center.highlights);
-      if (!rating) return { center, reason: 'рейтинг на Яндекс.Картах не распознан' };
-      if (rating.value < RATING_THRESHOLD)
-        return { center, reason: `рейтинг ${rating.label} из 5, ниже порога ${RATING_THRESHOLD_LABEL}` };
-      if (rating.count == null) return { center, reason: 'в карточке карт не указано число оценок' };
-      if (rating.count < MIN_RATING_COUNT)
-        return { center, reason: `${rating.count} ${ratingsWord(rating.count)}, меньше порога ${MIN_RATING_COUNT}` };
-      return null;
-    })
-    .filter((e): e is ExcludedCenter => e !== null);
-}
-
-// Экспортирована для блока "Рейтинг БЦ Минска" на странице объекта
-// (BusinessCenterDetailPage.tsx) — тот блок обязан показывать РОВНО тех
-// же лидеров, что и эта страница, а не собственный подсчёт по другому
-// полю: BusinessCenter.gisRating (снимок 2ГИС) и рейтинг с Яндекс.Карт
-// (mapRatingFromHighlights, источник методики здесь) — разные числа для
-// одного и того же здания, и здание с высоким gisRating может не попасть
-// в этот рейтинг вовсе (не тот класс, ниже порога, мало оценок или вообще
-// нет распознанного рейтинга с карт). Показать его в блоке-тизере как часть
-// "рейтинга" было бы неправдой (владелец, 2026-09-20: "в рейтинге нет БЦ
-// Капитал Палас").
 export function buildRanking(centers: BusinessCenter[]): RankedCenter[] {
-  return centers
-    .filter((c) => c.businessClass === 'A' && c.status !== 'under_construction' && !isOutsideMinsk(c))
-    .map((c) => {
-      const rating = mapRatingFromHighlights(c.highlights);
-      if (!rating || rating.count == null) return null;
-      return { center: c, rating: rating.value, ratingLabel: rating.label, ratingCount: rating.count };
-    })
-    .filter((r): r is RankedCenter => r !== null && r.rating >= RATING_THRESHOLD && r.ratingCount >= MIN_RATING_COUNT)
-    .sort((a, b) => b.rating - a.rating || b.ratingCount - a.ratingCount);
+  return buildRankingForClasses(centers, ['A']);
+}
+
+export function buildExcluded(centers: BusinessCenter[]): ExcludedCenter[] {
+  return buildExcludedForClasses(centers, ['A']);
 }
 
 const nf = new Intl.NumberFormat('ru-RU');
 
-// «161 оценка», «17 493 оценки», «445 оценок» — число оценок стоит в каждой
-// строке рейтинга и в FAQ, и «17 493 оценок» бросается в глаза сразу.
-function ratingsWord(n: number): string {
-  const mod100 = n % 100;
-  const mod10 = n % 10;
-  if (mod100 >= 11 && mod100 <= 14) return 'оценок';
-  if (mod10 === 1) return 'оценка';
-  if (mod10 >= 2 && mod10 <= 4) return 'оценки';
-  return 'оценок';
-}
-
-function ratingsCount(n: number): string {
-  return `${nf.format(n)} ${ratingsWord(n)}`;
-}
-
-// Медиана приходит из базы как есть (21.14) — без форматирования в тексте
-// FAQ получалось «$21.14/м²» с точкой рядом с «$13/м²» в строках.
-function money(value: number): string {
-  return `$${value.toLocaleString('ru-RU', { maximumFractionDigits: 1 })}/м²`;
-}
-
-function Cell({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-0.5">
-      <span className="text-[9.5px] font-bold uppercase tracking-wider text-ink-faint">{label}</span>
-      <span className="text-[13.5px] font-bold leading-snug text-ink">{children}</span>
-    </div>
-  );
-}
-
-// Медиана ставки по зданию — из тех же месячных снимков рынка
-// (market_snapshots, slice_type='building'), что показывает каталог: считать
-// её здесь заново по business_center_offers значило бы показать на двух
-// страницах два разных числа по одному зданию. Выборка по одному зданию
-// почти всегда мала, поэтому рядом всегда стоит, по скольким объявлениям
-// посчитано, а ниже порога надёжности (MIN_RELIABLE_N) число помечается как
-// ориентировочное — тот же приём, что на страницах аналитики.
-function rentLabel(snapshot: MarketSnapshot | undefined): { label: string; value: string } | null {
-  if (!snapshot || snapshot.median == null) return null;
-  const reliable = snapshot.n >= MIN_RELIABLE_N;
-  return {
-    label: reliable ? `Аренда · ${snapshot.n} объявл.` : `Аренда · ориент., ${snapshot.n} объявл.`,
-    value: money(snapshot.median),
-  };
-}
-
-function RankingRow({
+function RatedRankingRow({
   ranked,
   place,
   rent,
@@ -182,28 +74,11 @@ function RankingRow({
   const areaLabel = center.officeArea != null ? 'Офисов' : 'Площадь';
   const rentCell = rentLabel(rent);
   return (
-    <Link
-      to={`/minsk/bcminsk/${center.slug}`}
-      className={cn('group flex items-start gap-4 p-4 transition-colors hover:border-primary/40', glassCardClass)}
-      style={glassCardShadow}
-    >
-      <span
-        className={cn(
-          'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base font-extrabold',
-          place <= 3 ? 'bg-primary text-white' : 'bg-surface-muted text-ink',
-        )}
-      >
-        {place}
-      </span>
-      <div className="relative h-[88px] w-[118px] shrink-0 overflow-hidden rounded-control">
-        <PhotoBlock center={center} variant="card" />
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <h2 className="text-base font-bold leading-snug text-ink">{shortName(center)}</h2>
-        <p className="text-xs text-ink-faint">
-          {[center.yearBuilt, shortAddress(center.address)].filter(Boolean).join(', ')}
-        </p>
-        <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5">
+    <RankingRow
+      center={center}
+      place={place}
+      cells={
+        <>
           <Cell label="Рейтинг">
             ★ {ratingLabel}
             <span className="font-medium text-ink-muted"> · {ratingsCount(ratingCount)}</span>
@@ -220,21 +95,10 @@ function RankingRow({
             </Cell>
           )}
           {nearestMetro && <Cell label="Метро">{nearestMetro.name}</Cell>}
-        </div>
-      </div>
-      <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-ink-faint transition-colors group-hover:text-primary" />
-    </Link>
+        </>
+      }
+    />
   );
-}
-
-// Сколько зданий класса ниже A прошло бы тот же порог — для блока
-// «Рейтинги по остальным классам». Считается той же функцией условий, что и
-// основной список, только с другим классом: иначе цифра в тизере разъедется
-// с тем, что человек увидит, когда такие страницы появятся.
-function countQualifying(centers: BusinessCenter[], businessClass: 'B+' | 'B'): number {
-  return buildRanking(
-    centers.filter((c) => c.businessClass === businessClass).map((c) => ({ ...c, businessClass: 'A' as const })),
-  ).length;
 }
 
 export function BusinessCentersRankingPage() {
@@ -258,8 +122,8 @@ export function BusinessCentersRankingPage() {
     () => (centers ?? []).filter((c) => c.businessClass === 'A' && c.status !== 'under_construction' && !isOutsideMinsk(c)).length,
     [centers],
   );
-  const bPlusCount = useMemo(() => (centers ? countQualifying(centers, 'B+') : 0), [centers]);
-  const bCount = useMemo(() => (centers ? countQualifying(centers, 'B') : 0), [centers]);
+  const bPlusCount = useMemo(() => (centers ? buildRankingForClasses(centers, ['B+']).length : 0), [centers]);
+  const bCount = useMemo(() => (centers ? buildRankingForClasses(centers, ['B', 'C']).length : 0), [centers]);
 
   const faqItems = useMemo(() => {
     if (ranking.length === 0) return [];
@@ -335,8 +199,8 @@ export function BusinessCentersRankingPage() {
       answer:
         'Рейтинг нарочно ограничен высшим классом A — самым качественным по инженерии, отделке и расположению. ' +
         (bPlusCount > 0 || bCount > 0
-          ? `Тем же трём условиям в других классах отвечают ${bPlusCount} бизнес-центров класса B+ и ${bCount} класса B — ` +
-            'их списки соберём отдельными страницами. '
+          ? `Тем же трём условиям в других классах отвечают ${bPlusCount} бизнес-центров класса B+ и ${bCount} классов B и C — ` +
+            'их рейтинги опубликованы на отдельных страницах. '
           : '') +
         'Все бизнес-центры Минска, включая другие классы, — в полном каталоге на странице «Бизнес-центры Минска».',
     });
@@ -433,7 +297,7 @@ export function BusinessCentersRankingPage() {
               </p>
             )}
             {ranking.map((r, i) => (
-              <RankingRow key={r.center.slug} ranked={r} place={i + 1} rent={offerIndex.rentBySlug.get(r.center.slug)} />
+              <RatedRankingRow key={r.center.slug} ranked={r} place={i + 1} rent={offerIndex.rentBySlug.get(r.center.slug)} />
             ))}
           </div>
         )}
@@ -474,31 +338,31 @@ export function BusinessCentersRankingPage() {
             <h2 className="text-lg font-bold text-ink">Рейтинги по остальным классам</h2>
             <p className="text-sm text-ink-muted">
               Класс A — это {classATotal} сданных зданий из всего каталога. Тем же трём условиям отвечают и здания классов
-              ниже: их списки соберём отдельными страницами, а пока смотреть их можно в каталоге.
+              B+, B и C: для них опубликованы отдельные рейтинги с той же методикой.
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
               {bPlusCount > 0 && (
                 <Link
-                  to={classHubUrl('B+')}
+                  to="/minsk/bcminsk/rating/b-plus"
                   className="rounded-control border border-border bg-surface p-4 transition-colors hover:border-primary/40"
                 >
                   <span className="text-2xl font-extrabold text-ink">{bPlusCount}</span>
                   <span className="mt-1 block text-sm font-bold text-ink">
                     БЦ класса B+ с рейтингом от {RATING_THRESHOLD_LABEL}
                   </span>
-                  <span className="mt-1 block text-xs text-ink-muted">Все бизнес-центры класса B+ в каталоге →</span>
+                  <span className="mt-1 block text-xs text-ink-muted">Рейтинг бизнес-центров класса B+ →</span>
                 </Link>
               )}
               {bCount > 0 && (
                 <Link
-                  to={classHubUrl('B')}
+                  to="/minsk/bcminsk/rating/b-c"
                   className="rounded-control border border-border bg-surface p-4 transition-colors hover:border-primary/40"
                 >
                   <span className="text-2xl font-extrabold text-ink">{bCount}</span>
                   <span className="mt-1 block text-sm font-bold text-ink">
-                    БЦ класса B с рейтингом от {RATING_THRESHOLD_LABEL}
+                    БЦ классов B и C с рейтингом от {RATING_THRESHOLD_LABEL}
                   </span>
-                  <span className="mt-1 block text-xs text-ink-muted">Все бизнес-центры класса B в каталоге →</span>
+                  <span className="mt-1 block text-xs text-ink-muted">Рейтинг бизнес-центров классов B и C →</span>
                 </Link>
               )}
             </div>
@@ -532,6 +396,30 @@ export function BusinessCentersRankingPage() {
               <Link to="/minsk/bcminsk/stroyashchiesya" className="flex items-center gap-2 text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Строящиеся бизнес-центры Минска
+              </Link>
+            </li>
+            <li>
+              <Link to="/minsk/bcminsk/rating/samye-bolshie" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+                <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
+                Самые большие бизнес-центры Минска
+              </Link>
+            </li>
+            <li>
+              <Link to="/minsk/bcminsk/rating/samye-dostupnye" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+                <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
+                Самые доступные бизнес-центры Минска
+              </Link>
+            </li>
+            <li>
+              <Link to="/minsk/bcminsk/rating/b-plus" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+                <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
+                Лучшие бизнес-центры класса B+ в Минске
+              </Link>
+            </li>
+            <li>
+              <Link to="/minsk/bcminsk/rating/b-c" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+                <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
+                Лучшие бизнес-центры классов B и C в Минске
               </Link>
             </li>
           </ul>

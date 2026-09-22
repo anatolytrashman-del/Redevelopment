@@ -19,7 +19,6 @@ import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { PhotoBlock, FactRow, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import { CatalogFilterPanel } from '../components/businessCenters/CatalogFilterPanel';
 import { CatalogCompare } from '../components/businessCenters/CatalogCompare';
-import { CatalogSlicesBlock } from '../components/businessCenters/CatalogSlicesBlock';
 import { FavoriteButton } from '../components/businessCenters/FavoriteButton';
 import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrademarkNote';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
@@ -1225,16 +1224,19 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               </Link>
             )}
 
-            {/* Срезы каталога — SEO-хабы (районы, микрорайоны, метро, улицы,
-                классы, стройка) плюс алфавитный перечень всех зданий.
-                Владелец, 2026-09-22: на главной каталога этого не нужно —
-                блок уехал на /minsk/bcminsk/gid, ссылка на него ниже. На
-                хабах остаётся: панель чипов сверху их не заменяет (она
-                клиентская и живёт в query, которую поисковик не индексирует),
-                а без блока хаб ссылался бы только на треть каталога —
-                карточек в сетке рендерится 48, «Показать ещё» в пререндер не
-                попадает. */}
-            {!isGeneralCatalog && centers !== null && <CatalogSlicesBlock centers={centers} />}
+            {/* Ковёр чипов-срезов (районы, микрорайоны, метро, улицы,
+                классы) вместе с алфавитным перечнем всех зданий убран
+                отсюда и со страницы-гида целиком — владелец, 2026-09-22:
+                «срезы каталога из видимой части сайта надо вообще убрать».
+                Перелинковка от этого не рвётся: районы, метро, классы и тип
+                лежат в сквозном верхнем меню (CatalogTopNav — панель всегда
+                в разметке, поэтому попадает в пререндер), микрорайон, улица
+                и «класс + район» — в блоках рекомендаций на карточке
+                каждого здания (BusinessCenterDetailPage), а до самих зданий
+                краулер доходит с хабов района: в самом крупном (Фрунзенский)
+                24 здания при лимите сетки в 48 карточек, то есть все
+                показаны без «Показать ещё». Плюс все адреса есть в
+                sitemap.xml. */}
 
             {/* На главной вместо двух больших блоков — тизер справочника,
                 парный тизеру аналитики выше: и человеку не мешает, и краулер
@@ -1251,8 +1253,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 <div className="flex flex-col gap-1">
                   <h2 className="text-lg font-bold text-ink">Справочник по бизнес-центрам Минска</h2>
                   <p className="text-sm text-ink-muted">
-                    Классы A, B+, B и C, география рынка, из чего складывается ставка аренды, все разделы каталога и
-                    полный список зданий.
+                    Классы A, B+, B и C, география рынка, из чего складывается ставка аренды и на что смотреть
+                    при выборе офиса.
                   </p>
                 </div>
                 <ArrowRight className="h-5 w-5 shrink-0 text-ink-faint" />

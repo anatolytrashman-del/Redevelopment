@@ -1,5 +1,5 @@
 import { BUSINESS_CENTER_CLASSES, type BusinessCenter } from '../data/businessCenters';
-import { shortName, streetOfAddress } from './businessCenterDisplay';
+import { streetOfAddress } from './businessCenterDisplay';
 import {
   classHubUrl,
   districtHubUrl,
@@ -186,9 +186,4 @@ export function statusSlices(centers: BusinessCenter[]): CatalogSlice[] {
   }
   slices.push({ key: 'all', label: 'Весь каталог', url: '/minsk/bcminsk', count: centers.length });
   return slices;
-}
-
-/** Все здания каталога по алфавиту — для перечня ссылок на гиде. */
-export function alphabeticalCenters(centers: BusinessCenter[]): BusinessCenter[] {
-  return [...centers].sort((a, b) => shortName(a).localeCompare(shortName(b), 'ru'));
 }
