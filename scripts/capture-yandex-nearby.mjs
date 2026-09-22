@@ -122,15 +122,22 @@ const accessToken = process.env.SUPABASE_ACCESS_TOKEN;
 // но оба падают в одну и ту же итоговую категорию 'cafe' — конкретный тип
 // определяет рубрика (RUBRIC_RULES в nearby-places-common.mjs), а не то,
 // каким запросом заведение нашли; `category` здесь — это fallback ТОЛЬКО
-// для «похожих рядом» без рубрики на кириллице. 'кофейня' — отдельный
-// запрос под свою категорию 'coffee' (владелец, 2026-09-21: «давай соберем
-// кофейни отдельно»).
+// для «похожих рядом» без рубрики на кириллице. 'кофейня'/'кофе' — тоже два
+// запроса под одну категорию 'coffee' (владелец, 2026-09-21: «давай соберем
+// кофейни отдельно») по той же причине, что у кафе/ресторана: Яндекс
+// ранжирует выдачу по каждому запросу отдельно и обрезает её примерно на
+// 25 организациях — «Paul» (297 м, рубрика «Кондитерская · кафе · пекарня»)
+// не попал в топ выдачи «кофейня» у БЦ «Силуэт», но нашёлся по «кофе»
+// (владелец, 2026-09-22, проверено на живой выдаче). Это не гарантия
+// полного покрытия — Яндекс так же может обрезать и объединённый список,
+// просто с двумя формулировками шанс поймать заведение выше.
 export const NEARBY_QUERIES = [
   { category: 'grocery', text: 'продуктовый магазин' },
   { category: 'pharmacy', text: 'аптека' },
   { category: 'bank', text: 'банк' },
   { category: 'atm', text: 'банкомат' },
   { category: 'coffee', text: 'кофейня' },
+  { category: 'coffee', text: 'кофе' },
   { category: 'cafe', text: 'кафе' },
   { category: 'cafe', text: 'ресторан' },
   { category: 'fitness', text: 'фитнес клуб' },
@@ -267,12 +274,21 @@ export function extractCandidates(value, depth = 0, out = []) {
 // Слой карты без карточки (парки, подписи улиц, здания-ориентиры) — тоже без
 // кириллицы в рубрике, но с тегом «common», а не «similar»: их отбрасываем,
 // у «Парка Горького» рубрики для группировки взять неоткуда.
+//
+// 'station__' — не только метро: у станций БЖД (Минск-Пасс., Минск-Восточный,
+// Минск-Северный, Ждановичи и т.п.) тот же префикс, только с инфиксом
+// (`station__lh_9613989`) и рубрикой `common`, как у обычного шума карты —
+// без проверки самой рубрики они утекали в метро (владелец, 2026-09-21:
+// «в список попадали жд станции»; найдено на живой выдаче у БЦ «Титул»:
+// «Минск-Пасс.» — id `station__lh_9613989`, rubric `common`, тогда как у
+// настоящих станций метро id всегда голое число после `station__`, а
+// rubric — ровно `metro`).
 export function classifyCandidate(candidate, fallbackCategory) {
   const id = String(candidate.id ?? '');
-  if (id.startsWith('station__')) return 'metro';
+  const rubric = String(candidate.rubric ?? '');
+  if (id.startsWith('station__') && rubric.trim().toLowerCase() === 'metro') return 'metro';
   if (id.startsWith('stop__')) return 'transport_stop';
   if (!/^\d+$/.test(id)) return null;
-  const rubric = String(candidate.rubric ?? '');
   if (/[а-яё]/i.test(rubric)) return categoryFromRubric(rubric, fallbackCategory);
   if (/\bsimilar$/i.test(rubric.trim())) return fallbackCategory;
   return null;

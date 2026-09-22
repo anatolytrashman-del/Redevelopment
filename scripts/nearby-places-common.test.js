@@ -8,9 +8,9 @@ import {
 } from './nearby-places-common.mjs';
 
 describe('радиусы по категориям', () => {
-  it('метро и остановки шире, чем магазины', () => {
-    expect(radiusFor('metro')).toBe(2000);
+  it('остановки шире, метро — на общих основаниях с остальным', () => {
     expect(radiusFor('transport_stop')).toBe(800);
+    expect(radiusFor('metro')).toBe(850);
     expect(radiusFor('pharmacy')).toBe(850);
     expect(radiusFor('неизвестно')).toBe(850);
   });
