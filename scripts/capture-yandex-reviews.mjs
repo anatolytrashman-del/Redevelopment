@@ -46,7 +46,7 @@ import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline/promises';
 import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, runSql, sqlLiteral } from './nearby-places-common.mjs';
+import { SUPABASE_URL, runSql, slugsWithYandexReviews, sqlLiteral } from './nearby-places-common.mjs';
 
 const args = process.argv.slice(2);
 const valueOf = (name) => {
@@ -85,6 +85,10 @@ const chromePath = process.env.CHROME_PATH ?? chromeCandidates.find((candidate) 
 const anonKey = process.env.SUPABASE_ANON_KEY ?? 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const accessToken = process.env.SUPABASE_ACCESS_TOKEN;
+// service-role клиент для чтения/записи в обход RLS — один на весь скрипт,
+// используется и в catalogEntries() (фильтр --missing-only), и в записи
+// отзывов в main().
+const supabase = serviceRoleKey ? createClient(SUPABASE_URL, serviceRoleKey) : null;
 
 if (!listOnly && !chromePath) {
   console.error('Chrome не найден. Укажите полный путь через переменную CHROME_PATH');
@@ -232,24 +236,6 @@ async function writeReviews({ supabase, slug, reviews, capturedAt }) {
   );
 }
 
-async function slugsWithYandexReviews() {
-  if (serviceRoleKey) {
-    const client = createClient(SUPABASE_URL, serviceRoleKey);
-    const { data, error } = await client
-      .from('business_center_review_snapshots')
-      .select('business_center_slug')
-      .eq('source', 'yandex_maps')
-      .range(0, 9999);
-    if (error) throw error;
-    return new Set((data ?? []).map((row) => row.business_center_slug));
-  }
-  const rows = await runSql(
-    "select distinct business_center_slug from public.business_center_review_snapshots where source = 'yandex_maps';",
-    accessToken,
-  );
-  return new Set(rows.map((row) => row.business_center_slug));
-}
-
 async function latestCapturedAt() {
   if (serviceRoleKey) {
     const client = createClient(SUPABASE_URL, serviceRoleKey);
@@ -288,7 +274,7 @@ async function catalogEntries() {
   let centers = data ?? [];
 
   if (missingOnly) {
-    const withReviews = await slugsWithYandexReviews();
+    const withReviews = await slugsWithYandexReviews({ supabase, accessToken });
     centers = centers.filter((c) => !withReviews.has(c.slug));
   } else if (skipCollected) {
     const latest = await latestCapturedAt();
@@ -312,8 +298,6 @@ async function main() {
     console.log('Нечего собирать: все выбранные БЦ уже с отзывами (или список пуст)');
     return;
   }
-
-  const supabase = serviceRoleKey ? createClient(SUPABASE_URL, serviceRoleKey) : null;
 
   console.log(`БЦ в очереди: ${queue.length}. Открываю Chrome — окно можно двигать, но не закрывайте его.`);
   const { chromium } = await import('playwright-core');
