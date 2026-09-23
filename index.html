@@ -3,6 +3,99 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Данные раздела БЦ — старт загрузки ДО бандла (Ш3-b плана
+         docs/bc-catalog-seo-plan.md). React здесь не гидратирует, а сносит
+         пререндер-снапшот и строит DOM заново (см. main.tsx): без данных
+         первый клиентский рендер показывал «Загрузка…» вместо готовой
+         страницы — отсюда CLS 0,221 и пустой экран на секунды. Файлы
+         кладёт scripts/generate-catalog-data.mjs, отдаёт тот же CDN, что и
+         саму страницу, поэтому ответ приходит раньше бандла, и монтирование
+         его уже не ждёт. Инлайном, а не из бандла: запрос должен уйти в
+         первые миллисекунды, а бандл подключается отложенно. -->
+    <script>
+      (function () {
+        var path = location.pathname;
+        // Два каталога на одном шаблоне: бизнес-центры (/minsk/bc) и
+        // торговые центры (/minsk/tc, 2026-09-23). Файлы зданий у них общие
+        // (/data/bc/<slug>.json), различаются список и корень пути.
+        var base = path === '/minsk/tc' || path.indexOf('/minsk/tc/') === 0 ? '/minsk/tc' : '/minsk/bc';
+        if (path !== base && path.indexOf(base + '/') !== 0) return;
+        window.__bcKind = base === '/minsk/tc' ? 'tc' : 'bc';
+        // priority: 'low' — на медленном 4G эти JSON делили канал с
+        // LCP-фото карточки и отодвигали его на секунду (замер 2026-09-23:
+        // список 109 КБ стартовал первым, фото доезжало к 2,46 с). Данные
+        // нужны только к монтированию React, а оно и так ждёт отрисовку
+        // фото — уступить канал ничего не стоит.
+        //
+        // И сами запросы стартуют только после загрузки главного фото
+        // (img[fetchpriority="high"] снапшота) или, если фото нет, после
+        // разбора документа. Симуляция PageSpeed считает LCP с учётом всех
+        // запросов, начатых до его отрисовки: 234 КБ данных, ушедшие из
+        // <head>, на медленном 4G дописывали к LCP каталога почти секунду
+        // (87 вместо 94, 2026-09-23), хотя в браузере фото рисовалось вовремя.
+        // React монтируется только после отрисовки фото (main.tsx) и ждёт
+        // данные сам, так что позднее начало ему ничего не стоит.
+        var heroReady = new Promise(function (resolve) {
+          // Не «фото загружено», а «фото засчитано как LCP»: ждём саму
+          // запись largest-contentful-paint о нём. Два кадра после загрузки
+          // не гарантируют этого (замер: запрос уходил за 8 мс до записи).
+          // Запасной путь — через 300 мс после двух кадров: Safari LCP не
+          // сообщает, а если фото мельче заголовка, записи о нём не будет.
+          var watchLcp = function (img) {
+            try {
+              var po = new PerformanceObserver(function (list) {
+                var entries = list.getEntries();
+                for (var i = 0; i < entries.length; i++) {
+                  if (entries[i].element === img) { po.disconnect(); resolve(); return; }
+                }
+              });
+              po.observe({ type: 'largest-contentful-paint', buffered: true });
+            } catch (e) { /* нет LCP в браузере — сработает запасной путь */ }
+          };
+          var painted = function () {
+            requestAnimationFrame(function () {
+              requestAnimationFrame(function () { setTimeout(resolve, 300); });
+            });
+          };
+          var check = function () {
+            var img = document.querySelector('#root img[fetchpriority="high"]');
+            if (!img) return resolve();
+            watchLcp(img);
+            if (img.complete) return painted();
+            img.addEventListener('load', painted, { once: true });
+            img.addEventListener('error', function () { resolve(); }, { once: true });
+          };
+          if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', check, { once: true });
+          else check();
+          // Страховка: битое или зависшее фото не держит данные дольше 3 с.
+          setTimeout(resolve, 3000);
+        });
+        var get = function (url) {
+          return heroReady
+            .then(function () { return fetch(url, { priority: 'low' }); })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .catch(function () { return null; });
+        };
+        window.__bcList = get(base === '/minsk/tc' ? '/data/trade-centers.json' : '/data/business-centers.json');
+        // Ставки рынка и размеры лотов: без них первый кадр React рисует
+        // карточки и блоки иначе, чем пререндер-снапшот, и вёрстка прыгает.
+        window.__bcMarket = get('/data/bc-market.json');
+        var rest = path.slice(base.length).replace(/^\/+|\/+$/g, '');
+        // Карточка здания — ровно один сегмент пути. Разделы каталога с
+        // такой же формой перечислены явно, чтобы не ходить за файлом,
+        // которого заведомо нет (лишний 404 в консоли и в аудите).
+        // ФАЙЛ-БЛИЗНЕЦ: это односегментные маршруты /minsk/bc/<x> из
+        // src/App.tsx; сверяет тест в src/lib/businessCentersApi.test.ts.
+        var sections = ['rating', 'guide', 'analytics', 'new'];
+        if (rest && rest.indexOf('/') === -1 && sections.indexOf(rest) === -1) {
+          window.__bcDetail = { slug: rest, data: get('/data/bc/' + encodeURIComponent(rest) + '.json') };
+          // Объявления, отзывы, окружение, 2ГИС, арендаторы — снапшот
+          // карточки нарисован с ними, и без них к монтированию блоки на
+          // десктопе пропадали и появлялись снова (CLS 0,33, 2026-09-23).
+          window.__bcExtra = { slug: rest, data: get('/data/bc/' + encodeURIComponent(rest) + '.extra.json') };
+        }
+      })();
+    </script>
     <!-- favicon.ico — на классический путь /favicon.ico (без него самого
          файла) SPA-рерайт vercel.json ("/(.*)" → index.html) отдавал 200 с
          html вместо иконки; часть краулеров (в т.ч. Яндекс — "Файл favicon

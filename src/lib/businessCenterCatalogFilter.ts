@@ -13,9 +13,9 @@
 // всегда указывает на ближайший одноосевой хаб), поэтому комбинации не
 // плодят тонкие страницы, но ссылкой с отфильтрованным списком можно
 // поделиться.
-import type { BusinessCenter } from '../data/businessCenters';
+import { BUSINESS_CENTER_CLASSES, type BusinessCenter } from '../data/businessCenters';
 import type { MarketSnapshot } from '../data/marketSnapshots';
-import { shortName, streetOfAddress } from './businessCenterDisplay';
+import { mapRatingFromHighlights, shortName, streetOfAddress } from './businessCenterDisplay';
 
 // --- Сортировка (К5) ---------------------------------------------------
 
@@ -30,8 +30,15 @@ export type CatalogSortKey =
   | 'name';
 
 export const CATALOG_SORTS: { key: CatalogSortKey; label: string }[] = [
-  // По умолчанию — sort_order каталога (примерно по частотности поисковых
-  // запросов, см. BusinessCenter.sortOrder), а не алфавит.
+  // По умолчанию (владелец, 2026-09-22) — сначала класс (A выше B+, B, C),
+  // внутри класса — рейтинг на Яндекс.Картах (mapRatingFromHighlights, а не
+  // gisRating — тот структурный снимок 2ГИС, отдельный источник и отдельный
+  // явный пункт сортировки "Рейтинг 2ГИС" ниже). Это значит, что здание
+  // высокого класса с посредственным рейтингом на картах всё равно стоит
+  // выше более низкого класса с отличным рейтингом — рейтинг решает только
+  // спор внутри одного класса, не между классами. sort_order (частотность
+  // поисковых запросов) остался финальным тай-брейком при полном совпадении
+  // класса и рейтинга (или их отсутствии) — см. defaultSortCenters ниже.
   { key: 'default', label: 'По умолчанию' },
   { key: 'rent', label: 'Ставка аренды' },
   { key: 'area', label: 'Площадь' },
@@ -46,6 +53,13 @@ export const CATALOG_SORTS: { key: CatalogSortKey; label: string }[] = [
 
 export interface CatalogFilterState {
   classes: string[];
+  // Формат торгового центра (ТРЦ, универмаг, рынок…) — ось каталога ТЦ
+  // (/minsk/tc, 2026-09-23), у бизнес-центров всегда пусто. [] = все
+  // форматы, как и у classes: явный выбор сужает.
+  formats: string[];
+  // Статус здания — построено / строится (владелец, 2026-09-20). [] = обе
+  // группы, как и у classes/facts — явный выбор сужает.
+  statuses: string[];
   // null = выбраны все значения; [] = пользователь явно снял все галочки.
   // Различие нужно селекторам района и микрорайона: раньше пустой массив
   // одновременно означал и «все», и «ничего», поэтому «Снять все» не могло
@@ -93,6 +107,8 @@ export const CATALOG_VIEWS: { key: CatalogView; label: string }[] = [
 
 export const EMPTY_CATALOG_FILTER: CatalogFilterState = {
   classes: [],
+  formats: [],
+  statuses: [],
   districts: null,
   microdistricts: null,
   metroWithin: null,
@@ -171,6 +187,24 @@ export const MINSK_METRO_LINES = [
     ],
   },
 ] as const;
+
+// Цвет линии для маркера у станции метро на карточке каталога — официальная
+// раскраска линий Минского метро (владелец, 2026-09-20: "для Московской —
+// синим, для Автозаводской — красным, для Зеленолужской — зелёным"), не
+// сырой hex из 2GIS: тот у всех станций совпадает с этой раскраской, но
+// зависеть от того, что конкретно прислал источник на каждую запись, не
+// стоит — три известные линии красим явно, остальное (пока таких нет) —
+// нейтральным серым.
+export const METRO_LINE_DOT_CLASS: Record<string, string> = {
+  blue: 'bg-[#1976c9]',
+  red: 'bg-[#e31d35]',
+  green: 'bg-[#169447]',
+};
+
+export function metroLineId(line: string | null): string | null {
+  if (!line) return null;
+  return MINSK_METRO_LINES.find((l) => l.label === line)?.id ?? null;
+}
 
 // Снимки рынка по зданию (Д3) — медиана ставки и число объявлений по слагу.
 // Передаются в фильтр и сортировку явным аргументом, а не берутся из
@@ -311,6 +345,8 @@ export function isPresetActive(preset: CatalogPreset, state: CatalogFilterState)
     a === null || b === null ? a === b : same(a, b);
   return (
     same(target.classes, state.classes) &&
+    same(target.formats, state.formats) &&
+    same(target.statuses, state.statuses) &&
     sameNullable(target.districts, state.districts) &&
     sameNullable(target.microdistricts, state.microdistricts) &&
     same(target.facts, state.facts) &&
@@ -340,6 +376,10 @@ export function parseCatalogFilter(params: URLSearchParams): CatalogFilterState 
   const lotRaw = Number(params.get('lot'));
   return {
     classes: splitList(params.get('class')).filter((v) => ['A', 'B+', 'B', 'C'].includes(v)),
+    // Список форматов открытый (админка дописывает свои), поэтому значения
+    // не сверяются с перечнем: незнакомый формат просто ничего не найдёт.
+    formats: splitList(params.get('format')),
+    statuses: splitList(params.get('status')).filter((v) => ['built', 'under_construction'].includes(v)),
     districts: parseSelection(params, 'district'),
     microdistricts: parseSelection(params, 'microdistrict'),
     metroWithin: METRO_WITHIN_OPTIONS.some((o) => o.value === metroRaw) ? metroRaw : null,
@@ -362,6 +402,8 @@ export function parseCatalogFilter(params: URLSearchParams): CatalogFilterState 
 export function catalogFilterToQuery(state: CatalogFilterState): string {
   const params = new URLSearchParams();
   if (state.classes.length > 0) params.set('class', [...state.classes].sort().join(','));
+  if (state.formats.length > 0) params.set('format', [...state.formats].sort().join(','));
+  if (state.statuses.length > 0) params.set('status', [...state.statuses].sort().join(','));
   if (state.districts !== null) params.set('district', [...state.districts].sort().join(','));
   if (state.microdistricts !== null) params.set('microdistrict', [...state.microdistricts].sort().join(','));
   if (state.metroWithin != null) params.set('metro', String(state.metroWithin));
@@ -381,6 +423,8 @@ export function catalogFilterToQuery(state: CatalogFilterState): string {
 export function hasActiveCatalogFilter(state: CatalogFilterState): boolean {
   return (
     state.classes.length > 0 ||
+    state.formats.length > 0 ||
+    state.statuses.length > 0 ||
     state.districts !== null ||
     state.microdistricts !== null ||
     state.metroWithin != null ||
@@ -416,7 +460,13 @@ export function matchesCatalogFilter(
   state: CatalogFilterState,
   offers: CatalogOfferIndex,
 ): boolean {
-  if (state.classes.length > 0 && (center.businessClass === null || !state.classes.includes(center.businessClass))) {
+  if (state.classes.length > 0) {
+    if (center.businessClass === null || !state.classes.includes(center.businessClass)) return false;
+  }
+  if (state.formats.length > 0) {
+    if (center.retailFormat == null || !state.formats.includes(center.retailFormat)) return false;
+  }
+  if (state.statuses.length > 0 && !state.statuses.includes(center.status)) {
     return false;
   }
   if (state.districts !== null && (center.district === null || !state.districts.includes(center.district))) {
@@ -468,6 +518,46 @@ function byNumber(get: (c: BusinessCenter) => number | null, direction: 'asc' | 
   };
 }
 
+// Индекс BUSINESS_CENTER_CLASSES (['A', 'B+', 'B', 'C']) уже задаёт порядок
+// "как на рынке" — переводим его в числовой ранг, где выше класс = больше
+// число, чтобы byNumber с direction: 'desc' поставил A выше C. Класс не
+// указан — как и везде у byNumber, такое здание уходит в конец, а не
+// смешивается с классом C.
+const CLASS_RANK = new Map<string, number>(
+  BUSINESS_CENTER_CLASSES.map((cls, i) => [cls, BUSINESS_CENTER_CLASSES.length - i]),
+);
+const classRank = (c: BusinessCenter): number | null => (c.businessClass ? CLASS_RANK.get(c.businessClass) ?? null : null);
+// Рейтинг Яндекс.Карт из highlights, не gisRating (2ГИС) — см. комментарий
+// у CATALOG_SORTS выше.
+const yandexMapsRating = (c: BusinessCenter): number | null => mapRatingFromHighlights(c.highlights)?.value ?? null;
+
+const byClassThenRating = byNumber(classRank, 'desc');
+const byYandexRating = byNumber(yandexMapsRating, 'desc');
+
+// «Аден» — по факту 4-звёздочный отель, а не классический бизнес-центр
+// (см. комментарий у shortAddress в businessCenterDisplay.ts), и его
+// рейтинг 5,0 на Яндекс.Картах — это отзывы гостей отеля, а не арендаторов
+// офисов. По умолчанию это ставило бы «Аден» первым в классе A, обгоняя
+// настоящие БЦ. Владелец, 2026-09-22: держать «Аден» последним в списке
+// класса A, независимо от рейтинга.
+const PINNED_TO_CLASS_END = new Set(['aden']);
+const pinnedRank = (c: BusinessCenter): number => (PINNED_TO_CLASS_END.has(c.slug) ? 1 : 0);
+
+// Порядок по умолчанию для общего каталога и всех тематических хабов
+// (класс/район/микрорайон/улица/строящиеся): класс главнее рейтинга, рейтинг
+// решает только внутри одного класса. Кейс владельца, 2026-09-22: здание
+// высокого класса с рейтингом 3,8 всё равно стоит выше зданий более низкого
+// класса — даже если у тех рейтинг куда выше.
+function defaultSortCenters(centers: BusinessCenter[]): BusinessCenter[] {
+  return [...centers].sort(
+    (a, b) =>
+      byClassThenRating(a, b) ||
+      pinnedRank(a) - pinnedRank(b) ||
+      byYandexRating(a, b) ||
+      a.sortOrder - b.sortOrder,
+  );
+}
+
 export function sortCatalogCenters(
   centers: BusinessCenter[],
   sort: CatalogSortKey,
@@ -495,7 +585,7 @@ export function sortCatalogCenters(
     case 'name':
       return list.sort((a, b) => shortName(a).localeCompare(shortName(b), 'ru'));
     default:
-      return list.sort((a, b) => a.sortOrder - b.sortOrder);
+      return defaultSortCenters(list);
   }
 }
 

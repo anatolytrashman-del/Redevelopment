@@ -1,39 +1,52 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Banknote, Building2, BusFront, Coffee, Dumbbell, Landmark, MapPin, Pill, ShoppingBag, TrainFront, Utensils } from 'lucide-react';
+import { Banknote, BusFront, ChevronDown, Coffee, Dumbbell, Landmark, MapPin, Pill, ShoppingBag, TrainFront, Utensils } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { BusinessCenter } from '../../data/businessCenters';
 import { shortName } from '../../lib/businessCenterDisplay';
-import { loadYmaps } from '../../lib/yandexMaps';
+import { labelYmapsCopyrightLink, loadYmaps } from '../../lib/yandexMaps';
 import { useInView } from '../../lib/useInView';
-import type { CatalogOfferIndex } from '../../lib/businessCenterCatalogFilter';
-import { nearestNeighbours } from '../../lib/businessCenterMarketPosition';
+import { formatMeters, groupNearbyPlaces, hasNearbyContent } from '../../lib/nearbyPlaces';
+import { nearbyPinDataUri, NEARBY_PIN_SIZE } from '../../lib/nearbyPinIcons';
 import type { BusinessCenterNearbyPlace, NearbyPlaceCategory } from '../../data/businessCenterNearbyPlaces';
 
-// Б3 и Б6 плана docs/bc-catalog-redesign-plan.md — карта здания с соседями и
-// похожие БЦ. До 2026-09-16 на карточке бизнес-центра НЕ БЫЛО КАРТЫ ВООБЩЕ:
-// страница рассказывала про здание, но не показывала, где оно и что вокруг.
+// Б3 и Б6 плана docs/bc-catalog-redesign-plan.md — карта здания с соседями.
+// До 2026-09-16 на карточке бизнес-центра НЕ БЫЛО КАРТЫ ВООБЩЕ: страница
+// рассказывала про здание, но не показывала, где оно и что вокруг.
 //
-// Соседи считаются по прямой от координат (Д2). Именно «по прямой», и так
-// и подписано: маршрутов у нас нет, и превращать 400 метров по воздуху в
+// Соседи считаются по прямой от координат (Д2). Именно «по прямой», и так и
+// подписано: маршрутов у нас нет, и превращать 400 метров по воздуху в
 // «5 минут пешком» значило бы выдумать данные.
+//
+// 2026-09-22 — блок переосмыслен (владелец: «по умолчанию много точек, ничего
+// непонятно; категории не влезают в экран; расстояния до каждой точки — лишняя
+// инфа; банкоматы показаны наполовину»). Вместо ряда чипов с горизонтальным
+// скроллом, восьмидесяти меток разом и легенды с обрывом «и ещё 16 — на карте
+// выше» здесь список-характеристики: строка на категорию, в ней ближайшее место
+// и расстояние до него, раскрытие — остальные места этой категории. На карте
+// по умолчанию только ближайшее из каждой категории.
+//
+// Две предыдущие редакции макета владелец отклонил: сетку цветных плиток с
+// кольцами радиусов («похоже на пункт управления полётами»), затем пересказ
+// связным текстом. Отсюда нынешняя монохромная сухость — она намеренная.
 
-const DEFAULT_ZOOM = 16;
+const DEFAULT_ZOOM = 15;
 
-const CATEGORY_META: Record<NearbyPlaceCategory, { label: string; color: string; icon: typeof MapPin }> = {
-  metro: { label: 'Метро', color: '#e4152b', icon: TrainFront },
-  transport_stop: { label: 'Остановки', color: '#2563eb', icon: BusFront },
-  cafe: { label: 'Кафе', color: '#b45309', icon: Coffee },
-  restaurant: { label: 'Рестораны', color: '#c2410c', icon: Utensils },
-  grocery: { label: 'Продукты', color: '#15803d', icon: ShoppingBag },
-  shop: { label: 'Магазины', color: '#7c3aed', icon: ShoppingBag },
-  pharmacy: { label: 'Аптеки', color: '#059669', icon: Pill },
-  bank: { label: 'Банки', color: '#475569', icon: Landmark },
-  atm: { label: 'Банкоматы', color: '#64748b', icon: Banknote },
-  fitness: { label: 'Фитнес', color: '#db2777', icon: Dumbbell },
-  other: { label: 'Другое', color: '#6e7781', icon: MapPin },
+const CATEGORY_META: Record<NearbyPlaceCategory, { label: string; icon: typeof MapPin }> = {
+  metro: { label: 'Метро', icon: TrainFront },
+  transport_stop: { label: 'Остановки', icon: BusFront },
+  grocery: { label: 'Продукты', icon: ShoppingBag },
+  pharmacy: { label: 'Аптеки', icon: Pill },
+  bank: { label: 'Банки', icon: Landmark },
+  atm: { label: 'Банкоматы', icon: Banknote },
+  coffee: { label: 'Кофейни', icon: Coffee },
+  cafe: { label: 'Кафе и рестораны', icon: Utensils },
+  fitness: { label: 'Фитнес', icon: Dumbbell },
+  shop: { label: 'Магазины', icon: ShoppingBag },
+  other: { label: 'Другое', icon: MapPin },
 };
+
+const PIN_COLOR = '#14151a';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/g, (char) => ({
@@ -41,9 +54,15 @@ function escapeHtml(value: string): string {
   })[char] ?? char);
 }
 
-function MiniMap({ center, places }: { center: BusinessCenter; places: BusinessCenterNearbyPlace[] }) {
+interface MapPoint {
+  place: BusinessCenterNearbyPlace;
+  category: NearbyPlaceCategory;
+}
+
+function NeighboursMap({ center, points }: { center: BusinessCenter; points: MapPoint[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
+  const marksRef = useRef<any[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   // Карта Яндекса — 689 КиБ и 2+ с CPU (PAGESPEED_PLAN.md), а блок стоит в
   // середине длинной страницы: грузим, только когда до него доскроллили.
@@ -60,33 +79,18 @@ function MiniMap({ center, places }: { center: BusinessCenter; places: BusinessC
           zoom: DEFAULT_ZOOM,
           controls: ['zoomControl', 'fullscreenControl'],
         });
+        labelYmapsCopyrightLink(containerRef.current);
         map.geoObjects.add(
           new ymaps.Placemark(
             [center.lat as number, center.lng as number],
-            { hintContent: shortName(center) },
-            { preset: 'islands#dotIcon', iconColor: '#d1002a' },
+            { hintContent: shortName(center), iconContent: shortName(center) },
+            { preset: 'islands#blackStretchyIcon', zIndex: 900 },
           ),
         );
-        map.geoObjects.add(
-          new ymaps.Circle(
-            [[center.lat as number, center.lng as number], 500],
-            {},
-            { fillColor: '#e4152b0d', strokeColor: '#e4152b66', strokeWidth: 1 },
-          ),
-        );
-        for (const place of places) {
-          const meta = CATEGORY_META[place.category] ?? CATEGORY_META.other;
-          map.geoObjects.add(
-            new ymaps.Placemark(
-              [place.lat, place.lng],
-              {
-                hintContent: place.name,
-                balloonContent: `<strong>${escapeHtml(place.name)}</strong><br>${meta.label} · ${place.distanceMeters} м от БЦ`,
-              },
-              { preset: 'islands#dotIcon', iconColor: meta.color },
-            ),
-          );
-        }
+        // Свои метки вместо цветных капель `islands#dotIcon`: по цвету было не
+        // понять, что за точка, а легенду приходилось держать рядом. Метку
+        // рисует сам ymaps по HTML-шаблону, поэтому иконка приезжает строкой
+        // (см. lib/nearbyPinIcons.ts), а не React-компонентом.
         mapRef.current = map;
         setStatus('ready');
       })
@@ -97,9 +101,47 @@ function MiniMap({ center, places }: { center: BusinessCenter; places: BusinessC
       cancelled = true;
       mapRef.current?.destroy?.();
       mapRef.current = null;
+      marksRef.current = [];
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inView, center.slug, places]);
+  }, [inView, center.slug, center.lat, center.lng]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== 'ready') return;
+    void (async () => {
+      const ymaps = await loadYmaps();
+      for (const mark of marksRef.current) map.geoObjects.remove(mark);
+      marksRef.current = [];
+      for (const { place, category } of points) {
+        const iconImageHref = nearbyPinDataUri(category, PIN_COLOR);
+        const balloonLines = [
+          `<strong>${escapeHtml(place.name)}</strong>`,
+          `${CATEGORY_META[category]?.label ?? ''} · ${formatMeters(place.distanceMeters)} от здания`,
+        ];
+        if (place.address) balloonLines.push(escapeHtml(place.address));
+        if (place.sourceUrl) {
+          balloonLines.push(
+            `<a href="${escapeHtml(place.sourceUrl)}" target="_blank" rel="noopener noreferrer">Открыть в Яндекс.Картах</a>`,
+          );
+        }
+        const mark = new ymaps.Placemark(
+          [place.lat, place.lng],
+          {
+            hintContent: `${place.name} — ${formatMeters(place.distanceMeters)}`,
+            balloonContent: balloonLines.join('<br>'),
+          },
+          {
+            iconLayout: 'default#image',
+            iconImageHref,
+            iconImageSize: [NEARBY_PIN_SIZE, NEARBY_PIN_SIZE],
+            iconImageOffset: [-NEARBY_PIN_SIZE / 2, -NEARBY_PIN_SIZE / 2],
+          },
+        );
+        map.geoObjects.add(mark);
+        marksRef.current.push(mark);
+      }
+    })();
+  }, [points, status]);
 
   return (
     <div ref={viewportRef} className="relative h-64 w-full overflow-hidden rounded-2xl bg-surface-muted sm:h-80">
@@ -120,167 +162,109 @@ export function NearbyInfrastructureBlock({
   center: BusinessCenter;
   places: BusinessCenterNearbyPlace[];
 }) {
-  const categories = useMemo(() => {
-    const counts = new Map<NearbyPlaceCategory, number>();
-    for (const place of places) counts.set(place.category, (counts.get(place.category) ?? 0) + 1);
-    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [places]);
-  const [activeCategories, setActiveCategories] = useState<Set<NearbyPlaceCategory>>(new Set());
-  const visiblePlaces = useMemo(
-    () => activeCategories.size === 0 ? places : places.filter((place) => activeCategories.has(place.category)),
-    [activeCategories, places],
-  );
-  if (center.lat == null || center.lng == null || places.length === 0) return null;
+  const groups = useMemo(() => groupNearbyPlaces(places), [places]);
+  const [openKey, setOpenKey] = useState<NearbyPlaceCategory | null>(null);
+  const openGroup = groups.find((group) => group.category === openKey) ?? null;
 
-  const toggleCategory = (category: NearbyPlaceCategory) => {
-    setActiveCategories((current) => {
-      const next = new Set(current);
-      if (next.has(category)) next.delete(category);
-      else next.add(category);
-      return next;
-    });
-  };
+  // Пока строка не раскрыта, на карте ближайшее из каждой категории; раскрыли —
+  // все точки этой категории. Имена в этот момент перечислены строчками прямо
+  // под строкой, поэтому дублировать их на карте незачем.
+  const points = useMemo<MapPoint[]>(() => {
+    if (openGroup) {
+      return openGroup.places.map((place) => ({ place, category: openGroup.category }));
+    }
+    return groups.map((group) => ({ place: group.places[0], category: group.category }));
+  }, [groups, openGroup]);
+
+  if (center.lat == null || center.lng == null) return null;
+  const hasContent = hasNearbyContent(center, places);
 
   return (
-    <div id="map" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+    <div id="map" className={cn('mt-6 flex scroll-mt-32 flex-col gap-5 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
       <div className="flex flex-col gap-1">
         <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
           <MapPin className="h-5 w-5 shrink-0 text-ink-muted" />
-          Инфраструктура рядом
+          {hasContent ? 'Инфраструктура в 10 минутах пешком' : 'Расположение'}
         </h2>
-        <p className="text-xs text-ink-faint">
-          Метро, остановки, магазины и сервисы в радиусе 500 метров. Точки собраны заранее и периодически обновляются.
+        <p className="text-sm text-ink-muted">
+          {hasContent
+            ? 'Ближайшее в каждой категории — на карте. Нажмите строку, чтобы увидеть остальное.'
+            : 'Где стоит здание. Снимок окружающей инфраструктуры для него ещё не собран.'}
         </p>
       </div>
-      <div className="flex flex-wrap gap-2" aria-label="Фильтры объектов инфраструктуры">
-        {categories.map(([category, count]) => {
-          const meta = CATEGORY_META[category] ?? CATEGORY_META.other;
-          const Icon = meta.icon;
-          const active = activeCategories.size === 0 || activeCategories.has(category);
-          return (
-            <button
-              key={category}
-              type="button"
-              onClick={() => toggleCategory(category)}
-              aria-pressed={active}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                active ? 'border-border bg-surface text-ink' : 'border-transparent bg-surface-muted text-ink-faint',
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {meta.label} · {count}
-            </button>
-          );
-        })}
-      </div>
-      <MiniMap center={center} places={visiblePlaces} />
-      <p className="text-xs text-ink-faint">
-        Данные на {new Date(Math.max(...places.map((place) => new Date(place.collectedAt).getTime()))).toLocaleDateString('ru-RU')}.
-        Расстояния указаны по прямой.
-      </p>
-    </div>
-  );
-}
 
-// --- Б6. Похожие бизнес-центры -----------------------------------------
+      <NeighboursMap center={center} points={points} />
 
-// «Похожий» — тот же класс и тот же район; если таких меньше трёх,
-// расширяем до того же класса по городу. Сортируем по близости площади:
-// здание на 40 000 м² и на 900 м² одного класса решают разные задачи.
-export function similarCenters(
-  center: BusinessCenter,
-  all: BusinessCenter[],
-  limit = 6,
-  // Слаги, уже показанные в блоке «Другие бизнес-центры рядом». Соседи и похожие —
-  // ДВЕ РАЗНЫЕ подборки (одна про расположение, другая про замену), и одно и
-  // то же здание в обеих читается как то, что список нечем наполнить.
-  exclude: ReadonlySet<string> = new Set(),
-): BusinessCenter[] {
-  const pool = all.filter(
-    (c) => c.slug !== center.slug && !exclude.has(c.slug) && c.businessClass === center.businessClass,
-  );
-  const sameDistrict = center.district ? pool.filter((c) => c.district === center.district) : [];
-  const base = sameDistrict.length >= 3 ? sameDistrict : pool;
-  if (center.totalArea == null) return base.slice(0, limit);
-  return [...base]
-    .sort(
-      (a, b) =>
-        Math.abs((a.totalArea ?? Infinity) - (center.totalArea as number)) -
-        Math.abs((b.totalArea ?? Infinity) - (center.totalArea as number)),
-    )
-    .slice(0, limit);
-}
-
-export function SimilarCentersBlock({
-  center,
-  all,
-  offers,
-  hubChips,
-}: {
-  center: BusinessCenter;
-  all: BusinessCenter[];
-  offers: CatalogOfferIndex;
-  hubChips: { label: string; url: string }[];
-}) {
-  const similar = useMemo(() => {
-    const neighbourSlugs = new Set(nearestNeighbours(center, all, 5).map((n) => n.center.slug));
-    return similarCenters(center, all, 6, neighbourSlugs);
-  }, [center, all]);
-  if (similar.length === 0 && hubChips.length === 0) return null;
-  return (
-    <div id="similar" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-      <div className="flex flex-col gap-1">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-          <Building2 className="h-5 w-5 shrink-0 text-ink-muted" />
-          Похожие бизнес-центры
-        </h2>
-        <p className="text-xs text-ink-faint">
-          Тот же класс и тот же район, ближайшие по размеру здания; те, что уже перечислены
-          выше как соседние, сюда не попадают.
-        </p>
-      </div>
-      {similar.length > 0 && (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {similar.map((c) => {
-            const rent = offers.rentBySlug.get(c.slug)?.median ?? null;
-            return (
-              <Link
-                key={c.slug}
-                to={`/minsk/bcminsk/${c.slug}`}
-                className="flex flex-col gap-0.5 rounded-2xl bg-surface-muted px-4 py-3 transition-colors hover:bg-border/40"
-              >
-                <span className="text-sm font-semibold text-ink">{shortName(c)}</span>
-                <span className="text-xs text-ink-muted">
-                  {[
-                    c.businessClass ? `класс ${c.businessClass}` : null,
-                    c.district,
-                    c.totalArea != null ? `${c.totalArea.toLocaleString('ru-RU')} м²` : null,
-                    rent != null ? `$${rent}/м²` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
+      {/* Список-характеристики: слева категория, посередине ближайшее место,
+          справа расстояние. Он же и фильтр карты — отдельного ряда кнопок над
+          картой больше нет. Без него (краулер, пререндер, выключенный JS,
+          заблокированный домен ключа) от блока не оставалось бы ничего. */}
+      {groups.length > 0 && (
+        <ul className="flex flex-col divide-y divide-border border-y border-border">
+          {groups.map((group) => {
+            const meta = CATEGORY_META[group.category] ?? CATEGORY_META.other;
+            const Icon = meta.icon;
+            const isOpen = openKey === group.category;
+            const nearest = group.places[0];
+            // Единственное место в категории раскрывать некуда: строка и так
+            // показывает его целиком, а пустая «гармошка» с ответом «больше
+            // ничего нет» — обманутое ожидание. Такая строка не кнопка и без
+            // шеврона.
+            const expandable = group.places.length > 1;
+            const rowContent = (
+              <>
+                <Icon className="h-4 w-4 shrink-0 text-ink-faint" />
+                {/* Количество — до раскрытия строки, а не после: иначе не
+                    видно, одна здесь аптека или одиннадцать. */}
+                <span className="flex min-w-0 items-baseline gap-1.5 sm:w-48 sm:shrink-0">
+                  <span className="text-sm font-semibold text-ink">{meta.label}</span>
+                  {expandable && <span className="text-xs tabular-nums text-ink-faint">{group.places.length}</span>}
                 </span>
-              </Link>
+                <span className="col-span-4 row-start-2 min-w-0 break-words text-sm text-ink-muted sm:flex-1 sm:truncate">{nearest.name}</span>
+                <span className="shrink-0 text-sm tabular-nums text-ink">{formatMeters(nearest.distanceMeters)}</span>
+                <ChevronDown
+                  className={cn(
+                    'h-4 w-4 shrink-0 transition-transform',
+                    expandable ? 'text-ink-faint' : 'invisible',
+                    isOpen && 'rotate-180',
+                  )}
+                  aria-hidden
+                />
+              </>
+            );
+            return (
+              <li key={group.category}>
+                {expandable ? (
+                  <button
+                    type="button"
+                    onClick={() => setOpenKey(isOpen ? null : group.category)}
+                    aria-expanded={isOpen}
+                    className="grid w-full grid-cols-[1rem_minmax(0,1fr)_auto_1rem] items-center gap-x-3 gap-y-1 py-3 text-left sm:flex sm:gap-3 transition-colors hover:bg-surface-muted/60"
+                  >
+                    {rowContent}
+                  </button>
+                ) : (
+                  <div className="grid w-full grid-cols-[1rem_minmax(0,1fr)_auto_1rem] items-center gap-x-3 gap-y-1 py-3 text-left sm:flex sm:gap-3">{rowContent}</div>
+                )}
+
+                {isOpen && expandable && (
+                  <div className="pb-3 pl-7 pr-2">
+                    <ul className="flex flex-col gap-1">
+                      {group.places.slice(1).map((place) => (
+                        <li key={place.id} className="flex items-baseline justify-between gap-4 text-sm text-ink-muted">
+                          <span className="truncate">{place.name}</span>
+                          <span className="shrink-0 tabular-nums text-ink-faint">{formatMeters(place.distanceMeters)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
-      {/* Хабы чипами вместо простого текста (пункт «ссылки на хабы» из
-          BCMINSK_SEO_PLAN.md): те же ссылки, но их видно и по ним кликают. */}
-      {hubChips.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {hubChips.map((chip) => (
-            <Link
-              key={chip.url}
-              to={chip.url}
-              className="rounded-full border border-border bg-surface px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:border-primary hover:text-primary-hover"
-            >
-              {chip.label}
-            </Link>
-          ))}
-        </div>
-      )}
+
     </div>
   );
 }

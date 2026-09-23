@@ -4,7 +4,7 @@ import { Maximize2, MapPin, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardShadow } from '../../lib/glass';
 import { DISTRICT_PLACE_CATEGORIES, MAP_HIDDEN_CATEGORY_KEYS } from '../../data/districtPlaces';
-import { loadYmaps } from '../../lib/yandexMaps';
+import { labelYmapsCopyrightLink, loadYmaps } from '../../lib/yandexMaps';
 import { useInView } from '../../lib/useInView';
 import { CategoryToggle } from './CategoryToggle';
 
@@ -84,6 +84,7 @@ function DistrictMapCanvas({
           zoom: DEFAULT_ZOOM,
           controls: ['zoomControl', 'fullscreenControl'],
         });
+        labelYmapsCopyrightLink(containerRef.current);
         mapRef.current = map;
 
         // Все категории заводятся сразу (как раньше), но видима — только

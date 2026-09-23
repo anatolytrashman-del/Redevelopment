@@ -1,4 +1,4 @@
-name: Sync citywide warehouse offers (Kufar + Realt)
+name: Sync citywide warehouse offers (Kufar + Realt + Domovita + Megapolis)
 
 on:
   schedule:

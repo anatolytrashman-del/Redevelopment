@@ -72,7 +72,7 @@ export function DistrictsAnalyticsPage() {
       url: URL,
       datePublished: '2026-09-07',
       dateModified: now,
-      measurementTechnique: 'Медиана цены аренды за м² по активным объявлениям Kufar и Realt, срез по административному району',
+      measurementTechnique: 'Медиана цены аренды за м² по активным объявлениям Kufar, Realt, Domovita, Megapolis, Garantiruem и Pro-N, срез по административному району',
     });
     if (districts.length > 0) {
       const officeRows = (bySegment?.ofisy_bc ?? []).filter((r) => r.n >= MIN_RELIABLE_N && r.median != null);
@@ -88,12 +88,12 @@ export function DistrictsAnalyticsPage() {
       faq.push({
         question: 'Есть ли разбивка по станциям метро, а не только по районам?',
         answer:
-          'Пока нет для этой сводной страницы — у объявлений с Kufar и Realt.by нет структурного поля со станцией метро. Ближайшую к конкретному зданию станцию можно посмотреть в каталоге бизнес-центров — там расстояние считается по координатам самого здания.',
+          'Пока нет для этой сводной страницы — ни у одной из площадок нет структурного поля со станцией метро. Ближайшую к конкретному зданию станцию можно посмотреть в каталоге бизнес-центров — там расстояние считается по координатам самого здания.',
       });
       faq.push({
         question: 'Откуда берутся данные?',
         answer:
-          'Из активных объявлений аренды на Kufar и Realt.by, по трём сегментам: офисы в бизнес-центрах, торговые помещения, склады. Подробности — на странице методики.',
+          'Из активных объявлений аренды на Kufar, Realt.by, Domovita, Megapolis-real, Garantiruem.by и Pro-N.by, по трём сегментам: офисы в бизнес-центрах, торговые помещения, склады. Подробности — на странице методики.',
       });
       setFaqJsonLd(faq);
     }
@@ -104,7 +104,7 @@ export function DistrictsAnalyticsPage() {
       <div className="border-b border-border py-5">
         <div className="mx-auto flex max-w-5xl items-center justify-center px-4 sm:px-8">
           <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary-hover">RED</span>EVELOPMENT
+            <span className="font-black text-primary">RED</span>EVELOPMENT
           </Link>
         </div>
       </div>
@@ -189,7 +189,7 @@ export function DistrictsAnalyticsPage() {
             цифра помечена «ориентировочно». Разбивки по неформальным микрорайонам (Уручье, Каменная Горка и т.п.)
             или по станциям метро здесь нет — у объявлений с площадок нет таких структурных полей для сегментов
             торговли и складов; для офисов в бизнес-центрах такая разбивка есть в{' '}
-            <Link to="/minsk/bcminsk" className="text-primary-hover hover:underline">
+            <Link to="/minsk/bc" className="text-primary-hover hover:underline">
               каталоге бизнес-центров
             </Link>{' '}
             — там расстояние до метро и микрорайон считаются по координатам конкретного здания.

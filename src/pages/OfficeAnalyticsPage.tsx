@@ -378,8 +378,8 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
   const fullTitle = periodLabel ? `${title} — ${periodLabel}` : title;
   const description =
     deal === 'rent'
-      ? 'Медианная ставка аренды офисов в Минске по районам и типу здания — по объявлениям Kufar и Realt, плюс детальный разбор по бизнес-центрам.'
-      : 'Медианная цена продажи офисов в Минске по районам и типу здания — по объявлениям Kufar и Realt, плюс детальный разбор по бизнес-центрам.';
+      ? 'Медианная ставка аренды офисов в Минске по районам и типу здания — по объявлениям Kufar, Realt, Domovita, Megapolis, Garantiruem и Pro-N, плюс детальный разбор по бизнес-центрам.'
+      : 'Медианная цена продажи офисов в Минске по районам и типу здания — по объявлениям Kufar, Realt, Domovita, Megapolis, Garantiruem и Pro-N, плюс детальный разбор по бизнес-центрам.';
   const url = `https://redevelopment.pro/minsk/analytics/ofisy/${deal === 'rent' ? 'arenda' : 'prodazha'}`;
 
   // Вынесено из useEffect в useMemo — раньше собиралось только для JSON-LD,
@@ -394,7 +394,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
           deal === 'rent'
             ? `Сколько стоит аренда офиса в Минске в ${periodInLabel}?`
             : `Сколько стоит офис в Минске в ${periodInLabel}?`,
-        answer: `По медиане объявлений Kufar и Realt за ${periodLabel} — ${formatMoney(cwCity.median, deal)} (по ${cwCity.n} объявлениям по всему городу).`,
+        answer: `По медиане объявлений Kufar, Realt, Domovita, Megapolis, Garantiruem и Pro-N за ${periodLabel} — ${formatMoney(cwCity.median, deal)} (по ${cwCity.n} объявлениям по всему городу).`,
       });
     }
     const classA = bcByClass.find((s) => s.sliceKey === 'A');
@@ -417,7 +417,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
     faq.push({
       question: 'Откуда берутся данные?',
       answer:
-        'Из активных объявлений Kufar и Realt.by, категория «Офисы» по всему Минску. Отдельно — более глубокий разбор по 143 зданиям из нашего каталога бизнес-центров. Подробности — на странице методики.',
+        'Из активных объявлений Kufar, Realt.by, Domovita, Megapolis-real, Garantiruem.by и Pro-N.by, категория «Офисы» по всему Минску. Отдельно — более глубокий разбор по 143 зданиям из нашего каталога бизнес-центров. Подробности — на странице методики.',
     });
     return faq;
   }, [cwSnapshots, cwCity, bcByClass, deal, periodLabel, periodInLabel]);
@@ -450,7 +450,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
       url,
       datePublished: '2026-09-07',
       dateModified: modified,
-      measurementTechnique: 'Медиана и перцентили цены за м² по активным объявлениям Kufar и Realt, срез по месяцу',
+      measurementTechnique: 'Медиана и перцентили цены за м² по активным объявлениям Kufar, Realt, Domovita, Megapolis, Garantiruem и Pro-N, срез по месяцу',
     });
     setFaqJsonLd(faqItems);
   }, [cwSnapshots, cwCity, faqItems, fullTitle, description, url, title]);
@@ -460,7 +460,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
       <div className="border-b border-border py-5">
         <div className="mx-auto flex max-w-5xl items-center justify-center px-4 sm:px-8">
           <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary-hover">RED</span>EVELOPMENT
+            <span className="font-black text-primary">RED</span>EVELOPMENT
           </Link>
         </div>
       </div>
@@ -752,7 +752,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
           <h2 className="text-xl font-extrabold text-ink">Офисы в бизнес-центрах: подробный разбор</h2>
           <p className="text-sm leading-relaxed text-ink-muted">
             Отдельный, более глубокий срез — только по 143 зданиям из нашего{' '}
-            <Link to="/minsk/bcminsk" className="text-primary-hover hover:underline">
+            <Link to="/minsk/bc" className="text-primary-hover hover:underline">
               каталога бизнес-центров Минска
             </Link>
             . Это подмножество city-wide цифр выше — для него мы знаем класс здания, конкретный адрес и другие
@@ -958,7 +958,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
                 Сейчас строится {catalogStats.underConstruction.length}:{' '}
                 {catalogStats.underConstruction.map((c, i) => (
                   <span key={c.slug}>
-                    <Link to={`/minsk/bcminsk/${c.slug}`} className="text-primary-hover hover:underline">
+                    <Link to={`/minsk/bc/${c.slug}`} className="text-primary-hover hover:underline">
                       {c.name}
                     </Link>
                     {i < catalogStats.underConstruction.length - 1 ? ', ' : ''}
@@ -968,7 +968,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
               </p>
             )}
             <Link
-              to="/minsk/bcminsk"
+              to="/minsk/bc"
               className="inline-flex w-fit items-center gap-1 text-sm text-primary-hover hover:underline"
             >
               Смотреть весь каталог бизнес-центров
@@ -1109,7 +1109,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
                       <td className="px-3 py-2 text-right tabular-nums text-ink-muted">{row.n}</td>
                       <td className="px-3 py-2 text-right">
                         <Link
-                          to={`/minsk/bcminsk/${row.slug}`}
+                          to={`/minsk/bc/${row.slug}`}
                           className="inline-flex items-center gap-1 text-xs font-medium text-primary-hover hover:underline"
                         >
                           Карточка БЦ <ArrowRight className="h-3 w-3" />
@@ -1160,30 +1160,31 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
           <h2 className="text-lg font-bold text-ink">Что это за цифры</h2>
           <p className="text-sm leading-relaxed text-ink-muted">
             Верхняя часть страницы — медиана и 25–75-й перцентили цены за м² по активным объявлениям аренды
-            {deal === 'sale' ? ' и продажи' : ''} офисных помещений по всему Минску (категория «Офисы» на Kufar и
-            Realt.by), без привязки к конкретному зданию. Нижняя часть — тот же принцип, но только для 143 зданий из
+            {deal === 'sale' ? ' и продажи' : ''} офисных помещений по всему Минску (категория «Офисы» на Kufar,
+            Realt.by, Domovita и Megapolis-real), без привязки к конкретному зданию. Нижняя часть — тот же принцип, но только для 143 зданий из
             нашего{' '}
-            <Link to="/minsk/bcminsk" className="text-primary-hover hover:underline">
+            <Link to="/minsk/bc" className="text-primary-hover hover:underline">
               каталога бизнес-центров Минска
             </Link>{' '}
-            — там мы дополнительно знаем класс здания и конкретный адрес. Данные собираются с Kufar и Realt.by и
+            — там мы дополнительно знаем класс здания и конкретный адрес. Данные собираются с шести площадок и
             обновляются раз в месяц — это <strong>ставка предложения</strong>, то, что собственники просят прямо
             сейчас, а не подтверждённая цена сделки. Срез публикуется только при не менее {MIN_RELIABLE_N}{' '}
             объявлениях — меньшая выборка помечена как ориентировочная или скрыта вовсе, чтобы не выдавать случайный
             разброс нескольких объявлений за рыночную цену.
           </p>
           <p className="text-sm leading-relaxed text-ink-muted">
-            Дедупликации между Kufar и Realt.by в узком срезе по каталогу БЦ нет (известное ограничение — там нет
-            общего ключа для сопоставления дублей между площадками); в city-wide срезе выше дедупликация есть
-            (совпадающие по улице, дому, площади, этажу и типу сделки объявления с обеих площадок считаются один
-            раз).
+            Один и тот же лот часто вывешен сразу на нескольких площадках, поэтому и в city-wide срезе, и в срезе
+            по каталогу БЦ такие объявления схлопываются в одно: совпали адрес, тип сделки, площадь и ставка (с
+            допуском в 10% — площадки считают её по-разному) — это один объект. Два одинаковых объявления внутри
+            одной площадки схлопыванию не подлежат: несколько одинаковых кабинетов по одной ставке у одного
+            собственника — обычное дело.
           </p>
           <p className="text-sm text-ink-muted">
             Подробная методика — на{' '}
             <Link to="/minsk/analytics/metodika" className="text-primary-hover hover:underline">
               отдельной странице
             </Link>
-            . Источники: Kufar (re.kufar.by), Realt.by
+            . Источники: Kufar (re.kufar.by), Realt.by, Domovita (domovita.by), Megapolis-real (megapolis-real.by), Garantiruem (garantiruem.by), Pro-N.by (pro-n.by)
             {externalMetrics.length > 0 && ', Твоя столица (t-s.by), Colliers International, Результативная недвижимость (belretail.by)'}.
           </p>
         </section>
@@ -1198,7 +1199,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
               жилой дом), этажа, площади помещения (мелкая нарезка обычно дороже за м², чем крупные блоки) и
               состояния отделки. Наличие своей парковки и репутация управляющей компании тоже сказываются, но эти
               данные структурно не публикуются площадками — их приходится узнавать напрямую у арендодателя или на{' '}
-              <Link to="/minsk/bcminsk" className="text-primary-hover hover:underline">
+              <Link to="/minsk/bc" className="text-primary-hover hover:underline">
                 карточке конкретного здания
               </Link>
               .
@@ -1232,7 +1233,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
                 {catalogStats.underConstruction.length === 1 ? 'здание' : 'здания'}:{' '}
                 {catalogStats.underConstruction.map((c, i) => (
                   <span key={c.slug}>
-                    <Link to={`/minsk/bcminsk/${c.slug}`} className="text-primary-hover hover:underline">
+                    <Link to={`/minsk/bc/${c.slug}`} className="text-primary-hover hover:underline">
                       {c.name}
                     </Link>
                     {i < catalogStats.underConstruction.length - 1 ? ', ' : ''}
@@ -1281,7 +1282,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
               <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
             </Link>
             <Link
-              to="/minsk/bcminsk/reyting"
+              to="/minsk/bc/rating"
               className={cn('flex items-center justify-between gap-2 p-4 transition-colors hover:border-primary/40', glassCardClass)}
               style={glassCardShadow}
             >

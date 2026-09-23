@@ -42,12 +42,24 @@ const EXTRA_FILES = [
   'public/fonts/Montserrat-Medium.woff2',
   'public/fonts/Montserrat-SemiBold.woff2',
   'public/fonts/Montserrat-ExtraBold.woff2',
+  // 2026-09-23 — пока Supabase закрыт, страницы раздела БЦ рендерятся из
+  // этого снимка (scripts/generate-catalog-data.mjs), и пререндер решает,
+  // рендерить ли их заново, по этому отпечатку. Обновили снимок — отпечаток
+  // другой, и снапшоты раздела подтянут новые данные, а не останутся копией.
+  'scripts/catalog-data-fallback.json.gz',
 ];
 // Единственный файл, из которого динамические импорты НЕ считаем публичными
 // (там за ними стоят админ-страницы, см. шапку).
 const DYNAMIC_IMPORT_IGNORED_IN = 'src/App.tsx';
 
-const STATIC_IMPORT_RE = /(?:^|\n)\s*(?:import|export)\b[^;'"\n]*?from\s*['"]([^'"]+)['"]/g;
+// Клоза не исключает \n: многострочный import { A, B,\n  C,\n} from '...'
+// (обычное дело при длинном списке именованных импортов) раньше молча не
+// матчился из-за [^;'"\n] — файл выпадал из графа, и правки в нём никогда не
+// доводили отпечаток до полного пререндера. Разбор 2026-09-20: так пропал
+// BusinessCenterMarketBlocks.tsx (и ещё 5 файлов только в одной странице БЦ)
+// — визуальный фикс переноса единицы измерения ушёл бы на прод БЫСТРЫМ
+// режимом, скопировав старый снапшот с обёрнутым числом.
+const STATIC_IMPORT_RE = /(?:^|\n)\s*(?:import|export)\b[^;'"]*?from\s*['"]([^'"]+)['"]/g;
 const BARE_IMPORT_RE = /(?:^|\n)\s*import\s*['"]([^'"]+)['"]/g;
 const DYNAMIC_IMPORT_RE = /\bimport\(\s*['"]([^'"]+)['"]\s*\)/g;
 const RESOLVE_SUFFIXES = ['', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.css', '/index.ts', '/index.tsx', '/index.js'];

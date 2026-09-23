@@ -22,6 +22,9 @@ const has = (name) => args.includes(name);
 const inputPath = valueOf('--input');
 const archivePath = valueOf('--webarchive');
 const onlySlug = valueOf('--slug');
+// --kind bc|tc|all — какой каталог собирать (по умолчанию bc, как было до
+// каталога ТЦ 2026-09-23; торговые центры — `--kind tc`).
+const catalogKind = valueOf('--kind') ?? 'bc';
 const limit = Number(valueOf('--limit') ?? 0);
 const writeDb = has('--write-db');
 const listOnly = has('--list');
@@ -80,7 +83,12 @@ const DEFAULT_ORGANIZATION_CATEGORY = 'Офис организации';
 // арендатор. Удаляем её до записи чекпоинта и БД, чтобы следующий сбор не
 // возвращал такие записи. Кириллическую границу проверяем Unicode-lookahead,
 // потому что \b в JavaScript работает только с ASCII.
-const BUSINESS_CENTER_CATEGORY_RE = /^бизнес[\s-]*центр(?![\p{L}])/iu;
+// У торгового центра карточка самого здания — «Торговый центр» или
+// «Торгово-развлекательный центр»; в БЦ такая организация внутри — это
+// арендатор, поэтому второе правило включается только при --kind tc.
+const BUSINESS_CENTER_CATEGORY_RE = catalogKind === 'tc'
+  ? /^(?:бизнес[\s-]*центр|торгов(?:ый|о-развлекательный)[\s-]*центр)(?![\p{L}])/iu
+  : /^бизнес[\s-]*центр(?![\p{L}])/iu;
 const withDefaultCategory = (organizations) => organizations
   .map((organization) => ({
     ...organization,
@@ -300,6 +308,7 @@ async function catalogEntries() {
     .select('slug,name,address,status,sort_order')
     .eq('status', 'built')
     .order('sort_order', { ascending: true });
+  if (catalogKind !== 'all') centersQuery = centersQuery.eq('kind', catalogKind);
   if (onlySlug) centersQuery = centersQuery.eq('slug', onlySlug);
   // При --skip-collected лимит применяем ПОСЛЕ фильтрации уже собранных —
   // иначе --limit по sort_order мог бы целиком попасть на готовые БЦ и

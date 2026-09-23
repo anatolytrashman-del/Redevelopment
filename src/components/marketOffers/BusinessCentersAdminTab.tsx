@@ -11,7 +11,7 @@ import { AddableSelect } from '../ui/AddableSelect';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import {
-  fetchBusinessCenters,
+  fetchBusinessCentersFull,
   insertBusinessCenter,
   updateBusinessCenter,
   deleteBusinessCenter,
@@ -24,16 +24,30 @@ import {
 import type { ParsedSnapshotReview } from '../../lib/businessCenterSnapshotParser';
 import { parseHighlightRatings } from '../../lib/businessCenterDisplay';
 import { supabase } from '../../lib/supabase';
-import { BUSINESS_CENTER_CLASSES } from '../../data/businessCenters';
-import type { BusinessCenter, HighlightIconKey, HighlightSection, RentalInfo, TenantOrganization } from '../../data/businessCenters';
+import { BUSINESS_CENTER_CLASSES, RETAIL_FORMATS } from '../../data/businessCenters';
+import { CATALOG_VOCABULARY, type CatalogKind } from '../../lib/catalogKind';
+import type {
+  BusinessCenter,
+  DeveloperInfo,
+  HighlightIconKey,
+  HighlightSection,
+  MediaMention,
+  RentalInfo,
+  TenantOrganization,
+} from '../../data/businessCenters';
 import type { DocumentFile } from '../../data/contractorDocuments';
 
 // Подписи выбора иконки в форме — порядок совпадает с частотой использования
 // на практике (история/арендаторы/СМИ чаще всего, 'warning'/'fact' — реже).
+// 'award' отделён от 'media' (раньше было одно "Награды / СМИ"): награды
+// уехали на публичной странице в собственный блок, а упоминания в прессе
+// остались в "Интересных фактах" — одна подпись на два разных блока
+// приводила к тому, что награда попадала не туда.
 const HIGHLIGHT_ICON_LABELS: Record<HighlightIconKey, string> = {
   history: 'История объекта',
   tenants: 'Арендаторы',
-  media: 'Награды / СМИ',
+  media: 'СМИ о здании',
+  award: 'Награды',
   rating: 'Рейтинг на картах',
   reviews: 'Отзывы',
   design: 'Архитектура / дизайн',
@@ -44,12 +58,17 @@ const HIGHLIGHT_ICON_LABELS: Record<HighlightIconKey, string> = {
 const HIGHLIGHT_ICON_KEYS = Object.keys(HIGHLIGHT_ICON_LABELS) as HighlightIconKey[];
 
 // Вкладка "Бизнес-центры" на /admin/market-offers — админка для публичной
-// страницы /minsk/bcminsk (владелец, 2026-09-04: "пусть это будет админка
+// страницы /minsk/bc (владелец, 2026-09-04: "пусть это будет админка
 // этой страницы... будем упорядочивать инфу там"). Данные — таблица
 // Supabase business_centers (RLS: anon select, authenticated — полный
 // CRUD), та же связка data/businessCenters.ts + lib/businessCentersApi.ts,
 // что читает и сама публичная страница.
 const CLASS_SELECT_OPTIONS = ['Не указан', ...BUSINESS_CENTER_CLASSES];
+
+const KIND_LABEL: Record<BusinessCenter['kind'], string> = {
+  bc: 'Бизнес-центры (/minsk/bc)',
+  tc: 'Торговые центры (/minsk/tc)',
+};
 
 const STATUS_LABEL: Record<BusinessCenter['status'], string> = {
   built: 'Построен',
@@ -79,6 +98,13 @@ interface FormState {
   yearBuilt: string;
   floors: string;
   developer: string;
+  developerLogoUrl: string;
+  developerDescription: string;
+  developerPhone: string;
+  developerAddress: string;
+  developerHours: string;
+  developerWebsite: string;
+  developerEmail: string;
   metro: string;
   parking: string;
   website: string;
@@ -89,10 +115,10 @@ interface FormState {
   rentalCaveat: string;
   rentalTerms: string;
   rentalRates: string;
-  rentalSizes: string;
   rentalParking: string;
   rentalContacts: string;
   highlights: HighlightSection[]; // "Интересные факты" — произвольный набор блоков
+  mediaMentions: MediaMention[]; // "СМИ о здании" — публикации со ссылкой, заголовком и датой
   reviewsChecked: boolean; // галочка "отзывы разобраны" в списке — см. комментарий у поля в data/businessCenters.ts
   tenantOrganizations: TenantOrganization[]; // организации внутри здания
   tenantOrganizationsBulk: string; // черновик для вставки списком (не сохраняется как есть)
@@ -100,6 +126,8 @@ interface FormState {
   pendingMapSnapshotFiles: File[]; // выбраны, но ещё не загружены (грузятся при сохранении)
   photos: string; // по одному пути на строку
   status: BusinessCenter['status'];
+  kind: BusinessCenter['kind'];
+  retailFormat: string;
   sortOrder: string;
 }
 
@@ -114,6 +142,13 @@ const EMPTY_FORM: FormState = {
   yearBuilt: '',
   floors: '',
   developer: '',
+  developerLogoUrl: '',
+  developerDescription: '',
+  developerPhone: '',
+  developerAddress: '',
+  developerHours: '',
+  developerWebsite: '',
+  developerEmail: '',
   metro: '',
   parking: '',
   website: '',
@@ -124,10 +159,10 @@ const EMPTY_FORM: FormState = {
   rentalCaveat: '',
   rentalTerms: '',
   rentalRates: '',
-  rentalSizes: '',
   rentalParking: '',
   rentalContacts: '',
   highlights: [],
+  mediaMentions: [],
   reviewsChecked: false,
   tenantOrganizations: [],
   tenantOrganizationsBulk: '',
@@ -135,6 +170,8 @@ const EMPTY_FORM: FormState = {
   pendingMapSnapshotFiles: [],
   photos: '',
   status: 'built',
+  kind: 'bc',
+  retailFormat: '',
   sortOrder: '0',
 };
 
@@ -150,6 +187,13 @@ function centerToForm(c: BusinessCenter): FormState {
     yearBuilt: c.yearBuilt != null ? String(c.yearBuilt) : '',
     floors: c.floors != null ? String(c.floors) : '',
     developer: c.developer ?? '',
+    developerLogoUrl: c.developerInfo?.logoUrl ?? '',
+    developerDescription: c.developerInfo?.description ?? '',
+    developerPhone: c.developerInfo?.phone ?? '',
+    developerAddress: c.developerInfo?.address ?? '',
+    developerHours: c.developerInfo?.hours ?? '',
+    developerWebsite: c.developerInfo?.website ?? '',
+    developerEmail: c.developerInfo?.email ?? '',
     metro: c.metro ?? '',
     parking: c.parking ?? '',
     website: c.website ?? '',
@@ -160,10 +204,10 @@ function centerToForm(c: BusinessCenter): FormState {
     rentalCaveat: c.rentalInfo?.caveat ?? '',
     rentalTerms: c.rentalInfo?.terms ?? '',
     rentalRates: c.rentalInfo?.rates ?? '',
-    rentalSizes: c.rentalInfo?.sizes ?? '',
     rentalParking: c.rentalInfo?.parking ?? '',
     rentalContacts: c.rentalInfo?.contacts ?? '',
     highlights: c.highlights,
+    mediaMentions: c.mediaMentions,
     reviewsChecked: c.reviewsChecked,
     tenantOrganizations: c.tenantOrganizations,
     tenantOrganizationsBulk: '',
@@ -171,6 +215,8 @@ function centerToForm(c: BusinessCenter): FormState {
     pendingMapSnapshotFiles: [],
     photos: c.photos.join('\n'),
     status: c.status,
+    kind: c.kind,
+    retailFormat: c.retailFormat ?? '',
     sortOrder: String(c.sortOrder),
   };
 }
@@ -182,18 +228,31 @@ function numOrNull(v: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-// Пустая форма → null целиком (не объект из одних null) — карточка "Условия
-// для арендаторов" на публичной странице не рендерится вовсе, когда искать
-// было нечего (сайта нет и т.п.), а не показывает пустой заголовок.
+// Пустая форма → null целиком (не объект из одних null) — карточка "Отдел
+// аренды БЦ" на публичной странице не рендерится вовсе, когда искать было
+// нечего (сайта нет и т.п.), а не показывает пустой заголовок.
 function buildRentalInfo(form: FormState): RentalInfo | null {
   const caveat = form.rentalCaveat.trim() || null;
   const terms = form.rentalTerms.trim() || null;
   const rates = form.rentalRates.trim() || null;
-  const sizes = form.rentalSizes.trim() || null;
   const parking = form.rentalParking.trim() || null;
   const contacts = form.rentalContacts.trim() || null;
-  if (!caveat && !terms && !rates && !sizes && !parking && !contacts) return null;
-  return { caveat, terms, rates, sizes, parking, contacts };
+  if (!caveat && !terms && !rates && !parking && !contacts) return null;
+  return { caveat, terms, rates, parking, contacts };
+}
+
+// Та же логика "пустая форма → null целиком" — карточка застройщика на
+// публичной странице не рендерится вовсе, пока по нему ничего не заполнено.
+function buildDeveloperInfo(form: FormState): DeveloperInfo | null {
+  const logoUrl = form.developerLogoUrl.trim() || null;
+  const description = form.developerDescription.trim() || null;
+  const phone = form.developerPhone.trim() || null;
+  const address = form.developerAddress.trim() || null;
+  const hours = form.developerHours.trim() || null;
+  const website = form.developerWebsite.trim() || null;
+  const email = form.developerEmail.trim() || null;
+  if (!logoUrl && !description && !phone && !address && !hours && !website && !email) return null;
+  return { logoUrl, description, phone, address, hours, website, email };
 }
 
 // Блоки с пустым текстом/подписью не сохраняем — та же логика, что раньше
@@ -234,7 +293,10 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-export function BusinessCentersAdminTab() {
+// kind — какой каталог правит вкладка: «Бизнес-центры» или «Торговые
+// центры» (владелец, 2026-09-23: «каталоги БЦ и ТЦ будут разными
+// вкладками»). Таблица в базе одна, вкладка показывает только свои записи.
+export function BusinessCentersAdminTab({ kind = 'bc' }: { kind?: CatalogKind } = {}) {
   const [centers, setCenters] = useState<BusinessCenter[] | null>(null);
   const [error, setError] = useState('');
   // Отдельная от списочной error — та рисуется НАД таблицей, а таблица
@@ -278,8 +340,8 @@ export function BusinessCentersAdminTab() {
   }, []);
 
   function load() {
-    fetchBusinessCenters()
-      .then(setCenters)
+    fetchBusinessCentersFull()
+      .then((all) => setCenters(all.filter((c) => c.kind === kind)))
       .catch(() => setError('Не удалось загрузить список — попробуйте обновить страницу.'));
   }
 
@@ -297,7 +359,7 @@ export function BusinessCentersAdminTab() {
 
   function openNew() {
     setEditing('new');
-    setForm({ ...EMPTY_FORM, sortOrder: String((centers?.length ?? 0)) });
+    setForm({ ...EMPTY_FORM, kind, sortOrder: String((centers?.length ?? 0)) });
     setFormError('');
     setShowOldSnapshotFiles(false);
   }
@@ -396,12 +458,14 @@ export function BusinessCentersAdminTab() {
         yearBuilt: numOrNull(form.yearBuilt),
         floors: numOrNull(form.floors),
         developer: form.developer.trim() || null,
+        developerInfo: buildDeveloperInfo(form),
         metro: form.metro.trim() || null,
         parking: form.parking.trim() || null,
         website: form.website.trim() || null,
         description: form.description.trim() || null,
         rentalInfo: buildRentalInfo(form),
         highlights: highlightsForSave,
+        mediaMentions: form.mediaMentions,
         tenantOrganizations: mergeTenantOrganizations(buildTenantOrganizations(form), autoTenantOrganizations),
         // Старые записи сохраняются как есть, чтобы их можно было отвязать
         // руками; новых здесь больше не появляется (файлы больше не
@@ -412,6 +476,10 @@ export function BusinessCentersAdminTab() {
         // отдельным ресерчем, не вручную) — при правке сохраняем как было, у
         // новой записи начинаем с пустого массива.
         technicalParams: editing !== 'new' && editing ? editing.technicalParams : [],
+        // Тот же принцип, что у technicalParams выше — плоский список
+        // фактов из Kufar/Realt/др. источников (см. комментарий у
+        // BusinessCenter.buildingFacts), заполняется отдельным ресерчем.
+        buildingFacts: editing !== 'new' && editing ? editing.buildingFacts : [],
         // Не редактируется здесь — заполняется отдельным импортом из 2GIS
         // (см. комментарий у BusinessCenter.nearestMetroStations), тот же
         // принцип, что и у technicalParams выше.
@@ -425,6 +493,8 @@ export function BusinessCentersAdminTab() {
           .map((s) => s.trim())
           .filter(Boolean),
         status: form.status,
+        kind: form.kind,
+        retailFormat: form.retailFormat.trim() || null,
         sortOrder: numOrNull(form.sortOrder) ?? 0,
         // Б2. Пустые поля означают «пусть работает авточерновик»: тогда
         // verdictEdited сбрасывается в false и страница снова считает текст
@@ -507,8 +577,8 @@ export function BusinessCentersAdminTab() {
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-ink-muted">
           Список объектов на публичной странице{' '}
-          <a href="/minsk/bcminsk" target="_blank" rel="noopener noreferrer" className="text-primary-hover hover:underline">
-            /minsk/bcminsk
+          <a href={CATALOG_VOCABULARY[kind].basePath} target="_blank" rel="noopener noreferrer" className="text-primary-hover hover:underline">
+            {CATALOG_VOCABULARY[kind].basePath}
           </a>
           {centers && <> · {centers.length} объектов</>}
         </p>
@@ -807,6 +877,20 @@ export function BusinessCentersAdminTab() {
                 setForm({ ...form, status: v === STATUS_LABEL.under_construction ? 'under_construction' : 'built' })
               }
             />
+            <Select
+              label="Каталог"
+              options={[KIND_LABEL.bc, KIND_LABEL.tc]}
+              value={KIND_LABEL[form.kind]}
+              onChange={(v) => setForm({ ...form, kind: v === KIND_LABEL.tc ? 'tc' : 'bc' })}
+            />
+            {form.kind === 'tc' && (
+              <AddableSelect
+                label="Формат ТЦ"
+                options={[...RETAIL_FORMATS]}
+                value={form.retailFormat}
+                onChange={(v) => setForm({ ...form, retailFormat: v })}
+              />
+            )}
             <Input
               label="Порядок на странице"
               type="number"
@@ -817,6 +901,60 @@ export function BusinessCentersAdminTab() {
           </div>
 
           <Input label="Застройщик / УК" value={form.developer} onChange={(e) => setForm({ ...form, developer: e.target.value })} />
+
+          <div className="flex flex-col gap-3 rounded-control border border-border p-4">
+            <div>
+              <p className="text-sm font-semibold text-ink">Карточка застройщика (для страницы БЦ)</p>
+              <p className="text-xs text-ink-faint">
+                Необязательно — заполняйте только там, где у застройщика есть нормальный сайт и о нём есть что
+                сказать (по образцу карточки «Застройщик района» на гиде по Минск Миру). Пустая форма — блок на
+                публичной странице просто не появляется, короткая строка «Застройщик / УК» выше продолжает работать
+                как раньше.
+              </p>
+            </div>
+            <Input
+              label="Логотип (URL картинки)"
+              value={form.developerLogoUrl}
+              onChange={(e) => setForm({ ...form, developerLogoUrl: e.target.value })}
+              placeholder="/images/developers/... или https://..."
+            />
+            <Textarea
+              label="Описание застройщика"
+              value={form.developerDescription}
+              onChange={(e) => setForm({ ...form, developerDescription: e.target.value })}
+              rows={3}
+              placeholder="Когда основан, чем занимается, масштаб/годы на рынке, ключевые проекты"
+            />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Input
+                label="Телефон"
+                value={form.developerPhone}
+                onChange={(e) => setForm({ ...form, developerPhone: e.target.value })}
+              />
+              <Input
+                label="Сайт"
+                value={form.developerWebsite}
+                onChange={(e) => setForm({ ...form, developerWebsite: e.target.value })}
+                placeholder="https://..."
+              />
+              <Input
+                label="Адрес офиса"
+                value={form.developerAddress}
+                onChange={(e) => setForm({ ...form, developerAddress: e.target.value })}
+              />
+              <Input
+                label="Часы работы"
+                value={form.developerHours}
+                onChange={(e) => setForm({ ...form, developerHours: e.target.value })}
+              />
+              <Input
+                label="Email"
+                value={form.developerEmail}
+                onChange={(e) => setForm({ ...form, developerEmail: e.target.value })}
+                placeholder="info@..."
+              />
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input label="Метро" value={form.metro} onChange={(e) => setForm({ ...form, metro: e.target.value })} />
@@ -868,7 +1006,7 @@ export function BusinessCentersAdminTab() {
 
           <div className="flex flex-col gap-3 rounded-control border border-border p-4">
             <div>
-              <p className="text-sm font-semibold text-ink">Условия для арендаторов (с офиц. сайта БЦ)</p>
+              <p className="text-sm font-semibold text-ink">Отдел аренды БЦ (с офиц. сайта БЦ)</p>
               <p className="text-xs text-ink-faint">
                 Каждый пункт — с новой строки, начиная с «- » (список), важные цифры — в **двух звёздочках** (жирным).
                 Строка без «- » в начале — обычный абзац.
@@ -896,12 +1034,6 @@ export function BusinessCentersAdminTab() {
               placeholder="- От **26 BYN/м²**"
             />
             <Textarea
-              label="Площади и типы помещений"
-              value={form.rentalSizes}
-              onChange={(e) => setForm({ ...form, rentalSizes: e.target.value })}
-              rows={3}
-            />
-            <Textarea
               label="Парковка"
               value={form.rentalParking}
               onChange={(e) => setForm({ ...form, rentalParking: e.target.value })}
@@ -922,7 +1054,9 @@ export function BusinessCentersAdminTab() {
                 Произвольный набор блоков — добавляйте только то, что реально нашлось (нет наград — не добавляйте
                 блок вовсе), для нетипичного факта берите тип «Другой факт» и пишите свою подпись. Та же нотация в
                 тексте: «- » для буллетов, **жирным** — ключевые цифры/названия. Рейтинг/отзывы с карт — только
-                вручную (скриншот/копия из своего браузера), автопоиск для них ненадёжен.
+                вручную (скриншот/копия из своего браузера), автопоиск для них ненадёжен. Тип «Награды» на публичной
+                странице показывается НЕ здесь, а своим блоком списком: каждая строка текста — отдельный пункт, подпись
+                раздела не выводится, поэтому пишите одну награду в строку и так, чтобы строка читалась сама по себе.
               </p>
             </div>
             {form.highlights.map((section, i) => (
@@ -982,6 +1116,102 @@ export function BusinessCentersAdminTab() {
               }
             >
               Добавить блок
+            </Button>
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-control border border-border p-4">
+            <div>
+              <p className="text-sm font-semibold text-ink">СМИ о здании</p>
+              <p className="text-xs text-ink-faint">
+                Статьи, где ЗДАНИЕ — тема материала, а не строка в списке адресов. Критерии и правила по изданиям —
+                docs/bc-media-research-brief.md: без негатива, без запрещённых и оппозиционных СМИ, по одному
+                материалу на событие. Логотип издания подставляется сам по домену ссылки; если логотипа у нас нет,
+                в блоке покажется название из поля «Издание».
+              </p>
+            </div>
+            {form.mediaMentions.map((mention, i) => (
+              <div key={i} className="flex flex-col gap-2 rounded-control border border-border bg-surface-muted p-3">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                    Публикация {i + 1}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm((f) => ({ ...f, mediaMentions: f.mediaMentions.filter((_, idx) => idx !== i) }))
+                    }
+                    aria-label="Убрать публикацию"
+                    className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-control text-ink-faint hover:bg-danger-bg hover:text-danger"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+                <Input
+                  label="Ссылка"
+                  value={mention.url}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      mediaMentions: f.mediaMentions.map((m, idx) => (idx === i ? { ...m, url: e.target.value } : m)),
+                    }))
+                  }
+                  placeholder="https://belta.by/..."
+                />
+                <Input
+                  label="Заголовок статьи"
+                  value={mention.title}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      mediaMentions: f.mediaMentions.map((m, idx) => (idx === i ? { ...m, title: e.target.value } : m)),
+                    }))
+                  }
+                  placeholder="Как в самой статье, без сокращений"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Input
+                    label="Издание"
+                    value={mention.outlet}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        mediaMentions: f.mediaMentions.map((m, idx) =>
+                          idx === i ? { ...m, outlet: e.target.value } : m,
+                        ),
+                      }))
+                    }
+                    placeholder="БелТА"
+                  />
+                  <Input
+                    label="Дата публикации"
+                    type="date"
+                    value={mention.date ?? ''}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        mediaMentions: f.mediaMentions.map((m, idx) =>
+                          // Пустая строка из <input type="date"> — это не дата,
+                          // а «даты нет»: в блоке такая строка рисуется без неё.
+                          idx === i ? { ...m, date: e.target.value || null } : m,
+                        ),
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<Plus className="h-4 w-4" />}
+              onClick={() =>
+                setForm((f) => ({
+                  ...f,
+                  mediaMentions: [...f.mediaMentions, { url: '', title: '', date: null, outlet: '' }],
+                }))
+              }
+            >
+              Добавить публикацию
             </Button>
           </div>
 

@@ -34,15 +34,17 @@ function bc(over: Partial<BusinessCenter> & { slug: string }): BusinessCenter {
     yearBuilt: null,
     floors: null,
     developer: null,
+    developerInfo: null,
     metro: null,
     parking: null,
     website: null,
     description: null,
     rentalInfo: null,
-    highlights: [],
+    highlights: [], mediaMentions: [],
     mapSnapshotFiles: [],
     tenantOrganizations: [],
-    technicalParams: [],
+    tenantCount: 0,
+    technicalParams: [], buildingFacts: [],
     nearestMetroStations: [],
     floorPlateArea: null,
     officeArea: null,
@@ -70,6 +72,8 @@ function bc(over: Partial<BusinessCenter> & { slug: string }): BusinessCenter {
     reviewsChecked: false,
     photos: [],
     status: 'built',
+    kind: 'bc',
+    retailFormat: null,
     sortOrder: 0,
     createdAt: '2026-01-01',
     ...over,
@@ -135,6 +139,20 @@ describe('matchesCatalogFilter', () => {
     ).toBe(true);
   });
 
+  it('формат ТЦ: ИЛИ внутри оси, здание без формата не проходит, URL туда и обратно', () => {
+    const trc = bc({ slug: 'trc', retailFormat: 'ТРЦ' });
+    const market = bc({ slug: 'market', retailFormat: 'рынок' });
+    const unknown = bc({ slug: 'unknown' });
+    const state = { ...EMPTY_CATALOG_FILTER, formats: ['ТРЦ', 'универмаг'] };
+    expect(matchesCatalogFilter(trc, state, offers)).toBe(true);
+    expect(matchesCatalogFilter(market, state, offers)).toBe(false);
+    expect(matchesCatalogFilter(unknown, state, offers)).toBe(false);
+    expect(matchesCatalogFilter(unknown, EMPTY_CATALOG_FILTER, offers)).toBe(true);
+    expect(hasActiveCatalogFilter(state)).toBe(true);
+    const parsed = parseCatalogFilter(new URLSearchParams(catalogFilterToQuery(state).slice(1)));
+    expect(parsed.formats).toEqual(['ТРЦ', 'универмаг']);
+  });
+
   it('здание без класса не попадает в выборку по классу', () => {
     const noClass = bc({ slug: 'x' });
     expect(matchesCatalogFilter(noClass, { ...EMPTY_CATALOG_FILTER, classes: ['A'] }, offers)).toBe(false);
@@ -196,9 +214,43 @@ describe('sortCatalogCenters', () => {
     expect(sortCatalogCenters(list, 'area', offers).map((c) => c.slug)).toEqual(['big', 'small', 'none']);
   });
 
-  it('по умолчанию — sort_order каталога', () => {
+  it('по умолчанию — sort_order каталога, если класс и рейтинг не различают', () => {
     const list = [bc({ slug: 'second', sortOrder: 2 }), bc({ slug: 'first', sortOrder: 1 })];
     expect(sortCatalogCenters(list, 'default', offers).map((c) => c.slug)).toEqual(['first', 'second']);
+  });
+
+  function withYandexRating(value: string): BusinessCenter['highlights'] {
+    return [{ icon: 'rating', label: 'Рейтинг на картах', text: `Яндекс.Карты: **${value}** из 5 (100 оценок)` }];
+  }
+
+  it('по умолчанию — класс важнее рейтинга: A с низким рейтингом выше C с высоким (кейс БЦ «Капитал», владелец 2026-09-22)', () => {
+    const list = [
+      bc({ slug: 'c-high-rating', businessClass: 'C', highlights: withYandexRating('4,9'), sortOrder: 1 }),
+      bc({ slug: 'a-low-rating', businessClass: 'A', highlights: withYandexRating('3,8'), sortOrder: 2 }),
+    ];
+    expect(sortCatalogCenters(list, 'default', offers).map((c) => c.slug)).toEqual(['a-low-rating', 'c-high-rating']);
+  });
+
+  it('по умолчанию — внутри одного класса решает рейтинг Яндекс.Карт, здания без рейтинга в конце класса', () => {
+    const list = [
+      bc({ slug: 'a-no-rating', businessClass: 'A', sortOrder: 1 }),
+      bc({ slug: 'a-4.2', businessClass: 'A', highlights: withYandexRating('4,2'), sortOrder: 2 }),
+      bc({ slug: 'a-4.8', businessClass: 'A', highlights: withYandexRating('4,8'), sortOrder: 3 }),
+    ];
+    expect(sortCatalogCenters(list, 'default', offers).map((c) => c.slug)).toEqual(['a-4.8', 'a-4.2', 'a-no-rating']);
+  });
+
+  it('по умолчанию — «Аден» всегда последний в классе A, даже с максимальным рейтингом (владелец, 2026-09-22)', () => {
+    const list = [
+      bc({ slug: 'a-4.2', businessClass: 'A', highlights: withYandexRating('4,2'), sortOrder: 1 }),
+      bc({ slug: 'aden', businessClass: 'A', highlights: withYandexRating('5,0'), sortOrder: 2 }),
+      bc({ slug: 'a-no-rating', businessClass: 'A', sortOrder: 3 }),
+    ];
+    expect(sortCatalogCenters(list, 'default', offers).map((c) => c.slug)).toEqual([
+      'a-4.2',
+      'a-no-rating',
+      'aden',
+    ]);
   });
 });
 

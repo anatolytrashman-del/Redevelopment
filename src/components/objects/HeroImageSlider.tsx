@@ -34,6 +34,11 @@ interface HeroImageSliderProps {
   // одна пара чисел на весь слайдер, не массив на каждую.
   imageWidth?: number;
   imageHeight?: number;
+  // Уменьшенные копии для каждой картинки (тот же порядок, что у images) и
+  // общий sizes. Без них телефон качает оригинал: на хабах каталога БЦ это
+  // 1200-px фото до 381 КБ ради рамки шириной 330 px (2026-09-23).
+  srcSets?: (string | undefined)[];
+  sizes?: string;
 }
 
 // Слайдер рендеров кабинетов на продающей странице объекта — пока нет
@@ -45,6 +50,8 @@ export function HeroImageSlider({
   aspectClassName = 'aspect-video',
   imageWidth,
   imageHeight,
+  srcSets,
+  sizes,
 }: HeroImageSliderProps) {
   const [index, setIndex] = useState(0);
   // PAGESPEED_PLAN.md, Э4-6 — автоплей не должен стартовать таймер сразу
@@ -77,7 +84,12 @@ export function HeroImageSlider({
     const delay = firstSwitchDoneRef.current ? AUTOPLAY_MS : AUTOPLAY_FIRST_DELAY_MS;
     const preloadTimer = setTimeout(() => {
       const next = new Image();
-      next.src = images[(index + 1) % images.length];
+      const nextIndex = (index + 1) % images.length;
+      if (srcSets?.[nextIndex] && sizes) {
+        next.sizes = sizes;
+        next.srcset = srcSets[nextIndex]!;
+      }
+      next.src = images[nextIndex];
     }, Math.max(0, delay - PRELOAD_LEAD_MS));
     const switchTimer = setTimeout(() => {
       firstSwitchDoneRef.current = true;
@@ -89,7 +101,7 @@ export function HeroImageSlider({
     };
     // index в зависимостях намеренно: смена кадра (авто или вручную)
     // перезапускает отсчёт от нового кадра.
-  }, [images, index, autoplayArmed]);
+  }, [images, srcSets, sizes, index, autoplayArmed]);
 
   if (images.length === 0) return null;
 
@@ -117,6 +129,8 @@ export function HeroImageSlider({
       >
         <img
           src={images[index]}
+          srcSet={srcSets?.[index]}
+          sizes={srcSets?.[index] ? sizes : undefined}
           alt={alt}
           className="h-full w-full object-cover"
           loading="eager"

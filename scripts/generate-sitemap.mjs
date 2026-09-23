@@ -1,5 +1,5 @@
-// Дополняет dist/sitemap.xml карточками бизнес-центров (/minsk/bcminsk/<slug>)
-// и хабами по станциям метро (/minsk/bcminsk/metro/<slug>, только непустые).
+// Дополняет dist/sitemap.xml карточками бизнес-центров (/minsk/bc/<slug>)
+// и хабами по станциям метро (/minsk/bc/metro/<slug>, только непустые).
 //
 // Аудит поиска 2026-09-07: в sitemap были только каталог и хаб-страницы
 // фильтров, ни одной карточки БЦ — Google знал 5 URL сайта, Яндекс 2, ни
@@ -17,6 +17,7 @@
 // объявления Kufar/Realt внутри карточек обновляются ежемесячным синком.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fallbackRows } from './_buildFallback.mjs';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
@@ -50,11 +51,13 @@ async function supabaseSelect(query, what) {
       }
     }
   }
+  const rows = fallbackRows(query, 'generate-sitemap');
+  if (rows) return rows;
   throw lastError;
 }
 
 async function fetchBusinessCenterSlugs() {
-  const rows = await supabaseSelect('business_centers?select=slug&order=slug.asc', 'business_centers.slug');
+  const rows = await supabaseSelect('business_centers?select=slug&kind=eq.bc&order=slug.asc', 'business_centers.slug');
   return rows.map((r) => r.slug).filter((slug) => typeof slug === 'string' && /^[a-z0-9-]+$/.test(slug));
 }
 
@@ -105,29 +108,70 @@ const METRO_HUB_SLUG_BY_STATION = {
 // метро выше: только улицы с 2+ БЦ (STREET_HUB_SLUG_BY_NAME), список
 // продублирован из src/lib/businessCenterHubs.ts (скрипт без TS-загрузчика).
 const STREET_HUB_SLUG_BY_NAME = {
-  'пр-т Победителей': 'pr-t-pobediteley',
-  'пр-т Независимости': 'pr-t-nezavisimosti',
-  'пр-т Дзержинского': 'pr-t-dzerzhinskogo',
-  'ул. Притыцкого': 'ul-pritytskogo',
-  'ул. Сурганова': 'ul-surganova',
-  'ул. Платонова': 'ul-platonova',
-  'ул. Клары Цеткин': 'ul-klary-tsetkin',
-  'пер. Козлова': 'per-kozlova',
-  'пр-т Партизанский': 'pr-t-partizanskiy',
+  'пр-т Победителей': 'prospekt-pobediteley',
+  'пр-т Независимости': 'prospekt-nezavisimosti',
+  'пр-т Дзержинского': 'prospekt-dzerzhinskogo',
+  'ул. Притыцкого': 'pritytskogo',
+  'ул. Сурганова': 'surganova',
+  'ул. Платонова': 'platonova',
+  'ул. Клары Цеткин': 'klary-tsetkin',
+  'пер. Козлова': 'pereulok-kozlova',
+  'пр-т Партизанский': 'prospekt-partizanskiy',
   'Логойский тракт': 'logoyskiy-trakt',
-  'ул. Хоружей': 'ul-horuzhey',
-  'ул. Филимонова': 'ul-filimonova',
-  'ул. Немига': 'ul-nemiga',
-  'ул. Мележа': 'ul-melezha',
-  'ул. Толбухина': 'ul-tolbuhina',
-  'ул. Железнодорожная': 'ul-zheleznodorozhnaya',
-  'ул. Интернациональная': 'ul-internatsionalnaya',
-  'ул. Лобанка': 'ul-lobanka',
-  'ул. Ольшевского': 'ul-olshevskogo',
-  'ул. Свердлова': 'ul-sverdlova',
-  'ул. Скрыганова': 'ul-skryganova',
-  'ул. Тимирязева': 'ul-timiryazeva',
-  'ул. Скорины': 'ul-skoriny',
+  'ул. Хоружей': 'horuzhey',
+  'ул. Филимонова': 'filimonova',
+  'ул. Немига': 'nemiga',
+  'ул. Мележа': 'melezha',
+  'ул. Толбухина': 'tolbuhina',
+  'ул. Железнодорожная': 'zheleznodorozhnaya',
+  'ул. Интернациональная': 'internatsionalnaya',
+  'ул. Лобанка': 'lobanka',
+  'ул. Ольшевского': 'olshevskogo',
+  'ул. Свердлова': 'sverdlova',
+  'ул. Скрыганова': 'skryganova',
+  'ул. Тимирязева': 'timiryazeva',
+  'ул. Скорины': 'skoriny',
+};
+
+// Порог индексации производных срезов — тот же, что в
+// src/lib/businessCenterHubs.ts (MIN_INDEXABLE_HUB_CENTERS), и карты слагов
+// класса/района/микрорайона оттуда же: скрипт без TS-загрузчика, поэтому
+// продублировано, как метро и улицы выше. Правится одна сторона — правится
+// и вторая, иначе sitemap зовёт краулера на страницы, которые сам сайт
+// отдаёт с noindex.
+const MIN_INDEXABLE_HUB_CENTERS = 3;
+const CLASS_SLUGS = { A: 'a', 'B+': 'b-plus', B: 'b', C: 'c' };
+const DISTRICT_SLUGS = {
+  Центральный: 'tsentralny',
+  Октябрьский: 'oktyabrsky',
+  Советский: 'sovetsky',
+  Фрунзенский: 'frunzensky',
+  Заводской: 'zavodskoy',
+  Первомайский: 'pervomaysky',
+  Партизанский: 'partizansky',
+  Московский: 'moskovsky',
+  Ленинский: 'leninsky',
+  'Великий камень': 'velikiy-kamen',
+};
+const MICRODISTRICT_SLUGS = {
+  Комаровка: 'komarovka',
+  Чкаловский: 'chkalovsky',
+  'Каменная Горка': 'kamennaya-gorka',
+  Веснянка: 'vesnyanka',
+  'Зелёный Луг': 'zelenyy-lug',
+  Сухарево: 'suharevo',
+  'Золотая Горка': 'zolotaya-gorka',
+  Уручье: 'uruchye',
+  Степянка: 'stepyanka',
+  Барановщина: 'baranovschina',
+  Магистр: 'magistr',
+  Радужный: 'raduzhny',
+  'Раковское Шоссе-1': 'rakovskoe-shosse-1',
+  Лошица: 'loshitsa',
+  'Великий Лес': 'velikiy-les',
+  Грушевка: 'grushevka',
+  Слепянка: 'slepyanka',
+  'Михалово-2': 'mihalovo-2',
 };
 
 function shortAddressJs(a) {
@@ -147,19 +191,69 @@ function streetOfAddressJs(fullAddress) {
   return parts.length > 1 ? parts.slice(0, -1).join(', ') : short;
 }
 
-async function fetchStreetHubSlugs() {
-  const rows = await supabaseSelect('business_centers?select=address', 'business_centers.address');
-  const slugs = new Set();
-  for (const r of rows) {
-    const slug = STREET_HUB_SLUG_BY_NAME[streetOfAddressJs(r.address)];
-    if (slug) slugs.add(slug);
-  }
-  return [...slugs];
+// Срезы каталога, которые ПУСКАЕМ в sitemap: улица, микрорайон и
+// «класс + район» только от MIN_INDEXABLE_HUB_CENTERS зданий. Тот же порог,
+// по которому сама страница ставит noindex (Ш2 плана
+// docs/bc-catalog-seo-plan.md): на срезе из одного-двух зданий страница
+// почти повторяет карточку БЦ, и звать на неё краулера, чтобы он прочитал
+// там noindex, — впустую потраченный краулинговый бюджет.
+async function fetchHubPaths() {
+  const rows = await supabaseSelect(
+    'business_centers?select=address,business_class,district,microdistrict&kind=eq.bc',
+    'business_centers.address/class/district/microdistrict',
+  );
+  const countBy = (key) => {
+    const counts = new Map();
+    for (const r of rows) {
+      const value = key(r);
+      if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
+    }
+    return counts;
+  };
+  const big = (counts, value) => (counts.get(value) ?? 0) >= MIN_INDEXABLE_HUB_CENTERS;
+
+  const streetCounts = countBy((r) => streetOfAddressJs(r.address));
+  const microCounts = countBy((r) => r.microdistrict);
+  const classDistrictCounts = countBy((r) => (r.business_class && r.district ? `${r.business_class}|${r.district}` : null));
+
+  const streets = [...streetCounts.keys()]
+    .filter((name) => STREET_HUB_SLUG_BY_NAME[name] && big(streetCounts, name))
+    .map((name) => `/minsk/bc/street/${STREET_HUB_SLUG_BY_NAME[name]}`);
+  const microdistricts = [...microCounts.keys()]
+    .filter((name) => MICRODISTRICT_SLUGS[name] && big(microCounts, name))
+    .map((name) => `/minsk/bc/area/${MICRODISTRICT_SLUGS[name]}`);
+  const classDistricts = [...classDistrictCounts.keys()]
+    .filter((key) => {
+      const [cls, district] = key.split('|');
+      return CLASS_SLUGS[cls] && DISTRICT_SLUGS[district] && big(classDistrictCounts, key);
+    })
+    .map((key) => {
+      const [cls, district] = key.split('|');
+      return `/minsk/bc/class/${CLASS_SLUGS[cls]}/district/${DISTRICT_SLUGS[district]}`;
+    });
+
+  return { keep: new Set([...streets, ...microdistricts, ...classDistricts]), streets };
+}
+
+// Убирает из готового sitemap срезы, которые не прошли порог: часть из них
+// (микрорайоны, «класс + район») лежит в статическом public/sitemap.xml, и
+// без этой чистки файл звал бы краулера на закрытые noindex'ом страницы.
+function pruneThinHubs(xml, keep) {
+  const derived = /\/minsk\/bc\/(street|area|class\/[a-z0-9-]+\/district)\//;
+  let removed = 0;
+  const out = xml.replace(/ {2}<url>\n(?:.*\n)*? {2}<\/url>\n/g, (block) => {
+    const loc = block.match(/<loc>([^<]+)<\/loc>/)?.[1] ?? '';
+    const path = loc.replace(SITE, '');
+    if (!derived.test(path) || keep.has(path)) return block;
+    removed += 1;
+    return '';
+  });
+  return { xml: out, removed };
 }
 
 async function fetchMetroHubStations() {
   const rows = await supabaseSelect(
-    'business_centers?select=nearest_metro_stations&nearest_metro_stations=not.is.null',
+    'business_centers?select=nearest_metro_stations&nearest_metro_stations=not.is.null&kind=eq.bc',
     'nearest_metro_stations',
   );
   const slugs = new Set();
@@ -193,31 +287,33 @@ async function main() {
   } catch (err) {
     console.warn(`[generate-sitemap] хабы метро не добавлены: ${err instanceof Error ? err.message : err}`);
   }
-  let streetSlugs = [];
+  let hubs = null;
   try {
-    streetSlugs = await fetchStreetHubSlugs();
+    hubs = await fetchHubPaths();
   } catch (err) {
-    console.warn(`[generate-sitemap] хабы улиц не добавлены: ${err instanceof Error ? err.message : err}`);
+    console.warn(`[generate-sitemap] срезы каталога не пересчитаны: ${err instanceof Error ? err.message : err}`);
   }
   const entries = [
-    ...metroSlugs.map((slug) => `${SITE}/minsk/bcminsk/metro/${slug}`),
-    ...streetSlugs.map((slug) => `${SITE}/minsk/bcminsk/ulitsa/${slug}`),
-    ...slugs.map((slug) => `${SITE}/minsk/bcminsk/${slug}`),
+    ...metroSlugs.map((slug) => `${SITE}/minsk/bc/metro/${slug}`),
+    ...(hubs ? hubs.streets.map((path) => `${SITE}${path}`) : []),
+    ...slugs.map((slug) => `${SITE}/minsk/bc/${slug}`),
   ]
     .filter((url) => !existing.has(url))
     .map(
       (url) =>
         `  <url>\n    <loc>${escapeXml(url)}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>`,
     );
-  if (entries.length === 0) {
-    console.log('[generate-sitemap] новых карточек БЦ нет');
-    return;
-  }
   const closing = xml.lastIndexOf('</urlset>');
   if (closing === -1) throw new Error('dist/sitemap.xml: не найден закрывающий </urlset>');
-  const out = `${xml.slice(0, closing)}${entries.join('\n')}\n</urlset>\n`;
-  writeFileSync(SITEMAP_PATH, out);
-  console.log(`[generate-sitemap] добавлено URL (хабы метро/улиц + карточки БЦ): ${entries.length} (всего <loc>: ${existing.size + entries.length})`);
+  const withEntries = entries.length ? `${xml.slice(0, closing)}${entries.join('\n')}\n</urlset>\n` : xml;
+  // Чистка идёт последней и по всему файлу: тонкие срезы есть и среди
+  // добавленных сейчас, и среди статических записей public/sitemap.xml.
+  const { xml: pruned, removed } = hubs ? pruneThinHubs(withEntries, hubs.keep) : { xml: withEntries, removed: 0 };
+  writeFileSync(SITEMAP_PATH, pruned);
+  const total = [...pruned.matchAll(/<loc>/g)].length;
+  console.log(
+    `[generate-sitemap] добавлено URL (хабы метро/улиц + карточки БЦ): ${entries.length}, убрано тонких срезов: ${removed} (всего <loc>: ${total})`,
+  );
 }
 
 main().catch((err) => {

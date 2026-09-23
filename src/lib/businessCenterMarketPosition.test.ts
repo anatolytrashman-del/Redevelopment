@@ -9,14 +9,16 @@ import type { BusinessCenter } from '../data/businessCenters';
 function bc(slug: string, lat: number | null, lng: number | null): BusinessCenter {
   return {
     id: slug, slug, name: slug, altNames: [], address: 'г. Минск, ул. Тестовая, 1', district: null, microdistrict: null,
-    businessClass: null, totalArea: null, yearBuilt: null, floors: null, developer: null, metro: null,
-    parking: null, website: null, description: null, rentalInfo: null, highlights: [], mapSnapshotFiles: [],
-    tenantOrganizations: [], technicalParams: [], nearestMetroStations: [], verdict: null, pros: [], cons: [],
+    businessClass: null, totalArea: null, yearBuilt: null, floors: null, developer: null, developerInfo: null,
+    metro: null,
+    parking: null, website: null, description: null, rentalInfo: null, highlights: [], mediaMentions: [], mapSnapshotFiles: [],
+    tenantOrganizations: [],
+    tenantCount: 0, technicalParams: [], buildingFacts: [], nearestMetroStations: [], verdict: null, pros: [], cons: [],
     verdictEdited: false, reviewsChecked: false, floorPlateArea: null, officeArea: null, layoutTypes: [], elevators: null,
     parkingRatio: null, airConditioning: null, ceilingHeight: null, managementType: null,
     metroDistanceBucket: null, freeSpaceMin: null, freeSpaceMax: null, infraInternal: [], infraNearby: [],
     lat, lng, gisRating: null, gisReviewCount: null, is24x7: null, accessibility: [], photos: [],
-    status: 'built', sortOrder: 0, createdAt: '2026-01-01',
+    status: 'built', kind: 'bc', retailFormat: null, sortOrder: 0, createdAt: '2026-01-01',
   };
 }
 

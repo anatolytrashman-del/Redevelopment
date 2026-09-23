@@ -43,7 +43,7 @@ import type { FaqItem } from '../components/ui/FaqAccordion';
 // Сам лендинг /minsk/one остаётся доступным по прямой ссылке. Вернуть,
 // когда здание будет куплено.
 const GUIDE_URL = '/minsk/minsk-mir';
-const CATALOG_URL = '/minsk/bcminsk';
+const CATALOG_URL = '/minsk/bc';
 const SITE = 'https://redevelopment.pro';
 const DATE_PUBLISHED = '2026-09-07';
 
@@ -269,7 +269,7 @@ const TOPICS: Record<MinskMirTopicSlug, TopicContent> = {
             42-этажная башня на проспекте Мира. Застройщик — «Дана Астра» (Dana Holdings), строительство идёт с 2022
             года, плановая сдача — конец 2027 года. Пока здание не введено, арендовать или купить офис в нём нельзя —
             подробности и статус стройки в{' '}
-            <Link to="/minsk/bcminsk/mfc-minsk-mir" className="font-semibold text-primary-hover hover:underline">
+            <Link to="/minsk/bc/mfc-minsk-mir" className="font-semibold text-primary-hover hover:underline">
               карточке МФЦ
             </Link>
             .
@@ -282,7 +282,7 @@ const TOPICS: Record<MinskMirTopicSlug, TopicContent> = {
         body: (
           <>
             Ближайший действующий БЦ Dana Holdings —{' '}
-            <Link to="/minsk/bcminsk/dana-center" className="font-semibold text-primary-hover hover:underline">
+            <Link to="/minsk/bc/dana-center" className="font-semibold text-primary-hover hover:underline">
               Dana Center
             </Link>{' '}
             (класс B+, 23 000 м²), но он в «Маяке Минска» у метро «Восток», а не в Минск Мире. Все бизнес-центры
@@ -291,7 +291,7 @@ const TOPICS: Record<MinskMirTopicSlug, TopicContent> = {
               каталоге бизнес-центров Минска
             </Link>
             , а МФЦ вместе с другими стройками города — на странице{' '}
-            <Link to={`${CATALOG_URL}/stroyashchiesya`} className="font-semibold text-primary-hover hover:underline">
+            <Link to={`${CATALOG_URL}/new`} className="font-semibold text-primary-hover hover:underline">
               строящихся бизнес-центров
             </Link>
             .
@@ -682,7 +682,7 @@ export function MinskMirTopicPage() {
       <div className="border-b border-border py-5">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 sm:px-8">
           <Link to="/minsk" className="shrink-0 text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary-hover">RED</span>EVELOPMENT
+            <span className="font-black text-primary">RED</span>EVELOPMENT
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted sm:flex">
             <Link to={GUIDE_URL} className="whitespace-nowrap transition-colors hover:text-ink">
