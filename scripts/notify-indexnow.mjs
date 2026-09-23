@@ -68,7 +68,10 @@ async function previousState() {
     const res = await fetch(`${SITE}/indexnow-state.json`, { cache: 'no-store', signal: AbortSignal.timeout(10_000) });
     if (res.status === 404) return null;
     if (!res.ok) return undefined;
-    const state = await res.json();
+    // Файла ещё нет — Vercel отдаёт не 404, а SPA-шелл (index.html) с 200:
+    // это «состояния нет», а не «прод недоступен».
+    if (!(res.headers.get('content-type') ?? '').includes('json')) return null;
+    const state = await res.json().catch(() => null);
     return typeof state?.sentAt === 'string' && typeof state?.fingerprint === 'string' ? state : null;
   } catch {
     return undefined;
