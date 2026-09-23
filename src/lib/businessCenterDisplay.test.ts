@@ -2,8 +2,10 @@ import { readdirSync, existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   BC_CARD_PHOTO_WIDTHS,
+  BC_DETAIL_PHOTO_WIDTHS,
   BC_PHOTO_VERSION,
   businessCenterCardPhotoSrcSet,
+  businessCenterDetailPhotoSrcSet,
   businessCenterHomepageUrl,
   businessCenterPhotoSrc,
   withBcPhotoVersion,
@@ -88,5 +90,35 @@ describe('уменьшенные копии карточных фото', () => 
 
   it('у чужих путей (Supabase Storage) srcset нет', () => {
     expect(businessCenterCardPhotoSrcSet('https://example.com/photo.webp')).toBeUndefined();
+  });
+});
+
+// То же для главного фото карточки (вариант 'detail'): srcset ссылается на
+// <slug>-w<ширина>.webp по имени, и без копии браузер выбрал бы битую
+// картинку прямо в LCP-элементе страницы.
+describe('уменьшенные копии главных фото', () => {
+  const dir = new URL('../../public/images/business-centers/', import.meta.url);
+
+  it('у каждого главного фото есть копии всех ширин из srcset', () => {
+    const originals = readdirSync(dir).filter(
+      (f) => /^[a-z0-9-]+\.webp$/.test(f) && !/-card(-\d+)?\.webp$/.test(f) && !/-w\d+\.webp$/.test(f),
+    );
+    expect(originals.length).toBeGreaterThan(100);
+    const missing: string[] = [];
+    for (const file of originals) {
+      for (const width of BC_DETAIL_PHOTO_WIDTHS) {
+        const variant = file.replace(/\.webp$/, `-w${width}.webp`);
+        if (!existsSync(new URL(variant, dir))) missing.push(variant);
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
+  it('srcset главного фото — копии и оригинал 1200', () => {
+    const srcSet = businessCenterDetailPhotoSrcSet('/images/business-centers/futuris.jpg');
+    expect(srcSet).toContain('futuris-w480.webp');
+    expect(srcSet).toContain('futuris-w720.webp');
+    expect(srcSet).toMatch(/futuris\.webp\?v=\d+ 1200w$/);
+    expect(businessCenterDetailPhotoSrcSet('https://example.com/photo.webp')).toBeUndefined();
   });
 });

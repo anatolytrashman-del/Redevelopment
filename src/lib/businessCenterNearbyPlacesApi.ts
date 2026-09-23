@@ -5,6 +5,7 @@ import type {
 } from '../data/businessCenterNearbyPlaces';
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
+import { loadBcExtra } from './buildData';
 
 // 'restaurant' — категория, отменённая владельцем 2026-09-21 («кафе и
 // рестораны делай в одну категорию»); строки со старым значением (ещё не
@@ -32,7 +33,11 @@ function fromRow(row: BusinessCenterNearbyPlaceRow): BusinessCenterNearbyPlace {
   };
 }
 
-export function fetchBusinessCenterNearbyPlaces(slug: string): Promise<BusinessCenterNearbyPlace[]> {
+export async function fetchBusinessCenterNearbyPlaces(slug: string): Promise<BusinessCenterNearbyPlace[]> {
+  // Файл .extra из сборки (src/lib/buildData.ts), в том же порядке по
+  // расстоянию; в базу — только если его нет.
+  const fromBuild = (await loadBcExtra(slug))?.nearby;
+  if (fromBuild) return (fromBuild as BusinessCenterNearbyPlaceRow[]).map(fromRow);
   return withRetry(async () => {
     // Без .lte по distance_meters: радиус уже применён ПО КАТЕГОРИИ на сборе
     // (CATEGORY_RADIUS в scripts/nearby-places-common.mjs — метро 2000 м,

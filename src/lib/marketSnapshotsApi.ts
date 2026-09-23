@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
 import type { ExternalMetric, ExternalMetricRow, MarketSnapshot, MarketSnapshotRow } from '../data/marketSnapshots';
+import { loadBcMarket } from './buildData';
 
 function fromRow(row: MarketSnapshotRow): MarketSnapshot {
   return {
@@ -23,6 +24,13 @@ function fromRow(row: MarketSnapshotRow): MarketSnapshot {
 // конкретный календарный месяц — если крон ещё не прогонялся в этом
 // месяце, страница показывает прошлый снимок, а не пустоту).
 export async function fetchLatestMarketSnapshots(segment: string): Promise<MarketSnapshot[]> {
+  // Сегмент раздела БЦ лежит в сборке (src/lib/buildData.ts) — берём оттуда,
+  // в базу только если файла нет. Остальные сегменты в файл не кладутся, и
+  // качать его ради них незачем.
+  if (segment === 'ofisy_bc') {
+    const fromBuild = (await loadBcMarket())?.marketSnapshots?.[segment];
+    if (fromBuild) return (fromBuild as MarketSnapshotRow[]).map(fromRow);
+  }
   return withRetry(async () => {
     const { data: latest, error: latestError } = await supabase
       .from('market_snapshots')
@@ -62,6 +70,10 @@ function fromExternalRow(row: ExternalMetricRow): ExternalMetric {
 }
 
 export async function fetchExternalMetrics(segment: string): Promise<ExternalMetric[]> {
+  if (segment === 'ofisy_bc') {
+    const fromBuild = (await loadBcMarket())?.externalMetrics?.[segment];
+    if (fromBuild) return (fromBuild as ExternalMetricRow[]).map(fromExternalRow);
+  }
   return withRetry(async () => {
     const { data, error } = await supabase.from('external_metrics').select('*').eq('segment', segment);
     if (error) throw error;

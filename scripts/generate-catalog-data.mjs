@@ -18,7 +18,8 @@
 //
 // Список колонок НЕ дублируется: вынимается регуляркой из LIST_COLUMNS в
 // src/lib/businessCentersApi.ts, чтобы файл и приложение не разъехались.
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import { join, resolve } from 'node:path';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
@@ -135,11 +136,163 @@ async function copyFromProd() {
   console.warn(`[catalog-data] данные каталога скопированы с прода: список ${rows.length} зданий, карточек ${written}`);
 }
 
-main(columns).catch(async (err) => {
-  console.warn(`[catalog-data] данные каталога не собраны из базы: ${err instanceof Error ? err.message : err}`);
-  try {
-    await copyFromProd();
-  } catch (copyErr) {
-    console.warn(`[catalog-data] и с прода скопировать не вышло: ${copyErr instanceof Error ? copyErr.message : copyErr}`);
+// --- Догружаемые данные раздела (2026-09-23) -------------------------------
+//
+// Всё, что страницы раздела раньше запрашивали из браузера у Supabase помимо
+// самих зданий: ставки рынка, размеры лотов, срезы объявлений, отраслевой
+// срез арендаторов, внешние метрики, источники — и по каждому зданию
+// объявления, отзывы, окружение, 2ГИС, арендаторы. Владелец: «на эти дни
+// схема без привлечения Supabase, сама инфа про БЦ меня устраивает» — и
+// даже когда база вернётся, отдавать это с CDN дешевле и быстрее, чем
+// каждым посетителем ходить в базу (трафик базы и закрыл проект 23.09).
+//
+// Источник — REST, как у остальной сборки; не отвечает — снимок
+// scripts/catalog-data-fallback.json.gz (снимается под ролью anon через
+// Management API, см. scripts/snapshot-catalog-data-fallback.mjs).
+//
+// Файлы:
+//   /data/bc-market.json      — ставки рынка, внешние метрики, размеры лотов;
+//   /data/bc-analytics.json   — срезы объявлений и отраслевой срез (аналитика);
+//   /data/bc-sources.json     — строки для попапа «Источники»;
+//   /data/bc/<slug>.extra.json — догружаемые блоки карточки.
+// .extra отдельно от /data/bc/<slug>.json НАРОЧНО: основной файл карточки
+// ждёт main.tsx перед монтированием, а отзывы с окружением — это ещё
+// ~40 КБ на здание, которым в критическом пути делать нечего.
+const CATALOG_FALLBACK = resolve(process.cwd(), 'scripts/catalog-data-fallback.json.gz');
+let catalogFallback;
+function fallbackDataset(name) {
+  if (catalogFallback === undefined) {
+    try {
+      catalogFallback = JSON.parse(gunzipSync(readFileSync(CATALOG_FALLBACK)).toString('utf8'));
+    } catch {
+      catalogFallback = null;
+    }
   }
-});
+  const rows = catalogFallback?.datasets?.[name];
+  if (!Array.isArray(rows)) return null;
+  console.warn(`[catalog-data] ${name}: Supabase недоступен — взят из снимка от ${catalogFallback.generatedAt}`);
+  return rows;
+}
+
+// PostgREST отдаёт не больше 1000 строк за раз (max_rows проекта) — всё,
+// где строк может быть больше, тянется постранично, иначе хвост теряется
+// молча (см. CLAUDE.md про .range()).
+async function selectAll(query, what) {
+  const rows = [];
+  for (let offset = 0; ; offset += 1000) {
+    const page = await supabaseSelect(`${query}&offset=${offset}&limit=1000`, what);
+    rows.push(...page);
+    if (page.length < 1000) return rows;
+  }
+}
+
+async function dataset(name, load) {
+  try {
+    return await load();
+  } catch (err) {
+    const rows = fallbackDataset(name);
+    if (rows) return rows;
+    throw err;
+  }
+}
+
+async function latestMarketSnapshots() {
+  const latest = await supabaseSelect(
+    'market_snapshots?select=period&segment=eq.ofisy_bc&order=period.desc&limit=1',
+    'market_snapshots (последний период)',
+  );
+  const period = latest?.[0]?.period;
+  if (!period) return [];
+  return supabaseSelect(`market_snapshots?select=*&segment=eq.ofisy_bc&period=eq.${period}`, 'market_snapshots');
+}
+
+// Колонки 2ГИС и арендаторов — ровно те, что разрешены anon и запрашивает
+// сайт (src/lib/businessCenter2gisApi.ts, businessCenterTenantsApi.ts).
+const GIS2_COLUMNS =
+  'business_center_slug,match_status,rubrics,schedule,reviews,links,attribute_groups,fetched_at,' +
+  'tenant_organizations,tenant_organizations_total,tenant_organizations_fetched,tenant_organizations_fetched_at';
+const TENANT_COLUMNS = 'business_center_slug,source,source_url,organizations,organization_count,captured_at';
+const SLICE_COLUMNS = 'business_center_slug,source,ad_id,deal_type,property_type,size,price_per_sqm';
+
+async function writeExtras() {
+  const generatedAt = new Date().toISOString();
+  const [market, external, lotSizes, offerSlices, tenantCity, sources, offers, reviews, nearby, gis2, tenants] =
+    await Promise.all([
+      dataset('market_ofisy_bc', latestMarketSnapshots),
+      dataset('external_ofisy_bc', () => supabaseSelect('external_metrics?select=*&segment=eq.ofisy_bc', 'external_metrics')),
+      dataset('lot_sizes', () => selectAll('business_center_offers?select=business_center_slug,size&order=id.asc', 'лоты')),
+      dataset('offer_slices', () => selectAll(`business_center_offers?select=${SLICE_COLUMNS}&order=id.asc`, 'срезы объявлений')),
+      dataset('tenant_city', () =>
+        supabaseSelect('business_center_tenant_city_categories?select=categories,org_total,building_total,computed_at', 'отраслевой срез'),
+      ),
+      dataset('site_sources', () =>
+        supabaseSelect('business_centers?select=website,developer_info,media_mentions,building_facts&limit=1000', 'источники'),
+      ),
+      dataset('offers', () => selectAll('business_center_offers?select=*&order=price_per_sqm.asc,id.asc', 'объявления')),
+      dataset('reviews', () => selectAll('business_center_review_snapshots?select=*&order=id.asc', 'отзывы')),
+      dataset('nearby', () => selectAll('business_center_nearby_places?select=*&order=distance_meters.asc,id.asc', 'окружение')),
+      dataset('gis2', () => supabaseSelect(`business_center_2gis_snapshots?select=${GIS2_COLUMNS}`, '2ГИС')),
+      dataset('tenants', () =>
+        supabaseSelect(`business_center_tenant_source_snapshots?select=${TENANT_COLUMNS}&source=eq.yandex_maps`, 'арендаторы'),
+      ),
+    ]);
+
+  mkdirSync(join(DIST_DATA, 'bc'), { recursive: true });
+  // Каталог и хабы берут отсюда ставки рынка и размеры лотов — файл держим
+  // лёгким; срезы объявлений и отраслевой срез нужны одной странице
+  // аналитики и живут в своём файле, чтобы каталог их не качал.
+  writeFileSync(
+    join(DIST_DATA, 'bc-market.json'),
+    JSON.stringify({ generatedAt, marketSnapshots: { ofisy_bc: market }, externalMetrics: { ofisy_bc: external }, lotSizes }),
+  );
+  writeFileSync(join(DIST_DATA, 'bc-analytics.json'), JSON.stringify({ generatedAt, offerSlices, tenantCity }));
+  writeFileSync(join(DIST_DATA, 'bc-sources.json'), JSON.stringify({ generatedAt, rows: sources }));
+
+  // Файл .extra пишется КАЖДОМУ зданию из списка, даже пустой: пустой файл
+  // — это ответ «у здания нет отзывов», а отсутствие файла браузер понял бы
+  // как «не знаю» и пошёл бы в базу.
+  const listPath = join(DIST_DATA, 'business-centers.json');
+  const slugs = existsSync(listPath)
+    ? JSON.parse(readFileSync(listPath, 'utf8')).rows.map((r) => r.slug).filter((s) => /^[a-z0-9-]+$/.test(s ?? ''))
+    : [];
+  const bySlug = (rows) => {
+    const map = new Map();
+    for (const row of rows) {
+      if (!map.has(row.business_center_slug)) map.set(row.business_center_slug, []);
+      map.get(row.business_center_slug).push(row);
+    }
+    return map;
+  };
+  const [offersBy, reviewsBy, nearbyBy, gis2By, tenantsBy] = [offers, reviews, nearby, gis2, tenants].map(bySlug);
+  for (const slug of slugs) {
+    writeFileSync(
+      join(DIST_DATA, 'bc', `${slug}.extra.json`),
+      JSON.stringify({
+        generatedAt,
+        offers: offersBy.get(slug) ?? [],
+        reviews: reviewsBy.get(slug) ?? [],
+        nearby: nearbyBy.get(slug) ?? [],
+        gis2: gis2By.get(slug)?.[0] ?? null,
+        tenants: tenantsBy.get(slug)?.[0] ?? null,
+      }),
+    );
+  }
+  console.log(`[catalog-data] догружаемые данные: общие наборы + ${slugs.length} файлов .extra`);
+}
+
+main(columns)
+  .catch(async (err) => {
+    console.warn(`[catalog-data] данные каталога не собраны из базы: ${err instanceof Error ? err.message : err}`);
+    try {
+      await copyFromProd();
+    } catch (copyErr) {
+      console.warn(`[catalog-data] и с прода скопировать не вышло: ${copyErr instanceof Error ? copyErr.message : copyErr}`);
+    }
+  })
+  // Только после main: списку слагов для .extra нужен готовый список.
+  .then(() => writeExtras())
+  .catch((err) => {
+    // Без догружаемых файлов страницы работают как раньше — через запросы в
+    // базу из браузера, — поэтому сборку не валим.
+    console.warn(`[catalog-data] догружаемые данные не собраны: ${err instanceof Error ? err.message : err}`);
+  });

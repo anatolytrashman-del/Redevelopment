@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
+import { loadBcSources } from './buildData';
 import { businessCenterHomepageUrl } from './businessCenterDisplay';
 import { BLOCKED_SOURCE_HOSTS, STATIC_SOURCE_HOSTS } from '../data/businessCenterSources';
 import { outletBrand, outletDomain } from '../data/mediaOutlets';
@@ -93,59 +94,66 @@ export function publicationSource(
 // заметную долю данных). Дедуплицируется по хосту: у одного застройщика
 // несколько зданий — сайт в списке один раз.
 export async function fetchCatalogSiteSources(): Promise<CatalogSources> {
+  // Файл сборки (src/lib/buildData.ts); в базу — только если его нет.
+  const fromBuild = (await loadBcSources())?.rows;
+  if (fromBuild) return sourcesFromRows(fromBuild as SourceSiteRow[]);
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('business_centers')
       .select('website, developer_info, media_mentions, building_facts')
       .range(0, 999);
     if (error) throw error;
-    const rows = (data ?? []) as SourceSiteRow[];
-    const byHost = new Map<string, SourceSite>();
-    const pubsByHost = new Map<string, SourceSite>();
-
-    // Сайт, уже названный в постоянном списке (bir.by у Минск Мира, t-s.by
-    // у «Твоей столицы»), второй раз строкой без описания не показываем.
-    const addSite = (site: SourceSite | null) => {
-      if (!site) return;
-      if (STATIC_SOURCE_HOSTS.has(secondLevelHost(site.label))) return;
-      byHost.set(site.label, site);
-    };
-
-    for (const row of rows) {
-      const centerHref = businessCenterHomepageUrl(row.website);
-      if (centerHref) {
-        const host = new URL(centerHref).host.replace(/^www\./, '');
-        addSite({ href: centerHref, label: host });
-      }
-      addSite(normalizeDeveloperUrl(row.developer_info?.website ?? null));
-    }
-
-    // Домены второго уровня уже собранных сайтов зданий/застройщиков.
-    const siteHosts = new Set([...byHost.keys()].map(secondLevelHost));
-
-    const addPublication = (rawUrl: string | null | undefined, outlet?: string | null) => {
-      const found = publicationSource(rawUrl, outlet, siteHosts);
-      if (found && !pubsByHost.has(found.key)) pubsByHost.set(found.key, found.site);
-    };
-
-    // Публикации разбираем ВТОРЫМ проходом, когда сайты зданий и
-    // застройщиков уже собраны целиком: иначе ссылка на сайт здания из
-    // карточки другого БЦ успела бы попасть в «издания» до того, как этот
-    // сайт нашёлся в своей собственной строке. Сначала ВСЕ публикации в
-    // СМИ и только потом ссылки у фактов: у первых есть название издания
-    // («Архитектура и строительство»), у вторых — только домен, а
-    // показывается то, что попало в список первым.
-    for (const row of rows) {
-      for (const mention of row.media_mentions ?? []) addPublication(mention?.url, mention?.outlet);
-    }
-    for (const row of rows) {
-      for (const fact of row.building_facts ?? []) addPublication(fact?.sourceUrl);
-    }
-
-    const byLabel = (a: SourceSite, b: SourceSite) => a.label.localeCompare(b.label, 'ru');
-    return {
-      sites: [...byHost.values()].sort(byLabel),
-      publications: [...pubsByHost.values()].sort(byLabel),
-    };
+    return sourcesFromRows((data ?? []) as SourceSiteRow[]);
   });
+}
+
+// Один разбор на оба источника — файл сборки и ответ базы.
+function sourcesFromRows(rows: SourceSiteRow[]): CatalogSources {
+  const byHost = new Map<string, SourceSite>();
+  const pubsByHost = new Map<string, SourceSite>();
+
+  // Сайт, уже названный в постоянном списке (bir.by у Минск Мира, t-s.by
+  // у «Твоей столицы»), второй раз строкой без описания не показываем.
+  const addSite = (site: SourceSite | null) => {
+    if (!site) return;
+    if (STATIC_SOURCE_HOSTS.has(secondLevelHost(site.label))) return;
+    byHost.set(site.label, site);
+  };
+
+  for (const row of rows) {
+    const centerHref = businessCenterHomepageUrl(row.website);
+    if (centerHref) {
+      const host = new URL(centerHref).host.replace(/^www\./, '');
+      addSite({ href: centerHref, label: host });
+    }
+    addSite(normalizeDeveloperUrl(row.developer_info?.website ?? null));
+  }
+
+  // Домены второго уровня уже собранных сайтов зданий/застройщиков.
+  const siteHosts = new Set([...byHost.keys()].map(secondLevelHost));
+
+  const addPublication = (rawUrl: string | null | undefined, outlet?: string | null) => {
+    const found = publicationSource(rawUrl, outlet, siteHosts);
+    if (found && !pubsByHost.has(found.key)) pubsByHost.set(found.key, found.site);
+  };
+
+  // Публикации разбираем ВТОРЫМ проходом, когда сайты зданий и
+  // застройщиков уже собраны целиком: иначе ссылка на сайт здания из
+  // карточки другого БЦ успела бы попасть в «издания» до того, как этот
+  // сайт нашёлся в своей собственной строке. Сначала ВСЕ публикации в
+  // СМИ и только потом ссылки у фактов: у первых есть название издания
+  // («Архитектура и строительство»), у вторых — только домен, а
+  // показывается то, что попало в список первым.
+  for (const row of rows) {
+    for (const mention of row.media_mentions ?? []) addPublication(mention?.url, mention?.outlet);
+  }
+  for (const row of rows) {
+    for (const fact of row.building_facts ?? []) addPublication(fact?.sourceUrl);
+  }
+
+  const byLabel = (a: SourceSite, b: SourceSite) => a.label.localeCompare(b.label, 'ru');
+  return {
+    sites: [...byHost.values()].sort(byLabel),
+    publications: [...pubsByHost.values()].sort(byLabel),
+  };
 }

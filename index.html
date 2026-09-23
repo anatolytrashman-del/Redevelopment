@@ -16,8 +16,13 @@
       (function () {
         var path = location.pathname;
         if (path.indexOf('/minsk/bcminsk') !== 0) return;
+        // priority: 'low' — на медленном 4G эти JSON делили канал с
+        // LCP-фото карточки и отодвигали его на секунду (замер 2026-09-23:
+        // список 109 КБ стартовал первым, фото доезжало к 2,46 с). Данные
+        // нужны только к монтированию React, а оно и так ждёт отрисовку
+        // фото — уступить канал ничего не стоит.
         var get = function (url) {
-          return fetch(url)
+          return fetch(url, { priority: 'low' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .catch(function () { return null; });
         };

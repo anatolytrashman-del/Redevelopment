@@ -4,7 +4,7 @@ import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { BusinessCenter } from '../../data/businessCenters';
 import { shortName } from '../../lib/businessCenterDisplay';
-import { loadYmaps } from '../../lib/yandexMaps';
+import { labelYmapsCopyrightLink, loadYmaps } from '../../lib/yandexMaps';
 import type { CatalogOfferIndex } from '../../lib/businessCenterCatalogFilter';
 
 // Вид «карта» (К6 плана docs/bc-catalog-redesign-plan.md) — своя живая
@@ -96,6 +96,7 @@ export function CatalogMap({
           zoom: DEFAULT_ZOOM,
           controls: ['zoomControl', 'fullscreenControl'],
         });
+        labelYmapsCopyrightLink(containerRef.current);
         setStatus('ready');
       })
       .catch(() => {

@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
+import { loadBcAnalytics, loadBcExtra, loadBcMarket } from './buildData';
 import type {
   BusinessCenterOffer,
   BusinessCenterOfferRow,
@@ -23,7 +24,11 @@ function fromRow(row: BusinessCenterOfferRow): BusinessCenterOffer {
   };
 }
 
-export function fetchBusinessCenterOffers(slug: string): Promise<BusinessCenterOffer[]> {
+export async function fetchBusinessCenterOffers(slug: string): Promise<BusinessCenterOffer[]> {
+  // Файл .extra здания лежит в сборке в том же порядке (цена, затем id), что
+  // и выборка ниже; пустой массив в нём — «объявлений нет», а не «не знаю».
+  const fromBuild = (await loadBcExtra(slug))?.offers;
+  if (fromBuild) return (fromBuild as BusinessCenterOfferRow[]).map(fromRow);
   return withRetry(async () => {
     const rows: BusinessCenterOfferRow[] = [];
     const PAGE = 1000;
@@ -78,7 +83,9 @@ type OfferSliceRow = Pick<
   'business_center_slug' | 'source' | 'ad_id' | 'deal_type' | 'property_type' | 'size' | 'price_per_sqm'
 >;
 
-export function fetchBusinessCenterOfferSlices(): Promise<BusinessCenterOfferSlice[]> {
+export async function fetchBusinessCenterOfferSlices(): Promise<BusinessCenterOfferSlice[]> {
+  const fromBuild = (await loadBcAnalytics())?.offerSlices;
+  if (fromBuild) return (fromBuild as OfferSliceRow[]).map(sliceFromRow);
   return withRetry(async () => {
     const rows: OfferSliceRow[] = [];
     const PAGE = 1000;
@@ -92,16 +99,21 @@ export function fetchBusinessCenterOfferSlices(): Promise<BusinessCenterOfferSli
       rows.push(...(data as OfferSliceRow[]));
       if (data.length < PAGE) break;
     }
-    return rows.map((row) => ({
-      businessCenterSlug: row.business_center_slug,
-      source: row.source,
-      adId: row.ad_id,
-      dealType: row.deal_type as BusinessCenterOffer['dealType'],
-      propertyType: row.property_type,
-      size: row.size,
-      pricePerSqm: row.price_per_sqm,
-    }));
+    return rows.map(sliceFromRow);
   });
+}
+
+// Один маппер на оба источника — файл сборки и ответ базы.
+function sliceFromRow(row: OfferSliceRow): BusinessCenterOfferSlice {
+  return {
+    businessCenterSlug: row.business_center_slug,
+    source: row.source,
+    adId: row.ad_id,
+    dealType: row.deal_type as BusinessCenterOffer['dealType'],
+    propertyType: row.property_type,
+    size: row.size,
+    pricePerSqm: row.price_per_sqm,
+  };
 }
 
 // Только слаг и площадь каждого активного лота — для фильтра «нужно N м²»
@@ -110,7 +122,10 @@ export function fetchBusinessCenterOfferSlices(): Promise<BusinessCenterOfferSli
 // каталогу из них нужны два, и грузится он на каждый заход на страницу.
 // PostgREST отдаёт максимум 1000 строк — листаем .range(), иначе при росте
 // числа объявлений хвост пропадёт молча (см. CLAUDE.md).
-export function fetchBusinessCenterLotSizes(): Promise<{ businessCenterSlug: string; size: number }[]> {
+export async function fetchBusinessCenterLotSizes(): Promise<{ businessCenterSlug: string; size: number }[]> {
+  // Из файла сборки (src/lib/buildData.ts); в базу — только если его нет.
+  const fromBuild = (await loadBcMarket())?.lotSizes;
+  if (fromBuild) return fromBuild.map((r) => ({ businessCenterSlug: r.business_center_slug, size: r.size }));
   return withRetry(async () => {
     const rows: { business_center_slug: string; size: number }[] = [];
     const PAGE = 1000;
