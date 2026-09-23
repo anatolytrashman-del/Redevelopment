@@ -349,7 +349,7 @@ export function BusinessCenterDetailPage() {
     // вёрстки, от которого стартовое состояние выше и защищает.
     const fromBuild = peekBusinessCenterOffers(slug);
     setOffersResult(fromBuild ? { slug, offers: fromBuild, error: false } : null);
-    fetchBusinessCenterOffers(slug)
+    fetchBusinessCenterOffers(slug, V.kind)
       .then((data) => {
         if (!cancelled) setOffersResult({ slug, offers: data, error: false });
       })
@@ -357,7 +357,7 @@ export function BusinessCenterDetailPage() {
         if (!cancelled) setOffersResult({ slug, offers: null, error: true });
       });
     return () => { cancelled = true; };
-  }, [slug]);
+  }, [slug, V.kind]);
 
   // Сравнение со средней по классу/району (ANALYTICSPLAN.md §4.2) — тот же
   // сегмент 'ofisy_bc', что и на каталоге/хабах. Грузится один раз, не по

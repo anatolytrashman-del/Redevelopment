@@ -226,7 +226,7 @@ const SLICE_COLUMNS = 'business_center_slug,source,ad_id,deal_type,property_type
 
 async function writeExtras() {
   const generatedAt = new Date().toISOString();
-  const [market, external, lotSizes, offerSlices, tenantCity, sources, offers, reviews, nearby, gis2, tenants] =
+  const [market, external, lotSizes, offerSlices, tenantCity, sources, bcOffers, tcOffers, reviews, nearby, gis2, tenants] =
     await Promise.all([
       dataset('market_ofisy_bc', latestMarketSnapshots),
       dataset('external_ofisy_bc', () => supabaseSelect('external_metrics?select=*&segment=eq.ofisy_bc', 'external_metrics')),
@@ -239,6 +239,10 @@ async function writeExtras() {
         supabaseSelect('business_centers?select=website,developer_info,media_mentions,building_facts&kind=eq.bc&limit=1000', 'источники'),
       ),
       dataset('offers', () => selectAll('business_center_offers?select=*&order=price_per_sqm.asc,id.asc', 'объявления')),
+      // Объявления торговых центров — своя таблица (2026-09-23), нужны только
+      // карточкам ТЦ. Необязательный набор: нет доступа и нет в запасном
+      // снимке — карточки ТЦ просто без объявлений, сборка не падает.
+      dataset('tc_offers', () => selectAll('trade_center_offers?select=*&order=price_per_sqm.asc,id.asc', 'объявления ТЦ')).catch(() => []),
       dataset('reviews', () => selectAll('business_center_review_snapshots?select=*&order=id.asc', 'отзывы')),
       dataset('nearby', () => selectAll('business_center_nearby_places?select=*&order=distance_meters.asc,id.asc', 'окружение')),
       dataset('gis2', () => supabaseSelect(`business_center_2gis_snapshots?select=${GIS2_COLUMNS}`, '2ГИС')),
@@ -246,6 +250,9 @@ async function writeExtras() {
         supabaseSelect(`business_center_tenant_source_snapshots?select=${TENANT_COLUMNS}&source=eq.yandex_maps`, 'арендаторы'),
       ),
     ]);
+  // Здания БЦ и ТЦ не пересекаются, поэтому порядок внутри каждого здания
+  // (цена, затем id) сохраняется и после склейки.
+  const offers = [...bcOffers, ...tcOffers];
 
   // Городские срезы (размеры лотов для каталога, срезы для аналитики) — только
   // объявления в бизнес-центрах: в business_center_offers лежат и объявления

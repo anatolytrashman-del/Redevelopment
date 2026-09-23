@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import type { CatalogKind } from './catalogKind';
 import { withRetry } from './withRetry';
 import { loadBcAnalytics, loadBcExtra, loadBcMarket, peekBcExtra, peekBcMarket } from './buildData';
 import type {
@@ -32,7 +33,11 @@ function fromRow(row: BusinessCenterOfferRow): BusinessCenterOffer {
 // Карточка одного здания (fetchBusinessCenterOffers) фильтра не требует.
 const BC_ONLY_EMBED = 'business_centers!inner(kind)';
 
-export async function fetchBusinessCenterOffers(slug: string): Promise<BusinessCenterOffer[]> {
+// Объявления торговых центров лежат в своей таблице (2026-09-23): для
+// посетителей БЦ и ТЦ — разные разделы, городские срезы БЦ их не видят.
+const OFFERS_TABLE = { bc: 'business_center_offers', tc: 'trade_center_offers' } as const;
+
+export async function fetchBusinessCenterOffers(slug: string, kind: CatalogKind = 'bc'): Promise<BusinessCenterOffer[]> {
   // Файл .extra здания лежит в сборке в том же порядке (цена, затем id), что
   // и выборка ниже; пустой массив в нём — «объявлений нет», а не «не знаю».
   const fromBuild = (await loadBcExtra(slug))?.offers;
@@ -42,7 +47,7 @@ export async function fetchBusinessCenterOffers(slug: string): Promise<BusinessC
     const PAGE = 1000;
     for (let from = 0; ; from += PAGE) {
       const { data, error } = await supabase
-        .from('business_center_offers')
+        .from(OFFERS_TABLE[kind])
         .select('*')
         .eq('business_center_slug', slug)
         .order('price_per_sqm', { ascending: true })

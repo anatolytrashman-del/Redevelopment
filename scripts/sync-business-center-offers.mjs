@@ -46,9 +46,9 @@ const LIMIT = limitArg ? Number(limitArg.split('=')[1]) : null;
 
 // Какой каталог собираем: 'bc' — бизнес-центры (по умолчанию, так его и
 // зовёт GitHub Action), 'tc' — торговые центры (2026-09-23, каталог /minsk/tc).
-// Обе группы лежат в business_centers (колонка kind) и пишут объявления в
-// одну business_center_offers, поэтому запуск одного каталога НЕ должен
-// трогать строки другого — см. удаление в конце main(). Принимается и
+// Обе группы лежат в business_centers (колонка kind); объявления БЦ пишутся
+// в business_center_offers, ТЦ — в trade_center_offers. Удаление в конце
+// main() всё равно ограничено зданиями текущего прогона. Принимается и
 // `--kind tc`, и `--kind=tc`.
 const kindArgIndex = process.argv.findIndex((a) => a === '--kind' || a.startsWith('--kind='));
 const KIND =
@@ -61,6 +61,9 @@ if (KIND !== 'bc' && KIND !== 'tc') {
   console.error(`--kind: ожидается bc или tc, получено «${KIND}»`);
   process.exit(1);
 }
+// Объявления ТЦ — в своей таблице (2026-09-23): для посетителей БЦ и ТЦ —
+// разные разделы, городские срезы БЦ не должны их видеть даже без фильтров.
+const OFFERS_TABLE = KIND === 'tc' ? 'trade_center_offers' : 'business_center_offers';
 
 if (!SUPABASE_SERVICE_ROLE_KEY && !DRY_RUN) {
   console.error('Не задана переменная окружения SUPABASE_SERVICE_ROLE_KEY (или запусти с --dry-run)');
@@ -715,7 +718,7 @@ async function main() {
   // перезаписи, поэтому проще снести старое и записать свежее одним upsert
   // + удалением того, что в этот раз не нашлось).
   const { error: upsertError } = await supabase
-    .from('business_center_offers')
+    .from(OFFERS_TABLE)
     .upsert(payload, { onConflict: 'business_center_slug,source,ad_id' });
   if (upsertError) throw upsertError;
 
@@ -730,7 +733,7 @@ async function main() {
         .filter((o) => o.source === source && o.business_center_slug === center.slug)
         .map((o) => o.ad_id);
       const { error: deleteError } = await supabase
-        .from('business_center_offers')
+        .from(OFFERS_TABLE)
         .delete()
         .eq('source', source)
         .eq('business_center_slug', center.slug)
@@ -739,7 +742,7 @@ async function main() {
     }
   }
 
-  console.log(`Сохранено ${payload.length} объявлений в business_center_offers.`);
+  console.log(`Сохранено ${payload.length} объявлений в ${OFFERS_TABLE}.`);
 }
 
 main().catch((err) => {

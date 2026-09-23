@@ -57,6 +57,8 @@ const DATASETS = {
   // Карточка БЦ: по зданию, группируется по слагу в generate-catalog-data.
   // businessCenterOffersApi.fetchBusinessCenterOffers — сортировка та же.
   offers: `select * from business_center_offers order by price_per_sqm asc, id asc`,
+  // Объявления торговых центров — отдельная таблица, для карточек ТЦ.
+  tc_offers: `select * from trade_center_offers order by price_per_sqm asc, id asc`,
   // businessCenterReviewsApi.fetchBusinessCenterReviews (сортирует в JS).
   reviews: `select * from business_center_review_snapshots`,
   // businessCenterNearbyPlacesApi.fetchBusinessCenterNearbyPlaces.
