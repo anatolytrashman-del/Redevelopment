@@ -139,7 +139,9 @@ export function BusinessCentersAnalyticsPage() {
   const [tenants, setTenants] = useState<TenantCitySlice | null>(null);
 
   useEffect(() => {
-    fetchBusinessCenters().then(setCenters).catch(() => setCenters([]));
+    fetchBusinessCenters().then(setCenters)// Ошибка базы не стирает уже показанный список (снимок сборки): пустой
+      // каталог на месте готового — хуже, чем данные часовой давности.
+      .catch(() => setCenters((prev) => prev ?? []));
     fetchLatestMarketSnapshots('ofisy_bc').then(setSnapshots).catch(() => setSnapshots([]));
     fetchBusinessCenterOfferSlices().then(setOffers).catch(() => setOffers([]));
     fetchExternalMetrics('ofisy_bc').then(setExternalMetrics).catch(() => setExternalMetrics([]));

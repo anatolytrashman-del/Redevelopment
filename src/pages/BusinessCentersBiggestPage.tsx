@@ -39,7 +39,9 @@ export function BusinessCentersBiggestPage() {
   useEffect(() => {
     fetchBusinessCenters()
       .then(setCenters)
-      .catch(() => setCenters([]));
+      // Ошибка базы не стирает уже показанный список (снимок сборки): пустой
+      // каталог на месте готового — хуже, чем данные часовой давности.
+      .catch(() => setCenters((prev) => prev ?? []));
     fetchLatestMarketSnapshots('ofisy_bc')
       .then(setSnapshots)
       .catch(() => setSnapshots([]));

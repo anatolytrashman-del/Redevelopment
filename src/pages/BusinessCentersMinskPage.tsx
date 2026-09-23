@@ -384,7 +384,9 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   useEffect(() => {
     fetchBusinessCenters()
       .then(setCenters)
-      .catch(() => setCenters([]));
+      // Ошибка базы не стирает уже показанный список (снимок сборки): пустой
+      // каталог на месте готового — хуже, чем данные часовой давности.
+      .catch(() => setCenters((prev) => prev ?? []));
     // ANALYTICSPLAN.md §4.2 — сводка ставок на фильтровых страницах, из
     // уже собранного сегмента 'ofisy_bc' (market_snapshots). Дёшево (~20
     // строк за один запрос) — грузим всегда, не только на хаб-страницах
