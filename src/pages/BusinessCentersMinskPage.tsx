@@ -33,6 +33,7 @@ import {
 } from '../lib/pageMeta';
 import {
   businessCenterPhotoSrc,
+  businessCenterDetailPhotoSrcSet,
   formatMetroDistance,
   shortAddress,
   shortName,
@@ -120,6 +121,15 @@ const INTRO_TEXT =
 const HERO_IMAGES: string[] = ['/images/business-centers-hero/futuris-1600.jpg'];
 const HERO_IMAGE_WIDTH = 1600;
 const HERO_IMAGE_HEIGHT = 1067;
+// Уменьшенные webp-копии того же снимка (sharp, q74, 2026-09-23): телефону
+// хватает 480–720 px, а оригинал — 155 КБ JPEG.
+const HERO_SRCSETS: string[] = [
+  '/images/business-centers-hero/futuris-1600-w480.webp 480w, /images/business-centers-hero/futuris-1600-w720.webp 720w, /images/business-centers-hero/futuris-1600-w1200.webp 1200w, /images/business-centers-hero/futuris-1600.jpg 1600w',
+];
+// Ширина рамки hero, снятая с живой страницы: до 640 px — вьюпорт минус 82
+// (412 → 330 px), шире — портретная рамка 194–271×243–339 с object-cover,
+// которой по высоте нужна картинка шириной ~510–600 px, а не 271.
+const HERO_IMAGE_SIZES = '(min-width: 640px) 600px, calc(100vw - 82px)';
 
 // Этап 1 (владелец, 2026-09-22): на хаб-странице подборки (метро/район/
 // класс/микрорайон/улица/стройка) hero-фото — снимок ЛУЧШЕГО БЦ этой
@@ -1134,6 +1144,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           : INTRO_TEXT;
 
   const heroImages = heroCenter ? [businessCenterPhotoSrc(heroCenter.photos[0], 'detail')] : HERO_IMAGES;
+  const heroSrcSets = heroCenter ? [businessCenterDetailPhotoSrcSet(heroCenter.photos[0])] : HERO_SRCSETS;
   const heroImageWidth = heroCenter ? 1200 : HERO_IMAGE_WIDTH;
   const heroImageHeight = heroCenter ? 675 : HERO_IMAGE_HEIGHT;
   const heroImageAlt = heroCenter ? heroCenter.name : 'Бизнес-центры Минска';
@@ -1246,6 +1257,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                       aspectClassName="h-full"
                       imageWidth={heroImageWidth}
                       imageHeight={heroImageHeight}
+                      srcSets={heroSrcSets}
+                      sizes={HERO_IMAGE_SIZES}
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center rounded-3xl bg-gradient-to-br from-surface-muted to-border">
