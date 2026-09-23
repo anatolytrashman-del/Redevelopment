@@ -4,7 +4,7 @@ import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { BusinessCenter } from '../../data/businessCenters';
 import { shortName } from '../../lib/businessCenterDisplay';
-import { loadYmaps } from '../../lib/yandexMaps';
+import { labelYmapsCopyrightLink, loadYmaps } from '../../lib/yandexMaps';
 import { useInView } from '../../lib/useInView';
 import { formatMeters, groupNearbyPlaces, hasNearbyContent } from '../../lib/nearbyPlaces';
 import { nearbyPinDataUri, NEARBY_PIN_SIZE } from '../../lib/nearbyPinIcons';
@@ -79,6 +79,7 @@ function NeighboursMap({ center, points }: { center: BusinessCenter; points: Map
           zoom: DEFAULT_ZOOM,
           controls: ['zoomControl', 'fullscreenControl'],
         });
+        labelYmapsCopyrightLink(containerRef.current);
         map.geoObjects.add(
           new ymaps.Placemark(
             [center.lat as number, center.lng as number],

@@ -43,29 +43,63 @@ const WIDTHS = [320, 384, 512];
 const QUALITY = 74;
 
 const force = process.argv.includes('--force');
-const cards = readdirSync(DIR).filter((f) => f.endsWith('-card.webp'));
-let made = 0;
-let skipped = 0;
-let bytesBefore = 0;
-let bytesAfter = 0;
 
-for (const file of cards) {
-  const src = join(DIR, file);
-  bytesBefore += statSync(src).size;
-  for (const width of WIDTHS) {
-    const out = join(DIR, file.replace('-card.webp', `-card-${width}.webp`));
-    if (existsSync(out) && !force) {
-      skipped += 1;
-      bytesAfter += statSync(out).size;
-      continue;
+// Главное фото карточки БЦ (вариант 'detail', <slug>.webp, 1200×1200, в
+// среднем 191 КБ) — LCP-элемент страницы здания. Замер 2026-09-23: у
+// эмулятора PageSpeed (412 CSS-px, DPR 1,75) фото занимает 378 px — нужно
+// 662; на десктопе 437–476 CSS-px при DPR 1. Файл 1200 там избыточен в
+// 1,8–2,7 раза, а на медленном 4G его 152 КБ и были основной частью LCP.
+// Телефонам с DPR 3 нужен почти весь оригинал (~1000 px) — он и остаётся
+// крупнейшим кандидатом srcset. Имена -w<ширина>, чтобы не спутать с
+// карточными -card-<ширина>.
+const DETAIL_WIDTHS = [480, 720];
+
+async function makeVariants(files, widthsFor, nameFor, resizeFor) {
+  let made = 0;
+  let skipped = 0;
+  let before = 0;
+  let after = 0;
+  for (const file of files) {
+    const src = join(DIR, file);
+    before += statSync(src).size;
+    for (const width of widthsFor) {
+      const out = join(DIR, nameFor(file, width));
+      if (existsSync(out) && !force) {
+        skipped += 1;
+        after += statSync(out).size;
+        continue;
+      }
+      await resizeFor(sharp(src), width).webp({ quality: QUALITY, effort: 6 }).toFile(out);
+      after += statSync(out).size;
+      made += 1;
     }
-    await sharp(src).resize(width, width, { fit: 'cover' }).webp({ quality: QUALITY, effort: 6 }).toFile(out);
-    bytesAfter += statSync(out).size;
-    made += 1;
   }
+  return { made, skipped, before, after };
 }
 
+const mb = (n) => (n / 1024 / 1024).toFixed(1);
+
+const cards = readdirSync(DIR).filter((f) => f.endsWith('-card.webp'));
+const c = await makeVariants(
+  cards,
+  WIDTHS,
+  (file, w) => file.replace('-card.webp', `-card-${w}.webp`),
+  (img, w) => img.resize(w, w, { fit: 'cover' }),
+);
 console.log(
-  `[card-variants] фото: ${cards.length}, создано копий: ${made}, пропущено: ${skipped}\n` +
-    `[card-variants] оригиналы ${(bytesBefore / 1024 / 1024).toFixed(1)} МБ, копии ${(bytesAfter / 1024 / 1024).toFixed(1)} МБ`,
+  `[card-variants] карточки: ${cards.length} фото, создано ${c.made}, пропущено ${c.skipped}; ` +
+    `оригиналы ${mb(c.before)} МБ, копии ${mb(c.after)} МБ`,
+);
+
+// Исходник detail — <slug>.webp без суффиксов (-card, -card-N, -wN).
+const details = readdirSync(DIR).filter((f) => /^[a-z0-9-]+\.webp$/.test(f) && !/-card(-\d+)?\.webp$/.test(f) && !/-w\d+\.webp$/.test(f));
+const d = await makeVariants(
+  details,
+  DETAIL_WIDTHS,
+  (file, w) => file.replace(/\.webp$/, `-w${w}.webp`),
+  (img, w) => img.resize({ width: w }),
+);
+console.log(
+  `[card-variants] главные фото: ${details.length} фото, создано ${d.made}, пропущено ${d.skipped}; ` +
+    `оригиналы ${mb(d.before)} МБ, копии ${mb(d.after)} МБ`,
 );

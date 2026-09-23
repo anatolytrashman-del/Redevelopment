@@ -3,7 +3,9 @@ import { Camera, HardHat } from 'lucide-react';
 import type { BusinessCenter } from '../../data/businessCenters';
 import {
   BC_CARD_PHOTO_SIZES,
+  BC_DETAIL_PHOTO_SIZES,
   businessCenterCardPhotoSrcSet,
+  businessCenterDetailPhotoSrcSet,
   businessCenterPhotoSrc,
 } from '../../lib/businessCenterDisplay';
 
@@ -41,15 +43,16 @@ const CURATED_BUSINESS_CENTER_PHOTOS: Record<string, CuratedBusinessCenterPhoto>
 
 // sizes — сколько CSS-пикселей фото занимает на экране, по нему браузер
 // выбирает кандидата из srcset. По умолчанию — сетка каталога
-// (BC_CARD_PHOTO_SIZES); место показа с другой шириной (строка рейтинга,
-// «похожие» на карточке) обязано передать свою, иначе браузер верит
-// каталожным 45vw и на телефоне с DPR 3 тянет 512-й файл под миниатюру в
-// 118 px — вдвое тяжелее нужного.
+// (BC_CARD_PHOTO_SIZES) для 'card' и колонка главного фото карточки
+// (BC_DETAIL_PHOTO_SIZES) для 'detail'; место показа с другой шириной
+// (строка рейтинга, «похожие» на карточке) обязано передать свою, иначе
+// браузер верит каталожным 45vw и на телефоне с DPR 3 тянет 512-й файл под
+// миниатюру в 118 px — вдвое тяжелее нужного.
 export function PhotoBlock({
   center,
   variant,
   fit = 'cover',
-  sizes = BC_CARD_PHOTO_SIZES,
+  sizes,
 }: {
   center: BusinessCenter;
   variant: 'card' | 'detail';
@@ -62,9 +65,12 @@ export function PhotoBlock({
     ? {
         src: businessCenterPhotoSrc(center.photos[0], variant),
         alt: center.name,
-        // Уменьшенные копии есть только у карточного варианта наших
-        // закоммиченных фото (см. businessCenterCardPhotoSrcSet).
-        srcSet: detail ? undefined : businessCenterCardPhotoSrcSet(center.photos[0]),
+        // Уменьшенные копии есть у обоих вариантов наших закоммиченных фото
+        // (businessCenterCardPhotoSrcSet / businessCenterDetailPhotoSrcSet);
+        // у путей из Supabase Storage их нет — там srcset не ставится.
+        srcSet: detail
+          ? businessCenterDetailPhotoSrcSet(center.photos[0])
+          : businessCenterCardPhotoSrcSet(center.photos[0]),
       }
     : null;
   const photo = curatedPhoto ?? fallbackPhoto;
@@ -74,7 +80,7 @@ export function PhotoBlock({
       <img
         src={photo.src}
         srcSet={photo.srcSet}
-        sizes={photo.srcSet ? sizes : undefined}
+        sizes={photo.srcSet ? (sizes ?? (detail ? BC_DETAIL_PHOTO_SIZES : BC_CARD_PHOTO_SIZES)) : undefined}
         alt={photo.alt}
         className={`h-full w-full ${fit === 'contain' ? 'object-contain' : 'object-cover'}`}
         loading={detail ? 'eager' : 'lazy'}

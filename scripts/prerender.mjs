@@ -777,7 +777,13 @@ async function serveSupabaseRestFromCache(route) {
 // ALWAYS_FULL_RENDER_PATHS; не скопировалось — путь остаётся SPA-шеллом, а
 // сборка не падает (прошлая разметка лучше красного деплоя, из-за которого
 // не доезжают и исправления). PRERENDER_OUTAGE=1 — включить руками.
-const SUPABASE_OUTAGE_REASON = 'Supabase закрыт (402) — только копии с прода';
+// Страницы раздела БЦ — у них все данные в файлах сборки, поэтому в аварии
+// их можно рендерить честно (см. processPathFast).
+function isBusinessCenterSectionPath(path) {
+  return path === 'minsk/bcminsk' || path.startsWith('minsk/bcminsk/');
+}
+
+const SUPABASE_OUTAGE_REASON = 'Supabase закрыт (402) — раздел БЦ рендерится из файлов сборки, остальное копируется с прода';
 
 async function decidePrerenderMode() {
   if (process.env.PRERENDER_OUTAGE === '1') return { full: false, scope: 'all', reason: 'PRERENDER_OUTAGE=1', outage: true };
@@ -1208,8 +1214,25 @@ async function main() {
   const copiedFromProd = [];
   const rerenderReasons = new Map(); // причина → сколько путей
   let alwaysFullCount = 0;
+  // Раздел БЦ, отрендеренный честно в аварии, — запланированный рендер, а не
+  // «непригодная копия»: иначе итоговая строка ниже, по которой ищут поломку
+  // быстрого пути (в норме там 0), показывала бы 266 тревожных рендеров.
+  let outageSectionCount = 0;
 
   async function processPathFast(path, workerId) {
+    // Раздел БЦ в аварии рендерим ЧЕСТНО, а не копируем (2026-09-23): его
+    // страницы берут все данные из файлов сборки (/data/*.json, см.
+    // scripts/generate-catalog-data.mjs и src/lib/buildData.ts) и в
+    // Supabase не ходят вовсе — закрытая база им не мешает, а локальный
+    // сервер пререндера отдаёт эти файлы из dist. Копия с прода тут хуже:
+    // правки разметки раздела (srcset главного фото, роли для доступности)
+    // до статического HTML не доезжали бы, пока база закрыта. Остальной сайт
+    // по-прежнему только копируется — ему данные без базы взять неоткуда.
+    if (outage && isBusinessCenterSectionPath(path)) {
+      outageSectionCount++;
+      await renderPath(path, workerId);
+      return;
+    }
     // ALWAYS_FULL_RENDER_PATHS — см. комментарий у самой константы: эти
     // несколько страниц правятся кодом достаточно часто, чтобы не
     // полагаться на "скачать текущую (возможно ещё старую) живую копию".
@@ -1269,11 +1292,12 @@ async function main() {
   // путь (как 2026-09-11 и дважды 2026-09-12), и причины напечатаны ниже.
   if (copiesAllowed()) {
     const rerendered = paths.length - copiedFromProd.length;
-    const planned = fullMode ? partialCount : alwaysFullCount; // сколько рендеров было запланировано, а не вынуждено
+    const planned = fullMode ? partialCount : alwaysFullCount + outageSectionCount; // сколько рендеров было запланировано, а не вынуждено
     console.log(
       `[prerender] ИТОГ ${fullMode ? 'частичного' : 'быстрого'} режима: путей ${paths.length}, скопировано с прода ${copiedFromProd.length}, ` +
         `отрендерено браузером ${rerendered} (запланировано: ${planned}, ` +
-        `из-за непригодной копии: ${Math.max(0, rerendered - planned)})`,
+        `из-за непригодной копии: ${Math.max(0, rerendered - planned)})` +
+        (outageSectionCount ? `; раздел БЦ отрендерен из файлов сборки, пока Supabase закрыт: ${outageSectionCount}` : ''),
     );
     if (rerenderReasons.size > 0) {
       const top = [...rerenderReasons.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);

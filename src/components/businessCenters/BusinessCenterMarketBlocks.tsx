@@ -254,7 +254,11 @@ function pluralCorpus(n: number): string {
 
 function ReviewStars({ stars }: { stars: number }) {
   return (
-    <span className="flex shrink-0 items-center gap-0.5" aria-label={`${stars} из 5 звёзд`}>
+    // role="img": aria-label на span без роли — запрещённое использование
+    // атрибута (аудит «Специальные возможности» и дерево доступности в
+    // «Агентном просмотре» PageSpeed, 2026-09-23). С ролью пять иконок
+    // читаются как одна картинка с подписью «4 из 5 звёзд».
+    <span role="img" className="flex shrink-0 items-center gap-0.5" aria-label={`${stars} из 5 звёзд`}>
       {Array.from({ length: 5 }).map((_, i) => (
         <Star key={i} className={cn('h-3 w-3', i < stars ? 'fill-primary text-primary' : 'text-border-strong')} />
       ))}

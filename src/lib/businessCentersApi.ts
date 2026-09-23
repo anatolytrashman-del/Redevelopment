@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
+import { loadBuildData } from './buildData';
 import { triggerPublicRebuild } from './publicRebuild';
 import type {
   BusinessCenter,
@@ -154,36 +155,27 @@ interface BuildSnapshotWindow {
   __bcDetail?: { slug: string; data: Promise<{ generatedAt: string; row: BusinessCenterRow } | null> };
 }
 
-// Пока снимок свежий, запрос в Supabase со страницы не уходит вовсе: файл —
-// ровесник пререндер-снапшота, то есть показывает ровно то же, что видит
-// поисковик в разметке. Час — период пересборки публичных страниц
-// (pg_cron, см. CLAUDE.md). Снимок старше — значит сборки давно не было, и
-// свежесть важнее лишних килобайт: идём в базу, как раньше.
-const SNAPSHOT_MAX_AGE_MS = 60 * 60 * 1000;
-
-// Снимок хранит время своей сборки, а не готовый флаг «свежий»: свежесть
-// проверяется при КАЖДОМ обращении. Флаг, посчитанный один раз при
-// монтировании, в долго открытой вкладке не протухал бы никогда — спустя
-// сутки SPA-переходов по хабам страницы всё ещё отдавали бы утренний снимок,
-// так и не заглянув в базу.
+// Снимок сборки — ОСНОВНОЙ источник зданий для публичных страниц, а не
+// «пока свежий» (до 2026-09-23 здесь стоял порог в час, после которого
+// страница шла в базу). Владелец, 23.09, когда Supabase закрыл проект за
+// трафик: «на эти дни схема без привлечения Supabase, сама инфа про БЦ меня
+// устраивает». Файл — ровесник пререндер-снапшота (пересборка раз в час),
+// то есть ровно то, что и так видит поисковик в разметке; ходить за теми
+// же рядами в базу каждым посетителем — это тот самый трафик. База —
+// только если снимка нет вовсе. Общий принцип — в src/lib/buildData.ts.
 let snapshotList: { generatedAt: string; centers: BusinessCenter[] } | null = null;
+// Разбор списка, начатого инлайн-скриптом, который ещё не закончился: на
+// карточке монтирование его не ждёт (см. primeBusinessCentersFromBuild), и
+// fetchBusinessCenters дожидается ЭТОГО промиса, а не качает файл второй раз.
+let listPending: Promise<void> | null = null;
 let snapshotDetail: { generatedAt: string; slug: string; center: BusinessCenter } | null = null;
 
-// Для первого рендера снимок годится любой давности — это те же данные, что
-// уже стоят в пререндер-разметке; свежесть решает только, идти ли в базу
-// (см. fetchBusinessCenters/fetchBusinessCenter).
 export function snapshotBusinessCenters(): BusinessCenter[] | null {
   return snapshotList?.centers ?? null;
 }
 
 export function snapshotBusinessCenter(slug: string): BusinessCenter | null {
   return snapshotDetail && snapshotDetail.slug === slug ? snapshotDetail.center : null;
-}
-
-function isFresh(generatedAt: string | undefined): boolean {
-  if (!generatedAt) return false;
-  const age = Date.now() - new Date(generatedAt).getTime();
-  return Number.isFinite(age) && age >= 0 && age < SNAPSHOT_MAX_AGE_MS;
 }
 
 // Ждём ровно столько, сколько не жалко: не пришло — страница работает как
@@ -217,14 +209,36 @@ export async function primeBusinessCentersFromBuild(timeoutMs = 2500): Promise<v
       }
     })
     .catch(() => undefined);
+  listPending = list;
+  // Карточке для первого экрана нужен только файл своего здания: список —
+  // это соседи, «предыдущий/следующий» и сравнения ниже первого экрана.
+  // Ждать его перед монтированием значило бы держать 109 КБ на критическом
+  // пути (замер 2026-09-23: на медленном 4G список доезжал к 2 с). Каталогу
+  // и хабам список нужен сразу — там ждём оба.
+  const critical = w.__bcDetail ? detail : Promise.all([list, detail]);
   const timeout = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
-  await Promise.race([Promise.all([list, detail]), timeout]);
+  await Promise.race([critical, timeout]);
 }
 
-export function fetchBusinessCenters(): Promise<BusinessCenter[]> {
-  // Свежий снимок из сборки — это те же колонки и тот же порядок, что
-  // вернула бы выборка ниже; идти в базу за тем же самым незачем.
-  if (snapshotList && isFresh(snapshotList.generatedAt)) return Promise.resolve(snapshotList.centers);
+export async function fetchBusinessCenters(): Promise<BusinessCenter[]> {
+  // 1) Снимок, разобранный до монтирования (страницы раздела) — те же
+  //    колонки и тот же порядок, что вернула бы выборка ниже.
+  if (snapshotList) return snapshotList.centers;
+  if (listPending) {
+    await listPending;
+    // Через геттер: после await TypeScript всё ещё считает snapshotList null
+    // по проверке выше, хотя промис его уже заполнил.
+    const arrived = snapshotBusinessCenters();
+    if (arrived) return arrived;
+  }
+  // 2) Тот же файл с CDN — для страниц вне раздела, где инлайн-скрипт его не
+  //    начинал качать («Избранное», аналитика офисов).
+  const file = await loadBuildData<{ generatedAt: string; rows: BusinessCenterRow[] }>('business-centers.json');
+  if (file && Array.isArray(file.rows)) {
+    snapshotList = { generatedAt: file.generatedAt, centers: file.rows.map(fromRow) };
+    return snapshotList.centers;
+  }
+  // 3) База — только если снимка нет вовсе.
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('business_centers')
@@ -250,10 +264,12 @@ function fallbackToSnapshot<T>(snapshot: T | undefined, err: unknown): T {
 // параметры, и арендаторы, и упоминания в СМИ, которых в списке нет.
 // Один ряд — это десятки килобайт вместо мегабайта, и первый экран карточки
 // больше не ждёт всю таблицу.
-export function fetchBusinessCenter(slug: string): Promise<BusinessCenter | null> {
-  if (snapshotDetail?.slug === slug && isFresh(snapshotDetail.generatedAt)) {
-    return Promise.resolve(snapshotDetail.center);
-  }
+export async function fetchBusinessCenter(slug: string): Promise<BusinessCenter | null> {
+  // Тот же порядок источников, что у списка: снимок в памяти → файл
+  // здания с CDN (переход «предыдущий/следующий» на другое здание) → база.
+  if (snapshotDetail?.slug === slug) return snapshotDetail.center;
+  const file = await loadBuildData<{ generatedAt: string; row: BusinessCenterRow }>(`bc/${encodeURIComponent(slug)}.json`);
+  if (file?.row && file.row.slug === slug) return fromRow(file.row);
   return withRetry(async () => {
     const { data, error } = await supabase.from('business_centers').select('*').eq('slug', slug).maybeSingle();
     if (error) throw error;

@@ -287,6 +287,28 @@ export const BC_CARD_PHOTO_WIDTHS = [320, 384, 512] as const;
 // уже упёрся в свою максимальную ширину.
 export const BC_CARD_PHOTO_SIZES = '(min-width: 1280px) 300px, (min-width: 1024px) 20vw, 45vw';
 
+// Копии главного фото карточки (вариант 'detail') — те же
+// scripts/generate-card-image-variants.mjs, имена <slug>-w<ширина>.webp.
+// Оригинал 1200 остаётся крупнейшим кандидатом: телефону с DPR 3 он и
+// нужен (~1000 px), а экономия — на всех остальных. Замеры ширины показа
+// — в комментарии у DETAIL_WIDTHS в скрипте.
+export const BC_DETAIL_PHOTO_WIDTHS = [480, 720] as const;
+
+// sizes главного фото карточки сняты с живой страницы: телефоны 360/390/412
+// → 326/356/378 CSS-px (то есть вьюпорт минус 34), планшет 768 → 702,
+// десктоп от 1024 — 437–476 px (колонка сетки).
+export const BC_DETAIL_PHOTO_SIZES = '(min-width: 1024px) 480px, (min-width: 768px) calc(100vw - 66px), calc(100vw - 34px)';
+
+export function businessCenterDetailPhotoSrcSet(path: string): string | undefined {
+  const m = path.match(LOCAL_BC_PHOTO_RE);
+  if (!m) return undefined;
+  const base = `/images/business-centers/${m[1]}`;
+  return [
+    ...BC_DETAIL_PHOTO_WIDTHS.map((w) => `${base}-w${w}.webp?v=${BC_PHOTO_VERSION} ${w}w`),
+    `${base}.webp?v=${BC_PHOTO_VERSION} 1200w`,
+  ].join(', ');
+}
+
 // srcset только для наших закоммиченных фото: у путей из Supabase Storage
 // уменьшенных копий нет, и подсовывать несуществующие адреса нельзя.
 export function businessCenterCardPhotoSrcSet(path: string): string | undefined {

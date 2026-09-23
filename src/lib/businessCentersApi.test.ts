@@ -5,8 +5,10 @@ import type { BusinessCenterRow } from '../data/businessCenters';
 // Данные раздела БЦ из сборки (Ш3-b плана docs/bc-catalog-seo-plan.md):
 // инлайн-скрипт index.html кладёт промисы в window, businessCentersApi
 // разбирает их до монтирования. Здесь проверяется то, что собирается и
-// падает тихо: снимок обязан протухать по часам, а не по флагу, а
-// неудавшийся файл здания — не «здания нет», а «спроси базу».
+// падает тихо: снимок сборки — основной источник для публичных страниц
+// любой давности (2026-09-23, схема «без Supabase»), неудавшийся файл
+// здания — не «здания нет», а «спроси базу», а админка файлов сборки не
+// читает никогда.
 
 // Supabase в этих тестах — заглушка со счётчиком: важно не что вернула
 // база, а ходили ли в неё вообще.
@@ -66,26 +68,41 @@ describe('снимок из сборки', () => {
     expect(from).not.toHaveBeenCalled();
   });
 
-  it('свежесть считается при каждом обращении: в долгой вкладке снимок протухает', async () => {
-    win().__bcList = Promise.resolve({ generatedAt: NOW.toISOString(), rows: [row('a')] });
-    const api = await loadApi();
-    await api.primeBusinessCentersFromBuild();
-    dbRows([row('db')]);
-    expect((await api.fetchBusinessCenters()).map((c) => c.slug)).toEqual(['a']);
-    vi.setSystemTime(new Date(NOW.getTime() + 61 * 60 * 1000));
-    expect((await api.fetchBusinessCenters()).map((c) => c.slug)).toEqual(['db']);
-    // Для первого рендера старый снимок всё ещё годится — это те же данные,
-    // что стоят в пререндер-разметке.
-    expect(api.snapshotBusinessCenters()?.map((c) => c.slug)).toEqual(['a']);
-  });
-
-  it('старый снимок (сборки давно не было) не отменяет запрос в базу', async () => {
+  it('снимок любой давности — основной источник: в базу не идём и спустя сутки', async () => {
     const stale = new Date(NOW.getTime() - 2 * 60 * 60 * 1000).toISOString();
     win().__bcList = Promise.resolve({ generatedAt: stale, rows: [row('a')] });
     const api = await loadApi();
     await api.primeBusinessCentersFromBuild();
     dbRows([row('db')]);
+    expect((await api.fetchBusinessCenters()).map((c) => c.slug)).toEqual(['a']);
+    vi.setSystemTime(new Date(NOW.getTime() + 24 * 60 * 60 * 1000));
+    expect((await api.fetchBusinessCenters()).map((c) => c.slug)).toEqual(['a']);
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('вне раздела (снимка в памяти нет) список докачивается файлом сборки, без базы', async () => {
+    (win() as unknown as { location: { pathname: string } }).location = { pathname: '/favorites/abc' };
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve({ generatedAt: NOW.toISOString(), rows: [row('f')] }) }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const api = await loadApi();
+    dbRows([row('db')]);
+    expect((await api.fetchBusinessCenters()).map((c) => c.slug)).toEqual(['f']);
+    expect(fetchMock).toHaveBeenCalledWith('/data/business-centers.json');
+    expect(from).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('админка файлов сборки не читает: там правят данные, нужна живая база', async () => {
+    (win() as unknown as { location: { pathname: string } }).location = { pathname: '/admin/business-centers' };
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const api = await loadApi();
+    dbRows([row('db')]);
     expect((await api.fetchBusinessCenters()).map((c) => c.slug)).toEqual(['db']);
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 
   it('файл здания, который не пришёл, — «не знаем», а не «здания нет»: идём в базу', async () => {
