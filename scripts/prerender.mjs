@@ -661,6 +661,56 @@ async function resetSharedBrowser(used, reason) {
 const isBrowserGone = (browser, message) =>
   !browser || !browser.isConnected() || /has been closed|Target closed|crashed|Browser closed|Connection closed/i.test(message);
 
+// Общий на всю сборку кеш GET-ответов Supabase REST (2026-09-23). Каждая из
+// ~285 страниц сама качала одни и те же данные: 22.09 пререндер сделал
+// 142 тыс. запросов к базе из 194 тыс. за сутки, из них 19 030 — полная
+// таблица business_centers по ~969 КБ, итог ~18 ГБ за день при лимите
+// бесплатного плана 5 ГБ в месяц — Supabase закрыл проект (402
+// exceed_egress_quota, не пускало даже в админку). Теперь одинаковый запрос
+// уходит в базу один раз, остальные вкладки получают копию из памяти.
+// В ключе — всё, от чего зависит ответ PostgREST: URL и заголовки формы
+// ответа (Accept у maybeSingle, Prefer у count, Range). Кешируются только
+// 2xx: ошибка не залипает, повтор страницы пойдёт в базу заново.
+const SUPABASE_REST_RE = /^https:\/\/[^/]+\/rest\/v1\//;
+const supabaseRestCache = new Map(); // ключ → Promise<{status, headers, body}>
+const supabaseRestStats = { hits: 0, misses: 0 };
+
+async function serveSupabaseRestFromCache(route) {
+  const request = route.request();
+  if (request.method() !== 'GET') return route.continue();
+  const h = await request.allHeaders();
+  const key = [request.url(), h['accept'], h['accept-profile'], h['prefer'], h['range']].join('\n');
+  let entry = supabaseRestCache.get(key);
+  if (entry) {
+    supabaseRestStats.hits++;
+  } else {
+    supabaseRestStats.misses++;
+    entry = (async () => {
+      const response = await route.fetch();
+      const headers = { ...response.headers() };
+      // Тело уже распаковано — прежние длина и сжатие к нему не относятся.
+      delete headers['content-encoding'];
+      delete headers['content-length'];
+      return { status: response.status(), headers, body: await response.body() };
+    })();
+    supabaseRestCache.set(key, entry);
+    // Не 2xx отдаём как есть (страница видит настоящую ошибку), но из кеша
+    // убираем — следующая попытка пойдёт в базу заново.
+    entry.then(
+      (r) => (r.status < 200 || r.status >= 300) && supabaseRestCache.delete(key),
+      () => supabaseRestCache.delete(key),
+    );
+  }
+  let cached;
+  try {
+    cached = await entry;
+  } catch {
+    // Сетевой сбой самого запроса — пусть страница сходит сама, как без кеша.
+    return route.continue();
+  }
+  return route.fulfill(cached);
+}
+
 // true — полный рендер headless-браузером (см. комментарий про быстрый/
 // полный режим в шапке файла), false — быстрое скачивание с живого прода.
 //
@@ -1031,7 +1081,11 @@ async function main() {
       byWorker = new Map();
       workerContexts.set(browser, byWorker);
     }
-    if (!byWorker.has(workerId)) byWorker.set(workerId, await browser.newContext());
+    if (!byWorker.has(workerId)) {
+      const context = await browser.newContext();
+      await context.route(SUPABASE_REST_RE, serveSupabaseRestFromCache);
+      byWorker.set(workerId, context);
+    }
     return byWorker.get(workerId);
   }
 
@@ -1183,6 +1237,12 @@ async function main() {
   }
 
   writeFileSync(PRERENDER_RESULT_PATH, JSON.stringify({ fullMode, scope: fullScope, copiedFromProd }));
+
+  if (supabaseRestStats.misses > 0) {
+    console.log(
+      `[prerender] Supabase REST: в базу ушло ${supabaseRestStats.misses} запросов, из кеша сборки отдано ${supabaseRestStats.hits}`,
+    );
+  }
 
   // Одна строка-итог, по которой видно здоровье быстрого режима, не листая
   // сотни строк лога: «отрендерено из-за непригодной копии» в норме 0 (или
