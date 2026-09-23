@@ -245,7 +245,9 @@ export function BusinessCenterDetailPage() {
   useEffect(() => {
     fetchBusinessCenters()
       .then(setCenters)
-      .catch(() => setCenters([]));
+      // Ошибка базы не стирает уже показанный список (снимок сборки): пустой
+      // каталог на месте готового — хуже, чем данные часовой давности.
+      .catch(() => setCenters((prev) => prev ?? []));
   }, []);
 
   // Снапшот 2GIS (владелец подключил API в параллельной ветке, 2026-09-06:
@@ -341,7 +343,10 @@ export function BusinessCenterDetailPage() {
   // Ответ храним вместе со слагом, под который он пришёл: компонент общий
   // для всех БЦ, и при переходе «предыдущий/следующий» иначе на миг
   // показались бы данные прошлого здания.
-  const [detail, setDetail] = useState<{ slug: string; center: BusinessCenter | null } | null>(() =>
+  // failed — база не ответила, а в снимке сборки здания нет. Это «не знаем»,
+  // а не «здания нет»: такой ответ не имеет права превращаться в soft-404 с
+  // noindex (см. эффект ниже у setNoIndex).
+  const [detail, setDetail] = useState<{ slug: string; center: BusinessCenter | null; failed?: boolean } | null>(() =>
     slug ? (snapshotBusinessCenter(slug) ? { slug, center: snapshotBusinessCenter(slug) } : null) : null,
   );
   useEffect(() => {
@@ -358,7 +363,19 @@ export function BusinessCenterDetailPage() {
         if (!cancelled) setDetail({ slug, center: data });
       })
       .catch(() => {
-        if (!cancelled) setDetail({ slug, center: null });
+        if (cancelled) return;
+        // Ошибка загрузки — не «такого здания нет». 2026-09-23, пока Supabase
+        // был закрыт за трафик (402), это различие и выстрелило: сбой одного
+        // файла /data/bc/<slug>.json (502 от CDN, медленная сеть дольше
+        // таймаута) — и карточка живого здания рисовала «не найден» и ставила
+        // себе noindex, nofollow: пришедший в этот момент робот поисковика
+        // получил бы команду выкинуть страницу из индекса. Теперь сначала
+        // пробуем здание из снимка СПИСКА (узкие колонки — без технических
+        // параметров и арендаторов, но с именем, адресом, классом и фото, то
+        // есть страница остаётся собой), и только если нет и его — честная
+        // ошибка без noindex.
+        const fromList = snapshotBusinessCenters()?.find((c) => c.slug === slug) ?? null;
+        setDetail({ slug, center: fromList, failed: fromList === null });
       });
     return () => {
       cancelled = true;
@@ -1882,7 +1899,9 @@ export function BusinessCenterDetailPage() {
   // остаётся доступной (200, не редирект), но не индексируется, тот же
   // принцип, что и у ObjectLandingPage для неизвестного /:slug.
   useEffect(() => {
-    if (detail === null || detail.slug !== slug || center) return;
+    // failed — мы не знаем, есть ли здание (база не ответила), поэтому и
+    // noindex не ставим: только ответ базы «такого слага нет» даёт soft-404.
+    if (detail === null || detail.slug !== slug || center || detail.failed) return;
     setNoIndex();
     return () => clearNoIndex();
   }, [detail, slug, center]);
@@ -1896,6 +1915,17 @@ export function BusinessCenterDetailPage() {
         {/* text-ink: прямо на фоне страницы muted даёт 4,48:1 — ниже порога.
             <main> и здесь — чтобы landmark был в любом состоянии страницы. */}
         <p className="text-sm text-ink">Загрузка…</p>
+      </main>
+    );
+  }
+
+  if (!center && detail.failed) {
+    return (
+      <main className="flex min-h-svh flex-col items-center justify-center gap-4 bg-bg px-4 text-center">
+        <p className="text-base text-ink">Не удалось загрузить данные о бизнес-центре. Обновите страницу чуть позже.</p>
+        <Link to="/minsk/bcminsk" className="text-sm font-semibold text-primary-hover hover:underline">
+          ← Все бизнес-центры Минска
+        </Link>
       </main>
     );
   }
