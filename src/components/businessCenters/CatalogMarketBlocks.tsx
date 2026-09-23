@@ -312,7 +312,7 @@ export function AvailableNowBlock({
         {withLots.slice(0, 10).map(({ center, sizes }) => (
           <Link
             key={center.slug}
-            to={`/minsk/bcminsk/${center.slug}`}
+            to={`/minsk/bc/${center.slug}`}
             className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2.5 first:pt-0 last:pb-0 hover:text-primary-hover"
           >
             <span className="text-sm font-semibold text-ink">{shortName(center)}</span>

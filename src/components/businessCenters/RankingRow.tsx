@@ -18,7 +18,7 @@ export function Cell({ label, children }: { label: string; children: React.React
 export function RankingRow({ center, place, cells }: { center: BusinessCenter; place: number; cells: React.ReactNode }) {
   return (
     <Link
-      to={`/minsk/bcminsk/${center.slug}`}
+      to={`/minsk/bc/${center.slug}`}
       className={cn('group flex items-start gap-4 p-4 transition-colors hover:border-primary/40', glassCardClass)}
       style={glassCardShadow}
     >

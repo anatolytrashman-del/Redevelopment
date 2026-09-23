@@ -61,9 +61,9 @@ export type CatalogTopNavProps = {
 type TopNavEntry = { kind: 'link'; to: string; label: string } | { kind: 'ratings' };
 
 const TOP_LINKS: TopNavEntry[] = [
-  { kind: 'link', to: '/minsk/bcminsk/analytics', label: 'Аналитика' },
+  { kind: 'link', to: '/minsk/bc/analytics', label: 'Аналитика' },
   { kind: 'ratings' },
-  { kind: 'link', to: '/minsk/bcminsk/gid', label: 'Справочник' },
+  { kind: 'link', to: '/minsk/bc/guide', label: 'Справочник' },
 ];
 
 // «Рейтинги» — единственный пункт с подменю (владелец, 2026-09-22: «добавляй
@@ -73,11 +73,11 @@ const TOP_LINKS: TopNavEntry[] = [
 // бизнес-центров Минска» — просто «Класс A», у «Лучших…классов B и C» —
 // «Классы B и C»), чтобы список умещался в узкий выпадающий список.
 const RATING_LINKS: { to: string; label: string }[] = [
-  { to: '/minsk/bcminsk/rating', label: 'Класс A' },
-  { to: '/minsk/bcminsk/rating/b-plus', label: 'Класс B+' },
-  { to: '/minsk/bcminsk/rating/b-c', label: 'Классы B и C' },
-  { to: '/minsk/bcminsk/rating/samye-bolshie', label: 'Самые большие' },
-  { to: '/minsk/bcminsk/rating/samye-dostupnye', label: 'Самые доступные' },
+  { to: '/minsk/bc/rating', label: 'Класс A' },
+  { to: '/minsk/bc/rating/class-b-plus', label: 'Класс B+' },
+  { to: '/minsk/bc/rating/class-b-c', label: 'Классы B и C' },
+  { to: '/minsk/bc/rating/largest', label: 'Самые большие' },
+  { to: '/minsk/bc/rating/affordable', label: 'Самые доступные' },
 ];
 
 // Ширина контейнера контента для каждого значения пропа `width` — ровно те
@@ -227,14 +227,14 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
     | Extract<TopNavEntry, { kind: 'link' }>
     | undefined;
   const ratingsActive = RATING_LINKS.some((l) => l.to === pathname);
-  // Всё остальное под /minsk/bcminsk (каталог, хабы, карточки) плюс
+  // Всё остальное под /minsk/bc (каталог, хабы, карточки) плюс
   // избранное — это «Бизнес-центры». Страницы рейтингов тоже живут под
-  // /minsk/bcminsk/, поэтому явно исключены — иначе подсвечивались бы сразу
+  // /minsk/bc/, поэтому явно исключены — иначе подсвечивались бы сразу
   // два пункта шапки.
   const catalogActive =
     !activeTop &&
     !ratingsActive &&
-    (pathname === '/minsk/bcminsk' || pathname.startsWith('/minsk/bcminsk/') || pathname.startsWith('/favorites/'));
+    (pathname === '/minsk/bc' || pathname.startsWith('/minsk/bc/') || pathname.startsWith('/favorites/'));
 
   const linkClass = (active: boolean) =>
     cn(

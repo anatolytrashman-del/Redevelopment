@@ -333,7 +333,7 @@ function setLinkHref(selector: string, href: string) {
   if (el) el.setAttribute('href', href);
 }
 
-// Отдельная страница бизнес-центра (/minsk/bcminsk/:slug, владелец,
+// Отдельная страница бизнес-центра (/minsk/bc/:slug, владелец,
 // 2026-09-04: "в идеале бы, чтобы у страницы был отдельный урл... для SEO
 // лучше хаб + отдельная страница на каждый БЦ") — та же механика подмены
 // тегов, что и у setObjectPageMeta, но данные не из "объектов", а из
@@ -574,7 +574,7 @@ export function setBusinessCenterPageMeta(
   // fallbackBusinessCenterMeta) ждёт его внутри записи — у одного здания,
   // «МФЦ (Минск Мир)», короткое имя задано именно по слагу.
   const meta = fallbackBusinessCenterMeta({ ...center, slug }, composition);
-  const url = `https://redevelopment.pro/minsk/bcminsk/${slug}`;
+  const url = `https://redevelopment.pro/minsk/bc/${slug}`;
   // Фото БЦ хранятся локальными путями (public/images/business-centers/...,
   // см. data/businessCenters.ts), не абсолютными URL, как у Supabase Storage
   // объектов — og:image/JSON-LD image по спецификации должны быть абсолютными

@@ -107,7 +107,7 @@ export function FavoritesPage() {
             Избранные бизнес-центры
           </h1>
           <Link
-            to="/minsk/bcminsk"
+            to="/minsk/bc"
             className={cn(
               'flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-ink transition-colors hover:text-primary',
               glassPillClass,

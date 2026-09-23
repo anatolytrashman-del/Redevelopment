@@ -55,7 +55,7 @@ export function AnalyticsMethodologyPage() {
               каталога могут сдавать не только офисы (магазин на первом этаже, сфера услуг, кладовые) — в медиану
               узкого среза идут только объявления с типом помещения «Офисы», остальные исключены на этапе расчёта
               снимка (сама карточка здания на{' '}
-              <Link to="/minsk/bcminsk" className="text-primary-hover hover:underline">
+              <Link to="/minsk/bc" className="text-primary-hover hover:underline">
                 странице каталога
               </Link>{' '}
               по-прежнему показывает все объявления по зданию, не только офисные).{' '}

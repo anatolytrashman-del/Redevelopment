@@ -45,6 +45,8 @@
 // делает честный рендер этого пути (та же защита от инцидента 2026-09-11,
 // но без ложных срабатываний на именах).
 
+import { rewriteLegacyCatalogUrls } from './legacyCatalogUrls.mjs';
+
 const LINK_TAG_RE = /<link\b[^>]*>/g;
 // В dist/index.html атрибут голый (`data-entry-loader`), в копии с прода —
 // сериализованный браузером (`data-entry-loader=""`); лоадер не содержит
@@ -108,7 +110,9 @@ export function assetRefsOf(html) {
  */
 export function adoptBuildAssets(snapshotHtml, blocks, assetExists) {
   let replacedStylesheet = false;
-  let html = snapshotHtml.replace(LINK_TAG_RE, (tag) => {
+  // Копия с прода могла быть снята до переезда каталога на /minsk/bc —
+  // ссылки в шапке и тексте переписываем на новые адреса (см. модуль).
+  let html = rewriteLegacyCatalogUrls(snapshotHtml).replace(LINK_TAG_RE, (tag) => {
     if (isBuildStylesheetLink(tag)) {
       if (replacedStylesheet) return ''; // второй и далее — убираем, все нужные уже вставлены на месте первого
       replacedStylesheet = true;

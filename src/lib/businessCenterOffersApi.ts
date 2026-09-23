@@ -49,7 +49,7 @@ export async function fetchBusinessCenterOffers(slug: string): Promise<BusinessC
 }
 
 // Все объявления по всему городу разом — для страниц аналитики
-// (/minsk/analytics/ofisy/*, /minsk/bcminsk/analytics), где нужны срезы,
+// (/minsk/analytics/ofisy/*, /minsk/bc/analytics), где нужны срезы,
 // которых нет в market_snapshots (площадь, этаж, метро, конкретное здание).
 // PostgREST отдаёт максимум 1000 строк (см. CLAUDE.md) — листаем .range()
 // до конца. Без этого хвост терялся МОЛЧА: на 2026-09-22 в таблице 1544
@@ -74,7 +74,7 @@ export function fetchAllBusinessCenterOffers(): Promise<BusinessCenterOffer[]> {
 }
 
 // Те же объявления по всему городу, но без полей, которых нет на странице
-// аналитики каталога (/minsk/bcminsk/analytics): ссылка, адрес, этаж и дата
+// аналитики каталога (/minsk/bc/analytics): ссылка, адрес, этаж и дата
 // втрое утяжеляют ответ и ни в один срез не входят.
 const SLICE_COLUMNS = 'business_center_slug,source,ad_id,deal_type,property_type,size,price_per_sqm';
 

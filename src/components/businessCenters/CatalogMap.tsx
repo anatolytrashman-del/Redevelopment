@@ -54,7 +54,7 @@ function balloonHtml(center: BusinessCenter, offers: CatalogOfferIndex): string 
     <div style="min-width:180px">
       <div style="font-weight:700;margin-bottom:4px">${shortName(center)}</div>
       <div style="color:#57606a;font-size:12px;margin-bottom:6px">${parts.join(' · ')}</div>
-      <a href="/minsk/bcminsk/${center.slug}" style="color:#d1002a;font-weight:600;font-size:12px">Открыть карточку →</a>
+      <a href="/minsk/bc/${center.slug}" style="color:#d1002a;font-weight:600;font-size:12px">Открыть карточку →</a>
     </div>
   `;
 }

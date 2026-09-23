@@ -37,7 +37,7 @@ import { FaqAccordion } from '../components/ui/FaqAccordion';
 // Само число оценок теперь видно в каждой строке: это единственное, по чему
 // читатель может понять, чему верить (mapRatingFromHighlights.count).
 const DATE_PUBLISHED = '2026-09-07';
-const PAGE_URL = 'https://redevelopment.pro/minsk/bcminsk/rating';
+const PAGE_URL = 'https://redevelopment.pro/minsk/bc/rating';
 const TITLE = `Лучшие бизнес-центры Минска: рейтинг класса A с оценкой от ${RATING_THRESHOLD_LABEL}`;
 // 160 символов — бюджет сниппета, см. комментарий в BusinessCentersGuidePage.
 const DESCRIPTION =
@@ -46,7 +46,7 @@ const DESCRIPTION =
 const PAGE_H1 = 'Лучшие бизнес-центры Минска';
 // Раздел «Классы A, B+, B и C» в гиде по бизнес-центрам — туда ведёт
 // «как определяется класс» из методики (владелец, 2026-09-22).
-const CLASS_EXPLAINER_URL = '/minsk/bcminsk/gid#klassy';
+const CLASS_EXPLAINER_URL = '/minsk/bc/guide#klassy';
 
 export type { RankedCenter, ExcludedCenter } from '../lib/businessCenterRanking';
 
@@ -239,14 +239,14 @@ export function BusinessCentersRankingPage() {
     });
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-      { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bcminsk' },
+      { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bc' },
       { name: 'Рейтинг' },
     ]);
   }, []);
 
   useEffect(() => {
     if (ranking.length === 0) return;
-    setItemListJsonLd(ranking.map((r) => ({ name: shortName(r.center), url: `https://redevelopment.pro/minsk/bcminsk/${r.center.slug}` })));
+    setItemListJsonLd(ranking.map((r) => ({ name: shortName(r.center), url: `https://redevelopment.pro/minsk/bc/${r.center.slug}` })));
     setFaqJsonLd(faqItems);
   }, [ranking, faqItems]);
 
@@ -260,7 +260,7 @@ export function BusinessCentersRankingPage() {
             Минск
           </Link>
           <span aria-hidden="true">/</span>
-          <Link to="/minsk/bcminsk" className="hover:text-ink">
+          <Link to="/minsk/bc" className="hover:text-ink">
             Бизнес-центры
           </Link>
           <span aria-hidden="true">/</span>
@@ -353,7 +353,7 @@ export function BusinessCentersRankingPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               {bPlusCount > 0 && (
                 <Link
-                  to="/minsk/bcminsk/rating/b-plus"
+                  to="/minsk/bc/rating/class-b-plus"
                   className="rounded-control border border-border bg-surface p-4 transition-colors hover:border-primary/40"
                 >
                   <span className="text-2xl font-extrabold text-ink">{bPlusCount}</span>
@@ -365,7 +365,7 @@ export function BusinessCentersRankingPage() {
               )}
               {bCount > 0 && (
                 <Link
-                  to="/minsk/bcminsk/rating/b-c"
+                  to="/minsk/bc/rating/class-b-c"
                   className="rounded-control border border-border bg-surface p-4 transition-colors hover:border-primary/40"
                 >
                   <span className="text-2xl font-extrabold text-ink">{bCount}</span>
@@ -385,13 +385,13 @@ export function BusinessCentersRankingPage() {
           <h2 className="text-lg font-bold text-ink">Ещё по бизнес-центрам Минска</h2>
           <ul className="flex flex-col gap-2 text-sm">
             <li>
-              <Link to="/minsk/bcminsk" className="flex items-center gap-2 font-semibold text-ink hover:text-primary-hover">
+              <Link to="/minsk/bc" className="flex items-center gap-2 font-semibold text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Полный каталог бизнес-центров Минска
               </Link>
             </li>
             <li>
-              <Link to="/minsk/bcminsk/class/a" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+              <Link to="/minsk/bc/class/a" className="flex items-center gap-2 text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Все бизнес-центры класса A
               </Link>
@@ -403,31 +403,31 @@ export function BusinessCentersRankingPage() {
               </Link>
             </li>
             <li>
-              <Link to="/minsk/bcminsk/stroyashchiesya" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+              <Link to="/minsk/bc/new" className="flex items-center gap-2 text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Строящиеся бизнес-центры Минска
               </Link>
             </li>
             <li>
-              <Link to="/minsk/bcminsk/rating/samye-bolshie" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+              <Link to="/minsk/bc/rating/largest" className="flex items-center gap-2 text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Самые большие бизнес-центры Минска
               </Link>
             </li>
             <li>
-              <Link to="/minsk/bcminsk/rating/samye-dostupnye" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+              <Link to="/minsk/bc/rating/affordable" className="flex items-center gap-2 text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Самые доступные бизнес-центры Минска
               </Link>
             </li>
             <li>
-              <Link to="/minsk/bcminsk/rating/b-plus" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+              <Link to="/minsk/bc/rating/class-b-plus" className="flex items-center gap-2 text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Лучшие бизнес-центры класса B+ в Минске
               </Link>
             </li>
             <li>
-              <Link to="/minsk/bcminsk/rating/b-c" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+              <Link to="/minsk/bc/rating/class-b-c" className="flex items-center gap-2 text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Лучшие бизнес-центры классов B и C в Минске
               </Link>

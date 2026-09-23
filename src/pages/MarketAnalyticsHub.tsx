@@ -512,7 +512,7 @@ export function MarketAnalyticsHub() {
               отдельной странице
             </Link>
             . Полный список зданий — в{' '}
-            <Link to="/minsk/bcminsk" className="text-primary-hover hover:underline">
+            <Link to="/minsk/bc" className="text-primary-hover hover:underline">
               каталоге бизнес-центров
             </Link>
             . Про сам квартал Минск Мир, а не только его рынок недвижимости, — отдельный{' '}

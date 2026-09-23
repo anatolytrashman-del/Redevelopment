@@ -18,13 +18,13 @@ import {
 
 describe('microdistrictHubUrl — коллизия с одноимённой станцией метро', () => {
   it('ведёт на хаб станции для трёх известных коллизий', () => {
-    expect(microdistrictHubUrl('Грушевка')).toBe('/minsk/bcminsk/metro/grushevka');
-    expect(microdistrictHubUrl('Уручье')).toBe('/minsk/bcminsk/metro/uruchye');
-    expect(microdistrictHubUrl('Каменная Горка')).toBe('/minsk/bcminsk/metro/kamennaya-gorka');
+    expect(microdistrictHubUrl('Грушевка')).toBe('/minsk/bc/metro/grushevka');
+    expect(microdistrictHubUrl('Уручье')).toBe('/minsk/bc/metro/uruchye');
+    expect(microdistrictHubUrl('Каменная Горка')).toBe('/minsk/bc/metro/kamennaya-gorka');
   });
 
   it('обычный микрорайон без коллизии ведёт на свою страницу', () => {
-    expect(microdistrictHubUrl('Комаровка')).toBe('/minsk/bcminsk/microrayon/komarovka');
+    expect(microdistrictHubUrl('Комаровка')).toBe('/minsk/bc/area/komarovka');
   });
 
   it('неизвестный микрорайон — null', () => {
@@ -32,7 +32,7 @@ describe('microdistrictHubUrl — коллизия с одноимённой с�
   });
 
   it('Сухарево ведёт на хаб ул. Лобанка — тот же дубль по составу, не по имени', () => {
-    expect(microdistrictHubUrl('Сухарево')).toBe('/minsk/bcminsk/ulitsa/ul-lobanka');
+    expect(microdistrictHubUrl('Сухарево')).toBe('/minsk/bc/street/lobanka');
   });
 });
 
