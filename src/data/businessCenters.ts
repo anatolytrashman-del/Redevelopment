@@ -471,11 +471,101 @@ export interface RetailRankingEntry extends RetailSource {
   year: number | null;
 }
 
+// --- Дополнительные блоки ТЦ (2026-09-23, схема extras-schema.md) ---------
+// «Посетителю» (режим, парковка, проезд, удобства, скидки) и «для бизнеса»
+// (аудитория, аренда, реклама, цифры, цитаты). Все ключи необязательные в
+// jsonb; после normalizeRetailInfo массивы всегда есть (пустые), а
+// одиночные объекты — null.
+
+export interface RetailHoursEntry extends RetailSource {
+  // «Торговая галерея», «Гипермаркет ГИППО», «Паркинг»
+  zone: string;
+  // «ежедневно 10:00–22:00»
+  value: string;
+  note: string | null;
+}
+
+export interface RetailLabeledValue {
+  label: string;
+  value: string;
+}
+
+export interface RetailParking extends RetailSource {
+  summary: string;
+  // «Мест» → «685», «Первые 3 часа» → «5 руб.»
+  items: RetailLabeledValue[];
+  // Актуальность тарифов.
+  date: string | null;
+}
+
+export type RetailTransportMode = 'metro' | 'bus' | 'trolleybus' | 'tram' | 'minibus' | 'shuttle' | 'car' | 'walk';
+
+export interface RetailTransportEntry extends RetailSource {
+  mode: RetailTransportMode;
+  text: string;
+}
+
+export interface RetailServiceEntry extends RetailSource {
+  name: string;
+  text: string | null;
+  floor: string | null;
+}
+
+export interface RetailRuleEntry extends RetailSource {
+  text: string;
+}
+
+export interface RetailLoyaltyEntry extends RetailSource {
+  name: string;
+  text: string;
+}
+
+export interface RetailEventEntry extends RetailSource {
+  name: string;
+  text: string;
+  date: string | null;
+}
+
+/** Цифра с подписью — и «аудитория», и «ТЦ в цифрах». */
+export interface RetailFigureEntry extends RetailSource {
+  label: string;
+  value: string;
+  date: string | null;
+  // «по данным ТЦ», «из рекламного материала»
+  note: string | null;
+}
+
+/** «Как арендовать» и «реклама в ТЦ» — одна форма. */
+export interface RetailPitch extends RetailSource {
+  text: string;
+  points: string[];
+  contacts: string | null;
+}
+
+export interface RetailQuoteEntry extends RetailSource {
+  who: string;
+  text: string;
+  date: string | null;
+}
+
 export interface RetailInfo {
   floorsGuide: RetailFloorEntry[];
   firsts: RetailFirstEntry[];
   leisure: RetailLeisureEntry[];
   ranking: RetailRankingEntry[];
+  hours: RetailHoursEntry[];
+  hoursNote: string | null;
+  parking: RetailParking | null;
+  transport: RetailTransportEntry[];
+  services: RetailServiceEntry[];
+  rules: RetailRuleEntry[];
+  loyalty: RetailLoyaltyEntry[];
+  events: RetailEventEntry[];
+  audience: RetailFigureEntry[];
+  leasing: RetailPitch | null;
+  advertising: RetailPitch | null;
+  numbers: RetailFigureEntry[];
+  quotes: RetailQuoteEntry[];
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. lib/businessCentersApi.ts

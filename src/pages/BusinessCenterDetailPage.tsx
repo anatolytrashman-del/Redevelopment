@@ -12,7 +12,6 @@ import {
   Banknote,
   Building2,
   CheckCircle2,
-  Clapperboard,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -22,12 +21,10 @@ import {
   DoorOpen,
   ExternalLink,
   FileText,
-  Flag,
   Globe,
   HardHat,
   Info,
   Landmark,
-  Layers,
   Leaf,
   List,
   Mail,
@@ -128,13 +125,30 @@ import { TradeCenterRetailBlocks } from '../components/businessCenters/TradeCent
 import {
   RETAIL_SECTION_LABELS,
   anchorsFaqAnswer,
+  audienceFaqQuestion,
+  eventsFaqAnswer,
+  figuresFaqAnswer,
   firstsFaqAnswer,
   floorsFaqAnswer,
+  hoursFaqAnswer,
   leisureFaqAnswer,
   leisureFaqQuestion,
+  loyaltyFaqAnswer,
+  parkingFaqAnswer,
+  parkingFaqQuestion,
+  pitchFaqAnswer,
+  quotesFaqAnswer,
   rankingFaqAnswer,
+  retailSectionGroup,
   retailSectionIds,
+  retailSectionSize,
+  rulesFaqAnswer,
+  servicesFaqAnswer,
+  transportFaqAnswer,
+  transportFaqQuestion,
+  type RetailSectionId,
 } from '../lib/tradeCenterRetail';
+import { RETAIL_SECTION_ICONS } from '../components/businessCenters/tradeCenterRetailStyle';
 import type { BusinessCenterTenantSnapshot } from '../data/businessCenterTenants';
 import { buildOfferIndex, METRO_LINE_DOT_CLASS, metroLineId } from '../lib/businessCenterCatalogFilter';
 import { buildMarketPosition, haversineMeters } from '../lib/businessCenterMarketPosition';
@@ -176,6 +190,10 @@ const SECTION_LABELS: Record<string, string> = {
   floors: RETAIL_SECTION_LABELS.floors,
   firsts: RETAIL_SECTION_LABELS.firsts,
   leisure: RETAIL_SECTION_LABELS.leisure,
+  visit: RETAIL_SECTION_LABELS.visit,
+  business: RETAIL_SECTION_LABELS.business,
+  numbers: RETAIL_SECTION_LABELS.numbers,
+  quotes: RETAIL_SECTION_LABELS.quotes,
   // «БЦ» подменяется на «ТЦ» в каталоге торговых центров (см. sectionLabel).
   rental: 'Отдел аренды БЦ',
   offers: 'Что сдают и продают',
@@ -193,9 +211,7 @@ const SECTION_ICONS: Record<string, typeof FileText> = {
   map: MapPin,
   tech: Building2,
   tenants: Users,
-  floors: Layers,
-  firsts: Flag,
-  leisure: Clapperboard,
+  ...RETAIL_SECTION_ICONS,
   rental: FileText,
   offers: Banknote,
   history: Clock,
@@ -1526,6 +1542,23 @@ export function BusinessCenterDetailPage() {
           : `Какое место ${bcNom} занимает в рейтингах ${V.manyGen}?`,
         rankingFaqAnswer(retail.ranking),
       );
+      // «Посетителю» и «для бизнеса» (TradeCenterExtraBlocks) — в том же
+      // порядке, что панели на странице.
+      add(`Какой режим работы у ${bcGen}?`, hoursFaqAnswer(retail.hours, retail.hoursNote));
+      const parkingQuestion = parkingFaqQuestion(retail.parking, bcGen);
+      if (parkingQuestion) add(parkingQuestion, parkingFaqAnswer(retail.parking));
+      const transportQuestion = transportFaqQuestion(retail.transport, bcGen);
+      if (transportQuestion) add(transportQuestion, transportFaqAnswer(retail.transport));
+      add(`Какие удобства есть для посетителей в ${bcPrep}?`, servicesFaqAnswer(retail.services));
+      add(`Какие правила посещения действуют в ${bcPrep}?`, rulesFaqAnswer(retail.rules));
+      add(`Есть ли у ${bcGen} программа лояльности или подарочные сертификаты?`, loyaltyFaqAnswer(retail.loyalty));
+      add(`Какие события проходят в ${bcPrep}?`, eventsFaqAnswer(retail.events));
+      const audienceQuestion = audienceFaqQuestion(retail.audience, bcPrep);
+      if (audienceQuestion) add(audienceQuestion, figuresFaqAnswer(retail.audience));
+      add(`Как арендовать помещение в ${bcPrep}?`, pitchFaqAnswer(retail.leasing));
+      add(`Как разместить рекламу в ${bcPrep}?`, pitchFaqAnswer(retail.advertising));
+      add(`${capitalize(bcNom)} в цифрах: что известно?`, figuresFaqAnswer(retail.numbers));
+      add(`Что говорят о ${bcPrep}?`, quotesFaqAnswer(retail.quotes));
     }
     // Арендаторы и «что есть кроме офисов» — один вопрос (владелец,
     // 2026-09-22: «я бы анализировал весь список арендаторов, если он есть,
@@ -1634,7 +1667,10 @@ export function BusinessCenterDetailPage() {
         .split(/,\s*/)
         .map((item) => lower(item.trim()))
         .filter(Boolean);
-      const hoursText = !accessHoursText
+      // У ТЦ с поминутным режимом по зонам (retail_info.hours) часы уже
+      // отвечены своим вопросом «Какой режим работы…» — второй вопрос о том
+      // же самом общей строкой был бы дублем.
+      const hoursText = !accessHoursText || (isTc && center.retailInfo?.hours.length)
         ? null
         : accessHoursText === 'Круглосуточно'
           ? 'Здание открыто круглосуточно.'
@@ -1820,13 +1856,15 @@ export function BusinessCenterDetailPage() {
           return developerInfo ? estimateTextLines(developerInfo.description, 110) : 0;
         case 'faq':
           return faqItems.length;
+        // Торговые карточки ТЦ — модель строк в lib/tradeCenterRetail.
         case 'floors':
-          return center.retailInfo?.floorsGuide.length ?? 0;
         case 'firsts':
-          return center.retailInfo?.firsts.length ?? 0;
-        // Плитки в две колонки: высоту задаёт число рядов.
         case 'leisure':
-          return Math.ceil((center.retailInfo?.leisure.length ?? 0) / 2);
+        case 'visit':
+        case 'business':
+        case 'numbers':
+        case 'quotes':
+          return retailSectionSize(center.retailInfo, id);
         // tenants — пагинация по 6 карточек, высота от числа организаций
         // не зависит вовсе.
         default:
@@ -1862,17 +1900,25 @@ export function BusinessCenterDetailPage() {
   // самому верхнему месту.
   const recommendationSlots = useMemo(() => {
     const slots = new Map<string, RecommendationBlockId[]>();
-    // Три торговые карточки ТЦ читаются как одна группа — рекомендацию,
-    // выпавшую между ними, переносим за последнюю из них. Если там уже
-    // стоит своя, оставляем как было: две рекомендации подряд хуже.
+    // Торговые карточки ТЦ читаются двумя группами — «для посетителя»
+    // (этажи, первые, досуг, посетителю) и «для бизнеса» (аренда и реклама,
+    // цифры, цитаты). Рекомендацию, выпавшую внутри группы, переносим за
+    // последнюю карточку той же группы; на стыке групп она остаётся. Если
+    // там уже стоит своя, оставляем как было: две рекомендации подряд хуже.
     const retailIds = new Set<string>(isTc && center ? retailSectionIds(center.retailInfo) : []);
-    const lastRetail = [...sectionSizes].reverse().find((section) => retailIds.has(section.id))?.id ?? null;
+    const lastRetailOf = (group: 'visitor' | 'business') =>
+      [...sectionSizes]
+        .reverse()
+        .find((section) => retailIds.has(section.id) && retailSectionGroup(section.id as RetailSectionId) === group)
+        ?.id ?? null;
     const planned = planRecommendationSlots(sectionSizes, recommendationBlocks.length);
     planned.forEach((sectionId, index) => {
       const block = recommendationBlocks[index];
       if (!block) return;
-      const target =
-        lastRetail && retailIds.has(sectionId) && !planned.includes(lastRetail) ? lastRetail : sectionId;
+      const lastRetail = retailIds.has(sectionId)
+        ? lastRetailOf(retailSectionGroup(sectionId as RetailSectionId))
+        : null;
+      const target = lastRetail && !planned.includes(lastRetail) ? lastRetail : sectionId;
       slots.set(target, [...(slots.get(target) ?? []), block.id]);
     });
     return slots;

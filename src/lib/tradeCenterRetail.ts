@@ -4,17 +4,40 @@
 // FAQ карточки. Одни и те же функции на обе стороны — чтобы FAQ не
 // пересказывал блок своими словами и не расходился с ним.
 import type {
+  RetailEventEntry,
+  RetailFigureEntry,
   RetailFirstEntry,
   RetailFloorEntry,
+  RetailHoursEntry,
   RetailInfo,
+  RetailLabeledValue,
   RetailLeisureEntry,
   RetailLeisureKind,
+  RetailLoyaltyEntry,
+  RetailParking,
+  RetailPitch,
+  RetailQuoteEntry,
   RetailRankingEntry,
+  RetailRuleEntry,
+  RetailServiceEntry,
   RetailSource,
+  RetailTransportEntry,
+  RetailTransportMode,
 } from '../data/businessCenters';
 
 const FIRST_KINDS = new Set(['first', 'anchor', 'former_anchor']);
 const LEISURE_KINDS = new Set(['cinema', 'food', 'kids', 'sport', 'other']);
+export const TRANSPORT_MODES: RetailTransportMode[] = [
+  'metro',
+  'bus',
+  'trolleybus',
+  'tram',
+  'minibus',
+  'shuttle',
+  'car',
+  'walk',
+];
+const TRANSPORT_MODE_SET = new Set<string>(TRANSPORT_MODES);
 
 function str(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -22,6 +45,11 @@ function str(value: unknown): string | null {
 
 function num(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/** Строка или число как строка: «685» и 685 в jsonb значат одно и то же. */
+function text(value: unknown): string | null {
+  return str(value) ?? (num(value) != null ? String(value) : null);
 }
 
 function sourceOf(raw: Record<string, unknown>): RetailSource {
@@ -32,6 +60,49 @@ function records(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value)
     ? value.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
     : [];
+}
+
+function record(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+/** Массив строк; допускаем и записи-объекты с `text` — ресёрч путает формы. */
+function strings(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const s = str(item) ?? (record(item) ? str((item as Record<string, unknown>).text) : null);
+    return s ? [s] : [];
+  });
+}
+
+function figures(value: unknown): RetailFigureEntry[] {
+  return records(value).flatMap((r) => {
+    const label = str(r.label);
+    const v = text(r.value);
+    return label && v ? [{ label, value: v, date: str(r.date), note: str(r.note), ...sourceOf(r) }] : [];
+  });
+}
+
+function pitch(value: unknown): RetailPitch | null {
+  const r = record(value);
+  if (!r) return null;
+  const t = str(r.text) ?? '';
+  const points = strings(r.points);
+  if (!t && !points.length) return null;
+  return { text: t, points, contacts: str(r.contacts), ...sourceOf(r) };
+}
+
+function parkingOf(value: unknown): RetailParking | null {
+  const r = record(value);
+  if (!r) return null;
+  const summary = str(r.summary) ?? '';
+  const items: RetailLabeledValue[] = records(r.items).flatMap((item) => {
+    const label = str(item.label);
+    const v = text(item.value);
+    return label && v ? [{ label, value: v }] : [];
+  });
+  if (!summary && !items.length) return null;
+  return { summary, items, date: str(r.date), ...sourceOf(r) };
 }
 
 /**
@@ -76,8 +147,70 @@ export function normalizeRetailInfo(raw: unknown): RetailInfo | null {
     return [{ place, criterion, scope: str(r.scope) ?? '', total: num(r.total), year: num(r.year), ...sourceOf(r) }];
   });
 
-  if (!floorsGuide.length && !firsts.length && !leisure.length && !ranking.length) return null;
-  return { floorsGuide, firsts, leisure, ranking };
+
+  const hours: RetailHoursEntry[] = records(data.hours).flatMap((r) => {
+    const zone = str(r.zone);
+    const value = str(r.value);
+    return zone && value ? [{ zone, value, note: str(r.note), ...sourceOf(r) }] : [];
+  });
+  const hoursNote = str(data.hoursNote);
+  const parking = parkingOf(data.parking);
+  // Неизвестный вид транспорта отбрасываем, а не подставляем «что-нибудь»:
+  // иконка автобуса у строки про электричку — неправда на странице.
+  const transport: RetailTransportEntry[] = records(data.transport).flatMap((r) => {
+    const mode = str(r.mode);
+    const t = str(r.text);
+    return mode && t && TRANSPORT_MODE_SET.has(mode)
+      ? [{ mode: mode as RetailTransportMode, text: t, ...sourceOf(r) }]
+      : [];
+  });
+  const services: RetailServiceEntry[] = records(data.services).flatMap((r) => {
+    const name = str(r.name);
+    return name ? [{ name, text: str(r.text), floor: text(r.floor), ...sourceOf(r) }] : [];
+  });
+  const rules: RetailRuleEntry[] = records(data.rules).flatMap((r) => {
+    const t = str(r.text);
+    return t ? [{ text: t, ...sourceOf(r) }] : [];
+  });
+  const loyalty: RetailLoyaltyEntry[] = records(data.loyalty).flatMap((r) => {
+    const name = str(r.name);
+    return name ? [{ name, text: str(r.text) ?? '', ...sourceOf(r) }] : [];
+  });
+  const events: RetailEventEntry[] = records(data.events).flatMap((r) => {
+    const name = str(r.name);
+    return name ? [{ name, text: str(r.text) ?? '', date: str(r.date), ...sourceOf(r) }] : [];
+  });
+  const audience = figures(data.audience);
+  const leasing = pitch(data.leasing);
+  const advertising = pitch(data.advertising);
+  const numbers = figures(data.numbers);
+  const quotes: RetailQuoteEntry[] = records(data.quotes).flatMap((r) => {
+    const who = str(r.who);
+    const t = str(r.text);
+    return who && t ? [{ who, text: t, date: str(r.date), ...sourceOf(r) }] : [];
+  });
+
+  const info: RetailInfo = {
+    floorsGuide,
+    firsts,
+    leisure,
+    ranking,
+    hours,
+    hoursNote,
+    parking,
+    transport,
+    services,
+    rules,
+    loyalty,
+    events,
+    audience,
+    leasing,
+    advertising,
+    numbers,
+    quotes,
+  };
+  const empty = Object.values(info).every((value) => value == null || (Array.isArray(value) && value.length === 0));
+  return empty ? null : info;
 }
 
 // --- Этажи ---------------------------------------------------------------
@@ -297,16 +430,247 @@ export function rankingFaqAnswer(ranking: RetailRankingEntry[]): string | null {
   return ranking.map((r) => sentence(formatRankingLine(r, 'place'))).join('\n');
 }
 
+// --- Посетителю: режим, парковка, проезд, удобства, скидки ---------------
+
+export const TRANSPORT_MODE_LABELS: Record<RetailTransportMode, string> = {
+  metro: 'Метро',
+  bus: 'Автобус',
+  trolleybus: 'Троллейбус',
+  tram: 'Трамвай',
+  minibus: 'Маршрутка',
+  shuttle: 'Бесплатный автобус',
+  car: 'На машине',
+  walk: 'Пешком',
+};
+
+/** Строки в порядке схемы: метро → наземный транспорт → машина → пешком. */
+export function sortTransport(transport: RetailTransportEntry[]): RetailTransportEntry[] {
+  return [...transport].sort((a, b) => TRANSPORT_MODES.indexOf(a.mode) - TRANSPORT_MODES.indexOf(b.mode));
+}
+
+export function hoursFaqAnswer(hours: RetailHoursEntry[], note: string | null): string | null {
+  const lines = hours.map((h) => sentence(`${h.zone}: ${h.value}${h.note ? ` (${h.note})` : ''}`));
+  if (note) lines.push(sentence(note));
+  return lines.length ? lines.join('\n') : null;
+}
+
+/** «Мест: 685.» — «label: value», тот же вид, что в строках блока. */
+function labeledLine(item: RetailLabeledValue): string {
+  return sentence(`${item.label}: ${item.value}`);
+}
+
+// Кириллица и \b несовместимы (см. CLAUDE.md) — корни ищем без границ слова.
+const FREE_RE = /бесплатн/i;
+const PAID_RE = /(руб|byn|платн|тариф|час)/i;
+
+/**
+ * Вопрос о парковке — ровно о том, на что есть ответ: «как бесплатно»
+ * только если в данных есть бесплатный вариант, «сколько стоит» — если
+ * есть цены/тарифы, иначе просто «есть ли парковка».
+ */
+export function parkingFaqQuestion(parking: RetailParking | null, gen: string): string | null {
+  if (!parking) return null;
+  const all = [parking.summary, ...parking.items.flatMap((i) => [i.label, i.value])].join(' ');
+  const free = FREE_RE.test(all);
+  const paid = PAID_RE.test(all.replace(/бесплатн\S*/gi, ''));
+  if (paid && free) return `Сколько стоит парковка у ${gen} и можно ли встать бесплатно?`;
+  if (paid) return `Сколько стоит парковка у ${gen}?`;
+  if (free) return `Есть ли бесплатная парковка у ${gen}?`;
+  // «Есть ли парковка…» уже спрашивает общий вопрос страницы (center.parking).
+  return `Что известно о парковке у ${gen}?`;
+}
+
+export function parkingFaqAnswer(parking: RetailParking | null): string | null {
+  if (!parking) return null;
+  const lines = [parking.summary ? sentence(parking.summary) : null, ...parking.items.map(labeledLine)].filter(
+    (line): line is string => Boolean(line),
+  );
+  const when = formatRetailDate(parking.date);
+  if (when) lines.push(`Тарифы — по данным на ${when}.`);
+  return lines.join('\n');
+}
+
+const PUBLIC_MODES = new Set<RetailTransportMode>(['metro', 'bus', 'trolleybus', 'tram', 'minibus', 'shuttle']);
+
+/** Есть общественный транспорт — спрашиваем про него, иначе — про машину/пешком. */
+export function transportFaqQuestion(transport: RetailTransportEntry[], gen: string): string | null {
+  if (!transport.length) return null;
+  return transport.some((t) => PUBLIC_MODES.has(t.mode))
+    ? `Каким транспортом доехать до ${gen}?`
+    : `Как добраться до ${gen}?`;
+}
+
+export function transportFaqAnswer(transport: RetailTransportEntry[]): string | null {
+  if (!transport.length) return null;
+  return sortTransport(transport)
+    .map((t) => sentence(`${TRANSPORT_MODE_LABELS[t.mode]}: ${t.text}`))
+    .join('\n');
+}
+
+/** "2" → "2 этаж", "-1" → "−1 этаж", "у входа А" → "у входа А". */
+export function serviceFloorLabel(floor: string | null): string | null {
+  return floor ? formatFloorLabel(floor) : null;
+}
+
+export function servicesFaqAnswer(services: RetailServiceEntry[]): string | null {
+  if (!services.length) return null;
+  return services
+    .map((s) => {
+      const where = serviceFloorLabel(s.floor);
+      const head = where ? `${s.name} (${where})` : s.name;
+      return s.text ? sentence(`${head} — ${s.text}`) : sentence(head);
+    })
+    .join('\n');
+}
+
+export function rulesFaqAnswer(rules: RetailRuleEntry[]): string | null {
+  return rules.length ? rules.map((r) => sentence(r.text)).join('\n') : null;
+}
+
+export function loyaltyFaqAnswer(loyalty: RetailLoyaltyEntry[]): string | null {
+  return loyalty.length ? loyalty.map((l) => withText(l.name, l.text)).join('\n') : null;
+}
+
+export function eventsFaqAnswer(events: RetailEventEntry[]): string | null {
+  return events.length ? events.map((e) => withText(e.name, e.text, e.date)).join('\n') : null;
+}
+
+// --- Для бизнеса: аудитория, аренда, реклама, цифры, цитаты ---------------
+
+/** Пометка под цифрой: «март 2026 · по данным ТЦ». */
+export function figureMeta(entry: RetailFigureEntry): string | null {
+  const parts = [formatRetailDate(entry.date), entry.note].filter(Boolean);
+  return parts.length ? parts.join(' · ') : null;
+}
+
+/** «Посещаемость — 40 000 человек в день (2025, по данным ТЦ).» */
+export function formatFigureLine(entry: RetailFigureEntry): string {
+  const meta = [formatRetailDate(entry.date), entry.note].filter(Boolean).join(', ');
+  return sentence(`${entry.label} — ${entry.value}${meta ? ` (${meta})` : ''}`);
+}
+
+const ATTENDANCE_RE = /(посещ|посетител|трафик|человек)/i;
+
+/** «Сколько посетителей» — только если среди цифр есть посещаемость. */
+export function audienceFaqQuestion(audience: RetailFigureEntry[], prep: string): string | null {
+  if (!audience.length) return null;
+  return audience.some((a) => ATTENDANCE_RE.test(`${a.label} ${a.value}`))
+    ? `Сколько посетителей бывает в ${prep}?`
+    : `Кто ходит в ${prep}?`;
+}
+
+export function figuresFaqAnswer(entries: RetailFigureEntry[]): string | null {
+  return entries.length ? entries.map(formatFigureLine).join('\n') : null;
+}
+
+/** Текст, пункты и контакты — каждой строкой, как в блоке. */
+export function pitchFaqAnswer(p: RetailPitch | null): string | null {
+  if (!p) return null;
+  const lines = [p.text ? sentence(p.text) : null, ...p.points.map(sentence)];
+  if (p.contacts) lines.push(sentence(`Контакты: ${p.contacts}`));
+  return lines.filter(Boolean).join('\n');
+}
+
+/** Текст цитаты без внешних кавычек: блок и FAQ ставят свои. */
+export function quoteText(quote: RetailQuoteEntry): string {
+  return quote.text.replace(/^[«"„“]+|[»"“”]+$/g, '').trim();
+}
+
+export function quotesFaqAnswer(quotes: RetailQuoteEntry[]): string | null {
+  if (!quotes.length) return null;
+  return quotes
+    .map((q) => {
+      const when = formatRetailDate(q.date);
+      return `«${quoteText(q)}» — ${q.who}${when ? `, ${when}` : ''}.`;
+    })
+    .join('\n');
+}
+
 // --- Разделы страницы ----------------------------------------------------
 
-/** id карточек в разметке — они же пункты меню «На странице». */
-export type RetailSectionId = 'floors' | 'firsts' | 'leisure';
+/**
+ * id карточек в разметке — они же пункты меню «На странице». Первые три —
+ * состав здания, `visit` — одна карточка «Посетителю» (режим, парковка,
+ * проезд, удобства, скидки), дальше — блоки для бизнес-аудитории.
+ */
+export type RetailSectionId = 'floors' | 'firsts' | 'leisure' | 'visit' | 'business' | 'numbers' | 'quotes';
 
 export const RETAIL_SECTION_LABELS: Record<RetailSectionId, string> = {
   floors: 'Что на каком этаже',
   firsts: 'Первые в Беларуси и якоря',
   leisure: 'Кино, еда, развлечения',
+  visit: 'Посетителю',
+  business: 'Арендаторам и рекламодателям',
+  numbers: 'ТЦ в цифрах',
+  quotes: 'Цитаты',
 };
+
+/**
+ * Две группы карточек, которые читаются подряд: «для посетителя» и «для
+ * бизнеса». Рекомендацию между карточками одной группы страница переносит
+ * за последнюю карточку группы, а на стыке групп — оставляет.
+ */
+export function retailSectionGroup(id: RetailSectionId): 'visitor' | 'business' {
+  return id === 'business' || id === 'numbers' || id === 'quotes' ? 'business' : 'visitor';
+}
+
+export function hasVisitInfo(info: RetailInfo): boolean {
+  return Boolean(
+    info.hours.length ||
+      info.hoursNote ||
+      info.parking ||
+      info.transport.length ||
+      info.services.length ||
+      info.rules.length ||
+      info.loyalty.length ||
+      info.events.length,
+  );
+}
+
+export function hasBusinessInfo(info: RetailInfo): boolean {
+  return Boolean(info.audience.length || info.leasing || info.advertising);
+}
+
+/**
+ * Примерное число «строк» карточки для модели высот страницы
+ * (businessCenterPageLayout). У visit панели стоят в две колонки, поэтому
+ * строки делятся пополам; у business — цифры одним рядом плюс длиннейшая из
+ * двух колонок «аренда / реклама».
+ */
+export function retailSectionSize(info: RetailInfo | null, id: RetailSectionId): number {
+  if (!info) return 0;
+  switch (id) {
+    case 'floors':
+      return info.floorsGuide.length;
+    case 'firsts':
+      return info.firsts.length;
+    // Плитки в две колонки: высоту задаёт число рядов.
+    case 'leisure':
+      return Math.ceil(info.leisure.length / 2);
+    case 'visit': {
+      const panels = [
+        info.hours.length + (info.hoursNote ? 1 : 0),
+        info.parking ? info.parking.items.length + 2 : 0,
+        info.transport.length,
+        Math.ceil(info.services.length / 2) + info.rules.length,
+        info.loyalty.length + info.events.length,
+      ].filter((n) => n > 0);
+      // Заголовок панели — ещё строка.
+      const rows = panels.reduce((sum, n) => sum + n + 1, 0);
+      return Math.ceil(rows / 2);
+    }
+    case 'business': {
+      const pitchRows = (p: RetailPitch | null) => (p ? 2 + p.points.length + (p.contacts ? 1 : 0) : 0);
+      return (info.audience.length ? 2 : 0) + Math.max(pitchRows(info.leasing), pitchRows(info.advertising));
+    }
+    // Плитки по три в ряд на десктопе.
+    case 'numbers':
+      return Math.ceil(info.numbers.length / 3);
+    // Цитаты в две колонки.
+    case 'quotes':
+      return Math.ceil(info.quotes.length / 2);
+  }
+}
 
 /** Какие карточки реально нарисуются — в порядке на странице. */
 export function retailSectionIds(info: RetailInfo | null): RetailSectionId[] {
@@ -315,5 +679,9 @@ export function retailSectionIds(info: RetailInfo | null): RetailSectionId[] {
   if (info.floorsGuide.length) ids.push('floors');
   if (info.firsts.length) ids.push('firsts');
   if (info.leisure.length) ids.push('leisure');
+  if (hasVisitInfo(info)) ids.push('visit');
+  if (hasBusinessInfo(info)) ids.push('business');
+  if (info.numbers.length) ids.push('numbers');
+  if (info.quotes.length) ids.push('quotes');
   return ids;
 }
