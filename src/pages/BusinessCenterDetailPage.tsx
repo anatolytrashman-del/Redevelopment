@@ -120,6 +120,7 @@ import {
   formatFloorLabel,
 } from '../lib/businessCenterTenants';
 import { TenantDirectory } from '../components/businessCenters/TenantDirectory';
+import { BuildingAmenities } from '../components/businessCenters/BuildingAmenities';
 import type { BusinessCenterTenantSnapshot } from '../data/businessCenterTenants';
 import { buildOfferIndex, METRO_LINE_DOT_CLASS, metroLineId } from '../lib/businessCenterCatalogFilter';
 import { buildMarketPosition, haversineMeters } from '../lib/businessCenterMarketPosition';
@@ -2576,9 +2577,9 @@ export function BusinessCenterDetailPage() {
             картах"), но тогда рейтинг был известен только по зданию целиком —
             теперь число оценок есть на саму организацию. */}
         {tenantOrganizations.length > 0 && (
-          <TenantDirectory organizations={tenantOrganizations} amenities={tenantAmenities} />
-
+          <TenantDirectory organizations={tenantOrganizations} />
         )}
+        <BuildingAmenities amenities={tenantAmenities} />
 
         {renderRecommendationSlot('tenants')}
 
