@@ -1,7 +1,7 @@
 import type { BusinessCenterReview, BusinessCenterReviewRow } from '../data/businessCenterReviews';
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import { loadBcExtra } from './buildData';
+import { loadBcExtra, peekBcExtra } from './buildData';
 
 function fromRow(row: BusinessCenterReviewRow): BusinessCenterReview {
   return {
@@ -36,5 +36,15 @@ export async function fetchBusinessCenterReviews(slug: string): Promise<Business
       if (error) throw error;
       return data as BusinessCenterReviewRow[];
     }));
+  return reviewsFromRows(rows);
+}
+
+// Синхронно из уже пришедшего файла сборки — для первого рендера карточки.
+export function peekBusinessCenterReviews(slug: string): BusinessCenterReview[] | null {
+  const rows = peekBcExtra(slug)?.reviews as BusinessCenterReviewRow[] | undefined;
+  return rows ? reviewsFromRows(rows) : null;
+}
+
+function reviewsFromRows(rows: BusinessCenterReviewRow[]): BusinessCenterReview[] {
   return rows.map(fromRow).sort((a, b) => b.likes - b.dislikes - (a.likes - a.dislikes));
 }

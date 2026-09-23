@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import { loadBcAnalytics, loadBcExtra, loadBcMarket } from './buildData';
+import { loadBcAnalytics, loadBcExtra, loadBcMarket, peekBcExtra, peekBcMarket } from './buildData';
 import type {
   BusinessCenterOffer,
   BusinessCenterOfferRow,
@@ -122,6 +122,18 @@ function sliceFromRow(row: OfferSliceRow): BusinessCenterOfferSlice {
 // каталогу из них нужны два, и грузится он на каждый заход на страницу.
 // PostgREST отдаёт максимум 1000 строк — листаем .range(), иначе при росте
 // числа объявлений хвост пропадёт молча (см. CLAUDE.md).
+// Синхронно из уже пришедших файлов сборки — для первого рендера (см.
+// peekBuildData в src/lib/buildData.ts); null — файл ещё не пришёл.
+export function peekBusinessCenterLotSizes(): { businessCenterSlug: string; size: number }[] | null {
+  const rows = peekBcMarket()?.lotSizes;
+  return rows ? rows.map((r) => ({ businessCenterSlug: r.business_center_slug, size: r.size })) : null;
+}
+
+export function peekBusinessCenterOffers(slug: string): BusinessCenterOffer[] | null {
+  const rows = peekBcExtra(slug)?.offers;
+  return rows ? (rows as BusinessCenterOfferRow[]).map(fromRow) : null;
+}
+
 export async function fetchBusinessCenterLotSizes(): Promise<{ businessCenterSlug: string; size: number }[]> {
   // Из файла сборки (src/lib/buildData.ts); в базу — только если его нет.
   const fromBuild = (await loadBcMarket())?.lotSizes;

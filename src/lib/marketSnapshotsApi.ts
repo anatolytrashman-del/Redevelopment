@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
 import type { ExternalMetric, ExternalMetricRow, MarketSnapshot, MarketSnapshotRow } from '../data/marketSnapshots';
-import { loadBcMarket } from './buildData';
+import { loadBcMarket, peekBcMarket } from './buildData';
 
 function fromRow(row: MarketSnapshotRow): MarketSnapshot {
   return {
@@ -23,6 +23,13 @@ function fromRow(row: MarketSnapshotRow): MarketSnapshot {
 // Забирает снимки сегмента за самый свежий доступный период (не за
 // конкретный календарный месяц — если крон ещё не прогонялся в этом
 // месяце, страница показывает прошлый снимок, а не пустоту).
+// Синхронно из уже пришедшего файла сборки — для первого рендера страниц
+// раздела (см. peekBuildData в src/lib/buildData.ts); null — ещё не пришёл.
+export function peekLatestMarketSnapshots(segment: string): MarketSnapshot[] | null {
+  const rows = peekBcMarket()?.marketSnapshots?.[segment];
+  return rows ? (rows as MarketSnapshotRow[]).map(fromRow) : null;
+}
+
 export async function fetchLatestMarketSnapshots(segment: string): Promise<MarketSnapshot[]> {
   // Сегмент раздела БЦ лежит в сборке (src/lib/buildData.ts) — берём оттуда,
   // в базу только если файла нет. Остальные сегменты в файл не кладутся, и

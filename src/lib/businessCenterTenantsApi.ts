@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import { loadBcExtra } from './buildData';
+import { loadBcExtra, peekBcExtra } from './buildData';
 import type {
   BusinessCenterTenantSnapshot,
   BusinessCenterTenantSnapshotRow,
@@ -43,6 +43,14 @@ function fromRow(row: BusinessCenterTenantSnapshotRow): BusinessCenterTenantSnap
 // fetchBusinessCenter2gisSnapshot. RLS для anon открывает только колонки из
 // select ниже: id и address_query (поисковая строка сбора) остаются
 // внутренними.
+// Синхронно из уже пришедшего файла сборки — для первого рендера карточки.
+// undefined — файл ещё не пришёл (не знаем), null — снимка у здания нет.
+export function peekBusinessCenterTenantSnapshot(slug: string): BusinessCenterTenantSnapshot | null | undefined {
+  const extra = peekBcExtra(slug);
+  if (!extra) return undefined;
+  return extra.tenants ? fromRow(extra.tenants as BusinessCenterTenantSnapshotRow) : null;
+}
+
 export async function fetchBusinessCenterTenantSnapshot(slug: string): Promise<BusinessCenterTenantSnapshot | null> {
   // Файл .extra из сборки (src/lib/buildData.ts) — там уже только срез
   // Яндекса (source = YANDEX_TENANT_SOURCE), как и в выборке ниже.

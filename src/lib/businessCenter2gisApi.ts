@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import { loadBcExtra } from './buildData';
+import { loadBcExtra, peekBcExtra } from './buildData';
 import type {
   BusinessCenter2gisSnapshot,
   BusinessCenter2gisSnapshotRow,
@@ -113,6 +113,14 @@ function fromRow(row: BusinessCenter2gisSnapshotRow): BusinessCenter2gisSnapshot
 // RLS для anon открывает только перечисленные ниже колонки — raw_item/
 // geocode_raw/gis_org_id/gis_building_id/point/id/data_quality_flag не
 // читаемы анонимным ключом вовсе (см. миграцию в журнале docs/session-journal.md).
+// Синхронно из уже пришедшего файла сборки — для первого рендера карточки.
+// undefined — файл ещё не пришёл (не знаем), null — снимка у здания нет.
+export function peekBusinessCenter2gisSnapshot(slug: string): BusinessCenter2gisSnapshot | null | undefined {
+  const extra = peekBcExtra(slug);
+  if (!extra) return undefined;
+  return extra.gis2 ? fromRow(extra.gis2 as BusinessCenter2gisSnapshotRow) : null;
+}
+
 export async function fetchBusinessCenter2gisSnapshot(slug: string): Promise<BusinessCenter2gisSnapshot | null> {
   // Файл .extra из сборки (src/lib/buildData.ts). gis2: null в нём —
   // «снимка 2ГИС у здания нет», ответ окончательный, в базу не идём.

@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import { loadBuildData } from './buildData';
+import { bcExtraFile, loadBuildData, seedBuildData } from './buildData';
 import { triggerPublicRebuild } from './publicRebuild';
 import type {
   BusinessCenter,
@@ -153,6 +153,8 @@ const LIST_COLUMNS = [
 interface BuildSnapshotWindow {
   __bcList?: Promise<{ generatedAt: string; rows: BusinessCenterRow[] } | null>;
   __bcDetail?: { slug: string; data: Promise<{ generatedAt: string; row: BusinessCenterRow } | null> };
+  __bcMarket?: Promise<unknown>;
+  __bcExtra?: { slug: string; data: Promise<unknown> };
 }
 
 // Снимок сборки — ОСНОВНОЙ источник зданий для публичных страниц, а не
@@ -210,14 +212,20 @@ export async function primeBusinessCentersFromBuild(timeoutMs = 2500): Promise<v
     })
     .catch(() => undefined);
   listPending = list;
-  // Карточке для первого экрана нужен только файл своего здания: список —
-  // это соседи, «предыдущий/следующий» и сравнения ниже первого экрана.
-  // Ждать его перед монтированием значило бы держать 109 КБ на критическом
-  // пути (замер 2026-09-23: на медленном 4G список доезжал к 2 с). Каталогу
-  // и хабам список нужен сразу — там ждём оба.
-  const critical = w.__bcDetail ? detail : Promise.all([list, detail]);
+  // Догружаемые файлы, начатые тем же инлайн-скриптом, кладём в кеш
+  // buildData — функции загрузки возьмут их оттуда, а страницы прочитают
+  // синхронно в первом рендере (peekBuildData).
+  const market = w.__bcMarket ? seedBuildData('bc-market.json', w.__bcMarket) : null;
+  const extra = w.__bcExtra ? seedBuildData(bcExtraFile(w.__bcExtra.slug), w.__bcExtra.data) : null;
+  // Монтирование ждёт ВСЁ, что уже нарисовано в пререндер-снапшоте: React
+  // здесь не гидратирует, а строит DOM заново, и его первый кадр обязан
+  // совпасть со снапшотом. 2026-09-23 карточка ждала только файл здания —
+  // и на десктопе сразу после монтирования пропадал блок «Отдел аренды»
+  // (390 px), а оглавление съезжало: CLS 0,33 при 97 на телефоне. LCP
+  // это ожидание не задевает — фото снапшота к монтированию уже нарисовано,
+  // а все эти файлы качаются с низким приоритетом и канал ему не отнимают.
   const timeout = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
-  await Promise.race([critical, timeout]);
+  await Promise.race([Promise.all([list, detail, market, extra]), timeout]);
 }
 
 export async function fetchBusinessCenters(): Promise<BusinessCenter[]> {

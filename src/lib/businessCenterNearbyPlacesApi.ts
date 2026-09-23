@@ -5,7 +5,7 @@ import type {
 } from '../data/businessCenterNearbyPlaces';
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import { loadBcExtra } from './buildData';
+import { loadBcExtra, peekBcExtra } from './buildData';
 
 // 'restaurant' — категория, отменённая владельцем 2026-09-21 («кафе и
 // рестораны делай в одну категорию»); строки со старым значением (ещё не
@@ -31,6 +31,12 @@ function fromRow(row: BusinessCenterNearbyPlaceRow): BusinessCenterNearbyPlace {
     sourceUrl: row.source_url,
     collectedAt: row.collected_at,
   };
+}
+
+// Синхронно из уже пришедшего файла сборки — для первого рендера карточки.
+export function peekBusinessCenterNearbyPlaces(slug: string): BusinessCenterNearbyPlace[] | null {
+  const rows = peekBcExtra(slug)?.nearby;
+  return rows ? (rows as BusinessCenterNearbyPlaceRow[]).map(fromRow) : null;
 }
 
 export async function fetchBusinessCenterNearbyPlaces(slug: string): Promise<BusinessCenterNearbyPlace[]> {
