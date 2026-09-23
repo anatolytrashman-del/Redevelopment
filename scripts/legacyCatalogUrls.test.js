@@ -15,7 +15,7 @@ const redirects = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.
 function compile(source) {
   const pattern = source
     .replace(/\{\/\}\?$/, '(?:/)?')
-    .replace(/\/:(\w+)\*/g, '(?:/(?<$1>.*))?')
+    .replace(/\/:(\w+)\*/g, '(?:/(?<$1>[^/]+(?:/[^/]+)*))?') // как у Vercel: хвостовой слэш `:path*` не съедает
     .replace(/:(\w+)/g, '(?<$1>[^/]+)');
   return new RegExp(`^${pattern}$`);
 }
