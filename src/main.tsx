@@ -1,4 +1,4 @@
-import { StrictMode } from 'react'
+import { StrictMode, startTransition } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import './index.css'
@@ -70,15 +70,25 @@ function waitForPrerenderedPaint(): Promise<void> {
 // Ожидание идёт ПАРАЛЛЕЛЬНО отрисовке снапшота, не после неё, и у него свой
 // таймаут внутри — на страницах без этих данных не стоит ни миллисекунды.
 Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then(() => {
-  createRoot(container).render(
+  const root = createRoot(container)
+  const tree = (
     <StrictMode>
       <ErrorBoundary>
         <BrowserRouter basename={import.meta.env.BASE_URL}>
           <App />
         </BrowserRouter>
       </ErrorBoundary>
-    </StrictMode>,
+    </StrictMode>
   )
+  // Поверх снапшота — рендер-переход, а не обычный: React строит дерево
+  // кусками по ~5 мс, уступая поток между ними, и только готовый результат
+  // одним коммитом подменяет снапшот (до коммита на экране остаётся он).
+  // Обычный root.render — одна задача на всё дерево: 175–275 мс на
+  // каталоге и карточке БЦ при 3× замедлении процессора, главный вклад
+  // нашего кода в TBT отчёта PageSpeed (десктоп каталога — 410 мс,
+  // 2026-09-23). Пустому шеллу (админка) ждать нечего — там как раньше.
+  if (container.hasChildNodes()) startTransition(() => root.render(tree))
+  else root.render(tree)
   // ErrorBoundary.componentDidCatch перезагружает страницу один раз за
   // сессию вкладки при первом же непойманном крахе (см. комментарий в самом
   // компоненте) — снимаем этот флаг спустя несколько секунд успешной работы,
