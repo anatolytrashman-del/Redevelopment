@@ -89,7 +89,7 @@
     { "source": "/minsk/bcminsk/class/:cls/raion/:slug{/}?", "destination": "/minsk/bc/class/:cls/district/:slug", "permanent": true },
     { "source": "/minsk/bcminsk/microrayon/:slug{/}?", "destination": "/minsk/bc/area/:slug", "permanent": true },
     { "source": "/minsk/bcminsk{/}?", "destination": "/minsk/bc", "permanent": true },
-    { "source": "/minsk/bcminsk/:path*", "destination": "/minsk/bc/:path*", "permanent": true },
+    { "source": "/minsk/bcminsk/:path*{/}?", "destination": "/minsk/bc/:path*", "permanent": true },
     { "source": "/minsk/bc/reyting{/}?", "destination": "/minsk/bc/rating", "permanent": true },
     { "source": "/minsk/bc/area/grushevka{/}?", "destination": "/minsk/bc/metro/grushevka", "permanent": true },
     { "source": "/minsk/bc/area/uruchye{/}?", "destination": "/minsk/bc/metro/uruchye", "permanent": true },
