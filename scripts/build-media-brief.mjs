@@ -120,6 +120,7 @@ function card(bc, index) {
 const { data, error } = await supabase
   .from('business_centers')
   .select('slug, name, alt_names, address, year_built, total_area, floors, developer, website, status, description, highlights, media_mentions, business_class')
+  .eq('kind', 'bc')
   .in('business_class', classes)
   .order('business_class')
   .order('slug');

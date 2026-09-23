@@ -251,6 +251,7 @@ export async function fetchBusinessCenters(): Promise<BusinessCenter[]> {
     const { data, error } = await supabase
       .from('business_centers')
       .select(LIST_COLUMNS)
+      .eq('kind', 'bc')
       .order('sort_order', { ascending: true });
     if (error) throw error;
     return (data as unknown as BusinessCenterRow[]).map(fromRow);
@@ -279,7 +280,7 @@ export async function fetchBusinessCenter(slug: string): Promise<BusinessCenter 
   const file = await loadBuildData<{ generatedAt: string; row: BusinessCenterRow }>(`bc/${encodeURIComponent(slug)}.json`);
   if (file?.row && file.row.slug === slug) return fromRow(file.row);
   return withRetry(async () => {
-    const { data, error } = await supabase.from('business_centers').select('*').eq('slug', slug).maybeSingle();
+    const { data, error } = await supabase.from('business_centers').select('*').eq('slug', slug).eq('kind', 'bc').maybeSingle();
     if (error) throw error;
     return data ? fromRow(data as BusinessCenterRow) : null;
   }).catch((err) => fallbackToSnapshot(snapshotDetail?.slug === slug ? snapshotDetail.center : undefined, err));

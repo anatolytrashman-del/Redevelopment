@@ -398,7 +398,7 @@ async function supabaseSelect(query, what) {
 }
 
 async function fetchStreetHubPaths() {
-  const rows = await supabaseSelect('business_centers?select=address', 'business_centers.address');
+  const rows = await supabaseSelect('business_centers?select=address&kind=eq.bc', 'business_centers.address');
   const slugs = new Set();
   for (const r of rows) {
     const slug = STREET_HUB_SLUG_BY_NAME[streetOfAddressJs(r.address)];
@@ -409,7 +409,7 @@ async function fetchStreetHubPaths() {
 
 async function fetchMetroHubStations() {
   const rows = await supabaseSelect(
-    'business_centers?select=nearest_metro_stations&nearest_metro_stations=not.is.null',
+    'business_centers?select=nearest_metro_stations&nearest_metro_stations=not.is.null&kind=eq.bc',
     'nearest_metro_stations',
   );
   const slugs = new Set();
@@ -443,7 +443,7 @@ const MICRODISTRICT_STREET_COLLISION_SLUGS = new Set(['suharevo']);
 
 async function fetchMicrodistrictHubPaths() {
   const rows = await supabaseSelect(
-    'business_centers?select=microdistrict&microdistrict=not.is.null',
+    'business_centers?select=microdistrict&microdistrict=not.is.null&kind=eq.bc',
     'microdistrict',
   );
   const slugs = new Set();
@@ -457,7 +457,7 @@ async function fetchMicrodistrictHubPaths() {
 }
 
 async function fetchClassDistrictComboPaths() {
-  const rows = await supabaseSelect('business_centers?select=business_class,district', 'business_class/district');
+  const rows = await supabaseSelect('business_centers?select=business_class,district&kind=eq.bc', 'business_class/district');
   const combos = new Set();
   for (const r of rows) {
     const classSlug = CLASS_HUB_SLUG_BY_VALUE[r.business_class];
@@ -480,7 +480,7 @@ async function fetchLandingPaths() {
 // Яндекса контента конкретного БЦ не существует. Список слагов — из той же
 // таблицы, что читает публичная страница (business_centers), не хардкожен.
 async function fetchBusinessCenterPaths() {
-  const rows = await supabaseSelect('business_centers?select=slug', 'business_centers.slug');
+  const rows = await supabaseSelect('business_centers?select=slug&kind=eq.bc', 'business_centers.slug');
   return rows
     .map((r) => r.slug)
     .filter((slug) => typeof slug === 'string' && slug.trim() !== '')

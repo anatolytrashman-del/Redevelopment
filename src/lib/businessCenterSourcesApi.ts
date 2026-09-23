@@ -101,6 +101,7 @@ export async function fetchCatalogSiteSources(): Promise<CatalogSources> {
     const { data, error } = await supabase
       .from('business_centers')
       .select('website, developer_info, media_mentions, building_facts')
+      .eq('kind', 'bc')
       .range(0, 999);
     if (error) throw error;
     return sourcesFromRows((data ?? []) as SourceSiteRow[]);
