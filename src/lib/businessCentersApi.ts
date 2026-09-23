@@ -232,7 +232,18 @@ export function fetchBusinessCenters(): Promise<BusinessCenter[]> {
       .order('sort_order', { ascending: true });
     if (error) throw error;
     return (data as unknown as BusinessCenterRow[]).map(fromRow);
-  });
+  }).catch((err) => fallbackToSnapshot(snapshotList?.centers, err));
+}
+
+// База не ответила — показываем снимок сборки любой давности, а не ошибку.
+// 2026-09-23 Supabase закрыл проект за трафик (402 на любой запрос), снимки
+// были старше часа, и страницы раздела шли в базу: каталог сносил готовую
+// разметку в «Нет бизнес-центров», а карточка — в «не найден» с noindex
+// прямо на глазах у поисковика. Устаревшие данные лучше пустой страницы.
+function fallbackToSnapshot<T>(snapshot: T | undefined, err: unknown): T {
+  if (snapshot === undefined) throw err;
+  console.warn('[businessCenters] база недоступна — показываю данные из сборки', err);
+  return snapshot;
 }
 
 // Полный ряд одного здания — для карточки БЦ: ей нужны и технические
@@ -247,7 +258,7 @@ export function fetchBusinessCenter(slug: string): Promise<BusinessCenter | null
     const { data, error } = await supabase.from('business_centers').select('*').eq('slug', slug).maybeSingle();
     if (error) throw error;
     return data ? fromRow(data as BusinessCenterRow) : null;
-  });
+  }).catch((err) => fallbackToSnapshot(snapshotDetail?.slug === slug ? snapshotDetail.center : undefined, err));
 }
 
 // Полная таблица — только админке (BusinessCentersAdminTab): там правят все
