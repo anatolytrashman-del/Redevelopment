@@ -79,11 +79,11 @@ const KEY_PAGE_PATHS = [
   'minsk/analytics/torgovye/arenda',
   'minsk/analytics/sklady/arenda',
   'minsk/analytics/mashinomesta/arenda',
-  'minsk/bcminsk',
-  'minsk/bcminsk/rating',
-  'minsk/bcminsk/gid',
-  'minsk/bcminsk/stroyashchiesya',
-  'minsk/bcminsk/analytics',
+  'minsk/bc',
+  'minsk/bc/rating',
+  'minsk/bc/guide',
+  'minsk/bc/new',
+  'minsk/bc/analytics',
 ];
 
 // Сколько дней истории запросов подтягивать за один прогон — у Search

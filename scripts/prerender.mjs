@@ -210,17 +210,17 @@ const STATIC_PATHS = [
   'minsk/analytics/rajony',
   'minsk/minsk-mir',
   ...MINSK_MIR_TOPIC_SLUGS.map((s) => `minsk/minsk-mir/${s}`),
-  'minsk/bcminsk',
-  'minsk/bcminsk/stroyashchiesya',
-  'minsk/bcminsk/rating',
-  'minsk/bcminsk/rating/samye-bolshie',
-  'minsk/bcminsk/rating/b-plus',
-  'minsk/bcminsk/rating/b-c',
-  'minsk/bcminsk/rating/samye-dostupnye',
-  'minsk/bcminsk/analytics',
-  'minsk/bcminsk/gid',
-  ...CLASS_HUB_SLUGS.map((s) => `minsk/bcminsk/class/${s}`),
-  ...DISTRICT_HUB_SLUGS.map((s) => `minsk/bcminsk/raion/${s}`),
+  'minsk/bc',
+  'minsk/bc/new',
+  'minsk/bc/rating',
+  'minsk/bc/rating/largest',
+  'minsk/bc/rating/class-b-plus',
+  'minsk/bc/rating/class-b-c',
+  'minsk/bc/rating/affordable',
+  'minsk/bc/analytics',
+  'minsk/bc/guide',
+  ...CLASS_HUB_SLUGS.map((s) => `minsk/bc/class/${s}`),
+  ...DISTRICT_HUB_SLUGS.map((s) => `minsk/bc/district/${s}`),
 ];
 
 // Хаб-страницы по пересечению класс×район (владелец, 2026-09-06: "структура
@@ -318,29 +318,29 @@ const METRO_HUB_SLUG_BY_STATION = {
 // адреса, не тянет БД). Хаб — только для улиц с 2+ БЦ (STREET_HUB_SLUG_BY_NAME
 // содержит только уже подтверждённые slug'и таких улиц).
 const STREET_HUB_SLUG_BY_NAME = {
-  'пр-т Победителей': 'pr-t-pobediteley',
-  'пр-т Независимости': 'pr-t-nezavisimosti',
-  'пр-т Дзержинского': 'pr-t-dzerzhinskogo',
-  'ул. Притыцкого': 'ul-pritytskogo',
-  'ул. Сурганова': 'ul-surganova',
-  'ул. Платонова': 'ul-platonova',
-  'ул. Клары Цеткин': 'ul-klary-tsetkin',
-  'пер. Козлова': 'per-kozlova',
-  'пр-т Партизанский': 'pr-t-partizanskiy',
+  'пр-т Победителей': 'prospekt-pobediteley',
+  'пр-т Независимости': 'prospekt-nezavisimosti',
+  'пр-т Дзержинского': 'prospekt-dzerzhinskogo',
+  'ул. Притыцкого': 'pritytskogo',
+  'ул. Сурганова': 'surganova',
+  'ул. Платонова': 'platonova',
+  'ул. Клары Цеткин': 'klary-tsetkin',
+  'пер. Козлова': 'pereulok-kozlova',
+  'пр-т Партизанский': 'prospekt-partizanskiy',
   'Логойский тракт': 'logoyskiy-trakt',
-  'ул. Хоружей': 'ul-horuzhey',
-  'ул. Филимонова': 'ul-filimonova',
-  'ул. Немига': 'ul-nemiga',
-  'ул. Мележа': 'ul-melezha',
-  'ул. Толбухина': 'ul-tolbuhina',
-  'ул. Железнодорожная': 'ul-zheleznodorozhnaya',
-  'ул. Интернациональная': 'ul-internatsionalnaya',
-  'ул. Лобанка': 'ul-lobanka',
-  'ул. Ольшевского': 'ul-olshevskogo',
-  'ул. Свердлова': 'ul-sverdlova',
-  'ул. Скрыганова': 'ul-skryganova',
-  'ул. Тимирязева': 'ul-timiryazeva',
-  'ул. Скорины': 'ul-skoriny',
+  'ул. Хоружей': 'horuzhey',
+  'ул. Филимонова': 'filimonova',
+  'ул. Немига': 'nemiga',
+  'ул. Мележа': 'melezha',
+  'ул. Толбухина': 'tolbuhina',
+  'ул. Железнодорожная': 'zheleznodorozhnaya',
+  'ул. Интернациональная': 'internatsionalnaya',
+  'ул. Лобанка': 'lobanka',
+  'ул. Ольшевского': 'olshevskogo',
+  'ул. Свердлова': 'sverdlova',
+  'ул. Скрыганова': 'skryganova',
+  'ул. Тимирязева': 'timiryazeva',
+  'ул. Скорины': 'skoriny',
 };
 
 function shortAddressJs(a) {
@@ -402,7 +402,7 @@ async function fetchStreetHubPaths() {
   const slugs = new Set();
   for (const r of rows) {
     const slug = STREET_HUB_SLUG_BY_NAME[streetOfAddressJs(r.address)];
-    if (slug) slugs.add(`minsk/bcminsk/ulitsa/${slug}`);
+    if (slug) slugs.add(`minsk/bc/street/${slug}`);
   }
   return [...slugs];
 }
@@ -423,7 +423,7 @@ async function fetchMetroHubStations() {
 }
 
 async function fetchMetroHubPaths() {
-  return (await fetchMetroHubStations()).map((slug) => `minsk/bcminsk/metro/${slug}`);
+  return (await fetchMetroHubStations()).map((slug) => `minsk/bc/metro/${slug}`);
 }
 
 // Грушевка/Уручье/Каменная Горка — одновременно и микрорайон, и станция
@@ -450,7 +450,7 @@ async function fetchMicrodistrictHubPaths() {
   for (const r of rows) {
     const slug = MICRODISTRICT_HUB_SLUG_BY_NAME[r.microdistrict];
     if (slug && !MICRODISTRICT_METRO_COLLISION_SLUGS.has(slug) && !MICRODISTRICT_STREET_COLLISION_SLUGS.has(slug)) {
-      slugs.add(`minsk/bcminsk/microrayon/${slug}`);
+      slugs.add(`minsk/bc/area/${slug}`);
     }
   }
   return [...slugs];
@@ -462,7 +462,7 @@ async function fetchClassDistrictComboPaths() {
   for (const r of rows) {
     const classSlug = CLASS_HUB_SLUG_BY_VALUE[r.business_class];
     const districtSlug = DISTRICT_HUB_SLUG_BY_NAME[r.district];
-    if (classSlug && districtSlug) combos.add(`minsk/bcminsk/class/${classSlug}/raion/${districtSlug}`);
+    if (classSlug && districtSlug) combos.add(`minsk/bc/class/${classSlug}/district/${districtSlug}`);
   }
   return [...combos];
 }
@@ -475,7 +475,7 @@ async function fetchLandingPaths() {
     .map((slug) => `minsk/${slug}`);
 }
 
-// Отдельные страницы бизнес-центров (/minsk/bcminsk/:slug) — та же причина
+// Отдельные страницы бизнес-центров (/minsk/bc/:slug) — та же причина
 // пререндера, что и у лендингов объектов выше: без снапшота у AI-краулеров/
 // Яндекса контента конкретного БЦ не существует. Список слагов — из той же
 // таблицы, что читает публичная страница (business_centers), не хардкожен.
@@ -484,7 +484,7 @@ async function fetchBusinessCenterPaths() {
   return rows
     .map((r) => r.slug)
     .filter((slug) => typeof slug === 'string' && slug.trim() !== '')
-    .map((slug) => `minsk/bcminsk/${slug}`);
+    .map((slug) => `minsk/bc/${slug}`);
 }
 
 // `vite preview` — тот же сервер, что уже настроен как npm-скрипт
@@ -780,7 +780,7 @@ async function serveSupabaseRestFromCache(route) {
 // Страницы раздела БЦ — у них все данные в файлах сборки, поэтому в аварии
 // их можно рендерить честно (см. processPathFast).
 function isBusinessCenterSectionPath(path) {
-  return path === 'minsk/bcminsk' || path.startsWith('minsk/bcminsk/');
+  return path === 'minsk/bc' || path.startsWith('minsk/bc/');
 }
 
 const SUPABASE_OUTAGE_REASON = 'Supabase закрыт (402) — раздел БЦ рендерится из файлов сборки, остальное копируется с прода';
@@ -980,7 +980,7 @@ async function main() {
   }
   // PRERENDER_ONLY=префикс[,префикс…] — только для локальных замеров/отладки:
   // оставить пути, начинающиеся с одного из префиксов (например
-  // `PRERENDER_ONLY=minsk/minsk-mir,minsk/bcminsk/raion`). На Vercel намеренно
+  // `PRERENDER_ONLY=minsk/minsk-mir,minsk/bc/district`). На Vercel намеренно
   // игнорируется, чтобы случайно не уехал частичный прод.
   if (!process.env.VERCEL && process.env.PRERENDER_ONLY) {
     const prefixes = process.env.PRERENDER_ONLY.split(',').map((p) => p.trim()).filter(Boolean);

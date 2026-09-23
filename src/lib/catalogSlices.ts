@@ -174,16 +174,16 @@ export function statusSlices(centers: BusinessCenter[]): CatalogSlice[] {
   const underConstruction = centers.filter((c) => c.status === 'under_construction').length;
   const slices: CatalogSlice[] = [];
   if (built > 0) {
-    slices.push({ key: 'built', label: 'Построенные', url: '/minsk/bcminsk?status=built', count: built });
+    slices.push({ key: 'built', label: 'Построенные', url: '/minsk/bc?status=built', count: built });
   }
   if (underConstruction > 0) {
     slices.push({
       key: 'under_construction',
       label: 'Строящиеся',
-      url: '/minsk/bcminsk/stroyashchiesya',
+      url: '/minsk/bc/new',
       count: underConstruction,
     });
   }
-  slices.push({ key: 'all', label: 'Весь каталог', url: '/minsk/bcminsk', count: centers.length });
+  slices.push({ key: 'all', label: 'Весь каталог', url: '/minsk/bc', count: centers.length });
   return slices;
 }

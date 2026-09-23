@@ -122,7 +122,7 @@ export function CatalogCompare({
             {centers.map((c) => (
               <th key={c.slug} scope="col" className="px-2 py-2 text-left align-top">
                 <span className="flex items-start justify-between gap-2">
-                  <Link to={`/minsk/bcminsk/${c.slug}`} className="text-sm font-bold text-ink hover:text-primary-hover">
+                  <Link to={`/minsk/bc/${c.slug}`} className="text-sm font-bold text-ink hover:text-primary-hover">
                     {shortName(c)}
                   </Link>
                   <button

@@ -146,7 +146,7 @@ describe('снимок из сборки', () => {
 
 // Список односегментных разделов каталога в инлайн-скрипте index.html и
 // такие же маршруты в App.tsx — файлы-близнецы (см. CLAUDE.md): новый
-// раздел /minsk/bcminsk/<слово> без записи в index.html будет принят за
+// раздел /minsk/bc/<слово> без записи в index.html будет принят за
 // слаг здания, и страница сходит за /data/bc/<слово>.json, которого нет.
 describe('разделы каталога в index.html ↔ маршруты App.tsx', () => {
   it('списки совпадают', () => {
@@ -155,7 +155,7 @@ describe('разделы каталога в index.html ↔ маршруты App
     const sectionsBlock = html.match(/var sections = \[([^\]]*)\]/);
     expect(sectionsBlock, 'в index.html не найден список sections').not.toBeNull();
     const fromHtml = [...sectionsBlock![1].matchAll(/'([a-z0-9-]+)'/g)].map((m) => m[1]).sort();
-    const fromRoutes = [...app.matchAll(/<Route path="\/minsk\/bcminsk\/([a-z0-9-]+)"/g)].map((m) => m[1]).sort();
+    const fromRoutes = [...app.matchAll(/<Route path="\/minsk\/bc\/([a-z0-9-]+)"/g)].map((m) => m[1]).sort();
     expect(fromRoutes.length).toBeGreaterThan(0);
     expect(fromHtml).toEqual(fromRoutes);
   });

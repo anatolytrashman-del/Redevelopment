@@ -57,7 +57,7 @@ const HIGHLIGHT_ICON_LABELS: Record<HighlightIconKey, string> = {
 const HIGHLIGHT_ICON_KEYS = Object.keys(HIGHLIGHT_ICON_LABELS) as HighlightIconKey[];
 
 // Вкладка "Бизнес-центры" на /admin/market-offers — админка для публичной
-// страницы /minsk/bcminsk (владелец, 2026-09-04: "пусть это будет админка
+// страницы /minsk/bc (владелец, 2026-09-04: "пусть это будет админка
 // этой страницы... будем упорядочивать инфу там"). Данные — таблица
 // Supabase business_centers (RLS: anon select, authenticated — полный
 // CRUD), та же связка data/businessCenters.ts + lib/businessCentersApi.ts,
@@ -560,8 +560,8 @@ export function BusinessCentersAdminTab() {
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-ink-muted">
           Список объектов на публичной странице{' '}
-          <a href="/minsk/bcminsk" target="_blank" rel="noopener noreferrer" className="text-primary-hover hover:underline">
-            /minsk/bcminsk
+          <a href="/minsk/bc" target="_blank" rel="noopener noreferrer" className="text-primary-hover hover:underline">
+            /minsk/bc
           </a>
           {centers && <> · {centers.length} объектов</>}
         </p>

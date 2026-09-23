@@ -1,4 +1,4 @@
-// Срезы для страницы /minsk/bcminsk/analytics.
+// Срезы для страницы /minsk/bc/analytics.
 //
 // Отличие от market_snapshots (месячный снимок города/класса/района/здания,
 // scripts/build-market-snapshots.mjs): там хранятся только те разрезы, что

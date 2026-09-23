@@ -752,7 +752,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
           <h2 className="text-xl font-extrabold text-ink">Офисы в бизнес-центрах: подробный разбор</h2>
           <p className="text-sm leading-relaxed text-ink-muted">
             Отдельный, более глубокий срез — только по 143 зданиям из нашего{' '}
-            <Link to="/minsk/bcminsk" className="text-primary-hover hover:underline">
+            <Link to="/minsk/bc" className="text-primary-hover hover:underline">
               каталога бизнес-центров Минска
             </Link>
             . Это подмножество city-wide цифр выше — для него мы знаем класс здания, конкретный адрес и другие
@@ -958,7 +958,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
                 Сейчас строится {catalogStats.underConstruction.length}:{' '}
                 {catalogStats.underConstruction.map((c, i) => (
                   <span key={c.slug}>
-                    <Link to={`/minsk/bcminsk/${c.slug}`} className="text-primary-hover hover:underline">
+                    <Link to={`/minsk/bc/${c.slug}`} className="text-primary-hover hover:underline">
                       {c.name}
                     </Link>
                     {i < catalogStats.underConstruction.length - 1 ? ', ' : ''}
@@ -968,7 +968,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
               </p>
             )}
             <Link
-              to="/minsk/bcminsk"
+              to="/minsk/bc"
               className="inline-flex w-fit items-center gap-1 text-sm text-primary-hover hover:underline"
             >
               Смотреть весь каталог бизнес-центров
@@ -1109,7 +1109,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
                       <td className="px-3 py-2 text-right tabular-nums text-ink-muted">{row.n}</td>
                       <td className="px-3 py-2 text-right">
                         <Link
-                          to={`/minsk/bcminsk/${row.slug}`}
+                          to={`/minsk/bc/${row.slug}`}
                           className="inline-flex items-center gap-1 text-xs font-medium text-primary-hover hover:underline"
                         >
                           Карточка БЦ <ArrowRight className="h-3 w-3" />
@@ -1163,7 +1163,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
             {deal === 'sale' ? ' и продажи' : ''} офисных помещений по всему Минску (категория «Офисы» на Kufar,
             Realt.by, Domovita и Megapolis-real), без привязки к конкретному зданию. Нижняя часть — тот же принцип, но только для 143 зданий из
             нашего{' '}
-            <Link to="/minsk/bcminsk" className="text-primary-hover hover:underline">
+            <Link to="/minsk/bc" className="text-primary-hover hover:underline">
               каталога бизнес-центров Минска
             </Link>{' '}
             — там мы дополнительно знаем класс здания и конкретный адрес. Данные собираются с шести площадок и
@@ -1199,7 +1199,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
               жилой дом), этажа, площади помещения (мелкая нарезка обычно дороже за м², чем крупные блоки) и
               состояния отделки. Наличие своей парковки и репутация управляющей компании тоже сказываются, но эти
               данные структурно не публикуются площадками — их приходится узнавать напрямую у арендодателя или на{' '}
-              <Link to="/minsk/bcminsk" className="text-primary-hover hover:underline">
+              <Link to="/minsk/bc" className="text-primary-hover hover:underline">
                 карточке конкретного здания
               </Link>
               .
@@ -1233,7 +1233,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
                 {catalogStats.underConstruction.length === 1 ? 'здание' : 'здания'}:{' '}
                 {catalogStats.underConstruction.map((c, i) => (
                   <span key={c.slug}>
-                    <Link to={`/minsk/bcminsk/${c.slug}`} className="text-primary-hover hover:underline">
+                    <Link to={`/minsk/bc/${c.slug}`} className="text-primary-hover hover:underline">
                       {c.name}
                     </Link>
                     {i < catalogStats.underConstruction.length - 1 ? ', ' : ''}
@@ -1282,7 +1282,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
               <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
             </Link>
             <Link
-              to="/minsk/bcminsk/rating"
+              to="/minsk/bc/rating"
               className={cn('flex items-center justify-between gap-2 p-4 transition-colors hover:border-primary/40', glassCardClass)}
               style={glassCardShadow}
             >

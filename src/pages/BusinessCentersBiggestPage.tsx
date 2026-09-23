@@ -19,11 +19,11 @@ import { nearestMetroStation } from '../lib/metroStations';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
 
 const DATE_PUBLISHED = '2026-09-22';
-const PAGE_URL = 'https://redevelopment.pro/minsk/bcminsk/rating/samye-bolshie';
+const PAGE_URL = 'https://redevelopment.pro/minsk/bc/rating/largest';
 const PAGE_H1 = 'Самые большие бизнес-центры Минска';
 const TITLE = 'Самые большие бизнес-центры Минска: топ-20 по площади';
 const DESCRIPTION = `Топ-20 бизнес-центров Минска по общей площади здания: все классы, только сданные здания в черте города. Общая и офисная площадь, год постройки и метро.`;
-const CLASS_EXPLAINER_URL = '/minsk/bcminsk/gid#klassy';
+const CLASS_EXPLAINER_URL = '/minsk/bc/guide#klassy';
 const nf = new Intl.NumberFormat('ru-RU');
 
 export function BusinessCentersBiggestPage() {
@@ -155,14 +155,14 @@ export function BusinessCentersBiggestPage() {
     });
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-      { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bcminsk' },
+      { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bc' },
       { name: PAGE_H1 },
     ]);
   }, []);
 
   useEffect(() => {
     setItemListJsonLd(
-      displayed.map((center) => ({ name: shortName(center), url: `https://redevelopment.pro/minsk/bcminsk/${center.slug}` })),
+      displayed.map((center) => ({ name: shortName(center), url: `https://redevelopment.pro/minsk/bc/${center.slug}` })),
     );
     setFaqJsonLd(faqItems);
   }, [displayed, faqItems]);
@@ -177,7 +177,7 @@ export function BusinessCentersBiggestPage() {
             Минск
           </Link>
           <span aria-hidden="true">/</span>
-          <Link to="/minsk/bcminsk" className="hover:text-ink">
+          <Link to="/minsk/bc" className="hover:text-ink">
             Бизнес-центры
           </Link>
           <span aria-hidden="true">/</span>
@@ -267,31 +267,31 @@ export function BusinessCentersBiggestPage() {
           <h2 className="text-lg font-bold text-ink">Ещё по бизнес-центрам Минска</h2>
           <ul className="flex flex-col gap-2 text-sm">
             <li>
-              <Link to="/minsk/bcminsk" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+              <Link to="/minsk/bc" className="flex items-center gap-2 text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Полный каталог бизнес-центров Минска
               </Link>
             </li>
             <li>
-              <Link to="/minsk/bcminsk/rating" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+              <Link to="/minsk/bc/rating" className="flex items-center gap-2 text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Лучшие бизнес-центры Минска: класс A
               </Link>
             </li>
             <li>
-              <Link to="/minsk/bcminsk/rating/b-plus" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+              <Link to="/minsk/bc/rating/class-b-plus" className="flex items-center gap-2 text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Лучшие бизнес-центры класса B+ в Минске
               </Link>
             </li>
             <li>
-              <Link to="/minsk/bcminsk/rating/b-c" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+              <Link to="/minsk/bc/rating/class-b-c" className="flex items-center gap-2 text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Лучшие бизнес-центры классов B и C в Минске
               </Link>
             </li>
             <li>
-              <Link to="/minsk/bcminsk/rating/samye-dostupnye" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+              <Link to="/minsk/bc/rating/affordable" className="flex items-center gap-2 text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Самые доступные бизнес-центры Минска с рейтингом от 4,5
               </Link>

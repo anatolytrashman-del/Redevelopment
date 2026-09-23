@@ -139,7 +139,7 @@ import { buildRanking as buildBusinessCenterRanking } from './BusinessCentersRan
 // экрана), но технически обычная полноценная страница со своим URL —
 // иначе AI-краулеры/Яндекс без выполнения JS не увидели бы контент, а
 // title/canonical/JSON-LD не смогли бы быть уникальными под конкретный БЦ.
-// "Закрытие" ведёт не назад в истории браузера, а явно на /minsk/bcminsk —
+// "Закрытие" ведёт не назад в истории браузера, а явно на /minsk/bc —
 // так работает предсказуемо и при заходе по прямой ссылке из поиска, когда
 // в истории браузера страницы хаба вообще нет.
 
@@ -801,7 +801,7 @@ export function BusinessCenterDetailPage() {
           )
       : [];
     // Владелец, 2026-09-20: "в рейтинге нет БЦ Капитал Палас" — блок обязан
-    // показывать РОВНО тех же лидеров, что и /minsk/bcminsk/rating, не
+    // показывать РОВНО тех же лидеров, что и /minsk/bc/rating, не
     // собственную сортировку по BusinessCenter.gisRating (это снимок 2ГИС,
     // другое число и без фильтра по классу/порогу — методика реального
     // рейтинга в buildRanking, BusinessCentersRankingPage.tsx). Тот же
@@ -878,7 +878,7 @@ export function BusinessCenterDetailPage() {
                 id: 'ratingCenters',
                 title: 'Рейтинг бизнес-центров Минска',
                 centers: list,
-                catalogUrl: '/minsk/bcminsk/rating',
+                catalogUrl: '/minsk/bc/rating',
                 catalogLabel: 'Весь рейтинг БЦ',
               }
             : null,
@@ -1012,7 +1012,7 @@ export function BusinessCenterDetailPage() {
                   id: 'nearbyCenters',
                   title: 'Бизнес-центры рядом',
                   centers: list,
-                  catalogUrl: districtUrl ?? '/minsk/bcminsk',
+                  catalogUrl: districtUrl ?? '/minsk/bc',
                   catalogLabel:
                     districtUrl && district
                       ? `Все БЦ в ${districtPrepositional(district)} районе`
@@ -1850,7 +1850,7 @@ export function BusinessCenterDetailPage() {
     );
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-      { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bcminsk' },
+      { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bc' },
       { name: shortName(center) },
     ]);
     // Б12: разметка самого здания. Удобства берём из уже собранных фактов
@@ -1859,7 +1859,7 @@ export function BusinessCenterDetailPage() {
     setPlaceJsonLd({
       name: fullName(center),
       altNames: center.altNames,
-      url: `https://redevelopment.pro/minsk/bcminsk/${center.slug}`,
+      url: `https://redevelopment.pro/minsk/bc/${center.slug}`,
       address: center.address,
       image: center.photos[0] ? withBcPhotoVersion(center.photos[0]) : undefined,
       lat: center.lat,
@@ -1946,7 +1946,7 @@ export function BusinessCenterDetailPage() {
     return (
       <main className="flex min-h-svh flex-col items-center justify-center gap-4 bg-bg px-4 text-center">
         <p className="text-base text-ink">Не удалось загрузить данные о бизнес-центре. Обновите страницу чуть позже.</p>
-        <Link to="/minsk/bcminsk" className="text-sm font-semibold text-primary-hover hover:underline">
+        <Link to="/minsk/bc" className="text-sm font-semibold text-primary-hover hover:underline">
           ← Все бизнес-центры Минска
         </Link>
       </main>
@@ -1957,7 +1957,7 @@ export function BusinessCenterDetailPage() {
     return (
       <main className="flex min-h-svh flex-col items-center justify-center gap-4 bg-bg px-4 text-center">
         <p className="text-base text-ink">Такой бизнес-центр не найден.</p>
-        <Link to="/minsk/bcminsk" className="text-sm font-semibold text-primary-hover hover:underline">
+        <Link to="/minsk/bc" className="text-sm font-semibold text-primary-hover hover:underline">
           ← Все бизнес-центры Минска
         </Link>
       </main>
@@ -2017,7 +2017,7 @@ export function BusinessCenterDetailPage() {
                 приглушённая текстовая ссылка заменена на pill-кнопку (тот
                 же glassPillClass, что и у стрелок prev/next ниже). */}
             <Link
-              to="/minsk/bcminsk"
+              to="/minsk/bc"
               className={cn(
                 'flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:text-primary',
                 glassPillClass,
@@ -2083,7 +2083,7 @@ export function BusinessCenterDetailPage() {
           навигация — строка кнопок под карточкой ниже. */}
       {prev && (
         <Link
-          to={`/minsk/bcminsk/${prev.slug}`}
+          to={`/minsk/bc/${prev.slug}`}
           aria-label={`Предыдущий бизнес-центр: ${shortName(prev)}`}
           className={cn(
             'fixed left-4 top-1/2 z-40 hidden -translate-y-1/2 items-center justify-center rounded-full p-3 text-ink lg:flex',
@@ -2096,7 +2096,7 @@ export function BusinessCenterDetailPage() {
       )}
       {next && (
         <Link
-          to={`/minsk/bcminsk/${next.slug}`}
+          to={`/minsk/bc/${next.slug}`}
           aria-label={`Следующий бизнес-центр: ${shortName(next)}`}
           className={cn(
             'fixed right-4 top-1/2 z-40 hidden -translate-y-1/2 items-center justify-center rounded-full p-3 text-ink lg:flex',
@@ -2176,7 +2176,7 @@ export function BusinessCenterDetailPage() {
         {pageSections.length > 0 && (
           <aside className="sticky top-24 hidden max-h-[calc(100svh-7rem)] flex-col gap-4 xl:flex">
             <Link
-              to="/minsk/bcminsk"
+              to="/minsk/bc"
               className={cn(
                 'flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-ink transition-colors hover:text-primary',
                 glassPillClass,
@@ -2915,7 +2915,7 @@ export function BusinessCenterDetailPage() {
           <div className="mt-5 flex items-center justify-between gap-3 xl:hidden">
             {prev ? (
               <Link
-                to={`/minsk/bcminsk/${prev.slug}`}
+                to={`/minsk/bc/${prev.slug}`}
                 className="flex items-center gap-1.5 text-sm font-semibold text-ink-muted transition-colors hover:text-ink"
               >
                 <ChevronLeft className="h-4 w-4 shrink-0" />
@@ -2926,7 +2926,7 @@ export function BusinessCenterDetailPage() {
             )}
             {next ? (
               <Link
-                to={`/minsk/bcminsk/${next.slug}`}
+                to={`/minsk/bc/${next.slug}`}
                 className="flex items-center gap-1.5 text-right text-sm font-semibold text-ink-muted transition-colors hover:text-ink"
               >
                 {shortName(next)}
@@ -3027,7 +3027,7 @@ function RelatedCentersSection({
           // визуально стилизованный <span>.
           <Link
             key={related.slug}
-            to={`/minsk/bcminsk/${related.slug}`}
+            to={`/minsk/bc/${related.slug}`}
             aria-label={`Открыть страницу ${related.name}`}
             // Владелец, 2026-09-22: "предложи новый макет блока рекомендаций,
             // он огромный". Ниже sm карточка была столбиком с фото во всю

@@ -28,8 +28,8 @@ describe('districtSlices', () => {
       center({ district: 'Советский' }),
     ]);
     expect(slices.map((s) => [s.label, s.count, s.url])).toEqual([
-      ['Московский', 2, '/minsk/bcminsk/raion/moskovsky'],
-      ['Советский', 1, '/minsk/bcminsk/raion/sovetsky'],
+      ['Московский', 2, '/minsk/bc/district/moskovsky'],
+      ['Советский', 1, '/minsk/bc/district/sovetsky'],
     ]);
   });
 
@@ -55,7 +55,7 @@ describe('classSlices', () => {
       center({ businessClass: 'B+' }),
     ]);
     expect(slices.map((s) => s.label)).toEqual(['Класс A', 'Класс B+', 'Класс C']);
-    expect(slices[0].url).toBe('/minsk/bcminsk/class/a');
+    expect(slices[0].url).toBe('/minsk/bc/class/a');
   });
 
   it('класс без зданий в меню не показывается', () => {
@@ -145,9 +145,9 @@ describe('statusSlices', () => {
       ['under_construction', 'Строящиеся', 1],
       ['all', 'Весь каталог', 3],
     ]);
-    expect(slices[0].url).toBe('/minsk/bcminsk?status=built');
-    expect(slices[1].url).toBe('/minsk/bcminsk/stroyashchiesya');
-    expect(slices[2].url).toBe('/minsk/bcminsk');
+    expect(slices[0].url).toBe('/minsk/bc?status=built');
+    expect(slices[1].url).toBe('/minsk/bc/new');
+    expect(slices[2].url).toBe('/minsk/bc');
   });
 
   it('без строек пункт «Строящиеся» не показывается — хаб был бы пустым', () => {

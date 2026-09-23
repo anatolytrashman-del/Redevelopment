@@ -216,6 +216,13 @@ function resolvePageBaseLabel(base: string): string {
     '/minsk/bcminsk/stroyashchiesya': 'БЦ — строящиеся',
     '/minsk/bcminsk/rating': 'Рейтинг бизнес-центров',
     '/minsk/bcminsk/gid': 'БЦ — справочник по рынку',
+    // С 2026-09-23 раздел переехал на /minsk/bc (старые адреса — 301); старые
+    // подписи остаются для истории Метрики.
+    '/minsk/bc': 'Каталог бизнес-центров',
+    '/minsk/bc/new': 'БЦ — строящиеся',
+    '/minsk/bc/rating': 'Рейтинг бизнес-центров',
+    '/minsk/bc/guide': 'БЦ — справочник по рынку',
+    '/minsk/bc/analytics': 'БЦ — аналитика',
     '/rayon-minsk-mir': 'Гид района (старая ссылка)',
     '/business-upload': 'Форма загрузки организаций',
   };
@@ -230,6 +237,14 @@ function resolvePageBaseLabel(base: string): string {
 
   const patterns: [RegExp, (m: RegExpMatchArray) => string][] = [
     [/^\/minsk\/minsk-mir\/([^/]+)$/, (m) => `Гид района — тема «${m[1]}»`],
+    [/^\/minsk\/bc\/class\/([^/]+)\/district\/([^/]+)$/, (m) => `БЦ — класс «${m[1]}», район «${m[2]}»`],
+    [/^\/minsk\/bc\/class\/([^/]+)$/, (m) => `БЦ — класс «${m[1]}»`],
+    [/^\/minsk\/bc\/district\/([^/]+)$/, (m) => `БЦ — район «${m[1]}»`],
+    [/^\/minsk\/bc\/area\/([^/]+)$/, (m) => `БЦ — микрорайон «${m[1]}»`],
+    [/^\/minsk\/bc\/metro\/([^/]+)$/, (m) => `БЦ — метро «${m[1]}»`],
+    [/^\/minsk\/bc\/street\/([^/]+)$/, (m) => `БЦ — улица «${m[1]}»`],
+    [/^\/minsk\/bc\/rating\/([^/]+)$/, (m) => `БЦ — рейтинг «${m[1]}»`],
+    [/^\/minsk\/bc\/([^/]+)$/, (m) => `Бизнес-центр «${m[1]}»`],
     [/^\/minsk\/bcminsk\/class\/([^/]+)\/raion\/([^/]+)$/, (m) => `БЦ — класс «${m[1]}», район «${m[2]}»`],
     [/^\/minsk\/bcminsk\/class\/([^/]+)$/, (m) => `БЦ — класс «${m[1]}»`],
     [/^\/minsk\/bcminsk\/raion\/([^/]+)$/, (m) => `БЦ — район «${m[1]}»`],

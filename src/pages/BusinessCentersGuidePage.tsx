@@ -35,7 +35,7 @@ import {
 
 // Справочник по рынку бизнес-центров Минска (владелец, 2026-09-22: «"Как
 // устроен рынок бизнес-центров в Минске" — на главной мне это не нужно» →
-// текст уехал сюда с /minsk/bcminsk; потом: «сделан он ультра-хуёво, жду
+// текст уехал сюда с /minsk/bc; потом: «сделан он ультра-хуёво, жду
 // идей по улучшению текстовой части» → страница переписана целиком).
 //
 // Что здесь принципиально другое по сравнению с первой версией:
@@ -45,7 +45,7 @@ import {
 //    market_snapshots (lib/businessCenterGuide.ts, покрыто тестами) — то
 //    есть это единственный текст про классы БЦ в Минске, где за каждым
 //    утверждением стоит выборка, а не общие слова про «скоростные лифты».
-// 2. Разведено с /minsk/bcminsk/analytics: там измеряем рынок (графики,
+// 2. Разведено с /minsk/bc/analytics: там измеряем рынок (графики,
 //    районы, драйверы ставки), здесь объясняем, как он устроен и как
 //    выбирать. География и «что сейчас строится» отсюда убраны — они были
 //    дублем аналитики.
@@ -59,7 +59,7 @@ import {
 // data/businessCenterGuideContent.ts: из них же собирается FAQ, поэтому
 // правило владельца «FAQ описывает всё, что есть на странице» выполняется
 // механически, а не второй рукописной копией текста.
-const PAGE_URL = 'https://redevelopment.pro/minsk/bcminsk/gid';
+const PAGE_URL = 'https://redevelopment.pro/minsk/bc/guide';
 const DATE_PUBLISHED = '2026-09-22';
 const TITLE = 'Как устроен рынок бизнес-центров в Минске: классы, ставки, договор';
 // Описание держим в 160 символов — бюджет сниппета (DESCRIPTION_BUDGET в
@@ -228,7 +228,7 @@ export function BusinessCentersGuidePage() {
     });
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-      { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bcminsk' },
+      { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bc' },
       { name: 'Справочник' },
     ]);
   }, []);
@@ -250,7 +250,7 @@ export function BusinessCentersGuidePage() {
             Минск
           </Link>
           <span aria-hidden="true">/</span>
-          <Link to="/minsk/bcminsk" className="hover:text-ink">
+          <Link to="/minsk/bc" className="hover:text-ink">
             Бизнес-центры
           </Link>
           <span aria-hidden="true">/</span>
@@ -269,7 +269,7 @@ export function BusinessCentersGuidePage() {
             {total > 0 ? ` из ${total} ${pluralRu(total, 'здания', 'зданий', 'зданий')}` : ''} и по
             объявлениям с Kufar, Realt, Domovita и Megapolis
             {period ? `, ставки — на ${period}` : ''}. Сами здания с фильтрами, картой и ставками — в{' '}
-            <Link to="/minsk/bcminsk" className="font-semibold text-primary-hover hover:underline">
+            <Link to="/minsk/bc" className="font-semibold text-primary-hover hover:underline">
               каталоге бизнес-центров
             </Link>
             .
@@ -342,7 +342,7 @@ export function BusinessCentersGuidePage() {
                       {p.examples.map((c, i) => (
                         <span key={c.slug}>
                           {i > 0 && ', '}
-                          <Link to={`/minsk/bcminsk/${c.slug}`} className="text-primary-hover hover:underline">
+                          <Link to={`/minsk/bc/${c.slug}`} className="text-primary-hover hover:underline">
                             {shortName(c)}
                           </Link>
                         </span>
@@ -413,7 +413,7 @@ export function BusinessCentersGuidePage() {
                     {p.examples.map((c, i) => (
                       <span key={c.slug}>
                         {i > 0 && ', '}
-                        <Link to={`/minsk/bcminsk/${c.slug}`} className="text-primary-hover hover:underline">
+                        <Link to={`/minsk/bc/${c.slug}`} className="text-primary-hover hover:underline">
                           {shortName(c)}
                         </Link>
                       </span>
@@ -465,7 +465,7 @@ export function BusinessCentersGuidePage() {
               Разрывы считаются заново при каждом открытии страницы по медианам текущих объявлений. Если рынок
               выровняется, этот блок со страницы исчезнет сам: мы не держим здесь заранее написанных выводов. Как
               ставки менялись по районам, возрасту зданий и размеру лота — в{' '}
-              <Link to="/minsk/bcminsk/analytics" className="text-primary-hover hover:underline">
+              <Link to="/minsk/bc/analytics" className="text-primary-hover hover:underline">
                 аналитике каталога
               </Link>
               .
@@ -510,7 +510,7 @@ export function BusinessCentersGuidePage() {
             </p>
             <p className="text-sm leading-relaxed text-ink-muted">
               Считать под свой объект — с окупаемостью по районам, размеру лота и возрасту здания — удобнее в{' '}
-              <Link to="/minsk/bcminsk/analytics" className="text-primary-hover hover:underline">
+              <Link to="/minsk/bc/analytics" className="text-primary-hover hover:underline">
                 аналитике каталога
               </Link>{' '}
               и в{' '}
@@ -645,14 +645,14 @@ export function BusinessCentersGuidePage() {
           <h2 className="text-lg font-bold text-ink">Ещё по бизнес-центрам Минска</h2>
           <ul className="flex flex-col gap-2 text-sm">
             <li>
-              <Link to="/minsk/bcminsk" className="flex items-center gap-2 font-semibold text-ink hover:text-primary-hover">
+              <Link to="/minsk/bc" className="flex items-center gap-2 font-semibold text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Каталог бизнес-центров Минска
               </Link>
             </li>
             <li>
               <Link
-                to="/minsk/bcminsk/analytics"
+                to="/minsk/bc/analytics"
                 className="flex items-center gap-2 text-ink hover:text-primary-hover"
               >
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
@@ -660,7 +660,7 @@ export function BusinessCentersGuidePage() {
               </Link>
             </li>
             <li>
-              <Link to="/minsk/bcminsk/rating" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+              <Link to="/minsk/bc/rating" className="flex items-center gap-2 text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Рейтинг бизнес-центров класса A
               </Link>

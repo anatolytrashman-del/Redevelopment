@@ -121,415 +121,415 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk</loc>
+    <loc>https://redevelopment.pro/minsk/bc</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/stroyashchiesya</loc>
+    <loc>https://redevelopment.pro/minsk/bc/new</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/rating</loc>
+    <loc>https://redevelopment.pro/minsk/bc/rating</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/rating/samye-bolshie</loc>
+    <loc>https://redevelopment.pro/minsk/bc/rating/largest</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/rating/b-plus</loc>
+    <loc>https://redevelopment.pro/minsk/bc/rating/class-b-plus</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/rating/b-c</loc>
+    <loc>https://redevelopment.pro/minsk/bc/rating/class-b-c</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/rating/samye-dostupnye</loc>
+    <loc>https://redevelopment.pro/minsk/bc/rating/affordable</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/analytics</loc>
+    <loc>https://redevelopment.pro/minsk/bc/analytics</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/gid</loc>
+    <loc>https://redevelopment.pro/minsk/bc/guide</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/a</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/a</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/b-plus</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/b-plus</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/b</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/b</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/c</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/c</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/raion/tsentralny</loc>
+    <loc>https://redevelopment.pro/minsk/bc/district/tsentralny</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/raion/oktyabrsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/district/oktyabrsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/raion/sovetsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/district/sovetsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/raion/frunzensky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/district/frunzensky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/raion/zavodskoy</loc>
+    <loc>https://redevelopment.pro/minsk/bc/district/zavodskoy</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/raion/pervomaysky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/district/pervomaysky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/raion/partizansky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/district/partizansky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/raion/moskovsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/district/moskovsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/raion/leninsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/district/leninsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/raion/velikiy-kamen</loc>
+    <loc>https://redevelopment.pro/minsk/bc/district/velikiy-kamen</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/microrayon/komarovka</loc>
+    <loc>https://redevelopment.pro/minsk/bc/area/komarovka</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/microrayon/chkalovsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/area/chkalovsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/microrayon/vesnyanka</loc>
+    <loc>https://redevelopment.pro/minsk/bc/area/vesnyanka</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/microrayon/zelenyy-lug</loc>
+    <loc>https://redevelopment.pro/minsk/bc/area/zelenyy-lug</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/microrayon/zolotaya-gorka</loc>
+    <loc>https://redevelopment.pro/minsk/bc/area/zolotaya-gorka</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/microrayon/stepyanka</loc>
+    <loc>https://redevelopment.pro/minsk/bc/area/stepyanka</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/microrayon/baranovschina</loc>
+    <loc>https://redevelopment.pro/minsk/bc/area/baranovschina</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/microrayon/magistr</loc>
+    <loc>https://redevelopment.pro/minsk/bc/area/magistr</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/microrayon/raduzhny</loc>
+    <loc>https://redevelopment.pro/minsk/bc/area/raduzhny</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/microrayon/rakovskoe-shosse-1</loc>
+    <loc>https://redevelopment.pro/minsk/bc/area/rakovskoe-shosse-1</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/microrayon/loshitsa</loc>
+    <loc>https://redevelopment.pro/minsk/bc/area/loshitsa</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/microrayon/velikiy-les</loc>
+    <loc>https://redevelopment.pro/minsk/bc/area/velikiy-les</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/microrayon/slepyanka</loc>
+    <loc>https://redevelopment.pro/minsk/bc/area/slepyanka</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/microrayon/mihalovo-2</loc>
+    <loc>https://redevelopment.pro/minsk/bc/area/mihalovo-2</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/a/raion/moskovsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/a/district/moskovsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/a/raion/oktyabrsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/a/district/oktyabrsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/a/raion/pervomaysky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/a/district/pervomaysky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/a/raion/sovetsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/a/district/sovetsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/a/raion/tsentralny</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/a/district/tsentralny</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/a/raion/zavodskoy</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/a/district/zavodskoy</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/b/raion/frunzensky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/b/district/frunzensky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/b/raion/leninsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/b/district/leninsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/b/raion/moskovsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/b/district/moskovsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/b/raion/oktyabrsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/b/district/oktyabrsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/b/raion/partizansky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/b/district/partizansky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/b/raion/pervomaysky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/b/district/pervomaysky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/b/raion/sovetsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/b/district/sovetsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/b/raion/tsentralny</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/b/district/tsentralny</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/b/raion/zavodskoy</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/b/district/zavodskoy</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/b-plus/raion/frunzensky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/b-plus/district/frunzensky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/b-plus/raion/leninsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/b-plus/district/leninsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/b-plus/raion/moskovsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/b-plus/district/moskovsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/b-plus/raion/oktyabrsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/b-plus/district/oktyabrsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/b-plus/raion/partizansky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/b-plus/district/partizansky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/b-plus/raion/pervomaysky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/b-plus/district/pervomaysky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/b-plus/raion/sovetsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/b-plus/district/sovetsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/b-plus/raion/tsentralny</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/b-plus/district/tsentralny</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/c/raion/frunzensky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/c/district/frunzensky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/c/raion/leninsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/c/district/leninsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/c/raion/moskovsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/c/district/moskovsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/c/raion/oktyabrsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/c/district/oktyabrsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/c/raion/partizansky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/c/district/partizansky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/c/raion/pervomaysky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/c/district/pervomaysky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/c/raion/sovetsky</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/c/district/sovetsky</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/c/raion/tsentralny</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/c/district/tsentralny</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>
   </url>
   <url>
-    <loc>https://redevelopment.pro/minsk/bcminsk/class/c/raion/zavodskoy</loc>
+    <loc>https://redevelopment.pro/minsk/bc/class/c/district/zavodskoy</loc>
     <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.35</priority>

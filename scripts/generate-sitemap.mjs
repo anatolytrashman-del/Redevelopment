@@ -1,5 +1,5 @@
-// Дополняет dist/sitemap.xml карточками бизнес-центров (/minsk/bcminsk/<slug>)
-// и хабами по станциям метро (/minsk/bcminsk/metro/<slug>, только непустые).
+// Дополняет dist/sitemap.xml карточками бизнес-центров (/minsk/bc/<slug>)
+// и хабами по станциям метро (/minsk/bc/metro/<slug>, только непустые).
 //
 // Аудит поиска 2026-09-07: в sitemap были только каталог и хаб-страницы
 // фильтров, ни одной карточки БЦ — Google знал 5 URL сайта, Яндекс 2, ни
@@ -108,29 +108,29 @@ const METRO_HUB_SLUG_BY_STATION = {
 // метро выше: только улицы с 2+ БЦ (STREET_HUB_SLUG_BY_NAME), список
 // продублирован из src/lib/businessCenterHubs.ts (скрипт без TS-загрузчика).
 const STREET_HUB_SLUG_BY_NAME = {
-  'пр-т Победителей': 'pr-t-pobediteley',
-  'пр-т Независимости': 'pr-t-nezavisimosti',
-  'пр-т Дзержинского': 'pr-t-dzerzhinskogo',
-  'ул. Притыцкого': 'ul-pritytskogo',
-  'ул. Сурганова': 'ul-surganova',
-  'ул. Платонова': 'ul-platonova',
-  'ул. Клары Цеткин': 'ul-klary-tsetkin',
-  'пер. Козлова': 'per-kozlova',
-  'пр-т Партизанский': 'pr-t-partizanskiy',
+  'пр-т Победителей': 'prospekt-pobediteley',
+  'пр-т Независимости': 'prospekt-nezavisimosti',
+  'пр-т Дзержинского': 'prospekt-dzerzhinskogo',
+  'ул. Притыцкого': 'pritytskogo',
+  'ул. Сурганова': 'surganova',
+  'ул. Платонова': 'platonova',
+  'ул. Клары Цеткин': 'klary-tsetkin',
+  'пер. Козлова': 'pereulok-kozlova',
+  'пр-т Партизанский': 'prospekt-partizanskiy',
   'Логойский тракт': 'logoyskiy-trakt',
-  'ул. Хоружей': 'ul-horuzhey',
-  'ул. Филимонова': 'ul-filimonova',
-  'ул. Немига': 'ul-nemiga',
-  'ул. Мележа': 'ul-melezha',
-  'ул. Толбухина': 'ul-tolbuhina',
-  'ул. Железнодорожная': 'ul-zheleznodorozhnaya',
-  'ул. Интернациональная': 'ul-internatsionalnaya',
-  'ул. Лобанка': 'ul-lobanka',
-  'ул. Ольшевского': 'ul-olshevskogo',
-  'ул. Свердлова': 'ul-sverdlova',
-  'ул. Скрыганова': 'ul-skryganova',
-  'ул. Тимирязева': 'ul-timiryazeva',
-  'ул. Скорины': 'ul-skoriny',
+  'ул. Хоружей': 'horuzhey',
+  'ул. Филимонова': 'filimonova',
+  'ул. Немига': 'nemiga',
+  'ул. Мележа': 'melezha',
+  'ул. Толбухина': 'tolbuhina',
+  'ул. Железнодорожная': 'zheleznodorozhnaya',
+  'ул. Интернациональная': 'internatsionalnaya',
+  'ул. Лобанка': 'lobanka',
+  'ул. Ольшевского': 'olshevskogo',
+  'ул. Свердлова': 'sverdlova',
+  'ул. Скрыганова': 'skryganova',
+  'ул. Тимирязева': 'timiryazeva',
+  'ул. Скорины': 'skoriny',
 };
 
 // Порог индексации производных срезов — тот же, что в
@@ -218,10 +218,10 @@ async function fetchHubPaths() {
 
   const streets = [...streetCounts.keys()]
     .filter((name) => STREET_HUB_SLUG_BY_NAME[name] && big(streetCounts, name))
-    .map((name) => `/minsk/bcminsk/ulitsa/${STREET_HUB_SLUG_BY_NAME[name]}`);
+    .map((name) => `/minsk/bc/street/${STREET_HUB_SLUG_BY_NAME[name]}`);
   const microdistricts = [...microCounts.keys()]
     .filter((name) => MICRODISTRICT_SLUGS[name] && big(microCounts, name))
-    .map((name) => `/minsk/bcminsk/microrayon/${MICRODISTRICT_SLUGS[name]}`);
+    .map((name) => `/minsk/bc/area/${MICRODISTRICT_SLUGS[name]}`);
   const classDistricts = [...classDistrictCounts.keys()]
     .filter((key) => {
       const [cls, district] = key.split('|');
@@ -229,7 +229,7 @@ async function fetchHubPaths() {
     })
     .map((key) => {
       const [cls, district] = key.split('|');
-      return `/minsk/bcminsk/class/${CLASS_SLUGS[cls]}/raion/${DISTRICT_SLUGS[district]}`;
+      return `/minsk/bc/class/${CLASS_SLUGS[cls]}/district/${DISTRICT_SLUGS[district]}`;
     });
 
   return { keep: new Set([...streets, ...microdistricts, ...classDistricts]), streets };
@@ -239,7 +239,7 @@ async function fetchHubPaths() {
 // (микрорайоны, «класс + район») лежит в статическом public/sitemap.xml, и
 // без этой чистки файл звал бы краулера на закрытые noindex'ом страницы.
 function pruneThinHubs(xml, keep) {
-  const derived = /\/minsk\/bcminsk\/(ulitsa|microrayon|class\/[a-z0-9-]+\/raion)\//;
+  const derived = /\/minsk\/bc\/(street|area|class\/[a-z0-9-]+\/district)\//;
   let removed = 0;
   const out = xml.replace(/ {2}<url>\n(?:.*\n)*? {2}<\/url>\n/g, (block) => {
     const loc = block.match(/<loc>([^<]+)<\/loc>/)?.[1] ?? '';
@@ -294,9 +294,9 @@ async function main() {
     console.warn(`[generate-sitemap] срезы каталога не пересчитаны: ${err instanceof Error ? err.message : err}`);
   }
   const entries = [
-    ...metroSlugs.map((slug) => `${SITE}/minsk/bcminsk/metro/${slug}`),
+    ...metroSlugs.map((slug) => `${SITE}/minsk/bc/metro/${slug}`),
     ...(hubs ? hubs.streets.map((path) => `${SITE}${path}`) : []),
-    ...slugs.map((slug) => `${SITE}/minsk/bcminsk/${slug}`),
+    ...slugs.map((slug) => `${SITE}/minsk/bc/${slug}`),
   ]
     .filter((url) => !existing.has(url))
     .map(

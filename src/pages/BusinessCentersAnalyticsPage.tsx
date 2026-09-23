@@ -51,7 +51,7 @@ import { pluralRu } from '../lib/pluralRu';
 
 // Аналитика КАТАЛОГА бизнес-центров Минска — отдельная страница (владелец,
 // 2026-09-22): эти же блоки раньше стояли ПОД результатами каталога
-// (`/minsk/bcminsk` и все его хабы класса/района/метро/улицы/микрорайона),
+// (`/minsk/bc` и все его хабы класса/района/метро/улицы/микрорайона),
 // до них почти никто не доскролливал, при этом они рендерились одинаково на
 // ~286 индексируемых вариантов каталога — фактический дубль контента. Здесь
 // у них один постоянный адрес, свой H1 и FAQ, а с каталога на них ведёт
@@ -86,7 +86,7 @@ const TITLE = 'Аналитика бизнес-центров Минска — �
 // 160 символов — бюджет сниппета, см. комментарий в BusinessCentersGuidePage.
 const DESCRIPTION =
   'Разбор рынка бизнес-центров Минска по 141 зданию каталога: коридор ставок аренды и продажи, надбавки за метро и класс, окупаемость покупки, структура фонда.';
-const PAGE_URL = 'https://redevelopment.pro/minsk/bcminsk/analytics';
+const PAGE_URL = 'https://redevelopment.pro/minsk/bc/analytics';
 const PAGE_H1 = 'Аналитика бизнес-центров Минска';
 const DATE_PUBLISHED = '2026-09-22';
 const DATE_MODIFIED = '2026-09-22';
@@ -215,7 +215,7 @@ export function BusinessCentersAnalyticsPage() {
               rent: rent.median,
               href:
                 districtHubUrl(district) ??
-                `/minsk/bcminsk${catalogFilterToQuery({ ...EMPTY_CATALOG_FILTER, districts: [district] })}`,
+                `/minsk/bc${catalogFilterToQuery({ ...EMPTY_CATALOG_FILTER, districts: [district] })}`,
             };
       })
       .filter((p): p is DistrictPoint => p != null && p.area > 0);
@@ -351,8 +351,8 @@ export function BusinessCentersAnalyticsPage() {
   function goToLotSize(size: number) {
     navigate(
       size > 0
-        ? `/minsk/bcminsk${catalogFilterToQuery({ ...EMPTY_CATALOG_FILTER, lotSize: size })}`
-        : '/minsk/bcminsk',
+        ? `/minsk/bc${catalogFilterToQuery({ ...EMPTY_CATALOG_FILTER, lotSize: size })}`
+        : '/minsk/bc',
     );
   }
 
@@ -581,7 +581,7 @@ export function BusinessCentersAnalyticsPage() {
     });
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-      { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bcminsk' },
+      { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bc' },
       { name: 'Аналитика' },
     ]);
   }, []);
@@ -603,7 +603,7 @@ export function BusinessCentersAnalyticsPage() {
             Минск
           </Link>
           <span aria-hidden="true">/</span>
-          <Link to="/minsk/bcminsk" className="hover:text-ink">
+          <Link to="/minsk/bc" className="hover:text-ink">
             Бизнес-центры
           </Link>
           <span aria-hidden="true">/</span>
@@ -664,13 +664,13 @@ export function BusinessCentersAnalyticsPage() {
           <h2 className="text-lg font-bold text-ink">Ещё по бизнес-центрам Минска</h2>
           <ul className="flex flex-col gap-2 text-sm">
             <li>
-              <Link to="/minsk/bcminsk" className="flex items-center gap-2 font-semibold text-ink hover:text-primary-hover">
+              <Link to="/minsk/bc" className="flex items-center gap-2 font-semibold text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Полный каталог бизнес-центров Минска
               </Link>
             </li>
             <li>
-              <Link to="/minsk/bcminsk/rating" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+              <Link to="/minsk/bc/rating" className="flex items-center gap-2 text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Рейтинг лучших бизнес-центров
               </Link>

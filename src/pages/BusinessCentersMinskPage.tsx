@@ -99,8 +99,8 @@ import {
 // DESCRIPTION с 2026-09-22 нет — описание у всех состояний каталога,
 // включая корень, строит businessCenterHubDescription.
 const TITLE = 'Бизнес-центры Минска';
-const PAGE_URL = 'https://redevelopment.pro/minsk/bcminsk';
-const UNDER_CONSTRUCTION_HUB_URL = 'https://redevelopment.pro/minsk/bcminsk/stroyashchiesya';
+const PAGE_URL = 'https://redevelopment.pro/minsk/bc';
+const UNDER_CONSTRUCTION_HUB_URL = 'https://redevelopment.pro/minsk/bc/new';
 const OG_IMAGE = 'https://redevelopment.pro/og-image.png';
 
 // Заголовок и подзаголовок hero — первая версия составлена Gemini (через
@@ -222,7 +222,7 @@ export function BusinessCenterCard({ center }: { center: BusinessCenter }) {
   const nearestMetro = nearestMetroStation(center.nearestMetroStations);
   return (
     <Link
-      to={`/minsk/bcminsk/${center.slug}`}
+      to={`/minsk/bc/${center.slug}`}
       className={cn(
         'group flex h-full min-w-0 flex-col overflow-hidden transition-transform hover:-translate-y-0.5',
         glassCardClass,
@@ -306,10 +306,10 @@ export function BusinessCenterCard({ center }: { center: BusinessCenter }) {
 }
 
 // Хаб-страницы по классу/району (Fable-анализ, 2026-09-06 — "нужны страницы
-// вида /minsk/bcminsk/class-a/, /minsk/bcminsk/centralny/... каждая со
+// вида /minsk/bc/class-a/, /minsk/bc/centralny/... каждая со
 // своим H1... блок ссылок на них — на каталоге и в карточках"). Один и тот
-// же компонент обслуживает три роута — общий каталог `/minsk/bcminsk`,
-// `/minsk/bcminsk/class/:classSlug` и `/minsk/bcminsk/raion/:districtSlug`
+// же компонент обслуживает три роута — общий каталог `/minsk/bc`,
+// `/minsk/bc/class/:classSlug` и `/minsk/bc/district/:districtSlug`
 // (см. App.tsx) — фильтр больше не локальный useState, а производный от
 // URL через useParams(): пункты бокового меню стали обычными <Link>, сама
 // навигация и есть применение фильтра (клиентский роутинг, без перезагрузки
@@ -317,7 +317,7 @@ export function BusinessCenterCard({ center }: { center: BusinessCenter }) {
 // настоящий, индексируемый, с уникальным title/H1/canonical). Сознательное
 // упрощение: класс и район не комбинируются в одном URL (как и в примерах
 // самого документа) — выбор одной оси сбрасывает другую.
-// underConstruction — ось «Строящиеся бизнес-центры» (/minsk/bcminsk/
+// underConstruction — ось «Строящиеся бизнес-центры» (/minsk/bc/
 // stroyashchiesya, аудит поиска 2026-09-07: срез «строящиеся БЦ 2026–2027»).
 // Не комбинируется с классом/районом (та же логика, что у микрорайона):
 // объектов в стройке единицы, пересечения дали бы пустые страницы.
@@ -349,7 +349,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(() => peekLatestMarketSnapshots('ofisy_bc'));
   // Только слаг и площадь каждого лота (~618 строк, два поля) — для фильтра
   // «нужен офис от N м²» (offerIndex ниже; блок «Сейчас сдаётся» переехал на
-  // /minsk/bcminsk/analytics, но тот же offerIndex нужен и здесь для чипа).
+  // /minsk/bc/analytics, но тот же offerIndex нужен и здесь для чипа).
   const [lotSizes, setLotSizes] = useState<{ businessCenterSlug: string; size: number }[] | null>(peekBusinessCenterLotSizes);
   // Состояние фильтра живёт в URL, не в useState (К4): хаб-URL задаёт одну
   // ось и остаётся индексируемым входом, всё остальное — query-параметры,
@@ -416,7 +416,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // район, показывать его для комбо значило бы либо молчать, либо
   // выдумывать — оставляем блок только там, где реальный срез есть.
   // Городской срез (ни класс, ни район не выбраны) сюда больше не попадает
-  // (владелец, 2026-09-22) — те же цифры уже на /minsk/bcminsk/analytics,
+  // (владелец, 2026-09-22) — те же цифры уже на /minsk/bc/analytics,
   // на голом каталоге это было тем же дублем, что и остальные блоки разбора
   // рынка (см. тизер «Аналитика каталога БЦ» ниже).
   const rateSliceKey = classFilter && !districtFilter ? classFilter : !classFilter && districtFilter ? districtFilter : null;
@@ -781,7 +781,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     return BUSINESS_CENTER_CLASSES.filter((cls) => present.has(cls));
   }, [centers]);
   // Статус — построено/строится — не показываем на хабе «Строящиеся»
-  // (/minsk/bcminsk/stroyashchiesya): там ось уже задана маршрутом, чип
+  // (/minsk/bc/new): там ось уже задана маршрутом, чип
   // «Построенные» показал бы только нули.
   const availableStatuses = useMemo(
     () => (underConstruction ? [] : Array.from(new Set((centers ?? []).map((c) => c.status)))),
@@ -868,7 +868,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // в query прямо на этом пути: там ось маршрута — другая, и терять её
   // ради класса нельзя.
   const routeHubPath = underConstruction
-    ? '/minsk/bcminsk/stroyashchiesya'
+    ? '/minsk/bc/new'
     : microdistrictFilter
       ? microdistrictHubUrl(microdistrictFilter)
       : streetFilter
@@ -913,7 +913,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       const url = districtHubUrl(next.districts[0]);
       if (url) return url + withoutAxes;
     }
-    return '/minsk/bcminsk' + catalogFilterToQuery(next);
+    return '/minsk/bc' + catalogFilterToQuery(next);
   }
 
   // replace: true — фильтрование не должно забивать историю браузера так,
@@ -992,7 +992,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   const isCatalogRoot = !classFilter && !districtFilter && !microdistrictFilter && !underConstruction && !metroFilter && !streetFilter;
   // Тот же голый каталог, но уже с загруженными зданиями. Владелец,
   // 2026-09-22: именно его расчищаем — срезы каталога и текст «Как устроен
-  // рынок бизнес-центров в Минске» уехали отсюда на /minsk/bcminsk/gid,
+  // рынок бизнес-центров в Минске» уехали отсюда на /minsk/bc/guide,
   // здесь вместо них одна строка-ссылка туда.
   const isGeneralCatalog = isCatalogRoot && centers !== null && centers.length > 0;
 
@@ -1054,7 +1054,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       }
     }
     // Управление зданиями, текущие объявления и внешний контекст рынка —
-    // переехали на /minsk/bcminsk/analytics вместе с блоками, которые эти
+    // переехали на /minsk/bc/analytics вместе с блоками, которые эти
     // ответы описывали (владелец, 2026-09-22, см. комментарий у тизера
     // «Аналитика каталога БЦ» ниже в рендере).
     add('Где посмотреть, кто управляет зданиями и что сейчас сдаётся в каталоге?', 'На странице «Аналитика каталога БЦ». Там указано, кто управляет зданиями: товарищество собственников или единая УК. Там же — здания с активными объявлениями и диапазоны площади лотов. Данные внешних источников помогают оценить рынок офисов в целом.');
@@ -1087,7 +1087,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     setItemListJsonLd(
       orderedCenters.slice(0, visibleCount).map((c) => ({
         name: shortName(c),
-        url: `https://redevelopment.pro/minsk/bcminsk/${c.slug}`,
+        url: `https://redevelopment.pro/minsk/bc/${c.slug}`,
       })),
     );
     return () => setItemListJsonLd(null);
@@ -1097,7 +1097,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     return (
       <div className="flex min-h-svh flex-col items-center justify-center gap-4 bg-bg px-4 text-center">
         <p className="text-base text-ink-muted">Такой раздел каталога не найден.</p>
-        <Link to="/minsk/bcminsk" className="text-sm font-semibold text-primary-hover hover:underline">
+        <Link to="/minsk/bc" className="text-sm font-semibold text-primary-hover hover:underline">
           ← Все бизнес-центры Минска
         </Link>
       </div>
@@ -1334,7 +1334,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
 
             {/* Блока «Рынок в цифрах» на каталоге больше нет совсем
                 (владелец, 2026-09-22). На голом каталоге он ушёл раньше как
-                дубль /minsk/bcminsk/analytics, теперь снят и на тематических
+                дубль /minsk/bc/analytics, теперь снят и на тематических
                 хабах (метро, улица, класс, район, микрорайон, стройка): те же
                 цифры уже есть в полоске сводки над сеткой и в FAQ внизу, а
                 отдельная карточка между результатами и картой только
@@ -1390,7 +1390,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 здесь. */}
             {centers !== null && centers.length > 0 && (
               <Link
-                to="/minsk/bcminsk/analytics"
+                to="/minsk/bc/analytics"
                 className={cn(
                   'flex items-center justify-between gap-3 p-6 transition-colors hover:border-primary/40 sm:p-8',
                   glassCardClass,
@@ -1426,7 +1426,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 по нему доходит до всех хабов и до полного списка зданий. */}
             {isGeneralCatalog && (
               <Link
-                to="/minsk/bcminsk/gid"
+                to="/minsk/bc/guide"
                 className={cn(
                   'flex items-center justify-between gap-3 p-6 transition-colors hover:border-primary/40 sm:p-8',
                   glassCardClass,

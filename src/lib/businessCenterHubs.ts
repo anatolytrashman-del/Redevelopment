@@ -1,8 +1,8 @@
 import type { BusinessCenter } from '../data/businessCenters';
 
 // Хаб-страницы по классу и по району (Fable-анализ SEO-блоков каталога БЦ,
-// 2026-09-06 — "нужны страницы вида /minsk/bcminsk/class-a/,
-// /minsk/bcminsk/centralny/... каждая со своим H1"). Статические карты
+// 2026-09-06 — "нужны страницы вида /minsk/bc/class-a/,
+// /minsk/bc/centralny/... каждая со своим H1"). Статические карты
 // slug<->значение — районов и классов конечное известное множество (9
 // админ-районов Минска + "Великий камень" для объектов вне города, и 4
 // деловых класса), не нужен динамический slugify на лету.
@@ -80,11 +80,11 @@ export function districtDative(district: string): string {
 
 export function districtHubUrl(district: string): string | null {
   const slug = DISTRICT_SLUGS[district];
-  return slug ? `/minsk/bcminsk/raion/${slug}` : null;
+  return slug ? `/minsk/bc/district/${slug}` : null;
 }
 
 export function classHubUrl(businessClass: NonNullable<BusinessCenter['businessClass']>): string {
-  return `/minsk/bcminsk/class/${CLASS_SLUGS[businessClass]}`;
+  return `/minsk/bc/class/${CLASS_SLUGS[businessClass]}`;
 }
 
 // Хаб-страницы по пересечению класс×район (владелец, 2026-09-06: "давай
@@ -92,7 +92,7 @@ export function classHubUrl(businessClass: NonNullable<BusinessCenter['businessC
 // страницы будут очень хорошо приняты поиском, увеличит количество страниц
 // в выдаче" — идея была впервые предложена самим владельцем и записана как
 // задел на будущее в BCMINSK_SEO_PLAN.md, теперь реализована). Схема
-// `/minsk/bcminsk/class/:classSlug/raion/:districtSlug` — та же, что
+// `/minsk/bc/class/:classSlug/district/:districtSlug` — та же, что
 // называл сам план. Метро×класс/метро×район из того же плана НЕ делаем —
 // метро всё ещё свободный текст, не структурное поле (см. блокер в плане).
 export function classDistrictHubUrl(
@@ -101,7 +101,7 @@ export function classDistrictHubUrl(
 ): string | null {
   const districtSlug = DISTRICT_SLUGS[district];
   if (!districtSlug) return null;
-  return `/minsk/bcminsk/class/${CLASS_SLUGS[businessClass]}/raion/${districtSlug}`;
+  return `/minsk/bc/class/${CLASS_SLUGS[businessClass]}/district/${districtSlug}`;
 }
 
 // Хабы по неформальным микрорайонам ("Уручье", "Малиновка" — как люди сами
@@ -169,11 +169,11 @@ function microdistrictMergeUrl(microdistrict: string, slug: string): string | nu
 export function microdistrictHubUrl(microdistrict: string): string | null {
   const slug = MICRODISTRICT_SLUGS[microdistrict];
   if (!slug) return null;
-  return microdistrictMergeUrl(microdistrict, slug) ?? `/minsk/bcminsk/microrayon/${slug}`;
+  return microdistrictMergeUrl(microdistrict, slug) ?? `/minsk/bc/area/${slug}`;
 }
 
 // Хабы по станциям метро (аудит поиска 2026-09-07, «новые срезы: по станциям
-// метро») — /minsk/bcminsk/metro/:metroSlug. Источник — структурные
+// метро») — /minsk/bc/metro/:metroSlug. Источник — структурные
 // расстояния 2GIS (`BusinessCenter.nearestMetroStations`), не свободный
 // текст `metro`: БЦ попадает на страницу станции, если она в пределах
 // METRO_HUB_MAX_DISTANCE_M по прямой (≈15–20 минут пешком) — один БЦ может
@@ -239,7 +239,7 @@ export const METRO_SLUG_TO_STATION: Record<string, string> = Object.fromEntries(
 
 export function metroHubUrl(station: string): string | null {
   const slug = METRO_STATION_SLUGS[station];
-  return slug ? `/minsk/bcminsk/metro/${slug}` : null;
+  return slug ? `/minsk/bc/metro/${slug}` : null;
 }
 
 // Расстояние по прямой от БЦ до станции, если станция в радиусе хаба; иначе null.
@@ -268,7 +268,7 @@ export function metroHubIncludesMicrodistrict(center: Pick<BusinessCenter, 'micr
 }
 
 // Хабы по улицам (аудит поиска 2026-09-07, «новые срезы: по улицам/
-// локациям») — /minsk/bcminsk/ulitsa/:streetSlug. Владелец спросил
+// локациям») — /minsk/bc/street/:streetSlug. Владелец спросил
 // напрямую, не выйдет ли «1 БЦ = 1 улица» — проверено по реальным адресам
 // перед стартом: из 92 улиц с БЦ в каталоге у 23 реально 2+ здания (74 БЦ
 // из 143), остальные 69 — по одной улице, для них хаб не заводится (была
@@ -278,29 +278,29 @@ export function metroHubIncludesMicrodistrict(center: Pick<BusinessCenter, 'micr
 // `streetOfAddress` (businessCenterDisplay.ts), не хранится отдельным
 // полем — этот список просто фиксирует, у каких названий есть готовый slug.
 export const STREET_SLUGS: Record<string, string> = {
-  'пр-т Победителей': 'pr-t-pobediteley',
-  'пр-т Независимости': 'pr-t-nezavisimosti',
-  'пр-т Дзержинского': 'pr-t-dzerzhinskogo',
-  'ул. Притыцкого': 'ul-pritytskogo',
-  'ул. Сурганова': 'ul-surganova',
-  'ул. Платонова': 'ul-platonova',
-  'ул. Клары Цеткин': 'ul-klary-tsetkin',
-  'пер. Козлова': 'per-kozlova',
-  'пр-т Партизанский': 'pr-t-partizanskiy',
+  'пр-т Победителей': 'prospekt-pobediteley',
+  'пр-т Независимости': 'prospekt-nezavisimosti',
+  'пр-т Дзержинского': 'prospekt-dzerzhinskogo',
+  'ул. Притыцкого': 'pritytskogo',
+  'ул. Сурганова': 'surganova',
+  'ул. Платонова': 'platonova',
+  'ул. Клары Цеткин': 'klary-tsetkin',
+  'пер. Козлова': 'pereulok-kozlova',
+  'пр-т Партизанский': 'prospekt-partizanskiy',
   'Логойский тракт': 'logoyskiy-trakt',
-  'ул. Хоружей': 'ul-horuzhey',
-  'ул. Филимонова': 'ul-filimonova',
-  'ул. Немига': 'ul-nemiga',
-  'ул. Мележа': 'ul-melezha',
-  'ул. Толбухина': 'ul-tolbuhina',
-  'ул. Железнодорожная': 'ul-zheleznodorozhnaya',
-  'ул. Интернациональная': 'ul-internatsionalnaya',
-  'ул. Лобанка': 'ul-lobanka',
-  'ул. Ольшевского': 'ul-olshevskogo',
-  'ул. Свердлова': 'ul-sverdlova',
-  'ул. Скрыганова': 'ul-skryganova',
-  'ул. Тимирязева': 'ul-timiryazeva',
-  'ул. Скорины': 'ul-skoriny',
+  'ул. Хоружей': 'horuzhey',
+  'ул. Филимонова': 'filimonova',
+  'ул. Немига': 'nemiga',
+  'ул. Мележа': 'melezha',
+  'ул. Толбухина': 'tolbuhina',
+  'ул. Железнодорожная': 'zheleznodorozhnaya',
+  'ул. Интернациональная': 'internatsionalnaya',
+  'ул. Лобанка': 'lobanka',
+  'ул. Ольшевского': 'olshevskogo',
+  'ул. Свердлова': 'sverdlova',
+  'ул. Скрыганова': 'skryganova',
+  'ул. Тимирязева': 'timiryazeva',
+  'ул. Скорины': 'skoriny',
 };
 
 export const STREET_SLUG_TO_NAME: Record<string, string> = Object.fromEntries(
@@ -309,5 +309,5 @@ export const STREET_SLUG_TO_NAME: Record<string, string> = Object.fromEntries(
 
 export function streetHubUrl(street: string): string | null {
   const slug = STREET_SLUGS[street];
-  return slug ? `/minsk/bcminsk/ulitsa/${slug}` : null;
+  return slug ? `/minsk/bc/street/${slug}` : null;
 }

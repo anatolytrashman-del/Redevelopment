@@ -31,7 +31,8 @@ export function vkPageGoalForPath(pathname: string): string | null {
   if (
     pathname.startsWith('/minsk/minsk-mir') ||
     pathname.startsWith('/minsk/analytics') ||
-    pathname.startsWith('/minsk/bcminsk')
+    pathname === '/minsk/bc' ||
+    pathname.startsWith('/minsk/bc/')
   ) {
     return 'viewed_analytics';
   }

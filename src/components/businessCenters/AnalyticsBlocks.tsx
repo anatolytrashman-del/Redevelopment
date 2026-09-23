@@ -754,7 +754,7 @@ export function ExtremesBlock({ top, bottom }: { top: BuildingSupply[]; bottom: 
         {rows.map((r) => (
           <li key={r.center.slug} className="py-2 first:pt-0 last:pb-0">
             <Link
-              to={`/minsk/bcminsk/${r.center.slug}`}
+              to={`/minsk/bc/${r.center.slug}`}
               className="flex items-baseline justify-between gap-3 hover:text-primary-hover"
             >
               <span className="min-w-0 flex-1">
