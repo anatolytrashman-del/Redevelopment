@@ -197,7 +197,10 @@ async function main() {
   // --- Сегмент 'ofisy_bc' ---
   const { data: centers, error: centersError } = await supabase
     .from('business_centers')
-    .select('slug,business_class,district');
+    .select('slug,business_class,district')
+    // Только бизнес-центры: торговые центры (kind = 'tc') лежат в той же
+    // таблице, но в офисную аналитику попадать не должны.
+    .eq('kind', 'bc');
   if (centersError) throw centersError;
 
   // PostgREST отдаёт максимум 1000 строк за запрос (см. CLAUDE.md) —

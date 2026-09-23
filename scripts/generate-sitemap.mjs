@@ -57,7 +57,7 @@ async function supabaseSelect(query, what) {
 }
 
 async function fetchBusinessCenterSlugs() {
-  const rows = await supabaseSelect('business_centers?select=slug&order=slug.asc', 'business_centers.slug');
+  const rows = await supabaseSelect('business_centers?select=slug&kind=eq.bc&order=slug.asc', 'business_centers.slug');
   return rows.map((r) => r.slug).filter((slug) => typeof slug === 'string' && /^[a-z0-9-]+$/.test(slug));
 }
 
@@ -199,7 +199,7 @@ function streetOfAddressJs(fullAddress) {
 // там noindex, — впустую потраченный краулинговый бюджет.
 async function fetchHubPaths() {
   const rows = await supabaseSelect(
-    'business_centers?select=address,business_class,district,microdistrict',
+    'business_centers?select=address,business_class,district,microdistrict&kind=eq.bc',
     'business_centers.address/class/district/microdistrict',
   );
   const countBy = (key) => {
@@ -253,7 +253,7 @@ function pruneThinHubs(xml, keep) {
 
 async function fetchMetroHubStations() {
   const rows = await supabaseSelect(
-    'business_centers?select=nearest_metro_stations&nearest_metro_stations=not.is.null',
+    'business_centers?select=nearest_metro_stations&nearest_metro_stations=not.is.null&kind=eq.bc',
     'nearest_metro_stations',
   );
   const slugs = new Set();

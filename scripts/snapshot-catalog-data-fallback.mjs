@@ -48,7 +48,7 @@ const DATASETS = {
   // businessCenterTenantCityApi.fetchTenantCitySlice.
   tenant_city: `select categories, org_total, building_total, computed_at from business_center_tenant_city_categories`,
   // businessCenterSourcesApi.fetchCatalogSiteSources.
-  site_sources: `select website, developer_info, media_mentions, building_facts from business_centers limit 1000`,
+  site_sources: `select website, developer_info, media_mentions, building_facts from business_centers where kind = 'bc' limit 1000`,
   // Карточка БЦ: по зданию, группируется по слагу в generate-catalog-data.
   // businessCenterOffersApi.fetchBusinessCenterOffers — сортировка та же.
   offers: `select * from business_center_offers order by price_per_sqm asc, id asc`,

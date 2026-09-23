@@ -629,7 +629,10 @@ async function collectMegapolisOffers(centers) {
 async function main() {
   const { data: centers, error: centersError } = await supabase
     .from('business_centers')
-    .select('slug, name, address, district');
+    .select('slug, name, address, district')
+    // Торговые центры (kind = 'tc') пока не собираем: их объявления попали бы
+    // в офисную аналитику каталога БЦ, которая читает business_center_offers целиком.
+    .eq('kind', 'bc');
   if (centersError) throw centersError;
 
   const scopedCenters = LIMIT ? centers.slice(0, LIMIT) : centers;

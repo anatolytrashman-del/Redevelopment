@@ -66,7 +66,7 @@ async function main(columns) {
   const generatedAt = new Date().toISOString();
 
   const rows = await supabaseSelect(
-    `business_centers?select=${columns}&order=sort_order.asc`,
+    `business_centers?select=${columns}&kind=eq.bc&order=sort_order.asc`,
     'business_centers (список для каталога)',
   );
   mkdirSync(DIST_DATA, { recursive: true });
@@ -78,7 +78,7 @@ async function main(columns) {
   // нужны колонки, выброшенные из списка (технические параметры,
   // арендаторы, СМИ). Имя файла = слаг, поэтому инлайн-скрипту не нужно
   // знать, где карточка, а где раздел: у раздела такого файла просто нет.
-  const full = await supabaseSelect('business_centers?select=*&order=sort_order.asc', 'business_centers (полные ряды)');
+  const full = await supabaseSelect('business_centers?select=*&kind=eq.bc&order=sort_order.asc', 'business_centers (полные ряды)');
   const bcDir = join(DIST_DATA, 'bc');
   mkdirSync(bcDir, { recursive: true });
   let written = 0;
@@ -226,7 +226,7 @@ async function writeExtras() {
         supabaseSelect('business_center_tenant_city_categories?select=categories,org_total,building_total,computed_at', 'отраслевой срез'),
       ),
       dataset('site_sources', () =>
-        supabaseSelect('business_centers?select=website,developer_info,media_mentions,building_facts&limit=1000', 'источники'),
+        supabaseSelect('business_centers?select=website,developer_info,media_mentions,building_facts&kind=eq.bc&limit=1000', 'источники'),
       ),
       dataset('offers', () => selectAll('business_center_offers?select=*&order=price_per_sqm.asc,id.asc', 'объявления')),
       dataset('reviews', () => selectAll('business_center_review_snapshots?select=*&order=id.asc', 'отзывы')),

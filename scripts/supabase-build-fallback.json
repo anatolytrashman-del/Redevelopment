@@ -9,7 +9,7 @@
         "landing_slug": "one"
       }
     ],
-    "business_centers?select=address": [
+    "business_centers?select=address&kind=eq.bc": [
       {
         "address": "г. Минск, ул. Хоружей, 25к3"
       },
@@ -434,7 +434,7 @@
         "address": "г. Минск, Заводской район, пр-т Партизанский, 178/2"
       }
     ],
-    "business_centers?select=business_class,district": [
+    "business_centers?select=business_class,district&kind=eq.bc": [
       {
         "business_class": "B",
         "district": "Советский"
@@ -1000,7 +1000,7 @@
         "district": "Заводской"
       }
     ],
-    "business_centers?select=slug": [
+    "business_centers?select=slug&kind=eq.bc": [
       {
         "slug": "21-vek"
       },
@@ -1425,7 +1425,7 @@
         "slug": "zelenyy-lug"
       }
     ],
-    "business_centers?select=nearest_metro_stations&nearest_metro_stations=not.is.null": [
+    "business_centers?select=nearest_metro_stations&nearest_metro_stations=not.is.null&kind=eq.bc": [
       {
         "nearest_metro_stations": [
           {
@@ -3558,7 +3558,7 @@
         ]
       }
     ],
-    "business_centers?select=slug&order=slug.asc": [
+    "business_centers?select=slug&kind=eq.bc&order=slug.asc": [
       {
         "slug": "21-vek"
       },
@@ -3983,7 +3983,7 @@
         "slug": "zelenyy-lug"
       }
     ],
-    "business_centers?select=address,business_class,district,microdistrict": [
+    "business_centers?select=address,business_class,district,microdistrict&kind=eq.bc": [
       {
         "address": "г. Минск, ул. Хоружей, 25к3",
         "business_class": "B",
@@ -4831,7 +4831,7 @@
         "microdistrict": null
       }
     ],
-    "business_centers?select=microdistrict&microdistrict=not.is.null": [
+    "business_centers?select=microdistrict&microdistrict=not.is.null&kind=eq.bc": [
       {
         "microdistrict": "Комаровка"
       },
