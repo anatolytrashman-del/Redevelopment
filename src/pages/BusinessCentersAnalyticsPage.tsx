@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { startTransition, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, BarChart3 } from 'lucide-react';
 import { cn } from '../lib/cn';
@@ -141,13 +141,19 @@ export function BusinessCentersAnalyticsPage() {
   const [tenants, setTenants] = useState<TenantCitySlice | null>(null);
 
   useEffect(() => {
-    fetchBusinessCenters().then(setCenters)// Ошибка базы не стирает уже показанный список (снимок сборки): пустой
+    // Пришедшие данные — переходом: пересчёт всех блоков страницы после
+    // offers/tenants иначе шёл одной задачей в сотни миллисекунд на телефоне
+    // (TBT 1450 мс в отчёте PageSpeed, 2026-09-23), а переход React строит
+    // кусками. Что показывать до прихода — не меняется: снапшот и первый
+    // кадр те же.
+    const inTransition = <T,>(set: (value: T) => void) => (value: T) => startTransition(() => set(value));
+    fetchBusinessCenters().then(inTransition(setCenters))// Ошибка базы не стирает уже показанный список (снимок сборки): пустой
       // каталог на месте готового — хуже, чем данные часовой давности.
       .catch(() => setCenters((prev) => prev ?? []));
-    fetchLatestMarketSnapshots('ofisy_bc').then(setSnapshots).catch(() => setSnapshots([]));
-    fetchBusinessCenterOfferSlices().then(setOffers).catch(() => setOffers([]));
-    fetchExternalMetrics('ofisy_bc').then(setExternalMetrics).catch(() => setExternalMetrics([]));
-    fetchTenantCitySlice().then(setTenants).catch(() => setTenants(null));
+    fetchLatestMarketSnapshots('ofisy_bc').then(inTransition(setSnapshots)).catch(() => setSnapshots([]));
+    fetchBusinessCenterOfferSlices().then(inTransition(setOffers)).catch(() => setOffers([]));
+    fetchExternalMetrics('ofisy_bc').then(inTransition(setExternalMetrics)).catch(() => setExternalMetrics([]));
+    fetchTenantCitySlice().then(inTransition(setTenants)).catch(() => setTenants(null));
   }, []);
 
   const cityRent = useMemo(() => snap(snapshots, 'rent', 'city', 'all'), [snapshots]);
