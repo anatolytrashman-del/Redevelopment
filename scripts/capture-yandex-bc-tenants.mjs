@@ -2,6 +2,7 @@
 // Локальный полуавтоматический сбор организаций из открытой страницы Яндекс Карт.
 // Не обходит CAPTCHA: при проверке пользователь завершает её в открытом Chrome и нажимает Enter.
 
+import './local-supabase-env.mjs'; // первым: ключ из ~/.config/redevelopment/supabase.env
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -22,6 +23,8 @@ const has = (name) => args.includes(name);
 const inputPath = valueOf('--input');
 const archivePath = valueOf('--webarchive');
 const onlySlug = valueOf('--slug');
+// --slug принимает и список через запятую: пробный прогон по нескольким зданиям.
+const onlySlugs = (onlySlug ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 // --kind bc|tc|all — какой каталог собирать (по умолчанию bc, как было до
 // каталога ТЦ 2026-09-23; торговые центры — `--kind tc`).
 const catalogKind = valueOf('--kind') ?? 'bc';
@@ -309,7 +312,7 @@ async function catalogEntries() {
     .eq('status', 'built')
     .order('sort_order', { ascending: true });
   if (catalogKind !== 'all') centersQuery = centersQuery.eq('kind', catalogKind);
-  if (onlySlug) centersQuery = centersQuery.eq('slug', onlySlug);
+  if (onlySlugs.length > 0) centersQuery = centersQuery.in('slug', onlySlugs);
   // При --skip-collected лимит применяем ПОСЛЕ фильтрации уже собранных —
   // иначе --limit по sort_order мог бы целиком попасть на готовые БЦ и
   // вернуть пустой список, хотя дальше в каталоге есть несобранные.
@@ -355,7 +358,7 @@ let entries;
 if (archivePath) entries = [{ slug: onlySlug, address: '', archivePath }];
 else if (inputPath) {
   entries = JSON.parse(await fs.readFile(path.resolve(inputPath), 'utf8'));
-  if (onlySlug) entries = entries.filter((entry) => entry.slug === onlySlug);
+  if (onlySlugs.length > 0) entries = entries.filter((entry) => onlySlugs.includes(entry.slug));
   if (limit > 0) entries = entries.slice(0, limit);
 } else entries = await catalogEntries();
 
