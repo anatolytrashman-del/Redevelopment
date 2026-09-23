@@ -7,6 +7,7 @@
 // (BusinessCentersMinskPage.tsx) и админка (BusinessCentersAdminTab.tsx)
 // читают/пишут через lib/businessCentersApi.ts.
 //
+import type { CatalogKind } from '../lib/catalogKind';
 import type { DocumentFile } from './contractorDocuments';
 
 // district=null — "не указано": не выдумывать значение, честно показывать
@@ -269,6 +270,13 @@ export interface BusinessCenter {
   photos: string[];
   // 'built' по умолчанию. 'under_construction' — как МФЦ, ещё строится.
   status: 'built' | 'under_construction';
+  // Какому каталогу принадлежит запись: 'bc' — бизнес-центры (/minsk/bc),
+  // 'tc' — торговые центры (/minsk/tc). Одна таблица на оба каталога, см.
+  // src/lib/catalogKind.tsx и миграцию 20260923-catalog-kind.sql.
+  kind: CatalogKind;
+  // Формат торгового объекта (ТРЦ, ТЦ, универмаг, рынок…) — у ТЦ он вместо
+  // делового класса. У бизнес-центров null.
+  retailFormat: string | null;
   // Порядок на публичной странице (изначально — примерно по частотности
   // поисковых запросов, не алфавитный — алфавит только в боковой навигации).
   // Управляется в админке (см. BusinessCentersAdminTab.tsx).
@@ -464,11 +472,29 @@ export interface BusinessCenterRow {
   reviews_checked: boolean | null;
   photos: string[] | null;
   status: string | null;
+  // Необязательные: в снимках сборки, снятых до 2026-09-23, этих колонок нет.
+  kind?: string | null;
+  retail_format?: string | null;
   sort_order: number;
   created_at: string;
 }
 
 export const BUSINESS_CENTER_CLASSES = ['A', 'B+', 'B', 'C'] as const;
+
+// Форматы торговых объектов (каталог ТЦ, kind = 'tc') — открытый список, как
+// остальные растущие поля: в админке можно дописать свой (AddableSelect).
+export const RETAIL_FORMATS = [
+  'ТРЦ',
+  'ТЦ',
+  'районный ТЦ',
+  'универмаг',
+  'аутлет',
+  'рынок',
+  'гипермаркет с галереей',
+  'мебельный центр',
+  'строительный центр',
+  'автоцентр',
+] as const;
 
 export type BusinessCenterLayoutType = 'cabinet' | 'block' | 'open_space';
 

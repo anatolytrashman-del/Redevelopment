@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { withRetry } from './withRetry';
 import { bcExtraFile, loadBuildData, seedBuildData } from './buildData';
 import { triggerPublicRebuild } from './publicRebuild';
+import { CATALOG_VOCABULARY, type CatalogKind } from './catalogKind';
 import type {
   BusinessCenter,
   BusinessCenterDerivedField,
@@ -63,6 +64,8 @@ function fromRow(row: BusinessCenterRow): BusinessCenter {
     reviewsChecked: row.reviews_checked ?? false,
     photos: row.photos ?? [],
     status: (row.status as BusinessCenter['status']) ?? 'built',
+    kind: row.kind === 'tc' ? 'tc' : 'bc',
+    retailFormat: row.retail_format ?? null,
     sortOrder: row.sort_order,
     createdAt: row.created_at,
   };
@@ -139,6 +142,8 @@ const LIST_COLUMNS = [
   'pros',
   'cons',
   'status',
+  'kind',
+  'retail_format',
   'sort_order',
   'created_at',
 ].join(',');
@@ -155,6 +160,9 @@ interface BuildSnapshotWindow {
   __bcDetail?: { slug: string; data: Promise<{ generatedAt: string; row: BusinessCenterRow } | null> };
   __bcMarket?: Promise<unknown>;
   __bcExtra?: { slug: string; data: Promise<unknown> };
+  // Какой каталог начал качать инлайн-скрипт: под /minsk/tc — торговые
+  // центры (trade-centers.json), иначе бизнес-центры. Нет — значит 'bc'.
+  __bcKind?: CatalogKind;
 }
 
 // Снимок сборки — ОСНОВНОЙ источник зданий для публичных страниц, а не
@@ -165,19 +173,23 @@ interface BuildSnapshotWindow {
 // то есть ровно то, что и так видит поисковик в разметке; ходить за теми
 // же рядами в базу каждым посетителем — это тот самый трафик. База —
 // только если снимка нет вовсе. Общий принцип — в src/lib/buildData.ts.
-let snapshotList: { generatedAt: string; centers: BusinessCenter[] } | null = null;
+// По снимку на каталог: БЦ и ТЦ — разные списки, и SPA-переход с одного
+// раздела на другой не должен показать чужой список из памяти.
+const snapshotLists: Partial<Record<CatalogKind, { generatedAt: string; centers: BusinessCenter[] }>> = {};
 // Разбор списка, начатого инлайн-скриптом, который ещё не закончился: на
 // карточке монтирование его не ждёт (см. primeBusinessCentersFromBuild), и
 // fetchBusinessCenters дожидается ЭТОГО промиса, а не качает файл второй раз.
-let listPending: Promise<void> | null = null;
+const listPending: Partial<Record<CatalogKind, Promise<void>>> = {};
 let snapshotDetail: { generatedAt: string; slug: string; center: BusinessCenter } | null = null;
 
-export function snapshotBusinessCenters(): BusinessCenter[] | null {
-  return snapshotList?.centers ?? null;
+// kind по умолчанию 'bc': useState(snapshotBusinessCenters) на страницах
+// каталога БЦ зовёт функцию без аргументов.
+export function snapshotBusinessCenters(kind: CatalogKind = 'bc'): BusinessCenter[] | null {
+  return snapshotLists[kind]?.centers ?? null;
 }
 
-export function snapshotBusinessCenter(slug: string): BusinessCenter | null {
-  return snapshotDetail && snapshotDetail.slug === slug ? snapshotDetail.center : null;
+export function snapshotBusinessCenter(slug: string, kind: CatalogKind = 'bc'): BusinessCenter | null {
+  return snapshotDetail && snapshotDetail.slug === slug && snapshotDetail.center.kind === kind ? snapshotDetail.center : null;
 }
 
 // Ждём ровно столько, сколько не жалко: не пришло — страница работает как
@@ -190,10 +202,11 @@ export async function primeBusinessCentersFromBuild(timeoutMs = 2500): Promise<v
   if (typeof window === 'undefined') return;
   const w = window as unknown as BuildSnapshotWindow;
   if (!w.__bcList && !w.__bcDetail) return;
+  const kind: CatalogKind = w.__bcKind === 'tc' ? 'tc' : 'bc';
   const list = Promise.resolve(w.__bcList ?? null)
     .then((data) => {
       if (data && Array.isArray(data.rows)) {
-        snapshotList = { generatedAt: data.generatedAt, centers: data.rows.map(fromRow) };
+        snapshotLists[kind] = { generatedAt: data.generatedAt, centers: data.rows.map(fromRow) };
       }
     })
     .catch(() => undefined);
@@ -211,7 +224,7 @@ export async function primeBusinessCentersFromBuild(timeoutMs = 2500): Promise<v
       }
     })
     .catch(() => undefined);
-  listPending = list;
+  listPending[kind] = list;
   // Догружаемые файлы, начатые тем же инлайн-скриптом, кладём в кеш
   // buildData — функции загрузки возьмут их оттуда, а страницы прочитают
   // синхронно в первом рендере (peekBuildData).
@@ -228,34 +241,35 @@ export async function primeBusinessCentersFromBuild(timeoutMs = 2500): Promise<v
   await Promise.race([Promise.all([list, detail, market, extra]), timeout]);
 }
 
-export async function fetchBusinessCenters(): Promise<BusinessCenter[]> {
+export async function fetchBusinessCenters(kind: CatalogKind = 'bc'): Promise<BusinessCenter[]> {
   // 1) Снимок, разобранный до монтирования (страницы раздела) — те же
   //    колонки и тот же порядок, что вернула бы выборка ниже.
-  if (snapshotList) return snapshotList.centers;
-  if (listPending) {
-    await listPending;
-    // Через геттер: после await TypeScript всё ещё считает snapshotList null
-    // по проверке выше, хотя промис его уже заполнил.
-    const arrived = snapshotBusinessCenters();
+  const ready = snapshotLists[kind];
+  if (ready) return ready.centers;
+  const pending = listPending[kind];
+  if (pending) {
+    await pending;
+    const arrived = snapshotBusinessCenters(kind);
     if (arrived) return arrived;
   }
   // 2) Тот же файл с CDN — для страниц вне раздела, где инлайн-скрипт его не
   //    начинал качать («Избранное», аналитика офисов).
-  const file = await loadBuildData<{ generatedAt: string; rows: BusinessCenterRow[] }>('business-centers.json');
+  const file = await loadBuildData<{ generatedAt: string; rows: BusinessCenterRow[] }>(CATALOG_VOCABULARY[kind].listFile);
   if (file && Array.isArray(file.rows)) {
-    snapshotList = { generatedAt: file.generatedAt, centers: file.rows.map(fromRow) };
-    return snapshotList.centers;
+    const snapshot = { generatedAt: file.generatedAt, centers: file.rows.map(fromRow) };
+    snapshotLists[kind] = snapshot;
+    return snapshot.centers;
   }
   // 3) База — только если снимка нет вовсе.
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('business_centers')
       .select(LIST_COLUMNS)
-      .eq('kind', 'bc')
+      .eq('kind', kind)
       .order('sort_order', { ascending: true });
     if (error) throw error;
     return (data as unknown as BusinessCenterRow[]).map(fromRow);
-  }).catch((err) => fallbackToSnapshot(snapshotList?.centers, err));
+  }).catch((err) => fallbackToSnapshot(snapshotLists[kind]?.centers, err));
 }
 
 // База не ответила — показываем снимок сборки любой давности, а не ошибку.
@@ -273,17 +287,24 @@ function fallbackToSnapshot<T>(snapshot: T | undefined, err: unknown): T {
 // параметры, и арендаторы, и упоминания в СМИ, которых в списке нет.
 // Один ряд — это десятки килобайт вместо мегабайта, и первый экран карточки
 // больше не ждёт всю таблицу.
-export async function fetchBusinessCenter(slug: string): Promise<BusinessCenter | null> {
+// Файлы зданий обоих каталогов лежат в одной папке dist/data/bc (слаг
+// уникален на всю таблицу), поэтому здание чужого каталога здесь отсекается
+// по kind: /minsk/bc/<слаг ТЦ> — «не найдено», а не карточка ТЦ.
+export async function fetchBusinessCenter(slug: string, kind: CatalogKind = 'bc'): Promise<BusinessCenter | null> {
   // Тот же порядок источников, что у списка: снимок в памяти → файл
   // здания с CDN (переход «предыдущий/следующий» на другое здание) → база.
-  if (snapshotDetail?.slug === slug) return snapshotDetail.center;
+  const fromMemory = snapshotBusinessCenter(slug, kind);
+  if (fromMemory) return fromMemory;
   const file = await loadBuildData<{ generatedAt: string; row: BusinessCenterRow }>(`bc/${encodeURIComponent(slug)}.json`);
-  if (file?.row && file.row.slug === slug) return fromRow(file.row);
+  if (file?.row && file.row.slug === slug) {
+    const center = fromRow(file.row);
+    return center.kind === kind ? center : null;
+  }
   return withRetry(async () => {
-    const { data, error } = await supabase.from('business_centers').select('*').eq('slug', slug).eq('kind', 'bc').maybeSingle();
+    const { data, error } = await supabase.from('business_centers').select('*').eq('slug', slug).eq('kind', kind).maybeSingle();
     if (error) throw error;
     return data ? fromRow(data as BusinessCenterRow) : null;
-  }).catch((err) => fallbackToSnapshot(snapshotDetail?.slug === slug ? snapshotDetail.center : undefined, err));
+  }).catch((err) => fallbackToSnapshot(snapshotBusinessCenter(slug, kind) ?? undefined, err));
 }
 
 // Полная таблица — только админке (BusinessCentersAdminTab): там правят все
@@ -334,6 +355,8 @@ function toPayload(input: Partial<BusinessCenterInput>) {
   if (input.verdictEdited !== undefined) payload.verdict_edited = input.verdictEdited;
   if (input.reviewsChecked !== undefined) payload.reviews_checked = input.reviewsChecked;
   if (input.status !== undefined) payload.status = input.status;
+  if (input.kind !== undefined) payload.kind = input.kind;
+  if (input.retailFormat !== undefined) payload.retail_format = input.retailFormat;
   if (input.sortOrder !== undefined) payload.sort_order = input.sortOrder;
   return payload;
 }

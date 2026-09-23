@@ -74,11 +74,21 @@ async function main(columns) {
   const listJson = JSON.stringify({ generatedAt, rows });
   writeFileSync(listPath, listJson);
 
+  // Каталог торговых центров (/minsk/tc, 2026-09-23) — та же таблица с
+  // kind = 'tc' и свой файл списка. Файлы отдельных зданий у обоих каталогов
+  // общие (dist/data/bc/<slug>.json): слаг уникален на всю таблицу, а чужой
+  // каталог карточка отсекает по kind (fetchBusinessCenter).
+  const tcRows = await supabaseSelect(
+    `business_centers?select=${columns}&kind=eq.tc&order=sort_order.asc`,
+    'business_centers (список торговых центров)',
+  );
+  writeFileSync(join(DIST_DATA, 'trade-centers.json'), JSON.stringify({ generatedAt, rows: tcRows }));
+
   // Полные ряды по одному файлу на здание — их читает карточка БЦ, которой
   // нужны колонки, выброшенные из списка (технические параметры,
   // арендаторы, СМИ). Имя файла = слаг, поэтому инлайн-скрипту не нужно
   // знать, где карточка, а где раздел: у раздела такого файла просто нет.
-  const full = await supabaseSelect('business_centers?select=*&kind=eq.bc&order=sort_order.asc', 'business_centers (полные ряды)');
+  const full = await supabaseSelect('business_centers?select=*&order=sort_order.asc', 'business_centers (полные ряды БЦ и ТЦ)');
   const bcDir = join(DIST_DATA, 'bc');
   mkdirSync(bcDir, { recursive: true });
   let written = 0;
@@ -90,7 +100,7 @@ async function main(columns) {
   }
 
   console.log(
-    `[catalog-data] список: ${rows.length} зданий, ${Math.round(Buffer.byteLength(listJson) / 1024)} КБ; карточки: ${written} файлов`,
+    `[catalog-data] список: ${rows.length} зданий, ${Math.round(Buffer.byteLength(listJson) / 1024)} КБ; ТЦ: ${tcRows.length}; карточки: ${written} файлов`,
   );
 }
 
@@ -251,10 +261,13 @@ async function writeExtras() {
   // Файл .extra пишется КАЖДОМУ зданию из списка, даже пустой: пустой файл
   // — это ответ «у здания нет отзывов», а отсутствие файла браузер понял бы
   // как «не знаю» и пошёл бы в базу.
-  const listPath = join(DIST_DATA, 'business-centers.json');
-  const slugs = existsSync(listPath)
-    ? JSON.parse(readFileSync(listPath, 'utf8')).rows.map((r) => r.slug).filter((s) => /^[a-z0-9-]+$/.test(s ?? ''))
-    : [];
+  // Оба каталога: и бизнес-центры, и торговые центры (trade-centers.json).
+  const slugs = ['business-centers.json', 'trade-centers.json'].flatMap((name) => {
+    const listPath = join(DIST_DATA, name);
+    return existsSync(listPath)
+      ? JSON.parse(readFileSync(listPath, 'utf8')).rows.map((r) => r.slug).filter((s) => /^[a-z0-9-]+$/.test(s ?? ''))
+      : [];
+  });
   const bySlug = (rows) => {
     const map = new Map();
     for (const row of rows) {

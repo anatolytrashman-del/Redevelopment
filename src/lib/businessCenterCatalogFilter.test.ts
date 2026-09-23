@@ -72,6 +72,8 @@ function bc(over: Partial<BusinessCenter> & { slug: string }): BusinessCenter {
     reviewsChecked: false,
     photos: [],
     status: 'built',
+    kind: 'bc',
+    retailFormat: null,
     sortOrder: 0,
     createdAt: '2026-01-01',
     ...over,
@@ -135,6 +137,20 @@ describe('matchesCatalogFilter', () => {
     expect(
       matchesCatalogFilter(c, { ...EMPTY_CATALOG_FILTER, microdistricts: ['Комаровка'] }, offers),
     ).toBe(true);
+  });
+
+  it('формат ТЦ: ИЛИ внутри оси, здание без формата не проходит, URL туда и обратно', () => {
+    const trc = bc({ slug: 'trc', retailFormat: 'ТРЦ' });
+    const market = bc({ slug: 'market', retailFormat: 'рынок' });
+    const unknown = bc({ slug: 'unknown' });
+    const state = { ...EMPTY_CATALOG_FILTER, formats: ['ТРЦ', 'универмаг'] };
+    expect(matchesCatalogFilter(trc, state, offers)).toBe(true);
+    expect(matchesCatalogFilter(market, state, offers)).toBe(false);
+    expect(matchesCatalogFilter(unknown, state, offers)).toBe(false);
+    expect(matchesCatalogFilter(unknown, EMPTY_CATALOG_FILTER, offers)).toBe(true);
+    expect(hasActiveCatalogFilter(state)).toBe(true);
+    const parsed = parseCatalogFilter(new URLSearchParams(catalogFilterToQuery(state).slice(1)));
+    expect(parsed.formats).toEqual(['ТРЦ', 'универмаг']);
   });
 
   it('здание без класса не попадает в выборку по классу', () => {

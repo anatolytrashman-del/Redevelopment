@@ -53,6 +53,10 @@ export const CATALOG_SORTS: { key: CatalogSortKey; label: string }[] = [
 
 export interface CatalogFilterState {
   classes: string[];
+  // Формат торгового центра (ТРЦ, универмаг, рынок…) — ось каталога ТЦ
+  // (/minsk/tc, 2026-09-23), у бизнес-центров всегда пусто. [] = все
+  // форматы, как и у classes: явный выбор сужает.
+  formats: string[];
   // Статус здания — построено / строится (владелец, 2026-09-20). [] = обе
   // группы, как и у classes/facts — явный выбор сужает.
   statuses: string[];
@@ -103,6 +107,7 @@ export const CATALOG_VIEWS: { key: CatalogView; label: string }[] = [
 
 export const EMPTY_CATALOG_FILTER: CatalogFilterState = {
   classes: [],
+  formats: [],
   statuses: [],
   districts: null,
   microdistricts: null,
@@ -340,6 +345,7 @@ export function isPresetActive(preset: CatalogPreset, state: CatalogFilterState)
     a === null || b === null ? a === b : same(a, b);
   return (
     same(target.classes, state.classes) &&
+    same(target.formats, state.formats) &&
     same(target.statuses, state.statuses) &&
     sameNullable(target.districts, state.districts) &&
     sameNullable(target.microdistricts, state.microdistricts) &&
@@ -370,6 +376,9 @@ export function parseCatalogFilter(params: URLSearchParams): CatalogFilterState 
   const lotRaw = Number(params.get('lot'));
   return {
     classes: splitList(params.get('class')).filter((v) => ['A', 'B+', 'B', 'C'].includes(v)),
+    // Список форматов открытый (админка дописывает свои), поэтому значения
+    // не сверяются с перечнем: незнакомый формат просто ничего не найдёт.
+    formats: splitList(params.get('format')),
     statuses: splitList(params.get('status')).filter((v) => ['built', 'under_construction'].includes(v)),
     districts: parseSelection(params, 'district'),
     microdistricts: parseSelection(params, 'microdistrict'),
@@ -393,6 +402,7 @@ export function parseCatalogFilter(params: URLSearchParams): CatalogFilterState 
 export function catalogFilterToQuery(state: CatalogFilterState): string {
   const params = new URLSearchParams();
   if (state.classes.length > 0) params.set('class', [...state.classes].sort().join(','));
+  if (state.formats.length > 0) params.set('format', [...state.formats].sort().join(','));
   if (state.statuses.length > 0) params.set('status', [...state.statuses].sort().join(','));
   if (state.districts !== null) params.set('district', [...state.districts].sort().join(','));
   if (state.microdistricts !== null) params.set('microdistrict', [...state.microdistricts].sort().join(','));
@@ -413,6 +423,7 @@ export function catalogFilterToQuery(state: CatalogFilterState): string {
 export function hasActiveCatalogFilter(state: CatalogFilterState): boolean {
   return (
     state.classes.length > 0 ||
+    state.formats.length > 0 ||
     state.statuses.length > 0 ||
     state.districts !== null ||
     state.microdistricts !== null ||
@@ -451,6 +462,9 @@ export function matchesCatalogFilter(
 ): boolean {
   if (state.classes.length > 0) {
     if (center.businessClass === null || !state.classes.includes(center.businessClass)) return false;
+  }
+  if (state.formats.length > 0) {
+    if (center.retailFormat == null || !state.formats.includes(center.retailFormat)) return false;
   }
   if (state.statuses.length > 0 && !state.statuses.includes(center.status)) {
     return false;

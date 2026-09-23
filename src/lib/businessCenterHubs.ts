@@ -78,9 +78,13 @@ export function districtDative(district: string): string {
   return DISTRICT_DATIVE[district] ?? district;
 }
 
-export function districtHubUrl(district: string): string | null {
+// base — корень каталога: '/minsk/bc' (бизнес-центры) или '/minsk/tc'
+// (торговые центры, 2026-09-23). У ТЦ есть только хабы районов и метро;
+// улицы, микрорайоны и классы — оси одного каталога БЦ, и для другого
+// корня их построители отдают null.
+export function districtHubUrl(district: string, base = '/minsk/bc'): string | null {
   const slug = DISTRICT_SLUGS[district];
-  return slug ? `/minsk/bc/district/${slug}` : null;
+  return slug ? `${base}/district/${slug}` : null;
 }
 
 export function classHubUrl(businessClass: NonNullable<BusinessCenter['businessClass']>): string {
@@ -166,7 +170,8 @@ function microdistrictMergeUrl(microdistrict: string, slug: string): string | nu
   return null;
 }
 
-export function microdistrictHubUrl(microdistrict: string): string | null {
+export function microdistrictHubUrl(microdistrict: string, base = '/minsk/bc'): string | null {
+  if (base !== '/minsk/bc') return null;
   const slug = MICRODISTRICT_SLUGS[microdistrict];
   if (!slug) return null;
   return microdistrictMergeUrl(microdistrict, slug) ?? `/minsk/bc/area/${slug}`;
@@ -237,9 +242,9 @@ export const METRO_SLUG_TO_STATION: Record<string, string> = Object.fromEntries(
   Object.entries(METRO_STATION_SLUGS).map(([name, slug]) => [slug, name]),
 );
 
-export function metroHubUrl(station: string): string | null {
+export function metroHubUrl(station: string, base = '/minsk/bc'): string | null {
   const slug = METRO_STATION_SLUGS[station];
-  return slug ? `/minsk/bc/metro/${slug}` : null;
+  return slug ? `${base}/metro/${slug}` : null;
 }
 
 // Расстояние по прямой от БЦ до станции, если станция в радиусе хаба; иначе null.
@@ -307,7 +312,8 @@ export const STREET_SLUG_TO_NAME: Record<string, string> = Object.fromEntries(
   Object.entries(STREET_SLUGS).map(([name, slug]) => [slug, name]),
 );
 
-export function streetHubUrl(street: string): string | null {
+export function streetHubUrl(street: string, base = '/minsk/bc'): string | null {
+  if (base !== '/minsk/bc') return null;
   const slug = STREET_SLUGS[street];
   return slug ? `/minsk/bc/street/${slug}` : null;
 }

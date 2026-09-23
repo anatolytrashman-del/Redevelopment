@@ -20,7 +20,7 @@ function bc(slug: string, businessClass: BusinessCenter['businessClass'], distri
     parkingRatio: null, airConditioning: null, ceilingHeight: null, managementType: null,
     metroDistanceBucket: null, freeSpaceMin: null, freeSpaceMax: null, infraInternal: [], infraNearby: [],
     lat: null, lng: null, gisRating: null, gisReviewCount: null, is24x7: null, accessibility: [], photos: [],
-    status: 'built', sortOrder: 0, createdAt: '2026-01-01',
+    status: 'built', kind: 'bc', retailFormat: null, sortOrder: 0, createdAt: '2026-01-01',
   };
 }
 

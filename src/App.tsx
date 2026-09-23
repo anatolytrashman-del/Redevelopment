@@ -34,6 +34,7 @@ import { metrikaHit } from './lib/metrika';
 import { vkPixelHit, vkPixelGoal, vkPageGoalForPath } from './lib/vkPixel';
 import { useOnlinePresenceTracker } from './lib/onlinePresence';
 import { FavoritesProvider } from './lib/favoritesContext';
+import { CatalogKindProvider } from './lib/catalogKind';
 
 // Вся админка (CRM с десятком разделов — финмодели, сметы, документы и т.д.)
 // нужна только за PasswordGate на /admin/*, но раньше грузилась тем же JS-
@@ -327,6 +328,20 @@ export default function App() {
       {/* Хаб по улице (аудит 2026-09-07) — независимая ось, см. STREET_SLUGS. */}
       <Route path="/minsk/bc/street/:streetSlug" element={<BusinessCentersMinskPage />} />
       <Route path="/minsk/bc/:slug" element={<BusinessCenterDetailPage />} />
+      {/* Каталог торговых центров (2026-09-23) — те же компоненты, что у
+          каталога БЦ, со словарём и корнем /minsk/tc (src/lib/catalogKind.tsx).
+          Оси только район и метро; классов, рейтингов, аналитики и
+          справочника у ТЦ нет. Пока идёт сбор данных — noindex. */}
+      <Route path="/minsk/tc" element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>} />
+      <Route
+        path="/minsk/tc/district/:districtSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
+      <Route
+        path="/minsk/tc/metro/:metroSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
+      <Route path="/minsk/tc/:slug" element={<CatalogKindProvider kind="tc"><BusinessCenterDetailPage /></CatalogKindProvider>} />
       <Route path="/plan/:token" element={<PublicBuildingPlan />} />
       <Route path="/tz/:token" element={<BriefPublicPage />} />
       <Route path="/summary/:token" element={<MeetingSummaryPublicPage />} />

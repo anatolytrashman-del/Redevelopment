@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { ChevronDown, RotateCcw, SlidersHorizontal, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
+import { useCatalogKind } from '../../lib/catalogKind';
 import { MINSK_METRO_LINES, METRO_WITHIN_OPTIONS, type CatalogFilterState } from '../../lib/businessCenterCatalogFilter';
 
 const STATUS_CHIP_LABELS: Record<string, string> = {
@@ -240,6 +241,10 @@ export interface CatalogFilterPanelProps {
   state: CatalogFilterState;
   onChange: (next: CatalogFilterState) => void;
   availableClasses: string[];
+  // Форматы торговых центров (каталог ТЦ). У БЦ не передаются — строки
+  // «Формат» нет, как нет строки «Класс» у ТЦ (там availableClasses пуст).
+  availableFormats?: string[];
+  formatCounts?: Record<string, number>;
   availableStatuses: string[];
   districts: string[];
   microdistricts: string[];
@@ -269,6 +274,8 @@ export function CatalogFilterPanel({
   state,
   onChange,
   availableClasses,
+  availableFormats = [],
+  formatCounts = {},
   availableStatuses,
   districts,
   microdistricts,
@@ -285,6 +292,7 @@ export function CatalogFilterPanel({
   hasActiveFilter,
   onReset,
 }: CatalogFilterPanelProps) {
+  const V = useCatalogKind();
   const [sheetOpen, setSheetOpen] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -312,6 +320,7 @@ export function CatalogFilterPanel({
 
   const activeCount =
     state.classes.length +
+    state.formats.length +
     state.statuses.length +
     (state.districts === null ? 0 : 1) +
     (state.microdistricts === null ? 0 : 1) +
@@ -320,19 +329,37 @@ export function CatalogFilterPanel({
 
   const controls = (
     <div className="flex flex-col gap-4">
-      <ChipRow label="Класс">
-        {availableClasses.map((cls) => (
-          <Chip
-            key={cls}
-            active={state.classes.includes(cls)}
-            count={classCounts[cls] ?? 0}
-            disabled={!state.classes.includes(cls) && (classCounts[cls] ?? 0) === 0}
-            onClick={() => onChange({ ...state, classes: toggleInList(state.classes, cls) })}
-          >
-            {cls}
-          </Chip>
-        ))}
-      </ChipRow>
+      {availableClasses.length > 0 && (
+        <ChipRow label="Класс">
+          {availableClasses.map((cls) => (
+            <Chip
+              key={cls}
+              active={state.classes.includes(cls)}
+              count={classCounts[cls] ?? 0}
+              disabled={!state.classes.includes(cls) && (classCounts[cls] ?? 0) === 0}
+              onClick={() => onChange({ ...state, classes: toggleInList(state.classes, cls) })}
+            >
+              {cls}
+            </Chip>
+          ))}
+        </ChipRow>
+      )}
+
+      {availableFormats.length > 0 && (
+        <ChipRow label="Формат">
+          {availableFormats.map((format) => (
+            <Chip
+              key={format}
+              active={state.formats.includes(format)}
+              count={formatCounts[format] ?? 0}
+              disabled={!state.formats.includes(format) && (formatCounts[format] ?? 0) === 0}
+              onClick={() => onChange({ ...state, formats: toggleInList(state.formats, format) })}
+            >
+              {format}
+            </Chip>
+          ))}
+        </ChipRow>
+      )}
 
       {availableStatuses.length > 0 && (
         <ChipRow label="Статус">
@@ -392,7 +419,7 @@ export function CatalogFilterPanel({
 
       {unverifiableCount > 0 && (
         <p className="text-xs text-ink-faint">
-          По выбранному фильтру {unverifiableCount} {plural(unverifiableCount, 'здание', 'здания', 'зданий')} проверить невозможно: признака нет в данных prometr.by и 2ГИС — они не попадают ни в совпадения, ни в несовпадения.
+          По выбранному фильтру {unverifiableCount} {plural(unverifiableCount, 'здание', 'здания', 'зданий')} проверить невозможно: признака нет в {V.kind === 'tc' ? 'собранных данных' : 'данных prometr.by и 2ГИС'} — они не попадают ни в совпадения, ни в несовпадения.
         </p>
       )}
     </div>

@@ -24,7 +24,8 @@ import {
 import type { ParsedSnapshotReview } from '../../lib/businessCenterSnapshotParser';
 import { parseHighlightRatings } from '../../lib/businessCenterDisplay';
 import { supabase } from '../../lib/supabase';
-import { BUSINESS_CENTER_CLASSES } from '../../data/businessCenters';
+import { BUSINESS_CENTER_CLASSES, RETAIL_FORMATS } from '../../data/businessCenters';
+import { CATALOG_VOCABULARY, type CatalogKind } from '../../lib/catalogKind';
 import type {
   BusinessCenter,
   DeveloperInfo,
@@ -63,6 +64,11 @@ const HIGHLIGHT_ICON_KEYS = Object.keys(HIGHLIGHT_ICON_LABELS) as HighlightIconK
 // CRUD), та же связка data/businessCenters.ts + lib/businessCentersApi.ts,
 // что читает и сама публичная страница.
 const CLASS_SELECT_OPTIONS = ['Не указан', ...BUSINESS_CENTER_CLASSES];
+
+const KIND_LABEL: Record<BusinessCenter['kind'], string> = {
+  bc: 'Бизнес-центры (/minsk/bc)',
+  tc: 'Торговые центры (/minsk/tc)',
+};
 
 const STATUS_LABEL: Record<BusinessCenter['status'], string> = {
   built: 'Построен',
@@ -120,6 +126,8 @@ interface FormState {
   pendingMapSnapshotFiles: File[]; // выбраны, но ещё не загружены (грузятся при сохранении)
   photos: string; // по одному пути на строку
   status: BusinessCenter['status'];
+  kind: BusinessCenter['kind'];
+  retailFormat: string;
   sortOrder: string;
 }
 
@@ -162,6 +170,8 @@ const EMPTY_FORM: FormState = {
   pendingMapSnapshotFiles: [],
   photos: '',
   status: 'built',
+  kind: 'bc',
+  retailFormat: '',
   sortOrder: '0',
 };
 
@@ -205,6 +215,8 @@ function centerToForm(c: BusinessCenter): FormState {
     pendingMapSnapshotFiles: [],
     photos: c.photos.join('\n'),
     status: c.status,
+    kind: c.kind,
+    retailFormat: c.retailFormat ?? '',
     sortOrder: String(c.sortOrder),
   };
 }
@@ -281,7 +293,10 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-export function BusinessCentersAdminTab() {
+// kind — какой каталог правит вкладка: «Бизнес-центры» или «Торговые
+// центры» (владелец, 2026-09-23: «каталоги БЦ и ТЦ будут разными
+// вкладками»). Таблица в базе одна, вкладка показывает только свои записи.
+export function BusinessCentersAdminTab({ kind = 'bc' }: { kind?: CatalogKind } = {}) {
   const [centers, setCenters] = useState<BusinessCenter[] | null>(null);
   const [error, setError] = useState('');
   // Отдельная от списочной error — та рисуется НАД таблицей, а таблица
@@ -326,7 +341,7 @@ export function BusinessCentersAdminTab() {
 
   function load() {
     fetchBusinessCentersFull()
-      .then(setCenters)
+      .then((all) => setCenters(all.filter((c) => c.kind === kind)))
       .catch(() => setError('Не удалось загрузить список — попробуйте обновить страницу.'));
   }
 
@@ -344,7 +359,7 @@ export function BusinessCentersAdminTab() {
 
   function openNew() {
     setEditing('new');
-    setForm({ ...EMPTY_FORM, sortOrder: String((centers?.length ?? 0)) });
+    setForm({ ...EMPTY_FORM, kind, sortOrder: String((centers?.length ?? 0)) });
     setFormError('');
     setShowOldSnapshotFiles(false);
   }
@@ -478,6 +493,8 @@ export function BusinessCentersAdminTab() {
           .map((s) => s.trim())
           .filter(Boolean),
         status: form.status,
+        kind: form.kind,
+        retailFormat: form.retailFormat.trim() || null,
         sortOrder: numOrNull(form.sortOrder) ?? 0,
         // Б2. Пустые поля означают «пусть работает авточерновик»: тогда
         // verdictEdited сбрасывается в false и страница снова считает текст
@@ -560,8 +577,8 @@ export function BusinessCentersAdminTab() {
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-ink-muted">
           Список объектов на публичной странице{' '}
-          <a href="/minsk/bc" target="_blank" rel="noopener noreferrer" className="text-primary-hover hover:underline">
-            /minsk/bc
+          <a href={CATALOG_VOCABULARY[kind].basePath} target="_blank" rel="noopener noreferrer" className="text-primary-hover hover:underline">
+            {CATALOG_VOCABULARY[kind].basePath}
           </a>
           {centers && <> · {centers.length} объектов</>}
         </p>
@@ -860,6 +877,20 @@ export function BusinessCentersAdminTab() {
                 setForm({ ...form, status: v === STATUS_LABEL.under_construction ? 'under_construction' : 'built' })
               }
             />
+            <Select
+              label="Каталог"
+              options={[KIND_LABEL.bc, KIND_LABEL.tc]}
+              value={KIND_LABEL[form.kind]}
+              onChange={(v) => setForm({ ...form, kind: v === KIND_LABEL.tc ? 'tc' : 'bc' })}
+            />
+            {form.kind === 'tc' && (
+              <AddableSelect
+                label="Формат ТЦ"
+                options={[...RETAIL_FORMATS]}
+                value={form.retailFormat}
+                onChange={(v) => setForm({ ...form, retailFormat: v })}
+              />
+            )}
             <Input
               label="Порядок на странице"
               type="number"

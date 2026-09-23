@@ -55,11 +55,13 @@ import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrade
 import {
   setBreadcrumbJsonLd,
   setFaqJsonLd,
+  setGenericPageMeta,
   setNoIndex,
   clearNoIndex,
   setBusinessCenterPageMeta,
   setPlaceJsonLd,
 } from '../lib/pageMeta';
+import { useCatalogKind } from '../lib/catalogKind';
 import {
   fullName,
   shortAddress,
@@ -155,6 +157,7 @@ const SECTION_LABELS: Record<string, string> = {
   map: 'Инфраструктура рядом',
   tech: 'Параметры здания',
   tenants: 'Каталог арендаторов',
+  // «БЦ» подменяется на «ТЦ» в каталоге торговых центров (см. sectionLabel).
   rental: 'Отдел аренды БЦ',
   offers: 'Что сдают и продают',
   history: 'История здания',
@@ -209,14 +212,22 @@ interface RecommendationBlockData {
 const EMPTY_NEARBY_PLACES: BusinessCenterNearbyPlace[] = [];
 const EMPTY_REVIEWS: BusinessCenterReview[] = [];
 
+// Владелец, 2026-09-23: каталог ТЦ закрыт от индексации на время сбора
+// данных. Снять — отдельным решением вместе с полноценной SEO-разметкой ТЦ.
+const TC_NOINDEX = true;
+
 export function BusinessCenterDetailPage() {
   const { slug } = useParams<{ slug: string }>();
+  // Каталог страницы: бизнес-центры (/minsk/bc) или торговые центры
+  // (/minsk/tc) — один шаблон, словарь и корень из src/lib/catalogKind.tsx.
+  const V = useCatalogKind();
+  const isTc = V.kind === 'tc';
   // Стартуем с данных, положенных в сборку (Ш3-b плана
   // docs/bc-catalog-seo-plan.md): их разобрал main.tsx до монтирования,
   // поэтому первый же рендер получается полным — без «Загрузка…» поверх
   // готовой разметки пререндера и без прыжка вёрстки. Нет снимка (SPA-
   // переход, страница вне раздела) — как раньше, null и запрос ниже.
-  const [centers, setCenters] = useState<BusinessCenter[] | null>(snapshotBusinessCenters);
+  const [centers, setCenters] = useState<BusinessCenter[] | null>(() => snapshotBusinessCenters(V.kind));
   // Все догружаемые блоки карточки стартуют с уже пришедшего файла
   // .extra (peekBuildData в src/lib/buildData.ts): пререндер-снапшот
   // нарисован с ними, и первый кадр React обязан совпасть с ним — иначе на
@@ -240,7 +251,11 @@ export function BusinessCenterDetailPage() {
     return slug && data !== undefined ? { slug, data } : null;
   });
   const gis2 = gis2Result?.slug === slug ? gis2Result?.data ?? null : null;
-  const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(() => peekLatestMarketSnapshots('ofisy_bc'));
+  // Офисный рынок (ставки аренды офисов в БЦ) торговым центрам не нужен —
+  // сравнение «дорого/дёшево против класса» у ТЦ не показываем вовсе.
+  const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(() =>
+    isTc ? [] : peekLatestMarketSnapshots('ofisy_bc'),
+  );
   const [tenantSnapshotResult, setTenantSnapshotResult] = useState<{
     slug: string;
     data: BusinessCenterTenantSnapshot | null;
@@ -262,12 +277,12 @@ export function BusinessCenterDetailPage() {
   });
 
   useEffect(() => {
-    fetchBusinessCenters()
+    fetchBusinessCenters(V.kind)
       .then(setCenters)
       // Ошибка базы не стирает уже показанный список (снимок сборки): пустой
       // каталог на месте готового — хуже, чем данные часовой давности.
       .catch(() => setCenters((prev) => prev ?? []));
-  }, []);
+  }, [V.kind]);
 
   // Снапшот 2GIS (владелец подключил API в параллельной ветке, 2026-09-06:
   // "давай выведем на страницы вообще всю инфу, которую мы спарсили") —
@@ -349,10 +364,11 @@ export function BusinessCenterDetailPage() {
   // slug — 23 строки на весь город, дешевле держать в памяти, чем
   // перезапрашивать при каждом переходе на следующий/предыдущий БЦ.
   useEffect(() => {
+    if (isTc) return;
     fetchLatestMarketSnapshots('ofisy_bc')
       .then(setOfficeSnapshots)
       .catch(() => setOfficeSnapshots([]));
-  }, []);
+  }, [isTc]);
 
   // Порядок для "предыдущий/следующий" — тот же алфавит по короткому имени,
   // что и в боковом меню хаба, чтобы стрелки совпадали с порядком, который
@@ -370,7 +386,7 @@ export function BusinessCenterDetailPage() {
   // а не «здания нет»: такой ответ не имеет права превращаться в soft-404 с
   // noindex (см. эффект ниже у setNoIndex).
   const [detail, setDetail] = useState<{ slug: string; center: BusinessCenter | null; failed?: boolean } | null>(() =>
-    slug ? (snapshotBusinessCenter(slug) ? { slug, center: snapshotBusinessCenter(slug) } : null) : null,
+    slug ? (snapshotBusinessCenter(slug, V.kind) ? { slug, center: snapshotBusinessCenter(slug, V.kind) } : null) : null,
   );
   useEffect(() => {
     if (!slug) return;
@@ -379,9 +395,9 @@ export function BusinessCenterDetailPage() {
     // сборки сразу, если оно там есть, и только иначе гасим страницу в
     // «Загрузка…»: сбрасывать в null всегда — значит мигать пустым экраном
     // там, где данные уже на руках.
-    const fromBuild = snapshotBusinessCenter(slug);
+    const fromBuild = snapshotBusinessCenter(slug, V.kind);
     setDetail(fromBuild ? { slug, center: fromBuild } : null);
-    fetchBusinessCenter(slug)
+    fetchBusinessCenter(slug, V.kind)
       .then((data) => {
         if (!cancelled) setDetail({ slug, center: data });
       })
@@ -397,13 +413,13 @@ export function BusinessCenterDetailPage() {
         // параметров и арендаторов, но с именем, адресом, классом и фото, то
         // есть страница остаётся собой), и только если нет и его — честная
         // ошибка без noindex.
-        const fromList = snapshotBusinessCenters()?.find((c) => c.slug === slug) ?? null;
+        const fromList = snapshotBusinessCenters(V.kind)?.find((c) => c.slug === slug) ?? null;
         setDetail({ slug, center: fromList, failed: fromList === null });
       });
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, V.kind]);
   const center = detail !== null && detail.slug === slug ? detail.center : null;
 
   // Организации здания и оборудование (банкоматы, кофейные автоматы) —
@@ -821,12 +837,14 @@ export function BusinessCenterDetailPage() {
       ? centers.filter((c) => c.slug !== center.slug && streetOfAddress(c.address) === street).sort(byDistance)
       : [];
 
-    const microdistrictCatalogUrl = center.microdistrict ? microdistrictHubUrl(center.microdistrict) : null;
+    // У каталога ТЦ хабы только районов и метро: построители улиц и
+    // микрорайонов для его корня отдают null, класса у ТЦ нет.
+    const microdistrictCatalogUrl = center.microdistrict ? microdistrictHubUrl(center.microdistrict, V.basePath) : null;
     const metroCatalogUrl =
-      nearestMetro && metroHubDistance(center, nearestMetro.name) !== null ? metroHubUrl(nearestMetro.name) : null;
+      nearestMetro && metroHubDistance(center, nearestMetro.name) !== null ? metroHubUrl(nearestMetro.name, V.basePath) : null;
     const classDistrictCatalogUrl =
-      center.businessClass && center.district ? classDistrictHubUrl(center.businessClass, center.district) : null;
-    const streetCatalogUrl = street ? streetHubUrl(street) : null;
+      !isTc && center.businessClass && center.district ? classDistrictHubUrl(center.businessClass, center.district) : null;
+    const streetCatalogUrl = street ? streetHubUrl(street, V.basePath) : null;
 
     interface Candidate {
       id: RecommendationBlockId;
@@ -842,10 +860,10 @@ export function BusinessCenterDetailPage() {
           list.length > 0
             ? {
                 id: 'microdistrictCenters',
-                title: `Бизнес-центры ${center.microdistrict}`,
+                title: `${V.Many} ${center.microdistrict}`,
                 centers: list,
                 catalogUrl: microdistrictCatalogUrl,
-                catalogLabel: `Все БЦ ${center.microdistrict}`,
+                catalogLabel: `Все ${V.abbr} ${center.microdistrict}`,
               }
             : null,
       });
@@ -858,17 +876,18 @@ export function BusinessCenterDetailPage() {
           list.length > 0
             ? {
                 id: 'metroCenters',
-                title: `Бизнес-центры у станции ${nearestMetro.name}`,
+                title: `${V.Many} у станции ${nearestMetro.name}`,
                 centers: list,
                 catalogUrl: metroCatalogUrl,
-                catalogLabel: `Все БЦ у станции ${nearestMetro.name}`,
+                catalogLabel: `Все ${V.abbr} у станции ${nearestMetro.name}`,
                 stationName: nearestMetro.name,
                 fallbackCenter: fallback,
               }
             : null,
       });
     }
-    if (ratingRaw.length > 0) {
+    // Рейтинг есть только у каталога БЦ (/minsk/bc/rating).
+    if (!isTc && ratingRaw.length > 0) {
       candidates.push({
         id: 'ratingCenters',
         raw: ratingRaw,
@@ -978,7 +997,7 @@ export function BusinessCenterDetailPage() {
     // него страницы без совпадений по метро/улице/микрорайону остаются
     // с одним-двумя блоками на девять экранов.
     const generic: Candidate[] = [];
-    const businessClass = center.businessClass;
+    const businessClass = isTc ? null : center.businessClass;
     if (businessClass && !specific.some((b) => b.id === 'classDistrictCenters')) {
       const classRaw = centers.filter((c) => c.slug !== center.slug && c.businessClass === businessClass).sort(byDistance);
       if (classRaw.length > 0) {
@@ -1000,7 +1019,7 @@ export function BusinessCenterDetailPage() {
     }
     if (center.lat != null && center.lng != null) {
       const nearbyRaw = centers.filter((c) => c.slug !== center.slug).sort(byDistance);
-      const districtUrl = center.district ? districtHubUrl(center.district) : null;
+      const districtUrl = center.district ? districtHubUrl(center.district, V.basePath) : null;
       const district = center.district;
       if (nearbyRaw.length > 0) {
         generic.push({
@@ -1010,13 +1029,13 @@ export function BusinessCenterDetailPage() {
             list.length > 0
               ? {
                   id: 'nearbyCenters',
-                  title: 'Бизнес-центры рядом',
+                  title: `${V.Many} рядом`,
                   centers: list,
-                  catalogUrl: districtUrl ?? '/minsk/bc',
+                  catalogUrl: districtUrl ?? V.basePath,
                   catalogLabel:
                     districtUrl && district
-                      ? `Все БЦ в ${districtPrepositional(district)} районе`
-                      : 'Все бизнес-центры Минска',
+                      ? `Все ${V.abbr} в ${districtPrepositional(district)} районе`
+                      : `Все ${V.many} Минска`,
                 }
               : null,
         });
@@ -1024,7 +1043,7 @@ export function BusinessCenterDetailPage() {
     }
 
     return [...specific, ...buildAll(generic)];
-  }, [center, centers, nearestMetro]);
+  }, [center, centers, nearestMetro, V, isTc]);
 
   // Медианы по зданиям (Д3) — те же, что в каталоге и блоке
   // «БЦ на фоне конкурентов», чтобы одна и та же ставка не расходилась.
@@ -1034,8 +1053,8 @@ export function BusinessCenterDetailPage() {
   // самой странице с 2026-09-20 не выводится отдельной строкой, чтобы не
   // дублировать таблицу ниже (см. offers-блок).
   const marketPosition = useMemo(
-    () => (center ? buildMarketPosition(center, centers ?? [], officeSnapshots, offerIndex) : null),
-    [center, centers, officeSnapshots, offerIndex],
+    () => (center && !isTc ? buildMarketPosition(center, centers ?? [], officeSnapshots, offerIndex) : null),
+    [center, centers, officeSnapshots, offerIndex, isTc],
   );
   const priceComparison = useMemo(
     () => (center ? buildPriceComparison(center, centers ?? [], offerIndex) : null),
@@ -1090,10 +1109,10 @@ export function BusinessCenterDetailPage() {
     // «Улица Номер» («Энгельса 34А»), но не «А1» и не «Аден».
     const addressLike = /^(ул\.|пр-т|просп|проспект|пер\.|пл\.|тракт|бул|наб|индустриальн)/i.test(name) || /^[\p{Lu}][\p{L}\s-]+\s\d+[\p{L}]?$/u.test(name);
     const bcTail = addressLike ? `на ${shortAddress(center.address)}` : `«${name}»`;
-    const bcNom = `бизнес-центр ${bcTail}`;
-    const bcGen = `бизнес-центра ${bcTail}`;
-    const bcPrep = `бизнес-центре ${bcTail}`;
-    const bcIns = `бизнес-центром ${bcTail}`;
+    const bcNom = `${V.one} ${bcTail}`;
+    const bcGen = `${V.oneGen} ${bcTail}`;
+    const bcPrep = `${V.onePrep} ${bcTail}`;
+    const bcIns = `${V.oneIns} ${bcTail}`;
     const cls = center.businessClass;
     const typicalOfClass = `типичного здания класса ${cls}`;
 
@@ -1201,14 +1220,18 @@ export function BusinessCenterDetailPage() {
               : ''
           }`
         : null;
-      const question = cls
+      // У ТЦ вместо делового класса — формат (ТРЦ, районный ТЦ, рынок…).
+      const formatSentence = isTc && center.retailFormat ? `Формат — ${center.retailFormat}.` : null;
+      const question = formatSentence
+        ? `Какой формат у ${bcGen} и когда он открылся?`
+        : cls
         ? center.status === 'under_construction'
           ? `Какого класса ${bcNom} и когда его сдадут?`
           : `Какого класса ${bcNom} и давно ли он построен?`
         : center.status === 'under_construction'
           ? `Когда сдадут ${bcNom}?`
           : `Когда построен ${bcNom}?`;
-      add(question, sentences([classSentence, yearSentence]));
+      add(question, sentences([formatSentence ?? classSentence, yearSentence]));
     }
     if (center.developer) {
       const info = center.developerInfo;
@@ -1307,7 +1330,11 @@ export function BusinessCenterDetailPage() {
         restRows.length ? restRows.map((row) => `${row.label} — ${row.value}.`).join(' ') : null,
       ]);
       add(
-        floors != null ? `Сколько этажей в ${bcPrep} и как устроены офисы?` : `Как устроен ${bcNom}?`,
+        floors != null
+          ? isTc
+            ? `Сколько этажей в ${bcPrep}?`
+            : `Сколько этажей в ${bcPrep} и как устроены офисы?`
+          : `Как устроен ${bcNom}?`,
         answer || null,
       );
     }
@@ -1531,7 +1558,9 @@ export function BusinessCenterDetailPage() {
         // («банк, кафе»), что уже названо сервисом с именем организации.
         .filter((item) => !serviceParts.some((part) => part.startsWith(item)));
       add(
-        `Какие компании работают в ${bcPrep} и что есть в здании кроме офисов?`,
+        isTc
+          ? `Какие магазины и компании работают в ${bcPrep}?`
+          : `Какие компании работают в ${bcPrep} и что есть в здании кроме офисов?`,
         sentences([
           `В списке организаций здания — ${tenantOrganizations.length}.`,
           reported != null && reported > tenantOrganizations.length
@@ -1543,7 +1572,7 @@ export function BusinessCenterDetailPage() {
                 .map((group) => `${formatFloorLabel(group.floor).toLowerCase()} — ${group.count}`)
                 .join(', ')}.`
             : null,
-          serviceParts.length ? `Кроме офисов, в здании есть ${serviceParts.join('; ')}.` : null,
+          serviceParts.length ? `${isTc ? 'Ещё в здании есть' : 'Кроме офисов, в здании есть'} ${serviceParts.join('; ')}.` : null,
           amenityParts.length || manualParts.length
             ? `Из остального в здании ${joinAnd([...manualParts, ...amenityParts])}.`
             : null,
@@ -1609,7 +1638,7 @@ export function BusinessCenterDetailPage() {
     if (visibleHighlights.length)
       add(`Чем примечателен ${bcNom}?`, visibleHighlights.map((h) => (h.label ? `${h.label}: ${plain(h.text)}` : plain(h.text))).join('\n'));
     return items;
-  }, [center, centers, marketPosition, accessibilityAttributes, accessHoursText, saleStats, rentStats, awardItems, mediaMentions, visibleHighlights, buildingParamHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces, priceComparison?.blocks]);
+  }, [center, centers, marketPosition, accessibilityAttributes, accessHoursText, saleStats, rentStats, awardItems, mediaMentions, visibleHighlights, buildingParamHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces, priceComparison?.blocks, V, isTc]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -1620,7 +1649,8 @@ export function BusinessCenterDetailPage() {
   // (см. recommendationSlots ниже).
   const pageSections = useMemo(() => {
     if (!center) return [];
-    const has = (id: string, cond: boolean) => (cond ? { id, label: SECTION_LABELS[id] } : null);
+    const has = (id: string, cond: boolean) =>
+      cond ? { id, label: SECTION_LABELS[id].replace(/БЦ$/, V.abbr) } : null;
     // Порядок пунктов повторяет порядок блоков на странице (владелец принял
     // 2026-09-20; "Параметры здания" переехали под "Историю здания"
     // 2026-09-22): что предлагают и почём → где оно → кто внутри → на фоне
@@ -1842,6 +1872,21 @@ export function BusinessCenterDetailPage() {
 
   useEffect(() => {
     if (!center) return;
+    if (isTc) {
+      // Каталог ТЦ пока закрыт от индексации (TC_NOINDEX): простые мета-теги
+      // для превью ссылки и noindex, без разметки здания и крошек.
+      setGenericPageMeta({
+        title: `${fullName(center)} — ${V.one} в Минске`,
+        description: [center.retailFormat, center.address].filter(Boolean).join(', '),
+        url: `${V.siteUrl}/${center.slug}`,
+        image: center.photos[0] ? new URL(withBcPhotoVersion(center.photos[0]), 'https://redevelopment.pro').toString() : undefined,
+      });
+      if (TC_NOINDEX) {
+        setNoIndex();
+        return () => clearNoIndex();
+      }
+      return;
+    }
     setBusinessCenterPageMeta(
       center.slug,
       { ...center, ambiguousName },
@@ -1871,13 +1916,15 @@ export function BusinessCenterDetailPage() {
       ],
     });
     return () => setPlaceJsonLd(null);
-  }, [center, pageComposition, ambiguousName]);
+  }, [center, pageComposition, ambiguousName, isTc, V]);
 
   // Метаданные страницы выше сбрасывают JSON-LD: FAQ записываем после них.
+  // Страницам ТЦ, закрытым от индекса, разметка FAQ ни к чему.
   useEffect(() => {
+    if (isTc && TC_NOINDEX) return;
     setFaqJsonLd(faqItems);
     return () => setFaqJsonLd([]);
-  }, [faqItems]);
+  }, [faqItems, isTc]);
 
   // Б7-мобайл (владелец, 2026-09-23: «сделаем меню страницы не сверху, а
   // постоянно видимым блоком, как Фильтры»). До этой правки «На странице»
@@ -1945,9 +1992,9 @@ export function BusinessCenterDetailPage() {
   if (!center && detail.failed) {
     return (
       <main className="flex min-h-svh flex-col items-center justify-center gap-4 bg-bg px-4 text-center">
-        <p className="text-base text-ink">Не удалось загрузить данные о бизнес-центре. Обновите страницу чуть позже.</p>
-        <Link to="/minsk/bc" className="text-sm font-semibold text-primary-hover hover:underline">
-          ← Все бизнес-центры Минска
+        <p className="text-base text-ink">Не удалось загрузить данные о {V.onePrep}. Обновите страницу чуть позже.</p>
+        <Link to={V.basePath} className="text-sm font-semibold text-primary-hover hover:underline">
+          ← Все {V.many} Минска
         </Link>
       </main>
     );
@@ -1956,9 +2003,9 @@ export function BusinessCenterDetailPage() {
   if (!center) {
     return (
       <main className="flex min-h-svh flex-col items-center justify-center gap-4 bg-bg px-4 text-center">
-        <p className="text-base text-ink">Такой бизнес-центр не найден.</p>
-        <Link to="/minsk/bc" className="text-sm font-semibold text-primary-hover hover:underline">
-          ← Все бизнес-центры Минска
+        <p className="text-base text-ink">Такой {V.one} не найден.</p>
+        <Link to={V.basePath} className="text-sm font-semibold text-primary-hover hover:underline">
+          ← Все {V.many} Минска
         </Link>
       </main>
     );
@@ -2017,7 +2064,7 @@ export function BusinessCenterDetailPage() {
                 приглушённая текстовая ссылка заменена на pill-кнопку (тот
                 же glassPillClass, что и у стрелок prev/next ниже). */}
             <Link
-              to="/minsk/bc"
+              to={V.basePath}
               className={cn(
                 'flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:text-primary',
                 glassPillClass,
@@ -2025,8 +2072,8 @@ export function BusinessCenterDetailPage() {
               style={glassPillShadow}
             >
               <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
-              <span className="hidden sm:inline">Все бизнес-центры</span>
-              <span className="sm:hidden">Все БЦ</span>
+              <span className="hidden sm:inline">Все {V.many}</span>
+              <span className="sm:hidden">Все {V.abbr}</span>
             </Link>
             {/* Кнопка «Содержание» — владелец, 2026-09-23: "пусть будет в
                 том же месте по высоте, где возврат на каталог всех БЦ,
@@ -2083,8 +2130,8 @@ export function BusinessCenterDetailPage() {
           навигация — строка кнопок под карточкой ниже. */}
       {prev && (
         <Link
-          to={`/minsk/bc/${prev.slug}`}
-          aria-label={`Предыдущий бизнес-центр: ${shortName(prev)}`}
+          to={`${V.basePath}/${prev.slug}`}
+          aria-label={`Предыдущий ${V.one}: ${shortName(prev)}`}
           className={cn(
             'fixed left-4 top-1/2 z-40 hidden -translate-y-1/2 items-center justify-center rounded-full p-3 text-ink lg:flex',
             glassPillClass,
@@ -2096,8 +2143,8 @@ export function BusinessCenterDetailPage() {
       )}
       {next && (
         <Link
-          to={`/minsk/bc/${next.slug}`}
-          aria-label={`Следующий бизнес-центр: ${shortName(next)}`}
+          to={`${V.basePath}/${next.slug}`}
+          aria-label={`Следующий ${V.one}: ${shortName(next)}`}
           className={cn(
             'fixed right-4 top-1/2 z-40 hidden -translate-y-1/2 items-center justify-center rounded-full p-3 text-ink lg:flex',
             glassPillClass,
@@ -2176,7 +2223,7 @@ export function BusinessCenterDetailPage() {
         {pageSections.length > 0 && (
           <aside className="sticky top-24 hidden max-h-[calc(100svh-7rem)] flex-col gap-4 xl:flex">
             <Link
-              to="/minsk/bc"
+              to={V.basePath}
               className={cn(
                 'flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-ink transition-colors hover:text-primary',
                 glassPillClass,
@@ -2184,7 +2231,7 @@ export function BusinessCenterDetailPage() {
               style={glassPillShadow}
             >
               <ArrowLeft className="h-4 w-4 shrink-0" />
-              Все бизнес-центры
+              Все {V.many}
             </Link>
             <nav
               aria-label="Навигация по странице"
@@ -2387,7 +2434,7 @@ export function BusinessCenterDetailPage() {
                 <FactTile
                   tone="muted"
                   value={`${center.yearBuilt} г.`}
-                  label={center.status === 'under_construction' ? 'Ожидаемая сдача' : 'Год сдачи'}
+                  label={center.status === 'under_construction' ? 'Ожидаемая сдача' : isTc ? 'Год открытия' : 'Год сдачи'}
                 />
               )}
               {mapRating && (
@@ -2900,7 +2947,7 @@ export function BusinessCenterDetailPage() {
             <p className="flex flex-wrap items-baseline gap-x-1.5 text-sm leading-relaxed text-ink-muted">
               <span>Если хотите добавить, убрать или изменить информацию — напишите нам, поправим:</span>
               <a
-                href={`mailto:a@redevelopment.pro?subject=${encodeURIComponent(`Данные бизнес-центра «${shortName(center)}»`)}`}
+                href={`mailto:a@redevelopment.pro?subject=${encodeURIComponent(`Данные ${V.oneGen} «${shortName(center)}»`)}`}
                 className="w-fit font-semibold text-primary-hover hover:underline"
               >
                 a@redevelopment.pro
@@ -2915,7 +2962,7 @@ export function BusinessCenterDetailPage() {
           <div className="mt-5 flex items-center justify-between gap-3 xl:hidden">
             {prev ? (
               <Link
-                to={`/minsk/bc/${prev.slug}`}
+                to={`${V.basePath}/${prev.slug}`}
                 className="flex items-center gap-1.5 text-sm font-semibold text-ink-muted transition-colors hover:text-ink"
               >
                 <ChevronLeft className="h-4 w-4 shrink-0" />
@@ -2926,7 +2973,7 @@ export function BusinessCenterDetailPage() {
             )}
             {next ? (
               <Link
-                to={`/minsk/bc/${next.slug}`}
+                to={`${V.basePath}/${next.slug}`}
                 className="flex items-center gap-1.5 text-right text-sm font-semibold text-ink-muted transition-colors hover:text-ink"
               >
                 {shortName(next)}
@@ -2998,6 +3045,7 @@ function RelatedCentersSection({
   stationName?: string;
   fallbackCenter?: BusinessCenter;
 }) {
+  const V = useCatalogKind();
   // Владелец, 2026-09-20: "если у нас всего 1 БЦ в блоке рекомендаций,
   // давай использовать вторую половину блока под рекомендацию других БЦ
   // этого же класса" — вторая плитка не пустует, показывает ближайшее
@@ -3027,7 +3075,7 @@ function RelatedCentersSection({
           // визуально стилизованный <span>.
           <Link
             key={related.slug}
-            to={`/minsk/bc/${related.slug}`}
+            to={`${V.basePath}/${related.slug}`}
             aria-label={`Открыть страницу ${related.name}`}
             // Владелец, 2026-09-22: "предложи новый макет блока рекомендаций,
             // он огромный". Ниже sm карточка была столбиком с фото во всю

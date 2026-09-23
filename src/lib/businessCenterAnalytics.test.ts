@@ -71,6 +71,8 @@ function center(over: Partial<BusinessCenter> & { slug: string }): BusinessCente
     accessibility: [],
     photos: [],
     status: 'built',
+    kind: 'bc',
+    retailFormat: null,
     sortOrder: 0,
     createdAt: '2026-09-01T00:00:00Z',
     ...over,

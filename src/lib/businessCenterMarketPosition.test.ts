@@ -18,7 +18,7 @@ function bc(slug: string, lat: number | null, lng: number | null): BusinessCente
     parkingRatio: null, airConditioning: null, ceilingHeight: null, managementType: null,
     metroDistanceBucket: null, freeSpaceMin: null, freeSpaceMax: null, infraInternal: [], infraNearby: [],
     lat, lng, gisRating: null, gisReviewCount: null, is24x7: null, accessibility: [], photos: [],
-    status: 'built', sortOrder: 0, createdAt: '2026-01-01',
+    status: 'built', kind: 'bc', retailFormat: null, sortOrder: 0, createdAt: '2026-01-01',
   };
 }
 

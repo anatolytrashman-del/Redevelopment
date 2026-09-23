@@ -11,6 +11,7 @@ import {
   type MetroLineGroup,
 } from '../../lib/catalogSlices';
 import type { BusinessCenter } from '../../data/businessCenters';
+import { useCatalogKind, type CatalogKind } from '../../lib/catalogKind';
 
 // Сквозная верхняя шапка каталога БЦ (владелец, 2026-09-22: «делаем верхнее
 // меню, пусть оно будет сквозным для каталога БЦ»). До неё каждая из пяти
@@ -60,11 +61,19 @@ export type CatalogTopNavProps = {
 
 type TopNavEntry = { kind: 'link'; to: string; label: string } | { kind: 'ratings' };
 
-const TOP_LINKS: TopNavEntry[] = [
-  { kind: 'link', to: '/minsk/bc/analytics', label: 'Аналитика' },
-  { kind: 'ratings' },
-  { kind: 'link', to: '/minsk/bc/guide', label: 'Справочник' },
-];
+// Каталоги БЦ и ТЦ — соседние вкладки шапки (владелец, 2026-09-23:
+// «каталоги БЦ и ТЦ будут разными вкладками»). Кнопка с выпадающим меню —
+// всегда каталог текущей страницы, второй каталог — обычная ссылка рядом.
+// Аналитика, рейтинги и справочник есть только у каталога БЦ.
+const TOP_LINKS: Record<CatalogKind, TopNavEntry[]> = {
+  bc: [
+    { kind: 'link', to: '/minsk/bc/analytics', label: 'Аналитика' },
+    { kind: 'ratings' },
+    { kind: 'link', to: '/minsk/bc/guide', label: 'Справочник' },
+    { kind: 'link', to: '/minsk/tc', label: 'Торговые центры' },
+  ],
+  tc: [{ kind: 'link', to: '/minsk/bc', label: 'Бизнес-центры' }],
+};
 
 // «Рейтинги» — единственный пункт с подменю (владелец, 2026-09-22: «добавляй
 // в меню с понятными и не длинными названиями», после того как 4 новые
@@ -176,6 +185,7 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
   // по тапу), а от md раскладка колоночная и сворачивать нечего.
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   const { pathname } = useLocation();
+  const V = useCatalogKind();
   const rootRef = useRef<HTMLElement>(null);
 
   // Закрывать меню при переходе: react-router меняет URL без перезагрузки,
@@ -206,16 +216,19 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
   const groups = useMemo<MenuGroup[]>(() => {
     if (!centers || centers.length === 0) return [];
     const result: MenuGroup[] = [];
-    const district = districtSlices(centers);
+    const district = districtSlices(centers, V.basePath);
     if (district.length > 0) result.push({ kind: 'flat', label: 'По району', items: district });
-    const metroLines = metroSlicesByLine(centers);
+    const metroLines = metroSlicesByLine(centers, V.basePath);
     if (metroLines.length > 0) result.push({ kind: 'metro', label: 'У метро', lines: metroLines });
-    const businessClass = classSlices(centers);
-    if (businessClass.length > 0) result.push({ kind: 'flat', label: 'По классу', items: businessClass });
-    const type = statusSlices(centers);
-    if (type.length > 0) result.push({ kind: 'flat', label: 'Тип', items: type });
+    // Классы и «строящиеся» — оси одного каталога БЦ.
+    if (V.kind === 'bc') {
+      const businessClass = classSlices(centers);
+      if (businessClass.length > 0) result.push({ kind: 'flat', label: 'По классу', items: businessClass });
+      const type = statusSlices(centers);
+      if (type.length > 0) result.push({ kind: 'flat', label: 'Тип', items: type });
+    }
     return result;
-  }, [centers]);
+  }, [centers, V]);
 
   // Раскладка панели: [районы] [метро] [класс + тип].
   const columns = useMemo<MenuGroup[][]>(() => {
@@ -223,7 +236,8 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
     return [groups.slice(0, 1), groups.slice(1, 2), groups.slice(2)].filter((c) => c.length > 0);
   }, [groups]);
 
-  const activeTop = TOP_LINKS.find((l) => l.kind === 'link' && l.to === pathname) as
+  const topLinks = TOP_LINKS[V.kind];
+  const activeTop = topLinks.find((l) => l.kind === 'link' && l.to === pathname) as
     | Extract<TopNavEntry, { kind: 'link' }>
     | undefined;
   const ratingsActive = RATING_LINKS.some((l) => l.to === pathname);
@@ -234,7 +248,7 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
   const catalogActive =
     !activeTop &&
     !ratingsActive &&
-    (pathname === '/minsk/bc' || pathname.startsWith('/minsk/bc/') || pathname.startsWith('/favorites/'));
+    (pathname === V.basePath || pathname.startsWith(`${V.basePath}/`) || pathname.startsWith('/favorites/'));
 
   const linkClass = (active: boolean) =>
     cn(
@@ -274,7 +288,7 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
           >
             {/* На узком экране в шапке помещается только бургер — подпись
                 уезжает, роль кнопки при этом та же, поэтому aria-label. */}
-            <span className="hidden md:inline">Бизнес-центры</span>
+            <span className="hidden md:inline">{V.Many}</span>
             <span className="sr-only md:hidden">Меню каталога</span>
             {open ? (
               <X aria-hidden="true" className="h-5 w-5 md:hidden" />
@@ -286,7 +300,7 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
               className={cn('hidden h-4 w-4 transition-transform md:block', open && 'rotate-180')}
             />
           </button>
-          {TOP_LINKS.map((entry) =>
+          {topLinks.map((entry) =>
             entry.kind === 'ratings' ? (
               <RatingsDropdown key="ratings" pathname={pathname} />
             ) : (
@@ -447,7 +461,7 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
           {/* Ниже md эти три пункта из шапки убраны (там только бургер) —
               значит, попасть в них можно лишь отсюда. */}
           <div className="flex flex-col gap-0.5 border-t border-border pt-4 md:hidden">
-            {TOP_LINKS.map((entry) =>
+            {topLinks.map((entry) =>
               entry.kind === 'ratings' ? (
                 <div key="ratings" className="flex flex-col gap-0.5">
                   <button

@@ -42,7 +42,7 @@
 // ней нет отзывов — здание просто останется без отзывов, без попытки
 // скроллить случайную страницу.
 //
-// Флаги: --limit N, --slug SLUG, --missing-only, --classes A,B,B+,
+// Флаги: --kind bc|tc|all, --limit N, --slug SLUG, --missing-only, --classes A,B,B+,
 // --skip-collected, --max-age-days 45, --output DIR, --profile DIR.
 //
 // Переменные окружения: SUPABASE_SERVICE_ROLE_KEY или SUPABASE_ACCESS_TOKEN
@@ -65,6 +65,9 @@ const valueOf = (name) => {
 const has = (name) => args.includes(name);
 
 const onlySlug = valueOf('--slug');
+// --kind bc|tc|all — какой каталог собирать (по умолчанию bc, как было до
+// каталога ТЦ 2026-09-23; торговые центры — `--kind tc`).
+const catalogKind = valueOf('--kind') ?? 'bc';
 const limit = Number(valueOf('--limit') ?? 0);
 const maxAgeDays = Number(valueOf('--max-age-days') ?? 45);
 const writeDb = has('--write-db');
@@ -296,6 +299,7 @@ async function catalogEntries() {
     .select('slug,name,address,status,sort_order,business_class')
     .eq('status', 'built')
     .order('sort_order', { ascending: true });
+  if (catalogKind !== 'all') query = query.eq('kind', catalogKind);
   if (onlySlug) query = query.eq('slug', onlySlug);
   if (classesFilter.length > 0) query = query.in('business_class', classesFilter);
   const { data, error } = await query;

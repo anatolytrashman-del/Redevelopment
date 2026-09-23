@@ -58,7 +58,7 @@ export function classSlices(centers: BusinessCenter[]): CatalogSlice[] {
 }
 
 /** Административные районы по алфавиту, «Великий камень» — в конце. */
-export function districtSlices(centers: BusinessCenter[]): CatalogSlice[] {
+export function districtSlices(centers: BusinessCenter[], base = '/minsk/bc'): CatalogSlice[] {
   const counts = countBy(centers, (c) => c.district);
   return Array.from(counts.entries())
     .sort(([a], [b]) => {
@@ -66,7 +66,7 @@ export function districtSlices(centers: BusinessCenter[]): CatalogSlice[] {
       if (b === OUT_OF_TOWN_DISTRICT) return -1;
       return a.localeCompare(b, 'ru');
     })
-    .map(([name, count]) => ({ key: name, label: name, url: districtHubUrl(name), count }))
+    .map(([name, count]) => ({ key: name, label: name, url: districtHubUrl(name, base), count }))
     .filter((s): s is CatalogSlice => s.url !== null);
 }
 
@@ -84,7 +84,11 @@ export function microdistrictSlices(centers: BusinessCenter[]): CatalogSlice[] {
  * METRO_HUB_MAX_DISTANCE_M), поэтому считаем не countBy, а по вложенному
  * списку `nearestMetroStations`.
  */
-export function metroSlices(centers: BusinessCenter[], order: 'alpha' | 'count' = 'count'): CatalogSlice[] {
+export function metroSlices(
+  centers: BusinessCenter[],
+  order: 'alpha' | 'count' = 'count',
+  base = '/minsk/bc',
+): CatalogSlice[] {
   const counts = new Map<string, number>();
   for (const center of centers) {
     for (const station of center.nearestMetroStations) {
@@ -97,7 +101,7 @@ export function metroSlices(centers: BusinessCenter[], order: 'alpha' | 'count' 
     .sort((a, b) =>
       order === 'alpha' ? a[0].localeCompare(b[0], 'ru') : b[1] - a[1] || a[0].localeCompare(b[0], 'ru'),
     )
-    .map(([name, count]) => ({ key: name, label: name, url: metroHubUrl(name), count }))
+    .map(([name, count]) => ({ key: name, label: name, url: metroHubUrl(name, base), count }))
     .filter((s): s is CatalogSlice => s.url !== null);
 }
 
@@ -123,8 +127,8 @@ export type MetroLineGroup = {
  * CatalogFilterPanel, а не свой список: разошлись бы порядок и раскраска.
  * Цветной кружок — один на ветку (в заголовке группы), не на каждую станцию.
  */
-export function metroSlicesByLine(centers: BusinessCenter[]): MetroLineGroup[] {
-  const byKey = new Map(metroSlices(centers, 'alpha').map((s) => [metroStationKey(s.key), s]));
+export function metroSlicesByLine(centers: BusinessCenter[], base = '/minsk/bc'): MetroLineGroup[] {
+  const byKey = new Map(metroSlices(centers, 'alpha', base).map((s) => [metroStationKey(s.key), s]));
   const used = new Set<string>();
   const groups: MetroLineGroup[] = [];
   for (const line of MINSK_METRO_LINES) {

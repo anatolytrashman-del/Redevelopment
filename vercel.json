@@ -38,6 +38,14 @@
     {
       "source": "/data/(.*)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=600, must-revalidate" }]
+    },
+    {
+      "source": "/minsk/tc",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    },
+    {
+      "source": "/minsk/tc/(.*)",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
     }
   ],
   "redirects": [
