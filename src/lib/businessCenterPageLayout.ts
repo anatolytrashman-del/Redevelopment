@@ -91,6 +91,13 @@ const SECTION_HEIGHT_MODEL: Record<string, SectionHeightModel> = {
   facts: { base: 145, perItem: 80 },
   history: { base: 0, perItem: 115 },
   developer: { base: 240, perItem: 15 },
+  // Торговые блоки ТЦ (TradeCenterRetailBlocks), замер 2026-09-23 на
+  // 1280px: этажи — 553px на 6 строк со строкой рейтинга, «первые и
+  // якоря» — 455px на 6 записей, досуг — 333px на 2 ряда плиток (у досуга
+  // элемент — ряд из двух плиток, см. sectionSizes на странице).
+  floors: { base: 190, perItem: 61 },
+  firsts: { base: 160, perItem: 50 },
+  leisure: { base: 165, perItem: 85 },
   // <details>: в DOM есть и вопрос, и ответ, но на экране до раскрытия —
   // только строка вопроса.
   faq: { base: 85, perItem: 45 },

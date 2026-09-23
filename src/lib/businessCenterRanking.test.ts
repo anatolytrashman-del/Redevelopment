@@ -57,6 +57,7 @@ function bc(over: Partial<BusinessCenter> & { slug: string }): BusinessCenter {
     status: 'built',
     kind: 'bc',
     retailFormat: null,
+    retailInfo: null,
     sortOrder: 0,
     createdAt: '2026-01-01',
     ...over,
