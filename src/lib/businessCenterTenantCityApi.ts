@@ -52,13 +52,23 @@ export async function fetchTenantCitySlice(): Promise<TenantCitySlice | null> {
   });
 }
 
+// Порция рубрик между передачами потока браузеру. Рубрик в срезе ~2500, и
+// каждая идёт через десятки больших регулярок tenantIndustryFromCategory:
+// одним куском это 130+ мс на телефоне (отчёт PageSpeed страницы аналитики,
+// 2026-09-23) — длинная задача прямо в окне TBT. Порциями по 150 ни одна
+// не дотягивает до 50 мс даже при 4× замедлении процессора.
+const ROWS_PER_SLICE = 150;
+const yieldToBrowser = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
 // Один разбор на оба источника — файл сборки и ответ базы.
-function sliceFromRow(data: TenantCityRow): TenantCitySlice {
+async function sliceFromRow(data: TenantCityRow): Promise<TenantCitySlice> {
   const raw = (data.categories ?? []) as CategoryTuple[];
 
   const byIndustry = new Map<string, number>();
   const categories: TenantCitySlice['categories'] = [];
-  for (const row of raw) {
+  for (let i = 0; i < raw.length; i++) {
+    if (i > 0 && i % ROWS_PER_SLICE === 0) await yieldToBrowser();
+    const row = raw[i];
     if (!Array.isArray(row) || row.length < 3) continue;
     const [name, orgs, buildings] = row;
     if (!name || !(orgs > 0)) continue;
