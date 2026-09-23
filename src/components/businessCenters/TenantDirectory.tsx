@@ -20,14 +20,13 @@ import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { TenantOrganizationView } from '../../data/businessCenterTenants';
 import { tenantDirectionLabel } from '../../data/tenantIndustries';
-import { buildFloorGroups, formatFloorLabel, type TenantAmenity } from '../../lib/businessCenterTenants';
+import { buildFloorGroups, formatFloorLabel } from '../../lib/businessCenterTenants';
 
 const TENANT_PAGE_SIZE = 6;
 const ALL_TENANT_DIRECTIONS = 'Все организации';
-// Оборудование и точки самообслуживания (банкоматы, кофейные автоматы) идут
-// в общий каталог отдельным направлением — так их видно и можно найти
-// поиском/фильтром, но не путают с обычным арендатором в других направлениях.
-const AMENITY_DIRECTION = 'Оборудование';
+// Оборудование и точки самообслуживания (банкоматы, туалеты, терминалы) с
+// 2026-09-23 здесь не показываются: у них свой блок «Инфраструктура» под
+// каталогом (BuildingAmenities), и в счётчик организаций они не входят.
 // Этажи показываем, только когда они известны хотя бы у трети арендаторов:
 // на десятке из девяноста «по этажам» — не срез здания, а случайная выборка.
 const FLOOR_SUMMARY_MIN_SHARE = 0.3;
@@ -52,33 +51,16 @@ function formatCompactNumber(value: number): string {
   return value >= 1000 ? `${(value / 1000).toFixed(value >= 10000 ? 0 : 1).replace('.', ',')} тыс.` : String(value);
 }
 
-export function TenantDirectory({
-  organizations,
-  amenities,
-}: {
-  organizations: TenantOrganizationView[];
-  amenities: TenantAmenity[];
-}) {
+export function TenantDirectory({ organizations }: { organizations: TenantOrganizationView[] }) {
   const [query, setQuery] = useState('');
   const [activeDirection, setActiveDirection] = useState(ALL_TENANT_DIRECTIONS);
   const [page, setPage] = useState(0);
   const [floorsOpen, setFloorsOpen] = useState(false);
 
-  const entries = useMemo(() => {
-    const orgEntries = organizations.map((org) => ({ ...org, direction: tenantDirectionLabel(org.industry) }));
-    const amenityEntries = amenities.map((amenity) => ({
-      name: amenity.count > 1 ? `${amenity.category} (${amenity.count})` : amenity.category,
-      rubric: 'Оборудование и сервисы',
-      industry: null,
-      placement: null,
-      floor: null,
-      rating: null,
-      reviewCount: null,
-      url: null,
-      direction: AMENITY_DIRECTION,
-    }));
-    return [...orgEntries, ...amenityEntries];
-  }, [organizations, amenities]);
+  const entries = useMemo(
+    () => organizations.map((org) => ({ ...org, direction: tenantDirectionLabel(org.industry) })),
+    [organizations],
+  );
   const directions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const entry of entries) counts.set(entry.direction, (counts.get(entry.direction) ?? 0) + 1);
@@ -116,7 +98,7 @@ export function TenantDirectory({
             Каталог арендаторов
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-ink-muted">
-            Компании и сервисы внутри здания. Выберите направление или найдите конкретного арендатора.
+            Компании внутри здания. Выберите направление или найдите конкретного арендатора.
           </p>
         </div>
 

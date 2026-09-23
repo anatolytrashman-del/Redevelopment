@@ -46,6 +46,13 @@ describe('isTenantAmenity', () => {
     expect(isTenantAmenity(null, 'Банкомат Приорбанк')).toBe(true);
   });
 
+  it('парковки и камеры хранения ТЦ — тоже не арендаторы', () => {
+    expect(isTenantAmenity('Велопарковка')).toBe(true);
+    expect(isTenantAmenity('Автомобильная парковка')).toBe(true);
+    expect(isTenantAmenity('Камера хранения')).toBe(true);
+    expect(isTenantAmenity('Магазин автозапчастей')).toBe(false);
+  });
+
   it('пункт выдачи — настоящий арендатор, он снимает помещение', () => {
     expect(isTenantAmenity('Пункт выдачи')).toBe(false);
     expect(isTenantAmenity('Кофейня')).toBe(false);
