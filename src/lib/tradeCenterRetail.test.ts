@@ -1,7 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import type { RetailRankingEntry } from '../data/businessCenters';
+import type { RetailFigureEntry, RetailInfo, RetailParking, RetailRankingEntry } from '../data/businessCenters';
 import {
   anchorsFaqAnswer,
+  audienceFaqQuestion,
+  eventsFaqAnswer,
+  figureMeta,
+  figuresFaqAnswer,
+  hoursFaqAnswer,
+  loyaltyFaqAnswer,
+  parkingFaqAnswer,
+  parkingFaqQuestion,
+  pitchFaqAnswer,
+  quotesFaqAnswer,
+  retailSectionGroup,
+  retailSectionSize,
+  rulesFaqAnswer,
+  servicesFaqAnswer,
+  sortTransport,
+  transportFaqAnswer,
+  transportFaqQuestion,
   collectRetailSources,
   floorsFaqAnswer,
   floorSortKey,
@@ -174,5 +191,226 @@ describe('ответы FAQ', () => {
         { kind: 'first', name: 'Massimo Dutti', text: '', ...src },
       ]),
     ).toBe('Корона — гипермаркет.\nРаньше здесь были: Zara.');
+  });
+});
+
+// --- Дополнительные блоки (extras-schema, 2026-09-23) ----------------------
+
+const noSrc = { source: null, sourceUrl: null };
+
+describe('normalizeRetailInfo — дополнительные ключи', () => {
+  it('старые записи без новых ключей получают пустые массивы и null', () => {
+    const info = normalizeRetailInfo({ floorsGuide: [{ floor: '1', text: 'Продукты' }] });
+    expect(info).toMatchObject({
+      hours: [],
+      hoursNote: null,
+      parking: null,
+      transport: [],
+      services: [],
+      rules: [],
+      loyalty: [],
+      events: [],
+      audience: [],
+      leasing: null,
+      advertising: null,
+      numbers: [],
+      quotes: [],
+    });
+  });
+
+  it('одни только новые ключи — уже не null', () => {
+    expect(normalizeRetailInfo({ hoursNote: 'В праздники до 20:00' })?.hoursNote).toBe('В праздники до 20:00');
+    expect(retailSectionIds(normalizeRetailInfo({ quotes: [{ who: 'Директор', text: 'Мы открылись' }] }))).toEqual([
+      'quotes',
+    ]);
+  });
+
+  it('пустые и кривые новые ключи — по-прежнему null', () => {
+    expect(
+      normalizeRetailInfo({
+        hours: [{ zone: 'Галерея' }, 'x', null],
+        hoursNote: '  ',
+        parking: { summary: '', items: [{ label: 'Мест' }] },
+        transport: [{ mode: 'rocket', text: 'Ракета' }, { mode: 'bus' }],
+        services: [{ text: 'без имени' }],
+        rules: [{}],
+        loyalty: [{ text: 'без имени' }],
+        events: [{ text: 'без имени' }],
+        audience: [{ label: 'Посещаемость' }, { value: '40 000' }],
+        leasing: { text: '', points: [] },
+        advertising: [],
+        numbers: [{ label: 'Магазинов', value: '' }],
+        quotes: [{ who: 'Аноним' }, { text: 'Без автора' }],
+      }),
+    ).toBeNull();
+  });
+
+  it('разбирает полные записи, числа приводит к строкам, неполные отбрасывает', () => {
+    const info = normalizeRetailInfo({
+      hours: [
+        { zone: 'Торговая галерея', value: 'ежедневно 10:00–22:00', note: null, source: 'Сайт ТЦ', sourceUrl: 'https://tc.by' },
+        { zone: 'Кинотеатр' },
+      ],
+      parking: {
+        summary: 'Подземный паркинг на 685 мест.',
+        items: [{ label: 'Мест', value: 685 }, { label: 'Первые 3 часа' }],
+        date: '2026-03',
+      },
+      transport: [
+        { mode: 'bus', text: 'Автобусы 1, 38' },
+        { mode: 'metro', text: 'Метро «Немига», 10 минут пешком' },
+      ],
+      services: [{ name: 'Wi-Fi', text: null, floor: 2 }],
+      rules: [{ text: 'Можно с собаками на руках' }, 'Нельзя кататься на самокатах'],
+      leasing: { text: 'Сдают торговые площади.', points: ['Индексация раз в год', '', 42], contacts: 'lease@tc.by' },
+      audience: [{ label: 'Посещаемость', value: '40 000 в день', note: 'по данным ТЦ' }],
+    });
+    expect(info).not.toBeNull();
+    expect(info!.hours).toHaveLength(1);
+    expect(info!.parking).toEqual({
+      summary: 'Подземный паркинг на 685 мест.',
+      items: [{ label: 'Мест', value: '685' }],
+      date: '2026-03',
+      source: null,
+      sourceUrl: null,
+    });
+    expect(info!.transport.map((t) => t.mode)).toEqual(['bus', 'metro']);
+    expect(info!.services[0].floor).toBe('2');
+    // Правило — объект с text; голую строку схема не предусматривает.
+    expect(info!.rules.map((r) => r.text)).toEqual(['Можно с собаками на руках']);
+    expect(info!.leasing!.points).toEqual(['Индексация раз в год']);
+    expect(info!.audience[0]).toMatchObject({ value: '40 000 в день', date: null, note: 'по данным ТЦ' });
+    expect(retailSectionIds(info)).toEqual(['visit', 'business']);
+  });
+});
+
+describe('разделы и размеры', () => {
+  const base = normalizeRetailInfo({ hoursNote: 'x' }) as RetailInfo;
+  it('группы: посетитель и бизнес', () => {
+    expect(retailSectionGroup('floors')).toBe('visitor');
+    expect(retailSectionGroup('visit')).toBe('visitor');
+    expect(retailSectionGroup('business')).toBe('business');
+    expect(retailSectionGroup('quotes')).toBe('business');
+  });
+
+  it('размер карточки посетителя — строки пополам на две колонки', () => {
+    const info: RetailInfo = {
+      ...base,
+      hoursNote: null,
+      hours: [1, 2, 3].map((n) => ({ zone: `З${n}`, value: '10–22', note: null, ...noSrc })),
+      transport: [{ mode: 'bus', text: 'Автобус', ...noSrc }],
+    };
+    // (3 + 1) + (1 + 1) = 6 → 3
+    expect(retailSectionSize(info, 'visit')).toBe(3);
+    expect(retailSectionSize(null, 'visit')).toBe(0);
+  });
+});
+
+describe('ответы FAQ — посетителю', () => {
+  it('режим работы: зоны строками, пометка в конце', () => {
+    expect(
+      hoursFaqAnswer(
+        [
+          { zone: 'Галерея', value: 'ежедневно 10:00–22:00', note: null, ...noSrc },
+          { zone: 'Кинотеатр', value: 'до 01:30', note: 'по выходным', ...noSrc },
+        ],
+        'В праздники режим может меняться',
+      ),
+    ).toBe('Галерея: ежедневно 10:00–22:00.\nКинотеатр: до 01:30 (по выходным).\nВ праздники режим может меняться.');
+    expect(hoursFaqAnswer([], null)).toBeNull();
+  });
+
+  const parking = (over: Partial<RetailParking> = {}): RetailParking => ({
+    summary: 'Паркинг на 685 мест.',
+    items: [],
+    date: null,
+    ...noSrc,
+    ...over,
+  });
+
+  it('вопрос о парковке — только о том, на что есть ответ', () => {
+    expect(
+      parkingFaqQuestion(
+        parking({ items: [{ label: 'Первые 3 часа', value: '5 руб.' }, { label: 'Бесплатно', value: '3 часа по чеку' }] }),
+        'ТЦ',
+      ),
+    ).toBe('Сколько стоит парковка у ТЦ и можно ли встать бесплатно?');
+    expect(parkingFaqQuestion(parking({ items: [{ label: 'Час', value: '2 BYN' }] }), 'ТЦ')).toBe(
+      'Сколько стоит парковка у ТЦ?',
+    );
+    expect(parkingFaqQuestion(parking({ summary: 'Парковка бесплатная.' }), 'ТЦ')).toBe(
+      'Есть ли бесплатная парковка у ТЦ?',
+    );
+    expect(parkingFaqQuestion(parking(), 'ТЦ')).toBe('Что известно о парковке у ТЦ?');
+    expect(parkingFaqQuestion(null, 'ТЦ')).toBeNull();
+  });
+
+  it('ответ о парковке: сводка, пары и дата', () => {
+    expect(parkingFaqAnswer(parking({ items: [{ label: 'Мест', value: '685' }], date: '2026-03-01' }))).toBe(
+      'Паркинг на 685 мест.\nМест: 685.\nТарифы — по данным на март 2026.',
+    );
+  });
+
+  it('транспорт: метро первым, вопрос по видам', () => {
+    const t = [
+      { mode: 'car' as const, text: 'С МКАД', ...noSrc },
+      { mode: 'metro' as const, text: 'Станция «Немига»', ...noSrc },
+    ];
+    expect(sortTransport(t).map((x) => x.mode)).toEqual(['metro', 'car']);
+    expect(transportFaqAnswer(t)).toBe('Метро: Станция «Немига».\nНа машине: С МКАД.');
+    expect(transportFaqQuestion(t, 'ТЦ')).toBe('Каким транспортом доехать до ТЦ?');
+    expect(transportFaqQuestion([t[0]], 'ТЦ')).toBe('Как добраться до ТЦ?');
+    expect(transportFaqQuestion([], 'ТЦ')).toBeNull();
+  });
+
+  it('удобства с этажом, правила, лояльность и события', () => {
+    expect(
+      servicesFaqAnswer([
+        { name: 'Комната матери и ребёнка', text: 'пеленальный столик', floor: '2', ...noSrc },
+        { name: 'Wi-Fi', text: null, floor: null, ...noSrc },
+      ]),
+    ).toBe('Комната матери и ребёнка (2 этаж) — пеленальный столик.\nWi-Fi.');
+    expect(rulesFaqAnswer([{ text: 'Коляски — бесплатно', ...noSrc }])).toBe('Коляски — бесплатно.');
+    expect(loyaltyFaqAnswer([{ name: 'Карта «Замок»', text: 'кешбэк 3%', ...noSrc }])).toBe('Карта «Замок» — кешбэк 3%.');
+    expect(eventsFaqAnswer([{ name: 'Фитнес на крыше', text: 'по субботам летом', date: '2024', ...noSrc }])).toBe(
+      'Фитнес на крыше (2024) — по субботам летом.',
+    );
+    expect(servicesFaqAnswer([])).toBeNull();
+  });
+});
+
+describe('ответы FAQ — для бизнеса', () => {
+  const fig = (over: Partial<RetailFigureEntry> = {}): RetailFigureEntry => ({
+    label: 'Посещаемость',
+    value: '40 000 человек в день',
+    date: '2025',
+    note: 'по данным ТЦ',
+    ...noSrc,
+    ...over,
+  });
+
+  it('цифра с датой и пометкой', () => {
+    expect(figureMeta(fig())).toBe('2025 · по данным ТЦ');
+    expect(figureMeta(fig({ date: null, note: null }))).toBeNull();
+    expect(figuresFaqAnswer([fig()])).toBe('Посещаемость — 40 000 человек в день (2025, по данным ТЦ).');
+  });
+
+  it('«сколько посетителей» — только если есть посещаемость', () => {
+    expect(audienceFaqQuestion([fig()], 'ТЦ')).toBe('Сколько посетителей бывает в ТЦ?');
+    expect(audienceFaqQuestion([fig({ label: 'Доля женщин', value: '64%' })], 'ТЦ')).toBe('Кто ходит в ТЦ?');
+    expect(audienceFaqQuestion([], 'ТЦ')).toBeNull();
+  });
+
+  it('аренда/реклама: текст, пункты, контакты строками', () => {
+    expect(
+      pitchFaqAnswer({ text: 'Сдают торговые площади', points: ['Индексация раз в год'], contacts: 'lease@tc.by', ...noSrc }),
+    ).toBe('Сдают торговые площади.\nИндексация раз в год.\nКонтакты: lease@tc.by.');
+    expect(pitchFaqAnswer(null)).toBeNull();
+  });
+
+  it('цитаты — без двойных кавычек', () => {
+    expect(quotesFaqAnswer([{ who: 'Директор ТЦ', text: '«Мы открылись»', date: '2019-03', ...noSrc }])).toBe(
+      '«Мы открылись» — Директор ТЦ, март 2019.',
+    );
   });
 });

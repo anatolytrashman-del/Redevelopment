@@ -1,7 +1,8 @@
 // Торговые блоки карточки ТЦ (2026-09-23): «Что на каком этаже», «Первые в
 // Беларуси и якоря», «Кино, еда, развлечения» и строка места в рейтинге ТЦ
-// Минска. Данные — business_centers.retail_info (у БЦ пусто, компонент не
-// рисует ничего). Каждая карточка — только если по ней есть записи.
+// Минска; за ними — «Посетителю», «Арендаторам и рекламодателям», «ТЦ в
+// цифрах» и «Цитаты» (TradeCenterExtraBlocks.tsx). Данные —
+// business_centers.retail_info (у БЦ пусто, компонент не рисует ничего). Каждая карточка — только если по ней есть записи.
 //
 // Источники у каждой записи свои, но под каждой строкой ссылку не ставим —
 // карточка превратилась бы в сноски. Внизу карточки один общий список без
@@ -11,24 +12,12 @@
 // renderRecommendationSlot у остальных блоков страницы): раскладка
 // рекомендаций видит эти карточки как отдельные разделы.
 import type { ReactNode } from 'react';
-import {
-  Baby,
-  Clapperboard,
-  Dumbbell,
-  Flag,
-  Layers,
-  Sparkles,
-  Trophy,
-  UtensilsCrossed,
-  type LucideIcon,
-} from 'lucide-react';
+import { Baby, Clapperboard, Dumbbell, Sparkles, Trophy, UtensilsCrossed, type LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/cn';
-import { glassCardClass, glassCardShadow } from '../../lib/glass';
-import type { RetailInfo, RetailLeisureKind, RetailRankingEntry, RetailSource } from '../../data/businessCenters';
+import { glassCardShadow } from '../../lib/glass';
+import type { RetailInfo, RetailLeisureKind, RetailRankingEntry } from '../../data/businessCenters';
 import {
   LEISURE_KIND_LABELS,
-  RETAIL_SECTION_LABELS,
-  collectRetailSources,
   floorSortKey,
   formatFloorBadge,
   formatRankingLine,
@@ -38,6 +27,14 @@ import {
   sortLeisure,
   type RetailSectionId,
 } from '../../lib/tradeCenterRetail';
+import { RetailCardTitle as CardTitle, SourcesLine } from './TradeCenterRetailParts';
+import { retailCardClass as cardClass } from './tradeCenterRetailStyle';
+import {
+  TradeCenterBusinessCard,
+  TradeCenterNumbersCard,
+  TradeCenterQuotesCard,
+  TradeCenterVisitCard,
+} from './TradeCenterExtraBlocks';
 
 const LEISURE_ICONS: Record<RetailLeisureKind, LucideIcon> = {
   cinema: Clapperboard,
@@ -46,24 +43,6 @@ const LEISURE_ICONS: Record<RetailLeisureKind, LucideIcon> = {
   sport: Dumbbell,
   other: Sparkles,
 };
-
-const SECTION_ICONS: Record<RetailSectionId, LucideIcon> = {
-  floors: Layers,
-  firsts: Flag,
-  leisure: Clapperboard,
-};
-
-const cardClass = cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass);
-
-function CardTitle({ id }: { id: RetailSectionId }) {
-  const Icon = SECTION_ICONS[id];
-  return (
-    <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-      <Icon className="h-5 w-5 shrink-0 text-primary" />
-      {RETAIL_SECTION_LABELS[id]}
-    </h2>
-  );
-}
 
 function RankingLines({ ranking }: { ranking: RetailRankingEntry[] }) {
   if (!ranking.length) return null;
@@ -82,33 +61,6 @@ function RankingLines({ ranking }: { ranking: RetailRankingEntry[] }) {
   );
 }
 
-function SourcesLine({ entries }: { entries: RetailSource[] }) {
-  const sources = collectRetailSources(entries);
-  if (!sources.length) return null;
-  return (
-    <p className="break-words border-t border-border pt-3 text-xs leading-relaxed text-ink-faint">
-      {sources.length === 1 ? 'Источник: ' : 'Источники: '}
-      {sources.map((s, i) => (
-        <span key={`${s.label}-${i}`}>
-          {i > 0 && ', '}
-          {s.url ? (
-            <a
-              href={s.url}
-              target="_blank"
-              rel="nofollow noopener noreferrer"
-              className="underline decoration-ink-faint/40 underline-offset-2 hover:text-ink-muted"
-            >
-              {s.label}
-            </a>
-          ) : (
-            s.label
-          )}
-        </span>
-      ))}
-    </p>
-  );
-}
-
 export function TradeCenterRetailBlocks({
   info,
   after,
@@ -118,21 +70,21 @@ export function TradeCenterRetailBlocks({
 }) {
   if (!info) return null;
   const ids = retailSectionIds(info);
-  // Рейтинг — не отдельная карточка, а строка в первой из нарисованных.
-  const rankingHost: RetailSectionId | null = ids[0] ?? null;
+  // Рейтинг — не отдельная карточка, а строка в первой из нарисованных
+  // карточек состава здания (этажи / первые / досуг).
+  const rankingHost: RetailSectionId | null =
+    ids.find((id) => id === 'floors' || id === 'firsts' || id === 'leisure') ?? null;
   const rankingIn = (id: RetailSectionId) => (id === rankingHost ? info.ranking : []);
 
-  if (!rankingHost) {
-    if (!info.ranking.length) return null;
-    // Из всех торговых данных есть только место в рейтинге — карточка из
-    // одной строки, без пункта в меню.
-    return (
+  // Карточек состава здания нет, а место в рейтинге есть — карточка из
+  // одной строки, без пункта в меню.
+  const rankingOnly =
+    !rankingHost && info.ranking.length > 0 ? (
       <div className={cardClass} style={glassCardShadow}>
         <RankingLines ranking={info.ranking} />
         <SourcesLine entries={info.ranking} />
       </div>
-    );
-  }
+    ) : null;
 
   const floors = sortFloorsTopDown(info.floorsGuide);
   const firsts = info.firsts.filter((f) => f.kind === 'first');
@@ -142,6 +94,7 @@ export function TradeCenterRetailBlocks({
 
   return (
     <>
+      {rankingOnly}
       {floors.length > 0 && (
         <div id="floors" className={cardClass} style={glassCardShadow}>
           <CardTitle id="floors" />
@@ -253,6 +206,15 @@ export function TradeCenterRetailBlocks({
         </div>
       )}
       {leisure.length > 0 && after?.('leisure')}
+
+      {ids.includes('visit') && <TradeCenterVisitCard info={info} />}
+      {ids.includes('visit') && after?.('visit')}
+      {ids.includes('business') && <TradeCenterBusinessCard info={info} />}
+      {ids.includes('business') && after?.('business')}
+      {ids.includes('numbers') && <TradeCenterNumbersCard numbers={info.numbers} />}
+      {ids.includes('numbers') && after?.('numbers')}
+      {ids.includes('quotes') && <TradeCenterQuotesCard quotes={info.quotes} />}
+      {ids.includes('quotes') && after?.('quotes')}
     </>
   );
 }

@@ -98,6 +98,15 @@ const SECTION_HEIGHT_MODEL: Record<string, SectionHeightModel> = {
   floors: { base: 190, perItem: 61 },
   firsts: { base: 160, perItem: 50 },
   leisure: { base: 165, perItem: 85 },
+  // Дополнительные карточки ТЦ (TradeCenterExtraBlocks), замер 2026-09-23
+  // на 1280px по мок-данным «Замка»: «Посетителю» — 1103px на 16 строк
+  // (retailSectionSize: строки панелей пополам на две колонки), «для
+  // бизнеса» — 648px на 8, «в цифрах» — 357px на 2 ряда плиток по три,
+  // цитаты — 426px на 2 ряда по две.
+  visit: { base: 150, perItem: 60 },
+  business: { base: 150, perItem: 62 },
+  numbers: { base: 140, perItem: 108 },
+  quotes: { base: 130, perItem: 148 },
   // <details>: в DOM есть и вопрос, и ответ, но на экране до раскрытия —
   // только строка вопроса.
   faq: { base: 85, perItem: 45 },
