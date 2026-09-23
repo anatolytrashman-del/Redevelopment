@@ -91,25 +91,25 @@ import type { BusinessCenter, HighlightIconKey } from '../data/businessCenters';
 import { fetchBusinessCenter, fetchBusinessCenters, snapshotBusinessCenter, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import type { BusinessCenterNearbyPlace, NearbyPlaceCategory } from '../data/businessCenterNearbyPlaces';
-import { fetchBusinessCenterNearbyPlaces } from '../lib/businessCenterNearbyPlacesApi';
+import { fetchBusinessCenterNearbyPlaces, peekBusinessCenterNearbyPlaces } from '../lib/businessCenterNearbyPlacesApi';
 import { formatMeters, groupNearbyPlaces, hasNearbyContent, mergeMetroStations } from '../lib/nearbyPlaces';
 import type { BusinessCenterReview } from '../data/businessCenterReviews';
-import { fetchBusinessCenterReviews } from '../lib/businessCenterReviewsApi';
+import { fetchBusinessCenterReviews, peekBusinessCenterReviews } from '../lib/businessCenterReviewsApi';
 import type { BusinessCenterOffer } from '../data/businessCenterOffers';
-import { fetchBusinessCenterOffers } from '../lib/businessCenterOffersApi';
+import { fetchBusinessCenterOffers, peekBusinessCenterOffers } from '../lib/businessCenterOffersApi';
 import { dedupeOffers } from '../lib/businessCenterOfferDuplicates';
 import { buildDealStats } from '../lib/businessCenterOfferStats';
 import { BuildingOffersSection } from '../components/businessCenters/BuildingOffersSection';
 import { pluralRu } from '../lib/pluralRu';
-import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
+import { fetchLatestMarketSnapshots, peekLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import type { MarketSnapshot } from '../data/marketSnapshots';
 import type {
   BusinessCenter2gisSnapshot,
   Gis2Schedule,
   Gis2ScheduleDay,
 } from '../data/businessCenter2gis';
-import { fetchBusinessCenter2gisSnapshot } from '../lib/businessCenter2gisApi';
-import { fetchBusinessCenterTenantSnapshot } from '../lib/businessCenterTenantsApi';
+import { fetchBusinessCenter2gisSnapshot, peekBusinessCenter2gisSnapshot } from '../lib/businessCenter2gisApi';
+import { fetchBusinessCenterTenantSnapshot, peekBusinessCenterTenantSnapshot } from '../lib/businessCenterTenantsApi';
 import {
   buildFloorGroups,
   buildTenantsFromGis2,
@@ -217,30 +217,49 @@ export function BusinessCenterDetailPage() {
   // готовой разметки пререндера и без прыжка вёрстки. Нет снимка (SPA-
   // переход, страница вне раздела) — как раньше, null и запрос ниже.
   const [centers, setCenters] = useState<BusinessCenter[] | null>(snapshotBusinessCenters);
+  // Все догружаемые блоки карточки стартуют с уже пришедшего файла
+  // .extra (peekBuildData в src/lib/buildData.ts): пререндер-снапшот
+  // нарисован с ними, и первый кадр React обязан совпасть с ним — иначе на
+  // десктопе блоки пропадали и появлялись снова (CLS 0,33, 2026-09-23).
   const [offersResult, setOffersResult] = useState<{
     slug: string;
     offers: BusinessCenterOffer[] | null;
     error: boolean;
-  } | null>(null);
+  } | null>(() => {
+    const offers = slug ? peekBusinessCenterOffers(slug) : null;
+    return slug && offers ? { slug, offers, error: false } : null;
+  });
   const rawOffers = offersResult && offersResult.slug === slug ? offersResult.offers : null;
   // Один и тот же лот приходит сразу с нескольких площадок — считаем его
   // одним (см. lib/businessCenterOfferDuplicates.ts). Схлопываем СРАЗУ
   // после загрузки, чтобы дальше — и в сводке, и в таблице, и в медиане
   // здания, и в FAQ — везде было одно и то же число.
   const offers = useMemo(() => (rawOffers === null ? null : dedupeOffers(rawOffers)), [rawOffers]);
-  const [gis2Result, setGis2Result] = useState<{ slug: string; data: BusinessCenter2gisSnapshot | null } | null>(null);
+  const [gis2Result, setGis2Result] = useState<{ slug: string; data: BusinessCenter2gisSnapshot | null } | null>(() => {
+    const data = slug ? peekBusinessCenter2gisSnapshot(slug) : undefined;
+    return slug && data !== undefined ? { slug, data } : null;
+  });
   const gis2 = gis2Result?.slug === slug ? gis2Result?.data ?? null : null;
-  const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(null);
+  const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(() => peekLatestMarketSnapshots('ofisy_bc'));
   const [tenantSnapshotResult, setTenantSnapshotResult] = useState<{
     slug: string;
     data: BusinessCenterTenantSnapshot | null;
-  } | null>(null);
+  } | null>(() => {
+    const data = slug ? peekBusinessCenterTenantSnapshot(slug) : undefined;
+    return slug && data !== undefined ? { slug, data } : null;
+  });
   const tenantSnapshot = tenantSnapshotResult?.slug === slug ? tenantSnapshotResult?.data ?? null : null;
   const [nearbyPlacesResult, setNearbyPlacesResult] = useState<{
     slug: string;
     places: BusinessCenterNearbyPlace[];
-  } | null>(null);
-  const [reviewsResult, setReviewsResult] = useState<{ slug: string; reviews: BusinessCenterReview[] } | null>(null);
+  } | null>(() => {
+    const places = slug ? peekBusinessCenterNearbyPlaces(slug) : null;
+    return slug && places ? { slug, places } : null;
+  });
+  const [reviewsResult, setReviewsResult] = useState<{ slug: string; reviews: BusinessCenterReview[] } | null>(() => {
+    const reviews = slug ? peekBusinessCenterReviews(slug) : null;
+    return slug && reviews ? { slug, reviews } : null;
+  });
 
   useEffect(() => {
     fetchBusinessCenters()
@@ -310,7 +329,11 @@ export function BusinessCenterDetailPage() {
   useEffect(() => {
     if (!slug) return;
     let cancelled = false;
-    setOffersResult(null);
+    // Не гасим таблицу в null, если объявления здания уже на руках (файл
+    // .extra из сборки): пустой промежуточный кадр — это тот же прыжок
+    // вёрстки, от которого стартовое состояние выше и защищает.
+    const fromBuild = peekBusinessCenterOffers(slug);
+    setOffersResult(fromBuild ? { slug, offers: fromBuild, error: false } : null);
     fetchBusinessCenterOffers(slug)
       .then((data) => {
         if (!cancelled) setOffersResult({ slug, offers: data, error: false });

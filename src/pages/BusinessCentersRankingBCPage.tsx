@@ -6,7 +6,7 @@ import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setItemListJsonLd } from '../lib/pageMeta';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
-import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
+import { fetchLatestMarketSnapshots, peekLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { MIN_RELIABLE_N, type MarketSnapshot } from '../data/marketSnapshots';
 import { buildOfferIndex, EMPTY_OFFER_INDEX } from '../lib/businessCenterCatalogFilter';
 import type { BusinessCenter } from '../data/businessCenters';
@@ -43,7 +43,9 @@ export function BusinessCentersRankingBCPage() {
   // готовой разметки пререндера и без прыжка вёрстки. Нет снимка (SPA-
   // переход, страница вне раздела) — как раньше, null и запрос ниже.
   const [centers, setCenters] = useState<BusinessCenter[] | null>(snapshotBusinessCenters);
-  const [snapshots, setSnapshots] = useState<MarketSnapshot[] | null>(null);
+  // Первый кадр — с уже пришедшими данными сборки, как в пререндер-снапшоте
+  // (peekBuildData в src/lib/buildData.ts), иначе блок прыгает при монтировании.
+  const [snapshots, setSnapshots] = useState<MarketSnapshot[] | null>(() => peekLatestMarketSnapshots('ofisy_bc'));
   const [showMap, setShowMap] = useState(false);
 
   useEffect(() => {

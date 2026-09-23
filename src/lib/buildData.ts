@@ -17,6 +17,21 @@
 // показывать надо живую базу, а не снимок часовой давности.
 
 const cache = new Map<string, Promise<unknown>>();
+// Уже разобранные файлы — для синхронного чтения в первом рендере
+// (peekBuildData). Промис из cache тут не поможет: useState-инициализатор
+// не умеет ждать, а первый кадр React обязан совпасть с пререндер-снапшотом,
+// где эти данные уже нарисованы (иначе блок пропадёт и появится снова —
+// CLS 0,33 на десктопе карточки, замер 2026-09-23).
+const resolved = new Map<string, unknown>();
+
+function remember(file: string, pending: Promise<unknown>): Promise<unknown> {
+  const tracked = pending.then((value) => {
+    if (value) resolved.set(file, value);
+    return value;
+  });
+  cache.set(file, tracked);
+  return tracked;
+}
 
 function isPublicPage(): boolean {
   if (typeof window === 'undefined') return false;
@@ -31,14 +46,26 @@ function isPublicPage(): boolean {
 // падает — это тоже «нет данных», а не ошибка.
 export function loadBuildData<T>(file: string): Promise<T | null> {
   if (!isPublicPage()) return Promise.resolve(null);
-  let pending = cache.get(file);
-  if (!pending) {
-    pending = fetch(`/data/${file}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .catch(() => null);
-    cache.set(file, pending);
-  }
+  const pending =
+    cache.get(file) ??
+    remember(
+      file,
+      fetch(`/data/${file}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    );
   return pending as Promise<T | null>;
+}
+
+// Файл, который уже пришёл, — синхронно; не пришёл — null.
+export function peekBuildData<T>(file: string): T | null {
+  return isPublicPage() ? ((resolved.get(file) as T | undefined) ?? null) : null;
+}
+
+// Промис, начатый инлайн-скриптом index.html, становится записью кеша —
+// чтобы функции загрузки не качали тот же файл второй раз.
+export function seedBuildData(file: string, pending: Promise<unknown>): Promise<unknown> {
+  return cache.get(file) ?? remember(file, pending.catch(() => null));
 }
 
 // Общие наборы раздела — см. writeExtras в scripts/generate-catalog-data.mjs.
@@ -66,4 +93,7 @@ export interface BcExtraFile {
 export const loadBcMarket = () => loadBuildData<BcMarketFile>('bc-market.json');
 export const loadBcAnalytics = () => loadBuildData<BcAnalyticsFile>('bc-analytics.json');
 export const loadBcSources = () => loadBuildData<{ rows: unknown[] }>('bc-sources.json');
-export const loadBcExtra = (slug: string) => loadBuildData<BcExtraFile>(`bc/${encodeURIComponent(slug)}.extra.json`);
+export const bcExtraFile = (slug: string) => `bc/${encodeURIComponent(slug)}.extra.json`;
+export const loadBcExtra = (slug: string) => loadBuildData<BcExtraFile>(bcExtraFile(slug));
+export const peekBcExtra = (slug: string) => peekBuildData<BcExtraFile>(bcExtraFile(slug));
+export const peekBcMarket = () => peekBuildData<BcMarketFile>('bc-market.json');

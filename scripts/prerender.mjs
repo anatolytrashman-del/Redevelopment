@@ -1049,6 +1049,20 @@ async function main() {
   let fullMode = decision.full;
   let fullScope = decision.scope; // 'objects' — частичный полный режим, 'all' — весь сайт
   const outage = decision.outage === true;
+  // В аварии раздел БЦ рендерится честно, только если код публичных
+  // страниц (или снимок данных — он в отпечатке) изменился с прода. Иначе
+  // копии с прода уже честные — их и берём: на сборке из-за правки одной
+  // админки рендерить 266 страниц — это 8 минут вместо полутора (замер
+  // первого деплоя с честным рендером, 2026-09-23), а сессий, которые
+  // мержат параллельно, много. Проверка отпечатка базы не требует.
+  const outageSectionStale = outage ? await publicCodeChangedSinceLive() : false;
+  if (outage) {
+    console.log(
+      outageSectionStale
+        ? '[prerender] раздел БЦ: публичный код или снимок данных изменились — рендерю из файлов сборки'
+        : '[prerender] раздел БЦ: публичный код не менялся — копирую с прода, как остальное',
+    );
+  }
   // Частичный режим: честный рендер только зависимых от объектов страниц,
   // остальное — копии с прода (см. decidePrerenderMode).
   const partialRenderPaths = new Set([...landingPaths, 'minsk', ...ALWAYS_FULL_RENDER_PATHS]);
@@ -1228,7 +1242,7 @@ async function main() {
     // правки разметки раздела (srcset главного фото, роли для доступности)
     // до статического HTML не доезжали бы, пока база закрыта. Остальной сайт
     // по-прежнему только копируется — ему данные без базы взять неоткуда.
-    if (outage && isBusinessCenterSectionPath(path)) {
+    if (outage && isBusinessCenterSectionPath(path) && outageSectionStale) {
       outageSectionCount++;
       await renderPath(path, workerId);
       return;

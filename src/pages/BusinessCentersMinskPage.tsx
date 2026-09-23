@@ -59,8 +59,8 @@ import {
 import { BUSINESS_CENTER_CLASSES, type BusinessCenter } from '../data/businessCenters';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
-import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
-import { fetchBusinessCenterLotSizes } from '../lib/businessCenterOffersApi';
+import { fetchLatestMarketSnapshots, peekLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
+import { fetchBusinessCenterLotSizes, peekBusinessCenterLotSizes } from '../lib/businessCenterOffersApi';
 import { MIN_RELIABLE_N, type MarketSnapshot } from '../data/marketSnapshots';
 import {
   EMPTY_CATALOG_FILTER,
@@ -334,11 +334,13 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // готовой разметки пререндера и без прыжка вёрстки. Нет снимка (SPA-
   // переход, страница вне раздела) — как раньше, null и запрос ниже.
   const [centers, setCenters] = useState<BusinessCenter[] | null>(snapshotBusinessCenters);
-  const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(null);
+  // Первый кадр — с уже пришедшими данными сборки, как в пререндер-снапшоте
+  // (peekBuildData в src/lib/buildData.ts), иначе блок прыгает при монтировании.
+  const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(() => peekLatestMarketSnapshots('ofisy_bc'));
   // Только слаг и площадь каждого лота (~618 строк, два поля) — для фильтра
   // «нужен офис от N м²» (offerIndex ниже; блок «Сейчас сдаётся» переехал на
   // /minsk/bcminsk/analytics, но тот же offerIndex нужен и здесь для чипа).
-  const [lotSizes, setLotSizes] = useState<{ businessCenterSlug: string; size: number }[] | null>(null);
+  const [lotSizes, setLotSizes] = useState<{ businessCenterSlug: string; size: number }[] | null>(peekBusinessCenterLotSizes);
   // Состояние фильтра живёт в URL, не в useState (К4): хаб-URL задаёт одну
   // ось и остаётся индексируемым входом, всё остальное — query-параметры,
   // которыми можно поделиться ссылкой. Раньше клиентским был только

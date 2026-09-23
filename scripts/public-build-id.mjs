@@ -42,6 +42,11 @@ const EXTRA_FILES = [
   'public/fonts/Montserrat-Medium.woff2',
   'public/fonts/Montserrat-SemiBold.woff2',
   'public/fonts/Montserrat-ExtraBold.woff2',
+  // 2026-09-23 — пока Supabase закрыт, страницы раздела БЦ рендерятся из
+  // этого снимка (scripts/generate-catalog-data.mjs), и пререндер решает,
+  // рендерить ли их заново, по этому отпечатку. Обновили снимок — отпечаток
+  // другой, и снапшоты раздела подтянут новые данные, а не останутся копией.
+  'scripts/catalog-data-fallback.json.gz',
 ];
 // Единственный файл, из которого динамические импорты НЕ считаем публичными
 // (там за ними стоят админ-страницы, см. шапку).

@@ -5,7 +5,7 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setGenericPageMeta } from '../lib/pageMeta';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
-import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
+import { fetchLatestMarketSnapshots, peekLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { shortName } from '../lib/businessCenterDisplay';
 import { fmtYears } from '../lib/businessCenterAnalytics';
@@ -82,7 +82,9 @@ export function BusinessCentersGuidePage() {
   // готовой разметки пререндера и без прыжка вёрстки. Нет снимка (SPA-
   // переход, страница вне раздела) — как раньше, null и запрос ниже.
   const [centers, setCenters] = useState<BusinessCenter[] | null>(snapshotBusinessCenters);
-  const [snapshots, setSnapshots] = useState<MarketSnapshot[] | null>(null);
+  // Первый кадр — с уже пришедшими данными сборки, как в пререндер-снапшоте
+  // (peekBuildData в src/lib/buildData.ts), иначе блок прыгает при монтировании.
+  const [snapshots, setSnapshots] = useState<MarketSnapshot[] | null>(() => peekLatestMarketSnapshots(GUIDE_SEGMENT));
 
   useEffect(() => {
     fetchBusinessCenters()
