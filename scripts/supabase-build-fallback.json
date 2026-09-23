@@ -1,0 +1,4960 @@
+{
+  "generatedAt": "2026-09-23T05:27:12Z",
+  "queries": {
+    "objects?select=landing_slug&landing_slug=not.is.null": [
+      {
+        "landing_slug": "redstorage"
+      },
+      {
+        "landing_slug": "one"
+      }
+    ],
+    "business_centers?select=address": [
+      {
+        "address": "г. Минск, ул. Хоружей, 25к3"
+      },
+      {
+        "address": "г. Минск, ул. Скорины, 2"
+      },
+      {
+        "address": "г. Минск, ул. Пинская, 28а"
+      },
+      {
+        "address": "г. Минск, пр-т Независимости, 117a"
+      },
+      {
+        "address": "г. Минск, ул. Мележа, 5/2"
+      },
+      {
+        "address": "г. Минск, ул. Мстиславца, 9"
+      },
+      {
+        "address": "г. Минск, Меньковский тракт, 23"
+      },
+      {
+        "address": "г. Минск, ул. Амураторская, 4"
+      },
+      {
+        "address": "г. Минск, ул. Немига, 5"
+      },
+      {
+        "address": "г. Минск, ул. Богдановича, 155Б"
+      },
+      {
+        "address": "г. Минск, ул. Змитрока Бядули, 11"
+      },
+      {
+        "address": "г. Минск, пр-т Победителей, 59"
+      },
+      {
+        "address": "г. Минск, ул. Сурганова, 41"
+      },
+      {
+        "address": "г. Минск, Логойский тракт, 37"
+      },
+      {
+        "address": "г. Минск, ул. Люксембург, 95"
+      },
+      {
+        "address": "г. Минск, ул. Орловская, 40 А"
+      },
+      {
+        "address": "г. Минск, ул. Прушинских, 31а"
+      },
+      {
+        "address": "г. Минск, ул. Кальварийская, 42"
+      },
+      {
+        "address": "г. Минск, Центральный район, ул. Нововиленская, 27"
+      },
+      {
+        "address": "г. Минск, ул. Свердлова, 2"
+      },
+      {
+        "address": "г. Минск, ул. Клары Цеткин, 51"
+      },
+      {
+        "address": "г. Минск, Логойский тракт, 22а/22б"
+      },
+      {
+        "address": "г. Минск, ул. Гурского, 44"
+      },
+      {
+        "address": "г. Минск, Энгельса 34А"
+      },
+      {
+        "address": "г. Минск, ул. Воронянского, 7а"
+      },
+      {
+        "address": "г. Минск, Первомайский район, ул. Толбухина, 2"
+      },
+      {
+        "address": "г. Минск, ул. Гинтовта, 1"
+      },
+      {
+        "address": "г. Минск, ул. Льва Толстого, 10"
+      },
+      {
+        "address": "г. Минск, ул. Жуковского, 11А"
+      },
+      {
+        "address": "г. Минск, пр-т Дзержинского, 57"
+      },
+      {
+        "address": "г. Минск, пр-т Дзержинского, 3Б"
+      },
+      {
+        "address": "г. Минск, ул. Тимирязева, 67"
+      },
+      {
+        "address": "г. Минск, ул. Хоружей, 4"
+      },
+      {
+        "address": "г. Минск, ул. Лучины, 5"
+      },
+      {
+        "address": "г. Минск, пр-т Победителей, 7а"
+      },
+      {
+        "address": "г. Минск, МКАД, 303"
+      },
+      {
+        "address": "г. Минск, ул. Шафарнянская, 11"
+      },
+      {
+        "address": "Минская область, д. Боровая, 1"
+      },
+      {
+        "address": "г. Минск, пр-т Победителей, 98"
+      },
+      {
+        "address": "г. Минск, ул. Мележа, 1"
+      },
+      {
+        "address": "г. Минск, пр-т Независимости, 58В"
+      },
+      {
+        "address": "г. Минск, ул. Огинского, 6"
+      },
+      {
+        "address": "г. Минск, ул. 3-я Щорса, 9"
+      },
+      {
+        "address": "г. Минск, ул. Горецкого, 14"
+      },
+      {
+        "address": "г. Минск, ул. Нарочанская, 11"
+      },
+      {
+        "address": "г. Минск, ул. Свердлова, 11"
+      },
+      {
+        "address": "г. Минск, пр-т Партизанский, 178"
+      },
+      {
+        "address": "г. Минск, ул. Хоружей, 1а"
+      },
+      {
+        "address": "г. Минск, ул. Казинца, 11А"
+      },
+      {
+        "address": "г. Минск, ул. Притыцкого, 29"
+      },
+      {
+        "address": "г. Минск, ул. Платонова, 1Б"
+      },
+      {
+        "address": "г. Минск, пр-т Победителей, 100"
+      },
+      {
+        "address": "г. Минск, пер. 4-й Кольцова, 51"
+      },
+      {
+        "address": "г. Минск, ул. Болеслава Берута, 3Б"
+      },
+      {
+        "address": "г. Минск, Советский район, ул. Якуба Коласа, 73, корп. 3"
+      },
+      {
+        "address": "г. Минск, ул. Скрыганова, 6А"
+      },
+      {
+        "address": "г. Минск, ул. Карастояновой, 32"
+      },
+      {
+        "address": "г. Минск, ул. Клары Цеткин, 51а"
+      },
+      {
+        "address": "г. Минск, ул. Аранская, 8"
+      },
+      {
+        "address": "г. Минск, ул. Сурганова, 43"
+      },
+      {
+        "address": "г. Минск, Октябрьский район, проспект Мира, район «Минск Мир»"
+      },
+      {
+        "address": "г. Минск, ул. Московская, 22"
+      },
+      {
+        "address": "г. Минск, ул. Бирюзова, 10А"
+      },
+      {
+        "address": "г. Минск, ул. Тиражная, 150"
+      },
+      {
+        "address": "г. Минск, ул. Некрасова, 114"
+      },
+      {
+        "address": "г. Минск, ул. Филимонова, 57"
+      },
+      {
+        "address": "г. Минск, ул. Филимонова, 15"
+      },
+      {
+        "address": "г. Минск, Фрунзенский район, ул. Каменногорская, 47"
+      },
+      {
+        "address": "г. Минск, ул. Интернациональная, 36"
+      },
+      {
+        "address": "г. Минск, ул. Немига, 40"
+      },
+      {
+        "address": "г. Минск, ул. Краснозвездная, 18Б"
+      },
+      {
+        "address": "г. Минск, ул. Гамарника, 30"
+      },
+      {
+        "address": "г. Минск, ул. Ольшевского, 20/11"
+      },
+      {
+        "address": "г. Минск, ул. Филимонова, 25г"
+      },
+      {
+        "address": "г. Минск, ул. Притыцкого, 27а"
+      },
+      {
+        "address": "г. Минск, ул. Железнодорожная, 33А"
+      },
+      {
+        "address": "г. Минск, пр-т Победителей, 63/В"
+      },
+      {
+        "address": "г. Минск, Первомайский район, д. Копище, ул. Лопатина, 7А"
+      },
+      {
+        "address": "г. Минск, Московский район, ул. К. Либкнехта, 66"
+      },
+      {
+        "address": "г. Минск, ул. Лобанка, 79"
+      },
+      {
+        "address": "г. Минск, ул. Сурганова, 57б"
+      },
+      {
+        "address": "г. Минск, ул. Скрыганова, 14"
+      },
+      {
+        "address": "г. Минск, ул. Толстого, 8"
+      },
+      {
+        "address": "г. Минск, ул. Пономаренко, 35а"
+      },
+      {
+        "address": "г. Минск, ул. Притыцкого, 79"
+      },
+      {
+        "address": "г. Минск, ул. Натуралистов, 3"
+      },
+      {
+        "address": "г. Минск, ул. Платонова, 49"
+      },
+      {
+        "address": "г. Минск, ул. Чапаева, 4а"
+      },
+      {
+        "address": "г. Минск, ул. Либаво-Роменская, 23"
+      },
+      {
+        "address": "г. Минск, ул. Мавра, 41"
+      },
+      {
+        "address": "г. Минск, пр-т Дзержинского, 5"
+      },
+      {
+        "address": "г. Минск, пер. 1-й Загородный, 20"
+      },
+      {
+        "address": "Минский район, Новодворский сельсовет, 40/2 (Большое Стиклево)"
+      },
+      {
+        "address": "г. Минск, ул. Железнодорожная, 33"
+      },
+      {
+        "address": "г. Минск, ул. Лобанка, 77"
+      },
+      {
+        "address": "г. Минск, Большое Стиклево 83"
+      },
+      {
+        "address": "г. Минск, пр-т Победителей, 103"
+      },
+      {
+        "address": "г. Минск, ул. Скорины, 8"
+      },
+      {
+        "address": "г. Минск, пр-т Победителей, 89/3"
+      },
+      {
+        "address": "г. Минск, ул. Могилевская, 39а"
+      },
+      {
+        "address": "г. Минск, Логойский тракт, 15 к.4"
+      },
+      {
+        "address": "г. Минск, ул. Брикета, 30"
+      },
+      {
+        "address": "г. Минск, ул. Зыбицкая, 6"
+      },
+      {
+        "address": "г. Минск, ул. Одоевского, 117"
+      },
+      {
+        "address": "г. Минск, ул. Суражская, 10"
+      },
+      {
+        "address": "г. Минск, ул. Мясникова, 70"
+      },
+      {
+        "address": "г. Минск, ул. Тимирязева, 72"
+      },
+      {
+        "address": "г. Минск, пр-т Независимости, 186"
+      },
+      {
+        "address": "г. Минск, ул. Левкова, 43"
+      },
+      {
+        "address": "г. Минск, пер. Козлова, 29"
+      },
+      {
+        "address": "г. Минск, ул. Неманская, 24"
+      },
+      {
+        "address": "г. Минск, пер. Софьи Ковалевской, 60"
+      },
+      {
+        "address": "г. Минск, ул. Машиностроителей, 29"
+      },
+      {
+        "address": "г. Минск, пер. Козлова, 7"
+      },
+      {
+        "address": "г. Минск, ул. Володько, 24А"
+      },
+      {
+        "address": "г. Минск, ул. Короля, 51"
+      },
+      {
+        "address": "г. Минск, ул. Ольшевского, 22"
+      },
+      {
+        "address": "г. Минск, ул. Платонова, 20Б"
+      },
+      {
+        "address": "г. Минск, ул. Сурганова, 61"
+      },
+      {
+        "address": "г. Минск, Центральный район, пр-т Независимости, 32А"
+      },
+      {
+        "address": "г. Минск, пр-т Независимости, 173"
+      },
+      {
+        "address": "г. Минск, пр-т Партизанский, 79"
+      },
+      {
+        "address": "г. Минск, ул. Притыцкого, 156"
+      },
+      {
+        "address": "г. Минск, ул. Немига, 44"
+      },
+      {
+        "address": "г. Минск, ул. Клары Цеткин, 24"
+      },
+      {
+        "address": "г. Минск, пр-т Дзержинского, 104"
+      },
+      {
+        "address": "Минская область, Смолевичский район, индустриальный парк «Великий камень», Пекинский проспект, 31"
+      },
+      {
+        "address": "г. Минск, пр-т Победителей, 104–110"
+      },
+      {
+        "address": "г. Минск, ул. Интернациональная, 38"
+      },
+      {
+        "address": "г. Минск, пер. Козлова, 25"
+      },
+      {
+        "address": "г. Минск, ул. Долгобродская, 16"
+      },
+      {
+        "address": "г. Минск, ул. Толбухина, 3а"
+      },
+      {
+        "address": "г. Минск, пр-т Независимости, 169"
+      },
+      {
+        "address": "г. Минск, Московский район, пр-т Жукова, 29"
+      },
+      {
+        "address": "г. Минск, ул. Домбровская, 9"
+      },
+      {
+        "address": "г. Минск, ул. Кирова, 8"
+      },
+      {
+        "address": "г. Минск, ул. Притыцкого, 2/3"
+      },
+      {
+        "address": "г. Минск, пр-т Дзержинского, 8"
+      },
+      {
+        "address": "г. Минск, пр-т Независимости, 177 (мкр. Уручье)"
+      },
+      {
+        "address": "г. Минск, ул. Могилёвская, 1"
+      },
+      {
+        "address": "г. Минск, Заводской район, пр-т Партизанский, 178/2"
+      }
+    ],
+    "business_centers?select=business_class,district": [
+      {
+        "business_class": "B",
+        "district": "Советский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "C",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "B",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "C",
+        "district": "Советский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "C",
+        "district": "Московский"
+      },
+      {
+        "business_class": "C",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "B",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "C",
+        "district": "Советский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Партизанский"
+      },
+      {
+        "business_class": "B",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "B",
+        "district": "Советский"
+      },
+      {
+        "business_class": "B",
+        "district": "Советский"
+      },
+      {
+        "business_class": "B",
+        "district": "Московский"
+      },
+      {
+        "business_class": "C",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "C",
+        "district": "Ленинский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "B+",
+        "district": "Ленинский"
+      },
+      {
+        "business_class": "B",
+        "district": "Московский"
+      },
+      {
+        "business_class": "C",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Московский"
+      },
+      {
+        "business_class": "B",
+        "district": "Ленинский"
+      },
+      {
+        "business_class": "C",
+        "district": "Октябрьский"
+      },
+      {
+        "business_class": "B",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "B",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "A",
+        "district": "Октябрьский"
+      },
+      {
+        "business_class": "C",
+        "district": "Октябрьский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Московский"
+      },
+      {
+        "business_class": "B",
+        "district": "Московский"
+      },
+      {
+        "business_class": "B",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "B+",
+        "district": "Советский"
+      },
+      {
+        "business_class": "B",
+        "district": "Ленинский"
+      },
+      {
+        "business_class": "B",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "B",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "B",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "C",
+        "district": "Советский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "C",
+        "district": "Советский"
+      },
+      {
+        "business_class": "C",
+        "district": "Советский"
+      },
+      {
+        "business_class": "B",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "C",
+        "district": "Московский"
+      },
+      {
+        "business_class": "C",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "C",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "B+",
+        "district": "Ленинский"
+      },
+      {
+        "business_class": "B",
+        "district": "Партизанский"
+      },
+      {
+        "business_class": "C",
+        "district": "Советский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Октябрьский"
+      },
+      {
+        "business_class": "B",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "B",
+        "district": "Партизанский"
+      },
+      {
+        "business_class": "B",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "C",
+        "district": "Советский"
+      },
+      {
+        "business_class": "C",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "A",
+        "district": "Советский"
+      },
+      {
+        "business_class": "C",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "C",
+        "district": "Советский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Московский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Ленинский"
+      },
+      {
+        "business_class": "B",
+        "district": "Советский"
+      },
+      {
+        "business_class": "A",
+        "district": "Октябрьский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Московский"
+      },
+      {
+        "business_class": "B",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "B",
+        "district": "Советский"
+      },
+      {
+        "business_class": "C",
+        "district": "Советский"
+      },
+      {
+        "business_class": "A",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "B",
+        "district": "Партизанский"
+      },
+      {
+        "business_class": "B",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "A",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "B",
+        "district": "Московский"
+      },
+      {
+        "business_class": "C",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "C",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "B",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "B",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "B",
+        "district": "Московский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "B",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "C",
+        "district": "Московский"
+      },
+      {
+        "business_class": "B",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "B",
+        "district": "Советский"
+      },
+      {
+        "business_class": "C",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Октябрьский"
+      },
+      {
+        "business_class": "C",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Партизанский"
+      },
+      {
+        "business_class": "B",
+        "district": "Ленинский"
+      },
+      {
+        "business_class": "B",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Московский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "B",
+        "district": "Заводской"
+      },
+      {
+        "business_class": "B",
+        "district": "Московский"
+      },
+      {
+        "business_class": "B",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "B",
+        "district": "Заводской"
+      },
+      {
+        "business_class": "B",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "B",
+        "district": "Партизанский"
+      },
+      {
+        "business_class": "B",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "B",
+        "district": "Октябрьский"
+      },
+      {
+        "business_class": "B",
+        "district": "Советский"
+      },
+      {
+        "business_class": "C",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "B",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "B",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "B",
+        "district": "Московский"
+      },
+      {
+        "business_class": "A",
+        "district": "Московский"
+      },
+      {
+        "business_class": "B",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "B",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "B",
+        "district": "Октябрьский"
+      },
+      {
+        "business_class": "C",
+        "district": "Партизанский"
+      },
+      {
+        "business_class": "C",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "C",
+        "district": "Московский"
+      },
+      {
+        "business_class": "C",
+        "district": "Заводской"
+      },
+      {
+        "business_class": "C",
+        "district": "Партизанский"
+      },
+      {
+        "business_class": "C",
+        "district": "Октябрьский"
+      },
+      {
+        "business_class": "C",
+        "district": "Московский"
+      },
+      {
+        "business_class": "C",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "C",
+        "district": "Советский"
+      },
+      {
+        "business_class": "B",
+        "district": "Советский"
+      },
+      {
+        "business_class": "A",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "A",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "A",
+        "district": "Заводской"
+      },
+      {
+        "business_class": "B",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "A",
+        "district": "Московский"
+      },
+      {
+        "business_class": "A",
+        "district": "Московский"
+      },
+      {
+        "business_class": "A",
+        "district": "Московский"
+      },
+      {
+        "business_class": "A",
+        "district": "Великий камень"
+      },
+      {
+        "business_class": "B",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "A",
+        "district": "Центральный"
+      },
+      {
+        "business_class": "B",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "B",
+        "district": "Партизанский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "B",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Московский"
+      },
+      {
+        "business_class": "B",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "B",
+        "district": "Ленинский"
+      },
+      {
+        "business_class": "B",
+        "district": "Фрунзенский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Московский"
+      },
+      {
+        "business_class": "B+",
+        "district": "Первомайский"
+      },
+      {
+        "business_class": "A",
+        "district": "Октябрьский"
+      },
+      {
+        "business_class": "B",
+        "district": "Заводской"
+      }
+    ],
+    "business_centers?select=slug": [
+      {
+        "slug": "21-vek"
+      },
+      {
+        "slug": "a-100"
+      },
+      {
+        "slug": "abk-park"
+      },
+      {
+        "slug": "absheron"
+      },
+      {
+        "slug": "aden"
+      },
+      {
+        "slug": "ajax"
+      },
+      {
+        "slug": "akademiya"
+      },
+      {
+        "slug": "aleksandrov-passazh"
+      },
+      {
+        "slug": "alyans"
+      },
+      {
+        "slug": "amtel"
+      },
+      {
+        "slug": "ankor"
+      },
+      {
+        "slug": "antares"
+      },
+      {
+        "slug": "azimut"
+      },
+      {
+        "slug": "bk-capital-palace"
+      },
+      {
+        "slug": "bonhotel"
+      },
+      {
+        "slug": "campus"
+      },
+      {
+        "slug": "caspian-plaza"
+      },
+      {
+        "slug": "centropol"
+      },
+      {
+        "slug": "d16"
+      },
+      {
+        "slug": "dana-center"
+      },
+      {
+        "slug": "delphi"
+      },
+      {
+        "slug": "domashevsky"
+      },
+      {
+        "slug": "ekspobel"
+      },
+      {
+        "slug": "engelsa-34a"
+      },
+      {
+        "slug": "evropa"
+      },
+      {
+        "slug": "farengeyt"
+      },
+      {
+        "slug": "flagman"
+      },
+      {
+        "slug": "fortune"
+      },
+      {
+        "slug": "forum-plaza"
+      },
+      {
+        "slug": "futuris"
+      },
+      {
+        "slug": "gazprom"
+      },
+      {
+        "slug": "georgievskiy"
+      },
+      {
+        "slug": "germes"
+      },
+      {
+        "slug": "gradient"
+      },
+      {
+        "slug": "green-city"
+      },
+      {
+        "slug": "green-plaza"
+      },
+      {
+        "slug": "hi-tech"
+      },
+      {
+        "slug": "ibc"
+      },
+      {
+        "slug": "imperial"
+      },
+      {
+        "slug": "imperskiy"
+      },
+      {
+        "slug": "info"
+      },
+      {
+        "slug": "izokom-plaza"
+      },
+      {
+        "slug": "kamennogorsky"
+      },
+      {
+        "slug": "kapital"
+      },
+      {
+        "slug": "kaskad-alfa"
+      },
+      {
+        "slug": "kiroff-center"
+      },
+      {
+        "slug": "kolizey"
+      },
+      {
+        "slug": "komkon"
+      },
+      {
+        "slug": "kontur"
+      },
+      {
+        "slug": "krasavik"
+      },
+      {
+        "slug": "levada"
+      },
+      {
+        "slug": "logoyskiy-trakt-15-k-4"
+      },
+      {
+        "slug": "magistr"
+      },
+      {
+        "slug": "medvezhino"
+      },
+      {
+        "slug": "metropol"
+      },
+      {
+        "slug": "mfc-minsk-mir"
+      },
+      {
+        "slug": "na-torgovoy-naberezhnoy"
+      },
+      {
+        "slug": "navigator"
+      },
+      {
+        "slug": "nemiga-siti"
+      },
+      {
+        "slug": "nord-siti"
+      },
+      {
+        "slug": "ofisinvest"
+      },
+      {
+        "slug": "okean"
+      },
+      {
+        "slug": "omega-tower"
+      },
+      {
+        "slug": "optima"
+      },
+      {
+        "slug": "orlan"
+      },
+      {
+        "slug": "park"
+      },
+      {
+        "slug": "park-plaza"
+      },
+      {
+        "slug": "parus"
+      },
+      {
+        "slug": "per-4-y-koltsova-51"
+      },
+      {
+        "slug": "per-kozlova-7"
+      },
+      {
+        "slug": "platinum"
+      },
+      {
+        "slug": "pokrovskiy"
+      },
+      {
+        "slug": "port"
+      },
+      {
+        "slug": "port-2"
+      },
+      {
+        "slug": "portal"
+      },
+      {
+        "slug": "pr-t-dzerzhinskogo-8"
+      },
+      {
+        "slug": "pr-t-nezavisimosti-186"
+      },
+      {
+        "slug": "premier"
+      },
+      {
+        "slug": "prizma"
+      },
+      {
+        "slug": "prospekt"
+      },
+      {
+        "slug": "pushkinsky"
+      },
+      {
+        "slug": "riviera-plaza"
+      },
+      {
+        "slug": "royal-plaza"
+      },
+      {
+        "slug": "rubin-plaza"
+      },
+      {
+        "slug": "rum-global"
+      },
+      {
+        "slug": "s-union"
+      },
+      {
+        "slug": "saako"
+      },
+      {
+        "slug": "shanter-hill"
+      },
+      {
+        "slug": "sigma"
+      },
+      {
+        "slug": "siluet"
+      },
+      {
+        "slug": "silver-tower"
+      },
+      {
+        "slug": "sky-towers"
+      },
+      {
+        "slug": "smile-plaza"
+      },
+      {
+        "slug": "sofit"
+      },
+      {
+        "slug": "solo"
+      },
+      {
+        "slug": "strateg-1"
+      },
+      {
+        "slug": "strateg-3"
+      },
+      {
+        "slug": "surganova"
+      },
+      {
+        "slug": "sv-plaza"
+      },
+      {
+        "slug": "talisman"
+      },
+      {
+        "slug": "team-building"
+      },
+      {
+        "slug": "tehnopark"
+      },
+      {
+        "slug": "terminal"
+      },
+      {
+        "slug": "terrum"
+      },
+      {
+        "slug": "time"
+      },
+      {
+        "slug": "titan"
+      },
+      {
+        "slug": "titul"
+      },
+      {
+        "slug": "tivali-tsentr"
+      },
+      {
+        "slug": "traktsentr-b-s-a-t"
+      },
+      {
+        "slug": "ul-amuratorskaya-4"
+      },
+      {
+        "slug": "ul-bogdanovicha-155b"
+      },
+      {
+        "slug": "ul-briketa-30"
+      },
+      {
+        "slug": "ul-goretskogo-14"
+      },
+      {
+        "slug": "ul-internatsionalnaya-36"
+      },
+      {
+        "slug": "ul-karastoyanovoy-32"
+      },
+      {
+        "slug": "ul-korolya-51"
+      },
+      {
+        "slug": "ul-krasnozvezdnaya-18b"
+      },
+      {
+        "slug": "ul-levkova-43"
+      },
+      {
+        "slug": "ul-lobanka-79"
+      },
+      {
+        "slug": "ul-myasnikova-70"
+      },
+      {
+        "slug": "ul-narochanskaya-11"
+      },
+      {
+        "slug": "ul-naturalistov-3"
+      },
+      {
+        "slug": "ul-nemanskaya-24"
+      },
+      {
+        "slug": "ul-olshevskogo-22"
+      },
+      {
+        "slug": "ul-orlovskaya-40-a"
+      },
+      {
+        "slug": "ul-pinskaya-28a"
+      },
+      {
+        "slug": "ul-platonova-20b"
+      },
+      {
+        "slug": "ul-skryganova-6a"
+      },
+      {
+        "slug": "ul-sverdlova-2"
+      },
+      {
+        "slug": "ul-timiryazeva-72"
+      },
+      {
+        "slug": "ul-tolbuhina-3a"
+      },
+      {
+        "slug": "ul-volodko-24a"
+      },
+      {
+        "slug": "ul-zheleznodorozhnaya-33a"
+      },
+      {
+        "slug": "ul-zhukovskogo-11a"
+      },
+      {
+        "slug": "v"
+      },
+      {
+        "slug": "victoria-plaza"
+      },
+      {
+        "slug": "viktoriya-olimp"
+      },
+      {
+        "slug": "volna"
+      },
+      {
+        "slug": "vremya"
+      },
+      {
+        "slug": "zebra"
+      },
+      {
+        "slug": "zelenyy-lug"
+      }
+    ],
+    "business_centers?select=nearest_metro_stations&nearest_metro_stations=not.is.null": [
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Площадь Якуба Коласа",
+            "color": "#0064AF",
+            "distanceMeters": 1800
+          },
+          {
+            "line": "Московская линия",
+            "name": "Площадь Победы",
+            "color": "#0064AF",
+            "distanceMeters": 1900
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Восток",
+            "color": "#0064AF",
+            "distanceMeters": 900
+          },
+          {
+            "line": "Московская линия",
+            "name": "Московская",
+            "color": "#0064AF",
+            "distanceMeters": 1200
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Молодёжная",
+            "color": "#E90101",
+            "distanceMeters": 420
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Пушкинская",
+            "color": "#E90101",
+            "distanceMeters": 1400
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Фрунзенская",
+            "color": "#E90101",
+            "distanceMeters": 1600
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Московская",
+            "color": "#0064AF",
+            "distanceMeters": 650
+          },
+          {
+            "line": "Московская линия",
+            "name": "Восток",
+            "color": "#0064AF",
+            "distanceMeters": 1000
+          },
+          {
+            "line": "Московская линия",
+            "name": "Парк Челюскинцев",
+            "color": "#0064AF",
+            "distanceMeters": 1700
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Восток",
+            "color": "#0064AF",
+            "distanceMeters": 190
+          },
+          {
+            "line": "Московская линия",
+            "name": "Борисовский тракт",
+            "color": "#0064AF",
+            "distanceMeters": 1500
+          },
+          {
+            "line": "Московская линия",
+            "name": "Московская",
+            "color": "#0064AF",
+            "distanceMeters": 1500
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Молодёжная",
+            "color": "#E90101",
+            "distanceMeters": 650
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Фрунзенская",
+            "color": "#E90101",
+            "distanceMeters": 900
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Юбилейная площадь",
+            "color": "#3EA332",
+            "distanceMeters": 1100
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Немига",
+            "color": "#E90101",
+            "distanceMeters": 550
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Фрунзенская",
+            "color": "#E90101",
+            "distanceMeters": 650
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Юбилейная площадь",
+            "color": "#3EA332",
+            "distanceMeters": 700
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Площадь Победы",
+            "color": "#0064AF",
+            "distanceMeters": 900
+          },
+          {
+            "line": "Московская линия",
+            "name": "Площадь Якуба Коласа",
+            "color": "#0064AF",
+            "distanceMeters": 1600
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Пролетарская",
+            "color": "#E90101",
+            "distanceMeters": 1800
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Молодёжная",
+            "color": "#E90101",
+            "distanceMeters": 1741
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Фрунзенская",
+            "color": "#E90101",
+            "distanceMeters": 1996
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Академия наук",
+            "color": "#0064AF",
+            "distanceMeters": 700
+          },
+          {
+            "line": "Московская линия",
+            "name": "Площадь Якуба Коласа",
+            "color": "#0064AF",
+            "distanceMeters": 1400
+          },
+          {
+            "line": "Московская линия",
+            "name": "Парк Челюскинцев",
+            "color": "#0064AF",
+            "distanceMeters": 1700
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Грушевка",
+            "color": "#0064AF",
+            "distanceMeters": 850
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Площадь Франтишка Богушевича",
+            "color": "#3EA332",
+            "distanceMeters": 1100
+          },
+          {
+            "line": "Московская линия",
+            "name": "Институт культуры",
+            "color": "#0064AF",
+            "distanceMeters": 1900
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Молодёжная",
+            "color": "#E90101",
+            "distanceMeters": 420
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Пушкинская",
+            "color": "#E90101",
+            "distanceMeters": 1300
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Фрунзенская",
+            "color": "#E90101",
+            "distanceMeters": 1500
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Площадь Ленина",
+            "color": "#0064AF",
+            "distanceMeters": 500
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Площадь Франтишка Богушевича",
+            "color": "#3EA332",
+            "distanceMeters": 850
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Купаловская",
+            "color": "#E90101",
+            "distanceMeters": 1000
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Фрунзенская",
+            "color": "#E90101",
+            "distanceMeters": 470
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Юбилейная площадь",
+            "color": "#3EA332",
+            "distanceMeters": 650
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Молодёжная",
+            "color": "#E90101",
+            "distanceMeters": 700
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Михалово",
+            "color": "#0064AF",
+            "distanceMeters": 1200
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Купаловская",
+            "color": "#E90101",
+            "distanceMeters": 450
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Первомайская",
+            "color": "#E90101",
+            "distanceMeters": 650
+          },
+          {
+            "line": "Московская линия",
+            "name": "Октябрьская",
+            "color": "#0064AF",
+            "distanceMeters": 750
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Зеленолужская линия",
+            "name": "Ковальская Слобода",
+            "color": "#3EA332",
+            "distanceMeters": 480
+          },
+          {
+            "line": "Московская линия",
+            "name": "Институт культуры",
+            "color": "#0064AF",
+            "distanceMeters": 1000
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Аэродромная",
+            "color": "#3EA332",
+            "distanceMeters": 1400
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Парк Челюскинцев",
+            "color": "#0064AF",
+            "distanceMeters": 170
+          },
+          {
+            "line": "Московская линия",
+            "name": "Московская",
+            "color": "#0064AF",
+            "distanceMeters": 900
+          },
+          {
+            "line": "Московская линия",
+            "name": "Академия наук",
+            "color": "#0064AF",
+            "distanceMeters": 1200
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Борисовский тракт",
+            "color": "#0064AF",
+            "distanceMeters": 1400
+          },
+          {
+            "line": "Московская линия",
+            "name": "Уручье",
+            "color": "#0064AF",
+            "distanceMeters": 1500
+          },
+          {
+            "line": "Московская линия",
+            "name": "Восток",
+            "color": "#0064AF",
+            "distanceMeters": 1900
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Институт культуры",
+            "color": "#0064AF",
+            "distanceMeters": 270
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Вокзальная",
+            "color": "#3EA332",
+            "distanceMeters": 370
+          },
+          {
+            "line": "Московская линия",
+            "name": "Площадь Ленина",
+            "color": "#0064AF",
+            "distanceMeters": 700
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Зеленолужская линия",
+            "name": "Ковальская Слобода",
+            "color": "#3EA332",
+            "distanceMeters": 390
+          },
+          {
+            "line": "Московская линия",
+            "name": "Институт культуры",
+            "color": "#0064AF",
+            "distanceMeters": 950
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Вокзальная",
+            "color": "#3EA332",
+            "distanceMeters": 1200
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Михалово",
+            "color": "#0064AF",
+            "distanceMeters": 100
+          },
+          {
+            "line": "Московская линия",
+            "name": "Петровщина",
+            "color": "#0064AF",
+            "distanceMeters": 1500
+          },
+          {
+            "line": "Московская линия",
+            "name": "Грушевка",
+            "color": "#0064AF",
+            "distanceMeters": 1800
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Зеленолужская линия",
+            "name": "Площадь Франтишка Богушевича",
+            "color": "#3EA332",
+            "distanceMeters": 900
+          },
+          {
+            "line": "Московская линия",
+            "name": "Грушевка",
+            "color": "#0064AF",
+            "distanceMeters": 1000
+          },
+          {
+            "line": "Московская линия",
+            "name": "Институт культуры",
+            "color": "#0064AF",
+            "distanceMeters": 1600
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Пушкинская",
+            "color": "#E90101",
+            "distanceMeters": 1954
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Площадь Якуба Коласа",
+            "color": "#0064AF",
+            "distanceMeters": 350
+          },
+          {
+            "line": "Московская линия",
+            "name": "Площадь Победы",
+            "color": "#0064AF",
+            "distanceMeters": 1200
+          },
+          {
+            "line": "Московская линия",
+            "name": "Академия наук",
+            "color": "#0064AF",
+            "distanceMeters": 1400
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Немига",
+            "color": "#E90101",
+            "distanceMeters": 360
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Фрунзенская",
+            "color": "#E90101",
+            "distanceMeters": 750
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Юбилейная площадь",
+            "color": "#3EA332",
+            "distanceMeters": 800
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Уручье",
+            "color": "#0064AF",
+            "distanceMeters": 440
+          },
+          {
+            "line": "Московская линия",
+            "name": "Борисовский тракт",
+            "color": "#0064AF",
+            "distanceMeters": 1700
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Парк Челюскинцев",
+            "color": "#0064AF",
+            "distanceMeters": 1870
+          },
+          {
+            "line": "Московская линия",
+            "name": "Академия наук",
+            "color": "#0064AF",
+            "distanceMeters": 1998
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Площадь Якуба Коласа",
+            "color": "#0064AF",
+            "distanceMeters": 460
+          },
+          {
+            "line": "Московская линия",
+            "name": "Академия наук",
+            "color": "#0064AF",
+            "distanceMeters": 750
+          },
+          {
+            "line": "Московская линия",
+            "name": "Площадь Победы",
+            "color": "#0064AF",
+            "distanceMeters": 1300
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Борисовский тракт",
+            "color": "#0064AF",
+            "distanceMeters": 1400
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Грушевка",
+            "color": "#0064AF",
+            "distanceMeters": 470
+          },
+          {
+            "line": "Московская линия",
+            "name": "Михалово",
+            "color": "#0064AF",
+            "distanceMeters": 1500
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Площадь Ленина",
+            "color": "#0064AF",
+            "distanceMeters": 700
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Вокзальная",
+            "color": "#3EA332",
+            "distanceMeters": 850
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Купаловская",
+            "color": "#E90101",
+            "distanceMeters": 1100
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Могилёвская",
+            "color": "#E90101",
+            "distanceMeters": 1900
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Площадь Якуба Коласа",
+            "color": "#0064AF",
+            "distanceMeters": 140
+          },
+          {
+            "line": "Московская линия",
+            "name": "Площадь Победы",
+            "color": "#0064AF",
+            "distanceMeters": 900
+          },
+          {
+            "line": "Московская линия",
+            "name": "Академия наук",
+            "color": "#0064AF",
+            "distanceMeters": 1500
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Зеленолужская линия",
+            "name": "Аэродромная",
+            "color": "#3EA332",
+            "distanceMeters": 2000
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Спортивная",
+            "color": "#E90101",
+            "distanceMeters": 210
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Пушкинская",
+            "color": "#E90101",
+            "distanceMeters": 750
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Кунцевщина",
+            "color": "#E90101",
+            "distanceMeters": 2000
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Площадь Победы",
+            "color": "#0064AF",
+            "distanceMeters": 1200
+          },
+          {
+            "line": "Московская линия",
+            "name": "Площадь Якуба Коласа",
+            "color": "#0064AF",
+            "distanceMeters": 1700
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Пушкинская",
+            "color": "#E90101",
+            "distanceMeters": 600
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Спортивная",
+            "color": "#E90101",
+            "distanceMeters": 1800
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Молодёжная",
+            "color": "#E90101",
+            "distanceMeters": 1800
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Парк Челюскинцев",
+            "color": "#0064AF",
+            "distanceMeters": 1817
+          },
+          {
+            "line": "Московская линия",
+            "name": "Академия наук",
+            "color": "#0064AF",
+            "distanceMeters": 1996
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Молодёжная",
+            "color": "#E90101",
+            "distanceMeters": 700
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Пушкинская",
+            "color": "#E90101",
+            "distanceMeters": 1300
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Фрунзенская",
+            "color": "#E90101",
+            "distanceMeters": 1800
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Фрунзенская",
+            "color": "#E90101",
+            "distanceMeters": 550
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Молодёжная",
+            "color": "#E90101",
+            "distanceMeters": 700
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Юбилейная площадь",
+            "color": "#3EA332",
+            "distanceMeters": 700
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Пролетарская",
+            "color": "#E90101",
+            "distanceMeters": 1500
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Первомайская",
+            "color": "#E90101",
+            "distanceMeters": 1500
+          },
+          {
+            "line": "Московская линия",
+            "name": "Площадь Ленина",
+            "color": "#0064AF",
+            "distanceMeters": 1800
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Академия наук",
+            "color": "#0064AF",
+            "distanceMeters": 1000
+          },
+          {
+            "line": "Московская линия",
+            "name": "Площадь Якуба Коласа",
+            "color": "#0064AF",
+            "distanceMeters": 1600
+          },
+          {
+            "line": "Московская линия",
+            "name": "Парк Челюскинцев",
+            "color": "#0064AF",
+            "distanceMeters": 1900
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Зеленолужская линия",
+            "name": "Аэродромная",
+            "color": "#3EA332",
+            "distanceMeters": 110
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Ковальская Слобода",
+            "color": "#3EA332",
+            "distanceMeters": 1400
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Институт культуры",
+            "color": "#0064AF",
+            "distanceMeters": 60
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Вокзальная",
+            "color": "#3EA332",
+            "distanceMeters": 1000
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Площадь Франтишка Богушевича",
+            "color": "#3EA332",
+            "distanceMeters": 1200
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Молодёжная",
+            "color": "#E90101",
+            "distanceMeters": 1100
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Пушкинская",
+            "color": "#E90101",
+            "distanceMeters": 1200
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Московская",
+            "color": "#0064AF",
+            "distanceMeters": 1100
+          },
+          {
+            "line": "Московская линия",
+            "name": "Восток",
+            "color": "#0064AF",
+            "distanceMeters": 1300
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Московская",
+            "color": "#0064AF",
+            "distanceMeters": 1863
+          },
+          {
+            "line": "Московская линия",
+            "name": "Парк Челюскинцев",
+            "color": "#0064AF",
+            "distanceMeters": 1922
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Октябрьская",
+            "color": "#0064AF",
+            "distanceMeters": 280
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Купаловская",
+            "color": "#E90101",
+            "distanceMeters": 500
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Немига",
+            "color": "#E90101",
+            "distanceMeters": 650
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Зеленолужская линия",
+            "name": "Площадь Франтишка Богушевича",
+            "color": "#3EA332",
+            "distanceMeters": 500
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Юбилейная площадь",
+            "color": "#3EA332",
+            "distanceMeters": 800
+          },
+          {
+            "line": "Московская линия",
+            "name": "Площадь Ленина",
+            "color": "#0064AF",
+            "distanceMeters": 900
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Площадь Победы",
+            "color": "#0064AF",
+            "distanceMeters": 1200
+          },
+          {
+            "line": "Московская линия",
+            "name": "Площадь Якуба Коласа",
+            "color": "#0064AF",
+            "distanceMeters": 1200
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Пушкинская",
+            "color": "#E90101",
+            "distanceMeters": 1200
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Московская",
+            "color": "#0064AF",
+            "distanceMeters": 1800
+          },
+          {
+            "line": "Московская линия",
+            "name": "Парк Челюскинцев",
+            "color": "#0064AF",
+            "distanceMeters": 1900
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Спортивная",
+            "color": "#E90101",
+            "distanceMeters": 340
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Пушкинская",
+            "color": "#E90101",
+            "distanceMeters": 700
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Михалово",
+            "color": "#0064AF",
+            "distanceMeters": 800
+          },
+          {
+            "line": "Московская линия",
+            "name": "Петровщина",
+            "color": "#0064AF",
+            "distanceMeters": 1500
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Уручье",
+            "color": "#0064AF",
+            "distanceMeters": 1300
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Зеленолужская линия",
+            "name": "Площадь Франтишка Богушевича",
+            "color": "#3EA332",
+            "distanceMeters": 850
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Молодёжная",
+            "color": "#E90101",
+            "distanceMeters": 1100
+          },
+          {
+            "line": "Московская линия",
+            "name": "Институт культуры",
+            "color": "#0064AF",
+            "distanceMeters": 1700
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Академия наук",
+            "color": "#0064AF",
+            "distanceMeters": 1200
+          },
+          {
+            "line": "Московская линия",
+            "name": "Площадь Якуба Коласа",
+            "color": "#0064AF",
+            "distanceMeters": 1600
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Молодёжная",
+            "color": "#E90101",
+            "distanceMeters": 460
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Фрунзенская",
+            "color": "#E90101",
+            "distanceMeters": 1500
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Юбилейная площадь",
+            "color": "#3EA332",
+            "distanceMeters": 1800
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Институт культуры",
+            "color": "#0064AF",
+            "distanceMeters": 360
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Вокзальная",
+            "color": "#3EA332",
+            "distanceMeters": 440
+          },
+          {
+            "line": "Московская линия",
+            "name": "Площадь Ленина",
+            "color": "#0064AF",
+            "distanceMeters": 750
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Пушкинская",
+            "color": "#E90101",
+            "distanceMeters": 2000
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Кунцевщина",
+            "color": "#E90101",
+            "distanceMeters": 170
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Каменная горка",
+            "color": "#E90101",
+            "distanceMeters": 1200
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Спортивная",
+            "color": "#E90101",
+            "distanceMeters": 1600
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Парк Челюскинцев",
+            "color": "#0064AF",
+            "distanceMeters": 450
+          },
+          {
+            "line": "Московская линия",
+            "name": "Московская",
+            "color": "#0064AF",
+            "distanceMeters": 700
+          },
+          {
+            "line": "Московская линия",
+            "name": "Академия наук",
+            "color": "#0064AF",
+            "distanceMeters": 1500
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Академия наук",
+            "color": "#0064AF",
+            "distanceMeters": 1000
+          },
+          {
+            "line": "Московская линия",
+            "name": "Площадь Якуба Коласа",
+            "color": "#0064AF",
+            "distanceMeters": 1500
+          },
+          {
+            "line": "Московская линия",
+            "name": "Парк Челюскинцев",
+            "color": "#0064AF",
+            "distanceMeters": 1600
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Площадь Победы",
+            "color": "#0064AF",
+            "distanceMeters": 1200
+          },
+          {
+            "line": "Московская линия",
+            "name": "Площадь Якуба Коласа",
+            "color": "#0064AF",
+            "distanceMeters": 1800
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Пролетарская",
+            "color": "#E90101",
+            "distanceMeters": 2000
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Зеленолужская линия",
+            "name": "Аэродромная",
+            "color": "#3EA332",
+            "distanceMeters": 1300
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Ковальская Слобода",
+            "color": "#3EA332",
+            "distanceMeters": 1500
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Пушкинская",
+            "color": "#E90101",
+            "distanceMeters": 2000
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Грушевка",
+            "color": "#0064AF",
+            "distanceMeters": 900
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Площадь Франтишка Богушевича",
+            "color": "#3EA332",
+            "distanceMeters": 1000
+          },
+          {
+            "line": "Московская линия",
+            "name": "Институт культуры",
+            "color": "#0064AF",
+            "distanceMeters": 1800
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Молодёжная",
+            "color": "#E90101",
+            "distanceMeters": 120
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Фрунзенская",
+            "color": "#E90101",
+            "distanceMeters": 1400
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Юбилейная площадь",
+            "color": "#3EA332",
+            "distanceMeters": 1600
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Партизанская",
+            "color": "#E90101",
+            "distanceMeters": 600
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Тракторный завод",
+            "color": "#E90101",
+            "distanceMeters": 1900
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Автозаводская",
+            "color": "#E90101",
+            "distanceMeters": 1900
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Михалово",
+            "color": "#0064AF",
+            "distanceMeters": 750
+          },
+          {
+            "line": "Московская линия",
+            "name": "Петровщина",
+            "color": "#0064AF",
+            "distanceMeters": 1500
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Каменная горка",
+            "color": "#E90101",
+            "distanceMeters": 1956
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Могилёвская",
+            "color": "#E90101",
+            "distanceMeters": 943
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Борисовский тракт",
+            "color": "#0064AF",
+            "distanceMeters": 1800
+          },
+          {
+            "line": "Московская линия",
+            "name": "Восток",
+            "color": "#0064AF",
+            "distanceMeters": 1800
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Зеленолужская линия",
+            "name": "Вокзальная",
+            "color": "#3EA332",
+            "distanceMeters": 1100
+          },
+          {
+            "line": "Московская линия",
+            "name": "Институт культуры",
+            "color": "#0064AF",
+            "distanceMeters": 1300
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Ковальская Слобода",
+            "color": "#3EA332",
+            "distanceMeters": 1300
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Каменная горка",
+            "color": "#E90101",
+            "distanceMeters": 1600
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Октябрьская",
+            "color": "#0064AF",
+            "distanceMeters": 390
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Купаловская",
+            "color": "#E90101",
+            "distanceMeters": 460
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Немига",
+            "color": "#E90101",
+            "distanceMeters": 490
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Спортивная",
+            "color": "#E90101",
+            "distanceMeters": 1300
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Кунцевщина",
+            "color": "#E90101",
+            "distanceMeters": 1900
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Институт культуры",
+            "color": "#0064AF",
+            "distanceMeters": 460
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Вокзальная",
+            "color": "#3EA332",
+            "distanceMeters": 1400
+          },
+          {
+            "line": "Московская линия",
+            "name": "Грушевка",
+            "color": "#0064AF",
+            "distanceMeters": 1600
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Зеленолужская линия",
+            "name": "Площадь Франтишка Богушевича",
+            "color": "#3EA332",
+            "distanceMeters": 190
+          },
+          {
+            "line": "Московская линия",
+            "name": "Площадь Ленина",
+            "color": "#0064AF",
+            "distanceMeters": 750
+          },
+          {
+            "line": "Московская линия",
+            "name": "Институт культуры",
+            "color": "#0064AF",
+            "distanceMeters": 1100
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Уручье",
+            "color": "#0064AF",
+            "distanceMeters": 600
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Зеленолужская линия",
+            "name": "Аэродромная",
+            "color": "#3EA332",
+            "distanceMeters": 900
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Ковальская Слобода",
+            "color": "#3EA332",
+            "distanceMeters": 900
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Тракторный завод",
+            "color": "#E90101",
+            "distanceMeters": 1831
+          },
+          {
+            "line": "Московская линия",
+            "name": "Академия наук",
+            "color": "#0064AF",
+            "distanceMeters": 1897
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Каменная горка",
+            "color": "#E90101",
+            "distanceMeters": 700
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Кунцевщина",
+            "color": "#E90101",
+            "distanceMeters": 1800
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Михалово",
+            "color": "#0064AF",
+            "distanceMeters": 2000
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Могилёвская",
+            "color": "#E90101",
+            "distanceMeters": 2000
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Тракторный завод",
+            "color": "#E90101",
+            "distanceMeters": 1400
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Пролетарская",
+            "color": "#E90101",
+            "distanceMeters": 1700
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Зеленолужская линия",
+            "name": "Ковальская Слобода",
+            "color": "#3EA332",
+            "distanceMeters": 1000
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Аэродромная",
+            "color": "#3EA332",
+            "distanceMeters": 1300
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Фрунзенская",
+            "color": "#E90101",
+            "distanceMeters": 280
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Юбилейная площадь",
+            "color": "#3EA332",
+            "distanceMeters": 470
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Молодёжная",
+            "color": "#E90101",
+            "distanceMeters": 750
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Пушкинская",
+            "color": "#E90101",
+            "distanceMeters": 1300
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Площадь Якуба Коласа",
+            "color": "#0064AF",
+            "distanceMeters": 1200
+          },
+          {
+            "line": "Московская линия",
+            "name": "Площадь Победы",
+            "color": "#0064AF",
+            "distanceMeters": 1800
+          },
+          {
+            "line": "Московская линия",
+            "name": "Академия наук",
+            "color": "#0064AF",
+            "distanceMeters": 1800
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Академия наук",
+            "color": "#0064AF",
+            "distanceMeters": 1600
+          },
+          {
+            "line": "Московская линия",
+            "name": "Площадь Якуба Коласа",
+            "color": "#0064AF",
+            "distanceMeters": 1900
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Площадь Победы",
+            "color": "#0064AF",
+            "distanceMeters": 600
+          },
+          {
+            "line": "Московская линия",
+            "name": "Октябрьская",
+            "color": "#0064AF",
+            "distanceMeters": 600
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Купаловская",
+            "color": "#E90101",
+            "distanceMeters": 800
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Борисовский тракт",
+            "color": "#0064AF",
+            "distanceMeters": 460
+          },
+          {
+            "line": "Московская линия",
+            "name": "Восток",
+            "color": "#0064AF",
+            "distanceMeters": 1500
+          },
+          {
+            "line": "Московская линия",
+            "name": "Уручье",
+            "color": "#0064AF",
+            "distanceMeters": 1800
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Партизанская",
+            "color": "#E90101",
+            "distanceMeters": 60
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Автозаводская",
+            "color": "#E90101",
+            "distanceMeters": 1700
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Тракторный завод",
+            "color": "#E90101",
+            "distanceMeters": 1700
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Каменная горка",
+            "color": "#E90101",
+            "distanceMeters": 380
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Кунцевщина",
+            "color": "#E90101",
+            "distanceMeters": 1600
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Зеленолужская линия",
+            "name": "Площадь Франтишка Богушевича",
+            "color": "#3EA332",
+            "distanceMeters": 450
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Юбилейная площадь",
+            "color": "#3EA332",
+            "distanceMeters": 850
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Фрунзенская",
+            "color": "#E90101",
+            "distanceMeters": 950
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Зеленолужская линия",
+            "name": "Площадь Франтишка Богушевича",
+            "color": "#3EA332",
+            "distanceMeters": 490
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Юбилейная площадь",
+            "color": "#3EA332",
+            "distanceMeters": 650
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Фрунзенская",
+            "color": "#E90101",
+            "distanceMeters": 700
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Петровщина",
+            "color": "#0064AF",
+            "distanceMeters": 550
+          },
+          {
+            "line": "Московская линия",
+            "name": "Малиновка",
+            "color": "#0064AF",
+            "distanceMeters": 1200
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": []
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Октябрьская",
+            "color": "#0064AF",
+            "distanceMeters": 140
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Купаловская",
+            "color": "#E90101",
+            "distanceMeters": 350
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Немига",
+            "color": "#E90101",
+            "distanceMeters": 750
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Тракторный завод",
+            "color": "#E90101",
+            "distanceMeters": 1900
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Тракторный завод",
+            "color": "#E90101",
+            "distanceMeters": 950
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Парк Челюскинцев",
+            "color": "#0064AF",
+            "distanceMeters": 220
+          },
+          {
+            "line": "Московская линия",
+            "name": "Академия наук",
+            "color": "#0064AF",
+            "distanceMeters": 1100
+          },
+          {
+            "line": "Московская линия",
+            "name": "Московская",
+            "color": "#0064AF",
+            "distanceMeters": 1100
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Борисовский тракт",
+            "color": "#0064AF",
+            "distanceMeters": 1100
+          },
+          {
+            "line": "Московская линия",
+            "name": "Уручье",
+            "color": "#0064AF",
+            "distanceMeters": 1700
+          },
+          {
+            "line": "Московская линия",
+            "name": "Восток",
+            "color": "#0064AF",
+            "distanceMeters": 1900
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Грушевка",
+            "color": "#0064AF",
+            "distanceMeters": 800
+          },
+          {
+            "line": "Московская линия",
+            "name": "Михалово",
+            "color": "#0064AF",
+            "distanceMeters": 1100
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Кунцевщина",
+            "color": "#E90101",
+            "distanceMeters": 600
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Каменная горка",
+            "color": "#E90101",
+            "distanceMeters": 1400
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Площадь Ленина",
+            "color": "#0064AF",
+            "distanceMeters": 650
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Купаловская",
+            "color": "#E90101",
+            "distanceMeters": 900
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Вокзальная",
+            "color": "#3EA332",
+            "distanceMeters": 950
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Пушкинская",
+            "color": "#E90101",
+            "distanceMeters": 410
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Молодёжная",
+            "color": "#E90101",
+            "distanceMeters": 1200
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Спортивная",
+            "color": "#E90101",
+            "distanceMeters": 1600
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Зеленолужская линия",
+            "name": "Площадь Франтишка Богушевича",
+            "color": "#3EA332",
+            "distanceMeters": 550
+          },
+          {
+            "line": "Московская линия",
+            "name": "Грушевка",
+            "color": "#0064AF",
+            "distanceMeters": 1400
+          },
+          {
+            "line": "Автозаводская линия",
+            "name": "Молодёжная",
+            "color": "#E90101",
+            "distanceMeters": 1500
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Уручье",
+            "color": "#0064AF",
+            "distanceMeters": 310
+          },
+          {
+            "line": "Московская линия",
+            "name": "Борисовский тракт",
+            "color": "#0064AF",
+            "distanceMeters": 1600
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Московская линия",
+            "name": "Институт культуры",
+            "color": "#0064AF",
+            "distanceMeters": 210
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Вокзальная",
+            "color": "#3EA332",
+            "distanceMeters": 1200
+          },
+          {
+            "line": "Зеленолужская линия",
+            "name": "Ковальская Слобода",
+            "color": "#3EA332",
+            "distanceMeters": 1300
+          }
+        ]
+      },
+      {
+        "nearest_metro_stations": [
+          {
+            "line": "Автозаводская линия",
+            "name": "Могилёвская",
+            "color": "#E90101",
+            "distanceMeters": 1869
+          }
+        ]
+      }
+    ],
+    "business_centers?select=slug&order=slug.asc": [
+      {
+        "slug": "21-vek"
+      },
+      {
+        "slug": "a-100"
+      },
+      {
+        "slug": "abk-park"
+      },
+      {
+        "slug": "absheron"
+      },
+      {
+        "slug": "aden"
+      },
+      {
+        "slug": "ajax"
+      },
+      {
+        "slug": "akademiya"
+      },
+      {
+        "slug": "aleksandrov-passazh"
+      },
+      {
+        "slug": "alyans"
+      },
+      {
+        "slug": "amtel"
+      },
+      {
+        "slug": "ankor"
+      },
+      {
+        "slug": "antares"
+      },
+      {
+        "slug": "azimut"
+      },
+      {
+        "slug": "bk-capital-palace"
+      },
+      {
+        "slug": "bonhotel"
+      },
+      {
+        "slug": "campus"
+      },
+      {
+        "slug": "caspian-plaza"
+      },
+      {
+        "slug": "centropol"
+      },
+      {
+        "slug": "d16"
+      },
+      {
+        "slug": "dana-center"
+      },
+      {
+        "slug": "delphi"
+      },
+      {
+        "slug": "domashevsky"
+      },
+      {
+        "slug": "ekspobel"
+      },
+      {
+        "slug": "engelsa-34a"
+      },
+      {
+        "slug": "evropa"
+      },
+      {
+        "slug": "farengeyt"
+      },
+      {
+        "slug": "flagman"
+      },
+      {
+        "slug": "fortune"
+      },
+      {
+        "slug": "forum-plaza"
+      },
+      {
+        "slug": "futuris"
+      },
+      {
+        "slug": "gazprom"
+      },
+      {
+        "slug": "georgievskiy"
+      },
+      {
+        "slug": "germes"
+      },
+      {
+        "slug": "gradient"
+      },
+      {
+        "slug": "green-city"
+      },
+      {
+        "slug": "green-plaza"
+      },
+      {
+        "slug": "hi-tech"
+      },
+      {
+        "slug": "ibc"
+      },
+      {
+        "slug": "imperial"
+      },
+      {
+        "slug": "imperskiy"
+      },
+      {
+        "slug": "info"
+      },
+      {
+        "slug": "izokom-plaza"
+      },
+      {
+        "slug": "kamennogorsky"
+      },
+      {
+        "slug": "kapital"
+      },
+      {
+        "slug": "kaskad-alfa"
+      },
+      {
+        "slug": "kiroff-center"
+      },
+      {
+        "slug": "kolizey"
+      },
+      {
+        "slug": "komkon"
+      },
+      {
+        "slug": "kontur"
+      },
+      {
+        "slug": "krasavik"
+      },
+      {
+        "slug": "levada"
+      },
+      {
+        "slug": "logoyskiy-trakt-15-k-4"
+      },
+      {
+        "slug": "magistr"
+      },
+      {
+        "slug": "medvezhino"
+      },
+      {
+        "slug": "metropol"
+      },
+      {
+        "slug": "mfc-minsk-mir"
+      },
+      {
+        "slug": "na-torgovoy-naberezhnoy"
+      },
+      {
+        "slug": "navigator"
+      },
+      {
+        "slug": "nemiga-siti"
+      },
+      {
+        "slug": "nord-siti"
+      },
+      {
+        "slug": "ofisinvest"
+      },
+      {
+        "slug": "okean"
+      },
+      {
+        "slug": "omega-tower"
+      },
+      {
+        "slug": "optima"
+      },
+      {
+        "slug": "orlan"
+      },
+      {
+        "slug": "park"
+      },
+      {
+        "slug": "park-plaza"
+      },
+      {
+        "slug": "parus"
+      },
+      {
+        "slug": "per-4-y-koltsova-51"
+      },
+      {
+        "slug": "per-kozlova-7"
+      },
+      {
+        "slug": "platinum"
+      },
+      {
+        "slug": "pokrovskiy"
+      },
+      {
+        "slug": "port"
+      },
+      {
+        "slug": "port-2"
+      },
+      {
+        "slug": "portal"
+      },
+      {
+        "slug": "pr-t-dzerzhinskogo-8"
+      },
+      {
+        "slug": "pr-t-nezavisimosti-186"
+      },
+      {
+        "slug": "premier"
+      },
+      {
+        "slug": "prizma"
+      },
+      {
+        "slug": "prospekt"
+      },
+      {
+        "slug": "pushkinsky"
+      },
+      {
+        "slug": "riviera-plaza"
+      },
+      {
+        "slug": "royal-plaza"
+      },
+      {
+        "slug": "rubin-plaza"
+      },
+      {
+        "slug": "rum-global"
+      },
+      {
+        "slug": "s-union"
+      },
+      {
+        "slug": "saako"
+      },
+      {
+        "slug": "shanter-hill"
+      },
+      {
+        "slug": "sigma"
+      },
+      {
+        "slug": "siluet"
+      },
+      {
+        "slug": "silver-tower"
+      },
+      {
+        "slug": "sky-towers"
+      },
+      {
+        "slug": "smile-plaza"
+      },
+      {
+        "slug": "sofit"
+      },
+      {
+        "slug": "solo"
+      },
+      {
+        "slug": "strateg-1"
+      },
+      {
+        "slug": "strateg-3"
+      },
+      {
+        "slug": "surganova"
+      },
+      {
+        "slug": "sv-plaza"
+      },
+      {
+        "slug": "talisman"
+      },
+      {
+        "slug": "team-building"
+      },
+      {
+        "slug": "tehnopark"
+      },
+      {
+        "slug": "terminal"
+      },
+      {
+        "slug": "terrum"
+      },
+      {
+        "slug": "time"
+      },
+      {
+        "slug": "titan"
+      },
+      {
+        "slug": "titul"
+      },
+      {
+        "slug": "tivali-tsentr"
+      },
+      {
+        "slug": "traktsentr-b-s-a-t"
+      },
+      {
+        "slug": "ul-amuratorskaya-4"
+      },
+      {
+        "slug": "ul-bogdanovicha-155b"
+      },
+      {
+        "slug": "ul-briketa-30"
+      },
+      {
+        "slug": "ul-goretskogo-14"
+      },
+      {
+        "slug": "ul-internatsionalnaya-36"
+      },
+      {
+        "slug": "ul-karastoyanovoy-32"
+      },
+      {
+        "slug": "ul-korolya-51"
+      },
+      {
+        "slug": "ul-krasnozvezdnaya-18b"
+      },
+      {
+        "slug": "ul-levkova-43"
+      },
+      {
+        "slug": "ul-lobanka-79"
+      },
+      {
+        "slug": "ul-myasnikova-70"
+      },
+      {
+        "slug": "ul-narochanskaya-11"
+      },
+      {
+        "slug": "ul-naturalistov-3"
+      },
+      {
+        "slug": "ul-nemanskaya-24"
+      },
+      {
+        "slug": "ul-olshevskogo-22"
+      },
+      {
+        "slug": "ul-orlovskaya-40-a"
+      },
+      {
+        "slug": "ul-pinskaya-28a"
+      },
+      {
+        "slug": "ul-platonova-20b"
+      },
+      {
+        "slug": "ul-skryganova-6a"
+      },
+      {
+        "slug": "ul-sverdlova-2"
+      },
+      {
+        "slug": "ul-timiryazeva-72"
+      },
+      {
+        "slug": "ul-tolbuhina-3a"
+      },
+      {
+        "slug": "ul-volodko-24a"
+      },
+      {
+        "slug": "ul-zheleznodorozhnaya-33a"
+      },
+      {
+        "slug": "ul-zhukovskogo-11a"
+      },
+      {
+        "slug": "v"
+      },
+      {
+        "slug": "victoria-plaza"
+      },
+      {
+        "slug": "viktoriya-olimp"
+      },
+      {
+        "slug": "volna"
+      },
+      {
+        "slug": "vremya"
+      },
+      {
+        "slug": "zebra"
+      },
+      {
+        "slug": "zelenyy-lug"
+      }
+    ],
+    "business_centers?select=address,business_class,district,microdistrict": [
+      {
+        "address": "г. Минск, ул. Хоружей, 25к3",
+        "business_class": "B",
+        "district": "Советский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Скорины, 2",
+        "business_class": "B+",
+        "district": "Первомайский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Пинская, 28а",
+        "business_class": "C",
+        "district": "Фрунзенский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, пр-т Независимости, 117a",
+        "business_class": "B",
+        "district": "Первомайский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Мележа, 5/2",
+        "business_class": "C",
+        "district": "Советский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Мстиславца, 9",
+        "business_class": "B+",
+        "district": "Первомайский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, Меньковский тракт, 23",
+        "business_class": "C",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Амураторская, 4",
+        "business_class": "C",
+        "district": "Центральный",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Немига, 5",
+        "business_class": "B",
+        "district": "Центральный",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Богдановича, 155Б",
+        "business_class": "C",
+        "district": "Советский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Змитрока Бядули, 11",
+        "business_class": "B+",
+        "district": "Партизанский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, пр-т Победителей, 59",
+        "business_class": "B",
+        "district": "Центральный",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Сурганова, 41",
+        "business_class": "B",
+        "district": "Советский",
+        "microdistrict": "Комаровка"
+      },
+      {
+        "address": "г. Минск, Логойский тракт, 37",
+        "business_class": "B",
+        "district": "Советский",
+        "microdistrict": "Зелёный Луг"
+      },
+      {
+        "address": "г. Минск, ул. Люксембург, 95",
+        "business_class": "B",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Орловская, 40 А",
+        "business_class": "C",
+        "district": "Центральный",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Прушинских, 31а",
+        "business_class": "C",
+        "district": "Ленинский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Кальварийская, 42",
+        "business_class": "B+",
+        "district": "Фрунзенский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, Центральный район, ул. Нововиленская, 27",
+        "business_class": "B+",
+        "district": "Центральный",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Свердлова, 2",
+        "business_class": "B+",
+        "district": "Ленинский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Клары Цеткин, 51",
+        "business_class": "B",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, Логойский тракт, 22а/22б",
+        "business_class": "C",
+        "district": "Первомайский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Гурского, 44",
+        "business_class": "B+",
+        "district": "Московский",
+        "microdistrict": "Михалово-2"
+      },
+      {
+        "address": "г. Минск, Энгельса 34А",
+        "business_class": "B",
+        "district": "Ленинский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Воронянского, 7а",
+        "business_class": "C",
+        "district": "Октябрьский",
+        "microdistrict": "Чкаловский"
+      },
+      {
+        "address": "г. Минск, Первомайский район, ул. Толбухина, 2",
+        "business_class": "B",
+        "district": "Первомайский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Гинтовта, 1",
+        "business_class": "B",
+        "district": "Первомайский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Льва Толстого, 10",
+        "business_class": "A",
+        "district": "Октябрьский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Жуковского, 11А",
+        "business_class": "C",
+        "district": "Октябрьский",
+        "microdistrict": "Чкаловский"
+      },
+      {
+        "address": "г. Минск, пр-т Дзержинского, 57",
+        "business_class": "B+",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, пр-т Дзержинского, 3Б",
+        "business_class": "B",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Тимирязева, 67",
+        "business_class": "B",
+        "district": "Центральный",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Хоружей, 4",
+        "business_class": "B+",
+        "district": "Советский",
+        "microdistrict": "Комаровка"
+      },
+      {
+        "address": "г. Минск, ул. Лучины, 5",
+        "business_class": "B",
+        "district": "Ленинский",
+        "microdistrict": "Лошица"
+      },
+      {
+        "address": "г. Минск, пр-т Победителей, 7а",
+        "business_class": "B",
+        "district": "Центральный",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, МКАД, 303",
+        "business_class": "B",
+        "district": "Центральный",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Шафарнянская, 11",
+        "business_class": "B",
+        "district": "Первомайский",
+        "microdistrict": "Уручье"
+      },
+      {
+        "address": "Минская область, д. Боровая, 1",
+        "business_class": "C",
+        "district": "Советский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, пр-т Победителей, 98",
+        "business_class": "B+",
+        "district": "Центральный",
+        "microdistrict": "Радужный"
+      },
+      {
+        "address": "г. Минск, ул. Мележа, 1",
+        "business_class": "C",
+        "district": "Советский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, пр-т Независимости, 58В",
+        "business_class": "C",
+        "district": "Советский",
+        "microdistrict": "Золотая Горка"
+      },
+      {
+        "address": "г. Минск, ул. Огинского, 6",
+        "business_class": "B",
+        "district": "Первомайский",
+        "microdistrict": "Магистр"
+      },
+      {
+        "address": "г. Минск, ул. 3-я Щорса, 9",
+        "business_class": "C",
+        "district": "Московский",
+        "microdistrict": "Грушевка"
+      },
+      {
+        "address": "г. Минск, ул. Горецкого, 14",
+        "business_class": "C",
+        "district": "Фрунзенский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Нарочанская, 11",
+        "business_class": "C",
+        "district": "Центральный",
+        "microdistrict": "Веснянка"
+      },
+      {
+        "address": "г. Минск, ул. Свердлова, 11",
+        "business_class": "B+",
+        "district": "Ленинский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, пр-т Партизанский, 178",
+        "business_class": "B",
+        "district": "Партизанский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Хоружей, 1а",
+        "business_class": "C",
+        "district": "Советский",
+        "microdistrict": "Комаровка"
+      },
+      {
+        "address": "г. Минск, ул. Казинца, 11А",
+        "business_class": "B+",
+        "district": "Октябрьский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Притыцкого, 29",
+        "business_class": "B",
+        "district": "Фрунзенский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Платонова, 1Б",
+        "business_class": "B",
+        "district": "Партизанский",
+        "microdistrict": "Золотая Горка"
+      },
+      {
+        "address": "г. Минск, пр-т Победителей, 100",
+        "business_class": "B",
+        "district": "Центральный",
+        "microdistrict": "Радужный"
+      },
+      {
+        "address": "г. Минск, пер. 4-й Кольцова, 51",
+        "business_class": "C",
+        "district": "Советский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Болеслава Берута, 3Б",
+        "business_class": "C",
+        "district": "Фрунзенский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, Советский район, ул. Якуба Коласа, 73, корп. 3",
+        "business_class": "A",
+        "district": "Советский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Скрыганова, 6А",
+        "business_class": "C",
+        "district": "Фрунзенский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Карастояновой, 32",
+        "business_class": "C",
+        "district": "Советский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Клары Цеткин, 51а",
+        "business_class": "B+",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Аранская, 8",
+        "business_class": "B+",
+        "district": "Ленинский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Сурганова, 43",
+        "business_class": "B",
+        "district": "Советский",
+        "microdistrict": "Комаровка"
+      },
+      {
+        "address": "г. Минск, Октябрьский район, проспект Мира, район «Минск Мир»",
+        "business_class": "A",
+        "district": "Октябрьский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Московская, 22",
+        "business_class": "B+",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Бирюзова, 10А",
+        "business_class": "B",
+        "district": "Фрунзенский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Тиражная, 150",
+        "business_class": "B",
+        "district": "Советский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Некрасова, 114",
+        "business_class": "C",
+        "district": "Советский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Филимонова, 57",
+        "business_class": "A",
+        "district": "Первомайский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Филимонова, 15",
+        "business_class": "B",
+        "district": "Партизанский",
+        "microdistrict": "Слепянка"
+      },
+      {
+        "address": "г. Минск, Фрунзенский район, ул. Каменногорская, 47",
+        "business_class": "B",
+        "district": "Фрунзенский",
+        "microdistrict": "Каменная Горка"
+      },
+      {
+        "address": "г. Минск, ул. Интернациональная, 36",
+        "business_class": "A",
+        "district": "Центральный",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Немига, 40",
+        "business_class": "B",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Краснозвездная, 18Б",
+        "business_class": "C",
+        "district": "Первомайский",
+        "microdistrict": "Золотая Горка"
+      },
+      {
+        "address": "г. Минск, ул. Гамарника, 30",
+        "business_class": "C",
+        "district": "Первомайский",
+        "microdistrict": "Зелёный Луг"
+      },
+      {
+        "address": "г. Минск, ул. Ольшевского, 20/11",
+        "business_class": "B",
+        "district": "Фрунзенский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Филимонова, 25г",
+        "business_class": "B",
+        "district": "Первомайский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Притыцкого, 27а",
+        "business_class": "B+",
+        "district": "Фрунзенский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Железнодорожная, 33А",
+        "business_class": "B",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, пр-т Победителей, 63/В",
+        "business_class": "B+",
+        "district": "Центральный",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, Первомайский район, д. Копище, ул. Лопатина, 7А",
+        "business_class": "B",
+        "district": "Первомайский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, Московский район, ул. К. Либкнехта, 66",
+        "business_class": "C",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Лобанка, 79",
+        "business_class": "B",
+        "district": "Фрунзенский",
+        "microdistrict": "Сухарево"
+      },
+      {
+        "address": "г. Минск, ул. Сурганова, 57б",
+        "business_class": "B",
+        "district": "Советский",
+        "microdistrict": "Комаровка"
+      },
+      {
+        "address": "г. Минск, ул. Скрыганова, 14",
+        "business_class": "C",
+        "district": "Фрунзенский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Толстого, 8",
+        "business_class": "B+",
+        "district": "Октябрьский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Пономаренко, 35а",
+        "business_class": "C",
+        "district": "Фрунзенский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Притыцкого, 79",
+        "business_class": "B+",
+        "district": "Фрунзенский",
+        "microdistrict": "Барановщина"
+      },
+      {
+        "address": "г. Минск, ул. Натуралистов, 3",
+        "business_class": "B+",
+        "district": "Первомайский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Платонова, 49",
+        "business_class": "B+",
+        "district": "Первомайский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Чапаева, 4а",
+        "business_class": "B+",
+        "district": "Партизанский",
+        "microdistrict": "Золотая Горка"
+      },
+      {
+        "address": "г. Минск, ул. Либаво-Роменская, 23",
+        "business_class": "B",
+        "district": "Ленинский",
+        "microdistrict": "Чкаловский"
+      },
+      {
+        "address": "г. Минск, ул. Мавра, 41",
+        "business_class": "B",
+        "district": "Фрунзенский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, пр-т Дзержинского, 5",
+        "business_class": "B+",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, пер. 1-й Загородный, 20",
+        "business_class": "B+",
+        "district": "Фрунзенский",
+        "microdistrict": null
+      },
+      {
+        "address": "Минский район, Новодворский сельсовет, 40/2 (Большое Стиклево)",
+        "business_class": "B",
+        "district": "Заводской",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Железнодорожная, 33",
+        "business_class": "B",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Лобанка, 77",
+        "business_class": "B",
+        "district": "Фрунзенский",
+        "microdistrict": "Сухарево"
+      },
+      {
+        "address": "г. Минск, Большое Стиклево 83",
+        "business_class": "B",
+        "district": "Заводской",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, пр-т Победителей, 103",
+        "business_class": "B",
+        "district": "Центральный",
+        "microdistrict": "Веснянка"
+      },
+      {
+        "address": "г. Минск, ул. Скорины, 8",
+        "business_class": "B",
+        "district": "Партизанский",
+        "microdistrict": "Степянка"
+      },
+      {
+        "address": "г. Минск, пр-т Победителей, 89/3",
+        "business_class": "B",
+        "district": "Центральный",
+        "microdistrict": "Веснянка"
+      },
+      {
+        "address": "г. Минск, ул. Могилевская, 39а",
+        "business_class": "B",
+        "district": "Октябрьский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, Логойский тракт, 15 к.4",
+        "business_class": "B",
+        "district": "Советский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Брикета, 30",
+        "business_class": "C",
+        "district": "Фрунзенский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Зыбицкая, 6",
+        "business_class": "B",
+        "district": "Центральный",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Одоевского, 117",
+        "business_class": "B",
+        "district": "Фрунзенский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Суражская, 10",
+        "business_class": "B",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Мясникова, 70",
+        "business_class": "A",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Тимирязева, 72",
+        "business_class": "B",
+        "district": "Центральный",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, пр-т Независимости, 186",
+        "business_class": "B",
+        "district": "Первомайский",
+        "microdistrict": "Великий Лес"
+      },
+      {
+        "address": "г. Минск, ул. Левкова, 43",
+        "business_class": "B",
+        "district": "Октябрьский",
+        "microdistrict": "Чкаловский"
+      },
+      {
+        "address": "г. Минск, пер. Козлова, 29",
+        "business_class": "C",
+        "district": "Партизанский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Неманская, 24",
+        "business_class": "C",
+        "district": "Фрунзенский",
+        "microdistrict": "Каменная Горка"
+      },
+      {
+        "address": "г. Минск, пер. Софьи Ковалевской, 60",
+        "business_class": "C",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Машиностроителей, 29",
+        "business_class": "C",
+        "district": "Заводской",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, пер. Козлова, 7",
+        "business_class": "C",
+        "district": "Партизанский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Володько, 24А",
+        "business_class": "C",
+        "district": "Октябрьский",
+        "microdistrict": "Чкаловский"
+      },
+      {
+        "address": "г. Минск, ул. Короля, 51",
+        "business_class": "C",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Ольшевского, 22",
+        "business_class": "C",
+        "district": "Фрунзенский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Платонова, 20Б",
+        "business_class": "C",
+        "district": "Советский",
+        "microdistrict": "Золотая Горка"
+      },
+      {
+        "address": "г. Минск, ул. Сурганова, 61",
+        "business_class": "B",
+        "district": "Советский",
+        "microdistrict": "Комаровка"
+      },
+      {
+        "address": "г. Минск, Центральный район, пр-т Независимости, 32А",
+        "business_class": "A",
+        "district": "Центральный",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, пр-т Независимости, 173",
+        "business_class": "A",
+        "district": "Первомайский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, пр-т Партизанский, 79",
+        "business_class": "A",
+        "district": "Заводской",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Притыцкого, 156",
+        "business_class": "B",
+        "district": "Фрунзенский",
+        "microdistrict": "Каменная Горка"
+      },
+      {
+        "address": "г. Минск, ул. Немига, 44",
+        "business_class": "A",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Клары Цеткин, 24",
+        "business_class": "A",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, пр-т Дзержинского, 104",
+        "business_class": "A",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "Минская область, Смолевичский район, индустриальный парк «Великий камень», Пекинский проспект, 31",
+        "business_class": "A",
+        "district": "Великий камень",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, пр-т Победителей, 104–110",
+        "business_class": "B",
+        "district": "Центральный",
+        "microdistrict": "Радужный"
+      },
+      {
+        "address": "г. Минск, ул. Интернациональная, 38",
+        "business_class": "A",
+        "district": "Центральный",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, пер. Козлова, 25",
+        "business_class": "B",
+        "district": "Первомайский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Долгобродская, 16",
+        "business_class": "B",
+        "district": "Партизанский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Толбухина, 3а",
+        "business_class": "B+",
+        "district": "Первомайский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, пр-т Независимости, 169",
+        "business_class": "B",
+        "district": "Первомайский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, Московский район, пр-т Жукова, 29",
+        "business_class": "B+",
+        "district": "Московский",
+        "microdistrict": "Грушевка"
+      },
+      {
+        "address": "г. Минск, ул. Домбровская, 9",
+        "business_class": "B",
+        "district": "Фрунзенский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Кирова, 8",
+        "business_class": "B",
+        "district": "Ленинский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, ул. Притыцкого, 2/3",
+        "business_class": "B",
+        "district": "Фрунзенский",
+        "microdistrict": "Раковское Шоссе-1"
+      },
+      {
+        "address": "г. Минск, пр-т Дзержинского, 8",
+        "business_class": "B+",
+        "district": "Московский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, пр-т Независимости, 177 (мкр. Уручье)",
+        "business_class": "B+",
+        "district": "Первомайский",
+        "microdistrict": "Уручье"
+      },
+      {
+        "address": "г. Минск, ул. Могилёвская, 1",
+        "business_class": "A",
+        "district": "Октябрьский",
+        "microdistrict": null
+      },
+      {
+        "address": "г. Минск, Заводской район, пр-т Партизанский, 178/2",
+        "business_class": "B",
+        "district": "Заводской",
+        "microdistrict": null
+      }
+    ],
+    "business_centers?select=microdistrict&microdistrict=not.is.null": [
+      {
+        "microdistrict": "Комаровка"
+      },
+      {
+        "microdistrict": "Зелёный Луг"
+      },
+      {
+        "microdistrict": "Михалово-2"
+      },
+      {
+        "microdistrict": "Чкаловский"
+      },
+      {
+        "microdistrict": "Чкаловский"
+      },
+      {
+        "microdistrict": "Комаровка"
+      },
+      {
+        "microdistrict": "Лошица"
+      },
+      {
+        "microdistrict": "Уручье"
+      },
+      {
+        "microdistrict": "Радужный"
+      },
+      {
+        "microdistrict": "Золотая Горка"
+      },
+      {
+        "microdistrict": "Магистр"
+      },
+      {
+        "microdistrict": "Грушевка"
+      },
+      {
+        "microdistrict": "Веснянка"
+      },
+      {
+        "microdistrict": "Комаровка"
+      },
+      {
+        "microdistrict": "Золотая Горка"
+      },
+      {
+        "microdistrict": "Радужный"
+      },
+      {
+        "microdistrict": "Комаровка"
+      },
+      {
+        "microdistrict": "Слепянка"
+      },
+      {
+        "microdistrict": "Каменная Горка"
+      },
+      {
+        "microdistrict": "Золотая Горка"
+      },
+      {
+        "microdistrict": "Зелёный Луг"
+      },
+      {
+        "microdistrict": "Сухарево"
+      },
+      {
+        "microdistrict": "Комаровка"
+      },
+      {
+        "microdistrict": "Барановщина"
+      },
+      {
+        "microdistrict": "Золотая Горка"
+      },
+      {
+        "microdistrict": "Чкаловский"
+      },
+      {
+        "microdistrict": "Сухарево"
+      },
+      {
+        "microdistrict": "Веснянка"
+      },
+      {
+        "microdistrict": "Степянка"
+      },
+      {
+        "microdistrict": "Веснянка"
+      },
+      {
+        "microdistrict": "Великий Лес"
+      },
+      {
+        "microdistrict": "Чкаловский"
+      },
+      {
+        "microdistrict": "Каменная Горка"
+      },
+      {
+        "microdistrict": "Чкаловский"
+      },
+      {
+        "microdistrict": "Золотая Горка"
+      },
+      {
+        "microdistrict": "Комаровка"
+      },
+      {
+        "microdistrict": "Каменная Горка"
+      },
+      {
+        "microdistrict": "Радужный"
+      },
+      {
+        "microdistrict": "Грушевка"
+      },
+      {
+        "microdistrict": "Раковское Шоссе-1"
+      },
+      {
+        "microdistrict": "Уручье"
+      }
+    ]
+  }
+}

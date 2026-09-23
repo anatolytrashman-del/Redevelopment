@@ -100,8 +100,46 @@ async function main(columns) {
 // единой ошибки в логе.
 const columns = listColumns();
 
-main(columns).catch((err) => {
-  // А вот сетевые сбои сборку не валят: без этих файлов страницы работают
-  // как раньше — через запрос в Supabase, только с «Загрузка…» на старте.
-  console.warn(`[catalog-data] данные каталога не собраны: ${err instanceof Error ? err.message : err}`);
+// Сетевые сбои сборку не валят. База недоступна (2026-09-23: Supabase
+// закрыл проект за трафик, 402 на любой запрос) — берём файлы, которые уже
+// лежат на проде: без них страницы раздела после старта JS шли бы в ту же
+// закрытую базу (см. fallbackToSnapshot в src/lib/businessCentersApi.ts).
+// Данные устаревшие, но настоящие.
+const SITE_ORIGIN = 'https://redevelopment.pro';
+
+async function copyFromProd() {
+  const get = async (path) => {
+    const res = await fetch(`${SITE_ORIGIN}${path}`, { signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) throw new Error(`прод ответил ${res.status} на ${path}`);
+    return res.text();
+  };
+  const listJson = await get('/data/business-centers.json');
+  const { rows } = JSON.parse(listJson);
+  if (!Array.isArray(rows) || rows.length === 0) throw new Error('на проде пустой /data/business-centers.json');
+  mkdirSync(join(DIST_DATA, 'bc'), { recursive: true });
+  writeFileSync(join(DIST_DATA, 'business-centers.json'), listJson);
+  const slugs = rows.map((r) => r.slug).filter((slug) => typeof slug === 'string' && /^[a-z0-9-]+$/.test(slug));
+  let written = 0;
+  for (let i = 0; i < slugs.length; i += 8) {
+    await Promise.all(
+      slugs.slice(i, i + 8).map(async (slug) => {
+        try {
+          writeFileSync(join(DIST_DATA, 'bc', `${slug}.json`), await get(`/data/bc/${slug}.json`));
+          written += 1;
+        } catch (err) {
+          console.warn(`[catalog-data] /data/bc/${slug}.json не скопирован: ${err instanceof Error ? err.message : err}`);
+        }
+      }),
+    );
+  }
+  console.warn(`[catalog-data] данные каталога скопированы с прода: список ${rows.length} зданий, карточек ${written}`);
+}
+
+main(columns).catch(async (err) => {
+  console.warn(`[catalog-data] данные каталога не собраны из базы: ${err instanceof Error ? err.message : err}`);
+  try {
+    await copyFromProd();
+  } catch (copyErr) {
+    console.warn(`[catalog-data] и с прода скопировать не вышло: ${copyErr instanceof Error ? copyErr.message : copyErr}`);
+  }
 });

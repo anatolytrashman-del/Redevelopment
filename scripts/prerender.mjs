@@ -78,6 +78,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { extname, join, normalize } from 'node:path';
 import { computePublicBuildId } from './public-build-id.mjs';
 import { adoptBuildAssets, extractBuildBlocks } from './prerender-snapshot.mjs';
+import { fallbackRows } from './_buildFallback.mjs';
 
 const ROOT_DIR = new URL('..', import.meta.url).pathname;
 const DIST_DIR = join(ROOT_DIR, 'dist');
@@ -391,6 +392,8 @@ async function supabaseSelect(query, what) {
       }
     }
   }
+  const rows = fallbackRows(query, 'prerender');
+  if (rows) return rows;
   throw lastError;
 }
 
@@ -768,7 +771,16 @@ async function serveSupabaseRestFromCache(route) {
 // Возвращает { full, scope, reason }: full=false — быстрый режим (всё
 // копируется), full=true + scope='objects' — частичный, full=true + 'all' —
 // полный. Любая неопределённость → полный, как и раньше.
+// Режим «база закрыта» (2026-09-23): Supabase отвечает 402 на всё (проект
+// закрыт за трафик). Честный рендер тогда снимет страницы, у которых данные
+// не пришли, поэтому ВСЕ пути только копируются с прода — включая
+// ALWAYS_FULL_RENDER_PATHS; не скопировалось — путь остаётся SPA-шеллом, а
+// сборка не падает (прошлая разметка лучше красного деплоя, из-за которого
+// не доезжают и исправления). PRERENDER_OUTAGE=1 — включить руками.
+const SUPABASE_OUTAGE_REASON = 'Supabase закрыт (402) — только копии с прода';
+
 async function decidePrerenderMode() {
+  if (process.env.PRERENDER_OUTAGE === '1') return { full: false, scope: 'all', reason: 'PRERENDER_OUTAGE=1', outage: true };
   if (process.env.PRERENDER_FORCE_FULL === '1') return { full: true, scope: 'all', reason: 'PRERENDER_FORCE_FULL=1' };
   if (!process.env.VERCEL) {
     // Локальный/ручной прогон — как и раньше, всегда полный; PRERENDER_SCOPE
@@ -798,6 +810,7 @@ async function decidePrerenderMode() {
         signal: AbortSignal.timeout(10_000),
       },
     );
+    if (res.status === 402) return { full: false, scope: 'all', reason: SUPABASE_OUTAGE_REASON, outage: true };
     if (!res.ok) {
       console.warn(`[prerender] deploy_debounce ответил ${res.status} — полный режим на всякий случай`);
       return { full: true, scope: 'all', reason: `deploy_debounce ${res.status}` };
@@ -1029,6 +1042,7 @@ async function main() {
   const decision = await decidePrerenderMode();
   let fullMode = decision.full;
   let fullScope = decision.scope; // 'objects' — частичный полный режим, 'all' — весь сайт
+  const outage = decision.outage === true;
   // Частичный режим: честный рендер только зависимых от объектов страниц,
   // остальное — копии с прода (см. decidePrerenderMode).
   const partialRenderPaths = new Set([...landingPaths, 'minsk', ...ALWAYS_FULL_RENDER_PATHS]);
@@ -1199,7 +1213,7 @@ async function main() {
     // ALWAYS_FULL_RENDER_PATHS — см. комментарий у самой константы: эти
     // несколько страниц правятся кодом достаточно часто, чтобы не
     // полагаться на "скачать текущую (возможно ещё старую) живую копию".
-    if (ALWAYS_FULL_RENDER_PATHS.has(path)) {
+    if (ALWAYS_FULL_RENDER_PATHS.has(path) && !outage) {
       alwaysFullCount++;
       await renderPath(path, workerId);
       return;
@@ -1207,6 +1221,11 @@ async function main() {
     const live = await fetchPathLive(path);
     if (live.ok) {
       copiedFromProd.push(path);
+      return;
+    }
+    if (outage) {
+      console.warn(`[prerender] /${path}: ${live.reason} — база закрыта, не рендерю, остаётся SPA-шелл`);
+      rerenderReasons.set(live.reason, (rerenderReasons.get(live.reason) ?? 0) + 1);
       return;
     }
     console.log(`[prerender] /${path}: ${live.reason} — рендерю заново`);

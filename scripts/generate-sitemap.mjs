@@ -17,6 +17,7 @@
 // объявления Kufar/Realt внутри карточек обновляются ежемесячным синком.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fallbackRows } from './_buildFallback.mjs';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
@@ -50,6 +51,8 @@ async function supabaseSelect(query, what) {
       }
     }
   }
+  const rows = fallbackRows(query, 'generate-sitemap');
+  if (rows) return rows;
   throw lastError;
 }
 
