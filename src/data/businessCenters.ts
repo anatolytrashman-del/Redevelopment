@@ -277,6 +277,11 @@ export interface BusinessCenter {
   // Формат торгового объекта (ТРЦ, ТЦ, универмаг, рынок…) — у ТЦ он вместо
   // делового класса. У бизнес-центров null.
   retailFormat: string | null;
+  // Торговые блоки карточки ТЦ (2026-09-23): что на каком этаже, первые в
+  // Беларуси и якоря, кино/еда/развлечения, место в рейтинге ТЦ Минска.
+  // Заполняет ресёрч ТЦ, в админке не правится (поэтому не входит в
+  // BusinessCenterInput — сохранение формы его не затирает). У БЦ — null.
+  retailInfo: RetailInfo | null;
   // Порядок на публичной странице (изначально — примерно по частотности
   // поисковых запросов, не алфавитный — алфавит только в боковой навигации).
   // Управляется в админке (см. BusinessCentersAdminTab.tsx).
@@ -418,6 +423,61 @@ export interface NearestMetroStation {
   color: string | null;
 }
 
+// Торговые блоки карточки ТЦ — jsonb-колонка business_centers.retail_info
+// (миграция 20260923-business-centers-retail-info.sql). Ключи camelCase — так
+// они и лежат в jsonb. У каждой записи свой источник: блоки собраны из разных
+// публикаций, и одна общая ссылка на всю колонку врала бы про половину строк.
+// Разбор и нормализация (любой массив может отсутствовать) —
+// src/lib/tradeCenterRetail.ts.
+export interface RetailSource {
+  source: string | null;
+  sourceUrl: string | null;
+}
+
+export interface RetailFloorEntry extends RetailSource {
+  // Как у источника: "-1", "1", "2–3", "6". Порядок на странице — по первому
+  // числу строки, сверху вниз (sortFloorsTopDown).
+  floor: string;
+  text: string;
+  date: string | null;
+}
+
+export type RetailFirstKind = 'first' | 'anchor' | 'former_anchor';
+
+export interface RetailFirstEntry extends RetailSource {
+  kind: RetailFirstKind;
+  name: string;
+  text: string;
+  // ISO-дата целиком ("2019-03-15"), месяц ("2019-03") или год ("2019").
+  date: string | null;
+}
+
+export type RetailLeisureKind = 'cinema' | 'food' | 'kids' | 'sport' | 'other';
+
+export interface RetailLeisureEntry extends RetailSource {
+  kind: RetailLeisureKind;
+  name: string;
+  text: string;
+  date: string | null;
+}
+
+export interface RetailRankingEntry extends RetailSource {
+  place: number;
+  // "по арендопригодной площади"
+  criterion: string;
+  // "среди ТЦ Минска"
+  scope: string;
+  total: number | null;
+  year: number | null;
+}
+
+export interface RetailInfo {
+  floorsGuide: RetailFloorEntry[];
+  firsts: RetailFirstEntry[];
+  leisure: RetailLeisureEntry[];
+  ranking: RetailRankingEntry[];
+}
+
 // Форма строки в таблице Supabase (snake_case-колонки) — см. lib/businessCentersApi.ts
 export interface BusinessCenterRow {
   id: string;
@@ -475,6 +535,8 @@ export interface BusinessCenterRow {
   // Необязательные: в снимках сборки, снятых до 2026-09-23, этих колонок нет.
   kind?: string | null;
   retail_format?: string | null;
+  // Торговые блоки ТЦ; у БЦ и в снимках до 2026-09-23 — null/нет ключа.
+  retail_info?: RetailInfo | null;
   sort_order: number;
   created_at: string;
 }

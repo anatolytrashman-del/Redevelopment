@@ -3,6 +3,7 @@ import { withRetry } from './withRetry';
 import { bcExtraFile, loadBuildData, seedBuildData } from './buildData';
 import { triggerPublicRebuild } from './publicRebuild';
 import { CATALOG_VOCABULARY, type CatalogKind } from './catalogKind';
+import { normalizeRetailInfo } from './tradeCenterRetail';
 import type {
   BusinessCenter,
   BusinessCenterDerivedField,
@@ -66,6 +67,7 @@ function fromRow(row: BusinessCenterRow): BusinessCenter {
     status: (row.status as BusinessCenter['status']) ?? 'built',
     kind: row.kind === 'tc' ? 'tc' : 'bc',
     retailFormat: row.retail_format ?? null,
+    retailInfo: normalizeRetailInfo(row.retail_info),
     sortOrder: row.sort_order,
     createdAt: row.created_at,
   };
@@ -320,7 +322,9 @@ export function fetchBusinessCentersFull(): Promise<BusinessCenter[]> {
 // Производные колонки в payload не входят вовсе — их считает триггер в
 // базе при каждой записи technical_params (см. миграцию
 // 20260916-bc-structured-tech-params.sql и BusinessCenterDerivedField).
-type BusinessCenterInput = Omit<BusinessCenter, 'id' | 'createdAt' | BusinessCenterDerivedField>;
+// retailInfo — тоже: его заполняет ресёрч ТЦ, в форме админки такого поля
+// нет, и отправь форма свой null, сохранение карточки стёрло бы собранное.
+type BusinessCenterInput = Omit<BusinessCenter, 'id' | 'createdAt' | 'retailInfo' | BusinessCenterDerivedField>;
 
 function toPayload(input: Partial<BusinessCenterInput>) {
   const payload: Record<string, unknown> = {};

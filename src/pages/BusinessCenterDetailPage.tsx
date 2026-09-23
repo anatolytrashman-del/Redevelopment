@@ -12,6 +12,7 @@ import {
   Banknote,
   Building2,
   CheckCircle2,
+  Clapperboard,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -21,10 +22,12 @@ import {
   DoorOpen,
   ExternalLink,
   FileText,
+  Flag,
   Globe,
   HardHat,
   Info,
   Landmark,
+  Layers,
   Leaf,
   List,
   Mail,
@@ -121,6 +124,17 @@ import {
 } from '../lib/businessCenterTenants';
 import { TenantDirectory } from '../components/businessCenters/TenantDirectory';
 import { BuildingAmenities } from '../components/businessCenters/BuildingAmenities';
+import { TradeCenterRetailBlocks } from '../components/businessCenters/TradeCenterRetailBlocks';
+import {
+  RETAIL_SECTION_LABELS,
+  anchorsFaqAnswer,
+  firstsFaqAnswer,
+  floorsFaqAnswer,
+  leisureFaqAnswer,
+  leisureFaqQuestion,
+  rankingFaqAnswer,
+  retailSectionIds,
+} from '../lib/tradeCenterRetail';
 import type { BusinessCenterTenantSnapshot } from '../data/businessCenterTenants';
 import { buildOfferIndex, METRO_LINE_DOT_CLASS, metroLineId } from '../lib/businessCenterCatalogFilter';
 import { buildMarketPosition, haversineMeters } from '../lib/businessCenterMarketPosition';
@@ -158,6 +172,10 @@ const SECTION_LABELS: Record<string, string> = {
   map: 'Инфраструктура рядом',
   tech: 'Параметры здания',
   tenants: 'Каталог арендаторов',
+  // Торговые блоки — только у ТЦ (TradeCenterRetailBlocks).
+  floors: RETAIL_SECTION_LABELS.floors,
+  firsts: RETAIL_SECTION_LABELS.firsts,
+  leisure: RETAIL_SECTION_LABELS.leisure,
   // «БЦ» подменяется на «ТЦ» в каталоге торговых центров (см. sectionLabel).
   rental: 'Отдел аренды БЦ',
   offers: 'Что сдают и продают',
@@ -175,6 +193,9 @@ const SECTION_ICONS: Record<string, typeof FileText> = {
   map: MapPin,
   tech: Building2,
   tenants: Users,
+  floors: Layers,
+  firsts: Flag,
+  leisure: Clapperboard,
   rental: FileText,
   offers: Banknote,
   history: Clock,
@@ -1487,6 +1508,25 @@ export function BusinessCenterDetailPage() {
         add(`Что есть рядом с ${bcIns}?`, `${lines.join(' ')} Учтены объекты в пешей доступности — примерно до 800 м.`);
       }
     }
+    // Торговые блоки ТЦ (TradeCenterRetailBlocks) — в том же порядке, что на
+    // странице: между картой и каталогом арендаторов. Ответы собирают те же
+    // функции, что рисуют блоки (lib/tradeCenterRetail.ts), — нет записей,
+    // нет и вопроса.
+    if (isTc && center.retailInfo) {
+      const retail = center.retailInfo;
+      add(`Что находится на каждом этаже ${bcGen}?`, floorsFaqAnswer(retail.floorsGuide));
+      add(`Какие магазины впервые в Беларуси открылись в ${bcPrep}?`, firstsFaqAnswer(retail.firsts));
+      add(`Кто якорные арендаторы ${bcGen}?`, anchorsFaqAnswer(retail.firsts));
+      const leisureQuestion = leisureFaqQuestion(retail.leisure, `в ${bcPrep}`);
+      if (leisureQuestion) add(leisureQuestion, leisureFaqAnswer(retail.leisure));
+      const scopes = [...new Set(retail.ranking.map((r) => r.scope.trim()))];
+      add(
+        scopes.length === 1 && scopes[0]
+          ? `Какое место ${bcNom} занимает ${scopes[0]}?`
+          : `Какое место ${bcNom} занимает в рейтингах ${V.manyGen}?`,
+        rankingFaqAnswer(retail.ranking),
+      );
+    }
     // Арендаторы и «что есть кроме офисов» — один вопрос (владелец,
     // 2026-09-22: «я бы анализировал весь список арендаторов, если он есть,
     // и писал ответ на основе него; можешь объединить»). Раньше сервисы
@@ -1678,6 +1718,8 @@ export function BusinessCenterDetailPage() {
             label: hasNearbyContent(center, nearbyPlaces) ? SECTION_LABELS.map : 'Расположение',
           }
         : null,
+      // Торговые блоки ТЦ стоят между картой и каталогом арендаторов.
+      ...(isTc ? retailSectionIds(center.retailInfo) : []).map((id) => has(id, true)),
       has('tenants', tenantOrganizations.length > 0),
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
       has(
@@ -1717,6 +1759,8 @@ export function BusinessCenterDetailPage() {
     accessibilityAttributes,
     nearbyPlaces,
     reviews,
+    isTc,
+    V,
   ]);
 
   // Сколько в блоке повторяющихся элементов — единственное, что нужно
@@ -1776,6 +1820,13 @@ export function BusinessCenterDetailPage() {
           return developerInfo ? estimateTextLines(developerInfo.description, 110) : 0;
         case 'faq':
           return faqItems.length;
+        case 'floors':
+          return center.retailInfo?.floorsGuide.length ?? 0;
+        case 'firsts':
+          return center.retailInfo?.firsts.length ?? 0;
+        // Плитки в две колонки: высоту задаёт число рядов.
+        case 'leisure':
+          return Math.ceil((center.retailInfo?.leisure.length ?? 0) / 2);
         // tenants — пагинация по 6 карточек, высота от числа организаций
         // не зависит вовсе.
         default:
@@ -1811,12 +1862,21 @@ export function BusinessCenterDetailPage() {
   // самому верхнему месту.
   const recommendationSlots = useMemo(() => {
     const slots = new Map<string, RecommendationBlockId[]>();
-    planRecommendationSlots(sectionSizes, recommendationBlocks.length).forEach((sectionId, index) => {
+    // Три торговые карточки ТЦ читаются как одна группа — рекомендацию,
+    // выпавшую между ними, переносим за последнюю из них. Если там уже
+    // стоит своя, оставляем как было: две рекомендации подряд хуже.
+    const retailIds = new Set<string>(isTc && center ? retailSectionIds(center.retailInfo) : []);
+    const lastRetail = [...sectionSizes].reverse().find((section) => retailIds.has(section.id))?.id ?? null;
+    const planned = planRecommendationSlots(sectionSizes, recommendationBlocks.length);
+    planned.forEach((sectionId, index) => {
       const block = recommendationBlocks[index];
-      if (block) slots.set(sectionId, [...(slots.get(sectionId) ?? []), block.id]);
+      if (!block) return;
+      const target =
+        lastRetail && retailIds.has(sectionId) && !planned.includes(lastRetail) ? lastRetail : sectionId;
+      slots.set(target, [...(slots.get(target) ?? []), block.id]);
     });
     return slots;
-  }, [sectionSizes, recommendationBlocks]);
+  }, [sectionSizes, recommendationBlocks, isTc, center]);
 
   const recommendationBlocksById = useMemo(
     () => new Map(recommendationBlocks.map((b) => [b.id, b])),
@@ -2576,6 +2636,13 @@ export function BusinessCenterDetailPage() {
             2026-09-06 ("на первое место ставь места с максимумом отзывов на
             картах"), но тогда рейтинг был известен только по зданию целиком —
             теперь число оценок есть на саму организацию. */}
+        {/* Торговые блоки ТЦ — что на каком этаже, первые в Беларуси и
+            якоря, кино/еда/развлечения, место в рейтинге ТЦ Минска
+            (business_centers.retail_info, 2026-09-23). Стоят перед каталогом
+            арендаторов: это выжимка того же состава здания, а каталог —
+            полный список для поиска по имени. У БЦ не рисуются. */}
+        {isTc && <TradeCenterRetailBlocks info={center.retailInfo} after={renderRecommendationSlot} />}
+
         {tenantOrganizations.length > 0 && (
           <TenantDirectory organizations={tenantOrganizations} />
         )}

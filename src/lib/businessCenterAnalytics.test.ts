@@ -73,6 +73,7 @@ function center(over: Partial<BusinessCenter> & { slug: string }): BusinessCente
     status: 'built',
     kind: 'bc',
     retailFormat: null,
+    retailInfo: null,
     sortOrder: 0,
     createdAt: '2026-09-01T00:00:00Z',
     ...over,

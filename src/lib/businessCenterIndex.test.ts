@@ -18,7 +18,7 @@ function bc(over: Partial<BusinessCenter> & { slug: string }): BusinessCenter {
     elevators: null, parkingRatio: null, airConditioning: null, ceilingHeight: null, managementType: null,
     metroDistanceBucket: null, freeSpaceMin: null, freeSpaceMax: null, infraInternal: [], infraNearby: [],
     lat: null, lng: null, gisRating: null, gisReviewCount: null, is24x7: null, accessibility: [], photos: [],
-    status: 'built', kind: 'bc', retailFormat: null, sortOrder: 0, createdAt: '2026-01-01', ...over,
+    status: 'built', kind: 'bc', retailFormat: null, retailInfo: null, sortOrder: 0, createdAt: '2026-01-01', ...over,
   };
 }
 
