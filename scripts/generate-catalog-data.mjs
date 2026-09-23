@@ -226,7 +226,7 @@ const SLICE_COLUMNS = 'business_center_slug,source,ad_id,deal_type,property_type
 
 async function writeExtras() {
   const generatedAt = new Date().toISOString();
-  const [market, external, lotSizes, offerSlices, tenantCity, sources, offers, reviews, nearby, gis2, tenants] =
+  const [market, external, lotSizes, offerSlices, tenantCity, sources, bcOffers, tcOffers, reviews, nearby, gis2, tenants] =
     await Promise.all([
       dataset('market_ofisy_bc', latestMarketSnapshots),
       dataset('external_ofisy_bc', () => supabaseSelect('external_metrics?select=*&segment=eq.ofisy_bc', 'external_metrics')),
@@ -239,6 +239,10 @@ async function writeExtras() {
         supabaseSelect('business_centers?select=website,developer_info,media_mentions,building_facts&kind=eq.bc&limit=1000', 'источники'),
       ),
       dataset('offers', () => selectAll('business_center_offers?select=*&order=price_per_sqm.asc,id.asc', 'объявления')),
+      // Объявления торговых центров — своя таблица (2026-09-23), нужны только
+      // карточкам ТЦ. Необязательный набор: нет доступа и нет в запасном
+      // снимке — карточки ТЦ просто без объявлений, сборка не падает.
+      dataset('tc_offers', () => selectAll('trade_center_offers?select=*&order=price_per_sqm.asc,id.asc', 'объявления ТЦ')).catch(() => []),
       dataset('reviews', () => selectAll('business_center_review_snapshots?select=*&order=id.asc', 'отзывы')),
       dataset('nearby', () => selectAll('business_center_nearby_places?select=*&order=distance_meters.asc,id.asc', 'окружение')),
       dataset('gis2', () => supabaseSelect(`business_center_2gis_snapshots?select=${GIS2_COLUMNS}`, '2ГИС')),
@@ -246,6 +250,21 @@ async function writeExtras() {
         supabaseSelect(`business_center_tenant_source_snapshots?select=${TENANT_COLUMNS}&source=eq.yandex_maps`, 'арендаторы'),
       ),
     ]);
+  // Здания БЦ и ТЦ не пересекаются, поэтому порядок внутри каждого здания
+  // (цена, затем id) сохраняется и после склейки.
+  const offers = [...bcOffers, ...tcOffers];
+
+  // Городские срезы (размеры лотов для каталога, срезы для аналитики) — только
+  // объявления в бизнес-центрах: в business_center_offers лежат и объявления
+  // торговых центров (kind = 'tc'), им в офисных медианах не место. Набор
+  // слагов — из уже записанного списка БЦ (там только kind = 'bc'); нет
+  // списка — оба ключа не пишем, и страница сама сходит в базу, где
+  // businessCenterOffersApi фильтрует тем же правилом.
+  const bcListPath = join(DIST_DATA, 'business-centers.json');
+  const bcSlugs = existsSync(bcListPath)
+    ? new Set(JSON.parse(readFileSync(bcListPath, 'utf8')).rows.map((r) => r.slug))
+    : null;
+  const onlyBc = (rows) => (bcSlugs ? rows.filter((r) => bcSlugs.has(r.business_center_slug)) : undefined);
 
   mkdirSync(join(DIST_DATA, 'bc'), { recursive: true });
   // Каталог и хабы берут отсюда ставки рынка и размеры лотов — файл держим
@@ -253,9 +272,9 @@ async function writeExtras() {
   // аналитики и живут в своём файле, чтобы каталог их не качал.
   writeFileSync(
     join(DIST_DATA, 'bc-market.json'),
-    JSON.stringify({ generatedAt, marketSnapshots: { ofisy_bc: market }, externalMetrics: { ofisy_bc: external }, lotSizes }),
+    JSON.stringify({ generatedAt, marketSnapshots: { ofisy_bc: market }, externalMetrics: { ofisy_bc: external }, lotSizes: onlyBc(lotSizes) }),
   );
-  writeFileSync(join(DIST_DATA, 'bc-analytics.json'), JSON.stringify({ generatedAt, offerSlices, tenantCity }));
+  writeFileSync(join(DIST_DATA, 'bc-analytics.json'), JSON.stringify({ generatedAt, offerSlices: onlyBc(offerSlices), tenantCity }));
   writeFileSync(join(DIST_DATA, 'bc-sources.json'), JSON.stringify({ generatedAt, rows: sources }));
 
   // Файл .extra пишется КАЖДОМУ зданию из списка, даже пустой: пустой файл

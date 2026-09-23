@@ -44,6 +44,27 @@ const JSON_OUT = process.argv.includes('--json');
 const limitArg = process.argv.find((a) => a.startsWith('--limit='));
 const LIMIT = limitArg ? Number(limitArg.split('=')[1]) : null;
 
+// Какой каталог собираем: 'bc' — бизнес-центры (по умолчанию, так его и
+// зовёт GitHub Action), 'tc' — торговые центры (2026-09-23, каталог /minsk/tc).
+// Обе группы лежат в business_centers (колонка kind); объявления БЦ пишутся
+// в business_center_offers, ТЦ — в trade_center_offers. Удаление в конце
+// main() всё равно ограничено зданиями текущего прогона. Принимается и
+// `--kind tc`, и `--kind=tc`.
+const kindArgIndex = process.argv.findIndex((a) => a === '--kind' || a.startsWith('--kind='));
+const KIND =
+  kindArgIndex === -1
+    ? 'bc'
+    : process.argv[kindArgIndex].includes('=')
+      ? process.argv[kindArgIndex].split('=')[1]
+      : process.argv[kindArgIndex + 1];
+if (KIND !== 'bc' && KIND !== 'tc') {
+  console.error(`--kind: ожидается bc или tc, получено «${KIND}»`);
+  process.exit(1);
+}
+// Объявления ТЦ — в своей таблице (2026-09-23): для посетителей БЦ и ТЦ —
+// разные разделы, городские срезы БЦ не должны их видеть даже без фильтров.
+const OFFERS_TABLE = KIND === 'tc' ? 'trade_center_offers' : 'business_center_offers';
+
 if (!SUPABASE_SERVICE_ROLE_KEY && !DRY_RUN) {
   console.error('Не задана переменная окружения SUPABASE_SERVICE_ROLE_KEY (или запусти с --dry-run)');
   process.exit(1);
@@ -88,10 +109,12 @@ function splitStreetHouse(shortAddr) {
 
 // Транслитерация административных районов Минска в slug'и Realt — угадана и
 // проверена вживую curl'ом (HTTP 200 + реальные объявления на каждый), не
-// официальная документация (Realt её не публикует). "Ленинский" сюда не
-// включён — ни у одного текущего БЦ такого района нет, добавить по
-// аналогии, если появится. "Великий камень" (Аден, вне Минска) — Realt не
-// поддерживает районы за пределами города через эту схему, пропускаем.
+// официальная документация (Realt её не публикует). "Ленинский" добавлен
+// 2026-09-23 вместе со сбором по торговым центрам (у БЦ такого района нет,
+// у ТЦ — 12 зданий): leninskij-rajon проверен curl'ом — HTTP 200 и реальные
+// объявления по Рокоссовского/Маяковского/Игуменскому тракту. "Великий
+// камень" (Аден, вне Минска) и "Минский район" — Realt не поддерживает
+// районы за пределами города через эту схему, пропускаем.
 const REALT_DISTRICT_SLUGS = {
   Центральный: 'centralnyj-rajon',
   Октябрьский: 'oktjabrskij-rajon',
@@ -101,6 +124,7 @@ const REALT_DISTRICT_SLUGS = {
   Фрунзенский: 'frunzenskij-rajon',
   Заводской: 'zavodskoj-rajon',
   Московский: 'moskovskij-rajon',
+  Ленинский: 'leninskij-rajon',
 };
 
 const REALT_DEAL_TYPES = [
@@ -627,16 +651,33 @@ async function collectMegapolisOffers(centers) {
 // ---------- main ----------
 
 async function main() {
-  const { data: centers, error: centersError } = await supabase
+  const { data: allCenters, error: centersError } = await supabase
     .from('business_centers')
     .select('slug, name, address, district')
-    // Торговые центры (kind = 'tc') пока не собираем: их объявления попали бы
-    // в офисную аналитику каталога БЦ, которая читает business_center_offers целиком.
-    .eq('kind', 'bc');
+    // Один каталог за запуск. Объявления ТЦ в офисную аналитику каталога БЦ
+    // не попадают: все городские читатели business_center_offers берут только
+    // здания kind = 'bc' (businessCenterOffersApi, generate-catalog-data,
+    // build-market-snapshots).
+    .eq('kind', KIND);
   if (centersError) throw centersError;
 
+  // У торговых центров часть зданий за МКАД («Минский район, д. Боровая, 7А»).
+  // Все источники здесь — выдача по городу Минску, а shortAddress срезал бы
+  // «Минский район» и искал бы «Боровая 7А» среди минских улиц — чужие дома.
+  // Поэтому для ТЦ берём только адреса в черте города.
+  const centers =
+    KIND === 'tc'
+      ? allCenters.filter((c) => {
+          const inMinsk = /^г\.\s*Минск,/i.test(c.address ?? '');
+          if (!inMinsk) console.log(`Пропускаю «${c.name}» — адрес вне Минска: ${c.address}`);
+          return inMinsk;
+        })
+      : allCenters;
+
   const scopedCenters = LIMIT ? centers.slice(0, LIMIT) : centers;
-  console.log(`Загружено ${centers.length} бизнес-центров из справочника${LIMIT ? ` (ограничено до ${scopedCenters.length} для теста)` : ''}.`);
+  console.log(
+    `Загружено ${centers.length} зданий kind='${KIND}' из справочника${LIMIT ? ` (ограничено до ${scopedCenters.length} для теста)` : ''}.`,
+  );
 
   const kufarOffers = await collectKufarOffers(scopedCenters);
   console.log(`Kufar: найдено ${kufarOffers.length} подходящих объявлений.`);
@@ -677,21 +718,31 @@ async function main() {
   // перезаписи, поэтому проще снести старое и записать свежее одним upsert
   // + удалением того, что в этот раз не нашлось).
   const { error: upsertError } = await supabase
-    .from('business_center_offers')
+    .from(OFFERS_TABLE)
     .upsert(payload, { onConflict: 'business_center_slug,source,ad_id' });
   if (upsertError) throw upsertError;
 
+  // Удаляем только в зданиях ЭТОГО запуска: раньше удаление шло по всей
+  // таблице, и запуск по ТЦ снёс бы все объявления БЦ (и наоборот), а
+  // запуск с --limit — объявления всех зданий вне первых N. Слаг — часть
+  // ключа, поэтому сверяем пару (слаг, ad_id) по каждому зданию отдельно:
+  // одно объявление может честно висеть на двух зданиях с общим адресом.
   for (const source of ['Kufar', 'Realt', 'Domovita', 'Megapolis']) {
-    const idsThisRun = offers.filter((o) => o.source === source).map((o) => o.ad_id);
-    const { error: deleteError } = await supabase
-      .from('business_center_offers')
-      .delete()
-      .eq('source', source)
-      .not('ad_id', 'in', `(${idsThisRun.length ? idsThisRun.map((id) => `"${id}"`).join(',') : '""'})`);
-    if (deleteError) throw deleteError;
+    for (const center of scopedCenters) {
+      const idsThisRun = offers
+        .filter((o) => o.source === source && o.business_center_slug === center.slug)
+        .map((o) => o.ad_id);
+      const { error: deleteError } = await supabase
+        .from(OFFERS_TABLE)
+        .delete()
+        .eq('source', source)
+        .eq('business_center_slug', center.slug)
+        .not('ad_id', 'in', `(${idsThisRun.length ? idsThisRun.map((id) => `"${id}"`).join(',') : '""'})`);
+      if (deleteError) throw deleteError;
+    }
   }
 
-  console.log(`Сохранено ${payload.length} объявлений в business_center_offers.`);
+  console.log(`Сохранено ${payload.length} объявлений в ${OFFERS_TABLE}.`);
 }
 
 main().catch((err) => {

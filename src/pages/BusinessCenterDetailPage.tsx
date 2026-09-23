@@ -349,7 +349,7 @@ export function BusinessCenterDetailPage() {
     // вёрстки, от которого стартовое состояние выше и защищает.
     const fromBuild = peekBusinessCenterOffers(slug);
     setOffersResult(fromBuild ? { slug, offers: fromBuild, error: false } : null);
-    fetchBusinessCenterOffers(slug)
+    fetchBusinessCenterOffers(slug, V.kind)
       .then((data) => {
         if (!cancelled) setOffersResult({ slug, offers: data, error: false });
       })
@@ -357,7 +357,7 @@ export function BusinessCenterDetailPage() {
         if (!cancelled) setOffersResult({ slug, offers: null, error: true });
       });
     return () => { cancelled = true; };
-  }, [slug]);
+  }, [slug, V.kind]);
 
   // Сравнение со средней по классу/району (ANALYTICSPLAN.md §4.2) — тот же
   // сегмент 'ofisy_bc', что и на каталоге/хабах. Грузится один раз, не по
@@ -1056,9 +1056,12 @@ export function BusinessCenterDetailPage() {
     () => (center && !isTc ? buildMarketPosition(center, centers ?? [], officeSnapshots, offerIndex) : null),
     [center, centers, officeSnapshots, offerIndex, isTc],
   );
+  // У ТЦ сравнения с рынком нет: снимки рынка — офисный сегмент ofisy_bc, и
+  // сравнивать с ним ставки торговых помещений нельзя. Сам список объявлений
+  // здания (BuildingOffersSection) у ТЦ показывается так же, как у БЦ.
   const priceComparison = useMemo(
-    () => (center ? buildPriceComparison(center, centers ?? [], offerIndex) : null),
-    [center, centers, offerIndex],
+    () => (center && !isTc ? buildPriceComparison(center, centers ?? [], offerIndex) : null),
+    [center, centers, offerIndex, isTc],
   );
   // Цитаты отзывов из «Интересных фактов» — отдельным блоком «Что говорят»
   // вместе с рейтингами (Б11), а не россыпью по странице.
