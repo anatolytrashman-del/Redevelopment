@@ -24,6 +24,14 @@ function fromRow(row: BusinessCenterOfferRow): BusinessCenterOffer {
   };
 }
 
+// Городские срезы (аналитика, размеры лотов) — только объявления в
+// бизнес-центрах. В той же таблице лежат и объявления торговых центров
+// (business_centers.kind = 'tc', 2026-09-23), и в офисные медианы они
+// попадать не должны. Внешний ключ business_center_slug → business_centers
+// даёт PostgREST'у inner-join: строка без здания kind = 'bc' не вернётся.
+// Карточка одного здания (fetchBusinessCenterOffers) фильтра не требует.
+const BC_ONLY_EMBED = 'business_centers!inner(kind)';
+
 export async function fetchBusinessCenterOffers(slug: string): Promise<BusinessCenterOffer[]> {
   // Файл .extra здания лежит в сборке в том же порядке (цена, затем id), что
   // и выборка ниже; пустой массив в нём — «объявлений нет», а не «не знаю».
@@ -62,7 +70,8 @@ export function fetchAllBusinessCenterOffers(): Promise<BusinessCenterOffer[]> {
     for (let from = 0; ; from += PAGE) {
       const { data, error } = await supabase
         .from('business_center_offers')
-        .select('*')
+        .select(`*,${BC_ONLY_EMBED}`)
+        .eq('business_centers.kind', 'bc')
         .order('id', { ascending: true })
         .range(from, from + PAGE - 1);
       if (error) throw error;
@@ -92,7 +101,8 @@ export async function fetchBusinessCenterOfferSlices(): Promise<BusinessCenterOf
     for (let from = 0; ; from += PAGE) {
       const { data, error } = await supabase
         .from('business_center_offers')
-        .select(SLICE_COLUMNS)
+        .select(`${SLICE_COLUMNS},${BC_ONLY_EMBED}`)
+        .eq('business_centers.kind', 'bc')
         .order('id', { ascending: true })
         .range(from, from + PAGE - 1);
       if (error) throw error;
@@ -144,7 +154,9 @@ export async function fetchBusinessCenterLotSizes(): Promise<{ businessCenterSlu
     for (let from = 0; ; from += PAGE) {
       const { data, error } = await supabase
         .from('business_center_offers')
-        .select('business_center_slug,size')
+        .select(`business_center_slug,size,${BC_ONLY_EMBED}`)
+        .eq('business_centers.kind', 'bc')
+        .order('id', { ascending: true })
         .range(from, from + PAGE - 1);
       if (error) throw error;
       rows.push(...(data as { business_center_slug: string; size: number }[]));

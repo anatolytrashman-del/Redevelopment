@@ -41,10 +41,15 @@ const DATASETS = {
   // marketSnapshotsApi.fetchExternalMetrics('ofisy_bc').
   external_ofisy_bc: `select * from external_metrics where segment = 'ofisy_bc'`,
   // businessCenterOffersApi.fetchBusinessCenterLotSizes.
-  lot_sizes: `select business_center_slug, size from business_center_offers`,
+  // Только здания kind = 'bc' — объявления торговых центров лежат в той же
+  // таблице, а наборы городские (тот же фильтр, что в Api и генераторе).
+  lot_sizes: `select business_center_slug, size from business_center_offers
+    where business_center_slug in (select slug from business_centers where kind = 'bc')`,
   // businessCenterOffersApi.fetchBusinessCenterOfferSlices (SLICE_COLUMNS).
   offer_slices: `select business_center_slug, source, ad_id, deal_type, property_type, size, price_per_sqm
-    from business_center_offers order by id asc`,
+    from business_center_offers
+    where business_center_slug in (select slug from business_centers where kind = 'bc')
+    order by id asc`,
   // businessCenterTenantCityApi.fetchTenantCitySlice.
   tenant_city: `select categories, org_total, building_total, computed_at from business_center_tenant_city_categories`,
   // businessCenterSourcesApi.fetchCatalogSiteSources.

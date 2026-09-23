@@ -231,7 +231,12 @@ async function main() {
   // business_center_offers не трогается — "Объявления с Kufar и Realt" на
   // карточке конкретного БЦ по-прежнему показывает все помещения здания,
   // не только офисные, там фильтр по типу не нужен.
-  const dedupedBcOffers = dedupeBcOffers(bcOffers);
+  // Только объявления в бизнес-центрах: business_center_offers хранит и
+  // объявления торговых центров (kind = 'tc'). Без этой строки они ушли бы в
+  // городской срез ofisy_bc (срезы класса/района/здания их и так отсекали
+  // через centerBySlug, а город — нет).
+  const centerSlugs = new Set(centers.map((c) => c.slug));
+  const dedupedBcOffers = dedupeBcOffers(bcOffers.filter((o) => centerSlugs.has(o.business_center_slug)));
   const officeOnlyOffers = dedupedBcOffers.filter((o) => o.property_type === 'Офисы');
   const centerBySlug = new Map(centers.map((c) => [c.slug, c]));
   const officeRows = officeOnlyOffers.map((o) => ({
@@ -250,7 +255,7 @@ async function main() {
     building: centerBySlug.has(o.business_center_slug) ? o.business_center_slug : null,
   }));
   console.log(
-    `Загружено ${centers.length} БЦ, ${bcOffers.length} объявлений в БЦ (${dedupedBcOffers.length} после схлопывания одного лота с нескольких площадок, ${officeOnlyOffers.length} из них — офисы, остальные отфильтрованы из снимка сегмента).`,
+    `Загружено ${centers.length} БЦ, ${bcOffers.length} объявлений в таблице (${dedupedBcOffers.length} после схлопывания одного лота с нескольких площадок, ${officeOnlyOffers.length} из них — офисы, остальные отфильтрованы из снимка сегмента).`,
   );
   snapshots.push(
     ...buildSnapshotsForSegment(officeRows, 'ofisy_bc', period, [

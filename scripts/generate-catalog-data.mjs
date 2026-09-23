@@ -247,15 +247,27 @@ async function writeExtras() {
       ),
     ]);
 
+  // Городские срезы (размеры лотов для каталога, срезы для аналитики) — только
+  // объявления в бизнес-центрах: в business_center_offers лежат и объявления
+  // торговых центров (kind = 'tc'), им в офисных медианах не место. Набор
+  // слагов — из уже записанного списка БЦ (там только kind = 'bc'); нет
+  // списка — оба ключа не пишем, и страница сама сходит в базу, где
+  // businessCenterOffersApi фильтрует тем же правилом.
+  const bcListPath = join(DIST_DATA, 'business-centers.json');
+  const bcSlugs = existsSync(bcListPath)
+    ? new Set(JSON.parse(readFileSync(bcListPath, 'utf8')).rows.map((r) => r.slug))
+    : null;
+  const onlyBc = (rows) => (bcSlugs ? rows.filter((r) => bcSlugs.has(r.business_center_slug)) : undefined);
+
   mkdirSync(join(DIST_DATA, 'bc'), { recursive: true });
   // Каталог и хабы берут отсюда ставки рынка и размеры лотов — файл держим
   // лёгким; срезы объявлений и отраслевой срез нужны одной странице
   // аналитики и живут в своём файле, чтобы каталог их не качал.
   writeFileSync(
     join(DIST_DATA, 'bc-market.json'),
-    JSON.stringify({ generatedAt, marketSnapshots: { ofisy_bc: market }, externalMetrics: { ofisy_bc: external }, lotSizes }),
+    JSON.stringify({ generatedAt, marketSnapshots: { ofisy_bc: market }, externalMetrics: { ofisy_bc: external }, lotSizes: onlyBc(lotSizes) }),
   );
-  writeFileSync(join(DIST_DATA, 'bc-analytics.json'), JSON.stringify({ generatedAt, offerSlices, tenantCity }));
+  writeFileSync(join(DIST_DATA, 'bc-analytics.json'), JSON.stringify({ generatedAt, offerSlices: onlyBc(offerSlices), tenantCity }));
   writeFileSync(join(DIST_DATA, 'bc-sources.json'), JSON.stringify({ generatedAt, rows: sources }));
 
   // Файл .extra пишется КАЖДОМУ зданию из списка, даже пустой: пустой файл
