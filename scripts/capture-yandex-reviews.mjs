@@ -49,6 +49,7 @@
 // (для --write-db и --skip-collected/--missing-only), CHROME_PATH,
 // CHROME_WINDOW_SIZE / CHROME_WINDOW_POSITION.
 
+import './local-supabase-env.mjs'; // первым: ключ из ~/.config/redevelopment/supabase.env
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -65,6 +66,8 @@ const valueOf = (name) => {
 const has = (name) => args.includes(name);
 
 const onlySlug = valueOf('--slug');
+// --slug принимает и список через запятую: пробный прогон по нескольким зданиям.
+const onlySlugs = (onlySlug ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 // --kind bc|tc|all — какой каталог собирать (по умолчанию bc, как было до
 // каталога ТЦ 2026-09-23; торговые центры — `--kind tc`).
 const catalogKind = valueOf('--kind') ?? 'bc';
@@ -300,7 +303,7 @@ async function catalogEntries() {
     .eq('status', 'built')
     .order('sort_order', { ascending: true });
   if (catalogKind !== 'all') query = query.eq('kind', catalogKind);
-  if (onlySlug) query = query.eq('slug', onlySlug);
+  if (onlySlugs.length > 0) query = query.in('slug', onlySlugs);
   if (classesFilter.length > 0) query = query.in('business_class', classesFilter);
   const { data, error } = await query;
   if (error) throw error;
