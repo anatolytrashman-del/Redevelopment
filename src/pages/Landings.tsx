@@ -91,20 +91,6 @@ const LANDINGS: LandingEntry[] = [
       status: 'in-progress',
     }),
   ),
-  {
-    title: 'Хаб «Бизнес-центры у метро»',
-    description:
-      'Пример: /minsk/bc/metro/molodezhnaya — карточки БЦ в радиусе 1,5 км от станции, отсортированы по расстоянию. Ещё 32 такие страницы (по одной на станцию с хотя бы 1 БЦ). Доработать: проверить формулировки FAQ, при желании — свои тексты под ключевые станции (Молодёжная/Академия наук/Пушкинская — самые насыщенные).',
-    url: 'https://redevelopment.pro/minsk/bc/metro/molodezhnaya',
-    status: 'in-progress',
-  },
-  {
-    title: 'Хаб «Бизнес-центры по улице»',
-    description:
-      'Пример: /minsk/bc/street/prospekt-pobediteley — 8 БЦ на проспекте Победителей, самая насыщенная улица каталога. Ещё 22 такие страницы (только улицы с 2+ БЦ — на 69 улицах с одним БЦ хаб не заводился, был бы дублем карточки здания). Доработать: проверить формулировки, при желании — свои тексты под самые крупные улицы (Победителей/Независимости/Дзержинского).',
-    url: 'https://redevelopment.pro/minsk/bc/street/prospekt-pobediteley',
-    status: 'in-progress',
-  },
   // Раздел «Аналитика рынка» (ANALYTICSPLAN.md, спринты 1-3) — все
   // страницы 'in-progress': методика/охват сегментов ещё дополняются,
   // первичка/ГАБ/квартальный обзор из плана не начаты (нет источника
@@ -267,12 +253,19 @@ const LANDINGS: LandingEntry[] = [
   },
 ];
 
+// Готовые страницы — наверху списка (владелец 2026-09-23), остальные в
+// прежнем порядке: сортировка стабильная, порядок внутри групп не меняется.
+const SORTED_LANDINGS = [
+  ...LANDINGS.filter((l) => l.status === 'done'),
+  ...LANDINGS.filter((l) => l.status !== 'done'),
+];
+
 export function Landings() {
   return (
     <>
       <PageHeader title="Лендинги" />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {LANDINGS.map((l) => {
+        {SORTED_LANDINGS.map((l) => {
           const content = (
             <>
               <div className="flex items-center justify-between gap-2">
