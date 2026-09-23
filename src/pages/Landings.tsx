@@ -78,7 +78,7 @@ const LANDINGS: LandingEntry[] = [
     title: 'Бизнес-центры Минска',
     description: 'Справочник бизнес-центров города: адреса, класс, площадь, год постройки — по данным веб-ресерча, фото добавляет владелец.',
     url: 'https://redevelopment.pro/minsk/bc',
-    status: 'in-progress',
+    status: 'done',
   },
   // Посадочные под подсказки Google по Минск Миру (аудит поиска 2026-09-07,
   // см. data/minskMirTopics.ts и MinskMirTopicPage.tsx) — опубликованы
