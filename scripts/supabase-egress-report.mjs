@@ -21,6 +21,9 @@ const TOKEN = process.env.SUPABASE_ACCESS_TOKEN;
 const SUPABASE_URL = `https://${REF}.supabase.co`;
 const ANON_KEY = 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
 const PRO_EGRESS_GB = 250;
+// Цель владельца с 2026-09-24 — бесплатный тариф: 5 ГБ в месяц ≈ 165 МБ в сутки.
+const FREE_EGRESS_GB = 5;
+const ALERT_MB = Number(process.argv.find((a) => a.startsWith('--alert-mb='))?.split('=')[1] ?? 150);
 
 if (!TOKEN) {
   console.error('[egress] нет SUPABASE_ACCESS_TOKEN');
@@ -105,7 +108,8 @@ const counts = await logs(`select ${SOURCE_SQL} src, count(*) n
 const gb = (b) => (b / 1e9).toFixed(2);
 const mb = (b) => (b / 1e6).toFixed(1);
 console.log(`Supabase egress, оценка за ${start.toISOString().slice(0, 16)} … ${end.toISOString().slice(0, 16)} UTC`);
-console.log(`REST, сжатый ответ: ${gb(gzTotal)} ГБ/сутки → ~${Math.round((gzTotal / 1e9) * 30)} ГБ/мес из ${PRO_EGRESS_GB} (Pro)`);
+console.log(`REST, сжатый ответ: ${gb(gzTotal)} ГБ/сутки → ~${((gzTotal / 1e9) * 30).toFixed(1)} ГБ/мес (Free ${FREE_EGRESS_GB}, Pro ${PRO_EGRESS_GB})`);
+console.log(gzTotal / 1e6 > ALERT_MB ? `ПРЕВЫШЕНИЕ: ${mb(gzTotal)} МБ за сутки при пороге ${ALERT_MB} МБ` : `в норме: ${mb(gzTotal)} МБ за сутки при пороге ${ALERT_MB} МБ`);
 console.log(`REST, верхняя граница (без сжатия): ${gb(rawTotal)} ГБ/сутки → ~${Math.round((rawTotal / 1e9) * 30)} ГБ/мес`);
 console.log('\nПо источникам (сжатый вес):');
 for (const [src, b] of Object.entries(sourceGz).sort((a, b) => b[1] - a[1])) console.log(`  ${mb(b).padStart(8)} МБ  ${src}`);
