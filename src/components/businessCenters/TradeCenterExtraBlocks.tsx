@@ -2,10 +2,12 @@
 // tc-catalog/codex/briefs/extras-schema.md), все из business_centers.retail_info:
 //
 // - «Посетителю» — одна карточка на пять тем (режим работы, парковка, как
-//   добраться, удобства и правила, скидки и события). Пять отдельных
+//   добраться, правила посещения, скидки и события). Пять отдельных
 //   карточек по две-три строки раздули бы страницу на пару экранов; здесь
 //   короткие панели стоят в две колонки (CSS columns сами выравнивают
-//   высоту колонок), а удобства — плитками на всю ширину под ними.
+//   высоту колонок). Удобства (retail_info.services) с 2026-09-24 живут не
+//   здесь, а в общем блоке «Инфраструктура» вместе с оборудованием из
+//   Яндекс.Карт (TradeCenterInfrastructure.tsx).
 // - «Арендаторам и рекламодателям» — для бизнес-аудитории сайта: крупные
 //   цифры аудитории, под ними аренда и реклама бок о бок.
 // - «ТЦ в цифрах» и «Цитаты».
@@ -21,12 +23,12 @@ import {
   CarFront,
   Check,
   Clock,
-  ConciergeBell,
   Footprints,
   Gift,
   Megaphone,
   Phone,
   Quote,
+  ScrollText,
   SquareParking,
   Store,
   TrainFront,
@@ -49,7 +51,6 @@ import {
   figureMeta,
   formatRetailDate,
   quoteText,
-  serviceFloorLabel,
   sortTransport,
 } from '../../lib/tradeCenterRetail';
 import { RetailCardTitle, SourcesLine } from './TradeCenterRetailParts';
@@ -114,7 +115,7 @@ function SubHeading({ children }: { children: ReactNode }) {
 // --- Посетителю ------------------------------------------------------------
 
 export function TradeCenterVisitCard({ info }: { info: RetailInfo }) {
-  const { hours, hoursNote, parking, services, rules, loyalty, events } = info;
+  const { hours, hoursNote, parking, rules, loyalty, events } = info;
   const transport = sortTransport(info.transport);
   const parkingDate = formatRetailDate(parking?.date);
 
@@ -176,6 +177,20 @@ export function TradeCenterVisitCard({ info }: { info: RetailInfo }) {
       </Panel>,
     );
   }
+  if (rules.length) {
+    panels.push(
+      <Panel key="rules" icon={ScrollText} title="Правила посещения">
+        <ul className="flex flex-col gap-1">
+          {rules.map((r, i) => (
+            <li key={i} className="flex items-start gap-2 text-sm leading-relaxed text-ink-muted">
+              <span className="mt-[0.6rem] h-1 w-1 shrink-0 rounded-full bg-ink-faint" aria-hidden="true" />
+              <span className="min-w-0 break-words">{r.text}</span>
+            </li>
+          ))}
+        </ul>
+      </Panel>,
+    );
+  }
   if (loyalty.length || events.length) {
     panels.push(
       <Panel key="loyalty" icon={Gift} title="Скидки и события">
@@ -224,7 +239,6 @@ export function TradeCenterVisitCard({ info }: { info: RetailInfo }) {
     ...hours,
     ...(parking ? [parking] : []),
     ...transport,
-    ...services,
     ...rules,
     ...loyalty,
     ...events,
@@ -243,42 +257,6 @@ export function TradeCenterVisitCard({ info }: { info: RetailInfo }) {
             </div>
           ))}
         </div>
-      )}
-      {(services.length > 0 || rules.length > 0) && (
-        <Panel icon={ConciergeBell} title="Удобства и правила">
-          {services.length > 0 && (
-            // На телефоне плитки в две колонки узкие: длинное название
-            // («Информационная») рвалось посреди слова. Поэтому до sm —
-            // одна колонка, дальше две-три.
-            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {services.map((s, i) => {
-                const where = serviceFloorLabel(s.floor);
-                return (
-                  <li key={`${s.name}-${i}`} className="flex min-w-0 flex-col gap-1 rounded-xl bg-surface-muted/80 px-3 py-2.5">
-                    <span className="flex items-baseline justify-between gap-2">
-                      <span className="min-w-0 break-words text-[13px] font-semibold leading-snug text-ink">{s.name}</span>
-                      {where && <span className="shrink-0 text-[11px] font-medium text-primary">{where}</span>}
-                    </span>
-                    {s.text && <span className="break-words text-xs leading-snug text-ink-muted">{s.text}</span>}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          {rules.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              {services.length > 0 && <SubHeading>Правила посещения</SubHeading>}
-              <ul className="flex flex-col gap-1">
-                {rules.map((r, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm leading-relaxed text-ink-muted">
-                    <span className="mt-[0.6rem] h-1 w-1 shrink-0 rounded-full bg-ink-faint" aria-hidden="true" />
-                    <span className="min-w-0 break-words">{r.text}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </Panel>
       )}
       <SourcesLine entries={sources} />
     </div>

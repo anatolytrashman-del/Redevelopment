@@ -699,10 +699,19 @@ export interface RetailTransportEntry extends RetailSource {
   text: string;
 }
 
+/**
+ * Группа удобства в блоке «Инфраструктура» ТЦ (2026-09-24). В порядке
+ * показа. Ресёрч может её не заполнить — тогда её выводит
+ * serviceGroupFromName в lib/tradeCenterRetail по названию.
+ */
+export const RETAIL_SERVICE_GROUPS = ['info', 'comfort', 'family', 'access', 'money', 'car', 'everyday', 'eco'] as const;
+export type RetailServiceGroup = (typeof RETAIL_SERVICE_GROUPS)[number];
+
 export interface RetailServiceEntry extends RetailSource {
   name: string;
   text: string | null;
   floor: string | null;
+  group: RetailServiceGroup;
 }
 
 export interface RetailRuleEntry extends RetailSource {

@@ -5,41 +5,18 @@
 // попадали в счётчик организаций. Владелец, 2026-09-23, увидев у ТЦ по 15–54
 // таких записей: «сделай их блоком Инфраструктура, иконками с короткими
 // заголовками, под арендаторами». Подписи канонические — их задаёт
-// tenantAmenityLabel в lib/tenantCategories.ts; новая подпись без иконки
+// tenantAmenityLabel в lib/tenantCategories.ts, заголовки плиток — там же
+// (tenantAmenityTitle), иконки — amenityIcons.ts; новая подпись без иконки
 // рисуется с общей.
-import {
-  Banknote,
-  BatteryCharging,
-  Bike,
-  Bitcoin,
-  CircleParking,
-  Coffee,
-  CreditCard,
-  CupSoda,
-  LayoutGrid,
-  Luggage,
-  PackageCheck,
-  Toilet,
-  type LucideIcon,
-} from 'lucide-react';
+import { LayoutGrid } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { TenantAmenity } from '../../lib/businessCenterTenants';
+import { tenantAmenityTitle } from '../../lib/tenantCategories';
+import { amenityIcon } from './amenityIcons';
 
-const AMENITY_VIEW: Record<string, { icon: LucideIcon; title: string }> = {
-  Туалет: { icon: Toilet, title: 'Туалеты' },
-  Банкомат: { icon: Banknote, title: 'Банкоматы' },
-  Криптомат: { icon: Bitcoin, title: 'Криптоматы' },
-  'Кофейный автомат': { icon: Coffee, title: 'Кофе-автоматы' },
-  'Вендинговый автомат': { icon: CupSoda, title: 'Вендинг' },
-  'Платёжный терминал': { icon: CreditCard, title: 'Терминалы' },
-  Постамат: { icon: PackageCheck, title: 'Постаматы' },
-  'Зарядная станция': { icon: BatteryCharging, title: 'Зарядка' },
-  Велопарковка: { icon: Bike, title: 'Велопарковка' },
-  Парковка: { icon: CircleParking, title: 'Парковка' },
-  'Камера хранения': { icon: Luggage, title: 'Камера хранения' },
-};
-
+// У ТЦ вместо этого блока — TradeCenterInfrastructure (оборудование вместе с
+// удобствами из retail_info.services, по группам).
 export function BuildingAmenities({ amenities }: { amenities: TenantAmenity[] }) {
   if (amenities.length === 0) return null;
   return (
@@ -51,8 +28,7 @@ export function BuildingAmenities({ amenities }: { amenities: TenantAmenity[] })
         </h2>
         <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
           {amenities.map((amenity) => {
-            const view = AMENITY_VIEW[amenity.category] ?? { icon: LayoutGrid, title: amenity.category };
-            const Icon = view.icon;
+            const Icon = amenityIcon(amenity.category);
             return (
               <li
                 key={amenity.category}
@@ -63,7 +39,7 @@ export function BuildingAmenities({ amenities }: { amenities: TenantAmenity[] })
                 </span>
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold leading-tight text-ink">
-                    {view.title}
+                    {tenantAmenityTitle(amenity.category)}
                   </span>
                   <span className="block text-xs text-ink-muted">{amenity.count} шт.</span>
                 </span>

@@ -123,6 +123,12 @@ const SECTION_HEIGHT_MODEL: Record<string, SectionHeightModel> = {
   business: { base: 150, perItem: 62 },
   numbers: { base: 140, perItem: 108 },
   quotes: { base: 130, perItem: 148 },
+  // «Инфраструктура» ТЦ (TradeCenterInfrastructure) — единица из
+  // infrastructureSectionSize: строка пояснения плитки (~17px), подзаголовки
+  // и отступы рядов пересчитаны в те же строки. Замер 2026-09-24 на 1280px
+  // по живым данным: Dana Mall — 931px на 40 строк, Galleria Minsk — 1607px
+  // на 72 (из них ~70px — четыре строки источников).
+  amenities: { base: 170, perItem: 19 },
   // <details>: в DOM есть и вопрос, и ответ, но на экране до раскрытия —
   // только строка вопроса.
   faq: { base: 85, perItem: 45 },

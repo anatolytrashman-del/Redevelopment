@@ -71,6 +71,33 @@ describe('buildTenantsFromSnapshot', () => {
     ]);
   });
 
+  it('инфоцентр, гардероб и зарядку электромобилей ТЦ уносит из арендаторов', () => {
+    const org = (name: string, category: string) => ({
+      name,
+      sourceId: name,
+      sourceUrl: null,
+      category,
+      rating: null,
+      reviewCount: null,
+      rawText: null,
+    });
+    const result = buildTenantsFromSnapshot([
+      org('Инфоцентр', 'Информационная служба'),
+      org('Гардероб', 'Гардероб'),
+      org('BatteryFly', 'Станция зарядки электромобилей'),
+      org('Ecoserb', 'Станция зарядки электромобилей'),
+      org('Комната матери и ребенка', 'Комната матери и ребенка'),
+      org('Бизнес инфо', 'Информационная служба'),
+    ]);
+    expect(result.tenants.map((t) => t.name)).toEqual(['Бизнес инфо']);
+    expect(result.amenities).toEqual([
+      { category: 'Зарядка электромобилей', count: 2 },
+      { category: 'Гардероб', count: 1 },
+      { category: 'Инфоцентр', count: 1 },
+      { category: 'Комната матери и ребёнка', count: 1 },
+    ]);
+  });
+
   it('карточку самого здания в арендаторы не записывает', () => {
     const { tenants: list } = buildTenantsFromSnapshot(
       [{ name: 'Порт', sourceId: '3', sourceUrl: null, category: 'Бизнес-центр подъезд 1', rating: 4.5, reviewCount: 661, rawText: 'Бизнес-центр подъезд 1' }],

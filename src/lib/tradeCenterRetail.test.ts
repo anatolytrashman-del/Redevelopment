@@ -42,7 +42,7 @@ import {
   retailSectionGroup,
   retailSectionSize,
   rulesFaqAnswer,
-  servicesFaqAnswer,
+  serviceGroupFromName,
   sortTransport,
   transportFaqAnswer,
   transportFaqQuestion,
@@ -470,11 +470,59 @@ describe('normalizeRetailInfo — дополнительные ключи', () =
     });
     expect(info!.transport.map((t) => t.mode)).toEqual(['bus', 'metro']);
     expect(info!.services[0].floor).toBe('2');
+    // Группы в записи нет — выводится по названию.
+    expect(info!.services[0].group).toBe('info');
     // Правило — объект с text; голую строку схема не предусматривает.
     expect(info!.rules.map((r) => r.text)).toEqual(['Можно с собаками на руках']);
     expect(info!.leasing!.points).toEqual(['Индексация раз в год']);
     expect(info!.audience[0]).toMatchObject({ value: '40 000 в день', date: null, note: 'по данным ТЦ' });
     expect(retailSectionIds(info)).toEqual(['visit', 'business']);
+  });
+});
+
+describe('удобства ТЦ: группы', () => {
+  it('берёт группу из записи, незнакомую или пустую выводит по названию', () => {
+    const info = normalizeRetailInfo({
+      services: [
+        { name: 'Гардероб', group: 'money' },
+        { name: 'Обмен валют', group: 'кошелёк' },
+        { name: 'Места отдыха', group: '' },
+      ],
+    });
+    expect(info!.services.map((s) => s.group)).toEqual(['money', 'money', 'comfort']);
+  });
+
+  it('раскладывает названия ресёрча по группам', () => {
+    const cases: [string, string][] = [
+      ['Информационный центр', 'info'],
+      ['Инфоцентры', 'info'],
+      ['Wi-Fi', 'info'],
+      ['Виртуальный тур', 'info'],
+      ['Гардероб', 'comfort'],
+      ['Зарядка гаджетов', 'comfort'],
+      ['Туалеты', 'comfort'],
+      ['Комната матери и ребёнка', 'family'],
+      ['Стульчики для кормления', 'family'],
+      ['Комната именинника', 'family'],
+      ['Туалеты для маломобильных', 'access'],
+      ['Лифты и траволатор', 'access'],
+      ['Помощь людям с инвалидностью', 'access'],
+      ['Банки и обмен валют', 'money'],
+      ['Велопарковка', 'car'],
+      ['Автомойка', 'car'],
+      ['Химчистка и ремонт обуви', 'everyday'],
+      ['Аптека и ремонт ключей', 'everyday'],
+      ['Турагентство', 'everyday'],
+      ['Упаковка подарков', 'everyday'],
+      ['Сбор ненужной одежды', 'eco'],
+      ['Приём батареек и техники', 'eco'],
+    ];
+    for (const [name, group] of cases) expect([name, serviceGroupFromName(name)]).toEqual([name, group]);
+  });
+
+  it('удобства без остального «Посетителю» не рисуют: они в «Инфраструктуре»', () => {
+    const info = normalizeRetailInfo({ services: [{ name: 'Wi-Fi' }] });
+    expect(retailSectionIds(info)).toEqual([]);
   });
 });
 
@@ -559,19 +607,12 @@ describe('ответы FAQ — посетителю', () => {
     expect(transportFaqQuestion([], 'ТЦ')).toBeNull();
   });
 
-  it('удобства с этажом, правила, лояльность и события', () => {
-    expect(
-      servicesFaqAnswer([
-        { name: 'Комната матери и ребёнка', text: 'пеленальный столик', floor: '2', ...noSrc },
-        { name: 'Wi-Fi', text: null, floor: null, ...noSrc },
-      ]),
-    ).toBe('Комната матери и ребёнка (2 этаж) — пеленальный столик.\nWi-Fi.');
+  it('правила, лояльность и события', () => {
     expect(rulesFaqAnswer([{ text: 'Коляски — бесплатно', ...noSrc }])).toBe('Коляски — бесплатно.');
     expect(loyaltyFaqAnswer([{ name: 'Карта «Замок»', text: 'кешбэк 3%', ...noSrc }])).toBe('Карта «Замок» — кешбэк 3%.');
     expect(eventsFaqAnswer([{ name: 'Фитнес на крыше', text: 'по субботам летом', date: '2024', ...noSrc }])).toBe(
       'Фитнес на крыше (2024) — по субботам летом.',
     );
-    expect(servicesFaqAnswer([])).toBeNull();
   });
 });
 
