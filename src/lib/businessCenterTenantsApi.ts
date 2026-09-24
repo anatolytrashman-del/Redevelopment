@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
+import { loadBcExtra, peekBcExtra } from './buildData';
 import type {
   BusinessCenterTenantSnapshot,
   BusinessCenterTenantSnapshotRow,
@@ -22,8 +23,16 @@ function parseOrganizations(raw: unknown): TenantSourceOrganization[] {
       rating: typeof org.rating === 'number' ? org.rating : null,
       reviewCount: typeof org.reviewCount === 'number' ? org.reviewCount : null,
       rawText: typeof org.rawText === 'string' ? org.rawText : null,
+      floor: typeof org.floor === 'string' && org.floor.trim() !== '' ? org.floor.trim() : null,
+      coords: parseCoords(org.coords),
     }))
     .filter((org) => org.name !== '');
+}
+
+function parseCoords(raw: unknown): [number, number] | null {
+  if (!Array.isArray(raw) || raw.length !== 2) return null;
+  const [lon, lat] = raw.map(Number);
+  return Number.isFinite(lon) && Number.isFinite(lat) ? [lon, lat] : null;
 }
 
 function fromRow(row: BusinessCenterTenantSnapshotRow): BusinessCenterTenantSnapshot {
@@ -42,7 +51,19 @@ function fromRow(row: BusinessCenterTenantSnapshotRow): BusinessCenterTenantSnap
 // fetchBusinessCenter2gisSnapshot. RLS для anon открывает только колонки из
 // select ниже: id и address_query (поисковая строка сбора) остаются
 // внутренними.
-export function fetchBusinessCenterTenantSnapshot(slug: string): Promise<BusinessCenterTenantSnapshot | null> {
+// Синхронно из уже пришедшего файла сборки — для первого рендера карточки.
+// undefined — файл ещё не пришёл (не знаем), null — снимка у здания нет.
+export function peekBusinessCenterTenantSnapshot(slug: string): BusinessCenterTenantSnapshot | null | undefined {
+  const extra = peekBcExtra(slug);
+  if (!extra) return undefined;
+  return extra.tenants ? fromRow(extra.tenants as BusinessCenterTenantSnapshotRow) : null;
+}
+
+export async function fetchBusinessCenterTenantSnapshot(slug: string): Promise<BusinessCenterTenantSnapshot | null> {
+  // Файл .extra из сборки (src/lib/buildData.ts) — там уже только срез
+  // Яндекса (source = YANDEX_TENANT_SOURCE), как и в выборке ниже.
+  const extra = await loadBcExtra(slug);
+  if (extra) return extra.tenants ? fromRow(extra.tenants as BusinessCenterTenantSnapshotRow) : null;
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('business_center_tenant_source_snapshots')

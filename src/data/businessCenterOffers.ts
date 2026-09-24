@@ -20,6 +20,15 @@ export interface BusinessCenterOffer {
   updatedAt: string;
 }
 
+// Поля объявления, которых хватает всем городским срезам (ставки, размеры
+// лотов, схлопывание дублей). Заводится отдельно от BusinessCenterOffer,
+// чтобы страница аналитики не тянула ссылки, адреса и даты по полутора
+// тысячам строк: это 415 КБ против 160 КБ на каждый заход.
+export type BusinessCenterOfferSlice = Pick<
+  BusinessCenterOffer,
+  'businessCenterSlug' | 'source' | 'adId' | 'dealType' | 'propertyType' | 'size' | 'pricePerSqm'
+>;
+
 export interface BusinessCenterOfferRow {
   id: string;
   business_center_slug: string;
@@ -35,10 +44,7 @@ export interface BusinessCenterOfferRow {
   updated_at: string;
 }
 
-// При пустой выборке updatedAt лотов недоступен: дату синка не выдумываем.
-export const NO_ACTIVE_OFFERS_MESSAGE = 'Активных предложений в наших источниках нет. Источники: Kufar, Realt, Domovita, Megapolis.';
-
-// Тот же смысл в одну строку — для карточки каталога и балуна на карте,
-// где на факт отведена строка, а не абзац. Полная формулировка с
-// источниками остаётся на странице здания.
+// Для карточки каталога и балуна на карте, где на факт отведена строка, а
+// не абзац. На странице самого здания при отсутствии объявлений блок
+// "Что сейчас сдают и продают в здании" не выводится вовсе (владелец, 2026-09-20).
 export const NO_ACTIVE_OFFERS_SHORT = 'предложений в наших источниках нет';

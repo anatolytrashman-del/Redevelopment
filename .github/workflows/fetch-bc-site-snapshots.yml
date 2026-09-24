@@ -1,0 +1,45 @@
+name: Fetch BC official site snapshots
+
+# Ручной запуск (владелец, 2026-09-22: "хочу максимально расширить инфу на
+# сайте" по бизнес-центрам). Скрипт ТОЛЬКО скачивает и очищает текст с
+# официальных сайтов БЦ (без единого вызова какой-либо LLM/ProxyAPI — прямой
+# запрет владельца в этом же заходе) и кладёт его в
+# business_centers.official_site_snapshot_text. Разбор в структурированные
+# факты — отдельным шагом, вручную Claude в сессии.
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Перескачать даже те БЦ, у которых снимок уже есть'
+        type: boolean
+        default: false
+      slug:
+        description: 'Только один БЦ (slug) — для теста'
+        type: string
+        required: false
+      limit:
+        description: 'Обработать только первые N БЦ из очереди — для пробных партий'
+        type: string
+        required: false
+
+concurrency:
+  group: fetch-bc-site-snapshots
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: |
+          node scripts/fetch-bc-site-snapshots.mjs \
+            ${{ github.event.inputs.force == 'true' && '--force' || '' }} \
+            ${{ github.event.inputs.slug != '' && format('--slug={0}', github.event.inputs.slug) || '' }} \
+            ${{ github.event.inputs.limit != '' && format('--limit={0}', github.event.inputs.limit) || '' }}
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

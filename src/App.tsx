@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect, useRef } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef } from 'react';
+import { Routes, Route, Navigate, useLocation, useNavigationType } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { RequirePage } from './components/layout/RequirePage';
 import { RequireSuperAdmin } from './components/layout/RequireSuperAdmin';
@@ -10,7 +10,14 @@ import { DistrictGuidePage } from './pages/DistrictGuidePage';
 import { MinskMirTopicPage } from './pages/MinskMirTopicPage';
 import { BusinessCentersMinskPage } from './pages/BusinessCentersMinskPage';
 import { BusinessCentersRankingPage } from './pages/BusinessCentersRankingPage';
+import { BusinessCentersBiggestPage } from './pages/BusinessCentersBiggestPage';
+import { BusinessCentersRankingBPlusPage } from './pages/BusinessCentersRankingBPlusPage';
+import { BusinessCentersRankingBCPage } from './pages/BusinessCentersRankingBCPage';
+import { BusinessCentersAffordablePage } from './pages/BusinessCentersAffordablePage';
+import { BusinessCentersGuidePage } from './pages/BusinessCentersGuidePage';
+import { BusinessCentersAnalyticsPage } from './pages/BusinessCentersAnalyticsPage';
 import { BusinessCenterDetailPage } from './pages/BusinessCenterDetailPage';
+import { FavoritesPage } from './pages/FavoritesPage';
 import { MinskHub } from './pages/MinskHub';
 import { MarketAnalyticsHub } from './pages/MarketAnalyticsHub';
 import { OfficeAnalyticsPage } from './pages/OfficeAnalyticsPage';
@@ -26,6 +33,8 @@ import { NotFound } from './pages/NotFound';
 import { metrikaHit } from './lib/metrika';
 import { vkPixelHit, vkPixelGoal, vkPageGoalForPath } from './lib/vkPixel';
 import { useOnlinePresenceTracker } from './lib/onlinePresence';
+import { FavoritesProvider } from './lib/favoritesContext';
+import { CatalogKindProvider } from './lib/catalogKind';
 
 // Вся админка (CRM с десятком разделов — финмодели, сметы, документы и т.д.)
 // нужна только за PasswordGate на /admin/*, но раньше грузилась тем же JS-
@@ -195,6 +204,30 @@ function useVkPageGoals() {
 // же критерий "не /admin", что и у pageview-хитов выше. Флаг, а не
 // pathname целиком, чтобы не перезаходить в канал на каждый переход внутри
 // публичной части — только когда реально пересекаем границу с /admin.
+// Переход по ссылке внутри SPA скролл не трогает: новый маршрут
+// открывается на той же высоте, где пользователь стоял. На длинных
+// страницах это ломает навигацию — блок рекомендаций («Похожие БЦ»,
+// BusinessCenterDetailPage) живёт в самом низу, и соседний БЦ открывался
+// сразу на отзывах, а не с начала (владелец, 2026-09-22, скриншот
+// мобильной версии). Наверх мотаем только на PUSH:
+//   • POP (кнопки «назад»/«вперёд») — позицию восстанавливает сам браузер,
+//     history.scrollRestoration мы не отключаем;
+//   • REPLACE — это фильтры каталога: BusinessCentersMinskPage на каждый
+//     клик по чипу меняет ПУТЬ (хаб-урл класса/района) с replace: true,
+//     и прыжок в начало страницы там был бы хуже, чем его отсутствие.
+// Ссылка с якорем (#...) ведёт внутрь страницы — её тоже не трогаем.
+function useScrollToTopOnNavigate() {
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  // useLayoutEffect, а не useEffect: скроллим до первой отрисовки нового
+  // маршрута, иначе кадр со старой позицией успевает мелькнуть.
+  useLayoutEffect(() => {
+    if (navigationType !== 'PUSH') return;
+    if (location.hash) return;
+    window.scrollTo(0, 0);
+  }, [location.pathname, location.hash, navigationType]);
+}
+
 function useOnlineVisitorPresence() {
   const location = useLocation();
   useOnlinePresenceTracker(!location.pathname.startsWith('/admin'));
@@ -222,10 +255,12 @@ function AdminChunkFallback() {
 
 export default function App() {
   usePreventPageZoom();
+  useScrollToTopOnNavigate();
   useSpaPageviewHits();
   useVkPageGoals();
   useOnlineVisitorPresence();
   return (
+    <FavoritesProvider>
     <Routes>
       {/* Публичная часть — без AppLayout и без пароля, для клиентов и рекламы.
           Пока нет отдельного лендинга компании (см. SEO_PLAN.md, Э2-4), корень
@@ -254,35 +289,65 @@ export default function App() {
       <Route path="/minsk/analytics/rajony" element={<DistrictsAnalyticsPage />} />
       <Route path="/minsk/minsk-mir" element={<DistrictGuidePage />} />
       <Route path="/minsk/minsk-mir/:topic" element={<MinskMirTopicPage />} />
-      <Route path="/minsk/bcminsk" element={<BusinessCentersMinskPage />} />
+      <Route path="/minsk/bc" element={<BusinessCentersMinskPage />} />
+      {/* ФАЙЛ-БЛИЗНЕЦ: каждый односегментный статический маршрут ниже
+          (/minsk/bc/<слово>, не ":slug") должен стоять и в списке
+          sections инлайн-скрипта index.html — иначе он примет раздел за
+          слаг здания и сходит за /data/bc/<слово>.json, которого нет.
+          Сверяет тест в src/lib/businessCentersApi.test.ts. */}
       {/* Хаб-страницы по классу/району (Fable-анализ, 2026-09-06) — тот же
           компонент, фильтр читается из useParams(), см. комментарий там же.
           Регистрируются ДО ":slug", чтобы не конфликтовать с ним. */}
       {/* Ось «строящиеся» (аудит поиска 2026-09-07) — тот же компонент с пропом. */}
-      <Route path="/minsk/bcminsk/stroyashchiesya" element={<BusinessCentersMinskPage underConstruction />} />
+      <Route path="/minsk/bc/new" element={<BusinessCentersMinskPage underConstruction />} />
       {/* Рейтинг «Лучшие бизнес-центры Минска» (аудит 2026-09-07) — отдельный компонент, не хаб-фильтр. */}
-      <Route path="/minsk/bcminsk/reyting" element={<BusinessCentersRankingPage />} />
-      <Route path="/minsk/bcminsk/class/:classSlug" element={<BusinessCentersMinskPage />} />
-      <Route path="/minsk/bcminsk/raion/:districtSlug" element={<BusinessCentersMinskPage />} />
+      <Route path="/minsk/bc/rating" element={<BusinessCentersRankingPage />} />
+      <Route path="/minsk/bc/rating/largest" element={<BusinessCentersBiggestPage />} />
+      <Route path="/minsk/bc/rating/class-b-plus" element={<BusinessCentersRankingBPlusPage />} />
+      <Route path="/minsk/bc/rating/class-b-c" element={<BusinessCentersRankingBCPage />} />
+      <Route path="/minsk/bc/rating/affordable" element={<BusinessCentersAffordablePage />} />
+      <Route path="/minsk/bc/guide" element={<BusinessCentersGuidePage />} />
+      {/* Аналитика каталога БЦ (владелец, 2026-09-22) — вынесена сюда с
+          подвала каталога, см. комментарий в BusinessCentersAnalyticsPage.tsx. */}
+      <Route path="/minsk/bc/analytics" element={<BusinessCentersAnalyticsPage />} />
+      <Route path="/minsk/bc/class/:classSlug" element={<BusinessCentersMinskPage />} />
+      <Route path="/minsk/bc/district/:districtSlug" element={<BusinessCentersMinskPage />} />
       {/* Пересечение класс×район (владелец, 2026-09-06: "структура урлов...
           точечные страницы будут хорошо приняты поиском") — тот же
           компонент, оба параметра сразу, регистрируется ПОСЛЕ одноосевых
           хабов (react-router не заботит порядок непересекающихся паттернов,
           но так рядом с ними явно видно, что это третий, более узкий
           вариант того же роута), тоже ДО ":slug". */}
-      <Route path="/minsk/bcminsk/class/:classSlug/raion/:districtSlug" element={<BusinessCentersMinskPage />} />
+      <Route path="/minsk/bc/class/:classSlug/district/:districtSlug" element={<BusinessCentersMinskPage />} />
       {/* Хаб по неформальному микрорайону ("Уручье", "Малиновка" — владелец,
           2026-09-07) — отдельная, не пересекающаяся с классом/районом ось,
           не комбинируется с ними (см. комментарий у MICRODISTRICT_SLUGS). */}
-      <Route path="/minsk/bcminsk/microrayon/:microdistrictSlug" element={<BusinessCentersMinskPage />} />
+      <Route path="/minsk/bc/area/:microdistrictSlug" element={<BusinessCentersMinskPage />} />
       {/* Хаб по станции метро (аудит 2026-09-07) — независимая ось, см. METRO_STATION_SLUGS. */}
-      <Route path="/minsk/bcminsk/metro/:metroSlug" element={<BusinessCentersMinskPage />} />
+      <Route path="/minsk/bc/metro/:metroSlug" element={<BusinessCentersMinskPage />} />
       {/* Хаб по улице (аудит 2026-09-07) — независимая ось, см. STREET_SLUGS. */}
-      <Route path="/minsk/bcminsk/ulitsa/:streetSlug" element={<BusinessCentersMinskPage />} />
-      <Route path="/minsk/bcminsk/:slug" element={<BusinessCenterDetailPage />} />
+      <Route path="/minsk/bc/street/:streetSlug" element={<BusinessCentersMinskPage />} />
+      <Route path="/minsk/bc/:slug" element={<BusinessCenterDetailPage />} />
+      {/* Каталог торговых центров (2026-09-23) — те же компоненты, что у
+          каталога БЦ, со словарём и корнем /minsk/tc (src/lib/catalogKind.tsx).
+          Оси только район и метро; классов, рейтингов, аналитики и
+          справочника у ТЦ нет. Пока идёт сбор данных — noindex. */}
+      <Route path="/minsk/tc" element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>} />
+      <Route
+        path="/minsk/tc/district/:districtSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
+      <Route
+        path="/minsk/tc/metro/:metroSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
+      <Route path="/minsk/tc/:slug" element={<CatalogKindProvider kind="tc"><BusinessCenterDetailPage /></CatalogKindProvider>} />
       <Route path="/plan/:token" element={<PublicBuildingPlan />} />
       <Route path="/tz/:token" element={<BriefPublicPage />} />
       <Route path="/summary/:token" element={<MeetingSummaryPublicPage />} />
+      {/* Избранное без регистрации (владелец, 2026-09-21) — короткий id в
+          URL, открывается на любом устройстве по той же ссылке. */}
+      <Route path="/favorites/:id" element={<FavoritesPage />} />
       <Route
         path="/business-upload"
         element={
@@ -468,5 +533,6 @@ export default function App() {
           проваливаться в CRM — раньше он попадал на Home внутри AppLayout. */}
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </FavoritesProvider>
   );
 }

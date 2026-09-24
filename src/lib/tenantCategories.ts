@@ -63,6 +63,22 @@ export function primaryTenantCategory(raw: string | null | undefined): string | 
   return first || null;
 }
 
+// Стойка информации ТЦ. По одной рубрике «Информационная служба» её не
+// узнать: у Яндекса это и рубрика настоящих арендаторов БЦ (Thomson Reuters,
+// «Бизнес инфо», «Картотека»), поэтому нужна ещё и вывеска стойки — имя
+// целиком, без хвостов, чтобы «Информационный центр МВД» остался организацией.
+const INFO_DESK_NAME = /^(инфоцентр|информационн\p{L}* (центр|стойка)|информация|information)$/iu;
+
+interface AmenityLabelRule {
+  /** Проверяется по рубрике, а во втором проходе — по имени (если нет nameRe). */
+  re: RegExp;
+  label: string;
+  /** Совпадение по рубрике засчитывается, только если имя тоже подходит. */
+  requireName?: RegExp;
+  /** Своё правило для прохода по имени; null — по имени не искать вовсе. */
+  nameRe?: RegExp | null;
+}
+
 // Не организации, а оборудование и точки самообслуживания: банкоматы,
 // кофейные автоматы, туалеты. Яндекс держит их в том же списке «Организации
 // внутри», и без отсечки карточка врёт дважды — «организаций в здании» выше
@@ -73,7 +89,7 @@ export function primaryTenantCategory(raw: string | null | undefined): string | 
 // «Метрополе» лежат «Кофейный автомат», «Кофейный автомат Альфа-Бизнес Хаб» и
 // «Кофейный автомат, кофе с собой» — строка «в здании также есть» из таких
 // имён читается как список опечаток, а не как список сервисов.
-const AMENITY_LABELS: { re: RegExp; label: string }[] = [
+const AMENITY_LABELS: AmenityLabelRule[] = [
   { re: /туалет/iu, label: 'Туалет' },
   { re: /банкомат/iu, label: 'Банкомат' },
   { re: /криптомат/iu, label: 'Криптомат' },
@@ -81,17 +97,59 @@ const AMENITY_LABELS: { re: RegExp; label: string }[] = [
   { re: /вендинг|вендомат|торговый автомат/iu, label: 'Вендинговый автомат' },
   { re: /платёжный терминал|платежный терминал|инфокиоск/iu, label: 'Платёжный терминал' },
   { re: /постамат/iu, label: 'Постамат' },
+  // Раньше «Станция зарядки электромобилей» (BatteryFly, Ecoserb, Zaryadka в
+  // паркингах Dana Mall, Prizma, ЦУМа) уходила в арендаторы. Стоит выше
+  // «Зарядной станции»: та — аренда пауэрбанков, не зарядка машин.
+  { re: /станци\p{L}* зарядки электромобил|зарядн\p{L}* станци\p{L}* для электромобил/iu, label: 'Зарядка электромобилей' },
   { re: /аренда зарядных устройств|зарядная станция/iu, label: 'Зарядная станция' },
+  // Парковки и камеры хранения ТЦ Яндекс тоже кладёт во «Внутри» — это
+  // инфраструктура здания, а не арендатор (у Dana Mall и Короны их по 3–5).
+  { re: /велопарковка/iu, label: 'Велопарковка' },
+  { re: /^автомобильная парковка|^автостоянка/iu, label: 'Парковка' },
+  { re: /камера хранения/iu, label: 'Камера хранения' },
+  { re: /информационная служба/iu, label: 'Инфоцентр', requireName: INFO_DESK_NAME, nameRe: INFO_DESK_NAME },
+  // Только рубрика «Гардероб» целиком: «Гардеробные системы» — мебельный
+  // магазин, а магазин одежды вполне может называться «Гардероб», поэтому
+  // по имени не ищем.
+  { re: /^гардероб(?![\p{L}])/iu, label: 'Гардероб', nameRe: null },
+  { re: /комнат\p{L}* матери и реб[её]нка/iu, label: 'Комната матери и ребёнка' },
 ];
+
+// Короткие заголовки плиток «Инфраструктуры» (BuildingAmenities у БЦ,
+// TradeCenterInfrastructure у ТЦ) и ответа FAQ. Подпись без заголовка
+// показывается как есть.
+const AMENITY_TITLES: Record<string, string> = {
+  Туалет: 'Туалеты',
+  Банкомат: 'Банкоматы',
+  Криптомат: 'Криптоматы',
+  'Кофейный автомат': 'Кофе-автоматы',
+  'Вендинговый автомат': 'Вендинг',
+  'Платёжный терминал': 'Терминалы',
+  Постамат: 'Постаматы',
+  'Зарядка электромобилей': 'Зарядка электромобилей',
+  'Зарядная станция': 'Зарядка',
+  Велопарковка: 'Велопарковка',
+  Парковка: 'Парковка',
+  'Камера хранения': 'Камера хранения',
+  Инфоцентр: 'Инфоцентр',
+  Гардероб: 'Гардероб',
+  'Комната матери и ребёнка': 'Комната матери и ребёнка',
+};
+
+export function tenantAmenityTitle(label: string): string {
+  return AMENITY_TITLES[label] ?? label;
+}
 
 /** Каноническая подпись оборудования или null, если это настоящая организация. */
 export function tenantAmenityLabel(raw: string | null | undefined, name?: string | null): string | null {
   const clean = cleanTenantCategory(raw) ?? '';
+  const orgName = (name ?? '').trim();
   for (const item of AMENITY_LABELS) {
-    if (item.re.test(clean)) return item.label;
+    if (item.re.test(clean) && (!item.requireName || item.requireName.test(orgName))) return item.label;
   }
   for (const item of AMENITY_LABELS) {
-    if (item.re.test(name ?? '')) return item.label;
+    const byName = item.nameRe === undefined ? item.re : item.nameRe;
+    if (byName && byName.test(orgName)) return item.label;
   }
   return null;
 }
@@ -247,14 +305,30 @@ export interface TenantPlacement {
 // «…Открыто до среды Ветеринарная клиника этаж цокольный», «…Магазин одежды
 // офис 401, этаж 4». Этаж есть у 57% организаций, офис/секция — у 31%; это то,
 // чего нет в данных 2GIS вовсе, и ради чего база Яндекса взята основной.
-const FLOOR_RE = /этаж\s+([^\s,;]+)/iu;
+//
+// Плитки вкладки «Внутри» у торговых центров пишут наоборот — «…Рейтинг 4,8
+// 2 этаж» (2026-09-24): прежнее «этаж\s+(\S+)» брало из такой строки
+// следующее слово («В подборке» → этаж «В») или ничего, и у Galleria Minsk
+// этаж находился у 102 организаций из 313. Порядок проверки: «этаж 2»
+// (в «подъезд 3 этаж 2» этаж — 2, а не 3), затем «2 этаж», затем слово со
+// строчной после «этаж» («цокольный»).
+const FLOOR_AFTER_NUMBER_RE = /[Ээ]таж\s+(-?\d{1,2})(?!\d)/u;
+const FLOOR_BEFORE_RE = /(?:^|\s)(-?\d{1,2})\s+этаж(?![\p{L}])/u;
+const FLOOR_AFTER_WORD_RE = /[Ээ]таж\s+(\p{Ll}[^\s,;]*)/u;
 const OFFICE_RE = /(?:офис|помещение|кабинет)\s+([^\s,;]+)/iu;
 const ENTRANCE_RE = /(?:подъезд|вход|секция|корпус)\s+([^\s,;]+)/iu;
+
+export function parseTenantFloor(rawText: string | null | undefined): string | null {
+  const text = (rawText ?? '').replace(/[−–—]/g, '-');
+  return (
+    text.match(FLOOR_AFTER_NUMBER_RE)?.[1] ?? text.match(FLOOR_BEFORE_RE)?.[1] ?? text.match(FLOOR_AFTER_WORD_RE)?.[1] ?? null
+  );
+}
 
 export function parseTenantPlacement(rawText: string | null | undefined): TenantPlacement {
   const text = rawText ?? '';
   return {
-    floor: text.match(FLOOR_RE)?.[1] ?? null,
+    floor: parseTenantFloor(text),
     office: text.match(OFFICE_RE)?.[1] ?? null,
     entrance: text.match(ENTRANCE_RE)?.[1] ?? null,
   };

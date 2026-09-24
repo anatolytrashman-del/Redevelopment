@@ -78,6 +78,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { extname, join, normalize } from 'node:path';
 import { computePublicBuildId } from './public-build-id.mjs';
 import { adoptBuildAssets, extractBuildBlocks } from './prerender-snapshot.mjs';
+import { fallbackRows } from './_buildFallback.mjs';
 
 const ROOT_DIR = new URL('..', import.meta.url).pathname;
 const DIST_DIR = join(ROOT_DIR, 'dist');
@@ -99,7 +100,15 @@ const SITE_ORIGIN = 'https://redevelopment.pro';
 // успеть дойти до этой проверки, пока triggered_at ещё «свежий» — щедрый
 // запас на очередь Vercel + предыдущие шаги сборки (tsc/vite build/сгенери-
 // рованные html/sitemap), которые все идут ДО prerender.mjs.
-const FORCE_FULL_RECENT_MS = 15 * 60_000;
+//
+// 2026-09-19: было 15 минут, стало 90. С переходом на почасовую сборку
+// (api/trigger-rebuild.js больше не дёргает хук сам, это делает pg_cron раз
+// в час) отметка к моменту сборки почти всегда СТАРШЕ 15 минут: сохранили в
+// 10:05, крон пришёл в 11:00. Со старым окном такая сборка не забрала бы
+// флаг и ушла бы в быстрый режим — то есть правка, ради которой её и
+// запустили, не попала бы в пререндеренный HTML вообще. 90 минут = час
+// расписания + запас на очередь Vercel и предыдущие шаги сборки.
+const FORCE_FULL_RECENT_MS = 90 * 60_000;
 
 // Все публичные страницы теперь под /minsk/... (см. docs/session-journal.md, урл-
 // структура) — переменная переименована из STATIC_SLUGS в STATIC_PATHS:
@@ -201,11 +210,17 @@ const STATIC_PATHS = [
   'minsk/analytics/rajony',
   'minsk/minsk-mir',
   ...MINSK_MIR_TOPIC_SLUGS.map((s) => `minsk/minsk-mir/${s}`),
-  'minsk/bcminsk',
-  'minsk/bcminsk/stroyashchiesya',
-  'minsk/bcminsk/reyting',
-  ...CLASS_HUB_SLUGS.map((s) => `minsk/bcminsk/class/${s}`),
-  ...DISTRICT_HUB_SLUGS.map((s) => `minsk/bcminsk/raion/${s}`),
+  'minsk/bc',
+  'minsk/bc/new',
+  'minsk/bc/rating',
+  'minsk/bc/rating/largest',
+  'minsk/bc/rating/class-b-plus',
+  'minsk/bc/rating/class-b-c',
+  'minsk/bc/rating/affordable',
+  'minsk/bc/analytics',
+  'minsk/bc/guide',
+  ...CLASS_HUB_SLUGS.map((s) => `minsk/bc/class/${s}`),
+  ...DISTRICT_HUB_SLUGS.map((s) => `minsk/bc/district/${s}`),
 ];
 
 // Хаб-страницы по пересечению класс×район (владелец, 2026-09-06: "структура
@@ -303,29 +318,29 @@ const METRO_HUB_SLUG_BY_STATION = {
 // адреса, не тянет БД). Хаб — только для улиц с 2+ БЦ (STREET_HUB_SLUG_BY_NAME
 // содержит только уже подтверждённые slug'и таких улиц).
 const STREET_HUB_SLUG_BY_NAME = {
-  'пр-т Победителей': 'pr-t-pobediteley',
-  'пр-т Независимости': 'pr-t-nezavisimosti',
-  'пр-т Дзержинского': 'pr-t-dzerzhinskogo',
-  'ул. Притыцкого': 'ul-pritytskogo',
-  'ул. Сурганова': 'ul-surganova',
-  'ул. Платонова': 'ul-platonova',
-  'ул. Клары Цеткин': 'ul-klary-tsetkin',
-  'пер. Козлова': 'per-kozlova',
-  'пр-т Партизанский': 'pr-t-partizanskiy',
+  'пр-т Победителей': 'prospekt-pobediteley',
+  'пр-т Независимости': 'prospekt-nezavisimosti',
+  'пр-т Дзержинского': 'prospekt-dzerzhinskogo',
+  'ул. Притыцкого': 'pritytskogo',
+  'ул. Сурганова': 'surganova',
+  'ул. Платонова': 'platonova',
+  'ул. Клары Цеткин': 'klary-tsetkin',
+  'пер. Козлова': 'pereulok-kozlova',
+  'пр-т Партизанский': 'prospekt-partizanskiy',
   'Логойский тракт': 'logoyskiy-trakt',
-  'ул. Хоружей': 'ul-horuzhey',
-  'ул. Филимонова': 'ul-filimonova',
-  'ул. Немига': 'ul-nemiga',
-  'ул. Мележа': 'ul-melezha',
-  'ул. Толбухина': 'ul-tolbuhina',
-  'ул. Железнодорожная': 'ul-zheleznodorozhnaya',
-  'ул. Интернациональная': 'ul-internatsionalnaya',
-  'ул. Лобанка': 'ul-lobanka',
-  'ул. Ольшевского': 'ul-olshevskogo',
-  'ул. Свердлова': 'ul-sverdlova',
-  'ул. Скрыганова': 'ul-skryganova',
-  'ул. Тимирязева': 'ul-timiryazeva',
-  'ул. Скорины': 'ul-skoriny',
+  'ул. Хоружей': 'horuzhey',
+  'ул. Филимонова': 'filimonova',
+  'ул. Немига': 'nemiga',
+  'ул. Мележа': 'melezha',
+  'ул. Толбухина': 'tolbuhina',
+  'ул. Железнодорожная': 'zheleznodorozhnaya',
+  'ул. Интернациональная': 'internatsionalnaya',
+  'ул. Лобанка': 'lobanka',
+  'ул. Ольшевского': 'olshevskogo',
+  'ул. Свердлова': 'sverdlova',
+  'ул. Скрыганова': 'skryganova',
+  'ул. Тимирязева': 'timiryazeva',
+  'ул. Скорины': 'skoriny',
 };
 
 function shortAddressJs(a) {
@@ -377,22 +392,24 @@ async function supabaseSelect(query, what) {
       }
     }
   }
+  const rows = fallbackRows(query, 'prerender');
+  if (rows) return rows;
   throw lastError;
 }
 
 async function fetchStreetHubPaths() {
-  const rows = await supabaseSelect('business_centers?select=address', 'business_centers.address');
+  const rows = await supabaseSelect('business_centers?select=address&kind=eq.bc', 'business_centers.address');
   const slugs = new Set();
   for (const r of rows) {
     const slug = STREET_HUB_SLUG_BY_NAME[streetOfAddressJs(r.address)];
-    if (slug) slugs.add(`minsk/bcminsk/ulitsa/${slug}`);
+    if (slug) slugs.add(`minsk/bc/street/${slug}`);
   }
   return [...slugs];
 }
 
 async function fetchMetroHubStations() {
   const rows = await supabaseSelect(
-    'business_centers?select=nearest_metro_stations&nearest_metro_stations=not.is.null',
+    'business_centers?select=nearest_metro_stations&nearest_metro_stations=not.is.null&kind=eq.bc',
     'nearest_metro_stations',
   );
   const slugs = new Set();
@@ -406,29 +423,46 @@ async function fetchMetroHubStations() {
 }
 
 async function fetchMetroHubPaths() {
-  return (await fetchMetroHubStations()).map((slug) => `minsk/bcminsk/metro/${slug}`);
+  return (await fetchMetroHubStations()).map((slug) => `minsk/bc/metro/${slug}`);
 }
+
+// Грушевка/Уручье/Каменная Горка — одновременно и микрорайон, и станция
+// метро с тем же slug; страница станции отдаёт объединённый список (см.
+// businessCenterHubs.ts, METRO_MICRODISTRICT_ALIAS), а страница микрорайона
+// на эти 3 slug'а теперь только 301-редиректит (vercel.json) — пререндерить
+// её незачем, редирект срабатывает на грани раньше статики (продублировано
+// из src/lib/businessCenterHubs.ts, MICRODISTRICT_METRO_COLLISION_SLUGS —
+// скрипт без TS-загрузчика).
+const MICRODISTRICT_METRO_COLLISION_SLUGS = new Set(['grushevka', 'uruchye', 'kamennaya-gorka']);
+
+// Сухарево — тот же дубль, но не с метро, а с улицей (см. businessCenterHubs.ts,
+// microdistrictMergeUrl): проверка по базе 2026-09-21 показала, что оба БЦ
+// микрорайона и все БЦ «ул. Лобанка» по городу — одни и те же 2 здания.
+// /microrayon/suharevo тоже только редиректит, пререндерить незачем.
+const MICRODISTRICT_STREET_COLLISION_SLUGS = new Set(['suharevo']);
 
 async function fetchMicrodistrictHubPaths() {
   const rows = await supabaseSelect(
-    'business_centers?select=microdistrict&microdistrict=not.is.null',
+    'business_centers?select=microdistrict&microdistrict=not.is.null&kind=eq.bc',
     'microdistrict',
   );
   const slugs = new Set();
   for (const r of rows) {
     const slug = MICRODISTRICT_HUB_SLUG_BY_NAME[r.microdistrict];
-    if (slug) slugs.add(`minsk/bcminsk/microrayon/${slug}`);
+    if (slug && !MICRODISTRICT_METRO_COLLISION_SLUGS.has(slug) && !MICRODISTRICT_STREET_COLLISION_SLUGS.has(slug)) {
+      slugs.add(`minsk/bc/area/${slug}`);
+    }
   }
   return [...slugs];
 }
 
 async function fetchClassDistrictComboPaths() {
-  const rows = await supabaseSelect('business_centers?select=business_class,district', 'business_class/district');
+  const rows = await supabaseSelect('business_centers?select=business_class,district&kind=eq.bc', 'business_class/district');
   const combos = new Set();
   for (const r of rows) {
     const classSlug = CLASS_HUB_SLUG_BY_VALUE[r.business_class];
     const districtSlug = DISTRICT_HUB_SLUG_BY_NAME[r.district];
-    if (classSlug && districtSlug) combos.add(`minsk/bcminsk/class/${classSlug}/raion/${districtSlug}`);
+    if (classSlug && districtSlug) combos.add(`minsk/bc/class/${classSlug}/district/${districtSlug}`);
   }
   return [...combos];
 }
@@ -441,16 +475,16 @@ async function fetchLandingPaths() {
     .map((slug) => `minsk/${slug}`);
 }
 
-// Отдельные страницы бизнес-центров (/minsk/bcminsk/:slug) — та же причина
+// Отдельные страницы бизнес-центров (/minsk/bc/:slug) — та же причина
 // пререндера, что и у лендингов объектов выше: без снапшота у AI-краулеров/
 // Яндекса контента конкретного БЦ не существует. Список слагов — из той же
 // таблицы, что читает публичная страница (business_centers), не хардкожен.
 async function fetchBusinessCenterPaths() {
-  const rows = await supabaseSelect('business_centers?select=slug', 'business_centers.slug');
+  const rows = await supabaseSelect('business_centers?select=slug&kind=eq.bc', 'business_centers.slug');
   return rows
     .map((r) => r.slug)
     .filter((slug) => typeof slug === 'string' && slug.trim() !== '')
-    .map((slug) => `minsk/bcminsk/${slug}`);
+    .map((slug) => `minsk/bc/${slug}`);
 }
 
 // `vite preview` — тот же сервер, что уже настроен как npm-скрипт
@@ -630,6 +664,56 @@ async function resetSharedBrowser(used, reason) {
 const isBrowserGone = (browser, message) =>
   !browser || !browser.isConnected() || /has been closed|Target closed|crashed|Browser closed|Connection closed/i.test(message);
 
+// Общий на всю сборку кеш GET-ответов Supabase REST (2026-09-23). Каждая из
+// ~285 страниц сама качала одни и те же данные: 22.09 пререндер сделал
+// 142 тыс. запросов к базе из 194 тыс. за сутки, из них 19 030 — полная
+// таблица business_centers по ~969 КБ, итог ~18 ГБ за день при лимите
+// бесплатного плана 5 ГБ в месяц — Supabase закрыл проект (402
+// exceed_egress_quota, не пускало даже в админку). Теперь одинаковый запрос
+// уходит в базу один раз, остальные вкладки получают копию из памяти.
+// В ключе — всё, от чего зависит ответ PostgREST: URL и заголовки формы
+// ответа (Accept у maybeSingle, Prefer у count, Range). Кешируются только
+// 2xx: ошибка не залипает, повтор страницы пойдёт в базу заново.
+const SUPABASE_REST_RE = /^https:\/\/[^/]+\/rest\/v1\//;
+const supabaseRestCache = new Map(); // ключ → Promise<{status, headers, body}>
+const supabaseRestStats = { hits: 0, misses: 0 };
+
+async function serveSupabaseRestFromCache(route) {
+  const request = route.request();
+  if (request.method() !== 'GET') return route.continue();
+  const h = await request.allHeaders();
+  const key = [request.url(), h['accept'], h['accept-profile'], h['prefer'], h['range']].join('\n');
+  let entry = supabaseRestCache.get(key);
+  if (entry) {
+    supabaseRestStats.hits++;
+  } else {
+    supabaseRestStats.misses++;
+    entry = (async () => {
+      const response = await route.fetch();
+      const headers = { ...response.headers() };
+      // Тело уже распаковано — прежние длина и сжатие к нему не относятся.
+      delete headers['content-encoding'];
+      delete headers['content-length'];
+      return { status: response.status(), headers, body: await response.body() };
+    })();
+    supabaseRestCache.set(key, entry);
+    // Не 2xx отдаём как есть (страница видит настоящую ошибку), но из кеша
+    // убираем — следующая попытка пойдёт в базу заново.
+    entry.then(
+      (r) => (r.status < 200 || r.status >= 300) && supabaseRestCache.delete(key),
+      () => supabaseRestCache.delete(key),
+    );
+  }
+  let cached;
+  try {
+    cached = await entry;
+  } catch {
+    // Сетевой сбой самого запроса — пусть страница сходит сама, как без кеша.
+    return route.continue();
+  }
+  return route.fulfill(cached);
+}
+
 // true — полный рендер headless-браузером (см. комментарий про быстрый/
 // полный режим в шапке файла), false — быстрое скачивание с живого прода.
 //
@@ -687,7 +771,22 @@ const isBrowserGone = (browser, message) =>
 // Возвращает { full, scope, reason }: full=false — быстрый режим (всё
 // копируется), full=true + scope='objects' — частичный, full=true + 'all' —
 // полный. Любая неопределённость → полный, как и раньше.
+// Режим «база закрыта» (2026-09-23): Supabase отвечает 402 на всё (проект
+// закрыт за трафик). Честный рендер тогда снимет страницы, у которых данные
+// не пришли, поэтому ВСЕ пути только копируются с прода — включая
+// ALWAYS_FULL_RENDER_PATHS; не скопировалось — путь остаётся SPA-шеллом, а
+// сборка не падает (прошлая разметка лучше красного деплоя, из-за которого
+// не доезжают и исправления). PRERENDER_OUTAGE=1 — включить руками.
+// Страницы раздела БЦ — у них все данные в файлах сборки, поэтому в аварии
+// их можно рендерить честно (см. processPathFast).
+function isBusinessCenterSectionPath(path) {
+  return path === 'minsk/bc' || path.startsWith('minsk/bc/');
+}
+
+const SUPABASE_OUTAGE_REASON = 'Supabase закрыт (402) — раздел БЦ рендерится из файлов сборки, остальное копируется с прода';
+
 async function decidePrerenderMode() {
+  if (process.env.PRERENDER_OUTAGE === '1') return { full: false, scope: 'all', reason: 'PRERENDER_OUTAGE=1', outage: true };
   if (process.env.PRERENDER_FORCE_FULL === '1') return { full: true, scope: 'all', reason: 'PRERENDER_FORCE_FULL=1' };
   if (!process.env.VERCEL) {
     // Локальный/ручной прогон — как и раньше, всегда полный; PRERENDER_SCOPE
@@ -717,6 +816,7 @@ async function decidePrerenderMode() {
         signal: AbortSignal.timeout(10_000),
       },
     );
+    if (res.status === 402) return { full: false, scope: 'all', reason: SUPABASE_OUTAGE_REASON, outage: true };
     if (!res.ok) {
       console.warn(`[prerender] deploy_debounce ответил ${res.status} — полный режим на всякий случай`);
       return { full: true, scope: 'all', reason: `deploy_debounce ${res.status}` };
@@ -880,7 +980,7 @@ async function main() {
   }
   // PRERENDER_ONLY=префикс[,префикс…] — только для локальных замеров/отладки:
   // оставить пути, начинающиеся с одного из префиксов (например
-  // `PRERENDER_ONLY=minsk/minsk-mir,minsk/bcminsk/raion`). На Vercel намеренно
+  // `PRERENDER_ONLY=minsk/minsk-mir,minsk/bc/district`). На Vercel намеренно
   // игнорируется, чтобы случайно не уехал частичный прод.
   if (!process.env.VERCEL && process.env.PRERENDER_ONLY) {
     const prefixes = process.env.PRERENDER_ONLY.split(',').map((p) => p.trim()).filter(Boolean);
@@ -948,6 +1048,21 @@ async function main() {
   const decision = await decidePrerenderMode();
   let fullMode = decision.full;
   let fullScope = decision.scope; // 'objects' — частичный полный режим, 'all' — весь сайт
+  const outage = decision.outage === true;
+  // В аварии раздел БЦ рендерится честно, только если код публичных
+  // страниц (или снимок данных — он в отпечатке) изменился с прода. Иначе
+  // копии с прода уже честные — их и берём: на сборке из-за правки одной
+  // админки рендерить 266 страниц — это 8 минут вместо полутора (замер
+  // первого деплоя с честным рендером, 2026-09-23), а сессий, которые
+  // мержат параллельно, много. Проверка отпечатка базы не требует.
+  const outageSectionStale = outage ? await publicCodeChangedSinceLive() : false;
+  if (outage) {
+    console.log(
+      outageSectionStale
+        ? '[prerender] раздел БЦ: публичный код или снимок данных изменились — рендерю из файлов сборки'
+        : '[prerender] раздел БЦ: публичный код не менялся — копирую с прода, как остальное',
+    );
+  }
   // Частичный режим: честный рендер только зависимых от объектов страниц,
   // остальное — копии с прода (см. decidePrerenderMode).
   const partialRenderPaths = new Set([...landingPaths, 'minsk', ...ALWAYS_FULL_RENDER_PATHS]);
@@ -1000,7 +1115,11 @@ async function main() {
       byWorker = new Map();
       workerContexts.set(browser, byWorker);
     }
-    if (!byWorker.has(workerId)) byWorker.set(workerId, await browser.newContext());
+    if (!byWorker.has(workerId)) {
+      const context = await browser.newContext();
+      await context.route(SUPABASE_REST_RE, serveSupabaseRestFromCache);
+      byWorker.set(workerId, context);
+    }
     return byWorker.get(workerId);
   }
 
@@ -1109,12 +1228,29 @@ async function main() {
   const copiedFromProd = [];
   const rerenderReasons = new Map(); // причина → сколько путей
   let alwaysFullCount = 0;
+  // Раздел БЦ, отрендеренный честно в аварии, — запланированный рендер, а не
+  // «непригодная копия»: иначе итоговая строка ниже, по которой ищут поломку
+  // быстрого пути (в норме там 0), показывала бы 266 тревожных рендеров.
+  let outageSectionCount = 0;
 
   async function processPathFast(path, workerId) {
+    // Раздел БЦ в аварии рендерим ЧЕСТНО, а не копируем (2026-09-23): его
+    // страницы берут все данные из файлов сборки (/data/*.json, см.
+    // scripts/generate-catalog-data.mjs и src/lib/buildData.ts) и в
+    // Supabase не ходят вовсе — закрытая база им не мешает, а локальный
+    // сервер пререндера отдаёт эти файлы из dist. Копия с прода тут хуже:
+    // правки разметки раздела (srcset главного фото, роли для доступности)
+    // до статического HTML не доезжали бы, пока база закрыта. Остальной сайт
+    // по-прежнему только копируется — ему данные без базы взять неоткуда.
+    if (outage && isBusinessCenterSectionPath(path) && outageSectionStale) {
+      outageSectionCount++;
+      await renderPath(path, workerId);
+      return;
+    }
     // ALWAYS_FULL_RENDER_PATHS — см. комментарий у самой константы: эти
     // несколько страниц правятся кодом достаточно часто, чтобы не
     // полагаться на "скачать текущую (возможно ещё старую) живую копию".
-    if (ALWAYS_FULL_RENDER_PATHS.has(path)) {
+    if (ALWAYS_FULL_RENDER_PATHS.has(path) && !outage) {
       alwaysFullCount++;
       await renderPath(path, workerId);
       return;
@@ -1122,6 +1258,11 @@ async function main() {
     const live = await fetchPathLive(path);
     if (live.ok) {
       copiedFromProd.push(path);
+      return;
+    }
+    if (outage) {
+      console.warn(`[prerender] /${path}: ${live.reason} — база закрыта, не рендерю, остаётся SPA-шелл`);
+      rerenderReasons.set(live.reason, (rerenderReasons.get(live.reason) ?? 0) + 1);
       return;
     }
     console.log(`[prerender] /${path}: ${live.reason} — рендерю заново`);
@@ -1153,17 +1294,24 @@ async function main() {
 
   writeFileSync(PRERENDER_RESULT_PATH, JSON.stringify({ fullMode, scope: fullScope, copiedFromProd }));
 
+  if (supabaseRestStats.misses > 0) {
+    console.log(
+      `[prerender] Supabase REST: в базу ушло ${supabaseRestStats.misses} запросов, из кеша сборки отдано ${supabaseRestStats.hits}`,
+    );
+  }
+
   // Одна строка-итог, по которой видно здоровье быстрого режима, не листая
   // сотни строк лога: «отрендерено из-за непригодной копии» в норме 0 (или
   // единицы — реально новые страницы). Десятки/сотни — сломан сам быстрый
   // путь (как 2026-09-11 и дважды 2026-09-12), и причины напечатаны ниже.
   if (copiesAllowed()) {
     const rerendered = paths.length - copiedFromProd.length;
-    const planned = fullMode ? partialCount : alwaysFullCount; // сколько рендеров было запланировано, а не вынуждено
+    const planned = fullMode ? partialCount : alwaysFullCount + outageSectionCount; // сколько рендеров было запланировано, а не вынуждено
     console.log(
       `[prerender] ИТОГ ${fullMode ? 'частичного' : 'быстрого'} режима: путей ${paths.length}, скопировано с прода ${copiedFromProd.length}, ` +
         `отрендерено браузером ${rerendered} (запланировано: ${planned}, ` +
-        `из-за непригодной копии: ${Math.max(0, rerendered - planned)})`,
+        `из-за непригодной копии: ${Math.max(0, rerendered - planned)})` +
+        (outageSectionCount ? `; раздел БЦ отрендерен из файлов сборки, пока Supabase закрыт: ${outageSectionCount}` : ''),
     );
     if (rerenderReasons.size > 0) {
       const top = [...rerenderReasons.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);

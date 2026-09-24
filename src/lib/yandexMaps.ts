@@ -37,6 +37,26 @@ export function loadYmaps(): Promise<typeof window.ymaps> {
   return ymapsLoadPromise;
 }
 
+// Ссылка-логотип «Яндекс» в копирайте карты — картинка без текста, и аудит
+// доступности (а за ним дерево доступности в «Агентном просмотре»
+// PageSpeed, 2026-09-23) помечает её как «ссылку без различимого названия».
+// Разметка чужая и появляется не сразу после new ymaps.Map, поэтому ждём её
+// наблюдателем — ТОЛЬКО внутри контейнера карты и только до первой
+// подписи (или 10 с), чтобы не держать наблюдение за всей страницей.
+export function labelYmapsCopyrightLink(container: HTMLElement): void {
+  const label = () => {
+    const links = container.querySelectorAll<HTMLAnchorElement>('a[class*="copyright__logo"]:not([aria-label])');
+    links.forEach((a) => a.setAttribute('aria-label', 'Яндекс Карты'));
+    return links.length > 0;
+  };
+  if (label()) return;
+  const observer = new MutationObserver(() => {
+    if (label()) observer.disconnect();
+  });
+  observer.observe(container, { childList: true, subtree: true });
+  setTimeout(() => observer.disconnect(), 10_000);
+}
+
 declare global {
   interface Window {
     ymaps: any;

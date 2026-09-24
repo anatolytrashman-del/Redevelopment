@@ -1,5 +1,5 @@
-// Раз в месяц собирает с Kufar и Realt.by объявления аренды/продажи ТОРГОВЫХ
-// помещений и ПСН по ВСЕМУ Минску (не по одному дому/району, как остальные
+// Раз в месяц собирает с Kufar, Realt.by, Domovita и Megapolis-real
+// объявления аренды/продажи ТОРГОВЫХ помещений и ПСН по ВСЕМУ Минску (не по одному дому/району, как остальные
 // sync-*.mjs в этом проекте) и сохраняет в public.citywide_offers —
 // сегмент 'torgovye' (ANALYTICSPLAN.md §1.1, очередь 2). Основа для
 // market_snapshots этого сегмента (см. build-market-snapshots.mjs).
@@ -37,7 +37,25 @@
 // оставляем более раннее объявление (по created/updated нет единой шкалы
 // между площадками — оставляем то, что нашли первым, Kufar перед Realt).
 
+//
+// Domovita и Megapolis-real добавлены третьим и четвёртым источником
+// 2026-09-20: их разбор уже год работал в sync-business-center-offers.mjs,
+// но только на срезе из 143 зданий каталога, а городские сегменты всё это
+// время считались по двум площадкам. Сами сборщики — общие для всех трёх
+// городских сегментов, в scripts/lib/citywideExtraSources.mjs (там же
+// разбор адреса и схлопывание одного лота с разных площадок).
+
 import { createClient } from '@supabase/supabase-js';
+import {
+  EXTRA_SOURCE_SECTIONS,
+  collectDomovitaOffers,
+  collectMegapolisOffers,
+  collectGarantiruemOffers,
+  collectProNOffers,
+  dedupeAcrossSources,
+  deleteStaleOffers,
+  dropDuplicateAdIds,
+} from './lib/citywideExtraSources.mjs';
 
 const SUPABASE_URL = 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -96,15 +114,12 @@ function classifyBuildingTypeFromText(text) {
   return null;
 }
 
-function dedupKey(dealType, address, size, floor) {
-  if (!address) return null;
-  const normalized = address.toLowerCase().replace(/ё/g, 'е').replace(/[.,]/g, ' ');
-  const streetMatch = normalized.match(/([а-я-]+)\s+ул(?![а-я])/);
-  const houseMatch = normalized.match(/ул\S*\s+(\d+)/);
-  if (!streetMatch || !houseMatch) return null;
-  const floorKey = floor ?? '?';
-  return `${dealType}|${streetMatch[1]}|${houseMatch[1]}|${Math.round(size)}|${floorKey}`;
-}
+// Схлопывание одного лота, вывешенного сразу на нескольких площадках, живёт
+// в lib/citywideExtraSources.mjs (`dedupeAcrossSources`) — общее для всех
+// трёх городских сегментов. Здешняя копия ключа убрана 2026-09-20: она
+// искала в адресе буквально подстроку "ул", то есть не строилась вовсе для
+// проспектов, трактов, бульваров и переулков — 27% строк Kufar и 36% Realt
+// не схлопывались между площадками никогда (замер по живой базе).
 
 // ---------- Kufar ----------
 
@@ -304,19 +319,56 @@ async function main() {
 
   // Дедупликация: Kufar считается основным источником при совпадении
   // (собран первым), Realt-дубли отбрасываются.
-  const seenKeys = new Set();
-  const deduped = [];
-  let dupCount = 0;
-  for (const o of [...kufarOffers, ...realtOffers]) {
-    const key = dedupKey(o.deal_type, o.address, o.size, o.floor);
-    if (key && seenKeys.has(key)) {
-      dupCount++;
-      continue;
-    }
-    if (key) seenKeys.add(key);
-    deduped.push(o);
+  console.log('Domovita: тяну торговые помещения по всему Минску...');
+  const domovitaOffers = await collectDomovitaOffers({
+    sectionPath: EXTRA_SOURCE_SECTIONS[SEGMENT].domovita,
+    propertyType: 'Торговые помещения',
+    isPlausiblePrice,
+    excluded,
+    log: (m) => console.log(m),
+  });
+
+  console.log('Megapolis: тяну торговые помещения по всему Минску...');
+  const megapolisOffers = await collectMegapolisOffers({
+    sectionPath: EXTRA_SOURCE_SECTIONS[SEGMENT].megapolis,
+    propertyType: 'Торговые помещения',
+    isPlausiblePrice,
+    excluded,
+    log: (m) => console.log(m),
+  });
+
+  console.log('Garantiruem: тяну торговые помещения по всему Минску...');
+  const garantiruemOffers = await collectGarantiruemOffers({
+    propertyType: 'Торговые помещения',
+    isPlausiblePrice,
+    excluded,
+    log: (m) => console.log(m),
+  });
+
+  console.log('Pro-N: тяну торговые помещения по всему Минску (сайтмап + постранично, без нашей пагинации)...');
+  const pronOffers = await collectProNOffers({
+    propertyType: 'Торговые помещения',
+    isPlausiblePrice,
+    excluded,
+    log: (m) => console.log(m),
+  });
+
+  // Порядок здесь — это приоритет при схлопывании: у Kufar есть тип здания,
+  // у Realt район, поэтому при совпадении лота выживает запись с более
+  // полными полями, а не та, что попалась первой по алфавиту.
+  const { offers: crossSourceDeduped, dropped: dupCount } = dedupeAcrossSources([
+    ...kufarOffers,
+    ...realtOffers,
+    ...domovitaOffers,
+    ...megapolisOffers,
+    ...garantiruemOffers,
+    ...pronOffers,
+  ]);
+  const { offers: deduped, collisions } = dropDuplicateAdIds(crossSourceDeduped);
+  if (collisions.length > 0) {
+    console.log(`Внимание: ${collisions.length} строк с повторяющимся (источник, ad_id) отброшено перед записью: ${collisions.slice(0, 5).join(', ')}`);
   }
-  console.log(`Дедупликация: ${dupCount} объявлений-дублей (по адресу+площади+этажу+типу сделки) отброшено.`);
+  console.log(`Дедупликация: ${dupCount} объявлений-дублей между площадками (адрес + площадь + ставка ±10% + тип сделки) схлопнуто.`);
 
   if (excluded.length > 0) {
     console.log(`Отфильтровано ${excluded.length} объявлений с неправдоподобной ценой за м²:`);
@@ -333,7 +385,11 @@ async function main() {
     return;
   }
 
-  console.log(`Итого ${deduped.length} объявлений (${kufarOffers.length} Kufar + ${realtOffers.length} Realt − ${dupCount} дублей).`);
+  console.log(
+    `Итого ${deduped.length} объявлений (${kufarOffers.length} Kufar + ${realtOffers.length} Realt + ` +
+      `${domovitaOffers.length} Domovita + ${megapolisOffers.length} Megapolis + ${garantiruemOffers.length} Garantiruem + ` +
+      `${pronOffers.length} Pro-N − ${dupCount} дублей).`,
+  );
 
   if (DRY_RUN) {
     console.log('--dry-run: запись в Supabase пропущена.');
@@ -348,16 +404,13 @@ async function main() {
     .upsert(payload, { onConflict: 'segment,source,ad_id' });
   if (upsertError) throw upsertError;
 
-  for (const source of ['Kufar', 'Realt']) {
-    const idsThisRun = deduped.filter((o) => o.source === source).map((o) => o.ad_id);
-    const { error: deleteError } = await supabase
-      .from('citywide_offers')
-      .delete()
-      .eq('segment', SEGMENT)
-      .eq('source', source)
-      .not('ad_id', 'in', `(${idsThisRun.length ? idsThisRun.map((id) => `"${id}"`).join(',') : '""'})`);
-    if (deleteError) throw deleteError;
-  }
+  const removed = await deleteStaleOffers({
+    supabase,
+    segment: SEGMENT,
+    sources: ['Kufar', 'Realt', 'Domovita', 'Megapolis', 'Garantiruem', 'Pro-N'],
+    offers: deduped,
+  });
+  if (removed > 0) console.log(`Удалено ${removed} объявлений, пропавших с площадок.`);
 
   console.log(`Сохранено ${payload.length} объявлений в citywide_offers (сегмент ${SEGMENT}).`);
 }

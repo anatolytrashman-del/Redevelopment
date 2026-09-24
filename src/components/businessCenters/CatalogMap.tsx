@@ -4,7 +4,7 @@ import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { BusinessCenter } from '../../data/businessCenters';
 import { shortName } from '../../lib/businessCenterDisplay';
-import { loadYmaps } from '../../lib/yandexMaps';
+import { labelYmapsCopyrightLink, loadYmaps } from '../../lib/yandexMaps';
 import type { CatalogOfferIndex } from '../../lib/businessCenterCatalogFilter';
 
 // Вид «карта» (К6 плана docs/bc-catalog-redesign-plan.md) — своя живая
@@ -54,12 +54,24 @@ function balloonHtml(center: BusinessCenter, offers: CatalogOfferIndex): string 
     <div style="min-width:180px">
       <div style="font-weight:700;margin-bottom:4px">${shortName(center)}</div>
       <div style="color:#57606a;font-size:12px;margin-bottom:6px">${parts.join(' · ')}</div>
-      <a href="/minsk/bcminsk/${center.slug}" style="color:#d1002a;font-weight:600;font-size:12px">Открыть карточку →</a>
+      <a href="/minsk/bc/${center.slug}" style="color:#d1002a;font-weight:600;font-size:12px">Открыть карточку →</a>
     </div>
   `;
 }
 
-export function CatalogMap({ centers, offers }: { centers: BusinessCenter[]; offers: CatalogOfferIndex }) {
+// heightClass — высота полотна карты. По умолчанию как в каталоге, где
+// карта это основной вид; на странице рейтинга владелец попросил вдвое
+// ниже (2026-09-22): там карта — дополнительный блок внизу, и в полный
+// рост она выталкивала остальное со экрана.
+export function CatalogMap({
+  centers,
+  offers,
+  heightClass = 'h-[60vh] min-h-[380px]',
+}: {
+  centers: BusinessCenter[];
+  offers: CatalogOfferIndex;
+  heightClass?: string;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const collectionRef = useRef<any>(null);
@@ -67,6 +79,12 @@ export function CatalogMap({ centers, offers }: { centers: BusinessCenter[]; off
 
   const withCoords = centers.filter((c) => c.lat != null && c.lng != null);
   const withoutCoords = centers.length - withCoords.length;
+  // Легенда — только по классам, которые реально есть в текущей выборке.
+  // Раньше рисовала все четыре класса + «не указан» всегда, даже когда на
+  // карте одна «Рейтинг» с одним классом A (владелец, 2026-09-22: «нафига в
+  // карте легенда на классы Б, если у нас только класс А на странице»).
+  const presentClasses = Object.keys(CLASS_COLORS).filter((cls) => centers.some((c) => c.businessClass === cls));
+  const hasUnknownClass = centers.some((c) => !c.businessClass);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +96,7 @@ export function CatalogMap({ centers, offers }: { centers: BusinessCenter[]; off
           zoom: DEFAULT_ZOOM,
           controls: ['zoomControl', 'fullscreenControl'],
         });
+        labelYmapsCopyrightLink(containerRef.current);
         setStatus('ready');
       })
       .catch(() => {
@@ -125,7 +144,7 @@ export function CatalogMap({ centers, offers }: { centers: BusinessCenter[]; off
 
   return (
     <div className={cn('flex flex-col gap-3 p-3 sm:p-4', glassCardClass)} style={glassCardShadow}>
-      <div className="relative h-[60vh] min-h-[380px] w-full overflow-hidden rounded-2xl bg-surface-muted">
+      <div className={cn('relative w-full overflow-hidden rounded-2xl bg-surface-muted', heightClass)}>
         <div ref={containerRef} className="h-full w-full" />
         {status !== 'ready' && (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-ink-muted">
@@ -134,16 +153,18 @@ export function CatalogMap({ centers, offers }: { centers: BusinessCenter[]; off
         )}
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-ink-muted">
-        {Object.entries(CLASS_COLORS).map(([cls, color]) => (
+        {presentClasses.map((cls) => (
           <span key={cls} className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: CLASS_COLORS[cls] }} />
             Класс {cls}
           </span>
         ))}
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ background: UNKNOWN_CLASS_COLOR }} />
-          класс не указан
-        </span>
+        {hasUnknownClass && (
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: UNKNOWN_CLASS_COLOR }} />
+            класс не указан
+          </span>
+        )}
         <span className="text-ink-faint">
           На карте {withCoords.length}
           {withoutCoords > 0 && ` · без координат ${withoutCoords}`}

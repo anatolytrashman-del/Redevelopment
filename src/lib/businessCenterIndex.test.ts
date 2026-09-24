@@ -11,13 +11,14 @@ function bc(over: Partial<BusinessCenter> & { slug: string }): BusinessCenter {
   return {
     id: over.slug, name: over.slug, altNames: [], address: 'г. Минск, ул. Тестовая, 1', district: null,
     microdistrict: null, businessClass: null, totalArea: null, yearBuilt: null, floors: null, developer: null,
-    metro: null, parking: null, website: null, description: null, rentalInfo: null, highlights: [],
-    mapSnapshotFiles: [], tenantOrganizations: [], technicalParams: [], nearestMetroStations: [], verdict: null,
+    developerInfo: null,
+    metro: null, parking: null, website: null, description: null, rentalInfo: null, highlights: [], mediaMentions: [],
+    mapSnapshotFiles: [], tenantOrganizations: [], tenantCount: 0, technicalParams: [], buildingFacts: [], nearestMetroStations: [], verdict: null,
     pros: [], cons: [], verdictEdited: false, reviewsChecked: false, floorPlateArea: null, officeArea: null, layoutTypes: [],
     elevators: null, parkingRatio: null, airConditioning: null, ceilingHeight: null, managementType: null,
     metroDistanceBucket: null, freeSpaceMin: null, freeSpaceMax: null, infraInternal: [], infraNearby: [],
     lat: null, lng: null, gisRating: null, gisReviewCount: null, is24x7: null, accessibility: [], photos: [],
-    status: 'built', sortOrder: 0, createdAt: '2026-01-01', ...over,
+    status: 'built', kind: 'bc', retailFormat: null, retailInfo: null, sortOrder: 0, createdAt: '2026-01-01', ...over,
   };
 }
 

@@ -40,6 +40,7 @@ const KNOWN_PREFIXES = [
   '/estimate', // /estimate/:token — публичная смета для строителя
   '/plan', // /plan/:token — публичная планировка/бронирование
   '/summary', // /summary/:token — публичное саммери встречи
+  '/favorites', // /favorites/:id — публичная ссылка на избранное без регистрации
   '/api', // serverless-функции
   '/.well-known', // верификация доменов и т.п. — сейчас не используется, но не должно 404-иться, если появится
 ];
@@ -84,6 +85,15 @@ function isKnownPath(pathname: string): boolean {
   return hasKnownStaticExtension(normalized);
 }
 
+// Обычный HTML/CSS, не JSX — edge middleware выполняется до сборки React,
+// импортировать сюда компонент из src/pages/NotFound.tsx нельзя. Держать
+// внешний вид в паре с ним вручную (тот же значок, тот же текст, ссылка на
+// главную), см. 2026-09-20 в docs/session-journal.md — до этой правки здесь
+// был совсем другой, тёмный дизайн без единой ссылки на сайт, и никто не
+// заметил, что src/pages/NotFound.tsx его не покрывает: тот компонент рендерится
+// только когда путь ПРОШЁЛ проверку isKnownPath (например, /minsk/несуществующий-раздел),
+// а любой путь вне KNOWN_PREFIXES/EXACT_PATHS до React вообще не доходит —
+// ответ формирует целиком эта строка.
 const NOT_FOUND_HTML = `<!doctype html>
 <html lang="ru">
 <head>
@@ -92,17 +102,40 @@ const NOT_FOUND_HTML = `<!doctype html>
 <meta name="robots" content="noindex, nofollow">
 <title>Страница не найдена — REDEVELOPMENT</title>
 <style>
-  html,body{margin:0;height:100%;background:#0b0b0c;color:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-  body{display:flex;align-items:center;justify-content:center;text-align:center}
+  html,body{margin:0;height:100%;background:#f0efed;color:#14151a;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  body{display:flex;align-items:center;justify-content:center;text-align:center;padding:0 1rem}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:1.5rem}
+  .icon{display:flex;align-items:center;justify-content:center;width:5rem;height:5rem;border-radius:9999px;background:#fde3e5}
   .logo{font-size:1.125rem;font-weight:800;letter-spacing:.02em}
-  .logo b{color:#e11d3c;font-weight:900}
-  p{margin:.5rem 0 0;font-size:.875rem;color:#a1a1aa}
+  .logo b{color:#e4152b;font-weight:900}
+  h1{margin:.5rem 0 0;font-size:1.5rem;font-weight:800}
+  p{margin:.5rem 0 0;max-width:24rem;font-size:.875rem;color:#6b6d76}
+  a{display:inline-flex;align-items:center;gap:.5rem;margin-top:.5rem;padding:.75rem 1.5rem;border-radius:9999px;background:#e4152b;color:#fff;font-size:.875rem;font-weight:600;text-decoration:none}
+  a:hover{background:#c81124}
 </style>
 </head>
 <body>
-  <div>
-    <div class="logo"><b>RED</b>EVELOPMENT</div>
-    <p>Страница не найдена.</p>
+  <div class="wrap">
+    <span class="icon">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#e4152b" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m13.5 8.5-5 5"/>
+        <path d="m8.5 8.5 5 5"/>
+        <circle cx="11" cy="11" r="8"/>
+        <path d="m21 21-4.3-4.3"/>
+      </svg>
+    </span>
+    <div>
+      <div class="logo"><b>RED</b>EVELOPMENT</div>
+      <h1>Страница не найдена</h1>
+      <p>Такой страницы не существует или она была перемещена. Возможно, ссылка устарела или в адресе есть ошибка.</p>
+    </div>
+    <a href="/">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9.5 12 3l9 6.5"/>
+        <path d="M5 10v10a1 1 0 0 0 1 1h3v-6h6v6h3a1 1 0 0 0 1-1V10"/>
+      </svg>
+      На главную
+    </a>
   </div>
 </body>
 </html>

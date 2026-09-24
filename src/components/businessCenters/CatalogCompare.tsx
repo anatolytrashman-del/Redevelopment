@@ -5,6 +5,7 @@ import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { BusinessCenter } from '../../data/businessCenters';
 import { shortName } from '../../lib/businessCenterDisplay';
 import { nearestMetroMeters, type CatalogOfferIndex } from '../../lib/businessCenterCatalogFilter';
+import { CATALOG_VOCABULARY, kindOf, useCatalogKind } from '../../lib/catalogKind';
 
 // К14 плана docs/bc-catalog-redesign-plan.md — сравнение до четырёх БЦ.
 //
@@ -23,6 +24,9 @@ type Direction = 'higher' | 'lower' | null;
 interface CompareRow {
   label: string;
   better: Direction;
+  // Строка про офисы (ставки, лоты, типовой этаж) — в каталоге торговых
+  // центров (/minsk/tc) её нет: таких данных у ТЦ не собирается.
+  officeOnly?: boolean;
   value: (c: BusinessCenter, offers: CatalogOfferIndex) => number | null;
   format: (v: number) => string;
 }
@@ -31,25 +35,28 @@ const ROWS: CompareRow[] = [
   {
     label: 'Аренда, $/м²',
     better: 'lower',
+    officeOnly: true,
     value: (c, o) => o.rentBySlug.get(c.slug)?.median ?? null,
     format: (v) => `$${v}`,
   },
   {
     label: 'Продажа, $/м²',
     better: 'lower',
+    officeOnly: true,
     value: (c, o) => o.saleBySlug.get(c.slug)?.median ?? null,
     format: (v) => `$${Math.round(v).toLocaleString('ru-RU')}`,
   },
   {
     label: 'Активных лотов',
     better: 'higher',
+    officeOnly: true,
     value: (c, o) => {
       const n = (o.rentBySlug.get(c.slug)?.n ?? 0) + (o.saleBySlug.get(c.slug)?.n ?? 0);
       return n > 0 ? n : null;
     },
     format: (v) => String(v),
   },
-  { label: 'До метро', better: 'lower', value: (c) => nearestMetroMeters(c), format: (v) => `${v.toLocaleString('ru-RU')} м по прямой` },
+  { label: 'До метро', better: 'lower', value: (c) => nearestMetroMeters(c), format: (v) => `${v.toLocaleString('ru-RU')} м` },
   {
     label: 'Общая площадь, м²',
     better: null,
@@ -59,6 +66,7 @@ const ROWS: CompareRow[] = [
   {
     label: 'Типовой этаж, м²',
     better: 'higher',
+    officeOnly: true,
     value: (c) => c.floorPlateArea,
     format: (v) => v.toLocaleString('ru-RU'),
   },
@@ -73,8 +81,10 @@ const ROWS: CompareRow[] = [
   { label: 'Рейтинг 2ГИС', better: 'higher', value: (c) => c.gisRating, format: (v) => v.toLocaleString('ru-RU') },
 ];
 
-const TEXT_ROWS: { label: string; value: (c: BusinessCenter) => string | null }[] = [
-  { label: 'Класс', value: (c) => c.businessClass },
+const TEXT_ROWS: { label: string; value: (c: BusinessCenter) => string | null; only?: 'bc' | 'tc' }[] = [
+  { label: 'Класс', value: (c) => c.businessClass, only: 'bc' },
+  // У торгового центра вместо делового класса — формат (ТРЦ, универмаг…).
+  { label: 'Формат', value: (c) => c.retailFormat, only: 'tc' },
   { label: 'Район', value: (c) => c.district },
   {
     label: 'Управление',
@@ -82,6 +92,7 @@ const TEXT_ROWS: { label: string; value: (c: BusinessCenter) => string | null }[
   },
   {
     label: 'Планировка',
+    only: 'bc',
     value: (c) =>
       c.layoutTypes.length === 0
         ? null
@@ -100,7 +111,10 @@ export function CatalogCompare({
   onRemove: (slug: string) => void;
   onClear: () => void;
 }) {
+  const V = useCatalogKind();
   if (centers.length < 2) return null;
+  const textRows = TEXT_ROWS.filter((row) => !row.only || row.only === V.kind);
+  const rows = V.kind === 'tc' ? ROWS.filter((row) => !row.officeOnly) : ROWS;
 
   return (
     <div className={cn('flex flex-col gap-4 overflow-x-auto p-4 sm:p-6', glassCardClass)} style={glassCardShadow}>
@@ -122,7 +136,7 @@ export function CatalogCompare({
             {centers.map((c) => (
               <th key={c.slug} scope="col" className="px-2 py-2 text-left align-top">
                 <span className="flex items-start justify-between gap-2">
-                  <Link to={`/minsk/bcminsk/${c.slug}`} className="text-sm font-bold text-ink hover:text-primary-hover">
+                  <Link to={`${CATALOG_VOCABULARY[kindOf(c)].basePath}/${c.slug}`} className="text-sm font-bold text-ink hover:text-primary-hover">
                     {shortName(c)}
                   </Link>
                   <button
@@ -139,7 +153,7 @@ export function CatalogCompare({
           </tr>
         </thead>
         <tbody>
-          {TEXT_ROWS.map((row) => (
+          {textRows.map((row) => (
             <tr key={row.label} className="border-t border-border/60">
               <th scope="row" className="px-2 py-2 text-left font-medium text-ink-muted">
                 {row.label}
@@ -151,7 +165,7 @@ export function CatalogCompare({
               ))}
             </tr>
           ))}
-          {ROWS.map((row) => {
+          {rows.map((row) => {
             const values = centers.map((c) => row.value(c, offers));
             const known = values.filter((v): v is number => v != null);
             // Выделяем лучшее только когда есть что сравнивать: при одной

@@ -47,7 +47,7 @@ const SKIP_FILES = new Set(['index.html', '404.html']);
 function sectionKicker(path) {
   if (path === 'minsk') return 'Объекты, аналитика, справочник бизнес-центров';
   if (path.startsWith('minsk/analytics')) return 'Аналитика рынка · redevelopment.pro';
-  if (path.startsWith('minsk/bcminsk')) return 'Справочник бизнес-центров Минска';
+  if (path.startsWith('minsk/bc')) return 'Справочник бизнес-центров Минска';
   if (path.startsWith('minsk/minsk-mir')) return 'Гид по району · redevelopment.pro';
   if (path === 'tz') return 'Просчёт объёмов работ по объекту';
   if (path === 'estimate') return 'Смета на ремонт помещения';
@@ -78,7 +78,7 @@ function kickerFor(path, title) {
   return a && b && (b.includes(a) || a.includes(b)) ? 'redevelopment.pro' : kicker;
 }
 
-// Путь → имя файла карточки: /minsk/bcminsk/one → dist/og/minsk-bcminsk-one.png.
+// Путь → имя файла карточки: /minsk/bc/one → dist/og/minsk-bc-one.png.
 const cardSlug = (path) => path.replace(/\//g, '-') || 'index';
 
 // Точечное переопределение текста ОДНОЙ карточки, когда владелец просит

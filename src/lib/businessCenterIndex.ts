@@ -35,7 +35,7 @@ export const SUBSCALE_META: Record<SubscaleKey, { label: string; weight: number;
   location: {
     label: 'Локация',
     weight: 30,
-    what: 'расстояние до ближайшего метро и до центра города по прямой',
+    what: 'расстояние до ближайшего метро и до центра города',
   },
   building: {
     label: 'Здание',

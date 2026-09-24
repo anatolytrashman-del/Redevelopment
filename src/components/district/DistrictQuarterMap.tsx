@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Grid2x2 } from 'lucide-react';
-import { loadYmaps } from '../../lib/yandexMaps';
+import { labelYmapsCopyrightLink, loadYmaps } from '../../lib/yandexMaps';
 import { DISTRICT_PLACE_CATEGORIES, MAP_HIDDEN_CATEGORY_KEYS } from '../../data/districtPlaces';
 import { DISTRICT_QUARTERS } from '../../data/districtQuarters';
 import { DISTRICT_BUSINESS_CATEGORIES } from '../../data/districtBusinessCategories';
@@ -223,6 +223,7 @@ export function DistrictQuarterMap() {
           zoom: DEFAULT_ZOOM,
           controls: ['zoomControl'],
         });
+        labelYmapsCopyrightLink(containerRef.current);
         mapRef.current = map;
         setStatus('ready');
       })

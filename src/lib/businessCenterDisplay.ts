@@ -12,11 +12,16 @@ import type { BusinessCenter } from '../data/businessCenters';
 // icon='rating' (пример: "- Яндекс.Карты: **4,8** из 5 (836 оценок...)"),
 // структурного поля под него нет. Общий парсер — раньше жил только внутри
 // BusinessCenterDetailPage.tsx (бейдж у заголовка), теперь нужен ещё и
-// рейтингу /minsk/bcminsk/reyting, поэтому вынесен сюда как единственный
+// рейтингу /minsk/bc/rating, поэтому вынесен сюда как единственный
 // источник разбора этой строки.
+// `count` — число оценок из той же строки («… (836 оценок, 209 отзывов)»).
+// Добавлено для рейтинга /minsk/bc/rating: без него 4,9 по 46 оценкам
+// и 4,9 по 17 493 выглядят одинаково, а порог по числу оценок — третье
+// условие методики (владелец, 2026-09-22). null — в строке числа оценок
+// нет, то есть проверить надёжность цифры нечем.
 export function mapRatingFromHighlights(
   highlights: BusinessCenter['highlights'],
-): { value: number; label: string; source: string } | null {
+): { value: number; label: string; source: string; count: number | null } | null {
   const ratingHighlight = highlights.find((h) => h.icon === 'rating');
   if (!ratingHighlight) return null;
   // ** снимаем перед разбором — иначе "**4,8** из 5" не матчится по числу
@@ -26,7 +31,14 @@ export function mapRatingFromHighlights(
   if (!valueMatch) return null;
   const sourceMatch = line.match(/^[-\s]*([^:]+):/);
   const label = valueMatch[1];
-  return { value: parseFloat(label.replace(',', '.')), label, source: sourceMatch ? sourceMatch[1].trim() : 'карты' };
+  const countMatch = line.match(/(\d[\d\s ]*)\s*оцен/);
+  const count = countMatch ? Number(countMatch[1].replace(/[\s ]/g, '')) : null;
+  return {
+    value: parseFloat(label.replace(',', '.')),
+    label,
+    source: sourceMatch ? sourceMatch[1].trim() : 'карты',
+    count: Number.isFinite(count) && count !== null && count > 0 ? count : null,
+  };
 }
 
 // То же поле 'rating', но для блока «Что говорят» (WhatTheySayBlock):
@@ -130,16 +142,57 @@ export const businessClassTone: Record<NonNullable<BusinessCenter['businessClass
   C: 'neutral',
 };
 
-// Короткое имя без "Бизнес-центр «...»" — для бокового меню, карточек хаба
-// и заголовка отдельной страницы (владелец: "БЦ по алфавиту, но без
-// «Бизнес-Центр», просто названия").
-export function shortName(center: BusinessCenter): string {
+// Скобки после названия — адрес, а не часть имени, когда внутри есть номер
+// дома или явный адресный маркер ("ул.", "пр-т" и т.п.). Отличает "А1 (ул.
+// Интернациональная, 36)" (адрес, скобки долой) от "Кампус (Campus)"
+// (транслитерация, скобки — часть имени).
+function isAddressLike(text: string): boolean {
+  return /\d/.test(text) || /^(ул\.|улица|пр-т|просп\.?|проспект|пер\.|переулок|б-р|бульвар|тракт|наб\.|набережная|шоссе|пл\.|площадь|мкр)/i.test(text.trim());
+}
+
+// Сокращения типа улицы в начале адреса — те же, что распознаёт
+// isAddressLike, но как список для среза, а не проверки.
+const STREET_PREFIX_RE =
+  /^(ул\.|улица|пр-т|просп\.?|проспект|пер\.|переулок|б-р|бульвар|тракт|наб\.|набережная|шоссе|пл\.|площадь|мкр)\s*/i;
+
+// Полное имя для заголовков и <title> — как center.name, но для здания БЕЗ
+// собственного имени (в базе — техническая заглушка вида "Бизнес-центр (ул.
+// Скрыганова, 6А)") меняет формат на "Бизнес-центр на Скрыганова, 6А"
+// (владелец, 2026-09-22: скобки с адресом читаются как техническое поле, а
+// не название). У зданий С именем скобки — это доп. адрес ПОСЛЕ имени
+// ("V (пр-т Победителей, 59)"), не техническая заглушка вместо имени, формат
+// не трогаем — тут та же проверка, что и в shortName: адрес в скобках без
+// текста перед ними.
+export function fullName(center: { name: string }): string {
+  const withoutPrefix = center.name.replace(/^Бизнес-центр\s*/, '').trim();
+  const parenMatch = withoutPrefix.match(/^\(([^)]+)\)$/);
+  if (parenMatch && isAddressLike(parenMatch[1])) {
+    return `Бизнес-центр на ${parenMatch[1].replace(STREET_PREFIX_RE, '').trim()}`;
+  }
+  return center.name;
+}
+
+// Короткое имя без "Бизнес-центр «...»" и без адреса в скобках — для
+// бокового меню, карточек хаба и заголовка отдельной страницы (владелец:
+// "БЦ по алфавиту, но без «Бизнес-Центр», просто названия"; 2026-09-20: те
+// же заголовки — без слова "Бизнес-центр", без кавычек, без адреса, если у
+// здания уже есть имя). Один именованный исключение — "Минский международный
+// финансовый центр (МФЦ)" в районе "Минск Мир": голое "Минск Мир" в карточке
+// путают с районом (тот тоже называется "Минск Мир", см. адрес объекта),
+// поэтому владелец, 2026-09-21, попросил вернуть узнаваемое сокращение —
+// "МФЦ (Минск Мир)".
+export function shortName(center: { slug: string; name: string }): string {
   if (center.slug === 'mfc-minsk-mir') return 'МФЦ (Минск Мир)';
   const quoted = center.name.match(/«([^»]+)»/);
   if (quoted) return quoted[1];
-  const paren = center.name.match(/\(([^)]+)\)/);
-  if (paren) return paren[1];
-  return center.name;
+  const withoutPrefix = center.name.replace(/^Бизнес-центр\s*/, '').trim();
+  const parenMatch = withoutPrefix.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+  if (parenMatch) {
+    const [, before, inside] = parenMatch;
+    if (before && isAddressLike(inside)) return before;
+    return inside || withoutPrefix;
+  }
+  return withoutPrefix || center.name;
 }
 
 // Короткий адрес для карточки хаба — владелец: "без «г. Минск», без района,
@@ -205,7 +258,7 @@ const LOCAL_BC_PHOTO_RE = /^\/images\/business-centers\/([^/]+)\.jpe?g$/i;
 // адрес — другая запись в кэше, а пути в `business_centers.photos` трогать не
 // надо. ПОДНИМАТЬ ПРИ КАЖДОЙ ЗАМЕНЕ ПАКЕТА ФОТО — иначе правка не доедет до
 // тех, кто уже был на сайте.
-export const BC_PHOTO_VERSION = '3';
+export const BC_PHOTO_VERSION = '4';
 
 // Версия дописывается только к нашим закоммиченным файлам. Пути из Supabase
 // Storage (загрузки через админку) приходят с собственными query и именами —
@@ -218,6 +271,54 @@ export function businessCenterPhotoSrc(path: string, variant: 'card' | 'detail')
   const m = path.match(LOCAL_BC_PHOTO_RE);
   if (!m) return path;
   return `/images/business-centers/${m[1]}${variant === 'card' ? '-card' : ''}.webp?v=${BC_PHOTO_VERSION}`;
+}
+
+// Ширины уменьшенных копий карточного фото (scripts/generate-card-image-
+// variants.mjs). Замер на живой странице 2026-09-22: на десктопе 1440
+// картинка карточки занимает 241 CSS-px при DPR 1 — файл 640×640 там
+// избыточен в 2,7 раза; телефону 360 при DPR 3 нужно 468. PageSpeed
+// владельца оценил потери страницы каталога в 1417 КиБ.
+export const BC_CARD_PHOTO_WIDTHS = [320, 384, 512] as const;
+
+// sizes под сетку каталога (2 колонки до lg, 3 после, внутри контейнера с
+// максимальной шириной) — проценты сняты с живой страницы, а не прикинуты:
+// 1440 → 241 px, 768 → 340 px, 360 → 156 px. Крайние широкие экраны
+// закрыты фиксированным значением, иначе vw переоценивает: контейнер там
+// уже упёрся в свою максимальную ширину.
+export const BC_CARD_PHOTO_SIZES = '(min-width: 1280px) 300px, (min-width: 1024px) 20vw, 45vw';
+
+// Копии главного фото карточки (вариант 'detail') — те же
+// scripts/generate-card-image-variants.mjs, имена <slug>-w<ширина>.webp.
+// Оригинал 1200 остаётся крупнейшим кандидатом: телефону с DPR 3 он и
+// нужен (~1000 px), а экономия — на всех остальных. Замеры ширины показа
+// — в комментарии у DETAIL_WIDTHS в скрипте.
+export const BC_DETAIL_PHOTO_WIDTHS = [480, 720] as const;
+
+// sizes главного фото карточки сняты с живой страницы: телефоны 360/390/412
+// → 326/356/378 CSS-px (то есть вьюпорт минус 34), планшет 768 → 702,
+// десктоп от 1024 — 437–476 px (колонка сетки).
+export const BC_DETAIL_PHOTO_SIZES = '(min-width: 1024px) 480px, (min-width: 768px) calc(100vw - 66px), calc(100vw - 34px)';
+
+export function businessCenterDetailPhotoSrcSet(path: string): string | undefined {
+  const m = path.match(LOCAL_BC_PHOTO_RE);
+  if (!m) return undefined;
+  const base = `/images/business-centers/${m[1]}`;
+  return [
+    ...BC_DETAIL_PHOTO_WIDTHS.map((w) => `${base}-w${w}.webp?v=${BC_PHOTO_VERSION} ${w}w`),
+    `${base}.webp?v=${BC_PHOTO_VERSION} 1200w`,
+  ].join(', ');
+}
+
+// srcset только для наших закоммиченных фото: у путей из Supabase Storage
+// уменьшенных копий нет, и подсовывать несуществующие адреса нельзя.
+export function businessCenterCardPhotoSrcSet(path: string): string | undefined {
+  const m = path.match(LOCAL_BC_PHOTO_RE);
+  if (!m) return undefined;
+  const base = `/images/business-centers/${m[1]}-card`;
+  return [
+    ...BC_CARD_PHOTO_WIDTHS.map((w) => `${base}-${w}.webp?v=${BC_PHOTO_VERSION} ${w}w`),
+    `${base}.webp?v=${BC_PHOTO_VERSION} 640w`,
+  ].join(', ');
 }
 
 // В базе встречаются как главные страницы БЦ, так и вложенные страницы
@@ -259,4 +360,13 @@ export function businessCenterHomepageUrl(website: string | null): string | null
 
 export function sortByShortName(centers: BusinessCenter[]): BusinessCenter[] {
   return [...centers].sort((a, b) => shortName(a).localeCompare(shortName(b), 'ru'));
+}
+
+// Расстояние до метро на карточке каталога — владелец, 2026-09-20: "не 2000
+// м, а 1.2 км" (длинные метры нечитаемы на компактной карточке). Ниже
+// километра оставляем метры как есть — там округление до сотен ничего не
+// упрощает.
+export function formatMetroDistance(meters: number): string {
+  if (meters < 1000) return `${meters} м`;
+  return `${(meters / 1000).toFixed(1).replace(/\.0$/, '')} км`;
 }

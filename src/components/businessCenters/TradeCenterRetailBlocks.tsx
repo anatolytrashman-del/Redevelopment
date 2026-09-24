@@ -1,0 +1,161 @@
+// Торговые блоки карточки ТЦ (2026-09-23): «Что на каком этаже», «Чем ТЦ
+// вошёл в историю ритейла», «Где поесть» и «Развлечения» (2026-09-24,
+// TradeCenterFoodFun.tsx; у ТЦ без retail_info.food/fun вместо них — старый
+// «Кино, еда, развлечения»); за ними — «Посетителю»,
+// «Арендаторам и рекламодателям», «ТЦ в цифрах» и «Цитаты»
+// (TradeCenterExtraBlocks.tsx), последними — «Якорные арендаторы», вплотную
+// к каталогу арендаторов, который страница рисует сразу за этим компонентом
+// (2026-09-24: старая карточка «Первые в Беларуси и якоря» разделена на эти
+// два блока, см. TradeCenterAnchorsHistory.tsx). Данные —
+// business_centers.retail_info (у БЦ пусто, компонент не рисует ничего). Каждая карточка — только если по ней есть записи.
+//
+// Места в рейтингах до 2026-09-24 были жёлтыми плашками в первой из этих
+// карточек; владелец: «смешал две сущности — что на каком этаже и
+// награды». Теперь это отдельный блок «Награды и рейтинги»
+// (TradeCenterAwardsBlock.tsx), он стоит на месте блока «Награды».
+//
+// Источники у каждой записи свои, но под каждой строкой ссылку не ставим —
+// карточка превратилась бы в сноски. Внизу карточки один общий список без
+// дублей, мелким серым, rel=nofollow: это цитирование, а не рекомендация.
+//
+// `after` — место для блока-рекомендации после карточки (как
+// renderRecommendationSlot у остальных блоков страницы): раскладка
+// рекомендаций видит эти карточки как отдельные разделы.
+import type { ReactNode } from 'react';
+import { Baby, Clapperboard, Dumbbell, Sparkles, UtensilsCrossed, type LucideIcon } from 'lucide-react';
+import { cn } from '../../lib/cn';
+import { glassCardShadow } from '../../lib/glass';
+import type { RetailInfo, RetailLeisureKind } from '../../data/businessCenters';
+import {
+  LEISURE_KIND_LABELS,
+  anchorsForPage,
+  floorSortKey,
+  foodTitle,
+  funTitle,
+  leisureForPage,
+  formatFloorBadge,
+  retailHistoryTitle,
+  retailSectionIds,
+  sortFloorsTopDown,
+  sortLeisure,
+  type RetailSectionId,
+} from '../../lib/tradeCenterRetail';
+import { RetailCardTitle as CardTitle, SourcesLine } from './TradeCenterRetailParts';
+import { retailCardClass as cardClass } from './tradeCenterRetailStyle';
+import {
+  TradeCenterBusinessCard,
+  TradeCenterNumbersCard,
+  TradeCenterQuotesCard,
+  TradeCenterVisitCard,
+} from './TradeCenterExtraBlocks';
+import { TradeCenterAnchorsCard, TradeCenterHistoryCard } from './TradeCenterAnchorsHistory';
+import { TradeCenterFoodCard, TradeCenterFunCard } from './TradeCenterFoodFun';
+
+const LEISURE_ICONS: Record<RetailLeisureKind, LucideIcon> = {
+  cinema: Clapperboard,
+  food: UtensilsCrossed,
+  kids: Baby,
+  sport: Dumbbell,
+  other: Sparkles,
+};
+
+export function TradeCenterRetailBlocks({
+  info,
+  name,
+  after,
+}: {
+  info: RetailInfo | null;
+  /** Имя в заголовке ленты: «ТЦ «Замок»». */
+  name: string;
+  after?: (id: RetailSectionId) => ReactNode;
+}) {
+  if (!info) return null;
+  const ids = retailSectionIds(info);
+
+  const floors = sortFloorsTopDown(info.floorsGuide);
+  // Старый досуг — только у ТЦ без «Где поесть»/«Развлечений».
+  const leisure = sortLeisure(leisureForPage(info));
+
+  return (
+    <>
+      {floors.length > 0 && (
+        <div id="floors" className={cardClass} style={glassCardShadow}>
+          <CardTitle id="floors" />
+          <ul className="flex flex-col divide-y divide-border">
+            {floors.map((entry, i) => {
+              const underground = (floorSortKey(entry.floor) ?? 0) < 0;
+              return (
+                <li key={`${entry.floor}-${i}`} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+                  <span
+                    className={cn(
+                      'flex h-9 min-w-[3.25rem] shrink-0 items-center justify-center rounded-xl px-2 text-sm font-bold tabular-nums',
+                      underground ? 'bg-surface-muted text-ink-muted' : 'bg-primary/10 text-primary',
+                    )}
+                    aria-label={`Этаж ${formatFloorBadge(entry.floor)}`}
+                  >
+                    {formatFloorBadge(entry.floor)}
+                  </span>
+                  <p className="min-w-0 flex-1 break-words pt-1.5 text-sm leading-relaxed text-ink-muted">{entry.text}</p>
+                </li>
+              );
+            })}
+          </ul>
+          <SourcesLine entries={[...floors]} />
+        </div>
+      )}
+      {floors.length > 0 && after?.('floors')}
+
+      {ids.includes('retail-history') && <TradeCenterHistoryCard timeline={info.timeline} title={retailHistoryTitle(name)} />}
+      {ids.includes('retail-history') && after?.('retail-history')}
+
+      {info.food && <TradeCenterFoodCard food={info.food} title={foodTitle(name)} />}
+      {info.food && after?.('food')}
+      {ids.includes('fun') && <TradeCenterFunCard fun={info.fun} title={funTitle(name)} />}
+      {ids.includes('fun') && after?.('fun')}
+
+      {leisure.length > 0 && (
+        <div id="leisure" className={cardClass} style={glassCardShadow}>
+          <CardTitle id="leisure" />
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {leisure.map((entry, i) => {
+              const Icon = LEISURE_ICONS[entry.kind];
+              return (
+                <li
+                  key={`${entry.name}-${i}`}
+                  className="flex min-w-0 items-start gap-3 rounded-2xl border border-border bg-white/65 p-3"
+                >
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"
+                    title={LEISURE_KIND_LABELS[entry.kind]}
+                  >
+                    <Icon className="h-4.5 w-4.5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block break-words text-sm font-semibold leading-snug text-ink">{entry.name}</span>
+                    {entry.text && (
+                      <span className="mt-1 block break-words text-sm leading-relaxed text-ink-muted">{entry.text}</span>
+                    )}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          <SourcesLine entries={[...leisure]} />
+        </div>
+      )}
+      {leisure.length > 0 && after?.('leisure')}
+
+      {ids.includes('visit') && <TradeCenterVisitCard info={info} />}
+      {ids.includes('visit') && after?.('visit')}
+      {ids.includes('business') && <TradeCenterBusinessCard info={info} />}
+      {ids.includes('business') && after?.('business')}
+      {ids.includes('numbers') && <TradeCenterNumbersCard numbers={info.numbers} />}
+      {ids.includes('numbers') && after?.('numbers')}
+      {ids.includes('quotes') && <TradeCenterQuotesCard quotes={info.quotes} />}
+      {ids.includes('quotes') && after?.('quotes')}
+      {/* При блоках еды и развлечений кинотеатр/фудкорт/фитнес из якорей уходят (anchorsForPage). */}
+      {ids.includes('anchors') && <TradeCenterAnchorsCard anchors={anchorsForPage(info)} />}
+      {ids.includes('anchors') && after?.('anchors')}
+    </>
+  );
+}

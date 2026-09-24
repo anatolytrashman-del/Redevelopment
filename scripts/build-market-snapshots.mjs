@@ -103,6 +103,15 @@ function round2(v) {
 // разных помещения (несколько одинаковых кабинетов по одной ставке у
 // одного собственника — обычное дело, см. пример с «Центрополем» в
 // комментарии businessCenterOfferDuplicates.ts).
+// Правило одинаковое с src/lib/businessCenterOfferDuplicates.ts (эта
+// функция — её файл-близнец, голый JS не импортирует TS). ВАЖНО (правка
+// 2026-09-20, найдено на «Футурисе» — см. комментарий в TS-версии за
+// подробным разбором и цифрами по всей базе, 77 групп/98 лишних строк):
+// источник блокирует слияние только ВМЕСТЕ с совпавшей категорией
+// (property_type). Один источник, но РАЗНАЯ категория при том же
+// размере/цене — это не разные кабинеты, а один и тот же лот,
+// протолкнутый в несколько категорий ради охвата поиска.
+const VAGUE_BC_TYPES = new Set(['Без категории', 'Не указано', null, '']);
 function dedupeBcOffers(rows) {
   const SIZE_TOLERANCE = 0.05;
   const PRICE_TOLERANCE = 0.1;
@@ -126,12 +135,20 @@ function dedupeBcOffers(rows) {
         c[0].price_per_sqm != null &&
         Math.abs(c[0].size - row.size) <= SIZE_TOLERANCE &&
         samePrice(c[0].price_per_sqm, row.price_per_sqm) &&
-        c.every((o) => o.source !== row.source),
+        // Блокирует слияние только полное совпадение источник+категория —
+        // см. комментарий выше.
+        c.every((o) => !(o.source === row.source && o.property_type === row.property_type)),
     );
     if (cluster) cluster.push(row);
     else clusters.push([row]);
   }
-  return clusters.map((c) => c[0]);
+  // Из кластера остаётся не первый попавшийся, а самый содержательный по
+  // категории: "Без категории"/null — почти всегда СЛЕДСТВИЕ того самого
+  // проталкивания в несколько категорий (Kufar честно ставит осмысленную
+  // категорию первому объявлению и оставляет "Без категории" копиям), и
+  // без этого выбора officeOnlyOffers ниже мог бы молча потерять реальный
+  // офис, если кластер собрался в порядке "Без категории" раньше "Офисы".
+  return clusters.map((c) => c.find((o) => !VAGUE_BC_TYPES.has(o.property_type)) ?? c[0]);
 }
 
 function firstOfMonth() {
@@ -180,7 +197,10 @@ async function main() {
   // --- Сегмент 'ofisy_bc' ---
   const { data: centers, error: centersError } = await supabase
     .from('business_centers')
-    .select('slug,business_class,district');
+    .select('slug,business_class,district')
+    // Только бизнес-центры: торговые центры (kind = 'tc') лежат в той же
+    // таблице, но в офисную аналитику попадать не должны.
+    .eq('kind', 'bc');
   if (centersError) throw centersError;
 
   // PostgREST отдаёт максимум 1000 строк за запрос (см. CLAUDE.md) —
@@ -211,7 +231,12 @@ async function main() {
   // business_center_offers не трогается — "Объявления с Kufar и Realt" на
   // карточке конкретного БЦ по-прежнему показывает все помещения здания,
   // не только офисные, там фильтр по типу не нужен.
-  const dedupedBcOffers = dedupeBcOffers(bcOffers);
+  // Только объявления в бизнес-центрах: business_center_offers хранит и
+  // объявления торговых центров (kind = 'tc'). Без этой строки они ушли бы в
+  // городской срез ofisy_bc (срезы класса/района/здания их и так отсекали
+  // через centerBySlug, а город — нет).
+  const centerSlugs = new Set(centers.map((c) => c.slug));
+  const dedupedBcOffers = dedupeBcOffers(bcOffers.filter((o) => centerSlugs.has(o.business_center_slug)));
   const officeOnlyOffers = dedupedBcOffers.filter((o) => o.property_type === 'Офисы');
   const centerBySlug = new Map(centers.map((c) => [c.slug, c]));
   const officeRows = officeOnlyOffers.map((o) => ({
@@ -230,7 +255,7 @@ async function main() {
     building: centerBySlug.has(o.business_center_slug) ? o.business_center_slug : null,
   }));
   console.log(
-    `Загружено ${centers.length} БЦ, ${bcOffers.length} объявлений в БЦ (${dedupedBcOffers.length} после схлопывания одного лота с нескольких площадок, ${officeOnlyOffers.length} из них — офисы, остальные отфильтрованы из снимка сегмента).`,
+    `Загружено ${centers.length} БЦ, ${bcOffers.length} объявлений в таблице (${dedupedBcOffers.length} после схлопывания одного лота с нескольких площадок, ${officeOnlyOffers.length} из них — офисы, остальные отфильтрованы из снимка сегмента).`,
   );
   snapshots.push(
     ...buildSnapshotsForSegment(officeRows, 'ofisy_bc', period, [
@@ -241,6 +266,16 @@ async function main() {
   );
 
   // --- Сегменты из citywide_offers ('torgovye', 'sklady') ---
+  // Схлопывания дублей здесь, в отличие от business_center_offers выше,
+  // НЕТ — и это не забытый кусок работы. Городские сегменты собираются
+  // скриптами sync-citywide-*-offers.mjs, а те схлопывают один лот с
+  // разных площадок ДО записи (`dedupeAcrossSources` в
+  // scripts/lib/citywideExtraSources.mjs, то же правило, что у
+  // dedupeBcOffers ниже) — в таблице дублей между источниками уже нет.
+  // С business_center_offers иначе: туда строки кладутся как есть, от всех
+  // площадок, потому что карточка БЦ показывает их списком и схлопывает
+  // при отрисовке. Заводится новый источник городского сегмента — дедуп
+  // правится в citywideExtraSources.mjs, не тут.
   // PostgREST по умолчанию отдаёт не больше 1000 строк за запрос —
   // citywide_offers уже больше (проверено вживую: без пагинации
   // "Загружено 1000" при реальных 1817 для 'torgovye'), поэтому листаем

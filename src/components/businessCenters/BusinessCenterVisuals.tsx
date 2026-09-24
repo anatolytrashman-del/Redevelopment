@@ -1,7 +1,13 @@
 import type { ReactNode } from 'react';
 import { Camera, HardHat } from 'lucide-react';
 import type { BusinessCenter } from '../../data/businessCenters';
-import { businessCenterPhotoSrc } from '../../lib/businessCenterDisplay';
+import {
+  BC_CARD_PHOTO_SIZES,
+  BC_DETAIL_PHOTO_SIZES,
+  businessCenterCardPhotoSrcSet,
+  businessCenterDetailPhotoSrcSet,
+  businessCenterPhotoSrc,
+} from '../../lib/businessCenterDisplay';
 
 // Общие мелкие визуальные блоки БЦ — используются и на хабе
 // (BusinessCentersMinskPage.tsx, компактная карточка), и на отдельной
@@ -21,6 +27,8 @@ import { businessCenterPhotoSrc } from '../../lib/businessCenterDisplay';
 interface CuratedBusinessCenterPhoto {
   src: string;
   alt: string;
+  // Ручные снимки лежат одним файлом, уменьшенных копий у них нет.
+  srcSet?: string;
 }
 
 // Проверенное вручную фото для здания, у которого снимок из каталога не
@@ -33,14 +41,23 @@ const CURATED_BUSINESS_CENTER_PHOTOS: Record<string, CuratedBusinessCenterPhoto>
   },
 };
 
+// sizes — сколько CSS-пикселей фото занимает на экране, по нему браузер
+// выбирает кандидата из srcset. По умолчанию — сетка каталога
+// (BC_CARD_PHOTO_SIZES) для 'card' и колонка главного фото карточки
+// (BC_DETAIL_PHOTO_SIZES) для 'detail'; место показа с другой шириной
+// (строка рейтинга, «похожие» на карточке) обязано передать свою, иначе
+// браузер верит каталожным 45vw и на телефоне с DPR 3 тянет 512-й файл под
+// миниатюру в 118 px — вдвое тяжелее нужного.
 export function PhotoBlock({
   center,
   variant,
   fit = 'cover',
+  sizes,
 }: {
   center: BusinessCenter;
   variant: 'card' | 'detail';
   fit?: 'cover' | 'contain';
+  sizes?: string;
 }) {
   const detail = variant === 'detail';
   const curatedPhoto = CURATED_BUSINESS_CENTER_PHOTOS[center.slug];
@@ -48,6 +65,12 @@ export function PhotoBlock({
     ? {
         src: businessCenterPhotoSrc(center.photos[0], variant),
         alt: center.name,
+        // Уменьшенные копии есть у обоих вариантов наших закоммиченных фото
+        // (businessCenterCardPhotoSrcSet / businessCenterDetailPhotoSrcSet);
+        // у путей из Supabase Storage их нет — там srcset не ставится.
+        srcSet: detail
+          ? businessCenterDetailPhotoSrcSet(center.photos[0])
+          : businessCenterCardPhotoSrcSet(center.photos[0]),
       }
     : null;
   const photo = curatedPhoto ?? fallbackPhoto;
@@ -56,6 +79,8 @@ export function PhotoBlock({
     return (
       <img
         src={photo.src}
+        srcSet={photo.srcSet}
+        sizes={photo.srcSet ? (sizes ?? (detail ? BC_DETAIL_PHOTO_SIZES : BC_CARD_PHOTO_SIZES)) : undefined}
         alt={photo.alt}
         className={`h-full w-full ${fit === 'contain' ? 'object-contain' : 'object-cover'}`}
         loading={detail ? 'eager' : 'lazy'}
@@ -91,9 +116,9 @@ export function PhotoBlock({
 
 export function FactRow({ icon: Icon, children }: { icon: typeof Camera; children: ReactNode }) {
   return (
-    <div className="flex items-start gap-2 text-sm text-ink-muted">
-      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint" />
-      <span>{children}</span>
+    <div className="flex items-center gap-2 text-xs text-ink-muted">
+      <Icon className="h-4 w-4 shrink-0 text-ink-faint" />
+      <span className="text-balance">{children}</span>
     </div>
   );
 }

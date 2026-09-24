@@ -1137,7 +1137,7 @@ const PROPERTY_TYPE_AVIA_MALL: DistrictPropertyType = {
 };
 
 // Секция «Бизнес-центры Минск Мира» (id="business-centers") — слаги и факты
-// ровно из каталога /minsk/bcminsk (таблица business_centers), не новые
+// ровно из каталога /minsk/bc (таблица business_centers), не новые
 // данные. Ловушка, пойманная при написании: Dana Center того же
 // застройщика стоит на ул. Петра Мстиславца, 9 — но это «Маяк Минска»
 // (Первомайский район, метро «Восток»), НЕ Минск Мир, несмотря на общего
@@ -1613,17 +1613,13 @@ export function DistrictGuidePage() {
           отдельным fixed-элементом, привязанным к той же navBox.left, что и
           сам `nav` ниже, а исходный логотип в шапке скрываем на lg+, чтобы
           не было двух логотипов одновременно (тот же приём, что и с пустой
-          первой колонкой-заглушкой под fixed-сайдбар в сетке контента ниже).
-          text-primary-hover, не text-primary — PAGESPEED_PLAN.md, Э8-2:
-          "RED" в 18px (text-lg) недостаточно крупный для послабления WCAG
-          "крупный жирный текст" (нужно ≥19px), --color-primary даёт только
-          4,12:1 на bg — text-primary-hover 5,13:1. */}
+          первой колонкой-заглушкой под fixed-сайдбар в сетке контента ниже). */}
       <Link
         to="/minsk"
         className="fixed top-6 z-40 hidden shrink-0 text-lg font-extrabold tracking-wide text-ink lg:block"
         style={navBox ? { left: navBox.left } : { visibility: 'hidden' }}
       >
-        <span className="font-black text-primary-hover">RED</span>EVELOPMENT
+        <span className="font-black text-primary">RED</span>EVELOPMENT
       </Link>
 
       {/* На мобильном (<sm) шапка отдельным баром с большими отступами
@@ -1639,7 +1635,7 @@ export function DistrictGuidePage() {
         <div className="mx-auto max-w-6xl px-4 sm:px-8">
           <div className="flex items-center justify-between lg:grid lg:grid-cols-[200px_1fr] lg:items-center lg:gap-10">
             <Link to="/minsk" className="shrink-0 text-lg font-extrabold tracking-wide text-ink lg:invisible">
-              <span className="font-black text-primary-hover">RED</span>EVELOPMENT
+              <span className="font-black text-primary">RED</span>EVELOPMENT
             </Link>
             <div className="lg:mx-auto lg:w-full lg:max-w-3xl">
               <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted sm:flex">
@@ -1650,7 +1646,7 @@ export function DistrictGuidePage() {
                     объекта в FAQ и пункт бокового меню. Вернуть, когда
                     здание будет куплено.
                     Аудит поиска 2026-09-07 добавил сюда пункт «Бизнес-центры
-                    Минска» → /minsk/bcminsk (каталог был «островом» без
+                    Минска» → /minsk/bc (каталог был «островом» без
                     входящих ссылок). Владелец, 2026-09-16: каталог БЦ ещё не
                     доделан — пока он не готов, гид по району на него не
                     ссылается вообще. Текст про БЦ в самом районе остаётся,
@@ -1713,7 +1709,7 @@ export function DistrictGuidePage() {
             заходов — если «Ключевые цифры» уедет за экран, это ожидаемо
             и хорошо. */}
         <Link to="/minsk" className="text-base font-extrabold tracking-wide text-ink sm:hidden">
-          <span className="font-black text-primary-hover">RED</span>EVELOPMENT
+          <span className="font-black text-primary">RED</span>EVELOPMENT
         </Link>
         {/* Единая liquid-glass подложка под заголовком/подзаголовком и фото —
             раньше текст стоял прямо на фоне страницы, а фото было в своей
@@ -2194,7 +2190,7 @@ export function DistrictGuidePage() {
             (business_centers), без новых цифр: класс, площадь, статус. Живой
             фетч не делаем — два здания, данные меняются раз в год, а гид
             пререндерится. Аудит поиска 2026-09-07 сделал карточки ссылками на
-            /minsk/bcminsk/:slug плюс ссылку на каталог; владелец, 2026-09-16 —
+            /minsk/bc/:slug плюс ссылку на каталог; владелец, 2026-09-16 —
             пока блок бизнес-центров не доделан, ссылок на каталог с гида быть
             не должно, поэтому карточки стали обычными плашками с тем же
             текстом. Вернуть ссылки (и пункт меню в шапке), когда каталог будет
@@ -3157,6 +3153,29 @@ export function DistrictGuidePage() {
                 {MINSK_MIR_TOPIC_LABELS[s]}
               </Link>
             ))}
+            {/* Ниже раньше был только список топиков этого же гида — на
+                каталог БЦ и на свою же страницу аналитики гид не ссылался
+                вовсе (LB-0.4, 2026-09-21). /minsk/one сюда сознательно не
+                возвращаем (см. комментарий выше по файлу, 2026-09-16 —
+                здание ещё не куплено). Фильтра
+                каталога по Минск Миру нет — это не административный район и
+                не 2GIS-микрорайон (DISTRICT_SLUGS/MICRODISTRICT_SLUGS в
+                businessCenterHubs.ts), проверено по базе 2026-09-21: единственный
+                БЦ каталога с адресом в Минск Мире — МФЦ (slug mfc-minsk-mir,
+                строится), поэтому ссылка на его карточку, а не на выдуманный
+                срез. */}
+            <Link
+              to="/minsk/bc/mfc-minsk-mir"
+              className="rounded-full border border-border px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:border-primary hover:text-primary-hover"
+            >
+              МФЦ Минск Мир в каталоге БЦ
+            </Link>
+            <Link
+              to="/minsk/analytics/minsk-mir"
+              className="rounded-full border border-border px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:border-primary hover:text-primary-hover"
+            >
+              Аналитика рынка Минск Мира
+            </Link>
           </div>
         </div>
 
