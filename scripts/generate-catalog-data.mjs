@@ -21,6 +21,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { join, resolve } from 'node:path';
+import { buildDataOffline } from './_buildFallback.mjs';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
@@ -160,7 +161,7 @@ async function copyFromProd() {
 // ~40 КБ на здание, которым в критическом пути делать нечего.
 const CATALOG_FALLBACK = resolve(process.cwd(), 'scripts/catalog-data-fallback.json.gz');
 let catalogFallback;
-function fallbackDataset(name) {
+function fallbackDataset(name, { quiet = false } = {}) {
   if (catalogFallback === undefined) {
     try {
       catalogFallback = JSON.parse(gunzipSync(readFileSync(CATALOG_FALLBACK)).toString('utf8'));
@@ -170,7 +171,7 @@ function fallbackDataset(name) {
   }
   const rows = catalogFallback?.datasets?.[name];
   if (!Array.isArray(rows)) return null;
-  console.warn(`[catalog-data] ${name}: Supabase недоступен — взят из снимка от ${catalogFallback.generatedAt}`);
+  if (!quiet) console.warn(`[catalog-data] ${name}: Supabase недоступен — взят из снимка от ${catalogFallback.generatedAt}`);
   return rows;
 }
 
@@ -187,6 +188,11 @@ async function selectAll(query, what) {
 }
 
 async function dataset(name, load) {
+  // Вне Vercel — снимок сразу, без похода в базу (см. buildDataOffline).
+  if (OFFLINE) {
+    const rows = fallbackDataset(name, { quiet: true });
+    if (rows) return rows;
+  }
   try {
     return await load();
   } catch (err) {
@@ -280,7 +286,13 @@ async function writeExtras() {
   console.log(`[catalog-data] догружаемые данные: общие наборы + ${slugs.length} файлов .extra`);
 }
 
-main(columns)
+// Сборка вне Vercel (CI, сессии) — здания копируются с прода, догружаемые
+// наборы берутся из снимка: проверке сборки живые данные не нужны, а каждый
+// такой прогон стоил ~12 МБ трафика базы (разбор — scripts/_buildFallback.mjs).
+const OFFLINE = buildDataOffline();
+if (OFFLINE) console.log('[catalog-data] сборка вне Vercel — данные с прода и из снимка, не из базы (BUILD_DATA_LIVE=1 вернёт базу)');
+
+(OFFLINE ? Promise.reject(new Error('сборка вне Vercel')) : main(columns))
   .catch(async (err) => {
     console.warn(`[catalog-data] данные каталога не собраны из базы: ${err instanceof Error ? err.message : err}`);
     try {
