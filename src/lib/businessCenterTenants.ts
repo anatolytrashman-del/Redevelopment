@@ -79,7 +79,8 @@ export function buildTenantsFromSnapshot(
       amenityCounts.set(amenityLabel, (amenityCounts.get(amenityLabel) ?? 0) + 1);
       continue;
     }
-    const placement = parseTenantPlacement(org.rawText);
+    const parsed = parseTenantPlacement(org.rawText);
+    const placement = { ...parsed, floor: org.floor || parsed.floor };
     const industry = tenantIndustryFromCategory(org.category);
     tenants.push({
       name: org.name,
@@ -128,6 +129,7 @@ export function buildTenantsFromLegacyList(
       rating: org.rating ?? null,
       reviewCount: org.reviewCount ?? null,
       rawText: null,
+      floor: org.floor ?? null,
     })),
     buildingName,
     buildingAltNames,
@@ -186,5 +188,5 @@ export function buildFloorGroups(organizations: TenantOrganizationView[]): Floor
 }
 
 export function formatFloorLabel(floor: string): string {
-  return `${floor} этаж`;
+  return `${floor.replace(/^-/, '−')} этаж`;
 }

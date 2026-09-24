@@ -3,6 +3,7 @@ import {
   cleanTenantCategory,
   formatTenantPlacement,
   isTenantAmenity,
+  parseTenantFloor,
   parseTenantPlacement,
   primaryTenantCategory,
   tenantAmenityLabel,
@@ -198,5 +199,20 @@ describe('parseTenantPlacement', () => {
   it('собирает человеческую подпись', () => {
     expect(formatTenantPlacement({ floor: '4', office: '401', entrance: null })).toBe('4 этаж, офис 401');
     expect(formatTenantPlacement({ floor: 'цокольный', office: null, entrance: null })).toBe('цокольный этаж');
+  });
+});
+
+describe('parseTenantFloor', () => {
+  it('читает оба порядка: «этаж 2» на странице дома и «2 этаж» в плитках ТЦ', () => {
+    expect(parseTenantFloor('Stradivarius Магазин одежды Рейтинг 4,8 2 этаж')).toBe('2');
+    expect(parseTenantFloor('Гиппо Гипермаркет Рейтинг 4,6 -1 этаж В подборке')).toBe('-1');
+    expect(parseTenantFloor('Магазин одежды офис 401, этаж 4')).toBe('4');
+    expect(parseTenantFloor('Ветеринарная клиника этаж цокольный')).toBe('цокольный');
+    expect(parseTenantFloor('Кафе этаж −1')).toBe('-1');
+  });
+
+  it('не берёт слово после «этаж» с заглавной и рейтинг вместо этажа', () => {
+    expect(parseTenantFloor('Магазин Рейтинг 4,8 этаж В подборке')).toBeNull();
+    expect(parseTenantFloor('Магазин одежды Рейтинг 4,8')).toBeNull();
   });
 });

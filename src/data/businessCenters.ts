@@ -433,6 +433,9 @@ export interface TenantOrganization {
   category: string;
   rating?: number | null;
   reviewCount?: number | null;
+  // Скрипт сбора Яндекса кладёт сюда же ссылку, текст карточки и этаж; форма
+  // админки их не показывает, но и не должна терять при сохранении.
+  floor?: string | null;
 }
 
 // См. комментарий у BusinessCenter.technicalParams выше.

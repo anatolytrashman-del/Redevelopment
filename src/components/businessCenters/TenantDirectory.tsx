@@ -14,6 +14,12 @@
 // Блок держим в один экран: владелец отдельно просил «сводка в одну строку,
 // сегменты в выпадающий фильтр» — поэтому первым экраном остаётся ровно
 // каталог, а расклад по этажам открывается по клику.
+//
+// 2026-09-24: этаж стал фильтром, как переключатель уровней на поэтажном
+// плане Яндекса («у яндекса есть прям схема, какой магазин где расположен»):
+// ряд кнопок «Все этажи · −1 · 1 · 2 …» над списком. Этаж у организаций
+// теперь проставляет скрипт сбора по карточкам (у Galleria — 286 из 313
+// вместо 102), так что фильтр показывает этаж целиком, а не выборку.
 import { useEffect, useMemo, useState } from 'react';
 import { Building2, Search, Star } from 'lucide-react';
 import { cn } from '../../lib/cn';
@@ -39,14 +45,6 @@ function pluralOrganizations(n: number): string {
   return 'организаций';
 }
 
-function pluralFloors(n: number): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return 'этаж';
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'этажа';
-  return 'этажей';
-}
-
 function formatCompactNumber(value: number): string {
   return value >= 1000 ? `${(value / 1000).toFixed(value >= 10000 ? 0 : 1).replace('.', ',')} тыс.` : String(value);
 }
@@ -55,7 +53,7 @@ export function TenantDirectory({ organizations }: { organizations: TenantOrgani
   const [query, setQuery] = useState('');
   const [activeDirection, setActiveDirection] = useState(ALL_TENANT_DIRECTIONS);
   const [page, setPage] = useState(0);
-  const [floorsOpen, setFloorsOpen] = useState(false);
+  const [activeFloor, setActiveFloor] = useState<string | null>(null);
 
   const entries = useMemo(
     () => organizations.map((org) => ({ ...org, direction: tenantDirectionLabel(org.industry) })),
@@ -73,7 +71,8 @@ export function TenantDirectory({ organizations }: { organizations: TenantOrgani
     const matchesQuery =
       !normalizedQuery ||
       `${entry.name} ${entry.rubric ?? ''}`.toLocaleLowerCase('ru-RU').includes(normalizedQuery);
-    return matchesDirection && matchesQuery;
+    const matchesFloor = activeFloor === null || entry.floor === activeFloor;
+    return matchesDirection && matchesQuery && matchesFloor;
   });
   const pageCount = Math.max(1, Math.ceil(filtered.length / TENANT_PAGE_SIZE));
   const currentPage = Math.min(page, pageCount - 1);
@@ -87,7 +86,7 @@ export function TenantDirectory({ organizations }: { organizations: TenantOrgani
   const withFloor = organizations.filter((org) => org.floor).length;
   const showFloors = organizations.length > 0 && withFloor / organizations.length >= FLOOR_SUMMARY_MIN_SHARE;
 
-  useEffect(() => setPage(0), [query, activeDirection]);
+  useEffect(() => setPage(0), [query, activeDirection, activeFloor]);
 
   return (
     <div id="tenants" className={cn('mt-6 scroll-mt-32 overflow-hidden', glassCardClass)} style={glassCardShadow}>
@@ -149,6 +148,45 @@ export function TenantDirectory({ organizations }: { organizations: TenantOrgani
             </select>
           </label>
         </div>
+
+        {showFloors && (
+          <div className="flex flex-col gap-1.5">
+            <div role="group" aria-label="Этаж" className="flex flex-wrap gap-1.5">
+              {[{ floor: null as string | null, count: entries.length }, ...floorGroups].map((group) => {
+                const active = activeFloor === group.floor;
+                return (
+                  <button
+                    key={group.floor ?? 'all'}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setActiveFloor(group.floor)}
+                    title={
+                      group.floor === null
+                        ? 'Показать все этажи'
+                        : `${formatFloorLabel(group.floor)}: ${group.count} ${pluralOrganizations(group.count)}`
+                    }
+                    className={cn(
+                      'rounded-full border px-3 py-1 text-xs font-semibold transition',
+                      active
+                        ? 'border-ink bg-ink text-white'
+                        : 'border-border bg-white/70 text-ink hover:border-primary/30',
+                    )}
+                  >
+                    {group.floor === null ? 'Все этажи' : formatFloorLabel(group.floor)}
+                    <span className={cn('ml-1.5 font-normal', active ? 'text-white/75' : 'text-ink-muted')}>
+                      {group.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {withFloor < organizations.length && (
+              <p className="text-xs text-ink-faint">
+                Этаж известен у {withFloor} из {organizations.length} {pluralOrganizations(organizations.length)}.
+              </p>
+            )}
+          </div>
+        )}
 
         {visibleEntries.length > 0 ? (
           <div className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 xl:grid-cols-3">
@@ -228,38 +266,6 @@ export function TenantDirectory({ organizations }: { organizations: TenantOrgani
           )}
         </div>
 
-        {/* Этажи — то, чего нет ни у 2GIS, ни у старого списка: арендатору
-            важно не только «кто здесь», но и «сколько соседей на этаже».
-            Под кнопкой, чтобы каталог оставался в один экран. */}
-        {showFloors && (
-          <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => setFloorsOpen((value) => !value)}
-              className="self-start text-sm font-semibold text-primary-hover hover:underline"
-            >
-              {floorsOpen ? 'Скрыть этажи' : `По этажам: ${floorGroups.length} ${pluralFloors(floorGroups.length)}`}
-            </button>
-            {floorsOpen && (
-              <>
-                <div className="flex flex-wrap gap-1.5">
-                  {floorGroups.map((group) => (
-                    <span
-                      key={group.floor}
-                      className="rounded-full bg-surface-muted px-2.5 py-1 text-xs text-ink-muted"
-                      title={`${formatFloorLabel(group.floor)}: ${group.count} ${pluralOrganizations(group.count)}`}
-                    >
-                      {formatFloorLabel(group.floor)} <span className="font-bold text-ink">{group.count}</span>
-                    </span>
-                  ))}
-                </div>
-                <p className="text-xs text-ink-faint">
-                  Этаж известен у {withFloor} из {organizations.length} организаций.
-                </p>
-              </>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

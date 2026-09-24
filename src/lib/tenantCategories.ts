@@ -305,14 +305,30 @@ export interface TenantPlacement {
 // «…Открыто до среды Ветеринарная клиника этаж цокольный», «…Магазин одежды
 // офис 401, этаж 4». Этаж есть у 57% организаций, офис/секция — у 31%; это то,
 // чего нет в данных 2GIS вовсе, и ради чего база Яндекса взята основной.
-const FLOOR_RE = /этаж\s+([^\s,;]+)/iu;
+//
+// Плитки вкладки «Внутри» у торговых центров пишут наоборот — «…Рейтинг 4,8
+// 2 этаж» (2026-09-24): прежнее «этаж\s+(\S+)» брало из такой строки
+// следующее слово («В подборке» → этаж «В») или ничего, и у Galleria Minsk
+// этаж находился у 102 организаций из 313. Порядок проверки: «этаж 2»
+// (в «подъезд 3 этаж 2» этаж — 2, а не 3), затем «2 этаж», затем слово со
+// строчной после «этаж» («цокольный»).
+const FLOOR_AFTER_NUMBER_RE = /[Ээ]таж\s+(-?\d{1,2})(?!\d)/u;
+const FLOOR_BEFORE_RE = /(?:^|\s)(-?\d{1,2})\s+этаж(?![\p{L}])/u;
+const FLOOR_AFTER_WORD_RE = /[Ээ]таж\s+(\p{Ll}[^\s,;]*)/u;
 const OFFICE_RE = /(?:офис|помещение|кабинет)\s+([^\s,;]+)/iu;
 const ENTRANCE_RE = /(?:подъезд|вход|секция|корпус)\s+([^\s,;]+)/iu;
+
+export function parseTenantFloor(rawText: string | null | undefined): string | null {
+  const text = (rawText ?? '').replace(/[−–—]/g, '-');
+  return (
+    text.match(FLOOR_AFTER_NUMBER_RE)?.[1] ?? text.match(FLOOR_BEFORE_RE)?.[1] ?? text.match(FLOOR_AFTER_WORD_RE)?.[1] ?? null
+  );
+}
 
 export function parseTenantPlacement(rawText: string | null | undefined): TenantPlacement {
   const text = rawText ?? '';
   return {
-    floor: text.match(FLOOR_RE)?.[1] ?? null,
+    floor: parseTenantFloor(text),
     office: text.match(OFFICE_RE)?.[1] ?? null,
     entrance: text.match(ENTRANCE_RE)?.[1] ?? null,
   };

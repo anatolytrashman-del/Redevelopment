@@ -17,6 +17,16 @@
 //   node scripts/capture-yandex-bc-tenants.mjs --kind tc --skip-collected --write-db
 // --manual возвращает ручной режим и для ТЦ; --headless — без окна (для
 // проверки на сервере); --max-distance 400 — порог сверки карточки.
+//
+// ЭТАЖИ (2026-09-24). Каждой организации проставляется floor: из текста её
+// плитки, а если там пусто — из её собственной карточки (уровень поэтажного
+// плана, см. scripts/yandex-tenant-floors.mjs). Это добавочный запрос на
+// организацию без подписи, поэтому здание собирается дольше; --no-floors
+// отключает шаг. Дозаполнить этажи у уже собранных зданий, не собирая
+// список заново:
+//   node scripts/capture-yandex-bc-tenants.mjs --kind tc --floors-only --write-db
+// (--node-fetch — без Chrome, обычными запросами; на CAPTCHA такой прогон
+// останавливается и сохраняет найденное).
 
 import './local-supabase-env.mjs'; // первым: ключ из ~/.config/redevelopment/supabase.env
 import fs from 'node:fs/promises';
@@ -36,6 +46,7 @@ import {
   orgUrl,
   resolveBuildingOrganization,
 } from './yandex-org-resolve.mjs';
+import { fillTenantFloors, floorFromText } from './yandex-tenant-floors.mjs';
 
 const execFileAsync = promisify(execFile);
 const args = process.argv.slice(2);
@@ -56,6 +67,9 @@ const limit = Number(valueOf('--limit') ?? 0);
 const writeDb = has('--write-db');
 const listOnly = has('--list');
 const skipCollected = has('--skip-collected');
+const withFloors = !has('--no-floors');
+const floorsOnly = has('--floors-only');
+const nodeFetch = has('--node-fetch');
 // Автоматический режим — см. шапку файла. Для ТЦ по умолчанию; для БЦ
 // поведение прежнее, пока не передан --auto.
 const autoMode = has('--auto') || (catalogKind === 'tc' && !has('--manual'));
@@ -91,7 +105,7 @@ if (archivePath && !onlySlug) {
   console.error('Для импорта архива укажите --slug');
   process.exit(1);
 }
-if (!archivePath && !chromePath) {
+if (!archivePath && !chromePath && !(floorsOnly && nodeFetch)) {
   console.error('Chrome не найден. Укажите полный путь через переменную CHROME_PATH');
   process.exit(1);
 }
@@ -101,6 +115,10 @@ if (archivePath && process.platform !== 'darwin') {
 }
 if (writeDb && !serviceRoleKey && !accessToken) {
   console.error('Для --write-db нужен SUPABASE_SERVICE_ROLE_KEY или SUPABASE_ACCESS_TOKEN');
+  process.exit(1);
+}
+if (floorsOnly && !serviceRoleKey && !accessToken) {
+  console.error('Для --floors-only нужен SUPABASE_SERVICE_ROLE_KEY или SUPABASE_ACCESS_TOKEN (прежний список берётся из таблицы снимков)');
   process.exit(1);
 }
 if (skipCollected && !serviceRoleKey && !accessToken) {
@@ -189,7 +207,7 @@ function parseCardText(rawText) {
     const stopMatch = after.match(CATEGORY_STOP_RE);
     category = (stopMatch ? after.slice(0, stopMatch.index) : after).trim() || null;
   }
-  return { rating, reviewCount, category: category || DEFAULT_ORGANIZATION_CATEGORY, rawText: text || null };
+  return { rating, reviewCount, category: category || DEFAULT_ORGANIZATION_CATEGORY, rawText: text || null, floor: floorFromText(text) };
 }
 
 async function pauseForUser(message) {
@@ -236,6 +254,7 @@ function organizationFromCard(card, pageUrl, entry, buildingUrl) {
     reviewCount: null,
     category: normalizeText(card.category) || DEFAULT_ORGANIZATION_CATEGORY,
     rawText: normalizeText(card.text) || null,
+    floor: floorFromText(card.text),
   };
 }
 
@@ -331,6 +350,45 @@ async function resolveWithPage(page, entry) {
 }
 
 const CARD_SELECTOR = '.place-inside-view, .search-business-snippet-view';
+
+// Карточки организаций для этажей: fetch изнутри вкладки, как resolveWithPage.
+// CAPTCHA проходит человек в том же окне, после чего запрос повторяется.
+function pageFetcher(page) {
+  return {
+    fetchHtml: (url) => page.evaluate(
+      (target) => fetch(target, { credentials: 'include' }).then((response) => response.text()),
+      url,
+    ),
+    onCaptcha: async (url) => {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
+      await passCaptchaIfAny(page);
+      return true;
+    },
+  };
+}
+
+// Без браузера (--node-fetch): для прогона на сервере. Человека нет, поэтому
+// на CAPTCHA обход останавливается, найденное к этому моменту сохраняется.
+const nodeFetcher = {
+  fetchHtml: (url) => fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36',
+      'Accept-Language': 'ru-RU,ru;q=0.9',
+    },
+  }).then((response) => response.text()),
+  onCaptcha: async () => false,
+};
+
+async function addFloors(organizations, fetcher) {
+  const { organizations: withFloor, stats } = await fillTenantFloors(organizations, {
+    ...fetcher,
+    delay: randomDelay,
+    log: (line) => console.log(line),
+  });
+  const total = withFloor.length;
+  console.log(`  этажи: ${total - stats.missing} из ${total} (по тексту ${stats.fromText + stats.kept}, по карточкам ${stats.fromCard})${stats.stopped ? ' — остановлено CAPTCHA' : ''}`);
+  return { organizations: withFloor, stopped: stats.stopped };
+}
 
 // Вкладка «Внутри» собственной карточки организации здания.
 async function collectFromOrganization(page, entry, org) {
@@ -591,6 +649,79 @@ if (listOnly) {
   process.exit(0);
 }
 
+// Прежние снимки зданий — для --floors-only (тот же дуальный доступ).
+async function readSnapshots(slugs) {
+  if (slugs.length === 0) return new Map();
+  let rows;
+  if (serviceRoleKey) {
+    const client = createClient(supabaseUrl, serviceRoleKey);
+    const { data, error } = await client
+      .from('business_center_tenant_source_snapshots')
+      .select('business_center_slug,source_url,address_query,organizations,captured_at')
+      .eq('source', 'yandex_maps')
+      .in('business_center_slug', slugs);
+    if (error) throw error;
+    rows = data ?? [];
+  } else {
+    const list = slugs.map((slug) => `'${slug.replaceAll("'", "''")}'`).join(',');
+    const response = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: `select business_center_slug,source_url,address_query,organizations,captured_at from public.business_center_tenant_source_snapshots where source = 'yandex_maps' and business_center_slug in (${list});` }),
+    });
+    if (!response.ok) throw new Error(`Supabase Management API ${response.status}: ${(await response.text()).slice(0, 300)}`);
+    rows = await response.json();
+  }
+  return new Map(rows.map((row) => [row.business_center_slug, row]));
+}
+
+// Только этажи: список организаций не пересобирается, берётся прежний снимок,
+// дописывается floor, снимок сохраняется с прежней датой сбора.
+if (floorsOnly) {
+  const snapshots = await readSnapshots(entries.map((entry) => entry.slug));
+  const queue = entries.filter((entry) => {
+    const organizations = snapshots.get(entry.slug)?.organizations;
+    return Array.isArray(organizations) && organizations.some((organization) => !organization.floor);
+  });
+  console.log(`Зданий с неполными этажами: ${queue.length} из ${entries.length}`);
+  let context = null;
+  let fetcher = nodeFetcher;
+  if (!nodeFetch && queue.length > 0) {
+    context = await chromium.launchPersistentContext(
+      profileDir,
+      launchOptions({ headless, chromePath, windowSize, windowPosition }),
+    );
+    const page = context.pages()[0] ?? await context.newPage();
+    await gotoWithCaptcha(page, 'https://yandex.by/maps/157/minsk/');
+    fetcher = pageFetcher(page);
+  }
+  try {
+    for (const [index, entry] of queue.entries()) {
+      const snapshot = snapshots.get(entry.slug);
+      console.log(`\n[${index + 1}/${queue.length}] ${entry.name ?? entry.slug}`);
+      const { organizations, stopped } = await addFloors(snapshot.organizations, fetcher);
+      if (writeDb) {
+        await writeSnapshot({
+          slug: entry.slug,
+          address: snapshot.address_query ?? entry.address ?? '',
+          sourceUrl: snapshot.source_url,
+          capturedAt: snapshot.captured_at,
+          organizations,
+        });
+        console.log(`  ${entry.slug}: записано в базу`);
+      }
+      if (stopped) {
+        console.log('Яндекс показал CAPTCHA — остановился. Повторите ту же команду позже: готовые здания пропускаются.');
+        break;
+      }
+    }
+  } finally {
+    if (context) await context.close();
+  }
+  if (!writeDb) console.log('\nВ базу НЕ писали — добавьте --write-db');
+  process.exit(0);
+}
+
 // Автоматический режим: один браузер на весь прогон, без Enter на зданиях.
 if (autoMode && !archivePath) {
   console.log(`Зданий в очереди: ${entries.length}. Открываю Chrome — окно можно двигать, но не закрывайте его.`);
@@ -608,7 +739,10 @@ if (autoMode && !archivePath) {
       console.log(`\n[${index + 1}/${entries.length}] ${entry.name ?? entry.slug} — ${entry.address ?? ''}`);
       const capturedAt = new Date().toISOString();
       const result = await collectAuto(page, entry);
-      const organizations = result ? withDefaultCategory(result.organizations) : [];
+      let organizations = result ? withDefaultCategory(result.organizations) : [];
+      if (organizations.length > 0 && withFloors) {
+        organizations = (await addFloors(organizations, pageFetcher(page))).organizations;
+      }
       if (organizations.length === 0) {
         // Ноль не пишем никуда: прежний список в базе и latest.json остаётся.
         console.log(`  ${entry.slug}: организаций не собрано — ничего не пишу`);
