@@ -65,6 +65,7 @@ import {
   formatRetailDate,
   leisureFaqQuestion,
   normalizeRetailInfo,
+  vacanciesFaqAnswer,
   retailSectionIds,
   sortFloorsTopDown,
 } from './tradeCenterRetail';
@@ -409,6 +410,7 @@ describe('normalizeRetailInfo — дополнительные ключи', () =
       advertising: null,
       numbers: [],
       quotes: [],
+      vacancies: [],
     });
   });
 
@@ -996,5 +998,36 @@ describe('ответы FAQ — еда и развлечения', () => {
       ].join('\n'),
     );
     expect(funFaqAnswer([])).toBeNull();
+  });
+});
+
+describe('свободные помещения по данным ТЦ', () => {
+  it('берёт помещения с площадью и сделкой, цену — только положительную', () => {
+    const info = normalizeRetailInfo({
+      vacancies: [
+        { deal: 'rent', type: 'островок', size: 12.5, floor: 'средний подземный уровень', pricePerSqm: null },
+        { deal: 'rent', type: 'торговое помещение', size: 209.9, floor: -3, pricePerSqm: 5.3 },
+        { deal: 'rent', size: 0 },
+        { deal: 'swap', size: 40 },
+      ],
+    });
+    expect(info?.vacancies.map((v) => [v.size, v.floor, v.pricePerSqm])).toEqual([
+      [12.5, 'средний подземный уровень', null],
+      [209.9, '-3', 5.3],
+    ]);
+  });
+
+  it('FAQ перечисляет помещения от меньшего к большему', () => {
+    const info = normalizeRetailInfo({
+      vacancies: [
+        { deal: 'rent', type: 'торговое помещение', size: 209.9, floor: -3, pricePerSqm: 5.3 },
+        { deal: 'rent', type: 'островок', size: 12.5, floor: 'средний подземный уровень' },
+      ],
+    })!;
+    expect(vacanciesFaqAnswer(info.vacancies)).toBe(
+      'По списку самого ТЦ сдаются 2 помещения: 12,5 м² (средний подземный уровень, островок) — цена по запросу; ' +
+        '209,9 м² (−3 этаж, торговое помещение) — $5,3 за м² в месяц.',
+    );
+    expect(vacanciesFaqAnswer([])).toBeNull();
   });
 });

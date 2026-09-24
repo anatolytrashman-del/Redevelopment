@@ -145,6 +145,7 @@ import {
   anchorsFaqAnswer,
   anchorsForPage,
   foodFaqAnswer,
+  vacanciesFaqAnswer,
   funFaqAnswer,
   leisureForPage,
   retailHistoryFaqAnswer,
@@ -1623,6 +1624,7 @@ export function BusinessCenterDetailPage() {
       add(`Какие события проходят в ${bcPrep}?`, eventsFaqAnswer(retail.events));
       const audienceQuestion = audienceFaqQuestion(retail.audience, bcPrep);
       if (audienceQuestion) add(audienceQuestion, figuresFaqAnswer(retail.audience));
+      add(`Какие помещения свободны в ${bcPrep}?`, vacanciesFaqAnswer(retail.vacancies));
       add(`Как арендовать помещение в ${bcPrep}?`, pitchFaqAnswer(retail.leasing));
       add(`Как разместить рекламу в ${bcPrep}?`, pitchFaqAnswer(retail.advertising));
       add(`${capitalize(bcNom)} в цифрах: что известно?`, figuresFaqAnswer(retail.numbers));
@@ -1820,7 +1822,7 @@ export function BusinessCenterDetailPage() {
     // конкурентов → отзывы → блоки доверия (награды/СМИ/факты/история/
     // параметры здания) → застройщик → FAQ.
     return [
-      has('offers', saleStats !== null || rentStats !== null),
+      has('offers', saleStats !== null || rentStats !== null || Boolean(isTc && center.retailInfo?.vacancies.length)),
       has(
         'rental',
         Boolean(
@@ -1909,7 +1911,7 @@ export function BusinessCenterDetailPage() {
         // внутри колонки не сплошной список, а полки по бюджету, и строки
         // видны только в раскрытой — их не больше шести.
         case 'offers':
-          return Math.max(saleStats?.count ?? 0, rentStats?.count ?? 0);
+          return Math.max(saleStats?.count ?? 0, rentStats?.count ?? 0, isTc ? (center?.retailInfo?.vacancies.length ?? 0) : 0);
         case 'rental':
           return rentalInfo
             ? [rentalInfo.terms, rentalInfo.rates, rentalInfo.contacts].reduce(
@@ -2770,7 +2772,11 @@ export function BusinessCenterDetailPage() {
             Сравнение со срезом рынка живёт в соседнем блоке «Цены в
             здании и по рынку», окупаемость не считается вовсе (обе
             причины — в комментариях тех файлов). */}
-        <BuildingOffersSection sale={saleStats} rent={rentStats} />
+        <BuildingOffersSection
+          sale={saleStats}
+          rent={rentStats}
+          listed={isTc ? (center.retailInfo?.vacancies ?? []) : []}
+        />
 
         {/* Цены здания против рынка. Прежде здесь лежали два предложения с
             процентами («Аренда в этом здании — $15/м²/мес, это выше на 30%
