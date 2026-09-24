@@ -18,6 +18,7 @@ export type FloorSchemaEntry = TenantOrganizationView & { direction: string };
 // Ширина схемы в единицах SVG = её ширина на экране: иначе на телефоне
 // кружки ужимаются вместе с рисунком до точек, по которым не попасть.
 const DEFAULT_VIEW_W = 640;
+const NARROW_VIEW_W = 520;
 const PAD = 28;
 const HULL_MARGIN_M = 9;
 // Точка дальше трёх «типичных» расстояний от центра (и дальше 60 м) — ошибка
@@ -43,6 +44,27 @@ function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function principalAngle(points: Point[]): number {
+  const n = points.length || 1;
+  const mx = points.reduce((sum, p) => sum + p[0], 0) / n;
+  const my = points.reduce((sum, p) => sum + p[1], 0) / n;
+  let sxx = 0;
+  let syy = 0;
+  let sxy = 0;
+  for (const [x, y] of points) {
+    sxx += (x - mx) ** 2;
+    syy += (y - my) ** 2;
+    sxy += (x - mx) * (y - my);
+  }
+  return 0.5 * Math.atan2(2 * sxy, sxx - syy);
+}
+
+function rotate([x, y]: Point, angle: number): Point {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return [x * cos - y * sin, x * sin + y * cos];
 }
 
 function toMeters(coords: Point, origin: Point): Point {
@@ -116,7 +138,16 @@ export function FloorSchema({
     const origin: Point = [median(located.map((e) => e.coords[0])), median(located.map((e) => e.coords[1]))];
     const all = located.map((entry) => ({ entry, m: toMeters(entry.coords, origin) }));
     const typical = median(all.map((item) => Math.hypot(...item.m)));
-    const meters = all.filter((item) => Math.hypot(...item.m) <= Math.max(typical * OUTLIER_FACTOR, OUTLIER_MIN_M));
+    const kept = all.filter((item) => Math.hypot(...item.m) <= Math.max(typical * OUTLIER_FACTOR, OUTLIER_MIN_M));
+    // Поворачиваем схему длинной стороной здания по горизонтали (главная ось
+    // облака точек): вытянутый наискосок ТЦ иначе занимает узкую диагональ
+    // и на телефоне сжимается в полоску. Север при этом не вверху — схема
+    // и так условная.
+    const angle = principalAngle(kept.map((item) => item.m));
+    // На узком экране — наоборот, длинной стороной вниз: вертикаль там есть,
+    // а ширины нет.
+    const turn = viewW < NARROW_VIEW_W ? Math.PI / 2 : 0;
+    const meters = kept.map((item) => ({ entry: item.entry, m: rotate(item.m, turn - angle) }));
     const outline = inflate(convexHull(meters.map((item) => item.m)), HULL_MARGIN_M);
     const xs = outline.map((p) => p[0]);
     const ys = outline.map((p) => p[1]);
