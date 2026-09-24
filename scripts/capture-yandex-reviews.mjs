@@ -57,6 +57,13 @@
 //
 // Флаги: --kind bc|tc|all, --limit N, --slug SLUG[,SLUG2…], --missing-only, --classes A,B,B+,
 // --skip-collected, --max-age-days 45, --output DIR, --profile DIR,
+// КАРТОЧКА ЗДАНИЯ (2026-09-24): в автоматическом режиме вместе с отзывами
+// пишется собственная карточка здания — общий рейтинг, часы, телефоны, сайты
+// и соцсети, удобства, рубрики, метро (business_center_yandex_cards). Места
+// вокруг не собираются. При --skip-collected здание со свежими отзывами, но
+// без карточки, получает только карточку. --no-card — без неё.
+// Всё разом (арендаторы, потом карточка и отзывы) — scripts/capture-yandex-all.mjs.
+//
 // --auto | --manual, --max-reviews N (стоп после N отзывов на здание; по
 // умолчанию 500 для ТЦ в автоматическом режиме, иначе без ограничения; 0 —
 // без ограничения), --max-distance 400, --headless (без окна —
@@ -81,6 +88,8 @@ import {
   orgUrl,
   resolveBuildingOrganization,
 } from './yandex-org-resolve.mjs';
+import { cardFromOrgHtml } from './yandex-org-card.mjs';
+import { isCaptchaHtml } from './yandex-tenant-floors.mjs';
 
 const args = process.argv.slice(2);
 const valueOf = (name) => {
@@ -101,6 +110,13 @@ const writeDb = has('--write-db');
 const listOnly = has('--list');
 const skipCollected = has('--skip-collected');
 const missingOnly = has('--missing-only');
+// Карточка здания (рейтинг, часы, телефоны, ссылки, удобства) — вместе с
+// отзывами, в автоматическом режиме; --no-card отключает. Места вокруг НЕ
+// собираем (владелец, 2026-09-24).
+const withCard = !has('--no-card');
+// Здания, у которых отзывы свежие, но карточки ещё нет: при --skip-collected
+// берём у них только карточку (см. catalogEntries и runAuto).
+const cardOnlySlugs = new Set();
 // Владелец, 2026-09-22: сначала добить класс A/B/B+, класс C — потом (у него
 // меньше трафика и цены сделки, отзывы там не так критичны). business_class
 // в базе — латиница ('A','B','B+','C'), сравнение регистронезависимое.
@@ -302,6 +318,87 @@ async function writeReviews({ supabase, slug, reviews, capturedAt }) {
   );
 }
 
+// --- Карточка здания ------------------------------------------------------
+async function writeCard({ slug, card, capturedAt }) {
+  const row = {
+    business_center_slug: slug,
+    org_id: card.orgId,
+    name: card.name,
+    address: card.address,
+    rating: card.rating,
+    rating_count: card.ratingCount,
+    review_count: card.reviewCount,
+    status: card.status,
+    working_time_text: card.workingTimeText,
+    working_time: card.workingTime,
+    phones: card.phones,
+    sites: card.sites,
+    social_links: card.socialLinks,
+    categories: card.categories,
+    features: card.features,
+    metro: card.metro,
+    photo_count: card.photoCount,
+    captured_at: capturedAt,
+  };
+  if (supabase) {
+    const { error } = await supabase.from('business_center_yandex_cards').upsert(row, { onConflict: 'business_center_slug' });
+    if (error) throw error;
+    return;
+  }
+  const columns = Object.keys(row);
+  const jsonColumns = new Set(['working_time', 'phones', 'sites', 'social_links', 'categories', 'features', 'metro']);
+  const value = (column) => {
+    const v = row[column];
+    if (v === null || v === undefined) return 'null';
+    if (jsonColumns.has(column)) return `${sqlLiteral(JSON.stringify(v))}::jsonb`;
+    if (typeof v === 'number') return String(v);
+    return sqlLiteral(v);
+  };
+  await runSql(
+    `insert into public.business_center_yandex_cards (${columns.join(', ')})
+       values (${columns.map(value).join(', ')})
+     on conflict (business_center_slug) do update set
+       ${columns.filter((c) => c !== 'business_center_slug').map((c) => `${c} = excluded.${c}`).join(', ')};`,
+    accessToken,
+  );
+}
+
+async function slugsWithCards() {
+  if (supabase) {
+    const slugs = new Set();
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase
+        .from('business_center_yandex_cards')
+        .select('business_center_slug')
+        .range(offset, offset + pageSize - 1);
+      if (error) throw error;
+      for (const row of data ?? []) slugs.add(row.business_center_slug);
+      if (!data || data.length < pageSize) break;
+    }
+    return slugs;
+  }
+  const rows = await runSql('select business_center_slug from public.business_center_yandex_cards;', accessToken);
+  return new Set(rows.map((row) => row.business_center_slug));
+}
+
+// HTML главной страницы карточки — fetch'ем изнутри вкладки, как поиск в
+// resolveWithPage. На проверку Яндекса — один повтор после человека.
+async function captureCard(page, org) {
+  const url = orgUrl(org);
+  const fetchHtml = () => page.evaluate(
+    (target) => fetch(target, { credentials: 'include' }).then((response) => response.text()),
+    url,
+  );
+  let html = await fetchHtml().catch(() => '');
+  if (isCaptchaHtml(html)) {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
+    await passCaptchaIfAny(page);
+    html = await fetchHtml().catch(() => '');
+  }
+  return cardFromOrgHtml(html, org.id);
+}
+
 async function latestCapturedAt() {
   if (supabase) {
     // PostgREST отдаёт максимум 1000 строк за запрос — .range(0, N) с
@@ -352,10 +449,17 @@ async function catalogEntries() {
     centers = centers.filter((c) => !withReviews.has(c.slug));
   } else if (skipCollected) {
     const latest = await latestCapturedAt();
+    const withCards = autoMode && withCard ? await slugsWithCards() : null;
     const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
     centers = centers.filter((c) => {
       const capturedAt = latest.get(c.slug);
-      return !capturedAt || Date.now() - new Date(capturedAt).getTime() > maxAgeMs;
+      const reviewsStale = !capturedAt || Date.now() - new Date(capturedAt).getTime() > maxAgeMs;
+      if (reviewsStale) return true;
+      if (withCards && !withCards.has(c.slug)) {
+        cardOnlySlugs.add(c.slug);
+        return true;
+      }
+      return false;
     });
   }
   if (limit > 0) centers = centers.slice(0, limit);
@@ -523,8 +627,10 @@ async function collectReviewsByPages(page, org, collected) {
 async function runAuto(page, queue) {
   let done = 0;
   let totalReviews = 0;
+  let cards = 0;
   const unresolved = [];
   const failed = [];
+  const noCard = [];
   // Одна карточка на два здания каталога («Европа» и «Новая Европа» по
   // соседним адресам) — неоднозначность: второму зданию её не отдаём.
   const orgOwners = new Map();
@@ -545,6 +651,27 @@ async function runAuto(page, queue) {
     orgOwners.set(org.id, center.slug);
     console.log(`  карточка: ${org.name} (${org.rubric}), id ${org.id}, ${org.distance} м, запрос «${org.query}»`);
     const capturedAt = new Date().toISOString();
+    if (withCard) {
+      const card = await captureCard(page, org);
+      if (card) {
+        if (writeDb) await writeCard({ slug: center.slug, card, capturedAt });
+        cards += 1;
+        console.log(
+          `  карточка здания: рейтинг ${card.rating ?? '—'} (${card.ratingCount ?? 0} оценок), ` +
+            `${card.workingTimeText ?? 'часы —'}, телефонов ${card.phones.length}, ссылок ${card.sites.length + card.socialLinks.length}, ` +
+            `удобств ${card.features.length}${writeDb ? ', записано' : ''}`,
+        );
+      } else {
+        console.log('  карточка здания не разобралась — пропускаю её');
+        noCard.push(center.slug);
+      }
+      if (cardOnlySlugs.has(center.slug)) {
+        console.log('  отзывы свежие — только карточка');
+        await randomDelay();
+        continue;
+      }
+      await randomDelay();
+    }
     await openReviewsTab(page, org);
     const state = await reviewsTabState(page, org.id);
     let reviews = state.urlOk ? await collectReviewsFromOpenTab(page) : [];
@@ -583,7 +710,11 @@ async function runAuto(page, queue) {
     );
     await randomDelay();
   }
-  console.log(`\nГотово: ${done} зданий, ${totalReviews} отзывов${writeDb ? '' : ' (в базу НЕ писали — добавьте --write-db)'}`);
+  console.log(
+    `\nГотово: ${done} зданий, ${totalReviews} отзывов` +
+      `${withCard ? `, карточек здания ${cards}` : ''}${writeDb ? '' : ' (в базу НЕ писали — добавьте --write-db)'}`,
+  );
+  if (noCard.length > 0) console.log(`Карточка здания не разобралась (${noCard.length}): ${noCard.join(',')}`);
   if (unresolved.length > 0) {
     console.log(`Карточка организации не найдена (${unresolved.length}): ${unresolved.join(',')}`);
   }

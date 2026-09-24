@@ -37,6 +37,7 @@ const ALL_TENANT_DIRECTIONS = 'Все организации';
 // Этажи показываем, только когда они известны хотя бы у трети арендаторов:
 // на десятке из девяноста «по этажам» — не срез здания, а случайная выборка.
 const FLOOR_SUMMARY_MIN_SHARE = 0.3;
+const FLOOR_SCHEMA_ENABLED = false;
 
 function pluralOrganizations(n: number): string {
   const mod10 = n % 10;
@@ -88,7 +89,10 @@ export function TenantDirectory({ organizations }: { organizations: TenantOrgani
   const showFloors = organizations.length > 0 && withFloor / organizations.length >= FLOOR_SUMMARY_MIN_SHARE;
   // Схема этажа (2026-09-24) — когда у магазинов собраны точки. На «Все
   // этажи» схема показывает первый этаж: схема всех этажей разом — каша.
-  const showSchema = showFloors && hasFloorSchema(organizations);
+  // Выключена до отдельного решения: владелец 2026-09-24 — «схема 1 в 1 не
+  // получается, для прототипа достаточно стандартного каталога арендаторов».
+  // Код и точки магазинов остаются, включается сменой флага.
+  const showSchema = FLOOR_SCHEMA_ENABLED && showFloors && hasFloorSchema(organizations);
   const schemaFloor = activeFloor ?? floorGroups.find((group) => group.floor === '1')?.floor ?? floorGroups[0]?.floor ?? null;
   const schemaHighlight = normalizedQuery || activeDirection !== ALL_TENANT_DIRECTIONS ? new Set(filtered) : null;
 
