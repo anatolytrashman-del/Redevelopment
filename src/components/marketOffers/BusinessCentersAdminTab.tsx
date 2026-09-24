@@ -23,6 +23,7 @@ import {
 } from '../../lib/businessCenterSnapshotParser';
 import type { ParsedSnapshotReview } from '../../lib/businessCenterSnapshotParser';
 import { parseHighlightRatings } from '../../lib/businessCenterDisplay';
+import { mergeDeveloperFormFields } from '../../lib/developerProfile';
 import { supabase } from '../../lib/supabase';
 import { BUSINESS_CENTER_CLASSES, RETAIL_FORMATS } from '../../data/businessCenters';
 import { CATALOG_VOCABULARY, type CatalogKind } from '../../lib/catalogKind';
@@ -243,7 +244,14 @@ function buildRentalInfo(form: FormState): RentalInfo | null {
 
 // Та же логика "пустая форма → null целиком" — карточка застройщика на
 // публичной странице не рендерится вовсе, пока по нему ничего не заполнено.
-function buildDeveloperInfo(form: FormState): DeveloperInfo | null {
+//
+// existing — developer_info записи до правки. Форма знает только семь
+// полей выше, а в том же jsonb ресёрч ТЦ хранит развёрнутый блок
+// (companies/profile/portfolio/facts, 2026-09-24) и может завести что-то
+// ещё. Всё, чего нет в форме, переносим как было: иначе любое сохранение
+// карточки из админки молча стирало бы собранное. По той же причине
+// «пустая форма → null» — только когда и переносить нечего.
+function buildDeveloperInfo(form: FormState, existing: DeveloperInfo | null): DeveloperInfo | null {
   const logoUrl = form.developerLogoUrl.trim() || null;
   const description = form.developerDescription.trim() || null;
   const phone = form.developerPhone.trim() || null;
@@ -251,8 +259,7 @@ function buildDeveloperInfo(form: FormState): DeveloperInfo | null {
   const hours = form.developerHours.trim() || null;
   const website = form.developerWebsite.trim() || null;
   const email = form.developerEmail.trim() || null;
-  if (!logoUrl && !description && !phone && !address && !hours && !website && !email) return null;
-  return { logoUrl, description, phone, address, hours, website, email };
+  return mergeDeveloperFormFields({ logoUrl, description, phone, address, hours, website, email }, existing);
 }
 
 // Блоки с пустым текстом/подписью не сохраняем — та же логика, что раньше
@@ -458,7 +465,7 @@ export function BusinessCentersAdminTab({ kind = 'bc' }: { kind?: CatalogKind } 
         yearBuilt: numOrNull(form.yearBuilt),
         floors: numOrNull(form.floors),
         developer: form.developer.trim() || null,
-        developerInfo: buildDeveloperInfo(form),
+        developerInfo: buildDeveloperInfo(form, editing !== 'new' && editing ? editing.developerInfo : null),
         metro: form.metro.trim() || null,
         parking: form.parking.trim() || null,
         website: form.website.trim() || null,
