@@ -3,6 +3,7 @@ import { ChevronDown } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import { pluralRu } from '../../lib/pluralRu';
+import type { RetailVacancyEntry } from '../../data/businessCenters';
 import type { DedupedOffer } from '../../lib/businessCenterOfferDuplicates';
 import {
   buildPriceBuckets,
@@ -280,18 +281,102 @@ function DealColumn({ stats }: { stats: DealStats }) {
   );
 }
 
-export function BuildingOffersSection({ sale, rent }: { sale: DealStats | null; rent: DealStats | null }) {
-  if (!sale && !rent) return null;
+// Уровень так, как его пишет ТЦ: «−1» → «−1 этаж», «верхний уровень» — как есть.
+function vacancyFloor(floor: string | null): string | null {
+  if (!floor) return null;
+  return /^[-−]?\d+$/.test(floor) ? `${floor.replace('-', '−')} этаж` : floor;
+}
+
+// Помещения из списка самого ТЦ (retail_info.vacancies). Владелец,
+// 2026-09-24, выбрал показывать их «списком» под объявлениями: у крупных ТЦ
+// отдел аренды почти никогда не публикует цену, а полки по бюджету без цены
+// не построить. Поэтому здесь простой список: площадь, этаж, тип — и цена,
+// только если ТЦ её назвал.
+function ListedColumn({ lots }: { lots: RetailVacancyEntry[] }) {
+  const sorted = [...lots].sort((a, b) => a.size - b.size);
+  // Ссылка — на страницу самого ТЦ; объявления площадок в список тоже
+  // попадают (синк их не нашёл по адресу), но «сайтом ТЦ» они не являются.
+  const sourceUrl =
+    lots.find((l) => l.sourceUrl && !/kufar|realt|domovita|onliner|megapolis/i.test(l.sourceUrl))?.sourceUrl ?? null;
+  return (
+    <div className="flex min-w-0 flex-col gap-4">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
+          Свободно по данным ТЦ: {roomsCount(lots.length)}
+        </span>
+        <span className="text-xl font-extrabold leading-tight text-ink">
+          {sorted.length > 1 && sorted[0].size !== sorted[sorted.length - 1].size
+            ? `от ${formatAreaValue(sorted[0].size)} до ${formatArea(sorted[sorted.length - 1].size)}`
+            : formatArea(sorted[0].size)}
+        </span>
+      </div>
+      <ul className="flex flex-col rounded-2xl border border-border-strong bg-surface-muted px-4 py-1.5">
+        {sorted.map((lot, idx) => {
+          const sub = [vacancyFloor(lot.floor), lot.type].filter(Boolean).join(', ');
+          return (
+            <li
+              key={`${lot.size}-${lot.floor}-${idx}`}
+              className="flex items-baseline justify-between gap-3 border-t border-border py-2.5 first:border-t-0"
+            >
+              <span className="min-w-0 text-sm text-ink">
+                {formatArea(lot.size)}
+                {sub && <span className="block text-xs text-ink-faint">{sub}</span>}
+              </span>
+              <span className="shrink-0 text-right text-sm">
+                {lot.pricePerSqm != null ? (
+                  <>
+                    <span className="block whitespace-nowrap font-bold tabular-nums text-ink">
+                      {formatMoney(lot.size * lot.pricePerSqm)}
+                      {lot.deal === 'rent' && <span className="font-semibold text-ink-muted"> / мес</span>}
+                    </span>
+                    <span className="block whitespace-nowrap text-xs text-ink-faint">
+                      {formatRate(lot.pricePerSqm, lot.deal)} за м²
+                    </span>
+                  </>
+                ) : (
+                  <span className="whitespace-nowrap text-xs text-ink-muted">цена по запросу</span>
+                )}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {sourceUrl && (
+        <a
+          href={sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className="text-xs font-semibold text-primary hover:text-primary-hover"
+        >
+          Список на сайте ТЦ
+        </a>
+      )}
+    </div>
+  );
+}
+
+export function BuildingOffersSection({
+  sale,
+  rent,
+  listed = [],
+}: {
+  sale: DealStats | null;
+  rent: DealStats | null;
+  listed?: RetailVacancyEntry[];
+}) {
+  if (!sale && !rent && !listed.length) return null;
   const columns = [sale, rent].filter((s): s is DealStats => s !== null);
+  const count = columns.length + (listed.length ? 1 : 0);
 
   return (
     <div id="offers" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
       <h2 className="text-lg font-bold text-ink">Что сейчас сдают и продают в здании</h2>
 
-      <div className={cn('grid items-start gap-6', columns.length > 1 ? 'md:grid-cols-2' : 'max-w-xl')}>
+      <div className={cn('grid items-start gap-6', count > 1 ? 'md:grid-cols-2' : 'max-w-xl')}>
         {columns.map((stats) => (
           <DealColumn key={stats.deal} stats={stats} />
         ))}
+        {listed.length > 0 && <ListedColumn lots={listed} />}
       </div>
     </div>
   );

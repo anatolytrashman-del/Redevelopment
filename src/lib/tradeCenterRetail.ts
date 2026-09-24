@@ -42,6 +42,7 @@ import type {
   RetailTimelineKind,
   RetailTransportEntry,
   RetailTransportMode,
+  RetailVacancyEntry,
 } from '../data/businessCenters';
 
 export const TIMELINE_KINDS: RetailTimelineKind[] = ['first', 'first_format', 'record', 'milestone'];
@@ -488,6 +489,25 @@ export function normalizeRetailInfo(raw: unknown): RetailInfo | null {
     return who && t ? [{ who, text: t, date: str(r.date), ...sourceOf(r) }] : [];
   });
 
+  const vacancies: RetailVacancyEntry[] = records(data.vacancies).flatMap((r) => {
+    const size = num(r.size);
+    const deal = str(r.deal);
+    if (size == null || size <= 0 || (deal !== 'rent' && deal !== 'sale')) return [];
+    const price = num(r.pricePerSqm);
+    return [
+      {
+        deal,
+        type: str(r.type),
+        size,
+        floor: text(r.floor),
+        pricePerSqm: price != null && price > 0 ? price : null,
+        note: str(r.note),
+        checkedAt: str(r.checkedAt),
+        ...sourceOf(r),
+      },
+    ];
+  });
+
   const info: RetailInfo = {
     floorsGuide,
     anchors,
@@ -510,6 +530,7 @@ export function normalizeRetailInfo(raw: unknown): RetailInfo | null {
     advertising,
     numbers,
     quotes,
+    vacancies,
   };
   const empty = Object.values(info).every((value) => value == null || (Array.isArray(value) && value.length === 0));
   return empty ? null : info;
@@ -1220,6 +1241,31 @@ export function funFaqAnswer(fun: RetailFunEntry[]): string | null {
         .join(' ');
     })
     .join('\n');
+}
+
+/**
+ * FAQ к списку «Свободно по данным ТЦ» (retail_info.vacancies): те же
+ * помещения, что в блоке, — площадь, этаж, тип, цена или «по запросу».
+ */
+export function vacanciesFaqAnswer(vacancies: RetailVacancyEntry[]): string | null {
+  if (!vacancies.length) return null;
+  const area = (n: number) => `${(n >= 1000 ? Math.round(n) : Math.round(n * 10) / 10).toLocaleString('ru-RU')} м²`;
+  const lines = [...vacancies]
+    .sort((a, b) => a.size - b.size)
+    .map((v) => {
+      const floor = v.floor ? (/^[-−]?\d+$/.test(v.floor) ? `${v.floor.replace('-', '−')} этаж` : v.floor) : null;
+      const price =
+        v.pricePerSqm != null
+          ? `$${(Math.round(v.pricePerSqm * 10) / 10).toLocaleString('ru-RU')} за м²${v.deal === 'rent' ? ' в месяц' : ''}`
+          : 'цена по запросу';
+      return `${area(v.size)}${[floor, v.type].filter(Boolean).length ? ` (${[floor, v.type].filter(Boolean).join(', ')})` : ''} — ${price}`;
+    });
+  const one = lines.length % 10 === 1 && lines.length % 100 !== 11;
+  const deal = vacancies.every((v) => v.deal === 'sale')
+    ? one ? 'продаётся' : 'продаются'
+    : one ? 'сдаётся' : 'сдаются';
+  const rooms = `${lines.length} ${pluralRu(lines.length, 'помещение', 'помещения', 'помещений')}`;
+  return `По списку самого ТЦ ${deal} ${rooms}: ${lines.join('; ')}.`;
 }
 
 /** Заголовки карточек: `name` — «ТЦ «Замок»». */

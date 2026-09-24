@@ -754,6 +754,24 @@ export interface RetailQuoteEntry extends RetailSource {
   date: string | null;
 }
 
+/**
+ * Свободное помещение из списка самого ТЦ или агентства (2026-09-24, бриф
+ * vacancies.md). У крупных ТЦ цены почти всегда «по запросу» — поэтому
+ * отдельно от объявлений Kufar/Realt, где цена есть всегда. Владелец
+ * выбрал показывать такие помещения списком под объявлениями.
+ */
+export interface RetailVacancyEntry extends RetailSource {
+  deal: 'rent' | 'sale';
+  type: string | null;
+  size: number;
+  // «−1», «средний подземный уровень» — как пишет сам ТЦ
+  floor: string | null;
+  // USD за м² (аренда — в месяц); нет цены — null
+  pricePerSqm: number | null;
+  note: string | null;
+  checkedAt: string | null;
+}
+
 export interface RetailInfo {
   floorsGuide: RetailFloorEntry[];
   anchors: RetailAnchorEntry[];
@@ -776,6 +794,7 @@ export interface RetailInfo {
   advertising: RetailPitch | null;
   numbers: RetailFigureEntry[];
   quotes: RetailQuoteEntry[];
+  vacancies: RetailVacancyEntry[];
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. lib/businessCentersApi.ts
