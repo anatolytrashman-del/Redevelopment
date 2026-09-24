@@ -567,6 +567,65 @@ export interface RetailLeisureEntry extends RetailSource {
   date: string | null;
 }
 
+// «Где поесть» и «Развлечения» — retail_info.food и retail_info.fun
+// (2026-09-24): владелец разделил старый блок «Кино, еда, развлечения»
+// (leisure) на два. У ТЦ, где есть хоть один из новых ключей, leisure не
+// показывается; у остальных — пока как раньше. Разбор —
+// normalizeRetailInfo в lib/tradeCenterRetail.
+export interface RetailFoodZone extends RetailSource {
+  // Фудкорт, ресторанный дворик, гастрозона.
+  name: string;
+  floor: string | null;
+  // Как у источника; число из jsonb приходит строкой: "1200", "около 600".
+  area: string | null;
+  seats: string | null;
+  points: string | null;
+  hours: string | null;
+  text: string | null;
+}
+
+export const RETAIL_FOOD_PLACE_TYPES = ['restaurant', 'cafe', 'fastfood', 'coffee', 'dessert', 'bar'] as const;
+
+export type RetailFoodPlaceType = (typeof RETAIL_FOOD_PLACE_TYPES)[number];
+
+export interface RetailFoodPlace {
+  name: string;
+  // Незнакомый тип — 'cafe'.
+  type: RetailFoodPlaceType;
+  cuisine: string | null;
+  floor: string | null;
+  inFoodcourt: boolean | null;
+  yandexUrl: string | null;
+  note: string | null;
+}
+
+export interface RetailFoodInfo {
+  summary: string | null;
+  zones: RetailFoodZone[];
+  // Все заведения ТЦ, у крупных — 30–90 штук.
+  places: RetailFoodPlace[];
+}
+
+export const RETAIL_FUN_KINDS = ['cinema', 'ice', 'kids', 'concert', 'games', 'quest', 'sport', 'fitness', 'other'] as const;
+
+export type RetailFunKind = (typeof RETAIL_FUN_KINDS)[number];
+
+export interface RetailFunEntry extends RetailSource {
+  name: string;
+  // Незнакомый вид — 'other'.
+  kind: RetailFunKind;
+  floor: string | null;
+  area: string | null;
+  capacity: string | null;
+  // «IMAX», «4DX», «VIP-зал».
+  formats: string[];
+  hours: string | null;
+  // Год открытия в ТЦ, "2016".
+  since: string | null;
+  text: string | null;
+  yandexUrl: string | null;
+}
+
 export interface RetailRankingEntry extends RetailSource {
   place: number;
   // "арендопригодная площадь" (у записей до 2026-09-24 значение бывает
@@ -688,6 +747,8 @@ export interface RetailInfo {
   anchors: RetailAnchorEntry[];
   timeline: RetailTimelineEntry[];
   leisure: RetailLeisureEntry[];
+  food: RetailFoodInfo | null;
+  fun: RetailFunEntry[];
   ranking: RetailRankingEntry[];
   awards: RetailAwardEntry[];
   hours: RetailHoursEntry[];

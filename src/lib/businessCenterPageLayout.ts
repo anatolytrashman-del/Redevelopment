@@ -108,6 +108,12 @@ const SECTION_HEIGHT_MODEL: Record<string, SectionHeightModel> = {
   'retail-history': { base: 225, perItem: 66 },
   anchors: { base: 165, perItem: 142 },
   leisure: { base: 165, perItem: 85 },
+  // «Где поесть» и «Развлечения» (TradeCenterFoodFun) вместо leisure у ТЦ с
+  // retail_info.food/fun. Замер 2026-09-24 на 1280px по моку Galleria Minsk:
+  // «Где поесть» — 975px на 18 единиц (foodSectionSize, список свёрнут),
+  // «Развлечения» — 890px на 3 ряда (кинотеатр во всю ширину + 2 ряда по две).
+  food: { base: 200, perItem: 43 },
+  fun: { base: 150, perItem: 245 },
   // Дополнительные карточки ТЦ (TradeCenterExtraBlocks), замер 2026-09-23
   // на 1280px по мок-данным «Замка»: «Посетителю» — 1103px на 16 строк
   // (retailSectionSize: строки панелей пополам на две колонки), «для

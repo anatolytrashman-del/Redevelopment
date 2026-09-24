@@ -10,6 +10,20 @@ import type {
 } from '../data/businessCenters';
 import {
   anchorsFaqAnswer,
+  anchorsForPage,
+  foodFaqAnswer,
+  foodPlacesCollapsible,
+  foodPlacesVisibleCounts,
+  foodSectionSize,
+  foodZoneMetrics,
+  formatFoodFloor,
+  funFaqAnswer,
+  funMetaParts,
+  funSectionSize,
+  groupFoodPlaces,
+  hasFoodFun,
+  leisureForPage,
+  sortFun,
   anchorMetaParts,
   formatAnchorArea,
   retailHistoryFaqAnswer,
@@ -681,5 +695,261 @@ describe('якоря и лента — вёрстка', () => {
     });
     expect(retailSectionSize(info, 'retail-history')).toBe(12);
     expect(retailSectionSize(info, 'anchors')).toBe(3);
+  });
+});
+
+// --- Где поесть и развлечения (2026-09-24) ----------------------------------
+
+const foodPlace = (name: string, type: string, extra: Record<string, unknown> = {}) => ({ name, type, ...extra });
+
+describe('normalizeRetailInfo — food и fun', () => {
+  it('кривые записи отброшены, незнакомые типы — cafe/other, числа — строки, пустые строки — null', () => {
+    const info = normalizeRetailInfo({
+      food: {
+        summary: '  ',
+        zones: [
+          { name: 'Фудкорт', floor: 6, area: 5000, seats: '600', points: 18, hours: '10:00–22:00', text: '' },
+          { floor: '2', text: 'без имени' },
+        ],
+        places: [
+          foodPlace('Васильки', 'restaurant', { cuisine: 'белорусская', floor: 6, inFoodcourt: false, yandexUrl: 'https://yandex.by/maps/org/1' }),
+          foodPlace('Нечто', 'mystery', { yandexUrl: 'javascript:alert(1)', cuisine: '' }),
+          foodPlace('', 'cafe'),
+          { type: 'bar' },
+        ],
+      },
+      fun: [
+        { name: 'Silver Screen', kind: 'cinema', floor: '6', capacity: 1480, formats: ['IMAX', 'IMAX', '', '4DX'], since: 2016 },
+        { name: 'Батуты', kind: 'trampoline' },
+        { kind: 'ice' },
+      ],
+    });
+    expect(info!.food).toEqual({
+      summary: null,
+      zones: [
+        { name: 'Фудкорт', floor: '6', area: '5000', seats: '600', points: '18', hours: '10:00–22:00', text: null, source: null, sourceUrl: null },
+      ],
+      places: [
+        { name: 'Васильки', type: 'restaurant', cuisine: 'белорусская', floor: '6', inFoodcourt: false, yandexUrl: 'https://yandex.by/maps/org/1', note: null },
+        { name: 'Нечто', type: 'cafe', cuisine: null, floor: null, inFoodcourt: null, yandexUrl: null, note: null },
+      ],
+    });
+    expect(info!.fun.map((f) => [f.name, f.kind])).toEqual([
+      ['Silver Screen', 'cinema'],
+      ['Батуты', 'other'],
+    ]);
+    expect(info!.fun[0]).toMatchObject({ capacity: '1480', formats: ['IMAX', '4DX'], since: '2016', text: null, yandexUrl: null });
+    expect(retailSectionIds(info)).toEqual(['food', 'fun']);
+  });
+
+  it('дубликаты заведений по имени склеиваются: пропуски заполняются, этажи перечисляются', () => {
+    const info = normalizeRetailInfo({
+      food: {
+        places: [
+          foodPlace('Кофе Хауз', 'coffee', { floor: '1' }),
+          foodPlace('«кофе хауз»', 'cafe', { floor: '4', cuisine: 'кофе', inFoodcourt: true }),
+          foodPlace('Кофе  Хауз', 'coffee', { floor: 1 }),
+        ],
+      },
+    });
+    expect(info!.food!.places).toEqual([
+      { name: 'Кофе Хауз', type: 'coffee', cuisine: 'кофе', floor: '1, 4', inFoodcourt: true, yandexUrl: null, note: null },
+    ]);
+  });
+
+  it('пустой food — null; без food и fun — старый досуг как раньше', () => {
+    const info = normalizeRetailInfo({ food: { summary: '', zones: [], places: [] }, fun: [], leisure: [{ kind: 'kids', name: 'Йети' }] });
+    expect(info!.food).toBeNull();
+    expect(hasFoodFun(info)).toBe(false);
+    expect(leisureForPage(info).map((l) => l.name)).toEqual(['Йети']);
+    expect(retailSectionIds(info)).toEqual(['leisure']);
+  });
+
+  it('есть food или fun — досуг не показывается, из якорей уходят кино, фудкорт, развлечения, фитнес', () => {
+    const anchors = [
+      { name: 'Гиппо', category: 'гипермаркет' },
+      { name: 'Silver Screen', category: 'кинотеатр' },
+      { name: 'Фудкорт', category: 'фудкорт' },
+      { name: 'Батуты', category: 'развлечения' },
+      { name: 'World Class', category: 'фитнес' },
+      { name: 'Старый якорь' },
+    ];
+    const withFun = normalizeRetailInfo({ fun: [{ name: 'Каток', kind: 'ice' }], leisure: [{ kind: 'kids', name: 'Йети' }], anchors });
+    expect(leisureForPage(withFun)).toEqual([]);
+    expect(anchorsForPage(withFun).map((a) => a.name)).toEqual(['Гиппо', 'Старый якорь']);
+    expect(retailSectionIds(withFun)).toEqual(['fun', 'anchors']);
+    const withoutFun = normalizeRetailInfo({ anchors });
+    expect(anchorsForPage(withoutFun)).toHaveLength(6);
+    // Одни только кинотеатр и фудкорт в якорях при новых блоках — карточки якорей нет.
+    const onlyDupes = normalizeRetailInfo({ food: { summary: 'Фудкорт на 6 этаже' }, anchors: [{ name: 'Фудкорт', category: 'фудкорт' }] });
+    expect(retailSectionIds(onlyDupes)).toEqual(['food']);
+    expect(retailSectionSize(onlyDupes, 'anchors')).toBe(0);
+  });
+
+  it('порядок разделов: этажи > история > еда > развлечения > посетителю', () => {
+    const info = normalizeRetailInfo({
+      floorsGuide: [{ floor: '1', text: 'x' }],
+      timeline: [{ date: '2019', kind: 'first', name: 'X' }],
+      food: { summary: 'x' },
+      fun: [{ name: 'Кино', kind: 'cinema' }],
+      hoursNote: 'x',
+      anchors: [{ name: 'Гиппо', category: 'гипермаркет' }],
+    });
+    expect(retailSectionIds(info)).toEqual(['floors', 'retail-history', 'food', 'fun', 'visit', 'anchors']);
+    expect(retailSectionGroup('food')).toBe('visitor');
+    expect(retailSectionGroup('fun')).toBe('visitor');
+  });
+});
+
+describe('где поесть — вёрстка', () => {
+  const places = (type: string, n: number) =>
+    Array.from({ length: n }, (_, i) => foodPlace(`${type}-${String.fromCharCode(1103 - i)}`, type));
+
+  it('группы по типам в порядке блока, внутри — по алфавиту', () => {
+    const info = normalizeRetailInfo({
+      food: { places: [foodPlace('Бар', 'bar'), foodPlace('Юность', 'restaurant'), foodPlace('Акварель', 'restaurant'), foodPlace('Зерно', 'coffee')] },
+    });
+    const groups = groupFoodPlaces(info!.food!.places);
+    expect(groups.map((g) => [g.label, g.places.map((p) => p.name)])).toEqual([
+      ['Рестораны', ['Акварель', 'Юность']],
+      ['Кофейни', ['Зерно']],
+      ['Бары', ['Бар']],
+    ]);
+  });
+
+  it('свёртка: целыми рядами по три по кругу групп, пока не наберётся 15', () => {
+    const info = normalizeRetailInfo({
+      food: {
+        places: [
+          ...places('restaurant', 9),
+          ...places('cafe', 11),
+          ...places('fastfood', 7),
+          ...places('coffee', 8),
+          ...places('dessert', 6),
+          ...places('bar', 1),
+        ],
+      },
+    });
+    const groups = groupFoodPlaces(info!.food!.places);
+    expect(foodPlacesVisibleCounts(groups)).toEqual([3, 3, 3, 3, 3, 1]);
+    expect(foodPlacesCollapsible(groups)).toBe(true);
+    // Одна большая группа — пять рядов по три.
+    const one = groupFoodPlaces(normalizeRetailInfo({ food: { places: places('cafe', 40) } })!.food!.places);
+    expect(foodPlacesVisibleCounts(one)).toEqual([15]);
+  });
+
+  it('прятать три заведения и меньше не нужно — список целиком', () => {
+    const groups = groupFoodPlaces(normalizeRetailInfo({ food: { places: places('cafe', 18) } })!.food!.places);
+    expect(foodPlacesVisibleCounts(groups)).toEqual([18]);
+    expect(foodPlacesCollapsible(groups)).toBe(false);
+    const small = groupFoodPlaces(normalizeRetailInfo({ food: { places: places('bar', 4) } })!.food!.places);
+    expect(foodPlacesVisibleCounts(small)).toEqual([4]);
+  });
+
+  it('метрики зоны, этаж заведения, строка метрик развлечения', () => {
+    const info = normalizeRetailInfo({
+      food: { zones: [{ name: 'Фудкорт', area: '5000', seats: 601, points: 'около 20' }] },
+      fun: [
+        { name: 'Кино', kind: 'cinema', floor: '6', area: '4500', capacity: '1 480', since: '2016' },
+        { name: 'Йети', kind: 'kids', capacity: 121, since: 'с открытия' },
+        { name: 'Квест', kind: 'quest', capacity: 'до 6 игроков' },
+      ],
+    });
+    expect(foodZoneMetrics(info!.food!.zones[0])).toEqual([
+      { value: '5\u00a0000\u00a0м²', label: 'площадь' },
+      { value: '601', label: 'место' },
+      { value: 'около 20', label: 'точек питания' },
+    ]);
+    expect(formatFoodFloor('-1')).toBe('эт.\u00a0−1');
+    expect(formatFoodFloor('1, 4')).toBe('эт.\u00a01, 4');
+    expect(funMetaParts(info!.fun[0])).toEqual(['6 этаж', '4\u00a0500\u00a0м²', '1\u00a0480\u00a0мест', 'с\u00a02016']);
+    expect(funMetaParts(info!.fun[1])).toEqual(['до\u00a0121\u00a0человека', 'с открытия']);
+    expect(funMetaParts(info!.fun[2])).toEqual(['до 6 игроков']);
+    expect(
+      funMetaParts({ ...info!.fun[0], floor: '4-й уровень паркинга', area: null, capacity: null, since: '2017-08-11' }),
+    ).toEqual(['4-й уровень паркинга', 'с\u00a02017']);
+  });
+
+  it('развлечения: кинотеатр первым, дальше порядок схемы', () => {
+    const info = normalizeRetailInfo({
+      fun: [
+        { name: 'Клуб', kind: 'fitness' },
+        { name: 'Что-то', kind: 'other' },
+        { name: 'Детский', kind: 'kids' },
+        { name: 'Каток', kind: 'ice' },
+        { name: 'Кино', kind: 'cinema' },
+      ],
+    });
+    expect(sortFun(info!.fun).map((f) => f.name)).toEqual(['Кино', 'Каток', 'Детский', 'Клуб', 'Что-то']);
+  });
+
+  it('размеры для модели высот', () => {
+    const info = normalizeRetailInfo({
+      food: {
+        summary: 'x',
+        zones: [{ name: 'A' }, { name: 'B' }],
+        places: [...places('restaurant', 9), ...places('cafe', 15), ...places('coffee', 2)],
+      },
+      fun: [{ name: 'Кино', kind: 'cinema' }, { name: 'A', kind: 'kids' }, { name: 'B', kind: 'ice' }, { name: 'C', kind: 'fitness' }],
+    });
+    // Видно 9 + 9 + 2 из 26: итог 1 + ряд зон 4 + (1+3) + (1+3) + (1+1) + кнопка 1.
+    expect(foodSectionSize(info!.food)).toBe(1 + 4 + 4 + 4 + 2 + 1);
+    expect(retailSectionSize(info, 'food')).toBe(16);
+    // Кинотеатр — свой ряд, три остальных — два ряда.
+    expect(funSectionSize(info!.fun)).toBe(3);
+    expect(retailSectionSize(info, 'fun')).toBe(3);
+    expect(foodSectionSize(null)).toBe(0);
+  });
+});
+
+describe('ответы FAQ — еда и развлечения', () => {
+  it('где поесть: итог, зоны, число по типам и до восьми ресторанов и кафе', () => {
+    const info = normalizeRetailInfo({
+      food: {
+        summary: 'Весь шестой этаж отдан под еду',
+        zones: [{ name: 'Фудкорт', floor: '6', seats: 600, points: 18, hours: 'ежедневно 10:00–22:00', text: 'летом открыта терраса' }],
+        places: [
+          ...['Акварель', 'Бульбяная', 'Васильки', 'Гриль', 'Дуэт'].map((n) => foodPlace(n, 'restaurant')),
+          ...['Ёлка', 'Жасмин', 'Зефир', 'Изба'].map((n) => foodPlace(n, 'cafe')),
+          foodPlace('KFC', 'fastfood'),
+          foodPlace('Кофеин', 'coffee'),
+          foodPlace('Зерно', 'coffee'),
+        ],
+      },
+    });
+    expect(foodFaqAnswer(info!.food)).toBe(
+      [
+        'Весь шестой этаж отдан под еду.',
+        'Фудкорт — 6 этаж, 600 мест, 18 точек питания, работает ежедневно 10:00–22:00. Летом открыта терраса.',
+        'Всего 12 заведений: 5 ресторанов, 4 кафе, 1 точка фастфуда, 2 кофейни.',
+        'Рестораны и кафе: Акварель, Бульбяная, Васильки, Гриль, Дуэт, Ёлка, Жасмин, Зефир и другие.',
+      ].join('\n'),
+    );
+    expect(foodFaqAnswer(null)).toBeNull();
+  });
+
+  it('где поесть без ресторанов и кафе — названия из того, что есть', () => {
+    const info = normalizeRetailInfo({ food: { places: [foodPlace('Зерно', 'coffee'), foodPlace('Пончик', 'dessert')] } });
+    expect(foodFaqAnswer(info!.food)).toBe('Всего 2 заведения: 1 кофейня, 1 кондитерская.\nЗаведения: Зерно, Пончик.');
+  });
+
+  it('развлечения: вид, цифры, форматы, режим и текст; вид не повторяет имя', () => {
+    const info = normalizeRetailInfo({
+      fun: [
+        { name: 'Йети и дети', kind: 'kids', floor: '5', formats: ['дни рождения'], text: 'аниматоры присмотрят за детьми' },
+        { name: 'Silver Screen', kind: 'cinema', floor: '6', capacity: 1480, since: 2016, formats: ['IMAX', '4DX'], hours: '09:00–02:00' },
+        { name: 'Каток «Арена»', kind: 'ice' },
+        { name: 'Лазертаг', kind: 'other' },
+      ],
+    });
+    expect(funFaqAnswer(info!.fun)).toBe(
+      [
+        'Silver Screen — кинотеатр (6 этаж, 1\u00a0480\u00a0мест, с\u00a02016). Форматы: IMAX, 4DX. Режим работы: 09:00–02:00.',
+        'Каток «Арена».',
+        'Йети и дети — детский центр (5 этаж). Что есть: дни рождения. Аниматоры присмотрят за детьми.',
+        'Лазертаг.',
+      ].join('\n'),
+    );
+    expect(funFaqAnswer([])).toBeNull();
   });
 });

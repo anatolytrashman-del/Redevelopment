@@ -1,5 +1,7 @@
 // Торговые блоки карточки ТЦ (2026-09-23): «Что на каком этаже», «Чем ТЦ
-// вошёл в историю ритейла», «Кино, еда, развлечения»; за ними — «Посетителю»,
+// вошёл в историю ритейла», «Где поесть» и «Развлечения» (2026-09-24,
+// TradeCenterFoodFun.tsx; у ТЦ без retail_info.food/fun вместо них — старый
+// «Кино, еда, развлечения»); за ними — «Посетителю»,
 // «Арендаторам и рекламодателям», «ТЦ в цифрах» и «Цитаты»
 // (TradeCenterExtraBlocks.tsx), последними — «Якорные арендаторы», вплотную
 // к каталогу арендаторов, который страница рисует сразу за этим компонентом
@@ -26,7 +28,11 @@ import { glassCardShadow } from '../../lib/glass';
 import type { RetailInfo, RetailLeisureKind } from '../../data/businessCenters';
 import {
   LEISURE_KIND_LABELS,
+  anchorsForPage,
   floorSortKey,
+  foodTitle,
+  funTitle,
+  leisureForPage,
   formatFloorBadge,
   retailHistoryTitle,
   retailSectionIds,
@@ -43,6 +49,7 @@ import {
   TradeCenterVisitCard,
 } from './TradeCenterExtraBlocks';
 import { TradeCenterAnchorsCard, TradeCenterHistoryCard } from './TradeCenterAnchorsHistory';
+import { TradeCenterFoodCard, TradeCenterFunCard } from './TradeCenterFoodFun';
 
 const LEISURE_ICONS: Record<RetailLeisureKind, LucideIcon> = {
   cinema: Clapperboard,
@@ -66,7 +73,8 @@ export function TradeCenterRetailBlocks({
   const ids = retailSectionIds(info);
 
   const floors = sortFloorsTopDown(info.floorsGuide);
-  const leisure = sortLeisure(info.leisure);
+  // Старый досуг — только у ТЦ без «Где поесть»/«Развлечений».
+  const leisure = sortLeisure(leisureForPage(info));
 
   return (
     <>
@@ -99,6 +107,11 @@ export function TradeCenterRetailBlocks({
 
       {ids.includes('retail-history') && <TradeCenterHistoryCard timeline={info.timeline} title={retailHistoryTitle(name)} />}
       {ids.includes('retail-history') && after?.('retail-history')}
+
+      {info.food && <TradeCenterFoodCard food={info.food} title={foodTitle(name)} />}
+      {info.food && after?.('food')}
+      {ids.includes('fun') && <TradeCenterFunCard fun={info.fun} title={funTitle(name)} />}
+      {ids.includes('fun') && after?.('fun')}
 
       {leisure.length > 0 && (
         <div id="leisure" className={cardClass} style={glassCardShadow}>
@@ -140,7 +153,8 @@ export function TradeCenterRetailBlocks({
       {ids.includes('numbers') && after?.('numbers')}
       {ids.includes('quotes') && <TradeCenterQuotesCard quotes={info.quotes} />}
       {ids.includes('quotes') && after?.('quotes')}
-      {ids.includes('anchors') && <TradeCenterAnchorsCard anchors={info.anchors} />}
+      {/* При блоках еды и развлечений кинотеатр/фудкорт/фитнес из якорей уходят (anchorsForPage). */}
+      {ids.includes('anchors') && <TradeCenterAnchorsCard anchors={anchorsForPage(info)} />}
       {ids.includes('anchors') && after?.('anchors')}
     </>
   );
