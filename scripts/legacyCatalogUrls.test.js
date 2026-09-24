@@ -33,6 +33,7 @@ const OLD_PATHS = [
   '/minsk/bcminsk',
   '/minsk/bcminsk/futuris',
   '/minsk/bcminsk/ul-sverdlova-2',
+  '/minsk/bcminsk/port-2',
   '/minsk/bcminsk/reyting',
   '/minsk/bcminsk/rating',
   '/minsk/bcminsk/rating/samye-dostupnye',
@@ -64,6 +65,12 @@ describe('переезд каталога БЦ на /minsk/bc', () => {
     }
   });
 
+  it('слитая карточка ведёт на итоговую одним прыжком', () => {
+    expect(applyRedirect('/minsk/bc/port-2')).toBe('/minsk/bc/port');
+    expect(applyRedirect('/minsk/bc/port-2/')).toBe('/minsk/bc/port');
+    expect(applyRedirect('/minsk/bc/port')).toBeNull();
+  });
+
   it('новые адреса выглядят как согласовано', () => {
     const map = Object.fromEntries(OLD_PATHS.map((p) => [p, newCatalogPath(p.slice('/minsk/bcminsk'.length).split('/'))]));
     expect(map['/minsk/bcminsk']).toBe('/minsk/bc');
@@ -77,6 +84,7 @@ describe('переезд каталога БЦ на /minsk/bc', () => {
     expect(map['/minsk/bcminsk/ulitsa/pr-t-nezavisimosti']).toBe('/minsk/bc/street/prospekt-nezavisimosti');
     expect(map['/minsk/bcminsk/ulitsa/per-kozlova']).toBe('/minsk/bc/street/pereulok-kozlova');
     expect(map['/minsk/bcminsk/futuris']).toBe('/minsk/bc/futuris');
+    expect(map['/minsk/bcminsk/port-2']).toBe('/minsk/bc/port');
   });
 
   it('словарь улиц совпадает с тем, что строит приложение', () => {
