@@ -518,16 +518,21 @@ export function BusinessCenterDetailPage() {
   );
   const tenantSource: 'yandex_maps' | '2gis' =
     (yandexTenants?.tenants.length ?? 0) > 0 || (legacyTenants?.tenants.length ?? 0) > 0 ? 'yandex_maps' : '2gis';
+  // Каталог показан у соседнего корпуса того же комплекса (retailInfo.tenantsAt):
+  // здесь ни списка, ни удобств из него, ни фолбэка на 2GIS — только ссылка.
+  const tenantsAt = center?.retailInfo?.tenantsAt ?? null;
   const tenantOrganizations = useMemo(() => {
+    if (tenantsAt) return [];
     if (yandexTenants && yandexTenants.tenants.length > 0) return yandexTenants.tenants;
     if (legacyTenants && legacyTenants.tenants.length > 0) return legacyTenants.tenants;
     return gis2 ? buildTenantsFromGis2(gis2.tenantOrganizations) : [];
-  }, [yandexTenants, legacyTenants, gis2]);
+  }, [tenantsAt, yandexTenants, legacyTenants, gis2]);
   const tenantAmenities = useMemo(() => {
+    if (tenantsAt) return [];
     if (yandexTenants && yandexTenants.tenants.length > 0) return yandexTenants.amenities;
     if (legacyTenants && legacyTenants.tenants.length > 0) return legacyTenants.amenities;
     return [];
-  }, [yandexTenants, legacyTenants]);
+  }, [tenantsAt, yandexTenants, legacyTenants]);
   // «Инфраструктура» ТЦ (2026-09-24): то же оборудование плюс удобства с
   // сайта ТЦ (retail_info.services) одним списком по группам. Блок, FAQ и
   // модель высоты берут эти группы, у БЦ список пуст — там BuildingAmenities.
@@ -2868,6 +2873,21 @@ export function BusinessCenterDetailPage() {
 
         {tenantOrganizations.length > 0 && (
           <TenantDirectory organizations={tenantOrganizations} />
+        )}
+        {tenantsAt && (
+          <div id="tenants" className={cn('mt-6 scroll-mt-32 p-5 sm:p-6', glassCardClass)} style={glassCardShadow}>
+            <h2 className="text-xl font-bold text-ink">Магазины комплекса</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-ink-muted">
+              {center.name} и {tenantsAt.name} стоят рядом и работают как один торговый комплекс. Большинство
+              магазинов — в соседнем корпусе, их полный список с этажами — на его странице.
+            </p>
+            <Link
+              to={`/minsk/tc/${tenantsAt.slug}#tenants`}
+              className="mt-3 inline-flex text-sm font-semibold text-primary hover:underline"
+            >
+              Все магазины: {tenantsAt.name} →
+            </Link>
+          </div>
         )}
         {/* У ТЦ оборудование из Яндекса и удобства с сайта ТЦ — одним
             блоком «Инфраструктура» по группам (2026-09-24); это свой пункт
