@@ -78,7 +78,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { extname, join, normalize } from 'node:path';
 import { computePublicBuildId } from './public-build-id.mjs';
 import { adoptBuildAssets, extractBuildBlocks } from './prerender-snapshot.mjs';
-import { fallbackRows } from './_buildFallback.mjs';
+import { fallbackRows, offlineRows } from './_buildFallback.mjs';
 
 const ROOT_DIR = new URL('..', import.meta.url).pathname;
 const DIST_DIR = join(ROOT_DIR, 'dist');
@@ -372,6 +372,8 @@ function streetOfAddressJs(fullAddress) {
 const SUPABASE_ATTEMPTS = 3;
 
 async function supabaseSelect(query, what) {
+  const offline = offlineRows(query, 'prerender');
+  if (offline) return offline;
   let lastError;
   for (let attempt = 1; attempt <= SUPABASE_ATTEMPTS; attempt++) {
     try {
