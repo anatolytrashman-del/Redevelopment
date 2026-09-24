@@ -121,7 +121,7 @@ const SECTION_HEIGHT_MODEL: Record<string, SectionHeightModel> = {
   // цитаты — 426px на 2 ряда по две.
   visit: { base: 150, perItem: 60 },
   business: { base: 150, perItem: 62 },
-  numbers: { base: 140, perItem: 108 },
+  numbers: { base: 140, perItem: 175 },
   quotes: { base: 130, perItem: 148 },
   // «Инфраструктура» ТЦ (TradeCenterInfrastructure) — единица из
   // infrastructureSectionSize: строка пояснения плитки (~17px), подзаголовки

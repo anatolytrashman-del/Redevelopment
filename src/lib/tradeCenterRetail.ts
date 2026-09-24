@@ -144,7 +144,7 @@ function figures(value: unknown): RetailFigureEntry[] {
   return records(value).flatMap((r) => {
     const label = str(r.label);
     const v = text(r.value);
-    return label && v ? [{ label, value: v, date: str(r.date), note: str(r.note), ...sourceOf(r) }] : [];
+    return label && v ? [{ label, value: v, date: str(r.date), note: str(r.note), text: str(r.text), ...sourceOf(r) }] : [];
   });
 }
 
@@ -1413,7 +1413,8 @@ export function figureMeta(entry: RetailFigureEntry): string | null {
 /** «Посещаемость — 40 000 человек в день (2025, по данным ТЦ).» */
 export function formatFigureLine(entry: RetailFigureEntry): string {
   const meta = [formatRetailDate(entry.date), entry.note].filter(Boolean).join(', ');
-  return sentence(`${entry.label} — ${entry.value}${meta ? ` (${meta})` : ''}`);
+  const line = sentence(`${entry.label} — ${entry.value}${meta ? ` (${meta})` : ''}`);
+  return entry.text ? `${line} ${sentence(upperFirst(entry.text))}` : line;
 }
 
 const ATTENDANCE_RE = /(посещ|посетител|трафик|человек)/i;
@@ -1566,7 +1567,8 @@ export function retailSectionSize(info: RetailInfo | null, id: RetailSectionId):
     }
     // Плитки по три в ряд на десктопе.
     case 'numbers':
-      return Math.ceil(info.numbers.length / 3);
+      // Две первые цифры — крупные, в ряд по две; остальные по три.
+      return Math.ceil(Math.min(info.numbers.length, 2) / 2) + Math.ceil(Math.max(info.numbers.length - 2, 0) / 3);
     // Цитаты в две колонки.
     case 'quotes':
       return Math.ceil(info.quotes.length / 2);

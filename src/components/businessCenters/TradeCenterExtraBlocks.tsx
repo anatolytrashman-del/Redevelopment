@@ -383,15 +383,50 @@ export function TradeCenterBusinessCard({ info }: { info: RetailInfo }) {
   );
 }
 
+// Плитка «ТЦ в цифрах»: крупная цифра, подпись и фраза, почему это
+// впечатляет (владелец, 2026-09-24: «что-то яркое и интересное людям»).
+function NumberTile({ entry, hero }: { entry: RetailFigureEntry; hero: boolean }) {
+  const meta = figureMeta(entry);
+  return (
+    <div
+      className={cn(
+        'flex min-w-0 flex-col gap-1.5 rounded-2xl p-4',
+        hero ? 'bg-primary/[0.06] sm:p-5' : 'border border-border bg-white/65',
+      )}
+    >
+      <span
+        className={cn(
+          'break-words font-bold leading-none tracking-tight text-primary tabular-nums',
+          hero ? 'text-3xl sm:text-4xl' : 'text-2xl',
+        )}
+      >
+        {entry.value}
+      </span>
+      <span className="break-words text-sm font-semibold leading-snug text-ink">{entry.label}</span>
+      {entry.text && <span className="break-words text-xs leading-relaxed text-ink-muted">{entry.text}</span>}
+      {meta && <span className="mt-auto break-words pt-0.5 text-[11px] leading-snug text-ink-faint">{meta}</span>}
+    </div>
+  );
+}
+
 export function TradeCenterNumbersCard({ numbers }: { numbers: RetailFigureEntry[] }) {
+  const hero = numbers.slice(0, 2);
+  const rest = numbers.slice(2);
   return (
     <div id="numbers" className={retailCardClass} style={glassCardShadow}>
       <RetailCardTitle id="numbers" />
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-        {numbers.map((n, i) => (
-          <FigureTile key={`${n.label}-${i}`} entry={n} size="md" />
+      <div className={cn('grid grid-cols-1 gap-2.5', hero.length > 1 && 'sm:grid-cols-2')}>
+        {hero.map((n, i) => (
+          <NumberTile key={`${n.label}-${i}`} entry={n} hero />
         ))}
       </div>
+      {rest.length > 0 && (
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          {rest.map((n, i) => (
+            <NumberTile key={`${n.label}-${i}`} entry={n} hero={false} />
+          ))}
+        </div>
+      )}
       <SourcesLine entries={numbers} />
     </div>
   );
