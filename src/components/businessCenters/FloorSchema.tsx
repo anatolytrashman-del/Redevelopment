@@ -20,6 +20,11 @@ export type FloorSchemaEntry = TenantOrganizationView & { direction: string };
 const DEFAULT_VIEW_W = 640;
 const PAD = 28;
 const HULL_MARGIN_M = 9;
+// Точка дальше трёх «типичных» расстояний от центра (и дальше 60 м) — ошибка
+// в карточке Яндекса, а не магазин этого здания: на схему её не ставим, иначе
+// она растянет контур на пол-квартала.
+const OUTLIER_FACTOR = 3;
+const OUTLIER_MIN_M = 60;
 // Магазины с одной и той же точкой (так бывает у островков и киосков) —
 // разводим по кругу, чтобы кружки не легли друг на друга.
 const SAME_POINT_SPREAD_PX = 9;
@@ -33,6 +38,12 @@ const OTHER_COLOR = '#94a3b8';
 const OTHER_LABEL = 'Другое';
 
 type Point = [number, number];
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
 
 function toMeters(coords: Point, origin: Point): Point {
   const [lon0, lat0] = origin;
@@ -100,11 +111,12 @@ export function FloorSchema({
   const layout = useMemo(() => {
     const located = entries.filter((entry): entry is FloorSchemaEntry & { coords: Point } => !!entry.coords && !!entry.floor);
     if (located.length === 0) return null;
-    const origin: Point = [
-      located.reduce((s, e) => s + e.coords[0], 0) / located.length,
-      located.reduce((s, e) => s + e.coords[1], 0) / located.length,
-    ];
-    const meters = located.map((entry) => ({ entry, m: toMeters(entry.coords, origin) }));
+    // Центр — медиана, а не среднее: одна ошибочная точка (у «Европы»
+    // «Академическое» стоит в 800 м от здания) утащила бы среднее за собой.
+    const origin: Point = [median(located.map((e) => e.coords[0])), median(located.map((e) => e.coords[1]))];
+    const all = located.map((entry) => ({ entry, m: toMeters(entry.coords, origin) }));
+    const typical = median(all.map((item) => Math.hypot(...item.m)));
+    const meters = all.filter((item) => Math.hypot(...item.m) <= Math.max(typical * OUTLIER_FACTOR, OUTLIER_MIN_M));
     const outline = inflate(convexHull(meters.map((item) => item.m)), HULL_MARGIN_M);
     const xs = outline.map((p) => p[0]);
     const ys = outline.map((p) => p[1]);
