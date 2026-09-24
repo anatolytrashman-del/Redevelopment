@@ -40,6 +40,7 @@ import {
   Star,
   Trophy,
   UtensilsCrossed,
+  LayoutGrid,
   Users,
   Waves,
   X,
@@ -122,6 +123,12 @@ import {
 import { TenantDirectory } from '../components/businessCenters/TenantDirectory';
 import { BuildingAmenities } from '../components/businessCenters/BuildingAmenities';
 import { TradeCenterRetailBlocks } from '../components/businessCenters/TradeCenterRetailBlocks';
+import { TradeCenterInfrastructure } from '../components/businessCenters/TradeCenterInfrastructure';
+import {
+  buildTradeCenterInfrastructure,
+  infrastructureFaqAnswer,
+  infrastructureSectionSize,
+} from '../lib/tradeCenterInfrastructure';
 import { TradeCenterAwardsBlock } from '../components/businessCenters/TradeCenterAwardsBlock';
 import { DeveloperDeepCard } from '../components/businessCenters/DeveloperDeepCard';
 import {
@@ -161,7 +168,6 @@ import {
   retailSectionIds,
   retailSectionSize,
   rulesFaqAnswer,
-  servicesFaqAnswer,
   transportFaqAnswer,
   transportFaqQuestion,
   type RetailSectionId,
@@ -207,6 +213,8 @@ const SECTION_LABELS: Record<string, string> = {
   map: 'Инфраструктура рядом',
   tech: 'Параметры здания',
   tenants: 'Каталог арендаторов',
+  // Только у ТЦ: у БЦ блок оборудования в меню «На странице» не выводится.
+  amenities: 'Инфраструктура',
   // Торговые блоки — только у ТЦ (TradeCenterRetailBlocks).
   floors: RETAIL_SECTION_LABELS.floors,
   'retail-history': RETAIL_SECTION_LABELS['retail-history'],
@@ -236,6 +244,7 @@ const SECTION_ICONS: Record<string, typeof FileText> = {
   map: MapPin,
   tech: Building2,
   tenants: Users,
+  amenities: LayoutGrid,
   ...RETAIL_SECTION_ICONS,
   rental: FileText,
   offers: Banknote,
@@ -518,6 +527,20 @@ export function BusinessCenterDetailPage() {
     if (legacyTenants && legacyTenants.tenants.length > 0) return legacyTenants.amenities;
     return [];
   }, [yandexTenants, legacyTenants]);
+  // «Инфраструктура» ТЦ (2026-09-24): то же оборудование плюс удобства с
+  // сайта ТЦ (retail_info.services) одним списком по группам. Блок, FAQ и
+  // модель высоты берут эти группы, у БЦ список пуст — там BuildingAmenities.
+  const tcInfrastructure = useMemo(
+    () => (isTc && center ? buildTradeCenterInfrastructure(center.retailInfo?.services ?? [], tenantAmenities) : []),
+    [isTc, center, tenantAmenities],
+  );
+  const tcAmenitySource = useMemo(
+    () => ({
+      source: 'Яндекс Карты',
+      sourceUrl: (yandexTenants?.tenants.length ?? 0) > 0 ? tenantSnapshot?.sourceUrl ?? null : null,
+    }),
+    [yandexTenants, tenantSnapshot],
+  );
 
   const nearbyPlaces = nearbyPlacesResult?.slug === slug
     ? nearbyPlacesResult?.places ?? EMPTY_NEARBY_PLACES
@@ -1595,7 +1618,6 @@ export function BusinessCenterDetailPage() {
       if (parkingQuestion) add(parkingQuestion, parkingFaqAnswer(retail.parking));
       const transportQuestion = transportFaqQuestion(retail.transport, bcGen);
       if (transportQuestion) add(transportQuestion, transportFaqAnswer(retail.transport));
-      add(`Какие удобства есть для посетителей в ${bcPrep}?`, servicesFaqAnswer(retail.services));
       add(`Какие правила посещения действуют в ${bcPrep}?`, rulesFaqAnswer(retail.rules));
       add(`Есть ли у ${bcGen} программа лояльности или подарочные сертификаты?`, loyaltyFaqAnswer(retail.loyalty));
       add(`Какие события проходят в ${bcPrep}?`, eventsFaqAnswer(retail.events));
@@ -1673,8 +1695,9 @@ export function BusinessCenterDetailPage() {
           return `${item.label} — ${shown.join(', ')}${rest > 0 ? ` и ещё ${rest}` : ''}`;
         });
       // Точки самообслуживания (туалет, банкомат, кофейный автомат) —
-      // не организации, у них своя каноническая подпись.
-      const amenityParts = tenantAmenities.map((item) => lower(item.category));
+      // не организации, у них своя каноническая подпись. У ТЦ они — в
+      // отдельном вопросе про инфраструктуру ниже, вместе с удобствами.
+      const amenityParts = isTc ? [] : tenantAmenities.map((item) => lower(item.category));
       const manualParts = (redistributedTechnicalParams.internalInfrastructureText ?? '')
         .split(/[,;]\s*/)
         .map((item) => lower(item.trim()))
@@ -1705,6 +1728,10 @@ export function BusinessCenterDetailPage() {
         ]),
       );
     }
+    // «Инфраструктура» ТЦ стоит сразу под каталогом арендаторов — и вопрос
+    // тут же: оборудование с числом из Яндекса и удобства с сайта ТЦ, по тем
+    // же группам, что в блоке.
+    if (isTc) add(`Какая инфраструктура есть для посетителей в ${bcPrep}?`, infrastructureFaqAnswer(tcInfrastructure));
     // Часы работы и доступная среда — один вопрос, а не два. По отдельности
     // оба ответа короткие и совпадают дословно у десятков зданий («Здание
     // работает круглосуточно» — у 56, «пандус, широкий лифт и доступный
@@ -1774,7 +1801,7 @@ export function BusinessCenterDetailPage() {
     if (visibleHighlights.length)
       add(`Чем примечателен ${bcNom}?`, visibleHighlights.map((h) => (h.label ? `${h.label}: ${plain(h.text)}` : plain(h.text))).join('\n'));
     return items;
-  }, [center, centers, marketPosition, accessibilityAttributes, accessHoursText, saleStats, rentStats, awardItems, mediaMentions, visibleHighlights, buildingParamHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces, priceComparison?.blocks, V, isTc]);
+  }, [center, centers, marketPosition, accessibilityAttributes, accessHoursText, saleStats, rentStats, awardItems, mediaMentions, visibleHighlights, buildingParamHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces, priceComparison?.blocks, V, isTc, tcInfrastructure]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -1813,6 +1840,9 @@ export function BusinessCenterDetailPage() {
       // Торговые блоки ТЦ стоят между картой и каталогом арендаторов.
       ...(isTc ? retailSectionIds(center.retailInfo) : []).map((id) => has(id, true)),
       has('tenants', tenantOrganizations.length > 0),
+      // «Инфраструктура» — пунктом меню только у ТЦ (у БЦ блок оборудования
+      // короткий и в меню не выводился).
+      has('amenities', tcInfrastructure.length > 0),
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
       has(
         'reviews',
@@ -1859,6 +1889,7 @@ export function BusinessCenterDetailPage() {
     isTc,
     tcHasAwards,
     tcHasRanking,
+    tcInfrastructure,
     V,
   ]);
 
@@ -1923,6 +1954,9 @@ export function BusinessCenterDetailPage() {
           return developerSectionSize(developerInfo);
         case 'faq':
           return faqItems.length;
+        // «Инфраструктура» ТЦ: строки подзаголовков групп и ряды плиток.
+        case 'amenities':
+          return infrastructureSectionSize(tcInfrastructure);
         // Торговые карточки ТЦ — модель строк в lib/tradeCenterRetail.
         case 'floors':
         case 'retail-history':
@@ -1959,6 +1993,7 @@ export function BusinessCenterDetailPage() {
     visibleHighlights,
     buildingParamHighlights,
     faqItems,
+    tcInfrastructure,
   ]);
 
   // Раскладка блоков-рекомендаций по странице — вся логика в
@@ -2828,9 +2863,22 @@ export function BusinessCenterDetailPage() {
         {tenantOrganizations.length > 0 && (
           <TenantDirectory organizations={tenantOrganizations} />
         )}
-        <BuildingAmenities amenities={tenantAmenities} />
-
-        {renderRecommendationSlot('tenants')}
+        {/* У ТЦ оборудование из Яндекса и удобства с сайта ТЦ — одним
+            блоком «Инфраструктура» по группам (2026-09-24); это свой пункт
+            меню и своё место в модели высот, поэтому рекомендация после
+            каталога стоит между ними. У БЦ — прежний блок оборудования. */}
+        {isTc ? (
+          <>
+            {renderRecommendationSlot('tenants')}
+            <TradeCenterInfrastructure groups={tcInfrastructure} amenitySource={tcAmenitySource} />
+            {renderRecommendationSlot('amenities')}
+          </>
+        ) : (
+          <>
+            <BuildingAmenities amenities={tenantAmenities} />
+            {renderRecommendationSlot('tenants')}
+          </>
+        )}
 
         {/* Сравнение с конкурентами — после того как показали цену, условия
             аренды, параметры здания и список арендаторов: сначала факты о

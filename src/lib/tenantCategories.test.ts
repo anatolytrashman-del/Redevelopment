@@ -5,6 +5,7 @@ import {
   isTenantAmenity,
   parseTenantPlacement,
   primaryTenantCategory,
+  tenantAmenityLabel,
   tenantIndustryFromCategory,
 } from './tenantCategories';
 import { TENANT_INDUSTRY_LABELS, TENANT_INDUSTRY_OTHER } from '../data/tenantIndustries';
@@ -51,6 +52,28 @@ describe('isTenantAmenity', () => {
     expect(isTenantAmenity('Автомобильная парковка')).toBe(true);
     expect(isTenantAmenity('Камера хранения')).toBe(true);
     expect(isTenantAmenity('Магазин автозапчастей')).toBe(false);
+  });
+
+  it('зарядка электромобилей, инфоцентр, гардероб, комната матери и ребёнка — оборудование ТЦ', () => {
+    expect(tenantAmenityLabel('Станция зарядки электромобилей уровень 3 паркинга, ТРЦ Prizma', 'Zaryadka')).toBe(
+      'Зарядка электромобилей',
+    );
+    expect(tenantAmenityLabel('Информационная служба', 'Инфоцентр')).toBe('Инфоцентр');
+    expect(tenantAmenityLabel('Информационная служба', 'Information')).toBe('Инфоцентр');
+    expect(tenantAmenityLabel('Гардероб', 'Гардероб')).toBe('Гардероб');
+    expect(tenantAmenityLabel('Комната матери и ребенка', 'Комната матери и ребенка')).toBe('Комната матери и ребёнка');
+  });
+
+  it('не путает их с настоящими арендаторами', () => {
+    // «Информационная служба» — рубрика и настоящих компаний в БЦ.
+    expect(tenantAmenityLabel('Информационная служба подъезд 4', 'Бизнес инфо')).toBeNull();
+    expect(tenantAmenityLabel('Информационная служба', 'Thomson Reuters')).toBeNull();
+    expect(tenantAmenityLabel('Турагентство, туристический инфоцентр', 'Alltour.by')).toBeNull();
+    expect(tenantAmenityLabel('Гардеробные системы, мебель на заказ', 'Гардеробка бай')).toBeNull();
+    expect(tenantAmenityLabel('Магазин одежды', 'Гардероб')).toBeNull();
+    expect(tenantAmenityLabel('Электромобили, продажа и сервис, автосалон', 'Voltauto')).toBeNull();
+    // Пауэрбанки остаются «Зарядной станцией».
+    expect(tenantAmenityLabel('Аренда зарядных устройств', 'Rentbox')).toBe('Зарядная станция');
   });
 
   it('пункт выдачи — настоящий арендатор, он снимает помещение', () => {

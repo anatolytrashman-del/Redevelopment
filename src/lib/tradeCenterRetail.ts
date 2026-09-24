@@ -3,7 +3,12 @@
 // видимые блоки (components/businessCenters/TradeCenterRetailBlocks.tsx), и
 // FAQ карточки. Одни и те же функции на обе стороны — чтобы FAQ не
 // пересказывал блок своими словами и не расходился с ним.
-import { RETAIL_ANCHOR_CATEGORIES, RETAIL_FOOD_PLACE_TYPES, RETAIL_FUN_KINDS } from '../data/businessCenters';
+import {
+  RETAIL_ANCHOR_CATEGORIES,
+  RETAIL_FOOD_PLACE_TYPES,
+  RETAIL_FUN_KINDS,
+  RETAIL_SERVICE_GROUPS,
+} from '../data/businessCenters';
 import { pluralRu } from './pluralRu';
 import type {
   RetailAnchorCategory,
@@ -31,6 +36,7 @@ import type {
   RetailRankingEntry,
   RetailRuleEntry,
   RetailServiceEntry,
+  RetailServiceGroup,
   RetailSource,
   RetailTimelineEntry,
   RetailTimelineKind,
@@ -57,6 +63,40 @@ export const TRANSPORT_MODES: RetailTransportMode[] = [
   'walk',
 ];
 const TRANSPORT_MODE_SET = new Set<string>(TRANSPORT_MODES);
+
+const SERVICE_GROUP_SET = new Set<string>(RETAIL_SERVICE_GROUPS);
+
+export const RETAIL_SERVICE_GROUP_LABELS: Record<RetailServiceGroup, string> = {
+  info: 'Информация и связь',
+  comfort: 'Комфорт',
+  family: 'С детьми',
+  access: 'Доступная среда',
+  money: 'Деньги',
+  car: 'Транспорт',
+  everyday: 'Бытовые услуги',
+  eco: 'Экология',
+};
+
+// Группа удобства по названию — для записей ресёрча без поля group (все,
+// что собраны до 2026-09-24). Порядок проверок важен: «Сбор ненужной
+// одежды» — экология, а не бытовая услуга; «Туалеты для маломобильных» —
+// доступная среда, а не комфорт; коляска у «маломобильных» — кресло, у
+// «матери и ребёнка» — детская. Всё, что не узналось, — «Комфорт»: туалеты,
+// гардеробы, камеры хранения, места отдыха, зарядка телефона.
+const SERVICE_GROUP_RULES: [RetailServiceGroup, RegExp][] = [
+  ['eco', /сбор\p{L}*|батаре|вторсыр|переработ|утилиз|раздельн|эко(?![\p{L}])|приём\p{L}* (ненужн|старо|техник)/iu],
+  ['access', /инвалид|маломобил|доступн\p{L}* сред|пандус|кресл\p{L}*-колясок|кресл\p{L}*-коляс|лифт|траволатор|эскалатор|слабовидящ|тактильн/iu],
+  ['family', /дет(ей|ск|и(?![\p{L}]))|реб[её]н|матер|пеленал|коляс|стульчик|кормлен|именинник|игров/iu],
+  ['money', /банк|обмен|валют|терминал|оплат/iu],
+  ['car', /парков|паркинг|автомо|мойк|шиномонтаж|электромобил|электрозаряд|такси|вело/iu],
+  ['info', /инфо|информац|справочн|wi-?fi|вай-?фай|интернет|виртуальн|панорам|билет|приложени/iu],
+  ['everyday', /химчист|ремонт|ателье|ключ|аптек|оптик|турагент|салон|красот|упаковк|подар|почт|постамат|пункт\p{L}* выдачи|фото|печат|копир|услуг/iu],
+];
+
+/** Группа удобства ТЦ, выведенная из названия; не узналось — «Комфорт». */
+export function serviceGroupFromName(name: string): RetailServiceGroup {
+  return SERVICE_GROUP_RULES.find(([, re]) => re.test(name))?.[0] ?? 'comfort';
+}
 
 function str(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -420,7 +460,11 @@ export function normalizeRetailInfo(raw: unknown): RetailInfo | null {
   });
   const services: RetailServiceEntry[] = records(data.services).flatMap((r) => {
     const name = str(r.name);
-    return name ? [{ name, text: str(r.text), floor: text(r.floor), ...sourceOf(r) }] : [];
+    if (!name) return [];
+    const rawGroup = str(r.group);
+    const group =
+      rawGroup && SERVICE_GROUP_SET.has(rawGroup) ? (rawGroup as RetailServiceGroup) : serviceGroupFromName(name);
+    return [{ name, text: str(r.text), floor: text(r.floor), group, ...sourceOf(r) }];
   });
   const rules: RetailRuleEntry[] = records(data.rules).flatMap((r) => {
     const t = str(r.text);
@@ -1343,18 +1387,7 @@ export function transportFaqAnswer(transport: RetailTransportEntry[]): string | 
 
 /** "2" → "2 этаж", "-1" → "−1 этаж", "у входа А" → "у входа А". */
 export function serviceFloorLabel(floor: string | null): string | null {
-  return floor ? formatFloorLabel(floor) : null;
-}
-
-export function servicesFaqAnswer(services: RetailServiceEntry[]): string | null {
-  if (!services.length) return null;
-  return services
-    .map((s) => {
-      const where = serviceFloorLabel(s.floor);
-      const head = where ? `${s.name} (${where})` : s.name;
-      return s.text ? sentence(`${head} — ${s.text}`) : sentence(head);
-    })
-    .join('\n');
+  return floor ? formatFunFloor(floor) : null;
 }
 
 export function rulesFaqAnswer(rules: RetailRuleEntry[]): string | null {
@@ -1480,7 +1513,6 @@ export function hasVisitInfo(info: RetailInfo): boolean {
       info.hoursNote ||
       info.parking ||
       info.transport.length ||
-      info.services.length ||
       info.rules.length ||
       info.loyalty.length ||
       info.events.length,
@@ -1520,7 +1552,8 @@ export function retailSectionSize(info: RetailInfo | null, id: RetailSectionId):
         info.hours.length + (info.hoursNote ? 1 : 0),
         info.parking ? info.parking.items.length + 2 : 0,
         info.transport.length,
-        Math.ceil(info.services.length / 2) + info.rules.length,
+        // Правила — панелью в полколонки: правило в полторы-две строки.
+        Math.ceil(info.rules.length * 1.5),
         info.loyalty.length + info.events.length,
       ].filter((n) => n > 0);
       // Заголовок панели — ещё строка.
