@@ -21,7 +21,6 @@ const DEFAULT_VIEW_W = 640;
 const NARROW_VIEW_W = 520;
 const ZOOM_STEPS = [1, 1.6, 2.5, 4];
 const PAD = 28;
-const HULL_MARGIN_M = 9;
 // Точка дальше трёх «типичных» расстояний от центра (и дальше 60 м) — ошибка
 // в карточке Яндекса, а не магазин этого здания: на схему её не ставим, иначе
 // она растянет контур на пол-квартала.
@@ -32,7 +31,7 @@ const OUTLIER_MIN_M = 60;
 const SAME_POINT_SPREAD_PX = 9;
 // Условное помещение не больше круга такого радиуса вокруг точки магазина.
 const CELL_MAX_RADIUS_M = 9;
-const CELL_GAP_PX = 1.5;
+const CELL_GAP_PX = 1;
 
 // Не фирменный красный: на схеме он читался бы как «проблема» (см. CLAUDE.md
 // про primary и danger).
@@ -95,74 +94,34 @@ function convexHull(points: Point[]): Point[] {
   return [...lower.slice(0, -1), ...upper.slice(0, -1)];
 }
 
-// Оболочка, раздвинутая от центра на запас в метрах: точки стоят в центрах
-// помещений, а стены — дальше.
-function inflate(hull: Point[], margin: number): Point[] {
-  if (hull.length === 0) return hull;
-  const cx = hull.reduce((s, p) => s + p[0], 0) / hull.length;
-  const cy = hull.reduce((s, p) => s + p[1], 0) / hull.length;
-  return hull.map(([x, y]) => {
-    const dx = x - cx;
-    const dy = y - cy;
-    const len = Math.hypot(dx, dy) || 1;
-    return [x + (dx / len) * margin, y + (dy / len) * margin];
-  });
-}
 
-// Отсечение многоугольника полуплоскостью a·x + b·y <= c (Сазерленд — Ходжман).
-function clipHalfPlane(polygon: Point[], a: number, b: number, c: number): Point[] {
-  const out: Point[] = [];
-  for (let i = 0; i < polygon.length; i += 1) {
-    const cur = polygon[i];
-    const next = polygon[(i + 1) % polygon.length];
-    const curIn = a * cur[0] + b * cur[1] <= c;
-    const nextIn = a * next[0] + b * next[1] <= c;
-    if (curIn) out.push(cur);
-    if (curIn !== nextIn) {
-      const t = (c - a * cur[0] - b * cur[1]) / (a * (next[0] - cur[0]) + b * (next[1] - cur[1]));
-      out.push([cur[0] + t * (next[0] - cur[0]), cur[1] + t * (next[1] - cur[1])]);
-    }
-  }
-  return out;
-}
+type Room = { x0: number; y0: number; x1: number; y1: number };
 
-// Условное помещение магазина: часть этажа, ближайшая к его точке (ячейка
-// Вороного внутри контура), но не дальше maxRadius — иначе магазин на краю
-// пустого крыла «занял» бы всё крыло. Чуть ужимаем к центру, чтобы между
-// соседями оставался зазор, как стена на плане.
-function storeCells(points: Point[], outline: Point[], maxRadius: number, gap: number): Point[][] {
-  return points.map((p, i) => {
-    let cell = outline;
-    for (let k = 0; k < 8 && cell.length > 0; k += 1) {
-      const angle = (Math.PI / 4) * k;
-      const a = Math.cos(angle);
-      const b = Math.sin(angle);
-      cell = clipHalfPlane(cell, a, b, a * p[0] + b * p[1] + maxRadius);
-    }
-    for (let j = 0; j < points.length && cell.length > 0; j += 1) {
-      if (j === i) continue;
-      const q = points[j];
-      const a = q[0] - p[0];
-      const b = q[1] - p[1];
-      if (a === 0 && b === 0) continue;
-      cell = clipHalfPlane(cell, a, b, (q[0] ** 2 + q[1] ** 2 - p[0] ** 2 - p[1] ** 2) / 2);
-    }
-    if (cell.length < 3) return [];
-    const cx = cell.reduce((sum, v) => sum + v[0], 0) / cell.length;
-    const cy = cell.reduce((sum, v) => sum + v[1], 0) / cell.length;
-    return cell.map(([x, y]) => {
-      const len = Math.hypot(x - cx, y - cy) || 1;
-      const k = Math.max(0, len - gap) / len;
-      return [cx + (x - cx) * k, cy + (y - cy) * k] as Point;
+// Условные помещения — прямоугольники вдоль осей схемы, как на поэтажном
+// плане (владелец, 2026-09-24: «в яндексе чёткая схема с прямоугольными
+// границами, а у нас нет»; первая версия с ячейками Вороного давала косые
+// многоугольники). Каждому магазину — квадрат со стороной 2·maxRadius вокруг
+// его точки, дальше с каждым соседом помещения делятся стенкой посередине
+// поперёк того направления, где они дальше друг от друга: сосед справа —
+// вертикальная стенка, сосед снизу — горизонтальная. Любые два помещения
+// так разделены хотя бы одной стенкой и не пересекаются, а то, что никому
+// не досталось, остаётся проходом.
+function rectRooms(points: Point[], maxRadius: number, gap: number): Room[] {
+  return points.map(([px, py], i) => {
+    const room = { x0: px - maxRadius, x1: px + maxRadius, y0: py - maxRadius, y1: py + maxRadius };
+    points.forEach(([qx, qy], j) => {
+      if (j === i) return;
+      const dx = qx - px;
+      const dy = qy - py;
+      if (Math.abs(dx) > 2 * maxRadius || Math.abs(dy) > 2 * maxRadius) return;
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        if (dx > 0) room.x1 = Math.min(room.x1, px + dx / 2);
+        else if (dx < 0) room.x0 = Math.max(room.x0, px + dx / 2);
+      } else if (dy > 0) room.y1 = Math.min(room.y1, py + dy / 2);
+      else room.y0 = Math.max(room.y0, py + dy / 2);
     });
+    return { x0: room.x0 + gap, x1: room.x1 - gap, y0: room.y0 + gap, y1: room.y1 - gap };
   });
-}
-
-function cellBox(cell: Point[]) {
-  const xs = cell.map((p) => p[0]);
-  const ys = cell.map((p) => p[1]);
-  const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-  return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, w: maxX - minX, h: maxY - minY };
 }
 
 // Подпись в помещении: до двух строк по словам, шрифт от 11 до 8 px — самый
@@ -251,7 +210,18 @@ export function FloorSchema({
     // а ширины нет.
     const turn = boxW < NARROW_VIEW_W ? Math.PI / 2 : 0;
     const meters = kept.map((item) => ({ entry: item.entry, m: rotate(item.m, turn - angle) }));
-    const outline = inflate(convexHull(meters.map((item) => item.m)), HULL_MARGIN_M);
+    // Контур — оболочка углов помещений всех этажей (у каждого магазина
+    // квадрат ±CELL_MAX_RADIUS_M), тогда ни одно помещение не вылезает
+    // наружу, и контур один на все этажи.
+    const r = CELL_MAX_RADIUS_M + 1;
+    const outline = convexHull(
+      meters.flatMap(({ m: [x, y] }) => [
+        [x - r, y - r],
+        [x + r, y - r],
+        [x - r, y + r],
+        [x + r, y + r],
+      ] as Point[]),
+    );
     const xs = outline.map((p) => p[0]);
     const ys = outline.map((p) => p[1]);
     const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
@@ -300,21 +270,19 @@ export function FloorSchema({
 
   const cells = useMemo(() => {
     if (!layout || dots.length === 0) return [];
-    const polygons = storeCells(
-      dots.map((dot) => [dot.x, dot.y] as Point),
-      layout.outline,
-      CELL_MAX_RADIUS_M / layout.metersPerPx,
-      CELL_GAP_PX,
-    );
+    const rooms = rectRooms(dots.map((dot) => [dot.x, dot.y] as Point), CELL_MAX_RADIUS_M / layout.metersPerPx, CELL_GAP_PX);
     const order = [...dots].sort((a, b) => a.entry.name.localeCompare(b.entry.name, 'ru'));
     const numberOf = new Map(order.map((dot, index) => [dot.entry, index + 1]));
     const withCells = dots.map((dot, index) => {
-      const cell = polygons[index];
-      const box = cell.length > 2 ? cellBox(cell) : null;
+      const room = rooms[index];
+      const box =
+        room.x1 - room.x0 > 2 && room.y1 - room.y0 > 2
+          ? { cx: (room.x0 + room.x1) / 2, cy: (room.y0 + room.y1) / 2, w: room.x1 - room.x0, h: room.y1 - room.y0 }
+          : null;
       const number = numberOf.get(dot.entry) ?? 0;
       const named = box ? layoutLabel(dot.entry.name, box.w, box.h) : null;
       const numbered: Label = { lines: [String(number)], size: 10, w: String(number).length * 6 + 2, h: 11.5 };
-      return { ...dot, cell, box, number, isName: !!named, label: named ?? (box ? numbered : null) };
+      return { ...dot, room, box, number, isName: !!named, label: named ?? (box ? numbered : null) };
     });
     // Подписи не должны налезать друг на друга: ставим начиная с крупных
     // помещений, а подпись, задевающая уже поставленную, прячется.
@@ -380,7 +348,7 @@ export function FloorSchema({
               strokeWidth={2}
               strokeLinejoin="round"
             />
-            {cells.map(({ entry, x, y, cell, box, label }, index) => {
+            {cells.map(({ entry, x, y, box, label }, index) => {
               const dimmed = highlighted !== null && !highlighted.has(entry);
               const isSelected = current === entry;
               const color = colorOf(entry.direction);
@@ -395,16 +363,19 @@ export function FloorSchema({
                   }}
                 >
                   <title>{entry.name}</title>
-                  {cell.length > 0 ? (
-                    <polygon
-                      points={cell.map((p) => p.join(',')).join(' ')}
+                  {box && (
+                    <rect
+                      x={box.cx - box.w / 2}
+                      y={box.cy - box.h / 2}
+                      width={box.w}
+                      height={box.h}
+                      rx={1.5}
                       fill={color}
-                      fillOpacity={isSelected ? 0.45 : 0.16}
-                      stroke={isSelected ? color : '#fff'}
+                      fillOpacity={isSelected ? 0.45 : 0.18}
+                      stroke={isSelected ? color : '#ffffff'}
                       strokeWidth={isSelected ? 2 : 1}
-                      strokeLinejoin="round"
                     />
-                  ) : null}
+                  )}
                   {!label && <circle cx={x} cy={y} r={isSelected ? 4.5 : 3} fill={color} />}
                   {label && box && (
                     <text
