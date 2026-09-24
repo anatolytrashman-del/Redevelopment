@@ -2344,7 +2344,7 @@ export function BusinessCenterDetailPage() {
                   решит, что попал не туда. */}
               <h1 className="text-2xl font-extrabold leading-tight text-ink">{fullName(center)}</h1>
               {redistributedTechnicalParams.corpora.length >= 2 && (
-                <p className="text-sm font-semibold text-primary">
+                <p className="text-sm font-semibold text-ink-muted">
                   Комплекс из {redistributedTechnicalParams.corpora.length}{' '}
                   {pluralRu(redistributedTechnicalParams.corpora.length, 'здания', 'зданий', 'зданий')} с разными адресами
                 </p>
