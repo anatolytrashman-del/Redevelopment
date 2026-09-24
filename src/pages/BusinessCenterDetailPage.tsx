@@ -3430,7 +3430,7 @@ function InternalInfrastructureRow({
             <a
               href="#tenants"
               className={cn(
-                'inline-flex items-center gap-1.5 text-sm font-semibold text-primary-hover hover:underline',
+                'inline-flex items-center gap-1.5 text-sm font-semibold text-ink-muted hover:underline',
                 !compact && 'rounded-full bg-surface-muted px-2.5 py-1.5 text-xs',
               )}
             >
