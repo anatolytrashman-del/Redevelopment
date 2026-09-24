@@ -165,11 +165,35 @@ function cellBox(cell: Point[]) {
   return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, w: maxX - minX, h: maxY - minY };
 }
 
-// Подпись, которая влезает в помещение: по ширине ~6 px на букву при 10 px.
-function fitLabel(name: string, width: number): string | null {
-  const chars = Math.floor((width - 6) / 6);
-  if (chars < 3) return null;
-  return name.length <= chars ? name : `${name.slice(0, Math.max(chars - 1, 2)).trimEnd()}…`;
+// Подпись в помещении: до двух строк по словам, шрифт от 11 до 8 px — самый
+// крупный, при котором название влезает в ширину помещения целиком. Не влезает
+// и на 8 px — в помещении пишем номер, а название с тем же номером стоит в
+// списке под схемой (обрезанное «Jus…» не читается, владелец 2026-09-24).
+const CHAR_W = 0.6; // средняя ширина буквы в долях кегля
+const LABEL_PAD = 2;
+type Label = { lines: string[]; size: number; w: number; h: number };
+
+function splitTwoLines(name: string, maxChars: number): string[] | null {
+  if (name.length <= maxChars) return [name];
+  const words = name.split(/\s+/);
+  for (let cut = words.length - 1; cut > 0; cut -= 1) {
+    const first = words.slice(0, cut).join(' ');
+    const second = words.slice(cut).join(' ');
+    if (first.length <= maxChars && second.length <= maxChars) return [first, second];
+  }
+  return null;
+}
+
+function layoutLabel(name: string, width: number, height: number): Label | null {
+  for (let size = 11; size >= 8; size -= 1) {
+    const maxChars = Math.floor((width * 0.9) / (size * CHAR_W));
+    if (maxChars < 3) continue;
+    const lines = splitTwoLines(name, maxChars);
+    if (lines && lines.length * size * 1.15 <= height * 0.9) {
+      return { lines, size, w: Math.max(...lines.map((l) => l.length)) * size * CHAR_W, h: lines.length * size * 1.15 };
+    }
+  }
+  return null;
 }
 
 export function FloorSchema({
@@ -234,7 +258,10 @@ export function FloorSchema({
     const spanX = Math.max(maxX - minX, 20);
     const spanY = Math.max(maxY - minY, 20);
     const scale = (viewW - PAD * 2) / spanX;
-    const viewH = Math.min(Math.max(spanY * scale + PAD * 2, 200), 560 * zoom);
+    // На узком экране схема стоит вертикально и высотой не ограничена: иначе
+    // здание ужимается по высоте и помещения выходят мельче пальца.
+    const maxH = boxW < NARROW_VIEW_W ? Infinity : 560 * zoom;
+    const viewH = Math.min(Math.max(spanY * scale + PAD * 2, 200), maxH);
     const fit = Math.min(scale, (viewH - PAD * 2) / spanY);
     const offX = (viewW - spanX * fit) / 2;
     const offY = (viewH - spanY * fit) / 2;
@@ -279,7 +306,46 @@ export function FloorSchema({
       CELL_MAX_RADIUS_M / layout.metersPerPx,
       CELL_GAP_PX,
     );
-    return dots.map((dot, index) => ({ ...dot, cell: polygons[index] }));
+    const order = [...dots].sort((a, b) => a.entry.name.localeCompare(b.entry.name, 'ru'));
+    const numberOf = new Map(order.map((dot, index) => [dot.entry, index + 1]));
+    const withCells = dots.map((dot, index) => {
+      const cell = polygons[index];
+      const box = cell.length > 2 ? cellBox(cell) : null;
+      const number = numberOf.get(dot.entry) ?? 0;
+      const named = box ? layoutLabel(dot.entry.name, box.w, box.h) : null;
+      const numbered: Label = { lines: [String(number)], size: 10, w: String(number).length * 6 + 2, h: 11.5 };
+      return { ...dot, cell, box, number, isName: !!named, label: named ?? (box ? numbered : null) };
+    });
+    // Подписи не должны налезать друг на друга: ставим начиная с крупных
+    // помещений, а подпись, задевающая уже поставленную, прячется.
+    const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
+    for (const item of [...withCells].sort((a, b) => (b.box ? b.box.w * b.box.h : 0) - (a.box ? a.box.w * a.box.h : 0))) {
+      if (!item.label || !item.box) continue;
+      const rect = {
+        x0: item.box.cx - item.label.w / 2 - LABEL_PAD,
+        x1: item.box.cx + item.label.w / 2 + LABEL_PAD,
+        y0: item.box.cy - item.label.h / 2 - LABEL_PAD * 2,
+        y1: item.box.cy + item.label.h / 2 + LABEL_PAD * 2,
+      };
+      if (!placed.some((r) => rect.x0 < r.x1 && rect.x1 > r.x0 && rect.y0 < r.y1 && rect.y1 > r.y0)) {
+        placed.push(rect);
+        continue;
+      }
+      // Название не встало — пробуем хотя бы номер.
+      if (!item.isName) {
+        item.label = null;
+        continue;
+      }
+      const n = String(item.number);
+      const small = { x0: item.box.cx - n.length * 3 - 1, x1: item.box.cx + n.length * 3 + 1, y0: item.box.cy - 6, y1: item.box.cy + 6 };
+      if (placed.some((r) => small.x0 < r.x1 && small.x1 > r.x0 && small.y0 < r.y1 && small.y1 > r.y0)) item.label = null;
+      else {
+        item.label = { lines: [n], size: 10, w: n.length * 6 + 2, h: 11.5 };
+        item.isName = false;
+        placed.push(small);
+      }
+    }
+    return withCells;
   }, [layout, dots]);
 
   if (!layout) return null;
@@ -287,6 +353,7 @@ export function FloorSchema({
   const legend = [...directionColors.keys()].filter((direction) => onFloorDirections.has(direction));
   if ([...onFloorDirections].some((direction) => !directionColors.has(direction))) legend.push(OTHER_LABEL);
   const current = selected && selected.floor === floor ? selected : null;
+  const floorNames = [...cells].sort((a, b) => a.number - b.number);
   const scaleBarM = layout.metersPerPx * 100 > 60 ? 50 : 20;
 
   return (
@@ -296,7 +363,7 @@ export function FloorSchema({
         <span className="text-xs text-ink-muted">{dots.length} на схеме</span>
       </div>
       <div className="relative">
-        <div ref={scrollRef} className="overflow-auto" style={{ maxHeight: 620 }}>
+        <div ref={scrollRef} className="overflow-auto" style={{ maxHeight: boxW < NARROW_VIEW_W ? 900 : 620 }}>
           <svg
             viewBox={`0 0 ${viewW} ${layout.viewH}`}
             width={viewW}
@@ -313,12 +380,10 @@ export function FloorSchema({
               strokeWidth={2}
               strokeLinejoin="round"
             />
-            {cells.map(({ entry, x, y, cell }, index) => {
+            {cells.map(({ entry, x, y, cell, box, label }, index) => {
               const dimmed = highlighted !== null && !highlighted.has(entry);
               const isSelected = current === entry;
               const color = colorOf(entry.direction);
-              const box = cell.length > 0 ? cellBox(cell) : null;
-              const label = box && box.h >= 14 ? fitLabel(entry.name, box.w) : null;
               return (
                 <g
                   key={`${entry.name}-${entry.url ?? index}`}
@@ -340,21 +405,26 @@ export function FloorSchema({
                       strokeLinejoin="round"
                     />
                   ) : null}
-                  <circle cx={x} cy={y} r={isSelected ? 4.5 : 3} fill={color} />
+                  {!label && <circle cx={x} cy={y} r={isSelected ? 4.5 : 3} fill={color} />}
                   {label && box && (
                     <text
-                      x={x}
-                      y={y + 13}
+                      x={box.cx}
+                      y={box.cy - ((label.lines.length - 1) * label.size * 1.15) / 2 + label.size * 0.35}
                       textAnchor="middle"
-                      fontSize={10}
+                      fontSize={label.size}
                       fontWeight={600}
                       fill="#1e293b"
                       paintOrder="stroke"
                       stroke="#ffffff"
                       strokeWidth={2.5}
                       strokeOpacity={0.8}
+                      pointerEvents="none"
                     >
-                      {label}
+                      {label.lines.map((line, lineIndex) => (
+                        <tspan key={lineIndex} x={box.cx} dy={lineIndex === 0 ? 0 : label.size * 1.15}>
+                          {line}
+                        </tspan>
+                      ))}
                     </text>
                   )}
                 </g>
@@ -418,6 +488,31 @@ export function FloorSchema({
         ) : (
           <p className="text-xs text-ink-muted">Нажмите на помещение, чтобы увидеть магазин.</p>
         )}
+        {/* Все магазины этажа по алфавиту: на телефоне подписи в мелких
+            помещениях не помещаются, а здесь видно каждое название; нажатие
+            подсвечивает помещение на схеме. */}
+        <div className="flex max-h-56 flex-wrap gap-1.5 overflow-y-auto">
+          {floorNames.map(({ entry, number }, index) => (
+            <button
+              key={`${entry.name}-${entry.url ?? index}`}
+              type="button"
+              onClick={() => setSelected(entry)}
+              className={
+                current === entry
+                  ? 'rounded-full border border-ink bg-ink px-2.5 py-0.5 text-xs font-medium text-white'
+                  : 'rounded-full border border-border bg-white/80 px-2.5 py-0.5 text-xs font-medium text-ink hover:border-primary/30'
+              }
+            >
+              <span
+                className="mr-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white"
+                style={{ background: colorOf(entry.direction) }}
+              >
+                {number}
+              </span>
+              {entry.name}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-muted">
           {legend.map((direction) => (
             <span key={direction} className="flex items-center gap-1.5">
