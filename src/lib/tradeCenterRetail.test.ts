@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { RetailFigureEntry, RetailInfo, RetailParking, RetailRankingEntry } from '../data/businessCenters';
+import type {
+  RetailAwardEntry,
+  RetailFigureEntry,
+  RetailInfo,
+  RetailParking,
+  RetailRankingEntry,
+} from '../data/businessCenters';
 import {
   anchorsFaqAnswer,
   audienceFaqQuestion,
@@ -24,7 +30,17 @@ import {
   floorSortKey,
   formatFloorBadge,
   formatFloorLabel,
-  formatRankingLine,
+  awardDetails,
+  awardMeta,
+  awardResultLabel,
+  awardsFaqAnswer,
+  awardsRankingSize,
+  awardsRankingTitle,
+  rankingFaqAnswer,
+  rankingMeta,
+  rankingView,
+  sortAwards,
+  sortRanking,
   formatRetailDate,
   leisureFaqQuestion,
   normalizeRetailInfo,
@@ -34,10 +50,13 @@ import {
 
 const ranking = (over: Partial<RetailRankingEntry> = {}): RetailRankingEntry => ({
   place: 4,
-  criterion: 'по арендопригодной площади',
-  scope: 'среди ТЦ Минска',
-  total: null,
+  criterion: 'арендопригодная площадь (52 000 м²)',
+  scope: 'крупнейшие ТЦ Минска',
+  total: 10,
   year: 2025,
+  headline: null,
+  value: null,
+  note: null,
   source: 'Onliner',
   sourceUrl: 'https://realt.onliner.by/2025/01/01/tc',
   ...over,
@@ -97,24 +116,119 @@ describe('formatRetailDate', () => {
   });
 });
 
-describe('formatRankingLine', () => {
-  it('место, критерий, охват, источник и год', () => {
-    expect(formatRankingLine(ranking())).toBe('4-й по арендопригодной площади среди ТЦ Минска (Onliner, 2025)');
+const award = (over: Partial<RetailAwardEntry> = {}): RetailAwardEntry => ({
+  title: 'Realt Golden Key 2014',
+  org: 'Realt.by',
+  year: '2014',
+  category: 'Лучший торговый центр',
+  result: 'winner',
+  resultText: null,
+  subject: null,
+  recipient: null,
+  text: null,
+  confirmed: true,
+  source: null,
+  sourceUrl: null,
+  ...over,
+});
+
+describe('рейтинги', () => {
+  it('старая запись: значение из скобки критерия, охват отдельно', () => {
+    const view = rankingView(ranking());
+    expect(view).toMatchObject({
+      place: 4,
+      total: 10,
+      headline: 'Арендопригодная площадь',
+      scope: 'крупнейшие ТЦ Минска',
+      value: '52 000 м²',
+      note: null,
+    });
+    expect(rankingMeta(view)).toBe('52 000 м² · 2025 · Onliner');
   });
 
-  it('с total и без года/источника', () => {
-    expect(formatRankingLine(ranking({ total: 30, year: null }))).toBe(
-      '4-й из 30 по арендопригодной площади среди ТЦ Минска (Onliner)',
+  it('оговорка после точки с запятой в скобке уходит в note', () => {
+    const view = rankingView(ranking({ criterion: 'площадь (23 600 м²; какая именно — не уточнено)', year: 2015 }));
+    expect(view.value).toBe('23 600 м²');
+    expect(view.note).toBe('Какая именно — не уточнено');
+  });
+
+  it('новая запись: headline вместо критерия, охват не повторяется', () => {
+    const view = rankingView(
+      ranking({
+        headline: 'Крупнейший ТЦ Минска по арендопригодной площади',
+        criterion: 'арендопригодная площадь',
+        place: 1,
+        value: '68 600 м²',
+        note: 'Данные на 2025 год',
+      }),
     );
-    expect(formatRankingLine(ranking({ source: null, year: null }))).toBe(
-      '4-й по арендопригодной площади среди ТЦ Минска',
+    expect(view).toMatchObject({ headline: 'Крупнейший ТЦ Минска по арендопригодной площади', scope: null, value: '68 600 м²' });
+    expect(view.note).toBe('Данные на 2025 год');
+  });
+
+  it('без total — «место», свежие выше, внутри года — высокие места', () => {
+    expect(rankingView(ranking({ total: null })).total).toBeNull();
+    const sorted = sortRanking([ranking({ year: 2015, place: 1 }), ranking({ place: 8 }), ranking({ place: 2 })]);
+    expect(sorted.map((r) => `${r.year}:${r.place}`)).toEqual(['2025:2', '2025:8', '2015:1']);
+  });
+
+  it('FAQ — тем же порядком и словами, что блок', () => {
+    expect(rankingFaqAnswer([ranking({ year: 2015, place: 6 }), ranking({ headline: 'Крупнейший ТЦ Минска', place: 1, value: '68 600 м²', criterion: 'площадь' })])).toBe(
+      'Крупнейший ТЦ Минска: 1-е место из 10, 68 600 м² (Onliner, 2025).\n' +
+        'Арендопригодная площадь — крупнейшие ТЦ Минска: 6-е место из 10, 52 000 м² (Onliner, 2015).',
+    );
+    expect(rankingFaqAnswer([])).toBeNull();
+  });
+});
+
+describe('награды', () => {
+  it('победы выше номинаций, внутри яруса — свежие выше', () => {
+    const sorted = sortAwards([
+      award({ title: 'Н', result: 'nominee', year: '2022' }),
+      award({ title: 'П2014', year: '2014' }),
+      award({ title: 'Ф', result: 'finalist', year: '2019' }),
+      award({ title: 'Д2017', result: 'diploma', year: '2016–2017' }),
+      award({ title: 'Без года', result: 'laureate', year: null }),
+    ]);
+    expect(sorted.map((a) => a.title)).toEqual(['Д2017', 'П2014', 'Без года', 'Ф', 'Н']);
+  });
+
+  it('подписи: результат, мета, за что и кому', () => {
+    expect(awardResultLabel(award())).toBe('победитель');
+    expect(awardResultLabel(award({ result: 'diploma', resultText: 'диплом I степени' }))).toBe('диплом I степени');
+    expect(awardResultLabel(award({ result: 'other' }))).toBeNull();
+    expect(awardMeta(award())).toBe('Лучший торговый центр · Realt.by · 2014');
+    expect(awardDetails(award({ subject: 'здание' }))).toBeNull();
+    expect(awardDetails(award({ subject: 'проект до открытия', recipient: 'бюро SZK/Z' }))).toBe(
+      'За что: проект до открытия · получатель: бюро SZK/Z',
     );
   });
 
-  it('форма для FAQ — «4-е место»', () => {
-    expect(formatRankingLine(ranking({ total: 30 }), 'place')).toBe(
-      '4-е место из 30 по арендопригодной площади среди ТЦ Минска (Onliner, 2025)',
+  it('FAQ: год не дублируется, неподтверждённое помечено, запасной вариант из highlights', () => {
+    expect(
+      awardsFaqAnswer([
+        award({ result: 'nominee', title: 'MAPIC Awards', year: '2018', org: 'MAPIC', category: null, confirmed: false }),
+        award(),
+      ]),
+    ).toBe(
+      'Realt Golden Key 2014 — победитель, номинация «Лучший торговый центр» (Realt.by).\n' +
+        'MAPIC Awards — номинант (MAPIC, 2018). По данным застройщика.',
     );
+    expect(awardsFaqAnswer([], ['**Realt Golden Key** 2014'])).toBe('Realt Golden Key 2014.');
+    expect(awardsFaqAnswer([])).toBeNull();
+  });
+
+  it('заголовок и размер блока', () => {
+    expect(awardsRankingTitle(true, true)).toBe('Награды и рейтинги');
+    expect(awardsRankingTitle(true, false)).toBe('Награды');
+    expect(awardsRankingTitle(false, true)).toBe('Место в рейтингах');
+    const info = normalizeRetailInfo({
+      awards: [{ title: 'A' }, { title: 'B' }, { title: 'C' }],
+      ranking: [{ place: 1, criterion: 'x' }],
+    });
+    // ряды по две плитки: 2 ряда наград × 3 + 1 ряд рейтингов × 2
+    expect(awardsRankingSize(info)).toBe(8);
+    expect(awardsRankingSize(null, 3)).toBe(3);
   });
 });
 
@@ -139,6 +253,31 @@ describe('normalizeRetailInfo', () => {
     expect(info!.leisure).toEqual([]);
     expect(info!.ranking[0]).toMatchObject({ place: 4, total: null, year: 2025 });
     expect(retailSectionIds(info)).toEqual(['floors', 'firsts']);
+  });
+
+  it('награды и новые поля рейтинга: кривые записи отброшены', () => {
+    const info = normalizeRetailInfo({
+      ranking: [
+        { place: 1, total: 10, criterion: 'площадь', headline: 'Крупнейший ТЦ', value: 68600, note: 'на 2025', year: '2025' },
+        { place: 12, total: 10, criterion: 'площадь' },
+        { place: 0, criterion: 'площадь' },
+      ],
+      awards: [
+        { title: 'Realt Golden Key 2014', result: 'winner', year: 2014, confirmed: true },
+        { title: 'Непонятно что', result: 'gold' },
+        { title: 'Со слов ТЦ', result: 'nominee', confirmed: false },
+        { result: 'winner', org: 'без названия' },
+      ],
+    });
+    expect(info!.ranking).toHaveLength(1);
+    expect(info!.ranking[0]).toMatchObject({ headline: 'Крупнейший ТЦ', value: '68600', note: 'на 2025', year: 2025 });
+    expect(info!.awards.map((a) => [a.title, a.result, a.confirmed, a.year])).toEqual([
+      ['Realt Golden Key 2014', 'winner', true, '2014'],
+      ['Непонятно что', 'other', true, null],
+      ['Со слов ТЦ', 'nominee', false, null],
+    ]);
+    // Один только рейтинг или награды — не торговые карточки, а свой блок.
+    expect(retailSectionIds(info)).toEqual([]);
   });
 });
 

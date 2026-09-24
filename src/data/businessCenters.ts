@@ -533,12 +533,41 @@ export interface RetailLeisureEntry extends RetailSource {
 
 export interface RetailRankingEntry extends RetailSource {
   place: number;
-  // "по арендопригодной площади"
+  // "арендопригодная площадь" (у записей до 2026-09-24 значение бывает
+  // прямо в скобках: "арендопригодная площадь (52 000 м²)")
   criterion: string;
-  // "среди ТЦ Минска"
+  // "ТЦ Минска"
   scope: string;
   total: number | null;
   year: number | null;
+  // С 2026-09-24 (tc-catalog/codex/briefs/awards.md), у старых записей нет:
+  // человеческая формулировка «Крупнейший ТЦ Минска по арендопригодной
+  // площади», значение показателя «68 600 м²» и оговорка.
+  headline: string | null;
+  value: string | null;
+  note: string | null;
+}
+
+// Награды и конкурсы ТЦ — retail_info.awards (2026-09-24, та же схема).
+export type RetailAwardResult = 'winner' | 'diploma' | 'laureate' | 'finalist' | 'nominee' | 'other';
+
+export interface RetailAwardEntry extends RetailSource {
+  // Короткое название для читателя: «Realt Golden Key 2014».
+  title: string;
+  org: string | null;
+  // Строкой: у конкурсов бывает «2014–2015».
+  year: string | null;
+  category: string | null;
+  result: RetailAwardResult;
+  // Как написать на странице: «диплом I степени». Нет — подпись по result.
+  resultText: string | null;
+  // За что: здание / проект до открытия / фасад / интерьер / маркетинг.
+  subject: string | null;
+  // Кто получил, если не сам ТЦ (архитекторы, застройщик).
+  recipient: string | null;
+  text: string | null;
+  // false — только со слов ТЦ или застройщика, независимого подтверждения нет.
+  confirmed: boolean;
 }
 
 // --- Дополнительные блоки ТЦ (2026-09-23, схема extras-schema.md) ---------
@@ -623,6 +652,7 @@ export interface RetailInfo {
   firsts: RetailFirstEntry[];
   leisure: RetailLeisureEntry[];
   ranking: RetailRankingEntry[];
+  awards: RetailAwardEntry[];
   hours: RetailHoursEntry[];
   hoursNote: string | null;
   parking: RetailParking | null;
