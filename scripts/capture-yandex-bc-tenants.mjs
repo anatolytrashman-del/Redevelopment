@@ -27,6 +27,12 @@
 //   node scripts/capture-yandex-bc-tenants.mjs --kind tc --floors-only --write-db
 // (--node-fetch — без Chrome, обычными запросами; на CAPTCHA такой прогон
 // останавливается и сохраняет найденное).
+//
+// ТОЧКИ МАГАЗИНОВ (--coords, 2026-09-24): вместе с этажом из карточки
+// организации берётся её точка на карте — для схемы этажа на странице ТЦ
+// (FloorSchema). Карточку открываем у каждой организации без точки, поэтому
+// здание идёт дольше. Дозаполнить у уже собранных:
+//   node scripts/capture-yandex-bc-tenants.mjs --kind tc --floors-only --coords --slug evropa-tc --write-db
 
 import './local-supabase-env.mjs'; // первым: ключ из ~/.config/redevelopment/supabase.env
 import fs from 'node:fs/promises';
@@ -69,6 +75,7 @@ const listOnly = has('--list');
 const skipCollected = has('--skip-collected');
 const withFloors = !has('--no-floors');
 const floorsOnly = has('--floors-only');
+const withCoords = has('--coords');
 const nodeFetch = has('--node-fetch');
 // Автоматический режим — см. шапку файла. Для ТЦ по умолчанию; для БЦ
 // поведение прежнее, пока не передан --auto.
@@ -346,6 +353,7 @@ async function resolveWithPage(page, entry) {
     },
     delay: randomDelay,
     log: (line) => console.log(line),
+    withCoords,
   });
 }
 
@@ -384,9 +392,11 @@ async function addFloors(organizations, fetcher) {
     ...fetcher,
     delay: randomDelay,
     log: (line) => console.log(line),
+    withCoords,
   });
   const total = withFloor.length;
-  console.log(`  этажи: ${total - stats.missing} из ${total} (по тексту ${stats.fromText + stats.kept}, по карточкам ${stats.fromCard})${stats.stopped ? ' — остановлено CAPTCHA' : ''}`);
+  const coordsLine = withCoords ? `, точки: ${withFloor.filter((organization) => organization.coords).length} из ${total}` : '';
+  console.log(`  этажи: ${total - stats.missing} из ${total} (по тексту ${stats.fromText + stats.kept}, по карточкам ${stats.fromCard})${coordsLine}${stats.stopped ? ' — остановлено CAPTCHA' : ''}`);
   return { organizations: withFloor, stopped: stats.stopped };
 }
 
@@ -681,9 +691,10 @@ if (floorsOnly) {
   const snapshots = await readSnapshots(entries.map((entry) => entry.slug));
   const queue = entries.filter((entry) => {
     const organizations = snapshots.get(entry.slug)?.organizations;
-    return Array.isArray(organizations) && organizations.some((organization) => !organization.floor);
+    return Array.isArray(organizations)
+      && organizations.some((organization) => !organization.floor || (withCoords && !organization.coords));
   });
-  console.log(`Зданий с неполными этажами: ${queue.length} из ${entries.length}`);
+  console.log(`Зданий с неполными ${withCoords ? 'этажами или точками' : 'этажами'}: ${queue.length} из ${entries.length}`);
   let context = null;
   let fetcher = nodeFetcher;
   if (!nodeFetch && queue.length > 0) {
