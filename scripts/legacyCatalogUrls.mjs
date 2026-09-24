@@ -39,6 +39,13 @@ const LEGACY_AREA_ALIASES = {
   suharevo: 'street/lobanka',
 };
 
+// Карточки, слитые в другую (2026-09-24: «Порт» на Шафарнянской, 11 стал
+// корпусом общей карточки «Порт»). Старый адрес ведёт сразу на итоговый —
+// и из /minsk/bcminsk, и из /minsk/bc (оба 301 в vercel.json).
+export const MERGED_BC_SLUGS = {
+  'port-2': 'port',
+};
+
 const RATING_SLUGS = {
   'samye-dostupnye': 'affordable',
   'samye-bolshie': 'largest',
@@ -54,6 +61,7 @@ export function newCatalogPath(segments) {
     if (s.length === 1 && s[0] === 'reyting') return ['rating'];
     if (s.length === 1 && s[0] === 'stroyashchiesya') return ['new'];
     if (s.length === 1 && s[0] === 'gid') return ['guide'];
+    if (s.length === 1 && MERGED_BC_SLUGS[s[0]]) return [MERGED_BC_SLUGS[s[0]]];
     if (s.length === 2 && s[0] === 'rating') return ['rating', RATING_SLUGS[s[1]] ?? s[1]];
     if (s.length === 2 && s[0] === 'raion') return ['district', s[1]];
     if (s.length === 4 && s[0] === 'class' && s[2] === 'raion') return ['class', s[1], 'district', s[3]];
