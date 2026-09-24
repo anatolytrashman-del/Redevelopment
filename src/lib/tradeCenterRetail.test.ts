@@ -1,13 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import type {
+  RetailAnchorEntry,
   RetailAwardEntry,
   RetailFigureEntry,
   RetailInfo,
   RetailParking,
   RetailRankingEntry,
+  RetailTimelineEntry,
 } from '../data/businessCenters';
 import {
   anchorsFaqAnswer,
+  anchorMetaParts,
+  formatAnchorArea,
+  retailHistoryFaqAnswer,
+  sortTimeline,
+  timelineMonth,
   audienceFaqQuestion,
   eventsFaqAnswer,
   figureMeta,
@@ -47,6 +54,30 @@ import {
   retailSectionIds,
   sortFloorsTopDown,
 } from './tradeCenterRetail';
+
+const anchor = (over: Partial<RetailAnchorEntry> = {}): RetailAnchorEntry => ({
+  name: 'Якорь',
+  category: null,
+  floor: null,
+  area: null,
+  since: null,
+  text: '',
+  yandexUrl: null,
+  source: null,
+  sourceUrl: null,
+  ...over,
+});
+
+const step = (over: Partial<RetailTimelineEntry> = {}): RetailTimelineEntry => ({
+  date: '2019',
+  kind: 'first',
+  name: 'Бренд',
+  text: '',
+  note: null,
+  source: null,
+  sourceUrl: null,
+  ...over,
+});
 
 const ranking = (over: Partial<RetailRankingEntry> = {}): RetailRankingEntry => ({
   place: 4,
@@ -249,10 +280,10 @@ describe('normalizeRetailInfo', () => {
     });
     expect(info).not.toBeNull();
     expect(info!.floorsGuide).toEqual([{ floor: '1', text: 'Продукты', date: null, source: null, sourceUrl: null }]);
-    expect(info!.firsts.map((f) => f.name)).toEqual(['Zara Home']);
+    expect(info!.timeline.map((f) => f.name)).toEqual(['Zara Home']);
     expect(info!.leisure).toEqual([]);
     expect(info!.ranking[0]).toMatchObject({ place: 4, total: null, year: 2025 });
-    expect(retailSectionIds(info)).toEqual(['floors', 'firsts']);
+    expect(retailSectionIds(info)).toEqual(['floors', 'retail-history']);
   });
 
   it('награды и новые поля рейтинга: кривые записи отброшены', () => {
@@ -322,14 +353,24 @@ describe('ответы FAQ', () => {
     expect(floorsFaqAnswer([])).toBeNull();
   });
 
-  it('якоря и бывшие якоря', () => {
+  it('якоря: категория, этаж, площадь, год, текст', () => {
     expect(
       anchorsFaqAnswer([
-        { kind: 'anchor', name: 'Корона', text: 'гипермаркет', ...src },
-        { kind: 'former_anchor', name: 'Zara', text: '', ...src },
-        { kind: 'first', name: 'Massimo Dutti', text: '', ...src },
+        anchor({ name: 'Гиппо', category: 'гипермаркет', floor: '-1', area: '6300', since: '2016', text: 'крупнейший продуктовый' }),
+        anchor({ name: 'Корона', text: '' }),
       ]),
-    ).toBe('Корона — гипермаркет.\nРаньше здесь были: Zara.');
+    ).toBe('Гиппо — гипермаркет (−1 этаж, 6\u00a0300\u00a0м², с 2016 года). Крупнейший продуктовый.\nКорона.');
+    expect(anchorsFaqAnswer([])).toBeNull();
+  });
+
+  it('история ритейла: по возрастанию даты, пометка отдельным предложением', () => {
+    expect(
+      retailHistoryFaqAnswer([
+        step({ date: '2019-09', name: 'H&M', text: 'первый магазин в Беларуси' }),
+        step({ date: '2017', kind: 'record', name: 'Атриум', text: 'самый высокий в Минске', note: 'по данным ТЦ' }),
+      ]),
+    ).toBe('2017 — Атриум: самый высокий в Минске. По данным ТЦ.\nСентябрь 2019 — H&M: первый магазин в Беларуси.');
+    expect(retailHistoryFaqAnswer([])).toBeNull();
   });
 });
 
@@ -425,8 +466,10 @@ describe('normalizeRetailInfo — дополнительные ключи', () =
 
 describe('разделы и размеры', () => {
   const base = normalizeRetailInfo({ hoursNote: 'x' }) as RetailInfo;
-  it('группы: посетитель и бизнес', () => {
+  it('группы: посетитель, бизнес, якоря у каталога', () => {
     expect(retailSectionGroup('floors')).toBe('visitor');
+    expect(retailSectionGroup('retail-history')).toBe('visitor');
+    expect(retailSectionGroup('anchors')).toBe('tenants');
     expect(retailSectionGroup('visit')).toBe('visitor');
     expect(retailSectionGroup('business')).toBe('business');
     expect(retailSectionGroup('quotes')).toBe('business');
@@ -551,5 +594,92 @@ describe('ответы FAQ — для бизнеса', () => {
     expect(quotesFaqAnswer([{ who: 'Директор ТЦ', text: '«Мы открылись»', date: '2019-03', ...noSrc }])).toBe(
       '«Мы открылись» — Директор ТЦ, март 2019.',
     );
+  });
+});
+
+// --- Якоря и история ритейла (2026-09-24) ---------------------------------
+
+describe('normalizeRetailInfo — якоря и лента', () => {
+  it('новая схема: кривые записи отброшены, лента по возрастанию даты', () => {
+    const info = normalizeRetailInfo({
+      anchors: [
+        { name: 'Гиппо', category: 'Гипермаркет', floor: -1, area: '6 300 м²', since: 2016, yandexUrl: 'https://yandex.by/maps/org/1' },
+        { name: 'Кто-то', category: 'аптека', yandexUrl: 'javascript:alert(1)' },
+        { category: 'fashion' },
+      ],
+      timeline: [
+        { date: '2021-07', kind: 'record', name: 'Ёлка' },
+        { date: '2017-04-29', kind: 'first', name: 'New Balance', text: 'первый концепт-магазин' },
+        { date: '2018', kind: 'closure', name: 'Ушёл' },
+        { kind: 'first', name: 'Без даты' },
+        { date: 'весной', kind: 'milestone', name: 'Непонятно когда' },
+        { date: '2019', kind: 'first_format', text: 'без имени' },
+      ],
+      firsts: [{ kind: 'first', name: 'Старое', date: '2015' }],
+    });
+    expect(info!.anchors).toEqual([
+      anchor({ name: 'Гиппо', category: 'гипермаркет', floor: '-1', area: '6 300 м²', since: '2016', yandexUrl: 'https://yandex.by/maps/org/1' }),
+      anchor({ name: 'Кто-то', category: 'другое' }),
+    ]);
+    // Новая схема заменяет firsts целиком — «Старое» не подмешивается.
+    expect(info!.timeline.map((t) => t.name)).toEqual(['New Balance', 'Ёлка']);
+    expect(retailSectionIds(info)).toEqual(['retail-history', 'anchors']);
+  });
+
+  it('пустой timeline при новой схеме не тянет старые firsts', () => {
+    const info = normalizeRetailInfo({ timeline: [], anchors: [{ name: 'Гиппо' }], firsts: [{ kind: 'first', name: 'X', date: '2015' }] });
+    expect(info!.timeline).toEqual([]);
+  });
+
+  it('старые firsts: anchor → якорь, first → лента, former_anchor и его «первые» — нигде', () => {
+    const info = normalizeRetailInfo({
+      firsts: [
+        { kind: 'first', name: 'Reserved', date: '2017-04-09', text: 'первый в Беларуси Reserved', source: 'Onliner' },
+        { kind: 'first', name: 'Finn Flare', date: '2017-05-31', text: 'первый в Беларуси' },
+        { kind: 'first', name: 'Без даты', text: 'x' },
+        { kind: 'anchor', name: '«Гиппо», Familia', date: '2025-06-26', text: 'якоря на 2025 год' },
+        { kind: 'former_anchor', name: 'Reserved', date: '2019-05', text: 'закрылся' },
+        { kind: 'former_anchor', name: '«Евроопт» (формат Euroopt Super)', date: '2021' },
+      ],
+    });
+    expect(info!.anchors).toEqual([anchor({ name: '«Гиппо», Familia', text: 'якоря на 2025 год' })]);
+    expect(info!.timeline).toEqual([
+      step({ date: '2017-05-31', name: 'Finn Flare', text: 'первый в Беларуси' }),
+    ]);
+    expect(JSON.stringify(info)).not.toContain('закрылся');
+    expect(JSON.stringify(info)).not.toContain('Евроопт');
+  });
+
+  it('одни только бывшие якоря — карточек нет', () => {
+    expect(normalizeRetailInfo({ firsts: [{ kind: 'former_anchor', name: 'Zara', date: '2020' }] })).toBeNull();
+  });
+});
+
+describe('якоря и лента — вёрстка', () => {
+  it('строка «этаж · площадь · с года» — только известные части', () => {
+    expect(anchorMetaParts(anchor({ floor: '2-3', area: '1 200 м²', since: '2019' }))).toEqual([
+      '2–3 этажи',
+      '1 200 м²',
+      'с 2019 года',
+    ]);
+    expect(anchorMetaParts(anchor({ since: 'открытия' }))).toEqual(['с открытия']);
+    expect(anchorMetaParts(anchor())).toEqual([]);
+    expect(formatAnchorArea('около 2 000 м²')).toBe('около 2 000 м²');
+  });
+
+  it('сортировка ленты и месяц под годом', () => {
+    const sorted = sortTimeline([step({ date: '2019-03', name: 'B' }), step({ date: '2019', name: 'A' }), step({ date: '2016-12-01', name: 'C' })]);
+    expect(sorted.map((t) => t.name)).toEqual(['C', 'A', 'B']);
+    expect(timelineMonth(step({ date: '2019-03' }))).toBe('март');
+    expect(timelineMonth(step({ date: '2019' }))).toBeNull();
+  });
+
+  it('размеры: лента свёрнута до 12 строк, якоря по три в ряд', () => {
+    const info = normalizeRetailInfo({
+      anchors: Array.from({ length: 7 }, (_, i) => ({ name: `A${i}` })),
+      timeline: Array.from({ length: 15 }, (_, i) => ({ date: String(2000 + i), kind: 'milestone', name: `T${i}` })),
+    });
+    expect(retailSectionSize(info, 'retail-history')).toBe(12);
+    expect(retailSectionSize(info, 'anchors')).toBe(3);
   });
 });

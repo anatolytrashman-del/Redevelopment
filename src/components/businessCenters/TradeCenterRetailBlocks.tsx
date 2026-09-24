@@ -1,6 +1,10 @@
-// Торговые блоки карточки ТЦ (2026-09-23): «Что на каком этаже», «Первые в
-// Беларуси и якоря», «Кино, еда, развлечения»; за ними — «Посетителю», «Арендаторам и рекламодателям», «ТЦ в
-// цифрах» и «Цитаты» (TradeCenterExtraBlocks.tsx). Данные —
+// Торговые блоки карточки ТЦ (2026-09-23): «Что на каком этаже», «Чем ТЦ
+// вошёл в историю ритейла», «Кино, еда, развлечения»; за ними — «Посетителю»,
+// «Арендаторам и рекламодателям», «ТЦ в цифрах» и «Цитаты»
+// (TradeCenterExtraBlocks.tsx), последними — «Якорные арендаторы», вплотную
+// к каталогу арендаторов, который страница рисует сразу за этим компонентом
+// (2026-09-24: старая карточка «Первые в Беларуси и якоря» разделена на эти
+// два блока, см. TradeCenterAnchorsHistory.tsx). Данные —
 // business_centers.retail_info (у БЦ пусто, компонент не рисует ничего). Каждая карточка — только если по ней есть записи.
 //
 // Места в рейтингах до 2026-09-24 были жёлтыми плашками в первой из этих
@@ -24,7 +28,7 @@ import {
   LEISURE_KIND_LABELS,
   floorSortKey,
   formatFloorBadge,
-  formatRetailDate,
+  retailHistoryTitle,
   retailSectionIds,
   sortFloorsTopDown,
   sortLeisure,
@@ -38,6 +42,7 @@ import {
   TradeCenterQuotesCard,
   TradeCenterVisitCard,
 } from './TradeCenterExtraBlocks';
+import { TradeCenterAnchorsCard, TradeCenterHistoryCard } from './TradeCenterAnchorsHistory';
 
 const LEISURE_ICONS: Record<RetailLeisureKind, LucideIcon> = {
   cinema: Clapperboard,
@@ -49,18 +54,18 @@ const LEISURE_ICONS: Record<RetailLeisureKind, LucideIcon> = {
 
 export function TradeCenterRetailBlocks({
   info,
+  name,
   after,
 }: {
   info: RetailInfo | null;
+  /** Имя в заголовке ленты: «ТЦ «Замок»». */
+  name: string;
   after?: (id: RetailSectionId) => ReactNode;
 }) {
   if (!info) return null;
   const ids = retailSectionIds(info);
 
   const floors = sortFloorsTopDown(info.floorsGuide);
-  const firsts = info.firsts.filter((f) => f.kind === 'first');
-  const anchors = info.firsts.filter((f) => f.kind === 'anchor');
-  const former = info.firsts.filter((f) => f.kind === 'former_anchor');
   const leisure = sortLeisure(info.leisure);
 
   return (
@@ -92,55 +97,8 @@ export function TradeCenterRetailBlocks({
       )}
       {floors.length > 0 && after?.('floors')}
 
-      {info.firsts.length > 0 && (
-        <div id="firsts" className={cardClass} style={glassCardShadow}>
-          <CardTitle id="firsts" />
-          {firsts.length > 0 && (
-            <section className="flex flex-col gap-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Впервые в Беларуси</h3>
-              <ul className="flex flex-col divide-y divide-border">
-                {firsts.map((entry, i) => {
-                  const when = formatRetailDate(entry.date);
-                  return (
-                    <li key={`${entry.name}-${i}`} className="flex flex-col gap-1 py-3 first:pt-1 last:pb-0">
-                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                        <span className="break-words text-sm font-semibold text-ink">{entry.name}</span>
-                        {when && (
-                          <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs text-ink-muted">{when}</span>
-                        )}
-                      </div>
-                      {entry.text && <p className="break-words text-sm leading-relaxed text-ink-muted">{entry.text}</p>}
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          )}
-          {anchors.length > 0 && (
-            <section className="flex flex-col gap-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Якорные арендаторы</h3>
-              <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {anchors.map((entry, i) => (
-                  <li
-                    key={`${entry.name}-${i}`}
-                    className="flex min-w-0 flex-col gap-1 rounded-2xl border border-border bg-white/65 p-3"
-                  >
-                    <span className="break-words text-sm font-semibold text-ink">{entry.name}</span>
-                    {entry.text && <span className="break-words text-sm leading-relaxed text-ink-muted">{entry.text}</span>}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-          {former.length > 0 && (
-            <p className="break-words text-xs leading-relaxed text-ink-muted">
-              Раньше здесь были: {former.map((f) => f.name).join(', ')}.
-            </p>
-          )}
-          <SourcesLine entries={[...firsts, ...anchors, ...former]} />
-        </div>
-      )}
-      {info.firsts.length > 0 && after?.('firsts')}
+      {ids.includes('retail-history') && <TradeCenterHistoryCard timeline={info.timeline} title={retailHistoryTitle(name)} />}
+      {ids.includes('retail-history') && after?.('retail-history')}
 
       {leisure.length > 0 && (
         <div id="leisure" className={cardClass} style={glassCardShadow}>
@@ -182,6 +140,8 @@ export function TradeCenterRetailBlocks({
       {ids.includes('numbers') && after?.('numbers')}
       {ids.includes('quotes') && <TradeCenterQuotesCard quotes={info.quotes} />}
       {ids.includes('quotes') && after?.('quotes')}
+      {ids.includes('anchors') && <TradeCenterAnchorsCard anchors={info.anchors} />}
+      {ids.includes('anchors') && after?.('anchors')}
     </>
   );
 }
