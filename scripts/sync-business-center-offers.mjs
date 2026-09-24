@@ -632,7 +632,11 @@ async function main() {
     .select('slug, name, address, district')
     // Торговые центры (kind = 'tc') пока не собираем: их объявления попали бы
     // в офисную аналитику каталога БЦ, которая читает business_center_offers целиком.
-    .eq('kind', 'bc');
+    .eq('kind', 'bc')
+    // hide_offers — УК попросила не показывать объявления и цены по зданию
+    // (CAMPUS, письмо 24.09.2026). Такой БЦ не ищем вовсе, а его старые
+    // строки снимет удаление ниже: их ad_id не попадут в свежую выборку.
+    .eq('hide_offers', false);
   if (centersError) throw centersError;
 
   const scopedCenters = LIMIT ? centers.slice(0, LIMIT) : centers;
