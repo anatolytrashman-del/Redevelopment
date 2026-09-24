@@ -24,8 +24,15 @@ function parseOrganizations(raw: unknown): TenantSourceOrganization[] {
       reviewCount: typeof org.reviewCount === 'number' ? org.reviewCount : null,
       rawText: typeof org.rawText === 'string' ? org.rawText : null,
       floor: typeof org.floor === 'string' && org.floor.trim() !== '' ? org.floor.trim() : null,
+      coords: parseCoords(org.coords),
     }))
     .filter((org) => org.name !== '');
+}
+
+function parseCoords(raw: unknown): [number, number] | null {
+  if (!Array.isArray(raw) || raw.length !== 2) return null;
+  const [lon, lat] = raw.map(Number);
+  return Number.isFinite(lon) && Number.isFinite(lat) ? [lon, lat] : null;
 }
 
 function fromRow(row: BusinessCenterTenantSnapshotRow): BusinessCenterTenantSnapshot {

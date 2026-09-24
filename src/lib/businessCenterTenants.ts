@@ -88,6 +88,7 @@ export function buildTenantsFromSnapshot(
       industry: industry === TENANT_INDUSTRY_OTHER ? null : industry,
       placement: formatTenantPlacement(placement),
       floor: placement.floor,
+      coords: org.coords ?? null,
       rating: org.rating,
       reviewCount: org.reviewCount,
       url: org.sourceUrl,
@@ -144,6 +145,7 @@ export function buildTenantsFromGis2(organizations: Gis2TenantOrganization[]): T
     industry: org.industry,
     placement: null,
     floor: null,
+    coords: null,
     rating: null,
     reviewCount: null,
     url: null,
@@ -189,4 +191,15 @@ export function buildFloorGroups(organizations: TenantOrganizationView[]): Floor
 
 export function formatFloorLabel(floor: string): string {
   return `${floor.replace(/^-/, '−')} этаж`;
+}
+
+// Схему этажа (components/businessCenters/FloorSchema) показываем, только
+// когда точка есть у большинства магазинов с известным этажом: на трети точек
+// это не схема этажа, а случайная россыпь.
+const FLOOR_SCHEMA_MIN_SHARE = 0.5;
+
+export function hasFloorSchema(organizations: TenantOrganizationView[]): boolean {
+  const withFloor = organizations.filter((org) => org.floor);
+  if (withFloor.length === 0) return false;
+  return withFloor.filter((org) => org.coords).length / withFloor.length >= FLOOR_SCHEMA_MIN_SHARE;
 }

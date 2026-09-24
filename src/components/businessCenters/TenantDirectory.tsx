@@ -26,7 +26,8 @@ import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { TenantOrganizationView } from '../../data/businessCenterTenants';
 import { tenantDirectionLabel } from '../../data/tenantIndustries';
-import { buildFloorGroups, formatFloorLabel } from '../../lib/businessCenterTenants';
+import { buildFloorGroups, formatFloorLabel, hasFloorSchema } from '../../lib/businessCenterTenants';
+import { FloorSchema } from './FloorSchema';
 
 const TENANT_PAGE_SIZE = 6;
 const ALL_TENANT_DIRECTIONS = 'Все организации';
@@ -85,6 +86,11 @@ export function TenantDirectory({ organizations }: { organizations: TenantOrgani
   const floorGroups = useMemo(() => buildFloorGroups(organizations), [organizations]);
   const withFloor = organizations.filter((org) => org.floor).length;
   const showFloors = organizations.length > 0 && withFloor / organizations.length >= FLOOR_SUMMARY_MIN_SHARE;
+  // Схема этажа (2026-09-24) — когда у магазинов собраны точки. На «Все
+  // этажи» схема показывает первый этаж: схема всех этажей разом — каша.
+  const showSchema = showFloors && hasFloorSchema(organizations);
+  const schemaFloor = activeFloor ?? floorGroups.find((group) => group.floor === '1')?.floor ?? floorGroups[0]?.floor ?? null;
+  const schemaHighlight = normalizedQuery || activeDirection !== ALL_TENANT_DIRECTIONS ? new Set(filtered) : null;
 
   useEffect(() => setPage(0), [query, activeDirection, activeFloor]);
 
@@ -186,6 +192,10 @@ export function TenantDirectory({ organizations }: { organizations: TenantOrgani
               </p>
             )}
           </div>
+        )}
+
+        {showSchema && schemaFloor !== null && (
+          <FloorSchema entries={entries} floor={schemaFloor} highlighted={schemaHighlight} />
         )}
 
         {visibleEntries.length > 0 ? (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fillTenantFloors, floorFromText, levelFromOrgHtml } from './yandex-tenant-floors.mjs';
+import { coordsFromOrgHtml, fillTenantFloors, floorFromText, levelFromOrgHtml } from './yandex-tenant-floors.mjs';
 
 // Урезанный state-view карточки организации: сама карточка и «похожее место»
 // с другим уровнем — брать надо уровень именно своей карточки.
@@ -53,5 +53,33 @@ describe('fillTenantFloors', () => {
     );
     expect(stats.stopped).toBe(true);
     expect(organizations[0].floor).toBeUndefined();
+  });
+});
+
+describe('coordsFromOrgHtml и withCoords', () => {
+  const withPoint = (id, level, coordinates) => `<html><script type="application/json" class="state-view">${JSON.stringify({
+    stack: [{ results: { items: [
+      { id: '999', coordinates: [1, 1] },
+      { id, businessProperties: { level }, coordinates },
+    ] } }],
+  })}</script></html>`;
+
+  it('берёт точку своей карточки', () => {
+    expect(coordsFromOrgHtml(withPoint('42', '3', [27.58, 53.92]), '42')).toEqual([27.58, 53.92]);
+    expect(coordsFromOrgHtml(withPoint('42', '3', null), '42')).toBeNull();
+  });
+
+  it('с withCoords идёт в карточку и за теми, у кого этаж уже есть', async () => {
+    const fetched = [];
+    const { organizations, stats } = await fillTenantFloors(
+      [
+        { name: 'A', sourceId: '1', sourceUrl: 'https://yandex.by/maps/org/a/1/', rawText: 'A 2 этаж' },
+        { name: 'B', sourceId: '2', sourceUrl: 'https://yandex.by/maps/org/b/2/', rawText: 'B', coords: [5, 5], floor: '1' },
+      ],
+      { withCoords: true, fetchHtml: async (url) => { fetched.push(url); return withPoint('1', '7', [27.5, 53.9]); } },
+    );
+    expect(fetched).toEqual(['https://yandex.by/maps/org/a/1/']);
+    expect(organizations[0]).toMatchObject({ floor: '2', coords: [27.5, 53.9] });
+    expect(stats.coords).toBe(1);
   });
 });

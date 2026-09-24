@@ -34,18 +34,36 @@ function pageState(html) {
   }
 }
 
+function ownItem(html, orgId) {
+  const state = pageState(html);
+  const items = state?.stack?.[0]?.results?.items ?? [];
+  return items.find((candidate) => String(candidate?.id) === String(orgId)) ?? null;
+}
+
 /**
  * Уровень плана из HTML карточки организации. Берём ровно карточку с этим id:
  * на странице есть и соседние организации («Похожие места»), у них свои уровни.
  */
 export function levelFromOrgHtml(html, orgId) {
-  const state = pageState(html);
-  const items = state?.stack?.[0]?.results?.items ?? [];
-  const item = items.find((candidate) => String(candidate?.id) === String(orgId)) ?? null;
+  const item = ownItem(html, orgId);
   if (!item) return null;
   const level = item.businessProperties?.level;
   if (typeof level === 'string' && level.trim()) return level.trim().replace(MINUS_RE, '-');
   return floorFromText(item.additionalAddress);
+}
+
+/**
+ * Точка организации [долгота, широта] из её карточки. У магазинов с
+ * поэтажного плана ТЦ это место самого магазина внутри здания, а не общая
+ * точка дома (проверено 2026-09-24 на «Европе»: Denny Rose и Lakbi на 3 этаже
+ * в 46 м друг от друга) — из этих точек рисуется наша схема этажа.
+ */
+export function coordsFromOrgHtml(html, orgId) {
+  const coords = ownItem(html, orgId)?.coordinates;
+  if (!Array.isArray(coords) || coords.length !== 2) return null;
+  const [lon, lat] = coords.map(Number);
+  if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+  return [lon, lat];
 }
 
 export const isCaptchaHtml = (html) => /showcaptcha|checkcaptcha|SmartCaptcha/.test(html) && !/class="state-view"/.test(html);
@@ -57,8 +75,8 @@ export const isCaptchaHtml = (html) => /showcaptcha|checkcaptcha|SmartCaptcha/.t
  * (человек прошёл её в браузере), или false — тогда обход останавливается, а
  * уже найденное сохраняется. Уже заполненный floor не трогаем.
  */
-export async function fillTenantFloors(organizations, { fetchHtml, onCaptcha = async () => false, delay = async () => {}, log = () => {} }) {
-  const stats = { fromText: 0, fromCard: 0, kept: 0, missing: 0, stopped: false };
+export async function fillTenantFloors(organizations, { fetchHtml, onCaptcha = async () => false, delay = async () => {}, log = () => {}, withCoords = false }) {
+  const stats = { fromText: 0, fromCard: 0, kept: 0, missing: 0, coords: 0, stopped: false };
   const result = organizations.map((organization) => {
     if (organization.floor) {
       stats.kept += 1;
@@ -68,8 +86,11 @@ export async function fillTenantFloors(organizations, { fetchHtml, onCaptcha = a
     if (floor) stats.fromText += 1;
     return floor ? { ...organization, floor } : { ...organization };
   });
-  const pending = result.filter((organization) => !organization.floor && organization.sourceId && organization.sourceUrl);
-  if (pending.length > 0) log(`  этаж по карточкам: ${pending.length} организаций`);
+  // withCoords: в карточку идём и за точкой магазина — то есть ко всем, у
+  // кого её ещё нет, даже если этаж уже известен по тексту.
+  const needsCard = (organization) => !organization.floor || (withCoords && !organization.coords);
+  const pending = result.filter((organization) => needsCard(organization) && organization.sourceId && organization.sourceUrl);
+  if (pending.length > 0) log(`  ${withCoords ? 'этаж и точка' : 'этаж'} по карточкам: ${pending.length} организаций`);
   for (const [index, organization] of pending.entries()) {
     const url = organization.sourceUrl.replace(/\/(?:inside|reviews|photos|menu|prices)\/?$/, '/');
     let html = null;
@@ -82,10 +103,15 @@ export async function fillTenantFloors(organizations, { fetchHtml, onCaptcha = a
       }
     }
     if (stats.stopped) break;
-    const level = html ? levelFromOrgHtml(html, organization.sourceId) : null;
+    const level = html && !organization.floor ? levelFromOrgHtml(html, organization.sourceId) : null;
     if (level) {
       organization.floor = level;
       stats.fromCard += 1;
+    }
+    const coords = html && withCoords ? coordsFromOrgHtml(html, organization.sourceId) : null;
+    if (coords) {
+      organization.coords = coords;
+      stats.coords += 1;
     }
     if ((index + 1) % 25 === 0) log(`    ${index + 1}/${pending.length}`);
     await delay();
