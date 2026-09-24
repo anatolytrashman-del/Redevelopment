@@ -19,6 +19,7 @@ export type FloorSchemaEntry = TenantOrganizationView & { direction: string };
 // кружки ужимаются вместе с рисунком до точек, по которым не попасть.
 const DEFAULT_VIEW_W = 640;
 const NARROW_VIEW_W = 520;
+const ZOOM_STEPS = [1, 1.6, 2.5, 4];
 const PAD = 28;
 const HULL_MARGIN_M = 9;
 // Точка дальше трёх «типичных» расстояний от центра (и дальше 60 м) — ошибка
@@ -29,6 +30,9 @@ const OUTLIER_MIN_M = 60;
 // Магазины с одной и той же точкой (так бывает у островков и киосков) —
 // разводим по кругу, чтобы кружки не легли друг на друга.
 const SAME_POINT_SPREAD_PX = 9;
+// Условное помещение не больше круга такого радиуса вокруг точки магазина.
+const CELL_MAX_RADIUS_M = 9;
+const CELL_GAP_PX = 1.5;
 
 // Не фирменный красный: на схеме он читался бы как «проблема» (см. CLAUDE.md
 // про primary и danger).
@@ -105,6 +109,69 @@ function inflate(hull: Point[], margin: number): Point[] {
   });
 }
 
+// Отсечение многоугольника полуплоскостью a·x + b·y <= c (Сазерленд — Ходжман).
+function clipHalfPlane(polygon: Point[], a: number, b: number, c: number): Point[] {
+  const out: Point[] = [];
+  for (let i = 0; i < polygon.length; i += 1) {
+    const cur = polygon[i];
+    const next = polygon[(i + 1) % polygon.length];
+    const curIn = a * cur[0] + b * cur[1] <= c;
+    const nextIn = a * next[0] + b * next[1] <= c;
+    if (curIn) out.push(cur);
+    if (curIn !== nextIn) {
+      const t = (c - a * cur[0] - b * cur[1]) / (a * (next[0] - cur[0]) + b * (next[1] - cur[1]));
+      out.push([cur[0] + t * (next[0] - cur[0]), cur[1] + t * (next[1] - cur[1])]);
+    }
+  }
+  return out;
+}
+
+// Условное помещение магазина: часть этажа, ближайшая к его точке (ячейка
+// Вороного внутри контура), но не дальше maxRadius — иначе магазин на краю
+// пустого крыла «занял» бы всё крыло. Чуть ужимаем к центру, чтобы между
+// соседями оставался зазор, как стена на плане.
+function storeCells(points: Point[], outline: Point[], maxRadius: number, gap: number): Point[][] {
+  return points.map((p, i) => {
+    let cell = outline;
+    for (let k = 0; k < 8 && cell.length > 0; k += 1) {
+      const angle = (Math.PI / 4) * k;
+      const a = Math.cos(angle);
+      const b = Math.sin(angle);
+      cell = clipHalfPlane(cell, a, b, a * p[0] + b * p[1] + maxRadius);
+    }
+    for (let j = 0; j < points.length && cell.length > 0; j += 1) {
+      if (j === i) continue;
+      const q = points[j];
+      const a = q[0] - p[0];
+      const b = q[1] - p[1];
+      if (a === 0 && b === 0) continue;
+      cell = clipHalfPlane(cell, a, b, (q[0] ** 2 + q[1] ** 2 - p[0] ** 2 - p[1] ** 2) / 2);
+    }
+    if (cell.length < 3) return [];
+    const cx = cell.reduce((sum, v) => sum + v[0], 0) / cell.length;
+    const cy = cell.reduce((sum, v) => sum + v[1], 0) / cell.length;
+    return cell.map(([x, y]) => {
+      const len = Math.hypot(x - cx, y - cy) || 1;
+      const k = Math.max(0, len - gap) / len;
+      return [cx + (x - cx) * k, cy + (y - cy) * k] as Point;
+    });
+  });
+}
+
+function cellBox(cell: Point[]) {
+  const xs = cell.map((p) => p[0]);
+  const ys = cell.map((p) => p[1]);
+  const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, w: maxX - minX, h: maxY - minY };
+}
+
+// Подпись, которая влезает в помещение: по ширине ~6 px на букву при 10 px.
+function fitLabel(name: string, width: number): string | null {
+  const chars = Math.floor((width - 6) / 6);
+  if (chars < 3) return null;
+  return name.length <= chars ? name : `${name.slice(0, Math.max(chars - 1, 2)).trimEnd()}…`;
+}
+
 export function FloorSchema({
   entries,
   floor,
@@ -118,13 +185,25 @@ export function FloorSchema({
 }) {
   const [selected, setSelected] = useState<FloorSchemaEntry | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
-  const [viewW, setViewW] = useState(DEFAULT_VIEW_W);
+  const [boxW, setBoxW] = useState(DEFAULT_VIEW_W);
+  // Масштаб: на целом ТЦ в ширину экрана подписи в помещения не влезают,
+  // поэтому схему можно увеличить и листать внутри рамки.
+  const [zoom, setZoom] = useState(1);
+  const viewW = Math.round(boxW * zoom);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // После смены масштаба держим в рамке середину схемы, а не левый верх.
+  useEffect(() => {
+    const box = scrollRef.current;
+    if (!box) return;
+    box.scrollLeft = (box.scrollWidth - box.clientWidth) / 2;
+    box.scrollTop = (box.scrollHeight - box.clientHeight) / 2;
+  }, [zoom]);
   useEffect(() => {
     const box = boxRef.current;
     if (!box || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(([item]) => {
       const width = Math.round(item.contentRect.width);
-      if (width > 0) setViewW(width);
+      if (width > 0) setBoxW(width);
     });
     observer.observe(box);
     return () => observer.disconnect();
@@ -146,7 +225,7 @@ export function FloorSchema({
     const angle = principalAngle(kept.map((item) => item.m));
     // На узком экране — наоборот, длинной стороной вниз: вертикаль там есть,
     // а ширины нет.
-    const turn = viewW < NARROW_VIEW_W ? Math.PI / 2 : 0;
+    const turn = boxW < NARROW_VIEW_W ? Math.PI / 2 : 0;
     const meters = kept.map((item) => ({ entry: item.entry, m: rotate(item.m, turn - angle) }));
     const outline = inflate(convexHull(meters.map((item) => item.m)), HULL_MARGIN_M);
     const xs = outline.map((p) => p[0]);
@@ -155,13 +234,13 @@ export function FloorSchema({
     const spanX = Math.max(maxX - minX, 20);
     const spanY = Math.max(maxY - minY, 20);
     const scale = (viewW - PAD * 2) / spanX;
-    const viewH = Math.min(Math.max(spanY * scale + PAD * 2, 200), 560);
+    const viewH = Math.min(Math.max(spanY * scale + PAD * 2, 200), 560 * zoom);
     const fit = Math.min(scale, (viewH - PAD * 2) / spanY);
     const offX = (viewW - spanX * fit) / 2;
     const offY = (viewH - spanY * fit) / 2;
     const project = ([x, y]: Point): Point => [offX + (x - minX) * fit, offY + (y - minY) * fit];
     return { meters, outline: outline.map(project), project, viewH, metersPerPx: 1 / fit };
-  }, [entries, viewW]);
+  }, [entries, viewW, boxW, zoom]);
 
   const directionColors = useMemo(() => {
     const counts = new Map<string, number>();
@@ -192,6 +271,17 @@ export function FloorSchema({
     );
   }, [layout, floor]);
 
+  const cells = useMemo(() => {
+    if (!layout || dots.length === 0) return [];
+    const polygons = storeCells(
+      dots.map((dot) => [dot.x, dot.y] as Point),
+      layout.outline,
+      CELL_MAX_RADIUS_M / layout.metersPerPx,
+      CELL_GAP_PX,
+    );
+    return dots.map((dot, index) => ({ ...dot, cell: polygons[index] }));
+  }, [layout, dots]);
+
   if (!layout) return null;
   const onFloorDirections = new Set(dots.map((dot) => dot.entry.direction));
   const legend = [...directionColors.keys()].filter((direction) => onFloorDirections.has(direction));
@@ -205,54 +295,100 @@ export function FloorSchema({
         <span className="font-semibold text-ink">Схема: {formatFloorLabel(floor)}</span>
         <span className="text-xs text-ink-muted">{dots.length} на схеме</span>
       </div>
-      <svg
-        viewBox={`0 0 ${viewW} ${layout.viewH}`}
-        className="block h-auto w-full touch-manipulation"
-        role="img"
-        aria-label={`Схема: ${formatFloorLabel(floor)}, ${dots.length} организаций`}
-        onClick={() => setSelected(null)}
-      >
-        <polygon
-          points={layout.outline.map((p) => p.join(',')).join(' ')}
-          fill="#f1f5f9"
-          stroke="#cbd5e1"
-          strokeWidth={2}
-          strokeLinejoin="round"
-        />
-        {dots.map(({ entry, x, y }, index) => {
-          const dimmed = highlighted !== null && !highlighted.has(entry);
-          const isSelected = current === entry;
-          return (
-            <g
-              key={`${entry.name}-${entry.url ?? index}`}
-              className="cursor-pointer"
-              opacity={dimmed ? 0.18 : 1}
-              onClick={(event) => {
-                event.stopPropagation();
-                setSelected(entry);
-              }}
-            >
-              <title>{entry.name}</title>
-              {/* Невидимая зона побольше — чтобы попадать пальцем. */}
-              <circle cx={x} cy={y} r={12} fill="transparent" />
-              <circle
-                cx={x}
-                cy={y}
-                r={isSelected ? 8 : 5.5}
-                fill={colorOf(entry.direction)}
-                stroke="#fff"
-                strokeWidth={isSelected ? 3 : 1.5}
-              />
+      <div className="relative">
+        <div ref={scrollRef} className="overflow-auto" style={{ maxHeight: 620 }}>
+          <svg
+            viewBox={`0 0 ${viewW} ${layout.viewH}`}
+            width={viewW}
+            height={layout.viewH}
+            className="block max-w-none touch-manipulation"
+            role="img"
+            aria-label={`Схема: ${formatFloorLabel(floor)}, ${dots.length} организаций`}
+            onClick={() => setSelected(null)}
+          >
+            <polygon
+              points={layout.outline.map((p) => p.join(',')).join(' ')}
+              fill="#f1f5f9"
+              stroke="#cbd5e1"
+              strokeWidth={2}
+              strokeLinejoin="round"
+            />
+            {cells.map(({ entry, x, y, cell }, index) => {
+              const dimmed = highlighted !== null && !highlighted.has(entry);
+              const isSelected = current === entry;
+              const color = colorOf(entry.direction);
+              const box = cell.length > 0 ? cellBox(cell) : null;
+              const label = box && box.h >= 14 ? fitLabel(entry.name, box.w) : null;
+              return (
+                <g
+                  key={`${entry.name}-${entry.url ?? index}`}
+                  className="cursor-pointer"
+                  opacity={dimmed ? 0.2 : 1}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setSelected(entry);
+                  }}
+                >
+                  <title>{entry.name}</title>
+                  {cell.length > 0 ? (
+                    <polygon
+                      points={cell.map((p) => p.join(',')).join(' ')}
+                      fill={color}
+                      fillOpacity={isSelected ? 0.45 : 0.16}
+                      stroke={isSelected ? color : '#fff'}
+                      strokeWidth={isSelected ? 2 : 1}
+                      strokeLinejoin="round"
+                    />
+                  ) : null}
+                  <circle cx={x} cy={y} r={isSelected ? 4.5 : 3} fill={color} />
+                  {label && box && (
+                    <text
+                      x={x}
+                      y={y + 13}
+                      textAnchor="middle"
+                      fontSize={10}
+                      fontWeight={600}
+                      fill="#1e293b"
+                      paintOrder="stroke"
+                      stroke="#ffffff"
+                      strokeWidth={2.5}
+                      strokeOpacity={0.8}
+                    >
+                      {label}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
+            <g transform={`translate(${PAD}, ${layout.viewH - 14})`} className="text-[11px]">
+              <line x1={0} x2={scaleBarM / layout.metersPerPx} y1={0} y2={0} stroke="#94a3b8" strokeWidth={2} />
+              <text x={scaleBarM / layout.metersPerPx + 6} y={4} fill="#64748b">
+                {scaleBarM} м
+              </text>
             </g>
-          );
-        })}
-        <g transform={`translate(${PAD}, ${layout.viewH - 14})`} className="text-[11px]">
-          <line x1={0} x2={scaleBarM / layout.metersPerPx} y1={0} y2={0} stroke="#94a3b8" strokeWidth={2} />
-          <text x={scaleBarM / layout.metersPerPx + 6} y={4} fill="#64748b">
-            {scaleBarM} м
-          </text>
-        </g>
-      </svg>
+          </svg>
+        </div>
+        <div className="absolute right-3 top-3 flex overflow-hidden rounded-lg border border-border bg-white/90 text-sm font-semibold text-ink shadow-sm">
+          <button
+            type="button"
+            aria-label="Уменьшить схему"
+            disabled={zoom <= ZOOM_STEPS[0]}
+            onClick={() => setZoom((value) => ZOOM_STEPS[Math.max(0, ZOOM_STEPS.indexOf(value) - 1)])}
+            className="px-3 py-1 hover:bg-white disabled:opacity-35"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            aria-label="Увеличить схему"
+            disabled={zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]}
+            onClick={() => setZoom((value) => ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, ZOOM_STEPS.indexOf(value) + 1)])}
+            className="border-l border-border px-3 py-1 hover:bg-white disabled:opacity-35"
+          >
+            +
+          </button>
+        </div>
+      </div>
       <div className="flex flex-col gap-2 border-t border-border px-4 py-3">
         {current ? (
           <div className="flex items-start justify-between gap-3">
@@ -280,7 +416,7 @@ export function FloorSchema({
             )}
           </div>
         ) : (
-          <p className="text-xs text-ink-muted">Нажмите на точку, чтобы увидеть магазин.</p>
+          <p className="text-xs text-ink-muted">Нажмите на помещение, чтобы увидеть магазин.</p>
         )}
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-muted">
           {legend.map((direction) => (
@@ -294,7 +430,7 @@ export function FloorSchema({
           ))}
         </div>
         <p className="text-[11px] leading-snug text-ink-faint">
-          Места магазинов — по точкам организаций в Яндекс Картах, контур здания условный.
+          Места магазинов — по точкам организаций в Яндекс Картах. Границы помещений и контур здания условные.
         </p>
       </div>
     </div>
