@@ -23,4 +23,8 @@ update business_center_2gis_snapshots set tenant_organizations = $q$[{"name": "I
 where business_center_slug = 'campus';
 delete from business_center_offers where business_center_slug = 'campus';
 delete from business_center_offer_snapshots where business_center_slug = 'campus';
+-- Медиана здания в месячном срезе рынка — из неё блок «Место среди конкурентов»
+-- показывал «Ставка аренды $17,5/м²». Следующий срез (3-го числа) строится из
+-- business_center_offers, где CAMPUS больше нет, поэтому строка не вернётся.
+delete from market_snapshots where slice_type = 'building' and slice_key = 'campus';
 notify pgrst, 'reload schema';
