@@ -192,3 +192,14 @@ export function buildFloorGroups(organizations: TenantOrganizationView[]): Floor
 export function formatFloorLabel(floor: string): string {
   return `${floor.replace(/^-/, '−')} этаж`;
 }
+
+// Схему этажа (components/businessCenters/FloorSchema) показываем, только
+// когда точка есть у большинства магазинов с известным этажом: на трети точек
+// это не схема этажа, а случайная россыпь.
+const FLOOR_SCHEMA_MIN_SHARE = 0.5;
+
+export function hasFloorSchema(organizations: TenantOrganizationView[]): boolean {
+  const withFloor = organizations.filter((org) => org.floor);
+  if (withFloor.length === 0) return false;
+  return withFloor.filter((org) => org.coords).length / withFloor.length >= FLOOR_SCHEMA_MIN_SHARE;
+}
