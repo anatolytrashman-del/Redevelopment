@@ -75,7 +75,7 @@ export const isCaptchaHtml = (html) => /showcaptcha|checkcaptcha|SmartCaptcha/.t
  * (человек прошёл её в браузере), или false — тогда обход останавливается, а
  * уже найденное сохраняется. Уже заполненный floor не трогаем.
  */
-export async function fillTenantFloors(organizations, { fetchHtml, onCaptcha = async () => false, delay = async () => {}, log = () => {}, withCoords = false }) {
+export async function fillTenantFloors(organizations, { fetchHtml, onCaptcha = async () => false, delay = async () => {}, log = () => {}, withCoords = false, concurrency = 1 }) {
   const stats = { fromText: 0, fromCard: 0, kept: 0, missing: 0, coords: 0, stopped: false };
   const result = organizations.map((organization) => {
     if (organization.floor) {
@@ -91,31 +91,50 @@ export async function fillTenantFloors(organizations, { fetchHtml, onCaptcha = a
   const needsCard = (organization) => !organization.floor || (withCoords && !organization.coords);
   const pending = result.filter((organization) => needsCard(organization) && organization.sourceId && organization.sourceUrl);
   if (pending.length > 0) log(`  ${withCoords ? 'этаж и точка' : 'этаж'} по карточкам: ${pending.length} организаций`);
-  for (const [index, organization] of pending.entries()) {
-    const url = organization.sourceUrl.replace(/\/(?:inside|reviews|photos|menu|prices)\/?$/, '/');
-    let html = null;
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      html = await fetchHtml(url).catch(() => null);
-      if (!html || !isCaptchaHtml(html)) break;
-      if (!(await onCaptcha(url))) {
-        stats.stopped = true;
-        break;
+  // Карточки открываются в concurrency потоков (владелец, 2026-09-24:
+  // «организации собираются очень медленно» — по одной с паузой 1–3 с
+  // здание на 200 магазинов шло минутами). Проверку Яндекса проходит
+  // человек один раз: остальные потоки ждут тот же промис.
+  let next = 0;
+  let done = 0;
+  let captcha = null;
+  const passCaptcha = (url) => {
+    captcha ??= Promise.resolve(onCaptcha(url)).finally(() => { captcha = null; });
+    return captcha;
+  };
+  const worker = async () => {
+    while (!stats.stopped && next < pending.length) {
+      const organization = pending[next];
+      next += 1;
+      const url = organization.sourceUrl.replace(/\/(?:inside|reviews|photos|menu|prices)\/?$/, '/');
+      let html = null;
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        if (captcha) await captcha;
+        html = await fetchHtml(url).catch(() => null);
+        if (!html || !isCaptchaHtml(html)) break;
+        html = null;
+        if (!(await passCaptcha(url))) {
+          stats.stopped = true;
+          break;
+        }
       }
+      if (stats.stopped) break;
+      const level = html && !organization.floor ? levelFromOrgHtml(html, organization.sourceId) : null;
+      if (level) {
+        organization.floor = level;
+        stats.fromCard += 1;
+      }
+      const coords = html && withCoords ? coordsFromOrgHtml(html, organization.sourceId) : null;
+      if (coords) {
+        organization.coords = coords;
+        stats.coords += 1;
+      }
+      done += 1;
+      if (done % 25 === 0) log(`    ${done}/${pending.length}`);
+      await delay();
     }
-    if (stats.stopped) break;
-    const level = html && !organization.floor ? levelFromOrgHtml(html, organization.sourceId) : null;
-    if (level) {
-      organization.floor = level;
-      stats.fromCard += 1;
-    }
-    const coords = html && withCoords ? coordsFromOrgHtml(html, organization.sourceId) : null;
-    if (coords) {
-      organization.coords = coords;
-      stats.coords += 1;
-    }
-    if ((index + 1) % 25 === 0) log(`    ${index + 1}/${pending.length}`);
-    await delay();
-  }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(concurrency, pending.length)) }, worker));
   stats.missing = result.filter((organization) => !organization.floor).length;
   return { organizations: result, stats };
 }

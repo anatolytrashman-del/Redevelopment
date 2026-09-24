@@ -265,12 +265,14 @@ function organizationFromCard(card, pageUrl, entry, buildingUrl) {
   };
 }
 
-// Скролл до стабилизации числа карточек (unchanged < 6), как и раньше.
+// Скролл до стабилизации числа карточек (unchanged < 4).
 async function scrollAndCollect(page, entry, buildingUrl, initialOrganizations, onProgress) {
   const found = new Map(initialOrganizations.map((organization) => [organization.sourceId, organization]));
   let unchanged = 0;
   let previous = 0;
-  while (unchanged < 6) {
+  // 4 пустых прокрутки подряд по 1 с — список кончился (было 6 по 1,2 с:
+  // лишние ~5 с на каждый список, а их у здания два — «Внутри» и дом).
+  while (unchanged < 4) {
     // Раньше карточки читались по одной через Playwright-локаторы (два
     // круговых обращения к браузеру на каждую, включая уже известные) —
     // на большом здании (90+ организаций) это заметно накапливалось на
@@ -285,7 +287,7 @@ async function scrollAndCollect(page, entry, buildingUrl, initialOrganizations, 
     if (found.size > previous && onProgress) await onProgress([...found.values()], page.url());
     previous = found.size;
     await page.locator('.scroll__container').last().evaluate((el) => { el.scrollTop = el.scrollHeight; }).catch(() => {});
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(1000);
   }
   return [...found.values()];
 }
@@ -312,6 +314,11 @@ async function collectLive(entry, initialOrganizations, onProgress) {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // 1–3 секунды случайно: одинаковый ритм запросов — примета робота.
 const randomDelay = () => sleep(1000 + Math.floor(Math.random() * 2000));
+// Карточки организаций для этажей: 3 потока с паузой 0,5–1,2 с в каждом
+// вместо одного с 1–3 с — примерно в пять раз быстрее. --floors-concurrency 1
+// возвращает прежний темп, если Яндекс начнёт чаще спрашивать проверку.
+const floorsConcurrency = Math.max(1, Number(valueOf('--floors-concurrency') ?? 3));
+const cardDelay = () => sleep(500 + Math.floor(Math.random() * 700));
 
 async function looksLikeCaptcha(page) {
   if (/showcaptcha|checkcaptcha/.test(page.url())) return true;
@@ -390,7 +397,8 @@ const nodeFetcher = {
 async function addFloors(organizations, fetcher) {
   const { organizations: withFloor, stats } = await fillTenantFloors(organizations, {
     ...fetcher,
-    delay: randomDelay,
+    delay: cardDelay,
+    concurrency: floorsConcurrency,
     log: (line) => console.log(line),
     withCoords,
   });

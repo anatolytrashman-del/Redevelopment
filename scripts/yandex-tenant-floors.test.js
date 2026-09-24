@@ -83,3 +83,52 @@ describe('coordsFromOrgHtml и withCoords', () => {
     expect(stats.coords).toBe(1);
   });
 });
+
+describe('fillTenantFloors в несколько потоков', () => {
+  const org = (id) => ({ sourceId: id, sourceUrl: `https://yandex.by/maps/org/x/${id}/`, rawText: '', floor: null });
+  const cardHtml = (id, level) =>
+    `<script type="application/json" class="state-view">${JSON.stringify({ stack: [{ results: { items: [{ id, businessProperties: { level: String(level) } }] } }] })}</script>`;
+
+  it('обходит все карточки ровно по разу и не превышает число потоков', async () => {
+    const organizations = Array.from({ length: 10 }, (_, i) => org(String(i + 1)));
+    let active = 0;
+    let peak = 0;
+    const seen = [];
+    const fetchHtml = async (url) => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      active -= 1;
+      const id = url.match(/\/(\d+)\/$/)[1];
+      seen.push(id);
+      return cardHtml(id, Number(id) % 3);
+    };
+    const { organizations: result, stats } = await fillTenantFloors(organizations, { fetchHtml, concurrency: 3 });
+    expect(seen.sort()).toEqual(organizations.map((o) => o.sourceId).sort());
+    expect(peak).toBe(3);
+    expect(stats.fromCard).toBe(10);
+    expect(result.find((o) => o.sourceId === '4').floor).toBe('1');
+  });
+
+  it('проверку Яндекса проходят один раз на все потоки', async () => {
+    const organizations = Array.from({ length: 6 }, (_, i) => org(String(i + 1)));
+    let blocked = true;
+    let captchaCalls = 0;
+    const fetchHtml = async (url) => {
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      if (blocked) return '<html>showcaptcha</html>';
+      const id = url.match(/\/(\d+)\/$/)[1];
+      return cardHtml(id, 2);
+    };
+    const onCaptcha = async () => {
+      captchaCalls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      blocked = false;
+      return true;
+    };
+    const { stats } = await fillTenantFloors(organizations, { fetchHtml, onCaptcha, concurrency: 3 });
+    expect(captchaCalls).toBe(1);
+    expect(stats.fromCard).toBe(6);
+    expect(stats.stopped).toBe(false);
+  });
+});
