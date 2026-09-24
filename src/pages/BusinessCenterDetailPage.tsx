@@ -1,5 +1,5 @@
 import { tenantDirectionLabel } from '../data/tenantIndustries';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useParams } from 'react-router-dom';
@@ -506,6 +506,8 @@ export function BusinessCenterDetailPage() {
       internalInfrastructureText: null as string | null,
       administrativeDistrictText: null as string | null,
       readinessText: null as string | null,
+      corpusBreakdown: {} as Record<string, { corpusLabel: string; value: string }[]>,
+      corpora: [] as { label: string; year: string | null; floors: string | null; area: string | null }[],
     };
     if (!center) return empty;
 
@@ -519,6 +521,11 @@ export function BusinessCenterDetailPage() {
       }
     }
 
+    // Значения, которые у корпусов разные: в таблице «Параметры здания» они
+    // идут строками друг под другом с адресом корпуса слева (владелец,
+    // 2026-09-24: «перечисление лифтов и этажей непонятно, делал бы строчки
+    // друг под другом»). В FAQ и прочий текст уходит та же строка через «; ».
+    const corpusBreakdown: Record<string, { corpusLabel: string; value: string }[]> = {};
     const sourceValue = (label: string): string | null => {
       const entries = byLabel.get(label) ?? [];
       const unique = entries.filter(
@@ -529,7 +536,26 @@ export function BusinessCenterDetailPage() {
           ) === index,
       );
       if (unique.length === 0) return null;
-      if (unique.length === 1) return unique[0].value;
+      if (unique.length === 1) {
+        // Значение, известное только у одного корпуса, в базе подписано
+        // адресом в скобках («9310 м² (Шафарнянская, 11)»), иначе на
+        // странице без подписи его не отличить от общего. В таблице такое
+        // значение идёт той же строкой «адрес — значение», что и остальные.
+        const only = unique[0];
+        const suffix = only.corpusLabel ? ` (${only.corpusLabel})` : null;
+        if (suffix && only.value.endsWith(suffix)) {
+          corpusBreakdown[label] = [
+            { corpusLabel: only.corpusLabel!, value: formatCorpusValue(only.value.slice(0, -suffix.length)) },
+          ];
+        }
+        return only.value;
+      }
+      if (unique.every((entry) => entry.corpusLabel)) {
+        corpusBreakdown[label] = unique.map((entry) => ({
+          corpusLabel: entry.corpusLabel!,
+          value: formatCorpusValue(entry.value),
+        }));
+      }
       return unique
         .map((entry) => (entry.corpusLabel ? `${entry.corpusLabel}: ${entry.value}` : entry.value))
         .join('; ');
@@ -605,6 +631,24 @@ export function BusinessCenterDetailPage() {
       },
     ];
 
+    // Корпуса комплекса (группы technicalParams со своей подписью). Два и
+    // больше — первый блок показывает их списком вместо одного адреса, чтобы
+    // с первого экрана было видно, что зданий несколько (владелец,
+    // 2026-09-24, на примере «Порта»).
+    const corpusGroups = center.technicalParams.filter((group) => group.corpusLabel);
+    const corpora =
+      corpusGroups.length >= 2
+        ? corpusGroups.map((group) => {
+            const pick = (label: string) => group.params.find((param) => param.label === label)?.value ?? null;
+            return {
+              label: group.corpusLabel!,
+              year: pick('Год ввода'),
+              floors: pick('Количество этажей'),
+              area: pick('Общая площадь'),
+            };
+          })
+        : [];
+
     const buildingLabels = new Set(buildingInformationRows.map((row) => row.label));
     const removedLabels = new Set(['Свободные площади', 'Инфраструктура в шаговой доступности']);
     const firstBlockTechnicalRows: { label: string; value: string }[] = [];
@@ -633,6 +677,8 @@ export function BusinessCenterDetailPage() {
           : sourceValue('Внутренняя инфраструктура'),
       administrativeDistrictText: sourceValue('Административный район') ?? center.district,
       readinessText: sourceValue('Степень готовности'),
+      corpusBreakdown,
+      corpora,
     };
   }, [center, nearestMetro]);
 
@@ -673,6 +719,18 @@ export function BusinessCenterDetailPage() {
       .filter(Boolean)
       .join(', ');
   }, [redistributedTechnicalParams.internalInfrastructureText, tenantOrganizations, tenantAmenities]);
+
+  // «2010–2014» вместо года одного корпуса: плитка «Год сдачи» у комплекса
+  // иначе показывала бы год того здания, чей адрес стоит в карточке.
+  const corpusYearRange = useMemo(() => {
+    const years = redistributedTechnicalParams.corpora
+      .map((corpus) => Number(corpus.year?.match(/\d{4}/)?.[0]))
+      .filter((year) => Number.isFinite(year) && year > 0);
+    if (years.length < 2) return null;
+    const min = Math.min(...years);
+    const max = Math.max(...years);
+    return min === max ? `${min} г.` : `${min}–${max}`;
+  }, [redistributedTechnicalParams.corpora]);
 
   // Из общего списка фактов исключаем то, что теперь показано отдельными
   // авторскими блоками: рейтинг и отзывы уехали в «Что говорят» (Б11),
@@ -2285,6 +2343,12 @@ export function BusinessCenterDetailPage() {
                   должен увидеть знакомое слово на первом экране, иначе
                   решит, что попал не туда. */}
               <h1 className="text-2xl font-extrabold leading-tight text-ink">{fullName(center)}</h1>
+              {redistributedTechnicalParams.corpora.length >= 2 && (
+                <p className="text-sm font-semibold text-primary">
+                  Комплекс из {redistributedTechnicalParams.corpora.length}{' '}
+                  {pluralRu(redistributedTechnicalParams.corpora.length, 'здания', 'зданий', 'зданий')} с разными адресами
+                </p>
+              )}
               {center.altNames.length > 0 && (
                 <p className="text-sm text-ink-muted">
                   Также известен как {center.altNames.map((alt) => `«${alt}»`).join(', ')}
@@ -2312,6 +2376,33 @@ export function BusinessCenterDetailPage() {
                     </p>
                   </div>
                 )}
+                {redistributedTechnicalParams.corpora.length >= 2 ? (
+                  // Комплекс из нескольких зданий: вместо одного адреса —
+                  // список корпусов, у каждого год, этажность и площадь
+                  // (что известно). Один адрес на первом экране читался как
+                  // «одно здание», и про остальные корпуса гость узнавал
+                  // только из таблицы в конце страницы.
+                  <div className="grid min-w-0 items-baseline gap-x-2 sm:grid-cols-[max-content_minmax(0,1fr)]">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                      {redistributedTechnicalParams.corpora.length} {pluralRu(redistributedTechnicalParams.corpora.length, 'корпус', 'корпуса', 'корпусов')}
+                    </p>
+                    <ul className="mt-0.5 min-w-0 space-y-1 text-sm leading-snug text-ink sm:mt-0">
+                      {redistributedTechnicalParams.corpora.map((corpus) => {
+                        const details = [
+                          corpus.year ? `${corpus.year}\u00a0г.` : null,
+                          corpus.floors ? `${corpus.floors}\u00a0эт.` : null,
+                          corpus.area ? formatCorpusValue(corpus.area) : null,
+                        ].filter(Boolean);
+                        return (
+                          <li key={corpus.label}>
+                            <span className="font-semibold">{corpus.label}</span>
+                            {details.length > 0 && <span className="text-ink-muted"> · {details.join(' · ')}</span>}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : (
                 <div className="grid min-w-0 items-baseline gap-x-2 sm:grid-cols-[max-content_minmax(0,1fr)]">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Адрес</p>
                   {/* Улица внутри адреса раньше вела на уличный хаб каталога
@@ -2321,6 +2412,7 @@ export function BusinessCenterDetailPage() {
                       ниже, убрана, адрес остаётся обычным текстом. */}
                   <p className="mt-0.5 min-w-0 text-sm leading-snug text-ink sm:mt-0">{displayAddress}</p>
                 </div>
+                )}
                 {(nearestMetro || center.metro) && (
                   <div className="grid min-w-0 items-baseline gap-x-2 sm:grid-cols-[max-content_minmax(0,1fr)]">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Метро</p>
@@ -2383,7 +2475,9 @@ export function BusinessCenterDetailPage() {
               {center.totalArea != null && (
                 <FactTile value={`${center.totalArea.toLocaleString('ru-RU')} м²`} label="Общая площадь" tone="muted" />
               )}
-              {center.yearBuilt != null && (
+              {corpusYearRange ? (
+                <FactTile tone="muted" value={corpusYearRange} label="Годы сдачи корпусов" />
+              ) : center.yearBuilt != null && (
                 <FactTile
                   tone="muted"
                   value={`${center.yearBuilt} г.`}
@@ -2753,7 +2847,20 @@ export function BusinessCenterDetailPage() {
                       >
                         {row.label}
                       </th>
-                      <td role="cell" className="block w-full break-words [overflow-wrap:anywhere] pb-2 pt-0 pl-3 pr-3 text-ink sm:table-cell sm:w-auto sm:py-2 sm:pl-2">{row.value}</td>
+                      <td role="cell" className="block w-full break-words [overflow-wrap:anywhere] pb-2 pt-0 pl-3 pr-3 text-ink sm:table-cell sm:w-auto sm:py-2 sm:pl-2">
+                        {redistributedTechnicalParams.corpusBreakdown[row.label] ? (
+                          <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-0.5">
+                            {redistributedTechnicalParams.corpusBreakdown[row.label].map((entry) => (
+                              <Fragment key={entry.corpusLabel}>
+                                <dt className="text-ink-muted">{entry.corpusLabel}</dt>
+                                <dd>{entry.value}</dd>
+                              </Fragment>
+                            ))}
+                          </dl>
+                        ) : (
+                          row.value
+                        )}
+                      </td>
                     </tr>
                   ))}
                   {center.buildingFacts.map((fact, index) => (
@@ -3418,3 +3525,13 @@ function renderRentalText(text: string): ReactNode {
   return <>{blocks}</>;
 }
 
+// Значения корпусов лежат в technicalParams строкой, как их прислал
+// застройщик: «15415 м²», «14400,7 м²», «2.7». Приводим к виду остальной
+// страницы: «15 415 м²», «14 400,7 м²», «2,7»; всё прочее — как есть.
+function formatCorpusValue(value: string): string {
+  const m = value.trim().match(/^(\d+)(?:[.,](\d+))?(\s*м²)?$/);
+  if (!m) return value;
+  // Разряды — только у площадей: «2013» в любой другой строке — это год.
+  const whole = m[3] ? Number(m[1]).toLocaleString('ru-RU') : m[1];
+  return `${whole}${m[2] ? `,${m[2]}` : ''}${m[3] ? '\u00a0м²' : ''}`;
+}
