@@ -212,6 +212,12 @@ export interface BusinessCenter {
   // Ставится только по реальной сверке, из базы; бейджей под чужие данные
   // не выдаём.
   verifiedByManagementAt?: string | null;
+  // Дата первого ответа УК или администрации здания на наше письмо (Порт —
+  // 23.09.2026). Владелец, 24.09: блок «Вы собственник или управляющая
+  // компания?» убирать у каждого БЦ и ТЦ, где администрация ответила, —
+  // связь уже есть. Отметки о проверке это не даёт: её ставит только
+  // verifiedByManagementAt.
+  managementRepliedAt?: string | null;
 
   // --- Производные колонки (Д1/Д2 плана docs/bc-catalog-redesign-plan.md) ---
   // Всё ниже НЕ редактируется из приложения: считает триггер в базе
@@ -470,6 +476,7 @@ export interface BusinessCenterRow {
   verdict_edited: boolean | null;
   reviews_checked: boolean | null;
   verified_by_management_at?: string | null;
+  management_replied_at?: string | null;
   photos: string[] | null;
   status: string | null;
   sort_order: number;

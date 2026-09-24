@@ -62,6 +62,7 @@ function fromRow(row: BusinessCenterRow): BusinessCenter {
     verdictEdited: row.verdict_edited ?? false,
     reviewsChecked: row.reviews_checked ?? false,
     verifiedByManagementAt: row.verified_by_management_at ?? null,
+    managementRepliedAt: row.management_replied_at ?? null,
     photos: row.photos ?? [],
     status: (row.status as BusinessCenter['status']) ?? 'built',
     sortOrder: row.sort_order,

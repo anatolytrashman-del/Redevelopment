@@ -3051,9 +3051,9 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         {/* Б12. Собственникам и УК — способ поправить данные. Пишем прямо
             в почту: отдельной формы с лидом здесь не заводим, это не заявка
             на аренду, а правка справочника, и ответить на неё должен
-            человек. Здание, чью карточку администрация уже сверила
-            (verifiedByManagementAt), блок не получает: вопрос ему не нужен. */}
-        {center && !ownerMode && !center.verifiedByManagementAt && (
+            человек. Здание, чья администрация нам уже ответила или сверила
+            карточку, блок не получает (владелец, 24.09.2026): связь есть. */}
+        {center && !ownerMode && !center.managementRepliedAt && !center.verifiedByManagementAt && (
           <div className={cn('mt-6 flex flex-col gap-2 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="text-lg font-bold text-ink">Вы собственник или управляющая компания?</h2>
             <p className="flex flex-wrap items-baseline gap-x-1.5 text-sm leading-relaxed text-ink-muted">
