@@ -205,6 +205,13 @@ export interface BusinessCenter {
   // (напр. «Аден» — по факту гостиница, не классический БЦ, отзывов с
   // Яндекс.Карт по нему не будет никогда) — тогда ставится вручную.
   reviewsChecked: boolean;
+  // Дата, когда УК или администрация здания сверили карточку в переписке
+  // (первая — CAMPUS, 24.09.2026). Под заголовком страницы появляется
+  // отметка «Информация проверена администрацией БЦ», а блок «Вы собственник
+  // или управляющая компания?» не выводится: администрация уже на связи.
+  // Ставится только по реальной сверке, из базы; бейджей под чужие данные
+  // не выдаём.
+  verifiedByManagementAt?: string | null;
 
   // --- Производные колонки (Д1/Д2 плана docs/bc-catalog-redesign-plan.md) ---
   // Всё ниже НЕ редактируется из приложения: считает триггер в базе
@@ -462,6 +469,7 @@ export interface BusinessCenterRow {
   cons: string[] | null;
   verdict_edited: boolean | null;
   reviews_checked: boolean | null;
+  verified_by_management_at?: string | null;
   photos: string[] | null;
   status: string | null;
   sort_order: number;

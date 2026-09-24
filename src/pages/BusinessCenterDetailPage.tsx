@@ -9,6 +9,7 @@ import {
   ArrowUpDown,
   ArrowLeft,
   Award,
+  BadgeCheck,
   Banknote,
   Building2,
   CheckCircle2,
@@ -2393,6 +2394,12 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                   {pluralRu(redistributedTechnicalParams.corpora.length, 'здания', 'зданий', 'зданий')} с разными адресами
                 </p>
               )}
+              {center.verifiedByManagementAt && (
+                <p className="mt-1.5 flex w-fit items-center gap-1 rounded-full border border-success/30 bg-success-bg px-2.5 py-0.5 text-xs font-semibold text-success">
+                  <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
+                  Информация проверена администрацией БЦ
+                </p>
+              )}
               {center.altNames.length > 0 && (
                 <p className="text-sm text-ink-muted">
                   Также известен как {center.altNames.map((alt) => `«${alt}»`).join(', ')}
@@ -3044,8 +3051,9 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         {/* Б12. Собственникам и УК — способ поправить данные. Пишем прямо
             в почту: отдельной формы с лидом здесь не заводим, это не заявка
             на аренду, а правка справочника, и ответить на неё должен
-            человек. */}
-        {center && !ownerMode && (
+            человек. Здание, чью карточку администрация уже сверила
+            (verifiedByManagementAt), блок не получает: вопрос ему не нужен. */}
+        {center && !ownerMode && !center.verifiedByManagementAt && (
           <div className={cn('mt-6 flex flex-col gap-2 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="text-lg font-bold text-ink">Вы собственник или управляющая компания?</h2>
             <p className="flex flex-wrap items-baseline gap-x-1.5 text-sm leading-relaxed text-ink-muted">
