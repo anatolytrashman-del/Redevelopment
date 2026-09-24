@@ -3,7 +3,8 @@
 // видимые блоки (components/businessCenters/TradeCenterRetailBlocks.tsx), и
 // FAQ карточки. Одни и те же функции на обе стороны — чтобы FAQ не
 // пересказывал блок своими словами и не расходился с ним.
-import { RETAIL_ANCHOR_CATEGORIES } from '../data/businessCenters';
+import { RETAIL_ANCHOR_CATEGORIES, RETAIL_FOOD_PLACE_TYPES, RETAIL_FUN_KINDS } from '../data/businessCenters';
+import { pluralRu } from './pluralRu';
 import type {
   RetailAnchorCategory,
   RetailAnchorEntry,
@@ -12,6 +13,12 @@ import type {
   RetailEventEntry,
   RetailFigureEntry,
   RetailFloorEntry,
+  RetailFoodInfo,
+  RetailFoodPlace,
+  RetailFoodPlaceType,
+  RetailFoodZone,
+  RetailFunEntry,
+  RetailFunKind,
   RetailHoursEntry,
   RetailInfo,
   RetailLabeledValue,
@@ -37,6 +44,8 @@ const ANCHOR_CATEGORY_SET = new Set<string>(RETAIL_ANCHOR_CATEGORIES);
 export const AWARD_RESULTS: RetailAwardResult[] = ['winner', 'diploma', 'laureate', 'finalist', 'nominee', 'other'];
 const AWARD_RESULT_SET = new Set<string>(AWARD_RESULTS);
 const LEISURE_KINDS = new Set(['cinema', 'food', 'kids', 'sport', 'other']);
+const FOOD_PLACE_TYPE_SET = new Set<string>(RETAIL_FOOD_PLACE_TYPES);
+const FUN_KIND_SET = new Set<string>(RETAIL_FUN_KINDS);
 export const TRANSPORT_MODES: RetailTransportMode[] = [
   'metro',
   'bus',
@@ -210,6 +219,110 @@ function anchorsAndTimeline(data: Record<string, unknown>): {
   return { anchors, timeline: sortTimeline(timeline) };
 }
 
+/** true/false и их строковые формы; всё прочее — «неизвестно». */
+function bool(value: unknown): boolean | null {
+  if (value === true || value === 'true') return true;
+  if (value === false || value === 'false') return false;
+  return null;
+}
+
+/** Ключ склейки заведений: «Кофе Хауз» и «кофе хауз» — одно место. */
+function placeKey(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/[«»"„“”']/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Одно заведение, записанное ресёрчем дважды (так бывает с сетями на двух
+ * этажах), — одна строка: известные поля берутся из первой записи,
+ * пропуски — из следующих, разные этажи перечисляются через запятую.
+ */
+function mergePlace(a: RetailFoodPlace, b: RetailFoodPlace): RetailFoodPlace {
+  // У склеенной записи этажи уже через запятую — третья копия не должна их повторить.
+  const floors = [a.floor, b.floor].flatMap((f) => (f ? f.split(/,\s*/) : [])).filter(Boolean);
+  const floor = floors.length ? [...new Set(floors)].join(', ') : null;
+  return {
+    name: a.name,
+    type: a.type,
+    cuisine: a.cuisine ?? b.cuisine,
+    floor,
+    inFoodcourt: a.inFoodcourt === true || b.inFoodcourt === true ? true : (a.inFoodcourt ?? b.inFoodcourt),
+    yandexUrl: a.yandexUrl ?? b.yandexUrl,
+    note: a.note ?? b.note,
+  };
+}
+
+/** retail_info.food → RetailFoodInfo; ни итога, ни зон, ни заведений — null. */
+function foodInfoOf(value: unknown): RetailFoodInfo | null {
+  const r = record(value);
+  if (!r) return null;
+  const summary = str(r.summary);
+  const zones: RetailFoodZone[] = records(r.zones).flatMap((z) => {
+    const name = str(z.name);
+    if (!name) return [];
+    return [
+      {
+        name,
+        floor: text(z.floor),
+        area: text(z.area),
+        seats: text(z.seats),
+        points: text(z.points),
+        hours: str(z.hours),
+        text: str(z.text),
+        ...sourceOf(z),
+      },
+    ];
+  });
+  const byKey = new Map<string, RetailFoodPlace>();
+  for (const p of records(r.places)) {
+    const name = str(p.name);
+    if (!name) continue;
+    const type = str(p.type);
+    const place: RetailFoodPlace = {
+      name,
+      type: (type && FOOD_PLACE_TYPE_SET.has(type) ? type : 'cafe') as RetailFoodPlaceType,
+      cuisine: str(p.cuisine),
+      floor: text(p.floor),
+      inFoodcourt: bool(p.inFoodcourt),
+      yandexUrl: httpUrl(p.yandexUrl),
+      note: str(p.note),
+    };
+    const key = placeKey(name);
+    const prev = byKey.get(key);
+    byKey.set(key, prev ? mergePlace(prev, place) : place);
+  }
+  const places = [...byKey.values()];
+  if (!summary && !zones.length && !places.length) return null;
+  return { summary, zones, places };
+}
+
+function funEntriesOf(value: unknown): RetailFunEntry[] {
+  return records(value).flatMap((r) => {
+    const name = str(r.name);
+    if (!name) return [];
+    const kind = str(r.kind);
+    return [
+      {
+        name,
+        kind: (kind && FUN_KIND_SET.has(kind) ? kind : 'other') as RetailFunKind,
+        floor: text(r.floor),
+        area: text(r.area),
+        capacity: text(r.capacity),
+        formats: [...new Set(strings(r.formats))],
+        hours: str(r.hours),
+        since: text(r.since),
+        text: str(r.text),
+        yandexUrl: httpUrl(r.yandexUrl),
+        ...sourceOf(r),
+      },
+    ];
+  });
+}
+
 /**
  * jsonb из базы → RetailInfo. Колонку заполняет скрипт ресёрча, и любой
  * массив в ней может отсутствовать, а запись — быть неполной: такие записи
@@ -240,6 +353,8 @@ export function normalizeRetailInfo(raw: unknown): RetailInfo | null {
       },
     ];
   });
+  const food = foodInfoOf(data.food);
+  const fun = funEntriesOf(data.fun);
   const ranking: RetailRankingEntry[] = records(data.ranking).flatMap((r) => {
     const place = num(r.place);
     const criterion = str(r.criterion);
@@ -334,6 +449,8 @@ export function normalizeRetailInfo(raw: unknown): RetailInfo | null {
     anchors,
     timeline,
     leisure,
+    food,
+    fun,
     ranking,
     awards,
     hours,
@@ -791,6 +908,312 @@ export function leisureFaqAnswer(leisure: RetailLeisureEntry[]): string | null {
     .join('\n');
 }
 
+// --- Еда и развлечения (2026-09-24) ---------------------------------------
+// Владелец разделил «Кино, еда, развлечения» (leisure) на два блока: «Где
+// поесть» (retail_info.food — зоны вроде фудкорта и ВСЕ заведения) и
+// «Развлечения» (retail_info.fun). У ТЦ, где есть хоть один из новых
+// ключей, leisure не рисуется, а из «Якорных арендаторов» уходят кинотеатр,
+// фудкорт, развлечения и фитнес — они уже описаны в новых блоках.
+
+export function hasFoodFun(info: RetailInfo | null): boolean {
+  return Boolean(info && (info.food || info.fun.length));
+}
+
+/** Старый блок досуга — только у ТЦ без новых блоков «Где поесть»/«Развлечения». */
+export function leisureForPage(info: RetailInfo | null): RetailLeisureEntry[] {
+  return !info || hasFoodFun(info) ? [] : info.leisure;
+}
+
+const FOOD_FUN_ANCHOR_CATEGORIES = new Set<RetailAnchorCategory>(['кинотеатр', 'фудкорт', 'развлечения', 'фитнес']);
+
+/**
+ * Якоря, которые показывает страница: при новых блоках еды и развлечений
+ * кинотеатр, фудкорт, развлечения и фитнес в якорях были бы дублем.
+ * Данные в базе чистятся отдельно — это страховка на фронте.
+ */
+export function anchorsForPage(info: RetailInfo | null): RetailAnchorEntry[] {
+  if (!info) return [];
+  if (!hasFoodFun(info)) return info.anchors;
+  return info.anchors.filter((a) => !a.category || !FOOD_FUN_ANCHOR_CATEGORIES.has(a.category));
+}
+
+export const FOOD_PLACE_TYPE_LABELS: Record<RetailFoodPlaceType, string> = {
+  restaurant: 'Рестораны',
+  cafe: 'Кафе',
+  fastfood: 'Фастфуд',
+  coffee: 'Кофейни',
+  dessert: 'Десерты и выпечка',
+  bar: 'Бары',
+};
+
+/** Число заведений типа словами для FAQ: «8 ресторанов», «6 точек фастфуда». */
+const FOOD_PLACE_TYPE_COUNT: Record<RetailFoodPlaceType, [string, string, string]> = {
+  restaurant: ['ресторан', 'ресторана', 'ресторанов'],
+  cafe: ['кафе', 'кафе', 'кафе'],
+  fastfood: ['точка фастфуда', 'точки фастфуда', 'точек фастфуда'],
+  coffee: ['кофейня', 'кофейни', 'кофеен'],
+  dessert: ['кондитерская', 'кондитерские', 'кондитерских'],
+  bar: ['бар', 'бара', 'баров'],
+};
+
+export interface FoodPlaceGroup {
+  type: RetailFoodPlaceType;
+  label: string;
+  places: RetailFoodPlace[];
+}
+
+/**
+ * Заведения по типам в порядке блока (рестораны → кафе → фастфуд →
+ * кофейни → десерты → бары), внутри типа — по алфавиту: в списке из
+ * 60 названий так ищут глазами.
+ */
+export function groupFoodPlaces(places: RetailFoodPlace[]): FoodPlaceGroup[] {
+  return RETAIL_FOOD_PLACE_TYPES.flatMap((type) => {
+    const group = places.filter((p) => p.type === type).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    return group.length ? [{ type, label: FOOD_PLACE_TYPE_LABELS[type], places: group }] : [];
+  });
+}
+
+/** Сколько заведений видно до «Показать все» — не меньше этого. */
+export const FOOD_PLACES_COLLAPSED = 15;
+
+/** Ряд списка на десктопе: заведения стоят по три. */
+const FOOD_PLACES_ROW = 3;
+
+/**
+ * Сколько заведений каждой группы видно в свёрнутом списке. Места
+ * раздаются по кругу целыми рядами (по три — столько в ряду на десктопе),
+ * пока видимых не станет FOOD_PLACES_COLLAPSED: так в свёрнутом виде видна
+ * каждая группа, а не одни рестораны, и ряды не обрываются на середине.
+ * Если прятать пришлось бы три заведения или меньше, список виден целиком:
+ * кнопка ради пары строк хуже, чем сами строки.
+ */
+export function foodPlacesVisibleCounts(groups: FoodPlaceGroup[], limit = FOOD_PLACES_COLLAPSED): number[] {
+  const full = groups.map((g) => g.places.length);
+  const total = full.reduce((sum, n) => sum + n, 0);
+  const counts = groups.map(() => 0);
+  let shown = 0;
+  while (shown < limit && shown < total) {
+    groups.forEach((g, i) => {
+      const next = Math.min(g.places.length, counts[i] + FOOD_PLACES_ROW);
+      shown += next - counts[i];
+      counts[i] = next;
+    });
+  }
+  return total - shown <= 3 ? full : counts;
+}
+
+/** Есть ли что прятать за «Показать все». */
+export function foodPlacesCollapsible(groups: FoodPlaceGroup[]): boolean {
+  const total = groups.reduce((sum, g) => sum + g.places.length, 0);
+  return foodPlacesVisibleCounts(groups).reduce((sum, n) => sum + n, 0) < total;
+}
+
+/** "3" → "эт. 3", "-1" → "эт. −1", "1, 3" → "эт. 1, 3". */
+export function formatFoodFloor(floor: string): string {
+  return `эт.\u00a0${formatFloorBadge(floor)}`;
+}
+
+/** "1200" → "1 200"; строка со словами — как есть. */
+function formatCount(value: string): string {
+  const digits = value.replace(/\s/g, '');
+  return /^\d+$/.test(digits) ? Number(digits).toLocaleString('ru-RU') : value;
+}
+
+function countOf(value: string): number | null {
+  const digits = value.replace(/\s/g, '');
+  return /^\d+$/.test(digits) ? Number(digits) : null;
+}
+
+/** Метрика зоны: крупное значение и подпись под ним. */
+export interface FoodZoneMetric {
+  value: string;
+  label: string;
+}
+
+/** «1 200 м² площадь», «600 мест», «18 точек питания» — только известные. */
+export function foodZoneMetrics(zone: RetailFoodZone): FoodZoneMetric[] {
+  const metrics: FoodZoneMetric[] = [];
+  if (zone.area) metrics.push({ value: formatAnchorArea(zone.area), label: 'площадь' });
+  if (zone.seats) {
+    const n = countOf(zone.seats);
+    metrics.push({ value: formatCount(zone.seats), label: n != null ? pluralRu(n, 'место', 'места', 'мест') : 'мест' });
+  }
+  if (zone.points) {
+    const n = countOf(zone.points);
+    metrics.push({
+      value: formatCount(zone.points),
+      label: n != null ? pluralRu(n, 'точка питания', 'точки питания', 'точек питания') : 'точек питания',
+    });
+  }
+  return metrics;
+}
+
+export const FUN_KIND_LABELS: Record<RetailFunKind, string> = {
+  cinema: 'Кинотеатр',
+  ice: 'Каток',
+  kids: 'Детям',
+  concert: 'Концерты',
+  games: 'Игры',
+  quest: 'Квесты',
+  sport: 'Спорт',
+  fitness: 'Фитнес',
+  other: 'Развлечения',
+};
+
+/** Кинотеатр первым, дальше — порядок схемы (каток, детям, концерты, …). */
+export function sortFun(fun: RetailFunEntry[]): RetailFunEntry[] {
+  return [...fun].sort((a, b) => RETAIL_FUN_KINDS.indexOf(a.kind) - RETAIL_FUN_KINDS.indexOf(b.kind));
+}
+
+/** "500" → "500 мест" у кино и концертов, «до 200 человек» у остальных. */
+export function formatFunCapacity(entry: RetailFunEntry): string | null {
+  if (!entry.capacity) return null;
+  const n = countOf(entry.capacity);
+  if (n == null) return entry.capacity;
+  const value = formatCount(entry.capacity);
+  return entry.kind === 'cinema' || entry.kind === 'concert'
+    ? `${value}\u00a0${pluralRu(n, 'место', 'места', 'мест')}`
+    : `до\u00a0${value}\u00a0${pluralRu(n, 'человека', 'человек', 'человек')}`;
+}
+
+/** Части строки «этаж · площадь · вместимость · с 2016» — только известные. */
+export function funMetaParts(entry: RetailFunEntry): string[] {
+  return [
+    entry.floor ? formatFunFloor(entry.floor) : null,
+    entry.area ? formatAnchorArea(entry.area) : null,
+    formatFunCapacity(entry),
+    entry.since ? formatFunSince(entry.since) : null,
+  ].filter((part): part is string => Boolean(part));
+}
+
+// «4-й уровень паркинга» — место словами, к нему «этаж» не приписываем.
+function formatFunFloor(floor: string): string {
+  return /[а-яё]{3,}/iu.test(floor) ? floor : formatFloorLabel(floor);
+}
+
+// Ресёрч пишет дату открытия как есть («2017-08-11», «2025-10»); в строке
+// метрик достаточно года.
+function formatFunSince(since: string): string {
+  if (/^с\s/i.test(since)) return since;
+  const iso = since.match(/^(\d{4})-\d{2}(?:-\d{2})?$/);
+  return `с\u00a0${iso ? iso[1] : since}`;
+}
+
+/**
+ * «Где поесть в …?» — итог, по строке на зону (этаж, площадь, места,
+ * точки, часы), потом число заведений по типам и до восьми названий
+ * ресторанов и кафе — тех же, что в списке блока.
+ */
+export function foodFaqAnswer(food: RetailFoodInfo | null): string | null {
+  if (!food) return null;
+  const lines: string[] = [];
+  if (food.summary) lines.push(sentence(food.summary));
+  for (const zone of food.zones) {
+    const parts = [
+      zone.floor ? formatFloorLabel(zone.floor) : null,
+      ...foodZoneMetrics(zone).map((m) => (m.label === 'площадь' ? m.value : `${m.value} ${m.label}`)),
+      zone.hours ? `работает ${zone.hours}` : null,
+    ].filter(Boolean);
+    const head = sentence(`${zone.name}${parts.length ? ` — ${parts.join(', ')}` : ''}`);
+    lines.push(zone.text ? `${head} ${sentence(upperFirst(zone.text))}` : head);
+  }
+  const groups = groupFoodPlaces(food.places);
+  if (groups.length) {
+    const total = food.places.length;
+    const counts = groups
+      .map((g) => {
+        const [one, few, many] = FOOD_PLACE_TYPE_COUNT[g.type];
+        return `${g.places.length} ${pluralRu(g.places.length, one, few, many)}`;
+      })
+      .join(', ');
+    lines.push(`Всего ${total} ${pluralRu(total, 'заведение', 'заведения', 'заведений')}: ${counts}.`);
+    const dining = groups.filter((g) => g.type === 'restaurant' || g.type === 'cafe');
+    const pool = (dining.length ? dining : groups).flatMap((g) => g.places.map((p) => p.name));
+    const label = dining.length ? dining.map((g) => g.label.toLowerCase()).join(' и ') : 'заведения';
+    const names = pool.slice(0, 8);
+    lines.push(`${upperFirst(label)}: ${names.join(', ')}${pool.length > names.length ? ' и другие' : ''}.`);
+  }
+  return lines.length ? lines.join('\n') : null;
+}
+
+/** Вид площадки существительным для FAQ: «— детский центр», а не «— детям». */
+const FUN_KIND_NOUNS: Record<RetailFunKind, string | null> = {
+  cinema: 'кинотеатр',
+  ice: 'каток',
+  kids: 'детский центр',
+  concert: 'концертная площадка',
+  games: 'игровой центр',
+  quest: 'квесты',
+  sport: 'спортивная площадка',
+  fitness: 'фитнес-клуб',
+  other: null,
+};
+
+/**
+ * «Какие развлечения есть в …?» — по строке на запись в порядке блока:
+ * «Silver Screen — кинотеатр (3 этаж, 1 500 мест, с 2016). Форматы: IMAX,
+ * 4DX. Режим работы: 10:00–02:00. Текст.»
+ */
+export function funFaqAnswer(fun: RetailFunEntry[]): string | null {
+  if (!fun.length) return null;
+  return sortFun(fun)
+    .map((f) => {
+      const noun = FUN_KIND_NOUNS[f.kind];
+      // «Кинотеатр Silver Screen — кинотеатр» — повтор; вид пишем, только если его нет в имени.
+      const showKind = noun && !f.name.toLowerCase().includes(noun.slice(0, 5));
+      const meta = funMetaParts(f);
+      const head = `${f.name}${showKind ? ` — ${noun}` : ''}${meta.length ? ` (${meta.join(', ')})` : ''}`;
+      // У кино и концертов это форматы залов (IMAX, 4DX), у остальных — услуги.
+      const formatsLabel = f.kind === 'cinema' || f.kind === 'concert' ? 'Форматы' : 'Что есть';
+      return [
+        sentence(head),
+        f.formats.length ? sentence(`${formatsLabel}: ${f.formats.join(', ')}`) : null,
+        f.hours ? sentence(`Режим работы: ${f.hours}`) : null,
+        f.text ? sentence(upperFirst(f.text)) : null,
+      ]
+        .filter(Boolean)
+        .join(' ');
+    })
+    .join('\n');
+}
+
+/** Заголовки карточек: `name` — «ТЦ «Замок»». */
+export function foodTitle(name: string): string {
+  return `Где поесть в ${name}`;
+}
+
+export function funTitle(name: string): string {
+  return `Развлечения в ${name}`;
+}
+
+/**
+ * Размер «Где поесть» для модели высот (единица ~43px, см.
+ * businessCenterPageLayout): итог — единица, ряд плашек зон по две —
+ * четыре, у каждой группы заведений заголовок — единица и по единице на
+ * ряд из трёх в СВЁРНУТОМ виде, кнопка «Показать все» — единица. Замер
+ * 2026-09-24 на 1280px (мок Galleria Minsk: 2 зоны, 44 заведения в шести
+ * группах, 18 единиц) — 975px свёрнутый, 1452px раскрытый.
+ */
+export function foodSectionSize(food: RetailFoodInfo | null): number {
+  if (!food) return 0;
+  const groups = groupFoodPlaces(food.places);
+  const visible = foodPlacesVisibleCounts(groups);
+  const placeRows = visible.reduce((sum, n) => sum + (n ? 1 + Math.ceil(n / 3) : 0), 0);
+  return (
+    (food.summary ? 1 : 0) +
+    Math.ceil(food.zones.length / 2) * 4 +
+    placeRows +
+    (foodPlacesCollapsible(groups) ? 1 : 0)
+  );
+}
+
+/** Размер «Развлечений»: кинотеатр — отдельный ряд во всю ширину, остальные по две. */
+export function funSectionSize(fun: RetailFunEntry[]): number {
+  const cinema = fun.filter((f) => f.kind === 'cinema').length;
+  return cinema + Math.ceil((fun.length - cinema) / 2);
+}
+
 /**
  * «Какие награды у …?» — каждая награда одной строкой в том же порядке,
  * что в блоке. `legacy` — строки наград из highlights, когда структурных
@@ -1008,6 +1431,8 @@ export function quotesFaqAnswer(quotes: RetailQuoteEntry[]): string | null {
 export type RetailSectionId =
   | 'floors'
   | 'retail-history'
+  | 'food'
+  | 'fun'
   | 'leisure'
   | 'visit'
   | 'business'
@@ -1020,6 +1445,10 @@ export const RETAIL_SECTION_LABELS: Record<RetailSectionId, string> = {
   // Заголовок карточки длиннее — «Чем ТЦ «…» вошёл в историю ритейла»
   // (retailHistoryTitle), это подпись пункта меню.
   'retail-history': 'В истории ритейла',
+  // Заголовки карточек длиннее — «Где поесть в ТЦ «…»» (foodTitle,
+  // funTitle), здесь — подписи пунктов меню.
+  food: 'Где поесть',
+  fun: 'Развлечения',
   leisure: 'Кино, еда, развлечения',
   visit: 'Посетителю',
   business: 'Арендаторам и рекламодателям',
@@ -1078,10 +1507,14 @@ export function retailSectionSize(info: RetailInfo | null, id: RetailSectionId):
       return Math.min(info.timeline.length, TIMELINE_COLLAPSED);
     // Плитки якорей по три в ряд на десктопе.
     case 'anchors':
-      return Math.ceil(info.anchors.length / 3);
+      return Math.ceil(anchorsForPage(info).length / 3);
+    case 'food':
+      return foodSectionSize(info.food);
+    case 'fun':
+      return funSectionSize(info.fun);
     // Плитки в две колонки: высоту задаёт число рядов.
     case 'leisure':
-      return Math.ceil(info.leisure.length / 2);
+      return Math.ceil(leisureForPage(info).length / 2);
     case 'visit': {
       const panels = [
         info.hours.length + (info.hoursNote ? 1 : 0),
@@ -1113,12 +1546,15 @@ export function retailSectionIds(info: RetailInfo | null): RetailSectionId[] {
   const ids: RetailSectionId[] = [];
   if (info.floorsGuide.length) ids.push('floors');
   if (info.timeline.length) ids.push('retail-history');
-  if (info.leisure.length) ids.push('leisure');
+  if (info.food) ids.push('food');
+  if (info.fun.length) ids.push('fun');
+  // Старый досуг — только пока нет новых блоков (leisureForPage).
+  if (leisureForPage(info).length) ids.push('leisure');
   if (hasVisitInfo(info)) ids.push('visit');
   if (hasBusinessInfo(info)) ids.push('business');
   if (info.numbers.length) ids.push('numbers');
   if (info.quotes.length) ids.push('quotes');
   // Последними — вплотную к каталогу арендаторов, который идёт за ними.
-  if (info.anchors.length) ids.push('anchors');
+  if (anchorsForPage(info).length) ids.push('anchors');
   return ids;
 }

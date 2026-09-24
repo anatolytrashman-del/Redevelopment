@@ -136,6 +136,10 @@ import {
 import {
   RETAIL_SECTION_LABELS,
   anchorsFaqAnswer,
+  anchorsForPage,
+  foodFaqAnswer,
+  funFaqAnswer,
+  leisureForPage,
   retailHistoryFaqAnswer,
   audienceFaqQuestion,
   awardsFaqAnswer,
@@ -206,6 +210,8 @@ const SECTION_LABELS: Record<string, string> = {
   // Торговые блоки — только у ТЦ (TradeCenterRetailBlocks).
   floors: RETAIL_SECTION_LABELS.floors,
   'retail-history': RETAIL_SECTION_LABELS['retail-history'],
+  food: RETAIL_SECTION_LABELS.food,
+  fun: RETAIL_SECTION_LABELS.fun,
   leisure: RETAIL_SECTION_LABELS.leisure,
   visit: RETAIL_SECTION_LABELS.visit,
   business: RETAIL_SECTION_LABELS.business,
@@ -1575,8 +1581,13 @@ export function BusinessCenterDetailPage() {
       const retail = center.retailInfo;
       add(`Что находится на каждом этаже ${bcGen}?`, floorsFaqAnswer(retail.floorsGuide));
       add(`Чем ${bcNom} вошёл в историю ритейла Беларуси?`, retailHistoryFaqAnswer(retail.timeline));
-      const leisureQuestion = leisureFaqQuestion(retail.leisure, `в ${bcPrep}`);
-      if (leisureQuestion) add(leisureQuestion, leisureFaqAnswer(retail.leisure));
+      // «Где поесть» и «Развлечения» (2026-09-24) вместо старого досуга;
+      // вопрос про досуг — только у ТЦ без новых блоков (leisureForPage).
+      add(`Где поесть в ${bcPrep}?`, foodFaqAnswer(retail.food));
+      add(`Какие развлечения есть в ${bcPrep}?`, funFaqAnswer(retail.fun));
+      const leisure = leisureForPage(retail);
+      const leisureQuestion = leisureFaqQuestion(leisure, `в ${bcPrep}`);
+      if (leisureQuestion) add(leisureQuestion, leisureFaqAnswer(leisure));
       // «Посетителю» и «для бизнеса» (TradeCenterExtraBlocks) — в том же
       // порядке, что панели на странице.
       add(`Какой режим работы у ${bcGen}?`, hoursFaqAnswer(retail.hours, retail.hoursNote));
@@ -1595,7 +1606,7 @@ export function BusinessCenterDetailPage() {
       add(`${capitalize(bcNom)} в цифрах: что известно?`, figuresFaqAnswer(retail.numbers));
       add(`Что говорят о ${bcPrep}?`, quotesFaqAnswer(retail.quotes));
       // «Якорные арендаторы» стоят последними, прямо перед каталогом арендаторов.
-      add(`Какие якорные арендаторы в ${bcPrep}?`, anchorsFaqAnswer(retail.anchors));
+      add(`Какие якорные арендаторы в ${bcPrep}?`, anchorsFaqAnswer(anchorsForPage(retail)));
     }
     // Арендаторы и «что есть кроме офисов» — один вопрос (владелец,
     // 2026-09-22: «я бы анализировал весь список арендаторов, если он есть,
@@ -1915,6 +1926,8 @@ export function BusinessCenterDetailPage() {
         // Торговые карточки ТЦ — модель строк в lib/tradeCenterRetail.
         case 'floors':
         case 'retail-history':
+        case 'food':
+        case 'fun':
         case 'leisure':
         case 'visit':
         case 'business':
@@ -1958,7 +1971,7 @@ export function BusinessCenterDetailPage() {
   const recommendationSlots = useMemo(() => {
     const slots = new Map<string, RecommendationBlockId[]>();
     // Торговые карточки ТЦ читаются двумя группами — «для посетителя»
-    // (этажи, история ритейла, досуг, посетителю) и «для бизнеса» (аренда и реклама,
+    // (этажи, история ритейла, еда, развлечения, посетителю) и «для бизнеса» (аренда и реклама,
     // цифры, цитаты). Рекомендацию, выпавшую внутри группы, переносим за
     // последнюю карточку той же группы; на стыке групп она остаётся. Если
     // там уже стоит своя, оставляем как было: две рекомендации подряд хуже.
@@ -2799,7 +2812,7 @@ export function BusinessCenterDetailPage() {
             картах"), но тогда рейтинг был известен только по зданию целиком —
             теперь число оценок есть на саму организацию. */}
         {/* Торговые блоки ТЦ — что на каком этаже, чем ТЦ вошёл в историю
-            ритейла, кино/еда/развлечения, … и последними якорные арендаторы
+            ритейла, где поесть и развлечения (или старый блок досуга), … и последними якорные арендаторы
             (вплотную к каталогу), место в рейтинге ТЦ Минска
             (business_centers.retail_info, 2026-09-23). Стоят перед каталогом
             арендаторов: это выжимка того же состава здания, а каталог —
