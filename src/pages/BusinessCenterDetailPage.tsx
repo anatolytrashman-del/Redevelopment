@@ -209,7 +209,19 @@ interface RecommendationBlockData {
 const EMPTY_NEARBY_PLACES: BusinessCenterNearbyPlace[] = [];
 const EMPTY_REVIEWS: BusinessCenterReview[] = [];
 
-export function BusinessCenterDetailPage() {
+// ownerMode — та же карточка для сайта самого БЦ, адрес /bc/<slug>
+// (владелец, 2026-09-24: «отдельный линк на страницу его БЦ без
+// рекомендательных блоков и инфы про другие БЦ… чтобы этой страницы не было
+// в выдаче, при этом вес ссылки передавался»). Canonical и вся разметка —
+// от /minsk/bc/<slug> (setBusinessCenterPageMeta ниже не знает о режиме),
+// Vercel отдаёт на этот адрес тот же пререндер, в sitemap его нет. Скрыто
+// то, что владелец перечислил: шапка сайта с логотипом, «Все
+// бизнес-центры», соседи по каталогу, тексты отзывов (рейтинг и число
+// оценок остаются), «Что сейчас сдают и продают в здании», «Вы собственник
+// или управляющая компания?», а в «Месте среди конкурентов» — всё, кроме
+// показателей, где здание сильнее своего класса. Скрытое не пересказывает
+// и FAQ: он строится из тех же выборок, их режим и обнуляет.
+export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: boolean } = {}) {
   const { slug } = useParams<{ slug: string }>();
   // Стартуем с данных, положенных в сборку (Ш3-b плана
   // docs/bc-catalog-seo-plan.md): их разобрал main.tsx до монтирования,
@@ -443,16 +455,16 @@ export function BusinessCenterDetailPage() {
   const nearbyPlaces = nearbyPlacesResult?.slug === slug
     ? nearbyPlacesResult?.places ?? EMPTY_NEARBY_PLACES
     : EMPTY_NEARBY_PLACES;
-  const reviews = reviewsResult?.slug === slug ? reviewsResult?.reviews ?? EMPTY_REVIEWS : EMPTY_REVIEWS;
+  const reviews = !ownerMode && reviewsResult?.slug === slug ? reviewsResult?.reviews ?? EMPTY_REVIEWS : EMPTY_REVIEWS;
   const index = center ? sorted.findIndex((c) => c.slug === center.slug) : -1;
-  const prev = index > 0 ? sorted[index - 1] : null;
-  const next = index >= 0 && index < sorted.length - 1 ? sorted[index + 1] : null;
+  const prev = !ownerMode && index > 0 ? sorted[index - 1] : null;
+  const next = !ownerMode && index >= 0 && index < sorted.length - 1 ? sorted[index + 1] : null;
 
   // Сводка по сделке (помещения, средняя цена, бюджет, скидка за объём) —
   // одни и те же цифры рисует блок «Что сейчас сдают и продают» и
   // пересказывает FAQ под ним.
-  const saleStats = useMemo(() => buildDealStats(offers, 'sale'), [offers]);
-  const rentStats = useMemo(() => buildDealStats(offers, 'rent'), [offers]);
+  const saleStats = useMemo(() => (ownerMode ? null : buildDealStats(offers, 'sale')), [offers, ownerMode]);
+  const rentStats = useMemo(() => (ownerMode ? null : buildDealStats(offers, 'rent')), [offers, ownerMode]);
   // Рейтинг Яндекс.Карт вынесен из общего списка фактов в короткий бейдж
   // рядом с заголовком. Подробный исходный текст не используется как tooltip.
   const mapRating = useMemo(() => mapRatingFromHighlights(center?.highlights ?? []), [center]);
@@ -832,7 +844,7 @@ export function BusinessCenterDetailPage() {
   // место на странице каждый блок получает позже, в recommendationSlots —
   // этот useMemo отвечает только за состав и порядок кандидатов.
   const recommendationBlocks = useMemo<RecommendationBlockData[]>(() => {
-    if (!center || !centers) return [];
+    if (!center || !centers || ownerMode) return [];
     const street = streetOfAddress(center.address);
     const distanceFromCenter = (candidate: BusinessCenter) => {
       if (center.lat == null || center.lng == null || candidate.lat == null || candidate.lng == null) {
@@ -1091,19 +1103,22 @@ export function BusinessCenterDetailPage() {
   // Сводка по сделке (диапазон площади/цены) — используется в FAQ; на
   // самой странице с 2026-09-20 не выводится отдельной строкой, чтобы не
   // дублировать таблицу ниже (см. offers-блок).
-  const marketPosition = useMemo(
-    () => (center ? buildMarketPosition(center, centers ?? [], officeSnapshots, offerIndex) : null),
-    [center, centers, officeSnapshots, offerIndex],
-  );
+  const marketPosition = useMemo(() => {
+    if (!center) return null;
+    const position = buildMarketPosition(center, centers ?? [], officeSnapshots, offerIndex);
+    if (!ownerMode || !position) return position;
+    // Сводка «сильнее по N из M» выдала бы и число проигранных строк.
+    return { bars: position.bars.filter((bar) => bar.tone === 'favorable' && !bar.nearTypical), summary: null };
+  }, [center, centers, officeSnapshots, offerIndex, ownerMode]);
   const priceComparison = useMemo(
-    () => (center ? buildPriceComparison(center, centers ?? [], offerIndex) : null),
-    [center, centers, offerIndex],
+    () => (center && !ownerMode ? buildPriceComparison(center, centers ?? [], offerIndex) : null),
+    [center, centers, offerIndex, ownerMode],
   );
   // Цитаты отзывов из «Интересных фактов» — отдельным блоком «Что говорят»
   // вместе с рейтингами (Б11), а не россыпью по странице.
   const reviewQuotes = useMemo(
     () =>
-      (center?.highlights ?? [])
+      (ownerMode ? [] : center?.highlights ?? [])
         .filter((h) => h.icon === 'reviews')
         .flatMap((h) => h.text.split(/\n+/).map((l) => l.replace(/^[-–—•\s]+/, '').trim()).filter(Boolean))
         // Было 4 — у «Порта» это молча отрезало 5-ю, критичную цитату
@@ -1111,7 +1126,7 @@ export function BusinessCenterDetailPage() {
         // убран: 6 — чтобы блок не превращался в бесконечную ленту у БЦ с
         // особо длинным списком.
         .slice(0, 6),
-    [center],
+    [center, ownerMode],
   );
 
   // FAQ использует те же модели и выборки, что видимые блоки страницы.
@@ -1931,6 +1946,13 @@ export function BusinessCenterDetailPage() {
     return () => setPlaceJsonLd(null);
   }, [center, pageComposition, ambiguousName]);
 
+  // Разметку пререндера на /bc/<slug> прячет инлайн-скрипт index.html:
+  // в ней полная карточка с соседями. Показываем, когда отрисовался режим
+  // владельца.
+  useEffect(() => {
+    if (ownerMode) document.documentElement.classList.remove('bc-owner-pending');
+  }, [ownerMode]);
+
   // Метаданные страницы выше сбрасывают JSON-LD: FAQ записываем после них.
   useEffect(() => {
     setFaqJsonLd(faqItems);
@@ -2060,6 +2082,25 @@ export function BusinessCenterDetailPage() {
           логотипа (176px) — margin-left от его конца получается 88px =
           5.5rem. Активен с xl — раньше колонка не показывается (плюс она
           вообще не рисуется без pageSections, см. условие ниже). */}
+      {ownerMode ? (
+        pageSections.length > 0 && (
+          <div className="mx-auto flex max-w-7xl px-4 pt-5 sm:px-8 xl:hidden">
+            <button
+              type="button"
+              onClick={() => setTocOpen(true)}
+              aria-expanded={tocOpen}
+              className={cn(
+                'flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:text-primary',
+                glassPillClass,
+              )}
+              style={glassPillShadow}
+            >
+              <List className="h-3.5 w-3.5 shrink-0" />
+              Содержание
+            </button>
+          </div>
+        )
+      ) : (
       <CatalogTopNav
         centers={centers}
         width="max-w-7xl"
@@ -2126,6 +2167,7 @@ export function BusinessCenterDetailPage() {
           </div>
         }
       />
+      )}
 
       {/* Горизонтальный padding переехал отсюда на сам грид ниже (см.
           комментарий там) — раньше он стоял на этой внешней обёртке, а
@@ -2232,7 +2274,8 @@ export function BusinessCenterDetailPage() {
             и при прокрутке колонка уезжала бы под неё. Логотип из колонки
             убран — он в шапке, второй был бы дублем. */}
         {pageSections.length > 0 && (
-          <aside className="sticky top-24 hidden max-h-[calc(100svh-7rem)] flex-col gap-4 xl:flex">
+          <aside className={cn('sticky hidden max-h-[calc(100svh-7rem)] flex-col gap-4 xl:flex', ownerMode ? 'top-6' : 'top-24')}>
+            {!ownerMode && (
             <Link
               to="/minsk/bc"
               className={cn(
@@ -2244,6 +2287,7 @@ export function BusinessCenterDetailPage() {
               <ArrowLeft className="h-4 w-4 shrink-0" />
               Все бизнес-центры
             </Link>
+            )}
             <nav
               aria-label="Навигация по странице"
               className={cn('min-h-0 overflow-y-auto p-4', glassCardClass)}
@@ -2331,7 +2375,7 @@ export function BusinessCenterDetailPage() {
                   sticky-строке рядом с «Все БЦ»/«Содержание» (secondRow
                   выше); дублировать её на фотке незачем. */}
               <div className="absolute right-4 top-4 hidden xl:block">
-                <FavoriteButton slug={center.slug} />
+                {!ownerMode && <FavoriteButton slug={center.slug} />}
               </div>
             </div>
 
@@ -2543,7 +2587,7 @@ export function BusinessCenterDetailPage() {
             Сравнение со срезом рынка живёт в соседнем блоке «Цены в
             здании и по рынку», окупаемость не считается вовсе (обе
             причины — в комментариях тех файлов). */}
-        <BuildingOffersSection sale={saleStats} rent={rentStats} />
+        {!ownerMode && <BuildingOffersSection sale={saleStats} rent={rentStats} />}
 
         {/* Цены здания против рынка. Прежде здесь лежали два предложения с
             процентами («Аренда в этом здании — $15/м²/мес, это выше на 30%
@@ -3001,7 +3045,7 @@ export function BusinessCenterDetailPage() {
             в почту: отдельной формы с лидом здесь не заводим, это не заявка
             на аренду, а правка справочника, и ответить на неё должен
             человек. */}
-        {center && (
+        {center && !ownerMode && (
           <div className={cn('mt-6 flex flex-col gap-2 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="text-lg font-bold text-ink">Вы собственник или управляющая компания?</h2>
             <p className="flex flex-wrap items-baseline gap-x-1.5 text-sm leading-relaxed text-ink-muted">

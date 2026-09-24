@@ -15,7 +15,17 @@
     <script>
       (function () {
         var path = location.pathname;
-        if (path !== '/minsk/bc' && path.indexOf('/minsk/bc/') !== 0) return;
+        // /bc/<slug> — та же карточка здания для сайта самого БЦ (владелец,
+        // 2026-09-24): без шапки, соседей и объявлений. Vercel отдаёт на
+        // этот адрес пререндер /minsk/bc/<slug> — с каноническим адресом
+        // карточки, но и со всем, что в режиме владельца скрыто. Класс
+        // прячет эту разметку до монтирования React, чтобы посетитель с
+        // сайта БЦ не увидел на миг чужие здания. Снимает класс сама
+        // страница; на случай сбоя бандла — анимация в <style> ниже через
+        // 4 с (React монтируется не позже 3,5 с, см. main.tsx).
+        var ownerPage = path.indexOf('/bc/') === 0;
+        if (ownerPage) document.documentElement.classList.add('bc-owner-pending');
+        if (!ownerPage && path !== '/minsk/bc' && path.indexOf('/minsk/bc/') !== 0) return;
         // priority: 'low' — на медленном 4G эти JSON делили канал с
         // LCP-фото карточки и отодвигали его на секунду (замер 2026-09-23:
         // список 109 КБ стартовал первым, фото доезжало к 2,46 с). Данные
@@ -75,14 +85,14 @@
         // Ставки рынка и размеры лотов: без них первый кадр React рисует
         // карточки и блоки иначе, чем пререндер-снапшот, и вёрстка прыгает.
         window.__bcMarket = get('/data/bc-market.json');
-        var rest = path.slice('/minsk/bc'.length).replace(/^\/+|\/+$/g, '');
+        var rest = path.slice(ownerPage ? '/bc'.length : '/minsk/bc'.length).replace(/^\/+|\/+$/g, '');
         // Карточка здания — ровно один сегмент пути. Разделы каталога с
         // такой же формой перечислены явно, чтобы не ходить за файлом,
         // которого заведомо нет (лишний 404 в консоли и в аудите).
         // ФАЙЛ-БЛИЗНЕЦ: это односегментные маршруты /minsk/bc/<x> из
         // src/App.tsx; сверяет тест в src/lib/businessCentersApi.test.ts.
         var sections = ['rating', 'guide', 'analytics', 'new'];
-        if (rest && rest.indexOf('/') === -1 && sections.indexOf(rest) === -1) {
+        if (rest && rest.indexOf('/') === -1 && (ownerPage || sections.indexOf(rest) === -1)) {
           window.__bcDetail = { slug: rest, data: get('/data/bc/' + encodeURIComponent(rest) + '.json') };
           // Объявления, отзывы, окружение, 2ГИС, арендаторы — снапшот
           // карточки нарисован с ними, и без них к монтированию блоки на
@@ -91,6 +101,10 @@
         }
       })();
     </script>
+    <style>
+      html.bc-owner-pending #root { visibility: hidden; animation: bc-owner-reveal 0s 4s forwards; }
+      @keyframes bc-owner-reveal { to { visibility: visible; } }
+    </style>
     <!-- favicon.ico — на классический путь /favicon.ico (без него самого
          файла) SPA-рерайт vercel.json ("/(.*)" → index.html) отдавал 200 с
          html вместо иконки; часть краулеров (в т.ч. Яндекс — "Файл favicon
