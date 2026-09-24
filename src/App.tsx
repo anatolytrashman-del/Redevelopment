@@ -327,6 +327,10 @@ export default function App() {
       {/* Хаб по улице (аудит 2026-09-07) — независимая ось, см. STREET_SLUGS. */}
       <Route path="/minsk/bc/street/:streetSlug" element={<BusinessCentersMinskPage />} />
       <Route path="/minsk/bc/:slug" element={<BusinessCenterDetailPage />} />
+      {/* Карточка БЦ для ссылки с сайта самого здания (владелец, 2026-09-24):
+          без шапки, соседей и объявлений, canonical — на /minsk/bc/:slug,
+          см. ownerMode в BusinessCenterDetailPage и rewrite в vercel.json. */}
+      <Route path="/bc/:slug" element={<BusinessCenterDetailPage ownerMode />} />
       <Route path="/plan/:token" element={<PublicBuildingPlan />} />
       <Route path="/tz/:token" element={<BriefPublicPage />} />
       <Route path="/summary/:token" element={<MeetingSummaryPublicPage />} />
