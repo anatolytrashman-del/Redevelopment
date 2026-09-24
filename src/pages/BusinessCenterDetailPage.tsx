@@ -136,13 +136,13 @@ import {
 import {
   RETAIL_SECTION_LABELS,
   anchorsFaqAnswer,
+  retailHistoryFaqAnswer,
   audienceFaqQuestion,
   awardsFaqAnswer,
   awardsRankingSize,
   awardsRankingTitle,
   eventsFaqAnswer,
   figuresFaqAnswer,
-  firstsFaqAnswer,
   floorsFaqAnswer,
   hoursFaqAnswer,
   leisureFaqAnswer,
@@ -205,12 +205,13 @@ const SECTION_LABELS: Record<string, string> = {
   tenants: 'Каталог арендаторов',
   // Торговые блоки — только у ТЦ (TradeCenterRetailBlocks).
   floors: RETAIL_SECTION_LABELS.floors,
-  firsts: RETAIL_SECTION_LABELS.firsts,
+  'retail-history': RETAIL_SECTION_LABELS['retail-history'],
   leisure: RETAIL_SECTION_LABELS.leisure,
   visit: RETAIL_SECTION_LABELS.visit,
   business: RETAIL_SECTION_LABELS.business,
   numbers: RETAIL_SECTION_LABELS.numbers,
   quotes: RETAIL_SECTION_LABELS.quotes,
+  anchors: RETAIL_SECTION_LABELS.anchors,
   // «БЦ» подменяется на «ТЦ» в каталоге торговых центров (см. sectionLabel).
   rental: 'Отдел аренды БЦ',
   offers: 'Что сдают и продают',
@@ -1171,8 +1172,7 @@ export function BusinessCenterDetailPage() {
     // Адрес в кавычках читается как опечатка, поэтому он идёт с предлогом;
     // всё остальное — в кавычках. Признак адреса: уличный префикс или
     // «Улица Номер» («Энгельса 34А»), но не «А1» и не «Аден».
-    const addressLike = /^(ул\.|пр-т|просп|проспект|пер\.|пл\.|тракт|бул|наб|индустриальн)/i.test(name) || /^[\p{Lu}][\p{L}\s-]+\s\d+[\p{L}]?$/u.test(name);
-    const bcTail = addressLike ? `на ${shortAddress(center.address)}` : `«${name}»`;
+    const bcTail = centerNameTail(center, name);
     const bcNom = `${V.one} ${bcTail}`;
     const bcGen = `${V.oneGen} ${bcTail}`;
     const bcPrep = `${V.onePrep} ${bcTail}`;
@@ -1574,8 +1574,7 @@ export function BusinessCenterDetailPage() {
     if (isTc && center.retailInfo) {
       const retail = center.retailInfo;
       add(`Что находится на каждом этаже ${bcGen}?`, floorsFaqAnswer(retail.floorsGuide));
-      add(`Какие магазины впервые в Беларуси открылись в ${bcPrep}?`, firstsFaqAnswer(retail.firsts));
-      add(`Кто якорные арендаторы ${bcGen}?`, anchorsFaqAnswer(retail.firsts));
+      add(`Чем ${bcNom} вошёл в историю ритейла Беларуси?`, retailHistoryFaqAnswer(retail.timeline));
       const leisureQuestion = leisureFaqQuestion(retail.leisure, `в ${bcPrep}`);
       if (leisureQuestion) add(leisureQuestion, leisureFaqAnswer(retail.leisure));
       // «Посетителю» и «для бизнеса» (TradeCenterExtraBlocks) — в том же
@@ -1595,6 +1594,8 @@ export function BusinessCenterDetailPage() {
       add(`Как разместить рекламу в ${bcPrep}?`, pitchFaqAnswer(retail.advertising));
       add(`${capitalize(bcNom)} в цифрах: что известно?`, figuresFaqAnswer(retail.numbers));
       add(`Что говорят о ${bcPrep}?`, quotesFaqAnswer(retail.quotes));
+      // «Якорные арендаторы» стоят последними, прямо перед каталогом арендаторов.
+      add(`Какие якорные арендаторы в ${bcPrep}?`, anchorsFaqAnswer(retail.anchors));
     }
     // Арендаторы и «что есть кроме офисов» — один вопрос (владелец,
     // 2026-09-22: «я бы анализировал весь список арендаторов, если он есть,
@@ -1913,12 +1914,13 @@ export function BusinessCenterDetailPage() {
           return faqItems.length;
         // Торговые карточки ТЦ — модель строк в lib/tradeCenterRetail.
         case 'floors':
-        case 'firsts':
+        case 'retail-history':
         case 'leisure':
         case 'visit':
         case 'business':
         case 'numbers':
         case 'quotes':
+        case 'anchors':
           return retailSectionSize(center.retailInfo, id);
         // tenants — пагинация по 6 карточек, высота от числа организаций
         // не зависит вовсе.
@@ -1956,16 +1958,21 @@ export function BusinessCenterDetailPage() {
   const recommendationSlots = useMemo(() => {
     const slots = new Map<string, RecommendationBlockId[]>();
     // Торговые карточки ТЦ читаются двумя группами — «для посетителя»
-    // (этажи, первые, досуг, посетителю) и «для бизнеса» (аренда и реклама,
+    // (этажи, история ритейла, досуг, посетителю) и «для бизнеса» (аренда и реклама,
     // цифры, цитаты). Рекомендацию, выпавшую внутри группы, переносим за
     // последнюю карточку той же группы; на стыке групп она остаётся. Если
     // там уже стоит своя, оставляем как было: две рекомендации подряд хуже.
     const retailIds = new Set<string>(isTc && center ? retailSectionIds(center.retailInfo) : []);
-    const lastRetailOf = (group: 'visitor' | 'business') =>
-      [...sectionSizes]
-        .reverse()
-        .find((section) => retailIds.has(section.id) && retailSectionGroup(section.id as RetailSectionId) === group)
-        ?.id ?? null;
+    // «Якорные арендаторы» и каталог арендаторов под ними читаются как одно
+    // целое: рекомендация после якорей уезжает за каталог, если он есть.
+    const hasTenants = sectionSizes.some((section) => section.id === 'tenants');
+    const lastRetailOf = (group: 'visitor' | 'business' | 'tenants') =>
+      group === 'tenants' && hasTenants
+        ? 'tenants'
+        : ([...sectionSizes]
+            .reverse()
+            .find((section) => retailIds.has(section.id) && retailSectionGroup(section.id as RetailSectionId) === group)
+            ?.id ?? null);
     const planned = planRecommendationSlots(sectionSizes, recommendationBlocks.length);
     planned.forEach((sectionId, index) => {
       const block = recommendationBlocks[index];
@@ -2791,12 +2798,19 @@ export function BusinessCenterDetailPage() {
             2026-09-06 ("на первое место ставь места с максимумом отзывов на
             картах"), но тогда рейтинг был известен только по зданию целиком —
             теперь число оценок есть на саму организацию. */}
-        {/* Торговые блоки ТЦ — что на каком этаже, первые в Беларуси и
-            якоря, кино/еда/развлечения, место в рейтинге ТЦ Минска
+        {/* Торговые блоки ТЦ — что на каком этаже, чем ТЦ вошёл в историю
+            ритейла, кино/еда/развлечения, … и последними якорные арендаторы
+            (вплотную к каталогу), место в рейтинге ТЦ Минска
             (business_centers.retail_info, 2026-09-23). Стоят перед каталогом
             арендаторов: это выжимка того же состава здания, а каталог —
             полный список для поиска по имени. У БЦ не рисуются. */}
-        {isTc && <TradeCenterRetailBlocks info={center.retailInfo} after={renderRecommendationSlot} />}
+        {isTc && (
+          <TradeCenterRetailBlocks
+            info={center.retailInfo}
+            name={`${V.abbr} ${centerNameTail(center)}`}
+            after={renderRecommendationSlot}
+          />
+        )}
 
         {tenantOrganizations.length > 0 && (
           <TenantDirectory organizations={tenantOrganizations} />
@@ -3222,6 +3236,16 @@ export function BusinessCenterDetailPage() {
       </div>
     </div>
   );
+}
+
+/**
+ * Имя здания после родового слова: «Фаренгейт» → «Фаренгейт» в кавычках,
+ * адрес — с предлогом («на ул. …»). Разбор — в faqItems, где этим пользуются
+ * вопросы FAQ; тем же видом подписан заголовок ленты ТЦ.
+ */
+function centerNameTail(center: BusinessCenter, name = shortName(center)): string {
+  const addressLike = /^(ул\.|пр-т|просп|проспект|пер\.|пл\.|тракт|бул|наб|индустриальн)/i.test(name) || /^[\p{Lu}][\p{L}\s-]+\s\d+[\p{L}]?$/u.test(name);
+  return addressLike ? `на ${shortAddress(center.address)}` : `«${name}»`;
 }
 
 function RelatedCentersSection({

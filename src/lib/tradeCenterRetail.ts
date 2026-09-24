@@ -3,12 +3,14 @@
 // видимые блоки (components/businessCenters/TradeCenterRetailBlocks.tsx), и
 // FAQ карточки. Одни и те же функции на обе стороны — чтобы FAQ не
 // пересказывал блок своими словами и не расходился с ним.
+import { RETAIL_ANCHOR_CATEGORIES } from '../data/businessCenters';
 import type {
+  RetailAnchorCategory,
+  RetailAnchorEntry,
   RetailAwardEntry,
   RetailAwardResult,
   RetailEventEntry,
   RetailFigureEntry,
-  RetailFirstEntry,
   RetailFloorEntry,
   RetailHoursEntry,
   RetailInfo,
@@ -23,11 +25,15 @@ import type {
   RetailRuleEntry,
   RetailServiceEntry,
   RetailSource,
+  RetailTimelineEntry,
+  RetailTimelineKind,
   RetailTransportEntry,
   RetailTransportMode,
 } from '../data/businessCenters';
 
-const FIRST_KINDS = new Set(['first', 'anchor', 'former_anchor']);
+export const TIMELINE_KINDS: RetailTimelineKind[] = ['first', 'first_format', 'record', 'milestone'];
+const TIMELINE_KIND_SET = new Set<string>(TIMELINE_KINDS);
+const ANCHOR_CATEGORY_SET = new Set<string>(RETAIL_ANCHOR_CATEGORIES);
 export const AWARD_RESULTS: RetailAwardResult[] = ['winner', 'diploma', 'laureate', 'finalist', 'nominee', 'other'];
 const AWARD_RESULT_SET = new Set<string>(AWARD_RESULTS);
 const LEISURE_KINDS = new Set(['cinema', 'food', 'kids', 'sport', 'other']);
@@ -115,6 +121,95 @@ function parkingOf(value: unknown): RetailParking | null {
   return { summary, items, date: str(r.date), ...sourceOf(r) };
 }
 
+function httpUrl(value: unknown): string | null {
+  const url = str(value);
+  return url && /^https?:\/\//i.test(url) ? url : null;
+}
+
+/** Незнакомая категория — «другое»: якорь от этого не перестаёт быть якорем. */
+function anchorCategory(value: unknown): RetailAnchorCategory {
+  const category = str(value)?.toLowerCase().replace(/ё/g, 'е') ?? '';
+  return (ANCHOR_CATEGORY_SET.has(category) ? category : 'другое') as RetailAnchorCategory;
+}
+
+/** «Евроопт» (формат Euroopt Super) → «евроопт»: имя бренда без кавычек и пояснений. */
+function brandKey(name: string): string {
+  return name
+    .replace(/\(.*?\)/g, '')
+    .replace(/[«»"„“”']/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+/** Начало даты «2019-03-15» / «2019-03» / «2019» — иначе записи нет места на ленте. */
+const TIMELINE_DATE_RE = /^\d{4}(?:-\d{1,2}){0,2}$/;
+
+/**
+ * Якоря и лента достижений (2026-09-24). Новая схема — `anchors` и
+ * `timeline`; у ТЦ, которых ресёрч по ней ещё не прошёл, есть только старые
+ * `firsts`, и они раскладываются так: anchor → якорь (без этажа, площади,
+ * года и категории — их в старых записях нет, а дата там — дата публикации,
+ * а не прихода в ТЦ), first → строка ленты вида first. former_anchor не
+ * показывается нигде: владелец, 2026-09-24, — уходы в карточку не пишем.
+ * Старые записи берутся, только если ни одного из новых ключей нет: новый
+ * ресёрч заменяет старый целиком, и пустой `timeline: []` у него значит
+ * «достижений не нашли», а не «возьми старое».
+ */
+function anchorsAndTimeline(data: Record<string, unknown>): {
+  anchors: RetailAnchorEntry[];
+  timeline: RetailTimelineEntry[];
+} {
+  if (Array.isArray(data.anchors) || Array.isArray(data.timeline)) {
+    const anchors: RetailAnchorEntry[] = records(data.anchors).flatMap((r) => {
+      const name = str(r.name);
+      if (!name) return [];
+      return [
+        {
+          name,
+          category: anchorCategory(r.category),
+          floor: text(r.floor),
+          area: text(r.area),
+          since: text(r.since),
+          text: str(r.text) ?? '',
+          yandexUrl: httpUrl(r.yandexUrl),
+          ...sourceOf(r),
+        },
+      ];
+    });
+    const timeline: RetailTimelineEntry[] = records(data.timeline).flatMap((r) => {
+      const name = str(r.name);
+      const kind = str(r.kind);
+      const date = text(r.date);
+      if (!name || !kind || !TIMELINE_KIND_SET.has(kind) || !date || !TIMELINE_DATE_RE.test(date)) return [];
+      return [{ date, kind: kind as RetailTimelineKind, name, text: str(r.text) ?? '', note: str(r.note), ...sourceOf(r) }];
+    });
+    return { anchors, timeline: sortTimeline(timeline) };
+  }
+  const anchors: RetailAnchorEntry[] = [];
+  const timeline: RetailTimelineEntry[] = [];
+  // «Первый в Беларуси» бренда, который потом ушёл (тот же бренд есть среди
+  // former_anchor этого ТЦ), — тоже рассказ про уход: бриф запрещает
+  // упоминать ушедшие бренды и в истории. Так у Galleria Minsk уходят
+  // Reserved и H&M.
+  const departed = new Set(
+    records(data.firsts).flatMap((r) => (str(r.kind) === 'former_anchor' && str(r.name) ? [brandKey(str(r.name)!)] : [])),
+  );
+  for (const r of records(data.firsts)) {
+    const name = str(r.name);
+    const kind = str(r.kind);
+    if (!name) continue;
+    if (kind === 'anchor') {
+      anchors.push({ name, category: null, floor: null, area: null, since: null, text: str(r.text) ?? '', yandexUrl: null, ...sourceOf(r) });
+    } else if (kind === 'first' && !departed.has(brandKey(name))) {
+      const date = str(r.date);
+      if (date && TIMELINE_DATE_RE.test(date)) {
+        timeline.push({ date, kind: 'first', name, text: str(r.text) ?? '', note: null, ...sourceOf(r) });
+      }
+    }
+  }
+  return { anchors, timeline: sortTimeline(timeline) };
+}
+
 /**
  * jsonb из базы → RetailInfo. Колонку заполняет скрипт ресёрча, и любой
  * массив в ней может отсутствовать, а запись — быть неполной: такие записи
@@ -130,12 +225,7 @@ export function normalizeRetailInfo(raw: unknown): RetailInfo | null {
     const text = str(r.text);
     return floor && text ? [{ floor, text, date: str(r.date), ...sourceOf(r) }] : [];
   });
-  const firsts: RetailFirstEntry[] = records(data.firsts).flatMap((r) => {
-    const name = str(r.name);
-    const kind = str(r.kind);
-    if (!name || !kind || !FIRST_KINDS.has(kind)) return [];
-    return [{ kind: kind as RetailFirstEntry['kind'], name, text: str(r.text) ?? '', date: str(r.date), ...sourceOf(r) }];
-  });
+  const { anchors, timeline } = anchorsAndTimeline(data);
   const leisure: RetailLeisureEntry[] = records(data.leisure).flatMap((r) => {
     const name = str(r.name);
     if (!name) return [];
@@ -241,7 +331,8 @@ export function normalizeRetailInfo(raw: unknown): RetailInfo | null {
 
   const info: RetailInfo = {
     floorsGuide,
-    firsts,
+    anchors,
+    timeline,
     leisure,
     ranking,
     awards,
@@ -493,6 +584,82 @@ export function awardsRankingSize(info: RetailInfo | null, legacyAwardLines = 0)
   return awards + ranking;
 }
 
+// --- Якоря и история ритейла (2026-09-24) ------------------------------
+// Два блока вместо старой карточки «Первые в Беларуси и якоря»: «Якорные
+// арендаторы» (перед каталогом арендаторов) и «Чем ТЦ вошёл в историю
+// ритейла» — только достижения, без уходов и закрытий.
+
+/** Подпись категории якоря; у «другое» подписи нет — остаётся только иконка. */
+export const ANCHOR_CATEGORY_LABELS: Record<RetailAnchorCategory, string | null> = {
+  гипермаркет: 'Гипермаркет',
+  кинотеатр: 'Кинотеатр',
+  fashion: 'Одежда и обувь',
+  электроника: 'Электроника',
+  'детские товары': 'Детские товары',
+  спорт: 'Спорт',
+  'дом и интерьер': 'Дом и интерьер',
+  развлечения: 'Развлечения',
+  фудкорт: 'Фудкорт',
+  фитнес: 'Фитнес',
+  другое: null,
+};
+
+export function anchorCategoryLabel(anchor: RetailAnchorEntry): string | null {
+  return anchor.category ? ANCHOR_CATEGORY_LABELS[anchor.category] : null;
+}
+
+/** "6300" → "6 300 м²"; строка с единицами («6 300 м²», «около 2 000 м²») — как есть. */
+export function formatAnchorArea(area: string): string {
+  const digits = area.replace(/\s/g, '');
+  return /^\d+$/.test(digits) ? `${Number(digits).toLocaleString('ru-RU')}\u00a0м²` : area;
+}
+
+/** "2016" → "с 2016 года"; иначе как записал ресёрч, с «с». */
+export function formatAnchorSince(since: string): string {
+  return /^\d{4}$/.test(since) ? `с ${since} года` : `с ${since}`;
+}
+
+/** Части строки «этаж · площадь · с года» — только известные. */
+export function anchorMetaParts(anchor: RetailAnchorEntry): string[] {
+  return [
+    anchor.floor ? formatFloorLabel(anchor.floor) : null,
+    anchor.area ? formatAnchorArea(anchor.area) : null,
+    anchor.since ? formatAnchorSince(anchor.since) : null,
+  ].filter((part): part is string => Boolean(part));
+}
+
+export const TIMELINE_KIND_LABELS: Record<RetailTimelineKind, string> = {
+  // «Впервые» без страны: у части записей «впервые в Минске», география — в тексте.
+  first: 'Впервые',
+  first_format: 'Первый формат',
+  record: 'Рекорд',
+  milestone: 'Событие',
+};
+
+function timelineSortKey(date: string): number {
+  const [y, m, d] = date.split('-').map(Number);
+  return y * 10000 + (m || 0) * 100 + (d || 0);
+}
+
+/** По возрастанию даты; год без месяца — раньше месяцев того же года. */
+export function sortTimeline(entries: RetailTimelineEntry[]): RetailTimelineEntry[] {
+  return [...entries].sort((a, b) => timelineSortKey(a.date) - timelineSortKey(b.date));
+}
+
+/** Год крупно слева на ленте. */
+export function timelineYear(entry: RetailTimelineEntry): string {
+  return entry.date.slice(0, 4);
+}
+
+/** Месяц под годом («март»); у записи только с годом — null. */
+export function timelineMonth(entry: RetailTimelineEntry): string | null {
+  const month = Number(entry.date.split('-')[1]);
+  return month >= 1 && month <= 12 ? MONTHS_NOM[month - 1] : null;
+}
+
+/** Сколько строк ленты видно до «Показать всё». */
+export const TIMELINE_COLLAPSED = 12;
+
 // --- Источники -----------------------------------------------------------
 
 export interface RetailSourceLink {
@@ -557,19 +724,35 @@ export function floorsFaqAnswer(floors: RetailFloorEntry[]): string | null {
     .join('\n');
 }
 
-export function firstsFaqAnswer(firsts: RetailFirstEntry[]): string | null {
-  const list = firsts.filter((f) => f.kind === 'first');
-  if (!list.length) return null;
-  return list.map((f) => withText(f.name, f.text, f.date)).join('\n');
+/**
+ * «Какие якорные арендаторы в …?» — по строке на якорь, в порядке блока:
+ * «Гиппо — гипермаркет (−1 этаж, 6 300 м², с 2016 года). Текст.»
+ */
+export function anchorsFaqAnswer(anchors: RetailAnchorEntry[]): string | null {
+  if (!anchors.length) return null;
+  return anchors
+    .map((a) => {
+      const category = anchorCategoryLabel(a);
+      const meta = anchorMetaParts(a);
+      const head = `${a.name}${category ? ` — ${category.toLowerCase()}` : ''}${meta.length ? ` (${meta.join(', ')})` : ''}`;
+      return a.text ? `${sentence(head)} ${sentence(upperFirst(a.text))}` : sentence(head);
+    })
+    .join('\n');
 }
 
-export function anchorsFaqAnswer(firsts: RetailFirstEntry[]): string | null {
-  const anchors = firsts.filter((f) => f.kind === 'anchor');
-  const former = firsts.filter((f) => f.kind === 'former_anchor');
-  if (!anchors.length && !former.length) return null;
-  const lines = anchors.map((f) => withText(f.name, f.text));
-  if (former.length) lines.push(`Раньше здесь были: ${former.map((f) => f.name).join(', ')}.`);
-  return lines.join('\n');
+/**
+ * «Чем … вошёл в историю ритейла Беларуси?» — вся лента по возрастанию
+ * даты: «Апрель 2017 — New Balance: первый в Беларуси концепт-магазин.»
+ */
+export function retailHistoryFaqAnswer(timeline: RetailTimelineEntry[]): string | null {
+  if (!timeline.length) return null;
+  return sortTimeline(timeline)
+    .map((t) => {
+      const when = upperFirst(formatRetailDate(t.date) ?? timelineYear(t));
+      const line = sentence(`${when} — ${t.name}${t.text ? `: ${t.text}` : ''}`);
+      return t.note ? `${line} ${sentence(upperFirst(t.note))}` : line;
+    })
+    .join('\n');
 }
 
 export const LEISURE_KIND_LABELS: Record<RetailLeisureKind, string> = {
@@ -818,27 +1001,47 @@ export function quotesFaqAnswer(quotes: RetailQuoteEntry[]): string | null {
 
 /**
  * id карточек в разметке — они же пункты меню «На странице». Первые три —
- * состав здания, `visit` — одна карточка «Посетителю» (режим, парковка,
- * проезд, удобства, скидки), дальше — блоки для бизнес-аудитории.
+ * состав здания и его история, `visit` — одна карточка «Посетителю» (режим,
+ * парковка, проезд, удобства, скидки), дальше — блоки для бизнес-аудитории,
+ * последней — «Якорные арендаторы» прямо перед каталогом арендаторов.
  */
-export type RetailSectionId = 'floors' | 'firsts' | 'leisure' | 'visit' | 'business' | 'numbers' | 'quotes';
+export type RetailSectionId =
+  | 'floors'
+  | 'retail-history'
+  | 'leisure'
+  | 'visit'
+  | 'business'
+  | 'numbers'
+  | 'quotes'
+  | 'anchors';
 
 export const RETAIL_SECTION_LABELS: Record<RetailSectionId, string> = {
   floors: 'Что на каком этаже',
-  firsts: 'Первые в Беларуси и якоря',
+  // Заголовок карточки длиннее — «Чем ТЦ «…» вошёл в историю ритейла»
+  // (retailHistoryTitle), это подпись пункта меню.
+  'retail-history': 'В истории ритейла',
   leisure: 'Кино, еда, развлечения',
   visit: 'Посетителю',
   business: 'Арендаторам и рекламодателям',
   numbers: 'ТЦ в цифрах',
   quotes: 'Цитаты',
+  anchors: 'Якорные арендаторы',
 };
 
+/** Заголовок карточки ленты: `name` — «ТЦ «Замок»». */
+export function retailHistoryTitle(name: string): string {
+  return `Чем ${name} вошёл в историю ритейла`;
+}
+
 /**
- * Две группы карточек, которые читаются подряд: «для посетителя» и «для
+ * Группы карточек, которые читаются подряд: «для посетителя» и «для
  * бизнеса». Рекомендацию между карточками одной группы страница переносит
- * за последнюю карточку группы, а на стыке групп — оставляет.
+ * за последнюю карточку группы, а на стыке групп — оставляет. «Якорные
+ * арендаторы» — своя группа: они стоят вплотную к каталогу арендаторов, и
+ * рекомендацию после них страница переносит за каталог.
  */
-export function retailSectionGroup(id: RetailSectionId): 'visitor' | 'business' {
+export function retailSectionGroup(id: RetailSectionId): 'visitor' | 'business' | 'tenants' {
+  if (id === 'anchors') return 'tenants';
   return id === 'business' || id === 'numbers' || id === 'quotes' ? 'business' : 'visitor';
 }
 
@@ -870,8 +1073,12 @@ export function retailSectionSize(info: RetailInfo | null, id: RetailSectionId):
   switch (id) {
     case 'floors':
       return info.floorsGuide.length;
-    case 'firsts':
-      return info.firsts.length;
+    // Строка ленты; свёрнутая лента показывает не больше TIMELINE_COLLAPSED.
+    case 'retail-history':
+      return Math.min(info.timeline.length, TIMELINE_COLLAPSED);
+    // Плитки якорей по три в ряд на десктопе.
+    case 'anchors':
+      return Math.ceil(info.anchors.length / 3);
     // Плитки в две колонки: высоту задаёт число рядов.
     case 'leisure':
       return Math.ceil(info.leisure.length / 2);
@@ -905,11 +1112,13 @@ export function retailSectionIds(info: RetailInfo | null): RetailSectionId[] {
   if (!info) return [];
   const ids: RetailSectionId[] = [];
   if (info.floorsGuide.length) ids.push('floors');
-  if (info.firsts.length) ids.push('firsts');
+  if (info.timeline.length) ids.push('retail-history');
   if (info.leisure.length) ids.push('leisure');
   if (hasVisitInfo(info)) ids.push('visit');
   if (hasBusinessInfo(info)) ids.push('business');
   if (info.numbers.length) ids.push('numbers');
   if (info.quotes.length) ids.push('quotes');
+  // Последними — вплотную к каталогу арендаторов, который идёт за ними.
+  if (info.anchors.length) ids.push('anchors');
   return ids;
 }

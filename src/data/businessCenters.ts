@@ -512,14 +512,50 @@ export interface RetailFloorEntry extends RetailSource {
   date: string | null;
 }
 
-export type RetailFirstKind = 'first' | 'anchor' | 'former_anchor';
+// Якорные арендаторы — retail_info.anchors (2026-09-24, бриф
+// tc-catalog/codex/briefs/anchors-timeline.md): кто СЕЙЧАС тянет в ТЦ людей.
+// Категория — открытый список ресёрча; незнакомая сводится к «другое».
+// У старых записей firsts (kind anchor) категории нет — null.
+export const RETAIL_ANCHOR_CATEGORIES = [
+  'гипермаркет',
+  'кинотеатр',
+  'fashion',
+  'электроника',
+  'детские товары',
+  'спорт',
+  'дом и интерьер',
+  'развлечения',
+  'фудкорт',
+  'фитнес',
+  'другое',
+] as const;
 
-export interface RetailFirstEntry extends RetailSource {
-  kind: RetailFirstKind;
+export type RetailAnchorCategory = (typeof RETAIL_ANCHOR_CATEGORIES)[number];
+
+export interface RetailAnchorEntry extends RetailSource {
+  name: string;
+  category: RetailAnchorCategory | null;
+  // Как у источника: "-1", "1", "2–3".
+  floor: string | null;
+  // "6 300 м²".
+  area: string | null;
+  // Год прихода в ТЦ, "2016".
+  since: string | null;
+  text: string;
+  yandexUrl: string | null;
+}
+
+// «Чем ТЦ вошёл в историю ритейла» — retail_info.timeline (та же схема).
+// Только достижения: уходы брендов и закрытия сюда не пишутся вовсе.
+export type RetailTimelineKind = 'first' | 'first_format' | 'record' | 'milestone';
+
+export interface RetailTimelineEntry extends RetailSource {
+  // "2019-03-15", "2019-03" или "2019" — запись без года отбрасывается.
+  date: string;
+  kind: RetailTimelineKind;
   name: string;
   text: string;
-  // ISO-дата целиком ("2019-03-15"), месяц ("2019-03") или год ("2019").
-  date: string | null;
+  note: string | null;
 }
 
 export type RetailLeisureKind = 'cinema' | 'food' | 'kids' | 'sport' | 'other';
@@ -649,7 +685,8 @@ export interface RetailQuoteEntry extends RetailSource {
 
 export interface RetailInfo {
   floorsGuide: RetailFloorEntry[];
-  firsts: RetailFirstEntry[];
+  anchors: RetailAnchorEntry[];
+  timeline: RetailTimelineEntry[];
   leisure: RetailLeisureEntry[];
   ranking: RetailRankingEntry[];
   awards: RetailAwardEntry[];
