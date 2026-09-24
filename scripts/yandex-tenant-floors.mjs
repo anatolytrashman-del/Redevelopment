@@ -34,7 +34,7 @@ function pageState(html) {
   }
 }
 
-function ownItem(html, orgId) {
+export function ownItem(html, orgId) {
   const state = pageState(html);
   const items = state?.stack?.[0]?.results?.items ?? [];
   return items.find((candidate) => String(candidate?.id) === String(orgId)) ?? null;
