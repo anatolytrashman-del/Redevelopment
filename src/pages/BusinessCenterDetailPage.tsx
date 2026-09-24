@@ -122,6 +122,16 @@ import {
 import { TenantDirectory } from '../components/businessCenters/TenantDirectory';
 import { BuildingAmenities } from '../components/businessCenters/BuildingAmenities';
 import { TradeCenterRetailBlocks } from '../components/businessCenters/TradeCenterRetailBlocks';
+import { DeveloperDeepCard } from '../components/businessCenters/DeveloperDeepCard';
+import {
+  developerAboutFaqAnswer,
+  developerCompaniesFaqAnswer,
+  developerMainName,
+  developerPortfolioFaqAnswer,
+  developerProfileSentence,
+  developerSectionSize,
+  hasDeveloperDeepData,
+} from '../lib/developerProfile';
 import {
   RETAIL_SECTION_LABELS,
   anchorsFaqAnswer,
@@ -1274,9 +1284,14 @@ export function BusinessCenterDetailPage() {
           : `Когда построен ${bcNom}?`;
       add(question, sentences([formatSentence ?? classSentence, yearSentence]));
     }
-    if (center.developer) {
+    // Главная компания: короткое поле developer, а если его нет —
+    // профиль из развёрнутого блока (ресёрч ТЦ, 2026-09-24).
+    const developerName = center.developer ?? center.developerInfo?.profile?.name ?? null;
+    if (developerName) {
       const info = center.developerInfo;
-      const lines = [`Застройщик — ${center.developer}.`];
+      const lines = [`Застройщик — ${developerName}.`];
+      const profileSentence = developerProfileSentence(info?.profile);
+      if (profileSentence) lines.push(profileSentence);
       if (info?.description) lines.push(plain(info.description));
       const contactBits = [
         info?.phone ? `тел. ${info.phone}` : null,
@@ -1286,6 +1301,21 @@ export function BusinessCenterDetailPage() {
       ].filter((v): v is string => Boolean(v));
       if (contactBits.length) lines.push(`${contactBits.join(', ')}.`);
       add(`Кто застройщик ${bcGen}?`, lines.join('\n'));
+    }
+    // Развёрнутый блок «Кто стоит за…» — по вопросу на каждую его часть,
+    // только когда она есть (правило FAQ: всё, что на странице, и ничего
+    // сверх). Один участник — это и есть застройщик из ответа выше, отдельный
+    // вопрос был бы повтором.
+    if ((center.developerInfo?.companies?.length ?? 0) > 1) {
+      add(`Кто участвовал в строительстве ${bcGen}?`, developerCompaniesFaqAnswer(center.developerInfo?.companies));
+    }
+    {
+      const mainName = developerMainName(center.developerInfo, center.developer);
+      const company = mainName ? `компания ${mainName}` : 'компания-застройщик';
+      if (center.developerInfo?.portfolio?.length) {
+        add(`Что ещё построила и чем владеет ${company}?`, developerPortfolioFaqAnswer(center.developerInfo.portfolio));
+      }
+      add(`Что известно о компании${mainName ? ` ${mainName}` : '-застройщике'}?`, developerAboutFaqAnswer(center.developerInfo));
     }
     // Технический паспорт — раньше это был один ответ-выгрузка: связная
     // фраза про этажи и площади, а следом хвост «Подпись: значение;
@@ -1853,7 +1883,9 @@ export function BusinessCenterDetailPage() {
         case 'history':
           return extractHistoryPoints(center).length;
         case 'developer':
-          return developerInfo ? estimateTextLines(developerInfo.description, 110) : 0;
+          // Без новых полей — строки описания, как раньше; с ними модель
+          // складывает части развёрнутого блока (lib/developerProfile).
+          return developerSectionSize(developerInfo);
         case 'faq':
           return faqItems.length;
         // Торговые карточки ТЦ — модель строк в lib/tradeCenterRetail.
@@ -2142,6 +2174,60 @@ export function BusinessCenterDetailPage() {
       developerWebsiteUrl = null;
     }
   }
+  // Контакты застройщика — общий кусок простой карточки «Застройщик» и
+  // развёрнутого блока «Кто стоит за…» (DeveloperDeepCard).
+  const developerContacts =
+    center.developerInfo &&
+    (center.developerInfo.phone ||
+      center.developerInfo.email ||
+      center.developerInfo.address ||
+      center.developerInfo.hours ||
+      center.developerInfo.website) && (
+      <div className="flex flex-col gap-1.5 text-sm text-ink-muted">
+        {center.developerInfo.phone && (
+          <a
+            href={`tel:${center.developerInfo.phone.replace(/[^\d+]/g, '')}`}
+            className="flex w-fit items-center gap-2 text-ink hover:underline"
+          >
+            <Phone className="h-4 w-4 shrink-0" />
+            {center.developerInfo.phone}
+          </a>
+        )}
+        {center.developerInfo.email && (
+          <a
+            href={`mailto:${center.developerInfo.email}`}
+            className="flex w-fit items-center gap-2 text-ink hover:underline"
+          >
+            <Mail className="h-4 w-4 shrink-0" />
+            {center.developerInfo.email}
+          </a>
+        )}
+        {center.developerInfo.address && (
+          <div className="flex items-start gap-2">
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{center.developerInfo.address}</span>
+          </div>
+        )}
+        {center.developerInfo.hours && (
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 shrink-0" />
+            <span>{center.developerInfo.hours}</span>
+          </div>
+        )}
+        {developerWebsiteUrl && (
+          <a
+            href={developerWebsiteUrl.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-fit items-center gap-1 text-ink hover:underline"
+          >
+            <Globe className="h-4 w-4 shrink-0" />
+            {developerWebsiteUrl.label}
+            <ExternalLink className="h-3 w-3 shrink-0" />
+          </a>
+        )}
+      </div>
+    );
   return (
     <div className="min-h-svh bg-bg">
       {/* Сквозная шапка каталога (владелец, 2026-09-22). Раньше на карточке
@@ -2978,8 +3064,20 @@ export function BusinessCenterDetailPage() {
             в конце (после цены, параметров здания, арендаторов, отзывов и
             остального контента, перед выходами на другие БЦ) — блок про
             компанию-застройщика, а не про само здание, и заполнен меньше
-            чем у половины БЦ (56 из 141 на 2026-09-20). */}
-        {center.developerInfo && (
+            чем у половины БЦ (56 из 141 на 2026-09-20).
+            2026-09-24: когда ресёрч положил в developer_info участников
+            проекта, профиль, портфель или факты (пока — только ТЦ), вместо
+            этой карточки рисуется развёрнутый блок «Кто стоит за…»
+            (DeveloperDeepCard); без них карточка прежняя. */}
+        {center.developerInfo && hasDeveloperDeepData(center.developerInfo) ? (
+          <DeveloperDeepCard
+            info={center.developerInfo}
+            title={`Кто стоит за ${V.oneIns} «${shortName(center)}»`}
+            mainName={developerMainName(center.developerInfo, center.developer)}
+            logoAlt={center.developer ?? shortName(center)}
+            contacts={developerContacts}
+          />
+        ) : center.developerInfo ? (
           <div id="developer" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
@@ -2999,58 +3097,9 @@ export function BusinessCenterDetailPage() {
             {center.developerInfo.description && (
               <p className="text-sm leading-relaxed text-ink-muted">{center.developerInfo.description}</p>
             )}
-            {(center.developerInfo.phone ||
-              center.developerInfo.email ||
-              center.developerInfo.address ||
-              center.developerInfo.hours ||
-              center.developerInfo.website) && (
-              <div className="flex flex-col gap-1.5 text-sm text-ink-muted">
-                {center.developerInfo.phone && (
-                  <a
-                    href={`tel:${center.developerInfo.phone.replace(/[^\d+]/g, '')}`}
-                    className="flex w-fit items-center gap-2 text-ink hover:underline"
-                  >
-                    <Phone className="h-4 w-4 shrink-0" />
-                    {center.developerInfo.phone}
-                  </a>
-                )}
-                {center.developerInfo.email && (
-                  <a
-                    href={`mailto:${center.developerInfo.email}`}
-                    className="flex w-fit items-center gap-2 text-ink hover:underline"
-                  >
-                    <Mail className="h-4 w-4 shrink-0" />
-                    {center.developerInfo.email}
-                  </a>
-                )}
-                {center.developerInfo.address && (
-                  <div className="flex items-start gap-2">
-                    <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>{center.developerInfo.address}</span>
-                  </div>
-                )}
-                {center.developerInfo.hours && (
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 shrink-0" />
-                    <span>{center.developerInfo.hours}</span>
-                  </div>
-                )}
-                {developerWebsiteUrl && (
-                  <a
-                    href={developerWebsiteUrl.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex w-fit items-center gap-1 text-ink hover:underline"
-                  >
-                    <Globe className="h-4 w-4 shrink-0" />
-                    {developerWebsiteUrl.label}
-                    <ExternalLink className="h-3 w-3 shrink-0" />
-                  </a>
-                )}
-              </div>
-            )}
+            {developerContacts}
           </div>
-        )}
+        ) : null}
 
         {renderRecommendationSlot('developer')}
 

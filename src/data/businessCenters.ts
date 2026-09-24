@@ -319,6 +319,76 @@ export interface DeveloperInfo {
   // до этого поля не было вовсе ни у одного БЦ. Показывается на публичной
   // карточке тем же принципом, что и остальные поля этого блока.
   email: string | null;
+  // Развёрнутый блок «Кто стоит за ТЦ» (владелец, 2026-09-24: у ТЦ блок
+  // застройщика «смотрится бедно, мало инфы»). Все четыре поля
+  // необязательные: у 141 БЦ их нет вовсе, и карточка рисуется как раньше.
+  // Заполняет ресёрч (бриф tc-catalog/codex/briefs/developer-deep.md),
+  // форма админки их не редактирует, но и не стирает — сохраняет как были
+  // (buildDeveloperInfo в BusinessCentersAdminTab.tsx). Из базы приходят
+  // через normalizeDeveloperInfo (lib/developerProfile.ts): кривые записи
+  // отбрасываются там, а не на странице. Контакты главной компании —
+  // существующие phone/email/address/website выше, не дублируются.
+  companies?: DeveloperCompany[];
+  profile?: DeveloperProfile | null;
+  portfolio?: DeveloperPortfolioEntry[];
+  facts?: DeveloperFact[];
+}
+
+/** Участник проекта: инвестор, собственник, генподрядчик, архитектор, УК… */
+export interface DeveloperCompany extends RetailSource {
+  /** Как в ресёрче: «инвестор и застройщик», «генподрядчик», «управляющая компания». */
+  role: string;
+  name: string;
+  legalName: string | null;
+  /** «2011–2014», «2014–н. в.» — строкой, как опубликовано. */
+  years: string | null;
+  country: string | null;
+  website: string | null;
+  text: string | null;
+  quote: string | null;
+}
+
+/** Цифра масштаба главной компании: «25 торговых центров» на дату. */
+export interface DeveloperScaleEntry extends RetailSource {
+  label: string;
+  value: string;
+  date: string | null;
+}
+
+/** Человек в публичной роли (основатель, директор) — без оценок. */
+export interface DeveloperPerson extends RetailSource {
+  name: string;
+  role: string;
+}
+
+export interface DeveloperProfile {
+  name: string;
+  /** Год или дата основания строкой («1996»). */
+  founded: string | null;
+  hq: string | null;
+  business: string | null;
+  scale: DeveloperScaleEntry[];
+  people: DeveloperPerson[];
+}
+
+/** Другой объект компании (или её группы). */
+export interface DeveloperPortfolioEntry extends RetailSource {
+  name: string;
+  /** Тип: ТЦ, БЦ, жильё, отель… */
+  kind: string | null;
+  city: string | null;
+  year: string | null;
+  /** Уже с единицей: число из базы превращается в «12 300 м²». */
+  area: string | null;
+  note: string | null;
+  /** Какой из companies принадлежит — для группировки. */
+  owner: string | null;
+}
+
+export interface DeveloperFact extends RetailSource {
+  label: string | null;
+  text: string;
+  quote: string | null;
 }
 
 // Фиксированный набор иконок для "Интересных фактов" (не сам React-компонент

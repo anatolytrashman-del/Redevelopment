@@ -4,6 +4,7 @@ import { bcExtraFile, loadBuildData, seedBuildData } from './buildData';
 import { triggerPublicRebuild } from './publicRebuild';
 import { CATALOG_VOCABULARY, type CatalogKind } from './catalogKind';
 import { normalizeRetailInfo } from './tradeCenterRetail';
+import { normalizeDeveloperInfo } from './developerProfile';
 import type {
   BusinessCenter,
   BusinessCenterDerivedField,
@@ -25,7 +26,7 @@ function fromRow(row: BusinessCenterRow): BusinessCenter {
     yearBuilt: row.year_built,
     floors: row.floors,
     developer: row.developer,
-    developerInfo: row.developer_info,
+    developerInfo: normalizeDeveloperInfo(row.developer_info),
     metro: row.metro,
     parking: row.parking,
     website: row.website,
