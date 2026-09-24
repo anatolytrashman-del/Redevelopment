@@ -736,6 +736,9 @@ export interface RetailFigureEntry extends RetailSource {
   date: string | null;
   // «по данным ТЦ», «из рекламного материала»
   note: string | null;
+  // «ТЦ в цифрах» (2026-09-24, бриф numbers.md): одна фраза, почему цифра
+  // впечатляет, — сравнение или контекст. У аудитории и старых записей нет.
+  text: string | null;
 }
 
 /** «Как арендовать» и «реклама в ТЦ» — одна форма. */
