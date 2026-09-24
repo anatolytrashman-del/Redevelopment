@@ -122,6 +122,7 @@ import {
 import { TenantDirectory } from '../components/businessCenters/TenantDirectory';
 import { BuildingAmenities } from '../components/businessCenters/BuildingAmenities';
 import { TradeCenterRetailBlocks } from '../components/businessCenters/TradeCenterRetailBlocks';
+import { TradeCenterAwardsBlock } from '../components/businessCenters/TradeCenterAwardsBlock';
 import { DeveloperDeepCard } from '../components/businessCenters/DeveloperDeepCard';
 import {
   developerAboutFaqAnswer,
@@ -136,6 +137,9 @@ import {
   RETAIL_SECTION_LABELS,
   anchorsFaqAnswer,
   audienceFaqQuestion,
+  awardsFaqAnswer,
+  awardsRankingSize,
+  awardsRankingTitle,
   eventsFaqAnswer,
   figuresFaqAnswer,
   firstsFaqAnswer,
@@ -189,6 +193,9 @@ import { buildRanking as buildBusinessCenterRanking } from './BusinessCentersRan
 // блоки реально отрисованы.
 const SECTION_LABELS: Record<string, string> = {
   awards: 'Награды',
+  // У ТЦ вместо «Наград» — «Награды и рейтинги» (TradeCenterAwardsBlock);
+  // подпись пункта уточняется по содержимому (awardsRankingTitle).
+  'awards-ranking': 'Награды и рейтинги',
   facts: 'Интересные факты',
   media: 'СМИ о здании',
   developer: 'Застройщик',
@@ -214,6 +221,7 @@ const SECTION_LABELS: Record<string, string> = {
 
 const SECTION_ICONS: Record<string, typeof FileText> = {
   awards: Trophy,
+  'awards-ranking': Trophy,
   facts: Sparkles,
   media: Newspaper,
   developer: HardHat,
@@ -828,6 +836,11 @@ export function BusinessCenterDetailPage() {
         ),
     [center],
   );
+  // «Награды и рейтинги» ТЦ (TradeCenterAwardsBlock): наградами считаются и
+  // структурные retail_info.awards, и строки из highlights — блок показывает
+  // вторые, пока нет первых.
+  const tcHasAwards = isTc && Boolean(center?.retailInfo?.awards.length || awardItems.length);
+  const tcHasRanking = isTc && Boolean(center?.retailInfo?.ranking.length);
 
   // Блоки-рекомендации других БЦ — готовые данные (заголовок/карточки/
   // ссылка на каталог), УЖЕ отсортированные по приоритету показа: чем
@@ -1565,13 +1578,6 @@ export function BusinessCenterDetailPage() {
       add(`Кто якорные арендаторы ${bcGen}?`, anchorsFaqAnswer(retail.firsts));
       const leisureQuestion = leisureFaqQuestion(retail.leisure, `в ${bcPrep}`);
       if (leisureQuestion) add(leisureQuestion, leisureFaqAnswer(retail.leisure));
-      const scopes = [...new Set(retail.ranking.map((r) => r.scope.trim()))];
-      add(
-        scopes.length === 1 && scopes[0]
-          ? `Какое место ${bcNom} занимает ${scopes[0]}?`
-          : `Какое место ${bcNom} занимает в рейтингах ${V.manyGen}?`,
-        rankingFaqAnswer(retail.ranking),
-      );
       // «Посетителю» и «для бизнеса» (TradeCenterExtraBlocks) — в том же
       // порядке, что панели на странице.
       add(`Какой режим работы у ${bcGen}?`, hoursFaqAnswer(retail.hours, retail.hoursNote));
@@ -1742,6 +1748,14 @@ export function BusinessCenterDetailPage() {
         );
       }
     }
+    // «Награды и рейтинги» ТЦ — после отзывов, как блок на странице. Ответы
+    // собирают те же функции, что рисуют блок (lib/tradeCenterRetail.ts);
+    // строки наград из highlights — запасной вариант, пока нет структурных.
+    if (isTc) {
+      const retail = center.retailInfo;
+      add(`Какие награды у ${bcGen}?`, awardsFaqAnswer(retail?.awards ?? [], awardItems));
+      add(`Какие места ${bcNom} занимает в рейтингах ${V.manyGen}?`, rankingFaqAnswer(retail?.ranking ?? []));
+    }
     // СМИ и история здания убраны из FAQ (владелец, 2026-09-22: «Что писали
     // в СМИ — убирай», «Что известно об истории — ответ хуйня, убирай»).
     // Оба блока остаются видимыми на странице, FAQ их не пересказывает.
@@ -1794,7 +1808,12 @@ export function BusinessCenterDetailPage() {
           reviewQuotes.length > 0 ||
           reviews.some((r) => r.source !== '2gis'),
       ),
-      has('awards', awardItems.length > 0),
+      // У ТЦ награды (в том числе строки из highlights) и места в рейтингах
+      // — один блок «Награды и рейтинги», общий блок «Награды» не рисуется.
+      has('awards', !isTc && awardItems.length > 0),
+      isTc && (tcHasAwards || tcHasRanking)
+        ? { id: 'awards-ranking', label: awardsRankingTitle(tcHasAwards, tcHasRanking) }
+        : null,
       has('media', mediaMentions.length > 0),
       has('facts', visibleHighlights.length > 0),
       has('history', extractHistoryPoints(center).length >= 2),
@@ -1826,6 +1845,8 @@ export function BusinessCenterDetailPage() {
     nearbyPlaces,
     reviews,
     isTc,
+    tcHasAwards,
+    tcHasRanking,
     V,
   ]);
 
@@ -1876,6 +1897,8 @@ export function BusinessCenterDetailPage() {
         }
         case 'awards':
           return awardItems.length;
+        case 'awards-ranking':
+          return awardsRankingSize(center.retailInfo, awardItems.length);
         case 'media':
           return mediaMentions.length;
         case 'facts':
@@ -2810,7 +2833,14 @@ export function BusinessCenterDetailPage() {
             Список строим из готовых строк awardItems, а не через
             renderRentalText: тот рисует буллеты мелким шрифтом абзаца,
             а нужен тот же маркер, но крупнее. */}
-        {awardItems.length > 0 && (
+        {/* У ТЦ вместо этого блока — «Награды и рейтинги» (2026-09-24):
+            награды из retail_info.awards (или, пока их нет, те же строки
+            из highlights) и места в рейтингах ТЦ Минска одной карточкой. */}
+        {isTc && (
+          <TradeCenterAwardsBlock info={center.retailInfo} legacyAwardLines={awardItems} renderLine={renderBold} />
+        )}
+        {isTc && renderRecommendationSlot('awards-ranking')}
+        {!isTc && awardItems.length > 0 && (
           <div id="awards" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
               <Trophy className="h-5 w-5 shrink-0 text-primary" />

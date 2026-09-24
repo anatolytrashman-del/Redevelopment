@@ -87,12 +87,17 @@ const SECTION_HEIGHT_MODEL: Record<string, SectionHeightModel> = {
   // База — бейджи рейтинга без единого отзыва (okean, 154px).
   reviews: { base: 155, perItem: 95, maxItems: 6 },
   awards: { base: 110, perItem: 40 },
+  // «Награды и рейтинги» ТЦ (TradeCenterAwardsBlock) — единица ~60px, см.
+  // awardsRankingSize в lib/tradeCenterRetail. Замер 2026-09-24 на 1280px
+  // по мок-данным «Замка»: 4 награды + 4 рейтинга (10 единиц) — 844px.
+  'awards-ranking': { base: 245, perItem: 60 },
   media: { base: 15, perItem: 80 },
   facts: { base: 145, perItem: 80 },
   history: { base: 0, perItem: 115 },
   developer: { base: 240, perItem: 15 },
   // Торговые блоки ТЦ (TradeCenterRetailBlocks), замер 2026-09-23 на
-  // 1280px: этажи — 553px на 6 строк со строкой рейтинга, «первые и
+  // 1280px: этажи — 553px на 6 строк со строкой рейтинга (с 2026-09-24
+  // рейтинга в карточке нет: 386px на 3 строки, модель даёт 373), «первые и
   // якоря» — 455px на 6 записей, досуг — 333px на 2 ряда плиток (у досуга
   // элемент — ряд из двух плиток, см. sectionSizes на странице).
   floors: { base: 190, perItem: 61 },

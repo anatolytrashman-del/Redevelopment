@@ -4,6 +4,8 @@
 // FAQ карточки. Одни и те же функции на обе стороны — чтобы FAQ не
 // пересказывал блок своими словами и не расходился с ним.
 import type {
+  RetailAwardEntry,
+  RetailAwardResult,
   RetailEventEntry,
   RetailFigureEntry,
   RetailFirstEntry,
@@ -26,6 +28,8 @@ import type {
 } from '../data/businessCenters';
 
 const FIRST_KINDS = new Set(['first', 'anchor', 'former_anchor']);
+export const AWARD_RESULTS: RetailAwardResult[] = ['winner', 'diploma', 'laureate', 'finalist', 'nominee', 'other'];
+const AWARD_RESULT_SET = new Set<string>(AWARD_RESULTS);
 const LEISURE_KINDS = new Set(['cinema', 'food', 'kids', 'sport', 'other']);
 export const TRANSPORT_MODES: RetailTransportMode[] = [
   'metro',
@@ -50,6 +54,12 @@ function num(value: unknown): number | null {
 /** Строка или число как строка: «685» и 685 в jsonb значат одно и то же. */
 function text(value: unknown): string | null {
   return str(value) ?? (num(value) != null ? String(value) : null);
+}
+
+/** Год числом; «2025» строкой — тоже год, остальное — нет. */
+function yearOf(value: unknown): number | null {
+  const t = text(value);
+  return t && /^\d{4}$/.test(t) ? Number(t) : null;
 }
 
 function sourceOf(raw: Record<string, unknown>): RetailSource {
@@ -144,7 +154,46 @@ export function normalizeRetailInfo(raw: unknown): RetailInfo | null {
     const place = num(r.place);
     const criterion = str(r.criterion);
     if (place == null || place < 1 || !criterion) return [];
-    return [{ place, criterion, scope: str(r.scope) ?? '', total: num(r.total), year: num(r.year), ...sourceOf(r) }];
+    // Место больше длины списка — ошибка ресёрча, «5-й из 3» на странице не рисуем.
+    const total = num(r.total);
+    if (total != null && total < place) return [];
+    return [
+      {
+        place,
+        criterion,
+        scope: str(r.scope) ?? '',
+        total,
+        year: yearOf(r.year),
+        headline: str(r.headline),
+        value: text(r.value),
+        note: str(r.note),
+        ...sourceOf(r),
+      },
+    ];
+  });
+  // Награда без названия — не награда. Неизвестный результат — 'other'
+  // (сама награда от этого не исчезает, бейдж возьмёт resultText).
+  // confirmed ложен только при явном false: схема требует поле всегда, а
+  // пометка «по данным застройщика» у подтверждённой награды — тоже неправда.
+  const awards: RetailAwardEntry[] = records(data.awards).flatMap((r) => {
+    const title = str(r.title);
+    if (!title) return [];
+    const result = str(r.result);
+    return [
+      {
+        title,
+        org: str(r.org),
+        year: text(r.year),
+        category: str(r.category),
+        result: (result && AWARD_RESULT_SET.has(result) ? result : 'other') as RetailAwardResult,
+        resultText: str(r.resultText),
+        subject: str(r.subject),
+        recipient: str(r.recipient),
+        text: str(r.text),
+        confirmed: r.confirmed !== false && r.confirmed !== 'false',
+        ...sourceOf(r),
+      },
+    ];
   });
 
 
@@ -195,6 +244,7 @@ export function normalizeRetailInfo(raw: unknown): RetailInfo | null {
     firsts,
     leisure,
     ranking,
+    awards,
     hours,
     hoursNote,
     parking,
@@ -295,19 +345,152 @@ export function formatRetailDate(date: string | null | undefined): string | null
   return match[1];
 }
 
-// --- Рейтинг -------------------------------------------------------------
+// --- Награды и рейтинги (2026-09-24) ---------------------------------------
+// Отдельный блок «Награды и рейтинги» (TradeCenterAwardsBlock). До этого
+// места в рейтингах были жёлтыми плашками в карточке «Что на каком этаже»,
+// и владелец справедливо заметил, что это две разные сущности.
+
+function upperFirst(value: string): string {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+}
+
+export const AWARD_RESULT_LABELS: Record<RetailAwardResult, string | null> = {
+  winner: 'победитель',
+  diploma: 'диплом',
+  laureate: 'лауреат',
+  finalist: 'финалист',
+  nominee: 'номинант',
+  other: null,
+};
+
+/** Подпись результата: как записал ресёрч («диплом I степени»), иначе по виду. */
+export function awardResultLabel(award: RetailAwardEntry): string | null {
+  return award.resultText ?? AWARD_RESULT_LABELS[award.result];
+}
 
 /**
- * "4-й по арендопригодной площади среди ТЦ Минска (Onliner, 2025)".
- * С total — "4-й из 30 …". Скобка — только из того, что есть: источник,
- * год или оба. `form: 'place'` — для связного текста FAQ: "4-е место …".
+ * Ярус результата: 0 — награда получена (победитель, диплом, лауреат),
+ * 1 — финал, 2 — номинация, 3 — прочее. Диплом I степени и «победитель» —
+ * одно и то же по сути, поэтому внутри яруса решает свежесть, а не вид.
  */
-export function formatRankingLine(entry: RetailRankingEntry, form: 'short' | 'place' = 'short'): string {
-  const ordinal = form === 'place' ? `${entry.place}-е место` : `${entry.place}-й`;
-  const head = entry.total != null && entry.total >= entry.place ? `${ordinal} из ${entry.total}` : ordinal;
-  const body = [head, entry.criterion, entry.scope].map((part) => part.trim()).filter(Boolean).join(' ');
-  const note = [entry.source, entry.year != null ? String(entry.year) : null].filter(Boolean).join(', ');
-  return note ? `${body} (${note})` : body;
+export function awardTier(result: RetailAwardResult): number {
+  if (result === 'winner' || result === 'diploma' || result === 'laureate') return 0;
+  if (result === 'finalist') return 1;
+  if (result === 'nominee') return 2;
+  return 3;
+}
+
+/** Самый поздний год в строке: «2014–2015» → 2015. Нет года — null. */
+function latestYear(year: string | null): number | null {
+  const years = (year ?? '').match(/\d{4}/g)?.map(Number) ?? [];
+  return years.length ? Math.max(...years) : null;
+}
+
+/** Победы выше номинаций, внутри яруса — свежие выше, без года — в конце. */
+export function sortAwards(awards: RetailAwardEntry[]): RetailAwardEntry[] {
+  return [...awards].sort((a, b) => {
+    const tier = awardTier(a.result) - awardTier(b.result);
+    if (tier) return tier;
+    return (latestYear(b.year) ?? -Infinity) - (latestYear(a.year) ?? -Infinity);
+  });
+}
+
+/** «Лучший торговый центр · Realt.by · 2014». */
+export function awardMeta(award: RetailAwardEntry): string | null {
+  const parts = [award.category, award.org, award.year].filter(Boolean);
+  return parts.length ? parts.join(' · ') : null;
+}
+
+/**
+ * «За что: проект до открытия · получатель: бюро SZK/Z». Предмет — после
+ * двоеточия как есть: падеж свободного текста ресёрча не угадать («за
+ * архитектура»). «Здание» — предмет по умолчанию (наградили сам ТЦ), его не
+ * повторяем.
+ */
+export function awardDetails(award: RetailAwardEntry, separator = ' · '): string | null {
+  const subject = award.subject && !/^здание\.?$/i.test(award.subject) ? `За что: ${award.subject}` : null;
+  const recipient = award.recipient ? `${subject ? 'получатель' : 'Получатель'}: ${award.recipient}` : null;
+  const parts = [subject, recipient].filter(Boolean);
+  return parts.length ? parts.join(separator) : null;
+}
+
+/** Строка рейтинга, разложенная для вёрстки и FAQ. */
+export interface RankingView {
+  place: number;
+  total: number | null;
+  /** Жирная строка: headline записи или критерий с большой буквы. */
+  headline: string;
+  /** Среди кого — только у старых записей без headline (там он её заменяет). */
+  scope: string | null;
+  value: string | null;
+  year: number | null;
+  source: string | null;
+  note: string | null;
+}
+
+/**
+ * Старые записи (до 2026-09-24) не знают headline/value: значение там
+ * лежит в скобках в конце критерия — «арендопригодная площадь (52 000 м²)»,
+ * иногда с оговоркой через точку с запятой — «площадь (23 600 м²; какая
+ * именно — не уточнено)». Разбираем скобку на значение и оговорку, чтобы
+ * крупная строка читалась как формулировка, а не как выписка из таблицы.
+ */
+export function rankingView(entry: RetailRankingEntry): RankingView {
+  let criterion = entry.criterion.trim();
+  let value = entry.value;
+  let extraNote: string | null = null;
+  const match = criterion.match(/^(.*?\S)\s*\(([^()]+)\)$/);
+  if (match && !entry.headline) {
+    criterion = match[1];
+    const [head, ...rest] = match[2].split(';');
+    if (!value) value = head.trim() || null;
+    const tail = rest.join(';').trim();
+    extraNote = tail ? upperFirst(tail) : null;
+  }
+  const note = [entry.note, extraNote].filter(Boolean).join('; ') || null;
+  return {
+    place: entry.place,
+    total: entry.total != null && entry.total >= entry.place ? entry.total : null,
+    headline: entry.headline ?? upperFirst(criterion),
+    scope: entry.headline ? null : entry.scope.trim() || null,
+    value,
+    year: entry.year,
+    source: entry.source,
+    note,
+  };
+}
+
+/** «68 600 м² · 2025 · Onliner + Colliers». */
+export function rankingMeta(view: RankingView): string | null {
+  const parts = [view.value, view.year != null ? String(view.year) : null, view.source].filter(Boolean);
+  return parts.length ? parts.join(' · ') : null;
+}
+
+/** Свежие рейтинги выше (устаревший топ-10 2015 года — в конце), внутри года — высокие места выше. */
+export function sortRanking(ranking: RetailRankingEntry[]): RetailRankingEntry[] {
+  return [...ranking].sort((a, b) => {
+    const year = (b.year ?? -Infinity) - (a.year ?? -Infinity);
+    return year || a.place - b.place;
+  });
+}
+
+/** Заголовок блока и пункт меню — о том, что в нём реально есть. */
+export function awardsRankingTitle(hasAwards: boolean, hasRanking: boolean): string {
+  if (hasAwards && hasRanking) return 'Награды и рейтинги';
+  return hasAwards ? 'Награды' : 'Место в рейтингах';
+}
+
+/**
+ * Размер блока для модели высот страницы (businessCenterPageLayout) в
+ * условных единицах ~60px. Плитки стоят по две в ряд: ряд наград — 3
+ * единицы (название, бейдж, мета, текст), ряд рейтингов — 2. Строка награды
+ * из highlights (запасной вариант без retail_info.awards) — одна единица.
+ * Замер 2026-09-24 на 1280px: 4 награды + 4 рейтинга — 844px.
+ */
+export function awardsRankingSize(info: RetailInfo | null, legacyAwardLines = 0): number {
+  const awards = info?.awards.length ? Math.ceil(info.awards.length / 2) * 3 : legacyAwardLines;
+  const ranking = Math.ceil((info?.ranking.length ?? 0) / 2) * 2;
+  return awards + ranking;
 }
 
 // --- Источники -----------------------------------------------------------
@@ -425,9 +608,54 @@ export function leisureFaqAnswer(leisure: RetailLeisureEntry[]): string | null {
     .join('\n');
 }
 
+/**
+ * «Какие награды у …?» — каждая награда одной строкой в том же порядке,
+ * что в блоке. `legacy` — строки наград из highlights, когда структурных
+ * наград ещё нет (блок показывает их же, см. TradeCenterAwardsBlock).
+ */
+export function awardsFaqAnswer(awards: RetailAwardEntry[], legacy: string[] = []): string | null {
+  if (!awards.length) {
+    const lines = legacy.map((line) => line.replace(/\*\*/g, '').trim()).filter(Boolean);
+    return lines.length ? lines.map(sentence).join('\n') : null;
+  }
+  return sortAwards(awards)
+    .map((a) => {
+      const result = awardResultLabel(a);
+      const category = a.category ? `номинация «${a.category.replace(/^[«"]+|[»"]+$/g, '')}»` : null;
+      // Год в скобке — только если его нет в самом названии («… 2014»).
+      const year = a.year && !a.title.includes(a.year) ? a.year : null;
+      const paren = [a.org, year].filter(Boolean).join(', ');
+      const head = [a.title, [result, category].filter(Boolean).join(', ')].filter(Boolean).join(' — ');
+      const details = awardDetails(a, '; ');
+      return [
+        sentence(paren ? `${head} (${paren})` : head),
+        details ? sentence(details) : null,
+        a.text ? sentence(a.text) : null,
+        a.confirmed ? null : 'По данным застройщика.',
+      ]
+        .filter(Boolean)
+        .join(' ');
+    })
+    .join('\n');
+}
+
+/**
+ * «Какие места … занимает в рейтингах торговых центров?» — тем же
+ * порядком и теми же словами, что крупные строки блока:
+ * «Арендопригодная площадь — крупнейшие ТЦ Минска: 4-е место из 10,
+ * 52 000 м² (Onliner, 2025).»
+ */
 export function rankingFaqAnswer(ranking: RetailRankingEntry[]): string | null {
   if (!ranking.length) return null;
-  return ranking.map((r) => sentence(formatRankingLine(r, 'place'))).join('\n');
+  return sortRanking(ranking)
+    .map((entry) => {
+      const v = rankingView(entry);
+      const place = `${v.place}-е место${v.total != null ? ` из ${v.total}` : ''}${v.value ? `, ${v.value}` : ''}`;
+      const cite = [v.source, v.year != null ? String(v.year) : null].filter(Boolean).join(', ');
+      const line = sentence(`${v.headline}${v.scope ? ` — ${v.scope}` : ''}: ${place}${cite ? ` (${cite})` : ''}`);
+      return v.note ? `${line} ${sentence(v.note)}` : line;
+    })
+    .join('\n');
 }
 
 // --- Посетителю: режим, парковка, проезд, удобства, скидки ---------------
