@@ -272,7 +272,9 @@ function buildHighlights(form: FormState): HighlightSection[] {
 
 function buildTenantOrganizations(form: FormState): TenantOrganization[] {
   return form.tenantOrganizations
-    .map((o) => ({ name: o.name.trim(), category: o.category.trim() }))
+    // ...o: поля скрипта сбора (этаж, рейтинг, ссылка) форма не редактирует,
+    // но сохранение не должно их стирать.
+    .map((o) => ({ ...o, name: o.name.trim(), category: o.category.trim() }))
     .filter((o) => o.name);
 }
 

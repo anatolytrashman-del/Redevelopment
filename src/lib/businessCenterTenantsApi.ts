@@ -23,6 +23,7 @@ function parseOrganizations(raw: unknown): TenantSourceOrganization[] {
       rating: typeof org.rating === 'number' ? org.rating : null,
       reviewCount: typeof org.reviewCount === 'number' ? org.reviewCount : null,
       rawText: typeof org.rawText === 'string' ? org.rawText : null,
+      floor: typeof org.floor === 'string' && org.floor.trim() !== '' ? org.floor.trim() : null,
     }))
     .filter((org) => org.name !== '');
 }
