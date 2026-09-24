@@ -508,6 +508,11 @@ export function normalizeRetailInfo(raw: unknown): RetailInfo | null {
     ];
   });
 
+  const tenantsAtRaw = record(data.tenantsAt);
+  const tenantsAtSlug = tenantsAtRaw ? str(tenantsAtRaw.slug) : null;
+  const tenantsAtName = tenantsAtRaw ? str(tenantsAtRaw.name) : null;
+  const tenantsAt = tenantsAtSlug && tenantsAtName ? { slug: tenantsAtSlug, name: tenantsAtName } : null;
+
   const info: RetailInfo = {
     floorsGuide,
     anchors,
@@ -531,6 +536,7 @@ export function normalizeRetailInfo(raw: unknown): RetailInfo | null {
     numbers,
     quotes,
     vacancies,
+    tenantsAt,
   };
   const empty = Object.values(info).every((value) => value == null || (Array.isArray(value) && value.length === 0));
   return empty ? null : info;

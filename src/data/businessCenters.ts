@@ -798,6 +798,12 @@ export interface RetailInfo {
   numbers: RetailFigureEntry[];
   quotes: RetailQuoteEntry[];
   vacancies: RetailVacancyEntry[];
+  // Каталог арендаторов показан на странице соседнего корпуса того же
+  // комплекса (2026-09-24, «Европа» 57А и «Новая Европа» 57Б: в Яндексе
+  // карточка «Европа» на деле собирает магазины 57Б, и срез у обеих страниц
+  // совпадал на 212 организаций из 224). Здесь вместо каталога — ссылка туда,
+  // чтобы не было двух одинаковых списков.
+  tenantsAt: { slug: string; name: string } | null;
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. lib/businessCentersApi.ts
