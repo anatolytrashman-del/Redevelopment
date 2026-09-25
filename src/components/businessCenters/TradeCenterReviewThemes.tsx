@@ -25,6 +25,13 @@ export function TradeCenterReviewThemes({ themes, rating, yandexUrl }: {
           {yandexUrl && <a href={yandexUrl} target="_blank" rel="noopener noreferrer" className="mt-2.5 inline-block text-[13px] text-ink underline underline-offset-4">Все отзывы на Яндекс Картах ↗</a>}
         </div>
       )}
+      {/* Без оценки — одна строка: сколько отзывов в Яндексе и ссылка на них. */}
+      {!rating && (
+        <p className="text-[13px] text-ink-muted">
+          По отзывам в Яндекс Картах{themes.reviewCount ? ` (всего ${themes.reviewCount.toLocaleString('ru-RU')})` : ''}
+          {yandexUrl && <> · <a href={yandexUrl} target="_blank" rel="noopener noreferrer" className="text-ink underline underline-offset-4">читать все ↗</a></>}
+        </p>
+      )}
       <div className={`grid gap-3.5 ${columns.length === 2 ? 'sm:grid-cols-2' : ''}`}>
         {columns.map((column) => (
           <div key={column.key} className="rounded-[20px] border border-border bg-white px-5 py-4">
