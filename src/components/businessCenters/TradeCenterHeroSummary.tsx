@@ -21,12 +21,10 @@ import {
   parseDailyHours,
   pickMainHoursZone,
   selectTcFactTiles,
-  tcAnchorChipNames,
   tcAudienceVisitorsPerDay,
   tcHeroSubtitle,
   tcParkingShort,
   tcParkingSpaces,
-  tcQuickJumpChips,
 } from '../../lib/tradeCenterHero';
 import { FactTile } from './BusinessCenterVisuals';
 
@@ -74,17 +72,6 @@ function InfoRow({ label, children }: { label: string; children: ReactNode }) {
           высоте блока и отрывает её от первой строки текста. */}
       <p className="mt-0.5 flex min-w-0 items-start gap-1.5 text-sm leading-snug text-ink sm:mt-0">{children}</p>
     </div>
-  );
-}
-
-function Chip({ href, children }: { href: string; children: ReactNode }) {
-  return (
-    <a
-      href={href}
-      className="rounded-full border border-border bg-white/70 px-3 py-1.5 text-sm text-ink transition-colors hover:border-primary/40 hover:text-primary"
-    >
-      {children}
-    </a>
   );
 }
 
@@ -146,8 +133,6 @@ export function TradeCenterHeroSummary({
     mapRatingLabel: mapRating?.label ?? null,
   });
 
-  const anchorNames = tcAnchorChipNames(info);
-  const quickJumpChips = tcQuickJumpChips(info);
 
   return (
     <>
@@ -214,34 +199,6 @@ export function TradeCenterHeroSummary({
               }
             />
           ))}
-        </div>
-      )}
-
-      {(anchorNames.length > 0 || quickJumpChips.length > 0) && (
-        <div className="flex flex-col gap-2">
-          {anchorNames.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              {anchorNames.map((name) => (
-                <span key={name} className="rounded-full border border-border bg-white/70 px-3 py-1 text-sm text-ink">
-                  {name}
-                </span>
-              ))}
-              {tenantCount > 0 && (
-                <a href="#tenants" className="text-sm font-semibold text-primary hover:underline">
-                  Все {tenantCount} арендаторов →
-                </a>
-              )}
-            </div>
-          )}
-          {quickJumpChips.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {quickJumpChips.map((chip) => (
-                <Chip key={chip.id} href={`#${chip.id}`}>
-                  {chip.label}
-                </Chip>
-              ))}
-            </div>
-          )}
         </div>
       )}
     </>
