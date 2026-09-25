@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#16171a;--muted:#6b6d73;--border:#e7e5e1;--card:#f7f6f4;--icon:#3b3d44;--iconbg:#eceae6;--red:#e4152b}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Montserrat,sans-serif;background:#ecebe8;color:var(--ink);padding:24px}
+.card{max-width:1040px;margin:0 auto;background:var(--card);border-radius:28px;padding:30px 32px}
+h2{font-size:22px;font-weight:700;display:flex;gap:10px;align-items:center}
+.hic{width:26px;height:26px;border-radius:8px;background:var(--iconbg);display:grid;place-items:center}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:18px;align-items:start}
+.f{background:#fff;border:1px solid var(--border);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:8px;cursor:pointer}
+.f.open{border-color:var(--red);grid-column:span 2}
+.hook{font-size:30px;font-weight:800;line-height:1;letter-spacing:-.01em}
+.hook small{font-size:14px;font-weight:700;margin-left:4px}
+.t{font-size:14px;font-weight:700;line-height:1.3}
+.s{font-size:13px;color:var(--muted);line-height:1.45}
+.full{font-size:13px;line-height:1.55;color:var(--ink);border-top:1px dashed #d9d6d0;padding-top:10px}
+.more{margin-top:14px;display:inline-flex;gap:6px;align-items:center;font-size:14px;font-weight:600;border:1px solid var(--border);background:#fff;border-radius:999px;padding:9px 16px}
+.note{max-width:1040px;margin:12px auto 0;font-size:12px;color:var(--muted)}
+@media (max-width:900px){.grid{grid-template-columns:1fr 1fr}}
+@media (max-width:560px){body{padding:12px}.card{padding:20px}.f.open{grid-column:span 2}}
+</style></head><body>
+<div class="card">
+<h2><span class="hic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3b3d44" stroke-width="2" stroke-linecap="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg></span>Интересные факты</h2>
+<div class="grid">
+ <div class="f"><div class="hook">1963</div><div class="t">На месте общежития БГУ</div><div class="s">До ТРЦ здесь стояло одно из первых послевоенных зданий проспекта.</div></div>
+ <div class="f open"><div class="hook">6 000<small>свай</small></div><div class="t">Стройка в пойме Свислочи</div><div class="s">Слабые грунты, высокие воды — и крен соседних домов всего 2 мм.</div>
+   <div class="full">Площадка оказалась в пойме Свислочи: высокие грунтовые воды, слабые грунты и магистральные сети на глубине 6–8 метров, которые пришлось выносить из пятна застройки. Котлован отгораживали и осушали водопонижением, под торговым центром забили почти 2000 свай на глубину 7 метров и ещё около 4000 — вокруг, чтобы не пострадали соседние дома; по словам застройщика, крен окружающих зданий за всю стройку составил около 2 мм.</div></div>
+ <div class="f"><div class="hook">3 600<small>панелей</small></div><div class="t">Шкатулка с драгоценностями</div><div class="s">Фасад из стекла ручной работы, вечером светится изнутри.</div></div>
+ <div class="f"><div class="hook">24,6<small>м</small></div><div class="t">Самый большой экран страны</div><div class="s">LED-табло на фасаде включили ещё до открытия ТРЦ.</div></div>
+ <div class="f"><div class="hook">23<small>м</small></div><div class="t">Снежная королева в атриуме</div><div class="s">Фигуру к Новому 2026 году собирали 30 ночей после закрытия.</div></div>
+ <div class="f"><div class="hook">193<small>номера</small></div><div class="t">Отель над торговым центром</div><div class="s">С 7-го по 21-й этаж — первый в Беларуси DoubleTree by Hilton.</div></div>
+ <div class="f"><div class="hook">2008</div><div class="t">Проект, который не случился</div><div class="s">Первым участок получил другой инвестор — его МФК так и не построили.</div></div>
+ <div class="f"><div class="hook">3<small>раза</small></div><div class="t">Открытие переносили</div><div class="s">Ждали сезона коллекций и открылись в декабре 2016-го.</div></div>
+</div>
+<button class="more">Ещё 3 факта ↓</button>
+</div>
+<p class="note">Макет. Каждая карточка: крупная цифра или год, заголовок, одна фраза. Нажатие раскрывает полный текст (пример — «6 000 свай»). Показываем 8, остальное под «Ещё». Факты, которые уже есть в других блоках (этажи, награды, «впервые в Беларуси», второй «Шкатулки»), убраны.</p>
+</body></html>
