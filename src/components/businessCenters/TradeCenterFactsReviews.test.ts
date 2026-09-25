@@ -34,5 +34,5 @@ it('выводит рейтинг и общий счётчик, без крат�
   expect(fallback).not.toContain('<a ');
   const noRating = renderToStaticMarkup(createElement(TradeCenterReviewThemes, { themes }));
   expect(noRating).toContain('Хвалят');
-  expect(noRating).not.toContain('отзывам в Яндекс Картах');
+  expect(noRating).toContain('По отзывам в Яндекс Картах');
 });
