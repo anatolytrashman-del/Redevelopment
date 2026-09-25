@@ -52,7 +52,7 @@ import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from
 import { Badge } from '../components/ui/Badge';
 import { PhotoBlock, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import { FavoriteButton } from '../components/businessCenters/FavoriteButton';
-import { MetroValue, TradeCenterHeroSubtitle, TradeCenterHeroSummary } from '../components/businessCenters/TradeCenterHeroSummary';
+import { MetroValue, TradeCenterHeroSummary } from '../components/businessCenters/TradeCenterHeroSummary';
 import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrademarkNote';
 import {
   setBreadcrumbJsonLd,
@@ -2623,7 +2623,6 @@ export function BusinessCenterDetailPage() {
                   ТЦ (владелец, 2026-09-25): у БЦ эти же факты уже есть в
                   плитках ниже, а формат объекта («ТРЦ», «аутлет»…) у БЦ не
                   собирается вовсе. */}
-              {isTc && <TradeCenterHeroSubtitle center={center} />}
             </div>
 
             {/* У ТЦ вместо «Расположения», плиток класс/площадь/год/рейтинг
