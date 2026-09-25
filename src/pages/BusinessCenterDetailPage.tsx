@@ -1970,8 +1970,7 @@ export function BusinessCenterDetailPage() {
         case 'amenities':
           return infrastructureSectionSize(tcInfrastructure);
         // Торговые карточки ТЦ — модель строк в lib/tradeCenterRetail.
-        // У 'floors' («Путеводитель по ТЦ») с 2026-09-25 внутри ещё и
-        // каталог арендаторов — добавляем его в оценку высоты.
+        // Поиск в «Что где» имеет постоянную высоту (владелец, 2026-09-25).
         case 'floors':
           return retailSectionSize(center.retailInfo, id, tenantOrganizations.length);
         case 'retail-history':
@@ -2890,6 +2889,7 @@ export function BusinessCenterDetailPage() {
             полный список для поиска по имени. У БЦ не рисуются. */}
         {isTc && (
           <TradeCenterRetailBlocks
+            slug={center.slug}
             info={center.retailInfo}
             name={`${V.abbr} ${centerNameTail(center)}`}
             organizations={tenantOrganizations}

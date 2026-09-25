@@ -21,6 +21,13 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { join, resolve } from 'node:path';
+import ts from 'typescript';
+
+// Один фильтр для сборки и страницы, без копии правил (владелец, 2026-09-25).
+const guideModule = ts.transpileModule(readFileSync(new URL('../src/lib/tradeCenterGuide.ts', import.meta.url), 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2023 },
+}).outputText;
+const { uniqueBrandsByCenter } = await import(`data:text/javascript;base64,${Buffer.from(guideModule).toString('base64')}`);
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
@@ -247,7 +254,7 @@ async function writeExtras() {
       dataset('nearby', () => selectAll('business_center_nearby_places?select=*&order=distance_meters.asc,id.asc', 'окружение')),
       dataset('gis2', () => supabaseSelect(`business_center_2gis_snapshots?select=${GIS2_COLUMNS}`, '2ГИС')),
       dataset('tenants', () =>
-        supabaseSelect(`business_center_tenant_source_snapshots?select=${TENANT_COLUMNS}&source=eq.yandex_maps`, 'арендаторы'),
+        selectAll(`business_center_tenant_source_snapshots?select=${TENANT_COLUMNS}&source=eq.yandex_maps&order=business_center_slug.asc`, 'арендаторы'),
       ),
     ]);
   // Здания БЦ и ТЦ не пересекаются, поэтому порядок внутри каждого здания
@@ -296,6 +303,15 @@ async function writeExtras() {
     return map;
   };
   const [offersBy, reviewsBy, nearbyBy, gis2By, tenantsBy] = [offers, reviews, nearby, gis2, tenants].map(bySlug);
+  const tcListPath = join(DIST_DATA, 'trade-centers.json');
+  const tcSlugs = new Set(existsSync(tcListPath) ? JSON.parse(readFileSync(tcListPath, 'utf8')).rows.map((row) => row.slug) : []);
+  const uniqueBrands = uniqueBrandsByCenter(tenants.filter((row) => tcSlugs.has(row.business_center_slug)).map((row) => ({
+    slug: row.business_center_slug,
+    kind: 'tc',
+    organizations: (Array.isArray(row.organizations) ? row.organizations : [])
+      .filter((org) => org && typeof org.name === 'string')
+      .map((org) => ({ name: org.name, rubric: typeof org.category === 'string' ? org.category : null, reviewCount: typeof org.reviewCount === 'number' ? org.reviewCount : null })),
+  })));
   for (const slug of slugs) {
     writeFileSync(
       join(DIST_DATA, 'bc', `${slug}.extra.json`),
@@ -306,6 +322,7 @@ async function writeExtras() {
         nearby: nearbyBy.get(slug) ?? [],
         gis2: gis2By.get(slug)?.[0] ?? null,
         tenants: tenantsBy.get(slug)?.[0] ?? null,
+        uniqueBrands: uniqueBrands.get(slug),
       }),
     );
   }

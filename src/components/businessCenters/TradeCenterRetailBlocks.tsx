@@ -22,7 +22,7 @@
 // `after` — место для блока-рекомендации после карточки (как
 // renderRecommendationSlot у остальных блоков страницы): раскладка
 // рекомендаций видит эти карточки как отдельные разделы.
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Baby, Clapperboard, Dumbbell, Sparkles, UtensilsCrossed, type LucideIcon } from 'lucide-react';
 import type { RetailInfo, RetailLeisureKind } from '../../data/businessCenters';
 import type { TenantOrganizationView } from '../../data/businessCenterTenants';
@@ -41,6 +41,7 @@ import { RetailCardTitle as CardTitle, SourcesLine } from './TradeCenterRetailPa
 import { retailCardClass as cardClass } from './tradeCenterRetailStyle';
 import { glassCardShadow } from '../../lib/glass';
 import { TradeCenterGuide } from './TradeCenterGuide';
+import { loadBcExtra, peekBcExtra, type BcExtraFile } from '../../lib/buildData';
 import {
   TradeCenterBusinessCard,
   TradeCenterNumbersCard,
@@ -62,16 +63,26 @@ export function TradeCenterRetailBlocks({
   info,
   name,
   organizations,
+  slug,
   after,
 }: {
   info: RetailInfo | null;
+  slug: string;
   /** Имя в заголовке ленты: «ТЦ «Замок»». */
   name: string;
   /** Каталог арендаторов — с 2026-09-25 живёт внутри «Путеводителя», не отдельным блоком. */
   organizations: TenantOrganizationView[];
   after?: (id: RetailSectionId) => ReactNode;
 }) {
-  if (!info) return null;
+  const [extra, setExtra] = useState<{ slug: string; data: BcExtraFile | null }>(() => ({ slug, data: peekBcExtra(slug) }));
+  useEffect(() => {
+    let cancelled = false;
+    // Только файл сборки: уникальность требует снимков всех ТЦ (владелец, 2026-09-25).
+    void loadBcExtra(slug).then((data) => { if (!cancelled) setExtra({ slug, data }); });
+    return () => { cancelled = true; };
+  }, [slug]);
+  const uniqueBrands = extra.slug === slug ? extra.data?.uniqueBrands : undefined;
+  if (!info) return <TradeCenterGuide key={slug} info={null} organizations={organizations} name={name} uniqueBrands={uniqueBrands} />;
   const ids = retailSectionIds(info, organizations.length > 0);
 
   // Старый досуг — только у ТЦ без «Где поесть»/«Развлечений».
@@ -79,7 +90,7 @@ export function TradeCenterRetailBlocks({
 
   return (
     <>
-      {ids.includes('floors') && <TradeCenterGuide info={info} organizations={organizations} name={name} />}
+      {ids.includes('floors') && <TradeCenterGuide key={slug} info={info} organizations={organizations} name={name} uniqueBrands={uniqueBrands} />}
       {ids.includes('floors') && after?.('floors')}
 
       {ids.includes('retail-history') && <TradeCenterHistoryCard timeline={info.timeline} title={retailHistoryTitle(name)} />}

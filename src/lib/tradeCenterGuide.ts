@@ -1,171 +1,138 @@
-// Путеводитель по ТЦ (владелец, 2026-09-25): слияние «Что на каком этаже» и
-// «Каталог арендаторов» в один блок для ТЦ (TradeCenterGuide.tsx). БЦ этот
-// файл не касается — каталог там остаётся прежним (TenantDirectory).
-//
-// Чистые функции здесь, а не в компоненте, — тем же пользуется тест
-// (tradeCenterGuide.test.ts) без рендера React.
 import type { RetailFloorEntry } from '../data/businessCenters';
 import type { TenantOrganizationView } from '../data/businessCenterTenants';
-import { tenantDirectionLabel } from '../data/tenantIndustries';
-import { floorSortKey, formatFloorBadge, formatFloorLabel } from './tradeCenterRetail';
 
-/** Псевдо-этаж для организаций без известного этажа — идёт в конце стопки. */
-export const NO_FLOOR = '__no_floor__';
+export interface UniqueBrand { name: string; label: string }
+interface Shop { name: string; rubric: string | null; reviewCount: number | null }
 
-export interface GuideOrg extends TenantOrganizationView {
-  direction: string;
+export function normalizeSearchText(value: string): string {
+  return value.trim().toLowerCase().replace(/ё/g, 'е');
 }
 
-export function toGuideOrgs(organizations: TenantOrganizationView[]): GuideOrg[] {
-  return organizations.map((org) => ({ ...org, direction: tenantDirectionLabel(org.industry) }));
+export function normalizeBrand(value: string): string {
+  return normalizeSearchText(value).replace(/[^\p{L}\p{N}]/gu, '');
 }
 
-/** Этажи сверху вниз: объединение floorsGuide и этажей организаций. */
-export function collectFloors(floorsGuide: RetailFloorEntry[], organizations: GuideOrg[]): string[] {
-  const set = new Set<string>();
-  for (const entry of floorsGuide) set.add(entry.floor);
-  for (const org of organizations) if (org.floor) set.add(org.floor);
-  return [...set].sort((a, b) => {
-    const ka = floorSortKey(a);
-    const kb = floorSortKey(b);
-    if (ka == null && kb == null) return 0;
-    if (ka == null) return 1;
-    if (kb == null) return -1;
-    return kb - ka;
-  });
+export function shopLabel(org: Shop): string | null {
+  const rubric = normalizeSearchText(org.rubric ?? '');
+  const text = `${normalizeSearchText(org.name)} ${rubric}`;
+  if (normalizeBrand(org.name).length < 3 || /туалет|банкомат|банк|микрофинанс|криптомат|офис|гостиниц|отель|казино|ломбард|организаци[яи] мероприятий|перевоз|этаж\s*[-−]?\d/u.test(text)) return null;
+  if (/ресторан/u.test(rubric)) return 'ресторан';
+  if (/кафе|кофейн/u.test(rubric)) return 'кафе';
+  if (/фастфуд|быстрого питания|пиццер|бургер|суши|столов/u.test(rubric)) return 'еда';
+  if (/детск|игруш/u.test(rubric)) return 'дети';
+  if (/обув/u.test(rubric)) return 'обувь';
+  if (/одежд|бель[ея]|бутик/u.test(rubric)) return 'одежда';
+  if (/ювелир|украшени/u.test(rubric)) return 'ювелирные';
+  if (/косметик|парфюмер/u.test(rubric)) return 'косметика';
+  if (/электрон|техник|компьютер|телефон/u.test(rubric)) return 'техника';
+  if (/спорт/u.test(rubric)) return 'спорт';
+  if (/продукт|супермаркет|гипермаркет/u.test(rubric)) return 'продукты';
+  if (/развлеч|кинотеатр|боулинг|игров/u.test(rubric)) return 'развлечения';
+  if (/мебель|подар|сувенир|товары для дома|посуда/u.test(rubric)) return 'дом и подарки';
+  return /магазин/u.test(rubric) ? 'магазин' : null;
 }
 
-export function countByFloor(organizations: GuideOrg[]): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const org of organizations) {
-    const key = org.floor ?? NO_FLOOR;
-    if (org.floor) counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return counts;
+export function popularShops<T extends Shop>(orgs: T[], limit = 5): T[] {
+  return orgs.filter((org) => shopLabel(org)).sort((a, b) => (b.reviewCount ?? 0) - (a.reviewCount ?? 0) || a.name.localeCompare(b.name, 'ru')).slice(0, limit);
 }
 
-/** Есть ли хоть одна организация без этажа — псевдо-этаж рисуем только тогда. */
-export function hasUnplacedOrgs(organizations: GuideOrg[]): boolean {
-  return organizations.some((org) => !org.floor);
-}
-
-/** По умолчанию — этаж с максимумом организаций, иначе первый в стопке. */
-export function defaultFloor(floors: string[], counts: Map<string, number>): string | null {
-  if (!floors.length) return null;
-  let best = floors[0];
-  let bestCount = counts.get(best) ?? 0;
-  for (const floor of floors) {
-    const count = counts.get(floor) ?? 0;
-    if (count > bestCount) {
-      best = floor;
-      bestCount = count;
-    }
-  }
-  return best;
-}
-
-/** Заголовок панели этажа: «2 этаж», «Подземный уровень −1», «Этаж не указан». */
-export function floorHeading(floor: string): string {
-  if (floor === NO_FLOOR) return 'Этаж не указан';
-  const key = floorSortKey(floor);
-  if (key != null && key < 0) return `Подземный уровень ${formatFloorBadge(floor)}`;
-  return formatFloorLabel(floor);
-}
-
-/** Короткая подпись плашки в стопке этажей. */
-export function floorPillLabel(floor: string): string {
-  return floor === NO_FLOOR ? '?' : formatFloorBadge(floor);
-}
-
-function upperFirst(value: string): string {
-  return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
-}
-
-/** Текст floorsGuide для этажа — все записи по нему, с заглавной буквы. */
-export function floorGuideText(floorsGuide: RetailFloorEntry[], floor: string): string | null {
-  const texts = floorsGuide.filter((entry) => entry.floor === floor).map((entry) => entry.text.trim());
-  if (!texts.length) return null;
-  return upperFirst(texts.join(' '));
-}
-
-export interface GuideCategoryGroup {
-  direction: string;
-  count: number;
-  orgs: GuideOrg[];
-}
-
-/** Организации этажа, сгруппированные по направлению: по числу убыв., внутри — по алфавиту. */
-export function groupByCategory(orgs: GuideOrg[]): GuideCategoryGroup[] {
-  const map = new Map<string, GuideOrg[]>();
-  for (const org of orgs) {
-    const list = map.get(org.direction) ?? [];
-    list.push(org);
-    map.set(org.direction, list);
-  }
-  return [...map.entries()]
-    .map(([direction, list]) => ({
-      direction,
-      count: list.length,
-      orgs: [...list].sort((a, b) => a.name.localeCompare(b.name, 'ru')),
-    }))
-    .sort((a, b) => b.count - a.count || a.direction.localeCompare(b.direction, 'ru'));
-}
-
-function normalizeSearchText(value: string): string {
-  return value.trim().toLocaleLowerCase('ru-RU').replace(/ё/g, 'е');
-}
-
-export function matchesQuery(name: string, query: string): boolean {
+export function searchOrganizations(orgs: TenantOrganizationView[], query: string): TenantOrganizationView[] {
   const q = normalizeSearchText(query);
-  if (!q) return false;
-  return normalizeSearchText(name).includes(q);
+  return q ? orgs.filter((org) => normalizeSearchText(org.name).includes(q)).slice(0, 5) : [];
 }
 
-/** До 8 совпадений по имени для выпадашки поиска. */
-export function searchOrganizations(orgs: GuideOrg[], query: string, limit = 8): GuideOrg[] {
-  if (!normalizeSearchText(query)) return [];
-  return orgs.filter((org) => matchesQuery(org.name, query)).slice(0, limit);
+export function exactOrganization(orgs: TenantOrganizationView[], query: string): TenantOrganizationView | null {
+  const exact = orgs.filter((org) => normalizeSearchText(org.name) === normalizeSearchText(query));
+  return exact.length === 1 ? exact[0] : null;
 }
 
-export interface GuideMatrixRow {
-  direction: string;
-  counts: Record<string, number>;
-  total: number;
+export function nearbyOrganizations(orgs: TenantOrganizationView[], target: TenantOrganizationView): TenantOrganizationView[] {
+  if (!target.floor) return [];
+  return popularShops(orgs.filter((org) => org.floor === target.floor && normalizeBrand(org.name) !== normalizeBrand(target.name)), Infinity)
+    .sort((a, b) => Number(b.rubric != null && b.rubric === target.rubric) - Number(a.rubric != null && a.rubric === target.rubric))
+    .slice(0, 3);
 }
 
-export interface GuideMatrix {
-  floors: string[]; // низ → верх, слева направо
-  rows: GuideMatrixRow[];
-  otherCount: number;
+function cleanText(text: string): string {
+  return text.replace(/\([^)]*\)/gu, '').replace(/и др\.?(?![\p{L}])/giu, '').replace(/\s+/gu, ' ').replace(/\s+([,;])/gu, '$1').trim();
+}
+function upperFirst(text: string): string { return text.charAt(0).toUpperCase() + text.slice(1); }
+
+export function parseFloorGuide(text: string, fallbackBrands: string[] = []): { theme: string; brands: string[] } {
+  const colon = text.indexOf(':');
+  if (colon >= 0) return {
+    theme: upperFirst(cleanText(text.slice(0, colon))),
+    brands: text.slice(colon + 1).split(/[,;]/u).map(cleanText).filter((brand) => /[\p{L}\p{N}]/u.test(brand)).slice(0, 3),
+  };
+  // Без двоеточия список идёт в скобках: «ювелирные салоны и часы (SOKOLOV,
+  // Pandora…), бельё (…), …». Тема — две первые позиции без скобок, бренды —
+  // из первых скобок; резать по символам нельзя, рвёт названия в кавычках.
+  const parts = splitTopLevel(text.split(/\.\s/u)[0]).map(cleanText).filter(Boolean);
+  const inner = text.match(/\(([^)]*)\)/u)?.[1] ?? '';
+  const innerBrands = inner.split(/[,;]/u).map(cleanText).filter((brand) => /[\p{L}\p{N}]/u.test(brand) && !/[\d²]|занима|около/u.test(brand));
+  return {
+    theme: upperFirst(parts.slice(0, 2).join(', ')),
+    brands: (innerBrands.length ? innerBrands : fallbackBrands).slice(0, 3),
+  };
 }
 
-const MATRIX_MAX_CATEGORIES = 10;
-
-/** Таблица «Категории × этажи»: топ-10 направлений + «Другое», этажи снизу вверх. */
-export function buildMatrix(orgs: GuideOrg[], floorsTopDown: string[]): GuideMatrix {
-  const floors = [...floorsTopDown].filter((f) => f !== NO_FLOOR).reverse();
-  const withFloor = orgs.filter((org) => org.floor);
-  const groups = groupByCategory(withFloor);
-  const top = groups.slice(0, MATRIX_MAX_CATEGORIES);
-  const rest = groups.slice(MATRIX_MAX_CATEGORIES);
-  const rows: GuideMatrixRow[] = top.map((group) => {
-    const counts: Record<string, number> = {};
-    for (const org of group.orgs) {
-      if (!org.floor) continue;
-      counts[org.floor] = (counts[org.floor] ?? 0) + 1;
-    }
-    return { direction: group.direction, counts, total: group.count };
-  });
-  const otherCount = rest.reduce((sum, group) => sum + group.count, 0);
-  if (otherCount > 0) {
-    const counts: Record<string, number> = {};
-    for (const group of rest) {
-      for (const org of group.orgs) {
-        if (!org.floor) continue;
-        counts[org.floor] = (counts[org.floor] ?? 0) + 1;
-      }
-    }
-    rows.push({ direction: 'Другое', counts, total: otherCount });
+/** Делит по запятым верхнего уровня — запятые внутри скобок не считаются. */
+function splitTopLevel(text: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const ch of text) {
+    if (ch === '(') depth += 1;
+    if (ch === ')') depth = Math.max(0, depth - 1);
+    if ((ch === ',' || ch === ';') && depth === 0) { out.push(current); current = ''; } else current += ch;
   }
-  return { floors, rows, otherCount };
+  out.push(current);
+  return out;
+}
+
+export interface GuideFloor { floor: string; theme: string; brands: string[] }
+export function buildFloorBoard(guide: RetailFloorEntry[], orgs: TenantOrganizationView[]): GuideFloor[] {
+  const groups = new Map<string, TenantOrganizationView[]>();
+  for (const org of orgs) if (org.floor) groups.set(org.floor, [...(groups.get(org.floor) ?? []), org]);
+  const floorNumber = (floor: string) => Number(floor.replace(/[−–]/gu, '-'));
+  // Гид ограничивает торговые уровни, чтобы не добавлять башню отеля (владелец, 2026-09-25).
+  let floors = guide.length ? [...new Set(guide.map((entry) => entry.floor))] : [...groups.keys()];
+  if (!guide.length) {
+    const dense = floors.filter((floor) => (groups.get(floor)?.length ?? 0) >= 5).map(floorNumber).filter(Number.isFinite);
+    if (dense.length) floors = floors.filter((floor) => !Number.isFinite(floorNumber(floor)) || floorNumber(floor) <= Math.max(...dense));
+  }
+  return floors.sort((a, b) => (Number.isFinite(floorNumber(b)) ? floorNumber(b) : -Infinity) - (Number.isFinite(floorNumber(a)) ? floorNumber(a) : -Infinity)).map((floor) => {
+    const onFloor = groups.get(floor) ?? [];
+    const brands = popularShops(onFloor, 3).map((org) => org.name);
+    const entries = guide.filter((entry) => entry.floor === floor);
+    if (entries.length) return { floor, ...parseFloorGuide(entries.map((entry) => entry.text).join('; '), brands) };
+    const categories = new Map<string, number>();
+    for (const org of onFloor) {
+      const label = shopLabel(org);
+      const category = label === 'ресторан' || label === 'кафе' ? 'еда' : label === 'магазин' || !label ? 'услуги' : label;
+      categories.set(category, (categories.get(category) ?? 0) + 1);
+    }
+    return { floor, theme: upperFirst([...categories].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([label]) => label).join(' и ')), brands };
+  });
+}
+
+export function uniqueBrandsByCenter(centers: { slug: string; kind: string; organizations: Shop[] }[]): Map<string, UniqueBrand[]> {
+  const malls = centers.filter((center) => center.kind === 'tc');
+  const locations = new Map<string, Set<string>>();
+  for (const center of malls) for (const org of center.organizations) {
+    const key = normalizeBrand(org.name);
+    const slugs = locations.get(key) ?? new Set<string>();
+    slugs.add(center.slug);
+    locations.set(key, slugs);
+  }
+  return new Map(malls.map((center) => {
+    const seen = new Set<string>();
+    const brands = popularShops(center.organizations, Infinity).filter((org) => {
+      const key = normalizeBrand(org.name);
+      if (seen.has(key) || locations.get(key)?.size !== 1) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, 7).map((org) => ({ name: org.name, label: shopLabel(org)! }));
+    return [center.slug, brands];
+  }));
 }

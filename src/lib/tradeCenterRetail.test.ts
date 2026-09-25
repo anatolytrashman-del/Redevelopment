@@ -1031,3 +1031,8 @@ describe('свободные помещения по данным ТЦ', () => {
     expect(vacanciesFaqAnswer([])).toBeNull();
   });
 });
+
+ it('показывает поиск ТЦ без retailInfo при наличии организаций', () => {
+  expect(retailSectionIds(null, true)).toEqual(['floors']);
+  expect(retailSectionIds(null, false)).toEqual([]);
+});
