@@ -52,6 +52,7 @@ import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from
 import { Badge } from '../components/ui/Badge';
 import { PhotoBlock, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import { FavoriteButton } from '../components/businessCenters/FavoriteButton';
+import { MetroValue, TradeCenterHeroSubtitle, TradeCenterHeroSummary } from '../components/businessCenters/TradeCenterHeroSummary';
 import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrademarkNote';
 import {
   setBreadcrumbJsonLd,
@@ -175,7 +176,7 @@ import {
 } from '../lib/tradeCenterRetail';
 import { RETAIL_SECTION_ICONS } from '../components/businessCenters/tradeCenterRetailStyle';
 import type { BusinessCenterTenantSnapshot } from '../data/businessCenterTenants';
-import { buildOfferIndex, METRO_LINE_DOT_CLASS, metroLineId } from '../lib/businessCenterCatalogFilter';
+import { buildOfferIndex } from '../lib/businessCenterCatalogFilter';
 import { buildMarketPosition, haversineMeters } from '../lib/businessCenterMarketPosition';
 import { buildPriceComparison } from '../lib/businessCenterPriceCompare';
 import {
@@ -2618,8 +2619,36 @@ export function BusinessCenterDetailPage() {
                   Также известен как {center.altNames.map((alt) => `«${alt}»`).join(', ')}
                 </p>
               )}
+              {/* Формат/этажность/год одной приглушённой строкой — только у
+                  ТЦ (владелец, 2026-09-25): у БЦ эти же факты уже есть в
+                  плитках ниже, а формат объекта («ТРЦ», «аутлет»…) у БЦ не
+                  собирается вовсе. */}
+              {isTc && <TradeCenterHeroSubtitle center={center} />}
             </div>
 
+            {/* У ТЦ вместо «Расположения», плиток класс/площадь/год/рейтинг
+                и строки «В здании» — свой правый блок (владелец,
+                2026-09-25): режим работы с онлайн-статусом, «Как
+                добраться» (без «Района», его у ТЦ не собирают), до трёх
+                плиток фактов, якорные арендаторы и быстрые переходы к
+                разделам карточки. БЦ-версия ниже не тронута. */}
+            {isTc && (
+              <TradeCenterHeroSummary
+                center={center}
+                displayAddress={displayAddress}
+                nearestMetro={nearestMetro}
+                displayMetro={displayMetro}
+                mapRating={mapRating}
+                tenantCount={tenantOrganizations.length}
+              />
+            )}
+
+            {/* Весь блок ниже — только у БЦ (владелец, 2026-09-25): у ТЦ его
+                заменяет TradeCenterHeroSummary выше (режим работы, «Как
+                добраться», плитки фактов, якоря, быстрые переходы). Сама
+                разметка БЦ не менялась — только обёрнута условием. */}
+            {!isTc && (
+              <>
             {/* Район, адрес и метро — три горизонтальные строки: подпись и
                 значение находятся на одной базовой линии. Разделитель-тире
                 между подписью и значением убран (владелец, 2026-09-20: "бесят
@@ -2652,29 +2681,14 @@ export function BusinessCenterDetailPage() {
                 {(nearestMetro || center.metro) && (
                   <div className="grid min-w-0 items-baseline gap-x-2 sm:grid-cols-[max-content_minmax(0,1fr)]">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Метро</p>
+                    {/* Цвет линии — как на карточках каталога
+                        (METRO_LINE_DOT_CLASS): владелец, 2026-09-20,
+                        "добавляй цветной кружочек для обозначения линии
+                        метро". Точка+подпись — общий MetroValue
+                        (TradeCenterHeroSummary.tsx), тот же кусок разметки
+                        нужен и в «Как добраться» у ТЦ. */}
                     <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm leading-snug text-ink sm:mt-0">
-                      {nearestMetro ? (
-                        <>
-                          {/* Цвет линии — как на карточках каталога
-                              (METRO_LINE_DOT_CLASS): владелец, 2026-09-20,
-                              "добавляй цветной кружочек для обозначения линии
-                              метро". Серая точка — когда линия не одна из
-                              трёх известных (пока таких станций нет, но на
-                              случай новых веток). */}
-                          <span
-                            className={cn(
-                              'h-2.5 w-2.5 shrink-0 rounded-full',
-                              metroLineId(nearestMetro.line) ? METRO_LINE_DOT_CLASS[metroLineId(nearestMetro.line)!] : 'bg-ink-faint',
-                            )}
-                          />
-                          {nearestMetro.name} — {(displayMetro ?? nearestMetro).distanceMeters} м
-                        </>
-                      ) : (
-                        <>
-                          <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-ink-faint" />
-                          {center.metro}
-                        </>
-                      )}
+                      <MetroValue nearestMetro={nearestMetro} displayMetro={displayMetro} fallbackMetro={center.metro} />
                     </p>
                   </div>
                 )}
@@ -2715,7 +2729,7 @@ export function BusinessCenterDetailPage() {
                 <FactTile
                   tone="muted"
                   value={`${center.yearBuilt} г.`}
-                  label={center.status === 'under_construction' ? 'Ожидаемая сдача' : isTc ? 'Год открытия' : 'Год сдачи'}
+                  label={center.status === 'under_construction' ? 'Ожидаемая сдача' : 'Год сдачи'}
                 />
               )}
               {mapRating && (
@@ -2742,6 +2756,8 @@ export function BusinessCenterDetailPage() {
                 organizationCount={tenantOrganizations.length}
                 compact
               />
+            )}
+              </>
             )}
 
             </div>
