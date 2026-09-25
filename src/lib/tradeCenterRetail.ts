@@ -761,16 +761,10 @@ export function awardsRankingTitle(hasAwards: boolean, hasRanking: boolean): str
   return hasAwards ? 'Награды' : 'Место в рейтингах';
 }
 
-/**
- * Размер блока для модели высот страницы (businessCenterPageLayout) в
- * условных единицах ~60px. Плитки стоят по две в ряд: ряд наград — 3
- * единицы (название, бейдж, мета, текст), ряд рейтингов — 2. Строка награды
- * из highlights (запасной вариант без retail_info.awards) — одна единица.
- * Замер 2026-09-24 на 1280px: 4 награды + 4 рейтинга — 844px.
- */
+// Сетка 4 награды / 3 рейтинга на широком экране — владелец, 2026-09-25.
 export function awardsRankingSize(info: RetailInfo | null, legacyAwardLines = 0): number {
-  const awards = info?.awards.length ? Math.ceil(info.awards.length / 2) * 3 : legacyAwardLines;
-  const ranking = Math.ceil((info?.ranking.length ?? 0) / 2) * 2;
+  const awards = info?.awards.length ? Math.ceil(info.awards.length / 4) * 3 : Math.ceil(legacyAwardLines / 4);
+  const ranking = Math.ceil((info?.ranking.length ?? 0) / 3) * 2;
   return awards + ranking;
 }
 

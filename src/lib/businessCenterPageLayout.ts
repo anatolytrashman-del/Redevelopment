@@ -88,8 +88,7 @@ const SECTION_HEIGHT_MODEL: Record<string, SectionHeightModel> = {
   reviews: { base: 155, perItem: 95, maxItems: 6 },
   awards: { base: 110, perItem: 40 },
   // «Награды и рейтинги» ТЦ (TradeCenterAwardsBlock) — единица ~60px, см.
-  // awardsRankingSize в lib/tradeCenterRetail. Замер 2026-09-24 на 1280px
-  // по мок-данным «Замка»: 4 награды + 4 рейтинга (10 единиц) — 844px.
+  // awardsRankingSize в lib/tradeCenterRetail; сетка обновлена — владелец, 2026-09-25.
   'awards-ranking': { base: 245, perItem: 60 },
   media: { base: 15, perItem: 80 },
   facts: { base: 145, perItem: 80 },

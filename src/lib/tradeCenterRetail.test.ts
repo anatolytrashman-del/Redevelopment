@@ -271,9 +271,9 @@ describe('награды', () => {
       awards: [{ title: 'A' }, { title: 'B' }, { title: 'C' }],
       ranking: [{ place: 1, criterion: 'x' }],
     });
-    // ряды по две плитки: 2 ряда наград × 3 + 1 ряд рейтингов × 2
-    expect(awardsRankingSize(info)).toBe(8);
-    expect(awardsRankingSize(null, 3)).toBe(3);
+    // Новая сетка: ряд наград × 3 + ряд рейтингов × 2 — владелец, 2026-09-25.
+    expect(awardsRankingSize(info)).toBe(5);
+    expect(awardsRankingSize(null, 3)).toBe(1);
   });
 });
 
