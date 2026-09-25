@@ -32,6 +32,7 @@ import type { RealtyObject } from '../data/objects';
 import { fetchObjectByLandingSlug } from '../lib/objectsApi';
 import { fetchBuildingPlans, fetchZonesForPlan } from '../lib/buildingPlansApi';
 import { setObjectPageMeta, setNoIndex, clearNoIndex, setFaqJsonLd } from '../lib/pageMeta';
+import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
 
 function formatMoney(value: number) {
   return `$${Math.round(value).toLocaleString('ru-RU')}`;
@@ -477,6 +478,8 @@ export function ObjectLandingPage() {
         />
 
         <FaqCard key="faq" dealMode={dealMode} />
+
+        <CookieFooterLinks key="cookie-footer-links" />
       </div>
       </main>
     </div>
