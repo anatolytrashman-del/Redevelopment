@@ -21,6 +21,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { join, resolve } from 'node:path';
+import { buildDataOffline } from './_buildFallback.mjs';
 import ts from 'typescript';
 
 // Один фильтр для сборки и страницы, без копии правил (владелец, 2026-09-25).
@@ -177,7 +178,8 @@ async function copyFromProd() {
 // ~40 КБ на здание, которым в критическом пути делать нечего.
 const CATALOG_FALLBACK = resolve(process.cwd(), 'scripts/catalog-data-fallback.json.gz');
 let catalogFallback;
-function fallbackDataset(name) {
+let usedFallback = false;
+function fallbackDataset(name, { quiet = false } = {}) {
   if (catalogFallback === undefined) {
     try {
       catalogFallback = JSON.parse(gunzipSync(readFileSync(CATALOG_FALLBACK)).toString('utf8'));
@@ -187,7 +189,8 @@ function fallbackDataset(name) {
   }
   const rows = catalogFallback?.datasets?.[name];
   if (!Array.isArray(rows)) return null;
-  console.warn(`[catalog-data] ${name}: Supabase недоступен — взят из снимка от ${catalogFallback.generatedAt}`);
+  usedFallback = true;
+  if (!quiet) console.warn(`[catalog-data] ${name}: Supabase недоступен — взят из снимка от ${catalogFallback.generatedAt}`);
   return rows;
 }
 
@@ -204,6 +207,11 @@ async function selectAll(query, what) {
 }
 
 async function dataset(name, load) {
+  // Вне Vercel — снимок сразу, без похода в базу (см. buildDataOffline).
+  if (OFFLINE) {
+    const rows = fallbackDataset(name, { quiet: true });
+    if (rows) return rows;
+  }
   try {
     return await load();
   } catch (err) {
@@ -329,19 +337,129 @@ async function writeExtras() {
   console.log(`[catalog-data] догружаемые данные: общие наборы + ${slugs.length} файлов .extra`);
 }
 
-main(columns)
-  .catch(async (err) => {
+// Сборка вне Vercel (CI, сессии) — здания копируются с прода, догружаемые
+// наборы берутся из снимка: проверке сборки живые данные не нужны, а каждый
+// такой прогон стоил ~12 МБ трафика базы (разбор — scripts/_buildFallback.mjs).
+const OFFLINE = buildDataOffline();
+if (OFFLINE) console.log('[catalog-data] сборка вне Vercel — данные с прода и из снимка, не из базы (BUILD_DATA_LIVE=1 вернёт базу)');
+
+// --- Данные не менялись — не качаем их из базы (2026-09-24) ----------------
+//
+// Большинство прод-сборок — мержи кода, а не правки каталога, и каждая
+// заново тянула из Supabase все наборы раздела (~12 МБ). Триггеры в базе
+// ставят отметку времени на каждое изменение таблиц, из которых собираются
+// эти файлы (supabase/migrations/20260924-catalog-change-stamps.sql), сборка
+// кладёт отметки рядом с данными — /data/catalog-stamps.json. Если отметки в
+// базе совпадают с теми, что лежат на проде, данные на проде уже ровно те,
+// что мы бы собрали: копируем их с CDN. Любая правка (админка, синк,
+// ручной SQL) сдвигает отметку — и следующая сборка идёт в базу как раньше.
+// CATALOG_DATA_FORCE_LIVE=1 — пойти в базу в любом случае.
+const STAMPS_FILE = 'catalog-stamps.json';
+
+async function readDbStamps() {
+  const rows = await supabaseSelect('table_change_stamps?select=table_name,changed_at&order=table_name.asc', 'отметки изменений');
+  if (!Array.isArray(rows) || rows.length === 0) throw new Error('таблица отметок пуста');
+  return Object.fromEntries(rows.map((r) => [r.table_name, r.changed_at]));
+}
+
+async function copyExtrasFromProd() {
+  const get = async (path) => {
+    const res = await fetch(`${SITE_ORIGIN}${path}`, { signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) throw new Error(`прод ответил ${res.status} на ${path}`);
+    return res.text();
+  };
+  for (const name of ['bc-market.json', 'bc-analytics.json', 'bc-sources.json']) {
+    writeFileSync(join(DIST_DATA, name), await get(`/data/${name}`));
+  }
+  // Список ТЦ появится на проде вместе с каталогом ТЦ. Пока его там нет,
+  // Vercel на этот путь отдаёт страницу SPA (200, text/html) — такое не пишем.
+  const tc = await fetch(`${SITE_ORIGIN}/data/trade-centers.json`, { signal: AbortSignal.timeout(20_000) });
+  if (tc.ok && (tc.headers.get('content-type') ?? '').includes('json')) {
+    writeFileSync(join(DIST_DATA, 'trade-centers.json'), await tc.text());
+  }
+  const { rows } = JSON.parse(readFileSync(join(DIST_DATA, 'business-centers.json'), 'utf8'));
+  const slugs = rows.map((r) => r.slug).filter((slug) => typeof slug === 'string' && /^[a-z0-9-]+$/.test(slug));
+  for (let i = 0; i < slugs.length; i += 8) {
+    await Promise.all(
+      slugs.slice(i, i + 8).map(async (slug) => {
+        // copyFromProd пропуск карточки только предупреждает; здесь это повод
+        // собрать всё из базы, а не выкатить каталог с дырой.
+        if (!existsSync(join(DIST_DATA, 'bc', `${slug}.json`))) throw new Error(`не скопирован /data/bc/${slug}.json`);
+        writeFileSync(join(DIST_DATA, 'bc', `${slug}.extra.json`), await get(`/data/bc/${slug}.extra.json`));
+      }),
+    );
+  }
+}
+
+// true — данные скопированы с прода, в базу идти не нужно.
+async function reuseProdIfUnchanged(dbStamps) {
+  if (process.env.CATALOG_DATA_FORCE_LIVE === '1') return false;
+  // Только прод-сборка: копируем с redevelopment.pro, а у превью данные свои
+  // (например, каталог ТЦ, которого на проде ещё нет) — там всегда база.
+  if (process.env.VERCEL_ENV !== 'production') return false;
+  const res = await fetch(`${SITE_ORIGIN}/data/${STAMPS_FILE}`, { signal: AbortSignal.timeout(20_000) });
+  // Файла нет — Vercel отвечает страницей SPA с кодом 200, а не 404.
+  if (!res.ok || !(res.headers.get('content-type') ?? '').includes('json')) return false;
+  const prod = await res.json();
+  if (JSON.stringify(prod?.stamps) !== JSON.stringify(dbStamps)) {
+    const changed = Object.keys(dbStamps).filter((t) => prod?.stamps?.[t] !== dbStamps[t]);
+    console.log(`[catalog-data] данные менялись (${changed.join(', ') || 'нет отметок на проде'}) — собираем из базы`);
+    return false;
+  }
+  await copyFromProd();
+  await copyExtrasFromProd();
+  console.log('[catalog-data] отметки изменений совпали с продом — данные каталога скопированы с прода, из базы не качали');
+  return true;
+}
+
+async function liveBuild() {
+  await main(columns).catch(async (err) => {
+    usedFallback = true;
     console.warn(`[catalog-data] данные каталога не собраны из базы: ${err instanceof Error ? err.message : err}`);
     try {
       await copyFromProd();
     } catch (copyErr) {
       console.warn(`[catalog-data] и с прода скопировать не вышло: ${copyErr instanceof Error ? copyErr.message : copyErr}`);
     }
-  })
-  // Только после main: списку слагов для .extra нужен готовый список.
-  .then(() => writeExtras())
-  .catch((err) => {
-    // Без догружаемых файлов страницы работают как раньше — через запросы в
-    // базу из браузера, — поэтому сборку не валим.
-    console.warn(`[catalog-data] догружаемые данные не собраны: ${err instanceof Error ? err.message : err}`);
   });
+  // Только после main: списку слагов для .extra нужен готовый список.
+  await writeExtras();
+}
+
+async function run() {
+  if (OFFLINE) {
+    await copyFromProd().catch((err) =>
+      console.warn(`[catalog-data] с прода скопировать не вышло: ${err instanceof Error ? err.message : err}`),
+    );
+    await writeExtras();
+    return;
+  }
+  // Отметки читаем ДО данных: правка, попавшая между чтением отметок и
+  // выборкой, даст на проде «старые» отметки, и следующая сборка честно
+  // пойдёт в базу ещё раз, а не пропустит изменение.
+  const dbStamps = await readDbStamps().catch((err) => {
+    console.warn(`[catalog-data] отметки изменений не прочитаны (${err instanceof Error ? err.message : err}) — собираем из базы`);
+    return null;
+  });
+  if (dbStamps) {
+    const reused = await reuseProdIfUnchanged(dbStamps).catch((err) => {
+      console.warn(`[catalog-data] копия с прода не удалась (${err instanceof Error ? err.message : err}) — собираем из базы`);
+      return false;
+    });
+    if (reused) {
+      writeFileSync(join(DIST_DATA, STAMPS_FILE), JSON.stringify({ stamps: dbStamps }));
+      return;
+    }
+  }
+  await liveBuild();
+  // Отметки пишем, только когда данные действительно из базы: при сбое
+  // (снимок, копия с прода) файл без отметок заставит следующую сборку
+  // снова пойти в базу.
+  if (dbStamps && !usedFallback) writeFileSync(join(DIST_DATA, STAMPS_FILE), JSON.stringify({ stamps: dbStamps }));
+}
+
+run().catch((err) => {
+  // Без догружаемых файлов страницы работают как раньше — через запросы в
+  // базу из браузера, — поэтому сборку не валим.
+  console.warn(`[catalog-data] догружаемые данные не собраны: ${err instanceof Error ? err.message : err}`);
+});

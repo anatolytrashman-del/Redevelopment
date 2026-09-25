@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
-import { fetchSupplierEnrichmentJobs } from './supplierEnrichmentApi';
+import { supabase } from './supabase';
 import { addNotification } from './notifications';
+import { EPOCH, readWatermark, useBackgroundPoll, writeWatermark } from './backgroundPoll';
 
 // Фоновый опрос завершённых заданий обогащения контактов поставщиков — тот
 // же принцип, что и у supplierWebSearchJobWatcher.ts (событие рождается в
@@ -11,36 +11,36 @@ import { addNotification } from './notifications';
 // поиск добавил найденных поставщиков в базу — поэтому уведомление здесь не
 // про "задание выполнено", а про то, что реально важно человеку: поставщик
 // дособран и ГОТОВ К ВЕРИФИКАЦИИ (см. supplierVerificationStatus).
-const POLL_INTERVAL_MS = 60_000;
-const SEEN_KEY = 'redevelopment-seen-supplier-enrichment-job-ids';
+// С 2026-09-24 спрашивает только задания, завершённые позже отметки, и
+// только нужные уведомлению поля (см. backgroundPoll.ts).
+const WATERMARK_KEY = 'redevelopment-supplier-enrichment-job-watermark';
 
-function readSeenIds(): Set<string> | null {
-  try {
-    const raw = localStorage.getItem(SEEN_KEY);
-    if (raw == null) return null;
-    const parsed = JSON.parse(raw);
-    return new Set(Array.isArray(parsed) ? parsed : []);
-  } catch {
-    return null;
-  }
+interface FinishedJobRow {
+  status: string;
+  error: string | null;
+  completed_at: string;
 }
 
-function writeSeenIds(ids: string[]): void {
-  try {
-    localStorage.setItem(SEEN_KEY, JSON.stringify(ids));
-  } catch {
-    // тихо игнорируем — не критично
-  }
+function toJob(row: FinishedJobRow) {
+  return { status: row.status, error: row.error ?? '', completedAt: row.completed_at };
 }
 
 async function pollOnce(): Promise<void> {
-  const jobs = await fetchSupplierEnrichmentJobs();
-  const finished = jobs.filter((j) => j.status === 'done' || j.status === 'error');
-  const currentIds = finished.map((j) => j.id);
-  const seen = readSeenIds();
+  const watermark = readWatermark(WATERMARK_KEY);
+  let query = supabase
+    .from('supplier_enrichment_jobs')
+    .select('status,error,completed_at')
+    .in('status', ['done', 'error'])
+    .not('completed_at', 'is', null)
+    .order('completed_at', { ascending: false });
+  // Первый опрос в этом браузере — только ставим отметку, без уведомлений:
+  // задания, завершённые ДО появления вотчера, не новость.
+  query = watermark ? query.gt('completed_at', watermark).limit(100) : query.limit(1);
+  const { data, error } = await query;
+  if (error) throw error;
+  const fresh = ((data ?? []) as FinishedJobRow[]).map(toJob);
 
-  if (seen != null) {
-    const fresh = finished.filter((j) => !seen.has(j.id));
+  if (watermark) {
     const done = fresh.filter((j) => j.status === 'done');
     const failed = fresh.filter((j) => j.status === 'error');
 
@@ -69,17 +69,11 @@ async function pollOnce(): Promise<void> {
     }
   }
 
-  writeSeenIds(currentIds);
+  writeWatermark(WATERMARK_KEY, fresh[0]?.completedAt ?? (watermark ? null : EPOCH));
 }
 
 // Один хук на всё приложение (вызывается из AppLayout), не с каждой
 // страницы отдельно.
 export function useSupplierEnrichmentJobWatcher(): void {
-  useEffect(() => {
-    pollOnce().catch(() => {});
-    const timer = window.setInterval(() => {
-      pollOnce().catch(() => {});
-    }, POLL_INTERVAL_MS);
-    return () => window.clearInterval(timer);
-  }, []);
+  useBackgroundPoll(pollOnce);
 }

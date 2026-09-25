@@ -3,6 +3,7 @@ import { Modal } from '../ui/Modal';
 import { DATA_SOURCE_GROUPS } from '../../data/businessCenterSources';
 import { fetchCatalogSiteSources, type CatalogSources, type SourceSite } from '../../lib/businessCenterSourcesApi';
 import { useCatalogKind } from '../../lib/catalogKind';
+import { CookieFooterLinks } from '../layout/CookieFooterLinks';
 
 // Владелец, 2026-09-22: не хочет отдельных кликабельных плашек на каждый
 // конкретный сайт прямо на странице БЦ/каталога — сайт застройщика или
@@ -72,6 +73,7 @@ export function SourcesTrademarkNote() {
           Полный список источников →
         </button>
       </p>
+      <CookieFooterLinks />
       <Modal open={open} onClose={() => setOpen(false)} title="Источники">
         <div className="flex flex-col gap-4">
           <p className="text-sm text-ink-muted">

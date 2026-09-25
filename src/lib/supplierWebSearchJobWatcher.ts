@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
-import { fetchSupplierWebSearchJobs } from './supplierWebSearchApi';
+import { supabase } from './supabase';
 import { addNotification } from './notifications';
+import { EPOCH, readWatermark, useBackgroundPoll, writeWatermark } from './backgroundPoll';
 
 // Фоновый опрос завершённых заданий веб-поиска поставщиков — тот же
 // принцип, что и у supplierEmailWatcher.ts (событие рождается в фоновом
@@ -10,26 +10,28 @@ import { addNotification } from './notifications';
 // аналогии с письмами появится уведомление... отправляй и в колокольчик,
 // чтобы и я, и Альмира его видели" — НЕ ограничен isSuperAdmin, ровно как
 // и у supplierEmailWatcher (веб-поиск поставщиков ведёт и Альмира).
-const POLL_INTERVAL_MS = 60_000;
-const SEEN_KEY = 'redevelopment-seen-supplier-search-job-ids';
+// С 2026-09-24 спрашивает только задания, завершённые позже отметки, и
+// только нужные уведомлению поля (см. backgroundPoll.ts).
+const WATERMARK_KEY = 'redevelopment-supplier-search-job-watermark';
 
-function readSeenIds(): Set<string> | null {
-  try {
-    const raw = localStorage.getItem(SEEN_KEY);
-    if (raw == null) return null; // null = ни разу не опрашивали в этом браузере
-    const parsed = JSON.parse(raw);
-    return new Set(Array.isArray(parsed) ? parsed : []);
-  } catch {
-    return null;
-  }
+interface FinishedJobRow {
+  status: string;
+  error: string | null;
+  completed_at: string;
+  section_title: string;
+  items_text: string;
+  results: unknown[] | null;
 }
 
-function writeSeenIds(ids: string[]): void {
-  try {
-    localStorage.setItem(SEEN_KEY, JSON.stringify(ids));
-  } catch {
-    // тихо игнорируем — не критично, просто более многословный follow-up-опрос
-  }
+function toJob(row: FinishedJobRow) {
+  return {
+    status: row.status,
+    error: row.error ?? '',
+    completedAt: row.completed_at,
+    sectionTitle: row.section_title ?? '',
+    itemsText: row.items_text ?? '',
+    results: Array.isArray(row.results) ? row.results : [],
+  };
 }
 
 function jobLabel(job: { sectionTitle: string; itemsText: string }): string {
@@ -38,15 +40,21 @@ function jobLabel(job: { sectionTitle: string; itemsText: string }): string {
 }
 
 async function pollOnce(): Promise<void> {
-  const jobs = await fetchSupplierWebSearchJobs();
-  const finished = jobs.filter((j) => j.status === 'done' || j.status === 'error');
-  const currentIds = finished.map((j) => j.id);
-  const seen = readSeenIds();
+  const watermark = readWatermark(WATERMARK_KEY);
+  let query = supabase
+    .from('supplier_web_search_jobs')
+    .select('status,error,completed_at,section_title,items_text,results')
+    .in('status', ['done', 'error'])
+    .not('completed_at', 'is', null)
+    .order('completed_at', { ascending: false });
+  // Первый опрос в этом браузере — только ставим отметку, без уведомлений:
+  // задания, завершённые ДО появления вотчера, не новость.
+  query = watermark ? query.gt('completed_at', watermark).limit(100) : query.limit(1);
+  const { data, error } = await query;
+  if (error) throw error;
+  const fresh = ((data ?? []) as FinishedJobRow[]).map(toJob);
 
-  // Первый опрос в этом браузере — только фиксируем базовый набор, без
-  // уведомлений: задания, завершённые ДО появления вотчера, не новость.
-  if (seen != null) {
-    const fresh = finished.filter((j) => !seen.has(j.id));
+  if (watermark) {
     const done = fresh.filter((j) => j.status === 'done');
     const failed = fresh.filter((j) => j.status === 'error');
 
@@ -75,23 +83,11 @@ async function pollOnce(): Promise<void> {
     }
   }
 
-  // Не объединяем с прежним seen, а заменяем целиком — тот же принцип, что
-  // и у остальных вотчеров (если задание когда-нибудь исчезнет из выборки,
-  // повторное появление снова будет новостью, не потеряется молча).
-  writeSeenIds(currentIds);
+  writeWatermark(WATERMARK_KEY, fresh[0]?.completedAt ?? (watermark ? null : EPOCH));
 }
 
 // Один хук на всё приложение (вызывается из AppLayout), не с каждой
 // страницы отдельно — иначе опрос запускался бы параллельно N раз.
 export function useSupplierWebSearchJobWatcher(): void {
-  useEffect(() => {
-    pollOnce().catch(() => {
-      // Фоновый опрос — молчаливая неудача не должна мешать работе в CRM,
-      // следующий тик просто попробует ещё раз.
-    });
-    const timer = window.setInterval(() => {
-      pollOnce().catch(() => {});
-    }, POLL_INTERVAL_MS);
-    return () => window.clearInterval(timer);
-  }, []);
+  useBackgroundPoll(pollOnce);
 }

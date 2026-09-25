@@ -19,7 +19,17 @@
         // торговые центры (/minsk/tc, 2026-09-23). Файлы зданий у них общие
         // (/data/bc/<slug>.json), различаются список и корень пути.
         var base = path === '/minsk/tc' || path.indexOf('/minsk/tc/') === 0 ? '/minsk/tc' : '/minsk/bc';
-        if (path !== base && path.indexOf(base + '/') !== 0) return;
+        // /bc/<slug> — та же карточка здания для сайта самого БЦ (владелец,
+        // 2026-09-24): без шапки, соседей и объявлений. Vercel отдаёт на
+        // этот адрес пререндер /minsk/bc/<slug> — с каноническим адресом
+        // карточки, но и со всем, что в режиме владельца скрыто. Класс
+        // прячет эту разметку до монтирования React, чтобы посетитель с
+        // сайта БЦ не увидел на миг чужие здания. Снимает класс сама
+        // страница; на случай сбоя бандла — анимация в <style> ниже через
+        // 4 с (React монтируется не позже 3,5 с, см. main.tsx).
+        var ownerPage = path.indexOf('/bc/') === 0;
+        if (ownerPage) document.documentElement.classList.add('bc-owner-pending');
+        if (!ownerPage && path !== base && path.indexOf(base + '/') !== 0) return;
         window.__bcKind = base === '/minsk/tc' ? 'tc' : 'bc';
         // priority: 'low' — на медленном 4G эти JSON делили канал с
         // LCP-фото карточки и отодвигали его на секунду (замер 2026-09-23:
@@ -80,14 +90,14 @@
         // Ставки рынка и размеры лотов: без них первый кадр React рисует
         // карточки и блоки иначе, чем пререндер-снапшот, и вёрстка прыгает.
         window.__bcMarket = get('/data/bc-market.json');
-        var rest = path.slice(base.length).replace(/^\/+|\/+$/g, '');
+        var rest = path.slice(ownerPage ? '/bc'.length : base.length).replace(/^\/+|\/+$/g, '');
         // Карточка здания — ровно один сегмент пути. Разделы каталога с
         // такой же формой перечислены явно, чтобы не ходить за файлом,
         // которого заведомо нет (лишний 404 в консоли и в аудите).
         // ФАЙЛ-БЛИЗНЕЦ: это односегментные маршруты /minsk/bc/<x> из
         // src/App.tsx; сверяет тест в src/lib/businessCentersApi.test.ts.
         var sections = ['rating', 'guide', 'analytics', 'new'];
-        if (rest && rest.indexOf('/') === -1 && sections.indexOf(rest) === -1) {
+        if (rest && rest.indexOf('/') === -1 && (ownerPage || sections.indexOf(rest) === -1)) {
           window.__bcDetail = { slug: rest, data: get('/data/bc/' + encodeURIComponent(rest) + '.json') };
           // Объявления, отзывы, окружение, 2ГИС, арендаторы — снапшот
           // карточки нарисован с ними, и без них к монтированию блоки на
@@ -96,6 +106,10 @@
         }
       })();
     </script>
+    <style>
+      html.bc-owner-pending #root { visibility: hidden; animation: bc-owner-reveal 0s 4s forwards; }
+      @keyframes bc-owner-reveal { to { visibility: visible; } }
+    </style>
     <!-- favicon.ico — на классический путь /favicon.ico (без него самого
          файла) SPA-рерайт vercel.json ("/(.*)" → index.html) отдавал 200 с
          html вместо иконки; часть краулеров (в т.ч. Яндекс — "Файл favicon
@@ -221,7 +235,17 @@
          оптионал-чейнят вызов ym()/_tmr, ничего дополнительно чинить в них
          не нужно. -->
     <script type="text/javascript">
-      if (!window.__isLikelyBot && location.search.indexOf('prerender=1') === -1 && location.pathname.indexOf('/admin') !== 0) {
+      // 2026-09-25 (владелец, баннер cookie) — тело больше не выполняется
+      // сразу: вставлено в window.__startMetrika, которую снизу (после
+      // VK-пикселя) зовёт window.__startAnalytics, только если а) все
+      // прежние условия (бот/prerender/admin) выполнены и б) в localStorage
+      // уже лежит cookie-consent === 'all'. Без записи в localStorage
+      // (первый визит, баннер ещё не нажат) счётчик просто не стартует —
+      // ФАЙЛ-БЛИЗНЕЦ с src/lib/cookieConsent.ts, правится в обоих местах.
+      window.__startMetrika = function () {
+        if (window.__metrikaStarted) { return; }
+        if (window.__isLikelyBot || location.search.indexOf('prerender=1') !== -1 || location.pathname.indexOf('/admin') === 0) { return; }
+        window.__metrikaStarted = true;
         (function (m, e, t, r, i, k, a) {
           m[i] = m[i] || function () { (m[i].a = m[i].a || []).push(arguments) };
           m[i].l = 1 * new Date();
@@ -234,7 +258,7 @@
         })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js?id=111858495', 'ym');
 
         ym(111858495, 'init', { ssr: true, webvisor: false, clickmap: true, ecommerce: 'dataLayer', referrer: document.referrer, url: location.href, accurateTrackBounce: true, trackLinks: true });
-      }
+      };
     </script>
     <!-- /Yandex.Metrika counter -->
 
@@ -248,7 +272,14 @@
          /admin/* исключён тем же принципом, что и у Метрики выше — сотрудники
          CRM не должны пополнять ретаргетинговую аудиторию VK-рекламы. -->
     <script type="text/javascript">
-      if (!window.__isLikelyBot && location.search.indexOf('prerender=1') === -1 && location.pathname.indexOf('/admin') !== 0) {
+      // 2026-09-25 (владелец, баннер cookie) — тот же принцип, что у
+      // Метрики выше: тело в window.__startTmr, стартует только по явному
+      // вызову из __startAnalytics ниже (согласие 'all' уже в localStorage
+      // или только что нажата кнопка "Принять все").
+      window.__startTmr = function () {
+        if (window.__tmrStarted) { return; }
+        if (window.__isLikelyBot || location.search.indexOf('prerender=1') !== -1 || location.pathname.indexOf('/admin') === 0) { return; }
+        window.__tmrStarted = true;
         var _tmr = window._tmr || (window._tmr = []);
         _tmr.push({ id: '3793248', type: 'pageView', start: (new Date()).getTime() });
         (function (d, w) {
@@ -265,9 +296,28 @@
           if (d.readyState === 'complete') { setTimeout(insertTag, 2000); }
           else { w.addEventListener('load', function () { setTimeout(insertTag, 2000); }); }
         })(document, window);
-      }
+      };
     </script>
     <!-- /Top.Mail.Ru (VK) pixel -->
+
+    <!-- Общий запуск аналитики по согласию cookie (владелец, 2026-09-25).
+         window.__startAnalytics зовут: 1) сразу здесь, если в localStorage
+         уже лежит cookie-consent === 'all' (повторный визит после "Принять
+         все"); 2) src/components/layout/CookieBanner.tsx по клику "Принять
+         все" (см. src/lib/cookieConsent.ts — тот же ключ, файл-близнец).
+         localStorage читаем в try/catch — приватный режим/заблокированный
+         storage не должны ронять страницу. -->
+    <script type="text/javascript">
+      window.__startAnalytics = function () {
+        if (window.__startMetrika) { window.__startMetrika(); }
+        if (window.__startTmr) { window.__startTmr(); }
+      };
+      (function () {
+        try {
+          if (window.localStorage.getItem('cookie-consent') === 'all') { window.__startAnalytics(); }
+        } catch (e) { /* приватный режим — просто не стартуем, баннер спросит снова */ }
+      })();
+    </script>
   </head>
   <body>
     <!-- noscript-пиксели — сразу после открытия body, как рекомендует Яндекс/VK -->

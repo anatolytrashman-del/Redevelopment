@@ -124,6 +124,7 @@ import { resolveRequestLegalEntity } from '../lib/legalEntityAttachment';
 import { MaterialsTable, groupMaterials } from '../components/estimates/MaterialsTable';
 import { EstimateMaterialFormModal } from '../components/estimates/EstimateMaterialFormModal';
 import { EstimateMaterialCommentsModal } from '../components/estimates/EstimateMaterialCommentsModal';
+import { createChangeTracker } from '../lib/changeStamps';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -1445,28 +1446,46 @@ export function Suppliers() {
   // "прочитано" (см. handleMarkSupplierEmailsRead) может на секунду
   // откатиться, если опрос попал между локальной отметкой и ответом
   // сервера, и тут же поправится следующим тиком — не критично.
+  //
+  // С 2026-09-24 каждые 20с спрашиваем только отметки изменений таблиц
+  // (changeStamps.ts) и перекачиваем то, что сдвинулось: раньше каждый тик
+  // тянул переписку, предложения и счета целиком — ~2,4 МБ, до 10 ГБ
+  // трафика Supabase в сутки на одну открытую вкладку. В скрытой вкладке не
+  // опрашиваем вовсе; при возврате — сразу проверка. Обогащение контактов
+  // пишет найденное прямо в supplier_research_offers, поэтому следим за
+  // обеими таблицами, иначе карточка не подхватила бы новый email без F5.
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetchAllSupplierOfferEmails()
-        .then(setSupplierEmails)
+    const changedTables = createChangeTracker([
+      'supplier_offer_emails',
+      'supplier_enrichment_jobs',
+      'supplier_research_offers',
+      'supplier_offer_quotes',
+    ]);
+    const check = () => {
+      if (document.visibilityState !== 'visible') return;
+      changedTables()
+        .then((changed) => {
+          if (changed.has('supplier_offer_emails')) {
+            fetchAllSupplierOfferEmails()
+              .then(setSupplierEmails)
+              .catch(() => {});
+          }
+          if (changed.has('supplier_enrichment_jobs')) {
+            fetchSupplierEnrichmentJobs()
+              .then(setEnrichmentJobs)
+              .catch(() => {});
+          }
+          if (changed.has('supplier_research_offers') || changed.has('supplier_offer_quotes')) reloadQuotesAndOffers();
+        })
         .catch(() => {});
-    }, 20000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Тот же принцип для обогащения контактов — сам фоновый скрипт пишет
-  // найденное напрямую в supplier_research_offers (не только в
-  // supplier_enrichment_jobs), поэтому поллинг обновляет ОБА списка разом:
-  // иначе карточка предложения не подхватила бы новый email/телефон/
-  // мессенджеры без ручного F5.
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchSupplierEnrichmentJobs()
-        .then(setEnrichmentJobs)
-        .catch(() => {});
-      reloadQuotesAndOffers();
-    }, 20000);
-    return () => clearInterval(interval);
+    };
+    check();
+    const interval = setInterval(check, 20000);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', check);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

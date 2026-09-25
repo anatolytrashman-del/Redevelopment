@@ -29,7 +29,9 @@ import { DistrictsAnalyticsPage } from './pages/DistrictsAnalyticsPage';
 import { AnalyticsMethodologyPage } from './pages/AnalyticsMethodologyPage';
 import { BriefPublicPage } from './pages/BriefPublicPage';
 import { MeetingSummaryPublicPage } from './pages/MeetingSummaryPublicPage';
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { NotFound } from './pages/NotFound';
+import { CookieBanner } from './components/layout/CookieBanner';
 import { metrikaHit } from './lib/metrika';
 import { vkPixelHit, vkPixelGoal, vkPageGoalForPath } from './lib/vkPixel';
 import { useOnlinePresenceTracker } from './lib/onlinePresence';
@@ -342,6 +344,10 @@ export default function App() {
         element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
       />
       <Route path="/minsk/tc/:slug" element={<CatalogKindProvider kind="tc"><BusinessCenterDetailPage /></CatalogKindProvider>} />
+      {/* Карточка БЦ для ссылки с сайта самого здания (владелец, 2026-09-24):
+          без шапки, соседей и объявлений, canonical — на /minsk/bc/:slug,
+          см. ownerMode в BusinessCenterDetailPage и rewrite в vercel.json. */}
+      <Route path="/bc/:slug" element={<BusinessCenterDetailPage ownerMode />} />
       <Route path="/plan/:token" element={<PublicBuildingPlan />} />
       <Route path="/tz/:token" element={<BriefPublicPage />} />
       <Route path="/summary/:token" element={<MeetingSummaryPublicPage />} />
@@ -365,6 +371,11 @@ export default function App() {
         }
       />
       <Route path="/minsk/:slug" element={<ObjectLandingPage />} />
+      {/* Политика конфиденциальности (владелец, 2026-09-25) — статический
+          односегментный путь, регистрируется ДО "/:legacySlug" ниже: иначе
+          общий catch-all принял бы /privacy за старый слаг объекта и увёл
+          бы на /minsk/privacy. */}
+      <Route path="/privacy" element={<PrivacyPolicyPage />} />
       {/* Старые адреса без /minsk — см. LegacySlugRedirect выше. */}
       <Route path="/rayon-minsk-mir" element={<Navigate to="/minsk/minsk-mir" replace />} />
       <Route path="/:legacySlug" element={<LegacySlugRedirect />} />
@@ -533,6 +544,7 @@ export default function App() {
           проваливаться в CRM — раньше он попадал на Home внутри AppLayout. */}
       <Route path="*" element={<NotFound />} />
     </Routes>
+    <CookieBanner />
     </FavoritesProvider>
   );
 }

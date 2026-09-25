@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
-import { fetchAllSupplierOfferEmails } from './supplierOfferEmailsApi';
+import { supabase } from './supabase';
 import { addNotification } from './notifications';
+import { EPOCH, readWatermark, useBackgroundPoll, writeWatermark } from './backgroundPoll';
 
 // Фоновый опрос новых ответов поставщиков — тот же принцип, что и
 // marketOfferDiscussionWatcher.ts (событие рождается на стороне
@@ -9,42 +9,35 @@ import { addNotification } from './notifications';
 //
 // В отличие от того вотчера — НЕ ограничен isSuperAdmin: переписку с
 // поставщиками ведёт и Светлана, ей тоже нужно узнавать об ответах.
-const POLL_INTERVAL_MS = 60_000;
-const SEEN_KEY = 'redevelopment-seen-supplier-email-ids';
+//
+// С 2026-09-24 спрашивает только входящие позже отметки и только два поля:
+// раньше каждую минуту шла вся переписка с телами писем (см. backgroundPoll.ts).
+const WATERMARK_KEY = 'redevelopment-supplier-email-watermark';
 
-function readSeenIds(): Set<string> | null {
-  try {
-    const raw = localStorage.getItem(SEEN_KEY);
-    if (raw == null) return null; // null = ни разу не опрашивали в этом браузере
-    const parsed = JSON.parse(raw);
-    return new Set(Array.isArray(parsed) ? parsed : []);
-  } catch {
-    return null;
-  }
-}
-
-function writeSeenIds(ids: string[]): void {
-  try {
-    localStorage.setItem(SEEN_KEY, JSON.stringify(ids));
-  } catch {
-    // тихо игнорируем — не критично, просто более многословный follow-up-опрос
-  }
+interface IncomingEmailRow {
+  from_address: string | null;
+  created_at: string;
 }
 
 async function pollOnce(): Promise<void> {
-  const emails = await fetchAllSupplierOfferEmails();
-  const incoming = emails.filter((e) => e.direction === 'in');
-  const currentIds = incoming.map((e) => e.id);
-  const seen = readSeenIds();
-
-  // Первый опрос в этом браузере — только фиксируем базовый набор, без
-  // уведомлений: письма, полученные ДО появления вотчера, не новость.
-  if (seen != null) {
-    const fresh = incoming.filter((e) => !seen.has(e.id));
+  const watermark = readWatermark(WATERMARK_KEY);
+  let query = supabase
+    .from('supplier_offer_emails')
+    .select('from_address,created_at')
+    .eq('direction', 'in')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false });
+  // Первый опрос в этом браузере — только ставим отметку, без уведомлений:
+  // письма, полученные ДО появления вотчера, не новость.
+  query = watermark ? query.gt('created_at', watermark).limit(100) : query.limit(1);
+  const { data, error } = await query;
+  if (error) throw error;
+  const fresh = (data ?? []) as IncomingEmailRow[];
+  if (watermark) {
     if (fresh.length === 1) {
       addNotification({
         title: 'Ответ поставщика',
-        body: fresh[0].fromAddress || 'Новое письмо — см. вкладку «Переписка» на странице «Закупки»',
+        body: fresh[0].from_address || 'Новое письмо — см. вкладку «Переписка» на странице «Закупки»',
       });
     } else if (fresh.length > 1) {
       addNotification({
@@ -53,24 +46,13 @@ async function pollOnce(): Promise<void> {
       });
     }
   }
-
-  // Не объединяем с прежним seen, а заменяем целиком — тот же принцип, что
-  // и у discussion-вотчера (если письмо когда-нибудь исчезнет из выборки,
-  // повторное появление снова будет новостью, не потеряется молча).
-  writeSeenIds(currentIds);
+  // Писем ещё нет вовсе — отметка «с начала времён», иначе первое письмо
+  // так и осталось бы «базовым набором» без уведомления.
+  writeWatermark(WATERMARK_KEY, fresh[0]?.created_at ?? (watermark ? null : EPOCH));
 }
 
 // Один хук на всё приложение (вызывается из AppLayout), не с каждой
 // страницы отдельно — иначе опрос запускался бы параллельно N раз.
 export function useSupplierEmailWatcher(): void {
-  useEffect(() => {
-    pollOnce().catch(() => {
-      // Фоновый опрос — молчаливая неудача не должна мешать работе в CRM,
-      // следующий тик просто попробует ещё раз.
-    });
-    const timer = window.setInterval(() => {
-      pollOnce().catch(() => {});
-    }, POLL_INTERVAL_MS);
-    return () => window.clearInterval(timer);
-  }, []);
+  useBackgroundPoll(pollOnce);
 }
