@@ -10,7 +10,7 @@
 // раскладывает готовые данные по вёрстке.
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Car, Clock, Info, Star } from 'lucide-react';
+import { Car, Clock, Star } from 'lucide-react';
 import type { BusinessCenter, NearestMetroStation } from '../../data/businessCenters';
 import { cn } from '../../lib/cn';
 import { METRO_LINE_DOT_CLASS, metroLineId } from '../../lib/businessCenterCatalogFilter';
@@ -27,7 +27,6 @@ import {
   tcParkingShort,
   tcParkingSpaces,
   tcQuickJumpChips,
-  truncateOneLine,
 } from '../../lib/tradeCenterHero';
 import { FactTile } from './BusinessCenterVisuals';
 
@@ -120,7 +119,6 @@ export function TradeCenterHeroSummary({
 }) {
   const info = center.retailInfo;
   const hours = info?.hours ?? [];
-  const hoursNote = info?.hoursNote ?? null;
   const mainHours = pickMainHoursZone(hours);
   const mainParsed = mainHours ? parseDailyHours(mainHours.value) : null;
   const laterZones = laterClosingZones(hours, mainHours);
@@ -153,7 +151,7 @@ export function TradeCenterHeroSummary({
 
   return (
     <>
-      {(mainHours || hoursNote) && (
+      {mainHours && (
         <section className="rounded-2xl border border-border bg-surface-muted/60 px-3.5 py-3" aria-labelledby="hours-summary-title">
           <h2 id="hours-summary-title" className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
             <Clock className="h-3.5 w-3.5 shrink-0" />
@@ -173,12 +171,6 @@ export function TradeCenterHeroSummary({
           )}
           {laterZones.length > 0 && (
             <p className="mt-1 text-xs text-ink-muted">{laterZones.map((z) => z.label).join(' · ')}</p>
-          )}
-          {hoursNote && (
-            <p className="mt-1 flex items-start gap-1 text-xs text-ink-faint" title={hoursNote}>
-              <Info className="mt-0.5 h-3 w-3 shrink-0" />
-              <span>Праздничный график: {truncateOneLine(hoursNote, 90)}</span>
-            </p>
           )}
         </section>
       )}

@@ -169,7 +169,13 @@ export function tcParkingShort(parking: RetailParking | null, maxLength = 60): s
   const placesItem = parking.items.find((i) => PARKING_PLACES_RE.test(i.label));
   const parts: string[] = [];
   if (placesItem) parts.push(`${placesItem.value} мест`);
-  if (parking.summary) parts.push(parking.summary);
+  // Въезд полезнее описания здания паркинга (владелец, 2026-09-25: на
+  // первом экране описание обрезалось на полуслове). summary — только
+  // если нет ни мест, ни въезда.
+  const entryItem = parking.items.find((i) => /въезд/iu.test(i.label) || /въезд/iu.test(i.value));
+  const entry = entryItem?.value.match(/въезд[^;]*/iu)?.[0];
+  if (entry) parts.push(entry);
+  if (!parts.length && parking.summary) parts.push(parking.summary);
   if (!parts.length && parking.items[0]) parts.push(`${parking.items[0].label}: ${parking.items[0].value}`);
   if (!parts.length) return null;
   let text = parts.join(' · ');
@@ -191,7 +197,8 @@ const AUDIENCE_PERIOD_RE = /день|сутки|будн/iu;
 /** «Посетителей в день» из retail_info.audience — только явно суточная цифра. */
 export function tcAudienceVisitorsPerDay(audience: RetailFigureEntry[]): string | null {
   const entry = audience.find((a) => AUDIENCE_VISITORS_RE.test(a.label) && AUDIENCE_PERIOD_RE.test(a.label));
-  return entry ? entry.value : null;
+  // «в день» уже стоит в подписи плитки — не повторять его в значении.
+  return entry ? entry.value.replace(/\s+в\s+(день|сутки)\s*$/iu, '') : null;
 }
 
 export type TcFactTileKind = 'tenants' | 'area' | 'audience' | 'parking' | 'rating';
