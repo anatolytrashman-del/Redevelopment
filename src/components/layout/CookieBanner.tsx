@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '../../lib/cn';
-import { glassCardClass, glassCardShadow } from '../../lib/glass';
+import { glassCardShadow } from '../../lib/glass';
 import { getCookieConsent, setCookieConsent } from '../../lib/cookieConsent';
 import { isLikelyBot } from '../../lib/botDetection';
 
@@ -51,29 +51,29 @@ export function CookieBanner() {
   }
 
   return (
-    <div className="fixed bottom-3 left-3 right-3 z-40 sm:left-4 sm:right-auto sm:bottom-4">
+    <div className="fixed bottom-3 left-3 z-40 sm:bottom-4 sm:left-4">
       <div
-        className={cn('flex max-w-sm items-center gap-3 px-3.5 py-2.5 text-xs text-ink-muted', glassCardClass, 'bg-white/95')}
+        className={cn('flex max-w-[230px] flex-wrap items-center gap-x-2 gap-y-1 sm:max-w-none sm:flex-nowrap rounded-xl px-2.5 py-1.5 text-[11px] text-ink-muted border border-black/5 bg-white/95 backdrop-blur-xl')}
         style={glassCardShadow}
       >
-        <p className="leading-snug">
+        <p className="leading-snug sm:whitespace-nowrap">
           Используем cookie для аналитики.{' '}
           <Link to="/privacy" className="underline hover:text-primary">
             Подробнее
           </Link>
         </p>
-        <div className="flex shrink-0 gap-1.5">
+        <div className="flex shrink-0 gap-1">
           <button
             type="button"
             onClick={() => choose('necessary')}
-            className="rounded-full px-2.5 py-1 font-medium text-ink-muted hover:text-ink"
+            className="rounded-full px-1.5 py-0.5 font-medium text-ink-muted hover:text-ink"
           >
             Отклонить
           </button>
           <button
             type="button"
             onClick={() => choose('all')}
-            className="rounded-full bg-primary px-3 py-1 font-semibold text-white hover:opacity-90"
+            className="rounded-full bg-black px-2.5 py-0.5 font-semibold text-white hover:bg-neutral-800"
           >
             Принять
           </button>
