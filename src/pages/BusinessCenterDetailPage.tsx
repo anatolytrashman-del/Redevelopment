@@ -1567,8 +1567,8 @@ export function BusinessCenterDetailPage() {
     // нарисованы на карте и в списке под ней — но текстом, а не картой: для
     // краулера, который карту не читает, это не дубль, а единственный способ
     // узнать эти цифры. Метро и остановки не повторяются: они уже названы в
-    // ответе про адрес.
-    {
+    // ответе про адрес. У ТЦ блока нет (владелец, 2026-09-25) — и вопроса нет.
+    if (!isTc) {
       const genitiveLabels: Partial<Record<NearbyPlaceCategory, string>> = {
         grocery: 'Продуктовых магазинов',
         shop: 'Магазинов',
@@ -1839,7 +1839,9 @@ export function BusinessCenterDetailPage() {
       // на всех страницах каталога, а не только там, где собран снимок
       // точек. Подпись пункта меню повторяет заголовок блока: вести
       // «Инфраструктуру рядом» на голую карту — обещать то, чего там нет.
-      center.lat != null && center.lng != null
+      // У ТЦ блок «Инфраструктура в 10 минутах пешком» снят (владелец,
+      // 2026-09-25: «убираем блок со всех страниц ТЦ»).
+      !isTc && center.lat != null && center.lng != null
         ? {
             id: 'map',
             label: hasNearbyContent(center, nearbyPlaces) ? SECTION_LABELS.map : 'Расположение',
@@ -2082,9 +2084,9 @@ export function BusinessCenterDetailPage() {
             reviewQuotes.length > 0 ||
             reviews.some((r) => r.source !== '2gis')),
       ),
-      hasNearbyInfrastructure: Boolean(center && hasNearbyContent(center, nearbyPlaces)),
+      hasNearbyInfrastructure: Boolean(center && !isTc && hasNearbyContent(center, nearbyPlaces)),
     }),
-    [tenantOrganizations, center, rentStats, saleStats, reviewQuotes, reviews, nearbyPlaces],
+    [tenantOrganizations, center, rentStats, saleStats, reviewQuotes, reviews, nearbyPlaces, isTc],
   );
 
   // Тёзки в каталоге: «Порт» на Независимости, 177 и «Порт» на
@@ -2857,7 +2859,7 @@ export function BusinessCenterDetailPage() {
             ниже про то, что карта есть у любого БЦ с координатами).
             "Параметры здания" отсюда переехали ниже, под "Историю здания"
             (владелец, 2026-09-22) — см. блок с id="tech" в конце страницы. */}
-        {center && <NearbyInfrastructureBlock center={center} places={nearbyPlaces} />}
+        {center && !isTc && <NearbyInfrastructureBlock center={center} places={nearbyPlaces} />}
 
         {renderRecommendationSlot('map')}
 
