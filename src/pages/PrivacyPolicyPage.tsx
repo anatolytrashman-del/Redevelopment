@@ -52,7 +52,7 @@ export function PrivacyPolicyPage() {
           <section className="flex flex-col gap-2">
             <h2 className="text-lg font-bold text-ink">1. Кто обрабатывает данные</h2>
             <p>
-              Оператор — физическое лицо Трэшмен Анатолий Владимирович (далее — «мы»).
+              Оператор — физическое лицо Трэшмен Анатолий Владимирович.
               Сайт: redevelopment.pro. Связь по любым вопросам о персональных данных:{' '}
               <a href="mailto:a@redevelopment.pro" className="text-primary-hover hover:underline">
                 a@redevelopment.pro
