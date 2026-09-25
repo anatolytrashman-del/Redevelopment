@@ -658,7 +658,11 @@ async function main() {
     // не попадают: все городские читатели business_center_offers берут только
     // здания kind = 'bc' (businessCenterOffersApi, generate-catalog-data,
     // build-market-snapshots).
-    .eq('kind', KIND);
+    .eq('kind', KIND)
+    // hide_offers — УК попросила не показывать объявления и цены по зданию
+    // (CAMPUS, письмо 24.09.2026). Такой БЦ не ищем вовсе, а его старые
+    // строки снимет удаление ниже: их ad_id не попадут в свежую выборку.
+    .eq('hide_offers', false);
   if (centersError) throw centersError;
 
   // У торговых центров часть зданий за МКАД («Минский район, д. Боровая, 7А»).

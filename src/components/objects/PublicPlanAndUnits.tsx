@@ -54,6 +54,13 @@ function errorMessage(err: unknown, fallback: string): string {
 
 const emptyBookingForm = { name: '', contact: '', comment: '' };
 
+// Текст согласия — финальная формулировка владельца (docs/legal), верстаем
+// 1:1. Чекбокс не отмечен по умолчанию, отправка формы блокируется, пока
+// не отмечен (см. handleBookingSubmit и disabled кнопки ниже).
+const BOOKING_CONSENT_TEXT_BEFORE =
+  'Я даю согласие на обработку моих имени и контактов для связи по заявке, в том числе на их хранение на серверах за пределами Беларуси, на условиях ';
+const BOOKING_CONSENT_TEXT_AFTER = '.';
+
 // Доп. опция при бронировании кабинета — не атрибут зоны (в отличие от
 // zoneFeatures вроде "Есть мокрая точка"), а платная доработка, которую
 // клиент выбирает сам в момент брони. Фиксированная цена, поэтому не
@@ -123,6 +130,9 @@ export function PublicPlanAndUnits({
 
   const [bookingOpen, setBookingOpen] = useState(false);
   const [bookingForm, setBookingForm] = useState(emptyBookingForm);
+  // Согласие на обработку персональных данных (владелец, 2026-09-25) — не
+  // отмечено заранее, отправка формы заблокирована, пока не отмечено.
+  const [bookingConsent, setBookingConsent] = useState(false);
   const [wetPointAddon, setWetPointAddon] = useState(false);
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
@@ -136,6 +146,7 @@ export function PublicPlanAndUnits({
   function resetBookingState(nextOpen: boolean) {
     setBookingOpen(nextOpen);
     setBookingForm(emptyBookingForm);
+    setBookingConsent(false);
     setWetPointAddon(false);
     setBookingError(null);
     setBookingDone(false);
@@ -233,7 +244,7 @@ export function PublicPlanAndUnits({
 
   async function handleBookingSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedZone || !bookingForm.name.trim() || !bookingForm.contact.trim() || bookingSubmitting) return;
+    if (!selectedZone || !bookingForm.name.trim() || !bookingForm.contact.trim() || !bookingConsent || bookingSubmitting) return;
     const bookingWorkstation = selectedZone.workstationCount != null;
     if (bookingWorkstation && workstationsRemaining(selectedZone) <= 0) return;
     setBookingSubmitting(true);
@@ -542,6 +553,28 @@ export function PublicPlanAndUnits({
                           value={bookingForm.comment}
                           onChange={(e) => setBookingForm((f) => ({ ...f, comment: e.target.value }))}
                         />
+                        <label className="flex items-start gap-2 text-sm text-ink">
+                          <input
+                            type="checkbox"
+                            checked={bookingConsent}
+                            onChange={(e) => setBookingConsent(e.target.checked)}
+                            required
+                            className="mt-0.5 h-4 w-4 shrink-0 rounded border-border-strong text-primary focus:ring-primary"
+                          />
+                          <span>
+                            {BOOKING_CONSENT_TEXT_BEFORE}
+                            <a
+                              href="/privacy"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary-hover underline hover:text-primary"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Политики обработки персональных данных
+                            </a>
+                            {BOOKING_CONSENT_TEXT_AFTER}
+                          </span>
+                        </label>
                         {bookingError && <p className="text-sm text-danger">{bookingError}</p>}
                         {bookingSubmitting && (
                           <p className="flex items-center gap-2 text-sm text-ink-muted">
@@ -549,7 +582,7 @@ export function PublicPlanAndUnits({
                             Идёт бронирование, подождите...
                           </p>
                         )}
-                        <Button type="submit" disabled={bookingSubmitting} className="w-fit">
+                        <Button type="submit" disabled={bookingSubmitting || !bookingConsent} className="w-fit">
                           {bookingSubmitting ? 'Отправляем...' : 'Далее — подписать соглашение'}
                         </Button>
                       </form>
