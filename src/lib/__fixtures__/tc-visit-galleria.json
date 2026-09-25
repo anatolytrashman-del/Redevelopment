@@ -1,0 +1,194 @@
+{
+ "hours": [
+  {
+   "note": "по сайту ТРЦ, июнь 2026",
+   "zone": "Торговая галерея",
+   "value": "ежедневно 10:00–22:00",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260615204123/https://galleria-minsk.by/"
+  },
+  {
+   "note": "по сайту ТРЦ, июнь 2026",
+   "zone": "Супермаркет ГИППО",
+   "value": "ежедневно 08:00–02:00",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260615204123/https://galleria-minsk.by/"
+  },
+  {
+   "note": "по сайту ТРЦ, июнь 2026",
+   "zone": "Паркинг",
+   "value": "круглосуточно",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260615204123/https://galleria-minsk.by/"
+  },
+  {
+   "note": "по сайту ТРЦ, март 2026",
+   "zone": "Инфоцентр",
+   "value": "ежедневно 10:00–22:00",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260317121748/https://galleria-minsk.by/contacts/"
+  },
+  {
+   "note": "сезонный, 3 этаж; по новости ТРЦ от 1 ноября 2025",
+   "zone": "Гардероб",
+   "value": "1 ноября – 31 марта, ежедневно 10:00–21:30",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260312142428/https://galleria-minsk.by/news/events/s-1-noyabrya-na-3-etazhe-trts-galleria-minsk-otkryvaetsya-garderob/"
+  }
+ ],
+ "parking": {
+  "date": "2026-04",
+  "items": [
+   {
+    "label": "Мест",
+    "value": "685"
+   },
+   {
+    "label": "Уровней",
+    "value": "5, из них 1 подземный; у каждого свой цвет"
+   },
+   {
+    "label": "Адрес и въезд",
+    "value": "ул. Мельникайте, 16А; въезд с ул. Димитрова"
+   },
+   {
+    "label": "Первые 3 часа",
+    "value": "5 руб."
+   },
+   {
+    "label": "Каждый следующий час",
+    "value": "1 руб."
+   },
+   {
+    "label": "Абонемент на месяц",
+    "value": "250 руб."
+   },
+   {
+    "label": "Бесплатно 3 часа",
+    "value": "по купону за покупку в ГИППО от 20 руб. (без алкоголя и табака) или в John Dory / VINO&VINO, в день выдачи"
+   },
+   {
+    "label": "Бесплатно весь день",
+    "value": "клиентам автомойки Galleria Car Spa (−1 уровень паркинга)"
+   },
+   {
+    "label": "Электромобили",
+    "value": "первые 3 часа бесплатно, номер распознаётся автоматически"
+   },
+   {
+    "label": "Электрозарядки",
+    "value": "хаб ZARYADKA на 3-м уровне (с декабря 2025): 16 станций на 22 машины, 1,3 МВт, разъёмы CCS и GB/T; плюс станция MALANKA Type2 11 кВт"
+   },
+   {
+    "label": "Абонементы",
+    "value": "+375 (44) 555-00-86, будни 08:30–17:30"
+   }
+  ],
+  "source": "Сайт ТРЦ (копия web.archive.org)",
+  "summary": "Отдельное пятиуровневое здание паркинга (один уровень подземный) на 685 мест, открыто круглосуточно; с 3-го уровня — закрытый переход на 2-й этаж ТРЦ. Паркинг платный, тариф 5 руб. за первые три часа действует с 1 сентября 2024 года.",
+  "sourceUrl": "https://web.archive.org/web/20260411030519/https://galleria-minsk.by/services/for-drivers/parking/"
+ },
+ "transport": [
+  {
+   "mode": "metro",
+   "text": "«Немига» — 450 м, «Фрунзенская» — 600 м. С железнодорожного вокзала удобнее всего на метро до «Немиги».",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260330071041/https://galleria-minsk.by/about-us/"
+  },
+  {
+   "mode": "bus",
+   "text": "Автобусы 1, 24, 38, 57, 69, 73, 91, 119с, 163 — остановки «Станция метро „Немига“», «Дворец Спорта», «Замчище»",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260330071041/https://galleria-minsk.by/about-us/"
+  },
+  {
+   "mode": "bus",
+   "text": "Из аэропорта — автобус 300Э или маршрутка 1400-ТК до автовокзала «Центральный», дальше метро до «Немиги»",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260330071041/https://galleria-minsk.by/about-us/"
+  },
+  {
+   "mode": "trolleybus",
+   "text": "Троллейбусы 12, 29, 37, 40, 40а, 46, 53",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260330071041/https://galleria-minsk.by/about-us/"
+  },
+  {
+   "mode": "minibus",
+   "text": "Маршрутки 1008, 1053, 1056, 1073, 1111, 1119, 1146, 1153, 1346",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260330071041/https://galleria-minsk.by/about-us/"
+  },
+  {
+   "mode": "car",
+   "text": "Въезд на паркинг с ул. Димитрова, удобный подъезд с ул. Мельникайте",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260330071041/https://galleria-minsk.by/about-us/"
+  },
+  {
+   "mode": "walk",
+   "text": "Через дорогу от Дворца спорта; рядом набережная Свислочи, Троицкое предместье и главная велодорожка Минска. Велопарковки — со стороны «Белкнiги», Немиги и KFC и с ул. Димитрова",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260612210925/https://galleria-minsk.by/services/for-visitors/parkovka-dlya-velosipedov/"
+  }
+ ],
+ "loyalty": [
+  {
+   "name": "Программа лояльности в приложении Galleria Minsk",
+   "text": "Запущена 13 мая 2026 года, к 10-летию ТРЦ. Чек из магазина-участника сканируют в приложении в течение 72 часов: 1 балл за каждый полный рубль, за регистрацию — 20 баллов. Баллы меняют на мерч (стикерпак — 70, футболка — 1000), билеты, закрытые мероприятия ТРЦ и скидки партнёров. Пять статусов — от «Начинающего шопоголика» до «Шопинг-легенды» (от 30 000 баллов). Зарегистрироваться можно и без белорусского номера.",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260519094222/https://galleria-minsk.by/loyalty/"
+  }
+ ],
+ "events": [
+  {
+   "date": "летом с 2024 года, по субботам в 11:00",
+   "name": "Фитнес на крыше",
+   "text": "Каждую субботу лета — занятия с клубом «Мир фитнеса» на крыше паркинга. С 2026 года запись в приложении за 50 баллов программы лояльности; если к 10:00 идёт дождь, занятие отменяют.",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260615211751/https://galleria-minsk.by/news/events/nash-letniy-proekt-fitnes-na-kryshe-vozvrashchaetsya/"
+  },
+  {
+   "date": "лето 2024 и 2025, по пятницам в 19:00",
+   "name": "Танцы на крыше",
+   "text": "Бесплатные танцевальные мастер-классы со студией «Квартал» на крыше паркинга, по записи.",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260418005140/https://galleria-minsk.by/news/events/tanci-na-krishy/"
+  },
+  {
+   "date": "ежегодно с 2024 года, весна–осень",
+   "name": "Пешеходные экскурсии по Минску",
+   "text": "Бесплатные двухчасовые прогулки по историческому центру — Раковскому предместью, площади Свободы — со стартом и финишем в ТРЦ, по записи. Весной 2026 года — маршрут «Минск в женских образах».",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260519110231/https://galleria-minsk.by/news/events/peshekhodnye-ekskursii-s-trts-galleria-minsk/"
+  },
+  {
+   "date": "почти ежемесячно, 2024–2026",
+   "name": "Шопинг-экскурсии со стилистом",
+   "text": "Бесплатные прогулки по магазинам ТРЦ вместе со стилистом.",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260615204123/https://galleria-minsk.by/"
+  },
+  {
+   "date": "регулярно, 2024–2026",
+   "name": "Тренинги безопасности для семей",
+   "text": "Бесплатные занятия с центром детской безопасности Safekids: «Я и чужой взрослый», «Один дома», «Антибуллинг», «Безопасный интернет».",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260421072151/https://galleria-minsk.by/news/events/trening-po-bezopasnosti-v-internete/"
+  },
+  {
+   "date": "1–2 ноября 2025, второй сезон",
+   "name": "QUATRIUM Challenge",
+   "text": "Спортивно-благотворительный забег на беговых дорожках на 1 этаже: дистанции 100, 500 и 1000 м и ультрамарафон на 100 км.",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260421080409/https://galleria-minsk.by/news/events/osenniy-quatrium-challenge-v-galleria-minsk/"
+  },
+  {
+   "date": "2024–2025",
+   "name": "Инсталляции в атриуме",
+   "text": "Каждый сезон атриум украшает минская мастерская Dexter Show: весной 2025 года — цветы с механическими тюльпанами, к 2025 году — подвешенный змей «ужиный король» выше 20 м, к 2026-му — 23-метровая «Снежная королева».",
+   "source": "Про бизнес",
+   "sourceUrl": "https://probusiness.io/experience/13372-snezhnuyu-korolevu-montirovali-30-nochey-kak-rabotaet-biznes-po-sozdaniyu-unikalnykh-dekoraciy.html"
+  }
+ ]
+}

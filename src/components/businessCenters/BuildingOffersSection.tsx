@@ -359,18 +359,20 @@ export function BuildingOffersSection({
   sale,
   rent,
   listed = [],
+  embedded = false,
 }: {
   sale: DealStats | null;
   rent: DealStats | null;
   listed?: RetailVacancyEntry[];
+  embedded?: boolean;
 }) {
   if (!sale && !rent && !listed.length) return null;
   const columns = [sale, rent].filter((s): s is DealStats => s !== null);
   const count = columns.length + (listed.length ? 1 : 0);
 
   return (
-    <div id="offers" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-      <h2 className="text-lg font-bold text-ink">Что сейчас сдают и продают в здании</h2>
+    <div id={embedded ? undefined : "offers"} className={embedded ? undefined : cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={embedded ? undefined : glassCardShadow}>
+      {!embedded && <h2 className="text-lg font-bold text-ink">Что сейчас сдают и продают в здании</h2>}
 
       <div className={cn('grid items-start gap-6', count > 1 ? 'md:grid-cols-2' : 'max-w-xl')}>
         {columns.map((stats) => (

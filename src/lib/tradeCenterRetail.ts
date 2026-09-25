@@ -9,6 +9,8 @@ import {
   RETAIL_FUN_KINDS,
   RETAIL_SERVICE_GROUPS,
 } from '../data/businessCenters';
+import { hasGettingHereInfo, hasOffersEventsInfo, transportForVisit, parkingForVisit, eventsForVisit } from './tradeCenterVisit';
+import { groupNumbers } from './tradeCenterNumbers';
 import { pluralRu } from './pluralRu';
 import type {
   RetailAnchorCategory,
@@ -513,7 +515,31 @@ export function normalizeRetailInfo(raw: unknown): RetailInfo | null {
   const tenantsAtName = tenantsAtRaw ? str(tenantsAtRaw.name) : null;
   const tenantsAt = tenantsAtSlug && tenantsAtName ? { slug: tenantsAtSlug, name: tenantsAtName } : null;
 
+  const factCards = Array.isArray(data.factCards) ? records(data.factCards).flatMap((r) => {
+    const headline = str(r.headline);
+    const text = str(r.text);
+    return headline && text ? [{ headline, text }] : [];
+  }) : null;
+  const themes = record(data.reviewThemes);
+  const themeItems = (value: unknown) => records(value).flatMap((r) => {
+    const theme = str(r.theme);
+    const share = num(r.share);
+    return theme && share != null && share >= 0 && share <= 100 ? [{ theme, share }] : [];
+  });
+  const reviewCount = themes ? num(themes.reviews) : null;
+  const reviewThemes = themes && reviewCount != null && reviewCount >= 0 ? {
+    reviews: reviewCount,
+    source: str(themes.source) ?? '',
+    analyzedAt: str(themes.analyzedAt) ?? '',
+    praise: themeItems(themes.praise),
+    complaints: themeItems(themes.complaints),
+    // Число отзывов и id карточки — из business_center_yandex_cards.
+    reviewCount: num(themes.reviewCount),
+    orgId: str(themes.orgId),
+  } : null;
   const info: RetailInfo = {
+    factCards,
+    reviewThemes,
     floorsGuide,
     anchors,
     timeline,
@@ -539,7 +565,7 @@ export function normalizeRetailInfo(raw: unknown): RetailInfo | null {
     tenantsAt,
   };
   const empty = Object.values(info).every((value) => value == null || (Array.isArray(value) && value.length === 0));
-  return empty ? null : info;
+  return empty && factCards === null ? null : info;
 }
 
 // --- Этажи ---------------------------------------------------------------
@@ -759,16 +785,10 @@ export function awardsRankingTitle(hasAwards: boolean, hasRanking: boolean): str
   return hasAwards ? 'Награды' : 'Место в рейтингах';
 }
 
-/**
- * Размер блока для модели высот страницы (businessCenterPageLayout) в
- * условных единицах ~60px. Плитки стоят по две в ряд: ряд наград — 3
- * единицы (название, бейдж, мета, текст), ряд рейтингов — 2. Строка награды
- * из highlights (запасной вариант без retail_info.awards) — одна единица.
- * Замер 2026-09-24 на 1280px: 4 награды + 4 рейтинга — 844px.
- */
+// Сетка 4 награды / 3 рейтинга на широком экране — владелец, 2026-09-25.
 export function awardsRankingSize(info: RetailInfo | null, legacyAwardLines = 0): number {
-  const awards = info?.awards.length ? Math.ceil(info.awards.length / 2) * 3 : legacyAwardLines;
-  const ranking = Math.ceil((info?.ranking.length ?? 0) / 2) * 2;
+  const awards = info?.awards.length ? Math.ceil(info.awards.length / 4) * 3 : Math.ceil(legacyAwardLines / 4);
+  const ranking = Math.ceil((info?.ranking.length ?? 0) / 3) * 2;
   return awards + ranking;
 }
 
@@ -1456,12 +1476,6 @@ export function eventsFaqAnswer(events: RetailEventEntry[]): string | null {
 
 // --- Для бизнеса: аудитория, аренда, реклама, цифры, цитаты ---------------
 
-/** Пометка под цифрой: «март 2026 · по данным ТЦ». */
-export function figureMeta(entry: RetailFigureEntry): string | null {
-  const parts = [formatRetailDate(entry.date), entry.note].filter(Boolean);
-  return parts.length ? parts.join(' · ') : null;
-}
-
 /** «Посещаемость — 40 000 человек в день (2025, по данным ТЦ).» */
 export function formatFigureLine(entry: RetailFigureEntry): string {
   const meta = [formatRetailDate(entry.date), entry.note].filter(Boolean).join(', ');
@@ -1508,26 +1522,24 @@ export function quotesFaqAnswer(quotes: RetailQuoteEntry[]): string | null {
 
 // --- Разделы страницы ----------------------------------------------------
 
-/**
- * id карточек в разметке — они же пункты меню «На странице». Первые три —
- * состав здания и его история, `visit` — одна карточка «Посетителю» (режим,
- * парковка, проезд, удобства, скидки), дальше — блоки для бизнес-аудитории,
- * последней — «Якорные арендаторы» прямо перед каталогом арендаторов.
- */
+// Два раздела вместо «Посетителю», без скрытых часов и правил (владелец, 2026-09-25).
 export type RetailSectionId =
   | 'floors'
   | 'retail-history'
   | 'food'
   | 'fun'
   | 'leisure'
-  | 'visit'
-  | 'business'
+  | 'getting-here'
+  | 'offers-events'
+  | 'advertising'
   | 'numbers'
   | 'quotes'
   | 'anchors';
 
 export const RETAIL_SECTION_LABELS: Record<RetailSectionId, string> = {
-  floors: 'Что на каком этаже',
+  // «Что на каком этаже» и «Каталог арендаторов» слиты в один блок
+  // (владелец, 2026-09-25) — TradeCenterGuide.tsx.
+  floors: 'Что где',
   // Заголовок карточки длиннее — «Чем ТЦ «…» вошёл в историю ритейла»
   // (retailHistoryTitle), это подпись пункта меню.
   'retail-history': 'В истории ритейла',
@@ -1536,8 +1548,9 @@ export const RETAIL_SECTION_LABELS: Record<RetailSectionId, string> = {
   food: 'Где поесть',
   fun: 'Развлечения',
   leisure: 'Кино, еда, развлечения',
-  visit: 'Посетителю',
-  business: 'Арендаторам и рекламодателям',
+  'getting-here': 'Как добраться',
+  'offers-events': 'Скидки и события',
+  advertising: 'Реклама в ТЦ',
   numbers: 'ТЦ в цифрах',
   quotes: 'Цитаты',
   anchors: 'Якорные арендаторы',
@@ -1557,36 +1570,19 @@ export function retailHistoryTitle(name: string): string {
  */
 export function retailSectionGroup(id: RetailSectionId): 'visitor' | 'business' | 'tenants' {
   if (id === 'anchors') return 'tenants';
-  return id === 'business' || id === 'numbers' || id === 'quotes' ? 'business' : 'visitor';
+  return id === 'advertising' || id === 'numbers' || id === 'quotes' ? 'business' : 'visitor';
 }
 
-export function hasVisitInfo(info: RetailInfo): boolean {
-  return Boolean(
-    info.hours.length ||
-      info.hoursNote ||
-      info.parking ||
-      info.transport.length ||
-      info.rules.length ||
-      info.loyalty.length ||
-      info.events.length,
-  );
+export function hasAdvertisingInfo(info: RetailInfo): boolean {
+  return Boolean(info.audience.length || info.advertising);
 }
 
-export function hasBusinessInfo(info: RetailInfo): boolean {
-  return Boolean(info.audience.length || info.leasing || info.advertising);
-}
-
-/**
- * Примерное число «строк» карточки для модели высот страницы
- * (businessCenterPageLayout). У visit панели стоят в две колонки, поэтому
- * строки делятся пополам; у business — цифры одним рядом плюс длиннейшая из
- * двух колонок «аренда / реклама».
- */
-export function retailSectionSize(info: RetailInfo | null, id: RetailSectionId): number {
+// Высота учитывает только видимые карточки (владелец, 2026-09-25).
+export function retailSectionSize(info: RetailInfo | null, id: RetailSectionId, tenantsCount = 0): number {
+  // Поиск заменил полный список: высота не растёт с числом арендаторов (владелец, 2026-09-25).
+  if (id === 'floors') return (info?.floorsGuide.length ?? 0) * 2 + (tenantsCount > 0 ? 6 : 0);
   if (!info) return 0;
   switch (id) {
-    case 'floors':
-      return info.floorsGuide.length;
     // Строка ленты; свёрнутая лента показывает не больше TIMELINE_COLLAPSED.
     case 'retail-history':
       return Math.min(info.timeline.length, TIMELINE_COLLAPSED);
@@ -1600,47 +1596,47 @@ export function retailSectionSize(info: RetailInfo | null, id: RetailSectionId):
     // Плитки в две колонки: высоту задаёт число рядов.
     case 'leisure':
       return Math.ceil(leisureForPage(info).length / 2);
-    case 'visit': {
-      const panels = [
-        info.hours.length + (info.hoursNote ? 1 : 0),
-        info.parking ? info.parking.items.length + 2 : 0,
-        info.transport.length,
-        // Правила — панелью в полколонки: правило в полторы-две строки.
-        Math.ceil(info.rules.length * 1.5),
-        info.loyalty.length + info.events.length,
-      ].filter((n) => n > 0);
-      // Заголовок панели — ещё строка.
-      const rows = panels.reduce((sum, n) => sum + n + 1, 0);
-      return Math.ceil(rows / 2);
+    case 'getting-here': {
+      const transport = transportForVisit(info.transport);
+      const parking = parkingForVisit(info.parking, info.hours);
+      return Math.max(Number(transport.metro.length > 0) + transport.routes.length + transport.transfers.length,
+        parking ? Number(parking.tiles.length > 0) * 2 + parking.free.length + Number(Boolean(parking.charging)) + 1 : 0);
     }
-    case 'business': {
-      const pitchRows = (p: RetailPitch | null) => (p ? 2 + p.points.length + (p.contacts ? 1 : 0) : 0);
-      return (info.audience.length ? 2 : 0) + Math.max(pitchRows(info.leasing), pitchRows(info.advertising));
-    }
-    // Плитки по три в ряд на десктопе.
+    case 'offers-events':
+      return info.loyalty.length * 3 + Math.ceil(eventsForVisit(info.events).length / 3) * 3;
+    case 'advertising':
+      return Math.ceil(info.audience.length / 5) * 3 + Math.ceil((info.advertising?.points.length ?? 0) / 3) * 3 + Number(Boolean(info.advertising?.contacts)) * 3;
     case 'numbers':
-      // Две первые цифры — крупные, в ряд по две; остальные по три.
-      return Math.ceil(Math.min(info.numbers.length, 2) / 2) + Math.ceil(Math.max(info.numbers.length - 2, 0) / 3);
+      // Учитываем новые группы в высоте блока (владелец, 2026-09-25).
+      return groupNumbers(info.numbers).reduce((rows, group) => rows + Number(Boolean(group.label)) + Math.ceil(group.entries.length / (group.kind === 'scale' ? 2 : group.kind === 'holidays' ? 3 : 5)), 0);
     // Цитаты в две колонки.
     case 'quotes':
       return Math.ceil(info.quotes.length / 2);
   }
 }
 
-/** Какие карточки реально нарисуются — в порядке на странице. */
-export function retailSectionIds(info: RetailInfo | null): RetailSectionId[] {
-  if (!info) return [];
+/**
+ * Какие карточки реально нарисуются — в порядке на странице.
+ *
+ * `hasTenants` (владелец, 2026-09-25): «Путеводитель по ТЦ» (id 'floors')
+ * теперь несёт и каталог арендаторов, поэтому рисуется и без floorsGuide,
+ * если есть хоть один арендатор — иначе у ТЦ без текстового гида, но с
+ * собранным каталогом (Яндекс), карточка и пункт меню молча пропадали бы.
+ */
+export function retailSectionIds(info: RetailInfo | null, hasTenants = false): RetailSectionId[] {
+  if (!info) return hasTenants ? ['floors'] : [];
   const ids: RetailSectionId[] = [];
-  if (info.floorsGuide.length) ids.push('floors');
+  if (info.floorsGuide.length || hasTenants) ids.push('floors');
   if (info.timeline.length) ids.push('retail-history');
   if (info.food) ids.push('food');
   if (info.fun.length) ids.push('fun');
   // Старый досуг — только пока нет новых блоков (leisureForPage).
   if (leisureForPage(info).length) ids.push('leisure');
-  if (hasVisitInfo(info)) ids.push('visit');
-  if (hasBusinessInfo(info)) ids.push('business');
+  if (hasGettingHereInfo(info)) ids.push('getting-here');
+  if (hasOffersEventsInfo(info)) ids.push('offers-events');
+  if (hasAdvertisingInfo(info)) ids.push('advertising');
   if (info.numbers.length) ids.push('numbers');
-  if (info.quotes.length) ids.push('quotes');
+  if (!info.reviewThemes && info.quotes.length) ids.push('quotes');
   // Последними — вплотную к каталогу арендаторов, который идёт за ними.
   if (anchorsForPage(info).length) ids.push('anchors');
   return ids;

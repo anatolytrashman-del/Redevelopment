@@ -103,7 +103,7 @@ export function FavoritesPage() {
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-8 sm:px-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="flex items-center gap-2 text-2xl font-extrabold leading-tight text-ink">
-            <Heart className="h-6 w-6 shrink-0 fill-primary text-primary" />
+            <Heart className="h-6 w-6 shrink-0 fill-icon text-icon" />
             Избранные бизнес-центры
           </h1>
           <Link

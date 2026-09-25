@@ -20,7 +20,7 @@ export function BusinessUploadPublicPage() {
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-4 sm:p-8">
       <div className="flex items-center gap-3">
-        <Building2 className="h-6 w-6 shrink-0 text-primary" />
+        <Building2 className="h-6 w-6 shrink-0 text-icon" />
         <h1 className="text-xl font-bold text-ink">Организации по домам — Минск Мир</h1>
       </div>
       <p className="text-sm text-ink-muted">

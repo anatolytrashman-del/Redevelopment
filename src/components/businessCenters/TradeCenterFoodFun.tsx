@@ -55,7 +55,7 @@ import {
   sortFun,
 } from '../../lib/tradeCenterRetail';
 import { Badge } from '../ui/Badge';
-import { RetailCardTitle as CardTitle, SourcesLine } from './TradeCenterRetailParts';
+import { RetailCardTitle as CardTitle } from './TradeCenterRetailParts';
 import { retailCardClass as cardClass } from './tradeCenterRetailStyle';
 
 const PLACE_ICONS: Record<RetailFoodPlaceType, LucideIcon> = {
@@ -88,7 +88,7 @@ function FoodZoneTile({ zone }: { zone: RetailFoodZone }) {
     <li className="flex min-w-0 flex-col gap-3 rounded-2xl border border-border bg-white/65 p-4">
       <div className="flex items-start gap-3">
         <span
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-icon-bg text-icon"
           aria-hidden="true"
         >
           <UtensilsCrossed className="h-5 w-5" />
@@ -177,7 +177,7 @@ export function TradeCenterFoodCard({ food, title }: { food: RetailFoodInfo; tit
             return (
               <section key={group.type} className="flex flex-col gap-2.5">
                 <h3 className="flex items-center gap-2 text-sm font-bold text-ink">
-                  <Icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                  <Icon className="h-4 w-4 shrink-0 text-icon" aria-hidden="true" />
                   {group.label}
                   <span className="rounded-full bg-surface-muted px-2 py-px text-xs font-semibold tabular-nums text-ink-muted">
                     {group.places.length}
@@ -207,7 +207,6 @@ export function TradeCenterFoodCard({ food, title }: { food: RetailFoodInfo; tit
           {expanded ? 'Свернуть' : `Показать все ${total} ${pluralRu(total, 'заведение', 'заведения', 'заведений')}`}
         </button>
       )}
-      <SourcesLine entries={food.zones} />
     </div>
   );
 }
@@ -224,7 +223,7 @@ function FunTile({ entry, wide }: { entry: RetailFunEntry; wide: boolean }) {
     >
       <div className="flex items-start gap-3">
         <span
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-icon-bg text-icon"
           aria-hidden="true"
         >
           <Icon className="h-5 w-5" />
@@ -281,7 +280,6 @@ export function TradeCenterFunCard({ fun, title }: { fun: RetailFunEntry[]; titl
           <FunTile key={`${entry.name}-${i}`} entry={entry} wide={entry.kind === 'cinema' || entry === lastRest} />
         ))}
       </ul>
-      <SourcesLine entries={sorted} />
     </div>
   );
 }

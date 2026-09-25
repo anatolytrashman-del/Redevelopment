@@ -88,8 +88,7 @@ const SECTION_HEIGHT_MODEL: Record<string, SectionHeightModel> = {
   reviews: { base: 155, perItem: 95, maxItems: 6 },
   awards: { base: 110, perItem: 40 },
   // «Награды и рейтинги» ТЦ (TradeCenterAwardsBlock) — единица ~60px, см.
-  // awardsRankingSize в lib/tradeCenterRetail. Замер 2026-09-24 на 1280px
-  // по мок-данным «Замка»: 4 награды + 4 рейтинга (10 единиц) — 844px.
+  // awardsRankingSize в lib/tradeCenterRetail; сетка обновлена — владелец, 2026-09-25.
   'awards-ranking': { base: 245, perItem: 60 },
   media: { base: 15, perItem: 80 },
   facts: { base: 145, perItem: 80 },
@@ -114,13 +113,10 @@ const SECTION_HEIGHT_MODEL: Record<string, SectionHeightModel> = {
   // «Развлечения» — 890px на 3 ряда (кинотеатр во всю ширину + 2 ряда по две).
   food: { base: 200, perItem: 43 },
   fun: { base: 150, perItem: 245 },
-  // Дополнительные карточки ТЦ (TradeCenterExtraBlocks), замер 2026-09-23
-  // на 1280px по мок-данным «Замка»: «Посетителю» — 1103px на 16 строк
-  // (retailSectionSize: строки панелей пополам на две колонки), «для
-  // бизнеса» — 648px на 8, «в цифрах» — 357px на 2 ряда плиток по три,
-  // цитаты — 426px на 2 ряда по две.
-  visit: { base: 150, perItem: 60 },
-  business: { base: 150, perItem: 62 },
+  // Два блока посетителя считают видимые строки раздельно (владелец, 2026-09-25).
+  'getting-here': { base: 150, perItem: 60 },
+  'offers-events': { base: 150, perItem: 60 },
+  advertising: { base: 150, perItem: 43 },
   numbers: { base: 140, perItem: 175 },
   quotes: { base: 130, perItem: 148 },
   // «Инфраструктура» ТЦ (TradeCenterInfrastructure) — единица из
@@ -192,6 +188,7 @@ export interface PageSectionSize {
   id: string;
   /** Строк таблицы, карточек, вопросов FAQ — смотря что за блок. */
   items: number;
+  extraHeight?: number;
 }
 
 /**
@@ -210,10 +207,10 @@ export function estimateTextLines(text: string | null | undefined, charsPerLine:
 }
 
 /** Оценка высоты блока в пикселях опорного экрана. */
-export function estimateSectionHeight({ id, items }: PageSectionSize): number {
+export function estimateSectionHeight({ id, items, extraHeight = 0 }: PageSectionSize): number {
   const model = SECTION_HEIGHT_MODEL[id] ?? DEFAULT_SECTION_MODEL;
   const counted = Math.max(0, model.maxItems != null ? Math.min(items, model.maxItems) : items);
-  return model.base + model.perItem * counted + SECTION_GAP;
+  return model.base + model.perItem * counted + extraHeight + SECTION_GAP;
 }
 
 /**

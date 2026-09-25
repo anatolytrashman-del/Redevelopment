@@ -38,7 +38,7 @@ import {
   timelineYear,
 } from '../../lib/tradeCenterRetail';
 import { Badge } from '../ui/Badge';
-import { RetailCardTitle as CardTitle, SourcesLine } from './TradeCenterRetailParts';
+import { RetailCardTitle as CardTitle } from './TradeCenterRetailParts';
 import { retailCardClass as cardClass } from './tradeCenterRetailStyle';
 
 const ANCHOR_ICONS: Record<RetailAnchorCategory, LucideIcon> = {
@@ -72,7 +72,7 @@ function AnchorTile({ anchor }: { anchor: RetailAnchorEntry }) {
   return (
     <li className="flex min-w-0 items-start gap-3 rounded-2xl border border-border bg-white/65 p-3">
       <span
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-icon-bg text-icon"
         title={category ?? undefined}
         aria-hidden="true"
       >
@@ -109,7 +109,6 @@ export function TradeCenterAnchorsCard({ anchors }: { anchors: RetailAnchorEntry
           <AnchorTile key={`${anchor.name}-${i}`} anchor={anchor} />
         ))}
       </ul>
-      <SourcesLine entries={anchors} />
     </div>
   );
 }
@@ -177,7 +176,6 @@ export function TradeCenterHistoryCard({ timeline, title }: { timeline: RetailTi
           {expanded ? 'Свернуть' : `Показать всё (${timeline.length})`}
         </button>
       )}
-      <SourcesLine entries={timeline} />
     </div>
   );
 }

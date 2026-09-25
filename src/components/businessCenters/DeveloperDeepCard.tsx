@@ -31,7 +31,7 @@ const SCALE_COLS: Record<number, string> = { 1: 'sm:grid-cols-1', 2: 'sm:grid-co
 function SubTitle({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
   return (
     <h3 className="flex items-center gap-2 text-base font-bold text-ink">
-      <Icon className="h-4 w-4 shrink-0 text-primary" />
+      <Icon className="h-4 w-4 shrink-0 text-icon" />
       {children}
     </h3>
   );
@@ -43,6 +43,7 @@ export function DeveloperDeepCard({
   mainName,
   logoAlt,
   contacts,
+  showSources = true,
 }: {
   info: DeveloperInfo;
   /** «Кто стоит за торговым центром «Замок»». */
@@ -52,6 +53,7 @@ export function DeveloperDeepCard({
   logoAlt: string;
   /** Контакты — тот же кусок, что у простой карточки (страница собирает). */
   contacts: ReactNode;
+  showSources?: boolean;
 }) {
   const [showAllPortfolio, setShowAllPortfolio] = useState(false);
   const profile = info.profile ?? null;
@@ -66,7 +68,7 @@ export function DeveloperDeepCard({
     <div id="developer" className={cn('mt-6 flex scroll-mt-32 flex-col gap-6 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="flex min-w-0 items-center gap-2 text-lg font-bold text-ink">
-          <HardHat className="h-5 w-5 shrink-0 text-primary" />
+          <HardHat className="h-5 w-5 shrink-0 text-icon" />
           <span className="min-w-0 break-words">{title}</span>
         </h2>
         {info.logoUrl && (
@@ -82,13 +84,13 @@ export function DeveloperDeepCard({
           <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-ink-muted">
             {profile.founded && (
               <span className="flex items-center gap-1.5">
-                <CalendarDays className="h-4 w-4 shrink-0 text-primary" />
+                <CalendarDays className="h-4 w-4 shrink-0 text-icon" />
                 {/^\d{4}$/.test(profile.founded) ? `Основана в ${profile.founded} году` : `Основана: ${profile.founded}`}
               </span>
             )}
             {profile.hq && (
               <span className="flex min-w-0 items-center gap-1.5">
-                <Landmark className="h-4 w-4 shrink-0 text-primary" />
+                <Landmark className="h-4 w-4 shrink-0 text-icon" />
                 <span className="min-w-0 break-words">Штаб-квартира: {profile.hq}</span>
               </span>
             )}
@@ -102,7 +104,7 @@ export function DeveloperDeepCard({
               return (
                 <div
                   key={`${s.label}-${i}`}
-                  className="flex min-w-0 flex-col gap-1 rounded-2xl bg-primary/[0.06] p-4 max-sm:[&:last-child:nth-child(odd)]:col-span-2"
+                  className="flex min-w-0 flex-col gap-1 rounded-2xl bg-icon-bg p-4 max-sm:[&:last-child:nth-child(odd)]:col-span-2"
                 >
                   <span className="break-words text-xl font-bold leading-tight text-ink tabular-nums sm:text-2xl">{s.value}</span>
                   <span className="break-words text-xs leading-snug text-ink-muted">{s.label}</span>
@@ -114,7 +116,7 @@ export function DeveloperDeepCard({
         )}
         {profile && profile.people.length > 0 && (
           <p className="flex items-start gap-1.5 text-sm text-ink-muted">
-            <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-icon" />
             <span className="min-w-0 break-words">
               {profile.people.map((p, i) => (
                 <span key={`${p.name}-${i}`}>
@@ -205,7 +207,7 @@ export function DeveloperDeepCard({
           <ul className="flex flex-col gap-2.5">
             {facts.map((f, i) => (
               <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-ink-muted">
-                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-icon" aria-hidden="true" />
                 <span className="min-w-0 break-words">
                   {f.label && (
                     <span className="font-semibold text-ink">{/[.!?…:]$/.test(f.label) ? `${f.label} ` : `${f.label}. `}</span>
@@ -220,7 +222,7 @@ export function DeveloperDeepCard({
 
       {contacts}
 
-      <SourcesLine entries={collectDeveloperSources(info)} />
+      {showSources && <SourcesLine entries={collectDeveloperSources(info)} />}
     </div>
   );
 }
