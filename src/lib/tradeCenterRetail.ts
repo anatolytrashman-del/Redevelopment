@@ -1512,7 +1512,7 @@ export type RetailSectionId =
   | 'leisure'
   | 'getting-here'
   | 'offers-events'
-  | 'business'
+  | 'advertising'
   | 'numbers'
   | 'quotes'
   | 'anchors';
@@ -1531,7 +1531,7 @@ export const RETAIL_SECTION_LABELS: Record<RetailSectionId, string> = {
   leisure: 'Кино, еда, развлечения',
   'getting-here': 'Как добраться',
   'offers-events': 'Скидки и события',
-  business: 'Арендаторам и рекламодателям',
+  advertising: 'Реклама в ТЦ',
   numbers: 'ТЦ в цифрах',
   quotes: 'Цитаты',
   anchors: 'Якорные арендаторы',
@@ -1551,11 +1551,11 @@ export function retailHistoryTitle(name: string): string {
  */
 export function retailSectionGroup(id: RetailSectionId): 'visitor' | 'business' | 'tenants' {
   if (id === 'anchors') return 'tenants';
-  return id === 'business' || id === 'numbers' || id === 'quotes' ? 'business' : 'visitor';
+  return id === 'advertising' || id === 'numbers' || id === 'quotes' ? 'business' : 'visitor';
 }
 
-export function hasBusinessInfo(info: RetailInfo): boolean {
-  return Boolean(info.audience.length || info.leasing || info.advertising);
+export function hasAdvertisingInfo(info: RetailInfo): boolean {
+  return Boolean(info.audience.length || info.advertising);
 }
 
 // Высота учитывает только видимые карточки (владелец, 2026-09-25).
@@ -1585,10 +1585,8 @@ export function retailSectionSize(info: RetailInfo | null, id: RetailSectionId, 
     }
     case 'offers-events':
       return info.loyalty.length * 3 + Math.ceil(eventsForVisit(info.events).length / 3) * 3;
-    case 'business': {
-      const pitchRows = (p: RetailPitch | null) => (p ? 2 + p.points.length + (p.contacts ? 1 : 0) : 0);
-      return (info.audience.length ? 2 : 0) + Math.max(pitchRows(info.leasing), pitchRows(info.advertising));
-    }
+    case 'advertising':
+      return Math.ceil(info.audience.length / 5) * 3 + Math.ceil((info.advertising?.points.length ?? 0) / 3) * 3 + Number(Boolean(info.advertising?.contacts)) * 3;
     // Плитки по три в ряд на десктопе.
     case 'numbers':
       // Две первые цифры — крупные, в ряд по две; остальные по три.
@@ -1618,7 +1616,7 @@ export function retailSectionIds(info: RetailInfo | null, hasTenants = false): R
   if (leisureForPage(info).length) ids.push('leisure');
   if (hasGettingHereInfo(info)) ids.push('getting-here');
   if (hasOffersEventsInfo(info)) ids.push('offers-events');
-  if (hasBusinessInfo(info)) ids.push('business');
+  if (hasAdvertisingInfo(info)) ids.push('advertising');
   if (info.numbers.length) ids.push('numbers');
   if (info.quotes.length) ids.push('quotes');
   // Последними — вплотную к каталогу арендаторов, который идёт за ними.

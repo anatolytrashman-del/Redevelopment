@@ -5,7 +5,7 @@
 import {
   Anchor,
   BarChart3,
-  Briefcase,
+  Megaphone,
   Clapperboard,
   FerrisWheel,
   Flag,
@@ -28,7 +28,7 @@ export const RETAIL_SECTION_ICONS: Record<RetailSectionId, LucideIcon> = {
   leisure: Clapperboard,
   'getting-here': Signpost,
   'offers-events': Gift,
-  business: Briefcase,
+  advertising: Megaphone,
   numbers: BarChart3,
   quotes: MessageSquareQuote,
   anchors: Anchor,

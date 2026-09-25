@@ -250,7 +250,7 @@ export function tcAnchorChipNames(info: RetailInfo | null, maxCount = 6): string
     .slice(0, maxCount);
 }
 
-export type TcQuickJumpId = 'food' | 'fun' | 'business';
+export type TcQuickJumpId = 'food' | 'fun' | 'offers' | 'advertising';
 
 export interface TcQuickJumpChip {
   id: TcQuickJumpId;
@@ -270,9 +270,8 @@ export function tcQuickJumpChips(info: RetailInfo | null): TcQuickJumpChip[] {
     const first = info.fun[0]?.name;
     chips.push({ id: 'fun', label: first ? `Развлечения · ${first}` : 'Развлечения' });
   }
-  if (ids.has('business')) {
-    chips.push({ id: 'business', label: 'Арендаторам' });
-  }
+  if (info.leasing || info.vacancies.length) chips.push({ id: 'offers', label: 'Аренда в ТЦ' });
+  if (ids.has('advertising')) chips.push({ id: 'advertising', label: 'Реклама в ТЦ' });
   return chips;
 }
 

@@ -477,7 +477,7 @@ describe('normalizeRetailInfo — дополнительные ключи', () =
     expect(info!.rules.map((r) => r.text)).toEqual(['Можно с собаками на руках']);
     expect(info!.leasing!.points).toEqual(['Индексация раз в год']);
     expect(info!.audience[0]).toMatchObject({ value: '40 000 в день', date: null, note: 'по данным ТЦ' });
-    expect(retailSectionIds(info)).toEqual(['getting-here', 'business']);
+    expect(retailSectionIds(info)).toEqual(['getting-here', 'advertising']);
   });
 });
 
@@ -534,7 +534,7 @@ describe('разделы и размеры', () => {
     expect(retailSectionGroup('retail-history')).toBe('visitor');
     expect(retailSectionGroup('anchors')).toBe('tenants');
     expect(retailSectionGroup('getting-here')).toBe('visitor');
-    expect(retailSectionGroup('business')).toBe('business');
+    expect(retailSectionGroup('advertising')).toBe('business');
     expect(retailSectionGroup('quotes')).toBe('business');
   });
 

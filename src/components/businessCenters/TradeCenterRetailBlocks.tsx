@@ -4,7 +4,7 @@
 // «Развлечения» (2026-09-24,
 // TradeCenterFoodFun.tsx; у ТЦ без retail_info.food/fun вместо них — старый
 // «Кино, еда, развлечения»); за ними — проезд, скидки и события,
-// «Арендаторам и рекламодателям», «ТЦ в цифрах» и «Цитаты»
+// «Реклама в ТЦ», «ТЦ в цифрах» и «Цитаты»
 // (TradeCenterExtraBlocks.tsx), последними — «Якорные арендаторы»
 // (2026-09-24: старая карточка «Первые в Беларуси и якоря» разделена на эти
 // два блока, см. TradeCenterAnchorsHistory.tsx). Данные —
@@ -39,12 +39,12 @@ import { glassCardShadow } from '../../lib/glass';
 import { TradeCenterGuide } from './TradeCenterGuide';
 import { loadBcExtra, peekBcExtra, type BcExtraFile } from '../../lib/buildData';
 import {
-  TradeCenterBusinessCard,
   TradeCenterNumbersCard,
   TradeCenterQuotesCard,
 } from './TradeCenterExtraBlocks';
 import { TradeCenterAnchorsCard, TradeCenterHistoryCard } from './TradeCenterAnchorsHistory';
 import { TradeCenterGettingHere, TradeCenterOffersEvents } from './TradeCenterVisit';
+import { TradeCenterAdvertising } from './TradeCenterBusiness';
 import { TradeCenterFoodCard, TradeCenterFunCard } from './TradeCenterFoodFun';
 
 const LEISURE_ICONS: Record<RetailLeisureKind, LucideIcon> = {
@@ -58,6 +58,7 @@ const LEISURE_ICONS: Record<RetailLeisureKind, LucideIcon> = {
 export function TradeCenterRetailBlocks({
   info,
   name,
+  contactName,
   organizations,
   slug,
   after,
@@ -66,6 +67,7 @@ export function TradeCenterRetailBlocks({
   slug: string;
   /** Имя в заголовке ленты: «ТЦ «Замок»». */
   name: string;
+  contactName: string;
   /** Каталог арендаторов — с 2026-09-25 живёт внутри «Путеводителя», не отдельным блоком. */
   organizations: TenantOrganizationView[];
   after?: (id: RetailSectionId) => ReactNode;
@@ -132,8 +134,8 @@ export function TradeCenterRetailBlocks({
       {ids.includes('getting-here') && after?.('getting-here')}
       {ids.includes('offers-events') && <TradeCenterOffersEvents info={info} />}
       {ids.includes('offers-events') && after?.('offers-events')}
-      {ids.includes('business') && <TradeCenterBusinessCard info={info} />}
-      {ids.includes('business') && after?.('business')}
+      {ids.includes('advertising') && <TradeCenterAdvertising info={info} name={contactName} />}
+      {ids.includes('advertising') && after?.('advertising')}
       {ids.includes('numbers') && <TradeCenterNumbersCard numbers={info.numbers} />}
       {ids.includes('numbers') && after?.('numbers')}
       {ids.includes('quotes') && <TradeCenterQuotesCard quotes={info.quotes} />}

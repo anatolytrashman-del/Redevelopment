@@ -117,7 +117,7 @@ const SECTION_HEIGHT_MODEL: Record<string, SectionHeightModel> = {
   // Два блока посетителя считают видимые строки раздельно (владелец, 2026-09-25).
   'getting-here': { base: 150, perItem: 60 },
   'offers-events': { base: 150, perItem: 60 },
-  business: { base: 150, perItem: 62 },
+  advertising: { base: 150, perItem: 43 },
   numbers: { base: 140, perItem: 175 },
   quotes: { base: 130, perItem: 148 },
   // «Инфраструктура» ТЦ (TradeCenterInfrastructure) — единица из
@@ -189,6 +189,7 @@ export interface PageSectionSize {
   id: string;
   /** Строк таблицы, карточек, вопросов FAQ — смотря что за блок. */
   items: number;
+  extraHeight?: number;
 }
 
 /**
@@ -207,10 +208,10 @@ export function estimateTextLines(text: string | null | undefined, charsPerLine:
 }
 
 /** Оценка высоты блока в пикселях опорного экрана. */
-export function estimateSectionHeight({ id, items }: PageSectionSize): number {
+export function estimateSectionHeight({ id, items, extraHeight = 0 }: PageSectionSize): number {
   const model = SECTION_HEIGHT_MODEL[id] ?? DEFAULT_SECTION_MODEL;
   const counted = Math.max(0, model.maxItems != null ? Math.min(items, model.maxItems) : items);
-  return model.base + model.perItem * counted + SECTION_GAP;
+  return model.base + model.perItem * counted + extraHeight + SECTION_GAP;
 }
 
 /**

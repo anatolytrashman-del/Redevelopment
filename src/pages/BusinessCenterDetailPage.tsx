@@ -104,6 +104,8 @@ import type { BusinessCenterOffer } from '../data/businessCenterOffers';
 import { fetchBusinessCenterOffers, peekBusinessCenterOffers } from '../lib/businessCenterOffersApi';
 import { dedupeOffers } from '../lib/businessCenterOfferDuplicates';
 import { buildDealStats } from '../lib/businessCenterOfferStats';
+import { TradeCenterLeasing } from '../components/businessCenters/TradeCenterBusiness';
+import { leasingSectionSize } from '../lib/tradeCenterBusiness';
 import { BuildingOffersSection } from '../components/businessCenters/BuildingOffersSection';
 import { pluralRu } from '../lib/pluralRu';
 import { fetchLatestMarketSnapshots, peekLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
@@ -226,7 +228,7 @@ const SECTION_LABELS: Record<string, string> = {
   leisure: RETAIL_SECTION_LABELS.leisure,
   'getting-here': RETAIL_SECTION_LABELS['getting-here'],
   'offers-events': RETAIL_SECTION_LABELS['offers-events'],
-  business: RETAIL_SECTION_LABELS.business,
+  advertising: RETAIL_SECTION_LABELS.advertising,
   numbers: RETAIL_SECTION_LABELS.numbers,
   quotes: RETAIL_SECTION_LABELS.quotes,
   anchors: RETAIL_SECTION_LABELS.anchors,
@@ -1821,14 +1823,14 @@ export function BusinessCenterDetailPage() {
   const pageSections = useMemo(() => {
     if (!center) return [];
     const has = (id: string, cond: boolean) =>
-      cond ? { id, label: SECTION_LABELS[id].replace(/БЦ$/, V.abbr) } : null;
+      cond ? { id, label: isTc && id === 'offers' ? 'Аренда в ТЦ' : SECTION_LABELS[id].replace(/БЦ$/, V.abbr) } : null;
     // Порядок пунктов повторяет порядок блоков на странице (владелец принял
     // 2026-09-20; "Параметры здания" переехали под "Историю здания"
     // 2026-09-22): что предлагают и почём → где оно → кто внутри → на фоне
     // конкурентов → отзывы → блоки доверия (награды/СМИ/факты/история/
     // параметры здания) → застройщик → FAQ.
     return [
-      has('offers', saleStats !== null || rentStats !== null || Boolean(isTc && center.retailInfo?.vacancies.length)),
+      has('offers', saleStats !== null || rentStats !== null || Boolean(isTc && (center.retailInfo?.vacancies.length || center.retailInfo?.leasing))),
       has(
         'rental',
         Boolean(
@@ -1979,7 +1981,7 @@ export function BusinessCenterDetailPage() {
         case 'leisure':
         case 'getting-here':
         case 'offers-events':
-        case 'business':
+        case 'advertising':
         case 'numbers':
         case 'quotes':
         case 'anchors':
@@ -1990,9 +1992,15 @@ export function BusinessCenterDetailPage() {
           return 0;
       }
     };
-    return pageSections.map((section) => ({ id: section.id, items: sizeOf(section.id) }));
+    return pageSections.map((section) => ({
+      id: section.id,
+      items: sizeOf(section.id),
+      // Контакты и форматы не обрезаются лимитом объявлений (владелец, 2026-09-25).
+      extraHeight: isTc && section.id === 'offers' ? leasingSectionSize(center.retailInfo?.leasing ?? null) * 41 : 0,
+    }));
   }, [
     center,
+    isTc,
     pageSections,
     saleStats,
     rentStats,
@@ -2802,11 +2810,7 @@ export function BusinessCenterDetailPage() {
             Сравнение со срезом рынка живёт в соседнем блоке «Цены в
             здании и по рынку», окупаемость не считается вовсе (обе
             причины — в комментариях тех файлов). */}
-        <BuildingOffersSection
-          sale={saleStats}
-          rent={rentStats}
-          listed={isTc ? (center.retailInfo?.vacancies ?? []) : []}
-        />
+        {isTc ? <TradeCenterLeasing info={center.retailInfo} name={center.name} sale={saleStats} rent={rentStats} /> : <BuildingOffersSection sale={saleStats} rent={rentStats} />}
 
         {/* Цены здания против рынка. Прежде здесь лежали два предложения с
             процентами («Аренда в этом здании — $15/м²/мес, это выше на 30%
@@ -2893,6 +2897,7 @@ export function BusinessCenterDetailPage() {
             slug={center.slug}
             info={center.retailInfo}
             name={`${V.abbr} ${centerNameTail(center)}`}
+            contactName={center.name}
             organizations={tenantOrganizations}
             after={renderRecommendationSlot}
           />
