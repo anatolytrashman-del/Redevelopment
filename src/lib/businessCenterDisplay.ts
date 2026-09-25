@@ -258,7 +258,7 @@ const LOCAL_BC_PHOTO_RE = /^\/images\/business-centers\/([^/]+)\.jpe?g$/i;
 // адрес — другая запись в кэше, а пути в `business_centers.photos` трогать не
 // надо. ПОДНИМАТЬ ПРИ КАЖДОЙ ЗАМЕНЕ ПАКЕТА ФОТО — иначе правка не доедет до
 // тех, кто уже был на сайте.
-export const BC_PHOTO_VERSION = '4';
+export const BC_PHOTO_VERSION = '5';
 
 // Версия дописывается только к нашим закоммиченным файлам. Пути из Supabase
 // Storage (загрузки через админку) приходят с собственными query и именами —
