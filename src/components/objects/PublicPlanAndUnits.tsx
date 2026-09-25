@@ -52,6 +52,11 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
+// Онлайн-бронь и подписание соглашения на сайте выключены до регистрации
+// юрлица (владелец, 2026-09-25): без них сайт не собирает персональные
+// данные, кроме cookie аналитики. Вернуть — поставить true.
+export const PUBLIC_BOOKING_ENABLED = false;
+
 const emptyBookingForm = { name: '', contact: '', comment: '' };
 
 // Текст согласия — финальная формулировка владельца (docs/legal), верстаем
@@ -340,7 +345,7 @@ export function PublicPlanAndUnits({
               highlightedZoneId={highlightZoneId}
               onRowClick={handleZoneSelect}
               onRowHover={(zone) => setHoveredZoneId(zone?.id ?? null)}
-              onBookClick={handleBookClick}
+              onBookClick={PUBLIC_BOOKING_ENABLED ? handleBookClick : undefined}
               glass={glass}
               bare
               dealMode={dealMode}
@@ -390,7 +395,7 @@ export function PublicPlanAndUnits({
                   onRowClick={handleZoneSelect}
                   onRowHover={(zone) => setHoveredZoneId(zone?.id ?? null)}
                   onLocateClick={handleLocateOnPlan}
-                  onBookClick={handleBookClick}
+                  onBookClick={PUBLIC_BOOKING_ENABLED ? handleBookClick : undefined}
                   glass={glass}
                   bare
                   dealMode={dealMode}
@@ -480,7 +485,17 @@ export function PublicPlanAndUnits({
                   </div>
                 )}
 
-                {((isWorkstation ? workstationsLeft > 0 : selectedZone.status === 'Свободно') || bookingDone) && (
+                {!PUBLIC_BOOKING_ENABLED && (isWorkstation ? workstationsLeft > 0 : selectedZone.status === 'Свободно') && (
+                  <p className="border-t border-border pt-3 text-sm text-ink-muted">
+                    Чтобы узнать условия, напишите на{' '}
+                    <a href="mailto:a@redevelopment.pro" className="font-semibold text-ink underline hover:text-primary">
+                      a@redevelopment.pro
+                    </a>
+                    .
+                  </p>
+                )}
+
+                {PUBLIC_BOOKING_ENABLED && ((isWorkstation ? workstationsLeft > 0 : selectedZone.status === 'Свободно') || bookingDone) && (
                   <div className="flex flex-col gap-3 border-t border-border pt-3">
                     {bookingDone && bookedLeadId ? (
                       <div className="flex flex-col gap-3">

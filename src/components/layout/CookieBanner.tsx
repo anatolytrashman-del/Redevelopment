@@ -51,7 +51,7 @@ export function CookieBanner() {
   }
 
   return (
-    <div className="fixed bottom-3 left-3 z-40 sm:bottom-4 sm:left-4">
+    <div className="fixed bottom-20 right-3 z-40 sm:bottom-4 sm:right-4">
       <div
         className={cn('flex max-w-[230px] flex-wrap items-center gap-x-2 gap-y-1 sm:max-w-none sm:flex-nowrap rounded-xl px-2.5 py-1.5 text-[11px] text-ink-muted border border-black/5 bg-white/95 backdrop-blur-xl')}
         style={glassCardShadow}

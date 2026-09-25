@@ -79,15 +79,9 @@ export function PrivacyPolicyPage() {
                 </thead>
                 <tbody>
                   <tr className="border-b border-border/60 align-top">
-                    <td className="py-2 pr-3">Имя, телефон или ник в мессенджере, комментарий</td>
-                    <td className="py-2 pr-3">Вы оставляете заявку на бронирование помещения или рабочего места</td>
-                    <td className="py-2 pr-3">Связаться с вами по заявке</td>
-                    <td className="py-2">Ваше согласие</td>
-                  </tr>
-                  <tr className="border-b border-border/60 align-top">
-                    <td className="py-2 pr-3">ФИО, гражданство, паспортные данные, адрес, email</td>
-                    <td className="py-2 pr-3">Вы подписываете соглашение о намерениях на сайте</td>
-                    <td className="py-2 pr-3">Подготовить соглашение и отправить код подтверждения</td>
+                    <td className="py-2 pr-3">Файлы cookie, IP-адрес, данные о браузере и действиях на сайте</td>
+                    <td className="py-2 pr-3">Вы нажали «Принять» в уведомлении о cookie</td>
+                    <td className="py-2 pr-3">Считать посещаемость, улучшать сайт и показывать рекламу</td>
                     <td className="py-2">Ваше согласие</td>
                   </tr>
                   <tr className="border-b border-border/60 align-top">
@@ -95,12 +89,6 @@ export function PrivacyPolicyPage() {
                     <td className="py-2 pr-3">Вы пишете нам на почту</td>
                     <td className="py-2 pr-3">Ответить вам</td>
                     <td className="py-2">Ваше согласие, выраженное отправкой письма</td>
-                  </tr>
-                  <tr className="border-b border-border/60 align-top">
-                    <td className="py-2 pr-3">Файлы cookie, IP-адрес, данные о браузере и действиях на сайте</td>
-                    <td className="py-2 pr-3">Вы разрешили аналитические cookie</td>
-                    <td className="py-2 pr-3">Считать посещаемость и улучшать сайт</td>
-                    <td className="py-2">Ваше согласие</td>
                   </tr>
                   <tr className="align-top">
                     <td className="py-2 pr-3">Технические данные об ошибках (браузер, адрес страницы, IP)</td>
@@ -132,10 +120,9 @@ export function PrivacyPolicyPage() {
             <h2 className="text-lg font-bold text-ink">4. Кто ещё получает данные</h2>
             <p>Мы пользуемся сервисами, которые хранят или передают данные по нашему поручению:</p>
             <ul className="flex flex-col gap-1 pl-5 text-ink list-disc">
-              <li>Supabase — база данных, серверы во Франции;</li>
+              <li>Supabase — база данных сайта (например, списки избранного), серверы во Франции;</li>
               <li>Vercel — хостинг сайта, США;</li>
-              <li>Google (Google Docs и Drive) — подготовка соглашений, США;</li>
-              <li>Resend — отправка писем, США;</li>
+              <li>Resend — почта, США;</li>
               <li>Sentry — отчёты об ошибках, США;</li>
               <li>Яндекс и VK — аналитика и реклама, Россия.</li>
             </ul>
@@ -150,8 +137,7 @@ export function PrivacyPolicyPage() {
           <section className="flex flex-col gap-2">
             <h2 className="text-lg font-bold text-ink">5. Сколько храним</h2>
             <ul className="flex flex-col gap-1 pl-5 text-ink list-disc">
-              <li>Заявки и переписку — до 3 лет после последнего контакта с вами.</li>
-              <li>Данные для соглашения о намерениях — 3 года после подписания или отказа от сделки.</li>
+              <li>Переписку — до 3 лет после последнего письма.</li>
               <li>Данные аналитики — по правилам Яндекс.Метрики и VK, у нас на сайте не хранятся.</li>
               <li>Отчёты об ошибках — до 90 дней.</li>
             </ul>
