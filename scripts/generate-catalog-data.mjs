@@ -322,6 +322,12 @@ async function copyExtrasFromProd() {
   for (const name of ['bc-market.json', 'bc-analytics.json', 'bc-sources.json']) {
     writeFileSync(join(DIST_DATA, name), await get(`/data/${name}`));
   }
+  // Список ТЦ появится на проде вместе с каталогом ТЦ. Пока его там нет,
+  // Vercel на этот путь отдаёт страницу SPA (200, text/html) — такое не пишем.
+  const tc = await fetch(`${SITE_ORIGIN}/data/trade-centers.json`, { signal: AbortSignal.timeout(20_000) });
+  if (tc.ok && (tc.headers.get('content-type') ?? '').includes('json')) {
+    writeFileSync(join(DIST_DATA, 'trade-centers.json'), await tc.text());
+  }
   const { rows } = JSON.parse(readFileSync(join(DIST_DATA, 'business-centers.json'), 'utf8'));
   const slugs = rows.map((r) => r.slug).filter((slug) => typeof slug === 'string' && /^[a-z0-9-]+$/.test(slug));
   for (let i = 0; i < slugs.length; i += 8) {
@@ -339,6 +345,9 @@ async function copyExtrasFromProd() {
 // true — данные скопированы с прода, в базу идти не нужно.
 async function reuseProdIfUnchanged(dbStamps) {
   if (process.env.CATALOG_DATA_FORCE_LIVE === '1') return false;
+  // Только прод-сборка: копируем с redevelopment.pro, а у превью данные свои
+  // (например, каталог ТЦ, которого на проде ещё нет) — там всегда база.
+  if (process.env.VERCEL_ENV !== 'production') return false;
   const res = await fetch(`${SITE_ORIGIN}/data/${STAMPS_FILE}`, { signal: AbortSignal.timeout(20_000) });
   // Файла нет — Vercel отвечает страницей SPA с кодом 200, а не 404.
   if (!res.ok || !(res.headers.get('content-type') ?? '').includes('json')) return false;

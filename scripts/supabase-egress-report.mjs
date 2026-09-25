@@ -35,31 +35,44 @@ const end = new Date();
 const start = new Date(end.getTime() - 24 * 3600 * 1000);
 
 async function logs(sql) {
-  const url = new URL(`https://api.supabase.com/v1/projects/${REF}/analytics/endpoints/logs.all`);
+  const url = new URL(`https://api.supabase.com/v1/projects/${REF}/analytics/endpoints/logs`);
   url.searchParams.set('sql', sql);
   url.searchParams.set('iso_timestamp_start', start.toISOString());
   url.searchParams.set('iso_timestamp_end', end.toISOString());
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${TOKEN}` } });
-  const body = await res.json();
-  if (!res.ok || body.error) throw new Error(`logs.all: ${JSON.stringify(body.error ?? body).slice(0, 300)}`);
-  return body.result ?? [];
+  // Лимит частоты у эндпоинта логов жёсткий (ThrottlerException) — ждём и повторяем.
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${TOKEN}` } });
+    const body = await res.json();
+    if (res.ok && !body.error) return body.result ?? [];
+    const message = JSON.stringify(body.error ?? body).slice(0, 300);
+    if (attempt < 5 && (res.status === 429 || message.includes('Too Many Requests'))) {
+      await new Promise((r) => setTimeout(r, attempt * 20_000));
+      continue;
+    }
+    throw new Error(`logs: ${message}`);
+  }
 }
 
 // Откуда пришёл запрос — по user-agent и адресу. Диапазоны грубые, но
 // различают главное: CI на GitHub (Azure), сессии Claude/Codex (Google
 // Cloud), сборки Vercel (AWS), живые посетители и админка (браузер).
-const SOURCE_SQL = `case
-  when h.user_agent like 'Deno%' or h.user_agent like 'pg_net%' or h.user_agent like 'supabase-edge%' then 'фоновые функции'
-  when h.referer like 'http://localhost%' then 'пререндер/локальный браузер'
-  when h.user_agent in ('node', 'undici') and regexp_contains(h.cf_connecting_ip, r'^(20|52|13|40|4|135|172|64|68|74|191)\\.') then 'CI GitHub'
-  when h.user_agent in ('node', 'undici') and regexp_contains(h.cf_connecting_ip, r'^(34|35|136|146)\\.') then 'сессии Claude/Codex'
-  when h.user_agent in ('node', 'undici') then 'сборки Vercel и прочие скрипты'
-  when h.user_agent like 'Mozilla%' then 'браузер (сайт/админка)'
-  else coalesce(substr(h.user_agent, 1, 24), '—') end`;
+// Эндпоинт logs.all Supabase убрал 2026-09-24: теперь единая таблица logs на
+// ClickHouse, источник — колонка source, поля запроса — в словаре log_attributes.
+const A = (key) => `log_attributes['${key}']`;
+const UA = A('request.headers.user_agent');
+const IP = A('request.headers.cf_connecting_ip');
+const SOURCE_SQL = `multiIf(
+  ${UA} like 'Deno%' or ${UA} like 'pg_net%' or ${UA} like 'supabase-edge%', 'фоновые функции',
+  ${A('request.headers.referer')} like 'http://localhost%', 'пререндер/локальный браузер',
+  ${UA} in ('node', 'undici') and match(${IP}, '^(20|52|13|40|4|135|172|64|68|74|191)\\.'), 'CI GitHub',
+  ${UA} in ('node', 'undici') and match(${IP}, '^(34|35|136|146)\\.'), 'сессии Claude/Codex',
+  ${UA} in ('node', 'undici'), 'сборки Vercel и прочие скрипты',
+  ${UA} like 'Mozilla%', 'браузер (сайт/админка)',
+  if(${UA} = '', '—', substring(${UA}, 1, 24)))`;
 
-const rows = await logs(`select req.path p, req.search s, ${SOURCE_SQL} src, count(*) n
-  from edge_logs cross join unnest(metadata) m cross join unnest(m.request) req cross join unnest(req.headers) h
-  where req.method = 'GET' and req.path like '/rest/v1/%'
+const rows = await logs(`select ${A('request.path')} p, ${A('request.search')} s, ${SOURCE_SQL} src, count() n
+  from logs
+  where source = 'edge_logs' and ${A('request.method')} = 'GET' and startsWith(${A('request.path')}, '/rest/v1/')
   group by p, s, src order by n desc limit 2000`);
 
 const byQuery = new Map();
@@ -101,8 +114,8 @@ for (let i = 0; i < ranked.length; i += 6) {
   );
 }
 
-const counts = await logs(`select ${SOURCE_SQL} src, count(*) n
-  from edge_logs cross join unnest(metadata) m cross join unnest(m.request) req cross join unnest(req.headers) h
+const counts = await logs(`select ${SOURCE_SQL} src, count() n
+  from logs where source = 'edge_logs'
   group by src order by n desc`);
 
 const gb = (b) => (b / 1e9).toFixed(2);
