@@ -1527,7 +1527,9 @@ export type RetailSectionId =
   | 'anchors';
 
 export const RETAIL_SECTION_LABELS: Record<RetailSectionId, string> = {
-  floors: 'Что на каком этаже',
+  // «Что на каком этаже» и «Каталог арендаторов» слиты в один блок
+  // (владелец, 2026-09-25) — TradeCenterGuide.tsx.
+  floors: 'Путеводитель по ТЦ',
   // Заголовок карточки длиннее — «Чем ТЦ «…» вошёл в историю ритейла»
   // (retailHistoryTitle), это подпись пункта меню.
   'retail-history': 'В истории ритейла',
@@ -1582,11 +1584,14 @@ export function hasBusinessInfo(info: RetailInfo): boolean {
  * строки делятся пополам; у business — цифры одним рядом плюс длиннейшая из
  * двух колонок «аренда / реклама».
  */
-export function retailSectionSize(info: RetailInfo | null, id: RetailSectionId): number {
+export function retailSectionSize(info: RetailInfo | null, id: RetailSectionId, tenantsCount = 0): number {
   if (!info) return 0;
   switch (id) {
+    // Путеводитель: строки текста гида плюс прикидка на стопку этажей и
+    // чипы каталога (владелец, 2026-09-25) — без него карточка с каталогом,
+    // но без floorsGuide, считалась бы нулевой высоты.
     case 'floors':
-      return info.floorsGuide.length;
+      return info.floorsGuide.length + (tenantsCount > 0 ? Math.ceil(tenantsCount / 4) + 4 : 0);
     // Строка ленты; свёрнутая лента показывает не больше TIMELINE_COLLAPSED.
     case 'retail-history':
       return Math.min(info.timeline.length, TIMELINE_COLLAPSED);
@@ -1627,11 +1632,18 @@ export function retailSectionSize(info: RetailInfo | null, id: RetailSectionId):
   }
 }
 
-/** Какие карточки реально нарисуются — в порядке на странице. */
-export function retailSectionIds(info: RetailInfo | null): RetailSectionId[] {
+/**
+ * Какие карточки реально нарисуются — в порядке на странице.
+ *
+ * `hasTenants` (владелец, 2026-09-25): «Путеводитель по ТЦ» (id 'floors')
+ * теперь несёт и каталог арендаторов, поэтому рисуется и без floorsGuide,
+ * если есть хоть один арендатор — иначе у ТЦ без текстового гида, но с
+ * собранным каталогом (Яндекс), карточка и пункт меню молча пропадали бы.
+ */
+export function retailSectionIds(info: RetailInfo | null, hasTenants = false): RetailSectionId[] {
   if (!info) return [];
   const ids: RetailSectionId[] = [];
-  if (info.floorsGuide.length) ids.push('floors');
+  if (info.floorsGuide.length || hasTenants) ids.push('floors');
   if (info.timeline.length) ids.push('retail-history');
   if (info.food) ids.push('food');
   if (info.fun.length) ids.push('fun');

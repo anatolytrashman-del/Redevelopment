@@ -1847,9 +1847,11 @@ export function BusinessCenterDetailPage() {
             label: hasNearbyContent(center, nearbyPlaces) ? SECTION_LABELS.map : 'Расположение',
           }
         : null,
-      // Торговые блоки ТЦ стоят между картой и каталогом арендаторов.
-      ...(isTc ? retailSectionIds(center.retailInfo) : []).map((id) => has(id, true)),
-      has('tenants', tenantOrganizations.length > 0),
+      // Торговые блоки ТЦ стоят между картой и каталогом арендаторов;
+      // каталог у ТЦ — часть «Путеводителя» (id 'floors'), отдельного
+      // пункта меню 'tenants' у ТЦ больше нет (владелец, 2026-09-25).
+      ...(isTc ? retailSectionIds(center.retailInfo, tenantOrganizations.length > 0) : []).map((id) => has(id, true)),
+      has('tenants', !isTc && tenantOrganizations.length > 0),
       // «Инфраструктура» — пунктом меню только у ТЦ (у БЦ блок оборудования
       // короткий и в меню не выводился).
       has('amenities', tcInfrastructure.length > 0),
@@ -1968,7 +1970,10 @@ export function BusinessCenterDetailPage() {
         case 'amenities':
           return infrastructureSectionSize(tcInfrastructure);
         // Торговые карточки ТЦ — модель строк в lib/tradeCenterRetail.
+        // У 'floors' («Путеводитель по ТЦ») с 2026-09-25 внутри ещё и
+        // каталог арендаторов — добавляем его в оценку высоты.
         case 'floors':
+          return retailSectionSize(center.retailInfo, id, tenantOrganizations.length);
         case 'retail-history':
         case 'food':
         case 'fun':
@@ -2004,6 +2009,7 @@ export function BusinessCenterDetailPage() {
     buildingParamHighlights,
     faqItems,
     tcInfrastructure,
+    tenantOrganizations,
   ]);
 
   // Раскладка блоков-рекомендаций по странице — вся логика в
@@ -2020,7 +2026,9 @@ export function BusinessCenterDetailPage() {
     // цифры, цитаты). Рекомендацию, выпавшую внутри группы, переносим за
     // последнюю карточку той же группы; на стыке групп она остаётся. Если
     // там уже стоит своя, оставляем как было: две рекомендации подряд хуже.
-    const retailIds = new Set<string>(isTc && center ? retailSectionIds(center.retailInfo) : []);
+    const retailIds = new Set<string>(
+      isTc && center ? retailSectionIds(center.retailInfo, tenantOrganizations.length > 0) : [],
+    );
     // «Якорные арендаторы» и каталог арендаторов под ними читаются как одно
     // целое: рекомендация после якорей уезжает за каталог, если он есть.
     const hasTenants = sectionSizes.some((section) => section.id === 'tenants');
@@ -2042,7 +2050,7 @@ export function BusinessCenterDetailPage() {
       slots.set(target, [...(slots.get(target) ?? []), block.id]);
     });
     return slots;
-  }, [sectionSizes, recommendationBlocks, isTc, center]);
+  }, [sectionSizes, recommendationBlocks, isTc, center, tenantOrganizations]);
 
   const recommendationBlocksById = useMemo(
     () => new Map(recommendationBlocks.map((b) => [b.id, b])),
@@ -2884,11 +2892,15 @@ export function BusinessCenterDetailPage() {
           <TradeCenterRetailBlocks
             info={center.retailInfo}
             name={`${V.abbr} ${centerNameTail(center)}`}
+            organizations={tenantOrganizations}
             after={renderRecommendationSlot}
           />
         )}
 
-        {tenantOrganizations.length > 0 && (
+        {/* У ТЦ каталог арендаторов слит в «Путеводитель по ТЦ» выше
+            (владелец, 2026-09-25) — отдельным блоком TenantDirectory здесь
+            больше не рисуется. У БЦ — без изменений. */}
+        {!isTc && tenantOrganizations.length > 0 && (
           <TenantDirectory organizations={tenantOrganizations} />
         )}
         {tenantsAt && (
