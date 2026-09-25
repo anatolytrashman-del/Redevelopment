@@ -22,7 +22,7 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import type { LucideIcon } from 'lucide-react';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
-import { PublicPlanAndUnits } from '../components/objects/PublicPlanAndUnits';
+import { PublicPlanAndUnits, PUBLIC_BOOKING_ENABLED } from '../components/objects/PublicPlanAndUnits';
 import { BookingTermsCard } from '../components/objects/BookingTermsCard';
 import { FaqCard, FAQ_ITEMS } from '../components/objects/FaqCard';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
@@ -100,7 +100,7 @@ const RENT_ROOM_PRICE_FROM = 200;
 const heroFeatures: { icon: LucideIcon; text: string }[] = [
   { icon: Ruler, text: `Площади от ${MIN_ROOM_AREA} м² до ${MAX_ROOM_AREA} м²` },
   { icon: Sparkles, text: 'Дизайнерский ремонт' },
-  { icon: ShieldCheck, text: 'Бесплатная онлайн-бронь' },
+  ...(PUBLIC_BOOKING_ENABLED ? [{ icon: ShieldCheck, text: 'Бесплатная онлайн-бронь' }] : []),
 ];
 
 const complexFeatures: { icon: LucideIcon; text: string }[] = [
@@ -471,11 +471,13 @@ export function ObjectLandingPage() {
           dealMode={dealMode}
         />
 
-        <BookingTermsCard
+        {PUBLIC_BOOKING_ENABLED && (
+          <BookingTermsCard
           key="booking-terms"
           agreement={dealMode === 'rent' ? object.rentIntentAgreementFile : object.intentAgreementFile}
           dealMode={dealMode}
         />
+        )}
 
         <FaqCard key="faq" dealMode={dealMode} />
 
