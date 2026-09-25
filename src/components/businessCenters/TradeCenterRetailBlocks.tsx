@@ -39,9 +39,9 @@ import { glassCardShadow } from '../../lib/glass';
 import { TradeCenterGuide } from './TradeCenterGuide';
 import { loadBcExtra, peekBcExtra, type BcExtraFile } from '../../lib/buildData';
 import {
-  TradeCenterNumbersCard,
   TradeCenterQuotesCard,
 } from './TradeCenterExtraBlocks';
+import { TradeCenterNumbersCard } from './TradeCenterNumbers';
 import { TradeCenterAnchorsCard, TradeCenterHistoryCard } from './TradeCenterAnchorsHistory';
 import { TradeCenterGettingHere, TradeCenterOffersEvents } from './TradeCenterVisit';
 import { TradeCenterAdvertising } from './TradeCenterBusiness';

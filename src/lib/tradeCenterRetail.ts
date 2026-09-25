@@ -10,6 +10,7 @@ import {
   RETAIL_SERVICE_GROUPS,
 } from '../data/businessCenters';
 import { hasGettingHereInfo, hasOffersEventsInfo, transportForVisit, parkingForVisit, eventsForVisit } from './tradeCenterVisit';
+import { groupNumbers } from './tradeCenterNumbers';
 import { pluralRu } from './pluralRu';
 import type {
   RetailAnchorCategory,
@@ -1587,10 +1588,9 @@ export function retailSectionSize(info: RetailInfo | null, id: RetailSectionId, 
       return info.loyalty.length * 3 + Math.ceil(eventsForVisit(info.events).length / 3) * 3;
     case 'advertising':
       return Math.ceil(info.audience.length / 5) * 3 + Math.ceil((info.advertising?.points.length ?? 0) / 3) * 3 + Number(Boolean(info.advertising?.contacts)) * 3;
-    // Плитки по три в ряд на десктопе.
     case 'numbers':
-      // Две первые цифры — крупные, в ряд по две; остальные по три.
-      return Math.ceil(Math.min(info.numbers.length, 2) / 2) + Math.ceil(Math.max(info.numbers.length - 2, 0) / 3);
+      // Учитываем новые группы в высоте блока (владелец, 2026-09-25).
+      return groupNumbers(info.numbers).reduce((rows, group) => rows + Number(Boolean(group.label)) + Math.ceil(group.entries.length / (group.kind === 'scale' ? 2 : group.kind === 'holidays' ? 3 : 5)), 0);
     // Цитаты в две колонки.
     case 'quotes':
       return Math.ceil(info.quotes.length / 2);
