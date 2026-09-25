@@ -1,39 +1,11 @@
-// Дополнительные карточки страницы ТЦ (2026-09-23, схема
-// tc-catalog/codex/briefs/extras-schema.md), все из business_centers.retail_info:
-//
-// - «Посетителю» — одна карточка на пять тем (режим работы, парковка, как
-//   добраться, правила посещения, скидки и события). Пять отдельных
-//   карточек по две-три строки раздули бы страницу на пару экранов; здесь
-//   короткие панели стоят в две колонки (CSS columns сами выравнивают
-//   высоту колонок). Удобства (retail_info.services) с 2026-09-24 живут не
-//   здесь, а в общем блоке «Инфраструктура» вместе с оборудованием из
-//   Яндекс.Карт (TradeCenterInfrastructure.tsx).
-// - «Арендаторам и рекламодателям» — для бизнес-аудитории сайта: крупные
-//   цифры аудитории, под ними аренда и реклама бок о бок.
-// - «ТЦ в цифрах» и «Цитаты».
-//
-// Каждая панель и каждая карточка рисуется только при наличии данных;
-// источники — один список без дублей внизу карточки (SourcesLine).
+// Бизнес-карточки ТЦ без сносок на источники (владелец, 2026-09-25).
 import type { ReactNode } from 'react';
 import {
-  Bus,
-  BusFront,
-  CalendarDays,
-  Car,
-  CarFront,
   Check,
-  Clock,
-  Footprints,
-  Gift,
   Megaphone,
   Phone,
   Quote,
-  ScrollText,
-  SquareParking,
   Store,
-  TrainFront,
-  TramFront,
-  Van,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
@@ -43,29 +15,13 @@ import type {
   RetailInfo,
   RetailPitch,
   RetailQuoteEntry,
-  RetailSource,
-  RetailTransportMode,
 } from '../../data/businessCenters';
 import {
-  TRANSPORT_MODE_LABELS,
-  figureMeta,
   formatRetailDate,
   quoteText,
-  sortTransport,
 } from '../../lib/tradeCenterRetail';
-import { RetailCardTitle, SourcesLine } from './TradeCenterRetailParts';
+import { RetailCardTitle } from './TradeCenterRetailParts';
 import { retailCardClass } from './tradeCenterRetailStyle';
-
-const TRANSPORT_ICONS: Record<RetailTransportMode, LucideIcon> = {
-  metro: TrainFront,
-  bus: Bus,
-  trolleybus: BusFront,
-  tram: TramFront,
-  minibus: Van,
-  shuttle: CarFront,
-  car: Car,
-  walk: Footprints,
-};
 
 /** Подпанель внутри карточки: рамка, заголовок h3 с иконкой. */
 function Panel({
@@ -87,179 +43,6 @@ function Panel({
       </h3>
       {children}
     </section>
-  );
-}
-
-/**
- * Строки «подпись … значение»: значение прижато вправо, а не влезло —
- * переносится под подпись и встаёт влево (justify-between с одним
- * элементом в строке прижимает его к началу).
- */
-function ValueRows({ rows }: { rows: { key: string; label: ReactNode; value: string }[] }) {
-  return (
-    <dl className="flex flex-col divide-y divide-border/70">
-      {rows.map((row) => (
-        <div key={row.key} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-1.5 first:pt-0 last:pb-0">
-          <dt className="min-w-0 break-words text-sm text-ink-muted">{row.label}</dt>
-          <dd className="min-w-0 break-words text-sm font-medium text-ink tabular-nums">{row.value}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-function SubHeading({ children }: { children: ReactNode }) {
-  return <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{children}</h4>;
-}
-
-// --- Посетителю ------------------------------------------------------------
-
-export function TradeCenterVisitCard({ info }: { info: RetailInfo }) {
-  const { hours, hoursNote, parking, rules, loyalty, events } = info;
-  const transport = sortTransport(info.transport);
-  const parkingDate = formatRetailDate(parking?.date);
-
-  const panels: ReactNode[] = [];
-  if (hours.length || hoursNote) {
-    panels.push(
-      <Panel key="hours" icon={Clock} title="Режим работы">
-        {hours.length > 0 && (
-          <ValueRows
-            rows={hours.map((h, i) => ({
-              key: `${h.zone}-${i}`,
-              label: (
-                <>
-                  {h.zone}
-                  {h.note && <span className="block text-xs text-ink-faint">{h.note}</span>}
-                </>
-              ),
-              value: h.value,
-            }))}
-          />
-        )}
-        {hoursNote && <p className="break-words text-xs leading-relaxed text-ink-muted">{hoursNote}</p>}
-      </Panel>,
-    );
-  }
-  if (parking) {
-    panels.push(
-      <Panel key="parking" icon={SquareParking} title="Парковка">
-        {parking.summary && <p className="break-words text-sm leading-relaxed text-ink-muted">{parking.summary}</p>}
-        {parking.items.length > 0 && (
-          <ValueRows rows={parking.items.map((item, i) => ({ key: `${item.label}-${i}`, label: item.label, value: item.value }))} />
-        )}
-        {parkingDate && <p className="text-xs text-ink-faint">Данные на {parkingDate}</p>}
-      </Panel>,
-    );
-  }
-  if (transport.length) {
-    panels.push(
-      <Panel key="transport" icon={TrainFront} title="Как добраться">
-        <ul className="flex flex-col gap-2.5">
-          {transport.map((t, i) => {
-            const Icon = TRANSPORT_ICONS[t.mode];
-            return (
-              <li key={`${t.mode}-${i}`} className="flex items-start gap-2.5">
-                <span
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"
-                  title={TRANSPORT_MODE_LABELS[t.mode]}
-                >
-                  <Icon className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <p className="min-w-0 flex-1 break-words pt-0.5 text-sm leading-relaxed text-ink-muted">
-                  <span className="sr-only">{TRANSPORT_MODE_LABELS[t.mode]}: </span>
-                  {t.text}
-                </p>
-              </li>
-            );
-          })}
-        </ul>
-      </Panel>,
-    );
-  }
-  if (rules.length) {
-    panels.push(
-      <Panel key="rules" icon={ScrollText} title="Правила посещения">
-        <ul className="flex flex-col gap-1">
-          {rules.map((r, i) => (
-            <li key={i} className="flex items-start gap-2 text-sm leading-relaxed text-ink-muted">
-              <span className="mt-[0.6rem] h-1 w-1 shrink-0 rounded-full bg-ink-faint" aria-hidden="true" />
-              <span className="min-w-0 break-words">{r.text}</span>
-            </li>
-          ))}
-        </ul>
-      </Panel>,
-    );
-  }
-  if (loyalty.length || events.length) {
-    panels.push(
-      <Panel key="loyalty" icon={Gift} title="Скидки и события">
-        {loyalty.length > 0 && (
-          <div className="flex flex-col gap-2">
-            {events.length > 0 && <SubHeading>Скидки и сертификаты</SubHeading>}
-            <ul className="flex flex-col gap-2">
-              {loyalty.map((l, i) => (
-                <li key={`${l.name}-${i}`} className="break-words text-sm leading-relaxed text-ink-muted">
-                  <span className="font-semibold text-ink">{l.name}</span>
-                  {l.text && <> — {l.text}</>}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {events.length > 0 && (
-          <div className="flex flex-col gap-2">
-            {loyalty.length > 0 && <SubHeading>События</SubHeading>}
-            <ul className="flex flex-col gap-2">
-              {events.map((e, i) => {
-                const when = formatRetailDate(e.date);
-                return (
-                  <li key={`${e.name}-${i}`} className="flex flex-col gap-0.5">
-                    <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                      <span className="break-words text-sm font-semibold text-ink">{e.name}</span>
-                      {when && (
-                        <span className="inline-flex items-center gap-1 text-xs text-ink-faint">
-                          <CalendarDays className="h-3 w-3" aria-hidden="true" />
-                          {when}
-                        </span>
-                      )}
-                    </span>
-                    {e.text && <span className="break-words text-sm leading-relaxed text-ink-muted">{e.text}</span>}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
-      </Panel>,
-    );
-  }
-
-  const sources: RetailSource[] = [
-    ...hours,
-    ...(parking ? [parking] : []),
-    ...transport,
-    ...rules,
-    ...loyalty,
-    ...events,
-  ];
-
-  return (
-    <div id="visit" className={retailCardClass} style={glassCardShadow}>
-      <RetailCardTitle id="visit" />
-      {panels.length > 0 && (
-        // Одна панель — на всю ширину; несколько — в две колонки на md+.
-        // break-inside-avoid: панель не рвётся между колонками.
-        <div className={cn('-mb-3', panels.length > 1 && 'md:columns-2 md:gap-3')}>
-          {panels.map((panel, i) => (
-            <div key={i} className="mb-3 break-inside-avoid">
-              {panel}
-            </div>
-          ))}
-        </div>
-      )}
-      <SourcesLine entries={sources} />
-    </div>
   );
 }
 
@@ -324,7 +107,6 @@ function PitchPanel({ icon, title, pitch }: { icon: LucideIcon; title: string; p
 }
 
 function FigureTile({ entry, size }: { entry: RetailFigureEntry; size: 'lg' | 'md' }) {
-  const meta = figureMeta(entry);
   return (
     <div
       className={cn(
@@ -343,7 +125,6 @@ function FigureTile({ entry, size }: { entry: RetailFigureEntry; size: 'lg' | 'm
         {entry.value}
       </span>
       <span className="break-words text-xs leading-snug text-ink-muted">{entry.label}</span>
-      {meta && <span className="mt-auto break-words pt-0.5 text-[11px] leading-snug text-ink-faint">{meta}</span>}
     </div>
   );
 }
@@ -376,9 +157,6 @@ export function TradeCenterBusinessCard({ info }: { info: RetailInfo }) {
           {advertising && <PitchPanel icon={Megaphone} title="Реклама в ТЦ" pitch={advertising} />}
         </div>
       )}
-      <SourcesLine
-        entries={[...audience, ...(leasing ? [leasing] : []), ...(advertising ? [advertising] : [])]}
-      />
     </div>
   );
 }
@@ -386,7 +164,6 @@ export function TradeCenterBusinessCard({ info }: { info: RetailInfo }) {
 // Плитка «ТЦ в цифрах»: крупная цифра, подпись и фраза, почему это
 // впечатляет (владелец, 2026-09-24: «что-то яркое и интересное людям»).
 function NumberTile({ entry, hero }: { entry: RetailFigureEntry; hero: boolean }) {
-  const meta = figureMeta(entry);
   return (
     <div
       className={cn(
@@ -404,7 +181,6 @@ function NumberTile({ entry, hero }: { entry: RetailFigureEntry; hero: boolean }
       </span>
       <span className="break-words text-sm font-semibold leading-snug text-ink">{entry.label}</span>
       {entry.text && <span className="break-words text-xs leading-relaxed text-ink-muted">{entry.text}</span>}
-      {meta && <span className="mt-auto break-words pt-0.5 text-[11px] leading-snug text-ink-faint">{meta}</span>}
     </div>
   );
 }
@@ -427,7 +203,6 @@ export function TradeCenterNumbersCard({ numbers }: { numbers: RetailFigureEntry
           ))}
         </div>
       )}
-      <SourcesLine entries={numbers} />
     </div>
   );
 }
@@ -452,7 +227,6 @@ export function TradeCenterQuotesCard({ quotes }: { quotes: RetailQuoteEntry[] }
           );
         })}
       </div>
-      <SourcesLine entries={quotes} />
     </div>
   );
 }

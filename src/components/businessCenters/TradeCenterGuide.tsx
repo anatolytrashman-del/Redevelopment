@@ -7,7 +7,7 @@ import { SearchInput } from '../ui/SearchInput';
 import type { RetailInfo } from '../../data/businessCenters';
 import type { TenantOrganizationView } from '../../data/businessCenterTenants';
 import { buildFloorBoard, exactOrganization, nearbyOrganizations, normalizeBrand, popularShops, searchOrganizations, shopLabel, type UniqueBrand } from '../../lib/tradeCenterGuide';
-import { RetailCardTitle as CardTitle, SourcesLine } from './TradeCenterRetailParts';
+import { RetailCardTitle as CardTitle } from './TradeCenterRetailParts';
 import { retailCardClass as cardClass } from './tradeCenterRetailStyle';
 
 export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [] }: {
@@ -103,7 +103,6 @@ export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [] 
         </aside>}
       </div>}
       <div className="text-xs leading-relaxed text-ink-muted">
-        <SourcesLine entries={info?.floorsGuide ?? []} />
         {hasSearch && <p className="mt-2">Полного списка арендаторов на странице нет: любой магазин находится поиском.</p>}
       </div>
     </section>

@@ -43,6 +43,7 @@ export function DeveloperDeepCard({
   mainName,
   logoAlt,
   contacts,
+  showSources = true,
 }: {
   info: DeveloperInfo;
   /** «Кто стоит за торговым центром «Замок»». */
@@ -52,6 +53,7 @@ export function DeveloperDeepCard({
   logoAlt: string;
   /** Контакты — тот же кусок, что у простой карточки (страница собирает). */
   contacts: ReactNode;
+  showSources?: boolean;
 }) {
   const [showAllPortfolio, setShowAllPortfolio] = useState(false);
   const profile = info.profile ?? null;
@@ -220,7 +222,7 @@ export function DeveloperDeepCard({
 
       {contacts}
 
-      <SourcesLine entries={collectDeveloperSources(info)} />
+      {showSources && <SourcesLine entries={collectDeveloperSources(info)} />}
     </div>
   );
 }

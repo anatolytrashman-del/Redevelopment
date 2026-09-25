@@ -3,7 +3,7 @@
 // TradeCenterGuide.tsx), «Чем ТЦ вошёл в историю ритейла», «Где поесть» и
 // «Развлечения» (2026-09-24,
 // TradeCenterFoodFun.tsx; у ТЦ без retail_info.food/fun вместо них — старый
-// «Кино, еда, развлечения»); за ними — «Посетителю»,
+// «Кино, еда, развлечения»); за ними — проезд, скидки и события,
 // «Арендаторам и рекламодателям», «ТЦ в цифрах» и «Цитаты»
 // (TradeCenterExtraBlocks.tsx), последними — «Якорные арендаторы»
 // (2026-09-24: старая карточка «Первые в Беларуси и якоря» разделена на эти
@@ -14,10 +14,6 @@
 // карточек; владелец: «смешал две сущности — что на каком этаже и
 // награды». Теперь это отдельный блок «Награды и рейтинги»
 // (TradeCenterAwardsBlock.tsx), он стоит на месте блока «Награды».
-//
-// Источники у каждой записи свои, но под каждой строкой ссылку не ставим —
-// карточка превратилась бы в сноски. Внизу карточки один общий список без
-// дублей, мелким серым, rel=nofollow: это цитирование, а не рекомендация.
 //
 // `after` — место для блока-рекомендации после карточки (как
 // renderRecommendationSlot у остальных блоков страницы): раскладка
@@ -37,7 +33,7 @@ import {
   sortLeisure,
   type RetailSectionId,
 } from '../../lib/tradeCenterRetail';
-import { RetailCardTitle as CardTitle, SourcesLine } from './TradeCenterRetailParts';
+import { RetailCardTitle as CardTitle } from './TradeCenterRetailParts';
 import { retailCardClass as cardClass } from './tradeCenterRetailStyle';
 import { glassCardShadow } from '../../lib/glass';
 import { TradeCenterGuide } from './TradeCenterGuide';
@@ -46,9 +42,9 @@ import {
   TradeCenterBusinessCard,
   TradeCenterNumbersCard,
   TradeCenterQuotesCard,
-  TradeCenterVisitCard,
 } from './TradeCenterExtraBlocks';
 import { TradeCenterAnchorsCard, TradeCenterHistoryCard } from './TradeCenterAnchorsHistory';
+import { TradeCenterGettingHere, TradeCenterOffersEvents } from './TradeCenterVisit';
 import { TradeCenterFoodCard, TradeCenterFunCard } from './TradeCenterFoodFun';
 
 const LEISURE_ICONS: Record<RetailLeisureKind, LucideIcon> = {
@@ -128,13 +124,14 @@ export function TradeCenterRetailBlocks({
               );
             })}
           </ul>
-          <SourcesLine entries={[...leisure]} />
         </div>
       )}
       {leisure.length > 0 && after?.('leisure')}
 
-      {ids.includes('visit') && <TradeCenterVisitCard info={info} />}
-      {ids.includes('visit') && after?.('visit')}
+      {ids.includes('getting-here') && <TradeCenterGettingHere info={info} />}
+      {ids.includes('getting-here') && after?.('getting-here')}
+      {ids.includes('offers-events') && <TradeCenterOffersEvents info={info} />}
+      {ids.includes('offers-events') && after?.('offers-events')}
       {ids.includes('business') && <TradeCenterBusinessCard info={info} />}
       {ids.includes('business') && after?.('business')}
       {ids.includes('numbers') && <TradeCenterNumbersCard numbers={info.numbers} />}

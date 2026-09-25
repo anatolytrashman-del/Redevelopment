@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#16171a;--muted:#6b6d73;--faint:#a3a5ab;--border:#e7e5e1;--card:#f7f6f4;--primary:#e4152b;--page:#ecebe8}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Montserrat,sans-serif;background:var(--page);color:var(--ink);padding:24px}
+.card{max-width:1040px;margin:0 auto 20px;background:var(--card);border-radius:28px;padding:30px 32px}
+h2{font-size:22px;font-weight:700;display:flex;gap:10px;align-items:center;margin-bottom:18px}
+h2 i{width:22px;height:22px;border-radius:6px;background:var(--primary);display:inline-block;opacity:.9}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.box{background:#fff;border:1px solid var(--border);border-radius:20px;padding:18px 20px}
+.lbl{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.row{display:flex;gap:10px;align-items:baseline;padding:7px 0;font-size:14px;line-height:1.4}
+.row + .row{border-top:1px solid var(--border)}
+.row b{font-weight:600;min-width:92px;color:var(--muted);font-size:12px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--primary);display:inline-block;margin-right:6px}
+.pills{display:flex;flex-wrap:wrap;gap:5px}
+.pill{font-size:12px;font-weight:600;border:1px solid var(--border);border-radius:7px;padding:2px 7px;background:var(--card)}
+.more{font-size:12px;color:var(--muted);text-decoration:underline dotted;margin-top:6px;display:inline-block}
+.tariff{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.t{background:var(--card);border-radius:14px;padding:12px}
+.t .v{font-size:20px;font-weight:800}
+.t .k{font-size:11px;color:var(--muted);margin-top:2px}
+.free li{list-style:none;font-size:13px;padding:5px 0 5px 22px;position:relative;line-height:1.4}
+.free li:before{content:"✓";position:absolute;left:2px;color:#1a9b4b;font-weight:700}
+.small{font-size:12px;color:var(--muted);margin-top:10px}
+.tips{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tip{background:#fff;border:1px solid var(--border);border-radius:18px;padding:14px 16px;display:flex;gap:12px}
+.ic{flex:none;width:34px;height:34px;border-radius:10px;background:#fdecee;color:var(--primary);display:grid;place-items:center;font-size:16px}
+.tip h4{font-size:14px;font-weight:700}
+.tip p{font-size:13px;color:var(--muted);margin-top:2px;line-height:1.4}
+.loyal{background:#1b1c20;color:#fff;border-radius:20px;padding:18px 20px;display:grid;grid-template-columns:1.1fr 2fr;gap:18px;align-items:center;margin-bottom:14px}
+.loyal h3{font-size:17px}
+.loyal .sub{font-size:12px;color:#a9abb2;margin-top:4px}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.f{background:#2a2b31;border-radius:12px;padding:10px 12px}
+.f .v{font-size:16px;font-weight:800}
+.f .k{font-size:11px;color:#a9abb2;margin-top:2px;line-height:1.35}
+.events{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ev{background:#fff;border:1px solid var(--border);border-radius:18px;padding:14px 16px}
+.ev .when{font-size:11px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.04em}
+.ev h4{font-size:15px;font-weight:700;margin-top:4px}
+.ev .m{font-size:12px;color:var(--muted);margin-top:8px}
+.ev.open p{font-size:13px;color:var(--muted);margin-top:6px;line-height:1.45}
+.note{max-width:1040px;margin:0 auto;font-size:12px;color:var(--muted)}
+@media (max-width:760px){body{padding:12px}.card{padding:20px;border-radius:22px}.two,.tips,.events,.loyal{grid-template-columns:1fr}.tariff{grid-template-columns:repeat(3,1fr)}}
+</style></head><body>
+
+<div class="card">
+  <h2><i></i>Как добраться и где встать</h2>
+  <div class="two">
+    <div class="box">
+      <div class="lbl">Транспорт</div>
+      <div class="row"><b>Метро</b><span><span class="dot"></span>«Немига» 450 м · «Фрунзенская» 600 м</span></div>
+      <div class="row"><b>Автобус</b><span class="pills"><span class="pill">1</span><span class="pill">24</span><span class="pill">38</span><span class="pill">57</span><span class="pill">69</span><span class="pill">73</span><span class="pill">91</span><span class="pill">119с</span><span class="pill">163</span></span></div>
+      <div class="row"><b>Троллейбус</b><span class="pills"><span class="pill">12</span><span class="pill">29</span><span class="pill">37</span><span class="pill">40</span><span class="pill">40а</span><span class="pill">46</span><span class="pill">53</span></span></div>
+      <div class="row"><b>Маршрутка</b><span class="pills"><span class="pill">1008</span><span class="pill">1053</span><span class="pill">1056</span><span class="pill">1073</span><span class="pill">1111</span><span class="pill">1119</span><span class="pill">1146</span><span class="pill">1153</span><span class="pill">1346</span></span></div>
+      <div class="row"><b>С вокзала</b><span>на метро до «Немиги»</span></div>
+      <div class="row"><b>Из аэропорта</b><span>300Э до автовокзала «Центральный», дальше метро</span></div>
+    </div>
+    <div class="box">
+      <div class="lbl">Парковка · въезд с ул. Димитрова</div>
+      <div class="tariff">
+        <div class="t"><div class="v">685</div><div class="k">мест, круглосуточно</div></div>
+        <div class="t"><div class="v">5 руб.</div><div class="k">первые 3 часа</div></div>
+        <div class="t"><div class="v">1 руб.</div><div class="k">каждый следующий час</div></div>
+      </div>
+      <div class="lbl">Как встать бесплатно</div>
+      <ul class="free">
+        <li>3 часа по купону за покупку в «Гиппо» от 20 руб.</li>
+        <li>Весь день — клиентам автомойки Galleria Car Spa</li>
+        <li>Электромобилям — первые 3 часа</li>
+      </ul>
+      <p class="small">Электрозарядки: 16 станций на 3-м уровне. С 3-го уровня — переход в ТРЦ.</p>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2><i></i>Скидки и события</h2>
+  <div class="loyal">
+    <div><h3>Баллы в приложении Galleria Minsk</h3><p class="sub">Можно без белорусского номера</p></div>
+    <div class="facts">
+      <div class="f"><div class="v">1 балл</div><div class="k">за каждый рубль в чеке</div></div>
+      <div class="f"><div class="v">72 часа</div><div class="k">чтобы отсканировать чек</div></div>
+      <div class="f"><div class="v">Мерч, билеты</div><div class="k">и скидки партнёров за баллы</div></div>
+    </div>
+  </div>
+  <div class="events">
+    <div class="ev open"><div class="when">По субботам летом, 11:00</div><h4>Фитнес на крыше</h4><p>С клубом «Мир фитнеса» на крыше паркинга, запись в приложении.</p></div>
+    <div class="ev"><div class="when">Весна–осень</div><h4>Пешие экскурсии по Минску</h4><div class="m">Подробнее ▾</div></div>
+    <div class="ev"><div class="when">Почти каждый месяц</div><h4>Шопинг со стилистом</h4><div class="m">Подробнее ▾</div></div>
+    <div class="ev"><div class="when">Регулярно</div><h4>Тренинги безопасности для семей</h4><div class="m">Подробнее ▾</div></div>
+    <div class="ev"><div class="when">Каждый сезон</div><h4>Инсталляции в атриуме</h4><div class="m">Подробнее ▾</div></div>
+    <div class="ev"><div class="when">Летом по пятницам</div><h4>Танцы на крыше</h4><div class="m">Подробнее ▾</div></div>
+  </div>
+</div>
+<p class="note">Макет, не вёрстка. Данные Galleria Minsk из уже собранного блока «Посетителю». Ссылок на источники нет.</p>
+</body></html>

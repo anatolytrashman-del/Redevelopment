@@ -114,12 +114,9 @@ const SECTION_HEIGHT_MODEL: Record<string, SectionHeightModel> = {
   // «Развлечения» — 890px на 3 ряда (кинотеатр во всю ширину + 2 ряда по две).
   food: { base: 200, perItem: 43 },
   fun: { base: 150, perItem: 245 },
-  // Дополнительные карточки ТЦ (TradeCenterExtraBlocks), замер 2026-09-23
-  // на 1280px по мок-данным «Замка»: «Посетителю» — 1103px на 16 строк
-  // (retailSectionSize: строки панелей пополам на две колонки), «для
-  // бизнеса» — 648px на 8, «в цифрах» — 357px на 2 ряда плиток по три,
-  // цитаты — 426px на 2 ряда по две.
-  visit: { base: 150, perItem: 60 },
+  // Два блока посетителя считают видимые строки раздельно (владелец, 2026-09-25).
+  'getting-here': { base: 150, perItem: 60 },
+  'offers-events': { base: 150, perItem: 60 },
   business: { base: 150, perItem: 62 },
   numbers: { base: 140, perItem: 175 },
   quotes: { base: 130, perItem: 148 },

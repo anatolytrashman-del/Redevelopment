@@ -31,7 +31,6 @@ import {
   timelineMonth,
   audienceFaqQuestion,
   eventsFaqAnswer,
-  figureMeta,
   figuresFaqAnswer,
   hoursFaqAnswer,
   loyaltyFaqAnswer,
@@ -478,7 +477,7 @@ describe('normalizeRetailInfo — дополнительные ключи', () =
     expect(info!.rules.map((r) => r.text)).toEqual(['Можно с собаками на руках']);
     expect(info!.leasing!.points).toEqual(['Индексация раз в год']);
     expect(info!.audience[0]).toMatchObject({ value: '40 000 в день', date: null, note: 'по данным ТЦ' });
-    expect(retailSectionIds(info)).toEqual(['visit', 'business']);
+    expect(retailSectionIds(info)).toEqual(['getting-here', 'business']);
   });
 });
 
@@ -534,21 +533,20 @@ describe('разделы и размеры', () => {
     expect(retailSectionGroup('floors')).toBe('visitor');
     expect(retailSectionGroup('retail-history')).toBe('visitor');
     expect(retailSectionGroup('anchors')).toBe('tenants');
-    expect(retailSectionGroup('visit')).toBe('visitor');
+    expect(retailSectionGroup('getting-here')).toBe('visitor');
     expect(retailSectionGroup('business')).toBe('business');
     expect(retailSectionGroup('quotes')).toBe('business');
   });
 
-  it('размер карточки посетителя — строки пополам на две колонки', () => {
+  it('скрытые часы и транспорт без маршрутов не добавляют высоту', () => {
     const info: RetailInfo = {
       ...base,
       hoursNote: null,
       hours: [1, 2, 3].map((n) => ({ zone: `З${n}`, value: '10–22', note: null, ...noSrc })),
       transport: [{ mode: 'bus', text: 'Автобус', ...noSrc }],
     };
-    // (3 + 1) + (1 + 1) = 6 → 3
-    expect(retailSectionSize(info, 'visit')).toBe(3);
-    expect(retailSectionSize(null, 'visit')).toBe(0);
+    expect(retailSectionSize(info, 'getting-here')).toBe(0);
+    expect(retailSectionSize(null, 'getting-here')).toBe(0);
   });
 });
 
@@ -630,8 +628,6 @@ describe('ответы FAQ — для бизнеса', () => {
   });
 
   it('цифра с датой и пометкой', () => {
-    expect(figureMeta(fig())).toBe('2025 · по данным ТЦ');
-    expect(figureMeta(fig({ date: null, note: null }))).toBeNull();
     expect(figuresFaqAnswer([fig()])).toBe('Посещаемость — 40 000 человек в день (2025, по данным ТЦ).');
     expect(figuresFaqAnswer([fig({ text: 'как население Бреста за неделю' })])).toBe(
       'Посещаемость — 40 000 человек в день (2025, по данным ТЦ). Как население Бреста за неделю.',
@@ -842,7 +838,7 @@ describe('normalizeRetailInfo — food и fun', () => {
       hoursNote: 'x',
       anchors: [{ name: 'Гиппо', category: 'гипермаркет' }],
     });
-    expect(retailSectionIds(info)).toEqual(['floors', 'retail-history', 'food', 'fun', 'visit', 'anchors']);
+    expect(retailSectionIds(info)).toEqual(['floors', 'retail-history', 'food', 'fun', 'anchors']);
     expect(retailSectionGroup('food')).toBe('visitor');
     expect(retailSectionGroup('fun')).toBe('visitor');
   });

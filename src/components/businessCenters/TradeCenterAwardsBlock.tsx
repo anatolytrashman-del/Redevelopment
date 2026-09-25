@@ -12,9 +12,8 @@
 //   highlights есть — показываем их списком здесь же, чтобы не было двух
 //   блоков про одно и то же.
 // - «Место в рейтингах» — retail_info.ranking: крупная цифра места «из N»,
-//   справа формулировка и «значение · год · источник».
+//   справа формулировка и «значение · год».
 //
-// Источники обеих частей — один список внизу (SourcesLine).
 import type { ReactNode } from 'react';
 import { Award, Medal, Star, Trophy, type LucideIcon } from 'lucide-react';
 import { Badge } from '../ui/Badge';
@@ -30,7 +29,6 @@ import {
   sortAwards,
   sortRanking,
 } from '../../lib/tradeCenterRetail';
-import { SourcesLine } from './TradeCenterRetailParts';
 import { retailCardClass } from './tradeCenterRetailStyle';
 
 const RESULT_ICONS: Record<RetailAwardResult, LucideIcon> = {
@@ -77,7 +75,6 @@ function AwardTile({ award }: { award: RetailAwardEntry }) {
         {meta && <span className="break-words text-sm leading-snug text-ink-muted">{meta}</span>}
         {details && <span className="break-words text-xs leading-snug text-ink-muted">{details}</span>}
         {award.text && <p className="break-words text-sm leading-relaxed text-ink-muted">{award.text}</p>}
-        {!award.confirmed && <span className="text-xs italic text-ink-faint">по данным застройщика</span>}
       </div>
     </li>
   );
@@ -133,7 +130,7 @@ export function TradeCenterAwardsBlock({
           <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {ranking.map((entry, i) => {
               const view = rankingView(entry);
-              const meta = rankingMeta(view);
+              const meta = rankingMeta({ ...view, source: null });
               return (
                 <li
                   key={`${entry.criterion}-${i}`}
@@ -161,8 +158,6 @@ export function TradeCenterAwardsBlock({
           </ul>
         </section>
       )}
-
-      <SourcesLine entries={[...awards, ...ranking]} />
     </div>
   );
 }

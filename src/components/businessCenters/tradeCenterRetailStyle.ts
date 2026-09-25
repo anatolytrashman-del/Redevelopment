@@ -12,6 +12,7 @@ import {
   Layers,
   MessageSquareQuote,
   Signpost,
+  Gift,
   UtensilsCrossed,
   type LucideIcon,
 } from 'lucide-react';
@@ -25,7 +26,8 @@ export const RETAIL_SECTION_ICONS: Record<RetailSectionId, LucideIcon> = {
   food: UtensilsCrossed,
   fun: FerrisWheel,
   leisure: Clapperboard,
-  visit: Signpost,
+  'getting-here': Signpost,
+  'offers-events': Gift,
   business: Briefcase,
   numbers: BarChart3,
   quotes: MessageSquareQuote,

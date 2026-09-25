@@ -1,3 +1,4 @@
+import { isHiddenVisitService } from '../lib/tradeCenterVisit';
 import { tenantDirectionLabel } from '../data/tenantIndustries';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -223,7 +224,8 @@ const SECTION_LABELS: Record<string, string> = {
   food: RETAIL_SECTION_LABELS.food,
   fun: RETAIL_SECTION_LABELS.fun,
   leisure: RETAIL_SECTION_LABELS.leisure,
-  visit: RETAIL_SECTION_LABELS.visit,
+  'getting-here': RETAIL_SECTION_LABELS['getting-here'],
+  'offers-events': RETAIL_SECTION_LABELS['offers-events'],
   business: RETAIL_SECTION_LABELS.business,
   numbers: RETAIL_SECTION_LABELS.numbers,
   quotes: RETAIL_SECTION_LABELS.quotes,
@@ -538,17 +540,15 @@ export function BusinessCenterDetailPage() {
   // сайта ТЦ (retail_info.services) одним списком по группам. Блок, FAQ и
   // модель высоты берут эти группы, у БЦ список пуст — там BuildingAmenities.
   const tcInfrastructure = useMemo(
-    () => (isTc && center ? buildTradeCenterInfrastructure(center.retailInfo?.services ?? [], tenantAmenities) : []),
+    () => {
+      if (!isTc || !center) return [];
+      // Скрываем «Полезно знать» также в инфраструктуре (владелец, 2026-09-25).
+      return buildTradeCenterInfrastructure(center.retailInfo?.services ?? [], tenantAmenities)
+        .map((group) => ({ ...group, items: group.items.filter((item) => !isHiddenVisitService(item.title)) }))
+        .filter((group) => group.items.length);
+    },
     [isTc, center, tenantAmenities],
   );
-  const tcAmenitySource = useMemo(
-    () => ({
-      source: 'Яндекс Карты',
-      sourceUrl: (yandexTenants?.tenants.length ?? 0) > 0 ? tenantSnapshot?.sourceUrl ?? null : null,
-    }),
-    [yandexTenants, tenantSnapshot],
-  );
-
   const nearbyPlaces = nearbyPlacesResult?.slug === slug
     ? nearbyPlacesResult?.places ?? EMPTY_NEARBY_PLACES
     : EMPTY_NEARBY_PLACES;
@@ -1977,7 +1977,8 @@ export function BusinessCenterDetailPage() {
         case 'food':
         case 'fun':
         case 'leisure':
-        case 'visit':
+        case 'getting-here':
+        case 'offers-events':
         case 'business':
         case 'numbers':
         case 'quotes':
@@ -2925,7 +2926,7 @@ export function BusinessCenterDetailPage() {
         {isTc ? (
           <>
             {renderRecommendationSlot('tenants')}
-            <TradeCenterInfrastructure groups={tcInfrastructure} amenitySource={tcAmenitySource} />
+            <TradeCenterInfrastructure groups={tcInfrastructure} />
             {renderRecommendationSlot('amenities')}
           </>
         ) : (
@@ -3231,6 +3232,7 @@ export function BusinessCenterDetailPage() {
             (DeveloperDeepCard); без них карточка прежняя. */}
         {center.developerInfo && hasDeveloperDeepData(center.developerInfo) ? (
           <DeveloperDeepCard
+            showSources={!isTc}
             info={center.developerInfo}
             title={`Кто стоит за ${V.oneIns} «${shortName(center)}»`}
             mainName={developerMainName(center.developerInfo, center.developer)}
@@ -3337,14 +3339,14 @@ export function BusinessCenterDetailPage() {
             Минск Мира, каталог БЦ), когда здание будет куплено. */}
 
         <div className={cn('mt-6 flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-          <h2 className="text-lg font-bold text-ink">Источники</h2>
+          {!isTc && <h2 className="text-lg font-bold text-ink">Источники</h2>}
           {/* Владелец, 2026-09-22: один короткий дисклеймер без дат снимков и
               имён источников в основном тексте страницы — читатель видит
               длинный список оговорок как "нам нельзя доверять". Даты (2ГИС,
               Яндекс.Карты) и полный список конкретных сайтов остались только
               в попапе SourcesTrademarkNote — по клику на "Полный список
               источников", не в подверстке блока. */}
-          <SourcesTrademarkNote />
+          {isTc ? <p className="text-sm text-ink-muted">Все сведения носят справочный характер. Названия и товарные знаки принадлежат их правообладателям.</p> : <SourcesTrademarkNote />}
         </div>
 
         </main>

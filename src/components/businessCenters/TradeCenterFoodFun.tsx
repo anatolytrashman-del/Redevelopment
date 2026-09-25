@@ -55,7 +55,7 @@ import {
   sortFun,
 } from '../../lib/tradeCenterRetail';
 import { Badge } from '../ui/Badge';
-import { RetailCardTitle as CardTitle, SourcesLine } from './TradeCenterRetailParts';
+import { RetailCardTitle as CardTitle } from './TradeCenterRetailParts';
 import { retailCardClass as cardClass } from './tradeCenterRetailStyle';
 
 const PLACE_ICONS: Record<RetailFoodPlaceType, LucideIcon> = {
@@ -207,7 +207,6 @@ export function TradeCenterFoodCard({ food, title }: { food: RetailFoodInfo; tit
           {expanded ? 'Свернуть' : `Показать все ${total} ${pluralRu(total, 'заведение', 'заведения', 'заведений')}`}
         </button>
       )}
-      <SourcesLine entries={food.zones} />
     </div>
   );
 }
@@ -281,7 +280,6 @@ export function TradeCenterFunCard({ fun, title }: { fun: RetailFunEntry[]; titl
           <FunTile key={`${entry.name}-${i}`} entry={entry} wide={entry.kind === 'cinema' || entry === lastRest} />
         ))}
       </ul>
-      <SourcesLine entries={sorted} />
     </div>
   );
 }

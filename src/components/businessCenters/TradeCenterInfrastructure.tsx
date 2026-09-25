@@ -5,14 +5,12 @@
 // высоты — lib/tradeCenterInfrastructure.ts.
 import { LayoutGrid } from 'lucide-react';
 import { glassCardShadow } from '../../lib/glass';
-import type { RetailSource } from '../../data/businessCenters';
 import {
   infrastructureItemMeta,
   type InfrastructureGroup,
   type InfrastructureItem,
 } from '../../lib/tradeCenterInfrastructure';
 import { amenityIcon, SERVICE_GROUP_ICONS, serviceIcon } from './amenityIcons';
-import { SourcesLine } from './TradeCenterRetailParts';
 import { retailCardClass } from './tradeCenterRetailStyle';
 
 function InfrastructureTile({ item, group }: { item: InfrastructureItem; group: InfrastructureGroup }) {
@@ -36,18 +34,10 @@ function InfrastructureTile({ item, group }: { item: InfrastructureItem; group: 
 
 export function TradeCenterInfrastructure({
   groups,
-  amenitySource,
 }: {
   groups: InfrastructureGroup[];
-  /** Откуда оборудование с числом — срез Яндекс.Карт здания. */
-  amenitySource: RetailSource | null;
 }) {
   if (!groups.length) return null;
-  const items = groups.flatMap((g) => g.items);
-  const sources: RetailSource[] = [
-    ...items.flatMap((item) => (item.service ? [item.service] : [])),
-    ...(amenitySource && items.some((item) => item.count != null) ? [amenitySource] : []),
-  ];
   return (
     <div id="amenities" className={retailCardClass} style={glassCardShadow}>
       <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
@@ -74,7 +64,6 @@ export function TradeCenterInfrastructure({
           );
         })}
       </div>
-      <SourcesLine entries={sources} />
     </div>
   );
 }
