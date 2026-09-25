@@ -1,3 +1,6 @@
+import { TradeCenterFactCards } from '../components/businessCenters/TradeCenterFactCards';
+import { TradeCenterReviewThemes } from '../components/businessCenters/TradeCenterReviewThemes';
+import { reviewThemeColumns, reviewThemesFaq, yandexReviewsUrl } from '../lib/tradeCenterFactsReviews';
 import { isHiddenVisitService } from '../lib/tradeCenterVisit';
 import { tenantDirectionLabel } from '../data/tenantIndustries';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -555,6 +558,10 @@ export function BusinessCenterDetailPage() {
     ? nearbyPlacesResult?.places ?? EMPTY_NEARBY_PLACES
     : EMPTY_NEARBY_PLACES;
   const reviews = reviewsResult?.slug === slug ? reviewsResult?.reviews ?? EMPTY_REVIEWS : EMPTY_REVIEWS;
+  const factCards = isTc ? center?.retailInfo?.factCards ?? null : null;
+  const reviewThemes = isTc ? center?.retailInfo?.reviewThemes ?? null : null;
+  const hasReviewThemes = Boolean(reviewThemes && reviewThemes.reviews >= 100 && reviewThemeColumns(reviewThemes).length);
+
   const index = center ? sorted.findIndex((c) => c.slug === center.slug) : -1;
   const prev = index > 0 ? sorted[index - 1] : null;
   const next = index >= 0 && index < sorted.length - 1 ? sorted[index + 1] : null;
@@ -1636,7 +1643,7 @@ export function BusinessCenterDetailPage() {
       add(`Как арендовать помещение в ${bcPrep}?`, pitchFaqAnswer(retail.leasing));
       add(`Как разместить рекламу в ${bcPrep}?`, pitchFaqAnswer(retail.advertising));
       add(`${capitalize(bcNom)} в цифрах: что известно?`, figuresFaqAnswer(retail.numbers));
-      add(`Что говорят о ${bcPrep}?`, quotesFaqAnswer(retail.quotes));
+      if (!reviewThemes) add(`Что говорят о ${bcPrep}?`, quotesFaqAnswer(retail.quotes));
       // «Якорные арендаторы» стоят последними, прямо перед каталогом арендаторов.
       add(`Какие якорные арендаторы в ${bcPrep}?`, anchorsFaqAnswer(anchorsForPage(retail)));
     }
@@ -1779,7 +1786,9 @@ export function BusinessCenterDetailPage() {
     // Рейтинг приезжает из карточки на картах в свободном тексте фактов.
     // Название сервиса в ответе не упоминается (владелец, 2026-09-22) — на
     // странице его тоже больше не видно, только в «Источниках».
-    {
+    if (reviewThemes) {
+      if (hasReviewThemes) add(`Что посетители говорят о ${center.name}?`, reviewThemesFaq(reviewThemes));
+    } else {
       const yandexRatings = parseHighlightRatings(center.highlights);
       const ratingSentences = yandexRatings.map(
         (r) =>
@@ -1808,10 +1817,12 @@ export function BusinessCenterDetailPage() {
     // СМИ и история здания убраны из FAQ (владелец, 2026-09-22: «Что писали
     // в СМИ — убирай», «Что известно об истории — ответ хуйня, убирай»).
     // Оба блока остаются видимыми на странице, FAQ их не пересказывает.
-    if (visibleHighlights.length)
+    if (factCards !== null) {
+      if (factCards.length) add(`Чем примечателен ${bcNom}?`, factCards.map((f) => `${f.headline}. ${f.text}`).join('\n'));
+    } else if (visibleHighlights.length)
       add(`Чем примечателен ${bcNom}?`, visibleHighlights.map((h) => (h.label ? `${h.label}: ${plain(h.text)}` : plain(h.text))).join('\n'));
     return items;
-  }, [center, centers, marketPosition, accessibilityAttributes, accessHoursText, saleStats, rentStats, awardItems, mediaMentions, visibleHighlights, buildingParamHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces, priceComparison?.blocks, V, isTc, tcInfrastructure]);
+  }, [factCards, reviewThemes, hasReviewThemes, center, centers, marketPosition, accessibilityAttributes, accessHoursText, saleStats, rentStats, awardItems, mediaMentions, visibleHighlights, buildingParamHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces, priceComparison?.blocks, V, isTc, tcInfrastructure]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -1860,9 +1871,9 @@ export function BusinessCenterDetailPage() {
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
       has(
         'reviews',
-        center.highlights.some((h) => h.icon === 'rating') ||
+        reviewThemes ? hasReviewThemes : (center.highlights.some((h) => h.icon === 'rating') ||
           reviewQuotes.length > 0 ||
-          reviews.some((r) => r.source !== '2gis'),
+          reviews.some((r) => r.source !== '2gis')),
       ),
       // У ТЦ награды (в том числе строки из highlights) и места в рейтингах
       // — один блок «Награды и рейтинги», общий блок «Награды» не рисуется.
@@ -1871,7 +1882,7 @@ export function BusinessCenterDetailPage() {
         ? { id: 'awards-ranking', label: awardsRankingTitle(tcHasAwards, tcHasRanking) }
         : null,
       has('media', mediaMentions.length > 0),
-      has('facts', visibleHighlights.length > 0),
+      has('facts', factCards !== null ? factCards.length > 0 : visibleHighlights.length > 0),
       has('history', extractHistoryPoints(center).length >= 2),
       has(
         'tech',
@@ -1890,6 +1901,9 @@ export function BusinessCenterDetailPage() {
     rentStats,
     awardItems,
     visibleHighlights,
+    factCards,
+    reviewThemes,
+    hasReviewThemes,
     buildingParamHighlights,
     mediaMentions,
     tenantOrganizations,
@@ -1949,6 +1963,7 @@ export function BusinessCenterDetailPage() {
         // Настоящие отзывы вытесняют кураторские цитаты и выводятся
         // постранично по 6 (MAX_REAL_REVIEWS в BusinessCenterMarketBlocks).
         case 'reviews': {
+          if (reviewThemes) return hasReviewThemes ? Math.max(reviewThemes.praise.length, reviewThemes.complaints.length) + 2 : 0;
           const realReviewCount = reviews.filter((r) => r.source !== '2gis').length;
           return realReviewCount > 0 ? Math.min(realReviewCount, 6) : reviewQuotes.length;
         }
@@ -1959,7 +1974,7 @@ export function BusinessCenterDetailPage() {
         case 'media':
           return mediaMentions.length;
         case 'facts':
-          return visibleHighlights.length;
+          return factCards !== null ? Math.ceil(Math.min(factCards.length, 6) / 2) : visibleHighlights.length;
         case 'history':
           return extractHistoryPoints(center).length;
         case 'developer':
@@ -2014,6 +2029,9 @@ export function BusinessCenterDetailPage() {
     awardItems,
     mediaMentions,
     visibleHighlights,
+    factCards,
+    reviewThemes,
+    hasReviewThemes,
     buildingParamHighlights,
     faqItems,
     tcInfrastructure,
@@ -2096,13 +2114,13 @@ export function BusinessCenterDetailPage() {
       saleOfferCount: saleStats?.count ?? 0,
       hasReviews: Boolean(
         center &&
-          (center.highlights.some((h) => h.icon === 'rating') ||
+          (reviewThemes ? hasReviewThemes : (center.highlights.some((h) => h.icon === 'rating') ||
             reviewQuotes.length > 0 ||
-            reviews.some((r) => r.source !== '2gis')),
+            reviews.some((r) => r.source !== '2gis'))),
       ),
       hasNearbyInfrastructure: Boolean(center && !isTc && hasNearbyContent(center, nearbyPlaces)),
     }),
-    [tenantOrganizations, center, rentStats, saleStats, reviewQuotes, reviews, nearbyPlaces, isTc],
+    [tenantOrganizations, center, rentStats, saleStats, reviewQuotes, reviews, nearbyPlaces, isTc, reviewThemes, hasReviewThemes],
   );
 
   // Тёзки в каталоге: «Порт» на Независимости, 177 и «Порт» на
@@ -2951,7 +2969,9 @@ export function BusinessCenterDetailPage() {
 
         {renderRecommendationSlot('market')}
 
-        {center && <WhatTheySayBlock key={center.slug} center={center} reviewQuotes={reviewQuotes} reviews={reviews} />}
+        {reviewThemes ? (
+          <TradeCenterReviewThemes themes={reviewThemes} rating={parseHighlightRatings(center.highlights)[0]} yandexUrl={yandexReviewsUrl(tenantSnapshot?.sourceUrl) ?? (reviewThemes.orgId ? `https://yandex.by/maps/org/${reviewThemes.orgId}/reviews/` : undefined)} />
+        ) : <WhatTheySayBlock key={center.slug} center={center} reviewQuotes={reviewQuotes} reviews={reviews} />}
 
         {renderRecommendationSlot('reviews')}
 
@@ -3055,7 +3075,8 @@ export function BusinessCenterDetailPage() {
             СМИ/факты/история), после цены, параметров здания, арендаторов
             и сравнения с конкурентами (владелец принял предложенный
             порядок блоков). */}
-        {visibleHighlights.length > 0 && (
+        {factCards !== null && <TradeCenterFactCards key={`facts-${center.slug}`} facts={factCards} />}
+        {factCards === null && visibleHighlights.length > 0 && (
           <div id="facts" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
               <Sparkles className="h-5 w-5 shrink-0 text-icon" />

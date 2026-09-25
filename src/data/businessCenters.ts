@@ -776,6 +776,15 @@ export interface RetailVacancyEntry extends RetailSource {
 }
 
 export interface RetailInfo {
+  // Короткие факты и темы отзывов — владелец, 2026-09-25.
+  factCards: { headline: string; text: string }[] | null;
+  reviewThemes: {
+    reviews: number; source: string; analyzedAt: string;
+    praise: { theme: string; share: number }[];
+    complaints: { theme: string; share: number }[];
+    // Из карточки Яндекса; её оценку не берём — парсер отдаёт 5.0 у 26 зданий (2026-09-25).
+    reviewCount?: number | null; orgId?: string | null;
+  } | null;
   floorsGuide: RetailFloorEntry[];
   anchors: RetailAnchorEntry[];
   timeline: RetailTimelineEntry[];

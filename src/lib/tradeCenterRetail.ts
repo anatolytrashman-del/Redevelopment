@@ -515,7 +515,31 @@ export function normalizeRetailInfo(raw: unknown): RetailInfo | null {
   const tenantsAtName = tenantsAtRaw ? str(tenantsAtRaw.name) : null;
   const tenantsAt = tenantsAtSlug && tenantsAtName ? { slug: tenantsAtSlug, name: tenantsAtName } : null;
 
+  const factCards = Array.isArray(data.factCards) ? records(data.factCards).flatMap((r) => {
+    const headline = str(r.headline);
+    const text = str(r.text);
+    return headline && text ? [{ headline, text }] : [];
+  }) : null;
+  const themes = record(data.reviewThemes);
+  const themeItems = (value: unknown) => records(value).flatMap((r) => {
+    const theme = str(r.theme);
+    const share = num(r.share);
+    return theme && share != null && share >= 0 && share <= 100 ? [{ theme, share }] : [];
+  });
+  const reviewCount = themes ? num(themes.reviews) : null;
+  const reviewThemes = themes && reviewCount != null && reviewCount >= 0 ? {
+    reviews: reviewCount,
+    source: str(themes.source) ?? '',
+    analyzedAt: str(themes.analyzedAt) ?? '',
+    praise: themeItems(themes.praise),
+    complaints: themeItems(themes.complaints),
+    // Число отзывов и id карточки — из business_center_yandex_cards.
+    reviewCount: num(themes.reviewCount),
+    orgId: str(themes.orgId),
+  } : null;
   const info: RetailInfo = {
+    factCards,
+    reviewThemes,
     floorsGuide,
     anchors,
     timeline,
@@ -541,7 +565,7 @@ export function normalizeRetailInfo(raw: unknown): RetailInfo | null {
     tenantsAt,
   };
   const empty = Object.values(info).every((value) => value == null || (Array.isArray(value) && value.length === 0));
-  return empty ? null : info;
+  return empty && factCards === null ? null : info;
 }
 
 // --- Этажи ---------------------------------------------------------------
@@ -1612,7 +1636,7 @@ export function retailSectionIds(info: RetailInfo | null, hasTenants = false): R
   if (hasOffersEventsInfo(info)) ids.push('offers-events');
   if (hasAdvertisingInfo(info)) ids.push('advertising');
   if (info.numbers.length) ids.push('numbers');
-  if (info.quotes.length) ids.push('quotes');
+  if (!info.reviewThemes && info.quotes.length) ids.push('quotes');
   // Последними — вплотную к каталогу арендаторов, который идёт за ними.
   if (anchorsForPage(info).length) ids.push('anchors');
   return ids;
