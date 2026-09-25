@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
-import { buttonClasses } from '../ui/Button';
 import { getCookieConsent, setCookieConsent } from '../../lib/cookieConsent';
 import { isLikelyBot } from '../../lib/botDetection';
 
@@ -52,29 +51,31 @@ export function CookieBanner() {
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 px-4 pb-4 sm:px-6 sm:pb-6">
+    <div className="fixed bottom-3 left-3 right-3 z-40 sm:left-4 sm:right-auto sm:bottom-4">
       <div
-        className={cn(
-          'mx-auto flex max-w-3xl flex-col gap-3 p-4 text-sm text-ink sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-5',
-          glassCardClass,
-        )}
+        className={cn('flex max-w-sm items-center gap-3 px-3.5 py-2.5 text-xs text-ink-muted', glassCardClass, 'bg-white/95')}
         style={glassCardShadow}
       >
-        <p className="leading-relaxed text-ink-muted">
-          Мы используем cookie. Необходимые нужны для работы сайта. Аналитические и рекламные
-          (Яндекс.Метрика, VK) помогают понять, как пользуются сайтом, и включаются только
-          с вашего согласия. Подробнее — в{' '}
-          <Link to="/privacy" className="font-semibold text-ink underline hover:text-primary">
-            Политике обработки персональных данных
+        <p className="leading-snug">
+          Используем cookie для аналитики.{' '}
+          <Link to="/privacy" className="underline hover:text-primary">
+            Подробнее
           </Link>
-          .
         </p>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <button type="button" onClick={() => choose('necessary')} className={buttonClasses('secondary')}>
-            Только необходимые
+        <div className="flex shrink-0 gap-1.5">
+          <button
+            type="button"
+            onClick={() => choose('necessary')}
+            className="rounded-full px-2.5 py-1 font-medium text-ink-muted hover:text-ink"
+          >
+            Отклонить
           </button>
-          <button type="button" onClick={() => choose('all')} className={buttonClasses('primary')}>
-            Принять все
+          <button
+            type="button"
+            onClick={() => choose('all')}
+            className="rounded-full bg-primary px-3 py-1 font-semibold text-white hover:opacity-90"
+          >
+            Принять
           </button>
         </div>
       </div>
@@ -82,8 +83,6 @@ export function CookieBanner() {
   );
 }
 
-// Дёргается ссылкой "Настройки cookie" из подвала — переоткрывает баннер,
-// не сбрасывая сохранённый выбор (человек сам решит, менять его или нет).
 export function reopenCookieBanner() {
   window.dispatchEvent(new Event('cookie-banner:reopen'));
 }
