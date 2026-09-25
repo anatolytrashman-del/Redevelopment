@@ -2492,7 +2492,7 @@ export function BusinessCenterDetailPage() {
                     onClick={() => setTocOpen(false)}
                     className="flex items-start gap-3 rounded-xl px-3 py-2.5 text-sm leading-snug text-ink transition-colors hover:bg-surface-muted"
                   >
-                    <SectionIcon className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint" />
+                    <SectionIcon className="mt-0.5 h-4 w-4 shrink-0 text-icon" />
                     <span>{sec.label}</span>
                   </a>
                 );
@@ -2548,7 +2548,7 @@ export function BusinessCenterDetailPage() {
                       href={`#${sec.id}`}
                       className="group flex items-start gap-3 rounded-xl px-2 py-2 text-sm leading-snug text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
                     >
-                      <SectionIcon className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint transition-colors group-hover:text-primary" />
+                      <SectionIcon className="mt-0.5 h-4 w-4 shrink-0 text-icon transition-colors group-hover:text-primary" />
                       <span>{sec.label}</span>
                     </a>
                   );
@@ -2851,7 +2851,7 @@ export function BusinessCenterDetailPage() {
         {center.rentalInfo && (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.contacts) && (
           <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <FileText className="h-5 w-5 shrink-0 text-primary" />
+              <FileText className="h-5 w-5 shrink-0 text-icon" />
               Отдел аренды БЦ
             </h2>
 
@@ -2979,7 +2979,7 @@ export function BusinessCenterDetailPage() {
         {!isTc && awardItems.length > 0 && (
           <div id="awards" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <Trophy className="h-5 w-5 shrink-0 text-primary" />
+              <Trophy className="h-5 w-5 shrink-0 text-icon" />
               Награды
             </h2>
             <ul className="list-disc space-y-2 pl-5 text-sm leading-relaxed text-ink-muted marker:text-ink-muted">
@@ -3011,7 +3011,7 @@ export function BusinessCenterDetailPage() {
         {mediaMentions.length > 0 && (
           <div id="media" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <Newspaper className="h-5 w-5 shrink-0 text-primary" />
+              <Newspaper className="h-5 w-5 shrink-0 text-icon" />
               СМИ о здании
             </h2>
             <ul className="flex flex-col divide-y divide-border">
@@ -3058,7 +3058,7 @@ export function BusinessCenterDetailPage() {
         {visibleHighlights.length > 0 && (
           <div id="facts" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <Sparkles className="h-5 w-5 shrink-0 text-primary" />
+              <Sparkles className="h-5 w-5 shrink-0 text-icon" />
               Интересные факты
             </h2>
 
@@ -3098,7 +3098,7 @@ export function BusinessCenterDetailPage() {
             арендаторов", теперь — здесь; сама разметка блока не менялась. */}
         <div id="tech" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
           <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-            <Building2 className="h-5 w-5 shrink-0 text-primary" />
+            <Building2 className="h-5 w-5 shrink-0 text-icon" />
             Параметры здания
           </h2>
           {/* Один сплошной список фактов о здании, без подзаголовков по
@@ -3248,7 +3248,7 @@ export function BusinessCenterDetailPage() {
           <div id="developer" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-                <HardHat className="h-5 w-5 shrink-0 text-primary" />
+                <HardHat className="h-5 w-5 shrink-0 text-icon" />
                 Застройщик
               </h2>
               {center.developerInfo.logoUrl && (

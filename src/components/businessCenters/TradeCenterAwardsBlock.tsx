@@ -62,7 +62,7 @@ function AwardTile({ award }: { award: RetailAwardEntry }) {
   const details = awardDetails(award);
   return (
     <li className="flex min-w-0 items-start gap-3 rounded-2xl border border-border bg-white/65 p-3 sm:p-4">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-icon-bg text-icon">
         <Icon className="h-5 w-5" />
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -101,7 +101,7 @@ export function TradeCenterAwardsBlock({
   return (
     <div id="awards-ranking" className={retailCardClass} style={glassCardShadow}>
       <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-        <Trophy className="h-5 w-5 shrink-0 text-primary" />
+        <Trophy className="h-5 w-5 shrink-0 text-icon" />
         {awardsRankingTitle(hasAwards, hasRanking)}
       </h2>
 

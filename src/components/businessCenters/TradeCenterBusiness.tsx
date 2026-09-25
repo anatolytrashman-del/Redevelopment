@@ -31,13 +31,13 @@ export function TradeCenterLeasing({ info, name, sale, rent }: { info: RetailInf
   const formats = leasingFormats(leasing);
   return <section id="offers" className={retailCardClass} style={glassCardShadow}>
     <div>
-      <h2 className="flex items-center gap-2 text-lg font-bold text-ink"><Store className="h-5 w-5 text-primary" aria-hidden="true" />Аренда в ТЦ</h2>
+      <h2 className="flex items-center gap-2 text-lg font-bold text-ink"><Store className="h-5 w-5 text-icon" aria-hidden="true" />Аренда в ТЦ</h2>
       {leasing?.contacts && <p className="mt-1 text-sm text-ink-muted">Помещения сдаёт сама управляющая компания {name}</p>}
     </div>
     <div>
       <h3 className="mb-2.5 text-xs font-bold uppercase tracking-wide text-ink-muted">Свободные помещения</h3>
       {sale || rent || listed.length ? <BuildingOffersSection sale={sale} rent={rent} listed={listed} embedded /> : <div className={`${boxClass} flex items-center gap-3.5`}>
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 font-bold text-primary" aria-hidden="true">0</span>
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-icon-bg font-bold text-icon" aria-hidden="true">0</span>
         <p className="text-sm text-ink">ТЦ не публикует список свободных площадей<span className="mt-0.5 block text-xs leading-relaxed text-ink-muted">Узнать, что есть сейчас, можно напрямую в отделе аренды.</span></p>
       </div>}
     </div>
@@ -71,7 +71,7 @@ export function TradeCenterAdvertising({ info, name }: { info: RetailInfo; name:
         const medium = advertisingMedium(point);
         const Icon = icons[medium.icon];
         return <article key={index} className="flex min-w-0 items-start gap-3 rounded-2xl border border-border bg-white px-4 py-3.5">
-          <span className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-[10px] bg-primary/10 text-primary"><Icon className="h-4 w-4" aria-hidden="true" /></span>
+          <span className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-[10px] bg-icon-bg text-icon"><Icon className="h-4 w-4" aria-hidden="true" /></span>
           <div className="min-w-0"><h3 className="break-words text-sm font-bold text-ink">{medium.title}</h3>{medium.text && <p className="mt-0.5 break-words text-xs leading-relaxed text-ink-muted">{medium.text}</p>}</div>
         </article>;
       })}

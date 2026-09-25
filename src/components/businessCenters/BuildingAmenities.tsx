@@ -23,7 +23,7 @@ export function BuildingAmenities({ amenities }: { amenities: TenantAmenity[] })
     <div id="amenities" className={cn('mt-6 scroll-mt-32 overflow-hidden', glassCardClass)} style={glassCardShadow}>
       <div className="flex flex-col gap-4 p-5 sm:p-6">
         <h2 className="flex items-center gap-2 text-xl font-bold text-ink">
-          <LayoutGrid className="h-5 w-5 shrink-0 text-primary" />
+          <LayoutGrid className="h-5 w-5 shrink-0 text-icon" />
           Инфраструктура
         </h2>
         <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
@@ -34,7 +34,7 @@ export function BuildingAmenities({ amenities }: { amenities: TenantAmenity[] })
                 key={amenity.category}
                 className="flex min-w-0 flex-col items-start gap-2 rounded-2xl border border-border bg-white/65 p-3 sm:flex-row sm:items-center sm:gap-3"
               >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-icon-bg text-icon">
                   <Icon className="h-4.5 w-4.5" />
                 </span>
                 <span className="min-w-0">

@@ -114,6 +114,10 @@
   --color-primary-hover: #c81124;
   --color-primary-soft: #fde3e5;
 
+  /* Графитовые иконки публичного сайта — владелец, 2026-09-25. */
+  --color-icon: #3b3d44;
+  --color-icon-bg: #eceae6;
+
   --color-mascot: #ff7a76;
 
   --color-ink: #14151a;

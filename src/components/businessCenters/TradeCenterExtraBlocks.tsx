@@ -24,7 +24,7 @@ export function TradeCenterQuotesCard({ quotes }: { quotes: RetailQuoteEntry[] }
           const text = quoteText(q);
           return (
             <figure key={i} className="flex min-w-0 flex-col gap-2 rounded-2xl border border-border bg-white/65 p-4">
-              <Quote className="h-4 w-4 shrink-0 text-primary/50" aria-hidden="true" />
+              <Quote className="h-4 w-4 shrink-0 text-icon" aria-hidden="true" />
               <blockquote className="break-words text-sm leading-relaxed text-ink">{text}</blockquote>
               <figcaption className="mt-auto break-words text-xs text-ink-muted">
                 — {q.who}

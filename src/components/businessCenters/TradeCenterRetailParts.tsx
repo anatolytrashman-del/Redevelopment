@@ -11,7 +11,7 @@ export function RetailCardTitle({ id, label }: { id: RetailSectionId; label?: st
   const Icon = RETAIL_SECTION_ICONS[id];
   return (
     <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-      <Icon className="h-5 w-5 shrink-0 text-primary" />
+      <Icon className="h-5 w-5 shrink-0 text-icon" />
       {label ?? RETAIL_SECTION_LABELS[id]}
     </h2>
   );

@@ -18,7 +18,7 @@ function InfrastructureTile({ item, group }: { item: InfrastructureItem; group: 
   const meta = infrastructureItemMeta(item);
   return (
     <li className="flex min-w-0 items-start gap-2.5 rounded-xl bg-surface-muted/80 px-3 py-2">
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-icon-bg text-icon">
         <Icon className="h-4 w-4" aria-hidden="true" />
       </span>
       <span className="flex min-h-7 min-w-0 flex-1 flex-col justify-center gap-0.5">
@@ -41,7 +41,7 @@ export function TradeCenterInfrastructure({
   return (
     <div id="amenities" className={retailCardClass} style={glassCardShadow}>
       <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-        <LayoutGrid className="h-5 w-5 shrink-0 text-primary" />
+        <LayoutGrid className="h-5 w-5 shrink-0 text-icon" />
         Инфраструктура
       </h2>
       <div className="flex flex-col gap-4">
@@ -50,7 +50,7 @@ export function TradeCenterInfrastructure({
           return (
             <section key={group.id} className="flex flex-col gap-2">
               <h3 className="flex items-center gap-2 text-sm font-bold text-ink">
-                <GroupIcon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                <GroupIcon className="h-4 w-4 shrink-0 text-icon" aria-hidden="true" />
                 {group.label}
               </h3>
               {/* На телефоне плитки в одну колонку: в две узкие длинное

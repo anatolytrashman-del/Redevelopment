@@ -111,7 +111,7 @@ export function TradeCenterRetailBlocks({
                   className="flex min-w-0 items-start gap-3 rounded-2xl border border-border bg-white/65 p-3"
                 >
                   <span
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-icon-bg text-icon"
                     title={LEISURE_KIND_LABELS[entry.kind]}
                   >
                     <Icon className="h-4.5 w-4.5" />

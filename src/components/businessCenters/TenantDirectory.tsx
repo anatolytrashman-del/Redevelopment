@@ -103,7 +103,7 @@ export function TenantDirectory({ organizations }: { organizations: TenantOrgani
       <div className="flex flex-col gap-4 p-5 sm:p-6">
         <div>
           <h2 className="flex items-center gap-2 text-xl font-bold text-ink">
-            <Building2 className="h-5 w-5 shrink-0 text-primary" />
+            <Building2 className="h-5 w-5 shrink-0 text-icon" />
             Каталог арендаторов
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-ink-muted">

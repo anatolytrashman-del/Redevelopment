@@ -16,7 +16,7 @@ function NumberTile({ entry }: { entry: RetailFigureEntry }) {
   return <button type="button" aria-expanded={open} aria-controls={entry.text ? id : undefined}
     onClick={() => { if (entry.text) setOpen(!open); }}
     className={cn('min-w-0 rounded-[18px] border bg-white p-4 text-left text-ink transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary', open ? 'border-primary' : 'border-border', entry.text && 'cursor-pointer hover:border-ink-faint')}>
-    <span className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-surface-muted text-ink-muted"><Icon className="h-[19px] w-[19px]" aria-hidden="true" /></span>
+    <span className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-icon-bg text-icon"><Icon className="h-[19px] w-[19px]" aria-hidden="true" /></span>
     <span className="block break-words text-2xl font-extrabold leading-none tabular-nums">{entry.value}</span>
     <span title={entry.label} className="mt-1.5 block line-clamp-2 text-xs leading-snug text-ink-muted">{numberLabel(entry.label)}</span>
     {entry.text && <span id={id} hidden={!open} className={cn('mt-2.5 break-words border-t border-dashed border-border pt-2 text-xs leading-relaxed', open ? 'block' : 'hidden')}>{entry.text}</span>}
