@@ -185,6 +185,11 @@ async function fetchQueryHistory(accessToken, siteUrl) {
     endDate: isoDate(dateTo),
     dimensions: ['date'],
     rowLimit: 1000,
+    // По умолчанию API отдаёт только окончательные данные — это минус 2–3 дня
+    // от сегодня, тогда как интерфейс Search Console показывает и свежие
+    // предварительные. 'all' даёт то же, что видно в интерфейсе; цифры
+    // последних дней потом уточняются, и следующий синк их перезапишет.
+    dataState: 'all',
   };
 
   const path = `/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`;
