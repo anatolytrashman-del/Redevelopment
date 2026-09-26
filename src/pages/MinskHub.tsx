@@ -5,6 +5,7 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setOrganizationJsonLd } from '../lib/pageMeta';
 import { DISTRICTS, DISTRICTS_WITH_GUIDE } from '../data/districts';
+import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
 
 // Хаб раздела "Минск" (SEO_PLAN.md, урл-структура /minsk/...) — только
 // гиды по районам, под общим city-scoped префиксом. Корень сайта (/)
@@ -146,6 +147,8 @@ export function MinskHub() {
             })}
           </div>
         </section>
+
+        <CookieFooterLinks />
       </main>
     </div>
   );
