@@ -246,6 +246,14 @@ function ReviewTag({ confidence, recognition }: { confidence: number | null; rec
 
 const SENT_TO_STORAGE_KEY = 'priceComparison.proposalSentTo';
 
+// Владелец, 2026-09-28: «давай пока вообще уберем функционал отправки на
+// согласование, я его не продумал». Весь поток (письмо руководителю,
+// «утверждено / вернули», лист согласования, снимок цен) выключен этим
+// флагом, а не удалён: данные в базе (request.review) не трогаются, и
+// вернуть поток — поменять одно значение. Пока false — статусы согласования
+// нигде не показываются и отбор не блокируется.
+const APPROVAL_FLOW_ENABLED = false;
+
 // Кто готовит предложение: вошедший сотрудник + отдел (владелец, 2026-09-15:
 // «не отдел снабжения, а бэкофис»). emailSignature() — тот же разворот
 // рабочего никнейма в полное имя, что и в подписи писем поставщикам.
@@ -546,7 +554,7 @@ export function PriceComparisonCard({
 
   // Сумма после отправки разошлась со снимком — новый счёт поставщика
   // поменял цены, руководитель утверждал другое.
-  const snapshotDrift = review?.snapshot && review.status !== 'draft' && review.snapshot.total !== total ? review.snapshot.total : null;
+  const snapshotDrift = APPROVAL_FLOW_ENABLED && review?.snapshot && review.status !== 'draft' && review.snapshot.total !== total ? review.snapshot.total : null;
 
   const doc = (): ComparisonDoc => ({
     request,
@@ -1167,7 +1175,7 @@ export function PriceComparisonCard({
     return { mine, partsPicked, covered, partsAll, delivery };
   }
 
-  const reviewStatus = review?.status ?? 'draft';
+  const reviewStatus = APPROVAL_FLOW_ENABLED ? (review?.status ?? 'draft') : 'draft';
 
   const sectionPicker = (
     <div className="flex flex-col gap-2 text-sm text-ink-muted">
@@ -1389,7 +1397,7 @@ export function PriceComparisonCard({
       </div>
   );
 
-  const sendModal = sendOpen && (
+  const sendModal = APPROVAL_FLOW_ENABLED && sendOpen && (
       <SendProposalModal
         request={request}
         total={total}
@@ -1469,7 +1477,7 @@ export function PriceComparisonCard({
         ? { amount: replacedExact.amount - replacedAnalog.amount, pct: (replacedExact.amount - replacedAnalog.amount) / replacedExact.amount, currency: replacedExact.currency }
         : null;
 
-    const steps: { title: string; sub: string; state: 'done' | 'cur' | 'next' | 'warn' }[] = [
+    const steps: { title: string; sub: string; state: 'done' | 'cur' | 'next' | 'warn' }[] = ([
       {
         title: 'Цены собраны',
         sub: `${funnel.confirmed} из ${offersInCountry.length} прислали КП · ${funnel.pricedPositions} из ${positions.length} позиций с ценой`,
@@ -1492,10 +1500,13 @@ export function PriceComparisonCard({
                 : 'руководителю стройки',
         state: reviewStatus === 'approved' ? 'done' : reviewStatus === 'returned' ? 'warn' : reviewStatus === 'sent' ? 'cur' : 'next',
       },
-    ];
+    ] as typeof steps).slice(0, APPROVAL_FLOW_ENABLED ? 3 : 2);
 
-    const stageAction =
-      reviewStatus === 'approved' ? (
+    const stageAction = !APPROVAL_FLOW_ENABLED ? (
+      <Button type="button" icon={<FileDown className="h-4 w-4" />} onClick={() => void exportPdf()} disabled={exportingPdf || pickedCells.length === 0}>
+        {exportingPdf ? 'Готовим PDF…' : 'Скачать PDF'}
+      </Button>
+    ) : reviewStatus === 'approved' ? (
         <Button type="button" icon={<Package className="h-4 w-4" />} onClick={() => void createOrders()} disabled={creatingOrders || saving}>
           {creatingOrders ? 'Создаём заказы…' : 'Сформировать заказы'}
         </Button>
@@ -1537,14 +1548,19 @@ export function PriceComparisonCard({
               {moreOpen && (
                 <div className="absolute right-0 top-full z-20 mt-1 flex w-64 flex-col rounded-xl border border-border bg-surface p-1 shadow-lg" onClick={() => setMoreOpen(false)}>
                   <button type="button" className={menuItem} onClick={() => void exportPdf()} disabled={exportingPdf}>
-                    {exportingPdf ? 'Готовим PDF…' : 'Скачать PDF на утверждение'}
+                    {exportingPdf ? 'Готовим PDF…' : 'Скачать PDF'}
                   </button>
+                  {!APPROVAL_FLOW_ENABLED && pickedCells.length > 0 && (
+                    <button type="button" className={menuItem} onClick={() => void createOrders()} disabled={creatingOrders || saving}>
+                      {creatingOrders ? 'Создаём заказы…' : 'Сформировать заказы'}
+                    </button>
+                  )}
                   {reviewStatus === 'sent' && (
                     <button type="button" className={menuItem} onClick={() => setSendOpen(true)} disabled={saving}>
                       Отправить ещё раз
                     </button>
                   )}
-                  {reviewStatus === 'draft' && pickedCells.length > 0 && (
+                  {APPROVAL_FLOW_ENABLED && reviewStatus === 'draft' && pickedCells.length > 0 && (
                     <button
                       type="button"
                       className={menuItem}
@@ -1555,7 +1571,7 @@ export function PriceComparisonCard({
                       Утверждено без письма
                     </button>
                   )}
-                  {reviewStatus !== 'draft' && (
+                  {APPROVAL_FLOW_ENABLED && reviewStatus !== 'draft' && (
                     <button type="button" className={menuItem} onClick={() => void setReview(null)} disabled={saving}>
                       Снова черновик
                     </button>
@@ -1600,7 +1616,7 @@ export function PriceComparisonCard({
           </p>
         )}
 
-        <div className="grid grid-cols-1 overflow-hidden rounded-2xl border border-border sm:grid-cols-3">
+        <div className={cn('grid grid-cols-1 overflow-hidden rounded-2xl border border-border', steps.length === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
           {steps.map((s, i) => (
             <div key={s.title} className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
               <span
@@ -1873,9 +1889,9 @@ export function PriceComparisonCard({
                 <span className="block whitespace-nowrap text-base font-bold tabular-nums sm:text-xl">{pickedCells.length > 0 ? total : '—'}</span>
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                <button type="button" onClick={() => void exportPdf()} disabled={exportingPdf} className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-white/30 px-3 py-2 text-sm font-medium text-white hover:bg-white/10 disabled:opacity-60">
+                {APPROVAL_FLOW_ENABLED && <button type="button" onClick={() => void exportPdf()} disabled={exportingPdf} className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-white/30 px-3 py-2 text-sm font-medium text-white hover:bg-white/10 disabled:opacity-60">
                   <FileDown className="h-4 w-4" /> {exportingPdf ? 'Готовим PDF…' : 'PDF'}
-                </button>
+                </button>}
                 {stageAction}
               </div>
             </div>
@@ -1919,7 +1935,7 @@ export function PriceComparisonCard({
             </Button>
           )}
           <Button type="button" variant="secondary" icon={<FileDown className="h-4 w-4" />} onClick={() => void exportPdf()} disabled={exportingPdf}>
-            {exportingPdf ? 'Готовим PDF…' : 'На утверждение'}
+            {exportingPdf ? 'Готовим PDF…' : APPROVAL_FLOW_ENABLED ? 'На утверждение' : 'Скачать PDF'}
           </Button>
         </div>
       </div>
@@ -1968,7 +1984,7 @@ export function PriceComparisonCard({
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div className={cn('flex flex-col gap-0.5 rounded-control border px-4 py-3', pickedCells.length > 0 ? 'border-success/30 bg-success-bg' : 'border-border bg-surface-muted')}>
           <span className="flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
-            На утверждение
+            {APPROVAL_FLOW_ENABLED ? 'На утверждение' : 'Выбрано'}
             {reviewStatus !== 'draft' && (
               <span
                 className={cn(
@@ -2264,7 +2280,7 @@ export function PriceComparisonCard({
       {!emptyPositions && columns.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-muted">
           <span className="inline-flex items-center gap-1.5">
-            <i className="inline-block h-3 w-3 rounded-sm border border-border bg-success-bg shadow-[inset_2px_0_0_var(--color-success)]" /> отобрано на утверждение
+            <i className="inline-block h-3 w-3 rounded-sm border border-border bg-success-bg shadow-[inset_2px_0_0_var(--color-success)]" /> {APPROVAL_FLOW_ENABLED ? 'отобрано на утверждение' : 'выбрано'}
           </span>
           <span className="inline-flex items-center gap-1.5">
             <KindTag kind="exact" /> та же позиция, что в ведомости
@@ -2290,7 +2306,7 @@ export function PriceComparisonCard({
       )}
 
       {/* Лист согласования — только когда есть что согласовывать */}
-      {pickedCells.length > 0 && (
+      {APPROVAL_FLOW_ENABLED && pickedCells.length > 0 && (
         <div className="flex flex-col gap-3 rounded-control border border-border p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div>
