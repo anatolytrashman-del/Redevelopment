@@ -23,6 +23,7 @@ import {
   type SupplierRequest,
 } from '../../data/supplierResearch';
 import type { SupplierSiteSnapshot } from '../../data/supplierSiteSnapshots';
+import { matchOfferProduct, normalizeSearch } from './productSearch';
 
 // Каталог поставщиков: хабы → категории → компании. Владелец, 2026-09-12:
 // «нравится, как организованы визуально категории у ВсеИнструменты, особенно
@@ -97,10 +98,6 @@ function OpenDetailButton({ offer, onOpenDetail }: { offer: SupplierOffer; onOpe
       Подробнее
     </Button>
   );
-}
-
-function normalizeSearch(value: string): string {
-  return value.toLowerCase().replace(/ё/g, 'е');
 }
 
 function offerGroups(o: SupplierOffer, snapshotByHost: Map<string, SupplierSiteSnapshot>): string[] {
@@ -247,14 +244,8 @@ export function SupplierCatalog({
     const results: { offer: SupplierOffer; categoryLabel: string; byName: boolean; hits: SupplierSiteSnapshot['sections'] }[] = [];
     for (const o of countryOffers) {
       if (!o.verified) continue;
-      const byName = normalizeSearch(o.name).includes(searchQuery);
-      const snapshot = snapshotByHost.get(supplierWebsiteHost(o.websiteUrl));
-      const hits = (snapshot?.sections ?? []).filter((sec) => normalizeSearch(sec.title).includes(searchQuery));
-      const bySite =
-        hits.length > 0 ||
-        normalizeSearch(snapshot?.pageTitle ?? '').includes(searchQuery) ||
-        normalizeSearch(snapshot?.metaDescription ?? '').includes(searchQuery);
-      if (!byName && !bySite) continue;
+      const { byName, hits, matched } = matchOfferProduct(o, snapshotByHost, searchQuery);
+      if (!matched) continue;
       results.push({ offer: o, categoryLabel: catalogLabelFor(o, requestTitleById, snapshotByHost, extraGroupsByTile), byName, hits });
     }
     // Сперва совпавшие по имени, потом — у кого товар в разделах сайта
