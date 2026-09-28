@@ -493,12 +493,16 @@ export interface PositionOffers {
   bestAnalog: Cell | null;
 }
 
-export function positionOffers(positionId: string, columns: Column[]): PositionOffers {
+// includeExcluded — «не покупаем» участвует наравне с остальными (вид «кому
+// что заказать»: владелец, 2026-09-28, не увидел лучшую цену «Радуги
+// красок» — её строки после «Сформировать поставку» стояли «не покупаем»).
+export function positionOffers(positionId: string, columns: Column[], opts: { includeExcluded?: boolean } = {}): PositionOffers {
   const cells = columns.map((c) => c.cells.get(positionId)).filter((c): c is Cell => !!c);
-  const order = (a: Cell, b: Cell) => Number(a.excludedFromSupply) - Number(b.excludedFromSupply) || priceKey(a) - priceKey(b);
+  const excluded = (c: Cell) => (opts.includeExcluded ? false : c.excludedFromSupply);
+  const order = (a: Cell, b: Cell) => Number(excluded(a)) - Number(excluded(b)) || priceKey(a) - priceKey(b);
   const exact = cells.filter((c) => c.kind === 'exact').sort(order);
   const analogs = cells.filter((c) => c.kind !== 'exact').sort(order);
-  const live = (list: Cell[]) => list.filter((c) => !c.excludedFromSupply);
+  const live = (list: Cell[]) => list.filter((c) => !excluded(c));
   const alternatives = live(analogs).filter((c) => c.kind === 'alternative');
   return {
     exact,

@@ -1480,7 +1480,10 @@ export function PriceComparisonCard({
     const offeredPositions = positions.filter((p) => columns.some((c) => c.cells.has(p.id)));
     const baskets = columns
       .map((col) => {
-        const live = [...col.currentCells.entries()];
+        // Все известные цены поставщика, а не только «действующие»
+        // (currentCells без архивных и «не покупаем»): иначе поставщик с
+        // лучшей ценой из прошлого счёта выглядел как «0 из N».
+        const live = [...col.cells.entries()];
         const exactN = live.filter(([, c]) => c.kind === 'exact').length;
         const analogN = live.filter(([, c]) => c.kind === 'alternative').length;
         const mine = pickedCells.filter((x) => x.cell.offerId === col.offer.id);
@@ -1554,7 +1557,7 @@ export function PriceComparisonCard({
 
     const posRow = (p: EstimateMaterial) => {
       const pc = pickedCellByPosition.get(p.id);
-      const po = positionOffers(p.id, columns);
+      const po = positionOffers(p.id, columns, { includeExcluded: true });
       const alt = po.analogs.filter((c) => c.kind === 'alternative').length;
       const chk = po.analogs.length - alt;
       const on = active?.id === p.id;
@@ -1697,7 +1700,7 @@ export function PriceComparisonCard({
       );
 
     const detail = active && (() => {
-      const po = positionOffers(active.id, columns);
+      const po = positionOffers(active.id, columns, { includeExcluded: true });
       const alts = po.analogs.filter((c) => c.kind === 'alternative');
       const checks = po.analogs.filter((c) => c.kind === 'check');
       const empty = po.exact.length + po.analogs.length === 0;
@@ -1761,6 +1764,10 @@ export function PriceComparisonCard({
             </span>
             <span>цены с НДС за объём ведомости</span>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+          {/* Страна видна сразу, а не в «Ещё»: поставщики другой страны
+              иначе незаметно выпадают из сравнения. */}
+          {countries.length > 1 && <ToggleGroup options={countries} value={country} onChange={setCountry} />}
           <div className="relative" ref={moreRef}>
             <Button type="button" variant="secondary" icon={<MoreHorizontal className="h-4 w-4" />} onClick={() => setMoreOpen((v) => !v)}>
               Ещё
@@ -1782,14 +1789,9 @@ export function PriceComparisonCard({
                     Сформировать поставку
                   </button>
                 )}
-                {countries.length > 1 && (
-                  <div className="border-t border-border px-3 pb-2 pt-2" onClick={(e) => e.stopPropagation()}>
-                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Поставщики из</span>
-                    <ToggleGroup options={countries} value={country} onChange={setCountry} />
-                  </div>
-                )}
               </div>
             )}
+          </div>
           </div>
         </div>
 
@@ -1818,7 +1820,7 @@ export function PriceComparisonCard({
         {emptyPositions ? (
           <Card className="p-5">{sectionPicker}</Card>
         ) : columns.length === 0 ? (
-          <Card className="p-5 text-sm text-ink-faint">Пока никто из «{country}» не прислал КП{countries.length > 1 ? ' — страну можно сменить в «Ещё»' : ''}.</Card>
+          <Card className="p-5 text-sm text-ink-faint">Пока никто из «{country}» не прислал КП{countries.length > 1 ? ' — смените страну вверху' : ''}.</Card>
         ) : (
           <>
             <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-4">
