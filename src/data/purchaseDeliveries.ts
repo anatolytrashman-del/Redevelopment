@@ -39,7 +39,7 @@ export const PURCHASE_DELIVERY_STATUS_LABELS: Record<PurchaseDeliveryStatus, str
 // «привезли, но с браком/недовозом», и сколько именно приехало, человек
 // пишет в количестве; не засчитывать её значило бы показывать ноль там, где
 // половина заказа уже на объекте.
-const RECEIVED_STATUSES: PurchaseDeliveryStatus[] = ['delivered', 'accepted', 'claim'];
+export const RECEIVED_STATUSES: PurchaseDeliveryStatus[] = ['delivered', 'accepted', 'claim'];
 
 export interface DeliveryLine {
   // id позиции заказа (PurchaseItem.id внутри purchase_orders.items).

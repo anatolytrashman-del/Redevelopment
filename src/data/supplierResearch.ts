@@ -224,6 +224,9 @@ export interface SupplierRequest {
   // По этому же сроку идёт и вторая ступень дожима, и признание молчания
   // ответом «нет» (см. followupState ниже).
   replyDueDays: number;
+  // Закупка по ведомости (2026-09-28): позиции сравнения берутся из этой
+  // ведомости, а не из раздела сметы sectionId. null — обычная категория.
+  ledgerId: string | null;
   createdAt: string;
 }
 
@@ -286,6 +289,7 @@ export interface SupplierRequestRow {
   proposal: SupplierProposal | null;
   proposal_review: SupplierProposalReview | null;
   reply_due_days?: number | null;
+  ledger_id?: string | null;
   created_at: string;
 }
 

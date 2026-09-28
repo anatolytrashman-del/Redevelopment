@@ -23,6 +23,7 @@ import {
   type SupplierRequest,
 } from '../../data/supplierResearch';
 import type { SupplierSiteSnapshot } from '../../data/supplierSiteSnapshots';
+import { matchOfferProduct, normalizeSearch } from './productSearch';
 
 // Каталог поставщиков: хабы → категории → компании. Владелец, 2026-09-12:
 // «нравится, как организованы визуально категории у ВсеИнструменты, особенно
@@ -168,9 +169,13 @@ export function SupplierCatalog({
 
   // Карточки без страны видны при любом флаге (см. комментарий выше) —
   // отфильтровать их молчаливо было бы потерей данных, а не удобством.
+  // Карточки закупок по ведомости (request.ledgerId) — копии поставщиков,
+  // заведённые под конкретную закупку; в каталоге у компании уже есть своя
+  // карточка, копия дала бы дубль.
+  const purchaseRequestIds = useMemo(() => new Set(requests.filter((r) => r.ledgerId).map((r) => r.id)), [requests]);
   const countryOffers = useMemo(
-    () => offers.filter((o) => !o.country.trim() || o.country === country),
-    [offers, country],
+    () => offers.filter((o) => !purchaseRequestIds.has(o.requestId) && (!o.country.trim() || o.country === country)),
+    [offers, country, purchaseRequestIds],
   );
 
   const requestTitleById = useMemo(() => new Map(requests.map((r) => [r.id, r.title])), [requests]);
@@ -203,6 +208,7 @@ export function SupplierCatalog({
       const categories = hub.categories.map((category) => {
         const groups = new Set(tileGroups(category, extraGroupsByTile));
         const suppliers: SupplierOffer[] = [];
+        const companies = new Set<string>();
         for (const o of countryOffers) {
           // Каталог считает и показывает только верифицированных поставщиков
           // (владелец, 2026-09-13) — `verified: false` значит «нашли веб-
@@ -218,8 +224,12 @@ export function SupplierCatalog({
           const titleMatch = findCatalogCategory(title) === category;
           const hasGroup = offerGroups(o, snapshotByHost).some((g) => groups.has(g));
           if (!titleMatch && !hasGroup) continue;
+          // Одна компания — одна строка: у неё бывают карточки в разных
+          // категориях (рассылка по товару заводит копию в выбранной).
+          if (o.supplierId && companies.has(o.supplierId)) continue;
+          if (o.supplierId) companies.add(o.supplierId);
           suppliers.push(o);
-          seen.add(o.id);
+          seen.add(o.supplierId ?? o.id);
         }
         const byName = (a: SupplierOffer, b: SupplierOffer) => a.name.localeCompare(b.name, 'ru');
         return { category, suppliers: suppliers.sort(byName) };
@@ -231,17 +241,33 @@ export function SupplierCatalog({
   const currentHub = hubs.find((h) => h.hub.name === hubName) ?? null;
   const currentCategory = currentHub?.categories.find((c) => c.category.name === categoryName) ?? null;
 
-  // Поиск по имени поставщика — плоский результат по всему каталогу (в
-  // рамках выбранной страны), поверх навигации по хабам/категориям, а не
-  // фильтр внутри текущего уровня: владелец, 2026-09-12, «справа от
-  // заголовка нужна строка поиска поставщика».
-  const searchQuery = search.trim().toLowerCase();
+  // Поиск — плоский результат по всему каталогу (в рамках выбранной
+  // страны), поверх навигации по хабам/категориям: владелец, 2026-09-12,
+  // «справа от заголовка нужна строка поиска поставщика». С 2026-09-28 ищет
+  // и по товару: по разделам меню сайта со снимка, по заголовку и описанию
+  // сайта («нужна закупка по керамзиту — как найти, у кого он есть»).
+  // Снимки уже загружены для плиток, в базу поиск не ходит.
+  const searchQuery = normalizeSearch(search.trim());
   const searchResults = useMemo(() => {
     if (!searchQuery) return [];
-    return countryOffers
-      .filter((o) => o.verified && o.name.toLowerCase().includes(searchQuery))
-      .map((o) => ({ offer: o, categoryLabel: catalogLabelFor(o, requestTitleById, snapshotByHost, extraGroupsByTile) }))
-      .sort((a, b) => a.offer.name.localeCompare(b.offer.name, 'ru'));
+    const results: { offer: SupplierOffer; categoryLabel: string; byName: boolean; hits: SupplierSiteSnapshot['sections'] }[] = [];
+    const companies = new Set<string>();
+    for (const o of countryOffers) {
+      if (!o.verified) continue;
+      const { byName, hits, matched } = matchOfferProduct(o, snapshotByHost, searchQuery);
+      if (!matched) continue;
+      if (o.supplierId && companies.has(o.supplierId)) continue;
+      if (o.supplierId) companies.add(o.supplierId);
+      results.push({ offer: o, categoryLabel: catalogLabelFor(o, requestTitleById, snapshotByHost, extraGroupsByTile), byName, hits });
+    }
+    // Сперва совпавшие по имени, потом — у кого товар в разделах сайта
+    // (больше разделов — выше), потом — только в описании сайта.
+    return results.sort(
+      (a, b) =>
+        Number(b.byName) - Number(a.byName) ||
+        b.hits.length - a.hits.length ||
+        a.offer.name.localeCompare(b.offer.name, 'ru'),
+    );
   }, [countryOffers, requestTitleById, searchQuery, snapshotByHost, extraGroupsByTile]);
 
   const openHub = (h: HubStats) => {
@@ -289,7 +315,7 @@ export function SupplierCatalog({
           <SearchInput
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Поиск поставщика"
+            placeholder="Поставщик или товар"
             wrapperClassName="w-full max-w-[240px]"
           />
           {/* Владелец, 2026-09-15, второй заход: сперва две пилюли-кнопки
@@ -315,14 +341,36 @@ export function SupplierCatalog({
         <div className="flex flex-col gap-2">
           <span className="text-sm text-ink-muted">
             {searchResults.length === 0
-              ? `Никого не нашлось по «${search.trim()}».`
+              ? `Ни в названиях, ни на сайтах поставщиков нет «${search.trim()}».`
               : `Найдено ${searchResults.length} ${plural(searchResults.length, 'поставщик', 'поставщика', 'поставщиков')}.`}
           </span>
-          {searchResults.map(({ offer, categoryLabel }) => (
+          {searchResults.map(({ offer, categoryLabel, byName, hits }) => (
             <div key={offer.id} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border px-4 py-2">
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <span className="truncate font-medium text-ink">{offer.name}</span>
-                <span className="text-xs text-ink-faint">{categoryLabel}</span>
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="truncate font-medium text-ink">{offer.name}</span>
+                  <span className="text-xs text-ink-faint">{categoryLabel}</span>
+                </div>
+                {!byName && (
+                  <span className="text-xs text-ink-muted">
+                    {hits.length > 0 ? (
+                      <>
+                        на сайте:{' '}
+                        {hits.slice(0, 3).map((sec, i) => (
+                          <span key={sec.url + i}>
+                            {i > 0 && ', '}
+                            <a href={sec.url} target="_blank" rel="noreferrer" className="text-primary-hover hover:underline">
+                              {sec.title}
+                            </a>
+                          </span>
+                        ))}
+                        {hits.length > 3 && ` и ещё ${hits.length - 3}`}
+                      </>
+                    ) : (
+                      'упоминается в описании сайта'
+                    )}
+                  </span>
+                )}
               </div>
               <OpenDetailButton offer={offer} onOpenDetail={onOpenDetail} />
             </div>

@@ -1,5 +1,44 @@
 import type { SupplierMessengerContact } from './supplierResearch';
 
+// Снимок разбора сайта: старые профили могут содержать только часть полей.
+export interface SupplierSiteProfile {
+  company_name?: string | null;
+  legal_entities?: {
+    name?: string | null;
+    inn?: string | null;
+    ogrn?: string | null;
+    kpp?: string | null;
+    legal_address?: string | null;
+  }[];
+  founded_year?: number | null;
+  about?: string | null;
+  production?: {
+    has_own_production?: boolean | null;
+    sites?: string[];
+    capacity?: string | null;
+    certifications?: string[];
+  } | null;
+  own_brands?: string[];
+  product_kinds?: string[];
+  resold_brands?: string[];
+  products?: { name?: string | null; brand?: string | null; article?: string | null; unit?: string | null }[];
+  contacts?: {
+    phones?: { number?: string | null; label?: string | null }[];
+    emails?: { email?: string | null; label?: string | null }[];
+    messengers?: { type?: string | null; value?: string | null }[];
+    social?: string[];
+  } | null;
+  addresses?: { type?: string | null; city?: string | null; address?: string | null; hours?: string | null }[];
+  regions?: string[];
+  terms?: {
+    wholesale?: string | null;
+    min_order?: string | null;
+    delivery?: string | null;
+    payment?: string | null;
+    dealer_program?: string | null;
+  } | null;
+}
+
 // Компания-поставщик как отдельная сущность (шаг 2 плана
 // docs/procurement-product-steps.md, §5.2 аудита).
 //
@@ -50,7 +89,32 @@ export interface Supplier {
   // нужно хранить, а не прятать.
   blockedReason: string | null;
   blockedAt: string | null;
+  // Профиль для прямых запросов на завод (тред «Закупки», 2026-09-28): кто
+  // компания на самом деле и что делает сама. Заполняет разбор сайта сессией
+  // Claude, форма поставщика эти поля не трогает. null — ещё не размечен.
+  supplierKind: SupplierKind | null;
+  // Свои марки, линейки и коллекции — как пишут в названиях товаров.
+  ownBrands: string[];
+  // Буквенные приставки артикулов своих товаров (SMG3 → SMG).
+  articlePrefixes: string[];
+  // Что производит сама, видами товара, как в смете.
+  productKinds: string[];
+  // Чужие марки, которые только продаёт: к ней как к заводу не вести.
+  resoldBrands: string[];
+  profileNote: string;
+  profiledAt: string | null;
+  siteProfile: SupplierSiteProfile | null;
 }
+
+export type SupplierKind = 'manufacturer' | 'brand_owner' | 'dealer' | 'retail' | 'contractor';
+
+export const SUPPLIER_KIND_LABELS: Record<SupplierKind, string> = {
+  manufacturer: 'Завод-производитель',
+  brand_owner: 'Владелец марки',
+  dealer: 'Дилер',
+  retail: 'Магазин',
+  contractor: 'Монтажная компания',
+};
 
 export interface SupplierRow {
   id: string;
@@ -69,4 +133,12 @@ export interface SupplierRow {
   deleted_at: string | null;
   blocked_reason: string | null;
   blocked_at: string | null;
+  supplier_kind?: SupplierKind | null;
+  own_brands?: string[] | null;
+  article_prefixes?: string[] | null;
+  product_kinds?: string[] | null;
+  resold_brands?: string[] | null;
+  profile_note?: string | null;
+  profiled_at?: string | null;
+  site_profile?: unknown;
 }

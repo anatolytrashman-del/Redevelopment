@@ -80,7 +80,9 @@ export function safeFileName(name: string): string {
   return name.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) || 'документ';
 }
 
-export async function downloadHtmlAsPdf(html: string, filename: string): Promise<void> {
+// Собрать PDF и отдать Blob — чтобы файл можно было не только скачать, но и
+// положить в хранилище (лист согласования на заказах, 2026-09-28).
+export async function renderHtmlToPdfBlob(html: string): Promise<Blob> {
   const frame = document.createElement('iframe');
   frame.setAttribute('aria-hidden', 'true');
   frame.style.cssText = `position:fixed;left:-10000px;top:0;width:${PAPER_WIDTH_PX}px;height:1200px;border:0;opacity:0;`;
@@ -145,17 +147,29 @@ export async function downloadHtmlAsPdf(html: string, filename: string): Promise
       pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', MARGIN_X_MM, MARGIN_Y_MM, contentWidthMm, sliceHeight / pxPerMm);
       start = cut;
     });
-    // Сохраняем сами, а не pdf.save(): так в загрузках лежит файл с нашим
-    // именем, а не «download».
-    const url = URL.createObjectURL(pdf.output('blob'));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${safeFileName(filename)}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    return pdf.output('blob');
   } finally {
     frame.remove();
   }
+}
+
+export function pdfFileName(filename: string): string {
+  return `${safeFileName(filename)}.pdf`;
+}
+
+// Сохраняем сами, а не pdf.save(): так в загрузках лежит файл с нашим
+// именем, а не «download».
+export function downloadBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+export async function downloadHtmlAsPdf(html: string, filename: string): Promise<void> {
+  downloadBlob(await renderHtmlToPdfBlob(html), pdfFileName(filename));
 }

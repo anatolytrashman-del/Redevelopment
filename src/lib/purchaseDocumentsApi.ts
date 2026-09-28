@@ -89,3 +89,26 @@ export function deletePurchaseDocument(id: string): Promise<void> {
     if (error) throw error;
   });
 }
+
+// Листы согласования по списку заказов — для кнопки «Скачать PDF» во вкладке
+// «Заказы». Заказов единицы-десятки, но выборку всё равно режем на куски:
+// длинный .in() упирается в длину URL.
+export async function fetchApprovalDocumentsByOrders(orderIds: string[]): Promise<PurchaseDocument[]> {
+  const out: PurchaseDocument[] = [];
+  for (let i = 0; i < orderIds.length; i += 100) {
+    const chunk = orderIds.slice(i, i + 100);
+    const rows = await withRetry(async () => {
+      const { data, error } = await supabase
+        .from('purchase_documents')
+        .select('*')
+        .in('order_id', chunk)
+        .eq('kind', 'approval')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return ((data ?? []) as PurchaseDocumentRow[]).map(fromRow);
+    });
+    out.push(...rows);
+  }
+  return out;
+}
