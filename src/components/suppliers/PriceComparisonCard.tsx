@@ -1573,7 +1573,6 @@ export function PriceComparisonCard({
     }
     const futureOrders = [...byOffer.values()];
     const countries = SUPPLIER_COUNTRIES.filter((c) => offers.some((o) => (o.country || SUPPLIER_COUNTRIES[0]) === c));
-    const menuItem = 'block w-full rounded-lg px-3 py-2 text-left text-sm text-ink hover:bg-surface-muted disabled:opacity-50';
     const listFiltered = listFilter === 'Решить' ? [...todo, ...none] : listFilter === 'Готово' ? done : ordered;
     const unit = (p: EstimateMaterial) => p.unit || 'ед.';
 
@@ -1804,33 +1803,9 @@ export function PriceComparisonCard({
             <span>цены с НДС за объём ведомости</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-          {/* Страна видна сразу, а не в «Ещё»: поставщики другой страны
+          {/* Страна видна сразу: поставщики другой страны
               иначе незаметно выпадают из сравнения. */}
           {countries.length > 1 && <ToggleGroup options={countries} value={country} onChange={setCountry} />}
-          <div className="relative" ref={moreRef}>
-            <Button type="button" variant="secondary" icon={<MoreHorizontal className="h-4 w-4" />} onClick={() => setMoreOpen((v) => !v)}>
-              Ещё
-            </Button>
-            {moreOpen && (
-              <div className="absolute right-0 top-full z-20 mt-1 flex w-64 flex-col rounded-xl border border-border bg-surface p-1 shadow-lg" onClick={() => setMoreOpen(false)}>
-                {onShowOldView && (
-                  <button type="button" className={menuItem} onClick={onShowOldView}>
-                    Все цены таблицей
-                  </button>
-                )}
-                {Object.keys(proposal).length > 0 && (
-                  <button type="button" className={menuItem} onClick={() => void saveProposal({})} disabled={saving}>
-                    Очистить выбор
-                  </button>
-                )}
-                {!emptyPositions && columns.length > 0 && (
-                  <button type="button" className={menuItem} onClick={() => void formSupply()} disabled={saving} title="Все невыбранные предложения станут «Не покупаем» — цены останутся в сравнении">
-                    Сформировать поставку
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
           </div>
         </div>
 
