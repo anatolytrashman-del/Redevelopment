@@ -666,6 +666,13 @@ function useDeliveriesByOrder(orders: PurchaseOrder[]) {
 
 const NO_DELIVERIES: PurchaseDelivery[] = [];
 
+// Платёжка уже на заказе, а статус остался прежним (приложили до правила
+// «платёжка → Оплачено», 2026-09-28) — по смыслу заказ оплачен и едет.
+function stageStatus(order: PurchaseOrder): PurchaseOrderStatus {
+  const unpaid = order.status === 'draft' || order.status === 'ordered' || order.status === 'invoiced';
+  return unpaid && (order.paymentFile || order.paymentDate) ? 'paid' : order.status;
+}
+
 // Этапы вкладки «Заказы» (владелец, 2026-09-28): на согласовании → к оплате →
 // едут → архив. Статусы в базе прежние, этап — просто их группа.
 const ORDER_STAGES: { key: string; title: string; hint: string; empty: string; statuses: PurchaseOrderStatus[] }[] = [
@@ -773,7 +780,7 @@ export function PurchaseOrdersTab({ categoryTitleById }: { categoryTitleById: Ma
           </div>
           {actionError && <p className="text-sm text-danger">{actionError}</p>}
           {ORDER_STAGES.map((stage) => {
-            const list = visible.filter((o) => stage.statuses.includes(o.status));
+            const list = visible.filter((o) => stage.statuses.includes(stageStatus(o)));
             const isArchive = stage.key === 'archive';
             if (list.length === 0 && isArchive) return null;
             const expanded = !isArchive || archiveOpen;
