@@ -2680,10 +2680,11 @@ function MergedFeed({
   const draftEmailIds = useMemo(() => new Set(pendingAutoReplies.map((d) => d.emailId)), [pendingAutoReplies]);
   const lastId = conv.lastEmail?.id;
   useEffect(() => {
-    // Прокручиваем к свежему письму только саму ленту, не страницу:
-    // scrollIntoView дёргал всю страницу вниз (владелец, 2026-09-28).
+    // Свежее письмо сверху (владелец, 2026-09-28: «последнее письмо
+    // сверху» — как и в ленте одной темы, EmailThread). При смене переписки
+    // возвращаем саму ленту к началу, не страницу.
     const el = listRef.current;
-    if (el && el.scrollHeight > el.clientHeight) el.scrollTop = el.scrollHeight;
+    if (el) el.scrollTop = 0;
   }, [conv.key, lastId]);
 
   if (conv.emails.length === 0) return <p className="text-sm text-ink-faint">Писем пока нет — напишите первое ниже.</p>;
@@ -2691,7 +2692,7 @@ function MergedFeed({
   let lastDay = '';
   return (
     <div ref={listRef} className="flex min-w-0 flex-col gap-3 roomy:min-h-60 roomy:flex-1 roomy:overflow-y-auto">
-      {conv.emails.map((e) => {
+      {[...conv.emails].reverse().map((e) => {
         const day = dayLabel(e.createdAt);
         const showDay = day !== lastDay;
         lastDay = day;
@@ -3276,9 +3277,8 @@ export function SupplierCorrespondenceTab({
                 </>
               ) : (
                 <>
-                  <MergedFeed conv={selectedConv} pendingAutoReplies={pendingAutoReplies} onOpenTopic={selectTopic} />
                   {replyTopic && (
-                    <div className="flex shrink-0 flex-col gap-2 border-t border-border pt-3">
+                    <div className="flex shrink-0 flex-col gap-2 border-b border-border pb-3">
                       <label className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
                         Ответ по теме
                         <select
@@ -3320,6 +3320,7 @@ export function SupplierCorrespondenceTab({
                       />
                     </div>
                   )}
+                  <MergedFeed conv={selectedConv} pendingAutoReplies={pendingAutoReplies} onOpenTopic={selectTopic} />
                 </>
               )}
             </div>
