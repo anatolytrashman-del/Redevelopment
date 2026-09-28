@@ -18,6 +18,8 @@ import { fetchGoogleSearchConsoleStats, fetchGoogleSearchConsoleQueries } from '
 import type { GoogleSearchConsoleStat, GoogleSearchConsoleQuery } from '../data/googleSearchConsoleStats';
 import { fetchSiteBacklinks } from '../lib/siteBacklinksApi';
 import type { SiteBacklink } from '../data/siteBacklinks';
+import { fetchPageViewsDaily } from '../lib/pageViewsApi';
+import type { PageViewDaily } from '../data/pageViews';
 
 // Показатели посещаемости сайта из Яндекс.Метрики (счётчик 111858495) —
 // не отчёт по staff-активности (это отдельная /admin/metrics, RequireSuperAdmin,
@@ -719,6 +721,140 @@ function TrendCard({ title, data, valueOf }: TrendCardProps) {
   );
 }
 
+// Собственный cookieless-счётчик (владелец, 2026-09-28) — см.
+// src/lib/pageViewTracker.ts и supabase/migrations/20260928-page-views-daily.sql.
+// Считает ВСЕХ посетителей публичной части, без cookie-баннера и без
+// отсева тех, кто его не принял (в отличие от Метрики) — поэтому цифры
+// этого блока и блока Метрики выше по странице закономерно расходятся,
+// это не баг, а разный охват.
+const PAGE_VIEWS_TRACKING_START = '2026-09-28';
+const VISIBLE_OWN_TOP_PAGES = 20;
+
+interface OwnPageViewsSectionProps {
+  rows: PageViewDaily[] | null;
+  period: Period;
+}
+
+function OwnPageViewsSection({ rows, period }: OwnPageViewsSectionProps) {
+  const dailyTotals = useMemo(() => {
+    const map = new Map<string, { views: number; entries: number }>();
+    for (const r of rows ?? []) {
+      const cur = map.get(r.day) ?? { views: 0, entries: 0 };
+      cur.views += r.views;
+      cur.entries += r.entries;
+      map.set(r.day, cur);
+    }
+    return Array.from(map.entries())
+      .map(([date, v]) => ({ date, views: v.views, entries: v.entries }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [rows]);
+
+  const currentPeriod = useMemo(() => sliceCurrentPeriod(dailyTotals, period), [dailyTotals, period]);
+  const previousPeriod = useMemo(() => slicePreviousPeriod(dailyTotals, period), [dailyTotals, period]);
+
+  const periodDatesLabel = useMemo(() => {
+    if (currentPeriod.length === 0) return null;
+    const first = currentPeriod[0].date;
+    const last = currentPeriod[currentPeriod.length - 1].date;
+    return first === last ? `за ${formatDateShort(first)}` : `${formatDateShort(first)} — ${formatDateShort(last)}`;
+  }, [currentPeriod]);
+
+  // Топ-20 страниц периода — считаем прямо из «сырых» строк день+путь,
+  // отфильтрованных по датам currentPeriod (сами дни сюда нарезаны по
+  // числу строк, см. sliceCurrentPeriod, а не по календарю).
+  const topPages = useMemo(() => {
+    if (currentPeriod.length === 0) return [];
+    const days = new Set(currentPeriod.map((d) => d.date));
+    const map = new Map<string, { views: number; entries: number }>();
+    for (const r of rows ?? []) {
+      if (!days.has(r.day)) continue;
+      const cur = map.get(r.path) ?? { views: 0, entries: 0 };
+      cur.views += r.views;
+      cur.entries += r.entries;
+      map.set(r.path, cur);
+    }
+    return Array.from(map.entries())
+      .map(([path, v]) => ({ path, views: v.views, entries: v.entries }))
+      .sort((a, b) => b.views - a.views)
+      .slice(0, VISIBLE_OWN_TOP_PAGES);
+  }, [rows, currentPeriod]);
+
+  if (rows === null) {
+    return (
+      <Card className="flex items-center gap-2 text-sm text-ink-muted">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Загрузка…
+      </Card>
+    );
+  }
+
+  if (rows.length === 0) {
+    return (
+      <Card className="text-sm text-ink-muted">
+        Данные ещё не собраны — счётчик считает просмотры с {formatDateShort(PAGE_VIEWS_TRACKING_START)}, первые
+        строки появятся, как только на сайт зайдёт посетитель.
+      </Card>
+    );
+  }
+
+  const totalViews = sum(currentPeriod.map((d) => d.views));
+  const totalEntries = sum(currentPeriod.map((d) => d.entries));
+  const totalViewsPrev = sum(previousPeriod.map((d) => d.views));
+  const totalEntriesPrev = sum(previousPeriod.map((d) => d.entries));
+
+  return (
+    <Card className="flex flex-col gap-4">
+      <div>
+        <h3 className="text-sm font-semibold text-ink">Посещаемость (без cookie)</h3>
+        <p className="text-xs text-ink-muted">
+          Считаем все просмотры публичных страниц, без cookie и без данных о посетителях. Начало учёта — 28.09.2026.
+        </p>
+        {periodDatesLabel && <p className="mt-1 text-xs text-ink-muted">Данные {periodDatesLabel}</p>}
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <KpiTile
+          label="Просмотры"
+          value={totalViews.toLocaleString('ru-RU')}
+          change={{ current: totalViews, previous: totalViewsPrev }}
+        />
+        <KpiTile
+          label="Визиты"
+          value={totalEntries.toLocaleString('ru-RU')}
+          change={{ current: totalEntries, previous: totalEntriesPrev }}
+        />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <h4 className="text-sm font-semibold text-ink">Просмотры по дням</h4>
+        <Sparkbars data={currentPeriod.map((d) => ({ date: d.date, value: d.views }))} />
+      </div>
+
+      {topPages.length > 0 && (
+        <div className="flex flex-col gap-2 border-t border-border pt-3">
+          <h4 className="text-sm font-semibold text-ink">Топ страниц за период</h4>
+          <div className="flex flex-col divide-y divide-border">
+            <div className="flex items-center gap-3 pb-1 text-xs text-ink-muted">
+              <span className="flex-1">Страница</span>
+              <span className="w-20 shrink-0 text-right">Просмотры</span>
+              <span className="w-16 shrink-0 text-right">Визиты</span>
+            </div>
+            {topPages.map((p) => (
+              <div key={p.path} className="flex items-center gap-3 py-2 text-sm">
+                <span className="flex-1 truncate text-ink" title={p.path}>
+                  {readablePageLabel(p.path)}
+                </span>
+                <span className="w-20 shrink-0 text-right text-ink-muted">{p.views.toLocaleString('ru-RU')}</span>
+                <span className="w-16 shrink-0 text-right text-ink-muted">{p.entries.toLocaleString('ru-RU')}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export function SiteMetrics() {
   const [dailyStats, setDailyStats] = useState<MetrikaDailyStat[] | null>(null);
   const [trafficSources, setTrafficSources] = useState<MetrikaTrafficSource[] | null>(null);
@@ -729,6 +865,7 @@ export function SiteMetrics() {
   const [webmasterQueries, setWebmasterQueries] = useState<YandexWebmasterQuery[]>([]);
   const [googleQueries, setGoogleQueries] = useState<GoogleSearchConsoleQuery[]>([]);
   const [backlinks, setBacklinks] = useState<SiteBacklink[] | null>(null);
+  const [pageViewRows, setPageViewRows] = useState<PageViewDaily[] | null>(null);
   const [error, setError] = useState('');
   const [period, setPeriod] = useState<Period>(30);
   const [topPagesExpanded, setTopPagesExpanded] = useState(false);
@@ -745,21 +882,25 @@ export function SiteMetrics() {
     inFlight.current = true;
     setRefreshing(true);
     try {
-      const [daily, traffic, pages, goals, webmaster, google, webmasterQ, googleQ, backlinkRows] = await Promise.all([
-        fetchMetrikaDailyStats(),
-        fetchMetrikaTrafficSources(),
-        fetchMetrikaTopPages(),
-        fetchMetrikaGoalCompletions(),
-        // Отдельный try/catch на каждый источник поисковой индексации: если
-        // синк ещё ни разу не прошёл, упал, или сервис ещё не подключён
-        // (Google), это не должно ронять всю страницу — её главный предмет
-        // всё равно Метрика.
-        fetchYandexWebmasterStats().catch(() => []),
-        fetchGoogleSearchConsoleStats().catch(() => []),
-        fetchYandexWebmasterQueries().catch(() => []),
-        fetchGoogleSearchConsoleQueries().catch(() => []),
-        fetchSiteBacklinks().catch(() => []),
-      ]);
+      const pageViewsSince = new Date();
+      pageViewsSince.setDate(pageViewsSince.getDate() - 91); // хватает на период «90 дней» с запасом
+      const [daily, traffic, pages, goals, webmaster, google, webmasterQ, googleQ, backlinkRows, ownPageViews] =
+        await Promise.all([
+          fetchMetrikaDailyStats(),
+          fetchMetrikaTrafficSources(),
+          fetchMetrikaTopPages(),
+          fetchMetrikaGoalCompletions(),
+          // Отдельный try/catch на каждый источник поисковой индексации: если
+          // синк ещё ни разу не прошёл, упал, или сервис ещё не подключён
+          // (Google), это не должно ронять всю страницу — её главный предмет
+          // всё равно Метрика.
+          fetchYandexWebmasterStats().catch(() => []),
+          fetchGoogleSearchConsoleStats().catch(() => []),
+          fetchYandexWebmasterQueries().catch(() => []),
+          fetchGoogleSearchConsoleQueries().catch(() => []),
+          fetchSiteBacklinks().catch(() => []),
+          fetchPageViewsDaily(pageViewsSince.toISOString().slice(0, 10)).catch(() => []),
+        ]);
       setDailyStats(daily);
       setTrafficSources(traffic);
       setTopPages(pages);
@@ -769,6 +910,7 @@ export function SiteMetrics() {
       setWebmasterQueries(webmasterQ);
       setGoogleQueries(googleQ);
       setBacklinks(backlinkRows);
+      setPageViewRows(ownPageViews);
       setLastCheckedAt(new Date());
       setError('');
     } catch {
@@ -857,6 +999,8 @@ export function SiteMetrics() {
   return (
     <>
       <PageHeader title="Показатели" />
+
+      <OwnPageViewsSection rows={pageViewRows} period={period} />
 
       {error && <p className="text-sm text-danger">{error}</p>}
 

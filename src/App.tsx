@@ -35,6 +35,7 @@ import { CookieBanner } from './components/layout/CookieBanner';
 import { metrikaHit } from './lib/metrika';
 import { vkPixelHit, vkPixelGoal, vkPageGoalForPath } from './lib/vkPixel';
 import { useOnlinePresenceTracker } from './lib/onlinePresence';
+import { trackPageView } from './lib/pageViewTracker';
 import { FavoritesProvider } from './lib/favoritesContext';
 
 // Вся админка (CRM с десятком разделов — финмодели, сметы, документы и т.д.)
@@ -187,6 +188,19 @@ function useSpaPageviewHits() {
   }, [location.pathname, location.search]);
 }
 
+// Собственный счётчик посещаемости без cookie (владелец, 2026-09-28) —
+// src/lib/pageViewTracker.ts, таблица page_views_daily. Зависимость только
+// от pathname (не search/hash), как и просит ТЗ трекера: смена query-строки
+// или якоря внутри той же страницы — не новый просмотр. isFirstRender не
+// нужен (в отличие от useSpaPageviewHits выше) — первую страницу загрузки
+// документа тоже нужно посчитать, сам трекер и определяет по ней visit-entry.
+function useOwnPageViewCounter() {
+  const location = useLocation();
+  useEffect(() => {
+    trackPageView(location.pathname);
+  }, [location.pathname]);
+}
+
 // VK-аудитории по конкретным страницам (см. lib/vkPixel.ts) — в отличие
 // от общего pageview выше, здесь ПЕРВЫЙ рендер не пропускается: обычный
 // init пикселя сам такое именованное событие не шлёт, только generic
@@ -260,6 +274,7 @@ export default function App() {
   useSpaPageviewHits();
   useVkPageGoals();
   useOnlineVisitorPresence();
+  useOwnPageViewCounter();
   return (
     <FavoritesProvider>
     <Routes>
