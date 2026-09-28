@@ -34,7 +34,6 @@ import type { DocumentFile } from '../../data/contractorDocuments';
 import { FileField } from '../ui/FileField';
 import { DeliveriesBlock, DeliveryForm } from './PurchaseDeliveries';
 import { DeliveryAddressField } from './DeliveryAddressField';
-import { PurchaseDocumentsBlock } from './PurchaseDocuments';
 import {
   persistReceiverDraft,
   receiverDraftFrom,
@@ -600,12 +599,9 @@ function PurchaseOrderModal({
           onEdit={(delivery) => setEditing({ delivery })}
         />
 
-        <PurchaseDocumentsBlock
-          orderId={order.id}
-          documents={documents}
-          deliveries={deliveries}
-          onChange={setDocuments}
-        />
+        {/* Блок «Документы» снят (владелец, 2026-09-28): накладные и УПД будут
+            приходить через интеграцию с ЭДО. Компонент PurchaseDocumentsBlock
+            оставлен в PurchaseDocuments.tsx. */}
 
         <div className="flex flex-col gap-1">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Журнал</span>
