@@ -8,6 +8,9 @@ P=/mnt/project-files/supplier-profiles
 IN=tmp/supplier-profiles/in
 OUT=tmp/supplier-profiles/out
 BATCH=${BATCH:-20}
+# Несколько копий параллельно: SHARDS=4 SHARD=0..3 — каждая берёт свои хосты.
+SHARDS=${SHARDS:-1}
+SHARD=${SHARD:-0}
 mkdir -p "$IN" "$OUT" "$P/profiles"
 
 while true; do
@@ -16,6 +19,7 @@ while true; do
     h=$(basename "$f" .json)
     [ -f "$OUT/$h.json" ] && continue
     [ -f "$P/skip/$h" ] && continue
+    [ $(( $(printf %s "$h" | cksum | cut -d" " -f1) % SHARDS )) -ne "$SHARD" ] && continue
     # Сайт не открылся — разбирать нечего.
     if [ "$(jq '.pages|length' "$f" 2>/dev/null || echo 0)" -lt 2 ]; then mkdir -p "$P/skip"; touch "$P/skip/$h"; continue; fi
     pending+=("$h")
@@ -31,8 +35,8 @@ while true; do
   prompt="$(cat scripts/supplier-profile/extract-brief.md)
 
 Файлы этого прогона: ${pending[*]}"
-  timeout 2400 scripts/codex.sh "$prompt" < /dev/null > tmp/supplier-profiles/codex-last.log 2>&1
-  echo "$(date +%T) codex exit $? $(grep -A1 'tokens used' tmp/supplier-profiles/codex-last.log | tail -1)"
+  timeout 2400 scripts/codex.sh "$prompt" < /dev/null > tmp/supplier-profiles/codex-last-$SHARD.log 2>&1
+  echo "$(date +%T) codex exit $? $(grep -A1 'tokens used' tmp/supplier-profiles/codex-last-$SHARD.log | tail -1)"
   for h in "${pending[@]}"; do
     if [ -f "$OUT/$h.json" ] && python3 -m json.tool "$OUT/$h.json" >/dev/null 2>&1; then
       cp "$OUT/$h.json" "$P/profiles/"
