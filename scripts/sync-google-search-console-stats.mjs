@@ -258,6 +258,8 @@ async function inspectUrl(accessToken, siteUrl, path) {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ inspectionUrl, siteUrl }),
+    // Без таймаута один зависший ответ Google стопорит весь прогон.
+    signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) {
     throw new Error(`urlInspection для ${path} вернул ${res.status}: ${await res.text()}`);
@@ -368,18 +370,8 @@ async function main() {
     fetchQueryHistory(accessToken, siteUrl),
     fetchQueryBreakdown(accessToken, siteUrl),
   ]);
-  // Проверка страниц идёт ДО записи строки дня: из неё берётся
-  // pages_indexed. Упала — пишем null («—» в админке), а не 0, и не роняем
-  // сохранение показов/кликов.
-  let pagesIndexed = null;
-  try {
-    pagesIndexed = await syncPageIndex(accessToken, siteUrl);
-  } catch (err) {
-    console.error('Проверка страниц не удалась:', err.message ?? err);
-  }
-
   console.log(
-    `Sitemap: submitted=${coverage.submitted}, indexed=${pagesIndexed ?? '—'}. ` +
+    `Sitemap: submitted=${coverage.submitted}. ` +
       `Запросы: ${queryByDate.size} дней с данными, ${queryBreakdown.length} запросов в разбивке.`,
   );
 
@@ -389,9 +381,10 @@ async function main() {
     // Покрытие sitemap — состояние на СЕГОДНЯ (Google не отдаёт его историю
     // по дням), пишем его только в сегодняшнюю строку, у остальных дат —
     // null (страница показывает "последнее известное значение", как и у
-    // аналогичного показателя Яндекса).
+    // аналогичного показателя Яндекса). pages_indexed здесь не пишется
+    // вовсе — его дописывает проверка страниц в конце, а upsert без этого
+    // поля не затирает прошлое значение.
     pages_submitted: date === today ? coverage.submitted : null,
-    pages_indexed: date === today ? pagesIndexed : null,
     impressions: q.impressions,
     clicks: q.clicks,
     avg_position: q.position,
@@ -405,7 +398,6 @@ async function main() {
     rows.push({
       date: today,
       pages_submitted: coverage.submitted,
-      pages_indexed: pagesIndexed,
       impressions: null,
       clicks: null,
       avg_position: null,
@@ -446,6 +438,25 @@ async function main() {
       .lt('updated_at', stamp);
     if (deleteError) throw deleteError;
     console.log(`Сохранено ${queryBreakdown.length} запросов в google_search_console_queries.`);
+  }
+
+  // Проверка страниц — последним шагом: она самая долгая (до сотни-другой
+  // запросов), а показы и клики выше не должны её ждать. Её итог дописывается
+  // в сегодняшнюю строку как pages_indexed; упала — остаётся null («—» в
+  // админке), а не 0.
+  let pagesIndexed = null;
+  try {
+    pagesIndexed = await syncPageIndex(accessToken, siteUrl);
+  } catch (err) {
+    console.error('Проверка страниц не удалась:', err.message ?? err);
+  }
+  if (pagesIndexed !== null && !DRY_RUN) {
+    const { error } = await supabase
+      .from('google_search_console_stats')
+      .update({ pages_indexed: pagesIndexed })
+      .eq('date', today);
+    if (error) throw error;
+    console.log(`Проиндексировано страниц из sitemap: ${pagesIndexed}.`);
   }
 }
 
