@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Bot, Check, ExternalLink, FileText, Globe, ImageOff, Loader2, Mail, MessageCircle, Paperclip, Pencil, Phone, Plus, Send, ShieldCheck, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, Bot, Check, ExternalLink, FileText, Globe, ImageOff, Loader2, Mail, MessageCircle, Paperclip, Pencil, Phone, Plus, Send, ShieldCheck, Trash2, Upload, Users, X } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -1205,6 +1205,11 @@ export function Suppliers() {
   // компонент и оборвало бы уже идущую рассылку (там реальная пауза между
   // письмами, десятки секунд на каждое).
   const [bulkLedgerPickerRequest, setBulkLedgerPickerRequest] = useState<SupplierRequest | null>(null);
+  // Владелец, 2026-09-28: на «Письмах» больше нет выбора категории, поэтому
+  // «Массовая отправка» — кнопка в шапке вкладки, категория выбирается в
+  // маленьком окне перед пикером ведомости.
+  const [bulkCategoryPickOpen, setBulkCategoryPickOpen] = useState(false);
+  const [bulkCategoryId, setBulkCategoryId] = useState('');
   const [bulkSendConfig, setBulkSendConfig] = useState<{ request: SupplierRequest; attachment: LedgerAttachment } | null>(null);
 
   const [requests, setRequests] = useState<SupplierRequest[]>([]);
@@ -2413,6 +2418,10 @@ export function Suppliers() {
   // а показывать надо название категории — запросы на странице и так есть,
   // отдельным запросом их тянуть незачем.
   const requestTitleById = useMemo(() => new Map(requests.map((r) => [r.id, r.title])), [requests]);
+  const bulkSendRequests = useMemo(
+    () => requests.filter((r) => offers.some((o) => o.requestId === r.id && o.email && o.verified)),
+    [requests, offers],
+  );
 
   // Редирект со старого адреса вкладки — после всех хуков (их порядок в
   // React менять нельзя), но до отрисовки самой страницы.
@@ -2458,6 +2467,17 @@ export function Suppliers() {
               Поставщики/Письма, но видна только когда открываешь Письма". */}
           {tab === 'Письма' && (
             <>
+              <Button
+                type="button"
+                variant="secondary"
+                icon={<Users className="h-4 w-4" />}
+                onClick={() => {
+                  setBulkCategoryId('');
+                  setBulkCategoryPickOpen(true);
+                }}
+              >
+                Массовая отправка
+              </Button>
               <Button type="button" variant="secondary" icon={<Bot className="h-4 w-4" />} onClick={() => setAutoRepliesModalOpen(true)}>
                 Автоответы
               </Button>
@@ -2863,7 +2883,6 @@ export function Suppliers() {
             legalEntities={legalEntities}
             templatesModalOpen={templatesModalOpen}
             onCloseTemplatesModal={() => setTemplatesModalOpen(false)}
-            onOpenBulkSend={setBulkLedgerPickerRequest}
             onEmailSent={handleSupplierEmailSent}
             onMarkRead={handleMarkSupplierEmailsRead}
             onTemplatesChange={setEmailTemplates}
@@ -2876,7 +2895,6 @@ export function Suppliers() {
             onEmailUpdated={handleSupplierEmailUpdated}
             pendingAutoReplies={pendingAutoReplies}
             onAutoReplyReviewed={handleAutoReplyReviewed}
-            onRequestSaved={(saved) => setRequests((prev) => prev.map((x) => (x.id === saved.id ? saved : x)))}
           />
         </div>
       )}
@@ -3544,6 +3562,35 @@ export function Suppliers() {
           onLedgersChange={handleLedgersChange}
         />
       )}
+
+      <Modal open={bulkCategoryPickOpen} onClose={() => setBulkCategoryPickOpen(false)} title="Массовая отправка">
+        <div className="flex flex-col gap-4">
+          <Select
+            label="Категория"
+            placeholder="Выберите категорию"
+            options={bulkSendRequests.map((r) => r.title)}
+            value={bulkSendRequests.find((r) => r.id === bulkCategoryId)?.title ?? ''}
+            onChange={(title) => setBulkCategoryId(bulkSendRequests.find((r) => r.title === title)?.id ?? '')}
+          />
+          <p className="text-sm text-ink-muted">Письмо с ведомостью уйдёт всем верифицированным поставщикам категории, у кого есть email.</p>
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="secondary" onClick={() => setBulkCategoryPickOpen(false)}>
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              disabled={!bulkCategoryId}
+              onClick={() => {
+                const request = bulkSendRequests.find((r) => r.id === bulkCategoryId);
+                setBulkCategoryPickOpen(false);
+                if (request) setBulkLedgerPickerRequest(request);
+              }}
+            >
+              Дальше
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {bulkLedgerPickerRequest && (
         <MaterialLedgerModal
