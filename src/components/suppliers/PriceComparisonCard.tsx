@@ -1477,31 +1477,6 @@ export function PriceComparisonCard({
       const r = o.inn ? reliabilityByInn.get(o.inn) ?? null : null;
       return shouldFlag(r) && r ? riskSummary(r) : null;
     };
-    const offeredPositions = positions.filter((p) => columns.some((c) => c.cells.has(p.id)));
-    const baskets = columns
-      .map((col) => {
-        const live = [...col.currentCells.entries()];
-        const exactN = live.filter(([, c]) => c.kind === 'exact').length;
-        const analogN = live.filter(([, c]) => c.kind === 'alternative').length;
-        const mine = pickedCells.filter((x) => x.cell.offerId === col.offer.id);
-        const short = live.filter(([pid, c]) => {
-          const p = positions.find((x) => x.id === pid);
-          return !!p && c.quotedQuantity != null && p.quantity != null && sameUnit(c.quotedUnit, p.unit) && c.quotedQuantity < p.quantity * 0.9;
-        }).length;
-        const allParts: MoneyPart[] = live.map(([pid, c]) => ({ amount: c.unitPrice * (positions.find((x) => x.id === pid)?.quantity ?? 0), currency: c.currency }));
-        const coversAll = offeredPositions.length > 0 && live.filter(([, c]) => c.kind !== 'check').length >= offeredPositions.length;
-        return { col, exactN, analogN, mine, short, allParts, coversAll, risk: riskOf(col.offer) };
-      })
-      // Кто закрывает больше позиций — первым, при равенстве — кто дешевле
-      // за то, что закрывает (владелец, 2026-09-28: «самое дешёвое — первое»).
-      .sort((a, b) => {
-        const byCover = b.exactN + b.analogN - (a.exactN + a.analogN);
-        if (byCover !== 0) return byCover;
-        const ta = moneyTotal(a.allParts, rate);
-        const tb = moneyTotal(b.allParts, rate);
-        return (ta?.amount ?? Infinity) - (tb?.amount ?? Infinity);
-      });
-
     const termsLine = (col: Column) => {
       const t = col.terms;
       const parts: string[] = [];
@@ -1551,7 +1526,7 @@ export function PriceComparisonCard({
 
     const posRow = (p: EstimateMaterial) => {
       const pc = pickedCellByPosition.get(p.id);
-      const po = positionOffers(p.id, columns);
+      const po = positionOffers(p.id, columns, { includeExcluded: true });
       const alt = po.analogs.filter((c) => c.kind === 'alternative').length;
       const chk = po.analogs.length - alt;
       const on = active?.id === p.id;
@@ -1645,6 +1620,7 @@ export function PriceComparisonCard({
                 </>
               )}
             </div>
+            <div className="mt-0.5 text-xs text-ink-faint">{termsLine(col)}</div>
             <ShortfallLabel cell={c} p={p} />
           </div>
           <div className="text-right tabular-nums">
@@ -1694,7 +1670,7 @@ export function PriceComparisonCard({
       );
 
     const detail = active && (() => {
-      const po = positionOffers(active.id, columns);
+      const po = positionOffers(active.id, columns, { includeExcluded: true });
       const alts = po.analogs.filter((c) => c.kind === 'alternative');
       const checks = po.analogs.filter((c) => c.kind === 'check');
       const empty = po.exact.length + po.analogs.length === 0;
@@ -1758,6 +1734,10 @@ export function PriceComparisonCard({
             </span>
             <span>цены с НДС за объём ведомости</span>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+          {/* Страна видна сразу, а не в «Ещё»: поставщики другой страны
+              иначе незаметно выпадают из сравнения. */}
+          {countries.length > 1 && <ToggleGroup options={countries} value={country} onChange={setCountry} />}
           <div className="relative" ref={moreRef}>
             <Button type="button" variant="secondary" icon={<MoreHorizontal className="h-4 w-4" />} onClick={() => setMoreOpen((v) => !v)}>
               Ещё
@@ -1779,14 +1759,9 @@ export function PriceComparisonCard({
                     Сформировать поставку
                   </button>
                 )}
-                {countries.length > 1 && (
-                  <div className="border-t border-border px-3 pb-2 pt-2" onClick={(e) => e.stopPropagation()}>
-                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Поставщики из</span>
-                    <ToggleGroup options={countries} value={country} onChange={setCountry} />
-                  </div>
-                )}
               </div>
             )}
+          </div>
           </div>
         </div>
 
@@ -1815,58 +1790,9 @@ export function PriceComparisonCard({
         {emptyPositions ? (
           <Card className="p-5">{sectionPicker}</Card>
         ) : columns.length === 0 ? (
-          <Card className="p-5 text-sm text-ink-faint">Пока никто из «{country}» не прислал КП{countries.length > 1 ? ' — страну можно сменить в «Ещё»' : ''}.</Card>
+          <Card className="p-5 text-sm text-ink-faint">Пока никто из «{country}» не прислал КП{countries.length > 1 ? ' — смените страну вверху' : ''}.</Card>
         ) : (
           <>
-            <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-4">
-              {baskets.map(({ col, exactN, analogN, mine, short, allParts, coversAll, risk }) => {
-                const mineParts: MoneyPart[] = mine.map((x) => ({ amount: x.cell.unitPrice * (x.position.quantity ?? 0), currency: x.cell.currency }));
-                const allTotal = moneyTotal(allParts, rate);
-                const allPicked = [...col.currentCells.keys()].length > 0 && [...col.currentCells.keys()].every((pid) => proposal[pid]?.offerId === col.offer.id);
-                return (
-                  <Card key={col.offer.id} className={cn('flex w-72 shrink-0 snap-start flex-col gap-2 p-4 sm:w-auto', risk && 'border border-dashed border-border bg-surface-muted shadow-none')}>
-                    <div className="flex items-start justify-between gap-2">
-                      <button type="button" onClick={() => onOpenDetail(col.offer)} className="min-w-0 truncate text-left text-sm font-bold text-ink hover:underline">
-                        {col.offer.name}
-                      </button>
-                      {risk && <span className="shrink-0 rounded-full bg-danger-bg px-1.5 py-px text-[10.5px] font-semibold text-danger">риск</span>}
-                    </div>
-                    {risk && <p className="-mt-1 text-xs font-semibold text-danger">{risk}</p>}
-                    <div className="flex h-1.5 overflow-hidden rounded-full bg-border">
-                      <i className="block h-full bg-success" style={{ width: `${positions.length ? (exactN / positions.length) * 100 : 0}%` }} />
-                      <i className="block h-full bg-sky-400" style={{ width: `${positions.length ? (analogN / positions.length) * 100 : 0}%` }} />
-                    </div>
-                    <p className="text-xs text-ink-muted">
-                      Закрывает{' '}
-                      <b className="text-ink">
-                        {exactN + analogN} из {positions.length}
-                      </b>
-                      : {exactN} по запросу{analogN ? `, ${analogN} ${analogN === 1 ? 'аналог' : analogN < 5 ? 'аналога' : 'аналогов'}` : ''}
-                    </p>
-                    <p className="text-xs text-ink-muted">{termsLine(col)}</p>
-                    {short > 0 && <p className="text-xs font-semibold text-warning">⚠ {short} поз. — не весь объём</p>}
-                    {col.unmatched.length > 0 && (
-                      <button type="button" onClick={() => setFixOpen(true)} className="self-start text-left text-xs font-medium text-warning underline decoration-dotted underline-offset-2">
-                        ⚠ {col.unmatched.length} {col.unmatched.length === 1 ? 'строка' : col.unmatched.length < 5 ? 'строки' : 'строк'} счёта без позиции — привязать
-                      </button>
-                    )}
-                    <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2 text-xs">
-                      <span className="text-ink-muted">
-                        В заказе: {mine.length ? <b className="tabular-nums text-ink">{mine.length} поз. · {sumMoney(mineParts, rate)}</b> : '—'}
-                      </span>
-                      {!risk && coversAll && !allPicked ? (
-                        <button type="button" disabled={saving} onClick={() => toggleColumn(col)} className="rounded-full bg-ink px-3 py-1 text-xs font-semibold text-white">
-                          Всё у них{allTotal ? ` · ${formatMoney(allTotal.amount, allTotal.currency)}` : ''}
-                        </button>
-                      ) : (
-                        <span className="text-ink-faint">{risk ? 'не предлагаем' : allPicked ? 'всё выбрано у них' : coversAll ? '' : 'не всё есть'}</span>
-                      )}
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-
             <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] lg:items-start">
               <div className={cn(glassCardClass, 'overflow-hidden')} style={glassCardShadow}>
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
