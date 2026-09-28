@@ -1154,11 +1154,6 @@ export function Suppliers() {
   // внутри useEffect: сама страница в этом случае не нужна вовсе.
   const movedToOwnPage = searchParams.get('tab') === 'contractors';
   const tab: SupplierTab = SLUG_TO_SUPPLIER_TAB[searchParams.get('tab') ?? ''] ?? 'Письма';
-  // Вид «Сравнения цен»: 'decide' — «кому что заказать» (третий макет,
-  // 2026-09-28, по умолчанию), 'new' — таблица «по запросу / аналоги»
-  // (?cview=v2), 'old' — прежняя матрица (?cview=old).
-  const comparisonView: 'decide' | 'new' | 'old' =
-    searchParams.get('cview') === 'old' ? 'old' : searchParams.get('cview') === 'v2' ? 'new' : 'decide';
   const comparisonCategoryId = searchParams.get('cat') ?? '';
   function setComparisonParam(key: string, value: string | null) {
     setSearchParams(
@@ -1171,7 +1166,6 @@ export function Suppliers() {
       { replace: true },
     );
   }
-  const setComparisonView = (v: 'decide' | 'new' | 'old') => setComparisonParam('cview', v === 'old' ? 'old' : v === 'new' ? 'v2' : null);
   const setComparisonCategoryId = (id: string) => setComparisonParam('cat', id);
   function setTab(next: SupplierTab) {
     setSearchParams(
@@ -2648,7 +2642,6 @@ export function Suppliers() {
                   <PriceComparisonCard
                     key={r.id}
                     layout={layout}
-                    onShowOldView={layout !== 'old' ? () => setComparisonView('old') : undefined}
                     request={r}
                     positions={
                       estimates.find((e) => e.id === r.estimateId)?.sections.find((sec) => sec.id === r.sectionId)?.materials ?? []
@@ -2675,35 +2668,6 @@ export function Suppliers() {
                     reliabilityByInn={reliabilityByInn}
                   />
                 );
-            // Владелец, 2026-09-28: «сохрани текущую версию страницы на всякий
-            // случай, а все новые правки вноси». Новый вид — категории списком
-            // слева и одна открытая; прежний (все карточки подряд, матрица) —
-            // по переключателю «Старый вид», ?cview=old.
-            const viewToggle = (
-              <div className="flex justify-end">
-                <ToggleGroup
-                  options={['Новый', 'Прошлый', 'Старый']}
-                  value={comparisonView === 'old' ? 'Старый' : comparisonView === 'new' ? 'Прошлый' : 'Новый'}
-                  onChange={(v) => setComparisonView(v === 'Старый' ? 'old' : v === 'Прошлый' ? 'new' : 'decide')}
-                />
-              </div>
-            );
-            if (comparisonView === 'old') {
-              return (
-                <>
-                  {viewToggle}
-                  {groups.map(({ group, requestsWithOffers }) => {
-                    if (requestsWithOffers.length === 0) return null;
-                    return (
-                      <div key={group} className="flex flex-col gap-6">
-                        <div className="text-lg font-bold text-ink">{SUPPLIER_REQUEST_GROUP_LABELS[group]}</div>
-                        {requestsWithOffers.map((r) => renderCard(r, 'old'))}
-                      </div>
-                    );
-                  })}
-                </>
-              );
-            }
             const all = groups.flatMap((g) => g.requestsWithOffers);
             const current = all.find((r) => r.id === comparisonCategoryId) ?? all[0];
             const statusOf = (r: SupplierRequest): { text: string; tone: 'muted' | 'warn' | 'ok' | 'bad' } => {
@@ -2716,7 +2680,7 @@ export function Suppliers() {
               const kp = offers.filter((o) => o.requestId === r.id && offerCommunicationStatus(o, supplierEmails) === 'confirmed').length;
               return { text: `${kp} КП · выбор не начат`, tone: 'muted' };
             };
-            if (comparisonView === 'decide') {
+            {
               return (
                 <>
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2740,69 +2704,11 @@ export function Suppliers() {
                       </select>
                       <ChevronDown className="pointer-events-none absolute right-3 h-5 w-5 text-ink-muted" />
                     </label>
-                    {viewToggle}
                   </div>
                   {renderCard(current, 'decide')}
                 </>
               );
             }
-            const toneClass = { muted: 'text-ink-muted', warn: 'text-warning', ok: 'text-success', bad: 'text-danger' } as const;
-            const dotClass = { muted: 'bg-ink-faint', warn: 'bg-warning', ok: 'bg-success', bad: 'bg-danger' } as const;
-            return (
-              <>
-                {viewToggle}
-                <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
-                  <select
-                    value={current.id}
-                    onChange={(e) => setComparisonCategoryId(e.target.value)}
-                    className="w-full rounded-control border border-border bg-surface px-3 py-2.5 text-sm font-semibold text-ink outline-none focus:border-primary lg:hidden"
-                  >
-                    {groups.map(({ group, requestsWithOffers }) =>
-                      requestsWithOffers.length === 0 ? null : (
-                        <optgroup key={group} label={SUPPLIER_REQUEST_GROUP_LABELS[group]}>
-                          {requestsWithOffers.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.title} — {statusOf(r).text}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ),
-                    )}
-                  </select>
-                  <Card className="hidden flex-col gap-1 p-2 lg:sticky lg:top-4 lg:flex">
-                    {groups.map(({ group, requestsWithOffers }) =>
-                      requestsWithOffers.length === 0 ? null : (
-                        <Fragment key={group}>
-                          <span className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">{SUPPLIER_REQUEST_GROUP_LABELS[group]}</span>
-                          {requestsWithOffers.map((r) => {
-                            const st = statusOf(r);
-                            const on = r.id === current.id;
-                            return (
-                              <button
-                                key={r.id}
-                                type="button"
-                                onClick={() => setComparisonCategoryId(r.id)}
-                                className={cn(
-                                  'relative flex flex-col gap-0.5 rounded-xl px-3 py-2.5 text-left',
-                                  on ? 'bg-surface-muted before:absolute before:bottom-3 before:left-0 before:top-3 before:w-[3px] before:rounded-full before:bg-primary' : 'hover:bg-surface-muted/60',
-                                )}
-                              >
-                                <span className="text-sm font-semibold text-ink [overflow-wrap:anywhere]">{r.title}</span>
-                                <span className={cn('flex items-center gap-1.5 text-xs', toneClass[st.tone])}>
-                                  <i className={cn('inline-block h-1.5 w-1.5 shrink-0 rounded-full', dotClass[st.tone])} />
-                                  {st.text}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </Fragment>
-                      ),
-                    )}
-                  </Card>
-                  <div className="min-w-0">{renderCard(current, 'new')}</div>
-                </div>
-              </>
-            );
           })()}
         </div>
       )}
