@@ -524,6 +524,17 @@ export function PriceComparisonCard({
   const picked = pickLines(positions, proposal, columnById);
   const pickedCells = picked.filter((x): x is { position: EstimateMaterial; cell: Cell } => !!x.cell);
   const pickedOfferIds = new Set(pickedCells.map((x) => x.cell.offerId));
+  // Уже заказанное: позиция у этого поставщика лежит в живом (не отменённом)
+  // заказе категории. Второй раз на согласование её не отправляем —
+  // владелец, 2026-09-28: «я уже отправил Плинтус на согласование, а кнопка
+  // отправки всё равно висит».
+  const orderedKeys = new Set(
+    orders
+      .filter((o) => o.status !== 'cancelled')
+      .flatMap((o) => o.items.map((it) => `${o.offerId}|${it.sourceMaterialId ?? it.id}`)),
+  );
+  const isOrdered = (x: { position: EstimateMaterial; cell: Cell }) => orderedKeys.has(`${x.cell.offerId}|${x.position.id}`);
+  const unorderedCells = pickedCells.filter((x) => !isOrdered(x));
   const pickedParts: MoneyPart[] = pickedCells.map((x) => ({ amount: x.cell.unitPrice * (x.position.quantity ?? 0), currency: x.cell.currency }));
   const pickedDelivery: MoneyPart[] = [...pickedOfferIds]
     .map((id) => columnById.get(id))
@@ -815,7 +826,7 @@ export function PriceComparisonCard({
   // категории уже есть.
   async function createOrders(): Promise<PurchaseOrder[] | null> {
     const drafts = buildPurchaseOrderDrafts(
-      picked.map(({ position, cell }) => ({
+      unorderedCells.map(({ position, cell }) => ({
         position: { id: position.id, name: position.name, unit: position.unit, quantity: position.quantity },
         cell,
       })),
@@ -830,12 +841,6 @@ export function PriceComparisonCard({
     if (drafts.length === 0) {
       setError('Нечего заказывать: в отборе нет ни одной позиции с ценой.');
       return null;
-    }
-    if (orders.length > 0) {
-      const ok = window.confirm(
-        `По этой категории уже есть заказы (${orders.length}). Создать ещё ${drafts.length} — по одному на поставщика из текущего отбора?`,
-      );
-      if (!ok) return null;
     }
     setCreatingOrders(true);
     setError(null);
@@ -1598,7 +1603,7 @@ export function PriceComparisonCard({
     };
 
     const byOffer = new Map<string, { col: Column; lines: { position: EstimateMaterial; cell: Cell }[] }>();
-    for (const x of pickedCells) {
+    for (const x of unorderedCells) {
       const col = columnById.get(x.cell.offerId);
       if (!col) continue;
       if (!byOffer.has(col.offer.id)) byOffer.set(col.offer.id, { col, lines: [] });
@@ -1912,9 +1917,25 @@ export function PriceComparisonCard({
                 </div>
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
-                <Button type="button" icon={<Send className="h-4 w-4" />} onClick={() => void sendForApproval()} disabled={exportingPdf || creatingOrders || saving || futureOrders.length === 0}>
-                  {exportingPdf ? 'Готовим PDF…' : creatingOrders ? 'Создаём заказы…' : 'Отправить на согласование'}
-                </Button>
+                {futureOrders.length === 0 && pickedCells.length > 0 ? (
+                  <Link
+                    to="/admin/purchases?tab=orders"
+                    className="flex items-center gap-2 rounded-full bg-success/10 px-4 py-2.5 text-sm font-semibold text-success hover:bg-success/15"
+                  >
+                    <Check className="h-4 w-4" />
+                    Отправлено на согласование · к заказам
+                  </Link>
+                ) : (
+                  <Button type="button" icon={<Send className="h-4 w-4" />} onClick={() => void sendForApproval()} disabled={exportingPdf || creatingOrders || saving || futureOrders.length === 0}>
+                    {exportingPdf
+                      ? 'Готовим PDF…'
+                      : creatingOrders
+                        ? 'Создаём заказы…'
+                        : pickedCells.length > unorderedCells.length
+                          ? `Отправить ещё ${unorderedCells.length} поз. на согласование`
+                          : 'Отправить на согласование'}
+                  </Button>
+                )}
               </div>
             </div>
             {orders.length > 0 && (
