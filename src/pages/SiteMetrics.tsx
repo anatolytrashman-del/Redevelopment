@@ -18,6 +18,8 @@ import { fetchGoogleSearchConsoleStats, fetchGoogleSearchConsoleQueries } from '
 import type { GoogleSearchConsoleStat, GoogleSearchConsoleQuery } from '../data/googleSearchConsoleStats';
 import { fetchSiteBacklinks } from '../lib/siteBacklinksApi';
 import type { SiteBacklink } from '../data/siteBacklinks';
+import { fetchPageViewsDaily } from '../lib/pageViewsApi';
+import type { PageViewDaily } from '../data/pageViews';
 
 // Показатели посещаемости сайта из Яндекс.Метрики (счётчик 111858495) —
 // не отчёт по staff-активности (это отдельная /admin/metrics, RequireSuperAdmin,
@@ -729,6 +731,7 @@ export function SiteMetrics() {
   const [webmasterQueries, setWebmasterQueries] = useState<YandexWebmasterQuery[]>([]);
   const [googleQueries, setGoogleQueries] = useState<GoogleSearchConsoleQuery[]>([]);
   const [backlinks, setBacklinks] = useState<SiteBacklink[] | null>(null);
+  const [pageViewRows, setPageViewRows] = useState<PageViewDaily[] | null>(null);
   const [error, setError] = useState('');
   const [period, setPeriod] = useState<Period>(30);
   const [topPagesExpanded, setTopPagesExpanded] = useState(false);
@@ -745,21 +748,25 @@ export function SiteMetrics() {
     inFlight.current = true;
     setRefreshing(true);
     try {
-      const [daily, traffic, pages, goals, webmaster, google, webmasterQ, googleQ, backlinkRows] = await Promise.all([
-        fetchMetrikaDailyStats(),
-        fetchMetrikaTrafficSources(),
-        fetchMetrikaTopPages(),
-        fetchMetrikaGoalCompletions(),
-        // Отдельный try/catch на каждый источник поисковой индексации: если
-        // синк ещё ни разу не прошёл, упал, или сервис ещё не подключён
-        // (Google), это не должно ронять всю страницу — её главный предмет
-        // всё равно Метрика.
-        fetchYandexWebmasterStats().catch(() => []),
-        fetchGoogleSearchConsoleStats().catch(() => []),
-        fetchYandexWebmasterQueries().catch(() => []),
-        fetchGoogleSearchConsoleQueries().catch(() => []),
-        fetchSiteBacklinks().catch(() => []),
-      ]);
+      const pageViewsSince = new Date();
+      pageViewsSince.setDate(pageViewsSince.getDate() - 91); // хватает на период «90 дней» с запасом
+      const [daily, traffic, pages, goals, webmaster, google, webmasterQ, googleQ, backlinkRows, ownPageViews] =
+        await Promise.all([
+          fetchMetrikaDailyStats(),
+          fetchMetrikaTrafficSources(),
+          fetchMetrikaTopPages(),
+          fetchMetrikaGoalCompletions(),
+          // Отдельный try/catch на каждый источник поисковой индексации: если
+          // синк ещё ни разу не прошёл, упал, или сервис ещё не подключён
+          // (Google), это не должно ронять всю страницу — её главный предмет
+          // всё равно Метрика.
+          fetchYandexWebmasterStats().catch(() => []),
+          fetchGoogleSearchConsoleStats().catch(() => []),
+          fetchYandexWebmasterQueries().catch(() => []),
+          fetchGoogleSearchConsoleQueries().catch(() => []),
+          fetchSiteBacklinks().catch(() => []),
+          fetchPageViewsDaily(pageViewsSince.toISOString().slice(0, 10)).catch(() => []),
+        ]);
       setDailyStats(daily);
       setTrafficSources(traffic);
       setTopPages(pages);
@@ -769,6 +776,7 @@ export function SiteMetrics() {
       setWebmasterQueries(webmasterQ);
       setGoogleQueries(googleQ);
       setBacklinks(backlinkRows);
+      setPageViewRows(ownPageViews);
       setLastCheckedAt(new Date());
       setError('');
     } catch {
@@ -850,6 +858,23 @@ export function SiteMetrics() {
     return dates.reduce((a, b) => (a > b ? a : b));
   }, [trafficSources]);
 
+  // Один общий ряд визитов и просмотров (владелец, 2026-09-28): с плашкой
+  // cookie Метрика видит только согласившихся, а свой счётчик без cookie —
+  // всех. За каждый день берём большее из двух: до начала учёта это
+  // Метрика, после — счётчик; дни не удваиваются, потому что счётчик уже
+  // включает согласившихся.
+  const ownDaily = (() => {
+    const views = new Map<string, number>();
+    const entries = new Map<string, number>();
+    for (const r of pageViewRows ?? []) {
+      views.set(r.day, (views.get(r.day) ?? 0) + r.views);
+      entries.set(r.day, (entries.get(r.day) ?? 0) + r.entries);
+    }
+    return { views, entries };
+  })();
+  const fullVisits = (d: MetrikaDailyStat) => Math.max(d.visits, ownDaily.entries.get(d.date) ?? 0);
+  const fullPageviews = (d: MetrikaDailyStat) => Math.max(d.pageviews, ownDaily.views.get(d.date) ?? 0);
+
   const maxTrafficVisits = Math.max(1, ...(trafficSources ?? []).map((s) => s.visits));
   const maxTopPageviews = Math.max(1, ...(topPages ?? []).map((p) => p.pageviews));
   const totalTrafficVisits = sum((trafficSources ?? []).map((s) => s.visits));
@@ -902,8 +927,8 @@ export function SiteMetrics() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <KpiTile
               label="Визиты"
-              value={sum(currentPeriod.map((d) => d.visits)).toLocaleString('ru-RU')}
-              change={{ current: sum(currentPeriod.map((d) => d.visits)), previous: sum(previousPeriod.map((d) => d.visits)) }}
+              value={sum(currentPeriod.map(fullVisits)).toLocaleString('ru-RU')}
+              change={{ current: sum(currentPeriod.map(fullVisits)), previous: sum(previousPeriod.map(fullVisits)) }}
             />
             <KpiTile
               label="Посетители"
@@ -912,10 +937,10 @@ export function SiteMetrics() {
             />
             <KpiTile
               label="Просмотры страниц"
-              value={sum(currentPeriod.map((d) => d.pageviews)).toLocaleString('ru-RU')}
+              value={sum(currentPeriod.map(fullPageviews)).toLocaleString('ru-RU')}
               change={{
-                current: sum(currentPeriod.map((d) => d.pageviews)),
-                previous: sum(previousPeriod.map((d) => d.pageviews)),
+                current: sum(currentPeriod.map(fullPageviews)),
+                previous: sum(previousPeriod.map(fullPageviews)),
               }}
             />
             <KpiTile
@@ -960,10 +985,14 @@ export function SiteMetrics() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <TrendCard title="Визиты по дням" data={currentPeriod} valueOf={(d) => d.visits} />
+            <TrendCard title="Визиты по дням" data={currentPeriod} valueOf={fullVisits} />
             <TrendCard title="Посетители по дням" data={currentPeriod} valueOf={(d) => d.users} />
-            <TrendCard title="Просмотры по дням" data={currentPeriod} valueOf={(d) => d.pageviews} />
+            <TrendCard title="Просмотры по дням" data={currentPeriod} valueOf={fullPageviews} />
           </div>
+          <p className="text-xs text-ink-muted">
+            С 28.09.2026 визиты и просмотры включают всех посетителей, в том числе отказавшихся от cookie (свой
+            счётчик без cookie). Посетители, отказы, глубина и время — только по согласившимся, из Метрики.
+          </p>
 
           {currentGoals.length > 0 && (
             <Card className="flex flex-col gap-3">
