@@ -678,8 +678,8 @@ function stageStatus(order: PurchaseOrder): PurchaseOrderStatus {
 const ORDER_STAGES: { key: string; title: string; hint: string; empty: string; statuses: PurchaseOrderStatus[] }[] = [
   { key: 'approval', title: 'На согласовании', hint: 'ждут вашего «Согласовано»', empty: 'Пусто. Заказы попадают сюда из «Сравнения цен» кнопкой «Отправить на согласование».', statuses: ['draft'] },
   { key: 'pay', title: 'К оплате', hint: 'приложите платёжку — заказ уйдёт в «Едут»', empty: 'Нет заказов, ждущих оплаты.', statuses: ['ordered', 'invoiced'] },
-  { key: 'transit', title: 'Едут', hint: 'оплачены, ждём поставку', empty: 'Ничего не едет.', statuses: ['paid', 'shipped', 'delivered', 'claim'] },
-  { key: 'archive', title: 'Архив', hint: 'принятые, закрытые и отменённые', empty: '', statuses: ['accepted', 'closed', 'cancelled'] },
+  { key: 'transit', title: 'Едут', hint: 'оплачены, ждём поставку', empty: 'Ничего не едет.', statuses: ['paid', 'shipped', 'claim'] },
+  { key: 'archive', title: 'Архив', hint: 'доставленные, закрытые и отменённые', empty: '', statuses: ['delivered', 'accepted', 'closed', 'cancelled'] },
 ];
 
 // ===========================================================================
@@ -843,9 +843,13 @@ export function PurchaseOrdersTab({ categoryTitleById }: { categoryTitleById: Ma
                                   Отменить
                                 </Button>
                               </>
-                            ) : order.status === 'ordered' || order.status === 'invoiced' ? (
+                            ) : stageStatus(order) === 'ordered' || stageStatus(order) === 'invoiced' ? (
                               <Button type="button" variant="secondary" onClick={() => setOpenId(order.id)}>
                                 Приложить платёжку
+                              </Button>
+                            ) : stageStatus(order) === 'paid' || order.status === 'shipped' ? (
+                              <Button type="button" variant="secondary" icon={<Check className="h-4 w-4" />} disabled={busy} onClick={() => void setStatus(order, 'delivered')}>
+                                Доставлено
                               </Button>
                             ) : undefined
                           }
