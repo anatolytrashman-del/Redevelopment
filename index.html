@@ -256,6 +256,19 @@
       };
     </script>
     <!-- /Yandex.Metrika counter -->
+    <!-- Vercel Web Analytics: считает визиты без cookie и без персональных
+         данных, поэтому грузится у всех, не дожидаясь согласия (владелец,
+         2026-09-28): общий трафик — здесь, подробности по согласившимся —
+         в Метрике. Те же исключения, что у счётчиков выше. -->
+    <script type="text/javascript">
+      if (!window.__isLikelyBot && location.search.indexOf('prerender=1') === -1 && location.pathname.indexOf('/admin') !== 0) {
+        window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+        var vaScript = document.createElement('script');
+        vaScript.defer = true;
+        vaScript.src = '/_vercel/insights/script.js';
+        document.head.appendChild(vaScript);
+      }
+    </script>
 
     <!-- Top.Mail.Ru (VK Реклама / VK Ретаргетинг) pixel — тот же принцип
          отложенной вставки, что и у Метрики выше: window._tmr — просто

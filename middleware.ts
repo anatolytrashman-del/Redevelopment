@@ -43,6 +43,7 @@ const KNOWN_PREFIXES = [
   '/favorites', // /favorites/:id — публичная ссылка на избранное без регистрации
   '/bc', // /bc/:slug — карточка БЦ для ссылки с сайта самого здания (vercel.json → пререндер /minsk/bc/:slug)
   '/api', // serverless-функции
+  '/_vercel', // Vercel Web Analytics: скрипт и отправка визитов (/_vercel/insights/*)
   '/.well-known', // верификация доменов и т.п. — сейчас не используется, но не должно 404-иться, если появится
 ];
 
