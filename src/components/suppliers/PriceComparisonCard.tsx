@@ -1517,11 +1517,6 @@ export function PriceComparisonCard({
           </div>
         ))}
       </div>
-      {funnel.first && funnel.last && (
-        <p className="-mt-2 text-xs text-ink-faint">
-          Первое письмо {formatDate(funnel.first)}, последнее {formatDate(funnel.last)}
-        </p>
-      )}
     </>
   );
 
@@ -1791,23 +1786,13 @@ export function PriceComparisonCard({
 
     return (
       <div className="flex min-w-0 flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-muted">
-            {request.sectionTitle && <span>Раздел сметы «{request.sectionTitle}»</span>}
-            <span className="inline-flex items-center gap-2">
-              <span className="h-1.5 w-24 overflow-hidden rounded-full bg-border">
-                <i className="block h-full bg-success" style={{ width: `${positions.length ? (done.length / positions.length) * 100 : 0}%` }} />
-              </span>
-              решено {done.length} из {positions.length}
-            </span>
-            <span>цены с НДС за объём ведомости</span>
+        {/* Страна видна сразу: поставщики другой страны иначе незаметно
+            выпадают из сравнения. */}
+        {countries.length > 1 && (
+          <div className="flex justify-end">
+            <ToggleGroup options={countries} value={country} onChange={setCountry} />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-          {/* Страна видна сразу: поставщики другой страны
-              иначе незаметно выпадают из сравнения. */}
-          {countries.length > 1 && <ToggleGroup options={countries} value={country} onChange={setCountry} />}
-          </div>
-        </div>
+        )}
 
         {error && <p className="text-sm text-danger">{error}</p>}
 
