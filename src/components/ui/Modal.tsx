@@ -9,9 +9,12 @@ interface ModalProps {
   onClose: () => void;
   title: ReactNode;
   children: ReactNode;
+  // 'wide' — для карточек в две колонки (карточка заказа поставщику): в
+  // узкой колонке их приходилось долго листать.
+  size?: 'default' | 'wide';
 }
 
-export function Modal({ open, onClose, title, children }: ModalProps) {
+export function Modal({ open, onClose, title, children, size = 'default' }: ModalProps) {
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -34,7 +37,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
           и плохо читаемым. Модалке нужен непрозрачный фон вне зависимости от
           того, что под ней. */}
       <div
-        className="relative flex max-h-[90vh] w-full max-w-lg flex-col gap-5 overflow-y-auto rounded-3xl border border-white/80 bg-white p-6"
+        className={`relative flex max-h-[90vh] w-full ${size === 'wide' ? 'max-w-6xl' : 'max-w-lg'} flex-col gap-5 overflow-y-auto rounded-3xl border border-white/80 bg-white p-6`}
         style={glassCardShadow}
       >
         <div className="flex items-start justify-between gap-3">
