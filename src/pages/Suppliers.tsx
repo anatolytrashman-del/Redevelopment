@@ -3688,6 +3688,8 @@ export function Suppliers() {
           legalEntities={legalEntities}
           onClose={() => setBulkSendConfig(null)}
           onTemplatesChange={setEmailTemplates}
+          snapshotByHost={snapshotByHost}
+          onOffersAdded={(added) => setOffers((prev) => [...prev, ...added])}
         />
       )}
     </>
