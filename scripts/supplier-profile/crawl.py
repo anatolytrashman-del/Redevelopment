@@ -51,8 +51,8 @@ OGRN_RE = re.compile(r'ОГРН(?:ИП)?[\s:№]*(\d{13}|\d{15})')
 def fetch(url):
     try:
         r = subprocess.run(
-            ['curl', '-sSL', '--compressed', '--max-time', '25', '-A', UA, '-w', '\n__EFFECTIVE__%{url_effective} %{http_code} %{content_type}', url],
-            capture_output=True, timeout=40,
+            ['curl', '-sSL', '--compressed', '--max-time', '12', '--connect-timeout', '6', '-A', UA, '-w', '\n__EFFECTIVE__%{url_effective} %{http_code} %{content_type}', url],
+            capture_output=True, timeout=20,
         )
     except subprocess.TimeoutExpired:
         return None, None, 'timeout'
@@ -159,13 +159,16 @@ def crawl(host, start_url):
 
     absorb(home, base, 'home')
     fetched = 1
+    # Потолок на сайт: медленный сервер (12 с на страницу × 45) держал поток
+    # по 10 минут и тормозил весь обход.
+    deadline = time.time() + 150
     # Сначала все смысловые страницы (до 20), потом каталог.
     for kind, queue, cap in (('info', queue_info, 20), ('catalog', queue_cat, MAX_PAGES), ('other', queue_other, 15)):
         i = 0
-        while i < len(queue) and fetched < MAX_PAGES and i < cap:
+        while i < len(queue) and fetched < MAX_PAGES and i < cap and time.time() < deadline:
             url = queue[i]
             i += 1
-            time.sleep(0.7)
+            time.sleep(0.4)
             page, eff2, _ = fetch(url)
             fetched += 1
             if page:
