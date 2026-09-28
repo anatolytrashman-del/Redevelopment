@@ -15,3 +15,18 @@ alter table suppliers
   add column if not exists profiled_at timestamptz;
 
 notify pgrst, 'reload schema';
+
+-- Полный разбор сайта (юрлица, контакты с подписями, адреса, товары с ценами,
+-- условия, документы) — одним jsonb: форма карточки под него ещё не придумана
+-- (владелец, 2026-09-28: «сначала спарсим всю инфу, карточку потом»).
+alter table suppliers add column if not exists site_profile jsonb;
+
+notify pgrst, 'reload schema';
+
+-- contractor — в основном монтаж/услуги, а не продажа товара (выяснилось на
+-- первой пачке разбора: шумоизоляция «под ключ» на чужих материалах).
+alter table suppliers drop constraint if exists suppliers_supplier_kind_check;
+alter table suppliers add constraint suppliers_supplier_kind_check
+  check (supplier_kind in ('manufacturer', 'brand_owner', 'dealer', 'retail', 'contractor'));
+
+notify pgrst, 'reload schema';

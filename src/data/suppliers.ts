@@ -66,13 +66,14 @@ export interface Supplier {
   profiledAt: string | null;
 }
 
-export type SupplierKind = 'manufacturer' | 'brand_owner' | 'dealer' | 'retail';
+export type SupplierKind = 'manufacturer' | 'brand_owner' | 'dealer' | 'retail' | 'contractor';
 
 export const SUPPLIER_KIND_LABELS: Record<SupplierKind, string> = {
   manufacturer: 'Завод-производитель',
   brand_owner: 'Владелец марки',
   dealer: 'Дилер',
   retail: 'Магазин',
+  contractor: 'Монтажная компания',
 };
 
 export interface SupplierRow {
