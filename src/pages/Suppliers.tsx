@@ -51,6 +51,7 @@ import {
 import type { SupplierReliability } from '../data/supplierReliability';
 import { fetchSupplierReliability, checkSupplierReliability } from '../lib/supplierReliabilityApi';
 import { RiskBadge } from '../components/suppliers/RiskBadge';
+import { SupplierProfileBlock } from '../components/suppliers/SupplierProfileBlock';
 import { AiAgentStatusPill } from '../components/contractors/AiAgentStatusPill';
 import type { SupplierSiteSnapshot } from '../data/supplierSiteSnapshots';
 import { fetchSupplierSiteSnapshots } from '../lib/supplierSiteSnapshotsApi';
@@ -817,6 +818,8 @@ function OfferDetailModal({
             {siteSnapshot.categoriesNote && <span className="text-xs text-ink-faint">{siteSnapshot.categoriesNote}</span>}
           </div>
         )}
+
+        <SupplierProfileBlock supplierId={offer.supplierId ?? null} />
 
         {offer.listingUrl && (
           <div className="flex flex-col gap-1 text-sm">
