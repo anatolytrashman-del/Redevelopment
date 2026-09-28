@@ -30,8 +30,10 @@ export const PURCHASE_ORDER_STATUSES = [...PURCHASE_ORDER_FLOW, 'cancelled', 'cl
 export type PurchaseOrderStatus = (typeof PURCHASE_ORDER_STATUSES)[number];
 
 export const PURCHASE_ORDER_STATUS_LABELS: Record<PurchaseOrderStatus, string> = {
-  draft: 'Черновик',
-  ordered: 'Заказано',
+  // Владелец, 2026-09-28: заказ рождается «на согласовании», после «Согласовано»
+  // ждёт оплаты. Значения в базе прежние, поменялись только подписи.
+  draft: 'На согласовании',
+  ordered: 'К оплате',
   invoiced: 'Счёт выставлен',
   paid: 'Оплачено',
   shipped: 'Отгружено',
