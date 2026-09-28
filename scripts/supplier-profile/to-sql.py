@@ -24,6 +24,12 @@ def arr(xs):
     return ('array[' + ','.join(q(x) for x in xs) + ']::text[]') if xs else "'{}'::text[]"
 
 
+def merge(col, xs):
+    # Ручная разметка (Краскофф, Артполе и др.) бывает полнее автоматической —
+    # объединяем со старым значением, а не затираем его.
+    return f"array(select distinct x from unnest(coalesce({col}, '{{}}') || {arr(xs)}) x)"
+
+
 def main():
     out_dir = sys.argv[1]
     hosts = sys.argv[2:] or [f[:-5] for f in sorted(os.listdir(out_dir)) if f.endswith('.json')]
@@ -42,8 +48,9 @@ def main():
         own = [b for b in d.get('own_brands') or [] if len(b.strip()) > 1 and b.strip().lower() not in GENERIC]
         pre = [p for p in d.get('article_prefixes') or [] if len(p.strip()) >= 2]
         print(
-            f"update suppliers set supplier_kind={q(kind)}, own_brands={arr(own)}, article_prefixes={arr(pre)}, "
-            f"product_kinds={arr(d.get('product_kinds'))}, resold_brands={arr(d.get('resold_brands'))}, "
+            f"update suppliers set supplier_kind={q(kind)}, own_brands={merge('own_brands', own)}, "
+            f"article_prefixes={merge('article_prefixes', pre)}, product_kinds={merge('product_kinds', d.get('product_kinds'))}, "
+            f"resold_brands={merge('resold_brands', d.get('resold_brands'))}, "
             f"profile_note={q(note)}, site_profile={profile}, profiled_at=now() "
             f"where website_host={q(h)} and deleted_at is null;"
         )
