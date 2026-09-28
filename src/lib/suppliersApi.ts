@@ -30,10 +30,33 @@ function fromRow(row: SupplierRow): Supplier {
     deletedAt: row.deleted_at,
     blockedReason: row.blocked_reason,
     blockedAt: row.blocked_at,
+    supplierKind: row.supplier_kind ?? null,
+    ownBrands: row.own_brands ?? [],
+    articlePrefixes: row.article_prefixes ?? [],
+    productKinds: row.product_kinds ?? [],
+    resoldBrands: row.resold_brands ?? [],
+    profileNote: row.profile_note ?? '',
+    profiledAt: row.profiled_at ?? null,
   };
 }
 
-export type SupplierInput = Omit<Supplier, 'id' | 'createdAt' | 'deletedAt' | 'blockedReason' | 'blockedAt'>;
+// Профиль (supplierKind и соседи) пишет разбор сайта, не форма — поэтому
+// его нет во входе, и сохранение формы профиль не затирает.
+export type SupplierInput = Omit<
+  Supplier,
+  | 'id'
+  | 'createdAt'
+  | 'deletedAt'
+  | 'blockedReason'
+  | 'blockedAt'
+  | 'supplierKind'
+  | 'ownBrands'
+  | 'articlePrefixes'
+  | 'productKinds'
+  | 'resoldBrands'
+  | 'profileNote'
+  | 'profiledAt'
+>;
 
 function toRow(input: SupplierInput) {
   return {

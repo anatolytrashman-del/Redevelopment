@@ -50,7 +50,30 @@ export interface Supplier {
   // нужно хранить, а не прятать.
   blockedReason: string | null;
   blockedAt: string | null;
+  // Профиль для прямых запросов на завод (тред «Закупки», 2026-09-28): кто
+  // компания на самом деле и что делает сама. Заполняет разбор сайта сессией
+  // Claude, форма поставщика эти поля не трогает. null — ещё не размечен.
+  supplierKind: SupplierKind | null;
+  // Свои марки, линейки и коллекции — как пишут в названиях товаров.
+  ownBrands: string[];
+  // Буквенные приставки артикулов своих товаров (SMG3 → SMG).
+  articlePrefixes: string[];
+  // Что производит сама, видами товара, как в смете.
+  productKinds: string[];
+  // Чужие марки, которые только продаёт: к ней как к заводу не вести.
+  resoldBrands: string[];
+  profileNote: string;
+  profiledAt: string | null;
 }
+
+export type SupplierKind = 'manufacturer' | 'brand_owner' | 'dealer' | 'retail';
+
+export const SUPPLIER_KIND_LABELS: Record<SupplierKind, string> = {
+  manufacturer: 'Завод-производитель',
+  brand_owner: 'Владелец марки',
+  dealer: 'Дилер',
+  retail: 'Магазин',
+};
 
 export interface SupplierRow {
   id: string;
@@ -69,4 +92,11 @@ export interface SupplierRow {
   deleted_at: string | null;
   blocked_reason: string | null;
   blocked_at: string | null;
+  supplier_kind?: SupplierKind | null;
+  own_brands?: string[] | null;
+  article_prefixes?: string[] | null;
+  product_kinds?: string[] | null;
+  resold_brands?: string[] | null;
+  profile_note?: string | null;
+  profiled_at?: string | null;
 }
