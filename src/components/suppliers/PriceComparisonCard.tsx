@@ -1492,7 +1492,15 @@ export function PriceComparisonCard({
         const coversAll = offeredPositions.length > 0 && live.filter(([, c]) => c.kind !== 'check').length >= offeredPositions.length;
         return { col, exactN, analogN, mine, short, allParts, coversAll, risk: riskOf(col.offer) };
       })
-      .sort((a, b) => Number(!!a.risk) - Number(!!b.risk) || b.exactN + b.analogN - (a.exactN + a.analogN));
+      // Кто закрывает больше позиций — первым, при равенстве — кто дешевле
+      // за то, что закрывает (владелец, 2026-09-28: «самое дешёвое — первое»).
+      .sort((a, b) => {
+        const byCover = b.exactN + b.analogN - (a.exactN + a.analogN);
+        if (byCover !== 0) return byCover;
+        const ta = moneyTotal(a.allParts, rate);
+        const tb = moneyTotal(b.allParts, rate);
+        return (ta?.amount ?? Infinity) - (tb?.amount ?? Infinity);
+      });
 
     const termsLine = (col: Column) => {
       const t = col.terms;
@@ -1689,8 +1697,6 @@ export function PriceComparisonCard({
       const po = positionOffers(active.id, columns);
       const alts = po.analogs.filter((c) => c.kind === 'alternative');
       const checks = po.analogs.filter((c) => c.kind === 'check');
-      const sortRisk = (list: Cell[]) =>
-        [...list].sort((a, b) => Number(!!riskOf(columnById.get(a.offerId)!.offer)) - Number(!!riskOf(columnById.get(b.offerId)!.offer)));
       const empty = po.exact.length + po.analogs.length === 0;
       return (
         <div ref={detailRef} className="min-w-0 scroll-mt-4">
@@ -1723,15 +1729,15 @@ export function PriceComparisonCard({
             <p className="text-sm text-ink-muted">На эту позицию никто не прислал цену. Дозапросить можно в «Письмах».</p>
           ) : (
             <>
-              {group('bg-success-bg text-success', 'По запросу', 'то, что просили', sortRisk(po.exact).map((c) => offerRow(active, c, po.bestExact, true)))}
+              {group('bg-success-bg text-success', 'По запросу', 'то, что просили', po.exact.map((c) => offerRow(active, c, po.bestExact, true)))}
               {group(
                 'bg-sky-50 text-sky-700',
                 'Аналоги',
                 'другой бренд или артикул, сравниваем отдельно',
-                sortRisk(alts).map((c) => offerRow(active, c, null, false)),
+                alts.map((c) => offerRow(active, c, null, false)),
                 <p className="rounded-xl bg-surface-muted px-3 py-2 text-xs text-ink-muted">Аналог — другой товар. Подходит ли он, решаете вы, поэтому «самой низкой цены» по аналогам здесь нет.</p>,
               )}
-              {group('bg-warning-bg text-warning', 'Уточнить', 'не ясно, то ли это', sortRisk(checks).map((c) => offerRow(active, c, null, false)))}
+              {group('bg-warning-bg text-warning', 'Уточнить', 'не ясно, то ли это', checks.map((c) => offerRow(active, c, null, false)))}
             </>
           )}
         </Card>
