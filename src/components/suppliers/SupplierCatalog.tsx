@@ -99,6 +99,10 @@ function OpenDetailButton({ offer, onOpenDetail }: { offer: SupplierOffer; onOpe
   );
 }
 
+function normalizeSearch(value: string): string {
+  return value.toLowerCase().replace(/ё/g, 'е');
+}
+
 function offerGroups(o: SupplierOffer, snapshotByHost: Map<string, SupplierSiteSnapshot>): string[] {
   return snapshotByHost.get(supplierWebsiteHost(o.websiteUrl))?.categories ?? [];
 }
@@ -231,17 +235,36 @@ export function SupplierCatalog({
   const currentHub = hubs.find((h) => h.hub.name === hubName) ?? null;
   const currentCategory = currentHub?.categories.find((c) => c.category.name === categoryName) ?? null;
 
-  // Поиск по имени поставщика — плоский результат по всему каталогу (в
-  // рамках выбранной страны), поверх навигации по хабам/категориям, а не
-  // фильтр внутри текущего уровня: владелец, 2026-09-12, «справа от
-  // заголовка нужна строка поиска поставщика».
-  const searchQuery = search.trim().toLowerCase();
+  // Поиск — плоский результат по всему каталогу (в рамках выбранной
+  // страны), поверх навигации по хабам/категориям: владелец, 2026-09-12,
+  // «справа от заголовка нужна строка поиска поставщика». С 2026-09-28 ищет
+  // и по товару: по разделам меню сайта со снимка, по заголовку и описанию
+  // сайта («нужна закупка по керамзиту — как найти, у кого он есть»).
+  // Снимки уже загружены для плиток, в базу поиск не ходит.
+  const searchQuery = normalizeSearch(search.trim());
   const searchResults = useMemo(() => {
     if (!searchQuery) return [];
-    return countryOffers
-      .filter((o) => o.verified && o.name.toLowerCase().includes(searchQuery))
-      .map((o) => ({ offer: o, categoryLabel: catalogLabelFor(o, requestTitleById, snapshotByHost, extraGroupsByTile) }))
-      .sort((a, b) => a.offer.name.localeCompare(b.offer.name, 'ru'));
+    const results: { offer: SupplierOffer; categoryLabel: string; byName: boolean; hits: SupplierSiteSnapshot['sections'] }[] = [];
+    for (const o of countryOffers) {
+      if (!o.verified) continue;
+      const byName = normalizeSearch(o.name).includes(searchQuery);
+      const snapshot = snapshotByHost.get(supplierWebsiteHost(o.websiteUrl));
+      const hits = (snapshot?.sections ?? []).filter((sec) => normalizeSearch(sec.title).includes(searchQuery));
+      const bySite =
+        hits.length > 0 ||
+        normalizeSearch(snapshot?.pageTitle ?? '').includes(searchQuery) ||
+        normalizeSearch(snapshot?.metaDescription ?? '').includes(searchQuery);
+      if (!byName && !bySite) continue;
+      results.push({ offer: o, categoryLabel: catalogLabelFor(o, requestTitleById, snapshotByHost, extraGroupsByTile), byName, hits });
+    }
+    // Сперва совпавшие по имени, потом — у кого товар в разделах сайта
+    // (больше разделов — выше), потом — только в описании сайта.
+    return results.sort(
+      (a, b) =>
+        Number(b.byName) - Number(a.byName) ||
+        b.hits.length - a.hits.length ||
+        a.offer.name.localeCompare(b.offer.name, 'ru'),
+    );
   }, [countryOffers, requestTitleById, searchQuery, snapshotByHost, extraGroupsByTile]);
 
   const openHub = (h: HubStats) => {
@@ -289,7 +312,7 @@ export function SupplierCatalog({
           <SearchInput
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Поиск поставщика"
+            placeholder="Поставщик или товар"
             wrapperClassName="w-full max-w-[240px]"
           />
           {/* Владелец, 2026-09-15, второй заход: сперва две пилюли-кнопки
@@ -315,14 +338,36 @@ export function SupplierCatalog({
         <div className="flex flex-col gap-2">
           <span className="text-sm text-ink-muted">
             {searchResults.length === 0
-              ? `Никого не нашлось по «${search.trim()}».`
+              ? `Ни в названиях, ни на сайтах поставщиков нет «${search.trim()}».`
               : `Найдено ${searchResults.length} ${plural(searchResults.length, 'поставщик', 'поставщика', 'поставщиков')}.`}
           </span>
-          {searchResults.map(({ offer, categoryLabel }) => (
+          {searchResults.map(({ offer, categoryLabel, byName, hits }) => (
             <div key={offer.id} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border px-4 py-2">
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <span className="truncate font-medium text-ink">{offer.name}</span>
-                <span className="text-xs text-ink-faint">{categoryLabel}</span>
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="truncate font-medium text-ink">{offer.name}</span>
+                  <span className="text-xs text-ink-faint">{categoryLabel}</span>
+                </div>
+                {!byName && (
+                  <span className="text-xs text-ink-muted">
+                    {hits.length > 0 ? (
+                      <>
+                        на сайте:{' '}
+                        {hits.slice(0, 3).map((sec, i) => (
+                          <span key={sec.url + i}>
+                            {i > 0 && ', '}
+                            <a href={sec.url} target="_blank" rel="noreferrer" className="text-primary-hover hover:underline">
+                              {sec.title}
+                            </a>
+                          </span>
+                        ))}
+                        {hits.length > 3 && ` и ещё ${hits.length - 3}`}
+                      </>
+                    ) : (
+                      'упоминается в описании сайта'
+                    )}
+                  </span>
+                )}
               </div>
               <OpenDetailButton offer={offer} onOpenDetail={onOpenDetail} />
             </div>
