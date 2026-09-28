@@ -1480,6 +1480,51 @@ export function PriceComparisonCard({
   // (по запросу, аналоги, уточнить), сверху поставщики как «корзины» — что
   // закрывают и что уже лежит в их заказе, внизу будущие заказы. Разница в %
   // — только внутри «по запросу»: минимума по аналогам нет (см. шапку файла).
+  // Воронка запроса: сколько поставщиков в работе (владелец, 2026-09-28,
+  // вернул её и в вид «кому что заказать»).
+  const funnelBlock = (
+    <>
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-control border border-border bg-border md:grid-cols-5">
+        {[
+          {
+            n: funnel.sent,
+            sub: funnel.letters
+              ? `${funnel.letters} писем${funnel.followup.reminders ? `, из них ${funnel.followup.reminders} напоминаний` : ''}`
+              : 'писем ещё не было',
+            label: 'Запрос отправлен',
+          },
+          { n: funnel.replied, sub: `${funnel.repliedNoQuote} без КП`, label: 'Ответили' },
+          {
+            n: funnel.followup.followingUp,
+            sub:
+              funnel.followup.declined || funnel.followup.noAnswer
+                ? `${funnel.followup.declined} отказались, ${funnel.followup.noAnswer} без ответа`
+                : `срок ответа — ${request.replyDueDays} дн.`,
+            label: 'Дожимаем',
+          },
+          { n: funnel.confirmed, sub: `${funnel.quotesCount} счетов`, label: 'КП получено' },
+          {
+            n: `${funnel.pricedPositions} из ${positions.length}`,
+            sub: positions.length ? (unmatchedAll.length ? `${unmatchedAll.length} строк счетов ещё не привязаны` : 'позиций ведомости с ценой') : 'раздел сметы не привязан',
+            label: 'Позиций с ценой',
+            final: true,
+          },
+        ].map((s) => (
+          <div key={s.label} className="flex flex-col gap-0.5 bg-surface px-4 py-3">
+            <span className={cn('text-2xl font-bold tabular-nums leading-tight', s.final ? 'text-success' : 'text-ink')}>{s.n}</span>
+            <span className="text-sm font-semibold text-ink">{s.label}</span>
+            <span className="text-xs text-ink-muted">{s.sub}</span>
+          </div>
+        ))}
+      </div>
+      {funnel.first && funnel.last && (
+        <p className="-mt-2 text-xs text-ink-faint">
+          Первое письмо {formatDate(funnel.first)}, последнее {formatDate(funnel.last)}
+        </p>
+      )}
+    </>
+  );
+
   if (layout === 'decide') {
     const riskOf = (o: SupplierOffer) => {
       const r = o.inn ? reliabilityByInn.get(o.inn) ?? null : null;
@@ -1790,6 +1835,8 @@ export function PriceComparisonCard({
         </div>
 
         {error && <p className="text-sm text-danger">{error}</p>}
+
+        {funnelBlock}
 
         {!emptyPositions && unmatchedAll.length > 0 && (
           <div className="flex flex-col gap-3">
@@ -2367,45 +2414,7 @@ export function PriceComparisonCard({
         </div>
       </div>
 
-      {/* Воронка запроса */}
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-control border border-border bg-border md:grid-cols-5">
-        {[
-          {
-            n: funnel.sent,
-            sub: funnel.letters
-              ? `${funnel.letters} писем${funnel.followup.reminders ? `, из них ${funnel.followup.reminders} напоминаний` : ''}`
-              : 'писем ещё не было',
-            label: 'Запрос отправлен',
-          },
-          { n: funnel.replied, sub: `${funnel.repliedNoQuote} без КП`, label: 'Ответили' },
-          {
-            n: funnel.followup.followingUp,
-            sub:
-              funnel.followup.declined || funnel.followup.noAnswer
-                ? `${funnel.followup.declined} отказались, ${funnel.followup.noAnswer} без ответа`
-                : `срок ответа — ${request.replyDueDays} дн.`,
-            label: 'Дожимаем',
-          },
-          { n: funnel.confirmed, sub: `${funnel.quotesCount} счетов`, label: 'КП получено' },
-          {
-            n: `${funnel.pricedPositions} из ${positions.length}`,
-            sub: positions.length ? (unmatchedAll.length ? `${unmatchedAll.length} строк счетов ещё не привязаны` : 'позиций ведомости с ценой') : 'раздел сметы не привязан',
-            label: 'Позиций с ценой',
-            final: true,
-          },
-        ].map((s) => (
-          <div key={s.label} className="flex flex-col gap-0.5 bg-surface px-4 py-3">
-            <span className={cn('text-2xl font-bold tabular-nums leading-tight', s.final ? 'text-success' : 'text-ink')}>{s.n}</span>
-            <span className="text-sm font-semibold text-ink">{s.label}</span>
-            <span className="text-xs text-ink-muted">{s.sub}</span>
-          </div>
-        ))}
-      </div>
-      {funnel.first && funnel.last && (
-        <p className="-mt-2 text-xs text-ink-faint">
-          Первое письмо {formatDate(funnel.first)}, последнее {formatDate(funnel.last)}
-        </p>
-      )}
+      {funnelBlock}
 
       {/* Плашки — только про отобранное */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
