@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Check, FileDown, Link2, Package, Pencil, Send, Sparkles } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { AlertTriangle, Check, FileDown, Link2, MoreHorizontal, Package, Pencil, Send, Sparkles } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -51,6 +52,10 @@ import { grossUp, vatRateForCountry } from '../../data/vat';
 import {
   STALE_QUOTE_DAYS,
   buildColumns,
+  buildRecommendations,
+  moneyTotal,
+  positionOffers,
+  sameProposal,
   buildSnapshot,
   deltaToPicked,
   formatDate,
@@ -342,6 +347,8 @@ export function PriceComparisonCard({
   onOfferUpdated,
   renderBadges,
   reliabilityByInn,
+  layout = 'old',
+  onShowOldView,
 }: {
   request: SupplierRequest;
   // Материалы раздела сметы, к которому привязан запрос, — то, что реально
@@ -370,8 +377,16 @@ export function PriceComparisonCard({
   // Нужна панели «Заказать всё у одного»: владелец, 2026-09-17, «мы никогда
   // не ставим на первое место поставщика с красными флагами».
   reliabilityByInn: Map<string, SupplierReliability>;
+  // 'new' — вид по макету 2026-09-28 (см. блок «Новый вид» ниже), 'old' —
+  // прежняя матрица, сохранена по просьбе владельца «на всякий случай».
+  layout?: 'new' | 'old';
+  onShowOldView?: () => void;
 }) {
-  const [country, setCountry] = useState<string>(SUPPLIER_COUNTRIES[0]);
+  // Страна по умолчанию — первая, где кто-то уже прислал КП: у категорий,
+  // где все поставщики российские, иначе открывался пустой экран.
+  const [country, setCountry] = useState<string>(
+    () => SUPPLIER_COUNTRIES.find((c) => offers.some((o) => (o.country || SUPPLIER_COUNTRIES[0]) === c && offerCommunicationStatus(o, emails) === 'confirmed')) ?? SUPPLIER_COUNTRIES[0],
+  );
   const [view, setView] = useState<'Таблица' | 'По позициям'>('Таблица');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -389,6 +404,18 @@ export function PriceComparisonCard({
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [creatingOrders, setCreatingOrders] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const [fixOpen, setFixOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!moreOpen) return;
+    const close = (e: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [moreOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -473,6 +500,8 @@ export function PriceComparisonCard({
       last: dates.length > 0 ? dates[dates.length - 1] : null,
     };
   }, [offersInCountry, emails, confirmed, quotesByOffer, positions, columns, request.replyDueDays]);
+
+  const recos = useMemo(() => buildRecommendations(positions, columns), [positions, columns]);
 
   const proposal = request.proposal ?? {};
   const review = request.review;
@@ -1140,6 +1169,724 @@ export function PriceComparisonCard({
 
   const reviewStatus = review?.status ?? 'draft';
 
+  const sectionPicker = (
+    <div className="flex flex-col gap-2 text-sm text-ink-muted">
+      <p>
+        У категории не выбран раздел сметы (или в нём нет материалов) — сравнение строится по позициям ведомости.
+        {columns.length > 0 && ` КП уже прислали ${columns.length}: ${columns.map((c) => c.offer.name).join(', ')}.`}
+      </p>
+      {candidates.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {suggestedCandidate && (
+            <span className="text-ink">
+              Похоже, подходит раздел «{suggestedCandidate.section.title}» ({suggestedCandidate.section.materials.length}{' '}
+              {suggestedCandidate.section.materials.length === 1 ? 'материал' : 'материалов'}, {suggestedCandidate.estimate.title || 'смета'}):
+            </span>
+          )}
+          <select value={sectionPick || suggestedCandidate?.section.id || ''} onChange={(e) => setSectionPick(e.target.value)} className="rounded-control border border-border bg-surface px-2 py-1.5 text-sm text-ink outline-none focus:border-primary">
+            <option value="">— выбрать раздел —</option>
+            {candidates.map((c) => (
+              <option key={c.section.id} value={c.section.id}>
+                {c.estimate.title || 'Смета'} · {c.section.title} ({c.section.materials.length})
+              </option>
+            ))}
+          </select>
+          <Button type="button" variant="secondary" disabled={saving || !(sectionPick || suggestedCandidate)} onClick={() => void bindSection(sectionPick || suggestedCandidate!.section.id)}>
+            Привязать
+          </Button>
+        </div>
+      ) : (
+        <p className="text-ink-faint">Укажите смету и раздел в настройках категории на вкладке «Поставщики».</p>
+      )}
+    </div>
+  );
+
+  const unmatchedPanel = !emptyPositions && unmatchedAll.length > 0 && (
+      <div className="flex flex-col gap-2 rounded-control border border-warning/40 bg-warning-bg/60 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="flex flex-col gap-1 text-sm text-ink">
+            {unmatchedUnlinked.length > 0 && (
+              <span>
+                <span className="font-semibold">
+                  {unmatchedUnlinked.length} {unmatchedUnlinked.length === 1 ? 'строка' : unmatchedUnlinked.length < 5 ? 'строки' : 'строк'} счетов
+                </span>{' '}
+                у {unmatchedSuppliers.length} {unmatchedSuppliers.length === 1 ? 'поставщика' : 'поставщиков'} не привязаны к ведомости и не участвуют в сравнении:{' '}
+                {unmatchedSuppliers.map((c) => `${c.offer.name} (${c.count})`).join(', ')}
+              </span>
+            )}
+            {unmatchedLinkedNoPrice.length > 0 && (
+              <span>
+                <span className="font-semibold">
+                  {unmatchedLinkedNoPrice.length} {unmatchedLinkedNoPrice.length === 1 ? 'строка' : unmatchedLinkedNoPrice.length < 5 ? 'строки' : 'строк'} счетов
+                </span>{' '}
+                у {linkedNoPriceSuppliers.length} {linkedNoPriceSuppliers.length === 1 ? 'поставщика' : 'поставщиков'} уже привязаны к позиции ведомости, но без цены за единицу сметы —
+                впишите цену вручную, чтобы они попали в сравнение:{' '}
+                {linkedNoPriceSuppliers.map((c) => `${c.offer.name} (${c.count})`).join(', ')}
+              </span>
+            )}
+          </span>
+          <span className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="secondary" icon={<Sparkles className="h-4 w-4" />} onClick={() => void suggestMatches()} disabled={suggesting || saving}>
+              {suggesting ? 'Думаю…' : suggestions ? 'Предложить заново' : 'Предложить сопоставление'}
+            </Button>
+            <button type="button" onClick={() => setShowUnmatched((v) => !v)} className="text-xs font-medium text-ink-muted hover:text-ink">
+              {showUnmatched ? 'Скрыть строки' : 'Показать строки'}
+            </button>
+          </span>
+        </div>
+        {suggestions && (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-ink-muted">
+              Подсказка модели — проверьте позицию, вид и цену за единицу сметы, снимите галочку с лишнего и нажмите «Применить». В базу ничего не пишется без подтверждения.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px] border-collapse text-xs">
+                <thead>
+                  <tr className="text-left text-[11px] uppercase tracking-wide text-ink-muted">
+                    <th className="py-1 pr-2 font-medium" />
+                    <th className="py-1 pr-2 font-medium">Строка счёта</th>
+                    <th className="py-1 pr-2 font-medium">Позиция ведомости</th>
+                    <th className="py-1 pr-2 font-medium">Вид</th>
+                    <th className="py-1 pr-2 font-medium">Цена за ед. сметы</th>
+                    <th className="py-1 font-medium">Пометка</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {suggestions.map((r, idx) => {
+                    const position = positions.find((p) => p.id === r.positionId);
+                    const unitMismatch = !!position && !sameUnit(r.item.unit, position.unit);
+                    const update = (patch: Partial<SuggestionRow>) => setSuggestions((prev) => prev!.map((x, i) => (i === idx ? { ...x, ...patch } : x)));
+                    return (
+                      <tr key={r.lineId} className={cn('border-t border-border align-top', !r.accepted && 'opacity-50')}>
+                        <td className="py-1.5 pr-2">
+                          <input type="checkbox" checked={r.accepted} onChange={(e) => update({ accepted: e.target.checked })} />
+                        </td>
+                        <td className="py-1.5 pr-2 text-ink">
+                          <span className="font-medium">{r.supplierName}:</span> {r.item.name}
+                          <span className="block text-ink-muted">
+                            {r.item.quantity ?? '—'} {r.item.unit} · {r.item.price != null ? formatUnit(r.item.price, offers.find((o) => o.id === r.offerId)?.currency ?? 'RUB') : ''}
+                          </span>
+                        </td>
+                        <td className="py-1.5 pr-2">
+                          <select
+                            value={r.kind === 'delivery' ? '__delivery' : r.kind === 'none' ? '' : r.positionId}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === '__delivery') update({ kind: 'delivery', positionId: '', accepted: true });
+                              else if (!v) update({ kind: 'none', positionId: '', accepted: true });
+                              else {
+                                const pos = positions.find((p) => p.id === v);
+                                const g = pos ? guessUnitPrice(r.item, pos) : null;
+                                update({ positionId: v, kind: r.kind === 'none' || r.kind === 'delivery' ? 'check' : r.kind, unitPrice: g ? String(g.unitPrice) : r.unitPrice, accepted: true });
+                              }
+                            }}
+                            className="w-full rounded-control border border-border bg-surface px-2 py-1 text-xs text-ink outline-none focus:border-primary"
+                          >
+                            <option value="">не материал ведомости</option>
+                            <option value="__delivery">доставка / транспорт</option>
+                            {positions.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="py-1.5 pr-2">
+                          {r.kind !== 'delivery' && r.kind !== 'none' && (
+                            <select value={r.kind} onChange={(e) => update({ kind: e.target.value as SuggestionRow['kind'] })} className="rounded-control border border-border bg-surface px-2 py-1 text-xs text-ink outline-none focus:border-primary">
+                              {KIND_CYCLE.map((k) => (
+                                <option key={k} value={k}>
+                                  {PURCHASE_ITEM_MATCH_KIND_LABELS[k]}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </td>
+                        <td className="py-1.5 pr-2">
+                          {r.kind !== 'delivery' && r.kind !== 'none' && (
+                            <>
+                              <input
+                                type="number"
+                                step="any"
+                                value={r.unitPrice}
+                                onChange={(e) => update({ unitPrice: e.target.value })}
+                                placeholder="0"
+                                className={cn('w-24 rounded-control border bg-surface px-2 py-1 text-xs outline-none focus:border-primary', !r.unitPrice ? 'border-warning' : 'border-border')}
+                              />
+                              <span className="ml-1 text-ink-muted">за {position?.unit || 'ед.'}</span>
+                              {!r.unitPrice && <span className="block text-warning">{unitMismatch ? `единицы разные (${r.item.unit || '?'} → ${position?.unit || '?'}), без цены в таблицу не попадёт` : 'нужна цена'}</span>}
+                            </>
+                          )}
+                        </td>
+                        <td className="py-1.5">
+                          {r.kind !== 'delivery' && r.kind !== 'none' && (
+                            <input type="text" value={r.note} onChange={(e) => update({ note: e.target.value })} placeholder="чем отличается" className="w-full rounded-control border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-primary" />
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button type="button" onClick={() => void applySuggestions()} disabled={saving || !suggestions.some((r) => applicableSuggestion(r))}>
+                Применить {suggestions.filter((r) => applicableSuggestion(r)).length}
+              </Button>
+              <button type="button" onClick={() => setSuggestions(null)} className="text-xs font-medium text-ink-muted hover:text-ink">
+                Отменить
+              </button>
+            </div>
+          </div>
+        )}
+        {showUnmatched && !suggestions && (
+          <div className="flex flex-col gap-1">
+            {unmatchedAll.map(({ line, offer }) => (
+              <div key={line.item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-border bg-surface px-3 py-1.5 text-xs">
+                <span className="min-w-0 flex-1 truncate text-ink">
+                  <span className="font-medium">{offer.name}:</span> {line.item.name}
+                  {line.item.quantity != null && ` · ${line.item.quantity} ${line.item.unit}`}
+                  {line.item.sourceMaterialId && <span className="text-warning"> · привязана, но без цены за единицу сметы</span>}
+                </span>
+                <span className="tabular-nums text-ink-muted">{line.item.price != null ? formatUnit(line.item.price, line.currency) : ''}</span>
+                <button type="button" onClick={() => onOpenDetail(offer)} className="inline-flex items-center gap-1 font-semibold text-ink underline decoration-dotted underline-offset-2 hover:decoration-solid">
+                  <Check className="h-3 w-3" /> В переписке
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+  );
+
+  const asidePanel = !emptyPositions && asideCount > 0 && (
+      <div className="flex flex-col gap-1.5 rounded-control border border-border bg-surface-muted px-4 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs text-ink-muted">
+            <span className="font-semibold text-ink">{asideCount}</span> {asideCount === 1 ? 'строка' : asideCount < 5 ? 'строки' : 'строк'} счетов разобраны как «не позиция
+            ведомости» и в сравнении не участвуют: {asideSuppliers.map((c) => `${c.offer.name} (${c.aside.length})`).join(', ')}
+          </span>
+          <button type="button" onClick={() => setShowAside((v) => !v)} className="text-xs font-medium text-ink-muted hover:text-ink">
+            {showAside ? 'Скрыть строки' : 'Показать строки'}
+          </button>
+        </div>
+        {showAside && (
+          <div className="flex flex-col gap-1">
+            {asideSuppliers.map((c) =>
+              c.aside.map((line) => (
+                <div key={`${c.offer.id}-${line.item.id}`} className="flex flex-wrap items-baseline gap-x-2 text-xs">
+                  <span className="font-medium text-ink">{c.offer.name}:</span>
+                  <span className="min-w-0 flex-1 text-ink">{line.item.name}</span>
+                  <span className="tabular-nums text-ink-muted">
+                    {line.item.quantity ?? '—'} {line.item.unit} · {formatMoney(line.total, line.currency)}
+                  </span>
+                  {line.item.matchNote && <span className="w-full text-[11px] text-ink-faint">{line.item.matchNote}</span>}
+                </div>
+              )),
+            )}
+          </div>
+        )}
+      </div>
+  );
+
+  const sendModal = sendOpen && (
+      <SendProposalModal
+        request={request}
+        total={total}
+        review={review}
+        onClose={() => setSendOpen(false)}
+        onSend={async (to, subject, message) => {
+          const { html, text } = buildProposalEmailHtml(doc(), message);
+          // kind внутри purchase-send-email — лимит 12 функций Vercel Hobby.
+          const resp = await authFetch('/api/purchase-send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ kind: 'proposal', to, subject, html, text }),
+          });
+          const data = (await resp.json().catch(() => ({}))) as { error?: string };
+          if (!resp.ok) throw new Error(data.error || `Ошибка ${resp.status}`);
+          try {
+            localStorage.setItem(SENT_TO_STORAGE_KEY, to);
+          } catch {
+            /* приватный режим — не страшно */
+          }
+          onRequestSaved(
+            await updateSupplierRequestReview(request.id, {
+              status: 'sent',
+              sentAt: new Date().toISOString(),
+              sentTo: to,
+              sentBy: preparedBy(),
+              snapshot: buildSnapshot(picked, columnById, total, pickedDelivery.length ? sumMoney(pickedDelivery, rate) : null),
+            }),
+          );
+        }}
+      />
+  );
+
+
+  // ── Новый вид (владелец, 2026-09-28: «сейчас нихера непонятно, слишком
+  // много инфы» + «не хватает разделения на позиции четко по запросу и на
+  // аналоги, их нужно сравнивать отдельно»). Одна главная кнопка по этапу,
+  // три шага вместо воронки, итог двумя цифрами (строго по запросу / с
+  // аналогами), по строке — лучшая цена точно по запросу и лучший аналог
+  // отдельно. Прежний вид — layout="old" (переключатель «Старый вид» на
+  // странице и ссылка «Все цены таблицей»), он не тронут.
+  function approveReview() {
+    void setReview({ ...(review ?? { status: 'sent' }), status: 'approved', decidedAt: new Date().toISOString(), comment: undefined });
+  }
+  function returnReview() {
+    const comment = window.prompt('Что нужно уточнить (комментарий руководителя)?', review?.comment ?? '') ?? null;
+    if (comment === null) return;
+    void setReview({ ...(review ?? { status: 'sent' }), status: 'returned', decidedAt: new Date().toISOString(), comment: comment.trim() || undefined });
+  }
+  function applyRecommendation(next: SupplierProposal) {
+    const current = Object.keys(proposal).length;
+    if (current > 0 && !sameProposal(proposal, next) && !window.confirm(`Заменить текущий выбор (${current} поз.) этим набором?`)) return;
+    void saveProposal(next);
+  }
+  function toggleExpanded(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  if (layout === 'new') {
+    const supplierName = (offerId: string) => columnById.get(offerId)?.offer.name ?? '';
+    const suppliersWord = (n: number) => `${n} ${n === 1 ? 'поставщик' : n < 5 && n > 0 ? 'поставщика' : 'поставщиков'}`;
+    const kindWord = (k: PurchaseItemMatchKind) => (k === 'exact' ? 'по запросу' : k === 'alternative' ? 'аналог' : 'уточнить');
+    const countries = SUPPLIER_COUNTRIES.filter((c) => offers.some((o) => (o.country || SUPPLIER_COUNTRIES[0]) === c));
+    const dateRu = (iso?: string) => (iso ? new Date(iso).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) : '');
+
+    const strictTotal = moneyTotal(recos.strict.parts, rate);
+    const analogTotal = moneyTotal(recos.withAnalogs.parts, rate);
+    const replacedExact = moneyTotal(recos.withAnalogs.replacedExactParts, rate);
+    const replacedAnalog = moneyTotal(recos.withAnalogs.replacedAnalogParts, rate);
+    const savings =
+      replacedExact && replacedAnalog && replacedExact.currency === replacedAnalog.currency && replacedExact.amount > 0
+        ? { amount: replacedExact.amount - replacedAnalog.amount, pct: (replacedExact.amount - replacedAnalog.amount) / replacedExact.amount, currency: replacedExact.currency }
+        : null;
+
+    const steps: { title: string; sub: string; state: 'done' | 'cur' | 'next' | 'warn' }[] = [
+      {
+        title: 'Цены собраны',
+        sub: `${funnel.confirmed} из ${offersInCountry.length} прислали КП · ${funnel.pricedPositions} из ${positions.length} позиций с ценой`,
+        state: funnel.pricedPositions > 0 ? 'done' : 'cur',
+      },
+      {
+        title: 'Выбор',
+        sub: `${pickedCells.length} из ${positions.length} позиций выбрано`,
+        state: reviewStatus !== 'draft' ? 'done' : funnel.pricedPositions > 0 ? 'cur' : 'next',
+      },
+      {
+        title: 'Утверждение',
+        sub:
+          reviewStatus === 'approved'
+            ? `утверждено ${dateRu(review?.decidedAt)}`
+            : reviewStatus === 'sent'
+              ? `отправлено ${dateRu(review?.sentAt)}${review?.sentTo ? ` на ${review.sentTo}` : ''}, ждём ответ`
+              : reviewStatus === 'returned'
+                ? `вернули${review?.comment ? `: «${review.comment}»` : ''}`
+                : 'руководителю стройки',
+        state: reviewStatus === 'approved' ? 'done' : reviewStatus === 'returned' ? 'warn' : reviewStatus === 'sent' ? 'cur' : 'next',
+      },
+    ];
+
+    const stageAction =
+      reviewStatus === 'approved' ? (
+        <Button type="button" icon={<Package className="h-4 w-4" />} onClick={() => void createOrders()} disabled={creatingOrders || saving}>
+          {creatingOrders ? 'Создаём заказы…' : 'Сформировать заказы'}
+        </Button>
+      ) : reviewStatus === 'sent' ? (
+        <>
+          <Button type="button" variant="secondary" onClick={returnReview} disabled={saving}>
+            Вернули
+          </Button>
+          <Button type="button" onClick={approveReview} disabled={saving}>
+            Утверждено
+          </Button>
+        </>
+      ) : (
+        <Button type="button" icon={<Send className="h-4 w-4" />} onClick={() => setSendOpen(true)} disabled={saving || pickedCells.length === 0}>
+          <span className="sm:hidden">На утверждение</span>
+          <span className="hidden sm:inline">Отправить на утверждение</span>
+        </Button>
+      );
+
+    const menuItem = 'block w-full rounded-lg px-3 py-2 text-left text-sm text-ink hover:bg-surface-muted disabled:opacity-50';
+    const unmatchedNames = [...new Set(unmatchedAll.map((x) => x.offer.name))];
+
+    return (
+      <Card className="flex min-w-0 flex-col gap-4 p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xl font-bold text-ink">{request.title}</div>
+            <p className="mt-0.5 text-xs text-ink-muted">
+              {request.sectionTitle ? `Раздел сметы «${request.sectionTitle}» · ` : ''}
+              {positions.length} поз.
+              {positions.length > 0 && ' · цены с НДС за объём ведомости'}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative" ref={moreRef}>
+              <Button type="button" variant="secondary" icon={<MoreHorizontal className="h-4 w-4" />} onClick={() => setMoreOpen((v) => !v)}>
+                Ещё
+              </Button>
+              {moreOpen && (
+                <div className="absolute right-0 top-full z-20 mt-1 flex w-64 flex-col rounded-xl border border-border bg-surface p-1 shadow-lg" onClick={() => setMoreOpen(false)}>
+                  <button type="button" className={menuItem} onClick={() => void exportPdf()} disabled={exportingPdf}>
+                    {exportingPdf ? 'Готовим PDF…' : 'Скачать PDF на утверждение'}
+                  </button>
+                  {reviewStatus === 'sent' && (
+                    <button type="button" className={menuItem} onClick={() => setSendOpen(true)} disabled={saving}>
+                      Отправить ещё раз
+                    </button>
+                  )}
+                  {reviewStatus === 'draft' && pickedCells.length > 0 && (
+                    <button
+                      type="button"
+                      className={menuItem}
+                      disabled={saving}
+                      title="Если руководитель утвердил устно или в мессенджере"
+                      onClick={() => void setReview({ status: 'approved', decidedAt: new Date().toISOString(), snapshot: buildSnapshot(picked, columnById, total, pickedDelivery.length ? sumMoney(pickedDelivery, rate) : null) })}
+                    >
+                      Утверждено без письма
+                    </button>
+                  )}
+                  {reviewStatus !== 'draft' && (
+                    <button type="button" className={menuItem} onClick={() => void setReview(null)} disabled={saving}>
+                      Снова черновик
+                    </button>
+                  )}
+                  {Object.keys(proposal).length > 0 && reviewStatus === 'draft' && (
+                    <button type="button" className={menuItem} onClick={() => void saveProposal({})} disabled={saving}>
+                      Очистить выбор
+                    </button>
+                  )}
+                  {!emptyPositions && columns.length > 0 && (
+                    <button
+                      type="button"
+                      className={menuItem}
+                      onClick={() => void formSupply()}
+                      disabled={saving}
+                      title="Все предложения, которые не выбраны и ещё не помечены «Не покупаем», станут «Не покупаем» — цены останутся в сравнении и в отчёте"
+                    >
+                      Сформировать поставку
+                    </button>
+                  )}
+                  {onShowOldView && (
+                    <button type="button" className={menuItem} onClick={onShowOldView}>
+                      Все цены таблицей (старый вид)
+                    </button>
+                  )}
+                  {countries.length > 1 && (
+                    <div className="border-t border-border px-3 pb-2 pt-2" onClick={(e) => e.stopPropagation()}>
+                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Поставщики из</span>
+                      <ToggleGroup options={countries} value={country} onChange={setCountry} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <span className="hidden flex-wrap items-center gap-2 sm:flex">{stageAction}</span>
+          </div>
+        </div>
+
+        {snapshotDrift && (
+          <p className="text-sm font-semibold text-danger">
+            Сумма изменилась после отправки: было {snapshotDrift}, сейчас {total}. Отправьте заново или верните в черновик через «Ещё».
+          </p>
+        )}
+
+        <div className="grid grid-cols-1 overflow-hidden rounded-2xl border border-border sm:grid-cols-3">
+          {steps.map((s, i) => (
+            <div key={s.title} className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
+              <span
+                className={cn(
+                  'grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold',
+                  s.state === 'done' ? 'bg-success-bg text-success' : s.state === 'cur' ? 'bg-ink text-white' : s.state === 'warn' ? 'bg-danger-bg text-danger' : 'bg-surface-muted text-ink-faint',
+                )}
+              >
+                {s.state === 'done' ? <Check className="h-3.5 w-3.5" /> : i + 1}
+              </span>
+              <span className="min-w-0">
+                <b className={cn('block text-sm', s.state === 'next' ? 'text-ink-faint' : 'text-ink')}>{s.title}</b>
+                <span className="block text-xs text-ink-muted [overflow-wrap:anywhere]">{s.sub}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {error && <p className="text-sm text-danger">{error}</p>}
+
+        {!emptyPositions && (unmatchedAll.length > 0 || asideCount > 0) && (
+          <div className="flex flex-col gap-3">
+            {unmatchedAll.length > 0 ? (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warning/40 bg-warning-bg/60 px-4 py-2.5 text-sm text-ink">
+                <span className="min-w-0 flex-1 basis-64 [overflow-wrap:anywhere]">
+                  <AlertTriangle className="mr-1.5 inline h-4 w-4 align-[-3px] text-warning" />
+                  {unmatchedAll.length} {unmatchedAll.length === 1 ? 'строка' : unmatchedAll.length < 5 ? 'строки' : 'строк'} из счетов {unmatchedNames.slice(0, 3).join(', ')}
+                  {unmatchedNames.length > 3 ? ` и ещё ${unmatchedNames.length - 3}` : ''} не {unmatchedAll.length === 1 ? 'привязана' : 'привязаны'} к позициям — их цены не видны в сравнении
+                </span>
+                <Button type="button" variant="secondary" onClick={() => setFixOpen((v) => !v)}>
+                  {fixOpen ? 'Свернуть' : 'Разобрать'}
+                </Button>
+              </div>
+            ) : (
+              !fixOpen && (
+                <button type="button" onClick={() => setFixOpen(true)} className="self-start text-xs font-medium text-ink-muted hover:text-ink">
+                  Разобранные строки счетов, не вошедшие в сравнение ({asideCount})
+                </button>
+              )
+            )}
+            {fixOpen && (
+              <>
+                {unmatchedPanel}
+                {asidePanel}
+              </>
+            )}
+          </div>
+        )}
+
+        {emptyPositions ? (
+          sectionPicker
+        ) : columns.length === 0 ? (
+          <p className="text-sm text-ink-faint">
+            Пока никто из «{country}» не прислал КП{countries.length > 1 ? ' — страну можно сменить в «Ещё»' : ''}.
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {[
+                {
+                  key: 'strict',
+                  label: 'Строго по запросу',
+                  value: strictTotal ? formatMoney(strictTotal.amount, strictTotal.currency) : '—',
+                  desc: recos.strict.positions
+                    ? `${recos.strict.positions} из ${positions.length} позиций · ${suppliersWord(recos.strict.offerIds.size)}`
+                    : 'точно по запросу цен пока нет',
+                  proposal: recos.strict.proposal,
+                  count: recos.strict.positions,
+                },
+                {
+                  key: 'analogs',
+                  label: 'С аналогами там, где дешевле',
+                  value: analogTotal ? formatMoney(analogTotal.amount, analogTotal.currency) : '—',
+                  desc:
+                    recos.withAnalogs.replaced + recos.withAnalogs.analogOnly === 0
+                      ? 'аналоги не дешевле точных предложений'
+                      : [
+                          savings && recos.withAnalogs.replaced > 0
+                            ? `−${formatMoney(savings.amount, savings.currency)} (−${Math.round(savings.pct * 100)} %) на ${recos.withAnalogs.replaced} поз., заменённых аналогом`
+                            : recos.withAnalogs.replaced > 0
+                              ? `${recos.withAnalogs.replaced} поз. заменены аналогом`
+                              : '',
+                          recos.withAnalogs.analogOnly > 0 ? `${recos.withAnalogs.analogOnly} поз. есть только аналогом` : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' · '),
+                  proposal: recos.withAnalogs.proposal,
+                  count: recos.withAnalogs.positions,
+                },
+              ].map((r) => {
+                const applied = sameProposal(proposal, r.proposal);
+                return (
+                  <div key={r.key} className={cn('flex flex-wrap items-end justify-between gap-3 rounded-2xl border px-4 py-3', applied ? 'border-success/40 bg-success-bg' : 'border-border bg-surface-muted')}>
+                    <div className="min-w-0 flex-1 basis-48">
+                      <span className="block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{r.label}</span>
+                      <span className="mt-1 block text-xl font-bold tabular-nums text-ink">{r.value}</span>
+                      <span className="block text-xs text-ink-muted">{r.desc}</span>
+                      <span className="block text-[11px] text-ink-faint">без доставки</span>
+                    </div>
+                    {applied ? (
+                      <span className="shrink-0 text-sm font-semibold text-success">✓ Выбрано</span>
+                    ) : (
+                      <Button type="button" variant="secondary" disabled={saving || r.count === 0 || reviewStatus === 'approved'} onClick={() => applyRecommendation(r.proposal)} className="shrink-0">
+                        Выбрать всё
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="overflow-hidden rounded-2xl border border-border">
+              <div className="hidden grid-cols-[1.5fr_1.3fr_1.3fr_1fr] gap-3 border-b border-border bg-surface-muted px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-ink-muted md:grid">
+                <span>Позиция</span>
+                <span>
+                  Точно по запросу <span className="font-medium normal-case tracking-normal text-ink-faint">· лучшая цена</span>
+                </span>
+                <span>
+                  Аналоги <span className="font-medium normal-case tracking-normal text-ink-faint">· лучшая, к запросу</span>
+                </span>
+                <span className="text-right">Выбрано · сумма</span>
+              </div>
+              {positions.map((p) => {
+                const po = positionOffers(p.id, columns);
+                const pickedCell = pickedCellByPosition.get(p.id) ?? null;
+                const open = expanded.has(p.id);
+                const offersCount = po.exact.length + po.analogs.length;
+                const unit = p.unit || 'ед.';
+                const isPickedCell = (c: Cell | null) => !!c && !!pickedCell && pickedCell.offerId === c.offerId && pickedCell.itemId === c.itemId;
+                const analogDelta = po.bestAnalog && po.bestExact ? deltaToPicked(po.bestAnalog, po.bestExact) : null;
+                const bestCell = (c: Cell | null, extra: ReactNode) =>
+                  c ? (
+                    <span className={cn('inline-block min-w-0 max-w-full rounded-lg px-2 py-1 align-top', isPickedCell(c) && 'ring-1 ring-success')}>
+                      <span className="block truncate text-sm font-semibold text-ink">{supplierName(c.offerId)}</span>
+                      <span className="block text-xs tabular-nums text-ink-muted">
+                        {formatUnit(c.unitPrice, c.currency)}/{unit}
+                        {extra}
+                      </span>
+                    </span>
+                  ) : null;
+                const rowList = (list: Cell[], reference: Cell | null, title: string) => (
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <span className="px-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                      {title} · {list.length}
+                    </span>
+                    {list.length === 0 && <span className="px-1 text-xs text-ink-faint">нет предложений</span>}
+                    {list.map((c) => {
+                      const col = columnById.get(c.offerId);
+                      if (!col) return null;
+                      const d = reference && reference !== c ? deltaToPicked(c, reference) : null;
+                      const picked = isPickedCell(c);
+                      return (
+                        <div key={c.offerId} className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-surface px-3 py-2 text-xs', picked && 'ring-1 ring-success', c.excludedFromSupply && 'opacity-60')}>
+                          <span className="min-w-0 flex-1 basis-40">
+                            <button type="button" onClick={() => onOpenDetail(col.offer)} className="text-left text-sm font-semibold text-ink hover:underline">
+                              {col.offer.name}
+                            </button>
+                            <span className="ml-1.5 inline-flex flex-wrap items-center gap-1 align-middle">
+                              <KindTag kind={c.kind} onClick={() => cycleKind(c)} title="Нажмите, чтобы сменить вид: по запросу → аналог → уточнить" />
+                              {needsReview(c) && c.kind !== 'check' && <ReviewTag confidence={c.matchConfidence} recognition={c.recognitionConfidence} />}
+                              {(c.vat === 'net' || c.vat === 'converted') && <VatTag vat={c.vat} rate={c.vatRate} />}
+                              {c.excludedFromSupply && <span className="text-[11px] font-semibold text-ink-faint">не покупаем</span>}
+                              {c.isArchived && <span className="text-[11px] text-ink-faint">из прошлого КП</span>}
+                            </span>
+                            {c.note && <NoteWithLinks text={c.note} className="block text-[11px] text-ink-muted [overflow-wrap:anywhere]" />}
+                            <ShortfallLabel cell={c} p={p} />
+                          </span>
+                          <span className="w-20 text-right tabular-nums text-ink">{formatUnit(c.unitPrice, c.currency)}</span>
+                          <span className={cn('w-12 text-right tabular-nums', d == null ? 'text-ink-faint' : d < -0.005 ? 'font-semibold text-success' : 'text-ink-muted')}>
+                            {d == null ? '' : formatDelta(d).replace('та же цена', '=')}
+                          </span>
+                          <span className="w-20 text-right tabular-nums text-ink-muted">{p.quantity != null ? formatMoney(c.unitPrice * p.quantity, c.currency) : '—'}</span>
+                          <PickButton cell={c} p={p} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+                return (
+                  <div key={p.id} className="border-b border-border last:border-b-0">
+                    <div className="grid grid-cols-2 items-center gap-x-3 gap-y-2 px-4 py-3 md:grid-cols-[1.5fr_1.3fr_1.3fr_1fr]">
+                      <div className="col-span-2 min-w-0 md:col-span-1">
+                        <span className="block text-sm font-semibold text-ink [overflow-wrap:anywhere]">{p.name}</span>
+                        <span className="text-xs text-ink-muted">
+                          {p.quantity != null ? p.quantity.toLocaleString('ru-RU') : '—'} {unit}
+                          {offersCount > 0 && (
+                            <>
+                              {' · '}
+                              <button type="button" onClick={() => toggleExpanded(p.id)} className="font-medium text-ink underline decoration-dotted underline-offset-2 hover:decoration-solid">
+                                {open ? 'свернуть' : `все предложения (${offersCount})`}
+                              </button>
+                            </>
+                          )}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block text-[11px] text-ink-faint md:hidden">По запросу</span>
+                        {bestCell(po.bestExact, null) ?? <span className="px-2 text-xs text-ink-faint">нет предложений</span>}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block text-[11px] text-ink-faint md:hidden">Аналог</span>
+                        {bestCell(
+                          po.bestAnalog,
+                          po.bestAnalog && (
+                            <>
+                              {' '}
+                              {po.bestAnalog.kind === 'check' ? (
+                                <span className="font-semibold text-warning">уточнить</span>
+                              ) : analogDelta != null ? (
+                                <span className={cn('font-semibold', analogDelta < -0.005 ? 'text-success' : 'text-ink-muted')}>{formatDelta(analogDelta)}</span>
+                              ) : !po.bestExact ? (
+                                <span className="text-ink-faint">нет точного</span>
+                              ) : null}
+                            </>
+                          ),
+                        ) ?? <span className="px-2 text-xs text-ink-faint">нет</span>}
+                      </div>
+                      <div className="col-span-2 flex items-center justify-between gap-2 md:col-span-1 md:flex-col md:items-end md:justify-center md:gap-0.5">
+                        {pickedCell ? (
+                          <>
+                            <span className="min-w-0 truncate text-xs text-ink-muted md:text-right">
+                              <span className={cn('font-semibold', pickedCell.kind === 'exact' ? 'text-success' : 'text-warning')}>{kindWord(pickedCell.kind)}</span> · {supplierName(pickedCell.offerId)}
+                            </span>
+                            <span className="text-sm font-bold tabular-nums text-ink">{p.quantity != null ? formatMoney(pickedCell.unitPrice * p.quantity, pickedCell.currency) : '—'}</span>
+                          </>
+                        ) : offersCount > 0 ? (
+                          <button type="button" onClick={() => toggleExpanded(p.id)} className="ml-auto rounded-full border border-border-strong px-3 py-1 text-xs font-semibold text-ink hover:border-success hover:text-success">
+                            {open ? 'Свернуть' : 'Выбрать ▾'}
+                          </button>
+                        ) : (
+                          <span className="ml-auto text-xs text-ink-faint">цен нет</span>
+                        )}
+                      </div>
+                    </div>
+                    {open && (
+                      <div className="grid grid-cols-1 gap-3 bg-surface-muted px-3 py-3 lg:grid-cols-2">
+                        {rowList(po.exact, po.bestExact, 'Точно по запросу')}
+                        {rowList(po.analogs, po.bestExact ?? po.bestAnalog, 'Аналоги')}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-ink-muted">
+              {onShowOldView && (
+                <button type="button" onClick={onShowOldView} className="underline decoration-border-strong underline-offset-4 hover:text-ink">
+                  Все цены таблицей
+                </button>
+              )}
+              {orders.length > 0 && (
+                <Link to="/admin/purchases?tab=orders" className="underline decoration-border-strong underline-offset-4 hover:text-ink">
+                  Заказы по категории ({orders.length})
+                </Link>
+              )}
+            </div>
+
+            <div className="sticky bottom-3 z-10 flex items-center justify-between gap-2 rounded-2xl bg-ink px-3 py-3 sm:gap-3 sm:px-4 text-white shadow-lg">
+              <div className="min-w-0 flex-1">
+                <span className="block text-xs text-white/70">
+                  <span className="sm:hidden">
+                    Выбрано {pickedCells.length} из {positions.length}
+                  </span>
+                  <span className="hidden sm:inline">
+                    Выбрано {pickedCells.length} из {positions.length} позиций{pickedOfferIds.size ? ` · ${suppliersWord(pickedOfferIds.size)}` : ''}
+                    {pickedDelivery.length ? ' · с доставкой' : ''}
+                  </span>
+                </span>
+                <span className="block whitespace-nowrap text-base font-bold tabular-nums sm:text-xl">{pickedCells.length > 0 ? total : '—'}</span>
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                <button type="button" onClick={() => void exportPdf()} disabled={exportingPdf} className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-white/30 px-3 py-2 text-sm font-medium text-white hover:bg-white/10 disabled:opacity-60">
+                  <FileDown className="h-4 w-4" /> {exportingPdf ? 'Готовим PDF…' : 'PDF'}
+                </button>
+                {stageAction}
+              </div>
+            </div>
+          </>
+        )}
+
+        {sendModal}
+      </Card>
+    );
+  }
+
   return (
     <Card className="flex flex-col gap-4 p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1283,163 +2030,7 @@ export function PriceComparisonCard({
       {/* Строки счетов без привязки — заметно и сверху, а не свёрнуто внизу:
           у красок 10 КП и 53 строки лежали тут, а таблица показывала 50 ячеек
           «не предложено». */}
-      {!emptyPositions && unmatchedAll.length > 0 && (
-        <div className="flex flex-col gap-2 rounded-control border border-warning/40 bg-warning-bg/60 px-4 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="flex flex-col gap-1 text-sm text-ink">
-              {unmatchedUnlinked.length > 0 && (
-                <span>
-                  <span className="font-semibold">
-                    {unmatchedUnlinked.length} {unmatchedUnlinked.length === 1 ? 'строка' : unmatchedUnlinked.length < 5 ? 'строки' : 'строк'} счетов
-                  </span>{' '}
-                  у {unmatchedSuppliers.length} {unmatchedSuppliers.length === 1 ? 'поставщика' : 'поставщиков'} не привязаны к ведомости и не участвуют в сравнении:{' '}
-                  {unmatchedSuppliers.map((c) => `${c.offer.name} (${c.count})`).join(', ')}
-                </span>
-              )}
-              {unmatchedLinkedNoPrice.length > 0 && (
-                <span>
-                  <span className="font-semibold">
-                    {unmatchedLinkedNoPrice.length} {unmatchedLinkedNoPrice.length === 1 ? 'строка' : unmatchedLinkedNoPrice.length < 5 ? 'строки' : 'строк'} счетов
-                  </span>{' '}
-                  у {linkedNoPriceSuppliers.length} {linkedNoPriceSuppliers.length === 1 ? 'поставщика' : 'поставщиков'} уже привязаны к позиции ведомости, но без цены за единицу сметы —
-                  впишите цену вручную, чтобы они попали в сравнение:{' '}
-                  {linkedNoPriceSuppliers.map((c) => `${c.offer.name} (${c.count})`).join(', ')}
-                </span>
-              )}
-            </span>
-            <span className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="secondary" icon={<Sparkles className="h-4 w-4" />} onClick={() => void suggestMatches()} disabled={suggesting || saving}>
-                {suggesting ? 'Думаю…' : suggestions ? 'Предложить заново' : 'Предложить сопоставление'}
-              </Button>
-              <button type="button" onClick={() => setShowUnmatched((v) => !v)} className="text-xs font-medium text-ink-muted hover:text-ink">
-                {showUnmatched ? 'Скрыть строки' : 'Показать строки'}
-              </button>
-            </span>
-          </div>
-          {suggestions && (
-            <div className="flex flex-col gap-2">
-              <p className="text-xs text-ink-muted">
-                Подсказка модели — проверьте позицию, вид и цену за единицу сметы, снимите галочку с лишнего и нажмите «Применить». В базу ничего не пишется без подтверждения.
-              </p>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[820px] border-collapse text-xs">
-                  <thead>
-                    <tr className="text-left text-[11px] uppercase tracking-wide text-ink-muted">
-                      <th className="py-1 pr-2 font-medium" />
-                      <th className="py-1 pr-2 font-medium">Строка счёта</th>
-                      <th className="py-1 pr-2 font-medium">Позиция ведомости</th>
-                      <th className="py-1 pr-2 font-medium">Вид</th>
-                      <th className="py-1 pr-2 font-medium">Цена за ед. сметы</th>
-                      <th className="py-1 font-medium">Пометка</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {suggestions.map((r, idx) => {
-                      const position = positions.find((p) => p.id === r.positionId);
-                      const unitMismatch = !!position && !sameUnit(r.item.unit, position.unit);
-                      const update = (patch: Partial<SuggestionRow>) => setSuggestions((prev) => prev!.map((x, i) => (i === idx ? { ...x, ...patch } : x)));
-                      return (
-                        <tr key={r.lineId} className={cn('border-t border-border align-top', !r.accepted && 'opacity-50')}>
-                          <td className="py-1.5 pr-2">
-                            <input type="checkbox" checked={r.accepted} onChange={(e) => update({ accepted: e.target.checked })} />
-                          </td>
-                          <td className="py-1.5 pr-2 text-ink">
-                            <span className="font-medium">{r.supplierName}:</span> {r.item.name}
-                            <span className="block text-ink-muted">
-                              {r.item.quantity ?? '—'} {r.item.unit} · {r.item.price != null ? formatUnit(r.item.price, offers.find((o) => o.id === r.offerId)?.currency ?? 'RUB') : ''}
-                            </span>
-                          </td>
-                          <td className="py-1.5 pr-2">
-                            <select
-                              value={r.kind === 'delivery' ? '__delivery' : r.kind === 'none' ? '' : r.positionId}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                if (v === '__delivery') update({ kind: 'delivery', positionId: '', accepted: true });
-                                else if (!v) update({ kind: 'none', positionId: '', accepted: true });
-                                else {
-                                  const pos = positions.find((p) => p.id === v);
-                                  const g = pos ? guessUnitPrice(r.item, pos) : null;
-                                  update({ positionId: v, kind: r.kind === 'none' || r.kind === 'delivery' ? 'check' : r.kind, unitPrice: g ? String(g.unitPrice) : r.unitPrice, accepted: true });
-                                }
-                              }}
-                              className="w-full rounded-control border border-border bg-surface px-2 py-1 text-xs text-ink outline-none focus:border-primary"
-                            >
-                              <option value="">не материал ведомости</option>
-                              <option value="__delivery">доставка / транспорт</option>
-                              {positions.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.name}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="py-1.5 pr-2">
-                            {r.kind !== 'delivery' && r.kind !== 'none' && (
-                              <select value={r.kind} onChange={(e) => update({ kind: e.target.value as SuggestionRow['kind'] })} className="rounded-control border border-border bg-surface px-2 py-1 text-xs text-ink outline-none focus:border-primary">
-                                {KIND_CYCLE.map((k) => (
-                                  <option key={k} value={k}>
-                                    {PURCHASE_ITEM_MATCH_KIND_LABELS[k]}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                          </td>
-                          <td className="py-1.5 pr-2">
-                            {r.kind !== 'delivery' && r.kind !== 'none' && (
-                              <>
-                                <input
-                                  type="number"
-                                  step="any"
-                                  value={r.unitPrice}
-                                  onChange={(e) => update({ unitPrice: e.target.value })}
-                                  placeholder="0"
-                                  className={cn('w-24 rounded-control border bg-surface px-2 py-1 text-xs outline-none focus:border-primary', !r.unitPrice ? 'border-warning' : 'border-border')}
-                                />
-                                <span className="ml-1 text-ink-muted">за {position?.unit || 'ед.'}</span>
-                                {!r.unitPrice && <span className="block text-warning">{unitMismatch ? `единицы разные (${r.item.unit || '?'} → ${position?.unit || '?'}), без цены в таблицу не попадёт` : 'нужна цена'}</span>}
-                              </>
-                            )}
-                          </td>
-                          <td className="py-1.5">
-                            {r.kind !== 'delivery' && r.kind !== 'none' && (
-                              <input type="text" value={r.note} onChange={(e) => update({ note: e.target.value })} placeholder="чем отличается" className="w-full rounded-control border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-primary" />
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="flex items-center gap-3">
-                <Button type="button" onClick={() => void applySuggestions()} disabled={saving || !suggestions.some((r) => applicableSuggestion(r))}>
-                  Применить {suggestions.filter((r) => applicableSuggestion(r)).length}
-                </Button>
-                <button type="button" onClick={() => setSuggestions(null)} className="text-xs font-medium text-ink-muted hover:text-ink">
-                  Отменить
-                </button>
-              </div>
-            </div>
-          )}
-          {showUnmatched && !suggestions && (
-            <div className="flex flex-col gap-1">
-              {unmatchedAll.map(({ line, offer }) => (
-                <div key={line.item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-border bg-surface px-3 py-1.5 text-xs">
-                  <span className="min-w-0 flex-1 truncate text-ink">
-                    <span className="font-medium">{offer.name}:</span> {line.item.name}
-                    {line.item.quantity != null && ` · ${line.item.quantity} ${line.item.unit}`}
-                    {line.item.sourceMaterialId && <span className="text-warning"> · привязана, но без цены за единицу сметы</span>}
-                  </span>
-                  <span className="tabular-nums text-ink-muted">{line.item.price != null ? formatUnit(line.item.price, line.currency) : ''}</span>
-                  <button type="button" onClick={() => onOpenDetail(offer)} className="inline-flex items-center gap-1 font-semibold text-ink underline decoration-dotted underline-offset-2 hover:decoration-solid">
-                    <Check className="h-3 w-3" /> В переписке
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {unmatchedPanel}
 
       {/* Разобрано и в сравнение не идёт. Отдельно от оранжевого блока выше:
           там строки ЖДУТ решения, здесь оно уже принято (колеровка в цене
@@ -1447,67 +2038,11 @@ export function PriceComparisonCard({
           полностью распознанные счета» — счёт распознан полностью ровно
           тогда, когда у каждой его строки есть исход, а не когда исходов нет
           совсем. */}
-      {!emptyPositions && asideCount > 0 && (
-        <div className="flex flex-col gap-1.5 rounded-control border border-border bg-surface-muted px-4 py-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs text-ink-muted">
-              <span className="font-semibold text-ink">{asideCount}</span> {asideCount === 1 ? 'строка' : asideCount < 5 ? 'строки' : 'строк'} счетов разобраны как «не позиция
-              ведомости» и в сравнении не участвуют: {asideSuppliers.map((c) => `${c.offer.name} (${c.aside.length})`).join(', ')}
-            </span>
-            <button type="button" onClick={() => setShowAside((v) => !v)} className="text-xs font-medium text-ink-muted hover:text-ink">
-              {showAside ? 'Скрыть строки' : 'Показать строки'}
-            </button>
-          </div>
-          {showAside && (
-            <div className="flex flex-col gap-1">
-              {asideSuppliers.map((c) =>
-                c.aside.map((line) => (
-                  <div key={`${c.offer.id}-${line.item.id}`} className="flex flex-wrap items-baseline gap-x-2 text-xs">
-                    <span className="font-medium text-ink">{c.offer.name}:</span>
-                    <span className="min-w-0 flex-1 text-ink">{line.item.name}</span>
-                    <span className="tabular-nums text-ink-muted">
-                      {line.item.quantity ?? '—'} {line.item.unit} · {formatMoney(line.total, line.currency)}
-                    </span>
-                    {line.item.matchNote && <span className="w-full text-[11px] text-ink-faint">{line.item.matchNote}</span>}
-                  </div>
-                )),
-              )}
-            </div>
-          )}
-        </div>
-      )}
+      {asidePanel}
 
 
       {emptyPositions ? (
-        <div className="flex flex-col gap-2 text-sm text-ink-muted">
-          <p>
-            У категории не выбран раздел сметы (или в нём нет материалов) — сравнение строится по позициям ведомости.
-            {columns.length > 0 && ` КП уже прислали ${columns.length}: ${columns.map((c) => c.offer.name).join(', ')}.`}
-          </p>
-          {candidates.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2">
-              {suggestedCandidate && (
-                <span className="text-ink">
-                  Похоже, подходит раздел «{suggestedCandidate.section.title}» ({suggestedCandidate.section.materials.length}{' '}
-                  {suggestedCandidate.section.materials.length === 1 ? 'материал' : 'материалов'}, {suggestedCandidate.estimate.title || 'смета'}):
-                </span>
-              )}
-              <select value={sectionPick || suggestedCandidate?.section.id || ''} onChange={(e) => setSectionPick(e.target.value)} className="rounded-control border border-border bg-surface px-2 py-1.5 text-sm text-ink outline-none focus:border-primary">
-                <option value="">— выбрать раздел —</option>
-                {candidates.map((c) => (
-                  <option key={c.section.id} value={c.section.id}>
-                    {c.estimate.title || 'Смета'} · {c.section.title} ({c.section.materials.length})
-                  </option>
-                ))}
-              </select>
-              <Button type="button" variant="secondary" disabled={saving || !(sectionPick || suggestedCandidate)} onClick={() => void bindSection(sectionPick || suggestedCandidate!.section.id)}>
-                Привязать
-              </Button>
-            </div>
-          ) : (
-            <p className="text-ink-faint">Укажите смету и раздел в настройках категории на вкладке «Поставщики».</p>
-          )}
-        </div>
+        sectionPicker
       ) : columns.length === 0 ? (
         <p className="text-sm text-ink-faint">Пока никто из «{country}» не прислал КП — переключите страну выше.</p>
       ) : view === 'По позициям' ? (
@@ -1939,39 +2474,7 @@ export function PriceComparisonCard({
         </div>
       )}
 
-      {sendOpen && (
-        <SendProposalModal
-          request={request}
-          total={total}
-          review={review}
-          onClose={() => setSendOpen(false)}
-          onSend={async (to, subject, message) => {
-            const { html, text } = buildProposalEmailHtml(doc(), message);
-            // kind внутри purchase-send-email — лимит 12 функций Vercel Hobby.
-            const resp = await authFetch('/api/purchase-send-email', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ kind: 'proposal', to, subject, html, text }),
-            });
-            const data = (await resp.json().catch(() => ({}))) as { error?: string };
-            if (!resp.ok) throw new Error(data.error || `Ошибка ${resp.status}`);
-            try {
-              localStorage.setItem(SENT_TO_STORAGE_KEY, to);
-            } catch {
-              /* приватный режим — не страшно */
-            }
-            onRequestSaved(
-              await updateSupplierRequestReview(request.id, {
-                status: 'sent',
-                sentAt: new Date().toISOString(),
-                sentTo: to,
-                sentBy: preparedBy(),
-                snapshot: buildSnapshot(picked, columnById, total, pickedDelivery.length ? sumMoney(pickedDelivery, rate) : null),
-              }),
-            );
-          }}
-        />
-      )}
+      {sendModal}
     </Card>
   );
 }
