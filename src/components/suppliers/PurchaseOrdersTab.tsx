@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Package, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Check, ChevronDown, FileDown, Loader2, Package, Trash2 } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
@@ -43,7 +43,7 @@ import {
   type ReceiverDraft,
 } from './PurchaseReceiverPicker';
 import type { PurchaseDocument } from '../../data/purchaseDocuments';
-import { fetchPurchaseDocumentsByOrder } from '../../lib/purchaseDocumentsApi';
+import { fetchApprovalDocumentsByOrders, fetchPurchaseDocumentsByOrder } from '../../lib/purchaseDocumentsApi';
 import type { PurchaseDeliveryAddress } from '../../data/purchaseDeliveryAddresses';
 import { fetchPurchaseDeliveryAddresses } from '../../lib/purchaseDeliveryAddressesApi';
 import { deliveryAddressFromInfo } from '../../data/legalEntities';
@@ -113,22 +113,27 @@ function OrderRow({
   deliveries,
   onOpen,
   showSupplier,
+  actions,
 }: {
   order: PurchaseOrder;
   categoryTitle: string | null;
   deliveries: PurchaseDelivery[];
   onOpen: () => void;
   showSupplier: boolean;
+  // Кнопки этапа («Скачать PDF», «Согласовано») — рядом со строкой, а не
+  // внутри неё: строка сама кнопка, вложенные кнопки HTML не допускает.
+  actions?: ReactNode;
 }) {
   // Значок «получено N из M» показываем только когда поставки вообще
   // заведены: у свежего заказа «получено 0 из 3» выглядело бы как проблема,
   // хотя везти ещё никто ничего не обещал.
   const progress = deliveryProgress(order.items, deliveries);
   return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border first:border-t-0">
     <button
       type="button"
       onClick={onOpen}
-      className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 border-t border-border px-1 py-3 text-left text-sm first:border-t-0 hover:bg-surface-muted/60"
+      className="flex min-w-0 flex-1 basis-80 flex-wrap items-center gap-x-3 gap-y-1 px-1 py-3 text-left text-sm hover:bg-surface-muted/60"
     >
       <span className="font-semibold tabular-nums text-ink">{order.number}</span>
       {showSupplier && <span className="min-w-0 truncate text-ink">{order.supplierName || 'Поставщик не назван'}</span>}
@@ -153,6 +158,8 @@ function OrderRow({
         {order.deliveryDue ? ` · поставка до ${formatDate(order.deliveryDue)}` : ''}
       </span>
     </button>
+    {actions && <div className="flex shrink-0 flex-wrap items-center gap-2 pb-3 sm:pb-0">{actions}</div>}
+    </div>
   );
 }
 
@@ -336,7 +343,14 @@ function PurchaseOrderModal({
   async function saveFile(field: 'invoiceFile' | 'paymentFile' | 'poaFile', file: DocumentFile | null) {
     setError(null);
     try {
-      onChanged(await updatePurchaseOrder(order.id, { [field]: file }));
+      let next = await updatePurchaseOrder(order.id, { [field]: file });
+      // Приложили платёжку к заказу, который ещё ждёт оплаты, — значит,
+      // оплачен (владелец, 2026-09-28: этапы «К оплате» → «Едут»).
+      if (field === 'paymentFile' && file && (next.status === 'draft' || next.status === 'ordered' || next.status === 'invoiced')) {
+        next = await updatePurchaseOrderStatus(order.id, 'paid');
+        setJournalTick((v) => v + 1);
+      }
+      onChanged(next);
     } catch (e) {
       setError(errorMessage(e, 'Не удалось сохранить файл'));
     }
@@ -652,6 +666,15 @@ function useDeliveriesByOrder(orders: PurchaseOrder[]) {
 
 const NO_DELIVERIES: PurchaseDelivery[] = [];
 
+// Этапы вкладки «Заказы» (владелец, 2026-09-28): на согласовании → к оплате →
+// едут → архив. Статусы в базе прежние, этап — просто их группа.
+const ORDER_STAGES: { key: string; title: string; hint: string; empty: string; statuses: PurchaseOrderStatus[] }[] = [
+  { key: 'approval', title: 'На согласовании', hint: 'ждут вашего «Согласовано»', empty: 'Пусто. Заказы попадают сюда из «Сравнения цен» кнопкой «Отправить на согласование».', statuses: ['draft'] },
+  { key: 'pay', title: 'К оплате', hint: 'приложите платёжку — заказ уйдёт в «Едут»', empty: 'Нет заказов, ждущих оплаты.', statuses: ['ordered', 'invoiced'] },
+  { key: 'transit', title: 'Едут', hint: 'оплачены, ждём поставку', empty: 'Ничего не едет.', statuses: ['paid', 'shipped', 'delivered', 'claim'] },
+  { key: 'archive', title: 'Архив', hint: 'принятые, закрытые и отменённые', empty: '', statuses: ['accepted', 'closed', 'cancelled'] },
+];
+
 // ===========================================================================
 // Вкладка «Заказы» на странице «Закупки»
 // ===========================================================================
@@ -660,7 +683,6 @@ export function PurchaseOrdersTab({ categoryTitleById }: { categoryTitleById: Ma
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>(ALL);
   const [supplierFilter, setSupplierFilter] = useState<string>(ALL);
   const [openId, setOpenId] = useState<string | null>(null);
   const { byOrder, replace } = useDeliveriesByOrder(orders);
@@ -685,23 +707,43 @@ export function PurchaseOrdersTab({ categoryTitleById }: { categoryTitleById: Ma
     [orders],
   );
 
-  // Статусов в фильтре показываем только те, что реально встречаются, плюс
-  // выбранный: список из десяти пунктов, где девять ничего не найдут, — это
-  // не фильтр, а угадайка.
-  const statusOptions = useMemo(() => {
-    const used = new Set(orders.map((o) => PURCHASE_ORDER_STATUS_LABELS[o.status]));
-    return [ALL, ...PURCHASE_ORDER_STATUSES.map((st) => PURCHASE_ORDER_STATUS_LABELS[st]).filter((l) => used.has(l))];
-  }, [orders]);
+  const visible = useMemo(() => orders.filter((o) => supplierFilter === ALL || o.supplierName === supplierFilter), [orders, supplierFilter]);
 
-  const visible = useMemo(
-    () =>
-      orders.filter(
-        (o) =>
-          (statusFilter === ALL || PURCHASE_ORDER_STATUS_LABELS[o.status] === statusFilter) &&
-          (supplierFilter === ALL || o.supplierName === supplierFilter),
-      ),
-    [orders, statusFilter, supplierFilter],
-  );
+  // Листы согласования (PDF из «Отправить на согласование») — по заказам.
+  const [approvalByOrder, setApprovalByOrder] = useState<Map<string, PurchaseDocument>>(new Map());
+  const draftIds = useMemo(() => orders.filter((o) => o.status === 'draft').map((o) => o.id).join(','), [orders]);
+  useEffect(() => {
+    if (!draftIds) return;
+    let alive = true;
+    fetchApprovalDocumentsByOrders(draftIds.split(','))
+      .then((docs) => {
+        if (!alive) return;
+        const map = new Map<string, PurchaseDocument>();
+        for (const d of docs) if (!map.has(d.orderId)) map.set(d.orderId, d);
+        setApprovalByOrder(map);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [draftIds]);
+
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  async function setStatus(order: PurchaseOrder, status: PurchaseOrderStatus) {
+    setBusyId(order.id);
+    setActionError(null);
+    try {
+      const next = await updatePurchaseOrderStatus(order.id, status);
+      setOrders((prev) => prev.map((o) => (o.id === next.id ? next : o)));
+    } catch (e) {
+      setActionError(errorMessage(e, 'Не удалось сменить статус заказа'));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const [archiveOpen, setArchiveOpen] = useState(false);
 
   const open = openId ? orders.find((o) => o.id === openId) ?? null : null;
 
@@ -719,7 +761,7 @@ export function PurchaseOrdersTab({ categoryTitleById }: { categoryTitleById: Ma
         <Card className="flex flex-col items-center gap-2 py-10 text-center text-sm text-ink-muted">
           <Package className="h-5 w-5 text-ink-faint" />
           <span>
-            Заказы появляются из утверждённого листа на вкладке «Сравнение цен» — кнопка «Сформировать заказы».
+            Заказы появляются из «Сравнения цен» кнопкой «Отправить на согласование».
           </span>
         </Card>
       )}
@@ -727,25 +769,87 @@ export function PurchaseOrdersTab({ categoryTitleById }: { categoryTitleById: Ma
       {!loading && !loadError && orders.length > 0 && (
         <>
           <div className="flex flex-wrap items-center gap-3">
-            <Select options={statusOptions} value={statusFilter} onChange={setStatusFilter} pill triggerClassName="py-1.5 text-xs" />
             <Select options={[ALL, ...supplierNames]} value={supplierFilter} onChange={setSupplierFilter} pill triggerClassName="py-1.5 text-xs" />
-            <span className="text-xs text-ink-faint">
-              {visible.length} из {orders.length}
-            </span>
           </div>
-          <Card className="flex flex-col p-4">
-            {visible.length === 0 && <p className="py-6 text-center text-sm text-ink-muted">Под фильтр ничего не подходит.</p>}
-            {visible.map((order) => (
-              <OrderRow
-                key={order.id}
-                order={order}
-                categoryTitle={order.requestId ? categoryTitleById.get(order.requestId) ?? null : null}
-                deliveries={byOrder.get(order.id) ?? NO_DELIVERIES}
-                onOpen={() => setOpenId(order.id)}
-                showSupplier
-              />
-            ))}
-          </Card>
+          {actionError && <p className="text-sm text-danger">{actionError}</p>}
+          {ORDER_STAGES.map((stage) => {
+            const list = visible.filter((o) => stage.statuses.includes(o.status));
+            const isArchive = stage.key === 'archive';
+            if (list.length === 0 && isArchive) return null;
+            const expanded = !isArchive || archiveOpen;
+            return (
+              <Card key={stage.key} className="flex flex-col p-4">
+                <button
+                  type="button"
+                  disabled={!isArchive}
+                  onClick={() => setArchiveOpen((v) => !v)}
+                  className="flex items-baseline justify-between gap-2 text-left"
+                >
+                  <span className="text-sm font-bold text-ink">
+                    {stage.title} · {list.length}
+                  </span>
+                  <span className="flex items-center gap-1 text-xs text-ink-faint">
+                    {stage.hint}
+                    {isArchive && <ChevronDown className={cn('h-4 w-4 transition-transform', archiveOpen && 'rotate-180')} />}
+                  </span>
+                </button>
+                {expanded && list.length === 0 && <p className="pt-3 text-sm text-ink-faint">{stage.empty}</p>}
+                {expanded && list.length > 0 && (
+                  <div className="mt-2 flex flex-col">
+                    {list.map((order) => {
+                      const approval = approvalByOrder.get(order.id);
+                      const busy = busyId === order.id;
+                      return (
+                        <OrderRow
+                          key={order.id}
+                          order={order}
+                          categoryTitle={order.requestId ? categoryTitleById.get(order.requestId) ?? null : null}
+                          deliveries={byOrder.get(order.id) ?? NO_DELIVERIES}
+                          onOpen={() => setOpenId(order.id)}
+                          showSupplier
+                          actions={
+                            order.status === 'draft' ? (
+                              <>
+                                {approval && (
+                                  <a
+                                    href={approval.file.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    download={approval.file.fileName}
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-border-strong px-3 py-1.5 text-xs font-semibold text-ink hover:border-ink"
+                                  >
+                                    <FileDown className="h-3.5 w-3.5" />
+                                    Скачать PDF
+                                  </a>
+                                )}
+                                <Button type="button" icon={<Check className="h-4 w-4" />} disabled={busy} onClick={() => void setStatus(order, 'ordered')}>
+                                  Согласовано
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  disabled={busy}
+                                  onClick={() => {
+                                    if (window.confirm(`Отменить заказ ${order.number}?`)) void setStatus(order, 'cancelled');
+                                  }}
+                                >
+                                  Отменить
+                                </Button>
+                              </>
+                            ) : order.status === 'ordered' || order.status === 'invoiced' ? (
+                              <Button type="button" variant="secondary" onClick={() => setOpenId(order.id)}>
+                                Приложить платёжку
+                              </Button>
+                            ) : undefined
+                          }
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+            );
+          })}
         </>
       )}
 

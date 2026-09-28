@@ -46,7 +46,9 @@ import { riskSummary, shouldFlag, type SupplierReliability } from '../../data/su
 import { authFetch } from '../../lib/authFetch';
 import { emailSignature } from './SupplierCorrespondenceTab';
 import { errorMessage } from '../../lib/errorMessage';
-import { downloadHtmlAsPdf } from '../../lib/htmlToPdf';
+import { downloadBlob, downloadHtmlAsPdf, pdfFileName, renderHtmlToPdfBlob } from '../../lib/htmlToPdf';
+import { uploadObjectDocument } from '../../lib/objectsApi';
+import { insertPurchaseDocument } from '../../lib/purchaseDocumentsApi';
 import { sameUnit } from '../../lib/units';
 import { guessUnitPrice } from '../../lib/unitPriceGuess';
 import { grossUp, vatRateForCountry } from '../../data/vat';
@@ -811,7 +813,7 @@ export function PriceComparisonCard({
   // заказа — шаг 12. Повторное нажатие не запрещено (часть позиций могли
   // отдать другому поставщику после первого раза), но спрашивает: заказы по
   // категории уже есть.
-  async function createOrders() {
+  async function createOrders(): Promise<PurchaseOrder[] | null> {
     const drafts = buildPurchaseOrderDrafts(
       picked.map(({ position, cell }) => ({
         position: { id: position.id, name: position.name, unit: position.unit, quantity: position.quantity },
@@ -827,23 +829,59 @@ export function PriceComparisonCard({
     );
     if (drafts.length === 0) {
       setError('Нечего заказывать: в отборе нет ни одной позиции с ценой.');
-      return;
+      return null;
     }
     if (orders.length > 0) {
       const ok = window.confirm(
         `По этой категории уже есть заказы (${orders.length}). Создать ещё ${drafts.length} — по одному на поставщика из текущего отбора?`,
       );
-      if (!ok) return;
+      if (!ok) return null;
     }
     setCreatingOrders(true);
     setError(null);
     try {
       const created = await insertPurchaseOrders(drafts, { requestId: request.id, legalEntityId: request.legalEntityId });
       setOrders((prev) => [...created, ...prev]);
+      return created;
     } catch (e) {
       setError(errorMessage(e, 'Не удалось создать заказы'));
+      return null;
     } finally {
       setCreatingOrders(false);
+    }
+  }
+
+  // «Отправить на согласование» (владелец, 2026-09-28): одна кнопка вместо
+  // «Скачать PDF» + «Создать заказы». Заказы рождаются «На согласовании»
+  // (status 'draft'), PDF скачивается и тем же файлом ложится на каждый
+  // заказ документом «Лист согласования» — чтобы его можно было скачать
+  // потом со вкладки «Заказы». PDF собираем ДО заказов: если сборка упадёт,
+  // заказов без листа не будет.
+  async function sendForApproval() {
+    setExportingPdf(true);
+    setError(null);
+    let blob: Blob;
+    let name: string;
+    try {
+      const report = doc();
+      blob = await renderHtmlToPdfBlob(buildPrintHtml(report));
+      name = pdfFileName(`${approvalPrintTitle(report)} — на согласование`);
+    } catch (e) {
+      setError(errorMessage(e, 'Не удалось собрать PDF'));
+      return;
+    } finally {
+      setExportingPdf(false);
+    }
+    const created = await createOrders();
+    if (!created || created.length === 0) return;
+    downloadBlob(blob, name);
+    try {
+      const file = await uploadObjectDocument(new File([blob], name, { type: 'application/pdf' }));
+      await Promise.all(
+        created.map((o) => insertPurchaseDocument({ orderId: o.id, deliveryId: null, kind: 'approval', title: 'Лист согласования', file })),
+      );
+    } catch (e) {
+      setError(errorMessage(e, 'Заказы созданы, но PDF не сохранился на них'));
     }
   }
 
@@ -1874,17 +1912,14 @@ export function PriceComparisonCard({
                 </div>
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
-                <Button type="button" variant="secondary" icon={<FileDown className="h-4 w-4" />} onClick={() => void exportPdf()} disabled={exportingPdf || pickedCells.length === 0}>
-                  {exportingPdf ? 'Готовим PDF…' : 'Скачать PDF'}
-                </Button>
-                <Button type="button" icon={<Package className="h-4 w-4" />} onClick={() => void createOrders()} disabled={creatingOrders || saving || futureOrders.length === 0}>
-                  {creatingOrders ? 'Создаём…' : futureOrders.length > 1 ? `Создать ${futureOrders.length} ${futureOrders.length < 5 ? 'заказа' : 'заказов'}` : 'Создать заказ'}
+                <Button type="button" icon={<Send className="h-4 w-4" />} onClick={() => void sendForApproval()} disabled={exportingPdf || creatingOrders || saving || futureOrders.length === 0}>
+                  {exportingPdf ? 'Готовим PDF…' : creatingOrders ? 'Создаём заказы…' : 'Отправить на согласование'}
                 </Button>
               </div>
             </div>
             {orders.length > 0 && (
               <Link to="/admin/purchases?tab=orders" className="self-start text-sm text-ink-muted underline decoration-border-strong underline-offset-4 hover:text-ink">
-                Уже созданные заказы по категории ({orders.length})
+                Заказы по категории во вкладке «Заказы» ({orders.length})
               </Link>
             )}
             {ordersError && <p className="text-xs text-danger">{ordersError}</p>}
