@@ -1492,6 +1492,9 @@ export function PriceComparisonCard({
         const coversAll = offeredPositions.length > 0 && live.filter(([, c]) => c.kind !== 'check').length >= offeredPositions.length;
         return { col, exactN, analogN, mine, short, allParts, coversAll, risk: riskOf(col.offer) };
       })
+      // Поставщик, который не закрывает ни одной позиции (и ничего не лежит в
+      // его заказе), на странице сравнения не нужен (владелец, 2026-09-28).
+      .filter((b) => b.exactN + b.analogN > 0 || b.mine.length > 0)
       // Кто закрывает больше позиций — первым, при равенстве — кто дешевле
       // за то, что закрывает (владелец, 2026-09-28: «самое дешёвое — первое»).
       .sort((a, b) => {
