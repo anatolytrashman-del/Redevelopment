@@ -8,9 +8,16 @@
 каталога, телефоны, почты, ссылки на прайсы и соцсети. Разбор сырья в профиль —
 отдельный шаг (extract), в базу пишет сессия Claude.
 
-Запуск: python3 scripts/supplier-profile/crawl.py hosts.txt OUT_DIR [--workers 8]
-hosts.txt — строки «host<TAB>website_url». Уже обойдённые (есть OUT_DIR/<host>.json) пропускает.
+Запуск: python3 scripts/supplier-profile/crawl.py hosts.txt OUT_DIR [--workers 8] [--browser]
+hosts.txt — строки «host<TAB>website_url» (или просто host). Уже удачно обойдённые
+(есть OUT_DIR/<host>.json со страницами) пропускает, неудачные повторяет.
 Сеть — через curl: он сам берёт прокси и сертификаты окружения.
+
+--browser — страницы открывает Chrome через Playwright, по одному сайту за раз.
+Нужен сайтам за защитой от ботов (DDoS-Guard, Qrator, «проверка браузера»):
+curl они отдают 401/403 даже с российского адреса. Ставится один раз:
+pip3 install playwright; если Google Chrome на машине нет — ещё
+python3 -m playwright install chromium.
 """
 import concurrent.futures as cf
 import html
@@ -19,6 +26,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 from urllib.parse import urljoin, urlparse
 
@@ -48,10 +56,60 @@ INN_RE = re.compile(r'ИНН[\s:№]*(\d{10}|\d{12})')
 OGRN_RE = re.compile(r'ОГРН(?:ИП)?[\s:№]*(\d{13}|\d{15})')
 
 
+BROWSER = None  # страница Playwright в режиме --browser
+JAR_DIR = tempfile.mkdtemp(prefix='crawl-cookies-')
+CHALLENGE_RE = re.compile(r'ddos-guard|just a moment|checking your browser|проверка браузера|qrator|вы не робот|are you human|captcha', re.I)
+
+
+def fetch_browser(url, retry=True):
+    try:
+        # Иначе при сорванном переходе content() вернёт прошлую страницу — чужой сайт.
+        try:
+            BROWSER.goto('about:blank')
+        except Exception:  # noqa: BLE001 — дозагрузка прошлой страницы, не важно
+            pass
+        try:
+            r = BROWSER.goto(url, timeout=30000, wait_until='domcontentloaded')
+        except Exception as e:  # noqa: BLE001
+            # Защита сама перебрасывает на себя же — это не ошибка, ждём итоговую страницу.
+            if 'interrupted by another navigation' not in str(e) and 'ERR_ABORTED' not in str(e):
+                raise
+            r = None
+        # Проверка «вы не бот» проходит сама за несколько секунд и перезагружает страницу.
+        for _ in range(4):
+            BROWSER.wait_for_timeout(2500)
+            try:
+                title = BROWSER.title()
+                body = BROWSER.inner_text('body', timeout=3000)
+            except Exception:  # noqa: BLE001 — страница как раз перезагружается
+                continue
+            if not CHALLENGE_RE.search(title + ' ' + body[:500]) and len(body) > 200:
+                break
+        if BROWSER.url.startswith('about:'):
+            return None, None, 'страница не открылась'
+        page_html = BROWSER.content()
+        status = r.status if r else 0
+        text = strip_html(page_html)
+        if CHALLENGE_RE.search(text[:500]) or len(text) < 200:
+            return None, BROWSER.url, f'http {status} (проверка не пройдена)'
+        return page_html, BROWSER.url, None
+    except Exception as e:  # noqa: BLE001
+        if retry:  # сетевой сбой бывает разовым — второй заход часто проходит
+            return fetch_browser(url, retry=False)
+        return None, None, str(e).split('\n')[0][:200]
+
+
 def fetch(url):
+    if BROWSER is not None:
+        return fetch_browser(url)
+    # Куки на хост: часть защит ставит куку первым ответом и ждёт её назад,
+    # без неё отдаёт 301 на себя же или 401.
+    jar = os.path.join(JAR_DIR, re.sub(r'[^\w.-]', '_', urlparse(url).hostname or 'x'))
     try:
         r = subprocess.run(
-            ['curl', '-sSL', '--compressed', '--max-time', '12', '--connect-timeout', '6', '-A', UA, '-w', '\n__EFFECTIVE__%{url_effective} %{http_code} %{content_type}', url],
+            ['curl', '-sSL', '--compressed', '--max-time', '12', '--connect-timeout', '6', '-A', UA,
+             '-b', jar, '-c', jar, '-H', 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+             '-H', 'Accept-Language: ru-RU,ru;q=0.9,en;q=0.5', '-H', 'Upgrade-Insecure-Requests: 1', '-w', '\n__EFFECTIVE__%{url_effective} %{http_code} %{content_type}', url],
             capture_output=True, timeout=20,
         )
     except subprocess.TimeoutExpired:
@@ -168,7 +226,7 @@ def crawl(host, start_url):
     fetched = 1
     # Потолок на сайт: медленный сервер (12 с на страницу × 45) держал поток
     # по 10 минут и тормозил весь обход.
-    deadline = time.time() + 150
+    deadline = time.time() + (300 if BROWSER is not None else 150)
     # Сначала все смысловые страницы (до 20), потом каталог.
     for kind, queue, cap in (('info', queue_info, 20), ('catalog', queue_cat, MAX_PAGES), ('other', queue_other, 15)):
         i = 0
@@ -198,29 +256,67 @@ def main():
     hosts_file, out_dir = sys.argv[1], sys.argv[2]
     workers = int(sys.argv[sys.argv.index('--workers') + 1]) if '--workers' in sys.argv else 8
     os.makedirs(out_dir, exist_ok=True)
+    pw = None
+    if '--browser' in sys.argv:
+        global BROWSER
+        from playwright.sync_api import sync_playwright
+        pw = sync_playwright().start()
+        opts = {'headless': '--headless' in sys.argv, 'args': ['--disable-blink-features=AutomationControlled']}
+        if os.environ.get('HTTPS_PROXY'):
+            opts['proxy'] = {'server': os.environ['HTTPS_PROXY']}
+        try:
+            if os.environ.get('CHROME_PATH'):
+                b = pw.chromium.launch(executable_path=os.environ['CHROME_PATH'], **opts)
+            else:
+                b = pw.chromium.launch(channel='chrome', **opts)  # установленный Google Chrome
+        except Exception:  # noqa: BLE001
+            b = pw.chromium.launch(**opts)
+        ctx = b.new_context(locale='ru-RU', user_agent=UA, ignore_https_errors=True, viewport={'width': 1366, 'height': 900})
+        BROWSER = ctx.new_page()
     jobs = []
     for line in open(hosts_file, encoding='utf-8'):
         parts = line.rstrip('\n').split('\t')
         if not parts[0]:
             continue
         host = parts[0].strip().lower()
-        if os.path.exists(os.path.join(out_dir, f'{host}.json')):
-            continue
+        done_file = os.path.join(out_dir, f'{host}.json')
+        if os.path.exists(done_file):
+            try:
+                if json.load(open(done_file, encoding='utf-8')).get('pages'):
+                    continue
+            except (OSError, ValueError):
+                pass
         jobs.append((host, parts[1].strip() if len(parts) > 1 else ''))
     print(f'к обходу: {len(jobs)}', flush=True)
     done = 0
-    with cf.ThreadPoolExecutor(workers) as ex:
-        futs = {ex.submit(crawl, h, u): h for h, u in jobs}
-        for f in cf.as_completed(futs):
-            h = futs[f]
+
+    def save(h, r):
+        nonlocal done
+        with open(os.path.join(out_dir, f'{h}.json'), 'w', encoding='utf-8') as fp:
+            json.dump(r, fp, ensure_ascii=False)
+        done += 1
+        print(f'{done}/{len(jobs)} {h} стр={len(r.get("pages", []))} тов={len(r.get("product_links", []))} {r.get("error") or ""}', flush=True)
+
+    if pw:
+        # Playwright привязан к потоку, где запущен, — браузерный обход идёт в главном.
+        for h, u in jobs:
             try:
-                r = f.result()
-            except Exception as e:  # noqa: BLE001 — один сайт не должен ронять обход
+                r = crawl(h, u)
+            except Exception as e:  # noqa: BLE001
                 r = {'host': h, 'error': f'crash: {e}', 'pages': []}
-            with open(os.path.join(out_dir, f'{h}.json'), 'w', encoding='utf-8') as fp:
-                json.dump(r, fp, ensure_ascii=False)
-            done += 1
-            print(f'{done}/{len(jobs)} {h} стр={len(r.get("pages", []))} тов={len(r.get("product_links", []))} {r.get("error") or ""}', flush=True)
+            save(h, r)
+    else:
+        with cf.ThreadPoolExecutor(workers) as ex:
+            futs = {ex.submit(crawl, h, u): h for h, u in jobs}
+            for f in cf.as_completed(futs):
+                h = futs[f]
+                try:
+                    r = f.result()
+                except Exception as e:  # noqa: BLE001 — один сайт не должен ронять обход
+                    r = {'host': h, 'error': f'crash: {e}', 'pages': []}
+                save(h, r)
+    if pw:
+        pw.stop()
 
 
 if __name__ == '__main__':
