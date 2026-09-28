@@ -2704,10 +2704,8 @@ export function Suppliers() {
             const current = all.find((r) => r.id === comparisonCategoryId) ?? all[0];
             const statusOf = (r: SupplierRequest): { text: string; tone: 'muted' | 'warn' | 'ok' | 'bad' } => {
               if (r.comparisonMode === 'lot') return { text: 'Сравнение лотом', tone: 'muted' };
-              const st = r.review?.status ?? 'draft';
-              if (st === 'approved') return { text: `Утверждено${r.review?.decidedAt ? ` ${new Date(r.review.decidedAt).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}` : ''}`, tone: 'ok' };
-              if (st === 'sent') return { text: 'На утверждении', tone: 'warn' };
-              if (st === 'returned') return { text: 'Вернули на уточнение', tone: 'bad' };
+              // Статусы согласования не показываем: сам поток выключен
+              // (владелец, 2026-09-28, см. APPROVAL_FLOW_ENABLED в PriceComparisonCard).
               const total = estimates.find((e) => e.id === r.estimateId)?.sections.find((sec) => sec.id === r.sectionId)?.materials.length ?? 0;
               const picked = Object.keys(r.proposal ?? {}).length;
               if (picked > 0) return { text: `Выбор: ${picked} из ${total}`, tone: 'warn' };
