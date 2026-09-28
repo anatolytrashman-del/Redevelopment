@@ -9,6 +9,7 @@ import { Select } from '../ui/Select';
 import { Textarea } from '../ui/Textarea';
 import { ToggleGroup } from '../ui/ToggleGroup';
 import { cn } from '../../lib/cn';
+import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { Estimate, EstimateMaterial } from '../../data/estimates';
 import type { ExchangeRate } from '../../data/exchangeRates';
 import type { SupplierOfferEmail } from '../../data/supplierOfferEmails';
@@ -387,7 +388,7 @@ export function PriceComparisonCard({
   reliabilityByInn: Map<string, SupplierReliability>;
   // 'new' — вид по макету 2026-09-28 (см. блок «Новый вид» ниже), 'old' —
   // прежняя матрица, сохранена по просьбе владельца «на всякий случай».
-  layout?: 'new' | 'old';
+  layout?: 'decide' | 'new' | 'old';
   onShowOldView?: () => void;
 }) {
   // Страна по умолчанию — первая, где кто-то уже прислал КП: у категорий,
@@ -416,6 +417,9 @@ export function PriceComparisonCard({
   const [fixOpen, setFixOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [listFilter, setListFilter] = useState<'Все' | 'Решить' | 'Готово'>('Все');
+  const detailRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!moreOpen) return;
     const close = (e: MouseEvent) => {
@@ -1459,6 +1463,473 @@ export function PriceComparisonCard({
       else next.add(id);
       return next;
     });
+  }
+
+  // ── Вид «кому что заказать» (третий макет, владелец 2026-09-28: «Мне не
+  // нравится Сравнение цен всё равно… попробуй прям переосознать эту
+  // страницу»). Решение принимается по одной позиции за раз: слева очередь
+  // (ждут решения / решено), справа предложения одной позиции тремя группами
+  // (по запросу, аналоги, уточнить), сверху поставщики как «корзины» — что
+  // закрывают и что уже лежит в их заказе, внизу будущие заказы. Разница в %
+  // — только внутри «по запросу»: минимума по аналогам нет (см. шапку файла).
+  if (layout === 'decide') {
+    const riskOf = (o: SupplierOffer) => {
+      const r = o.inn ? reliabilityByInn.get(o.inn) ?? null : null;
+      return shouldFlag(r) && r ? riskSummary(r) : null;
+    };
+    const offeredPositions = positions.filter((p) => columns.some((c) => c.cells.has(p.id)));
+    const baskets = columns
+      .map((col) => {
+        const live = [...col.currentCells.entries()];
+        const exactN = live.filter(([, c]) => c.kind === 'exact').length;
+        const analogN = live.filter(([, c]) => c.kind === 'alternative').length;
+        const mine = pickedCells.filter((x) => x.cell.offerId === col.offer.id);
+        const short = live.filter(([pid, c]) => {
+          const p = positions.find((x) => x.id === pid);
+          return !!p && c.quotedQuantity != null && p.quantity != null && sameUnit(c.quotedUnit, p.unit) && c.quotedQuantity < p.quantity * 0.9;
+        }).length;
+        const allParts: MoneyPart[] = live.map(([pid, c]) => ({ amount: c.unitPrice * (positions.find((x) => x.id === pid)?.quantity ?? 0), currency: c.currency }));
+        const coversAll = offeredPositions.length > 0 && live.filter(([, c]) => c.kind !== 'check').length >= offeredPositions.length;
+        return { col, exactN, analogN, mine, short, allParts, coversAll, risk: riskOf(col.offer) };
+      })
+      .sort((a, b) => Number(!!a.risk) - Number(!!b.risk) || b.exactN + b.analogN - (a.exactN + a.analogN));
+
+    const termsLine = (col: Column) => {
+      const t = col.terms;
+      const parts: string[] = [];
+      if (col.delivery != null) parts.push(col.delivery === 0 ? 'доставка бесплатно' : `доставка ${formatMoney(col.delivery, col.deliveryCurrency)}`);
+      else if (t?.deliveryTerms) parts.push(t.deliveryTerms);
+      else parts.push('доставка не названа');
+      if (t?.leadTimeDays != null) parts.push(`${t.leadTimeDays} дн.`);
+      if (t?.availability === 'in_stock') parts.push('в наличии');
+      if (t?.availability === 'on_order') parts.push('под заказ');
+      if (t?.prepaymentPercent != null) parts.push(t.prepaymentPercent === 0 ? 'оплата по факту' : `предоплата ${t.prepaymentPercent}%`);
+      return parts.join(' · ');
+    };
+
+    const todo = positions.filter((p) => !pickedCellByPosition.has(p.id) && columns.some((c) => c.cells.has(p.id)));
+    const none = positions.filter((p) => !columns.some((c) => c.cells.has(p.id)));
+    const done = positions.filter((p) => pickedCellByPosition.has(p.id));
+    const ordered = [...todo, ...none, ...done];
+    const active = ordered.find((p) => p.id === activeId) ?? todo[0] ?? ordered[0] ?? null;
+    const activeIdx = active ? ordered.indexOf(active) : -1;
+
+    const go = (p: EstimateMaterial | undefined) => {
+      if (!p) return;
+      setActiveId(p.id);
+      if (window.innerWidth < 1024) detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    const pickAndNext = (p: EstimateMaterial, cell: Cell) => {
+      const wasPicked = proposal[p.id]?.offerId === cell.offerId;
+      togglePick(p.id, cell);
+      if (!wasPicked) {
+        const next = todo.find((x) => x.id !== p.id && todo.indexOf(x) > todo.indexOf(p)) ?? todo.find((x) => x.id !== p.id);
+        if (next) setActiveId(next.id);
+      }
+    };
+
+    const byOffer = new Map<string, { col: Column; lines: { position: EstimateMaterial; cell: Cell }[] }>();
+    for (const x of pickedCells) {
+      const col = columnById.get(x.cell.offerId);
+      if (!col) continue;
+      if (!byOffer.has(col.offer.id)) byOffer.set(col.offer.id, { col, lines: [] });
+      byOffer.get(col.offer.id)!.lines.push(x);
+    }
+    const futureOrders = [...byOffer.values()];
+    const countries = SUPPLIER_COUNTRIES.filter((c) => offers.some((o) => (o.country || SUPPLIER_COUNTRIES[0]) === c));
+    const menuItem = 'block w-full rounded-lg px-3 py-2 text-left text-sm text-ink hover:bg-surface-muted disabled:opacity-50';
+    const listFiltered = listFilter === 'Решить' ? [...todo, ...none] : listFilter === 'Готово' ? done : ordered;
+    const unit = (p: EstimateMaterial) => p.unit || 'ед.';
+
+    const posRow = (p: EstimateMaterial) => {
+      const pc = pickedCellByPosition.get(p.id);
+      const po = positionOffers(p.id, columns);
+      const alt = po.analogs.filter((c) => c.kind === 'alternative').length;
+      const chk = po.analogs.length - alt;
+      const on = active?.id === p.id;
+      const hasOffers = po.exact.length + po.analogs.length > 0;
+      return (
+        <button
+          key={p.id}
+          type="button"
+          onClick={() => go(p)}
+          className={cn(
+            'flex w-full items-start gap-3 border-b border-border px-4 py-3 text-left last:border-b-0',
+            on ? 'bg-warning-bg/50 shadow-[inset_3px_0_0_var(--color-ink)]' : 'hover:bg-surface-muted/60',
+          )}
+        >
+          <span
+            className={cn(
+              'mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-bold',
+              pc ? 'bg-success-bg text-success' : hasOffers ? 'bg-warning-bg text-warning' : 'bg-surface-muted text-ink-faint',
+            )}
+          >
+            {pc ? '✓' : hasOffers ? '!' : '–'}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-ink [overflow-wrap:anywhere]">{p.name}</span>
+            <span className="block text-xs text-ink-muted">
+              {p.quantity != null ? p.quantity.toLocaleString('ru-RU') : '—'} {unit(p)}
+            </span>
+          </span>
+          <span className="max-w-[45%] shrink-0 text-right text-xs">
+            {pc ? (
+              <>
+                <span className="block truncate font-semibold text-ink">
+                  {columnById.get(pc.offerId)?.offer.name}{' '}
+                  <span className={cn('rounded-full px-1.5 py-px text-[10.5px] font-semibold', pc.kind === 'exact' ? 'bg-success-bg text-success' : 'bg-warning-bg text-warning')}>
+                    {pc.kind === 'exact' ? 'по запросу' : pc.kind === 'alternative' ? 'аналог' : 'уточнить'}
+                  </span>
+                </span>
+                <span className="block tabular-nums text-ink-muted">
+                  {formatUnit(pc.unitPrice, pc.currency)}/{unit(p)}
+                  {p.quantity != null && <b className="text-ink"> · {formatMoney(pc.unitPrice * p.quantity, pc.currency)}</b>}
+                </span>
+              </>
+            ) : hasOffers ? (
+              <>
+                <span className="block font-semibold text-warning">решить</span>
+                <span className="block text-ink-muted">
+                  {[po.exact.length ? `${po.exact.length} по запросу` : '', alt ? `${alt} ${alt === 1 ? 'аналог' : alt < 5 ? 'аналога' : 'аналогов'}` : '', chk ? 'уточнить' : ''].filter(Boolean).join(' · ')}
+                </span>
+              </>
+            ) : (
+              <span className="block text-ink-faint">никто не предложил</span>
+            )}
+          </span>
+        </button>
+      );
+    };
+
+    const offerRow = (p: EstimateMaterial, c: Cell, reference: Cell | null, showDelta: boolean) => {
+      const col = columnById.get(c.offerId);
+      if (!col) return null;
+      const picked = proposal[p.id]?.offerId === c.offerId;
+      const d = showDelta && reference && reference !== c ? deltaToPicked(c, reference) : null;
+      const risk = riskOf(col.offer);
+      return (
+        <div
+          key={c.offerId}
+          className={cn(
+            'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 rounded-2xl border px-4 py-3 sm:grid-cols-[minmax(0,1fr)_7rem_6.5rem_auto]',
+            picked ? 'border-success bg-success-bg/40' : risk ? 'border-border bg-surface-muted' : 'border-border bg-surface',
+            c.excludedFromSupply && 'opacity-60',
+          )}
+        >
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button type="button" onClick={() => onOpenDetail(col.offer)} className="text-left text-sm font-semibold text-ink hover:underline">
+                {col.offer.name}
+              </button>
+              {risk && <span className="rounded-full bg-danger-bg px-1.5 py-px text-[10.5px] font-semibold text-danger" title={risk}>риск</span>}
+              {needsReview(c) && c.kind !== 'check' && <ReviewTag confidence={c.matchConfidence} recognition={c.recognitionConfidence} />}
+              {(c.vat === 'net' || c.vat === 'converted') && <VatTag vat={c.vat} rate={c.vatRate} />}
+              {c.isArchived && <span className="rounded-full bg-surface-muted px-1.5 py-px text-[10.5px] text-ink-muted">из прошлого КП</span>}
+              {c.excludedFromSupply && <span className="text-[10.5px] font-semibold text-ink-faint">не покупаем</span>}
+            </div>
+            <div className="mt-0.5 text-xs text-ink-muted [overflow-wrap:anywhere]">
+              {c.quoteId ? c.quoteTitle : ''}
+              {c.quoteDate ? ` от ${formatDate(c.quoteDate)}` : ''}
+              {c.note && (
+                <>
+                  {c.quoteId ? ' · ' : ''}
+                  <NoteWithLinks text={c.note} className="inline font-medium text-warning" />
+                </>
+              )}
+            </div>
+            <ShortfallLabel cell={c} p={p} />
+          </div>
+          <div className="text-right tabular-nums">
+            <b className="block text-sm text-ink">
+              {formatUnit(c.unitPrice, c.currency)}/{unit(p)}
+            </b>
+            <span className="block text-[11px] text-ink-muted">{d != null ? formatDelta(d) : ' '}</span>
+          </div>
+          <div className="hidden text-right text-sm font-semibold tabular-nums text-ink sm:block">{p.quantity != null ? formatMoney(c.unitPrice * p.quantity, c.currency) : '—'}</div>
+          <div className="col-span-2 flex items-center justify-between gap-2 sm:col-span-1 sm:justify-end">
+            <span className="text-xs tabular-nums text-ink-muted sm:hidden">{p.quantity != null ? formatMoney(c.unitPrice * p.quantity, c.currency) : ''}</span>
+            {c.kind === 'check' ? (
+              <button type="button" onClick={() => onOpenDetail(col.offer)} className="rounded-full border border-border-strong px-3 py-1 text-xs font-semibold text-ink hover:border-ink">
+                Уточнить
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => pickAndNext(p, c)}
+                className={cn(
+                  'rounded-full border px-3 py-1 text-xs font-semibold',
+                  picked ? 'border-success bg-success text-white' : 'border-border-strong bg-surface text-ink hover:border-success hover:text-success',
+                )}
+              >
+                {picked ? '✓ Выбрано' : 'Выбрать'}
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    const group = (tone: string, label: string, caption: string, rows: ReactNode[], extra?: ReactNode) =>
+      rows.length === 0 ? null : (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-semibold', tone)}>{label}</span>
+            <span className="text-xs text-ink-muted">
+              {caption} · {rows.length}
+            </span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          {rows}
+          {extra}
+        </div>
+      );
+
+    const detail = active && (() => {
+      const po = positionOffers(active.id, columns);
+      const alts = po.analogs.filter((c) => c.kind === 'alternative');
+      const checks = po.analogs.filter((c) => c.kind === 'check');
+      const sortRisk = (list: Cell[]) =>
+        [...list].sort((a, b) => Number(!!riskOf(columnById.get(a.offerId)!.offer)) - Number(!!riskOf(columnById.get(b.offerId)!.offer)));
+      const empty = po.exact.length + po.analogs.length === 0;
+      return (
+        <div ref={detailRef} className="min-w-0 scroll-mt-4">
+        <Card className="flex min-w-0 flex-col gap-5 p-4 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="text-lg font-bold text-ink [overflow-wrap:anywhere] sm:text-xl">{active.name}</h3>
+              <p className="mt-0.5 text-sm text-ink-muted">
+                <b className="text-ink">
+                  {active.quantity != null ? active.quantity.toLocaleString('ru-RU') : '—'} {unit(active)}
+                </b>
+                {active.note && (
+                  <>
+                    {' · '}
+                    <NoteWithLinks text={active.note} className="inline" />
+                  </>
+                )}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button type="button" disabled={activeIdx <= 0} onClick={() => go(ordered[activeIdx - 1])} className="rounded-full px-3 py-1.5 text-sm font-medium text-ink-muted hover:text-ink disabled:opacity-40">
+                ← Пред.
+              </button>
+              <button type="button" disabled={activeIdx >= ordered.length - 1} onClick={() => go(ordered[activeIdx + 1])} className="rounded-full bg-ink px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-40">
+                Следующая →
+              </button>
+            </div>
+          </div>
+          {empty ? (
+            <p className="text-sm text-ink-muted">На эту позицию никто не прислал цену. Дозапросить можно в «Письмах».</p>
+          ) : (
+            <>
+              {group('bg-success-bg text-success', 'По запросу', 'то, что просили', sortRisk(po.exact).map((c) => offerRow(active, c, po.bestExact, true)))}
+              {group(
+                'bg-sky-50 text-sky-700',
+                'Аналоги',
+                'другой бренд или артикул, сравниваем отдельно',
+                sortRisk(alts).map((c) => offerRow(active, c, null, false)),
+                <p className="rounded-xl bg-surface-muted px-3 py-2 text-xs text-ink-muted">Аналог — другой товар. Подходит ли он, решаете вы, поэтому «самой низкой цены» по аналогам здесь нет.</p>,
+              )}
+              {group('bg-warning-bg text-warning', 'Уточнить', 'не ясно, то ли это', sortRisk(checks).map((c) => offerRow(active, c, null, false)))}
+            </>
+          )}
+        </Card>
+        </div>
+      );
+    })();
+
+    return (
+      <div className="flex min-w-0 flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-muted">
+            {request.sectionTitle && <span>Раздел сметы «{request.sectionTitle}»</span>}
+            <span className="inline-flex items-center gap-2">
+              <span className="h-1.5 w-24 overflow-hidden rounded-full bg-border">
+                <i className="block h-full bg-success" style={{ width: `${positions.length ? (done.length / positions.length) * 100 : 0}%` }} />
+              </span>
+              решено {done.length} из {positions.length}
+            </span>
+            <span>цены с НДС за объём ведомости</span>
+          </div>
+          <div className="relative" ref={moreRef}>
+            <Button type="button" variant="secondary" icon={<MoreHorizontal className="h-4 w-4" />} onClick={() => setMoreOpen((v) => !v)}>
+              Ещё
+            </Button>
+            {moreOpen && (
+              <div className="absolute right-0 top-full z-20 mt-1 flex w-64 flex-col rounded-xl border border-border bg-surface p-1 shadow-lg" onClick={() => setMoreOpen(false)}>
+                {onShowOldView && (
+                  <button type="button" className={menuItem} onClick={onShowOldView}>
+                    Все цены таблицей
+                  </button>
+                )}
+                {Object.keys(proposal).length > 0 && (
+                  <button type="button" className={menuItem} onClick={() => void saveProposal({})} disabled={saving}>
+                    Очистить выбор
+                  </button>
+                )}
+                {!emptyPositions && columns.length > 0 && (
+                  <button type="button" className={menuItem} onClick={() => void formSupply()} disabled={saving} title="Все невыбранные предложения станут «Не покупаем» — цены останутся в сравнении">
+                    Сформировать поставку
+                  </button>
+                )}
+                {countries.length > 1 && (
+                  <div className="border-t border-border px-3 pb-2 pt-2" onClick={(e) => e.stopPropagation()}>
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Поставщики из</span>
+                    <ToggleGroup options={countries} value={country} onChange={setCountry} />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {error && <p className="text-sm text-danger">{error}</p>}
+
+        {!emptyPositions && unmatchedAll.length > 0 && (
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-warning/40 bg-warning-bg/60 px-4 py-2.5 text-sm text-ink">
+              <span className="min-w-0 flex-1 basis-64 [overflow-wrap:anywhere]">
+                <AlertTriangle className="mr-1.5 inline h-4 w-4 align-[-3px] text-warning" />
+                {unmatchedAll.length} {unmatchedAll.length === 1 ? 'строка' : unmatchedAll.length < 5 ? 'строки' : 'строк'} счетов не {unmatchedAll.length === 1 ? 'привязана' : 'привязаны'} к позициям — их цен здесь не видно
+              </span>
+              <Button type="button" variant="secondary" onClick={() => setFixOpen((v) => !v)}>
+                {fixOpen ? 'Свернуть' : 'Разобрать'}
+              </Button>
+            </div>
+            {fixOpen && (
+              <Card className="flex flex-col gap-3 p-4">
+                {unmatchedPanel}
+                {asidePanel}
+              </Card>
+            )}
+          </div>
+        )}
+
+        {emptyPositions ? (
+          <Card className="p-5">{sectionPicker}</Card>
+        ) : columns.length === 0 ? (
+          <Card className="p-5 text-sm text-ink-faint">Пока никто из «{country}» не прислал КП{countries.length > 1 ? ' — страну можно сменить в «Ещё»' : ''}.</Card>
+        ) : (
+          <>
+            <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-4">
+              {baskets.map(({ col, exactN, analogN, mine, short, allParts, coversAll, risk }) => {
+                const mineParts: MoneyPart[] = mine.map((x) => ({ amount: x.cell.unitPrice * (x.position.quantity ?? 0), currency: x.cell.currency }));
+                const allTotal = moneyTotal(allParts, rate);
+                const allPicked = [...col.currentCells.keys()].length > 0 && [...col.currentCells.keys()].every((pid) => proposal[pid]?.offerId === col.offer.id);
+                return (
+                  <Card key={col.offer.id} className={cn('flex w-72 shrink-0 snap-start flex-col gap-2 p-4 sm:w-auto', risk && 'border border-dashed border-border bg-surface-muted shadow-none')}>
+                    <div className="flex items-start justify-between gap-2">
+                      <button type="button" onClick={() => onOpenDetail(col.offer)} className="min-w-0 truncate text-left text-sm font-bold text-ink hover:underline">
+                        {col.offer.name}
+                      </button>
+                      {risk && <span className="shrink-0 rounded-full bg-danger-bg px-1.5 py-px text-[10.5px] font-semibold text-danger">риск</span>}
+                    </div>
+                    {risk && <p className="-mt-1 text-xs font-semibold text-danger">{risk}</p>}
+                    <div className="flex h-1.5 overflow-hidden rounded-full bg-border">
+                      <i className="block h-full bg-success" style={{ width: `${positions.length ? (exactN / positions.length) * 100 : 0}%` }} />
+                      <i className="block h-full bg-sky-400" style={{ width: `${positions.length ? (analogN / positions.length) * 100 : 0}%` }} />
+                    </div>
+                    <p className="text-xs text-ink-muted">
+                      Закрывает{' '}
+                      <b className="text-ink">
+                        {exactN + analogN} из {positions.length}
+                      </b>
+                      : {exactN} по запросу{analogN ? `, ${analogN} ${analogN === 1 ? 'аналог' : analogN < 5 ? 'аналога' : 'аналогов'}` : ''}
+                    </p>
+                    <p className="text-xs text-ink-muted">{termsLine(col)}</p>
+                    {short > 0 && <p className="text-xs font-semibold text-warning">⚠ {short} поз. — не весь объём</p>}
+                    {col.unmatched.length > 0 && (
+                      <button type="button" onClick={() => setFixOpen(true)} className="self-start text-left text-xs font-medium text-warning underline decoration-dotted underline-offset-2">
+                        ⚠ {col.unmatched.length} {col.unmatched.length === 1 ? 'строка' : col.unmatched.length < 5 ? 'строки' : 'строк'} счёта без позиции — привязать
+                      </button>
+                    )}
+                    <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2 text-xs">
+                      <span className="text-ink-muted">
+                        В заказе: {mine.length ? <b className="tabular-nums text-ink">{mine.length} поз. · {sumMoney(mineParts, rate)}</b> : '—'}
+                      </span>
+                      {!risk && coversAll && !allPicked ? (
+                        <button type="button" disabled={saving} onClick={() => toggleColumn(col)} className="rounded-full bg-ink px-3 py-1 text-xs font-semibold text-white">
+                          Всё у них{allTotal ? ` · ${formatMoney(allTotal.amount, allTotal.currency)}` : ''}
+                        </button>
+                      ) : (
+                        <span className="text-ink-faint">{risk ? 'не предлагаем' : allPicked ? 'всё выбрано у них' : coversAll ? '' : 'не всё есть'}</span>
+                      )}
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] lg:items-start">
+              <div className={cn(glassCardClass, 'overflow-hidden')} style={glassCardShadow}>
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+                  <b className="text-sm text-ink">Позиции · {positions.length}</b>
+                  <ToggleGroup options={['Все', 'Решить', 'Готово']} value={listFilter} onChange={(v) => setListFilter(v as typeof listFilter)} badges={{ Решить: todo.length }} />
+                </div>
+                {listFilter === 'Все' ? (
+                  <>
+                    {todo.length + none.length > 0 && (
+                      <div className="bg-surface-muted px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                        Ждут решения · {todo.length}
+                        {none.length ? ` + ${none.length} без предложений` : ''}
+                      </div>
+                    )}
+                    {[...todo, ...none].map(posRow)}
+                    {done.length > 0 && <div className="bg-surface-muted px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Решено · {done.length}</div>}
+                    {done.map(posRow)}
+                  </>
+                ) : listFiltered.length ? (
+                  listFiltered.map(posRow)
+                ) : (
+                  <p className="px-4 py-6 text-center text-sm text-ink-faint">{listFilter === 'Решить' ? 'Всё решено' : 'Пока ничего не выбрано'}</p>
+                )}
+              </div>
+              {detail}
+            </div>
+
+            <div className="z-10 flex flex-col gap-3 rounded-3xl border border-border bg-surface p-4 shadow-lg sm:sticky sm:bottom-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-2">
+                {futureOrders.map(({ col, lines }, i) => {
+                  const parts: MoneyPart[] = lines.map((x) => ({ amount: x.cell.unitPrice * (x.position.quantity ?? 0), currency: x.cell.currency }));
+                  if (col.delivery != null) parts.push({ amount: col.delivery, currency: col.deliveryCurrency });
+                  return (
+                    <div key={col.offer.id} className="hidden min-w-0 text-xs text-ink-muted md:block">
+                      Заказ {i + 1} · {col.offer.name}
+                      <b className="block text-sm tabular-nums text-ink">
+                        {lines.length} поз. · {sumMoney(parts, rate)}
+                      </b>
+                    </div>
+                  );
+                })}
+                <div className="min-w-0 text-xs text-ink-muted md:border-l md:border-border md:pl-6">
+                  Решено {done.length} из {positions.length}
+                  {futureOrders.length ? ` · ${futureOrders.length} ${futureOrders.length === 1 ? 'заказ' : futureOrders.length < 5 ? 'заказа' : 'заказов'}` : ''}
+                  <b className="block text-lg tabular-nums text-ink">{pickedCells.length ? total : '—'}</b>
+                  {todo.length > 0 && <span className="block font-semibold text-warning">ещё {todo.length} без решения</span>}
+                  {pickedDelivery.length > 0 && <span className="block">с доставкой</span>}
+                </div>
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <Button type="button" variant="secondary" icon={<FileDown className="h-4 w-4" />} onClick={() => void exportPdf()} disabled={exportingPdf || pickedCells.length === 0}>
+                  {exportingPdf ? 'Готовим PDF…' : 'Скачать PDF'}
+                </Button>
+                <Button type="button" icon={<Package className="h-4 w-4" />} onClick={() => void createOrders()} disabled={creatingOrders || saving || futureOrders.length === 0}>
+                  {creatingOrders ? 'Создаём…' : futureOrders.length > 1 ? `Создать ${futureOrders.length} ${futureOrders.length < 5 ? 'заказа' : 'заказов'}` : 'Создать заказ'}
+                </Button>
+              </div>
+            </div>
+            {orders.length > 0 && (
+              <Link to="/admin/purchases?tab=orders" className="self-start text-sm text-ink-muted underline decoration-border-strong underline-offset-4 hover:text-ink">
+                Уже созданные заказы по категории ({orders.length})
+              </Link>
+            )}
+            {ordersError && <p className="text-xs text-danger">{ordersError}</p>}
+          </>
+        )}
+        {sendModal}
+      </div>
+    );
   }
 
   if (layout === 'new') {

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Bot, Check, ExternalLink, FileText, Globe, ImageOff, Loader2, Mail, MessageCircle, Paperclip, Pencil, Phone, Plus, Send, ShieldCheck, Trash2, Upload, Users, X } from 'lucide-react';
+import { AlertTriangle, Bot, Check, ChevronDown, ExternalLink, FileText, Globe, ImageOff, Loader2, Mail, MessageCircle, Paperclip, Pencil, Phone, Plus, Send, ShieldCheck, Trash2, Upload, Users, X } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -1154,7 +1154,11 @@ export function Suppliers() {
   // внутри useEffect: сама страница в этом случае не нужна вовсе.
   const movedToOwnPage = searchParams.get('tab') === 'contractors';
   const tab: SupplierTab = SLUG_TO_SUPPLIER_TAB[searchParams.get('tab') ?? ''] ?? 'Письма';
-  const comparisonView: 'new' | 'old' = searchParams.get('cview') === 'old' ? 'old' : 'new';
+  // Вид «Сравнения цен»: 'decide' — «кому что заказать» (третий макет,
+  // 2026-09-28, по умолчанию), 'new' — таблица «по запросу / аналоги»
+  // (?cview=v2), 'old' — прежняя матрица (?cview=old).
+  const comparisonView: 'decide' | 'new' | 'old' =
+    searchParams.get('cview') === 'old' ? 'old' : searchParams.get('cview') === 'v2' ? 'new' : 'decide';
   const comparisonCategoryId = searchParams.get('cat') ?? '';
   function setComparisonParam(key: string, value: string | null) {
     setSearchParams(
@@ -1167,7 +1171,7 @@ export function Suppliers() {
       { replace: true },
     );
   }
-  const setComparisonView = (v: 'new' | 'old') => setComparisonParam('cview', v === 'old' ? 'old' : null);
+  const setComparisonView = (v: 'decide' | 'new' | 'old') => setComparisonParam('cview', v === 'old' ? 'old' : v === 'new' ? 'v2' : null);
   const setComparisonCategoryId = (id: string) => setComparisonParam('cat', id);
   function setTab(next: SupplierTab) {
     setSearchParams(
@@ -2621,7 +2625,7 @@ export function Suppliers() {
                 </Card>
               );
             }
-            const renderCard = (r: SupplierRequest, layout: 'new' | 'old') =>
+            const renderCard = (r: SupplierRequest, layout: 'decide' | 'new' | 'old') =>
                 r.comparisonMode === 'lot' ? (
                   <LotPriceComparisonCard
                     key={r.id}
@@ -2644,7 +2648,7 @@ export function Suppliers() {
                   <PriceComparisonCard
                     key={r.id}
                     layout={layout}
-                    onShowOldView={layout === 'new' ? () => setComparisonView('old') : undefined}
+                    onShowOldView={layout !== 'old' ? () => setComparisonView('old') : undefined}
                     request={r}
                     positions={
                       estimates.find((e) => e.id === r.estimateId)?.sections.find((sec) => sec.id === r.sectionId)?.materials ?? []
@@ -2678,9 +2682,9 @@ export function Suppliers() {
             const viewToggle = (
               <div className="flex justify-end">
                 <ToggleGroup
-                  options={['Новый вид', 'Старый вид']}
-                  value={comparisonView === 'old' ? 'Старый вид' : 'Новый вид'}
-                  onChange={(v) => setComparisonView(v === 'Старый вид' ? 'old' : 'new')}
+                  options={['Новый', 'Прошлый', 'Старый']}
+                  value={comparisonView === 'old' ? 'Старый' : comparisonView === 'new' ? 'Прошлый' : 'Новый'}
+                  onChange={(v) => setComparisonView(v === 'Старый' ? 'old' : v === 'Прошлый' ? 'new' : 'decide')}
                 />
               </div>
             );
@@ -2712,6 +2716,36 @@ export function Suppliers() {
               const kp = offers.filter((o) => o.requestId === r.id && offerCommunicationStatus(o, supplierEmails) === 'confirmed').length;
               return { text: `${kp} КП · выбор не начат`, tone: 'muted' };
             };
+            if (comparisonView === 'decide') {
+              return (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <label className="relative inline-flex max-w-full items-center">
+                      <select
+                        value={current.id}
+                        onChange={(e) => setComparisonCategoryId(e.target.value)}
+                        className="max-w-full appearance-none truncate rounded-2xl border border-border bg-surface py-2.5 pl-4 pr-10 text-lg font-bold text-ink shadow-sm outline-none focus:border-primary sm:text-xl"
+                      >
+                        {groups.map(({ group, requestsWithOffers }) =>
+                          requestsWithOffers.length === 0 ? null : (
+                            <optgroup key={group} label={SUPPLIER_REQUEST_GROUP_LABELS[group]}>
+                              {requestsWithOffers.map((r) => (
+                                <option key={r.id} value={r.id}>
+                                  {r.title} — {statusOf(r).text}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ),
+                        )}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 h-5 w-5 text-ink-muted" />
+                    </label>
+                    {viewToggle}
+                  </div>
+                  {renderCard(current, 'decide')}
+                </>
+              );
+            }
             const toneClass = { muted: 'text-ink-muted', warn: 'text-warning', ok: 'text-success', bad: 'text-danger' } as const;
             const dotClass = { muted: 'bg-ink-faint', warn: 'bg-warning', ok: 'bg-success', bad: 'bg-danger' } as const;
             return (
