@@ -93,12 +93,19 @@ def links(h, base):
     for m in re.finditer(r'(?is)<a\b[^>]*href=["\']([^"\'#]+)["\'][^>]*>(.*?)</a>', h):
         href = html.unescape(m.group(1).strip())
         text = re.sub(r'\s+', ' ', html.unescape(re.sub(r'<[^>]+>', ' ', m.group(2)))).strip()
-        out.append((urljoin(base, href), text[:150]))
+        try:
+            out.append((urljoin(base, href), text[:150]))
+        except ValueError:
+            # Битая ссылка вида http://[461…] — urlparse падает на ней целиком.
+            continue
     return out
 
 
 def same_site(url, host):
-    h = (urlparse(url).hostname or '').lower()
+    try:
+        h = (urlparse(url).hostname or '').lower()
+    except ValueError:
+        return False
     h = h[4:] if h.startswith('www.') else h
     return h == host or h.endswith('.' + host)
 
