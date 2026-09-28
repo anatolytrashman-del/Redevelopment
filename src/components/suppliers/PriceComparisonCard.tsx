@@ -684,6 +684,14 @@ export function PriceComparisonCard({
     }
   }
 
+  // «Уточнить» в виде «кому что заказать»: человек сам решает, что это за
+  // строка счёта — ровно то, аналог или вообще не то (тогда строка уходит
+  // в тихий список «не позиции ведомости»).
+  function resolveCheck(cell: Cell, kind: 'exact' | 'alternative' | 'none') {
+    const patch: ItemPatch = kind === 'none' ? { sourceMaterialId: null, matchKind: 'none', unitPrice: null } : { matchKind: kind };
+    void run('Не удалось изменить вид соответствия', () => applyPatches([{ offerId: cell.offerId, itemId: cell.itemId, patch }]));
+  }
+
   function cycleKind(cell: Cell) {
     const next = KIND_CYCLE[(KIND_CYCLE.indexOf(cell.kind) + 1) % KIND_CYCLE.length];
     void run('Не удалось изменить вид соответствия', () => applyPatches([{ offerId: cell.offerId, itemId: cell.itemId, patch: { matchKind: next } }]));
@@ -1633,9 +1641,25 @@ export function PriceComparisonCard({
           <div className="col-span-2 flex items-center justify-between gap-2 sm:col-span-1 sm:justify-end">
             <span className="text-xs tabular-nums text-ink-muted sm:hidden">{p.quantity != null ? formatMoney(c.unitPrice * p.quantity, c.currency) : ''}</span>
             {c.kind === 'check' ? (
-              <button type="button" onClick={() => onOpenDetail(col.offer)} className="rounded-full border border-border-strong px-3 py-1 text-xs font-semibold text-ink hover:border-ink">
-                Уточнить
-              </button>
+              <div className="flex flex-wrap justify-end gap-1">
+                {(
+                  [
+                    ['exact', 'То же'],
+                    ['alternative', 'Аналог'],
+                    ['none', 'Не то'],
+                  ] as const
+                ).map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    disabled={saving}
+                    onClick={() => resolveCheck(c, k)}
+                    className="rounded-full border border-border-strong bg-surface px-2.5 py-1 text-xs font-semibold text-ink hover:border-ink"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             ) : (
               <button
                 type="button"
