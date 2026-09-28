@@ -355,6 +355,7 @@ export function PriceComparisonCard({
   onOpenDetail,
   onRequestSaved,
   onQuotesChange,
+  onRepeatSend,
   onOfferUpdated,
   renderBadges,
   reliabilityByInn,
@@ -380,6 +381,9 @@ export function PriceComparisonCard({
   onOpenDetail: (o: SupplierOffer) => void;
   onRequestSaved: (r: SupplierRequest) => void;
   onQuotesChange: (update: (prev: SupplierQuote[]) => SupplierQuote[]) => void;
+  // Повторить рассылку по этой закупке/категории (владелец, 2026-09-28:
+  // кнопку «Массовая отправка» убрали, повтор прошлой рассылки — отсюда).
+  onRepeatSend?: () => void;
   onOfferUpdated: (o: SupplierOffer) => void;
   // Бейджи верификации/благонадёжности живут в Suppliers.tsx вместе со своим
   // состоянием — сюда приходят готовыми.
@@ -1938,11 +1942,18 @@ export function PriceComparisonCard({
                 )}
               </div>
             </div>
-            {orders.length > 0 && (
-              <Link to="/admin/purchases?tab=orders" className="self-start text-sm text-ink-muted underline decoration-border-strong underline-offset-4 hover:text-ink">
-                Заказы по категории во вкладке «Заказы» ({orders.length})
-              </Link>
-            )}
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              {orders.length > 0 && (
+                <Link to="/admin/purchases?tab=orders" className="text-sm text-ink-muted underline decoration-border-strong underline-offset-4 hover:text-ink">
+                  Заказы по категории во вкладке «Заказы» ({orders.length})
+                </Link>
+              )}
+              {onRepeatSend && (
+                <button type="button" onClick={onRepeatSend} className="text-sm text-ink-muted underline decoration-border-strong underline-offset-4 hover:text-ink">
+                  Разослать ещё раз или исправить ведомость
+                </button>
+              )}
+            </div>
             {ordersError && <p className="text-xs text-danger">{ordersError}</p>}
           </>
         )}

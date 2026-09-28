@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FileSpreadsheet, Loader2, Search, Send, TriangleAlert } from 'lucide-react';
+import { FileSpreadsheet, FileText, Loader2, Search, Send, TriangleAlert } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -36,9 +36,6 @@ import { matchOfferProduct, normalizeSearch } from './productSearch';
 // той же механике, что у категорий, и ничего переделывать не пришлось.
 
 const NO_LEGAL_ENTITY = 'Без карточки организации';
-// Сколько поставщиков на позицию отмечаем по умолчанию: жадно, от самых
-// полных по покрытию. Всех подряд — это сотни писем на ходовой товар.
-const DEFAULT_PER_POSITION = 10;
 const FIRST_PAGE = 40;
 
 const ADJECTIVE_ENDING = /(ая|яя|ый|ий|ой|ое|ее|ые|ие|ую|юю)$/;
@@ -190,19 +187,12 @@ export function RequestPricesModal({
     return { companies: list, countByItem: counts };
   }, [pool, items, keywords, snapshotByHost]);
 
-  // Отметка по умолчанию: идём от самых полных и берём компанию, если хоть
-  // по одной её позиции ещё нет DEFAULT_PER_POSITION отмеченных.
+  // По умолчанию отмечены все подходящие (владелец, 2026-09-28: «по
+  // умолчанию пусть выбираются все поставщики, подходящие под условия»).
   const [selected, setSelected] = useState<Set<string>>(new Set());
   useEffect(() => {
-    const perItem = items.map(() => 0);
-    const next = new Set<string>();
-    for (const c of companies) {
-      if (!c.covers.some((i) => perItem[i] < DEFAULT_PER_POSITION)) continue;
-      next.add(c.key);
-      for (const i of c.covers) perItem[i] += 1;
-    }
-    setSelected(next);
-  }, [companies, items]);
+    setSelected(new Set(companies.map((c) => c.key)));
+  }, [companies]);
 
   const [showAll, setShowAll] = useState(false);
   const shown = showAll ? companies : companies.slice(0, FIRST_PAGE);
@@ -470,6 +460,36 @@ export function RequestPricesModal({
                         </div>
                       </div>
                     </div>
+                    {/* Карточку организации и информацию по доставке
+                        прикладывает воркер рассылки к первому письму
+                        поставщику (process-bulk-send-jobs) — у карточки в
+                        новой закупке первое письмо всегда это. */}
+                    {legalEntity &&
+                      [
+                        { file: legalEntity.cardFile, label: 'Карточка организации' },
+                        { file: legalEntity.deliveryFile, label: 'Адрес и условия доставки' },
+                      ].map(({ file, label }) =>
+                        file ? (
+                          <a
+                            key={label}
+                            href={file.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-3 rounded-xl border border-border bg-surface-muted p-3 hover:border-ink-faint"
+                          >
+                            <FileText className="h-6 w-6 shrink-0 text-primary" />
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-semibold text-ink">{file.fileName}</div>
+                              <div className="text-xs text-ink-muted">{label}</div>
+                            </div>
+                          </a>
+                        ) : (
+                          <p key={label} className="flex gap-1.5 text-xs text-warning">
+                            <TriangleAlert className="h-3.5 w-3.5 shrink-0 translate-y-0.5" />
+                            {label}: у юрлица файла нет — письмо уйдёт без него. Загрузите его в карточке юрлица.
+                          </p>
+                        ),
+                      )}
                   </div>
                 </section>
                 <section className={sectionClass}>
