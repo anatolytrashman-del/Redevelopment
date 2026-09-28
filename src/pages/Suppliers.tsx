@@ -205,7 +205,10 @@ function siteLabel(url: string): string {
 // же днём убрал первую версию с редактируемым чек-листом категорий — "не
 // будем отмечать категории вручную". См.
 // components/suppliers/SupplierVerificationTab.tsx.
-const SUPPLIER_TABS = ['Поставщики', 'Верификация', 'Сравнение цен', 'Заказы', 'Ведомости материалов', 'Письма'] as const;
+// Владелец, 2026-09-28: порядок пунктов — Письма, Сравнение цен, Поставщики,
+// Ведомости материалов, Заказы. Первая вкладка — она же открывается по
+// голому /admin/purchases (см. fallback у `tab` ниже).
+const SUPPLIER_TABS = ['Письма', 'Сравнение цен', 'Поставщики', 'Верификация', 'Ведомости материалов', 'Заказы'] as const;
 type SupplierTab = (typeof SUPPLIER_TABS)[number];
 
 // Владелец, 2026-09-15: "вкладку Верификация убираем из верхнего меню и
@@ -1150,7 +1153,7 @@ export function Suppliers() {
   // любых хуков ниже не спрячется — поэтому отдельной строкой здесь, а не
   // внутри useEffect: сама страница в этом случае не нужна вовсе.
   const movedToOwnPage = searchParams.get('tab') === 'contractors';
-  const tab: SupplierTab = SLUG_TO_SUPPLIER_TAB[searchParams.get('tab') ?? ''] ?? 'Поставщики';
+  const tab: SupplierTab = SLUG_TO_SUPPLIER_TAB[searchParams.get('tab') ?? ''] ?? 'Письма';
   function setTab(next: SupplierTab) {
     setSearchParams(
       (prev) => {
@@ -2444,9 +2447,13 @@ export function Suppliers() {
               1 клик». Кнопка на уровне меню раздела, а не внутри поставки:
               закупщица приходит сюда с файлом на руках, не зная (и не обязана
               знать), в какой поставке он должен оказаться. */}
-          <Button type="button" variant="secondary" icon={<Upload className="h-4 w-4" />} onClick={() => setQuoteUploadOpen(true)}>
-            Загрузить КП
-          </Button>
+          {/* Владелец, 2026-09-28: на вкладке «Письма» кнопки нет — там КП
+              и так приходят письмами. */}
+          {tab !== 'Письма' && (
+            <Button type="button" variant="secondary" icon={<Upload className="h-4 w-4" />} onClick={() => setQuoteUploadOpen(true)}>
+              Загрузить КП
+            </Button>
+          )}
           {/* Владелец, 2026-09-04: "перенеси Шаблоны направо, на уровень меню
               Поставщики/Письма, но видна только когда открываешь Письма". */}
           {tab === 'Письма' && (
