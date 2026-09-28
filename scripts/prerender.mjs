@@ -196,6 +196,7 @@ const ALWAYS_FULL_RENDER_PATHS = new Set(['minsk/minsk-mir', 'minsk/one']);
 
 const STATIC_PATHS = [
   'minsk',
+  'privacy',
   'minsk/analytics',
   'minsk/analytics/metodika',
   'minsk/analytics/ofisy/arenda',

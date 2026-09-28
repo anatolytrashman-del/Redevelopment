@@ -29,7 +29,7 @@ import { next } from '@vercel/functions';
 // общий клиентский `<Route path="/:legacySlug">` в App.tsx это лишь
 // backward-compat подстраховка на случай появления новых слагов ТАКОГО ЖЕ
 // старого паттерна, а не признак того, что такой путь существует сегодня.
-const EXACT_PATHS = new Set<string>(['/', '/one', '/redstorage', '/rayon-minsk-mir', '/business-upload']);
+const EXACT_PATHS = new Set<string>(['/', '/one', '/redstorage', '/rayon-minsk-mir', '/business-upload', '/privacy']);
 
 // Префиксы реальных разделов (без хвостового "/" — сравниваем через
 // `=== prefix` или `startsWith(prefix + '/')`, см. isKnownPath).
