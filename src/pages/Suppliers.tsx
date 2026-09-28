@@ -61,6 +61,7 @@ import { EmailThread, SupplierCorrespondenceTab, countUnreadSupplierEmails, type
 import { MaterialLedgerModal } from '../components/suppliers/MaterialLedgerModal';
 import { MasterLedgerCard } from '../components/suppliers/MasterLedgerCard';
 import { BulkSendModal } from '../components/suppliers/BulkSendModal';
+import { RequestPricesModal } from '../components/suppliers/RequestPricesModal';
 import { SupplierMergeModal, type SupplierMergePlan } from '../components/suppliers/SupplierMergeModal';
 import { SupplierCatalog } from '../components/suppliers/SupplierCatalog';
 import { PriceComparisonCard } from '../components/suppliers/PriceComparisonCard';
@@ -87,7 +88,7 @@ import { AutoReplyRulesModal } from '../components/suppliers/AutoReplyRules';
 import type { MaterialLedger } from '../data/materialLedgers';
 import { fetchMaterialLedgers, deleteMaterialLedger } from '../lib/materialLedgersApi';
 import { buildMasterLedgers, isMasterLedgerId } from '../lib/masterLedger';
-import { syncLedgersWithEstimates } from '../lib/ledgerSync';
+import { estimateMaterialsById, syncLedgersWithEstimates } from '../lib/ledgerSync';
 import type { SupplierOrder } from '../data/supplierOrders';
 import { fetchSupplierOrders } from '../lib/supplierOrdersApi';
 import type { SupplierQuote } from '../data/supplierQuotes';
@@ -1222,6 +1223,8 @@ export function Suppliers() {
   // «Массовая отправка» — кнопка в шапке вкладки, категория выбирается в
   // маленьком окне перед пикером ведомости.
   const [bulkCategoryPickOpen, setBulkCategoryPickOpen] = useState(false);
+  // «Запросить цены» — рассылка от ведомости (2026-09-28, RequestPricesModal).
+  const [requestPricesOpen, setRequestPricesOpen] = useState(false);
   const [bulkCategoryId, setBulkCategoryId] = useState('');
   const [bulkSendConfig, setBulkSendConfig] = useState<{ request: SupplierRequest; attachment: LedgerAttachment } | null>(null);
 
@@ -1662,6 +1665,22 @@ export function Suppliers() {
     () => syncLedgersWithEstimates(materialLedgers, estimates),
     [materialLedgers, estimates],
   );
+
+  // Позиции сравнения цен. У закупки по ведомости (2026-09-28) — материалы
+  // сметы из её ведомости, они могут быть из разных разделов; у обычной
+  // категории — материалы привязанного раздела сметы, как раньше.
+  const materialsById = useMemo(() => estimateMaterialsById(estimates), [estimates]);
+  function requestPositions(r: SupplierRequest): EstimateMaterial[] {
+    if (r.ledgerId) {
+      const ledger = syncedMaterialLedgers.find((l) => l.id === r.ledgerId);
+      if (ledger) {
+        return ledger.items
+          .map((item) => (item.sourceMaterialId ? materialsById.get(item.sourceMaterialId) : undefined))
+          .filter((m): m is EstimateMaterial => !!m);
+      }
+    }
+    return estimates.find((e) => e.id === r.estimateId)?.sections.find((sec) => sec.id === r.sectionId)?.materials ?? [];
+  }
 
   const scopedMaterialLedgers = useMemo(
     () => (ledgerEstimateId ? syncedMaterialLedgers.filter((l) => l.estimateId === ledgerEstimateId) : []),
@@ -2480,6 +2499,9 @@ export function Suppliers() {
               Поставщики/Письма, но видна только когда открываешь Письма". */}
           {tab === 'Письма' && (
             <>
+              <Button type="button" icon={<Send className="h-4 w-4" />} onClick={() => setRequestPricesOpen(true)}>
+                Запросить цены
+              </Button>
               <Button
                 type="button"
                 variant="secondary"
@@ -2643,9 +2665,7 @@ export function Suppliers() {
                     key={r.id}
                     layout={layout}
                     request={r}
-                    positions={
-                      estimates.find((e) => e.id === r.estimateId)?.sections.find((sec) => sec.id === r.sectionId)?.materials ?? []
-                    }
+                    positions={requestPositions(r)}
                     offers={offers.filter((o) => o.requestId === r.id)}
                     emails={supplierEmails}
                     quotes={supplierQuotes}
@@ -2674,7 +2694,7 @@ export function Suppliers() {
               if (r.comparisonMode === 'lot') return { text: 'Сравнение лотом', tone: 'muted' };
               // Статусы согласования не показываем: сам поток выключен
               // (владелец, 2026-09-28, см. APPROVAL_FLOW_ENABLED в PriceComparisonCard).
-              const total = estimates.find((e) => e.id === r.estimateId)?.sections.find((sec) => sec.id === r.sectionId)?.materials.length ?? 0;
+              const total = requestPositions(r).length;
               const picked = Object.keys(r.proposal ?? {}).length;
               if (picked > 0) return { text: `Выбор: ${picked} из ${total}`, tone: 'warn' };
               const kp = offers.filter((o) => o.requestId === r.id && offerCommunicationStatus(o, supplierEmails) === 'confirmed').length;
@@ -3676,6 +3696,22 @@ export function Suppliers() {
         onRulesChange={setAutoReplyRules}
         onSettingsChange={setAutoReplySettings}
       />
+
+      {requestPricesOpen && (
+        <RequestPricesModal
+          ledgers={syncedMaterialLedgers}
+          offers={offers}
+          requests={requests}
+          emails={supplierEmails}
+          snapshotByHost={snapshotByHost}
+          legalEntities={legalEntities}
+          onClose={() => setRequestPricesOpen(false)}
+          onCreated={(request, added) => {
+            setRequests((prev) => [request, ...prev]);
+            setOffers((prev) => [...prev, ...added]);
+          }}
+        />
+      )}
 
       {bulkSendConfig && (
         <BulkSendModal

@@ -180,7 +180,7 @@ function pastSendLabel(job: PastBulkSend): string {
   return parts.join(' · ');
 }
 
-function defaultBulkBody(): string {
+export function defaultBulkBody(): string {
   return `Добрый день.
 
 Планируем закупку материала согласно ведомости, прикрепленной к письму. Просьба прислать коммерческое предложение/счёт по позициям, которые можете поставить — на каждую позицию готовы рассмотреть альтернативы.
